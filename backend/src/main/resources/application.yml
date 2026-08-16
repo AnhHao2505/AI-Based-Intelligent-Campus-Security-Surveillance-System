@@ -1,0 +1,43 @@
+spring:
+  application:
+    name: campus-security-backend
+
+  # Cấu hình kết nối PostgreSQL — externalized, không hardcode (nguyên tắc zero-hardcode)
+  # Naming POSTGRES_DB/POSTGRES_USER/POSTGRES_PASSWORD khớp convention chuẩn
+  # của official Postgres Docker image, dùng chung được với docker-compose.yml
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${POSTGRES_DB:campus_security}
+    username: ${POSTGRES_USER:sep}
+    password: ${POSTGRES_PASSWORD:123456}
+    driver-class-name: org.postgresql.Driver
+
+  # Cấu hình Hibernate/JPA — Flyway quản lý toàn bộ schema, Hibernate chỉ validate
+  jpa:
+    hibernate:
+      ddl-auto: validate # Tắt tính năng tự tạo bảng của Hibernate, nhường toàn quyền cho Flyway
+    show-sql: true
+    open-in-view: false # Tránh LazyInitializationException bị che giấu / query N+1 không kiểm soát
+    properties:
+      hibernate:
+        format_sql: true
+        # Không khai báo dialect thủ công — Hibernate 6.x (Spring Boot 3.x) tự detect
+        # từ JDBC URL, khai báo tay là thừa không cần thiết
+
+  # Cấu hình Flyway
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+
+# Actuator — health check, Phase 1 Definition of Done: GET /actuator/health -> 200 OK
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+server:
+  port: 8080

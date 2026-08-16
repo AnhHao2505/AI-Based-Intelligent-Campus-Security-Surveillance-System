@@ -1,0 +1,202 @@
+ 
+ 
+CAPSTONE PROJECT REGISTER 
+ 
+Class:            Duration time:  from 09/2026 To 03/2027
+(*) Profession: Software Engineer                   Specialty: SE                           
+(*) Kinds of person make registers:               	Lecturer                	Students  
+ 
+1. Register information for supervisor (if have) 
+No.
+Full name
+Phone
+E-Mail 
+Title 
+  Supervisor 
+	Thân Thị Ngọc Vân
+
+vanttn@fpt.edu.vn
+
+2. Register information for students (if have) 
+ 
+Full name 
+Student code 
+Phone 
+E-mail 
+Role in Group 
+1
+
+
+
+
+ 
+2
+
+
+
+
+ 
+3
+
+
+
+
+ 
+4
+
+
+
+
+ 
+5
+
+
+
+
+
+ 
+3. Register content of Capstone Project 
+(*) 3.1. Capstone Project name: 
+English: Develop an AI-Based Intelligent Campus Security Surveillance System for Restricted Area Access Control in Tân Uyên FPTU Campus.
+Vietnamese: Xây dựng hệ thống giám sát an ninh thông minh dựa trên AI nhằm kiểm soát truy cập vào khu vực hạn chế trong khuôn viên trường đại học FPT cơ sở Tân Uyên
+a. Context:
+Tân Uyên FPTU campus are becoming complex, consisting of academic buildings, laboratories, data centers, research facilities, server rooms, electrical control rooms, and construction zones. Many of these areas contain valuable equipment or sensitive information and should only be accessed by authorized personnel. However, conventional security solutions primarily rely on security guards, surveillance cameras, and manual monitoring. Since operators must continuously observe multiple video streams, suspicious activities can easily be overlooked, leading to delayed responses and potential security incidents.
+With the construction of the new FPT University Ho Chi Minh City campus in Tan Uyen, Binh Duong, the demand for intelligent campus security has become increasingly important. The university requires a proactive monitoring system capable of automatically identifying unauthorized access, reducing dependence on manual surveillance, and providing timely alerts to security personnel.
+Recent advances in Artificial Intelligence, particularly computer vision and deep learning, enable surveillance systems to detect and recognize people in real time. By integrating AI with campus surveillance cameras and access control information, the system can identify authorized personnel, detect unknown individuals entering restricted areas, monitor access violations, and provide immediate notifications. The system can also maintain historical access records, generate security reports, and support security investigations through searchable event logs.
+This project proposes the development of an AI-based intelligent campus security surveillance system that continuously monitors restricted areas, automatically detects suspicious activities, assists security staff in real-time decision-making, and improves the overall safety and operational efficiency of the FPTU HCM campus.
+Functional requirement :
+The system shall:
+● Monitor live video streams from surveillance cameras.
+● Detect human presence using AI-based computer vision.
+● Identify authorized and unauthorized individuals.
+● Detect unauthorized entry into restricted areas.
+● Generate real-time security alerts.
+● Display incident locations on a campus map.
+● Record security events with timestamps and captured images.
+● Allow security officers to review and validate AI detection results.
+● Maintain historical surveillance logs.
+● Generate daily, weekly, and monthly security reports.
+● Search security incidents by person, location, or time.
+● Configure restricted zones and access permissions.
+Non-functional requirement:
+Performance
+The system shall detect unauthorized access events and generate alerts within 3 seconds after a person enters a restricted area.
+Security
+The system shall implement role-based access control (RBAC), secure authentication, encrypted communication, and secure storage of surveillance data to protect sensitive security information.
+Reliability
+The system shall provide continuous monitoring with a minimum system availability of 99.5% and ensure that surveillance events are recorded reliably even during temporary network interruptions.
+ (*) 3.2. Main proposal content (including result and product)   
+Proposed Solutions:
+The proposed system integrates AI-powered computer vision with existing surveillance cameras to automatically monitor restricted areas within the campus. The system identifies authorized and unauthorized individuals, detects access violations in real time, generates instant alerts, records security events, and provides a centralized dashboard for campus security management. The solution supports both automated surveillance and manual verification by security personnel.
+Actors and Functional Responsibilities
+1. System Administrator
+The System Administrator shall be able to:
+● Manage user accounts and roles.
+● Configure restricted areas.
+● Configure surveillance cameras.
+● Manage AI detection parameters.
+● Configure notification policies.
+● View system audit logs.
+2. Security Officer
+The Security Officer shall be able to:
+● Monitor live camera streams.
+● Receive real-time security alerts.
+● Review AI-detected incidents.
+● Verify or dismiss AI detection results.
+● Search historical security events.
+● Generate security reports.
+3. Facility Manager
+The Facility Manager shall be able to:
+● Manage restricted areas.
+● Configure access permissions.
+● View security statistics.
+● Monitor security dashboards.
+● Review access history.
+4. Authorized Staff / Lecturer
+The Authorized User shall be able to:
+● View personal access history.
+● Receive notifications related to access events.
+● Submit access authorization requests (optional).
+5. AI Surveillance Engine (System Actor)
+The AI Surveillance Engine shall be able to:
+● Detect human presence.
+● Recognize authorized personnel.
+● Detect unauthorized individuals.
+● Detect entry into restricted areas.
+● Generate real-time alerts.
+● Record AI detection logs.
+Applied Theory:
+Students are expected to study and apply knowledge in the following areas:
+Software Engineering
+● Software Requirements Engineering
+● Object-Oriented Analysis and Design
+● Software Architecture
+● RESTful API Development
+Artificial Intelligence
+● Computer Vision
+● Deep Learning for Object Detection
+● Face Detection and Recognition (optional)
+● Human Detection using YOLO or similar models
+● Image Classification
+Security
+● Access Control
+● Authentication and Authorization
+● Event Logging and Audit Trails
+Database and Cloud
+● PostgreSQL / MySQL
+● File Storage
+● Docker
+● Cloud Deployment
+Recommended Technologies
+● Spring Boot or ASP.NET Core
+● ReactJS or Angular
+● OpenCV
+● YOLOv8 (or equivalent pre-trained model)
+● PostgreSQL
+● WebSocket for real-time notifications
+Products (Expected Deliverables):
+The final product shall include:
+Web Application
+● Security management dashboard
+● Live surveillance monitoring
+● AI incident management
+● Restricted area management
+● Security reporting module
+AI Detection Service
+● Real-time person detection
+● Unauthorized access detection
+● Event classification
+● Alert generation
+Mobile Application (Optional)
+● Real-time security notifications
+● Incident review
+● Alert acknowledgement
+Proposed Tasks:
+Package 1 Requirement Analysis
+Analyze campus security requirements, restricted-area scenarios, stakeholder needs, and AI surveillance objectives.
+Package 2  System Design
+Design the overall system architecture, database schema, AI processing workflow, camera integration, and user interface.
+Package 3 AI Surveillance Module
+Develop the AI-based video analysis module for human detection, unauthorized access detection, and incident logging.
+Package 4 Security Management Platform
+Develop the web application for managing restricted areas, surveillance cameras, users, and access permissions.
+Package  5 Real-Time Monitoring and Notification
+Implement live camera monitoring, real-time alerts, incident verification, and notification services.
+Package 6 Reporting and Analytics
+Develop security dashboards, incident statistics, historical event search, and report export functions.
+Package  7 System Integration and Testing
+Integrate all software components, perform functional, performance, security, and AI accuracy testing, and validate the complete surveillance workflow.
+Package 8 Documentation and Deployment
+Prepare technical documentation, user manuals, deployment guides, API documentation, and the final graduation thesis report.
+4. Other comments (propose all relative things if have). 
+ 
+            
+Supervisor (If have) 
+ (Sign and full name)
+ 
+HCM, date 28/06/2026 
+On behalf of Registers  
+(Sign and full name) 
+
+
+ 
