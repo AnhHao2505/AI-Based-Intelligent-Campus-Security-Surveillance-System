@@ -1,5 +1,5 @@
 services:
-  # 1. PostgreSQL 16 — Cơ sở dữ liệu chính
+  # 1. PostgreSQL 16 — Cơ sở dữ liệu chính (hỗ trợ pgvector cho khuôn mặt)
   postgres:
     image: pgvector/pgvector:pg16
     container_name: sep_postgres
@@ -42,7 +42,7 @@ services:
     networks:
       - sep_network
 
-  # 3. Kafka (Confluent KRaft mode, không cần Zookeeper)
+  # 3. Apache Kafka (Confluent KRaft mode, không cần Zookeeper)
   kafka:
     image: confluentinc/cp-kafka:7.7.0
     container_name: sep_kafka
@@ -51,19 +51,15 @@ services:
     ports:
       - "9092:9092"
     environment:
-      # KRaft mode
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      # Listeners: HOST cho máy local, PLAINTEXT cho Docker internal
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093,HOST://0.0.0.0:9092
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,HOST://localhost:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      # Cluster — Confluent dùng CLUSTER_ID (không có prefix KAFKA_)
       CLUSTER_ID: ${KAFKA_CLUSTER_ID}
-      # Single-node dev settings
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
@@ -77,6 +73,43 @@ services:
       timeout: 10s
       retries: 5
       start_period: 30s
+    networks:
+      - sep_network
+
+  # 4. Backend (Spring Boot 3.2.5 / Java 21)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sep_backend
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - sep_network
+
+  # 5. Frontend (Vite + React)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: sep_frontend
+    restart: always
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
     networks:
       - sep_network
 

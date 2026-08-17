@@ -26,6 +26,7 @@ backend/target/
 backend/*.jar
 backend/*.war
 *.class
+.mvn/wrapper/maven-wrapper.jar
 
 # Frontend (Node / React / Vite)
 frontend/node_modules/
