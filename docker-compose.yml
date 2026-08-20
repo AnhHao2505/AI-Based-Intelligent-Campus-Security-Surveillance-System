@@ -20,7 +20,25 @@ services:
     networks:
       - sep_network
 
-  # 2. MinIO — Lưu trữ ảnh khuôn mặt, ảnh bằng chứng vi phạm (S3-compatible)
+  # 2. pgAdmin 4 — Giao diện quản lý PostgreSQL
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: sep_pgadmin
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmindata:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - sep_network
+
+  # 3. MinIO — Lưu trữ ảnh khuôn mặt, ảnh bằng chứng vi phạm (S3-compatible)
   minio:
     image: minio/minio:latest
     container_name: sep_minio
@@ -42,7 +60,7 @@ services:
     networks:
       - sep_network
 
-  # 3. Apache Kafka (Confluent KRaft mode, không cần Zookeeper)
+  # 4. Apache Kafka (Confluent KRaft mode, không cần Zookeeper)
   kafka:
     image: confluentinc/cp-kafka:7.7.0
     container_name: sep_kafka
@@ -68,7 +86,8 @@ services:
     volumes:
       - kafkadata:/var/lib/kafka/data
     healthcheck:
-      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list"]
+      test:
+        ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list"]
       interval: 10s
       timeout: 10s
       retries: 5
@@ -76,7 +95,7 @@ services:
     networks:
       - sep_network
 
-  # 4. Backend (Spring Boot 3.2.5 / Java 21)
+  # 5. Backend (Spring Boot 3.2.5 / Java 21)
   backend:
     build:
       context: ./backend
@@ -99,7 +118,7 @@ services:
     networks:
       - sep_network
 
-  # 5. Frontend (Vite + React)
+  # 6. Frontend (Vite + React)
   frontend:
     build:
       context: ./frontend
@@ -115,6 +134,7 @@ services:
 
 volumes:
   pgdata:
+  pgadmindata:
   miniodata:
   kafkadata:
 
