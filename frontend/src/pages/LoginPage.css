@@ -1,0 +1,269 @@
+/* Login Page Container - Matches Figma Light Gray Background */
+.login-page-wrapper {
+  min-height: 100vh;
+  width: 100%;
+  background-color: #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Big Page Title above card */
+.login-page-title {
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: #000000;
+  margin-bottom: 24px;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+/* Card Container - White Card with Shadow & Rounded Corners */
+.login-card {
+  width: 100%;
+  max-width: 480px;
+  background-color: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
+  padding: 40px 36px 32px 36px;
+  box-sizing: border-box;
+}
+
+/* Sub-header description for Forgot/Reset password views */
+.login-subtitle {
+  font-size: 14px;
+  line-height: 1.5;
+  color: #6b7280;
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+/* Field Group */
+.login-field-group {
+  margin-bottom: 20px;
+  text-align: left;
+}
+
+.login-label {
+  display: block;
+  font-size: 16px;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 8px;
+}
+
+/* Input Container with Blue Icon Box */
+.login-input-container {
+  display: flex;
+  align-items: center;
+  height: 48px;
+  background-color: #f3f4f6;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid transparent;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.login-input-container:focus-within {
+  border-color: #2563eb;
+  background-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.login-icon-box {
+  width: 48px;
+  height: 48px;
+  background-color: #2563eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  flex-shrink: 0;
+}
+
+.login-input {
+  flex: 1;
+  height: 100%;
+  border: none;
+  background: transparent;
+  padding: 0 14px;
+  font-size: 15px;
+  color: #111827;
+  outline: none;
+}
+
+.login-input::placeholder {
+  color: #9ca3af;
+}
+
+.login-eye-btn {
+  background: transparent;
+  border: none;
+  padding: 0 14px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b7280;
+  cursor: pointer;
+  outline: none;
+}
+
+.login-eye-btn:hover {
+  color: #111827;
+}
+
+/* Helper text */
+.login-helper-text {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 6px;
+  line-height: 1.4;
+}
+
+/* Row options (Remember me + Forgot Password) */
+.login-options-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  font-size: 14px;
+}
+
+.login-remember-me {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #374151;
+  cursor: pointer;
+}
+
+.login-checkbox {
+  width: 16px;
+  height: 16px;
+  accent-color: #2563eb;
+  cursor: pointer;
+}
+
+.login-forgot-link {
+  color: #2563eb;
+  text-decoration: none;
+  font-weight: 500;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.login-forgot-link:hover {
+  text-decoration: underline;
+}
+
+/* Primary Action Button (Login / Send Mail / Reset) */
+.login-submit-btn {
+  width: 100%;
+  height: 48px;
+  background-color: #2563eb;
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
+  transition: background-color 0.2s ease, transform 0.1s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.login-submit-btn:hover:not(:disabled) {
+  background-color: #1d4ed8;
+}
+
+.login-submit-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.login-submit-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* Error Banner */
+.login-error-banner {
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 14px;
+  margin-bottom: 20px;
+  text-align: left;
+}
+
+/* Toast Message */
+.login-toast-banner {
+  background-color: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 14px;
+  margin-bottom: 20px;
+  text-align: left;
+}
+
+/* Card Divider Line */
+.login-divider {
+  border: none;
+  border-top: 1px solid #e5e4e7;
+  margin: 28px 0 20px 0;
+}
+
+/* Card Footer Text */
+.login-footer-text {
+  font-size: 14px;
+  color: #6b7280;
+  text-align: center;
+}
+
+/* Back Link for sub-views */
+.login-back-btn {
+  margin-top: 16px;
+  background: none;
+  border: none;
+  color: #2563eb;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.login-back-btn:hover {
+  text-decoration: underline;
+}
+
+/* Quick Test Accounts Hint Box */
+.test-accounts-hint {
+  margin-top: 24px;
+  background-color: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 12px;
+  color: #475569;
+  text-align: left;
+}
+
+.test-accounts-hint strong {
+  color: #0f172a;
+}

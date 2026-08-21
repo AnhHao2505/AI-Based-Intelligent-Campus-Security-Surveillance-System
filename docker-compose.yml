@@ -78,6 +78,7 @@ services:
 
   # 4. Backend (Spring Boot 3.2.5 / Java 21)
   backend:
+    image: anhhao05/sep-backend:latest
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -101,6 +102,7 @@ services:
 
   # 5. Frontend (Vite + React)
   frontend:
+    image: anhhao05/sep-frontend:latest
     build:
       context: ./frontend
       dockerfile: Dockerfile
