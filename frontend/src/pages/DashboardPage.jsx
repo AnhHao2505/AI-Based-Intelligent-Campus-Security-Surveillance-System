@@ -60,7 +60,7 @@ export default function DashboardPage({ user, onLogout }) {
               <div className="dashboard-card__row">
                 <span className="dashboard-card__label">Vai trò</span>
                 <span className="dashboard-card__value dashboard-card__role-badge">
-                  {ROLE_LABELS[user.role_type || user.role] || user.role_type || user.role}
+                  {ROLE_LABELS[user.role_type] || user.role_type}
                 </span>
               </div>
             </div>

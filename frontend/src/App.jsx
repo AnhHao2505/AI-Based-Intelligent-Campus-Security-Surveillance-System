@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { GoogleOAuthProvider } from '@react-oauth/google';
-import { isAuthenticated, getStoredUser, isPersonalPortalUser } from './services/authService';
+import { isAuthenticated, getStoredUser, getUserPortalRoute, clearAuth } from './services/authService';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import PersonalPortalLayout from './components/PersonalPortalLayout';
@@ -22,13 +22,30 @@ function App() {
   };
 
   const handleLogout = () => {
+    clearAuth();
     setUser(null);
     setLoggedIn(false);
   };
 
-  // Determine redirect target based on role exclusion
-  const isPersonal = user ? isPersonalPortalUser(user) : true;
-  const defaultAuthRedirect = isPersonal ? '/personal/access-history' : '/dashboard';
+  // Determine portal route status: 'ADMIN' | 'PERSONAL' | 'UNKNOWN'
+  const portalRoute = user ? getUserPortalRoute(user) : 'UNKNOWN';
+
+  // Security Fail-Closed: If user exists but role_type is UNKNOWN (invalid/corrupted session), force logout immediately
+  useEffect(() => {
+    if (loggedIn && user && portalRoute === 'UNKNOWN') {
+      console.warn('Security Fail-Closed: Unknown user role_type detected. Clearing session.');
+      clearAuth();
+      setUser(null);
+      setLoggedIn(false);
+    }
+  }, [loggedIn, user, portalRoute]);
+
+  const defaultAuthRedirect =
+    portalRoute === 'ADMIN'
+      ? '/dashboard'
+      : portalRoute === 'PERSONAL'
+      ? '/personal/access-history'
+      : '/login';
 
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
@@ -38,7 +55,7 @@ function App() {
           <Route
             path="/login"
             element={
-              loggedIn && user ? (
+              loggedIn && user && portalRoute !== 'UNKNOWN' ? (
                 <Navigate to={defaultAuthRedirect} replace />
               ) : (
                 <LoginPage onLoginSuccess={handleLoginSuccess} />
@@ -50,7 +67,7 @@ function App() {
           <Route
             path="/dashboard"
             element={
-              loggedIn && user ? (
+              loggedIn && user && portalRoute === 'ADMIN' ? (
                 <DashboardPage user={user} onLogout={handleLogout} />
               ) : (
                 <Navigate to="/login" replace />
@@ -62,7 +79,7 @@ function App() {
           <Route
             path="/personal/access-history"
             element={
-              loggedIn && user ? (
+              loggedIn && user && portalRoute === 'PERSONAL' ? (
                 <PersonalPortalLayout user={user} onLogout={handleLogout}>
                   <AccessHistoryPage />
                 </PersonalPortalLayout>
@@ -75,7 +92,7 @@ function App() {
           <Route
             path="/personal/notifications"
             element={
-              loggedIn && user ? (
+              loggedIn && user && portalRoute === 'PERSONAL' ? (
                 <PersonalPortalLayout user={user} onLogout={handleLogout}>
                   <NotificationsPage />
                 </PersonalPortalLayout>
@@ -88,7 +105,7 @@ function App() {
           <Route
             path="/personal/request-access"
             element={
-              loggedIn && user ? (
+              loggedIn && user && portalRoute === 'PERSONAL' ? (
                 <PersonalPortalLayout user={user} onLogout={handleLogout}>
                   <RequestAccessPage />
                 </PersonalPortalLayout>
@@ -102,7 +119,7 @@ function App() {
           <Route
             path="*"
             element={
-              loggedIn && user ? (
+              loggedIn && user && portalRoute !== 'UNKNOWN' ? (
                 <Navigate to={defaultAuthRedirect} replace />
               ) : (
                 <Navigate to="/login" replace />
