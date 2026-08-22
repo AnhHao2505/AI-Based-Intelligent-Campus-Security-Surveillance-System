@@ -1,20 +1,18 @@
 # ============================================
-# Stage 1: Build JAR với Maven Wrapper
+# Stage 1: Build JAR với Maven
 # ============================================
 FROM eclipse-temurin:21-jdk-alpine AS builder
 
 WORKDIR /app
 
-# Copy wrapper và pom.xml trước để cache dependency (tăng tốc build lần sau)
-COPY .mvn/ .mvn
-COPY mvnw pom.xml ./
-RUN ./mvnw dependency:go-offline
-
-# Copy toàn bộ source code và build file JAR
+# Copy pom.xml và src
+COPY pom.xml ./
 COPY src ./src
-RUN ./mvnw clean package -DskipTests
 
-# ============================================
+# Download Maven and build (Alpine doesn't have mvnw reliably, use Maven directly)
+RUN apk add --no-cache maven && \
+    mvn clean package -DskipTests
+
 # Stage 2: Runtime Image (Siêu nhẹ & Bảo mật)
 # ============================================
 FROM eclipse-temurin:21-jre-alpine
