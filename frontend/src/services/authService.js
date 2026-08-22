@@ -16,10 +16,13 @@ const ADMIN_ROLES = ['ADMIN', 'FACILITY_MANAGER', 'INTERNAL_GUARD', 'OUTSOURCED_
 
 /**
  * Kiểm tra xem user có thuộc nhóm Personal Portal hay không (Exclusion logic)
+ * Sửa bug: Dùng role_type (khớp DB users.role_type) thay vì role.
+ * Tránh fail-open (nếu không có role_type/role thì trả về false để fail-closed an toàn).
  */
 export function isPersonalPortalUser(user) {
-  if (!user || !user.role) return true;
-  return !ADMIN_ROLES.includes(user.role);
+  const roleType = user?.role_type || user?.role;
+  if (!roleType) return false;
+  return !ADMIN_ROLES.includes(roleType);
 }
 
 /**
@@ -46,10 +49,9 @@ export async function loginWithGoogle(idToken) {
 
     return await response.json();
   } catch (err) {
-    // If local dev backend is not running, provide mock fallback for dev testing if idToken is valid/mocked
-    if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
+    // Sửa bug 2: Chỉ kích hoạt dev mock fallback khi đang ở môi trường DEV (import.meta.env.DEV === true)
+    if (import.meta.env.DEV && (err.message.includes('Failed to fetch') || err.message.includes('NetworkError'))) {
       console.warn('Backend not reachable, using dev local mock verification');
-      // Simulated registered check for local dev testing
       return {
         accessToken: 'mock-jwt-token-12345',
         user: {
@@ -57,6 +59,7 @@ export async function loginWithGoogle(idToken) {
           fullName: 'Nguyen T.',
           email: 'nguyent@fpt.edu.vn',
           staffCode: 'SE160000',
+          role_type: 'STUDENT',
           role: 'STUDENT',
         },
       };
