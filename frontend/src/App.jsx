@@ -1,40 +1,35 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './context/AuthContext';
+import { useState } from 'react';
+import { GoogleOAuthProvider } from '@react-oauth/google';
+import { isAuthenticated, getStoredUser } from './services/authService';
 import LoginPage from './pages/LoginPage';
-import SchedulePage from './pages/SchedulePage';
-import ProtectedRoute from './components/ProtectedRoute';
+import DashboardPage from './pages/DashboardPage';
+import './App.css';
 
-function AppRoutes() {
-  const { isAuthenticated } = useAuth();
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
+function App() {
+  const [loggedIn, setLoggedIn] = useState(isAuthenticated());
+  const [user, setUser] = useState(getStoredUser());
+
+  const handleLoginSuccess = (authResponse) => {
+    setUser(authResponse.user);
+    setLoggedIn(true);
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    setLoggedIn(false);
+  };
 
   return (
-    <Routes>
-      <Route
-        path="/login"
-        element={isAuthenticated ? <Navigate to="/schedule" replace /> : <LoginPage />}
-      />
-      <Route
-        path="/schedule"
-        element={
-          <ProtectedRoute>
-            <SchedulePage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="*"
-        element={<Navigate to={isAuthenticated ? "/schedule" : "/login"} replace />}
-      />
-    </Routes>
+    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+      {loggedIn && user ? (
+        <DashboardPage user={user} onLogout={handleLogout} />
+      ) : (
+        <LoginPage onLoginSuccess={handleLoginSuccess} />
+      )}
+    </GoogleOAuthProvider>
   );
 }
 
-export default function App() {
-  return (
-    <BrowserRouter>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
-    </BrowserRouter>
-  );
-}
+export default App;

@@ -13,14 +13,32 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
       interval: 5s
       timeout: 5s
       retries: 5
     networks:
       - sep_network
 
-  # 2. MinIO — Lưu trữ ảnh khuôn mặt, ảnh bằng chứng vi phạm (S3-compatible)
+  # 2. pgAdmin 4 — Giao diện quản lý PostgreSQL
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: sep_pgadmin
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmindata:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - sep_network
+
+  # 3. MinIO — Lưu trữ ảnh khuôn mặt, ảnh bằng chứng vi phạm (S3-compatible)
   minio:
     image: minio/minio:latest
     container_name: sep_minio
@@ -35,14 +53,14 @@ services:
     volumes:
       - miniodata:/data
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: [ "CMD", "mc", "ready", "local" ]
       interval: 5s
       timeout: 5s
       retries: 5
     networks:
       - sep_network
 
-  # 3. Apache Kafka (Confluent KRaft mode, không cần Zookeeper)
+  # 4. Apache Kafka (Confluent KRaft mode, không cần Zookeeper)
   kafka:
     image: confluentinc/cp-kafka:7.7.0
     container_name: sep_kafka
@@ -68,7 +86,7 @@ services:
     volumes:
       - kafkadata:/var/lib/kafka/data
     healthcheck:
-      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list"]
+      test: [ "CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list" ]
       interval: 10s
       timeout: 10s
       retries: 5
@@ -76,7 +94,7 @@ services:
     networks:
       - sep_network
 
-  # 4. Backend (Spring Boot 3.2.5 / Java 21)
+  # 5. Backend (Spring Boot 3.2.5 / Java 21)
   backend:
     image: anhhao05/sep-backend:v1.0
     container_name: sep_backend
@@ -89,6 +107,9 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION: ${JWT_EXPIRATION}
     depends_on:
       postgres:
         condition: service_healthy
@@ -97,7 +118,7 @@ services:
     networks:
       - sep_network
 
-  # 5. Frontend (Vite + React)
+  # 6. Frontend (Vite + React)
   frontend:
     image: anhhao05/sep-frontend:v1.0
     container_name: sep_frontend
@@ -111,6 +132,7 @@ services:
 
 volumes:
   pgdata:
+  pgadmindata:
   miniodata:
   kafkadata:
 

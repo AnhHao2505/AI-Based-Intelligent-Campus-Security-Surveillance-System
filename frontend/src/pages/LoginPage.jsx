@@ -1,295 +1,116 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, ArrowLeft, Loader2 } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { GoogleLogin } from '@react-oauth/google';
+import { loginWithGoogle, saveAuth } from '../services/authService';
 import './LoginPage.css';
 
-export default function LoginPage() {
-  const { login, loading } = useAuth();
-  const navigate = useNavigate();
+const ROLE_LABELS = {
+  ADMIN: 'Quản trị viên',
+  FACILITY_MANAGER: 'Quản lý cơ sở',
+  INTERNAL_GUARD: 'Bảo vệ nội bộ',
+  OUTSOURCED_GUARD: 'Bảo vệ thuê ngoài',
+};
 
-  // Mode: 'LOGIN' | 'FORGOT' | 'RESET'
-  const [viewMode, setViewMode] = useState('LOGIN');
+export default function LoginPage({ onLoginSuccess }) {
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  // Form states
-  const [userCode, setUserCode] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
-  const [toastMessage, setToastMessage] = useState('');
-
-  // Sub-view states
-  const [forgotEmail, setForgotEmail] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-
-  const handleLoginSubmit = async (e) => {
-    e.preventDefault();
-    setErrorMessage('');
-    setToastMessage('');
+  const handleGoogleSuccess = async (credentialResponse) => {
+    setError(null);
+    setLoading(true);
 
     try {
-      await login(userCode, password, rememberMe);
-      navigate('/schedule');
+      // credentialResponse.credential chính là id_token từ Google
+      const authResponse = await loginWithGoogle(credentialResponse.credential);
+      saveAuth(authResponse);
+      onLoginSuccess(authResponse);
     } catch (err) {
-      setErrorMessage(err.message || 'Đăng nhập thất bại. Vui lòng thử lại.');
+      console.error('Login failed:', err);
+      setError(err.message || 'Đăng nhập thất bại. Vui lòng thử lại.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleForgotSubmit = (e) => {
-    e.preventDefault();
-    if (!forgotEmail) {
-      setErrorMessage('Vui lòng nhập Email đã đăng ký');
-      return;
-    }
-    setErrorMessage('');
-    setToastMessage('Chức năng đang phát triển (Cần Backend Email Service). Vui lòng liên hệ Admin!');
-  };
-
-  const handleResetSubmit = (e) => {
-    e.preventDefault();
-    if (!newPassword || !confirmPassword) {
-      setErrorMessage('Vui lòng điền đầy đủ thông tin mật khẩu');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setErrorMessage('Mật khẩu xác nhận không trùng khớp');
-      return;
-    }
-    setErrorMessage('');
-    setToastMessage('Đặt lại mật khẩu thành công (Mock). Vui lòng đăng nhập bằng mật khẩu mới!');
-    setTimeout(() => {
-      setViewMode('LOGIN');
-      setToastMessage('');
-    }, 2000);
+  const handleGoogleError = () => {
+    setError('Đăng nhập Google thất bại. Vui lòng thử lại.');
   };
 
   return (
-    <div className="login-page-wrapper">
-      <h1 className="login-page-title">
-        {viewMode === 'LOGIN' && 'LOGIN'}
-        {viewMode === 'FORGOT' && 'FORGOT PASSWORD'}
-        {viewMode === 'RESET' && 'RESET PASSWORD'}
-      </h1>
+    <div className="login-page">
+      {/* Animated background */}
+      <div className="login-bg">
+        <div className="login-bg-orb login-bg-orb--1" />
+        <div className="login-bg-orb login-bg-orb--2" />
+        <div className="login-bg-orb login-bg-orb--3" />
+      </div>
 
       <div className="login-card">
-        {errorMessage && <div className="login-error-banner">{errorMessage}</div>}
-        {toastMessage && <div className="login-toast-banner">{toastMessage}</div>}
+        {/* Logo / Icon */}
+        <div className="login-card__icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </div>
 
-        {/* 1. LOGIN VIEW */}
-        {viewMode === 'LOGIN' && (
-          <form onSubmit={handleLoginSubmit}>
-            {/* Input Mã định danh (MSSV / MSNV) */}
-            <div className="login-field-group">
-              <label className="login-label" htmlFor="userCodeInput">
-                Mã định danh (MSSV / MSNV)
-              </label>
-              <div className="login-input-container">
-                <div className="login-icon-box">
-                  <Mail size={20} />
-                </div>
-                <input
-                  id="userCodeInput"
-                  type="text"
-                  className="login-input"
-                  placeholder="Ví dụ: GUARD01, FM01..."
-                  value={userCode}
-                  onChange={(e) => setUserCode(e.target.value)}
-                  disabled={loading}
-                  autoComplete="username"
-                  required
-                />
-              </div>
-            </div>
-
-            {/* Input Password */}
-            <div className="login-field-group">
-              <label className="login-label" htmlFor="passwordInput">
-                Password
-              </label>
-              <div className="login-input-container">
-                <div className="login-icon-box">
-                  <Lock size={20} />
-                </div>
-                <input
-                  id="passwordInput"
-                  type={showPassword ? 'text' : 'password'}
-                  className="login-input"
-                  placeholder="********************"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  disabled={loading}
-                  autoComplete="current-password"
-                  required
-                />
-                <button
-                  type="button"
-                  className="login-eye-btn"
-                  onClick={() => setShowPassword(!showPassword)}
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                >
-                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
-              </div>
-            </div>
-
-            {/* Remember Me + Forgot Password */}
-            <div className="login-options-row">
-              <label className="login-remember-me">
-                <input
-                  type="checkbox"
-                  className="login-checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                />
-                <span>Remember me</span>
-              </label>
-
-              <button
-                type="button"
-                className="login-forgot-link"
-                onClick={() => {
-                  setErrorMessage('');
-                  setToastMessage('');
-                  setViewMode('FORGOT');
-                }}
-              >
-                Forgot password?
-              </button>
-            </div>
-
-            {/* Submit Button */}
-            <button type="submit" className="login-submit-btn" disabled={loading}>
-              {loading ? (
-                <>
-                  <Loader2 size={20} className="animate-spin" />
-                  <span>Đang xác thực...</span>
-                </>
-              ) : (
-                'Login'
-              )}
-            </button>
-
-            {/* Hint Box for Testing Roles */}
-            <div className="test-accounts-hint">
-              <strong>Tài khoản Test (Mật khẩu: 123456):</strong>
-              <div style={{ marginTop: '4px' }}>• <code>GUARD01</code>: Bảo vệ (INTERNAL_GUARD)</div>
-              <div>• <code>FM01</code>: Facility Manager</div>
-              <div>• <code>ADMIN01</code>: Admin Quản trị viên</div>
-            </div>
-          </form>
-        )}
-
-        {/* 2. FORGOT PASSWORD VIEW */}
-        {viewMode === 'FORGOT' && (
-          <form onSubmit={handleForgotSubmit}>
-            <p className="login-subtitle">
-              Enter your registered email to receive recovery mail and accessibility to reset password
-            </p>
-
-            <div className="login-field-group">
-              <label className="login-label">Email address</label>
-              <div className="login-input-container">
-                <div className="login-icon-box">
-                  <Mail size={20} />
-                </div>
-                <input
-                  type="email"
-                  className="login-input"
-                  placeholder="example@email.com"
-                  value={forgotEmail}
-                  onChange={(e) => setForgotEmail(e.target.value)}
-                  required
-                />
-              </div>
-            </div>
-
-            <button type="submit" className="login-submit-btn">
-              Send Recovery Mail
-            </button>
-
-            <div style={{ textAlign: 'center', marginTop: '16px' }}>
-              <button
-                type="button"
-                className="login-back-btn"
-                onClick={() => {
-                  setErrorMessage('');
-                  setToastMessage('');
-                  setViewMode('LOGIN');
-                }}
-              >
-                <ArrowLeft size={16} /> Quay lại Đăng nhập
-              </button>
-            </div>
-          </form>
-        )}
-
-        {/* 3. RESET PASSWORD VIEW */}
-        {viewMode === 'RESET' && (
-          <form onSubmit={handleResetSubmit}>
-            <div className="login-field-group">
-              <label className="login-label">New Password</label>
-              <div className="login-input-container">
-                <div className="login-icon-box">
-                  <Lock size={20} />
-                </div>
-                <input
-                  type="password"
-                  className="login-input"
-                  placeholder="example password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="login-helper-text">
-                Password needs to be a combination of both character (A-Z) and number (0-9) and includes at least one special and uppercase character
-              </div>
-            </div>
-
-            <div className="login-field-group">
-              <label className="login-label">Confirm New Password</label>
-              <div className="login-input-container">
-                <div className="login-icon-box">
-                  <Lock size={20} />
-                </div>
-                <input
-                  type="password"
-                  className="login-input"
-                  placeholder="example password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                />
-              </div>
-            </div>
-
-            <button type="submit" className="login-submit-btn">
-              Reset
-            </button>
-
-            <div style={{ textAlign: 'center', marginTop: '16px' }}>
-              <button
-                type="button"
-                className="login-back-btn"
-                onClick={() => {
-                  setErrorMessage('');
-                  setToastMessage('');
-                  setViewMode('LOGIN');
-                }}
-              >
-                <ArrowLeft size={16} /> Quay lại Đăng nhập
-              </button>
-            </div>
-          </form>
-        )}
-
-        <hr className="login-divider" />
-        <p className="login-footer-text">
-          Need access? Contact your system administrator
+        <h1 className="login-card__title">Campus Security</h1>
+        <p className="login-card__subtitle">
+          Hệ thống Giám sát An ninh Thông minh
         </p>
+
+        <div className="login-card__divider" />
+
+        {/* Google Login Button */}
+        <div className="login-card__btn-wrapper">
+          {loading ? (
+            <div className="login-card__loader">
+              <div className="login-card__spinner" />
+              <span>Đang xác thực...</span>
+            </div>
+          ) : (
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={handleGoogleError}
+              theme="outline"
+              size="large"
+              width="320"
+              text="signin_with"
+              shape="pill"
+              logo_alignment="left"
+            />
+          )}
+        </div>
+
+        {/* Error message */}
+        {error && (
+          <div className="login-card__error">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
+              <line x1="12" y1="8" x2="12" y2="12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+              <line x1="12" y1="16" x2="12.01" y2="16" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+            <span>{error}</span>
+          </div>
+        )}
+
+        <p className="login-card__note">
+          Chỉ email được cấp bởi quản trị viên mới có thể đăng nhập.
+        </p>
+
+        {/* Role badges */}
+        <div className="login-card__roles">
+          {Object.entries(ROLE_LABELS).map(([key, label]) => (
+            <span key={key} className="login-card__role-badge">
+              {label}
+            </span>
+          ))}
+        </div>
       </div>
+
+      <footer className="login-footer">
+        FA26SE040 &middot; AI-Based Intelligent Campus Security
+      </footer>
     </div>
   );
 }

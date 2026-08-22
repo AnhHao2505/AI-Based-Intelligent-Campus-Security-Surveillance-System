@@ -44,5 +44,6 @@ yarn-error.log*
 # Docker Data Volumes & Logs
 *.log
 pgdata/
+pgadmindata/
 miniodata/
 kafkadata/
