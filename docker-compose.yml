@@ -78,10 +78,7 @@ services:
 
   # 4. Backend (Spring Boot 3.2.5 / Java 21)
   backend:
-    image: anhhao05/sep-backend:latest
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: anhhao05/sep-backend:v1.0
     container_name: sep_backend
     restart: always
     ports:
@@ -102,10 +99,7 @@ services:
 
   # 5. Frontend (Vite + React)
   frontend:
-    image: anhhao05/sep-frontend:latest
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
+    image: anhhao05/sep-frontend:v1.0
     container_name: sep_frontend
     restart: always
     ports:
