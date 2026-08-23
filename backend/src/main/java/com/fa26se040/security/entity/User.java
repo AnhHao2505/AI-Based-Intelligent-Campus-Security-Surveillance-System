@@ -23,8 +23,8 @@ public class User {
     @Column(name = "full_name", nullable = false, length = 100)
     private String fullName;
 
-    @Column(name = "staff_code", nullable = false, unique = true, length = 50)
-    private String staffCode;
+    @Column(name = "user_code", nullable = false, unique = true, length = 50)
+    private String userCode;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "role", nullable = false, length = 50)
@@ -33,12 +33,18 @@ public class User {
     @Column(name = "email", nullable = false, unique = true, length = 255)
     private String email;
 
+    @Column(name = "password", length = 60)
+    private String password;
+
     @Column(name = "is_active", nullable = false)
     @Builder.Default
     private Boolean isActive = true;
 
     @Column(name = "created_at")
     private OffsetDateTime createdAt;
+
+    @Column(name = "updated_at")
+    private OffsetDateTime updatedAt;
 
     @Column(name = "deleted_at")
     private OffsetDateTime deletedAt;
@@ -51,5 +57,10 @@ public class User {
         if (isActive == null) {
             isActive = true;
         }
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = OffsetDateTime.now();
     }
 }

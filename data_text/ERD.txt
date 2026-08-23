@@ -5,16 +5,17 @@
 // mà chỉ build erd liên quan đến function)
 
 // User chỉ chứa staff (GUARD, ADMIN, FACILITY_MANAGER)
-// Mã code chỉ cần của nhân viên, không cần của sinh viên
-// Đăng nhập chỉ được = email được cấp
+// Đăng nhập chỉ được = email được cấp, hoặc = email + password đc cấp
 Table users {
   id UUID [pk, default: `gen_random_uuid()`]
   full_name VARCHAR(100) [not null]
-  staff_code VARCHAR(50) [not null, unique, note: 'MSNV']
+  user_code VARCHAR(50) [not null, unique, note: 'MSNV or MSSV']
   role VARCHAR(50) [not null, note: 'ADMIN | FACILITY_MANAGER | INTERNAL_GUARD | OUTSOURCED_GUARD ']
   email VARCHAR(255) [not null, unique]
+  password char(60) [note: 'b64-encoded bcrypt hash, length=60'] 
   is_active BOOLEAN [not null, default: true, note: 'true: Active, false: Inactive']
   created_at TIMESTAMPTZ [default: `CURRENT_TIMESTAMP`]
+  updated_at TIMESTAMPTZ [default: `CURRENT_TIMESTAMP`]
   deleted_at TIMESTAMPTZ [note: 'Inactive = soft-delete']
 }
 
