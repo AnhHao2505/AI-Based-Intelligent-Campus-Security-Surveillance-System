@@ -1,4 +1,4 @@
-package com.fa26se040.security.exception;
+package com.fa26se040.icss.security.exception;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ResponseStatus;

@@ -1,6 +1,6 @@
-package com.fa26se040.security.repository;
+package com.fa26se040.icss.security.repository;
 
-import com.fa26se040.security.entity.User;
+import com.fa26se040.icss.security.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 import java.util.Optional;

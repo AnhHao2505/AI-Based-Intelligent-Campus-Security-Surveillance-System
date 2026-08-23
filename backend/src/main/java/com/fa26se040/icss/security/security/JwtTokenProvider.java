@@ -1,6 +1,6 @@
-package com.fa26se040.security.security;
+package com.fa26se040.icss.security.security;
 
-import com.fa26se040.security.entity.User;
+import com.fa26se040.icss.security.entity.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;

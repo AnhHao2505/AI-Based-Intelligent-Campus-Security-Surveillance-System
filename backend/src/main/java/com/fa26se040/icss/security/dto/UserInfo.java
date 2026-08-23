@@ -1,4 +1,4 @@
-package com.fa26se040.security.dto;
+package com.fa26se040.icss.security.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

@@ -1,9 +1,9 @@
-package com.fa26se040.security.controller;
+package com.fa26se040.icss.security.controller;
 
-import com.fa26se040.security.dto.AuthResponse;
-import com.fa26se040.security.dto.GoogleLoginRequest;
-import com.fa26se040.security.dto.UserInfo;
-import com.fa26se040.security.service.AuthService;
+import com.fa26se040.icss.security.dto.AuthResponse;
+import com.fa26se040.icss.security.dto.GoogleLoginRequest;
+import com.fa26se040.icss.security.dto.UserInfo;
+import com.fa26se040.icss.security.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

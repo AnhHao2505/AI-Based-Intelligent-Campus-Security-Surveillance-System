@@ -1,4 +1,4 @@
-package com.fa26se040.security.entity;
+package com.fa26se040.icss.security.entity;
 
 public enum Role {
     ADMIN,

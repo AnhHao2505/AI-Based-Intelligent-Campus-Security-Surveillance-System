@@ -1,13 +1,13 @@
-package com.fa26se040.security.service;
+package com.fa26se040.icss.security.service;
 
-import com.fa26se040.security.dto.AuthResponse;
-import com.fa26se040.security.dto.GoogleLoginRequest;
-import com.fa26se040.security.dto.UserInfo;
-import com.fa26se040.security.entity.User;
-import com.fa26se040.security.exception.UnauthorizedException;
-import com.fa26se040.security.repository.UserRepository;
-import com.fa26se040.security.security.GoogleTokenVerifier;
-import com.fa26se040.security.security.JwtTokenProvider;
+import com.fa26se040.icss.security.dto.AuthResponse;
+import com.fa26se040.icss.security.dto.GoogleLoginRequest;
+import com.fa26se040.icss.security.dto.UserInfo;
+import com.fa26se040.icss.security.entity.User;
+import com.fa26se040.icss.security.exception.UnauthorizedException;
+import com.fa26se040.icss.security.repository.UserRepository;
+import com.fa26se040.icss.security.security.GoogleTokenVerifier;
+import com.fa26se040.icss.security.security.JwtTokenProvider;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
