@@ -8,8 +8,10 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+      TZ: Asia/Ho_Chi_Minh
     ports:
       - "5432:5432"
+    command: postgres -c timezone=Asia/Ho_Chi_Minh
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -117,6 +119,7 @@ services:
       SPRING_MAIL_PORT: ${SPRING_MAIL_PORT}
       SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME}
       SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD}
+      TZ: Asia/Ho_Chi_Minh
     depends_on:
       postgres:
         condition: service_healthy
