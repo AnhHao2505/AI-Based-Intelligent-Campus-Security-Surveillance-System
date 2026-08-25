@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { GoogleLogin } from '@react-oauth/google';
+import { useAuth } from '../context/AuthContext';
 import { 
-  loginWithGoogle, 
-  loginWithCredentials, 
   sendResetLink, 
-  resetPasswordWithToken, 
-  saveAuth 
+  resetPasswordWithToken 
 } from '../services/authService';
 import './LoginPage.css';
 
@@ -17,6 +16,9 @@ const ROLE_LABELS = {
 };
 
 export default function LoginPage({ onLoginSuccess, initialResetToken, onResetComplete }) {
+  const { loginWithGoogleToken, loginWithPassword } = useAuth();
+  const navigate = useNavigate();
+
   const [mode, setMode] = useState('login'); // 'login' | 'forgot' | 'reset'
   const [activeTab, setActiveTab] = useState('google'); // 'google' | 'credentials'
   
@@ -41,9 +43,9 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
     setError(null);
     setLoading(true);
     try {
-      const authResponse = await loginWithGoogle(credentialResponse.credential);
-      saveAuth(authResponse);
-      onLoginSuccess(authResponse);
+      await loginWithGoogleToken(credentialResponse.credential);
+      if (onLoginSuccess) onLoginSuccess();
+      navigate('/dashboard');
     } catch (err) {
       console.error('Google login failed:', err);
       setError(err.message || 'Đăng nhập Google thất bại. Vui lòng thử lại.');
@@ -61,9 +63,9 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
     setError(null);
     setLoading(true);
     try {
-      const authResponse = await loginWithCredentials(email, password);
-      saveAuth(authResponse);
-      onLoginSuccess(authResponse);
+      await loginWithPassword(email, password);
+      if (onLoginSuccess) onLoginSuccess();
+      navigate('/dashboard');
     } catch (err) {
       console.error('Credentials login failed:', err);
       setError(err.message || 'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.');
@@ -99,7 +101,7 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
       await resetPasswordWithToken(initialResetToken, password);
       setSuccess(true);
       setTimeout(() => {
-        onResetComplete();
+        if (onResetComplete) onResetComplete();
         setMode('login');
         setSuccess(false);
         setPassword('');
@@ -329,7 +331,7 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
             {!success && (
               <span 
                 className="login-card__back-link"
-                onClick={() => { setMode('login'); onResetComplete(); setError(null); }}
+                onClick={() => { setMode('login'); if (onResetComplete) onResetComplete(); setError(null); }}
               >
                 Hủy bỏ và quay lại
               </span>

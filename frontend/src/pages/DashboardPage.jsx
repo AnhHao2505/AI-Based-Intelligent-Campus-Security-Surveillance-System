@@ -1,4 +1,5 @@
-import { clearAuth } from '../services/authService';
+import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import './DashboardPage.css';
 
 const ROLE_LABELS = {
@@ -8,11 +9,10 @@ const ROLE_LABELS = {
   OUTSOURCED_GUARD: 'Bảo vệ thuê ngoài',
 };
 
-export default function DashboardPage({ user, onLogout }) {
-  const handleLogout = () => {
-    clearAuth();
-    onLogout();
-  };
+export default function DashboardPage() {
+  const { user, logout } = useAuth();
+
+  const isAreaManager = user?.role === 'ADMIN' || user?.role === 'FACILITY_MANAGER';
 
   return (
     <div className="dashboard">
@@ -30,16 +30,38 @@ export default function DashboardPage({ user, onLogout }) {
           </svg>
           <span>Campus Security</span>
         </div>
-        <button className="dashboard-nav__logout" onClick={handleLogout}>
+        <button className="dashboard-nav__logout" onClick={logout}>
           Đăng xuất
         </button>
       </nav>
 
       <main className="dashboard-main">
         <div className="dashboard-welcome">
-          <h1>Xin chào, {user.fullName} 👋</h1>
+          <h1>Xin chào, {user?.fullName} 👋</h1>
           <p>Chào mừng bạn đến với Hệ thống Giám sát An ninh Thông minh</p>
         </div>
+
+        {isAreaManager && (
+          <div style={{ marginBottom: '24px' }}>
+            <Link 
+              to="/admin/areas" 
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 18px',
+                backgroundColor: '#10b981',
+                color: '#ffffff',
+                borderRadius: '8px',
+                textDecoration: 'none',
+                fontWeight: '500',
+                fontSize: '14px'
+              }}
+            >
+              📍 Quản lý Khu vực (M06)
+            </Link>
+          </div>
+        )}
 
         <div className="dashboard-grid">
           <div className="dashboard-card dashboard-card--profile">
@@ -47,20 +69,20 @@ export default function DashboardPage({ user, onLogout }) {
             <div className="dashboard-card__rows">
               <div className="dashboard-card__row">
                 <span className="dashboard-card__label">Họ tên</span>
-                <span className="dashboard-card__value">{user.fullName}</span>
+                <span className="dashboard-card__value">{user?.fullName}</span>
               </div>
               <div className="dashboard-card__row">
                 <span className="dashboard-card__label">Email</span>
-                <span className="dashboard-card__value">{user.email}</span>
+                <span className="dashboard-card__value">{user?.email}</span>
               </div>
               <div className="dashboard-card__row">
                 <span className="dashboard-card__label">Mã nhân viên</span>
-                <span className="dashboard-card__value">{user.staffCode}</span>
+                <span className="dashboard-card__value">{user?.userCode || user?.staffCode}</span>
               </div>
               <div className="dashboard-card__row">
                 <span className="dashboard-card__label">Vai trò</span>
                 <span className="dashboard-card__value dashboard-card__role-badge">
-                  {ROLE_LABELS[user.role_type] || user.role_type}
+                  {ROLE_LABELS[user?.role] || user?.role}
                 </span>
               </div>
             </div>
