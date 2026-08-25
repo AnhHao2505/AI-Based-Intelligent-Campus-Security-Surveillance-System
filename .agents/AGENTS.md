@@ -13,3 +13,8 @@ Khi chuyển đổi thiết kế database (như DBML / ERD.txt) sang các tệp 
 
 3. **Khóa chính (Primary Key)**:
    - **Quy tắc**: Khóa chính phải thuộc kiểu tự động tăng (primary key should be of auto-increment type). Sử dụng các kiểu như `SERIAL` hoặc `BIGSERIAL` cho khóa chính thay vì `UUID`.
+
+## Quy tắc thiết kế và tài liệu
+- **File ERD.txt**: Nội dung trong file `ERD.txt` phải phản ánh chính xác các entity hiện có trong hệ thống. Đây là File nhằm chuyển đổi thành migration tương ứng.
+- Trước khi thực hiện chỉnh sửa hoặc tạo bất kỳ migration nào, bạn phải cập nhật file `ERD.txt` để đảm bảo nó phản ánh đúng cấu trúc hiện tại của database.
+

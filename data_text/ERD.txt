@@ -4,34 +4,31 @@
 // Build incrementally (phát triển từ từ ERD, ko build toàn bộ hệ thống
 // mà chỉ build erd liên quan đến function)
 
-// User chỉ chứa staff (GUARD, ADMIN, FACILITY_MANAGER)
-// Đăng nhập chỉ được = email được cấp, hoặc = email + password đc cấp
+// ============================================================================
+// ENTITY OF AUTHENTICATION MODULE
+// ============================================================================
 Table users {
   id INT [pk, increment]
   full_name VARCHAR(100) [not null]
   user_code VARCHAR(50) [not null, unique, note: 'MSNV or MSSV']
-  role VARCHAR(50) [not null, note: 'ADMIN | FACILITY_MANAGER | INTERNAL_GUARD | OUTSOURCED_GUARD ']
+  role VARCHAR(50) [not null, note: 'ADMIN | FACILITY_MANAGER | INTERNAL_GUARD | OUTSOURCED_GUARD']
   email VARCHAR(255) [not null, unique]
-  password char(60) [note: 'b64-encoded bcrypt hash, length=60'] 
+  password VARCHAR(60) [note: 'b64-encoded bcrypt hash, length=60'] 
   is_active BOOLEAN [not null, default: true, note: 'true: Active, false: Inactive']
   created_at TIMESTAMPTZ [default: `CURRENT_TIMESTAMP`]
   updated_at TIMESTAMPTZ [default: `CURRENT_TIMESTAMP`]
   deleted_at TIMESTAMPTZ [note: 'Inactive = soft-delete']
 }
 
-// Đây là nơi lưu data ảnh để AI sử dụng để phát hiện người
-// Ko phải là ảnh tương ứng với 1 user nào đó
-// Có thể lưu nhiều ảnh cho 1 mã code (có thể là mã code của STUDENT/STAFF)
-// Quét OCR extract code và name
-Table face_data {
+Table password_reset_tokens {
   id INT [pk, increment]
-  image_front_url VARCHAR(255) [not null, note: 'Ảnh chính diện - MinIO']
-  image_left_url VARCHAR(255) [not null, note: 'Ảnh góc trái - MinIO']
-  image_right_url VARCHAR(255) [not null, note: 'Ảnh góc phải - MinIO']
-  embedding_front "vector(512)" [not null]
-  embedding_left "vector(512)" [not null]
-  embedding_right "vector(512)" [not null]
-  user_code VARCHAR(50) [not null, note: 'MSSV hoặc MSNV']
-  full_name VARCHAR(100) [not null]
+  token VARCHAR(255) [not null, unique]
+  email VARCHAR(255) [not null]
+  expired_at TIMESTAMPTZ [not null]
+  is_used BOOLEAN [not null, default: false]
   created_at TIMESTAMPTZ [default: `CURRENT_TIMESTAMP`]
 }
+
+// ============================================================================
+// ENTITY OF [NAME] MODULE
+// ============================================================================
