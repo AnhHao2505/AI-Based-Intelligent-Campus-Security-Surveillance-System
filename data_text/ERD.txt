@@ -30,5 +30,42 @@ Table password_reset_tokens {
 }
 
 // ============================================================================
-// ENTITY OF [NAME] MODULE
+// ENTITY OF M06 AREA MANAGEMENT MODULE
 // ============================================================================
+Table area_levels {
+  level SMALLINT [pk]
+  code VARCHAR(30) [not null, unique]
+  name VARCHAR(100) [not null]
+  requires_face_recognition BOOLEAN [not null, default: true]
+  description TEXT
+  is_active BOOLEAN [not null, default: true]
+}
+
+Table areas {
+  id INT [pk, increment]
+  code VARCHAR(50) [not null]
+  name VARCHAR(150) [not null]
+  area_level SMALLINT [not null, ref: > area_levels.level]
+  building VARCHAR(50)
+  floor VARCHAR(20)
+  description TEXT
+  map_x NUMERIC(7,2)
+  map_y NUMERIC(7,2)
+  is_active BOOLEAN [not null, default: true]
+  created_by INT [ref: > users.id]
+  created_at TIMESTAMPTZ [not null, default: `CURRENT_TIMESTAMP`]
+  updated_by INT [ref: > users.id]
+  updated_at TIMESTAMPTZ [not null, default: `CURRENT_TIMESTAMP`]
+  deleted_at TIMESTAMPTZ
+}
+
+Table area_change_logs {
+  id INT [pk, increment]
+  area_id INT [not null, ref: > areas.id]
+  actor_id INT [ref: > users.id]
+  action VARCHAR(20) [not null, note: 'CREATE | UPDATE | DEACTIVATE']
+  old_value JSONB
+  new_value JSONB
+  reason VARCHAR(255)
+  created_at TIMESTAMPTZ [not null, default: `CURRENT_TIMESTAMP`]
+}
