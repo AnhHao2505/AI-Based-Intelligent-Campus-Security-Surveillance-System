@@ -10,3 +10,6 @@ Khi chuyển đổi thiết kế database (như DBML / ERD.txt) sang các tệp 
 
 2. **Dữ liệu văn bản chung**:
    - Sử dụng `VARCHAR(N)` hoặc `TEXT` cho các cột chuỗi văn bản thay vì `CHAR(N)`.
+
+3. **Khóa chính (Primary Key)**:
+   - **Quy tắc**: Khóa chính phải thuộc kiểu tự động tăng (primary key should be of auto-increment type). Sử dụng các kiểu như `SERIAL` hoặc `BIGSERIAL` cho khóa chính thay vì `UUID`.

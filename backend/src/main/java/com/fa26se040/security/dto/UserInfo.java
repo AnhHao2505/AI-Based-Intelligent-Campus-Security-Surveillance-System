@@ -4,14 +4,13 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import java.util.UUID;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class UserInfo {
-    private UUID id;
+    private Integer id;
     private String fullName;
     private String email;
     private String role;

@@ -7,7 +7,7 @@
 // User chỉ chứa staff (GUARD, ADMIN, FACILITY_MANAGER)
 // Đăng nhập chỉ được = email được cấp, hoặc = email + password đc cấp
 Table users {
-  id UUID [pk, default: `gen_random_uuid()`]
+  id INT [pk, increment]
   full_name VARCHAR(100) [not null]
   user_code VARCHAR(50) [not null, unique, note: 'MSNV or MSSV']
   role VARCHAR(50) [not null, note: 'ADMIN | FACILITY_MANAGER | INTERNAL_GUARD | OUTSOURCED_GUARD ']
@@ -24,14 +24,14 @@ Table users {
 // Có thể lưu nhiều ảnh cho 1 mã code (có thể là mã code của STUDENT/STAFF)
 // Quét OCR extract code và name
 Table face_data {
-  id UUID [pk, default: `gen_random_uuid()`]
+  id INT [pk, increment]
   image_front_url VARCHAR(255) [not null, note: 'Ảnh chính diện - MinIO']
   image_left_url VARCHAR(255) [not null, note: 'Ảnh góc trái - MinIO']
   image_right_url VARCHAR(255) [not null, note: 'Ảnh góc phải - MinIO']
   embedding_front "vector(512)" [not null]
   embedding_left "vector(512)" [not null]
   embedding_right "vector(512)" [not null]
-  code VARCHAR(50) [not null, note: 'MSSV hoặc MSNV']
+  user_code VARCHAR(50) [not null, note: 'MSSV hoặc MSNV']
   full_name VARCHAR(100) [not null]
   created_at TIMESTAMPTZ [default: `CURRENT_TIMESTAMP`]
 }

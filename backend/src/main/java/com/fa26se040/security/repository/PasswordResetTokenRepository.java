@@ -4,9 +4,8 @@ import com.fa26se040.security.entity.PasswordResetToken;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 import java.util.Optional;
-import java.util.UUID;
 
 @Repository
-public interface PasswordResetTokenRepository extends JpaRepository<PasswordResetToken, UUID> {
+public interface PasswordResetTokenRepository extends JpaRepository<PasswordResetToken, Integer> {
     Optional<PasswordResetToken> findByToken(String token);
 }
