@@ -1,18 +1,10 @@
-import { clearAuth } from '../services/authService';
+import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { ROLE_LABELS, ROLES } from '../constants/roles';
 import './DashboardPage.css';
 
-const ROLE_LABELS = {
-  ADMIN: 'Quản trị viên',
-  FACILITY_MANAGER: 'Quản lý cơ sở',
-  INTERNAL_GUARD: 'Bảo vệ nội bộ',
-  OUTSOURCED_GUARD: 'Bảo vệ thuê ngoài',
-};
-
-export default function DashboardPage({ user, onLogout }) {
-  const handleLogout = () => {
-    clearAuth();
-    onLogout();
-  };
+export default function DashboardPage() {
+  const { user, logout, hasRole } = useAuth();
 
   return (
     <div className="dashboard">
@@ -30,7 +22,7 @@ export default function DashboardPage({ user, onLogout }) {
           </svg>
           <span>Campus Security</span>
         </div>
-        <button className="dashboard-nav__logout" onClick={handleLogout}>
+        <button className="dashboard-nav__logout" onClick={logout}>
           Đăng xuất
         </button>
       </nav>
@@ -55,32 +47,26 @@ export default function DashboardPage({ user, onLogout }) {
               </div>
               <div className="dashboard-card__row">
                 <span className="dashboard-card__label">Mã nhân viên</span>
-                <span className="dashboard-card__value">{user.staffCode}</span>
+                <span className="dashboard-card__value">{user.userCode}</span>
               </div>
               <div className="dashboard-card__row">
                 <span className="dashboard-card__label">Vai trò</span>
                 <span className="dashboard-card__value dashboard-card__role-badge">
-                  {ROLE_LABELS[user.role_type] || user.role_type}
+                  {ROLE_LABELS[user.role] || user.role}
                 </span>
               </div>
             </div>
           </div>
 
           <div className="dashboard-card dashboard-card--status">
-            <h3>Trạng thái hệ thống</h3>
-            <div className="dashboard-card__rows">
-              <div className="dashboard-card__row">
-                <span className="dashboard-card__label">Xác thực</span>
-                <span className="dashboard-card__status dashboard-card__status--ok">
-                  ● Đã đăng nhập
-                </span>
-              </div>
-              <div className="dashboard-card__row">
-                <span className="dashboard-card__label">Token</span>
-                <span className="dashboard-card__status dashboard-card__status--ok">
-                  ● Hợp lệ (24h)
-                </span>
-              </div>
+            <h3>Truy cập nhanh (Phân quyền)</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1rem' }}>
+              <Link to="/admin" className="dashboard-nav__logout" style={{ textDecoration: 'none', textAlign: 'center', background: hasRole([ROLES.ADMIN]) ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255, 255, 255, 0.05)', color: hasRole([ROLES.ADMIN]) ? '#60a5fa' : 'rgba(255, 255, 255, 0.4)' }}>
+                Trang Admin (Chỉ ADMIN)
+              </Link>
+              <Link to="/guard" className="dashboard-nav__logout" style={{ textDecoration: 'none', textAlign: 'center', background: hasRole([ROLES.ADMIN, ROLES.INTERNAL_GUARD, ROLES.OUTSOURCED_GUARD]) ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.05)', color: hasRole([ROLES.ADMIN, ROLES.INTERNAL_GUARD, ROLES.OUTSOURCED_GUARD]) ? '#34d399' : 'rgba(255, 255, 255, 0.4)' }}>
+                Trạm tuần tra (ADMIN, GUARDS)
+              </Link>
             </div>
           </div>
         </div>
@@ -88,3 +74,4 @@ export default function DashboardPage({ user, onLogout }) {
     </div>
   );
 }
+
