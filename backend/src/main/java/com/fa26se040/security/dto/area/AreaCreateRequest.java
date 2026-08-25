@@ -9,7 +9,7 @@ import java.math.BigDecimal;
 
 public record AreaCreateRequest(
     @NotBlank(message = "Mã khu vực không được để trống")
-    @Pattern(regexp = "^[A-Z0-9][A-Z0-9-]{1,48}[A-Z0-9]$", message = "Mã khu vực chỉ gồm chữ in hoa, số và dấu gạch ngang, dài 3–50 ký tự")
+    @Pattern(regexp = "^[a-zA-Z0-9][a-zA-Z0-9-]{1,48}[a-zA-Z0-9]$", message = "Mã khu vực chỉ gồm chữ cái, số và dấu gạch ngang, dài 3–50 ký tự")
     String code,
 
     @NotBlank(message = "Tên khu vực không được để trống")

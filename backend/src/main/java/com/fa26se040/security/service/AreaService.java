@@ -41,7 +41,9 @@ public class AreaService {
 
     @Transactional(readOnly = true)
     public Page<AreaListItemResponse> getAreas(String keyword, Short areaLevel, String building, Boolean isActive, Pageable pageable) {
-        Page<Area> page = areaRepository.searchAreas(keyword, areaLevel, building, isActive, pageable);
+        String cleanKeyword = (keyword != null && !keyword.trim().isEmpty()) ? keyword.trim() : null;
+        String cleanBuilding = (building != null && !building.trim().isEmpty()) ? building.trim() : null;
+        Page<Area> page = areaRepository.searchAreas(cleanKeyword, areaLevel, cleanBuilding, isActive, pageable);
         return page.map(this::mapToAreaListItemResponse);
     }
 

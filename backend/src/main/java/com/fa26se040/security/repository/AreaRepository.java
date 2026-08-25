@@ -21,24 +21,26 @@ public interface AreaRepository extends JpaRepository<Area, Integer> {
         value = """
             SELECT a FROM Area a
             JOIN FETCH a.areaLevel al
-            WHERE a.deletedAt IS NULL
-              AND (:isActive IS NULL OR a.isActive = :isActive)
+            WHERE (:isActive IS NULL
+                   OR (:isActive = true  AND a.deletedAt IS NULL)
+                   OR (:isActive = false AND a.deletedAt IS NOT NULL))
               AND (:areaLevel IS NULL OR al.level = :areaLevel)
-              AND (:building IS NULL OR LOWER(a.building) = LOWER(:building))
-              AND (:keyword IS NULL OR (
-                    LOWER(a.code) LIKE LOWER(CONCAT('%', :keyword, '%')) OR
-                    LOWER(a.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+              AND (CAST(:building AS string) IS NULL OR LOWER(a.building) = LOWER(CAST(:building AS string)))
+              AND (CAST(:keyword AS string) IS NULL OR (
+                    LOWER(a.code) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%')) OR
+                    LOWER(a.name) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%'))
                   ))
             """,
         countQuery = """
             SELECT COUNT(a) FROM Area a
-            WHERE a.deletedAt IS NULL
-              AND (:isActive IS NULL OR a.isActive = :isActive)
+            WHERE (:isActive IS NULL
+                   OR (:isActive = true  AND a.deletedAt IS NULL)
+                   OR (:isActive = false AND a.deletedAt IS NOT NULL))
               AND (:areaLevel IS NULL OR a.areaLevel.level = :areaLevel)
-              AND (:building IS NULL OR LOWER(a.building) = LOWER(:building))
-              AND (:keyword IS NULL OR (
-                    LOWER(a.code) LIKE LOWER(CONCAT('%', :keyword, '%')) OR
-                    LOWER(a.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+              AND (CAST(:building AS string) IS NULL OR LOWER(a.building) = LOWER(CAST(:building AS string)))
+              AND (CAST(:keyword AS string) IS NULL OR (
+                    LOWER(a.code) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%')) OR
+                    LOWER(a.name) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%'))
                   ))
             """
     )
