@@ -5,16 +5,17 @@
 // mà chỉ build erd liên quan đến function)
 
 // User chỉ chứa staff (GUARD, ADMIN, FACILITY_MANAGER)
-// Mã code chỉ cần của nhân viên, không cần của sinh viên
-// Đăng nhập chỉ được = email được cấp
+// Đăng nhập chỉ được = email được cấp, hoặc = email + password đc cấp
 Table users {
-  id UUID [pk, default: `gen_random_uuid()`]
+  id INT [pk, increment]
   full_name VARCHAR(100) [not null]
-  staff_code VARCHAR(50) [not null, unique, note: 'MSNV']
+  user_code VARCHAR(50) [not null, unique, note: 'MSNV or MSSV']
   role VARCHAR(50) [not null, note: 'ADMIN | FACILITY_MANAGER | INTERNAL_GUARD | OUTSOURCED_GUARD ']
   email VARCHAR(255) [not null, unique]
+  password char(60) [note: 'b64-encoded bcrypt hash, length=60'] 
   is_active BOOLEAN [not null, default: true, note: 'true: Active, false: Inactive']
   created_at TIMESTAMPTZ [default: `CURRENT_TIMESTAMP`]
+  updated_at TIMESTAMPTZ [default: `CURRENT_TIMESTAMP`]
   deleted_at TIMESTAMPTZ [note: 'Inactive = soft-delete']
 }
 
@@ -23,14 +24,14 @@ Table users {
 // Có thể lưu nhiều ảnh cho 1 mã code (có thể là mã code của STUDENT/STAFF)
 // Quét OCR extract code và name
 Table face_data {
-  id UUID [pk, default: `gen_random_uuid()`]
+  id INT [pk, increment]
   image_front_url VARCHAR(255) [not null, note: 'Ảnh chính diện - MinIO']
   image_left_url VARCHAR(255) [not null, note: 'Ảnh góc trái - MinIO']
   image_right_url VARCHAR(255) [not null, note: 'Ảnh góc phải - MinIO']
   embedding_front "vector(512)" [not null]
   embedding_left "vector(512)" [not null]
   embedding_right "vector(512)" [not null]
-  code VARCHAR(50) [not null, note: 'MSSV hoặc MSNV']
+  user_code VARCHAR(50) [not null, note: 'MSSV hoặc MSNV']
   full_name VARCHAR(100) [not null]
   created_at TIMESTAMPTZ [default: `CURRENT_TIMESTAMP`]
 }
