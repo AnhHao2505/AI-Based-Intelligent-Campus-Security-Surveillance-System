@@ -35,7 +35,7 @@ public class JwtTokenProvider {
         return Jwts.builder()
                 .subject(user.getId().toString())
                 .claim("email", user.getEmail())
-                .claim("role", user.getRole().name())
+                .claim("role", user.getRoleType().name())
                 .claim("fullName", user.getFullName())
                 .issuedAt(now)
                 .expiration(expiryDate)
@@ -59,16 +59,11 @@ public class JwtTokenProvider {
     }
 
     public boolean validateToken(String token) {
-        try {
-            Jwts.parser()
-                    .verifyWith(key)
-                    .build()
-                    .parseSignedClaims(token);
-            return true;
-        } catch (JwtException | IllegalArgumentException e) {
-            log.error("Invalid JWT token: {}", e.getMessage());
-        }
-        return false;
+        Jwts.parser()
+                .verifyWith(key)
+                .build()
+                .parseSignedClaims(token);
+        return true;
     }
 
     private Claims getClaims(String token) {

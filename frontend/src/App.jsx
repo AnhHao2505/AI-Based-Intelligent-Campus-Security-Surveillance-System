@@ -1,44 +1,42 @@
-import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { GoogleOAuthProvider } from '@react-oauth/google';
-import { isAuthenticated, getStoredUser, getUserPortalRoute, clearAuth } from './services/authService';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { getUserPortalRoute } from './services/authService';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import PersonalPortalLayout from './components/PersonalPortalLayout';
 import AccessHistoryPage from './pages/AccessHistoryPage';
 import NotificationsPage from './pages/NotificationsPage';
 import RequestAccessPage from './pages/RequestAccessPage';
+import ProtectedRoute from './components/ProtectedRoute';
 import './App.css';
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || 'mock-client-id';
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+if (!GOOGLE_CLIENT_ID) {
+  throw new Error('Thiếu VITE_GOOGLE_CLIENT_ID. Sao chép frontend/.env.example thành frontend/.env và điền giá trị.');
+}
 
-function App() {
-  const [loggedIn, setLoggedIn] = useState(isAuthenticated());
-  const [user, setUser] = useState(getStoredUser());
-
-  const handleLoginSuccess = (authResponse) => {
-    setUser(authResponse.user);
-    setLoggedIn(true);
-  };
-
-  const handleLogout = () => {
-    clearAuth();
-    setUser(null);
-    setLoggedIn(false);
-  };
+function AppRoutes() {
+  const { user, isAuthenticated, logout } = useAuth();
+  const navigate = useNavigate();
 
   // Determine portal route status: 'ADMIN' | 'PERSONAL' | 'UNKNOWN'
   const portalRoute = user ? getUserPortalRoute(user) : 'UNKNOWN';
 
   // Security Fail-Closed: If user exists but role_type is UNKNOWN (invalid/corrupted session), force logout immediately
   useEffect(() => {
-    if (loggedIn && user && portalRoute === 'UNKNOWN') {
+    if (isAuthenticated && user && portalRoute === 'UNKNOWN') {
       console.warn('Security Fail-Closed: Unknown user role_type detected. Clearing session.');
-      clearAuth();
-      setUser(null);
-      setLoggedIn(false);
+      logout();
     }
-  }, [loggedIn, user, portalRoute]);
+  }, [isAuthenticated, user, portalRoute, logout]);
+
+  const handleLoginSuccess = (userData) => {
+    const route = getUserPortalRoute(userData);
+    const target = route === 'ADMIN' ? '/dashboard' : '/personal/access-history';
+    navigate(target, { replace: true });
+  };
 
   const defaultAuthRedirect =
     portalRoute === 'ADMIN'
@@ -48,85 +46,85 @@ function App() {
       : '/login';
 
   return (
+    <Routes>
+      {/* Login Route */}
+      <Route
+        path="/login"
+        element={
+          isAuthenticated && user && portalRoute !== 'UNKNOWN' ? (
+            <Navigate to={defaultAuthRedirect} replace />
+          ) : (
+            <LoginPage onLoginSuccess={handleLoginSuccess} />
+          )
+        }
+      />
+
+      {/* Admin / Guard / Manager Dashboard Route */}
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute allowedRoles={['ADMIN', 'FACILITY_MANAGER', 'INTERNAL_GUARD', 'OUTSOURCED_GUARD']}>
+            <DashboardPage user={user} onLogout={logout} />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Personal Portal Routes (Student / Teacher / Staff / All Non-Admin Roles) */}
+      <Route
+        path="/personal/access-history"
+        element={
+          <ProtectedRoute>
+            <PersonalPortalLayout user={user} onLogout={logout}>
+              <AccessHistoryPage />
+            </PersonalPortalLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/personal/notifications"
+        element={
+          <ProtectedRoute>
+            <PersonalPortalLayout user={user} onLogout={logout}>
+              <NotificationsPage />
+            </PersonalPortalLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/personal/request-access"
+        element={
+          <ProtectedRoute>
+            <PersonalPortalLayout user={user} onLogout={logout}>
+              <RequestAccessPage />
+            </PersonalPortalLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Default / Fallback Route */}
+      <Route
+        path="*"
+        element={
+          isAuthenticated && user && portalRoute !== 'UNKNOWN' ? (
+            <Navigate to={defaultAuthRedirect} replace />
+          ) : (
+            <Navigate to="/login" replace />
+          )
+        }
+      />
+    </Routes>
+  );
+}
+
+function App() {
+  return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
       <BrowserRouter>
-        <Routes>
-          {/* Login Route */}
-          <Route
-            path="/login"
-            element={
-              loggedIn && user && portalRoute !== 'UNKNOWN' ? (
-                <Navigate to={defaultAuthRedirect} replace />
-              ) : (
-                <LoginPage onLoginSuccess={handleLoginSuccess} />
-              )
-            }
-          />
-
-          {/* Admin / Guard / Manager Dashboard Route */}
-          <Route
-            path="/dashboard"
-            element={
-              loggedIn && user && portalRoute === 'ADMIN' ? (
-                <DashboardPage user={user} onLogout={handleLogout} />
-              ) : (
-                <Navigate to="/login" replace />
-              )
-            }
-          />
-
-          {/* Personal Portal Routes (Student / Teacher / Staff / All Non-Admin Roles) */}
-          <Route
-            path="/personal/access-history"
-            element={
-              loggedIn && user && portalRoute === 'PERSONAL' ? (
-                <PersonalPortalLayout user={user} onLogout={handleLogout}>
-                  <AccessHistoryPage />
-                </PersonalPortalLayout>
-              ) : (
-                <Navigate to="/login" replace />
-              )
-            }
-          />
-
-          <Route
-            path="/personal/notifications"
-            element={
-              loggedIn && user && portalRoute === 'PERSONAL' ? (
-                <PersonalPortalLayout user={user} onLogout={handleLogout}>
-                  <NotificationsPage />
-                </PersonalPortalLayout>
-              ) : (
-                <Navigate to="/login" replace />
-              )
-            }
-          />
-
-          <Route
-            path="/personal/request-access"
-            element={
-              loggedIn && user && portalRoute === 'PERSONAL' ? (
-                <PersonalPortalLayout user={user} onLogout={handleLogout}>
-                  <RequestAccessPage />
-                </PersonalPortalLayout>
-              ) : (
-                <Navigate to="/login" replace />
-              )
-            }
-          />
-
-          {/* Default / Fallback Route */}
-          <Route
-            path="*"
-            element={
-              loggedIn && user && portalRoute !== 'UNKNOWN' ? (
-                <Navigate to={defaultAuthRedirect} replace />
-              ) : (
-                <Navigate to="/login" replace />
-              )
-            }
-          />
-        </Routes>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
       </BrowserRouter>
     </GoogleOAuthProvider>
   );

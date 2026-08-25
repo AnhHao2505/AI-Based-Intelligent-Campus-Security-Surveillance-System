@@ -4,5 +4,10 @@ public enum Role {
     ADMIN,
     FACILITY_MANAGER,
     INTERNAL_GUARD,
-    OUTSOURCED_GUARD
+    OUTSOURCED_GUARD,
+    TEACHER,
+    STUDENT,
+    PRINCIPAL,
+    JANITOR,
+    STAFF
 }

@@ -14,6 +14,6 @@ public class UserInfo {
     private UUID id;
     private String fullName;
     private String email;
-    private String role;
-    private String staffCode;
+    private String roleType;
+    private String userCode;
 }

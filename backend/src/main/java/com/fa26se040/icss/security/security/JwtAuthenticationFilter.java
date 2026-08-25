@@ -1,5 +1,7 @@
 package com.fa26se040.icss.security.security;
 
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -34,10 +36,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 String email = tokenProvider.getEmailFromToken(jwt);
                 String role = tokenProvider.getRoleFromToken(jwt);
 
+                CurrentUser currentUser = new CurrentUser(userId, email, role);
                 SimpleGrantedAuthority authority = new SimpleGrantedAuthority("ROLE_" + role);
-                
+
                 UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                        email,
+                        currentUser,
                         null,
                         Collections.singletonList(authority)
                 );
@@ -45,6 +48,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             }
+        } catch (ExpiredJwtException ex) {
+            logger.warn("JWT token đã hết hạn: " + ex.getMessage());
+        } catch (JwtException | IllegalArgumentException ex) {
+            logger.warn("JWT token không hợp lệ: " + ex.getMessage());
         } catch (Exception ex) {
             logger.error("Could not set user authentication in security context", ex);
         }

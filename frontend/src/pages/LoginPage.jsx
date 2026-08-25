@@ -1,16 +1,11 @@
 import { useState } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
-import { loginWithGoogle, saveAuth } from '../services/authService';
+import { useAuth } from '../context/AuthContext';
+import { ROLE_LABELS } from '../services/authService';
 import './LoginPage.css';
 
-const ROLE_LABELS = {
-  ADMIN: 'Quản trị viên',
-  FACILITY_MANAGER: 'Quản lý cơ sở',
-  INTERNAL_GUARD: 'Bảo vệ nội bộ',
-  OUTSOURCED_GUARD: 'Bảo vệ thuê ngoài',
-};
-
 export default function LoginPage({ onLoginSuccess }) {
+  const { loginWithGoogleToken } = useAuth();
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -19,10 +14,11 @@ export default function LoginPage({ onLoginSuccess }) {
     setLoading(true);
 
     try {
-      // credentialResponse.credential chính là id_token từ Google
-      const authResponse = await loginWithGoogle(credentialResponse.credential);
-      saveAuth(authResponse);
-      onLoginSuccess(authResponse);
+      // credentialResponse.credential là id_token từ Google
+      const userData = await loginWithGoogleToken(credentialResponse.credential);
+      if (onLoginSuccess) {
+        onLoginSuccess(userData);
+      }
     } catch (err) {
       console.error('Login failed:', err);
       setError(err.message || 'Đăng nhập thất bại. Vui lòng thử lại.');

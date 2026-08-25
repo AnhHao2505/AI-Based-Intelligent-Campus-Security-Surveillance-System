@@ -1,4 +1,3 @@
-import { clearAuth } from '../services/authService';
 import './DashboardPage.css';
 
 const ROLE_LABELS = {
@@ -10,9 +9,14 @@ const ROLE_LABELS = {
 
 export default function DashboardPage({ user, onLogout }) {
   const handleLogout = () => {
-    clearAuth();
-    onLogout();
+    if (onLogout) {
+      onLogout();
+    }
   };
+
+  const fullName = user?.fullName || user?.full_name || 'User';
+  const userCode = user?.userCode || user?.user_code || user?.staffCode || '';
+  const roleType = user?.roleType || user?.role_type || '';
 
   return (
     <div className="dashboard">
@@ -37,7 +41,7 @@ export default function DashboardPage({ user, onLogout }) {
 
       <main className="dashboard-main">
         <div className="dashboard-welcome">
-          <h1>Xin chào, {user.fullName} 👋</h1>
+          <h1>Xin chào, {fullName} 👋</h1>
           <p>Chào mừng bạn đến với Hệ thống Giám sát An ninh Thông minh</p>
         </div>
 
@@ -47,20 +51,20 @@ export default function DashboardPage({ user, onLogout }) {
             <div className="dashboard-card__rows">
               <div className="dashboard-card__row">
                 <span className="dashboard-card__label">Họ tên</span>
-                <span className="dashboard-card__value">{user.fullName}</span>
+                <span className="dashboard-card__value">{fullName}</span>
               </div>
               <div className="dashboard-card__row">
                 <span className="dashboard-card__label">Email</span>
-                <span className="dashboard-card__value">{user.email}</span>
+                <span className="dashboard-card__value">{user?.email}</span>
               </div>
               <div className="dashboard-card__row">
-                <span className="dashboard-card__label">Mã nhân viên</span>
-                <span className="dashboard-card__value">{user.staffCode}</span>
+                <span className="dashboard-card__label">Mã người dùng</span>
+                <span className="dashboard-card__value">{userCode}</span>
               </div>
               <div className="dashboard-card__row">
                 <span className="dashboard-card__label">Vai trò</span>
                 <span className="dashboard-card__value dashboard-card__role-badge">
-                  {ROLE_LABELS[user.role_type] || user.role_type}
+                  {ROLE_LABELS[roleType] || roleType}
                 </span>
               </div>
             </div>

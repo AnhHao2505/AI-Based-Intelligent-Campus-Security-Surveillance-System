@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Clock, Bell, KeyRound, Shield, LogOut } from 'lucide-react';
-import { clearAuth } from '../services/authService';
 import { getNotifications } from '../api/mockPersonalApi';
 import './PersonalPortalLayout.css';
 
@@ -34,7 +33,6 @@ export default function PersonalPortalLayout({ user, onLogout, children }) {
   }, [location.pathname]);
 
   const handleLogoutClick = () => {
-    clearAuth();
     if (onLogout) {
       onLogout();
     } else {
@@ -47,6 +45,9 @@ export default function PersonalPortalLayout({ user, onLogout, children }) {
     const parts = name.trim().split(' ');
     return parts[0][0].toUpperCase();
   };
+
+  const fullName = user?.fullName || user?.full_name || 'User';
+  const userCode = user?.userCode || user?.user_code || user?.staffCode || '';
 
   return (
     <div className="portal-container">
@@ -108,10 +109,10 @@ export default function PersonalPortalLayout({ user, onLogout, children }) {
         {/* User Profile Footer */}
         <div className="portal-user-footer">
           <div className="portal-user-info">
-            <div className="portal-avatar">{getInitials(user?.fullName || user?.full_name)}</div>
+            <div className="portal-avatar">{getInitials(fullName)}</div>
             <div className="portal-user-details">
-              <h4>{user?.fullName || user?.full_name || 'User'}</h4>
-              <p>User Code: {user?.staffCode || user?.user_code || 'SE160000'}</p>
+              <h4>{fullName}</h4>
+              <p>Mã: {userCode}</p>
             </div>
           </div>
           <div className="portal-status-badge">
