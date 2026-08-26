@@ -7,11 +7,12 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @Component
 public class AreaDependencyChecker {
 
-    public AreaDependencyResponse check(Integer areaId, String areaCode) {
+    public AreaDependencyResponse check(UUID areaId, String areaCode) {
         List<Blocker> blockers = new ArrayList<>();
         List<String> warnings = new ArrayList<>();
 
@@ -31,12 +32,12 @@ public class AreaDependencyChecker {
         return new AreaDependencyResponse(areaId, areaCode, canDeactivate, blockers, warnings, note);
     }
 
-    private int countAssignedCameras(Integer areaId) {
+    private int countAssignedCameras(UUID areaId) {
         // TODO M07 — đếm cameras đang gán vào khu vực
         return 0;
     }
 
-    private int countActiveAccessPermissions(Integer areaId) {
+    private int countActiveAccessPermissions(UUID areaId) {
         // TODO M08 — đếm access_permissions còn hiệu lực
         return 0;
     }

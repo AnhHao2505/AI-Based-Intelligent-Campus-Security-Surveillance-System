@@ -2,9 +2,10 @@ package com.fa26se040.security.dto.area;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.UUID;
 
 public record AreaResponse(
-    Integer id,
+    UUID id,
     String code,
     String name,
     AreaLevelResponse level,
@@ -14,8 +15,8 @@ public record AreaResponse(
     BigDecimal mapX,
     BigDecimal mapY,
     Boolean isActive,
-    Integer createdBy,
+    UUID createdBy,
     OffsetDateTime createdAt,
-    Integer updatedBy,
+    UUID updatedBy,
     OffsetDateTime updatedAt
 ) {}

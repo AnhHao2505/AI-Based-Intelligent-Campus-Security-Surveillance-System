@@ -20,6 +20,7 @@ import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Objects;
+import java.util.UUID;
 
 @Entity
 @Table(name = "areas")
@@ -31,8 +32,8 @@ import java.util.Objects;
 public class Area {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Integer id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
 
     @Column(name = "code", nullable = false, length = 50)
     private String code;
@@ -64,13 +65,13 @@ public class Area {
     private Boolean isActive = true;
 
     @Column(name = "created_by")
-    private Integer createdBy;
+    private UUID createdBy;
 
     @Column(name = "created_at")
     private OffsetDateTime createdAt;
 
     @Column(name = "updated_by")
-    private Integer updatedBy;
+    private UUID updatedBy;
 
     @Column(name = "updated_at")
     private OffsetDateTime updatedAt;

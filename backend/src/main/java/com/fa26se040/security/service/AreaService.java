@@ -27,6 +27,7 @@ import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -48,14 +49,14 @@ public class AreaService {
     }
 
     @Transactional(readOnly = true)
-    public AreaResponse getAreaById(Integer id) {
+    public AreaResponse getAreaById(UUID id) {
         Area area = areaRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
         return mapToAreaResponse(area);
     }
 
     @Transactional(readOnly = true)
-    public AreaDependencyResponse getDependencies(Integer id) {
+    public AreaDependencyResponse getDependencies(UUID id) {
         Area area = areaRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
         return dependencyChecker.check(id, area.getCode());
@@ -83,7 +84,7 @@ public class AreaService {
 
         areaValidator.validateMapCoordinates(req.mapX(), req.mapY());
 
-        Integer actorId = resolveActorId(actorEmail);
+        UUID actorId = resolveActorId(actorEmail);
 
         Area area = Area.builder()
                 .code(code)
@@ -106,7 +107,7 @@ public class AreaService {
     }
 
     @Transactional
-    public AreaResponse update(Integer id, AreaUpdateRequest req, String actorEmail) {
+    public AreaResponse update(UUID id, AreaUpdateRequest req, String actorEmail) {
         Area area = areaRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
 
@@ -121,7 +122,7 @@ public class AreaService {
         areaValidator.validateDowngradeReason(area.getAreaLevel().getLevel(), newLevel.getLevel(), req.reason());
         areaValidator.validateMapCoordinates(req.mapX(), req.mapY());
 
-        Integer actorId = resolveActorId(actorEmail);
+        UUID actorId = resolveActorId(actorEmail);
 
         area.setName(name);
         area.setAreaLevel(newLevel);
@@ -139,7 +140,7 @@ public class AreaService {
     }
 
     @Transactional
-    public void deactivate(Integer id, String actorEmail) {
+    public void deactivate(UUID id, String actorEmail) {
         Area area = areaRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
 
@@ -150,7 +151,7 @@ public class AreaService {
         }
 
         Map<String, Object> oldSnapshot = snapshot(area);
-        Integer actorId = resolveActorId(actorEmail);
+        UUID actorId = resolveActorId(actorEmail);
 
         area.setIsActive(false);
         area.setDeletedAt(OffsetDateTime.now());
@@ -160,7 +161,7 @@ public class AreaService {
         logChange(id, actorId, "DEACTIVATE", oldSnapshot, snapshot(savedArea), null);
     }
 
-    private Integer resolveActorId(String email) {
+    private UUID resolveActorId(String email) {
         return userRepository.findByEmail(email)
                 .map(User::getId)
                 .orElseThrow(() -> new UnauthorizedException("Phiên đăng nhập không hợp lệ"));
@@ -179,7 +180,7 @@ public class AreaService {
         return map;
     }
 
-    private void logChange(Integer areaId, Integer actorId, String action, Map<String, Object> oldVal, Map<String, Object> newVal, String reason) {
+    private void logChange(UUID areaId, UUID actorId, String action, Map<String, Object> oldVal, Map<String, Object> newVal, String reason) {
         AreaChangeLog changeLog = AreaChangeLog.builder()
                 .areaId(areaId)
                 .actorId(actorId)

@@ -1,5 +1,5 @@
 // ============================================================================
-// DATABASE DESIGN V3 — HỆ THỐNG GIÁM SÁT AN NINH THÔNG MINH (FA26SE040)
+// DATABASE DESIGN V4 — HỆ THỐNG GIÁM SÁT AN NINH THÔNG MINH (FA26SE040)
 // ============================================================================
 // Build incrementally (phát triển từ từ ERD, ko build toàn bộ hệ thống
 // mà chỉ build erd liên quan đến function)
@@ -8,7 +8,7 @@
 // ENTITY OF AUTHENTICATION MODULE
 // ============================================================================
 Table users {
-  id INT [pk, increment]
+  id UUID [pk, default: `gen_random_uuid()`]
   full_name VARCHAR(100) [not null]
   user_code VARCHAR(50) [not null, unique, note: 'MSNV or MSSV']
   role VARCHAR(50) [not null, note: 'ADMIN | FACILITY_MANAGER | INTERNAL_GUARD | OUTSOURCED_GUARD']
@@ -21,7 +21,7 @@ Table users {
 }
 
 Table password_reset_tokens {
-  id INT [pk, increment]
+  id UUID [pk, default: `gen_random_uuid()`]
   token VARCHAR(255) [not null, unique]
   email VARCHAR(255) [not null]
   expired_at TIMESTAMPTZ [not null]
@@ -42,7 +42,7 @@ Table area_levels {
 }
 
 Table areas {
-  id INT [pk, increment]
+  id UUID [pk, default: `gen_random_uuid()`]
   code VARCHAR(50) [not null]
   name VARCHAR(150) [not null]
   area_level SMALLINT [not null, ref: > area_levels.level]
@@ -52,17 +52,17 @@ Table areas {
   map_x NUMERIC(7,2)
   map_y NUMERIC(7,2)
   is_active BOOLEAN [not null, default: true]
-  created_by INT [ref: > users.id]
+  created_by UUID [ref: > users.id]
   created_at TIMESTAMPTZ [not null, default: `CURRENT_TIMESTAMP`]
-  updated_by INT [ref: > users.id]
+  updated_by UUID [ref: > users.id]
   updated_at TIMESTAMPTZ [not null, default: `CURRENT_TIMESTAMP`]
   deleted_at TIMESTAMPTZ
 }
 
 Table area_change_logs {
-  id INT [pk, increment]
-  area_id INT [not null, ref: > areas.id]
-  actor_id INT [ref: > users.id]
+  id UUID [pk, default: `gen_random_uuid()`]
+  area_id UUID [not null, ref: > areas.id]
+  actor_id UUID [ref: > users.id]
   action VARCHAR(20) [not null, note: 'CREATE | UPDATE | DEACTIVATE']
   old_value JSONB
   new_value JSONB

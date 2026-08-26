@@ -26,6 +26,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/areas")
@@ -59,13 +60,13 @@ public class AreaController {
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
-    public ResponseEntity<AreaResponse> getAreaById(@PathVariable Integer id) {
+    public ResponseEntity<AreaResponse> getAreaById(@PathVariable UUID id) {
         return ResponseEntity.ok(areaService.getAreaById(id));
     }
 
     @GetMapping("/{id}/dependencies")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<AreaDependencyResponse> getDependencies(@PathVariable Integer id) {
+    public ResponseEntity<AreaDependencyResponse> getDependencies(@PathVariable UUID id) {
         return ResponseEntity.ok(areaService.getDependencies(id));
     }
 
@@ -84,7 +85,7 @@ public class AreaController {
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<AreaResponse> update(
-            @PathVariable Integer id,
+            @PathVariable UUID id,
             @Valid @RequestBody AreaUpdateRequest request,
             Authentication authentication
     ) {
@@ -96,7 +97,7 @@ public class AreaController {
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> deactivate(
-            @PathVariable Integer id,
+            @PathVariable UUID id,
             Authentication authentication
     ) {
         String actorEmail = authentication.getName();

@@ -9,13 +9,14 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
+import java.util.UUID;
 
 @Repository
-public interface AreaRepository extends JpaRepository<Area, Integer> {
+public interface AreaRepository extends JpaRepository<Area, UUID> {
 
     boolean existsByCodeAndDeletedAtIsNull(String code);
 
-    Optional<Area> findByIdAndDeletedAtIsNull(Integer id);
+    Optional<Area> findByIdAndDeletedAtIsNull(UUID id);
 
     @Query(
         value = """

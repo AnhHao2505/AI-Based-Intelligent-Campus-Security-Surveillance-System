@@ -1,7 +1,9 @@
 package com.fa26se040.security.dto.area;
 
+import java.util.UUID;
+
 public record AreaListItemResponse(
-    Integer id,
+    UUID id,
     String code,
     String name,
     AreaLevelResponse level,

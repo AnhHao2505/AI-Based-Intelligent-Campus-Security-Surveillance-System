@@ -18,6 +18,7 @@ import org.hibernate.type.SqlTypes;
 import java.time.OffsetDateTime;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 
 @Entity
 @Table(name = "area_change_logs")
@@ -29,14 +30,14 @@ import java.util.Objects;
 public class AreaChangeLog {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Integer id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
 
     @Column(name = "area_id", nullable = false)
-    private Integer areaId;
+    private UUID areaId;
 
     @Column(name = "actor_id")
-    private Integer actorId;
+    private UUID actorId;
 
     @Column(name = "action", nullable = false, length = 20)
     private String action;

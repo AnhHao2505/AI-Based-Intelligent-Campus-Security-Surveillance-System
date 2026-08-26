@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.UUID;
 
 @Slf4j
 @Component
@@ -42,9 +43,9 @@ public class JwtTokenProvider {
                 .compact();
     }
 
-    public Integer getUserIdFromToken(String token) {
+    public UUID getUserIdFromToken(String token) {
         Claims claims = getClaims(token);
-        return Integer.parseInt(claims.getSubject());
+        return UUID.fromString(claims.getSubject());
     }
 
     public String getEmailFromToken(String token) {
