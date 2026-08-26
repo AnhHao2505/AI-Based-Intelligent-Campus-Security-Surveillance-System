@@ -218,7 +218,6 @@ class AreaControllerIntegrationTest {
     }
 
     @Test
-    @Disabled("Chờ M01 bổ sung authenticationEntryPoint — xem M06_KNOWN_ISSUES.md")
     @DisplayName("I7: Không có token -> 401 Unauthorized")
     void shouldDenyUnauthenticatedRequest() throws Exception {
         mockMvc.perform(get("/api/areas"))
