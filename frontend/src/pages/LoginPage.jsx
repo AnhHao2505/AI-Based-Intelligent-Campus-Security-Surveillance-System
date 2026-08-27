@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
+import { useAuth } from '../context/AuthContext';
 import { 
-  loginWithGoogle, 
-  loginWithCredentials, 
   sendResetLink, 
-  resetPasswordWithToken, 
-  saveAuth 
+  resetPasswordWithToken 
 } from '../services/authService';
+import { useNavigate } from 'react-router-dom';
 import './LoginPage.css';
 
 const ROLE_LABELS = {
@@ -17,6 +16,8 @@ const ROLE_LABELS = {
 };
 
 export default function LoginPage({ onLoginSuccess, initialResetToken, onResetComplete }) {
+  const { loginWithGoogle, loginWithCredentials } = useAuth();
+  const navigate = useNavigate();
   const [mode, setMode] = useState('login'); // 'login' | 'forgot' | 'reset'
   const [activeTab, setActiveTab] = useState('google'); // 'google' | 'credentials'
   
@@ -42,8 +43,11 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
     setLoading(true);
     try {
       const authResponse = await loginWithGoogle(credentialResponse.credential);
-      saveAuth(authResponse);
-      onLoginSuccess(authResponse);
+      if (onLoginSuccess) {
+        onLoginSuccess(authResponse);
+      } else {
+        navigate('/');
+      }
     } catch (err) {
       console.error('Google login failed:', err);
       setError(err.message || 'Đăng nhập Google thất bại. Vui lòng thử lại.');
@@ -62,8 +66,11 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
     setLoading(true);
     try {
       const authResponse = await loginWithCredentials(email, password);
-      saveAuth(authResponse);
-      onLoginSuccess(authResponse);
+      if (onLoginSuccess) {
+        onLoginSuccess(authResponse);
+      } else {
+        navigate('/');
+      }
     } catch (err) {
       console.error('Credentials login failed:', err);
       setError(err.message || 'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.');
@@ -337,18 +344,6 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
           </>
         )}
 
-        <p className="login-card__note">
-          Chỉ email được cấp bởi quản trị viên mới có thể đăng nhập.
-        </p>
-
-        {/* Role badges */}
-        <div className="login-card__roles">
-          {Object.entries(ROLE_LABELS).map(([key, label]) => (
-            <span key={key} className="login-card__role-badge">
-              {label}
-            </span>
-          ))}
-        </div>
       </div>
 
       <footer className="login-footer">

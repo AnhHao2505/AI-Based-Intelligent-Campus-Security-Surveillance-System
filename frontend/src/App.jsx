@@ -1,15 +1,29 @@
 import { useState } from 'react';
+import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { GoogleOAuthProvider } from '@react-oauth/google';
-import { isAuthenticated, getStoredUser, clearAuth } from './services/authService';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { ROLES } from './constants/roles';
+import ProtectedRoute from './components/ProtectedRoute';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
+import UnauthorizedPage from './pages/UnauthorizedPage';
+import CameraListPage from './pages/cameras/CameraListPage';
+import CameraDetailPage from './pages/cameras/CameraDetailPage';
+import AppLayout from './components/layout/AppLayout';
 import './App.css';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
+function AppLayoutWrapper() {
+  const { user, logout } = useAuth();
+  return (
+    <AppLayout user={user} onLogout={logout}>
+      <Outlet />
+    </AppLayout>
+  );
+}
+
 function App() {
-  const [loggedIn, setLoggedIn] = useState(isAuthenticated());
-  const [user, setUser] = useState(getStoredUser());
   const [resetToken, setResetToken] = useState(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
@@ -19,28 +33,53 @@ function App() {
     return token;
   });
 
-  const handleLoginSuccess = (authResponse) => {
-    setUser(authResponse.user);
-    setLoggedIn(true);
-  };
-
-  const handleLogout = () => {
-    clearAuth();
-    setUser(null);
-    setLoggedIn(false);
-  };
-
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-      {loggedIn && user ? (
-        <DashboardPage user={user} onLogout={handleLogout} />
-      ) : (
-        <LoginPage 
-          onLoginSuccess={handleLoginSuccess} 
-          initialResetToken={resetToken}
-          onResetComplete={() => setResetToken(null)}
-        />
-      )}
+      <AuthProvider>
+        <Routes>
+          {/* Public routes */}
+          <Route 
+            path="/login" 
+            element={
+              <LoginPage 
+                initialResetToken={resetToken} 
+                onResetComplete={() => setResetToken(null)} 
+              />
+            } 
+          />
+          <Route path="/unauthorized" element={<UnauthorizedPage />} />
+
+          {/* Protected routes - requires authentication */}
+          <Route element={<ProtectedRoute />}>
+            {/* Pages with Sidebar Layout */}
+            <Route element={<AppLayoutWrapper />}>
+              <Route path="/" element={<DashboardPage />} />
+              
+              {/* Camera management - Admin only */}
+              <Route
+                path="/cameras"
+                element={
+                  <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                    <CameraListPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/cameras/:id"
+                element={
+                  <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                    <CameraDetailPage />
+                  </ProtectedRoute>
+                }
+              />
+            </Route>
+
+          </Route>
+
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </AuthProvider>
     </GoogleOAuthProvider>
   );
 }
