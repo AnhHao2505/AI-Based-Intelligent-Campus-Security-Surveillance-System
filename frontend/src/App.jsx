@@ -38,14 +38,14 @@ function App() {
       <AuthProvider>
         <Routes>
           {/* Public routes */}
-          <Route 
-            path="/login" 
+          <Route
+            path="/login"
             element={
-              <LoginPage 
-                initialResetToken={resetToken} 
-                onResetComplete={() => setResetToken(null)} 
+              <LoginPage
+                initialResetToken={resetToken}
+                onResetComplete={() => setResetToken(null)}
               />
-            } 
+            }
           />
           <Route path="/unauthorized" element={<UnauthorizedPage />} />
 
@@ -54,7 +54,7 @@ function App() {
             {/* Pages with Sidebar Layout */}
             <Route element={<AppLayoutWrapper />}>
               <Route path="/" element={<DashboardPage />} />
-              
+
               {/* Camera management - Admin only */}
               <Route
                 path="/cameras"
