@@ -64,6 +64,9 @@ export default function DashboardPage() {
               <Link to="/admin" className="dashboard-nav__logout" style={{ textDecoration: 'none', textAlign: 'center', background: hasRole([ROLES.ADMIN]) ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255, 255, 255, 0.05)', color: hasRole([ROLES.ADMIN]) ? '#60a5fa' : 'rgba(255, 255, 255, 0.4)' }}>
                 Trang Admin (Chỉ ADMIN)
               </Link>
+              <Link to="/admin/faces" className="dashboard-nav__logout" style={{ textDecoration: 'none', textAlign: 'center', background: hasRole([ROLES.ADMIN]) ? 'rgba(37, 99, 235, 0.3)' : 'rgba(255, 255, 255, 0.05)', color: hasRole([ROLES.ADMIN]) ? '#93c5fd' : 'rgba(255, 255, 255, 0.4)' }}>
+                Quản lý Dataset Khuôn mặt (ADMIN)
+              </Link>
               <Link to="/guard" className="dashboard-nav__logout" style={{ textDecoration: 'none', textAlign: 'center', background: hasRole([ROLES.ADMIN, ROLES.INTERNAL_GUARD, ROLES.OUTSOURCED_GUARD]) ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.05)', color: hasRole([ROLES.ADMIN, ROLES.INTERNAL_GUARD, ROLES.OUTSOURCED_GUARD]) ? '#34d399' : 'rgba(255, 255, 255, 0.4)' }}>
                 Trạm tuần tra (ADMIN, GUARDS)
               </Link>

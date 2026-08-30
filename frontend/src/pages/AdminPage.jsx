@@ -28,7 +28,10 @@ export default function AdminPage() {
           <div className="dashboard-card">
             <h3>Bảng điều khiển Admin</h3>
             <p>Tại đây bạn có thể quản lý người dùng, cài đặt hệ thống, và xem log giám sát toàn quyền.</p>
-            <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem' }}>
+            <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+              <Link to="/admin/faces" className="dashboard-nav__logout" style={{ background: '#2563eb', color: 'white', textDecoration: 'none' }}>
+                👤 Quản lý Dataset Khuôn mặt
+              </Link>
               <button className="dashboard-nav__logout" style={{ background: 'rgba(255,255,255,0.1)', cursor: 'not-allowed' }}>
                 Quản lý người dùng
               </button>
