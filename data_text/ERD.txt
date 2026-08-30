@@ -29,6 +29,82 @@ Table password_reset_tokens {
   created_at TIMESTAMPTZ [default: `CURRENT_TIMESTAMP`]
 }
 
-// ============================================================================
-// ENTITY OF [NAME] MODULE
-// ============================================================================
+Table cameras {
+  id UUID [pk, default: `gen_random_uuid()`]
+  camera_code VARCHAR(50) [not null, unique, note: 'CAM-001']
+  name VARCHAR(255) [not null, note: 'Tên camera']
+  floor INT
+  zone_name VARCHAR(255)
+  x DECIMAL
+  y DECIMAL
+  mounting_height DECIMAL
+  orientation DECIMAL
+  tilt_angle DECIMAL
+  status VARCHAR(50) [not null, note: 'ACTIVE | DECOMMISSIONED']
+  operational_status VARCHAR(50) [not null, note: 'ONLINE | OFFLINE | ERROR']
+  installed_at TIMESTAMPTZ
+  created_at TIMESTAMPTZ [default: `CURRENT_TIMESTAMP`]
+  updated_at TIMESTAMPTZ [default: `CURRENT_TIMESTAMP`]
+  deleted_at TIMESTAMPTZ
+}
+
+Table camera_specifications {
+  id UUID [pk, default: `gen_random_uuid()`]
+  camera_id UUID [not null, unique, note: 'FK to cameras']
+  manufacturer VARCHAR(100)
+  model VARCHAR(100)
+  serial_number VARCHAR(100)
+  resolution VARCHAR(50)
+  fps INT
+  lens VARCHAR(100)
+  focal_length VARCHAR(50)
+  field_of_view DECIMAL
+  night_vision BOOLEAN
+  ptz_supported BOOLEAN
+  weather_proof BOOLEAN
+  firmware_version VARCHAR(50)
+}
+
+Table camera_stream_configurations {
+  id UUID [pk, default: `gen_random_uuid()`]
+  camera_id UUID [not null, unique, note: 'FK to cameras']
+  protocol VARCHAR(50) [not null, note: 'RTSP | RTMP | HTTP | HTTPS']
+  host VARCHAR(255) [not null]
+  port INT [not null]
+  username VARCHAR(100)
+  credential_ref VARCHAR(255)
+  main_stream_url VARCHAR(512) [not null]
+  sub_stream_url VARCHAR(512)
+  stream_enabled BOOLEAN [not null, default: true]
+  reconnect_enabled BOOLEAN [not null, default: true]
+  timeout_ms INT [not null, default: 5000]
+}
+
+Table camera_ai_configurations {
+  id UUID [pk, default: `gen_random_uuid()`]
+  camera_id UUID [not null, unique, note: 'FK to cameras']
+  person_detection_enabled BOOLEAN [not null, default: false]
+  face_recognition_enabled BOOLEAN [not null, default: false]
+  loitering_detection_enabled BOOLEAN [not null, default: false]
+  face_match_threshold DECIMAL [not null, note: 'ngưỡng tin cậy nhận dạng khuôn mặt']
+  loitering_threshold_seconds INT [not null, note: 'thời gian người lảng vảng']
+  inference_fps INT [not null, note: 'số frame AI xử lý trong 1s']
+  model_version VARCHAR(50)
+}
+
+Table camera_health_logs {
+  id UUID [pk, default: `gen_random_uuid()`]
+  camera_id UUID [not null, note: 'FK to cameras']
+  status VARCHAR(50) [not null, note: 'ONLINE | OFFLINE | ERROR']
+  checked_at TIMESTAMPTZ [not null, default: `CURRENT_TIMESTAMP`]
+  latency_ms INT [ note: 'Độ trễ camera phản hồi tính bằng mili giây']
+  fps DECIMAL [ note: 'Số frame/s thực tế ']
+  error_code VARCHAR(100) [note: 'Mã lỗi camera']
+  error_message VARCHAR(255) [note: 'Mô tả lỗi camera']
+}
+
+// Relationships
+Ref: camera_specifications.camera_id - cameras.id
+Ref: camera_stream_configurations.camera_id - cameras.id
+Ref: camera_ai_configurations.camera_id - cameras.id
+Ref: camera_health_logs.camera_id > cameras.id

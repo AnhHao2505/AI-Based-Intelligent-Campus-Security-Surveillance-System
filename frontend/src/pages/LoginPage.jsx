@@ -344,18 +344,6 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
           </>
         )}
 
-        <p className="login-card__note">
-          Chỉ email được cấp bởi quản trị viên mới có thể đăng nhập.
-        </p>
-
-        {/* Role badges */}
-        <div className="login-card__roles">
-          {Object.entries(ROLE_LABELS).map(([key, label]) => (
-            <span key={key} className="login-card__role-badge">
-              {label}
-            </span>
-          ))}
-        </div>
       </div>
 
       <footer className="login-footer">

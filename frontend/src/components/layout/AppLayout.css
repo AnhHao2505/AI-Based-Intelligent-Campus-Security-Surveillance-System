@@ -1,0 +1,19 @@
+.app-layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+.app-layout__content {
+  flex: 1;
+  margin-left: 260px;
+  min-height: 100vh;
+  position: relative;
+  background: #0a0e1a;
+  overflow-x: hidden;
+}
+
+@media (max-width: 768px) {
+  .app-layout__content {
+    margin-left: 72px;
+  }
+}

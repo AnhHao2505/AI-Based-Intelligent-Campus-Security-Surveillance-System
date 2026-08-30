@@ -1,61 +1,89 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { useState } from 'react';
+import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { GoogleOAuthProvider } from '@react-oauth/google';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { ROLES } from './constants/roles';
 import ProtectedRoute from './components/ProtectedRoute';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
-import AdminPage from './pages/AdminPage';
-import GuardPage from './pages/GuardPage';
 import UnauthorizedPage from './pages/UnauthorizedPage';
-import FaceManagementPage from './components/FaceManagementPage';
+import CameraListPage from './pages/cameras/CameraListPage';
+import CameraDetailPage from './pages/cameras/CameraDetailPage';
+import FaceManagementPage from './pages/faceData/FaceManagementPage';
+import AppLayout from './components/layout/AppLayout';
 import './App.css';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
+function AppLayoutWrapper() {
+  const { user, logout } = useAuth();
+  return (
+    <AppLayout user={user} onLogout={logout}>
+      <Outlet />
+    </AppLayout>
+  );
+}
+
 function App() {
+  const [resetToken, setResetToken] = useState(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    if (token) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+    return token;
+  });
+
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
       <AuthProvider>
         <Routes>
           {/* Public routes */}
-          <Route path="/login" element={<LoginPage />} />
+          <Route
+            path="/login"
+            element={
+              <LoginPage
+                initialResetToken={resetToken}
+                onResetComplete={() => setResetToken(null)}
+              />
+            }
+          />
           <Route path="/unauthorized" element={<UnauthorizedPage />} />
-
-          {/* Face Dataset Management (Direct accessible / Admin) */}
-          <Route path="/faces" element={<FaceManagementPage />} />
 
           {/* Protected routes - requires authentication */}
           <Route element={<ProtectedRoute />}>
-            <Route path="/" element={<DashboardPage />} />
+            {/* Pages with Sidebar Layout */}
+            <Route element={<AppLayoutWrapper />}>
+              <Route path="/" element={<DashboardPage />} />
 
-            {/* Admin only routes */}
-            <Route
-              path="/admin"
-              element={
-                <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
-                  <AdminPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin/faces"
-              element={
-                <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
-                  <FaceManagementPage />
-                </ProtectedRoute>
-              }
-            />
+              {/* Camera management - Admin only */}
+              <Route
+                path="/cameras"
+                element={
+                  <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                    <CameraListPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/cameras/:id"
+                element={
+                  <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                    <CameraDetailPage />
+                  </ProtectedRoute>
+                }
+              />
 
-            {/* Guards and Admin route */}
-            <Route
-              path="/guard"
-              element={
-                <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.INTERNAL_GUARD, ROLES.OUTSOURCED_GUARD]}>
-                  <GuardPage />
-                </ProtectedRoute>
-              }
-            />
+              <Route
+                path="/admin/faces"
+                element={
+                  <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                    <FaceManagementPage />
+                  </ProtectedRoute>
+                }
+              />
+            </Route>
+
           </Route>
 
           {/* Fallback */}
