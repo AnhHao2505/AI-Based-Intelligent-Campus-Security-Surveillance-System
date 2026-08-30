@@ -8,9 +8,10 @@ import DashboardPage from './pages/DashboardPage';
 import AdminPage from './pages/AdminPage';
 import GuardPage from './pages/GuardPage';
 import UnauthorizedPage from './pages/UnauthorizedPage';
+import FaceManagementPage from './components/FaceManagementPage';
 import './App.css';
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
 function App() {
   return (
@@ -21,16 +22,27 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/unauthorized" element={<UnauthorizedPage />} />
 
+          {/* Face Dataset Management (Direct accessible / Admin) */}
+          <Route path="/faces" element={<FaceManagementPage />} />
+
           {/* Protected routes - requires authentication */}
           <Route element={<ProtectedRoute />}>
             <Route path="/" element={<DashboardPage />} />
 
-            {/* Admin only route */}
+            {/* Admin only routes */}
             <Route
               path="/admin"
               element={
                 <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
                   <AdminPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/faces"
+              element={
+                <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                  <FaceManagementPage />
                 </ProtectedRoute>
               }
             />

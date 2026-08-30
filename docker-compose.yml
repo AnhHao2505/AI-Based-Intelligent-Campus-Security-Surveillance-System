@@ -98,7 +98,9 @@ services:
 
   # 5. Backend (Spring Boot 3.2.5 / Java 21)
   backend:
-    image: anhhao05/sep-backend:v1.0
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     container_name: sep_backend
     restart: always
     ports:
@@ -116,6 +118,8 @@ services:
       SPRING_MAIL_PORT: ${SPRING_MAIL_PORT}
       SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME}
       SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD}
+      AI_SERVICE_HOST: ai-service
+      AI_SERVICE_PORT: 8000
       TZ: Asia/Ho_Chi_Minh
     depends_on:
       postgres:
@@ -125,9 +129,36 @@ services:
     networks:
       - sep_network
 
-  # 6. Frontend (Vite + React)
+  # 6. AI Service (Python / YOLOv8 / ByteTrack / OpenCV YuNet)
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    container_name: sep_ai_service
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      BACKEND_URL: http://backend:8080
+    depends_on:
+      kafka:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    networks:
+      - sep_network
+
+  # 7. Frontend (Vite + React)
   frontend:
-    image: anhhao05/sep-frontend:v1.0
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
     container_name: sep_frontend
     restart: always
     ports:
