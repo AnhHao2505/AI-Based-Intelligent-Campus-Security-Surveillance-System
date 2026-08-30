@@ -1,4 +1,4 @@
-import { Navigate } from 'react-router-dom';
+import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function ProtectedRoute({ children, allowedRoles }) {
@@ -38,13 +38,8 @@ export default function ProtectedRoute({ children, allowedRoles }) {
   const role = user?.role;
 
   if (allowedRoles && !allowedRoles.includes(role)) {
-    return (
-      <div style={{ padding: '40px', textAlign: 'center', color: '#f87171' }}>
-        <h2>403 - Access Denied</h2>
-        <p>Bạn không có quyền truy cập vào trang này với vai trò [{role}].</p>
-      </div>
-    );
+    return <Navigate to="/unauthorized" replace />;
   }
 
-  return children;
+  return children ? children : <Outlet />;
 }

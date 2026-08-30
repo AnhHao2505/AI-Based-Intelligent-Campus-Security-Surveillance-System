@@ -14,7 +14,15 @@ public enum AreaErrorCode {
     ERR_AREA_007("ERR_AREA_007", HttpStatus.BAD_REQUEST, "Không được thay đổi mã khu vực sau khi tạo"),
     ERR_AREA_008("ERR_AREA_008", HttpStatus.BAD_REQUEST, "Hạ cấp độ khu vực bắt buộc nhập lý do"),
     ERR_AREA_009("ERR_AREA_009", HttpStatus.CONFLICT, "Không thể ngừng: còn {n} camera đang gán"),
-    ERR_AREA_010("ERR_AREA_010", HttpStatus.CONFLICT, "Không thể ngừng: còn {n} quyền truy cập");
+    ERR_AREA_010("ERR_AREA_010", HttpStatus.CONFLICT, "Không thể ngừng: còn {n} quyền truy cập"),
+
+    ERR_TEMP_USAGE_001("ERR_TEMP_USAGE_001", HttpStatus.BAD_REQUEST, "Thời gian kết thúc phải sau thời gian bắt đầu"),
+    ERR_TEMP_USAGE_002("ERR_TEMP_USAGE_002", HttpStatus.BAD_REQUEST, "Thời gian kết thúc phải sau thời điểm hiện tại"),
+    ERR_TEMP_USAGE_003("ERR_TEMP_USAGE_003", HttpStatus.CONFLICT, "Thời gian sử dụng tạm thời bị trùng với phiên khác"),
+    ERR_TEMP_USAGE_004("ERR_TEMP_USAGE_004", HttpStatus.NOT_FOUND, "Không tìm thấy phiên sử dụng tạm thời"),
+    ERR_TEMP_USAGE_005("ERR_TEMP_USAGE_005", HttpStatus.BAD_REQUEST, "Thời gian kết thúc mới phải sau thời gian kết thúc hiện tại"),
+    ERR_TEMP_USAGE_006("ERR_TEMP_USAGE_006", HttpStatus.CONFLICT, "Phiên sử dụng tạm thời đã kết thúc, không thể gia hạn"),
+    ERR_TEMP_USAGE_007("ERR_TEMP_USAGE_007", HttpStatus.BAD_REQUEST, "Lý do gia hạn không hợp lệ, yêu cầu từ 10 đến 255 ký tự");
 
     private final String code;
     private final HttpStatus httpStatus;

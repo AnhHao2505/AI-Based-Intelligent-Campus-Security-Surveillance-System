@@ -67,6 +67,12 @@ class AreaControllerIntegrationTest {
     private AreaChangeLogRepository areaChangeLogRepository;
 
     @Autowired
+    private com.fa26se040.security.repository.AreaTemporaryUsageChangeLogRepository temporaryUsageChangeLogRepository;
+
+    @Autowired
+    private com.fa26se040.security.repository.AreaTemporaryUsageRepository temporaryUsageRepository;
+
+    @Autowired
     private UserRepository userRepository;
 
     @Autowired
@@ -80,6 +86,8 @@ class AreaControllerIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        temporaryUsageChangeLogRepository.deleteAll();
+        temporaryUsageRepository.deleteAll();
         areaChangeLogRepository.deleteAll();
         areaRepository.deleteAll();
 

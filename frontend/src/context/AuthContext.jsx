@@ -62,6 +62,13 @@ export function AuthProvider({ children }) {
     return response.user;
   };
 
+  const hasRole = useCallback((allowedRoles) => {
+    if (!user) return false;
+    if (!allowedRoles || allowedRoles.length === 0) return true;
+    if (typeof allowedRoles === 'string') return user.role === allowedRoles;
+    return allowedRoles.includes(user.role);
+  }, [user]);
+
   if (loading) {
     return (
       <div style={{
@@ -97,7 +104,8 @@ export function AuthProvider({ children }) {
       isAuthenticated: !!user,
       loginWithGoogleToken,
       loginWithPassword,
-      logout
+      logout,
+      hasRole,
     }}>
       {children}
     </AuthContext.Provider>

@@ -69,3 +69,27 @@ Table area_change_logs {
   reason VARCHAR(255)
   created_at TIMESTAMPTZ [not null, default: `CURRENT_TIMESTAMP`]
 }
+
+Table area_temporary_usages {
+  id UUID [pk, default: `gen_random_uuid()`]
+  area_id UUID [not null, ref: > areas.id]
+  event_name VARCHAR(150) [not null]
+  reason VARCHAR(255)
+  start_time TIMESTAMPTZ [not null]
+  end_time TIMESTAMPTZ [not null]
+  created_by UUID [ref: > users.id]
+  created_at TIMESTAMPTZ [not null, default: `CURRENT_TIMESTAMP`]
+  updated_by UUID [ref: > users.id]
+  updated_at TIMESTAMPTZ [not null, default: `CURRENT_TIMESTAMP`]
+}
+
+Table area_temporary_usage_change_logs {
+  id UUID [pk, default: `gen_random_uuid()`]
+  temporary_usage_id UUID [not null, ref: > area_temporary_usages.id]
+  actor_id UUID [not null, ref: > users.id]
+  action VARCHAR(20) [not null, note: 'EXTEND']
+  old_end_time TIMESTAMPTZ
+  new_end_time TIMESTAMPTZ [not null]
+  reason VARCHAR(255) [not null]
+  created_at TIMESTAMPTZ [not null, default: `CURRENT_TIMESTAMP`]
+}

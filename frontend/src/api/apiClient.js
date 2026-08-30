@@ -35,12 +35,18 @@ export async function apiFetch(path, options = {}) {
     if (window.location.pathname !== '/login') {
       window.location.href = '/login';
     }
-    throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+    const err = new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+    err.status = 401;
+    throw err;
   }
 
   if (response.status === 403) {
     const errorData = await response.json().catch(() => null);
-    throw new Error(errorData?.message || 'Bạn không có quyền thực hiện thao tác này.');
+    const err = new Error(errorData?.message || 'Bạn không có quyền thực hiện thao tác này.');
+    err.status = 403;
+    err.code = errorData?.code;
+    err.data = errorData;
+    throw err;
   }
 
   if (response.status === 204) {
@@ -49,7 +55,11 @@ export async function apiFetch(path, options = {}) {
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => null);
-    throw new Error(errorData?.message || `Yêu cầu thất bại (HTTP ${response.status})`);
+    const err = new Error(errorData?.message || `Yêu cầu thất bại (HTTP ${response.status})`);
+    err.status = response.status;
+    err.code = errorData?.code;
+    err.data = errorData;
+    throw err;
   }
 
   return await response.json();
@@ -71,6 +81,14 @@ export function apiPut(path, body, options = {}) {
   return apiFetch(path, {
     ...options,
     method: 'PUT',
+    body: body ? JSON.stringify(body) : undefined,
+  });
+}
+
+export function apiPatch(path, body, options = {}) {
+  return apiFetch(path, {
+    ...options,
+    method: 'PATCH',
     body: body ? JSON.stringify(body) : undefined,
   });
 }

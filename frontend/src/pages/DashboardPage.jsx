@@ -41,8 +41,8 @@ export default function DashboardPage() {
           <p>Chào mừng bạn đến với Hệ thống Giám sát An ninh Thông minh</p>
         </div>
 
-        {isAreaManager && (
-          <div style={{ marginBottom: '24px' }}>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '24px' }}>
+          {isAreaManager && (
             <Link 
               to="/admin/areas" 
               style={{
@@ -60,8 +60,64 @@ export default function DashboardPage() {
             >
               📍 Quản lý Khu vực (M06)
             </Link>
-          </div>
-        )}
+          )}
+
+          {user?.role === 'ADMIN' && (
+            <>
+              <Link 
+                to="/admin" 
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '10px 18px',
+                  backgroundColor: '#3b82f6',
+                  color: '#ffffff',
+                  borderRadius: '8px',
+                  textDecoration: 'none',
+                  fontWeight: '500',
+                  fontSize: '14px'
+                }}
+              >
+                📊 Admin Overview Map
+              </Link>
+              <Link 
+                to="/cameras" 
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '10px 18px',
+                  backgroundColor: '#6366f1',
+                  color: '#ffffff',
+                  borderRadius: '8px',
+                  textDecoration: 'none',
+                  fontWeight: '500',
+                  fontSize: '14px'
+                }}
+              >
+                📹 Quản lý Camera
+              </Link>
+              <Link 
+                to="/admin/faces" 
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '10px 18px',
+                  backgroundColor: '#8b5cf6',
+                  color: '#ffffff',
+                  borderRadius: '8px',
+                  textDecoration: 'none',
+                  fontWeight: '500',
+                  fontSize: '14px'
+                }}
+              >
+                👤 Quản lý Khuôn mặt
+              </Link>
+            </>
+          )}
+        </div>
 
         <div className="dashboard-grid">
           <div className="dashboard-card dashboard-card--profile">
