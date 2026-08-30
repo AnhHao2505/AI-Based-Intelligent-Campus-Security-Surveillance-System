@@ -43,10 +43,12 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
     setLoading(true);
     try {
       const authResponse = await loginWithGoogle(credentialResponse.credential);
+      const userRole = authResponse?.user?.role;
+
       if (onLoginSuccess) {
         onLoginSuccess(authResponse);
       } else {
-        navigate('/');
+        navigate(userRole === 'ADMIN' ? '/admin' : '/');
       }
     } catch (err) {
       console.error('Google login failed:', err);
@@ -66,10 +68,12 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
     setLoading(true);
     try {
       const authResponse = await loginWithCredentials(email, password);
+      const userRole = authResponse?.user?.role;
+
       if (onLoginSuccess) {
         onLoginSuccess(authResponse);
       } else {
-        navigate('/');
+        navigate(userRole === 'ADMIN' ? '/admin' : '/');
       }
     } catch (err) {
       console.error('Credentials login failed:', err);

@@ -10,10 +10,21 @@ import UnauthorizedPage from './pages/UnauthorizedPage';
 import CameraListPage from './pages/cameras/CameraListPage';
 import CameraDetailPage from './pages/cameras/CameraDetailPage';
 import FaceManagementPage from './pages/faceData/FaceManagementPage';
+import AdminDashboard from './pages/AdminDashboard';
 import AppLayout from './components/layout/AppLayout';
 import './App.css';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+
+function DashboardRedirect() {
+  const { user } = useAuth();
+
+  if (user?.role === ROLES.ADMIN) {
+    return <Navigate to="/admin" replace />;
+  }
+
+  return <DashboardPage />;
+}
 
 function AppLayoutWrapper() {
   const { user, logout } = useAuth();
@@ -54,7 +65,7 @@ function App() {
           <Route element={<ProtectedRoute />}>
             {/* Pages with Sidebar Layout */}
             <Route element={<AppLayoutWrapper />}>
-              <Route path="/" element={<DashboardPage />} />
+              <Route path="/" element={<DashboardRedirect />} />
 
               {/* Camera management - Admin only */}
               <Route
@@ -79,6 +90,15 @@ function App() {
                 element={
                   <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
                     <FaceManagementPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/admin"
+                element={
+                  <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                    <AdminDashboard />
                   </ProtectedRoute>
                 }
               />
