@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Video, LogOut } from 'lucide-react';
+import { LayoutDashboard, Video, UserRound, LogOut } from 'lucide-react';
 import './Sidebar.css';
 
 export default function Sidebar({ user, onLogout }) {
@@ -37,13 +37,23 @@ export default function Sidebar({ user, onLogout }) {
         </NavLink>
 
         {isAdmin && (
-          <NavLink 
-            to="/cameras" 
-            className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
-          >
-            <Video size={20} />
-            <span>Quản lý Camera</span>
-          </NavLink>
+          <>
+            <NavLink 
+              to="/cameras" 
+              className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+            >
+              <Video size={20} />
+              <span>Quản lý Camera</span>
+            </NavLink>
+
+            <NavLink 
+              to="/admin/faces" 
+              className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+            >
+              <UserRound size={20} />
+              <span>Quản lý Khuôn mặt</span>
+            </NavLink>
+          </>
         )}
       </nav>
 

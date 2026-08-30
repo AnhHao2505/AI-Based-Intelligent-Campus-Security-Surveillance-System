@@ -9,7 +9,7 @@ WORKDIR /app
 COPY pom.xml ./
 COPY src ./src
 
-# Download Maven and build (Alpine doesn't have mvnw reliably, use Maven directly)
+# Download Maven and build
 RUN apk add --no-cache maven && \
     mvn clean package -DskipTests
 

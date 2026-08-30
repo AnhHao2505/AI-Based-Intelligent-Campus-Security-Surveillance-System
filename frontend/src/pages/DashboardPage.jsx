@@ -3,7 +3,7 @@ import { ROLE_LABELS } from "../constants/roles";
 import "./DashboardPage.css";
 
 export default function DashboardPage() {
-	const { user, logout } = useAuth();
+	const { user, logout, hasRole } = useAuth();
 
 	return (
 		<div className="dashboard">
@@ -11,6 +11,48 @@ export default function DashboardPage() {
 				<div className="dashboard-bg-orb dashboard-bg-orb--1" />
 				<div className="dashboard-bg-orb dashboard-bg-orb--2" />
 			</div>
+
+			<nav className="dashboard-nav">
+				<div className="dashboard-nav__brand">
+					<svg
+						width="24"
+						height="24"
+						viewBox="0 0 24 24"
+						fill="none"
+						xmlns="http://www.w3.org/2000/svg"
+					>
+						<path
+							d="M12 2L2 7L12 12L22 7L12 2Z"
+							stroke="currentColor"
+							strokeWidth="2"
+							strokeLinecap="round"
+							strokeLinejoin="round"
+						/>
+						<path
+							d="M2 17L12 22L22 17"
+							stroke="currentColor"
+							strokeWidth="2"
+							strokeLinecap="round"
+							strokeLinejoin="round"
+						/>
+						<path
+							d="M2 12L12 17L22 12"
+							stroke="currentColor"
+							strokeWidth="2"
+							strokeLinecap="round"
+							strokeLinejoin="round"
+						/>
+					</svg>
+					<span>Campus Security</span>
+				</div>
+				<button
+					className="dashboard-nav__logout"
+					onClick={logout}
+				>
+					Đăng xuất
+				</button>
+			</nav>
+
 			<main className="dashboard-main">
 				<div className="dashboard-welcome">
 					<h1>Xin chào, {user.fullName} 👋</h1>

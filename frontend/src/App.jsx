@@ -9,10 +9,11 @@ import DashboardPage from './pages/DashboardPage';
 import UnauthorizedPage from './pages/UnauthorizedPage';
 import CameraListPage from './pages/cameras/CameraListPage';
 import CameraDetailPage from './pages/cameras/CameraDetailPage';
+import FaceManagementPage from './pages/faceData/FaceManagementPage';
 import AppLayout from './components/layout/AppLayout';
 import './App.css';
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
 function AppLayoutWrapper() {
   const { user, logout } = useAuth();
@@ -69,6 +70,15 @@ function App() {
                 element={
                   <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
                     <CameraDetailPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/admin/faces"
+                element={
+                  <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                    <FaceManagementPage />
                   </ProtectedRoute>
                 }
               />

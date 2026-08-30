@@ -40,6 +40,12 @@ spring:
           starttls:
             enable: true
 
+  # Cấu hình Multipart Upload (cho phép upload file ZIP dataset lên tới 100MB)
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+
 # Actuator — health check, Phase 1 Definition of Done: GET /actuator/health -> 200 OK
 management:
   endpoints:
@@ -49,13 +55,21 @@ management:
   endpoint:
     health:
       show-details: always
+  health:
+    mail:
+      enabled: false # Tắt mail health check để tránh 503 khi chưa có tài khoản SMTP thật
 
 server:
   port: 8080
+
+# Cấu hình kết nối sang AI Microservice
+ai:
+  service:
+    url: http://${AI_SERVICE_HOST:localhost}:${AI_SERVICE_PORT:8000}
 
 app:
   jwt:
     secret: ${JWT_SECRET:9a4f2c8d3b7a1e5f8g2h6i0j3k7l1m5n9o3p7q1r5s9t3u7v1w5x9y3z7a1b5c9d}
     expiration-ms: ${JWT_EXPIRATION:86400000} # 24 hours
   google:
-    client-id: ${GOOGLE_CLIENT_ID}
+    client-id: ${GOOGLE_CLIENT_ID:}
