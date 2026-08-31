@@ -195,3 +195,41 @@ async def process_face_registration(
         "embedding_right": embeddings["embedding_right"]
     }
 
+# Quản lý các Stream Worker đang chạy
+from .pipeline.stream_worker import CameraStreamWorker
+active_workers: Dict[str, CameraStreamWorker] = {}
+
+class StreamStartRequest(BaseModel):
+    camera_code: str = "CAM-001"
+    rtsp_url: str = "rtsp://localhost:8554/cam01"
+
+@app.post("/api/v1/stream/start")
+async def start_camera_stream(req: StreamStartRequest):
+    """Bắt đầu worker đọc luồng RTSP từ MediaMTX và phân tích AI liên tục"""
+    if req.camera_code in active_workers and active_workers[req.camera_code].is_running:
+        return {"status": "ALREADY_RUNNING", "camera_code": req.camera_code}
+
+    worker = CameraStreamWorker(camera_code=req.camera_code, rtsp_url=req.rtsp_url)
+    worker.start()
+    active_workers[req.camera_code] = worker
+    return {"status": "STARTED", "camera_code": req.camera_code, "rtsp_url": req.rtsp_url}
+
+@app.post("/api/v1/stream/stop")
+async def stop_camera_stream(camera_code: str = Query(..., example="CAM-001")):
+    """Dừng worker phân tích AI luồng camera"""
+    if camera_code not in active_workers:
+        raise HTTPException(status_code=404, detail="Camera worker không tồn tại.")
+    
+    active_workers[camera_code].stop()
+    del active_workers[camera_code]
+    return {"status": "STOPPED", "camera_code": camera_code}
+
+@app.get("/api/v1/stream/status")
+async def get_stream_status(camera_code: str = Query(..., example="CAM-001")):
+    """Xem trạng thái FPS và đối tượng đang track trên luồng"""
+    if camera_code not in active_workers:
+        return {"status": "STOPPED", "camera_code": camera_code, "is_running": False}
+    
+    return active_workers[camera_code].get_status()
+
+

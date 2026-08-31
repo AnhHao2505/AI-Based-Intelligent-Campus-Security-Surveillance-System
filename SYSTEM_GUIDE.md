@@ -113,8 +113,3 @@ docker compose up -d --build backend
 # Rebuild AI Service khi sửa Python / Model
 docker compose up -d --build ai-service
 ```
-
----
-
-> 🔒 **Ghi chú bảo mật & Quy tắc mã nguồn:**  
-> Toàn bộ các thay đổi được kiểm thử hoàn chỉnh trên môi trường máy cục bộ (Local). Tuyệt đối **không tự ý thực hiện `git push`** lên remote repository khi chưa có sự đồng ý của trưởng nhóm.

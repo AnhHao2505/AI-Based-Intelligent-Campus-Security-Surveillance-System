@@ -166,6 +166,22 @@ services:
   #   networks:
   #     - sep_network
 
+  # 8. Media Gateway (MediaMTX) — Chuyển đổi RTSP sang WebRTC độ trễ siêu thấp cho Browser
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    container_name: sep_mediamtx
+    restart: always
+    ports:
+      - "8554:8554"     # RTSP Stream cho AI Service
+      - "8888:8888"     # HLS Stream cho Trình duyệt
+      - "8889:8889"     # WebRTC (WHEP) cho Frontend Web
+      - "8189:8189/udp" # WebRTC UDP data channel
+      - "9997:9997"     # MediaMTX REST API
+    volumes:
+      - ./mediamtx.yml:/mediamtx.yml:ro
+    networks:
+      - sep_network
+
 volumes:
   pgdata:
   pgadmindata:

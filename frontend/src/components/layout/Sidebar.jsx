@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Video, UserRound, LogOut } from 'lucide-react';
+import { LayoutDashboard, Video, UserRound, ShieldAlert, LogOut } from 'lucide-react';
 import './Sidebar.css';
 
 export default function Sidebar({ user, onLogout }) {
@@ -28,6 +28,14 @@ export default function Sidebar({ user, onLogout }) {
       </div>
 
       <nav className="sidebar__nav">
+        <NavLink 
+          to="/guard" 
+          className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+        >
+          <ShieldAlert size={20} />
+          <span>Giám sát An ninh</span>
+        </NavLink>
+
         <NavLink 
           to="/dashboard" 
           className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
