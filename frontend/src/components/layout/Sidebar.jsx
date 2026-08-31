@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Video, UserRound, LogOut } from 'lucide-react';
+import { LayoutDashboard, Layers, Video, UserRound, LogOut } from 'lucide-react';
 import './Sidebar.css';
 
 export default function Sidebar({ user, onLogout }) {
@@ -13,7 +13,7 @@ export default function Sidebar({ user, onLogout }) {
       .toUpperCase();
   };
 
-  const userRole = user.role || user.role_type || '';
+  const userRole = user?.role || user?.role_type || '';
   const isAdmin = userRole === 'ADMIN';
 
   return (
@@ -38,6 +38,14 @@ export default function Sidebar({ user, onLogout }) {
 
         {isAdmin && (
           <>
+            <NavLink 
+              to="/admin/zones" 
+              className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+            >
+              <Layers size={20} />
+              <span>Quản lý Khu vực</span>
+            </NavLink>
+
             <NavLink 
               to="/cameras" 
               className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}

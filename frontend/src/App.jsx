@@ -10,21 +10,10 @@ import UnauthorizedPage from './pages/UnauthorizedPage';
 import CameraListPage from './pages/cameras/CameraListPage';
 import CameraDetailPage from './pages/cameras/CameraDetailPage';
 import FaceManagementPage from './pages/faceData/FaceManagementPage';
-import AdminDashboard from './pages/AdminDashboard';
 import AppLayout from './components/layout/AppLayout';
 import './App.css';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
-
-function DashboardRedirect() {
-  const { user } = useAuth();
-
-  if (user?.role === ROLES.ADMIN) {
-    return <Navigate to="/admin" replace />;
-  }
-
-  return <DashboardPage />;
-}
 
 function AppLayoutWrapper() {
   const { user, logout } = useAuth();
@@ -65,7 +54,26 @@ function App() {
           <Route element={<ProtectedRoute />}>
             {/* Pages with Sidebar Layout */}
             <Route element={<AppLayoutWrapper />}>
-              <Route path="/" element={<DashboardRedirect />} />
+              <Route path="/" element={<DashboardPage />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
+
+              {/* Zone / Area Management ("Quản lý Khu vực") - Admin only */}
+              <Route
+                path="/admin/zones"
+                element={
+                  <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                    <AdminDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/zones"
+                element={
+                  <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                    <AdminDashboard />
+                  </ProtectedRoute>
+                }
+              />
 
               {/* Camera management - Admin only */}
               <Route
@@ -85,6 +93,7 @@ function App() {
                 }
               />
 
+              {/* Face management - Admin only */}
               <Route
                 path="/admin/faces"
                 element={
@@ -94,11 +103,12 @@ function App() {
                 }
               />
 
+              {/* Legacy /admin redirect */}
               <Route
                 path="/admin"
                 element={
                   <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
-                    <AdminDashboard />
+                    <Navigate to="/admin/zones" replace />
                   </ProtectedRoute>
                 }
               />
