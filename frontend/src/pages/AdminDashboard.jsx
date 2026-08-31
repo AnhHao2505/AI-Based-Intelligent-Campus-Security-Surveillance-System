@@ -230,7 +230,7 @@ export default function AdminDashboard() {
           <div className="admin-map">
             {/* Main Lobby */}
             <div
-              className="admin-zone admin-zone--main-lobby"
+              className={`admin-zone admin-zone--main-lobby ${selectedZone === zones[0].id ? 'admin-zone--selected' : ''}`}
               onClick={() => handleZoneClick(zones[0])}
             >
               <span className="admin-zone__icon">🏢</span>
@@ -241,7 +241,7 @@ export default function AdminDashboard() {
 
             {/* Library Area */}
             <div
-              className="admin-zone admin-zone--library"
+              className={`admin-zone admin-zone--library ${selectedZone === zones[1].id ? 'admin-zone--selected' : ''}`}
               onClick={() => handleZoneClick(zones[1])}
             >
               <span className="admin-zone__icon">📚</span>
@@ -251,7 +251,7 @@ export default function AdminDashboard() {
 
             {/* AI & Hardware Labs */}
             <div
-              className="admin-zone admin-zone--ai-labs"
+              className={`admin-zone admin-zone--ai-labs ${selectedZone === zones[2].id ? 'admin-zone--selected' : ''}`}
               onClick={() => handleZoneClick(zones[2])}
             >
               <span className="admin-zone__icon">🤖</span>
@@ -262,7 +262,7 @@ export default function AdminDashboard() {
 
             {/* Staff & Facility */}
             <div
-              className="admin-zone admin-zone--staff"
+              className={`admin-zone admin-zone--staff ${selectedZone === zones[3].id ? 'admin-zone--selected' : ''}`}
               onClick={() => handleZoneClick(zones[3])}
             >
               <span className="admin-zone__icon">👥</span>
@@ -272,7 +272,7 @@ export default function AdminDashboard() {
 
             {/* Server Room */}
             <div
-              className="admin-zone admin-zone--server"
+              className={`admin-zone admin-zone--server ${selectedZone === zones[4].id ? 'admin-zone--selected' : ''}`}
               onClick={() => handleZoneClick(zones[4])}
             >
               <span className="admin-zone__icon">🖥</span>
@@ -282,7 +282,7 @@ export default function AdminDashboard() {
 
             {/* Principal Office */}
             <div
-              className="admin-zone admin-zone--principal admin-zone--dashed"
+              className={`admin-zone admin-zone--principal admin-zone--dashed ${selectedZone === zones[5].id ? 'admin-zone--selected' : ''}`}
               onClick={() => handleZoneClick(zones[5])}
             >
               <span className="admin-zone__icon">👔</span>

@@ -5,6 +5,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 import { ROLES } from './constants/roles';
 import ProtectedRoute from './components/ProtectedRoute';
+import AppLayout from './components/layout/AppLayout';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import AdminDashboard from './pages/AdminDashboard';
@@ -45,60 +46,55 @@ function App() {
               />
               <Route path="/unauthorized" element={<UnauthorizedPage />} />
 
-              {/* Protected Routes */}
+              {/* Authenticated Management Routes using shared AppLayout */}
               <Route
-                path="/dashboard"
                 element={
                   <ProtectedRoute>
-                    <DashboardPage />
+                    <AppLayout />
                   </ProtectedRoute>
                 }
-              />
+              >
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route
+                  path="/admin"
+                  element={
+                    <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                      <AdminDashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/cameras"
+                  element={
+                    <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                      <CameraListPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/cameras/:id"
+                  element={
+                    <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                      <CameraDetailPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/faces"
+                  element={
+                    <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                      <FaceManagementPage />
+                    </ProtectedRoute>
+                  }
+                />
+              </Route>
 
-              {/* Admin Dashboard (Overview Map Mock from NguyenBaoFE) */}
-              <Route
-                path="/admin"
-                element={
-                  <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
-                    <AdminDashboard />
-                  </ProtectedRoute>
-                }
-              />
-
-              {/* Area Management (M06 Functional Module with Real Backend APIs) */}
+              {/* Area Management (M06 Functional Module with Real Backend APIs) — Baseline shell */}
               <Route
                 path="/admin/areas"
                 element={
                   <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.FACILITY_MANAGER]}>
                     <AreaListPage />
-                  </ProtectedRoute>
-                }
-              />
-
-              {/* Camera Management */}
-              <Route
-                path="/cameras"
-                element={
-                  <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
-                    <CameraListPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/cameras/:id"
-                element={
-                  <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
-                    <CameraDetailPage />
-                  </ProtectedRoute>
-                }
-              />
-
-              {/* Face Data Management */}
-              <Route
-                path="/admin/faces"
-                element={
-                  <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
-                    <FaceManagementPage />
                   </ProtectedRoute>
                 }
               />

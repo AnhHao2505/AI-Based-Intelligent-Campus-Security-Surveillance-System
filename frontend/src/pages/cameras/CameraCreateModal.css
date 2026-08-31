@@ -1,29 +1,37 @@
+/* ==========================================================================
+   Camera Create Modal (CameraCreateModal.css)
+   Baseline: M06 Area Management Design Language
+   ========================================================================== */
+
 .modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(4, 7, 16, 0.8);
-  backdrop-filter: blur(8px);
+  background: var(--theme-modal-backdrop);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
   padding: 1.5rem;
+  animation: fadeIn 0.2s ease;
 }
 
 .modal-container {
-  background: rgba(17, 24, 39, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--theme-modal-bg);
+  border: 1px solid var(--theme-border);
   border-radius: 16px;
   width: 100%;
   max-width: 650px;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--theme-card-shadow-hover);
   display: flex;
   flex-direction: column;
+  color: var(--theme-text-primary);
+  animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .modal-header {
@@ -31,31 +39,33 @@
   align-items: center;
   justify-content: space-between;
   padding: 1.25rem 1.5rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--theme-border);
+  background: var(--theme-bg-surface);
 }
 
 .modal-header h2 {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: #f3f4f6;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--theme-text-primary);
 }
 
 .modal-close {
-  background: transparent;
-  border: none;
-  color: #9ca3af;
+  background: var(--theme-bg-desc);
+  border: 1px solid var(--theme-border);
+  color: var(--theme-text-muted);
   cursor: pointer;
-  padding: 0.25rem;
-  border-radius: 6px;
-  transition: all 0.2s;
+  padding: 0.35rem;
+  border-radius: 8px;
+  transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .modal-close:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: #f3f4f6;
+  background: var(--theme-danger-bg);
+  color: var(--theme-danger);
+  border-color: var(--theme-danger-border);
 }
 
 .modal-form {
@@ -63,13 +73,13 @@
 }
 
 .modal-error {
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.2);
-  color: #f87171;
+  background: var(--theme-danger-bg);
+  border: 1px solid var(--theme-danger-border);
+  color: var(--theme-danger-text);
   padding: 0.75rem 1rem;
   border-radius: 8px;
-  font-size: 0.875rem;
-  margin-bottom: 1.5rem;
+  font-size: 0.85rem;
+  margin-bottom: 1.25rem;
 }
 
 .form-grid {
@@ -89,71 +99,78 @@
 }
 
 .form-group label {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 500;
-  color: #9ca3af;
+  color: var(--theme-text-secondary);
 }
 
 .form-group label .required {
-  color: #ef4444;
+  color: var(--theme-danger);
 }
 
 .form-group input,
+.form-group select,
 .form-group textarea {
-  background: rgba(10, 14, 26, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 0.6rem 0.85rem;
+  background: var(--theme-bg-input);
+  border: 1px solid var(--theme-input-border);
   border-radius: 8px;
-  color: #f3f4f6;
-  padding: 0.625rem 0.875rem;
-  font-size: 0.9rem;
-  transition: all 0.2s;
-  width: 100%;
+  color: var(--theme-text-primary);
+  font-size: 0.85rem;
+  transition: border-color 0.2s ease;
 }
 
 .form-group input:focus,
+.form-group select:focus,
 .form-group textarea:focus {
   outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
-  background: rgba(10, 14, 26, 0.8);
-}
-
-.form-group textarea {
-  resize: vertical;
+  border-color: var(--theme-border-focus);
 }
 
 .modal-actions {
   display: flex;
-  align-items: center;
   justify-content: flex-end;
   gap: 0.75rem;
-  margin-top: 2rem;
+  margin-top: 1.5rem;
   padding-top: 1.25rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--theme-border);
 }
 
-.btn-primary,
 .btn-secondary {
-  padding: 0.625rem 1.25rem;
+  padding: 0.6rem 1.25rem;
+  background: var(--theme-bg-desc);
+  border: 1px solid var(--theme-border);
+  color: var(--theme-text-secondary);
   border-radius: 8px;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
+  transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+  background: var(--theme-border);
+  color: var(--theme-text-primary);
 }
 
 .btn-primary {
-  background: #3b82f6;
-  border: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.5rem;
+  background: var(--theme-primary);
+  border: 1px solid var(--theme-primary);
   color: #ffffff;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #2563eb;
+  background: var(--theme-primary-hover);
 }
 
 .btn-primary:disabled {
@@ -161,31 +178,17 @@
   cursor: not-allowed;
 }
 
-.btn-secondary {
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #d1d5db;
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
-.btn-secondary:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.05);
-  color: #ffffff;
+@keyframes slideUp {
+  from { transform: translateY(12px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }
 
-.animate-spin {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (max-width: 600px) {
+@media (max-width: 640px) {
   .form-grid {
     grid-template-columns: 1fr;
   }

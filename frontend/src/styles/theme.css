@@ -1,0 +1,165 @@
+/* ==========================================================================
+   Global Campus Security Design System — Standardized Design Tokens
+   Baseline: M06 Area Management Design Language
+   ========================================================================== */
+
+:root,
+[data-theme="light"] {
+  /* Page & Canvas Backgrounds */
+  --theme-bg-page: #f8fafc;
+  --theme-bg-surface: #ffffff;
+  --theme-bg-surface-elevated: #ffffff;
+  --theme-bg-canvas: #f8fafc;
+  --theme-canvas-dot: rgba(148, 163, 184, 0.35);
+  --theme-bg-sidebar: #ffffff;
+  --theme-bg-panel-right: #ffffff;
+  --theme-bg-input: #ffffff;
+  --theme-bg-desc: #f8fafc;
+
+  /* Borders & Dividers */
+  --theme-border: #e2e8f0;
+  --theme-border-hover: #cbd5e1;
+  --theme-border-focus: #3b82f6;
+  --theme-input-border: #cbd5e1;
+
+  /* Typography Colors */
+  --theme-text-primary: #0f172a;
+  --theme-text-secondary: #475569;
+  --theme-text-muted: #64748b;
+  --theme-text-disabled: #94a3b8;
+
+  /* Primary Brand Accents (Standard Blue) */
+  --theme-primary: #2563eb;
+  --theme-primary-hover: #1d4ed8;
+  --theme-primary-light: #eff6ff;
+  --theme-primary-subtle: rgba(37, 99, 235, 0.08);
+  --theme-primary-border: #bfdbfe;
+
+  /* Semantic Status Colors */
+  --theme-success: #16a34a;
+  --theme-success-bg: #f0fdf4;
+  --theme-success-border: #86efac;
+  --theme-success-text: #166534;
+
+  --theme-warning: #f59e0b;
+  --theme-warning-bg: #fffbeb;
+  --theme-warning-border: #fcd34d;
+  --theme-warning-text: #92400e;
+
+  --theme-danger: #ef4444;
+  --theme-danger-bg: #fef2f2;
+  --theme-danger-border: #fca5a5;
+  --theme-danger-text: #991b1b;
+
+  --theme-info: #0284c7;
+  --theme-info-bg: #f0f9ff;
+  --theme-info-border: #bae6fd;
+  --theme-info-text: #0369a1;
+
+  /* Security Level Semantics - Light Mode */
+  --theme-level-pub-bg: #f0fdf4;
+  --theme-level-pub-border: #86efac;
+  --theme-level-pub-text: #166534;
+  --theme-level-pub-badge-bg: #dcfce7;
+
+  --theme-level-semi-bg: #fffbeb;
+  --theme-level-semi-border: #fcd34d;
+  --theme-level-semi-text: #92400e;
+  --theme-level-semi-badge-bg: #fef3c7;
+
+  --theme-level-priv-bg: #fef2f2;
+  --theme-level-priv-border: #fca5a5;
+  --theme-level-priv-text: #991b1b;
+  --theme-level-priv-badge-bg: #fee2e2;
+
+  --theme-active-dot: #16a34a;
+  --theme-inactive-dot: #dc2626;
+
+  /* Shadows & Modals */
+  --theme-card-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --theme-card-shadow-hover: 0 8px 16px -2px rgba(0, 0, 0, 0.08), 0 4px 8px -2px rgba(0, 0, 0, 0.04);
+  --theme-modal-bg: #ffffff;
+  --theme-modal-backdrop: rgba(15, 23, 42, 0.45);
+
+  --theme-ambient-opacity: 0.12;
+}
+
+[data-theme="dark"] {
+  /* Page & Canvas Backgrounds */
+  --theme-bg-page: #0b0f19;
+  --theme-bg-surface: #111827;
+  --theme-bg-surface-elevated: #1f2937;
+  --theme-bg-canvas: #090d16;
+  --theme-canvas-dot: rgba(71, 85, 105, 0.35);
+  --theme-bg-sidebar: #0f172a;
+  --theme-bg-panel-right: #0f172a;
+  --theme-bg-input: #1e293b;
+  --theme-bg-desc: #1e293b;
+
+  /* Borders & Dividers */
+  --theme-border: #1e293b;
+  --theme-border-hover: #334155;
+  --theme-border-focus: #60a5fa;
+  --theme-input-border: #334155;
+
+  /* Typography Colors */
+  --theme-text-primary: #f8fafc;
+  --theme-text-secondary: #cbd5e1;
+  --theme-text-muted: #94a3b8;
+  --theme-text-disabled: #64748b;
+
+  /* Primary Brand Accents (Standard Blue Variant) */
+  --theme-primary: #3b82f6;
+  --theme-primary-hover: #2563eb;
+  --theme-primary-light: rgba(59, 130, 246, 0.15);
+  --theme-primary-subtle: rgba(59, 130, 246, 0.12);
+  --theme-primary-border: rgba(59, 130, 246, 0.3);
+
+  /* Semantic Status Colors */
+  --theme-success: #34d399;
+  --theme-success-bg: rgba(16, 185, 129, 0.12);
+  --theme-success-border: rgba(52, 211, 153, 0.35);
+  --theme-success-text: #6ee7b7;
+
+  --theme-warning: #fbbf24;
+  --theme-warning-bg: rgba(245, 158, 11, 0.12);
+  --theme-warning-border: rgba(251, 191, 36, 0.35);
+  --theme-warning-text: #fcd34d;
+
+  --theme-danger: #f87171;
+  --theme-danger-bg: rgba(239, 68, 68, 0.12);
+  --theme-danger-border: rgba(248, 113, 113, 0.35);
+  --theme-danger-text: #fca5a5;
+
+  --theme-info: #38bdf8;
+  --theme-info-bg: rgba(2, 132, 199, 0.12);
+  --theme-info-border: rgba(56, 189, 248, 0.35);
+  --theme-info-text: #7dd3fc;
+
+  /* Security Level Semantics - Dark Mode */
+  --theme-level-pub-bg: rgba(16, 185, 129, 0.08);
+  --theme-level-pub-border: rgba(52, 211, 153, 0.35);
+  --theme-level-pub-text: #6ee7b7;
+  --theme-level-pub-badge-bg: rgba(16, 185, 129, 0.2);
+
+  --theme-level-semi-bg: rgba(245, 158, 11, 0.08);
+  --theme-level-semi-border: rgba(251, 191, 36, 0.35);
+  --theme-level-semi-text: #fcd34d;
+  --theme-level-semi-badge-bg: rgba(245, 158, 11, 0.2);
+
+  --theme-level-priv-bg: rgba(239, 68, 68, 0.08);
+  --theme-level-priv-border: rgba(248, 113, 113, 0.35);
+  --theme-level-priv-text: #fca5a5;
+  --theme-level-priv-badge-bg: rgba(239, 68, 68, 0.2);
+
+  --theme-active-dot: #34d399;
+  --theme-inactive-dot: #f87171;
+
+  /* Shadows & Modals */
+  --theme-card-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  --theme-card-shadow-hover: 0 10px 24px rgba(0, 0, 0, 0.5);
+  --theme-modal-bg: #111827;
+  --theme-modal-backdrop: rgba(0, 0, 0, 0.7);
+
+  --theme-ambient-opacity: 0.22;
+}

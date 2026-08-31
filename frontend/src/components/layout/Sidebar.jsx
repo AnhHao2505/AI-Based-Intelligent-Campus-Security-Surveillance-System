@@ -1,8 +1,20 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, MapPin, Video, UserRound, LogOut } from 'lucide-react';
+import { 
+  LayoutDashboard, 
+  MapPin, 
+  Video, 
+  UserRound, 
+  Cpu, 
+  Sun, 
+  Moon, 
+  LogOut 
+} from 'lucide-react';
+import { useTheme } from '../../context/ThemeContext';
 import './Sidebar.css';
 
 export default function Sidebar({ user, onLogout }) {
+  const { theme, toggleTheme } = useTheme();
+
   const getInitials = (name) => {
     if (!name) return 'U';
     return name
@@ -19,71 +31,106 @@ export default function Sidebar({ user, onLogout }) {
 
   return (
     <aside className="sidebar">
-      <div className="sidebar__brand">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-        <span className="sidebar__brand-text">Campus Security</span>
-      </div>
-
-      <nav className="sidebar__nav">
-        <NavLink 
-          to="/dashboard" 
-          className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
-        >
-          <LayoutDashboard size={20} />
-          <span>Dashboard</span>
+      <div className="sidebar__header">
+        <NavLink to="/dashboard" className="sidebar__brand">
+          <div className="sidebar__logo">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+          <div>
+            <div className="sidebar__title">FPTU SecureVision</div>
+            <div className="sidebar__subtitle">Campus Security</div>
+          </div>
         </NavLink>
 
-        {(isAdmin || isFacilityManager) && (
+        <nav className="sidebar__nav">
           <NavLink 
-            to="/admin/areas" 
+            to="/dashboard" 
             className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
           >
-            <MapPin size={20} />
-            <span>Cấu hình vùng (Zones)</span>
+            <LayoutDashboard size={18} />
+            <span>Dashboard</span>
           </NavLink>
-        )}
 
-        {isAdmin && (
-          <>
+          {(isAdmin || isFacilityManager) && (
             <NavLink 
-              to="/cameras" 
+              to="/admin/areas" 
               className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
             >
-              <Video size={20} />
-              <span>Quản lý Camera</span>
+              <MapPin size={18} />
+              <span>Cấu hình vùng (Zones)</span>
             </NavLink>
+          )}
 
-            <NavLink 
-              to="/admin/faces" 
-              className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
-            >
-              <UserRound size={20} />
-              <span>Quản lý Khuôn mặt</span>
-            </NavLink>
-          </>
-        )}
-      </nav>
+          {isAdmin && (
+            <>
+              <NavLink 
+                to="/cameras" 
+                className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+              >
+                <Video size={18} />
+                <span>Quản lý Camera</span>
+              </NavLink>
 
-      <div className="sidebar__footer">
-        <div className="sidebar__user">
-          <div className="sidebar__avatar">
-            {getInitials(user?.fullName)}
+              <NavLink 
+                to="/admin/faces" 
+                className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+              >
+                <UserRound size={18} />
+                <span>Quản lý Khuôn mặt</span>
+              </NavLink>
+            </>
+          )}
+
+          <div className="sidebar__link sidebar__link--disabled">
+            <Cpu size={18} />
+            <span>Thiết lập AI</span>
+            <span className="sidebar__badge-soon">Soon</span>
           </div>
-          <div className="sidebar__user-info">
-            <span className="sidebar__username">{user?.fullName || 'User'}</span>
-            <span className="sidebar__userrole">
-              {userRole === 'ADMIN' ? 'Admin' : userRole === 'FACILITY_MANAGER' ? 'Facility Manager' : userRole}
-            </span>
-          </div>
-        </div>
-        <button className="sidebar__logout" onClick={onLogout} title="Đăng xuất">
-          <LogOut size={18} />
-          <span>Đăng xuất</span>
+        </nav>
+      </div>
+
+      <div className="sidebar__bottom">
+        {/* Theme Toggle Button */}
+        <button
+          type="button"
+          className="sidebar__theme-toggle"
+          onClick={toggleTheme}
+          title={theme === 'light' ? 'Chuyển sang Dark Mode' : 'Chuyển sang Light Mode'}
+        >
+          {theme === 'light' ? (
+            <>
+              <Moon size={16} />
+              <span>Dark Mode</span>
+            </>
+          ) : (
+            <>
+              <Sun size={16} />
+              <span>Light Mode</span>
+            </>
+          )}
         </button>
+
+        {/* User Profile Footer */}
+        <div className="sidebar__footer">
+          <div className="sidebar__user">
+            <div className="sidebar__avatar">
+              {getInitials(user?.fullName)}
+            </div>
+            <div className="sidebar__user-info">
+              <span className="sidebar__username">{user?.fullName || 'User'}</span>
+              <span className="sidebar__userrole">
+                {userRole === 'ADMIN' ? 'Admin' : userRole === 'FACILITY_MANAGER' ? 'Facility Manager' : userRole}
+              </span>
+            </div>
+          </div>
+          <button className="sidebar__logout-btn" onClick={onLogout} title="Đăng xuất">
+            <LogOut size={16} />
+          </button>
+        </div>
       </div>
     </aside>
   );
