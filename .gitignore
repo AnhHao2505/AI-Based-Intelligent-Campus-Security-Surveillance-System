@@ -48,3 +48,16 @@ pgadmindata/
 miniodata/
 kafkadata/
 backups/
+
+# Python & AI Service
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+*.pt
+.venv/
+venv/
+env/
+ai-service/evidence_snapshots/
+ai-service/runs/

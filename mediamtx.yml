@@ -1,0 +1,34 @@
+###############################################
+# MediaMTX Configuration for FPTU Campus Security #
+###############################################
+
+# Cấu hình chung
+logLevel: info
+logDestinations: [stdout]
+
+# 1. RTSP Server (Cổng 8554 cho AI Service kéo luồng)
+rtsp: yes
+rtspTransports: [tcp, udp]
+rtspAddress: :8554
+
+# 2. WebRTC Server (Cổng 8889 - WHEP cho Trình duyệt Web)
+webrtc: yes
+webrtcAddress: :8889
+webrtcAllowOrigins: ['*']
+webrtcLocalUDPAddress: :8189
+
+# 3. API Quản trị (Cổng 9997)
+api: yes
+apiAddress: :9997
+
+# 4. Danh sách Kênh Camera
+paths:
+  # Camera 01 — Điện thoại Samsung (IP Webcam App - Luồng Video Chuẩn H264)
+  cam01:
+    source: rtsp://admin:123456@192.168.1.10:8080/h264.sdp
+    sourceOnDemand: yes
+    sourceOnDemandCloseAfter: 10s
+
+  # Mở sẵn cho các Camera khác tự phát (Push) vào MediaMTX
+  all_others:
+    source: publisher

@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { loginWithGoogle, loginWithCredentials, getCurrentUser, saveAuth, clearAuth } from '../services/authService';
+import * as authService from '../services/authService';
 
 const AuthContext = createContext(null);
 
@@ -18,7 +18,7 @@ export function AuthProvider({ children }) {
   const logout = useCallback(() => {
     setUser(null);
     setToken(null);
-    clearAuth();
+    authService.clearAuth();
   }, []);
 
   // On mount: if accessToken exists in localStorage, verify session with GET /api/auth/me
@@ -31,13 +31,20 @@ export function AuthProvider({ children }) {
       }
 
       try {
-        const userData = await getCurrentUser();
+        const userData = await authService.getCurrentUser();
         setUser(userData);
         setToken(storedToken);
         localStorage.setItem('user', JSON.stringify(userData));
       } catch (err) {
         console.warn('Session verification failed on mount:', err.message);
-        logout();
+        // If stored user exists and is valid, keep offline session if not 401
+        const storedUser = authService.getStoredUser();
+        if (storedUser) {
+          setUser(storedUser);
+          setToken(storedToken);
+        } else {
+          logout();
+        }
       } finally {
         setLoading(false);
       }
@@ -46,20 +53,30 @@ export function AuthProvider({ children }) {
     initAuth();
   }, [logout]);
 
-  const loginWithGoogleToken = async (idToken) => {
-    const response = await loginWithGoogle(idToken);
-    saveAuth(response);
-    setUser(response.user);
-    setToken(response.accessToken);
-    return response.user;
+  const loginWithCredentials = async (email, password) => {
+    setLoading(true);
+    try {
+      const response = await authService.loginWithCredentials(email, password);
+      authService.saveAuth(response);
+      setUser(response.user);
+      setToken(response.accessToken);
+      return response;
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const loginWithPassword = async (email, password) => {
-    const response = await loginWithCredentials(email, password);
-    saveAuth(response);
-    setUser(response.user);
-    setToken(response.accessToken);
-    return response.user;
+  const loginWithGoogle = async (idToken) => {
+    setLoading(true);
+    try {
+      const response = await authService.loginWithGoogle(idToken);
+      authService.saveAuth(response);
+      setUser(response.user);
+      setToken(response.accessToken);
+      return response;
+    } finally {
+      setLoading(false);
+    }
   };
 
   const hasRole = useCallback((allowedRoles) => {
@@ -96,17 +113,21 @@ export function AuthProvider({ children }) {
     );
   }
 
+  const value = {
+    user,
+    token,
+    loading,
+    isAuthenticated: !!user,
+    loginWithCredentials,
+    loginWithPassword: loginWithCredentials,
+    loginWithGoogle,
+    loginWithGoogleToken: loginWithGoogle,
+    logout,
+    hasRole,
+  };
+
   return (
-    <AuthContext.Provider value={{
-      user,
-      token,
-      loading,
-      isAuthenticated: !!user,
-      loginWithGoogleToken,
-      loginWithPassword,
-      logout,
-      hasRole,
-    }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

@@ -5,10 +5,12 @@ import {
   Video, 
   UserRound, 
   Cpu, 
+  ShieldAlert,
   Sun, 
   Moon, 
   LogOut 
 } from 'lucide-react';
+import { ROLES, ROLE_LABELS } from '../../constants/roles';
 import { useTheme } from '../../context/ThemeContext';
 import './Sidebar.css';
 
@@ -26,8 +28,9 @@ export default function Sidebar({ user, onLogout }) {
   };
 
   const userRole = user?.role || user?.role_type || '';
-  const isAdmin = userRole === 'ADMIN';
-  const isFacilityManager = userRole === 'FACILITY_MANAGER';
+  const isAdmin = userRole === ROLES.ADMIN;
+  const isFacilityManager = userRole === ROLES.FACILITY_MANAGER;
+  const isGuard = userRole === ROLES.INTERNAL_GUARD || userRole === ROLES.OUTSOURCED_GUARD;
 
   return (
     <aside className="sidebar">
@@ -47,6 +50,16 @@ export default function Sidebar({ user, onLogout }) {
         </NavLink>
 
         <nav className="sidebar__nav">
+          {isGuard && (
+            <NavLink 
+              to="/guard" 
+              className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+            >
+              <ShieldAlert size={18} />
+              <span>Giám sát An ninh</span>
+            </NavLink>
+          )}
+
           <NavLink 
             to="/dashboard" 
             className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
@@ -123,7 +136,7 @@ export default function Sidebar({ user, onLogout }) {
             <div className="sidebar__user-info">
               <span className="sidebar__username">{user?.fullName || 'User'}</span>
               <span className="sidebar__userrole">
-                {userRole === 'ADMIN' ? 'Admin' : userRole === 'FACILITY_MANAGER' ? 'Facility Manager' : userRole}
+                {ROLE_LABELS[userRole] || userRole || 'Người dùng'}
               </span>
             </div>
           </div>
