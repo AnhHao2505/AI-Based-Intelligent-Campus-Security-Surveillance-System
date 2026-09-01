@@ -513,3 +513,89 @@
   background: var(--theme-warning-bg, rgba(245, 158, 11, 0.08));
   box-shadow: 0 0 0 1px var(--theme-warning-border, rgba(245, 158, 11, 0.25));
 }
+
+.area-map-page__overlay--drawing {
+  pointer-events: auto;
+  cursor: crosshair;
+}
+
+.area-map-page__overlay--drawing polygon {
+  pointer-events: none;
+}
+
+.area-map-page__draft-line {
+  fill: none;
+  stroke: var(--theme-warning, #f59e0b);
+  stroke-width: 2;
+  stroke-dasharray: 4 4;
+  vector-effect: non-scaling-stroke;
+}
+
+.area-map-page__draft-vertex {
+  fill: var(--theme-warning, #f59e0b);
+  stroke: var(--theme-bg-surface, #0f172a);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.area-map-page__draft-vertex--first {
+  fill: var(--theme-success, #10b981);
+  stroke: var(--theme-text-primary, #ffffff);
+  stroke-width: 2.5;
+}
+
+.area-map-page__draw-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.area-map-page__btn-undo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--theme-text-primary, #f8fafc);
+  background: var(--theme-bg-surface-elevated, #1f2937);
+  border: 1px solid var(--theme-border, #334155);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.area-map-page__btn-undo:hover:not(:disabled) {
+  background: var(--theme-border-hover, #334155);
+}
+
+.area-map-page__btn-undo:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.area-map-page__btn-finish {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--theme-text-primary, #ffffff);
+  background: var(--theme-success, #10b981);
+  border: 1px solid var(--theme-success, #10b981);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.area-map-page__btn-finish:hover:not(:disabled) {
+  background: var(--theme-success-hover, #059669);
+  border-color: var(--theme-success-hover, #059669);
+}
+
+.area-map-page__btn-finish:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Layers, AlertCircle, RotateCcw, Loader2, Pencil } from 'lucide-react';
+import { Layers, AlertCircle, RotateCcw, Loader2, Pencil, Undo2, Check } from 'lucide-react';
 import { getFloorPlans, getAreaGeometries } from '../../services/areaService';
 import { getLevelConfig } from '../../utils/areaHelpers';
 import { useAuth } from '../../context/AuthContext';
 import { ROLES } from '../../constants/roles';
 import './AreaMapPage.css';
+
+const EPS = 0.0005;
+const round6 = (n) => Math.round(n * 1e6) / 1e6;
 
 export default function AreaMapPage() {
   const { user } = useAuth();
@@ -34,6 +37,41 @@ export default function AreaMapPage() {
     setDrawingAreaId(null);
     setDraftVertices([]);
     setDrawError(null);
+  };
+
+  const handleUndoVertex = () => {
+    setDraftVertices((prev) => prev.slice(0, -1));
+  };
+
+  const handleSvgClick = (event) => {
+    if (drawingAreaId === null || !selectedPlan) return;
+
+    const svg = event.currentTarget;
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return;
+
+    const pt = svg.createSVGPoint();
+    pt.x = event.clientX;
+    pt.y = event.clientY;
+    const local = pt.matrixTransform(ctm.inverse());
+
+    const nx = local.x / selectedPlan.originalWidth;
+    const ny = local.y / selectedPlan.originalHeight;
+
+    // Chặn 1: ngoài khung [0,1]
+    if (nx < 0 || nx > 1 || ny < 0 || ny > 1) return;
+
+    // Làm tròn 6 chữ số thập phân
+    const roundedX = round6(nx);
+    const roundedY = round6(ny);
+
+    // Chặn 2: trùng đỉnh đã có
+    const isDuplicate = draftVertices.some(
+      (v) => Math.abs(v.x - roundedX) < EPS && Math.abs(v.y - roundedY) < EPS
+    );
+    if (isDuplicate) return;
+
+    setDraftVertices((prev) => [...prev, { x: roundedX, y: roundedY }]);
   };
 
   const sortFloorPlans = (plans) => {
@@ -199,10 +237,13 @@ export default function AreaMapPage() {
                       onError={() => setImageError(true)}
                     />
                     <svg
-                      className="area-map-page__overlay"
+                      className={`area-map-page__overlay ${
+                        drawingAreaId !== null ? 'area-map-page__overlay--drawing' : ''
+                      }`}
                       viewBox={`0 0 ${selectedPlan.originalWidth} ${selectedPlan.originalHeight}`}
                       preserveAspectRatio="none"
                       xmlns="http://www.w3.org/2000/svg"
+                      onClick={handleSvgClick}
                     >
                       {areas
                         .filter(
@@ -228,6 +269,32 @@ export default function AreaMapPage() {
                             </polygon>
                           );
                         })}
+                      {drawingAreaId !== null && draftVertices.length > 0 && (
+                        <>
+                          {draftVertices.length >= 2 && (
+                            <polyline
+                              points={draftVertices
+                                .map(
+                                  (v) =>
+                                    `${v.x * selectedPlan.originalWidth},${v.y * selectedPlan.originalHeight}`
+                                )
+                                .join(' ')}
+                              className="area-map-page__draft-line"
+                            />
+                          )}
+                          {draftVertices.map((v, index) => (
+                            <circle
+                              key={index}
+                              cx={v.x * selectedPlan.originalWidth}
+                              cy={v.y * selectedPlan.originalHeight}
+                              r={6}
+                              className={`area-map-page__draft-vertex ${
+                                index === 0 ? 'area-map-page__draft-vertex--first' : ''
+                              }`}
+                            />
+                          ))}
+                        </>
+                      )}
                     </svg>
                   </>
                 )}
@@ -273,16 +340,40 @@ export default function AreaMapPage() {
                             Đang vẽ: <strong>{areas.find((a) => a.id === drawingAreaId)?.name || ''}</strong>
                           </span>
                         </div>
-                        <p className="area-map-page__draw-hint">Nhấp lên bản đồ để đặt đỉnh (sắp có)</p>
+                        <p className="area-map-page__draw-hint">Nhấp lên bản đồ để đặt đỉnh</p>
                         <span className="area-map-page__draw-count">Đã đặt {draftVertices.length} đỉnh</span>
                       </div>
-                      <button
-                        type="button"
-                        className="area-map-page__btn-cancel-draw"
-                        onClick={cancelDrawing}
-                      >
-                        Huỷ
-                      </button>
+                      <div className="area-map-page__draw-actions">
+                        <button
+                          type="button"
+                          className="area-map-page__btn-undo"
+                          onClick={handleUndoVertex}
+                          disabled={draftVertices.length === 0}
+                          title="Hoàn tác đỉnh cuối"
+                        >
+                          <Undo2 size={14} />
+                          <span>Hoàn tác</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="area-map-page__btn-finish"
+                          disabled={draftVertices.length < 3}
+                          onClick={() => {
+                            // B3c: gọi PATCH /api/areas/{id}/geometry
+                          }}
+                          title="Hoàn tất polygon"
+                        >
+                          <Check size={14} />
+                          <span>Hoàn tất</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="area-map-page__btn-cancel-draw"
+                          onClick={cancelDrawing}
+                        >
+                          Huỷ
+                        </button>
+                      </div>
                     </div>
                   )}
 
