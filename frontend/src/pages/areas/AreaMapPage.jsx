@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Layers, AlertCircle, RotateCcw, Loader2, Pencil, Undo2, Check } from 'lucide-react';
-import { getFloorPlans, getAreaGeometries } from '../../services/areaService';
+import { Layers, AlertCircle, RotateCcw, Loader2, Pencil, Undo2, Check, X } from 'lucide-react';
+import { getFloorPlans, getAreaGeometries, saveAreaGeometry } from '../../services/areaService';
 import { getLevelConfig } from '../../utils/areaHelpers';
 import { useAuth } from '../../context/AuthContext';
 import { ROLES } from '../../constants/roles';
@@ -8,6 +8,14 @@ import './AreaMapPage.css';
 
 const EPS = 0.0005;
 const round6 = (n) => Math.round(n * 1e6) / 1e6;
+
+const GEOMETRY_ERROR_MESSAGES = {
+  ERR_AREA_011: 'Hình phải có ít nhất 3 đỉnh.',
+  ERR_AREA_012: 'Có đỉnh nằm ngoài phạm vi bản đồ. Vui lòng vẽ lại.',
+  ERR_AREA_013: 'Hình bị chồng lấn với khu vực khác trên cùng tầng.',
+  ERR_AREA_015: 'Khu vực này chưa có thông tin toà nhà và tầng.',
+  ERR_AREA_016: 'Hình phải có ít nhất 3 đỉnh khác nhau.',
+};
 
 export default function AreaMapPage() {
   const { user } = useAuth();
@@ -26,6 +34,7 @@ export default function AreaMapPage() {
   const [drawingAreaId, setDrawingAreaId] = useState(null);
   const [draftVertices, setDraftVertices] = useState([]);
   const [drawError, setDrawError] = useState(null);
+  const [savingGeometry, setSavingGeometry] = useState(false);
 
   const startDrawing = (areaId) => {
     setDrawingAreaId(areaId);
@@ -43,7 +52,30 @@ export default function AreaMapPage() {
     setDraftVertices((prev) => prev.slice(0, -1));
   };
 
+  const finishDrawing = async () => {
+    if (savingGeometry) return;
+    if (drawingAreaId === null) return;
+    if (draftVertices.length < 3) return;
+
+    setSavingGeometry(true);
+    setDrawError(null);
+    try {
+      await saveAreaGeometry(drawingAreaId, draftVertices);
+      cancelDrawing();
+      await loadAreas(selectedPlan);
+    } catch (err) {
+      const message =
+        GEOMETRY_ERROR_MESSAGES[err.code] ||
+        err.message ||
+        'Không lưu được hình. Vui lòng thử lại.';
+      setDrawError(message);
+    } finally {
+      setSavingGeometry(false);
+    }
+  };
+
   const handleSvgClick = (event) => {
+    if (savingGeometry) return;
     if (drawingAreaId === null || !selectedPlan) return;
 
     const svg = event.currentTarget;
@@ -340,15 +372,18 @@ export default function AreaMapPage() {
                             Đang vẽ: <strong>{areas.find((a) => a.id === drawingAreaId)?.name || ''}</strong>
                           </span>
                         </div>
-                        <p className="area-map-page__draw-hint">Nhấp lên bản đồ để đặt đỉnh</p>
-                        <span className="area-map-page__draw-count">Đã đặt {draftVertices.length} đỉnh</span>
+                        <div className="area-map-page__draw-meta">
+                          <p className="area-map-page__draw-hint">Nhấp lên bản đồ để đặt đỉnh</p>
+                          <span className="area-map-page__draw-sep">·</span>
+                          <span className="area-map-page__draw-count">Đã đặt {draftVertices.length} đỉnh</span>
+                        </div>
                       </div>
                       <div className="area-map-page__draw-actions">
                         <button
                           type="button"
                           className="area-map-page__btn-undo"
                           onClick={handleUndoVertex}
-                          disabled={draftVertices.length === 0}
+                          disabled={draftVertices.length === 0 || savingGeometry}
                           title="Hoàn tác đỉnh cuối"
                         >
                           <Undo2 size={14} />
@@ -357,19 +392,22 @@ export default function AreaMapPage() {
                         <button
                           type="button"
                           className="area-map-page__btn-finish"
-                          disabled={draftVertices.length < 3}
-                          onClick={() => {
-                            // B3c: gọi PATCH /api/areas/{id}/geometry
-                          }}
+                          disabled={draftVertices.length < 3 || savingGeometry}
+                          onClick={finishDrawing}
                           title="Hoàn tất polygon"
                         >
-                          <Check size={14} />
-                          <span>Hoàn tất</span>
+                          {savingGeometry ? (
+                            <Loader2 className="area-map-page__spinner" size={14} />
+                          ) : (
+                            <Check size={14} />
+                          )}
+                          <span>{savingGeometry ? 'Đang lưu...' : 'Hoàn tất'}</span>
                         </button>
                         <button
                           type="button"
                           className="area-map-page__btn-cancel-draw"
                           onClick={cancelDrawing}
+                          disabled={savingGeometry}
                         >
                           Huỷ
                         </button>
@@ -381,6 +419,14 @@ export default function AreaMapPage() {
                     <div className="area-map-page__sidebar-state area-map-page__sidebar-state--error area-map-page__draw-error">
                       <AlertCircle size={20} />
                       <span className="area-map-page__error-text">{drawError}</span>
+                      <button
+                        type="button"
+                        className="area-map-page__btn-close-error"
+                        onClick={() => setDrawError(null)}
+                        title="Đóng thông báo"
+                      >
+                        <X size={14} />
+                      </button>
                     </div>
                   )}
 

@@ -104,3 +104,12 @@ export async function getAreaGeometries(building, floor) {
   return apiGet(`/api/areas/geometries?${query.toString()}`);
 }
 
+/**
+ * Lưu polygon cho một Area (ADMIN)
+ * PATCH /api/areas/{id}/geometry
+ */
+export async function saveAreaGeometry(areaId, vertices) {
+  return apiPatch(`/api/areas/${areaId}/geometry`, { vertices });
+}
+
+

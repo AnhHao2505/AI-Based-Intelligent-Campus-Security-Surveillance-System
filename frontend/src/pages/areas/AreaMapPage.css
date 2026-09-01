@@ -420,41 +420,58 @@
 
 .area-map-page__draw-bar {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: stretch;
   gap: 0.75rem;
   padding: 0.875rem;
   background: var(--theme-warning-bg, rgba(245, 158, 11, 0.1));
   border: 1px solid var(--theme-warning-border, rgba(245, 158, 11, 0.3));
   border-radius: 8px;
+  width: 100%;
 }
 
 .area-map-page__draw-info {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  min-width: 0;
+  gap: 0.35rem;
+  width: 100%;
 }
 
 .area-map-page__draw-title {
   font-size: 0.875rem;
   color: var(--theme-text-primary, #f8fafc);
+  line-height: 1.35;
+  word-break: break-word;
 }
 
 .area-map-page__draw-title strong {
   color: var(--theme-warning, #f59e0b);
 }
 
+.area-map-page__draw-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
 .area-map-page__draw-hint {
   font-size: 0.75rem;
   color: var(--theme-text-muted, #94a3b8);
   margin: 0;
+  line-height: 1.3;
+}
+
+.area-map-page__draw-sep {
+  font-size: 0.75rem;
+  color: var(--theme-text-muted, #64748b);
 }
 
 .area-map-page__draw-count {
   font-size: 0.75rem;
   font-weight: 600;
   color: var(--theme-text-secondary, #cbd5e1);
+  line-height: 1.3;
 }
 
 .area-map-page__btn-cancel-draw {
@@ -547,8 +564,10 @@
 .area-map-page__draw-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 0.5rem;
-  flex-shrink: 0;
+  width: 100%;
 }
 
 .area-map-page__btn-undo {
@@ -598,4 +617,22 @@
 .area-map-page__btn-finish:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.area-map-page__btn-close-error {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--theme-danger, #ef4444);
+  cursor: pointer;
+  padding: 0.2rem;
+  border-radius: 4px;
+  margin-left: auto;
+  transition: opacity 0.15s ease;
+}
+
+.area-map-page__btn-close-error:hover {
+  opacity: 0.8;
 }
