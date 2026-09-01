@@ -76,6 +76,7 @@
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(360deg);
   }
@@ -203,7 +204,7 @@
   align-items: flex-start;
 }
 
-.area-map-page__body > .area-map-page__viewport-card {
+.area-map-page__body>.area-map-page__viewport-card {
   flex: 1;
   min-width: 0;
 }
@@ -372,3 +373,38 @@
   }
 }
 
+.area-map-page__overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.area-map-page__overlay polygon {
+  pointer-events: auto;
+  fill-opacity: 0.22;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.area-map-page__polygon--1 {
+  fill: var(--theme-success, #10b981);
+  stroke: var(--theme-success, #10b981);
+}
+
+.area-map-page__polygon--2 {
+  fill: var(--theme-warning, #f59e0b);
+  stroke: var(--theme-warning, #f59e0b);
+}
+
+.area-map-page__polygon--3 {
+  fill: var(--theme-danger, #ef4444);
+  stroke: var(--theme-danger, #ef4444);
+}
+
+.area-map-page__polygon--default {
+  fill: var(--theme-text-muted, #94a3b8);
+  stroke: var(--theme-text-muted, #94a3b8);
+}

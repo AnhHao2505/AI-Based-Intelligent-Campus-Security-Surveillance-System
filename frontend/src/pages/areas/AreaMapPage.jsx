@@ -90,6 +90,13 @@ export default function AreaMapPage() {
     return 'area-map-page__level-dot--default';
   };
 
+  const getLevelPolygonClass = (level) => {
+    if (level === 1) return 'area-map-page__polygon--1';
+    if (level === 2) return 'area-map-page__polygon--2';
+    if (level === 3) return 'area-map-page__polygon--3';
+    return 'area-map-page__polygon--default';
+  };
+
   return (
     <div className="area-map-page">
       <div className="area-map-page__header">
@@ -160,12 +167,45 @@ export default function AreaMapPage() {
                     <span>Không tải được ảnh: {selectedPlan.imageKey}</span>
                   </div>
                 ) : (
-                  <img
-                    src={`/floor-plans/${selectedPlan.imageKey}`}
-                    alt={`Sơ đồ tầng ${selectedPlan.floor}`}
-                    className="area-map-page__image"
-                    onError={() => setImageError(true)}
-                  />
+                  <>
+                    <img
+                      src={`/floor-plans/${selectedPlan.imageKey}`}
+                      alt={`Sơ đồ tầng ${selectedPlan.floor}`}
+                      className="area-map-page__image"
+                      onError={() => setImageError(true)}
+                    />
+                    <svg
+                      className="area-map-page__overlay"
+                      viewBox={`0 0 ${selectedPlan.originalWidth} ${selectedPlan.originalHeight}`}
+                      preserveAspectRatio="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      {areas
+                        .filter(
+                          (area) =>
+                            area.geometry &&
+                            Array.isArray(area.geometry.vertices) &&
+                            area.geometry.vertices.length >= 3
+                        )
+                        .map((area) => {
+                          const points = area.geometry.vertices
+                            .map(
+                              (v) =>
+                                `${v.x * selectedPlan.originalWidth},${v.y * selectedPlan.originalHeight}`
+                            )
+                            .join(' ');
+                          return (
+                            <polygon
+                              key={area.id}
+                              points={points}
+                              className={`area-map-page__polygon ${getLevelPolygonClass(area.level)}`}
+                            >
+                              <title>{area.name}</title>
+                            </polygon>
+                          );
+                        })}
+                    </svg>
+                  </>
                 )}
               </div>
             </div>
@@ -203,7 +243,7 @@ export default function AreaMapPage() {
                 <div className="area-map-page__sidebar-content">
                   <div className="area-map-page__summary-bar">
                     <span className="area-map-page__summary-text">
-                      {areas.length} khu vực · {areas.filter((a) => a.geometry === null).length} chưa có hình
+                      {areas.length} khu vực · {areas.filter((a) => !a.geometry).length} chưa có hình
                     </span>
                   </div>
                   <div className="area-map-page__area-list">
@@ -221,12 +261,12 @@ export default function AreaMapPage() {
                         </div>
                         <span
                           className={`area-map-page__geo-badge ${
-                            area.geometry === null
+                            !area.geometry
                               ? 'area-map-page__geo-badge--none'
                               : 'area-map-page__geo-badge--has'
                           }`}
                         >
-                          {area.geometry === null ? 'Chưa có hình' : 'Đã có hình'}
+                          {!area.geometry ? 'Chưa có hình' : 'Đã có hình'}
                         </span>
                       </div>
                     ))}
