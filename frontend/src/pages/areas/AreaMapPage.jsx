@@ -1,10 +1,15 @@
 import { useState, useEffect } from 'react';
-import { Layers, AlertCircle, RotateCcw, Loader2 } from 'lucide-react';
+import { Layers, AlertCircle, RotateCcw, Loader2, Pencil } from 'lucide-react';
 import { getFloorPlans, getAreaGeometries } from '../../services/areaService';
 import { getLevelConfig } from '../../utils/areaHelpers';
+import { useAuth } from '../../context/AuthContext';
+import { ROLES } from '../../constants/roles';
 import './AreaMapPage.css';
 
 export default function AreaMapPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === ROLES.ADMIN;
+
   const [floorPlans, setFloorPlans] = useState([]);
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -14,6 +19,22 @@ export default function AreaMapPage() {
   const [areas, setAreas] = useState([]);
   const [areasLoading, setAreasLoading] = useState(false);
   const [areasError, setAreasError] = useState(null);
+
+  const [drawingAreaId, setDrawingAreaId] = useState(null);
+  const [draftVertices, setDraftVertices] = useState([]);
+  const [drawError, setDrawError] = useState(null);
+
+  const startDrawing = (areaId) => {
+    setDrawingAreaId(areaId);
+    setDraftVertices([]);
+    setDrawError(null);
+  };
+
+  const cancelDrawing = () => {
+    setDrawingAreaId(null);
+    setDraftVertices([]);
+    setDrawError(null);
+  };
 
   const sortFloorPlans = (plans) => {
     return [...plans].sort((a, b) => {
@@ -79,6 +100,9 @@ export default function AreaMapPage() {
   }, [selectedPlan]);
 
   const handleSelectFloor = (plan) => {
+    if (drawingAreaId !== null) {
+      cancelDrawing();
+    }
     setSelectedPlan(plan);
     setImageError(false);
   };
@@ -241,35 +265,84 @@ export default function AreaMapPage() {
 
               {!areasLoading && !areasError && areas.length > 0 && (
                 <div className="area-map-page__sidebar-content">
+                  {drawingAreaId !== null && (
+                    <div className="area-map-page__draw-bar">
+                      <div className="area-map-page__draw-info">
+                        <div className="area-map-page__draw-title">
+                          <span>
+                            Đang vẽ: <strong>{areas.find((a) => a.id === drawingAreaId)?.name || ''}</strong>
+                          </span>
+                        </div>
+                        <p className="area-map-page__draw-hint">Nhấp lên bản đồ để đặt đỉnh (sắp có)</p>
+                        <span className="area-map-page__draw-count">Đã đặt {draftVertices.length} đỉnh</span>
+                      </div>
+                      <button
+                        type="button"
+                        className="area-map-page__btn-cancel-draw"
+                        onClick={cancelDrawing}
+                      >
+                        Huỷ
+                      </button>
+                    </div>
+                  )}
+
+                  {drawError !== null && (
+                    <div className="area-map-page__sidebar-state area-map-page__sidebar-state--error area-map-page__draw-error">
+                      <AlertCircle size={20} />
+                      <span className="area-map-page__error-text">{drawError}</span>
+                    </div>
+                  )}
+
                   <div className="area-map-page__summary-bar">
                     <span className="area-map-page__summary-text">
                       {areas.length} khu vực · {areas.filter((a) => !a.geometry).length} chưa có hình
                     </span>
                   </div>
                   <div className="area-map-page__area-list">
-                    {areas.map((area) => (
-                      <div key={area.id} className="area-map-page__area-item">
-                        <div className="area-map-page__area-main">
-                          <span
-                            className={`area-map-page__level-dot ${getLevelDotClass(area.level)}`}
-                            title={`Level ${area.level || '?'}: ${getLevelConfig(area.level).name}`}
-                          />
-                          <div className="area-map-page__area-info">
-                            <span className="area-map-page__area-name">{area.name}</span>
-                            <span className="area-map-page__area-code">{area.code}</span>
-                          </div>
-                        </div>
-                        <span
-                          className={`area-map-page__geo-badge ${
-                            !area.geometry
-                              ? 'area-map-page__geo-badge--none'
-                              : 'area-map-page__geo-badge--has'
+                    {areas.map((area) => {
+                      const isDrawingThis = drawingAreaId === area.id;
+                      return (
+                        <div
+                          key={area.id}
+                          className={`area-map-page__area-item ${
+                            isDrawingThis ? 'area-map-page__area-item--drawing' : ''
                           }`}
                         >
-                          {!area.geometry ? 'Chưa có hình' : 'Đã có hình'}
-                        </span>
-                      </div>
-                    ))}
+                          <div className="area-map-page__area-main">
+                            <span
+                              className={`area-map-page__level-dot ${getLevelDotClass(area.level)}`}
+                              title={`Level ${area.level || '?'}: ${getLevelConfig(area.level).name}`}
+                            />
+                            <div className="area-map-page__area-info">
+                              <span className="area-map-page__area-name">{area.name}</span>
+                              <span className="area-map-page__area-code">{area.code}</span>
+                            </div>
+                          </div>
+                          <div className="area-map-page__area-actions">
+                            {isAdmin && !area.geometry && drawingAreaId === null && (
+                              <button
+                                type="button"
+                                className="area-map-page__btn-draw"
+                                onClick={() => startDrawing(area.id)}
+                                title="Vẽ hình khu vực"
+                              >
+                                <Pencil size={13} />
+                                <span>Vẽ hình</span>
+                              </button>
+                            )}
+                            <span
+                              className={`area-map-page__geo-badge ${
+                                !area.geometry
+                                  ? 'area-map-page__geo-badge--none'
+                                  : 'area-map-page__geo-badge--has'
+                              }`}
+                            >
+                              {!area.geometry ? 'Chưa có hình' : 'Đã có hình'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}

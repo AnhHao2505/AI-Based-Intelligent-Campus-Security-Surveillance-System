@@ -73,6 +73,7 @@ export default function Sidebar({ user, onLogout }) {
             <>
               <NavLink 
                 to="/admin/areas" 
+                end
                 className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
               >
                 <MapPin size={18} />
