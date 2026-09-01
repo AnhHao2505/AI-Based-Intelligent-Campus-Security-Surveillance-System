@@ -118,7 +118,7 @@
 .area-dashboard {
   display: flex;
   height: 100vh;
-  width: 100vw;
+  width: 100%;
   background-color: var(--theme-bg-page);
   color: var(--theme-text-primary);
   font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;

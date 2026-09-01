@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import {
@@ -19,7 +18,7 @@ import {
 import './AreaListPage.css';
 
 export default function AreaListPage() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
   const isAdmin = user?.role === 'ADMIN';
@@ -369,127 +368,6 @@ export default function AreaListPage() {
         <div className="area-ambient__orb area-ambient__orb--1" />
         <div className="area-ambient__orb area-ambient__orb--2" />
       </div>
-
-      {/* ============================================================ */}
-      {/* 1. LEFT SIDEBAR                                              */}
-      {/* ============================================================ */}
-      <aside className="area-sidebar">
-        <div className="area-sidebar__header">
-          <Link to="/dashboard" className="area-sidebar__brand">
-            <div className="area-sidebar__logo">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </div>
-            <div>
-              <div className="area-sidebar__title">FPTU SecureVision</div>
-              <div className="area-sidebar__subtitle">Campus Security</div>
-            </div>
-          </Link>
-
-          <nav className="area-sidebar__nav">
-            <Link to="/dashboard" className="area-sidebar__nav-item">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="3" width="7" height="7" />
-                <rect x="14" y="3" width="7" height="7" />
-                <rect x="14" y="14" width="7" height="7" />
-                <rect x="3" y="14" width="7" height="7" />
-              </svg>
-              <span>Tổng quan bản đồ</span>
-            </Link>
-
-            <Link to="/admin/areas" className="area-sidebar__nav-item area-sidebar__nav-item--active">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" />
-                <line x1="8" y1="2" x2="8" y2="18" />
-                <line x1="16" y1="6" x2="16" y2="22" />
-              </svg>
-              <span>Cấu hình vùng (Zones)</span>
-            </Link>
-
-            {isAdmin ? (
-              <Link to="/cameras" className="area-sidebar__nav-item">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                  <circle cx="12" cy="13" r="4" />
-                </svg>
-                <span>Quản lý Camera</span>
-              </Link>
-            ) : (
-              <div className="area-sidebar__nav-item area-sidebar__nav-item--disabled">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                  <circle cx="12" cy="13" r="4" />
-                </svg>
-                <span>Quản lý Camera</span>
-                <span className="area-sidebar__badge-soon">Soon</span>
-              </div>
-            )}
-
-            {isAdmin ? (
-              <Link to="/admin/faces" className="area-sidebar__nav-item">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                  <circle cx="9" cy="7" r="4" />
-                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                </svg>
-                <span>Quản lý Khuôn mặt</span>
-              </Link>
-            ) : (
-              <div className="area-sidebar__nav-item area-sidebar__nav-item--disabled">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                  <circle cx="9" cy="7" r="4" />
-                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                </svg>
-                <span>Quản lý Khuôn mặt</span>
-                <span className="area-sidebar__badge-soon">Soon</span>
-              </div>
-            )}
-
-            <div className="area-sidebar__nav-item area-sidebar__nav-item--disabled">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="4" y="4" width="16" height="16" rx="2" />
-                <rect x="9" y="9" width="6" height="6" />
-                <line x1="9" y1="1" x2="9" y2="4" />
-                <line x1="15" y1="1" x2="15" y2="4" />
-                <line x1="9" y1="20" x2="9" y2="23" />
-                <line x1="15" y1="20" x2="15" y2="23" />
-                <line x1="20" y1="9" x2="23" y2="9" />
-                <line x1="20" y1="14" x2="23" y2="14" />
-                <line x1="1" y1="9" x2="4" y2="9" />
-                <line x1="1" y1="14" x2="4" y2="14" />
-              </svg>
-              <span>Thiết lập AI</span>
-              <span className="area-sidebar__badge-soon">Soon</span>
-            </div>
-          </nav>
-        </div>
-
-        {/* User Footer Profile */}
-        <div className="area-sidebar__footer">
-          <div className="area-sidebar__user">
-            <div className="area-sidebar__avatar">
-              {user?.fullName?.charAt(0)?.toUpperCase() || 'U'}
-            </div>
-            <div className="area-sidebar__user-info">
-              <span className="area-sidebar__user-name">{user?.fullName}</span>
-              <span className="area-sidebar__user-role">{user?.role}</span>
-            </div>
-          </div>
-          <button className="area-sidebar__logout-btn" onClick={logout} title="Đăng xuất">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
-          </button>
-        </div>
-      </aside>
 
       {/* ============================================================ */}
       {/* 2. CENTER: MAIN CAMPUS AREA MAP                              */}
