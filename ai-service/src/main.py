@@ -128,71 +128,54 @@ face_embedder = FaceEmbedder(embedding_dim=512)
 async def process_face_registration(
     code: str = Form(...),
     full_name: str = Form(...),
-    front_image: UploadFile = File(...),
-    left_image: UploadFile = File(...),
-    right_image: UploadFile = File(...)
+    front_image: UploadFile = File(...)
 ):
     """
-    API nhận diện & trích xuất Vector Embedding 512 chiều từ 3 ảnh khuôn mặt (Front, Left, Right)
+    API nhận diện & trích xuất Vector Embedding 512 chiều từ ảnh khuôn mặt (Front)
     và lưu trữ vào MinIO cho Dataset quản trị.
     """
     global default_pipeline
     if not default_pipeline:
         raise HTTPException(status_code=500, detail="AI Service chưa sẵn sàng.")
 
-    images_input = {
-        "front": await front_image.read(),
-        "left": await left_image.read(),
-        "right": await right_image.read()
-    }
-
-    results = {}
-    embeddings = {}
-    image_urls = {}
+    raw_bytes = await front_image.read()
+    if not raw_bytes:
+        raise HTTPException(status_code=400, detail="Ảnh chính diện bị rỗng.")
 
     from .utils.image_utils import decode_image_safely
 
-    for angle, raw_bytes in images_input.items():
-        if not raw_bytes:
-            raise HTTPException(status_code=400, detail=f"Ảnh góc [{angle}] bị rỗng.")
+    try:
+        img, jpeg_bytes = decode_image_safely(raw_bytes)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Không thể đọc file ảnh chính diện: {str(e)}")
 
-        try:
-            img, jpeg_bytes = decode_image_safely(raw_bytes)
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Không thể đọc file ảnh góc [{angle}]: {str(e)}")
+    # Phát hiện khuôn mặt
+    faces = default_pipeline.face_detector.detect_in_image(img)
+    if not faces:
+        # Nếu không tìm thấy mặt với ngưỡng cao, thử trích xuất trực tiếp trên toàn bộ ảnh chân dung
+        face_crop = img
+    else:
+        # Cắt lấy vùng khuôn mặt có score cao nhất
+        faces.sort(key=lambda f: f.score, reverse=True)
+        fx1, fy1, fx2, fy2 = faces[0].bbox.to_int_xyxy()
+        ih, iw, _ = img.shape
+        fx1, fy1 = max(0, fx1), max(0, fy1)
+        fx2, fy2 = min(iw, fx2), min(ih, fy2)
+        face_crop = img[fy1:fy2, fx1:fx2] if (fx2 > fx1 and fy2 > fy1) else img
 
-        # Phát hiện khuôn mặt
-        faces = default_pipeline.face_detector.detect_in_image(img)
-        if not faces:
-            # Nếu không tìm thấy mặt với ngưỡng cao, thử trích xuất trực tiếp trên toàn bộ ảnh chân dung
-            face_crop = img
-        else:
-            # Cắt lấy vùng khuôn mặt có score cao nhất
-            faces.sort(key=lambda f: f.score, reverse=True)
-            fx1, fy1, fx2, fy2 = faces[0].bbox.to_int_xyxy()
-            ih, iw, _ = img.shape
-            fx1, fy1 = max(0, fx1), max(0, fy1)
-            fx2, fy2 = min(iw, fx2), min(ih, fy2)
-            face_crop = img[fy1:fy2, fx1:fx2] if (fx2 > fx1 and fy2 > fy1) else img
+    # Trích xuất vector 512 chiều
+    vector_512 = face_embedder.extract_embedding(face_crop)
 
-        # Trích xuất vector 512 chiều
-        vector_512 = face_embedder.extract_embedding(face_crop)
-        embeddings[f"embedding_{angle}"] = vector_512
-
-        # Upload ảnh JPEG đã được chuẩn hóa lên MinIO
-        uploaded_url = default_pipeline.storage_service.upload_face_image(jpeg_bytes, code=code, angle=angle)
-        image_urls[f"image_{angle}_url"] = uploaded_url or f"/storage/faces/{code}/{code}_{angle}.jpg"
+    # Upload ảnh JPEG đã được chuẩn hóa lên MinIO
+    uploaded_url = default_pipeline.storage_service.upload_face_image(jpeg_bytes, code=code, angle="front")
+    image_front_url = uploaded_url or f"/storage/faces/{code}/{code}_front.jpg"
 
     return {
         "success": True,
         "code": code,
         "full_name": full_name,
-        "image_front_url": image_urls["image_front_url"],
-        "image_left_url": image_urls["image_left_url"],
-        "image_right_url": image_urls["image_right_url"],
-        "embedding_front": embeddings["embedding_front"],
-        "embedding_left": embeddings["embedding_left"],
-        "embedding_right": embeddings["embedding_right"]
+        "image_front_url": image_front_url,
+        "embedding_front": vector_512
     }
 
 # Quản lý các Stream Worker đang chạy

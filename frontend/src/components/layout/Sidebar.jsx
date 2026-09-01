@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { LayoutDashboard, Video, UserRound, ShieldAlert, LogOut } from 'lucide-react';
+import { ROLES, ROLE_LABELS } from '../../constants/roles';
 import './Sidebar.css';
 
 export default function Sidebar({ user, onLogout }) {
@@ -13,8 +14,9 @@ export default function Sidebar({ user, onLogout }) {
       .toUpperCase();
   };
 
-  const userRole = user.role || user.role_type || '';
-  const isAdmin = userRole === 'ADMIN';
+  const userRole = user?.role || '';
+  const isAdmin = userRole === ROLES.ADMIN;
+  const isGuard = userRole === ROLES.INTERNAL_GUARD || userRole === ROLES.OUTSOURCED_GUARD;
 
   return (
     <aside className="sidebar">
@@ -28,13 +30,15 @@ export default function Sidebar({ user, onLogout }) {
       </div>
 
       <nav className="sidebar__nav">
-        <NavLink 
-          to="/guard" 
-          className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
-        >
-          <ShieldAlert size={20} />
-          <span>Giám sát An ninh</span>
-        </NavLink>
+        {isGuard && (
+          <NavLink 
+            to="/guard" 
+            className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+          >
+            <ShieldAlert size={20} />
+            <span>Giám sát An ninh</span>
+          </NavLink>
+        )}
 
         <NavLink 
           to="/dashboard" 
@@ -68,12 +72,12 @@ export default function Sidebar({ user, onLogout }) {
       <div className="sidebar__footer">
         <div className="sidebar__user">
           <div className="sidebar__avatar">
-            {getInitials(user.fullName)}
+            {getInitials(user?.fullName)}
           </div>
           <div className="sidebar__user-info">
-            <span className="sidebar__username">{user.fullName}</span>
+            <span className="sidebar__username">{user?.fullName}</span>
             <span className="sidebar__userrole">
-              {userRole === 'ADMIN' ? 'Admin' : 'Facility Manager'}
+              {ROLE_LABELS[userRole] || userRole || 'Người dùng'}
             </span>
           </div>
         </div>

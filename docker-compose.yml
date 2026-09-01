@@ -131,26 +131,26 @@ services:
   #     - sep_network
 
   # 6. AI Service (Python / YOLOv8 / ByteTrack / OpenCV YuNet)
-  ai-service:
-    build:
-      context: ./ai-service
-      dockerfile: Dockerfile
-    container_name: sep_ai_service
-    restart: always
-    ports:
-      - "8000:8000"
-    environment:
-      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      MINIO_ENDPOINT: minio:9000
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-    depends_on:
-      kafka:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-    networks:
-      - sep_network
+  # ai-service:
+  #   build:
+  #     context: ./ai-service
+  #     dockerfile: Dockerfile
+  #   container_name: sep_ai_service
+  #   restart: always
+  #   ports:
+  #     - "8000:8000"
+  #   environment:
+  #     KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+  #     MINIO_ENDPOINT: minio:9000
+  #     MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+  #     MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+  #   depends_on:
+  #     kafka:
+  #       condition: service_healthy
+  #     minio:
+  #       condition: service_healthy
+  #   networks:
+  #     - sep_network
 
   # 7. Frontend (Vite + React)
   # frontend:

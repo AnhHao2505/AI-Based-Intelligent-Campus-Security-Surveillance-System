@@ -28,11 +28,9 @@ public class FaceDataController {
     public ResponseEntity<FaceDataResponseDto> registerFace(
             @RequestParam("code") String code,
             @RequestParam("fullName") String fullName,
-            @RequestParam("frontImage") MultipartFile frontImage,
-            @RequestParam("leftImage") MultipartFile leftImage,
-            @RequestParam("rightImage") MultipartFile rightImage
+            @RequestParam("frontImage") MultipartFile frontImage
     ) {
-        FaceDataResponseDto result = faceDataService.registerFace(code, fullName, frontImage, leftImage, rightImage);
+        FaceDataResponseDto result = faceDataService.registerFace(code, fullName, frontImage);
         return ResponseEntity.status(HttpStatus.CREATED).body(result);
     }
 

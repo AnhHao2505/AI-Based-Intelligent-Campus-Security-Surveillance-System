@@ -84,11 +84,11 @@ function App() {
                 }
               />
 
-              {/* Guard live surveillance - Admin and Guard */}
+              {/* Guard live surveillance - Guard (Internal & External) */}
               <Route
                 path="/guard"
                 element={
-                  <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.INTERNAL_GUARD, 'ADMIN', 'INTERNAL_GUARD']}>
+                  <ProtectedRoute allowedRoles={[ROLES.INTERNAL_GUARD, ROLES.OUTSOURCED_GUARD]}>
                     <GuardDashboardPage />
                   </ProtectedRoute>
                 }

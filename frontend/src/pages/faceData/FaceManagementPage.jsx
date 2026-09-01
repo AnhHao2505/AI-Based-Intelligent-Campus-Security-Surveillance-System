@@ -17,11 +17,7 @@ export default function FaceManagementPage() {
 	const [showSingleModal, setShowSingleModal] = useState(false);
 	const [singleForm, setSingleForm] = useState({ code: "", fullName: "" });
 	const [frontFile, setFrontFile] = useState(null);
-	const [leftFile, setLeftFile] = useState(null);
-	const [rightFile, setRightFile] = useState(null);
 	const [frontPreview, setFrontPreview] = useState(null);
-	const [leftPreview, setLeftPreview] = useState(null);
-	const [rightPreview, setRightPreview] = useState(null);
 	const [singleSubmitting, setSingleSubmitting] = useState(false);
 
 	// State Modal Nạp hàng loạt ZIP
@@ -76,7 +72,7 @@ export default function FaceManagementPage() {
 	};
 
 	// Xử lý chọn ảnh đơn lẻ có Live Preview (Hỗ trợ tự động chuyển đổi HEIC -> JPG trực tiếp trên trình duyệt)
-	const handleImageChange = async (e, angle) => {
+	const handleImageChange = async (e) => {
 		const file = e.target.files[0];
 		if (!file) return;
 
@@ -114,16 +110,8 @@ export default function FaceManagementPage() {
 			previewUrl = URL.createObjectURL(file);
 		}
 
-		if (angle === "front") {
-			setFrontFile(finalFile);
-			setFrontPreview(previewUrl);
-		} else if (angle === "left") {
-			setLeftFile(finalFile);
-			setLeftPreview(previewUrl);
-		} else if (angle === "right") {
-			setRightFile(finalFile);
-			setRightPreview(previewUrl);
-		}
+		setFrontFile(finalFile);
+		setFrontPreview(previewUrl);
 	};
 
 	// Submit form đơn lẻ
@@ -133,8 +121,8 @@ export default function FaceManagementPage() {
 			showToast("Vui lòng nhập đầy đủ Mã số và Họ tên.", "error");
 			return;
 		}
-		if (!frontFile || !leftFile || !rightFile) {
-			showToast("Vui lòng tải lên đủ 3 ảnh (Chính diện, Trái, Phải).", "error");
+		if (!frontFile) {
+			showToast("Vui lòng tải lên ảnh chân dung chính diện.", "error");
 			return;
 		}
 
@@ -144,8 +132,6 @@ export default function FaceManagementPage() {
 				singleForm.code,
 				singleForm.fullName,
 				frontFile,
-				leftFile,
-				rightFile,
 			);
 			showToast(
 				`Đã nạp thành công hồ sơ [${singleForm.code}] vào Database & AI!`,
@@ -163,11 +149,7 @@ export default function FaceManagementPage() {
 	const resetSingleForm = () => {
 		setSingleForm({ code: "", fullName: "" });
 		setFrontFile(null);
-		setLeftFile(null);
-		setRightFile(null);
 		setFrontPreview(null);
-		setLeftPreview(null);
-		setRightPreview(null);
 	};
 
 	// Submit file ZIP hàng loạt
@@ -201,16 +183,16 @@ export default function FaceManagementPage() {
 
 		try {
 			await faceDataService.deleteFace(id);
-			showToast(`Đã xóa hồ sơ ${code} thành công.`);
+			showToast(`Đã xóa thành công hồ sơ [${code}].`);
 			loadFaces(keyword, page);
 		} catch (err) {
-			showToast(err.message, "error");
+			showToast(err.message || "Lỗi khi xóa hồ sơ.", "error");
 		}
 	};
 
 	return (
 		<div className="face-mgmt-page">
-			{/* Background Glowing Ambient Orbs */}
+			{/* Ambient Glowing Orbs */}
 			<div className="face-bg-ambient">
 				<div className="face-bg-orb face-bg-orb--1" />
 				<div className="face-bg-orb face-bg-orb--2" />
@@ -224,97 +206,46 @@ export default function FaceManagementPage() {
 				</div>
 			)}
 
-			{/* Top Navbar */}
-			<nav className="face-navbar">
-				<div className="face-navbar__brand">
-					<svg
-						width="22"
-						height="22"
-						viewBox="0 0 24 24"
-						fill="none"
-						xmlns="http://www.w3.org/2000/svg"
-					>
-						<path
-							d="M12 2L2 7L12 12L22 7L12 2Z"
-							stroke="#6366f1"
-							strokeWidth="2"
-							strokeLinecap="round"
-							strokeLinejoin="round"
-						/>
-						<path
-							d="M2 17L12 22L22 17"
-							stroke="#6366f1"
-							strokeWidth="2"
-							strokeLinecap="round"
-							strokeLinejoin="round"
-						/>
-						<path
-							d="M2 12L12 17L22 12"
-							stroke="#6366f1"
-							strokeWidth="2"
-							strokeLinecap="round"
-							strokeLinejoin="round"
-						/>
-					</svg>
-					<span>FPTU Campus Security — Face Intelligence</span>
-				</div>
-				<div className="face-navbar__actions">
-					<Link
-						to="/admin"
-						className="nav-btn-link"
-					>
-						← Bảng Điều Khiển Admin
-					</Link>
-					<Link
-						to="/"
-						className="nav-btn-link"
-					>
-						Trang Chủ
-					</Link>
-				</div>
-			</nav>
-
-			{/* Main Container */}
+			{/* Main Content Area */}
 			<main className="face-main-content">
-				{/* Header Title Section */}
-				<header className="face-header-section">
+				{/* Header Section */}
+				<div className="face-header-section">
 					<div>
 						<div className="badge-pill">
-							<span className="badge-dot" /> FA26SE040 • TAN UYEN CAMPUS
+							<span className="badge-dot" />
+							DATASET & AI EMBEDDING
 						</div>
 						<h1 className="face-title-gradient">
-							Quản Lý Dữ Liệu Khuôn Mặt (Face Dataset)
+							Quản Lý Cơ Sở Dữ Liệu Khuôn Mặt
 						</h1>
 						<p className="face-subtitle">
-							Nạp và quản lý tập ảnh chân dung mẫu 3 góc để AI đối soát nhận
-							diện ra vào vùng cấm
+							Quản trị dữ liệu nhận diện cho toàn bộ sinh viên, cán bộ và khách
+							trong khuôn viên Campus.
 						</p>
 					</div>
+
 					<div className="face-action-buttons">
-						<button
-							className="btn-glow-secondary"
-							onClick={() => {
-								setShowBulkModal(true);
-								setBulkResult(null);
-							}}
-						>
-							📦 Nạp Hàng Loạt (.ZIP)
-						</button>
 						<button
 							className="btn-glow-primary"
 							onClick={() => setShowSingleModal(true)}
 						>
-							➕ Thêm Hồ Sơ Mới
+							<span>➕</span> Thêm Hồ Sơ Mới
+						</button>
+						<button
+							className="btn-glow-secondary"
+							onClick={() => setShowBulkModal(true)}
+						>
+							<span>📦</span> Nạp Hàng Loạt (.ZIP)
 						</button>
 					</div>
-				</header>
+				</div>
 
-				{/* Metrics Grid */}
+				{/* Metric Summary Cards */}
 				<div className="metrics-grid">
 					<div className="glass-metric-card">
 						<div className="metric-icon-box">👥</div>
 						<div>
-							<div className="metric-label">Tổng số hồ sơ đã nạp</div>
+							<div className="metric-label">Tổng Hồ Sơ Khuôn Mặt</div>
 							<div className="metric-number">
 								{totalElements} <span className="metric-tag">người</span>
 							</div>
@@ -324,25 +255,15 @@ export default function FaceManagementPage() {
 					<div className="glass-metric-card">
 						<div className="metric-icon-box">🧠</div>
 						<div>
-							<div className="metric-label">Độ phân giải Vector AI</div>
+							<div className="metric-label">Mô Hình AI Vector</div>
 							<div className="metric-number">
-								512 <span className="metric-tag">chiều (pgvector)</span>
-							</div>
-						</div>
-					</div>
-
-					<div className="glass-metric-card">
-						<div className="metric-icon-box">🪣</div>
-						<div>
-							<div className="metric-label">Kho lưu trữ hình ảnh</div>
-							<div className="metric-number">
-								MinIO <span className="metric-tag">S3 Storage</span>
+								512 <span className="metric-tag">Dimensions (pgvector)</span>
 							</div>
 						</div>
 					</div>
 				</div>
 
-				{/* Search & Filter Bar */}
+				{/* Filter & Search Bar */}
 				<div className="filter-glass-bar">
 					<form
 						onSubmit={handleSearch}
@@ -352,17 +273,17 @@ export default function FaceManagementPage() {
 							<span className="search-icon">🔍</span>
 							<input
 								type="text"
-								placeholder="Tìm theo Mã SV/NV (MSNV) hoặc Họ tên..."
+								className="search-dark-input"
+								placeholder="Tìm theo Mã định danh (MSSV, MSNV) hoặc Họ tên..."
 								value={keyword}
 								onChange={(e) => setKeyword(e.target.value)}
-								className="search-dark-input"
 							/>
 						</div>
 						<button
 							type="submit"
 							className="btn-search-submit"
 						>
-							Tìm kiếm
+							Tìm Kiếm
 						</button>
 						{keyword && (
 							<button
@@ -373,7 +294,7 @@ export default function FaceManagementPage() {
 									loadFaces("", 0);
 								}}
 							>
-								Làm mới
+								Xóa bộ lọc
 							</button>
 						)}
 					</form>
@@ -403,7 +324,7 @@ export default function FaceManagementPage() {
 									<tr>
 										<th>Mã số định danh</th>
 										<th>Họ và Tên</th>
-										<th>Ảnh Chân Dung (3 Góc)</th>
+										<th>Ảnh Chân Dung</th>
 										<th>Ngày Nạp</th>
 										<th>Thao Tác</th>
 									</tr>
@@ -419,7 +340,7 @@ export default function FaceManagementPage() {
 												<div className="face-thumbnails-group">
 													<div
 														className="thumb-preview-box"
-														title="Chính diện"
+														title="Ảnh chính diện"
 													>
 														<img
 															src={resolveImageUrl(item.imageFrontUrl)}
@@ -430,34 +351,6 @@ export default function FaceManagementPage() {
 															}}
 														/>
 														<span>Chính diện</span>
-													</div>
-													<div
-														className="thumb-preview-box"
-														title="Góc trái"
-													>
-														<img
-															src={resolveImageUrl(item.imageLeftUrl)}
-															alt="Left"
-															onError={(e) => {
-																e.target.src =
-																	"https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=60";
-															}}
-														/>
-														<span>Trái 45°</span>
-													</div>
-													<div
-														className="thumb-preview-box"
-														title="Góc phải"
-													>
-														<img
-															src={resolveImageUrl(item.imageRightUrl)}
-															alt="Right"
-															onError={(e) => {
-																e.target.src =
-																	"https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=60";
-															}}
-														/>
-														<span>Phải 45°</span>
 													</div>
 												</div>
 											</td>
@@ -551,105 +444,38 @@ export default function FaceManagementPage() {
 								/>
 							</div>
 
-							<div className="angle-upload-grid">
-								{/* 1. Ảnh chính diện */}
-								<div className="angle-upload-card">
-									<div className="angle-title">📸 Chính Diện *</div>
-									{frontPreview ? (
-										<div className="preview-box-active">
-											<img
-												src={frontPreview}
-												alt="Front preview"
-											/>
-											<label className="btn-reselect">
-												Đổi ảnh
-												<input
-													type="file"
-													accept="image/*,.heic,.heif,.HEIC,.HEIF"
-													onChange={(e) => handleImageChange(e, "front")}
-													hidden
-												/>
-											</label>
-										</div>
-									) : (
-										<label className="dropzone-dark">
-											<span>Chọn ảnh</span>
+							<div className="single-face-upload-card">
+								<label className="upload-label-title">
+									📸 Ảnh Chân Dung Chính Diện *
+								</label>
+								{frontPreview ? (
+									<div className="preview-box-active">
+										<img
+											src={frontPreview}
+											alt="Front preview"
+										/>
+										<label className="btn-reselect">
+											Đổi ảnh khác
 											<input
 												type="file"
 												accept="image/*,.heic,.heif,.HEIC,.HEIF"
-												onChange={(e) => handleImageChange(e, "front")}
+												onChange={(e) => handleImageChange(e)}
 												hidden
-												required
 											/>
 										</label>
-									)}
-								</div>
-
-								{/* 2. Ảnh góc trái */}
-								<div className="angle-upload-card">
-									<div className="angle-title">📸 Nghiêng Trái (45°) *</div>
-									{leftPreview ? (
-										<div className="preview-box-active">
-											<img
-												src={leftPreview}
-												alt="Left preview"
-											/>
-											<label className="btn-reselect">
-												Đổi ảnh
-												<input
-													type="file"
-													accept="image/*,.heic,.heif,.HEIC,.HEIF"
-													onChange={(e) => handleImageChange(e, "left")}
-													hidden
-												/>
-											</label>
-										</div>
-									) : (
-										<label className="dropzone-dark">
-											<span>Chọn ảnh</span>
-											<input
-												type="file"
-												accept="image/*,.heic,.heif,.HEIC,.HEIF"
-												onChange={(e) => handleImageChange(e, "left")}
-												hidden
-												required
-											/>
-										</label>
-									)}
-								</div>
-
-								{/* 3. Ảnh góc phải */}
-								<div className="angle-upload-card">
-									<div className="angle-title">📸 Nghiêng Phải (45°) *</div>
-									{rightPreview ? (
-										<div className="preview-box-active">
-											<img
-												src={rightPreview}
-												alt="Right preview"
-											/>
-											<label className="btn-reselect">
-												Đổi ảnh
-												<input
-													type="file"
-													accept="image/*,.heic,.heif,.HEIC,.HEIF"
-													onChange={(e) => handleImageChange(e, "right")}
-													hidden
-												/>
-											</label>
-										</div>
-									) : (
-										<label className="dropzone-dark">
-											<span>Chọn ảnh</span>
-											<input
-												type="file"
-												accept="image/*,.heic,.heif,.HEIC,.HEIF"
-												onChange={(e) => handleImageChange(e, "right")}
-												hidden
-												required
-											/>
-										</label>
-									)}
-								</div>
+									</div>
+								) : (
+									<label className="dropzone-dark single-dropzone">
+										<span>Chọn ảnh chính diện (JPG, PNG, HEIC)</span>
+										<input
+											type="file"
+											accept="image/*,.heic,.heif,.HEIC,.HEIF"
+											onChange={(e) => handleImageChange(e)}
+											hidden
+											required
+										/>
+									</label>
+								)}
 							</div>
 
 							<div className="modal-footer-glass">
@@ -695,10 +521,13 @@ export default function FaceManagementPage() {
 							<div className="info-guide-dark">
 								<h4>📌 Quy tắc đặt tên file ảnh trong file .ZIP:</h4>
 								<p>
-									Tên file theo chuẩn:{" "}
-									<code>[MÃ_SỐ]_[HỌ_TÊN]_[GÓC_ẢNH].jpg</code>
+									Tên file theo chuẩn: <code>[MÃ_SỐ]_[HỌ_TÊN].jpg</code> hoặc{" "}
+									<code>[MÃ_SỐ]_[HỌ_TÊN]_front.jpg</code>
 								</p>
 								<ul>
+									<li>
+										<code>SE150001_Nguyen-Van-A.jpg</code> (Chính diện)
+									</li>
 									<li>
 										<code>SE150001_Nguyen-Van-A_front.jpg</code> (Chính diện)
 									</li>

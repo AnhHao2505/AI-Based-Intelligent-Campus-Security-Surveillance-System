@@ -29,24 +29,10 @@ public class FaceData {
     @Column(name = "image_front_url", nullable = false, length = 512)
     private String imageFrontUrl;
 
-    @Column(name = "image_left_url", nullable = false, length = 512)
-    private String imageLeftUrl;
-
-    @Column(name = "image_right_url", nullable = false, length = 512)
-    private String imageRightUrl;
-
     // Lưu vector 512 chiều dưới dạng text và cast sang kiểu vector của PostgreSQL
     @Column(name = "embedding_front", columnDefinition = "vector(512)", nullable = false)
     @ColumnTransformer(write = "?::vector")
     private String embeddingFront;
-
-    @Column(name = "embedding_left", columnDefinition = "vector(512)", nullable = false)
-    @ColumnTransformer(write = "?::vector")
-    private String embeddingLeft;
-
-    @Column(name = "embedding_right", columnDefinition = "vector(512)", nullable = false)
-    @ColumnTransformer(write = "?::vector")
-    private String embeddingRight;
 
     @Builder.Default
     @Column(name = "created_at", nullable = false, updatable = false)
