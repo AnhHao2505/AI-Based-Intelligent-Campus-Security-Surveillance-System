@@ -11,6 +11,7 @@ import DashboardPage from './pages/DashboardPage';
 import AdminDashboard from './pages/AdminDashboard';
 import UnauthorizedPage from './pages/UnauthorizedPage';
 import AreaListPage from './pages/AreaListPage';
+import AreaMapPage from './pages/areas/AreaMapPage';
 import CameraListPage from './pages/cameras/CameraListPage';
 import CameraDetailPage from './pages/cameras/CameraDetailPage';
 import FaceManagementPage from './pages/faceData/FaceManagementPage';
@@ -71,6 +72,15 @@ function App() {
                 element={
                   <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.FACILITY_MANAGER]}>
                     <AreaListPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/admin/areas/map"
+                element={
+                  <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.FACILITY_MANAGER]}>
+                    <AreaMapPage />
                   </ProtectedRoute>
                 }
               />

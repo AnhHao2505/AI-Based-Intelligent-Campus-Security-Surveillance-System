@@ -2,6 +2,7 @@ import { NavLink } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   MapPin, 
+  Map, 
   Video, 
   UserRound, 
   Cpu, 
@@ -69,13 +70,23 @@ export default function Sidebar({ user, onLogout }) {
           </NavLink>
 
           {(isAdmin || isFacilityManager) && (
-            <NavLink 
-              to="/admin/areas" 
-              className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
-            >
-              <MapPin size={18} />
-              <span>Cấu hình vùng (Zones)</span>
-            </NavLink>
+            <>
+              <NavLink 
+                to="/admin/areas" 
+                className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+              >
+                <MapPin size={18} />
+                <span>Cấu hình vùng (Zones)</span>
+              </NavLink>
+
+              <NavLink 
+                to="/admin/areas/map" 
+                className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+              >
+                <Map size={18} />
+                <span>Bản đồ khu vực</span>
+              </NavLink>
+            </>
           )}
 
           {isAdmin && (

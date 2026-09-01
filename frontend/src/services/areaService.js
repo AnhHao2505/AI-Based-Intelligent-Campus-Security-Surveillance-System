@@ -85,3 +85,11 @@ export async function createTemporaryUsage(areaId, data) {
 export async function extendTemporaryUsage(areaId, temporaryUsageId, data) {
   return apiPatch(`/api/areas/${areaId}/temporary-usages/${temporaryUsageId}/extend`, data);
 }
+
+/**
+ * Lấy danh sách floor plan
+ * GET /api/floor-plans
+ */
+export async function getFloorPlans() {
+  return apiGet('/api/floor-plans');
+}

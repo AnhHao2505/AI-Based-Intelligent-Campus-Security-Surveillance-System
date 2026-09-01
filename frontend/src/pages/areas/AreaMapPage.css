@@ -1,0 +1,198 @@
+.area-map-page {
+  padding: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.area-map-page__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.area-map-page__title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--theme-text-primary, #f1f5f9);
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.area-map-page__subtitle {
+  color: var(--theme-text-muted, #64748b);
+  font-size: 0.95rem;
+  margin: 0.25rem 0 0 0;
+}
+
+.area-map-page__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.area-map-page__building-tag {
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  background: var(--theme-primary-light, rgba(59, 130, 246, 0.15));
+  color: var(--theme-primary, #3b82f6);
+  border: 1px solid var(--theme-primary-border, rgba(59, 130, 246, 0.3));
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.area-map-page__dim-tag {
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  background: var(--theme-bg-surface-elevated, #1f2937);
+  color: var(--theme-text-secondary, #cbd5e1);
+  border: 1px solid var(--theme-border, #334155);
+  font-size: 0.85rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.area-map-page__state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 5rem 2rem;
+  background: var(--theme-bg-surface, #111827);
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.05));
+  border-radius: 12px;
+  color: var(--theme-text-muted, #94a3b8);
+  font-size: 1rem;
+}
+
+.area-map-page__spinner {
+  animation: area-map-spin 1s linear infinite;
+  color: var(--theme-primary, #3b82f6);
+}
+
+@keyframes area-map-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.area-map-page__state--error {
+  color: var(--theme-danger, #ef4444);
+}
+
+.area-map-page__error-text {
+  color: var(--theme-text-primary, #f1f5f9);
+  font-weight: 500;
+}
+
+.area-map-page__btn-retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--theme-primary, #2563eb);
+  color: #ffffff;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.area-map-page__btn-retry:hover {
+  background: var(--theme-primary-hover, #1d4ed8);
+}
+
+.area-map-page__state--empty {
+  color: var(--theme-text-muted, #64748b);
+}
+
+.area-map-page__content {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.area-map-page__tabs {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.area-map-page__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.25rem;
+  background: var(--theme-bg-surface, #111827);
+  border: 1px solid var(--theme-border, #1e293b);
+  border-radius: 8px;
+  color: var(--theme-text-secondary, #94a3b8);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.area-map-page__tab:hover {
+  border-color: var(--theme-border-hover, #334155);
+  color: var(--theme-text-primary, #f8fafc);
+  background: var(--theme-bg-surface-elevated, #1f2937);
+}
+
+.area-map-page__tab--active {
+  background: var(--theme-primary, #2563eb);
+  border-color: var(--theme-primary, #2563eb);
+  color: #ffffff;
+  box-shadow: 0 4px 12px var(--theme-primary-subtle, rgba(37, 99, 235, 0.25));
+}
+
+.area-map-page__tab--active:hover {
+  background: var(--theme-primary-hover, #1d4ed8);
+  border-color: var(--theme-primary-hover, #1d4ed8);
+  color: #ffffff;
+}
+
+.area-map-page__viewport-card {
+  background: var(--theme-bg-surface, #111827);
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.05));
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: var(--theme-card-shadow, 0 4px 12px rgba(0, 0, 0, 0.2));
+  overflow: hidden;
+}
+
+.area-map-page__image-wrapper {
+  position: relative;
+  width: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--theme-bg-canvas, #090d16);
+  border: 1px solid var(--theme-border, #1e293b);
+}
+
+.area-map-page__image {
+  width: 100%;
+  height: auto;
+  display: block;
+  user-select: none;
+}
+
+.area-map-page__image-fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 4rem 2rem;
+  color: var(--theme-danger, #ef4444);
+  background: var(--theme-danger-bg, rgba(239, 68, 68, 0.08));
+  font-weight: 500;
+  text-align: center;
+}
