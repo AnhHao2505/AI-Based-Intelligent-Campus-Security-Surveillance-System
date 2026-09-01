@@ -18,6 +18,8 @@ public interface AreaRepository extends JpaRepository<Area, UUID> {
 
     Optional<Area> findByIdAndDeletedAtIsNull(UUID id);
 
+    java.util.List<Area> findByBuildingIgnoreCaseAndFloorIgnoreCaseAndDeletedAtIsNull(String building, String floor);
+
     @Query(
         value = """
             SELECT a FROM Area a

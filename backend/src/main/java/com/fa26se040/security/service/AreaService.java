@@ -2,6 +2,8 @@ package com.fa26se040.security.service;
 
 import com.fa26se040.security.dto.area.AreaCreateRequest;
 import com.fa26se040.security.dto.area.AreaDependencyResponse;
+import com.fa26se040.security.dto.area.AreaGeometry;
+import com.fa26se040.security.dto.area.AreaGeometryResponse;
 import com.fa26se040.security.dto.area.AreaLevelResponse;
 import com.fa26se040.security.dto.area.AreaListItemResponse;
 import com.fa26se040.security.dto.area.AreaResponse;
@@ -39,6 +41,7 @@ public class AreaService {
     private final UserRepository userRepository;
     private final AreaValidator areaValidator;
     private final AreaDependencyChecker dependencyChecker;
+    private final AreaGeometryValidator geometryValidator;
 
     @Transactional(readOnly = true)
     public Page<AreaListItemResponse> getAreas(String keyword, Short areaLevel, String building, Boolean isActive, Pageable pageable) {
@@ -111,6 +114,23 @@ public class AreaService {
         Area area = areaRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
 
+        // 7b — BR-41: Block changing building or floor when the Area already has geometry
+        if (area.getGeometry() != null) {
+            String newBuilding = req.building() != null ? req.building().trim() : null;
+            String currentBuilding = area.getBuilding() != null ? area.getBuilding().trim() : null;
+            boolean buildingChanged = (newBuilding == null && currentBuilding != null)
+                    || (newBuilding != null && !newBuilding.equalsIgnoreCase(currentBuilding));
+
+            String newFloor = req.floor() != null ? req.floor().trim() : null;
+            String currentFloor = area.getFloor() != null ? area.getFloor().trim() : null;
+            boolean floorChanged = (newFloor == null && currentFloor != null)
+                    || (newFloor != null && !newFloor.equalsIgnoreCase(currentFloor));
+
+            if (buildingChanged || floorChanged) {
+                throw new AreaException(AreaErrorCode.ERR_AREA_014);
+            }
+        }
+
         Map<String, Object> oldSnapshot = snapshot(area);
 
         areaValidator.validateCodeUpdate(req.code(), area.getCode());
@@ -137,6 +157,75 @@ public class AreaService {
         logChange(id, actorId, "UPDATE", oldSnapshot, snapshot(savedArea), req.reason());
 
         return mapToAreaResponse(savedArea);
+    }
+
+    @Transactional
+    public AreaGeometryResponse saveGeometry(UUID id, AreaGeometry geometry, String actorEmail) {
+        Area area = areaRepository.findByIdAndDeletedAtIsNull(id)
+                .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
+
+        List<Area> existingOnFloor = areaRepository.findByBuildingIgnoreCaseAndFloorIgnoreCaseAndDeletedAtIsNull(
+                area.getBuilding(),
+                area.getFloor()
+        );
+
+        geometryValidator.validate(geometry, area.getId(), area.getBuilding(), area.getFloor(), existingOnFloor);
+
+        // FIX-5: Always normalize type and version at backend
+        geometry.setType("polygon");
+        geometry.setVersion(1);
+
+        UUID actorId = resolveActorId(actorEmail);
+        Map<String, Object> oldSnapshot = snapshot(area);
+
+        area.setGeometry(geometry);
+        area.setUpdatedBy(actorId);
+
+        Area savedArea = areaRepository.save(area);
+        logChange(id, actorId, "UPDATE_GEOMETRY", oldSnapshot, snapshot(savedArea), null);
+
+        return new AreaGeometryResponse(
+                savedArea.getId(),
+                savedArea.getCode(),
+                savedArea.getName(),
+                savedArea.getAreaLevel().getLevel(),
+                savedArea.getIsActive(),
+                savedArea.getGeometry()
+        );
+    }
+
+    @Transactional
+    public void deleteGeometry(UUID id, String actorEmail) {
+        Area area = areaRepository.findByIdAndDeletedAtIsNull(id)
+                .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
+
+        if (area.getGeometry() == null) {
+            return;
+        }
+
+        UUID actorId = resolveActorId(actorEmail);
+        Map<String, Object> oldSnapshot = snapshot(area);
+
+        area.setGeometry(null);
+        area.setUpdatedBy(actorId);
+
+        Area savedArea = areaRepository.save(area);
+        logChange(id, actorId, "DELETE_GEOMETRY", oldSnapshot, snapshot(savedArea), null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<AreaGeometryResponse> getGeometriesByBuildingAndFloor(String building, String floor) {
+        List<Area> areas = areaRepository.findByBuildingIgnoreCaseAndFloorIgnoreCaseAndDeletedAtIsNull(building, floor);
+        return areas.stream()
+                .map(a -> new AreaGeometryResponse(
+                        a.getId(),
+                        a.getCode(),
+                        a.getName(),
+                        a.getAreaLevel().getLevel(),
+                        a.getIsActive(),
+                        a.getGeometry()
+                ))
+                .toList();
     }
 
     @Transactional
@@ -176,6 +265,7 @@ public class AreaService {
         map.put("floor", area.getFloor());
         map.put("mapX", area.getMapX());
         map.put("mapY", area.getMapY());
+        map.put("geometry", area.getGeometry());
         map.put("isActive", area.getIsActive());
         return map;
     }

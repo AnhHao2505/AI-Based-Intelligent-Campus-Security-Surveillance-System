@@ -15,6 +15,12 @@ public enum AreaErrorCode {
     ERR_AREA_008("ERR_AREA_008", HttpStatus.BAD_REQUEST, "Hạ cấp độ khu vực bắt buộc nhập lý do"),
     ERR_AREA_009("ERR_AREA_009", HttpStatus.CONFLICT, "Không thể ngừng: còn {n} camera đang gán"),
     ERR_AREA_010("ERR_AREA_010", HttpStatus.CONFLICT, "Không thể ngừng: còn {n} quyền truy cập"),
+    ERR_AREA_011("ERR_AREA_011", HttpStatus.BAD_REQUEST, "Hình đa giác phải có ít nhất 3 đỉnh"),
+    ERR_AREA_012("ERR_AREA_012", HttpStatus.BAD_REQUEST, "Toạ độ đỉnh đa giác phải nằm trong khoảng [0, 1]"),
+    ERR_AREA_013("ERR_AREA_013", HttpStatus.CONFLICT, "Toạ độ đa giác bị chồng lấn với khu vực khác cùng tầng"),
+    ERR_AREA_014("ERR_AREA_014", HttpStatus.BAD_REQUEST, "Không thể thay đổi toà nhà hoặc tầng khi khu vực đang có toạ độ đa giác. Vui lòng xoá đa giác trước"),
+    ERR_AREA_015("ERR_AREA_015", HttpStatus.BAD_REQUEST, "Khu vực phải có thông tin toà nhà và tầng trước khi gán toạ độ đa giác"),
+    ERR_AREA_016("ERR_AREA_016", HttpStatus.BAD_REQUEST, "Hình đa giác phải có ít nhất 3 đỉnh phân biệt (không trùng nhau)"),
 
     ERR_TEMP_USAGE_001("ERR_TEMP_USAGE_001", HttpStatus.BAD_REQUEST, "Thời gian kết thúc phải sau thời gian bắt đầu"),
     ERR_TEMP_USAGE_002("ERR_TEMP_USAGE_002", HttpStatus.BAD_REQUEST, "Thời gian kết thúc phải sau thời điểm hiện tại"),

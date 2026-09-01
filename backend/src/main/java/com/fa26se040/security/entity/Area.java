@@ -17,6 +17,10 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import com.fa26se040.security.dto.area.AreaGeometry;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Objects;
@@ -59,6 +63,10 @@ public class Area {
 
     @Column(name = "map_y", precision = 7, scale = 2)
     private BigDecimal mapY;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "geometry", columnDefinition = "jsonb")
+    private AreaGeometry geometry;
 
     @Column(name = "is_active", nullable = false)
     @Builder.Default

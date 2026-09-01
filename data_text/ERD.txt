@@ -51,12 +51,28 @@ Table areas {
   description TEXT
   map_x NUMERIC(7,2)
   map_y NUMERIC(7,2)
+  geometry JSONB [note: 'Area polygon geometry (type, version, vertices)']
   is_active BOOLEAN [not null, default: true]
   created_by UUID [ref: > users.id]
   created_at TIMESTAMPTZ [not null, default: `CURRENT_TIMESTAMP`]
   updated_by UUID [ref: > users.id]
   updated_at TIMESTAMPTZ [not null, default: `CURRENT_TIMESTAMP`]
   deleted_at TIMESTAMPTZ
+}
+
+Table floor_plans {
+  id UUID [pk, default: `gen_random_uuid()`]
+  building VARCHAR(50) [not null]
+  floor VARCHAR(20) [not null]
+  image_key VARCHAR(255) [not null]
+  original_width INTEGER [not null]
+  original_height INTEGER [not null]
+  is_active BOOLEAN [not null, default: true]
+  created_at TIMESTAMPTZ [not null, default: `CURRENT_TIMESTAMP`]
+  
+  indexes {
+    (`LOWER(building)`, `LOWER(floor)`) [unique, name: 'uq_floor_plans_building_floor']
+  }
 }
 
 Table area_change_logs {
@@ -93,3 +109,7 @@ Table area_temporary_usage_change_logs {
   reason VARCHAR(255) [not null]
   created_at TIMESTAMPTZ [not null, default: `CURRENT_TIMESTAMP`]
 }
+
+Note: 'Liên kết với areas qua cặp (building, floor). 
+       Cố ý KHÔNG có FK. Join phải dùng LOWER() cả hai vế 
+       vì unique index trên bảng này là case-insensitive.'

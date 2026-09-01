@@ -2,6 +2,8 @@ package com.fa26se040.security.controller;
 
 import com.fa26se040.security.dto.area.AreaCreateRequest;
 import com.fa26se040.security.dto.area.AreaDependencyResponse;
+import com.fa26se040.security.dto.area.AreaGeometry;
+import com.fa26se040.security.dto.area.AreaGeometryResponse;
 import com.fa26se040.security.dto.area.AreaListItemResponse;
 import com.fa26se040.security.dto.area.AreaResponse;
 import com.fa26se040.security.dto.area.AreaUpdateRequest;
@@ -17,6 +19,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -26,6 +29,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -92,6 +96,37 @@ public class AreaController {
         String actorEmail = authentication.getName();
         AreaResponse response = areaService.update(id, request, actorEmail);
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/geometries")
+    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
+    public ResponseEntity<List<AreaGeometryResponse>> getGeometries(
+            @RequestParam String building,
+            @RequestParam String floor
+    ) {
+        return ResponseEntity.ok(areaService.getGeometriesByBuildingAndFloor(building, floor));
+    }
+
+    @PatchMapping("/{id}/geometry")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<AreaGeometryResponse> saveGeometry(
+            @PathVariable UUID id,
+            @RequestBody AreaGeometry geometry,
+            Authentication authentication
+    ) {
+        String actorEmail = authentication.getName();
+        return ResponseEntity.ok(areaService.saveGeometry(id, geometry, actorEmail));
+    }
+
+    @DeleteMapping("/{id}/geometry")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> deleteGeometry(
+            @PathVariable UUID id,
+            Authentication authentication
+    ) {
+        String actorEmail = authentication.getName();
+        areaService.deleteGeometry(id, actorEmail);
+        return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/{id}")
