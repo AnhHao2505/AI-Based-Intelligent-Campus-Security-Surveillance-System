@@ -93,3 +93,14 @@ export async function extendTemporaryUsage(areaId, temporaryUsageId, data) {
 export async function getFloorPlans() {
   return apiGet('/api/floor-plans');
 }
+
+/**
+ * Lấy danh sách Area kèm geometry theo tầng
+ * GET /api/areas/geometries?building=&floor=
+ * Cả hai tham số đều BẮT BUỘC.
+ */
+export async function getAreaGeometries(building, floor) {
+  const query = new URLSearchParams({ building, floor });
+  return apiGet(`/api/areas/geometries?${query.toString()}`);
+}
+

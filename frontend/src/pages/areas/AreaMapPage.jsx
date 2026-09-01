@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Layers, AlertCircle, RotateCcw, Loader2 } from 'lucide-react';
-import { getFloorPlans } from '../../services/areaService';
+import { getFloorPlans, getAreaGeometries } from '../../services/areaService';
+import { getLevelConfig } from '../../utils/areaHelpers';
 import './AreaMapPage.css';
 
 export default function AreaMapPage() {
@@ -9,6 +10,10 @@ export default function AreaMapPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [imageError, setImageError] = useState(false);
+
+  const [areas, setAreas] = useState([]);
+  const [areasLoading, setAreasLoading] = useState(false);
+  const [areasError, setAreasError] = useState(null);
 
   const sortFloorPlans = (plans) => {
     return [...plans].sort((a, b) => {
@@ -43,13 +48,46 @@ export default function AreaMapPage() {
     }
   };
 
+  const loadAreas = async (plan) => {
+    if (!plan || !plan.building || !plan.floor) {
+      setAreas([]);
+      return;
+    }
+    setAreasLoading(true);
+    setAreasError(null);
+    try {
+      const data = await getAreaGeometries(plan.building, plan.floor);
+      setAreas(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Failed to load area geometries:', err);
+      setAreasError(err.message || 'Lỗi tải danh sách khu vực.');
+    } finally {
+      setAreasLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadFloorPlans();
   }, []);
 
+  useEffect(() => {
+    if (selectedPlan) {
+      loadAreas(selectedPlan);
+    } else {
+      setAreas([]);
+    }
+  }, [selectedPlan]);
+
   const handleSelectFloor = (plan) => {
     setSelectedPlan(plan);
     setImageError(false);
+  };
+
+  const getLevelDotClass = (level) => {
+    if (level === 1) return 'area-map-page__level-dot--1';
+    if (level === 2) return 'area-map-page__level-dot--2';
+    if (level === 3) return 'area-map-page__level-dot--3';
+    return 'area-map-page__level-dot--default';
   };
 
   return (
@@ -113,20 +151,87 @@ export default function AreaMapPage() {
             })}
           </div>
 
-          <div className="area-map-page__viewport-card">
-            <div className="area-map-page__image-wrapper">
-              {imageError ? (
-                <div className="area-map-page__image-fallback">
-                  <AlertCircle size={28} />
-                  <span>Không tải được ảnh: {selectedPlan.imageKey}</span>
+          <div className="area-map-page__body">
+            <div className="area-map-page__viewport-card">
+              <div className="area-map-page__image-wrapper">
+                {imageError ? (
+                  <div className="area-map-page__image-fallback">
+                    <AlertCircle size={28} />
+                    <span>Không tải được ảnh: {selectedPlan.imageKey}</span>
+                  </div>
+                ) : (
+                  <img
+                    src={`/floor-plans/${selectedPlan.imageKey}`}
+                    alt={`Sơ đồ tầng ${selectedPlan.floor}`}
+                    className="area-map-page__image"
+                    onError={() => setImageError(true)}
+                  />
+                )}
+              </div>
+            </div>
+
+            <div className="area-map-page__sidebar-card">
+              {areasLoading && (
+                <div className="area-map-page__sidebar-state">
+                  <Loader2 className="area-map-page__spinner" size={24} />
+                  <span>Đang tải danh sách khu vực...</span>
                 </div>
-              ) : (
-                <img
-                  src={`/floor-plans/${selectedPlan.imageKey}`}
-                  alt={`Sơ đồ tầng ${selectedPlan.floor}`}
-                  className="area-map-page__image"
-                  onError={() => setImageError(true)}
-                />
+              )}
+
+              {!areasLoading && areasError && (
+                <div className="area-map-page__sidebar-state area-map-page__sidebar-state--error">
+                  <AlertCircle size={24} />
+                  <span className="area-map-page__error-text">{areasError}</span>
+                  <button
+                    type="button"
+                    className="area-map-page__btn-retry"
+                    onClick={() => loadAreas(selectedPlan)}
+                  >
+                    <RotateCcw size={14} />
+                    <span>Thử lại</span>
+                  </button>
+                </div>
+              )}
+
+              {!areasLoading && !areasError && areas.length === 0 && (
+                <div className="area-map-page__sidebar-state area-map-page__sidebar-state--empty">
+                  <span>Tầng này chưa có khu vực nào</span>
+                </div>
+              )}
+
+              {!areasLoading && !areasError && areas.length > 0 && (
+                <div className="area-map-page__sidebar-content">
+                  <div className="area-map-page__summary-bar">
+                    <span className="area-map-page__summary-text">
+                      {areas.length} khu vực · {areas.filter((a) => a.geometry === null).length} chưa có hình
+                    </span>
+                  </div>
+                  <div className="area-map-page__area-list">
+                    {areas.map((area) => (
+                      <div key={area.id} className="area-map-page__area-item">
+                        <div className="area-map-page__area-main">
+                          <span
+                            className={`area-map-page__level-dot ${getLevelDotClass(area.level)}`}
+                            title={`Level ${area.level || '?'}: ${getLevelConfig(area.level).name}`}
+                          />
+                          <div className="area-map-page__area-info">
+                            <span className="area-map-page__area-name">{area.name}</span>
+                            <span className="area-map-page__area-code">{area.code}</span>
+                          </div>
+                        </div>
+                        <span
+                          className={`area-map-page__geo-badge ${
+                            area.geometry === null
+                              ? 'area-map-page__geo-badge--none'
+                              : 'area-map-page__geo-badge--has'
+                          }`}
+                        >
+                          {area.geometry === null ? 'Chưa có hình' : 'Đã có hình'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
           </div>
@@ -135,3 +240,4 @@ export default function AreaMapPage() {
     </div>
   );
 }
+
