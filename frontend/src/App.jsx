@@ -8,9 +8,8 @@ import ProtectedRoute from './components/ProtectedRoute';
 import AppLayout from './components/layout/AppLayout';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
-import AdminDashboard from './pages/AdminDashboard';
 import UnauthorizedPage from './pages/UnauthorizedPage';
-import AreaListPage from './pages/AreaListPage';
+import AreaListPage from './pages/areas/AreaListPage';
 import AreaMapPage from './pages/areas/AreaMapPage';
 import CameraListPage from './pages/cameras/CameraListPage';
 import CameraDetailPage from './pages/cameras/CameraDetailPage';
@@ -58,14 +57,7 @@ function App() {
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<DashboardPage />} />
 
-              <Route
-                path="/admin"
-                element={
-                  <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
-                    <AdminDashboard />
-                  </ProtectedRoute>
-                }
-              />
+              
 
               <Route
                 path="/admin/areas"

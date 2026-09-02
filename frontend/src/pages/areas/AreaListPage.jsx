@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useAuth } from '../context/AuthContext';
-import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import {
   getAreas,
   getAreaLevels,
@@ -9,12 +9,12 @@ import {
   updateArea,
   deactivateArea,
   createTemporaryUsage,
-} from '../services/areaService';
+} from '../../services/areaService';
 import {
   getLevelConfig,
   getErrorMessage,
   formatToOffsetDateTime,
-} from '../utils/areaHelpers';
+} from '../../utils/areaHelpers';
 import './AreaListPage.css';
 
 export default function AreaListPage() {
@@ -378,36 +378,7 @@ export default function AreaListPage() {
             <h1>Campus Area Map</h1>
             <p>Hệ thống giám sát phân vùng &amp; cấu hình bản đồ an ninh</p>
           </div>
-          <button
-            type="button"
-            className="area-theme-toggle"
-            onClick={toggleTheme}
-            title={theme === 'light' ? 'Chuyển sang Dark Mode' : 'Chuyển sang Light Mode'}
-          >
-            {theme === 'light' ? (
-              <>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-                </svg>
-                <span>Dark Mode</span>
-              </>
-            ) : (
-              <>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="5" />
-                  <line x1="12" y1="1" x2="12" y2="3" />
-                  <line x1="12" y1="21" x2="12" y2="23" />
-                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-                  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-                  <line x1="1" y1="12" x2="3" y2="12" />
-                  <line x1="21" y1="12" x2="23" y2="12" />
-                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-                  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-                </svg>
-                <span>Light Mode</span>
-              </>
-            )}
-          </button>
+
         </header>
 
         {/* Toolbar: Floor Tabs & Zoom */}
@@ -425,24 +396,13 @@ export default function AreaListPage() {
             ))}
           </div>
 
-          <div className="area-map-controls">
-            <button
-              type="button"
-              className="area-control-btn"
-              onClick={() => setZoomLevel((z) => Math.min(1.3, z + 0.1))}
-              title="Phóng to"
-            >
-              +
-            </button>
-            <button
-              type="button"
-              className="area-control-btn"
-              onClick={() => setZoomLevel((z) => Math.max(0.7, z - 0.1))}
-              title="Thu nhỏ"
-            >
-              -
-            </button>
-          </div>
+          <button type="button" className="zone-btn zone-btn--primary" onClick={handleOpenCreateModal}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            <span>Thêm vùng mới</span>
+          </button>
         </div>
 
         {/* Main Map Container */}
@@ -655,16 +615,7 @@ export default function AreaListPage() {
           )}
         </div>
 
-        {/* Global Action: Add New Zone (ADMIN Only) */}
-        {isAdmin && (
-          <button type="button" className="zone-btn zone-btn--primary" onClick={handleOpenCreateModal}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-            <span>+ Thêm vùng mới</span>
-          </button>
-        )}
+
       </aside>
 
       {/* ============================================================ */}
