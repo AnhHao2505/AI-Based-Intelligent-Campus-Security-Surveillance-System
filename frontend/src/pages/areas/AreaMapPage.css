@@ -263,7 +263,13 @@
   flex-direction: column;
   gap: 0.5rem;
   max-height: calc(100vh - 280px);
-  overflow-y: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.area-map-page__area-list::-webkit-scrollbar {
+  display: none;
 }
 
 .area-map-page__area-item {

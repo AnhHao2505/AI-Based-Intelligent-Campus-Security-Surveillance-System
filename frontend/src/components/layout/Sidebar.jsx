@@ -1,15 +1,15 @@
 import { NavLink } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  MapPin, 
-  Map, 
-  Video, 
-  UserRound, 
-  Cpu, 
+import {
+  LayoutDashboard,
+  MapPin,
+  Map,
+  Video,
+  UserRound,
+  Cpu,
   ShieldAlert,
-  Sun, 
-  Moon, 
-  LogOut 
+  Sun,
+  Moon,
+  LogOut
 } from 'lucide-react';
 import { ROLES, ROLE_LABELS } from '../../constants/roles';
 import { useTheme } from '../../context/ThemeContext';
@@ -52,8 +52,8 @@ export default function Sidebar({ user, onLogout }) {
 
         <nav className="sidebar__nav">
           {isGuard && (
-            <NavLink 
-              to="/guard" 
+            <NavLink
+              to="/guard"
               className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
             >
               <ShieldAlert size={18} />
@@ -61,8 +61,8 @@ export default function Sidebar({ user, onLogout }) {
             </NavLink>
           )}
 
-          <NavLink 
-            to="/dashboard" 
+          <NavLink
+            to="/dashboard"
             className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
           >
             <LayoutDashboard size={18} />
@@ -71,8 +71,8 @@ export default function Sidebar({ user, onLogout }) {
 
           {(isAdmin || isFacilityManager) && (
             <>
-              <NavLink 
-                to="/admin/areas" 
+              <NavLink
+                to="/admin/areas"
                 end
                 className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
               >
@@ -80,8 +80,8 @@ export default function Sidebar({ user, onLogout }) {
                 <span>Cấu hình vùng (Zones)</span>
               </NavLink>
 
-              <NavLink 
-                to="/admin/areas/map" 
+              <NavLink
+                to="/admin/areas/map"
                 className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
               >
                 <Map size={18} />
@@ -92,16 +92,16 @@ export default function Sidebar({ user, onLogout }) {
 
           {isAdmin && (
             <>
-              <NavLink 
-                to="/cameras" 
+              <NavLink
+                to="/cameras"
                 className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
               >
                 <Video size={18} />
                 <span>Quản lý Camera</span>
               </NavLink>
 
-              <NavLink 
-                to="/admin/faces" 
+              <NavLink
+                to="/admin/faces"
                 className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
               >
                 <UserRound size={18} />
