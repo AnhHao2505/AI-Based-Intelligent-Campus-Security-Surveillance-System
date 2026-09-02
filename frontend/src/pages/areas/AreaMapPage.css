@@ -263,7 +263,7 @@
   flex-direction: column;
   gap: 0.5rem;
   max-height: calc(100vh - 280px);
-  overflow-y: hidden;
+  overflow-y: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
@@ -353,6 +353,7 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 0.5rem;
   width: 100%;
 }
@@ -529,6 +530,91 @@
   background: var(--theme-primary, #2563eb);
   border-color: var(--theme-primary, #2563eb);
   color: var(--theme-text-primary, #ffffff);
+}
+
+.area-map-page__btn-delete-geo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--theme-danger, #ef4444);
+  background: var(--theme-danger-bg, rgba(239, 68, 68, 0.12));
+  border: 1px solid var(--theme-danger-border, rgba(239, 68, 68, 0.3));
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.area-map-page__btn-delete-geo:hover:not(:disabled) {
+  background: var(--theme-danger, #ef4444);
+  border-color: var(--theme-danger, #ef4444);
+  color: var(--theme-text-primary, #ffffff);
+}
+
+.area-map-page__confirm-delete {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.area-map-page__confirm-text {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--theme-danger, #ef4444);
+}
+
+.area-map-page__btn-confirm-yes {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #ffffff;
+  background: var(--theme-danger, #ef4444);
+  border: 1px solid var(--theme-danger, #ef4444);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.area-map-page__btn-confirm-yes:hover:not(:disabled) {
+  background: var(--theme-danger-hover, #dc2626);
+  border-color: var(--theme-danger-hover, #dc2626);
+}
+
+.area-map-page__btn-confirm-yes:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.area-map-page__btn-confirm-no {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--theme-text-primary, #f8fafc);
+  background: var(--theme-bg-surface-elevated, #1f2937);
+  border: 1px solid var(--theme-border, #334155);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.area-map-page__btn-confirm-no:hover:not(:disabled) {
+  background: var(--theme-border-hover, #334155);
+}
+
+.area-map-page__btn-confirm-no:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .area-map-page__area-item--drawing {

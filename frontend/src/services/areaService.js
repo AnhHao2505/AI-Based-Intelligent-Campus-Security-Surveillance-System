@@ -112,4 +112,12 @@ export async function saveAreaGeometry(areaId, vertices) {
   return apiPatch(`/api/areas/${areaId}/geometry`, { vertices });
 }
 
+/**
+ * Xóa polygon của một Area (ADMIN)
+ * DELETE /api/areas/{id}/geometry
+ */
+export async function deleteAreaGeometry(areaId) {
+  return apiDelete(`/api/areas/${areaId}/geometry`);
+}
+
 
