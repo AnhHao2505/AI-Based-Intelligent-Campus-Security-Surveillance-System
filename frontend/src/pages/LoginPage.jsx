@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { GoogleLogin } from '@react-oauth/google';
 import { useAuth } from '../context/AuthContext';
-import { 
-  sendResetLink, 
-  resetPasswordWithToken 
+import {
+  sendResetLink,
+  resetPasswordWithToken
 } from '../services/authService';
 import './LoginPage.css';
 
@@ -21,7 +21,7 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
 
   const [mode, setMode] = useState('login'); // 'login' | 'forgot' | 'reset'
   const [activeTab, setActiveTab] = useState('google'); // 'google' | 'credentials'
-  
+
   // General states
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -128,9 +128,9 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
         {/* Logo / Icon */}
         <div className="login-card__icon">
           <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </div>
 
@@ -147,9 +147,9 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
         {error && (
           <div className="login-card__error">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
-              <line x1="12" y1="8" x2="12" y2="12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-              <line x1="12" y1="16" x2="12.01" y2="16" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
+              <line x1="12" y1="8" x2="12" y2="12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              <line x1="12" y1="16" x2="12.01" y2="16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             </svg>
             <span>{error}</span>
           </div>
@@ -159,14 +159,14 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
         {mode === 'login' && (
           <>
             <div className="login-card__tabs">
-              <button 
+              <button
                 type="button"
                 className={`login-card__tab ${activeTab === 'google' ? 'login-card__tab--active' : ''}`}
                 onClick={() => { setActiveTab('google'); setError(null); }}
               >
                 Google Mail
               </button>
-              <button 
+              <button
                 type="button"
                 className={`login-card__tab ${activeTab === 'credentials' ? 'login-card__tab--active' : ''}`}
                 onClick={() => { setActiveTab('credentials'); setError(null); }}
@@ -201,7 +201,7 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
               <form className="login-card__form" onSubmit={handleCredentialLoginSubmit}>
                 <div className="login-card__input-group">
                   <label className="login-card__input-label">Email</label>
-                  <input 
+                  <input
                     type="email"
                     required
                     placeholder="name@campus.edu.vn"
@@ -212,7 +212,7 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
                 </div>
                 <div className="login-card__input-group">
                   <label className="login-card__input-label">Mật khẩu</label>
-                  <input 
+                  <input
                     type="password"
                     required
                     placeholder="••••••••"
@@ -221,14 +221,14 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
                     onChange={(e) => setPassword(e.target.value)}
                   />
                 </div>
-                <span 
+                <span
                   className="login-card__forgot-link"
                   onClick={() => { setMode('forgot'); setError(null); }}
                 >
                   Quên mật khẩu?
                 </span>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   className="login-card__submit-btn"
                   disabled={loading}
                 >
@@ -245,8 +245,8 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
             {success ? (
               <div className="login-card__success">
                 <svg className="login-card__success-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
-                  <path d="M9 12L11 14L15 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
+                  <path d="M9 12L11 14L15 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
                 <span>Yêu cầu khôi phục mật khẩu đã được gửi đi! Vui lòng kiểm tra hòm thư của bạn để lấy đường dẫn xác nhận.</span>
               </div>
@@ -257,7 +257,7 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
                 </p>
                 <div className="login-card__input-group">
                   <label className="login-card__input-label">Email tài khoản</label>
-                  <input 
+                  <input
                     type="email"
                     required
                     placeholder="name@campus.edu.vn"
@@ -266,8 +266,8 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
                     onChange={(e) => setEmail(e.target.value)}
                   />
                 </div>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   className="login-card__submit-btn"
                   disabled={loading}
                 >
@@ -275,7 +275,7 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
                 </button>
               </form>
             )}
-            <span 
+            <span
               className="login-card__back-link"
               onClick={() => { setMode('login'); setError(null); setSuccess(false); }}
             >
@@ -290,8 +290,8 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
             {success ? (
               <div className="login-card__success">
                 <svg className="login-card__success-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
-                  <path d="M9 12L11 14L15 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
+                  <path d="M9 12L11 14L15 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
                 <span>Đổi mật khẩu thành công! Đang chuyển hướng bạn quay lại trang đăng nhập...</span>
               </div>
@@ -299,7 +299,7 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
               <form className="login-card__form" onSubmit={handleResetSubmit}>
                 <div className="login-card__input-group">
                   <label className="login-card__input-label">Mật khẩu mới</label>
-                  <input 
+                  <input
                     type="password"
                     required
                     placeholder="Tối thiểu 6 ký tự"
@@ -310,7 +310,7 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
                 </div>
                 <div className="login-card__input-group">
                   <label className="login-card__input-label">Nhập lại mật khẩu mới</label>
-                  <input 
+                  <input
                     type="password"
                     required
                     placeholder="Nhập lại mật khẩu mới"
@@ -319,8 +319,8 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
                     onChange={(e) => setConfirmPassword(e.target.value)}
                   />
                 </div>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   className="login-card__submit-btn"
                   disabled={loading}
                 >
@@ -329,7 +329,7 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
               </form>
             )}
             {!success && (
-              <span 
+              <span
                 className="login-card__back-link"
                 onClick={() => { setMode('login'); if (onResetComplete) onResetComplete(); setError(null); }}
               >
