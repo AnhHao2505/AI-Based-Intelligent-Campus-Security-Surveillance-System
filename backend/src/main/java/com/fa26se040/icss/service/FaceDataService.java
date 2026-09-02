@@ -23,6 +23,9 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.*;
 import java.util.zip.ZipEntry;
@@ -43,9 +46,7 @@ public class FaceDataService {
     public FaceDataResponseDto registerFace(
             String code,
             String fullName,
-            MultipartFile frontImage,
-            MultipartFile leftImage,
-            MultipartFile rightImage
+            MultipartFile frontImage
     ) {
         try {
             log.info("Bắt đầu xử lý đăng ký khuôn mặt cho [{}] - {}", code, fullName);
@@ -58,10 +59,7 @@ public class FaceDataService {
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
             body.add("code", code);
             body.add("full_name", fullName);
-
             body.add("front_image", new NamedByteArrayResource(frontImage.getBytes(), frontImage.getOriginalFilename() != null ? frontImage.getOriginalFilename() : "front.jpg"));
-            body.add("left_image", new NamedByteArrayResource(leftImage.getBytes(), leftImage.getOriginalFilename() != null ? leftImage.getOriginalFilename() : "left.jpg"));
-            body.add("right_image", new NamedByteArrayResource(rightImage.getBytes(), rightImage.getOriginalFilename() != null ? rightImage.getOriginalFilename() : "right.jpg"));
 
             HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
 
@@ -77,8 +75,6 @@ public class FaceDataService {
 
             // 3. Chuyển đổi mảng List<Float> sang chuỗi định dạng PostgreSQL pgvector "[0.1,0.2,...]"
             String vecFront = formatVectorString(aiResult.getEmbeddingFront());
-            String vecLeft = formatVectorString(aiResult.getEmbeddingLeft());
-            String vecRight = formatVectorString(aiResult.getEmbeddingRight());
 
             // 4. Lưu hoặc cập nhật vào CSDL
             Optional<FaceData> existingOpt = faceDataRepository.findByCode(code);
@@ -87,21 +83,13 @@ public class FaceDataService {
                 faceData = existingOpt.get();
                 faceData.setFullName(fullName);
                 faceData.setImageFrontUrl(aiResult.getImageFrontUrl());
-                faceData.setImageLeftUrl(aiResult.getImageLeftUrl());
-                faceData.setImageRightUrl(aiResult.getImageRightUrl());
                 faceData.setEmbeddingFront(vecFront);
-                faceData.setEmbeddingLeft(vecLeft);
-                faceData.setEmbeddingRight(vecRight);
             } else {
                 faceData = FaceData.builder()
                         .code(code)
                         .fullName(fullName)
                         .imageFrontUrl(aiResult.getImageFrontUrl())
-                        .imageLeftUrl(aiResult.getImageLeftUrl())
-                        .imageRightUrl(aiResult.getImageRightUrl())
                         .embeddingFront(vecFront)
-                        .embeddingLeft(vecLeft)
-                        .embeddingRight(vecRight)
                         .build();
             }
 
@@ -125,7 +113,7 @@ public class FaceDataService {
         List<String> importedCodes = new ArrayList<>();
         List<String> errors = new ArrayList<>();
 
-        // Map cấu trúc: code -> { "name": fullName, "front": bytes, "left": bytes, "right": bytes }
+        // Map cấu trúc: code -> { "name": fullName, "front": bytes }
         Map<String, Map<String, Object>> datasetMap = new HashMap<>();
 
         try (InputStream is = zipFile.getInputStream();
@@ -146,28 +134,41 @@ public class FaceDataService {
                     filename = filename.substring(filename.lastIndexOf("\\") + 1);
                 }
 
-                // Quy tắc đặt tên file: {CODE}_{FULLNAME}_{ANGLE}.jpg hoặc {CODE}_{ANGLE}.jpg
-                // Ví dụ: SE150001_NguyenVanA_front.jpg hoặc SE150001_front.jpg
+                // Bỏ qua các file ẩn hoặc không phải ảnh
+                String lowerName = filename.toLowerCase();
+                if (lowerName.startsWith(".") || !(lowerName.endsWith(".jpg") || lowerName.endsWith(".jpeg") || lowerName.endsWith(".png"))) {
+                    continue;
+                }
+
+                // Quy tắc đặt tên file:
+                // {CODE}_{FULLNAME}.jpg hoặc {CODE}_{FULLNAME}_front.jpg hoặc {CODE}.jpg
+                // Ví dụ: SE150001_NguyenVanA.jpg hoặc SE150001_NguyenVanA_front.jpg
                 String baseName = filename.contains(".") ? filename.substring(0, filename.lastIndexOf(".")) : filename;
                 String[] parts = baseName.split("_");
 
-                if (parts.length >= 2) {
-                    String code = parts[0].trim();
-                    String angle = parts[parts.length - 1].toLowerCase().trim(); // front | left | right
-                    String fullName = parts.length > 2 ? parts[1].replace("-", " ").trim() : "Sinh vien / Can bo " + code;
-
-                    datasetMap.putIfAbsent(code, new HashMap<>());
-                    Map<String, Object> personData = datasetMap.get(code);
-                    personData.put("name", fullName);
-
-                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                    byte[] buffer = new byte[4096];
-                    int len;
-                    while ((len = zis.read(buffer)) > 0) {
-                        baos.write(buffer, 0, len);
-                    }
-                    personData.put(angle, baos.toByteArray());
+                String code = parts[0].trim();
+                String fullName;
+                if (parts.length >= 3 && parts[parts.length - 1].equalsIgnoreCase("front")) {
+                    // SE150001_Nguyen-Van-A_front -> fullName = Nguyen Van A
+                    fullName = parts[1].replace("-", " ").trim();
+                } else if (parts.length >= 2) {
+                    // SE150001_Nguyen-Van-A -> fullName = Nguyen Van A
+                    fullName = parts[1].replace("-", " ").trim();
+                } else {
+                    fullName = "Sinh vien / Can bo " + code;
                 }
+
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                byte[] buffer = new byte[4096];
+                int len;
+                while ((len = zis.read(buffer)) > 0) {
+                    baos.write(buffer, 0, len);
+                }
+
+                datasetMap.putIfAbsent(code, new HashMap<>());
+                Map<String, Object> personData = datasetMap.get(code);
+                personData.put("name", fullName);
+                personData.put("front", baos.toByteArray());
             }
 
             total = datasetMap.size();
@@ -177,16 +178,7 @@ public class FaceDataService {
                 String code = entryItem.getKey();
                 Map<String, Object> data = entryItem.getValue();
                 String fullName = (String) data.getOrDefault("name", "Người dùng " + code);
-
                 byte[] frontBytes = (byte[]) data.get("front");
-                byte[] leftBytes = (byte[]) data.get("left");
-                byte[] rightBytes = (byte[]) data.get("right");
-
-                // Nếu thiếu ảnh góc trái/phải thì lấy ảnh chính diện thay thế tạm thời
-                if (frontBytes == null && leftBytes != null) frontBytes = leftBytes;
-                if (frontBytes == null && rightBytes != null) frontBytes = rightBytes;
-                if (leftBytes == null && frontBytes != null) leftBytes = frontBytes;
-                if (rightBytes == null && frontBytes != null) rightBytes = frontBytes;
 
                 if (frontBytes == null) {
                     failed++;
@@ -196,10 +188,8 @@ public class FaceDataService {
 
                 try {
                     MultipartFile frontFile = new InMemoryMultipartFile("frontImage", "front.jpg", "image/jpeg", frontBytes);
-                    MultipartFile leftFile = new InMemoryMultipartFile("leftImage", "left.jpg", "image/jpeg", leftBytes);
-                    MultipartFile rightFile = new InMemoryMultipartFile("rightImage", "right.jpg", "image/jpeg", rightBytes);
 
-                    registerFace(code, fullName, frontFile, leftFile, rightFile);
+                    registerFace(code, fullName, frontFile);
                     success++;
                     importedCodes.add(code + " (" + fullName + ")");
                 } catch (Exception e) {
@@ -258,8 +248,6 @@ public class FaceDataService {
                 .code(entity.getCode())
                 .fullName(entity.getFullName())
                 .imageFrontUrl(entity.getImageFrontUrl())
-                .imageLeftUrl(entity.getImageLeftUrl())
-                .imageRightUrl(entity.getImageRightUrl())
                 .createdAt(entity.getCreatedAt())
                 .build();
     }
@@ -318,8 +306,10 @@ public class FaceDataService {
         }
 
         @Override
-        public void transferTo(java.io.File dest) throws IllegalStateException, java.io.IOException {
-            new java.io.FileOutputStream(dest).write(bytes);
+        public void transferTo(File dest) throws IllegalStateException, IOException {
+            try (FileOutputStream fos = new FileOutputStream(dest)) {
+                fos.write(bytes);
+            }
         }
     }
 }

@@ -1,6 +1,9 @@
 .app-layout {
   display: flex;
   min-height: 100vh;
+  background-color: var(--theme-bg-page);
+  color: var(--theme-text-primary);
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 .app-layout__content {
@@ -8,8 +11,10 @@
   margin-left: 260px;
   min-height: 100vh;
   position: relative;
-  background: #0a0e1a;
+  background-color: var(--theme-bg-page);
+  color: var(--theme-text-primary);
   overflow-x: hidden;
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 @media (max-width: 768px) {

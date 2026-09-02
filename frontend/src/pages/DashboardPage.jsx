@@ -1,185 +1,355 @@
-import { useAuth } from "../context/AuthContext";
-import { ROLE_LABELS, ROLES } from "../constants/roles";
-import { Link } from "react-router-dom";
-import { 
-  ShieldCheck, 
-  Layers, 
-  Video, 
-  UserRound, 
-  ArrowRight,
-  Shield,
+import { useState, useEffect } from 'react';
+import {
+  MapPin,
+  Camera,
+  Users,
+  AlertTriangle,
   Activity,
-  Server,
-  Bell
-} from "lucide-react";
-import "./DashboardPage.css";
+  Bell,
+  Calendar,
+  Clock,
+  HardDrive,
+  Cpu,
+  Layers,
+  Map as MapIcon,
+  Shield,
+  Info,
+} from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { getAreas } from '../services/areaService';
+import './DashboardPage.css';
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const isAdmin = user?.role === ROLES.ADMIN;
+  const [areaCount, setAreaCount] = useState(null);
+  const [areaLoading, setAreaLoading] = useState(false);
+
+  // Safe RBAC check: only request Area API if role has permission
+  useEffect(() => {
+    let isMounted = true;
+    const isAreaAuthorized =
+      user?.role === 'ADMIN' || user?.role === 'FACILITY_MANAGER';
+
+    if (isAreaAuthorized) {
+      setAreaLoading(true);
+      getAreas({ page: 0, size: 1 })
+        .then((res) => {
+          if (isMounted && res && typeof res.totalElements === 'number') {
+            setAreaCount(res.totalElements);
+          }
+        })
+        .catch(() => {
+          if (isMounted) setAreaCount(null);
+        })
+        .finally(() => {
+          if (isMounted) setAreaLoading(false);
+        });
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
+
+  // Current formatted date string
+  const currentDateStr = new Intl.DateTimeFormat('vi-VN', {
+    weekday: 'long',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
 
   return (
-    <div className="dashboard">
-      <div className="dashboard-bg">
-        <div className="dashboard-bg-orb dashboard-bg-orb--1" />
-        <div className="dashboard-bg-orb dashboard-bg-orb--2" />
+    <div className="dashboard-page">
+      <div className="dashboard-container">
+        {/* Header Section */}
+        <header className="dashboard-header">
+          <div className="dashboard-header__left">
+            <div className="dashboard-header__badge">
+              <span className="dashboard-header__badge-dot" />
+              CAMPUS SURVEILLANCE
+            </div>
+            <h1 className="dashboard-header__title">Dashboard</h1>
+            <p className="dashboard-header__subtitle">
+              Tổng quan hệ thống an ninh Campus
+            </p>
+          </div>
+          <div className="dashboard-header__right">
+            <div className="dashboard-date-badge">
+              <Calendar size={14} />
+              <span>{currentDateStr}</span>
+            </div>
+          </div>
+        </header>
+
+        {/* 4 KPI Cards */}
+        <section className="dashboard-kpis">
+          {/* 1. Total Areas */}
+          <article className="kpi-card">
+            <div className="kpi-card__top">
+              <span className="kpi-card__icon kpi-card__icon--blue">
+                <MapPin size={20} />
+              </span>
+              <span className="kpi-card__badge">Khu vực</span>
+            </div>
+            <div className="kpi-card__body">
+              <span className="kpi-card__label">Total Areas</span>
+              <span className="kpi-card__value">
+                {areaLoading ? '...' : areaCount !== null ? areaCount : '—'}
+              </span>
+            </div>
+            <div className="kpi-card__footer">
+              <span className="kpi-card__subtext">
+                {areaCount !== null
+                  ? 'Khu vực quản lý an ninh'
+                  : 'Data unavailable'}
+              </span>
+            </div>
+          </article>
+
+          {/* 2. Active Cameras */}
+          <article className="kpi-card">
+            <div className="kpi-card__top">
+              <span className="kpi-card__icon kpi-card__icon--emerald">
+                <Camera size={20} />
+              </span>
+              <span className="kpi-card__badge">Camera</span>
+            </div>
+            <div className="kpi-card__body">
+              <span className="kpi-card__label">Active Cameras</span>
+              <span className="kpi-card__value">—</span>
+            </div>
+            <div className="kpi-card__footer">
+              <span className="kpi-card__subtext">Data unavailable</span>
+            </div>
+          </article>
+
+          {/* 3. Face Profiles */}
+          <article className="kpi-card">
+            <div className="kpi-card__top">
+              <span className="kpi-card__icon kpi-card__icon--indigo">
+                <Users size={20} />
+              </span>
+              <span className="kpi-card__badge">Khuôn mặt</span>
+            </div>
+            <div className="kpi-card__body">
+              <span className="kpi-card__label">Face Profiles</span>
+              <span className="kpi-card__value">—</span>
+            </div>
+            <div className="kpi-card__footer">
+              <span className="kpi-card__subtext">Data unavailable</span>
+            </div>
+          </article>
+
+          {/* 4. Active Incidents */}
+          <article className="kpi-card">
+            <div className="kpi-card__top">
+              <span className="kpi-card__icon kpi-card__icon--amber">
+                <AlertTriangle size={20} />
+              </span>
+              <span className="kpi-card__badge">Sự cố</span>
+            </div>
+            <div className="kpi-card__body">
+              <span className="kpi-card__label">Active Incidents</span>
+              <span className="kpi-card__value">—</span>
+            </div>
+            <div className="kpi-card__footer">
+              <span className="kpi-card__subtext">Data unavailable</span>
+            </div>
+          </article>
+        </section>
+
+        {/* Main Grid: Campus Security Overview (Mini Map) + System Health */}
+        <section className="dashboard-grid-middle">
+          {/* Left: Campus Security Overview / Mini Map Container */}
+          <article className="dash-card dash-card--map">
+            <div className="dash-card__header">
+              <div className="dash-card__title-wrap">
+                <div className="dash-card__icon-box">
+                  <MapIcon size={18} />
+                </div>
+                <div>
+                  <h2 className="dash-card__title">Campus Security Overview</h2>
+                  <p className="dash-card__subtitle">
+                    Sơ đồ tổng quan phân vùng an ninh khuôn viên
+                  </p>
+                </div>
+              </div>
+
+              {/* Security Level Legend */}
+              <div className="security-legend">
+                <div className="security-legend__item">
+                  <span className="security-legend__dot security-legend__dot--public" />
+                  <span>PUBLIC</span>
+                </div>
+                <div className="security-legend__item">
+                  <span className="security-legend__dot security-legend__dot--semi" />
+                  <span>SEMI_PRIVATE</span>
+                </div>
+                <div className="security-legend__item">
+                  <span className="security-legend__dot security-legend__dot--private" />
+                  <span>PRIVATE</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Map Placeholder Container */}
+            <div className="campus-map-placeholder">
+              <div className="campus-map-placeholder__grid-bg" />
+              <div className="campus-map-placeholder__content">
+                <div className="campus-map-placeholder__icon">
+                  <Layers size={36} />
+                </div>
+                <h3 className="campus-map-placeholder__heading">
+                  Campus Mini Map
+                </h3>
+                <p className="campus-map-placeholder__desc">
+                  Sơ đồ đa giác trực quan (Floor Plan & Security Zones) sẽ được
+                  tích hợp trong tính năng Area Polygon Drawing.
+                </p>
+                <div className="campus-map-placeholder__status-tag">
+                  <Info size={13} />
+                  <span>Map container placeholder — Ready for geometry integration</span>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          {/* Right: System Health */}
+          <article className="dash-card dash-card--health">
+            <div className="dash-card__header">
+              <div className="dash-card__title-wrap">
+                <div className="dash-card__icon-box">
+                  <Activity size={18} />
+                </div>
+                <div>
+                  <h2 className="dash-card__title">System Health</h2>
+                  <p className="dash-card__subtitle">
+                    Trạng thái hoạt động các phân hệ
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="system-health-list">
+              <div className="health-row">
+                <div className="health-row__left">
+                  <span className="health-row__icon">
+                    <Camera size={16} />
+                  </span>
+                  <span className="health-row__name">Camera Network</span>
+                </div>
+                <span className="health-row__status health-row__status--unavailable">
+                  Status unavailable
+                </span>
+              </div>
+
+              <div className="health-row">
+                <div className="health-row__left">
+                  <span className="health-row__icon">
+                    <Cpu size={16} />
+                  </span>
+                  <span className="health-row__name">AI Vision Engine</span>
+                </div>
+                <span className="health-row__status health-row__status--unavailable">
+                  Status unavailable
+                </span>
+              </div>
+
+              <div className="health-row">
+                <div className="health-row__left">
+                  <span className="health-row__icon">
+                    <Shield size={16} />
+                  </span>
+                  <span className="health-row__name">Face Intelligence</span>
+                </div>
+                <span className="health-row__status health-row__status--unavailable">
+                  Status unavailable
+                </span>
+              </div>
+
+              <div className="health-row">
+                <div className="health-row__left">
+                  <span className="health-row__icon">
+                    <HardDrive size={16} />
+                  </span>
+                  <span className="health-row__name">Core Storage & API</span>
+                </div>
+                <span className="health-row__status health-row__status--unavailable">
+                  Status unavailable
+                </span>
+              </div>
+            </div>
+
+            <div className="dash-card__footer-note">
+              <Info size={14} />
+              <span>Chưa kết nối dịch vụ giám sát thời gian thực</span>
+            </div>
+          </article>
+        </section>
+
+        {/* Bottom Grid: Attention Required + Recent Security Events */}
+        <section className="dashboard-grid-bottom">
+          {/* Attention Required */}
+          <article className="dash-card">
+            <div className="dash-card__header">
+              <div className="dash-card__title-wrap">
+                <div className="dash-card__icon-box dash-card__icon-box--amber">
+                  <Bell size={18} />
+                </div>
+                <div>
+                  <h2 className="dash-card__title">Attention Required</h2>
+                  <p className="dash-card__subtitle">
+                    Cảnh báo cần xử lý ưu tiên
+                  </p>
+                </div>
+              </div>
+              <span className="counter-pill counter-pill--unavailable">—</span>
+            </div>
+
+            <div className="empty-panel">
+              <div className="empty-panel__icon">
+                <Bell size={32} />
+              </div>
+              <h4 className="empty-panel__title">
+                Dữ liệu cảnh báo chưa khả dụng
+              </h4>
+              <p className="empty-panel__desc">
+                Hệ thống giám sát và phát hiện cảnh báo an ninh chưa được kết nối.
+              </p>
+            </div>
+          </article>
+
+          {/* Recent Security Events */}
+          <article className="dash-card">
+            <div className="dash-card__header">
+              <div className="dash-card__title-wrap">
+                <div className="dash-card__icon-box dash-card__icon-box--blue">
+                  <Clock size={18} />
+                </div>
+                <div>
+                  <h2 className="dash-card__title">Recent Security Events</h2>
+                  <p className="dash-card__subtitle">
+                    Nhật ký sự kiện an ninh gần đây
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="empty-panel">
+              <div className="empty-panel__icon">
+                <Clock size={32} />
+              </div>
+              <h4 className="empty-panel__title">
+                Chưa có dữ liệu sự kiện gần đây
+              </h4>
+              <p className="empty-panel__desc">
+                Hệ thống ghi nhận sự kiện thời gian thực sẽ được cập nhật.
+              </p>
+            </div>
+          </article>
+        </section>
       </div>
-
-      <main className="dashboard-main">
-        <div className="dashboard-welcome">
-          <div className="dashboard-welcome__badge">
-            <span className="live-dot"></span>
-            <span>Hệ Thống Giám Sát Hoạt Động (Real-time Live)</span>
-          </div>
-          <h1>Xin chào, {user?.fullName || "Quản trị viên"} 👋</h1>
-          <p>Hệ thống Giám sát An ninh Thông minh Campus FPTU Tân Uyên (FA26SE040)</p>
-        </div>
-
-        {/* Quick Stats Overview */}
-        <div className="dashboard-overview-stats">
-          <div className="dash-stat-card">
-            <div className="dash-stat-icon dash-stat-icon--purple">
-              <Layers size={22} />
-            </div>
-            <div className="dash-stat-info">
-              <span className="dash-stat-label">Tổng Khu Vực (Zones)</span>
-              <strong className="dash-stat-value">12</strong>
-              <span className="dash-stat-sub text-emerald-400">2 Khu vực Tối Mật (L3)</span>
-            </div>
-          </div>
-
-          <div className="dash-stat-card">
-            <div className="dash-stat-icon dash-stat-icon--blue">
-              <Video size={22} />
-            </div>
-            <div className="dash-stat-info">
-              <span className="dash-stat-label">Hệ Thống Camera</span>
-              <strong className="dash-stat-value">8 / 8</strong>
-              <span className="dash-stat-sub text-emerald-400">100% Trực tuyến</span>
-            </div>
-          </div>
-
-          <div className="dash-stat-card">
-            <div className="dash-stat-icon dash-stat-icon--cyan">
-              <UserRound size={22} />
-            </div>
-            <div className="dash-stat-info">
-              <span className="dash-stat-label">Hồ Sơ Khuôn Mặt</span>
-              <strong className="dash-stat-value">14</strong>
-              <span className="dash-stat-sub text-cyan-400">Đã đồng bộ Vector AI</span>
-            </div>
-          </div>
-
-          <div className="dash-stat-card">
-            <div className="dash-stat-icon dash-stat-icon--emerald">
-              <ShieldCheck size={22} />
-            </div>
-            <div className="dash-stat-info">
-              <span className="dash-stat-label">Trạng Thái An Ninh</span>
-              <strong className="dash-stat-value text-emerald-400">Bình Thường</strong>
-              <span className="dash-stat-sub text-slate-400">Không có vi phạm</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Quick Action Modules (for Admin) */}
-        {isAdmin && (
-          <div className="dashboard-section">
-            <h2 className="dashboard-section-title">Các Phân Hệ Quản Trị Hệ Thống</h2>
-            <div className="dashboard-modules-grid">
-              <Link to="/admin/zones" className="dash-module-card">
-                <div className="dash-module-icon dash-module-icon--purple">
-                  <Layers size={28} />
-                </div>
-                <div className="dash-module-content">
-                  <h3>Quản Lý Khu Vực</h3>
-                  <p>Bản đồ mặt bằng trực quan, cấu hình chính sách leo thang và phân quyền Whitelist cho từng khu vực.</p>
-                  <span className="dash-module-link">
-                    Mở Quản lý Khu vực <ArrowRight size={16} />
-                  </span>
-                </div>
-              </Link>
-
-              <Link to="/cameras" className="dash-module-card">
-                <div className="dash-module-icon dash-module-icon--blue">
-                  <Video size={28} />
-                </div>
-                <div className="dash-module-content">
-                  <h3>Quản Lý Camera</h3>
-                  <p>Quản trị luồng RTSP / WebRTC, thiết lập vùng AI phát hiện xâm nhập và cảnh báo an ninh thời gian thực.</p>
-                  <span className="dash-module-link">
-                    Mở Quản lý Camera <ArrowRight size={16} />
-                  </span>
-                </div>
-              </Link>
-
-              <Link to="/admin/faces" className="dash-module-card">
-                <div className="dash-module-icon dash-module-icon--cyan">
-                  <UserRound size={28} />
-                </div>
-                <div className="dash-module-content">
-                  <h3>Quản Lý Khuôn Mặt</h3>
-                  <p>Nạp hồ sơ khuôn mặt đơn lẻ hoặc hàng loạt (.ZIP), tự động trích xuất vector đặc trưng InsightFace.</p>
-                  <span className="dash-module-link">
-                    Mở Quản lý Khuôn mặt <ArrowRight size={16} />
-                  </span>
-                </div>
-              </Link>
-            </div>
-          </div>
-        )}
-
-        {/* User Info & System Telemetry Cards */}
-        <div className="dashboard-grid mt-6">
-          <div className="dashboard-card dashboard-card--profile">
-            <h3>Thông tin cá nhân & Phiên đăng nhập</h3>
-            <div className="dashboard-card__rows">
-              <div className="dashboard-card__row">
-                <span className="dashboard-card__label">Họ tên</span>
-                <span className="dashboard-card__value">{user?.fullName || "—"}</span>
-              </div>
-              <div className="dashboard-card__row">
-                <span className="dashboard-card__label">Email</span>
-                <span className="dashboard-card__value">{user?.email || "—"}</span>
-              </div>
-              <div className="dashboard-card__row">
-                <span className="dashboard-card__label">Mã định danh</span>
-                <span className="dashboard-card__value">{user?.userCode || "—"}</span>
-              </div>
-              <div className="dashboard-card__row">
-                <span className="dashboard-card__label">Vai trò hệ thống</span>
-                <span className="dashboard-card__value dashboard-card__role-badge">
-                  {ROLE_LABELS[user?.role] || user?.role || "USER"}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="dashboard-card dashboard-card--system">
-            <h3>Thông tin Nền Tảng An Ninh AI</h3>
-            <div className="dashboard-card__rows">
-              <div className="dashboard-card__row">
-                <span className="dashboard-card__label">Backend Engine</span>
-                <span className="dashboard-card__value">Spring Boot 3.2.5 (Java 21)</span>
-              </div>
-              <div className="dashboard-card__row">
-                <span className="dashboard-card__label">Mô hình AI Nhận diện</span>
-                <span className="dashboard-card__value">InsightFace + YOLOv8</span>
-              </div>
-              <div className="dashboard-card__row">
-                <span className="dashboard-card__label">Cơ sở dữ liệu Vector</span>
-                <span className="dashboard-card__value">PostgreSQL 16 + pgvector</span>
-              </div>
-              <div className="dashboard-card__row">
-                <span className="dashboard-card__label">Trạng thái kết nối</span>
-                <span className="dashboard-card__value dashboard-card__status dashboard-card__status--ok">
-                  ● Đang hoạt động ổn định
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </main>
     </div>
   );
 }

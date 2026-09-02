@@ -22,18 +22,6 @@ public class AiFaceRegistrationResponseDto {
     @JsonProperty("image_front_url")
     private String imageFrontUrl;
 
-    @JsonProperty("image_left_url")
-    private String imageLeftUrl;
-
-    @JsonProperty("image_right_url")
-    private String imageRightUrl;
-
     @JsonProperty("embedding_front")
     private List<Float> embeddingFront;
-
-    @JsonProperty("embedding_left")
-    private List<Float> embeddingLeft;
-
-    @JsonProperty("embedding_right")
-    private List<Float> embeddingRight;
 }

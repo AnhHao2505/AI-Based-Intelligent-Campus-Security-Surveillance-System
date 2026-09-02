@@ -17,7 +17,5 @@ public class FaceDataResponseDto {
     private String code;
     private String fullName;
     private String imageFrontUrl;
-    private String imageLeftUrl;
-    private String imageRightUrl;
     private Instant createdAt;
 }

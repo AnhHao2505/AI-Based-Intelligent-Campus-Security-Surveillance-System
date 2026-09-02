@@ -128,70 +128,91 @@ face_embedder = FaceEmbedder(embedding_dim=512)
 async def process_face_registration(
     code: str = Form(...),
     full_name: str = Form(...),
-    front_image: UploadFile = File(...),
-    left_image: UploadFile = File(...),
-    right_image: UploadFile = File(...)
+    front_image: UploadFile = File(...)
 ):
     """
-    API nhận diện & trích xuất Vector Embedding 512 chiều từ 3 ảnh khuôn mặt (Front, Left, Right)
+    API nhận diện & trích xuất Vector Embedding 512 chiều từ ảnh khuôn mặt (Front)
     và lưu trữ vào MinIO cho Dataset quản trị.
     """
     global default_pipeline
     if not default_pipeline:
         raise HTTPException(status_code=500, detail="AI Service chưa sẵn sàng.")
 
-    images_input = {
-        "front": await front_image.read(),
-        "left": await left_image.read(),
-        "right": await right_image.read()
-    }
-
-    results = {}
-    embeddings = {}
-    image_urls = {}
+    raw_bytes = await front_image.read()
+    if not raw_bytes:
+        raise HTTPException(status_code=400, detail="Ảnh chính diện bị rỗng.")
 
     from .utils.image_utils import decode_image_safely
 
-    for angle, raw_bytes in images_input.items():
-        if not raw_bytes:
-            raise HTTPException(status_code=400, detail=f"Ảnh góc [{angle}] bị rỗng.")
+    try:
+        img, jpeg_bytes = decode_image_safely(raw_bytes)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Không thể đọc file ảnh chính diện: {str(e)}")
 
-        try:
-            img, jpeg_bytes = decode_image_safely(raw_bytes)
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Không thể đọc file ảnh góc [{angle}]: {str(e)}")
+    # Phát hiện khuôn mặt
+    faces = default_pipeline.face_detector.detect_in_image(img)
+    if not faces:
+        # Nếu không tìm thấy mặt với ngưỡng cao, thử trích xuất trực tiếp trên toàn bộ ảnh chân dung
+        face_crop = img
+    else:
+        # Cắt lấy vùng khuôn mặt có score cao nhất
+        faces.sort(key=lambda f: f.score, reverse=True)
+        fx1, fy1, fx2, fy2 = faces[0].bbox.to_int_xyxy()
+        ih, iw, _ = img.shape
+        fx1, fy1 = max(0, fx1), max(0, fy1)
+        fx2, fy2 = min(iw, fx2), min(ih, fy2)
+        face_crop = img[fy1:fy2, fx1:fx2] if (fx2 > fx1 and fy2 > fy1) else img
 
-        # Phát hiện khuôn mặt
-        faces = default_pipeline.face_detector.detect_in_image(img)
-        if not faces:
-            # Nếu không tìm thấy mặt với ngưỡng cao, thử trích xuất trực tiếp trên toàn bộ ảnh chân dung
-            face_crop = img
-        else:
-            # Cắt lấy vùng khuôn mặt có score cao nhất
-            faces.sort(key=lambda f: f.score, reverse=True)
-            fx1, fy1, fx2, fy2 = faces[0].bbox.to_int_xyxy()
-            ih, iw, _ = img.shape
-            fx1, fy1 = max(0, fx1), max(0, fy1)
-            fx2, fy2 = min(iw, fx2), min(ih, fy2)
-            face_crop = img[fy1:fy2, fx1:fx2] if (fx2 > fx1 and fy2 > fy1) else img
+    # Trích xuất vector 512 chiều
+    vector_512 = face_embedder.extract_embedding(face_crop)
 
-        # Trích xuất vector 512 chiều
-        vector_512 = face_embedder.extract_embedding(face_crop)
-        embeddings[f"embedding_{angle}"] = vector_512
-
-        # Upload ảnh JPEG đã được chuẩn hóa lên MinIO
-        uploaded_url = default_pipeline.storage_service.upload_face_image(jpeg_bytes, code=code, angle=angle)
-        image_urls[f"image_{angle}_url"] = uploaded_url or f"/storage/faces/{code}/{code}_{angle}.jpg"
+    # Upload ảnh JPEG đã được chuẩn hóa lên MinIO
+    uploaded_url = default_pipeline.storage_service.upload_face_image(jpeg_bytes, code=code, angle="front")
+    image_front_url = uploaded_url or f"/storage/faces/{code}/{code}_front.jpg"
 
     return {
         "success": True,
         "code": code,
         "full_name": full_name,
-        "image_front_url": image_urls["image_front_url"],
-        "image_left_url": image_urls["image_left_url"],
-        "image_right_url": image_urls["image_right_url"],
-        "embedding_front": embeddings["embedding_front"],
-        "embedding_left": embeddings["embedding_left"],
-        "embedding_right": embeddings["embedding_right"]
+        "image_front_url": image_front_url,
+        "embedding_front": vector_512
     }
+
+# Quản lý các Stream Worker đang chạy
+from .pipeline.stream_worker import CameraStreamWorker
+active_workers: Dict[str, CameraStreamWorker] = {}
+
+class StreamStartRequest(BaseModel):
+    camera_code: str = "CAM-001"
+    rtsp_url: str = "rtsp://localhost:8554/cam01"
+
+@app.post("/api/v1/stream/start")
+async def start_camera_stream(req: StreamStartRequest):
+    """Bắt đầu worker đọc luồng RTSP từ MediaMTX và phân tích AI liên tục"""
+    if req.camera_code in active_workers and active_workers[req.camera_code].is_running:
+        return {"status": "ALREADY_RUNNING", "camera_code": req.camera_code}
+
+    worker = CameraStreamWorker(camera_code=req.camera_code, rtsp_url=req.rtsp_url)
+    worker.start()
+    active_workers[req.camera_code] = worker
+    return {"status": "STARTED", "camera_code": req.camera_code, "rtsp_url": req.rtsp_url}
+
+@app.post("/api/v1/stream/stop")
+async def stop_camera_stream(camera_code: str = Query(..., example="CAM-001")):
+    """Dừng worker phân tích AI luồng camera"""
+    if camera_code not in active_workers:
+        raise HTTPException(status_code=404, detail="Camera worker không tồn tại.")
+    
+    active_workers[camera_code].stop()
+    del active_workers[camera_code]
+    return {"status": "STOPPED", "camera_code": camera_code}
+
+@app.get("/api/v1/stream/status")
+async def get_stream_status(camera_code: str = Query(..., example="CAM-001")):
+    """Xem trạng thái FPS và đối tượng đang track trên luồng"""
+    if camera_code not in active_workers:
+        return {"status": "STOPPED", "camera_code": camera_code, "is_running": False}
+    
+    return active_workers[camera_code].get_status()
+
 

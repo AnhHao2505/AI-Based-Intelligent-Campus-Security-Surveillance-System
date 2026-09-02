@@ -131,26 +131,26 @@ services:
   #     - sep_network
 
   # 6. AI Service (Python / YOLOv8 / ByteTrack / OpenCV YuNet)
-  ai-service:
-    build:
-      context: ./ai-service
-      dockerfile: Dockerfile
-    container_name: sep_ai_service
-    restart: always
-    ports:
-      - "8000:8000"
-    environment:
-      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      MINIO_ENDPOINT: minio:9000
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-    depends_on:
-      kafka:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-    networks:
-      - sep_network
+  # ai-service:
+  #   build:
+  #     context: ./ai-service
+  #     dockerfile: Dockerfile
+  #   container_name: sep_ai_service
+  #   restart: always
+  #   ports:
+  #     - "8000:8000"
+  #   environment:
+  #     KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+  #     MINIO_ENDPOINT: minio:9000
+  #     MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+  #     MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+  #   depends_on:
+  #     kafka:
+  #       condition: service_healthy
+  #     minio:
+  #       condition: service_healthy
+  #   networks:
+  #     - sep_network
 
   # 7. Frontend (Vite + React)
   # frontend:
@@ -165,6 +165,22 @@ services:
   #     - backend
   #   networks:
   #     - sep_network
+
+  # 8. Media Gateway (MediaMTX) — Chuyển đổi RTSP sang WebRTC độ trễ siêu thấp cho Browser
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    container_name: sep_mediamtx
+    restart: always
+    ports:
+      - "8554:8554"     # RTSP Stream cho AI Service
+      - "8888:8888"     # HLS Stream cho Trình duyệt
+      - "8889:8889"     # WebRTC (WHEP) cho Frontend Web
+      - "8189:8189/udp" # WebRTC UDP data channel
+      - "9997:9997"     # MediaMTX REST API
+    volumes:
+      - ./mediamtx.yml:/mediamtx.yml:ro
+    networks:
+      - sep_network
 
 volumes:
   pgdata:

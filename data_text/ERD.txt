@@ -1,5 +1,5 @@
 // ============================================================================
-// DATABASE DESIGN V3 — HỆ THỐNG GIÁM SÁT AN NINH THÔNG MINH (FA26SE040)
+// DATABASE DESIGN V4 — HỆ THỐNG GIÁM SÁT AN NINH THÔNG MINH (FA26SE040)
 // ============================================================================
 // Build incrementally (phát triển từ từ ERD, ko build toàn bộ hệ thống
 // mà chỉ build erd liên quan đến function)
@@ -8,7 +8,7 @@
 // ENTITY OF AUTHENTICATION MODULE
 // ============================================================================
 Table users {
-  id INT [pk, increment]
+  id UUID [pk, default: `gen_random_uuid()`]
   full_name VARCHAR(100) [not null]
   user_code VARCHAR(50) [not null, unique, note: 'MSNV or MSSV']
   role VARCHAR(50) [not null, note: 'ADMIN | FACILITY_MANAGER | INTERNAL_GUARD | OUTSOURCED_GUARD']
@@ -21,7 +21,7 @@ Table users {
 }
 
 Table password_reset_tokens {
-  id INT [pk, increment]
+  id UUID [pk, default: `gen_random_uuid()`]
   token VARCHAR(255) [not null, unique]
   email VARCHAR(255) [not null]
   expired_at TIMESTAMPTZ [not null]
@@ -29,6 +29,90 @@ Table password_reset_tokens {
   created_at TIMESTAMPTZ [default: `CURRENT_TIMESTAMP`]
 }
 
+// ============================================================================
+// ENTITY OF M06 AREA MANAGEMENT MODULE
+// ============================================================================
+Table area_levels {
+  level SMALLINT [pk]
+  code VARCHAR(30) [not null, unique]
+  name VARCHAR(100) [not null]
+  requires_face_recognition BOOLEAN [not null, default: true]
+  description TEXT
+  is_active BOOLEAN [not null, default: true]
+}
+
+Table areas {
+  id UUID [pk, default: `gen_random_uuid()`]
+  code VARCHAR(50) [not null]
+  name VARCHAR(150) [not null]
+  area_level SMALLINT [not null, ref: > area_levels.level]
+  building VARCHAR(50)
+  floor VARCHAR(20)
+  description TEXT
+  map_x NUMERIC(7,2)
+  map_y NUMERIC(7,2)
+  geometry JSONB [note: 'Area polygon geometry (type, version, vertices)']
+  is_active BOOLEAN [not null, default: true]
+  created_by UUID [ref: > users.id]
+  created_at TIMESTAMPTZ [not null, default: `CURRENT_TIMESTAMP`]
+  updated_by UUID [ref: > users.id]
+  updated_at TIMESTAMPTZ [not null, default: `CURRENT_TIMESTAMP`]
+  deleted_at TIMESTAMPTZ
+}
+
+Table floor_plans {
+  id UUID [pk, default: `gen_random_uuid()`]
+  building VARCHAR(50) [not null]
+  floor VARCHAR(20) [not null]
+  image_key VARCHAR(255) [not null]
+  original_width INTEGER [not null]
+  original_height INTEGER [not null]
+  is_active BOOLEAN [not null, default: true]
+  created_at TIMESTAMPTZ [not null, default: `CURRENT_TIMESTAMP`]
+  
+  indexes {
+    (`LOWER(building)`, `LOWER(floor)`) [unique, name: 'uq_floor_plans_building_floor']
+  }
+}
+
+Table area_change_logs {
+  id UUID [pk, default: `gen_random_uuid()`]
+  area_id UUID [not null, ref: > areas.id]
+  actor_id UUID [ref: > users.id]
+  action VARCHAR(20) [not null, note: 'CREATE | UPDATE | DEACTIVATE']
+  old_value JSONB
+  new_value JSONB
+  reason VARCHAR(255)
+  created_at TIMESTAMPTZ [not null, default: `CURRENT_TIMESTAMP`]
+}
+
+Table area_temporary_usages {
+  id UUID [pk, default: `gen_random_uuid()`]
+  area_id UUID [not null, ref: > areas.id]
+  event_name VARCHAR(150) [not null]
+  reason VARCHAR(255)
+  start_time TIMESTAMPTZ [not null]
+  end_time TIMESTAMPTZ [not null]
+  created_by UUID [ref: > users.id]
+  created_at TIMESTAMPTZ [not null, default: `CURRENT_TIMESTAMP`]
+  updated_by UUID [ref: > users.id]
+  updated_at TIMESTAMPTZ [not null, default: `CURRENT_TIMESTAMP`]
+}
+
+Table area_temporary_usage_change_logs {
+  id UUID [pk, default: `gen_random_uuid()`]
+  temporary_usage_id UUID [not null, ref: > area_temporary_usages.id]
+  actor_id UUID [not null, ref: > users.id]
+  action VARCHAR(20) [not null, note: 'EXTEND']
+  old_end_time TIMESTAMPTZ
+  new_end_time TIMESTAMPTZ [not null]
+  reason VARCHAR(255) [not null]
+  created_at TIMESTAMPTZ [not null, default: `CURRENT_TIMESTAMP`]
+}
+
+// ============================================================================
+// ENTITY OF CAMERA & AI SURVEILLANCE MODULE
+// ============================================================================
 Table cameras {
   id UUID [pk, default: `gen_random_uuid()`]
   camera_code VARCHAR(50) [not null, unique, note: 'CAM-001']
@@ -108,3 +192,7 @@ Ref: camera_specifications.camera_id - cameras.id
 Ref: camera_stream_configurations.camera_id - cameras.id
 Ref: camera_ai_configurations.camera_id - cameras.id
 Ref: camera_health_logs.camera_id > cameras.id
+
+Note: 'Liên kết với areas qua cặp (building, floor). 
+       Cố ý KHÔNG có FK. Join phải dùng LOWER() cả hai vế 
+       vì unique index trên bảng này là case-insensitive.'

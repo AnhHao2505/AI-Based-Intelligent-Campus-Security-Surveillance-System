@@ -114,7 +114,8 @@ class StorageService:
                     length=len(image_bytes),
                     content_type="image/jpeg"
                 )
-                minio_url = f"{settings.MINIO_ENDPOINT}/{self.bucket_name}/{object_name}"
+                schema = "https" if settings.MINIO_SECURE else "http"
+                minio_url = f"{schema}://{settings.MINIO_ENDPOINT}/{self.bucket_name}/{object_name}"
                 logger.info(f"[MINIO] Đã upload ảnh khuôn mặt: {minio_url}")
                 return minio_url
             except Exception as e:

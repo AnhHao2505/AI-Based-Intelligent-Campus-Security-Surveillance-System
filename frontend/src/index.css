@@ -3,6 +3,7 @@
    ======================================== */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import './styles/theme.css';
 
 *,
 *::before,
@@ -20,9 +21,10 @@ html {
 
 body {
   font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
-  background: #0a0e1a;
-  color: #f1f5f9;
+  background-color: var(--theme-bg-page);
+  color: var(--theme-text-primary);
   line-height: 1.6;
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 #root {

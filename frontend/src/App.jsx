@@ -1,28 +1,24 @@
 import { useState } from 'react';
-import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { GoogleOAuthProvider } from '@react-oauth/google';
-import { AuthProvider, useAuth } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
+import { AuthProvider } from './context/AuthContext';
 import { ROLES } from './constants/roles';
 import ProtectedRoute from './components/ProtectedRoute';
+import AppLayout from './components/layout/AppLayout';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
+import AdminDashboard from './pages/AdminDashboard';
 import UnauthorizedPage from './pages/UnauthorizedPage';
+import AreaListPage from './pages/AreaListPage';
+import AreaMapPage from './pages/areas/AreaMapPage';
 import CameraListPage from './pages/cameras/CameraListPage';
 import CameraDetailPage from './pages/cameras/CameraDetailPage';
 import FaceManagementPage from './pages/faceData/FaceManagementPage';
-import AppLayout from './components/layout/AppLayout';
+import GuardDashboardPage from './pages/guard/GuardDashboardPage';
 import './App.css';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
-
-function AppLayoutWrapper() {
-  const { user, logout } = useAuth();
-  return (
-    <AppLayout user={user} onLogout={logout}>
-      <Outlet />
-    </AppLayout>
-  );
-}
 
 function App() {
   const [resetToken, setResetToken] = useState(() => {
@@ -36,38 +32,34 @@ function App() {
 
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-      <AuthProvider>
-        <Routes>
-          {/* Public routes */}
-          <Route
-            path="/login"
-            element={
-              <LoginPage
-                initialResetToken={resetToken}
-                onResetComplete={() => setResetToken(null)}
-              />
-            }
-          />
-          <Route path="/unauthorized" element={<UnauthorizedPage />} />
+      <ThemeProvider>
+        <AuthProvider>
+          <Routes>
+            {/* Public Routes */}
+            <Route
+              path="/login"
+              element={
+                <LoginPage
+                  initialResetToken={resetToken}
+                  onResetComplete={() => setResetToken(null)}
+                />
+              }
+            />
+            <Route path="/unauthorized" element={<UnauthorizedPage />} />
 
-          {/* Protected routes - requires authentication */}
-          <Route element={<ProtectedRoute />}>
-            {/* Pages with Sidebar Layout */}
-            <Route element={<AppLayoutWrapper />}>
-              <Route path="/" element={<DashboardPage />} />
+            {/* Authenticated Management Routes using shared AppLayout */}
+            <Route
+              element={
+                <ProtectedRoute>
+                  <AppLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<DashboardPage />} />
 
-              {/* Zone / Area Management ("Quản lý Khu vực") - Admin only */}
               <Route
-                path="/admin/zones"
-                element={
-                  <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
-                    <AdminDashboard />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/zones"
+                path="/admin"
                 element={
                   <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
                     <AdminDashboard />
@@ -75,7 +67,24 @@ function App() {
                 }
               />
 
-              {/* Camera management - Admin only */}
+              <Route
+                path="/admin/areas"
+                element={
+                  <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.FACILITY_MANAGER]}>
+                    <AreaListPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/admin/areas/map"
+                element={
+                  <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.FACILITY_MANAGER]}>
+                    <AreaMapPage />
+                  </ProtectedRoute>
+                }
+              />
+
               <Route
                 path="/cameras"
                 element={
@@ -84,6 +93,7 @@ function App() {
                   </ProtectedRoute>
                 }
               />
+
               <Route
                 path="/cameras/:id"
                 element={
@@ -103,23 +113,21 @@ function App() {
                 }
               />
 
-              {/* Legacy /admin redirect */}
               <Route
-                path="/admin"
+                path="/guard"
                 element={
-                  <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
-                    <Navigate to="/admin/zones" replace />
+                  <ProtectedRoute allowedRoles={[ROLES.INTERNAL_GUARD, ROLES.OUTSOURCED_GUARD]}>
+                    <GuardDashboardPage />
                   </ProtectedRoute>
                 }
               />
             </Route>
 
-          </Route>
-
-          {/* Fallback */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </AuthProvider>
+            {/* Fallback */}
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
+        </AuthProvider>
+      </ThemeProvider>
     </GoogleOAuthProvider>
   );
 }

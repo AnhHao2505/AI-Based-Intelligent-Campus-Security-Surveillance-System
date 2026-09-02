@@ -50,27 +50,21 @@
 
 ## 3. Hướng Dẫn Quản Lý Dataset Khuôn Mặt
 
-Mô hình AI sử dụng kiến trúc **3 góc chụp** để nhận diện đối tượng ở mọi góc độ camera:
+Mô hình AI sử dụng kiến trúc **1 góc chụp** để nhận diện đối tượng ở mọi góc độ camera:
 1. **Chính diện (0°):** Nhìn thẳng camera, khuôn mặt chiếm 50% - 70% khung hình.
-2. **Nghiêng trái (30° - 45°):** Quay nhẹ mặt sang trái.
-3. **Nghiêng phải (30° - 45°):** Quay nhẹ mặt sang phải.
 
 > **💡 Tính năng tự động thông minh:** Hệ thống hỗ trợ mọi định dạng ảnh (`.JPG`, `.PNG`, `.WEBP`, `.BMP`) và **tự động chuyển đổi ngầm file `.HEIC` / `.HEIF` từ điện thoại iPhone/Samsung sang `.JPG`** ngay trong bộ nhớ.
 
 ### A. Nạp từng người ("➕ Thêm Hồ Sơ Mới"):
-- Không cần quy tắc đặt tên. Chỉ cần điền Mã số (MSSV/MSNV), Họ tên và chọn 3 ảnh tương ứng vào 3 ô.
+- Không cần quy tắc đặt tên. Chỉ cần điền Mã số (MSSV/MSNV), Họ tên và chọn 1 ảnh chân dung chính diện.
 
 ### B. Nạp hàng loạt ("📦 Nạp Hàng Loạt (.ZIP)"):
 - Chuẩn bị file `.zip` chứa các file ảnh được đặt tên theo quy tắc:
-  $$\text{[MÃ\_SỐ]}\_\text{[HỌ\_TÊN]}\_\text{[GÓC\_ẢNH]}.\text{jpg}$$
-- **Từ khóa góc ảnh ở cuối:** `_front` (chính diện), `_left` (trái), `_right` (phải).
+  $$\text{[MÃ\_SỐ]}\_\text{[HỌ\_TÊN]}.\text{jpg} \quad \text{hoặc} \quad \text{[MÃ\_SỐ]}\_\text{[HỌ\_TÊN]}\_\text{front}.\text{jpg}$$
 - **Ví dụ cụ thể:**
+  - `SE194249_Nguyen-Hoang-Minh.jpg`
   - `SE194249_Nguyen-Hoang-Minh_front.jpg`
-  - `SE194249_Nguyen-Hoang-Minh_left.jpg`
-  - `SE194249_Nguyen-Hoang-Minh_right.jpg`
-  - `SEC-001_Tran-Binh_front.jpg`
-  - `SEC-001_Tran-Binh_left.jpg`
-  - `SEC-001_Tran-Binh_right.jpg`
+  - `SEC-001_Tran-Binh.jpg`
 
 ---
 
@@ -113,8 +107,3 @@ docker compose up -d --build backend
 # Rebuild AI Service khi sửa Python / Model
 docker compose up -d --build ai-service
 ```
-
----
-
-> 🔒 **Ghi chú bảo mật & Quy tắc mã nguồn:**  
-> Toàn bộ các thay đổi được kiểm thử hoàn chỉnh trên môi trường máy cục bộ (Local). Tuyệt đối **không tự ý thực hiện `git push`** lên remote repository khi chưa có sự đồng ý của trưởng nhóm.

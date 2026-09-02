@@ -47,6 +47,7 @@ pgdata/
 pgadmindata/
 miniodata/
 kafkadata/
+backups/
 
 # Python & AI Service
 __pycache__/
@@ -60,4 +61,3 @@ venv/
 env/
 ai-service/evidence_snapshots/
 ai-service/runs/
-

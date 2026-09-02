@@ -43,15 +43,13 @@ export const faceDataService = {
   },
 
   /**
-   * Đăng ký hồ sơ khuôn mặt đơn lẻ (Mã số, Họ tên, 3 file ảnh)
+   * Đăng ký hồ sơ khuôn mặt đơn lẻ (Mã số, Họ tên, file ảnh chính diện)
    */
-  async registerSingleFace(code, fullName, frontFile, leftFile, rightFile) {
+  async registerSingleFace(code, fullName, frontFile) {
     const formData = new FormData();
     formData.append('code', code);
     formData.append('fullName', fullName);
     formData.append('frontImage', frontFile);
-    formData.append('leftImage', leftFile);
-    formData.append('rightImage', rightFile);
 
     const response = await fetch(`${API_BASE_URL}/register`, {
       method: 'POST',
