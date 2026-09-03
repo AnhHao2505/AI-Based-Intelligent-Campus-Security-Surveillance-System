@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     
     # Kafka Configuration
     KAFKA_BOOTSTRAP_SERVERS: str = Field(default="localhost:9092", alias="KAFKA_BOOTSTRAP_SERVERS")
-    KAFKA_TOPIC_ALERTS: str = "campus.security.alerts"
+    KAFKA_TOPIC_ALERTS: str = "security-incidents"
     KAFKA_TOPIC_HEALTH: str = "campus.camera.health"
     KAFKA_ENABLED: bool = True
     
@@ -16,7 +16,8 @@ class Settings(BaseSettings):
     MINIO_ENDPOINT: str = Field(default="localhost:9000", alias="MINIO_ENDPOINT")
     MINIO_ACCESS_KEY: str = Field(default="minioadmin", alias="MINIO_ROOT_USER")
     MINIO_SECRET_KEY: str = Field(default="minioadmin", alias="MINIO_ROOT_PASSWORD")
-    MINIO_BUCKET_NAME: str = "security-evidence"
+    MINIO_BUCKET_FACES: str = "face-profiles"
+    MINIO_BUCKET_EVIDENCE: str = "security-evidence"
     MINIO_SECURE: bool = False
     MINIO_ENABLED: bool = True
     
