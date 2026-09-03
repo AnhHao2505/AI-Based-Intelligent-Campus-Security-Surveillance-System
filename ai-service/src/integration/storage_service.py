@@ -61,6 +61,10 @@ class StorageService:
         if not image_bytes:
             return None
 
+        # Tự động thử kết nối lại nếu ban đầu chưa bật MinIO
+        if not self.is_connected or not self.client:
+            self._init_minio()
+
         file_name = f"{code}_{angle}.jpg"
         object_name = f"{code}/{file_name}"
 

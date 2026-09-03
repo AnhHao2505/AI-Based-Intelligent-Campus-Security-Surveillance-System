@@ -10,6 +10,9 @@ from typing import List, Optional, Dict, Any
 from .config import settings
 from .core.entity import Point
 from .pipeline.video_pipeline import VideoPipeline
+from .integration.storage_service import StorageService
+
+storage_service = StorageService()
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -167,7 +170,7 @@ async def process_face_registration(
     vector_512 = face_embedder.extract_embedding(face_crop)
 
     # Upload ảnh JPEG đã được chuẩn hóa lên MinIO
-    uploaded_url = default_pipeline.storage_service.upload_face_image(jpeg_bytes, code=code, angle="front")
+    uploaded_url = storage_service.upload_face_image(jpeg_bytes, code=code, angle="front")
     image_front_url = uploaded_url or f"/storage/faces/{code}/{code}_front.jpg"
 
     return {
