@@ -200,7 +200,7 @@ export default function GuardDashboardPage() {
                 <button
                   key={option.value}
                   type="button"
-                  className={`camera-layout-option ${cameraLayout === option.value ? 'active' : ''}`}
+                  className={`camera-layout-option camera-layout-option--${option.value} ${cameraLayout === option.value ? 'active' : ''}`}
                   onClick={() => setCameraLayout(option.value)}
                   aria-pressed={cameraLayout === option.value}
                 >

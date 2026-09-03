@@ -206,6 +206,10 @@
   transition: all 0.2s ease;
 }
 
+.camera-layout-option--1 {
+  color: #b0bac8;
+}
+
 .camera-layout-option:hover:not(:disabled) {
   background: rgba(99, 102, 241, 0.18);
   color: #c7d2fe;
@@ -695,6 +699,10 @@
 
 [data-theme="light"] .camera-layout-option {
   color: var(--theme-text-muted);
+}
+
+[data-theme="light"] .camera-layout-option--1 {
+  color: #536276;
 }
 
 [data-theme="light"] .camera-layout-option:hover:not(:disabled) {
