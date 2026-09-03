@@ -50,7 +50,8 @@ class CameraStreamWorker:
         """Vòng lặp đọc frame và phân tích AI"""
         logger.info(f"Bắt đầu kết nối luồng RTSP: {self.rtsp_url}")
         
-        # Cấu hình OpenCV mở RTSP qua TCP để tránh mất gói
+        # Ép OpenCV sử dụng giao thức TCP để tránh rớt gói tin H.264 qua Wi-Fi
+        os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp"
         cap = cv2.VideoCapture(self.rtsp_url, cv2.CAP_FFMPEG)
         cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
