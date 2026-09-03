@@ -15,7 +15,7 @@ import {
   getErrorMessage,
   formatToOffsetDateTime,
 } from '../../utils/areaHelpers';
-import './AreaListPage.css';
+import '../../styles/AreaListPage.css';
 
 export default function AreaListPage() {
   const { user } = useAuth();

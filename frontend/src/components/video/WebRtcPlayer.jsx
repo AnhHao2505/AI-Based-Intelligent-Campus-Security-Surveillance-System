@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import './WebRtcPlayer.css';
+import '../../styles/WebRtcPlayer.css';
 
 /**
  * WebRtcPlayer: Component phát luồng video WebRTC (WHEP) từ MediaMTX với độ trễ siêu thấp (< 0.2s)

@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { ROLES, ROLE_LABELS } from '../../constants/roles';
 import { useTheme } from '../../context/ThemeContext';
-import './Sidebar.css';
+import '../../styles/Sidebar.css';
 
 export default function Sidebar({ user, onLogout }) {
   const { theme, toggleTheme } = useTheme();

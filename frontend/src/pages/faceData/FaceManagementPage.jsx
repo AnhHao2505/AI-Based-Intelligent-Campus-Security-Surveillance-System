@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import heic2any from "heic2any";
 import { faceDataService } from "../../services/faceDataService";
-import "./FaceManagementPage.css";
+import "../../styles/FaceManagementPage.css";
 
 export default function FaceManagementPage() {
 	// State danh sách và phân trang
@@ -530,12 +530,6 @@ export default function FaceManagementPage() {
 									</li>
 									<li>
 										<code>SE150001_Nguyen-Van-A_front.jpg</code> (Chính diện)
-									</li>
-									<li>
-										<code>SE150001_Nguyen-Van-A_left.jpg</code> (Góc trái)
-									</li>
-									<li>
-										<code>SE150001_Nguyen-Van-A_right.jpg</code> (Góc phải)
 									</li>
 								</ul>
 							</div>

@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import '../pages/DashboardPage.css';
+import '../styles/DashboardPage.css';
 
 export default function AdminLayout({ children }) {
   const location = useLocation();

@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { fetchCameras, decommissionCamera, reactivateCamera } from '../../services/cameraService';
 import CameraCreateModal from './CameraCreateModal';
-import './CameraListPage.css';
+import '../../styles/CameraListPage.css';
 
 const STATUS_LABELS = {
   ACTIVE: 'Đang chạy',

@@ -1,7 +1,7 @@
 import { Outlet } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import Sidebar from './Sidebar';
-import './AppLayout.css';
+import '../../styles/AppLayout.css';
 
 export default function AppLayout({ children }) {
   const { user, logout } = useAuth();

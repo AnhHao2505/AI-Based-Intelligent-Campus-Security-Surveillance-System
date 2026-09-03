@@ -4,7 +4,7 @@ import { getFloorPlans, getAreaGeometries, saveAreaGeometry, deleteAreaGeometry 
 import { getLevelConfig } from '../../utils/areaHelpers';
 import { useAuth } from '../../context/AuthContext';
 import { ROLES } from '../../constants/roles';
-import './AreaMapPage.css';
+import '../../styles/AreaMapPage.css';
 
 const EPS = 0.0005;
 const round6 = (n) => Math.round(n * 1e6) / 1e6;

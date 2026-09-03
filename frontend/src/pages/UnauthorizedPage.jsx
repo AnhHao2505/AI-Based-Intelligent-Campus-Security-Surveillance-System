@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import './DashboardPage.css';
+import '../styles/DashboardPage.css';
 
 export default function UnauthorizedPage() {
   return (

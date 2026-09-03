@@ -14,7 +14,7 @@ import {
   UserCheck
 } from 'lucide-react';
 import WebRtcPlayer from '../../components/video/WebRtcPlayer';
-import './GuardDashboardPage.css';
+import '../../styles/GuardDashboardPage.css';
 
 export default function GuardDashboardPage() {
   const [selectedCamera, setSelectedCamera] = useState('cam01');

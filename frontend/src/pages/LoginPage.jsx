@@ -6,7 +6,7 @@ import {
   sendResetLink,
   resetPasswordWithToken
 } from '../services/authService';
-import './LoginPage.css';
+import '../styles/LoginPage.css';
 
 const ROLE_LABELS = {
   ADMIN: 'Quản trị viên',

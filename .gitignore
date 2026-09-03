@@ -61,3 +61,4 @@ venv/
 env/
 ai-service/evidence_snapshots/
 ai-service/runs/
+ai-service/face_storage/

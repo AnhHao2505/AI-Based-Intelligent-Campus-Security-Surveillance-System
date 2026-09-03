@@ -21,7 +21,7 @@ import {
   ChevronRight,
   Info
 } from 'lucide-react';
-import './EditZoneModal.css';
+import '../styles/EditZoneModal.css';
 
 const DEFAULT_ROLES = [
   { id: 'ADMIN', label: 'Quản trị viên (Admin)', color: 'purple' },

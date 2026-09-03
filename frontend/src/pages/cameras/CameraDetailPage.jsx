@@ -25,7 +25,7 @@ import {
   upsertAIConfig,
   fetchHealthLogs,
 } from "../../services/cameraService";
-import "./CameraDetailPage.css";
+import "../../styles/CameraDetailPage.css";
 
 export default function CameraDetailPage() {
   const { id } = useParams();

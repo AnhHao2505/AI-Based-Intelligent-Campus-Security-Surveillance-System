@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getAreas } from '../services/areaService';
-import './DashboardPage.css';
+import '../styles/DashboardPage.css';
 
 export default function DashboardPage() {
   const { user } = useAuth();

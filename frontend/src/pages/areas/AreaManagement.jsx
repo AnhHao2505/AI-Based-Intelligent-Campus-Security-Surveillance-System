@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import EditZoneModal from '../../components/EditZoneModal';
 import { CheckCircle2, Sliders, Bell, Settings } from 'lucide-react';
-import './AreaManagement.css';
+import '../../styles/AreaManagement.css';
 
 export default function AdminDashboard() {
   const [selectedZone, setSelectedZone] = useState('server-room');

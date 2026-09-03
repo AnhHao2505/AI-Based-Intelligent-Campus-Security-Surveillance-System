@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { X, Loader } from 'lucide-react';
 import { createCamera } from '../../services/cameraService';
-import './CameraCreateModal.css';
+import '../../styles/CameraCreateModal.css';
 
 export default function CameraCreateModal({ isOpen, onClose, onSuccess }) {
   const [loading, setLoading] = useState(false);
