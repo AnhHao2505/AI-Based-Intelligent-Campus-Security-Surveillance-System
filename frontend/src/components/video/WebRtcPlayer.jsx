@@ -163,13 +163,6 @@ export default function WebRtcPlayer({
               <div className="offline-icon">📹</div>
               <p>Chưa có tín hiệu từ Camera ({streamPath})</p>
               <span className="error-detail">{errorMsg || 'Đang chờ nguồn phát từ điện thoại...'}</span>
-              <button
-                type="button"
-                className="btn-retry-stream"
-                onClick={() => setRetryCount((prev) => prev + 1)}
-              >
-                🔄 Thử lại ngay
-              </button>
             </div>
           )}
         </div>

@@ -19,6 +19,7 @@ import '../../styles/GuardDashboardPage.css';
 
 export default function GuardDashboardPage() {
   const [selectedCamera, setSelectedCamera] = useState('cam01');
+  const [cameraLayout, setCameraLayout] = useState(1);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [wsConnected, setWsConnected] = useState(false);
   const [activeAlerts, setActiveAlerts] = useState([]);
@@ -134,6 +135,17 @@ export default function GuardDashboardPage() {
     setActiveAlerts((prev) => [newAlert, ...prev]);
   };
 
+  const cameraLayoutOptions = [
+    { value: 1, label: '1' },
+    { value: 4, label: '2x2' },
+    { value: 16, label: '4x4' },
+    { value: 64, label: '8x8' }
+  ];
+
+  const visibleCameras = cameraLayout === 1
+    ? [cameraList.find((camera) => camera.code === selectedCamera) || cameraList[0]]
+    : cameraList.slice(0, cameraLayout);
+
   return (
     <div className="guard-dashboard-container">
       {/* Top Status Banner */}
@@ -178,12 +190,39 @@ export default function GuardDashboardPage() {
       <div className="guard-main-grid">
         {/* Left Column: Live Video Surveillance */}
         <div className="video-surveillance-panel">
-          <div className="video-viewport-card">
-            <WebRtcPlayer
-              streamPath={selectedCamera}
-              host="localhost:8889"
-              cameraName={cameraList.find((c) => c.code === selectedCamera)?.name || 'Camera Live'}
-            />
+          <div className="camera-layout-toolbar">
+            <div className="camera-layout-label">
+              <Video size={16} />
+              <span>Chế độ hiển thị:</span>
+            </div>
+            <div className="camera-layout-options" role="group" aria-label="Số camera hiển thị">
+              {cameraLayoutOptions.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  className={`camera-layout-option ${cameraLayout === option.value ? 'active' : ''}`}
+                  onClick={() => setCameraLayout(option.value)}
+                  aria-pressed={cameraLayout === option.value}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            <span className="camera-availability-count">
+              {cameraList.length} camera khả dụng
+            </span>
+          </div>
+
+          <div className={`camera-grid camera-grid--${cameraLayout}`}>
+            {visibleCameras.map((camera) => (
+              <div className="video-viewport-card" key={camera.code}>
+                <WebRtcPlayer
+                  streamPath={camera.code}
+                  host="localhost:8889"
+                  cameraName={camera.name}
+                />
+              </div>
+            ))}
           </div>
 
           {/* Camera Selection Switcher */}
