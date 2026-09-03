@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     # MinIO Storage Configuration
     MINIO_ENDPOINT: str = Field(default="localhost:9000", alias="MINIO_ENDPOINT")
     MINIO_ACCESS_KEY: str = Field(default="minioadmin", alias="MINIO_ROOT_USER")
-    MINIO_SECRET_KEY: str = Field(default="minioadmin", alias="MINIO_ROOT_PASSWORD")
+    MINIO_SECRET_KEY: str = Field(default="minioadmin123", alias="MINIO_ROOT_PASSWORD")
     MINIO_BUCKET_FACES: str = "face-profiles"
     MINIO_BUCKET_EVIDENCE: str = "security-evidence"
     MINIO_SECURE: bool = False
@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     DEFAULT_INFERENCE_FPS: int = 10
     
     class Config:
-        env_file = ".env"
+        env_file = (".env", "../.env")
         extra = "ignore"
 
 settings = Settings()

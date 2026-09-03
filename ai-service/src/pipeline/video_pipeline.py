@@ -8,6 +8,7 @@ from ..config import settings
 from ..core.entity import Point, TrackedPerson, SecurityAlertEvent
 from ..core.human_detector import HumanDetector
 from ..core.face_detector import FaceDetector
+from ..core.face_matcher import FaceMatcher
 from ..core.loitering_engine import LoiteringEngine
 from ..integration.kafka_producer import SecurityKafkaProducer
 from ..integration.storage_service import StorageService
@@ -20,9 +21,10 @@ class VideoPipeline:
     Pipeline tích hợp toàn diện quy trình phân tích luồng Video:
     1. Human Detection & Tracking (YOLOv8 + ByteTrack)
     2. Crop vùng người & Face Detection (YuNet)
-    3. Loitering & Violation Analysis (ROI Polygon Check + Loitering Timer)
-    4. Cảnh báo tự động (Kafka Event + MinIO Snapshot Upload)
-    5. Visualization & Overlay Rendering
+    3. Face Recognition Matching (pgvector Cosine Search)
+    4. Loitering & Violation Analysis (ROI Polygon Check + Loitering Timer)
+    5. Cảnh báo tự động (Kafka Event + MinIO Snapshot Upload)
+    6. Visualization & Overlay Rendering
     """
     def __init__(
         self,
@@ -44,6 +46,7 @@ class VideoPipeline:
         logger.info(f"Khởi tạo VideoPipeline cho Camera [{camera_code}]...")
         self.human_detector = HumanDetector(model_path=yolo_path, conf_threshold=conf_threshold)
         self.face_detector = FaceDetector(model_path=yunet_path, score_threshold=settings.DEFAULT_FACE_CONFIDENCE)
+        self.face_matcher = FaceMatcher()
         self.loitering_engine = LoiteringEngine(loitering_threshold_seconds=loitering_threshold_seconds)
         
         # Khởi tạo các module tích hợp
@@ -82,20 +85,18 @@ class VideoPipeline:
         # 2. Phát hiện & Theo dõi người (Human Detection + ByteTrack)
         detected_tracks = self.human_detector.detect_and_track(frame, persist=True)
 
-        # 3. Quét khuôn mặt trên từng người được phát hiện (Face Detection)
+        # 3. Quét khuôn mặt trên từng người được phát hiện (Face Detection & Recognition)
         h, w, _ = frame.shape
         for track_id, bbox in detected_tracks:
             if track_id < 0:
                 continue
 
             x1, y1, x2, y2 = bbox.to_int_xyxy()
-            # Giới hạn tọa độ trong biên ảnh
             x1, y1 = max(0, x1), max(0, y1)
             x2, y2 = min(w, x2), min(h, y2)
 
             if (x2 - x1) > 20 and (y2 - y1) > 20:
-                # Cắt vùng nửa trên của cơ thể người để quét khuôn mặt nhanh hơn
-                crop_h = int((y2 - y1) * 0.6) # Lấy 60% chiều cao phía trên
+                crop_h = int((y2 - y1) * 0.6)
                 person_upper_crop = frame[y1:y1 + crop_h, x1:x2]
                 
                 if person_upper_crop.size > 0:
@@ -104,6 +105,19 @@ class VideoPipeline:
                         offset_xy=(x1, y1)
                     )
                     if face_result:
+                        # Cắt khuôn mặt chính xác để so khớp đặc trưng với CSDL
+                        fx1, fy1, fx2, fy2 = face_result.bbox.to_int_xyxy()
+                        fx1, fy1 = max(0, fx1), max(0, fy1)
+                        fx2, fy2 = min(w, fx2), min(h, fy2)
+                        face_crop = frame[fy1:fy2, fx1:fx2]
+                        if face_crop.size > 0:
+                            match = self.face_matcher.match_face(face_crop, threshold=0.55)
+                            if match:
+                                code, name, score = match
+                                face_result.matched_code = code
+                                face_result.matched_name = name
+                                face_result.is_authorized = True
+
                         self.loitering_engine.associate_face(track_id, face_result)
 
         # 4. Phân tích Loitering & Xâm nhập vùng cấm
