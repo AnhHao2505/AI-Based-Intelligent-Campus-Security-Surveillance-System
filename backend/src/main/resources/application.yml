@@ -46,6 +46,17 @@ spring:
       max-file-size: 100MB
       max-request-size: 100MB
 
+  # Apache Kafka Configuration
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: campus-security-backend-group
+      auto-offset-reset: latest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+
 # Actuator — health check, Phase 1 Definition of Done: GET /actuator/health -> 200 OK
 management:
   endpoints:

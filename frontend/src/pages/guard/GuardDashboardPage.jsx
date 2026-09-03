@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Client } from '@stomp/stompjs';
 import { 
   ShieldAlert, 
   Video, 
@@ -7,7 +8,7 @@ import {
   AlertTriangle, 
   Maximize2, 
   Volume2, 
-  VolumeX,
+  VolumeX, 
   Radio,
   Eye,
   Clock,
@@ -19,19 +20,8 @@ import './GuardDashboardPage.css';
 export default function GuardDashboardPage() {
   const [selectedCamera, setSelectedCamera] = useState('cam01');
   const [soundEnabled, setSoundEnabled] = useState(true);
-  const [activeAlerts, setActiveAlerts] = useState([
-    {
-      id: 1,
-      cameraCode: 'CAM-001',
-      cameraName: 'Cửa Phòng Server (Điện thoại Live)',
-      eventType: 'LOITERING_UNIDENTIFIED',
-      message: 'Phát hiện đối tượng che mặt lảng vảng trong vùng cấm',
-      duration: '14.2s',
-      timestamp: '17:35:10',
-      status: 'PENDING',
-      snapshotUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400&auto=format&fit=crop&q=80'
-    }
-  ]);
+  const [wsConnected, setWsConnected] = useState(false);
+  const [activeAlerts, setActiveAlerts] = useState([]);
   const [cameraList] = useState([
     { code: 'cam01', name: 'Camera 01 - Cửa Server (Phone Live)', zone: 'Tòa Alpha Tầng 2', status: 'ONLINE' },
     { code: 'cam02', name: 'Camera 02 - Cổng CSVC Vùng Cấm', zone: 'Khu CSVC Tân Uyên', status: 'STANDBY' },
@@ -58,6 +48,67 @@ export default function GuardDashboardPage() {
       console.warn('Audio Context không được phép tự động phát:', e);
     }
   };
+
+  // Lắng nghe sự kiện cảnh báo an ninh qua WebSocket STOMP từ Backend
+  useEffect(() => {
+    const stompClient = new Client({
+      brokerURL: 'ws://localhost:8080/ws-security',
+      reconnectDelay: 4000,
+      heartbeatIncoming: 4000,
+      heartbeatOutgoing: 4000,
+      onConnect: () => {
+        console.log('✅ [WebSocket] Đã kết nối STOMP tới Backend Spring Boot!');
+        setWsConnected(true);
+
+        stompClient.subscribe('/topic/security-alerts', (message) => {
+          if (message.body) {
+            try {
+              const incident = JSON.parse(message.body);
+              console.log('🔔 [WebSocket Alert Received]:', incident);
+
+              // Chuẩn hóa đường dẫn ảnh chứng cứ từ MinIO
+              let snapshot = incident.image_url || '';
+              if (snapshot.includes('minio:9000')) {
+                snapshot = snapshot.replace('minio:9000', 'localhost:9000');
+              } else if (snapshot.startsWith('/storage/')) {
+                snapshot = `http://localhost:9000/security-evidence/${snapshot.replace('/storage/', '')}`;
+              }
+
+              const newAlert = {
+                id: incident.event_id || Date.now(),
+                cameraCode: incident.camera_code || 'CAM-001',
+                cameraName: 'Cửa Phòng Server (Điện thoại Live)',
+                eventType: incident.event_type || 'LOITERING_UNIDENTIFIED',
+                message: incident.details || 'Phát hiện đối tượng khả nghi trong vùng cấm',
+                duration: incident.duration_seconds ? `${incident.duration_seconds}s` : 'Vừa phát hiện',
+                timestamp: new Date().toLocaleTimeString('vi-VN'),
+                status: 'PENDING',
+                snapshotUrl: snapshot
+              };
+
+              setActiveAlerts((prev) => [newAlert, ...prev]);
+              playAlertSound();
+            } catch (err) {
+              console.error('Lỗi parse incident JSON:', err);
+            }
+          }
+        });
+      },
+      onDisconnect: () => {
+        setWsConnected(false);
+      },
+      onStompError: (frame) => {
+        console.warn('STOMP error:', frame.headers['message']);
+        setWsConnected(false);
+      }
+    });
+
+    stompClient.activate();
+
+    return () => {
+      stompClient.deactivate();
+    };
+  }, [soundEnabled]);
 
   // Xác nhận xử lý cảnh báo
   const handleAcknowledge = (id) => {
@@ -96,6 +147,11 @@ export default function GuardDashboardPage() {
         </div>
 
         <div className="guard-header-actions">
+          <span className={`ws-status-chip ${wsConnected ? 'connected' : 'disconnected'}`}>
+            <span className="dot" />
+            {wsConnected ? 'WebSocket Live' : 'Đang kết nối Server...'}
+          </span>
+
           <button 
             type="button" 
             className={`btn-sound-toggle ${soundEnabled ? 'active' : ''}`}
