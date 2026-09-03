@@ -182,21 +182,65 @@
   border-radius: 4px;
 }
 
-.btn-retry-stream {
-  background: rgba(99, 102, 241, 0.2);
-  border: 1px solid rgba(99, 102, 241, 0.5);
-  color: #c7d2fe;
-  padding: 6px 14px;
-  border-radius: 6px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
+[data-theme="light"] .webrtc-player-wrapper {
+  background: var(--theme-bg-surface);
+  border-color: var(--theme-border);
+  box-shadow: var(--theme-card-shadow);
 }
 
-.btn-retry-stream:hover {
-  background: rgba(99, 102, 241, 0.4);
-  color: #fff;
+[data-theme="light"] .player-header-overlay {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94) 0%, rgba(255, 255, 255, 0) 100%);
+}
+
+[data-theme="light"] .cam-code-tag {
+  background: var(--theme-primary-light);
+  border-color: var(--theme-primary-border);
+  color: var(--theme-primary);
+}
+
+[data-theme="light"] .cam-title {
+  color: var(--theme-text-primary);
+  text-shadow: 0 1px 3px rgba(255, 255, 255, 0.8);
+}
+
+[data-theme="light"] .live-indicator-chip {
+  background: var(--theme-danger-bg);
+  border-color: var(--theme-danger-border);
+  color: var(--theme-danger-text);
+}
+
+[data-theme="light"] .connecting-chip {
+  background: var(--theme-warning-bg);
+  border-color: var(--theme-warning-border);
+  color: var(--theme-warning-text);
+}
+
+[data-theme="light"] .spinner-dot {
+  border-color: var(--theme-warning);
+  border-top-color: transparent;
+}
+
+[data-theme="light"] .offline-chip {
+  background: var(--theme-bg-desc);
+  border-color: var(--theme-border);
+  color: var(--theme-text-muted);
+}
+
+[data-theme="light"] .player-fallback-overlay {
+  background: radial-gradient(circle at center, var(--theme-bg-surface-elevated) 0%, var(--theme-bg-page) 100%);
+}
+
+[data-theme="light"] .fallback-content p {
+  color: var(--theme-text-primary);
+}
+
+[data-theme="light"] .sub-hint {
+  color: var(--theme-text-muted);
+}
+
+[data-theme="light"] .error-detail {
+  color: var(--theme-danger-text);
+  background: var(--theme-danger-bg);
 }
 
 @keyframes spin {

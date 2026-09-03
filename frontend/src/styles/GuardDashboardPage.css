@@ -143,7 +143,7 @@
 /* Main Grid Layout */
 .guard-main-grid {
   display: grid;
-  grid-template-columns: 1fr 380px;
+  grid-template-columns: minmax(0, 1fr) 340px;
   gap: 20px;
   flex: 1;
 }
@@ -159,22 +159,212 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
+  min-width: 0;
+}
+
+.camera-layout-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 46px;
+  padding: 8px 12px;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+}
+
+.camera-layout-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #94a3b8;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.camera-layout-options {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px;
+  background: rgba(30, 41, 59, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+}
+
+.camera-layout-option {
+  min-width: 42px;
+  padding: 5px 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.camera-layout-option:hover:not(:disabled) {
+  background: rgba(99, 102, 241, 0.18);
+  color: #c7d2fe;
+}
+
+.camera-layout-option.active {
+  background: rgba(99, 102, 241, 0.3);
+  color: #c7d2fe;
+}
+
+.camera-layout-option:disabled {
+  color: #475569;
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.camera-availability-count {
+  margin-left: auto;
+  color: #64748b;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.camera-grid {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  width: 100%;
+}
+
+.camera-grid--1 {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.camera-grid--4 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.camera-grid--16 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.camera-grid--64 {
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+}
+
+.camera-grid--16 .player-header-overlay,
+.camera-grid--64 .player-header-overlay {
+  padding: 6px;
+}
+
+.camera-grid--16 .cam-title,
+.camera-grid--64 .cam-title {
+  display: none;
+}
+
+.camera-grid--16 .cam-code-tag,
+.camera-grid--64 .cam-code-tag {
+  padding: 2px 5px;
+  font-size: 0.62rem;
+}
+
+.camera-grid--16 .live-indicator-chip,
+.camera-grid--16 .connecting-chip,
+.camera-grid--16 .offline-chip {
+  padding: 2px 5px;
+  font-size: 0.58rem;
+}
+
+.camera-grid--64 .live-indicator-chip,
+.camera-grid--64 .connecting-chip,
+.camera-grid--64 .offline-chip {
+  padding: 2px 4px;
+  font-size: 0;
+}
+
+.camera-grid--64 .live-dot,
+.camera-grid--64 .spinner-dot {
+  width: 6px;
+  height: 6px;
+}
+
+.camera-grid--16 .fallback-content,
+.camera-grid--64 .fallback-content {
+  padding: 8px;
+  max-width: 100%;
+}
+
+.camera-grid--16 .fallback-content p,
+.camera-grid--64 .fallback-content p {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.camera-grid--16 .fallback-content p,
+.camera-grid--16 .sub-hint,
+.camera-grid--16 .error-detail,
+.camera-grid--64 .fallback-content p,
+.camera-grid--64 .sub-hint,
+.camera-grid--64 .error-detail {
+  font-size: 0.62rem;
+}
+
+.camera-grid--64 .sub-hint,
+.camera-grid--64 .error-detail {
+  display: none;
+}
+
+.camera-grid--64 .fallback-content p {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .camera-layout-toolbar {
+    flex-wrap: wrap;
+  }
+
+  .camera-availability-count {
+    margin-left: 0;
+  }
 }
 
 .video-viewport-card {
   width: 100%;
+  min-width: 0;
 }
 
 .camera-switcher-bar {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
   padding: 12px 16px;
   background: rgba(15, 23, 42, 0.6);
   backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
   overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.camera-switcher-bar::-webkit-scrollbar {
+  height: 5px;
+}
+
+.camera-switcher-bar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.camera-switcher-bar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.55);
+  border-radius: 0;
+}
+
+.camera-switcher-bar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.55) transparent;
 }
 
 .switcher-label {
@@ -185,12 +375,15 @@
   font-size: 0.82rem;
   font-weight: 600;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .camera-tabs-list {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: max-content;
+  flex-shrink: 0;
 }
 
 .cam-tab-btn {
@@ -454,4 +647,185 @@
   color: #10b981;
   font-size: 0.75rem;
   font-weight: 600;
+}
+
+[data-theme="light"] .guard-dashboard-container {
+  color: var(--theme-text-primary);
+}
+
+[data-theme="light"] .guard-top-header,
+[data-theme="light"] .camera-switcher-bar,
+[data-theme="light"] .incident-alerts-panel {
+  background: var(--theme-bg-surface);
+  border-color: var(--theme-border);
+  box-shadow: var(--theme-card-shadow);
+  backdrop-filter: none;
+}
+
+[data-theme="light"] .guard-title-box h2 {
+  color: var(--theme-text-primary);
+}
+
+[data-theme="light"] .camera-layout-toolbar {
+  background: var(--theme-bg-surface);
+  border-color: var(--theme-border);
+  box-shadow: var(--theme-card-shadow);
+}
+
+[data-theme="light"] .camera-layout-label {
+  color: var(--theme-text-secondary);
+}
+
+[data-theme="light"] .camera-layout-options {
+  background: var(--theme-bg-desc);
+  border-color: var(--theme-border);
+}
+
+[data-theme="light"] .camera-layout-option {
+  color: var(--theme-text-muted);
+}
+
+[data-theme="light"] .camera-layout-option:hover:not(:disabled) {
+  background: var(--theme-primary-light);
+  color: var(--theme-primary);
+}
+
+[data-theme="light"] .camera-layout-option.active {
+  background: var(--theme-primary-light);
+  color: var(--theme-primary);
+}
+
+[data-theme="light"] .camera-layout-option:disabled {
+  color: var(--theme-text-disabled);
+}
+
+[data-theme="light"] .camera-availability-count {
+  color: var(--theme-text-muted);
+}
+
+[data-theme="light"] .live-pulse-badge {
+  background: var(--theme-danger-bg);
+  border-color: var(--theme-danger-border);
+  color: var(--theme-danger-text);
+}
+
+[data-theme="light"] .ws-status-chip.connected {
+  background: var(--theme-success-bg);
+  border-color: var(--theme-success-border);
+  color: var(--theme-success-text);
+}
+
+[data-theme="light"] .ws-status-chip.disconnected {
+  background: var(--theme-warning-bg);
+  border-color: var(--theme-warning-border);
+  color: var(--theme-warning-text);
+}
+
+[data-theme="light"] .btn-sound-toggle {
+  background: var(--theme-bg-desc);
+  border-color: var(--theme-border);
+  color: var(--theme-text-secondary);
+}
+
+[data-theme="light"] .btn-sound-toggle.active {
+  background: var(--theme-success-bg);
+  border-color: var(--theme-success-border);
+  color: var(--theme-success-text);
+}
+
+[data-theme="light"] .btn-sim-alert {
+  background: var(--theme-danger-bg);
+  border-color: var(--theme-danger-border);
+  color: var(--theme-danger-text);
+}
+
+[data-theme="light"] .btn-sim-alert:hover {
+  background: var(--theme-danger-border);
+  color: var(--theme-danger-text);
+}
+
+[data-theme="light"] .switcher-label,
+[data-theme="light"] .incident-details-row {
+  color: var(--theme-text-secondary);
+}
+
+[data-theme="light"] .cam-tab-btn {
+  background: var(--theme-bg-desc);
+  border-color: var(--theme-border);
+}
+
+[data-theme="light"] .cam-tab-btn:hover {
+  background: var(--theme-bg-surface-elevated);
+  border-color: var(--theme-border-hover);
+}
+
+[data-theme="light"] .cam-tab-btn.active {
+  background: var(--theme-primary-light);
+  border-color: var(--theme-primary-border);
+}
+
+[data-theme="light"] .cam-tab-code {
+  color: var(--theme-primary);
+}
+
+[data-theme="light"] .cam-tab-name,
+[data-theme="light"] .empty-incident-box p,
+[data-theme="light"] .incident-message {
+  color: var(--theme-text-primary);
+}
+
+[data-theme="light"] .panel-header {
+  border-bottom-color: var(--theme-border);
+}
+
+[data-theme="light"] .panel-title h3 {
+  color: var(--theme-text-primary);
+}
+
+[data-theme="light"] .incident-count-chip {
+  background: var(--theme-danger-bg);
+  border-color: var(--theme-danger-border);
+  color: var(--theme-danger-text);
+}
+
+[data-theme="light"] .incident-alert-card {
+  background: var(--theme-bg-desc);
+  border-color: var(--theme-border);
+}
+
+[data-theme="light"] .incident-alert-card.pending {
+  background: var(--theme-danger-bg);
+  border-left-color: var(--theme-danger);
+}
+
+[data-theme="light"] .incident-alert-card.resolved {
+  border-left-color: var(--theme-success);
+}
+
+[data-theme="light"] .incident-badge {
+  color: var(--theme-danger-text);
+}
+
+[data-theme="light"] .incident-time,
+[data-theme="light"] .empty-incident-box span {
+  color: var(--theme-text-muted);
+}
+
+[data-theme="light"] .incident-snapshot-box {
+  border-color: var(--theme-border);
+}
+
+[data-theme="light"] .btn-ack-incident {
+  background: var(--theme-success-bg);
+  border-color: var(--theme-success-border);
+  color: var(--theme-success-text);
+}
+
+[data-theme="light"] .btn-ack-incident:hover {
+  background: var(--theme-success-border);
+  color: var(--theme-success-text);
+}
+
+[data-theme="light"] .resolved-status-tag {
+  color: var(--theme-success-text);
 }

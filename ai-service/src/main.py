@@ -198,7 +198,7 @@ async def start_camera_stream(req: StreamStartRequest):
     return {"status": "STARTED", "camera_code": req.camera_code, "rtsp_url": req.rtsp_url}
 
 @app.post("/api/v1/stream/stop")
-async def stop_camera_stream(camera_code: str = Query("CAM-001")):
+async def stop_camera_stream(camera_code: str = Query(..., example="CAM-001")):
     """Dừng worker phân tích AI luồng camera"""
     if camera_code not in active_workers:
         raise HTTPException(status_code=404, detail="Camera worker không tồn tại.")
@@ -208,7 +208,7 @@ async def stop_camera_stream(camera_code: str = Query("CAM-001")):
     return {"status": "STOPPED", "camera_code": camera_code}
 
 @app.get("/api/v1/stream/status")
-async def get_stream_status(camera_code: str = Query("CAM-001")):
+async def get_stream_status(camera_code: str = Query(..., example="CAM-001")):
     """Xem trạng thái FPS và đối tượng đang track trên luồng"""
     if camera_code not in active_workers:
         return {"status": "STOPPED", "camera_code": camera_code, "is_running": False}
