@@ -44,7 +44,7 @@ public class AccessRequestController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('NORMAL_USER', 'FACILITY_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasRole('NORMAL_USER')")
     public ResponseEntity<AccessRequestResponse> createRequest(
             @Valid @RequestBody AccessRequestCreateRequest request,
             Authentication authentication
@@ -56,7 +56,7 @@ public class AccessRequestController {
     }
 
     @GetMapping("/my")
-    @PreAuthorize("hasAnyRole('NORMAL_USER', 'FACILITY_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasRole('NORMAL_USER'')")
     public ResponseEntity<Page<AccessRequestResponse>> getMyRequests(
             @RequestParam(required = false) RequestStatus status,
             @RequestParam(defaultValue = "0") int page,
@@ -70,7 +70,7 @@ public class AccessRequestController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('FACILITY_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasRole('FACILITY_MANAGER')")
     public ResponseEntity<Page<AccessRequestResponse>> getAllRequests(
             @RequestParam(required = false) RequestStatus status,
             @RequestParam(defaultValue = "0") int page,
@@ -94,7 +94,7 @@ public class AccessRequestController {
     }
 
     @PatchMapping("/{id}/review")
-    @PreAuthorize("hasAnyRole('FACILITY_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasRole('FACILITY_MANAGER')")
     public ResponseEntity<AccessRequestResponse> reviewRequest(
             @PathVariable UUID id,
             @Valid @RequestBody AccessRequestReviewRequest reviewRequest,

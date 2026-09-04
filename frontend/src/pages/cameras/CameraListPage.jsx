@@ -12,7 +12,7 @@ import {
   Loader2 
 } from 'lucide-react';
 import { fetchCameras, decommissionCamera, reactivateCamera } from '../../services/cameraService';
-import CameraCreateModal from './CameraCreateModal';
+import CameraCreateModal from '../../components/CameraCreateModal';
 import '../../styles/CameraListPage.css';
 
 const STATUS_LABELS = {

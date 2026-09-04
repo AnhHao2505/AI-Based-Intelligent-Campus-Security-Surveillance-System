@@ -54,6 +54,14 @@ export default function Sidebar({ user, onLogout }) {
         </NavLink>
 
         <nav className="sidebar__nav">
+          <NavLink
+            to="/dashboard"
+            className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+          >
+            <LayoutDashboard size={18} />
+            <span>Dashboard</span>
+          </NavLink>
+
           {isGuard && (
             <NavLink
               to="/guard"
@@ -63,14 +71,6 @@ export default function Sidebar({ user, onLogout }) {
               <span>Giám sát An ninh</span>
             </NavLink>
           )}
-
-          <NavLink
-            to="/dashboard"
-            className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
-          >
-            <LayoutDashboard size={18} />
-            <span>Dashboard</span>
-          </NavLink>
 
           {/* Yêu cầu truy cập dành cho Normal User */}
           {(isNormalUser) && (
@@ -84,7 +84,7 @@ export default function Sidebar({ user, onLogout }) {
           )}
 
           {/* Phê duyệt truy cập dành cho Facility Manager & Admin */}
-          {(isAdmin || isFacilityManager) && (
+          {(isFacilityManager) && (
             <NavLink
               to="/admin/access-requests"
               className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
@@ -92,27 +92,6 @@ export default function Sidebar({ user, onLogout }) {
               <ClipboardCheck size={18} />
               <span>Phê duyệt truy cập</span>
             </NavLink>
-          )}
-
-          {(isAdmin || isFacilityManager) && (
-            <>
-              <NavLink
-                to="/admin/areas"
-                end
-                className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
-              >
-                <MapPin size={18} />
-                <span>Cấu hình vùng (Zones)</span>
-              </NavLink>
-
-              <NavLink
-                to="/admin/areas/map"
-                className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
-              >
-                <Map size={18} />
-                <span>Bản đồ khu vực</span>
-              </NavLink>
-            </>
           )}
 
           {isAdmin && (
@@ -131,6 +110,23 @@ export default function Sidebar({ user, onLogout }) {
               >
                 <UserRound size={18} />
                 <span>Quản lý Khuôn mặt</span>
+              </NavLink>
+
+              <NavLink
+                to="/admin/areas"
+                end
+                className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+              >
+                <MapPin size={18} />
+                <span>Cấu hình vùng (Zones)</span>
+              </NavLink>
+
+              <NavLink
+                to="/admin/areas/map"
+                className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+              >
+                <Map size={18} />
+                <span>Bản đồ khu vực</span>
               </NavLink>
             </>
           )}

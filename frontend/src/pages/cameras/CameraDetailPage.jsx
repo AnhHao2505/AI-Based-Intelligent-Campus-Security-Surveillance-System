@@ -895,7 +895,7 @@ export default function CameraDetailPage() {
                     />
                   </div>
                   <div className="form-group">
-                    <label>Số lần thử lại trước khi cảnh báo</label>
+                    <label>Số lần kết nối lại trước khi cảnh báo</label>
                     <input
                       type="number"
                       placeholder="3"
