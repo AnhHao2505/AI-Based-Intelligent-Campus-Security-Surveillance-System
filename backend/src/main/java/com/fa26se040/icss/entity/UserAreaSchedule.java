@@ -1,5 +1,6 @@
 package com.fa26se040.icss.entity;
 
+import com.fa26se040.icss.enums.DayOfWeekEnum;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -9,8 +10,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.JoinTable;
-import jakarta.persistence.ManyToMany;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -20,74 +20,59 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import com.fa26se040.icss.dto.area.AreaGeometry;
-import com.fa26se040.icss.enums.AreaLevel;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
-
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
-import java.util.HashSet;
 import java.util.Objects;
-import java.util.Set;
 import java.util.UUID;
 
 @Entity
-@Table(name = "areas")
+@Table(name = "user_area_schedules")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Area {
+public class UserAreaSchedule {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
+    @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
-    @Column(name = "code", nullable = false, length = 50)
-    private String code;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "area_id", nullable = false)
+    private Area area;
 
     @Column(name = "name", nullable = false, length = 150)
     private String name;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "area_level", nullable = false, length = 30)
-    private AreaLevel areaLevel;
+    @Column(name = "day_of_week", nullable = false, length = 10)
+    private DayOfWeekEnum dayOfWeek;
 
-    @Column(name = "building", length = 50)
-    private String building;
+    @Column(name = "start_time", nullable = false)
+    private LocalTime startTime;
 
-    @Column(name = "floor", length = 20)
-    private String floor;
-
-    @Column(name = "description", columnDefinition = "TEXT")
-    private String description;
-
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "geometry", columnDefinition = "jsonb")
-    private AreaGeometry geometry;
+    @Column(name = "end_time", nullable = false)
+    private LocalTime endTime;
 
     @Column(name = "is_active", nullable = false)
     @Builder.Default
     private Boolean isActive = true;
 
-    @Column(name = "created_at")
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by")
+    private User createdBy;
+
+    @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 
-    @Column(name = "updated_at")
+    @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
-
-    @Column(name = "deleted_at")
-    private OffsetDateTime deletedAt;
-
-    @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(
-        name = "area_cameras",
-        joinColumns = @JoinColumn(name = "area_id"),
-        inverseJoinColumns = @JoinColumn(name = "camera_id")
-    )
-    @Builder.Default
-    private Set<Camera> cameras = new HashSet<>();
 
     @PrePersist
     protected void onCreate() {
@@ -112,8 +97,8 @@ public class Area {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        Area area = (Area) o;
-        return id != null && Objects.equals(id, area.id);
+        UserAreaSchedule that = (UserAreaSchedule) o;
+        return id != null && Objects.equals(id, that.id);
     }
 
     @Override

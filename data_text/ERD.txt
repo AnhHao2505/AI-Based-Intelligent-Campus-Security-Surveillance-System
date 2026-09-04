@@ -11,7 +11,7 @@ Table users {
   id UUID [pk, default: `gen_random_uuid()`]
   full_name VARCHAR(100) [not null]
   user_code VARCHAR(50) [not null, unique, note: 'MSNV or MSSV']
-  role VARCHAR(50) [not null, note: 'ADMIN | FACILITY_MANAGER | INTERNAL_GUARD | OUTSOURCED_GUARD']
+  role VARCHAR(50) [not null, note: 'ADMIN | FACILITY_MANAGER | INTERNAL_GUARD | OUTSOURCED_GUARD | NORMAL_USER']
   email VARCHAR(255) [not null, unique]
   password VARCHAR(60) [note: 'b64-encoded bcrypt hash, length=60'] 
   is_active BOOLEAN [not null, default: true, note: 'true: Active, false: Inactive']
@@ -131,12 +131,77 @@ Table camera_health_logs {
   error_message VARCHAR(255) [note: 'Mô tả lỗi camera']
 }
 
+// Bảng trung gian Area N-N Camera
+Table area_cameras {
+  area_id UUID [not null, note: 'FK to areas']
+  camera_id UUID [not null, note: 'FK to cameras']
+  
+  indexes {
+    (area_id, camera_id) [pk]
+  }
+}
+
+// ============================================================================
+// ENTITY OF ACCESS REQUEST & SCHEDULING MODULE
+// ============================================================================
+Table access_requests {
+  id UUID [pk, default: `gen_random_uuid()`]
+  area_id UUID [not null, note: 'FK to areas — khu vực cần truy cập']
+  requester_id UUID [not null, note: 'FK to users — người tạo request (cá nhân hoặc đại diện nhóm)']
+  request_type VARCHAR(20) [not null, note: 'INDIVIDUAL | GROUP']
+  purpose TEXT [not null, note: 'Mục đích sử dụng']
+  start_time TIMESTAMPTZ [not null, note: 'Thời gian bắt đầu sử dụng']
+  end_time TIMESTAMPTZ [not null, note: 'Thời gian kết thúc sử dụng']
+  status VARCHAR(20) [not null, default: 'PENDING', note: 'PENDING | APPROVED | REJECTED']
+  reviewer_id UUID [note: 'FK to users — FM phê duyệt']
+  reviewed_at TIMESTAMPTZ [note: 'Thời điểm FM xử lý']
+  rejection_reason TEXT [note: 'Lý do từ chối nếu bị reject']
+  created_at TIMESTAMPTZ [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at TIMESTAMPTZ [not null, default: `CURRENT_TIMESTAMP`]
+}
+
+Table access_request_members {
+  id UUID [pk, default: `gen_random_uuid()`]
+  access_request_id UUID [not null, note: 'FK to access_requests']
+  user_id UUID [not null, note: 'FK to users — thành viên trong nhóm được yêu cầu truy cập']
+
+  indexes {
+    (access_request_id, user_id) [unique]
+  }
+}
+
+Table user_area_schedules {
+  id UUID [pk, default: `gen_random_uuid()`]
+  user_id UUID [not null, note: 'FK to users — nhân viên được gán lịch']
+  area_id UUID [not null, note: 'FK to areas — khu vực làm việc/truy cập']
+  name VARCHAR(150) [not null, note: 'Tên ca/lịch làm việc, vd: Ca sáng, Ca chiều']
+  day_of_week VARCHAR(10) [not null, note: 'MONDAY | TUESDAY | WEDNESDAY | THURSDAY | FRIDAY | SATURDAY | SUNDAY']
+  start_time TIME [not null, note: 'Giờ bắt đầu ca']
+  end_time TIME [not null, note: 'Giờ kết thúc ca (giờ đóng cửa)']
+  is_active BOOLEAN [not null, default: true]
+  created_by UUID [note: 'FK to users — FM tạo lịch']
+  created_at TIMESTAMPTZ [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at TIMESTAMPTZ [not null, default: `CURRENT_TIMESTAMP`]
+}
+
 // Relationships
 Ref: camera_specifications.camera_id - cameras.id
 Ref: camera_stream_configurations.camera_id - cameras.id
 Ref: camera_ai_configurations.camera_id - cameras.id
 Ref: camera_health_logs.camera_id > cameras.id
 
-Note: 'Liên kết với areas qua cặp (building, floor). 
-       Cố ý KHÔNG có FK. Join phải dùng LOWER() cả hai vế 
-       vì unique index trên bảng này là case-insensitive.'
+// Area - Camera N-N Relationships
+Ref: area_cameras.area_id > areas.id
+Ref: area_cameras.camera_id > cameras.id
+
+// Access Request & Scheduling Relationships
+Ref: access_requests.area_id > areas.id
+Ref: access_requests.requester_id > users.id
+Ref: access_requests.reviewer_id > users.id
+
+Ref: access_request_members.access_request_id > access_requests.id
+Ref: access_request_members.user_id > users.id
+
+Ref: user_area_schedules.user_id > users.id
+Ref: user_area_schedules.area_id > areas.id
+Ref: user_area_schedules.created_by > users.id

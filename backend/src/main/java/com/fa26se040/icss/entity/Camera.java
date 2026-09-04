@@ -9,7 +9,9 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Entity
@@ -71,6 +73,10 @@ public class Camera {
 
     @OneToMany(mappedBy = "camera", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<CameraHealthLog> healthLogs;
+
+    @ManyToMany(mappedBy = "cameras", fetch = FetchType.LAZY)
+    @Builder.Default
+    private Set<Area> areas = new HashSet<>();
 
     @PrePersist
     protected void onCreate() {

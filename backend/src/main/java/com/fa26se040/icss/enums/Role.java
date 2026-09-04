@@ -4,5 +4,6 @@ public enum Role {
     ADMIN,
     FACILITY_MANAGER,
     INTERNAL_GUARD,
-    OUTSOURCED_GUARD
+    OUTSOURCED_GUARD,
+    NORMAL_USER
 }
