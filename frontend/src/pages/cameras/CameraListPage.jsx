@@ -100,6 +100,12 @@ export default function CameraListPage() {
 
   return (
     <div className="camera-list-page">
+      {/* Background Ambience */}
+      <div className="camera-ambient">
+        <div className="camera-ambient__orb camera-ambient__orb--1" />
+        <div className="camera-ambient__orb camera-ambient__orb--2" />
+      </div>
+
       <div className="page-header">
         <div>
           <h1>Hệ thống Camera Giám sát</h1>
@@ -179,7 +185,6 @@ export default function CameraListPage() {
                 <tr>
                   <th>Mã Camera</th>
                   <th>Tên thiết bị</th>
-                  <th>Vị trí (Tầng / Khu vực)</th>
                   <th>Trạng thái thiết bị</th>
                   <th>Trạng thái kết nối</th>
                   <th className="text-right">Hành động</th>
@@ -199,16 +204,12 @@ export default function CameraListPage() {
                         </div>
                       </td>
                       <td>
-                        {cam.floor !== null ? `Tầng ${cam.floor}` : 'N/A'}{' '}
-                        {cam.zoneName ? ` - ${cam.zoneName}` : ''}
-                      </td>
-                      <td>
-                        <span className={`status-badge badge-${cam.status.toLowerCase()}`}>
+                        <span className={`status-badge badge-${cam.status ? cam.status.toLowerCase() : ''}`}>
                           {STATUS_LABELS[cam.status] || cam.status}
                         </span>
                       </td>
                       <td>
-                        <span className={`status-badge op-badge-${opStatus.toLowerCase()}`}>
+                        <span className={`status-badge op-badge-${opStatus ? opStatus.toLowerCase() : ''}`}>
                           <span className="badge-dot">●</span>
                           {OP_STATUS_LABELS[opStatus] || opStatus}
                         </span>

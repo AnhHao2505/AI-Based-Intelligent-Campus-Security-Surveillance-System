@@ -1,4 +1,4 @@
-# M06 — Quản lý khu vực · Implementation Spec
+<!-- # M06 — Quản lý khu vực · Implementation Spec
 
 **Dự án:** ICSS (FA26SE040) · **Module:** M06 — Area Management
 **Version:** 2.0 — viết lại trên nền `origin/main`. Thay thế hoàn toàn v1.x.
@@ -479,4 +479,4 @@ CREATE INDEX ix_areas_parent ON areas(parent_area_id) WHERE deleted_at IS NULL;
 
 Kèm theo: luật `con.area_level >= cha.area_level`, chống vòng lặp, giới hạn 3 cấp, chặn nâng cấp độ cha khi con lỏng hơn, endpoint `GET /api/areas/tree`, component `AreaParentSelect`.
 
-Ước lượng thêm: **1 ngày**.
+Ước lượng thêm: **1 ngày**. -->
