@@ -6,7 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.util.UUID;
 
-import com.fa26se040.icss.entity.StreamProtocol;
+import com.fa26se040.icss.enums.StreamProtocol;
 
 @Data
 @Builder
@@ -19,9 +19,8 @@ public class CameraStreamConfigResponse {
     private Integer port;
     private String username;
     private String credentialRef;
-    private String mainStreamUrl;
-    private String subStreamUrl;
-    private Boolean streamEnabled;
-    private Boolean reconnectEnabled;
+    private String mainStreamPath;
+    private String subStreamPath;
+    private Integer retryTimeBeforeAlerting;
     private Integer timeoutMs;
 }

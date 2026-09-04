@@ -128,6 +128,21 @@
     <build>
         <plugins>
             <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>${java.version}</source>
+                    <target>${java.version}</target>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+            <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
@@ -141,15 +156,4 @@
             </plugin>
         </plugins>
     </build>
-
-    <!--
-        GHI CHÚ — Dependency CHƯA thêm ở Phase 1, sẽ bổ sung đúng lúc cần
-        (không import trước để tránh phình nặng project sớm):
-
-        - spring-kafka                → Phase 3 (Walking Skeleton)
-        - spring-boot-starter-websocket → Phase 3 (Walking Skeleton)
-        - io.minio:minio              → Phase 4 (upload ảnh hồ sơ MF1)
-        - com.pgvector:pgvector       → Phase 4 (map cột vector(512) trong
-                                          user_face_data sang Entity Java)
-    -->
 </project>

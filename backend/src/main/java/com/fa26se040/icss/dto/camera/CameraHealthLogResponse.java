@@ -8,7 +8,7 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
-import com.fa26se040.icss.entity.OperationalStatus;
+import com.fa26se040.icss.enums.OperationalStatus;
 
 @Data
 @Builder

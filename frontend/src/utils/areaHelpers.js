@@ -2,10 +2,11 @@
  * Area Level Visual Mapping & Helpers
  */
 export const AREA_LEVEL_CONFIG = {
-  1: {
+  PUBLIC: {
     code: 'PUBLIC',
-    name: 'Public Area',
-    badgeLabel: 'LEVEL 1 — PUBLIC',
+    name: 'Công cộng',
+    rank: 1,
+    badgeLabel: 'PUBLIC',
     badgeClass: 'level-badge--public',
     cardClass: 'zone-card--public',
     color: '#10b981',
@@ -13,10 +14,11 @@ export const AREA_LEVEL_CONFIG = {
     borderColor: 'rgba(16, 185, 129, 0.35)',
     icon: 'globe'
   },
-  2: {
+  SEMI_PRIVATE: {
     code: 'SEMI_PRIVATE',
-    name: 'Semi-Private Area',
-    badgeLabel: 'LEVEL 2 — SEMI PRIVATE',
+    name: 'Bán hạn chế',
+    rank: 2,
+    badgeLabel: 'SEMI PRIVATE',
     badgeClass: 'level-badge--semi-private',
     cardClass: 'zone-card--semi-private',
     color: '#f59e0b',
@@ -24,10 +26,11 @@ export const AREA_LEVEL_CONFIG = {
     borderColor: 'rgba(245, 158, 11, 0.35)',
     icon: 'shield'
   },
-  3: {
+  PRIVATE: {
     code: 'PRIVATE',
-    name: 'Private Area',
-    badgeLabel: 'LEVEL 3 — PRIVATE',
+    name: 'Hạn chế tuyệt đối',
+    rank: 3,
+    badgeLabel: 'PRIVATE',
     badgeClass: 'level-badge--private',
     cardClass: 'zone-card--private',
     color: '#ef4444',
@@ -41,11 +44,19 @@ export const AREA_LEVEL_CONFIG = {
  * Lấy config hiển thị cho Level
  */
 export function getLevelConfig(level) {
-  const numLevel = typeof level === 'object' ? level?.level : Number(level);
-  return AREA_LEVEL_CONFIG[numLevel] || {
-    code: 'UNKNOWN',
+  let key = level;
+  if (typeof level === 'object' && level !== null) {
+    key = level.code || level.areaLevel || level.level;
+  }
+  if (key === 1 || key === '1') key = 'PUBLIC';
+  if (key === 2 || key === '2') key = 'SEMI_PRIVATE';
+  if (key === 3 || key === '3') key = 'PRIVATE';
+
+  return AREA_LEVEL_CONFIG[key] || {
+    code: key || 'UNKNOWN',
     name: 'Unknown Level',
-    badgeLabel: `LEVEL ${numLevel || '?'}`,
+    rank: 0,
+    badgeLabel: `${key || '?'}`,
     badgeClass: 'level-badge--unknown',
     cardClass: '',
     color: '#6366f1',
@@ -62,18 +73,14 @@ export const ERROR_MESSAGES = {
   ERR_AREA_001: 'Mã khu vực đã tồn tại trên hệ thống.',
   ERR_AREA_002: 'Không tìm thấy khu vực hoặc khu vực đã bị vô hiệu hóa.',
   ERR_AREA_003: 'Cấp độ an ninh không hợp lệ hoặc đã bị vô hiệu hóa.',
-  ERR_AREA_004: 'Mã khu vực không được phép thay đổi.',
-  ERR_AREA_005: 'Khi hạ cấp độ an ninh, lý do là bắt buộc (10–255 ký tự).',
-  ERR_AREA_006: 'Tọa độ bản đồ Map X và Map Y phải cùng có hoặc cùng để trống.',
-  ERR_AREA_007: 'Không thể vô hiệu hóa khu vực do còn phụ thuộc (Camera / Thiết bị).',
-  ERR_TEMP_USAGE_001: 'Thời gian kết thúc phải sau thời gian bắt đầu.',
-  ERR_TEMP_USAGE_002: 'Thời gian kết thúc phải sau thời điểm hiện tại.',
-  ERR_TEMP_USAGE_003: 'Thời gian sử dụng tạm thời bị trùng với phiên khác trong khu vực này.',
-  ERR_TEMP_USAGE_004: 'Không tìm thấy phiên sử dụng tạm thời.',
-  ERR_TEMP_USAGE_005: 'Thời gian kết thúc mới phải sau thời gian kết thúc hiện tại.',
-  ERR_TEMP_USAGE_006: 'Phiên sử dụng tạm thời đã kết thúc, không thể gia hạn.',
-  ERR_TEMP_USAGE_007: 'Lý do gia hạn không hợp lệ, yêu cầu từ 10 đến 255 ký tự.'
+  ERR_AREA_004: 'Mã khu vực chỉ gồm chữ in hoa, số và dấu gạch ngang, dài 3–50 ký tự.',
+  ERR_AREA_005: 'Tên khu vực bắt buộc, tối đa 150 ký tự.',
+  ERR_AREA_007: 'Không được thay đổi mã khu vực sau khi tạo.',
+  ERR_AREA_008: 'Khi hạ cấp độ an ninh, lý do là bắt buộc (10–255 ký tự).',
+  ERR_AREA_009: 'Không thể vô hiệu hóa khu vực do còn camera đang gán.',
+  ERR_AREA_010: 'Không thể vô hiệu hóa khu vực do còn quyền truy cập.',
 };
+
 
 export function getErrorMessage(error) {
   if (!error) return 'Đã có lỗi xảy ra. Vui lòng thử lại.';

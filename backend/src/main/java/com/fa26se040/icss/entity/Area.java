@@ -2,12 +2,11 @@ package com.fa26se040.icss.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -18,10 +17,10 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import com.fa26se040.icss.dto.area.AreaGeometry;
+import com.fa26se040.icss.enums.AreaLevel;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
-import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Objects;
 import java.util.UUID;
@@ -45,8 +44,8 @@ public class Area {
     @Column(name = "name", nullable = false, length = 150)
     private String name;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "area_level", nullable = false)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "area_level", nullable = false, length = 30)
     private AreaLevel areaLevel;
 
     @Column(name = "building", length = 50)
@@ -58,12 +57,6 @@ public class Area {
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
-    @Column(name = "map_x", precision = 7, scale = 2)
-    private BigDecimal mapX;
-
-    @Column(name = "map_y", precision = 7, scale = 2)
-    private BigDecimal mapY;
-
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "geometry", columnDefinition = "jsonb")
     private AreaGeometry geometry;
@@ -72,14 +65,8 @@ public class Area {
     @Builder.Default
     private Boolean isActive = true;
 
-    @Column(name = "created_by")
-    private UUID createdBy;
-
     @Column(name = "created_at")
     private OffsetDateTime createdAt;
-
-    @Column(name = "updated_by")
-    private UUID updatedBy;
 
     @Column(name = "updated_at")
     private OffsetDateTime updatedAt;

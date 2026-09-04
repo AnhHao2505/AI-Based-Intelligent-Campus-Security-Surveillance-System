@@ -204,16 +204,18 @@ export default function AreaMapPage() {
   };
 
   const getLevelDotClass = (level) => {
-    if (level === 1) return 'area-map-page__level-dot--1';
-    if (level === 2) return 'area-map-page__level-dot--2';
-    if (level === 3) return 'area-map-page__level-dot--3';
+    const key = typeof level === 'object' && level !== null ? (level.code || level.areaLevel || level.level) : level;
+    if (key === 'PUBLIC' || key === 1 || key === '1') return 'area-map-page__level-dot--1';
+    if (key === 'SEMI_PRIVATE' || key === 2 || key === '2') return 'area-map-page__level-dot--2';
+    if (key === 'PRIVATE' || key === 3 || key === '3') return 'area-map-page__level-dot--3';
     return 'area-map-page__level-dot--default';
   };
 
   const getLevelPolygonClass = (level) => {
-    if (level === 1) return 'area-map-page__polygon--1';
-    if (level === 2) return 'area-map-page__polygon--2';
-    if (level === 3) return 'area-map-page__polygon--3';
+    const key = typeof level === 'object' && level !== null ? (level.code || level.areaLevel || level.level) : level;
+    if (key === 'PUBLIC' || key === 1 || key === '1') return 'area-map-page__polygon--1';
+    if (key === 'SEMI_PRIVATE' || key === 2 || key === '2') return 'area-map-page__polygon--2';
+    if (key === 'PRIVATE' || key === 3 || key === '3') return 'area-map-page__polygon--3';
     return 'area-map-page__polygon--default';
   };
 
@@ -295,9 +297,8 @@ export default function AreaMapPage() {
                       onError={() => setImageError(true)}
                     />
                     <svg
-                      className={`area-map-page__overlay ${
-                        drawingAreaId !== null ? 'area-map-page__overlay--drawing' : ''
-                      }`}
+                      className={`area-map-page__overlay ${drawingAreaId !== null ? 'area-map-page__overlay--drawing' : ''
+                        }`}
                       viewBox={`0 0 ${selectedPlan.originalWidth} ${selectedPlan.originalHeight}`}
                       preserveAspectRatio="none"
                       xmlns="http://www.w3.org/2000/svg"
@@ -346,9 +347,8 @@ export default function AreaMapPage() {
                               cx={v.x * selectedPlan.originalWidth}
                               cy={v.y * selectedPlan.originalHeight}
                               r={6}
-                              className={`area-map-page__draft-vertex ${
-                                index === 0 ? 'area-map-page__draft-vertex--first' : ''
-                              }`}
+                              className={`area-map-page__draft-vertex ${index === 0 ? 'area-map-page__draft-vertex--first' : ''
+                                }`}
                             />
                           ))}
                         </>
@@ -482,14 +482,13 @@ export default function AreaMapPage() {
                       return (
                         <div
                           key={area.id}
-                          className={`area-map-page__area-item ${
-                            isDrawingThis ? 'area-map-page__area-item--drawing' : ''
-                          }`}
+                          className={`area-map-page__area-item ${isDrawingThis ? 'area-map-page__area-item--drawing' : ''
+                            }`}
                         >
                           <div className="area-map-page__area-main">
                             <span
-                              className={`area-map-page__level-dot ${getLevelDotClass(area.level)}`}
-                              title={`Level ${area.level || '?'}: ${getLevelConfig(area.level).name}`}
+                              className={`area-map-page__level-dot ${getLevelDotClass(area.areaLevel || area.level)}`}
+                              title={`${getLevelConfig(area.areaLevel || area.level).badgeLabel}: ${getLevelConfig(area.areaLevel || area.level).name}`}
                             />
                             <div className="area-map-page__area-info">
                               <span className="area-map-page__area-name">{area.name}</span>
@@ -544,11 +543,10 @@ export default function AreaMapPage() {
                               </>
                             )}
                             <span
-                              className={`area-map-page__geo-badge ${
-                                !area.geometry
+                              className={`area-map-page__geo-badge ${!area.geometry
                                   ? 'area-map-page__geo-badge--none'
                                   : 'area-map-page__geo-badge--has'
-                              }`}
+                                }`}
                             >
                               {!area.geometry ? 'Chưa có hình' : 'Đã có hình'}
                             </span>

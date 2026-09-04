@@ -1,5 +1,6 @@
 package com.fa26se040.icss.entity;
 
+import com.fa26se040.icss.enums.OperationalStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;

@@ -8,8 +8,8 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import com.fa26se040.icss.entity.Camera;
-import com.fa26se040.icss.entity.CameraStatus;
-import com.fa26se040.icss.entity.OperationalStatus;
+import com.fa26se040.icss.enums.CameraStatus;
+import com.fa26se040.icss.enums.OperationalStatus;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -21,7 +21,7 @@ public interface CameraRepository extends JpaRepository<Camera, UUID> {
     Optional<Camera> findTopByCameraCodeStartingWithOrderByCameraCodeDesc(String prefix);
 
     @Query("SELECT c FROM Camera c WHERE c.deletedAt IS NULL " +
-           "AND (LOWER(c.cameraCode) LIKE :search OR LOWER(c.name) LIKE :search OR LOWER(c.zoneName) LIKE :search) " +
+           "AND (LOWER(c.cameraCode) LIKE :search OR LOWER(c.name) LIKE :search) " +
            "AND (:status IS NULL OR c.status = :status) " +
            "AND (:opStatus IS NULL OR c.operationalStatus = :opStatus)")
     Page<Camera> findFiltered(@Param("search") String search,

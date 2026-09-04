@@ -15,9 +15,6 @@ public class CameraAIConfigResponse {
     private UUID id;
     private Boolean personDetectionEnabled;
     private Boolean faceRecognitionEnabled;
-    private Boolean loiteringDetectionEnabled;
     private BigDecimal faceMatchThreshold;
-    private Integer loiteringThresholdSeconds;
     private Integer inferenceFps;
-    private String modelVersion;
 }

@@ -30,13 +30,6 @@ export async function getAreaById(id) {
   return apiGet(`/api/areas/${id}`);
 }
 
-/**
- * Lấy danh sách Area Levels cấu hình an ninh
- * GET /api/area-levels
- */
-export async function getAreaLevels() {
-  return apiGet('/api/area-levels');
-}
 
 /**
  * Kiểm tra các phụ thuộc trước khi xóa/vô hiệu hóa khu vực
@@ -70,21 +63,6 @@ export async function deactivateArea(id) {
   return apiDelete(`/api/areas/${id}`);
 }
 
-/**
- * Tạo thời gian sử dụng tạm thời cho phòng (ADMIN)
- * POST /api/areas/{areaId}/temporary-usages
- */
-export async function createTemporaryUsage(areaId, data) {
-  return apiPost(`/api/areas/${areaId}/temporary-usages`, data);
-}
-
-/**
- * Gia hạn thời gian sử dụng tạm thời (ADMIN)
- * PATCH /api/areas/{areaId}/temporary-usages/{temporaryUsageId}/extend
- */
-export async function extendTemporaryUsage(areaId, temporaryUsageId, data) {
-  return apiPatch(`/api/areas/${areaId}/temporary-usages/${temporaryUsageId}/extend`, data);
-}
 
 /**
  * Lấy danh sách floor plan

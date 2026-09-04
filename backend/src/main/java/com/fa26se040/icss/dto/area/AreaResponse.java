@@ -1,6 +1,6 @@
 package com.fa26se040.icss.dto.area;
 
-import java.math.BigDecimal;
+import com.fa26se040.icss.enums.AreaLevel;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -8,15 +8,12 @@ public record AreaResponse(
     UUID id,
     String code,
     String name,
-    AreaLevelResponse level,
+    AreaLevel areaLevel,
     String building,
     String floor,
     String description,
-    BigDecimal mapX,
-    BigDecimal mapY,
+    AreaGeometry geometry,
     Boolean isActive,
-    UUID createdBy,
     OffsetDateTime createdAt,
-    UUID updatedBy,
     OffsetDateTime updatedAt
 ) {}
