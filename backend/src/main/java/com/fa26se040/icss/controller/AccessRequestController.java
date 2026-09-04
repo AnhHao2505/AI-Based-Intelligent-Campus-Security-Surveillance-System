@@ -56,7 +56,7 @@ public class AccessRequestController {
     }
 
     @GetMapping("/my")
-    @PreAuthorize("hasRole('NORMAL_USER'')")
+    @PreAuthorize("hasRole('NORMAL_USER')")
     public ResponseEntity<Page<AccessRequestResponse>> getMyRequests(
             @RequestParam(required = false) RequestStatus status,
             @RequestParam(defaultValue = "0") int page,
