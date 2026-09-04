@@ -6,13 +6,10 @@ import {
   Bell, 
   CheckCircle2, 
   AlertTriangle, 
-  Maximize2, 
   Volume2, 
   VolumeX, 
   Radio,
-  Eye,
   Clock,
-  UserCheck
 } from 'lucide-react';
 import WebRtcPlayer from '../../components/video/WebRtcPlayer';
 import '../../styles/GuardDashboardPage.css';

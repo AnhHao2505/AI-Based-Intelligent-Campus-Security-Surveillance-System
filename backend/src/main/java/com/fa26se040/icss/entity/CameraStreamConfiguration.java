@@ -1,5 +1,6 @@
 package com.fa26se040.icss.entity;
 
+import com.fa26se040.icss.enums.StreamProtocol;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -40,19 +41,15 @@ public class CameraStreamConfiguration {
     @Column(name = "credential_ref", length = 255)
     private String credentialRef;
 
-    @Column(name = "main_stream_url", nullable = false, length = 512)
-    private String mainStreamUrl;
+    @Column(name = "main_stream_path", nullable = false, length = 512)
+    private String mainStreamPath;
 
-    @Column(name = "sub_stream_url", length = 512)
-    private String subStreamUrl;
+    @Column(name = "sub_stream_path", length = 512)
+    private String subStreamPath;
 
-    @Column(name = "stream_enabled", nullable = false)
+    @Column(name = "retries_before_alert", nullable = false)
     @Builder.Default
-    private Boolean streamEnabled = true;
-
-    @Column(name = "reconnect_enabled", nullable = false)
-    @Builder.Default
-    private Boolean reconnectEnabled = true;
+    private Integer retryTimeBeforeAlerting = 3;
 
     @Column(name = "timeout_ms", nullable = false)
     @Builder.Default

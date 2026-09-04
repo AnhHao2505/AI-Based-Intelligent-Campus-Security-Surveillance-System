@@ -19,15 +19,6 @@ public class UpdateCameraRequest {
     @Size(max = 100, message = "Camera name cannot exceed 100 characters")
     private String name;
 
-    private Integer floor;
-
-    @Size(max = 255, message = "Zone name cannot exceed 255 characters")
-    private String zoneName;
-
-    private BigDecimal x;
-
-    private BigDecimal y;
-
     private BigDecimal mountingHeight;
 
     private BigDecimal orientation;

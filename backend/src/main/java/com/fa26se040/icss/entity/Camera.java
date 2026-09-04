@@ -1,5 +1,7 @@
 package com.fa26se040.icss.entity;
 
+import com.fa26se040.icss.enums.CameraStatus;
+import com.fa26se040.icss.enums.OperationalStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -7,7 +9,9 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Entity
@@ -28,18 +32,6 @@ public class Camera {
 
     @Column(name = "name", nullable = false, length = 100)
     private String name;
-
-    @Column(name = "floor")
-    private Integer floor;
-
-    @Column(name = "zone_name", length = 255)
-    private String zoneName;
-
-    @Column(name = "x", precision = 15, scale = 6)
-    private BigDecimal x;
-
-    @Column(name = "y", precision = 15, scale = 6)
-    private BigDecimal y;
 
     @Column(name = "mounting_height", precision = 5, scale = 2)
     private BigDecimal mountingHeight;
@@ -81,6 +73,10 @@ public class Camera {
 
     @OneToMany(mappedBy = "camera", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<CameraHealthLog> healthLogs;
+
+    @ManyToMany(mappedBy = "cameras", fetch = FetchType.LAZY)
+    @Builder.Default
+    private Set<Area> areas = new HashSet<>();
 
     @PrePersist
     protected void onCreate() {

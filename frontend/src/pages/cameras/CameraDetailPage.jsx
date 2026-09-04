@@ -48,10 +48,6 @@ export default function CameraDetailPage() {
   const [camera, setCamera] = useState(null);
   const [generalForm, setGeneralForm] = useState({
     name: "",
-    floor: "",
-    zoneName: "",
-    x: "",
-    y: "",
     mountingHeight: "",
     orientation: "",
     tiltAngle: "",
@@ -79,21 +75,17 @@ export default function CameraDetailPage() {
     port: "",
     username: "",
     credentialRef: "",
-    mainStreamUrl: "",
-    subStreamUrl: "",
-    streamEnabled: true,
-    reconnectEnabled: true,
+    mainStreamPath: "",
+    subStreamPath: "",
+    retryTimeBeforeAlerting: 3,
     timeoutMs: 5000,
   });
 
   const [aiForm, setAiForm] = useState({
     personDetectionEnabled: false,
     faceRecognitionEnabled: false,
-    loiteringDetectionEnabled: false,
     faceMatchThreshold: 0.8,
-    loiteringThresholdSeconds: 300,
     inferenceFps: 5,
-    modelVersion: "",
   });
 
   const loadCameraDetails = async () => {
@@ -106,13 +98,6 @@ export default function CameraDetailPage() {
       // Init General Form
       setGeneralForm({
         name: data.name || "",
-        floor:
-          data.floor !== null && data.floor !== undefined
-            ? data.floor.toString()
-            : "",
-        zoneName: data.zoneName || "",
-        x: data.x !== null && data.x !== undefined ? data.x.toString() : "",
-        y: data.y !== null && data.y !== undefined ? data.y.toString() : "",
         mountingHeight:
           data.mountingHeight !== null && data.mountingHeight !== undefined
             ? data.mountingHeight.toString()
@@ -166,10 +151,13 @@ export default function CameraDetailPage() {
               : "",
           username: data.streamConfig.username || "",
           credentialRef: data.streamConfig.credentialRef || "",
-          mainStreamUrl: data.streamConfig.mainStreamUrl || "",
-          subStreamUrl: data.streamConfig.subStreamUrl || "",
-          streamEnabled: data.streamConfig.streamEnabled !== false,
-          reconnectEnabled: data.streamConfig.reconnectEnabled !== false,
+          mainStreamPath: data.streamConfig.mainStreamPath || "",
+          subStreamPath: data.streamConfig.subStreamPath || "",
+          retryTimeBeforeAlerting:
+            data.streamConfig.retryTimeBeforeAlerting !== null &&
+            data.streamConfig.retryTimeBeforeAlerting !== undefined
+              ? data.streamConfig.retryTimeBeforeAlerting
+              : 3,
           timeoutMs: data.streamConfig.timeoutMs || 5000,
         });
       }
@@ -179,12 +167,8 @@ export default function CameraDetailPage() {
         setAiForm({
           personDetectionEnabled: !!data.aiConfig.personDetectionEnabled,
           faceRecognitionEnabled: !!data.aiConfig.faceRecognitionEnabled,
-          loiteringDetectionEnabled: !!data.aiConfig.loiteringDetectionEnabled,
           faceMatchThreshold: data.aiConfig.faceMatchThreshold || 0.8,
-          loiteringThresholdSeconds:
-            data.aiConfig.loiteringThresholdSeconds || 300,
           inferenceFps: data.aiConfig.inferenceFps || 5,
-          modelVersion: data.aiConfig.modelVersion || "",
         });
       }
     } catch (err) {
@@ -248,10 +232,6 @@ export default function CameraDetailPage() {
     try {
       const payload = {
         name: generalForm.name,
-        floor: generalForm.floor ? parseInt(generalForm.floor, 10) : null,
-        zoneName: generalForm.zoneName || null,
-        x: generalForm.x ? parseFloat(generalForm.x) : null,
-        y: generalForm.y ? parseFloat(generalForm.y) : null,
         mountingHeight: generalForm.mountingHeight
           ? parseFloat(generalForm.mountingHeight)
           : null,
@@ -318,11 +298,14 @@ export default function CameraDetailPage() {
         port: parseInt(streamForm.port, 10),
         username: streamForm.username || null,
         credentialRef: streamForm.credentialRef || null,
-        mainStreamUrl: streamForm.mainStreamUrl,
-        subStreamUrl: streamForm.subStreamUrl || null,
-        streamEnabled: streamForm.streamEnabled,
-        reconnectEnabled: streamForm.reconnectEnabled,
-        timeoutMs: parseInt(streamForm.timeoutMs, 10) || 5000,
+        mainStreamPath: streamForm.mainStreamPath,
+        subStreamPath: streamForm.subStreamPath || null,
+        retryTimeBeforeAlerting: streamForm.retryTimeBeforeAlerting
+          ? parseInt(streamForm.retryTimeBeforeAlerting, 10)
+          : null,
+        timeoutMs: streamForm.timeoutMs
+          ? parseInt(streamForm.timeoutMs, 10)
+          : null,
       };
 
       await upsertStreamConfig(id, payload);
@@ -342,14 +325,8 @@ export default function CameraDetailPage() {
       const payload = {
         personDetectionEnabled: aiForm.personDetectionEnabled,
         faceRecognitionEnabled: aiForm.faceRecognitionEnabled,
-        loiteringDetectionEnabled: aiForm.loiteringDetectionEnabled,
         faceMatchThreshold: parseFloat(aiForm.faceMatchThreshold),
-        loiteringThresholdSeconds: parseInt(
-          aiForm.loiteringThresholdSeconds,
-          10,
-        ),
         inferenceFps: parseInt(aiForm.inferenceFps, 10),
-        modelVersion: aiForm.modelVersion || null,
       };
 
       await upsertAIConfig(id, payload);
@@ -391,6 +368,12 @@ export default function CameraDetailPage() {
 
   return (
     <div className="camera-detail-page">
+      {/* Background Ambience */}
+      <div className="camera-ambient">
+        <div className="camera-ambient__orb camera-ambient__orb--1" />
+        <div className="camera-ambient__orb camera-ambient__orb--2" />
+      </div>
+
       {/* Breadcrumb & Navigation */}
       <div className="breadcrumb">
         <button
@@ -503,76 +486,6 @@ export default function CameraDetailPage() {
                     />
                   </div>
                   <div className="form-group">
-                    <label>Tầng</label>
-                    <input
-                      type="number"
-                      value={generalForm.floor}
-                      onChange={(e) =>
-                        setGeneralForm({
-                          ...generalForm,
-                          floor: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Khu vực</label>
-                    <input
-                      type="text"
-                      value={generalForm.zoneName}
-                      onChange={(e) =>
-                        setGeneralForm({
-                          ...generalForm,
-                          zoneName: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.25rem",
-                      }}
-                    >
-                      Toạ độ X (Pixel)
-                      <span data-tooltip="Tọa độ ngang trên ảnh sơ đồ tầng ảo" className="help-icon-wrapper">
-                        <HelpCircle size={14} className="help-icon" />
-                      </span>
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={generalForm.x}
-                      onChange={(e) =>
-                        setGeneralForm({ ...generalForm, x: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.25rem",
-                      }}
-                    >
-                      Toạ độ Y (Pixel)
-                      <span data-tooltip="Tọa độ dọc trên ảnh sơ đồ tầng ảo" className="help-icon-wrapper">
-                        <HelpCircle size={14} className="help-icon" />
-                      </span>
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={generalForm.y}
-                      onChange={(e) =>
-                        setGeneralForm({ ...generalForm, y: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div className="form-group">
                     <label>Chiều cao lắp đặt (m)</label>
                     <input
                       type="number"
@@ -586,56 +499,56 @@ export default function CameraDetailPage() {
                       }
                     />
                   </div>
-									<div className="form-group">
-										<label
-											style={{
-												display: "flex",
-												alignItems: "center",
-												gap: "0.25rem",
-											}}
-										>
-											Góc quay (độ)
-											<span data-tooltip="Góc hướng quay của camera trên bản đồ ảo (0-360)" className="help-icon-wrapper">
-												<HelpCircle size={14} className="help-icon" />
-											</span>
-										</label>
-										<input
-											type="number"
-											step="0.1"
-											value={generalForm.orientation}
-											onChange={(e) =>
-												setGeneralForm({
-													...generalForm,
-													orientation: e.target.value,
-												})
-											}
-										/>
-									</div>
-									<div className="form-group">
-										<label
-											style={{
-												display: "flex",
-												alignItems: "center",
-												gap: "0.25rem",
-											}}
-										>
-											Góc nghiêng (độ)
-											<span data-tooltip="Góc nghiêng vật lý của camera" className="help-icon-wrapper">
-												<HelpCircle size={14} className="help-icon" />
-											</span>
-										</label>
-										<input
-											type="number"
-											step="0.1"
-											value={generalForm.tiltAngle}
-											onChange={(e) =>
-												setGeneralForm({
-													...generalForm,
-													tiltAngle: e.target.value,
-												})
-											}
-										/>
-									</div>
+                  <div className="form-group">
+                    <label
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.25rem",
+                      }}
+                    >
+                      Góc quay (độ)
+                      <span data-tooltip="Góc hướng quay của camera (0-360)" className="help-icon-wrapper">
+                        <HelpCircle size={14} className="help-icon" />
+                      </span>
+                    </label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={generalForm.orientation}
+                      onChange={(e) =>
+                        setGeneralForm({
+                          ...generalForm,
+                          orientation: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.25rem",
+                      }}
+                    >
+                      Góc nghiêng (độ)
+                      <span data-tooltip="Góc nghiêng vật lý của camera" className="help-icon-wrapper">
+                        <HelpCircle size={14} className="help-icon" />
+                      </span>
+                    </label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={generalForm.tiltAngle}
+                      onChange={(e) =>
+                        setGeneralForm({
+                          ...generalForm,
+                          tiltAngle: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
                   <div className="form-group">
                     <label>Ngày lắp đặt</label>
                     <input
@@ -902,81 +815,95 @@ export default function CameraDetailPage() {
                       required
                     />
                   </div>
-									<div className="form-group">
-										<label
-											style={{
-												display: "flex",
-												alignItems: "center",
-												gap: "0.25rem",
-											}}
-										>
-											Tài khoản camera
-											<span data-tooltip="Tài khoản đăng nhập của camera để xem stream" className="help-icon-wrapper">
-												<HelpCircle size={14} className="help-icon" />
-											</span>
-										</label>
-										<input
-											type="text"
-											placeholder="admin"
-											value={streamForm.username}
-											onChange={(e) =>
-												setStreamForm({
-													...streamForm,
-													username: e.target.value,
-												})
-											}
-										/>
-									</div>
-									<div className="form-group">
-										<label
-											style={{
-												display: "flex",
-												alignItems: "center",
-												gap: "0.25rem",
-											}}
-										>
-											Mã khoá xác thực (Credential Ref)
-											<span data-tooltip="Khoá bảo mật hoặc mật khẩu kết nối camera" className="help-icon-wrapper">
-												<HelpCircle size={14} className="help-icon" />
-											</span>
-										</label>
-										<input
-											type="text"
-											placeholder="mật khẩu camera hoặc khóa tham chiếu"
-											value={streamForm.credentialRef}
-											onChange={(e) =>
-												setStreamForm({
-													...streamForm,
-													credentialRef: e.target.value,
-												})
-											}
-										/>
-									</div>
-                  <div className="form-group col-span-2">
-                    <label>Main Stream URL *</label>
+                  <div className="form-group">
+                    <label
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.25rem",
+                      }}
+                    >
+                      Tài khoản camera
+                      <span data-tooltip="Tài khoản đăng nhập của camera để xem stream" className="help-icon-wrapper">
+                        <HelpCircle size={14} className="help-icon" />
+                      </span>
+                    </label>
                     <input
                       type="text"
-                      placeholder="rtsp://admin:admin123@192.168.1.50:554/Streaming/Channels/101"
-                      value={streamForm.mainStreamUrl}
+                      placeholder="admin"
+                      value={streamForm.username}
                       onChange={(e) =>
                         setStreamForm({
                           ...streamForm,
-                          mainStreamUrl: e.target.value,
+                          username: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.25rem",
+                      }}
+                    >
+                      Mã khoá xác thực (Credential Ref)
+                      <span data-tooltip="Khoá bảo mật hoặc mật khẩu kết nối camera" className="help-icon-wrapper">
+                        <HelpCircle size={14} className="help-icon" />
+                      </span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="mật khẩu camera hoặc khóa tham chiếu"
+                      value={streamForm.credentialRef}
+                      onChange={(e) =>
+                        setStreamForm({
+                          ...streamForm,
+                          credentialRef: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="form-group col-span-2">
+                    <label>Main Stream Path *</label>
+                    <input
+                      type="text"
+                      placeholder="/Streaming/Channels/101"
+                      value={streamForm.mainStreamPath}
+                      onChange={(e) =>
+                        setStreamForm({
+                          ...streamForm,
+                          mainStreamPath: e.target.value,
                         })
                       }
                       required
                     />
                   </div>
                   <div className="form-group col-span-2">
-                    <label>Sub Stream URL</label>
+                    <label>Sub Stream Path</label>
                     <input
                       type="text"
-                      placeholder="rtsp://admin:admin123@192.168.1.50:554/Streaming/Channels/102"
-                      value={streamForm.subStreamUrl}
+                      placeholder="/Streaming/Channels/102"
+                      value={streamForm.subStreamPath}
                       onChange={(e) =>
                         setStreamForm({
                           ...streamForm,
-                          subStreamUrl: e.target.value,
+                          subStreamPath: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Số lần kết nối lại trước khi cảnh báo</label>
+                    <input
+                      type="number"
+                      placeholder="3"
+                      value={streamForm.retryTimeBeforeAlerting}
+                      onChange={(e) =>
+                        setStreamForm({
+                          ...streamForm,
+                          retryTimeBeforeAlerting: e.target.value,
                         })
                       }
                     />
@@ -994,34 +921,6 @@ export default function CameraDetailPage() {
                         })
                       }
                     />
-                  </div>
-                  <div className="form-group col-span-2 checkbox-row">
-                    <label className="checkbox-label">
-                      <input
-                        type="checkbox"
-                        checked={streamForm.streamEnabled}
-                        onChange={(e) =>
-                          setStreamForm({
-                            ...streamForm,
-                            streamEnabled: e.target.checked,
-                          })
-                        }
-                      />
-                      <span>Mở luồng Stream hoạt động</span>
-                    </label>
-                    <label className="checkbox-label">
-                      <input
-                        type="checkbox"
-                        checked={streamForm.reconnectEnabled}
-                        onChange={(e) =>
-                          setStreamForm({
-                            ...streamForm,
-                            reconnectEnabled: e.target.checked,
-                          })
-                        }
-                      />
-                      <span>Tự động kết nối lại khi rớt mạng</span>
-                    </label>
                   </div>
                 </div>
                 <div className="form-actions">
@@ -1073,20 +972,6 @@ export default function CameraDetailPage() {
                     </div>
                   </div>
                   <div className="form-group">
-                    <label>Thời gian lảng vảng báo động (s) *</label>
-                    <input
-                      type="number"
-                      value={aiForm.loiteringThresholdSeconds}
-                      onChange={(e) =>
-                        setAiForm({
-                          ...aiForm,
-                          loiteringThresholdSeconds: e.target.value,
-                        })
-                      }
-                      required
-                    />
-                  </div>
-                  <div className="form-group">
                     <label>Inference FPS (Tốc độ xử lý AI) *</label>
                     <input
                       type="number"
@@ -1095,17 +980,6 @@ export default function CameraDetailPage() {
                         setAiForm({ ...aiForm, inferenceFps: e.target.value })
                       }
                       required
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Phiên bản AI Model</label>
-                    <input
-                      type="text"
-                      placeholder="yolov8n-security-v1"
-                      value={aiForm.modelVersion}
-                      onChange={(e) =>
-                        setAiForm({ ...aiForm, modelVersion: e.target.value })
-                      }
                     />
                   </div>
                   <div className="form-group col-span-2 checkbox-row">
@@ -1134,19 +1008,6 @@ export default function CameraDetailPage() {
                         }
                       />
                       <span>Nhận diện khuôn mặt (Face Recognition)</span>
-                    </label>
-                    <label className="checkbox-label toggle-switch">
-                      <input
-                        type="checkbox"
-                        checked={aiForm.loiteringDetectionEnabled}
-                        onChange={(e) =>
-                          setAiForm({
-                            ...aiForm,
-                            loiteringDetectionEnabled: e.target.checked,
-                          })
-                        }
-                      />
-                      <span>Phát hiện lảng vảng (Loitering Detection)</span>
                     </label>
                   </div>
                 </div>

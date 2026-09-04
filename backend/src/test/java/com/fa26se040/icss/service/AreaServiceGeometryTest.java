@@ -3,10 +3,8 @@ package com.fa26se040.icss.service;
 import com.fa26se040.icss.dto.area.AreaGeometry;
 import com.fa26se040.icss.dto.area.AreaGeometryResponse;
 import com.fa26se040.icss.entity.Area;
-import com.fa26se040.icss.entity.AreaLevel;
+import com.fa26se040.icss.enums.AreaLevel;
 import com.fa26se040.icss.entity.User;
-import com.fa26se040.icss.repository.AreaChangeLogRepository;
-import com.fa26se040.icss.repository.AreaLevelRepository;
 import com.fa26se040.icss.repository.AreaRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,12 +34,6 @@ class AreaServiceGeometryTest {
     private AreaRepository areaRepository;
 
     @Mock
-    private AreaLevelRepository areaLevelRepository;
-
-    @Mock
-    private AreaChangeLogRepository areaChangeLogRepository;
-
-    @Mock
     private UserRepository userRepository;
 
     @Mock
@@ -63,12 +55,11 @@ class AreaServiceGeometryTest {
     @BeforeEach
     void setUp() {
         areaId = UUID.randomUUID();
-        AreaLevel level = AreaLevel.builder().level((short) 1).build();
         area = Area.builder()
                 .id(areaId)
                 .code("ZONE-01")
                 .name("Zone 1")
-                .areaLevel(level)
+                .areaLevel(AreaLevel.PUBLIC)
                 .building("FPT_AROUND")
                 .floor("G")
                 .isActive(true)

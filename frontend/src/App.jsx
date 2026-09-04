@@ -15,7 +15,8 @@ import CameraListPage from './pages/cameras/CameraListPage';
 import CameraDetailPage from './pages/cameras/CameraDetailPage';
 import FaceManagementPage from './pages/faceData/FaceManagementPage';
 import GuardDashboardPage from './pages/guard/GuardDashboardPage';
-import './styles/App.css';
+import AccessRequestPage from './pages/accessRequest/AccessRequestPage';
+import AccessRequestReviewPage from './pages/accessRequest/AccessRequestReviewPage';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
@@ -110,6 +111,25 @@ function App() {
                 element={
                   <ProtectedRoute allowedRoles={[ROLES.INTERNAL_GUARD, ROLES.OUTSOURCED_GUARD]}>
                     <GuardDashboardPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Access Request Flow */}
+              <Route
+                path="/access-requests"
+                element={
+                  <ProtectedRoute allowedRoles={[ROLES.NORMAL_USER]}>
+                    <AccessRequestPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/admin/access-requests"
+                element={
+                  <ProtectedRoute allowedRoles={[ROLES.FACILITY_MANAGER, ROLES.ADMIN]}>
+                    <AccessRequestReviewPage />
                   </ProtectedRoute>
                 }
               />

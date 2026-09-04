@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.fa26se040.icss.dto.camera.*;
 import com.fa26se040.icss.entity.*;
+import com.fa26se040.icss.enums.*;
 import com.fa26se040.icss.exception.DuplicateResourceException;
 import com.fa26se040.icss.exception.ResourceNotFoundException;
 import com.fa26se040.icss.repository.*;
@@ -47,10 +48,6 @@ public class CameraService {
         Camera camera = Camera.builder()
                 .cameraCode(cameraCode)
                 .name(request.getName())
-                .floor(request.getFloor())
-                .zoneName(request.getZoneName())
-                .x(request.getX())
-                .y(request.getY())
                 .mountingHeight(request.getMountingHeight())
                 .orientation(request.getOrientation())
                 .tiltAngle(request.getTiltAngle())
@@ -85,10 +82,6 @@ public class CameraService {
                 .orElseThrow(() -> new ResourceNotFoundException("Camera not found with id: " + id));
 
         camera.setName(request.getName());
-        camera.setFloor(request.getFloor());
-        camera.setZoneName(request.getZoneName());
-        camera.setX(request.getX());
-        camera.setY(request.getY());
         camera.setMountingHeight(request.getMountingHeight());
         camera.setOrientation(request.getOrientation());
         camera.setTiltAngle(request.getTiltAngle());
@@ -163,10 +156,9 @@ public class CameraService {
         config.setPort(req.getPort());
         config.setUsername(req.getUsername());
         config.setCredentialRef(req.getCredentialRef());
-        config.setMainStreamUrl(req.getMainStreamUrl());
-        config.setSubStreamUrl(req.getSubStreamUrl());
-        config.setStreamEnabled(req.getStreamEnabled() != null ? req.getStreamEnabled() : true);
-        config.setReconnectEnabled(req.getReconnectEnabled() != null ? req.getReconnectEnabled() : true);
+        config.setMainStreamPath(req.getMainStreamPath());
+        config.setSubStreamPath(req.getSubStreamPath());
+        config.setRetryTimeBeforeAlerting(req.getRetryTimeBeforeAlerting() != null ? req.getRetryTimeBeforeAlerting() : 3);
         config.setTimeoutMs(req.getTimeoutMs() != null ? req.getTimeoutMs() : 5000);
 
         CameraStreamConfiguration saved = cameraStreamConfigurationRepository.save(config);
@@ -183,11 +175,8 @@ public class CameraService {
 
         config.setPersonDetectionEnabled(req.getPersonDetectionEnabled() != null ? req.getPersonDetectionEnabled() : false);
         config.setFaceRecognitionEnabled(req.getFaceRecognitionEnabled() != null ? req.getFaceRecognitionEnabled() : false);
-        config.setLoiteringDetectionEnabled(req.getLoiteringDetectionEnabled() != null ? req.getLoiteringDetectionEnabled() : false);
         config.setFaceMatchThreshold(req.getFaceMatchThreshold());
-        config.setLoiteringThresholdSeconds(req.getLoiteringThresholdSeconds());
         config.setInferenceFps(req.getInferenceFps());
-        config.setModelVersion(req.getModelVersion());
 
         CameraAIConfiguration saved = cameraAIConfigurationRepository.save(config);
         return mapToAIResponse(saved);
@@ -230,8 +219,6 @@ public class CameraService {
                 .id(camera.getId())
                 .cameraCode(camera.getCameraCode())
                 .name(camera.getName())
-                .floor(camera.getFloor())
-                .zoneName(camera.getZoneName())
                 .status(camera.getStatus())
                 .operationalStatus(camera.getOperationalStatus())
                 .build();
@@ -242,10 +229,6 @@ public class CameraService {
                 .id(camera.getId())
                 .cameraCode(camera.getCameraCode())
                 .name(camera.getName())
-                .floor(camera.getFloor())
-                .zoneName(camera.getZoneName())
-                .x(camera.getX())
-                .y(camera.getY())
                 .mountingHeight(camera.getMountingHeight())
                 .orientation(camera.getOrientation())
                 .tiltAngle(camera.getTiltAngle())
@@ -286,10 +269,9 @@ public class CameraService {
                 .port(config.getPort())
                 .username(config.getUsername())
                 .credentialRef(config.getCredentialRef())
-                .mainStreamUrl(config.getMainStreamUrl())
-                .subStreamUrl(config.getSubStreamUrl())
-                .streamEnabled(config.getStreamEnabled())
-                .reconnectEnabled(config.getReconnectEnabled())
+                .mainStreamPath(config.getMainStreamPath())
+                .subStreamPath(config.getSubStreamPath())
+                .retryTimeBeforeAlerting(config.getRetryTimeBeforeAlerting())
                 .timeoutMs(config.getTimeoutMs())
                 .build();
     }
@@ -299,11 +281,8 @@ public class CameraService {
                 .id(config.getId())
                 .personDetectionEnabled(config.getPersonDetectionEnabled())
                 .faceRecognitionEnabled(config.getFaceRecognitionEnabled())
-                .loiteringDetectionEnabled(config.getLoiteringDetectionEnabled())
                 .faceMatchThreshold(config.getFaceMatchThreshold())
-                .loiteringThresholdSeconds(config.getLoiteringThresholdSeconds())
                 .inferenceFps(config.getInferenceFps())
-                .modelVersion(config.getModelVersion())
                 .build();
     }
 

@@ -45,7 +45,9 @@ ai-service/
 ```bash
 pip install -r requirements.txt
 ```
-
+```
+pip freeze > requirement.txt
+```
 ### 2. Chạy Test Tự Động (Synthetic Mode — Không cần Camera)
 ```bash
 python test_pipeline.py --mode auto

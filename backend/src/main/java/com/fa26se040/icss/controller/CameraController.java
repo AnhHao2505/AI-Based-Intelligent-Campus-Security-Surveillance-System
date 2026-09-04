@@ -12,8 +12,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import com.fa26se040.icss.dto.camera.*;
-import com.fa26se040.icss.entity.CameraStatus;
-import com.fa26se040.icss.entity.OperationalStatus;
+import com.fa26se040.icss.enums.CameraStatus;
+import com.fa26se040.icss.enums.OperationalStatus;
 import com.fa26se040.icss.service.CameraService;
 
 import java.util.UUID;

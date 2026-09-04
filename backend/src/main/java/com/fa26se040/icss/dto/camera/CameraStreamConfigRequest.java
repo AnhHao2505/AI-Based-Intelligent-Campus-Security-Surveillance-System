@@ -1,6 +1,6 @@
 package com.fa26se040.icss.dto.camera;
 
-import com.fa26se040.icss.entity.StreamProtocol;
+import com.fa26se040.icss.enums.StreamProtocol;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -32,16 +32,14 @@ public class CameraStreamConfigRequest {
     @Size(max = 255, message = "Credential reference cannot exceed 255 characters")
     private String credentialRef;
 
-    @NotBlank(message = "Main stream URL is required")
-    @Size(max = 512, message = "Main stream URL cannot exceed 512 characters")
-    private String mainStreamUrl;
+    @NotBlank(message = "Main stream path is required")
+    @Size(max = 512, message = "Main stream path cannot exceed 512 characters")
+    private String mainStreamPath;
 
-    @Size(max = 512, message = "Sub stream URL cannot exceed 512 characters")
-    private String subStreamUrl;
+    @Size(max = 512, message = "Sub stream path cannot exceed 512 characters")
+    private String subStreamPath;
 
-    private Boolean streamEnabled;
-
-    private Boolean reconnectEnabled;
+    private Integer retryTimeBeforeAlerting;
 
     private Integer timeoutMs;
 }

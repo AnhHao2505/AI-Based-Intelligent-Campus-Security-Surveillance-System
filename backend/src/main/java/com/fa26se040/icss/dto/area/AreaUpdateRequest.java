@@ -1,10 +1,9 @@
 package com.fa26se040.icss.dto.area;
 
+import com.fa26se040.icss.enums.AreaLevel;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-
-import java.math.BigDecimal;
 
 public record AreaUpdateRequest(
     String code,
@@ -14,7 +13,7 @@ public record AreaUpdateRequest(
     String name,
 
     @NotNull(message = "Cấp độ khu vực không được để trống")
-    Short areaLevel,
+    AreaLevel areaLevel,
 
     @Size(max = 50, message = "Tên toà nhà tối đa 50 ký tự")
     String building,
@@ -22,11 +21,5 @@ public record AreaUpdateRequest(
     @Size(max = 20, message = "Tầng tối đa 20 ký tự")
     String floor,
 
-    String description,
-
-    BigDecimal mapX,
-
-    BigDecimal mapY,
-
-    String reason
+    String description
 ) {}

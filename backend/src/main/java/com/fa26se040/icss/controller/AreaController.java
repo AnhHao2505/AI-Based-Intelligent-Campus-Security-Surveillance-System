@@ -1,5 +1,6 @@
 package com.fa26se040.icss.controller;
 
+import com.fa26se040.icss.dto.accessrequest.AreaSimpleResponse;
 import com.fa26se040.icss.dto.area.AreaCreateRequest;
 import com.fa26se040.icss.dto.area.AreaDependencyResponse;
 import com.fa26se040.icss.dto.area.AreaGeometry;
@@ -7,6 +8,7 @@ import com.fa26se040.icss.dto.area.AreaGeometryResponse;
 import com.fa26se040.icss.dto.area.AreaListItemResponse;
 import com.fa26se040.icss.dto.area.AreaResponse;
 import com.fa26se040.icss.dto.area.AreaUpdateRequest;
+import com.fa26se040.icss.enums.AreaLevel;
 import com.fa26se040.icss.service.AreaService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -39,11 +41,17 @@ public class AreaController {
 
     private final AreaService areaService;
 
+    @GetMapping("/available-for-request")
+    @PreAuthorize("hasAnyRole('NORMAL_USER', 'FACILITY_MANAGER', 'ADMIN')")
+    public ResponseEntity<List<AreaSimpleResponse>> getAvailableAreasForRequest() {
+        return ResponseEntity.ok(areaService.getAvailableAreasForRequest());
+    }
+
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
     public ResponseEntity<Page<AreaListItemResponse>> getAreas(
             @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) Short areaLevel,
+            @RequestParam(required = false) AreaLevel areaLevel,
             @RequestParam(required = false) String building,
             @RequestParam(required = false, defaultValue = "true") Boolean isActive,
             @RequestParam(defaultValue = "0") int page,

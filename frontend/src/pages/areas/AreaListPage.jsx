@@ -3,19 +3,23 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import {
   getAreas,
-  getAreaLevels,
   getDependencies,
   createArea,
   updateArea,
   deactivateArea,
-  createTemporaryUsage,
 } from '../../services/areaService';
 import {
+  AREA_LEVEL_CONFIG,
   getLevelConfig,
   getErrorMessage,
-  formatToOffsetDateTime,
 } from '../../utils/areaHelpers';
 import '../../styles/AreaListPage.css';
+
+const AREA_LEVEL_OPTIONS = [
+  { value: 'PUBLIC', label: 'PUBLIC — Công cộng (Level 1)' },
+  { value: 'SEMI_PRIVATE', label: 'SEMI_PRIVATE — Bán hạn chế (Level 2)' },
+  { value: 'PRIVATE', label: 'PRIVATE — Hạn chế tuyệt đối (Level 3)' },
+];
 
 export default function AreaListPage() {
   const { user } = useAuth();
@@ -25,7 +29,6 @@ export default function AreaListPage() {
 
   // Data states
   const [areas, setAreas] = useState([]);
-  const [areaLevels, setAreaLevels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedArea, setSelectedArea] = useState(null);
   const [selectedFloor, setSelectedFloor] = useState('1');
@@ -36,7 +39,6 @@ export default function AreaListPage() {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [deactivateModalOpen, setDeactivateModalOpen] = useState(false);
-  const [tempUsageModalOpen, setTempUsageModalOpen] = useState(false);
 
   const [modalLoading, setModalLoading] = useState(false);
   const [modalError, setModalError] = useState(null);
@@ -46,19 +48,10 @@ export default function AreaListPage() {
   const [formData, setFormData] = useState({
     code: '',
     name: '',
-    areaLevel: 1,
+    areaLevel: 'PUBLIC',
     building: 'A',
     floor: '1',
     description: '',
-    mapX: '',
-    mapY: '',
-    reason: '',
-  });
-
-  const [tempUsageData, setTempUsageData] = useState({
-    eventName: '',
-    startTime: '',
-    endTime: '',
     reason: '',
   });
 
@@ -70,18 +63,14 @@ export default function AreaListPage() {
     }, 4000);
   };
 
-  // Fetch Areas and Levels
+  // Fetch Areas
   const fetchData = useCallback(async (keepSelectedId = null) => {
     try {
       setLoading(true);
-      const [areasRes, levelsRes] = await Promise.all([
-        getAreas({ size: 100, isActive: true }),
-        getAreaLevels(),
-      ]);
+      const areasRes = await getAreas({ size: 100, isActive: true });
 
       const areaList = areasRes?.content || areasRes || [];
       setAreas(areaList);
-      setAreaLevels(levelsRes || []);
 
       if (keepSelectedId) {
         const found = areaList.find((a) => a.id === keepSelectedId);
@@ -126,7 +115,7 @@ export default function AreaListPage() {
   // Summary Metrics
   const totalZonesCount = areas.length;
   const highSecurityCount = useMemo(() => {
-    return areas.filter((a) => a.level?.level === 3 || a.level?.code === 'PRIVATE').length;
+    return areas.filter((a) => a.areaLevel === 'PRIVATE' || a.level?.code === 'PRIVATE').length;
   }, [areas]);
 
   // Open Create Modal
@@ -134,12 +123,10 @@ export default function AreaListPage() {
     setFormData({
       code: '',
       name: '',
-      areaLevel: areaLevels[0]?.level || 1,
+      areaLevel: 'PUBLIC',
       building: 'A',
       floor: selectedFloor || '1',
       description: '',
-      mapX: '',
-      mapY: '',
       reason: '',
     });
     setModalError(null);
@@ -151,25 +138,15 @@ export default function AreaListPage() {
     e.preventDefault();
     setModalError(null);
 
-    // Coordinate validation (must be both or none)
-    const hasX = formData.mapX !== '' && formData.mapX !== null;
-    const hasY = formData.mapY !== '' && formData.mapY !== null;
-    if ((hasX && !hasY) || (!hasX && hasY)) {
-      setModalError('Tọa độ Map X và Map Y phải cùng có hoặc cùng để trống.');
-      return;
-    }
-
     setModalLoading(true);
     try {
       const payload = {
         code: formData.code.trim().toUpperCase(),
         name: formData.name.trim(),
-        areaLevel: Number(formData.areaLevel),
+        areaLevel: formData.areaLevel,
         building: formData.building ? formData.building.trim() : null,
         floor: formData.floor ? formData.floor.trim() : null,
         description: formData.description ? formData.description.trim() : null,
-        mapX: hasX ? Number(formData.mapX) : null,
-        mapY: hasY ? Number(formData.mapY) : null,
       };
 
       const created = await createArea(payload);
@@ -191,12 +168,10 @@ export default function AreaListPage() {
     setFormData({
       code: selectedArea.code,
       name: selectedArea.name,
-      areaLevel: selectedArea.level?.level || 1,
+      areaLevel: selectedArea.areaLevel || selectedArea.level?.code || 'PUBLIC',
       building: selectedArea.building || '',
       floor: selectedArea.floor || '',
       description: selectedArea.description || '',
-      mapX: selectedArea.mapX !== null && selectedArea.mapX !== undefined ? selectedArea.mapX : '',
-      mapY: selectedArea.mapY !== null && selectedArea.mapY !== undefined ? selectedArea.mapY : '',
       reason: '',
     });
     setModalError(null);
@@ -208,19 +183,12 @@ export default function AreaListPage() {
     e.preventDefault();
     setModalError(null);
 
-    const oldLevel = selectedArea.level?.level || 1;
-    const newLevel = Number(formData.areaLevel);
-    const isDowngrade = newLevel < oldLevel;
+    const oldLevelRank = AREA_LEVEL_CONFIG[selectedArea.areaLevel || selectedArea.level?.code || 'PUBLIC']?.rank || 1;
+    const newLevelRank = AREA_LEVEL_CONFIG[formData.areaLevel]?.rank || 1;
+    const isDowngrade = newLevelRank < oldLevelRank;
 
     if (isDowngrade && (!formData.reason || formData.reason.trim().length < 10 || formData.reason.trim().length > 255)) {
       setModalError('Khi hạ cấp độ an ninh, lý do là bắt buộc và phải từ 10 đến 255 ký tự.');
-      return;
-    }
-
-    const hasX = formData.mapX !== '' && formData.mapX !== null;
-    const hasY = formData.mapY !== '' && formData.mapY !== null;
-    if ((hasX && !hasY) || (!hasX && hasY)) {
-      setModalError('Tọa độ Map X và Map Y phải cùng có hoặc cùng để trống.');
       return;
     }
 
@@ -229,12 +197,10 @@ export default function AreaListPage() {
       const payload = {
         code: selectedArea.code,
         name: formData.name.trim(),
-        areaLevel: newLevel,
+        areaLevel: formData.areaLevel,
         building: formData.building ? formData.building.trim() : null,
         floor: formData.floor ? formData.floor.trim() : null,
         description: formData.description ? formData.description.trim() : null,
-        mapX: hasX ? Number(formData.mapX) : null,
-        mapY: hasY ? Number(formData.mapY) : null,
         reason: isDowngrade ? formData.reason.trim() : null,
       };
 
@@ -290,76 +256,12 @@ export default function AreaListPage() {
     }
   };
 
-  // Open Temporary Usage Modal
-  const handleOpenTempUsageModal = () => {
-    const now = new Date();
-    const pad = (n) => (n < 10 ? '0' + n : n);
-    const startStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours() + 1)}:00`;
-    const endStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours() + 3)}:00`;
-
-    setTempUsageData({
-      eventName: '',
-      startTime: startStr,
-      endTime: endStr,
-      reason: '',
-    });
-    setModalError(null);
-    setTempUsageModalOpen(true);
-  };
-
-  // Submit Temporary Usage
-  const handleTempUsageSubmit = async (e) => {
-    e.preventDefault();
-    setModalError(null);
-
-    if (!tempUsageData.eventName || !tempUsageData.eventName.trim()) {
-      setModalError('Tên sự kiện không được để trống.');
-      return;
-    }
-
-    if (!tempUsageData.startTime || !tempUsageData.endTime) {
-      setModalError('Vui lòng chọn đầy đủ thời gian bắt đầu và kết thúc.');
-      return;
-    }
-
-    const startDate = new Date(tempUsageData.startTime);
-    const endDate = new Date(tempUsageData.endTime);
-    const nowDate = new Date();
-
-    if (endDate <= startDate) {
-      setModalError('Thời gian kết thúc phải sau thời gian bắt đầu.');
-      return;
-    }
-
-    if (endDate <= nowDate) {
-      setModalError('Thời gian kết thúc phải sau thời điểm hiện tại.');
-      return;
-    }
-
-    setModalLoading(true);
-    try {
-      const payload = {
-        eventName: tempUsageData.eventName.trim(),
-        startTime: formatToOffsetDateTime(tempUsageData.startTime),
-        endTime: formatToOffsetDateTime(tempUsageData.endTime),
-        reason: tempUsageData.reason ? tempUsageData.reason.trim() : null,
-      };
-
-      await createTemporaryUsage(selectedArea.id, payload);
-      setTempUsageModalOpen(false);
-      showToast(`Đã tạo thời gian sử dụng tạm thời cho phòng ${selectedArea.name}`);
-    } catch (err) {
-      console.error('Create temporary usage failed:', err);
-      setModalError(getErrorMessage(err));
-    } finally {
-      setModalLoading(false);
-    }
-  };
-
   // Selected level config
-  const selectedLevelConfig = selectedArea ? getLevelConfig(selectedArea.level) : null;
-  const isDowngradingInEdit =
-    editModalOpen && selectedArea && Number(formData.areaLevel) < (selectedArea.level?.level || 1);
+  const selectedAreaLevelKey = selectedArea?.areaLevel || selectedArea?.level?.code || selectedArea?.level || 'PUBLIC';
+  const selectedLevelConfig = selectedArea ? getLevelConfig(selectedAreaLevelKey) : null;
+  const currentAreaRank = AREA_LEVEL_CONFIG[selectedAreaLevelKey]?.rank || 1;
+  const selectedFormRank = AREA_LEVEL_CONFIG[formData.areaLevel]?.rank || 1;
+  const isDowngradingInEdit = editModalOpen && selectedArea && selectedFormRank < currentAreaRank;
 
   return (
     <div className="area-dashboard">
@@ -442,7 +344,8 @@ export default function AreaListPage() {
             <div className="area-grid">
               {floorAreas.map((area) => {
                 const isSelected = selectedArea?.id === area.id;
-                const levelConfig = getLevelConfig(area.level);
+                const levelKey = area.areaLevel || area.level?.code || area.level || 'PUBLIC';
+                const levelConfig = getLevelConfig(levelKey);
 
                 return (
                   <div
@@ -538,18 +441,9 @@ export default function AreaListPage() {
                 </div>
 
                 <div className="zone-details__row">
-                  <span className="zone-details__label">Tọa độ Map</span>
-                  <span className="zone-details__val">
-                    {selectedArea.mapX != null && selectedArea.mapY != null
-                      ? `X: ${selectedArea.mapX}, Y: ${selectedArea.mapY}`
-                      : 'Chưa cấu hình'}
-                  </span>
-                </div>
-
-                <div className="zone-details__row">
                   <span className="zone-details__label">Nhận diện khuôn mặt</span>
                   <span className="zone-details__val">
-                    {selectedArea.level?.requiresFaceRecognition ? 'Bắt buộc (L3)' : 'Không'}
+                    {(selectedArea.areaLevel === 'SEMI_PRIVATE' || selectedArea.areaLevel === 'PRIVATE' || selectedArea.level?.requiresFaceRecognition) ? 'Bắt buộc' : 'Không'}
                   </span>
                 </div>
 
@@ -581,36 +475,6 @@ export default function AreaListPage() {
                   </button>
                 </div>
               )}
-
-              {/* Temporary Event Usage Section */}
-              <div className="zone-temp-usage">
-                <div className="zone-temp-usage__header">
-                  <span className="zone-temp-usage__title">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                      <line x1="16" y1="2" x2="16" y2="6" />
-                      <line x1="8" y1="2" x2="8" y2="6" />
-                      <line x1="3" y1="10" x2="21" y2="10" />
-                    </svg>
-                    Temporary Event Usage
-                  </span>
-                </div>
-
-                {isAdmin && (
-                  <button
-                    type="button"
-                    className="zone-btn zone-btn--primary"
-                    style={{ fontSize: '0.8rem', padding: '8px 12px' }}
-                    onClick={handleOpenTempUsageModal}
-                  >
-                    + Temporary Usage
-                  </button>
-                )}
-
-                <div className="zone-temp-usage__notice">
-                  💡 Extend action requires active temporary usage instance. (Backend GET Temporary Usage list endpoint is in development).
-                </div>
-              </div>
             </>
           )}
         </div>
@@ -679,9 +543,9 @@ export default function AreaListPage() {
                     onChange={(e) => setFormData({ ...formData, areaLevel: e.target.value })}
                     disabled={modalLoading}
                   >
-                    {areaLevels.map((lvl) => (
-                      <option key={lvl.level} value={lvl.level}>
-                        Level {lvl.level} — {lvl.name} ({lvl.code})
+                    {AREA_LEVEL_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
                       </option>
                     ))}
                   </select>
@@ -707,33 +571,6 @@ export default function AreaListPage() {
                       className="modal-input"
                       value={formData.floor}
                       onChange={(e) => setFormData({ ...formData, floor: e.target.value })}
-                      disabled={modalLoading}
-                    />
-                  </div>
-                </div>
-
-                <div className="modal-form-row">
-                  <div className="modal-form-group">
-                    <label className="modal-label">Map X</label>
-                    <input
-                      type="number"
-                      step="any"
-                      placeholder="VD: 120"
-                      className="modal-input"
-                      value={formData.mapX}
-                      onChange={(e) => setFormData({ ...formData, mapX: e.target.value })}
-                      disabled={modalLoading}
-                    />
-                  </div>
-                  <div className="modal-form-group">
-                    <label className="modal-label">Map Y</label>
-                    <input
-                      type="number"
-                      step="any"
-                      placeholder="VD: 80"
-                      className="modal-input"
-                      value={formData.mapY}
-                      onChange={(e) => setFormData({ ...formData, mapY: e.target.value })}
                       disabled={modalLoading}
                     />
                   </div>
@@ -826,9 +663,9 @@ export default function AreaListPage() {
                     onChange={(e) => setFormData({ ...formData, areaLevel: e.target.value })}
                     disabled={modalLoading}
                   >
-                    {areaLevels.map((lvl) => (
-                      <option key={lvl.level} value={lvl.level}>
-                        Level {lvl.level} — {lvl.name} ({lvl.code})
+                    {AREA_LEVEL_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
                       </option>
                     ))}
                   </select>
@@ -875,30 +712,6 @@ export default function AreaListPage() {
                   </div>
                 </div>
 
-                <div className="modal-form-row">
-                  <div className="modal-form-group">
-                    <label className="modal-label">Map X</label>
-                    <input
-                      type="number"
-                      step="any"
-                      className="modal-input"
-                      value={formData.mapX}
-                      onChange={(e) => setFormData({ ...formData, mapX: e.target.value })}
-                      disabled={modalLoading}
-                    />
-                  </div>
-                  <div className="modal-form-group">
-                    <label className="modal-label">Map Y</label>
-                    <input
-                      type="number"
-                      step="any"
-                      className="modal-input"
-                      value={formData.mapY}
-                      onChange={(e) => setFormData({ ...formData, mapY: e.target.value })}
-                      disabled={modalLoading}
-                    />
-                  </div>
-                </div>
 
                 <div className="modal-form-group">
                   <label className="modal-label">Description</label>
@@ -1008,114 +821,6 @@ export default function AreaListPage() {
                 {modalLoading ? 'Deactivating...' : 'Confirm Deactivate'}
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* CREATE TEMPORARY USAGE MODAL */}
-      {tempUsageModalOpen && selectedArea && (
-        <div className="area-modal-backdrop" onClick={() => setTempUsageModalOpen(false)}>
-          <div className="area-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="area-modal__header">
-              <h3 className="area-modal__title">Create Temporary Usage</h3>
-              <button type="button" className="area-modal__close-btn" onClick={() => setTempUsageModalOpen(false)}>✕</button>
-            </div>
-
-            <form onSubmit={handleTempUsageSubmit}>
-              <div className="area-modal__body">
-                {modalError && (
-                  <div className="modal-error-box">
-                    <span>⚠️ {modalError}</span>
-                  </div>
-                )}
-
-                <div className="modal-form-group">
-                  <label className="modal-label">Zone</label>
-                  <input
-                    type="text"
-                    disabled
-                    className="modal-input"
-                    value={`${selectedArea.name} (${selectedArea.code})`}
-                  />
-                </div>
-
-                <div className="modal-form-group">
-                  <label className="modal-label">
-                    Event Name <span className="modal-label__req">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="VD: Hội thảo Công nghệ AI"
-                    className="modal-input"
-                    value={tempUsageData.eventName}
-                    onChange={(e) => setTempUsageData({ ...tempUsageData, eventName: e.target.value })}
-                    disabled={modalLoading}
-                  />
-                </div>
-
-                <div className="modal-form-row">
-                  <div className="modal-form-group">
-                    <label className="modal-label">
-                      Start Time <span className="modal-label__req">*</span>
-                    </label>
-                    <input
-                      type="datetime-local"
-                      required
-                      className="modal-input"
-                      value={tempUsageData.startTime}
-                      onChange={(e) => setTempUsageData({ ...tempUsageData, startTime: e.target.value })}
-                      disabled={modalLoading}
-                    />
-                  </div>
-
-                  <div className="modal-form-group">
-                    <label className="modal-label">
-                      End Time <span className="modal-label__req">*</span>
-                    </label>
-                    <input
-                      type="datetime-local"
-                      required
-                      className="modal-input"
-                      value={tempUsageData.endTime}
-                      onChange={(e) => setTempUsageData({ ...tempUsageData, endTime: e.target.value })}
-                      disabled={modalLoading}
-                    />
-                  </div>
-                </div>
-
-                <div className="modal-form-group">
-                  <label className="modal-label">Reason / Ghi chú</label>
-                  <textarea
-                    placeholder="Lý do cấp quyền sử dụng phòng tạm thời..."
-                    className="modal-textarea"
-                    value={tempUsageData.reason}
-                    onChange={(e) => setTempUsageData({ ...tempUsageData, reason: e.target.value })}
-                    disabled={modalLoading}
-                  />
-                </div>
-              </div>
-
-              <div className="area-modal__footer">
-                <button
-                  type="button"
-                  className="zone-btn zone-btn--outline"
-                  style={{ width: 'auto' }}
-                  onClick={() => setTempUsageModalOpen(false)}
-                  disabled={modalLoading}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="zone-btn zone-btn--primary"
-                  style={{ width: 'auto' }}
-                  disabled={modalLoading}
-                >
-                  {modalLoading ? 'Creating...' : 'Create Temporary Usage'}
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}

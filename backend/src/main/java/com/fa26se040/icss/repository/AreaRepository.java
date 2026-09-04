@@ -1,6 +1,7 @@
 package com.fa26se040.icss.repository;
 
 import com.fa26se040.icss.entity.Area;
+import com.fa26se040.icss.enums.AreaLevel;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -8,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -20,14 +22,16 @@ public interface AreaRepository extends JpaRepository<Area, UUID> {
 
     java.util.List<Area> findByBuildingIgnoreCaseAndFloorIgnoreCaseAndDeletedAtIsNull(String building, String floor);
 
+    @Query("SELECT a FROM Area a WHERE a.deletedAt IS NULL AND a.areaLevel IN :levels ORDER BY a.building ASC, a.floor ASC, a.name ASC")
+    java.util.List<Area> findAvailableForRequest(@Param("levels") Collection<AreaLevel> levels);
+
     @Query(
         value = """
             SELECT a FROM Area a
-            JOIN FETCH a.areaLevel al
             WHERE (:isActive IS NULL
                    OR (:isActive = true  AND a.deletedAt IS NULL)
                    OR (:isActive = false AND a.deletedAt IS NOT NULL))
-              AND (:areaLevel IS NULL OR al.level = :areaLevel)
+              AND (:areaLevel IS NULL OR a.areaLevel = :areaLevel)
               AND (CAST(:building AS string) IS NULL OR LOWER(a.building) = LOWER(CAST(:building AS string)))
               AND (CAST(:keyword AS string) IS NULL OR (
                     LOWER(a.code) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%')) OR
@@ -39,7 +43,7 @@ public interface AreaRepository extends JpaRepository<Area, UUID> {
             WHERE (:isActive IS NULL
                    OR (:isActive = true  AND a.deletedAt IS NULL)
                    OR (:isActive = false AND a.deletedAt IS NOT NULL))
-              AND (:areaLevel IS NULL OR a.areaLevel.level = :areaLevel)
+              AND (:areaLevel IS NULL OR a.areaLevel = :areaLevel)
               AND (CAST(:building AS string) IS NULL OR LOWER(a.building) = LOWER(CAST(:building AS string)))
               AND (CAST(:keyword AS string) IS NULL OR (
                     LOWER(a.code) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%')) OR
@@ -49,7 +53,7 @@ public interface AreaRepository extends JpaRepository<Area, UUID> {
     )
     Page<Area> searchAreas(
         @Param("keyword") String keyword,
-        @Param("areaLevel") Short areaLevel,
+        @Param("areaLevel") AreaLevel areaLevel,
         @Param("building") String building,
         @Param("isActive") Boolean isActive,
         Pageable pageable

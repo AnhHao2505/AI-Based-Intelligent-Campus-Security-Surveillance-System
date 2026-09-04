@@ -33,19 +33,9 @@ public class CameraAIConfiguration {
     @Builder.Default
     private Boolean faceRecognitionEnabled = false;
 
-    @Column(name = "loitering_detection_enabled", nullable = false)
-    @Builder.Default
-    private Boolean loiteringDetectionEnabled = false;
-
     @Column(name = "face_match_threshold", nullable = false, precision = 3, scale = 2)
     private BigDecimal faceMatchThreshold;
 
-    @Column(name = "loitering_threshold_seconds", nullable = false)
-    private Integer loiteringThresholdSeconds;
-
     @Column(name = "inference_fps", nullable = false)
     private Integer inferenceFps;
-
-    @Column(name = "model_version", length = 50)
-    private String modelVersion;
 }
