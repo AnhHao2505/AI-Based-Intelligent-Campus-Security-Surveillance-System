@@ -1,5 +1,6 @@
 package com.fa26se040.icss.controller;
 
+import com.fa26se040.icss.dto.accessrequest.AreaSimpleResponse;
 import com.fa26se040.icss.dto.area.AreaCreateRequest;
 import com.fa26se040.icss.dto.area.AreaDependencyResponse;
 import com.fa26se040.icss.dto.area.AreaGeometry;
@@ -39,6 +40,12 @@ import java.util.UUID;
 public class AreaController {
 
     private final AreaService areaService;
+
+    @GetMapping("/available-for-request")
+    @PreAuthorize("hasAnyRole('NORMAL_USER', 'FACILITY_MANAGER', 'ADMIN')")
+    public ResponseEntity<List<AreaSimpleResponse>> getAvailableAreasForRequest() {
+        return ResponseEntity.ok(areaService.getAvailableAreasForRequest());
+    }
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")

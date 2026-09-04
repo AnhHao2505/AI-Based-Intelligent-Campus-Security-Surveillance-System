@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -20,6 +21,9 @@ public interface AreaRepository extends JpaRepository<Area, UUID> {
     Optional<Area> findByIdAndDeletedAtIsNull(UUID id);
 
     java.util.List<Area> findByBuildingIgnoreCaseAndFloorIgnoreCaseAndDeletedAtIsNull(String building, String floor);
+
+    @Query("SELECT a FROM Area a WHERE a.deletedAt IS NULL AND a.areaLevel IN :levels ORDER BY a.building ASC, a.floor ASC, a.name ASC")
+    java.util.List<Area> findAvailableForRequest(@Param("levels") Collection<AreaLevel> levels);
 
     @Query(
         value = """

@@ -1,5 +1,6 @@
 package com.fa26se040.icss.service;
 
+import com.fa26se040.icss.dto.accessrequest.AreaSimpleResponse;
 import com.fa26se040.icss.dto.area.AreaCreateRequest;
 import com.fa26se040.icss.dto.area.AreaDependencyResponse;
 import com.fa26se040.icss.dto.area.AreaGeometry;
@@ -34,6 +35,21 @@ public class AreaService {
     private final AreaValidator areaValidator;
     private final AreaDependencyChecker dependencyChecker;
     private final AreaGeometryValidator geometryValidator;
+
+    @Transactional(readOnly = true)
+    public List<AreaSimpleResponse> getAvailableAreasForRequest() {
+        List<Area> areas = areaRepository.findAvailableForRequest(List.of(AreaLevel.SEMI_PRIVATE, AreaLevel.PRIVATE));
+        return areas.stream()
+                .map(a -> new AreaSimpleResponse(
+                        a.getId(),
+                        a.getCode(),
+                        a.getName(),
+                        a.getAreaLevel(),
+                        a.getBuilding(),
+                        a.getFloor()
+                ))
+                .toList();
+    }
 
     @Transactional(readOnly = true)
     public Page<AreaListItemResponse> getAreas(String keyword, AreaLevel areaLevel, String building, Boolean isActive, Pageable pageable) {

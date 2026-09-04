@@ -3,6 +3,7 @@ export const ROLES = {
   FACILITY_MANAGER: 'FACILITY_MANAGER',
   INTERNAL_GUARD: 'INTERNAL_GUARD',
   OUTSOURCED_GUARD: 'OUTSOURCED_GUARD',
+  NORMAL_USER: 'NORMAL_USER',
 };
 
 export const ROLE_LABELS = {
@@ -10,4 +11,5 @@ export const ROLE_LABELS = {
   [ROLES.FACILITY_MANAGER]: 'Quản lý cơ sở',
   [ROLES.INTERNAL_GUARD]: 'Bảo vệ nội bộ',
   [ROLES.OUTSOURCED_GUARD]: 'Bảo vệ thuê ngoài',
+  [ROLES.NORMAL_USER]: 'Người dùng',
 };
