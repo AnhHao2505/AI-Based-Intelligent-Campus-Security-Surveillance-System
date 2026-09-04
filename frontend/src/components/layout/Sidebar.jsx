@@ -120,15 +120,17 @@ export default function Sidebar({ user, onLogout }) {
                 <MapPin size={18} />
                 <span>Cấu hình vùng (Zones)</span>
               </NavLink>
-
-              <NavLink
-                to="/admin/areas/map"
-                className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
-              >
-                <Map size={18} />
-                <span>Bản đồ khu vực</span>
-              </NavLink>
             </>
+          )}
+
+          {(isAdmin || isFacilityManager) && (
+            <NavLink
+              to="/admin/areas/map"
+              className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+            >
+              <Map size={18} />
+              <span>Bản đồ khu vực</span>
+            </NavLink>
           )}
 
           <div className="sidebar__link sidebar__link--disabled">

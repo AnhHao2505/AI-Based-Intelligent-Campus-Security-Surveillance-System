@@ -58,12 +58,12 @@ function App() {
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<DashboardPage />} />
 
-              
+
 
               <Route
                 path="/admin/areas"
                 element={
-                  <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.FACILITY_MANAGER]}>
+                  <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
                     <AreaListPage />
                   </ProtectedRoute>
                 }
