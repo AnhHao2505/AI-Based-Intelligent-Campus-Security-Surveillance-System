@@ -224,7 +224,16 @@ public class FaceDataService {
 
     @Transactional
     public void deleteFace(UUID id) {
-        faceDataRepository.deleteById(id);
+        faceDataRepository.findById(id).ifPresent(entity -> {
+            try {
+                restTemplate.delete(aiServiceUrl + "/api/v1/faces/" + entity.getCode());
+                log.info("Đã gửi yêu cầu xóa ảnh MinIO cho mã hồ sơ: {}", entity.getCode());
+            } catch (Exception e) {
+                log.warn("Không thể gọi AI Service để xóa ảnh MinIO cho mã {}: {}", entity.getCode(), e.getMessage());
+            }
+            faceDataRepository.delete(entity);
+            log.info("Đã xóa hoàn toàn hồ sơ [{}] khỏi Database và MinIO.", entity.getCode());
+        });
     }
 
     private String formatVectorString(List<Float> vector) {
