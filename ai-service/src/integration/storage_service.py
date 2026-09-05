@@ -97,6 +97,26 @@ class StorageService:
             logger.error(f"Lỗi khi ghi ảnh khuôn mặt local: {e}")
             return None
 
+    def delete_face_profile(self, code: str) -> bool:
+        """
+        Xóa toàn bộ ảnh hồ sơ của mã đối tượng code khỏi Bucket 'face-profiles':
+        Ví dụ: face-profiles/{code}/...
+        """
+        if not self.is_connected or not self.client:
+            self._init_minio()
+
+        if self.is_connected and self.client:
+            try:
+                objects_to_delete = self.client.list_objects(self.bucket_faces, prefix=f"{code}/", recursive=True)
+                for obj in objects_to_delete:
+                    self.client.remove_object(self.bucket_faces, obj.object_name)
+                    logger.info(f"[MINIO] Đã xóa ảnh hồ sơ: {obj.object_name}")
+                return True
+            except Exception as e:
+                logger.error(f"[MINIO LỖI] Xóa ảnh hồ sơ thất bại: {e}")
+                return False
+        return False
+
     def upload_frame_evidence(
         self,
         frame: np.ndarray,

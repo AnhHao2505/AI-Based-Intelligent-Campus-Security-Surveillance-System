@@ -181,6 +181,12 @@ async def process_face_registration(
         "embedding_front": vector_512
     }
 
+@app.delete("/api/v1/faces/{code}")
+async def delete_face_profile(code: str):
+    """Xóa toàn bộ ảnh hồ sơ trong MinIO theo mã định danh (MSSV/MSNV)"""
+    success = storage_service.delete_face_profile(code)
+    return {"success": success, "code": code}
+
 # Quản lý các Stream Worker đang chạy
 from .pipeline.stream_worker import CameraStreamWorker
 active_workers: Dict[str, CameraStreamWorker] = {}
