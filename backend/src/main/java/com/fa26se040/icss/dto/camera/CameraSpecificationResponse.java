@@ -22,7 +22,6 @@ public class CameraSpecificationResponse {
     private String focalLength;
     private BigDecimal fieldOfView;
     private Boolean nightVision;
-    private Boolean ptzSupported;
     private Boolean weatherProof;
     private String firmwareVersion;
 }

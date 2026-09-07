@@ -15,8 +15,10 @@ import com.fa26se040.icss.exception.ResourceNotFoundException;
 import com.fa26se040.icss.repository.*;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -27,7 +29,6 @@ public class CameraService {
     private final CameraRepository cameraRepository;
     private final CameraSpecificationRepository cameraSpecificationRepository;
     private final CameraStreamConfigurationRepository cameraStreamConfigurationRepository;
-    private final CameraAIConfigurationRepository cameraAIConfigurationRepository;
     private final CameraHealthLogRepository cameraHealthLogRepository;
 
     // === Camera CRUD ===
@@ -66,6 +67,21 @@ public class CameraService {
         String searchParam = "%" + (search != null ? search.trim().toLowerCase() : "") + "%";
         Page<Camera> cameras = cameraRepository.findFiltered(searchParam, status, opStatus, pageable);
         return cameras.map(this::mapToListResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public List<CameraSimpleResponse> getAllActiveSimple() {
+        log.info("Fetching simple list of active cameras");
+        return cameraRepository.findAll().stream()
+                .filter(c -> c.getStatus() == CameraStatus.ACTIVE)
+                .map(c -> CameraSimpleResponse.builder()
+                        .id(c.getId())
+                        .cameraCode(c.getCameraCode())
+                        .name(c.getName())
+                        .status(c.getStatus())
+                        .operationalStatus(c.getOperationalStatus())
+                        .build())
+                .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
@@ -135,7 +151,6 @@ public class CameraService {
         spec.setFocalLength(req.getFocalLength());
         spec.setFieldOfView(req.getFieldOfView());
         spec.setNightVision(req.getNightVision());
-        spec.setPtzSupported(req.getPtzSupported());
         spec.setWeatherProof(req.getWeatherProof());
         spec.setFirmwareVersion(req.getFirmwareVersion());
 
@@ -151,7 +166,6 @@ public class CameraService {
         CameraStreamConfiguration config = cameraStreamConfigurationRepository.findByCameraId(cameraId)
                 .orElse(CameraStreamConfiguration.builder().camera(camera).build());
 
-        config.setProtocol(req.getProtocol());
         config.setHost(req.getHost());
         config.setPort(req.getPort());
         config.setUsername(req.getUsername());
@@ -163,23 +177,6 @@ public class CameraService {
 
         CameraStreamConfiguration saved = cameraStreamConfigurationRepository.save(config);
         return mapToStreamResponse(saved);
-    }
-
-    public CameraAIConfigResponse upsertAIConfig(UUID cameraId, CameraAIConfigRequest req) {
-        log.info("Upserting AI configuration for camera id: {}", cameraId);
-        Camera camera = cameraRepository.findById(cameraId)
-                .orElseThrow(() -> new ResourceNotFoundException("Camera not found with id: " + cameraId));
-
-        CameraAIConfiguration config = cameraAIConfigurationRepository.findByCameraId(cameraId)
-                .orElse(CameraAIConfiguration.builder().camera(camera).build());
-
-        config.setPersonDetectionEnabled(req.getPersonDetectionEnabled() != null ? req.getPersonDetectionEnabled() : false);
-        config.setFaceRecognitionEnabled(req.getFaceRecognitionEnabled() != null ? req.getFaceRecognitionEnabled() : false);
-        config.setFaceMatchThreshold(req.getFaceMatchThreshold());
-        config.setInferenceFps(req.getInferenceFps());
-
-        CameraAIConfiguration saved = cameraAIConfigurationRepository.save(config);
-        return mapToAIResponse(saved);
     }
 
     // === Health Logs ===
@@ -239,7 +236,6 @@ public class CameraService {
                 .updatedAt(camera.getUpdatedAt())
                 .specification(camera.getSpecification() != null ? mapToSpecResponse(camera.getSpecification()) : null)
                 .streamConfig(camera.getStreamConfiguration() != null ? mapToStreamResponse(camera.getStreamConfiguration()) : null)
-                .aiConfig(camera.getAiConfiguration() != null ? mapToAIResponse(camera.getAiConfiguration()) : null)
                 .build();
     }
 
@@ -255,7 +251,6 @@ public class CameraService {
                 .focalLength(spec.getFocalLength())
                 .fieldOfView(spec.getFieldOfView())
                 .nightVision(spec.getNightVision())
-                .ptzSupported(spec.getPtzSupported())
                 .weatherProof(spec.getWeatherProof())
                 .firmwareVersion(spec.getFirmwareVersion())
                 .build();
@@ -264,7 +259,6 @@ public class CameraService {
     private CameraStreamConfigResponse mapToStreamResponse(CameraStreamConfiguration config) {
         return CameraStreamConfigResponse.builder()
                 .id(config.getId())
-                .protocol(config.getProtocol())
                 .host(config.getHost())
                 .port(config.getPort())
                 .username(config.getUsername())
@@ -273,16 +267,6 @@ public class CameraService {
                 .subStreamPath(config.getSubStreamPath())
                 .retryTimeBeforeAlerting(config.getRetryTimeBeforeAlerting())
                 .timeoutMs(config.getTimeoutMs())
-                .build();
-    }
-
-    private CameraAIConfigResponse mapToAIResponse(CameraAIConfiguration config) {
-        return CameraAIConfigResponse.builder()
-                .id(config.getId())
-                .personDetectionEnabled(config.getPersonDetectionEnabled())
-                .faceRecognitionEnabled(config.getFaceRecognitionEnabled())
-                .faceMatchThreshold(config.getFaceMatchThreshold())
-                .inferenceFps(config.getInferenceFps())
                 .build();
     }
 

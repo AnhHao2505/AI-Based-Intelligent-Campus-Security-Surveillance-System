@@ -31,12 +31,20 @@ import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
+import com.fa26se040.icss.entity.FaceData;
+import com.fa26se040.icss.entity.User;
+import com.fa26se040.icss.repository.FaceDataRepository;
+import com.fa26se040.icss.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class FaceDataService {
 
     private final FaceDataRepository faceDataRepository;
+    private final UserRepository userRepository;
     private final RestTemplate restTemplate = new RestTemplate();
 
     @Value("${ai.service.url:http://localhost:8000}")
@@ -78,14 +86,20 @@ public class FaceDataService {
 
             // 4. Lưu hoặc cập nhật vào CSDL
             Optional<FaceData> existingOpt = faceDataRepository.findByCode(code);
+            User matchedUser = userRepository.findByUserCode(code).orElse(null);
+
             FaceData faceData;
             if (existingOpt.isPresent()) {
                 faceData = existingOpt.get();
                 faceData.setFullName(fullName);
                 faceData.setImageFrontUrl(aiResult.getImageFrontUrl());
                 faceData.setEmbeddingFront(vecFront);
+                if (matchedUser != null) {
+                    faceData.setUser(matchedUser);
+                }
             } else {
                 faceData = FaceData.builder()
+                        .user(matchedUser)
                         .code(code)
                         .fullName(fullName)
                         .imageFrontUrl(aiResult.getImageFrontUrl())
@@ -252,8 +266,12 @@ public class FaceDataService {
     }
 
     private FaceDataResponseDto toDto(FaceData entity) {
+        User u = entity.getUser();
         return FaceDataResponseDto.builder()
                 .id(entity.getId())
+                .userId(u != null ? u.getId() : null)
+                .userCode(u != null ? u.getUserCode() : null)
+                .userName(u != null ? u.getFullName() : null)
                 .code(entity.getCode())
                 .fullName(entity.getFullName())
                 .imageFrontUrl(entity.getImageFrontUrl())

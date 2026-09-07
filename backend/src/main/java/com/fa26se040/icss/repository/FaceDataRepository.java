@@ -18,6 +18,8 @@ public interface FaceDataRepository extends JpaRepository<FaceData, UUID> {
 
     Optional<FaceData> findByCode(String code);
 
+    Optional<FaceData> findByUserId(UUID userId);
+
     boolean existsByCode(String code);
 
     List<FaceData> findTop10ByOrderByCreatedAtDesc();

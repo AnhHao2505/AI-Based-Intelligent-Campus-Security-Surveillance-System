@@ -20,6 +20,10 @@ public class FaceData {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", unique = true)
+    private User user;
+
     @Column(nullable = false, length = 50)
     private String code; // MSSV hoặc MSNV
 

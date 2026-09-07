@@ -6,6 +6,7 @@ import {
   Video,
   UserRound,
   Cpu,
+  Network,
   ShieldAlert,
   KeyRound,
   ClipboardCheck,
@@ -120,24 +121,32 @@ export default function Sidebar({ user, onLogout }) {
                 <MapPin size={18} />
                 <span>Cấu hình vùng (Zones)</span>
               </NavLink>
+
+              <NavLink
+                to="/admin/areas/map"
+                className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+              >
+                <Map size={18} />
+                <span>Bản đồ khu vực</span>
+              </NavLink>
+
+              <NavLink
+                to="/admin/area-cameras"
+                className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+              >
+                <Network size={18} />
+                <span>Gán Camera – Khu vực</span>
+              </NavLink>
+
+              <NavLink
+                to="/admin/ai-settings"
+                className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+              >
+                <Cpu size={18} />
+                <span>Thiết lập AI</span>
+              </NavLink>
             </>
           )}
-
-          {(isAdmin || isFacilityManager) && (
-            <NavLink
-              to="/admin/areas/map"
-              className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
-            >
-              <Map size={18} />
-              <span>Bản đồ khu vực</span>
-            </NavLink>
-          )}
-
-          <div className="sidebar__link sidebar__link--disabled">
-            <Cpu size={18} />
-            <span>Thiết lập AI</span>
-            <span className="sidebar__badge-soon">Soon</span>
-          </div>
         </nav>
       </div>
 

@@ -37,8 +37,6 @@ public class CameraSpecificationRequest {
 
     private Boolean nightVision;
 
-    private Boolean ptzSupported;
-
     private Boolean weatherProof;
 
     @Size(max = 50, message = "Firmware version cannot exceed 50 characters")

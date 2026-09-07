@@ -1,6 +1,5 @@
 package com.fa26se040.icss.entity;
 
-import com.fa26se040.icss.enums.StreamProtocol;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -8,9 +7,15 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.util.UUID;
 
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
+
 @Entity
 @Table(name = "camera_stream_configurations")
-@Data
+@Getter
+@Setter
+@ToString(exclude = {"camera"})
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -24,10 +29,6 @@ public class CameraStreamConfiguration {
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "camera_id", nullable = false, unique = true)
     private Camera camera;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "protocol", nullable = false, length = 50)
-    private StreamProtocol protocol;
 
     @Column(name = "host", nullable = false, length = 255)
     private String host;

@@ -10,9 +10,15 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
+
 @Entity
 @Table(name = "camera_health_logs")
-@Data
+@Getter
+@Setter
+@ToString(exclude = {"camera"})
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder

@@ -6,15 +6,12 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.util.UUID;
 
-import com.fa26se040.icss.enums.StreamProtocol;
-
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class CameraStreamConfigResponse {
     private UUID id;
-    private StreamProtocol protocol;
     private String host;
     private Integer port;
     private String username;

@@ -5,18 +5,24 @@ import com.fa26se040.icss.enums.OperationalStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.ToString;
+
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
 @Entity
 @Table(name = "cameras")
-@Data
+@Getter
+@Setter
+@ToString(exclude = {"specification", "streamConfiguration", "healthLogs", "areas"})
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -68,9 +74,6 @@ public class Camera {
     @OneToOne(mappedBy = "camera", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private CameraStreamConfiguration streamConfiguration;
 
-    @OneToOne(mappedBy = "camera", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private CameraAIConfiguration aiConfiguration;
-
     @OneToMany(mappedBy = "camera", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<CameraHealthLog> healthLogs;
 
@@ -91,5 +94,18 @@ public class Camera {
     @PreUpdate
     protected void onUpdate() {
         updatedAt = OffsetDateTime.now();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Camera camera = (Camera) o;
+        return id != null && Objects.equals(id, camera.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return getClass().hashCode();
     }
 }

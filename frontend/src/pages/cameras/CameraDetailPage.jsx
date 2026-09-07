@@ -4,7 +4,6 @@ import {
   ArrowLeft,
   Settings,
   Video,
-  Cpu,
   Activity,
   Info,
   Save,
@@ -22,7 +21,6 @@ import {
   reactivateCamera,
   upsertSpecification,
   upsertStreamConfig,
-  upsertAIConfig,
   fetchHealthLogs,
 } from "../../services/cameraService";
 import "../../styles/CameraDetailPage.css";
@@ -64,13 +62,11 @@ export default function CameraDetailPage() {
     focalLength: "",
     fieldOfView: "",
     nightVision: false,
-    ptzSupported: false,
     weatherProof: false,
     firmwareVersion: "",
   });
 
   const [streamForm, setStreamForm] = useState({
-    protocol: "RTSP",
     host: "",
     port: "",
     username: "",
@@ -79,13 +75,6 @@ export default function CameraDetailPage() {
     subStreamPath: "",
     retryTimeBeforeAlerting: 3,
     timeoutMs: 5000,
-  });
-
-  const [aiForm, setAiForm] = useState({
-    personDetectionEnabled: false,
-    faceRecognitionEnabled: false,
-    faceMatchThreshold: 0.8,
-    inferenceFps: 5,
   });
 
   const loadCameraDetails = async () => {
@@ -133,7 +122,6 @@ export default function CameraDetailPage() {
               ? data.specification.fieldOfView.toString()
               : "",
           nightVision: !!data.specification.nightVision,
-          ptzSupported: !!data.specification.ptzSupported,
           weatherProof: !!data.specification.weatherProof,
           firmwareVersion: data.specification.firmwareVersion || "",
         });
@@ -142,7 +130,6 @@ export default function CameraDetailPage() {
       // Init Stream Form
       if (data.streamConfig) {
         setStreamForm({
-          protocol: data.streamConfig.protocol || "RTSP",
           host: data.streamConfig.host || "",
           port:
             data.streamConfig.port !== null &&
@@ -159,16 +146,6 @@ export default function CameraDetailPage() {
               ? data.streamConfig.retryTimeBeforeAlerting
               : 3,
           timeoutMs: data.streamConfig.timeoutMs || 5000,
-        });
-      }
-
-      // Init AI Form
-      if (data.aiConfig) {
-        setAiForm({
-          personDetectionEnabled: !!data.aiConfig.personDetectionEnabled,
-          faceRecognitionEnabled: !!data.aiConfig.faceRecognitionEnabled,
-          faceMatchThreshold: data.aiConfig.faceMatchThreshold || 0.8,
-          inferenceFps: data.aiConfig.inferenceFps || 5,
         });
       }
     } catch (err) {
@@ -273,7 +250,6 @@ export default function CameraDetailPage() {
           ? parseFloat(specForm.fieldOfView)
           : null,
         nightVision: specForm.nightVision,
-        ptzSupported: specForm.ptzSupported,
         weatherProof: specForm.weatherProof,
         firmwareVersion: specForm.firmwareVersion || null,
       };
@@ -293,7 +269,6 @@ export default function CameraDetailPage() {
     setError(null);
     try {
       const payload = {
-        protocol: streamForm.protocol,
         host: streamForm.host,
         port: parseInt(streamForm.port, 10),
         username: streamForm.username || null,
@@ -312,27 +287,6 @@ export default function CameraDetailPage() {
       showNotification("Đã lưu cấu hình Stream thành công");
     } catch (err) {
       setError(err.message || "Lỗi lưu cấu hình stream");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleAISubmit = async (e) => {
-    e.preventDefault();
-    setSaving(true);
-    setError(null);
-    try {
-      const payload = {
-        personDetectionEnabled: aiForm.personDetectionEnabled,
-        faceRecognitionEnabled: aiForm.faceRecognitionEnabled,
-        faceMatchThreshold: parseFloat(aiForm.faceMatchThreshold),
-        inferenceFps: parseInt(aiForm.inferenceFps, 10),
-      };
-
-      await upsertAIConfig(id, payload);
-      showNotification("Đã lưu cấu hình AI thành công");
-    } catch (err) {
-      setError(err.message || "Lỗi lưu cấu hình AI");
     } finally {
       setSaving(false);
     }
@@ -456,13 +410,6 @@ export default function CameraDetailPage() {
             >
               <Video size={16} />
               <span>Cấu hình Stream</span>
-            </button>
-            <button
-              className={`tab-btn ${activeTab === "ai" ? "tab-btn--active" : ""}`}
-              onClick={() => setActiveTab("ai")}
-            >
-              <Cpu size={16} />
-              <span>Cấu hình AI</span>
             </button>
           </div>
 
@@ -722,19 +669,6 @@ export default function CameraDetailPage() {
                     <label className="checkbox-label">
                       <input
                         type="checkbox"
-                        checked={specForm.ptzSupported}
-                        onChange={(e) =>
-                          setSpecForm({
-                            ...specForm,
-                            ptzSupported: e.target.checked,
-                          })
-                        }
-                      />
-                      <span>Hỗ trợ quay quét (PTZ)</span>
-                    </label>
-                    <label className="checkbox-label">
-                      <input
-                        type="checkbox"
                         checked={specForm.weatherProof}
                         onChange={(e) =>
                           setSpecForm({
@@ -774,23 +708,6 @@ export default function CameraDetailPage() {
                 className="tab-form"
               >
                 <div className="form-grid">
-                  <div className="form-group">
-                    <label>Giao thức kết nối *</label>
-                    <select
-                      value={streamForm.protocol}
-                      onChange={(e) =>
-                        setStreamForm({
-                          ...streamForm,
-                          protocol: e.target.value,
-                        })
-                      }
-                    >
-                      <option value="RTSP">RTSP</option>
-                      <option value="RTMP">RTMP</option>
-                      <option value="HTTP">HTTP</option>
-                      <option value="HTTPS">HTTPS</option>
-                    </select>
-                  </div>
                   <div className="form-group">
                     <label>Địa chỉ IP/Host *</label>
                     <input
@@ -938,94 +855,6 @@ export default function CameraDetailPage() {
                       <Save size={16} />
                     )}
                     <span>Lưu luồng Stream</span>
-                  </button>
-                </div>
-              </form>
-            )}
-
-            {/* AI CONFIG TAB */}
-            {activeTab === "ai" && (
-              <form
-                onSubmit={handleAISubmit}
-                className="tab-form"
-              >
-                <div className="form-grid">
-                  <div className="form-group">
-                    <label>
-                      Ngưỡng khớp khuôn mặt (Face match threshold:{" "}
-                      {aiForm.faceMatchThreshold})
-                    </label>
-                    <div className="slider-wrapper">
-                      <input
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.05"
-                        value={aiForm.faceMatchThreshold}
-                        onChange={(e) =>
-                          setAiForm({
-                            ...aiForm,
-                            faceMatchThreshold: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
-                  </div>
-                  <div className="form-group">
-                    <label>Inference FPS (Tốc độ xử lý AI) *</label>
-                    <input
-                      type="number"
-                      value={aiForm.inferenceFps}
-                      onChange={(e) =>
-                        setAiForm({ ...aiForm, inferenceFps: e.target.value })
-                      }
-                      required
-                    />
-                  </div>
-                  <div className="form-group col-span-2 checkbox-row">
-                    <label className="checkbox-label toggle-switch">
-                      <input
-                        type="checkbox"
-                        checked={aiForm.personDetectionEnabled}
-                        onChange={(e) =>
-                          setAiForm({
-                            ...aiForm,
-                            personDetectionEnabled: e.target.checked,
-                          })
-                        }
-                      />
-                      <span>Phát hiện người (Person Detection)</span>
-                    </label>
-                    <label className="checkbox-label toggle-switch">
-                      <input
-                        type="checkbox"
-                        checked={aiForm.faceRecognitionEnabled}
-                        onChange={(e) =>
-                          setAiForm({
-                            ...aiForm,
-                            faceRecognitionEnabled: e.target.checked,
-                          })
-                        }
-                      />
-                      <span>Nhận diện khuôn mặt (Face Recognition)</span>
-                    </label>
-                  </div>
-                </div>
-                <div className="form-actions">
-                  <button
-                    type="submit"
-                    className="btn-save"
-                    disabled={saving}
-                  >
-                    {saving ? (
-                      <Loader2
-                        className="animate-spin"
-                        size={16}
-                      />
-                    ) : (
-                      <Save size={16} />
-                    )}
-                    <span>Lưu cấu hình AI</span>
                   </button>
                 </div>
               </form>

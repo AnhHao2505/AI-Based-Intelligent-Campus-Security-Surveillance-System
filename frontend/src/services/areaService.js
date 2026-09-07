@@ -98,4 +98,20 @@ export async function deleteAreaGeometry(areaId) {
   return apiDelete(`/api/areas/${areaId}/geometry`);
 }
 
+/**
+ * Lấy danh sách camera đã được gán vào Khu vực
+ * GET /api/areas/{id}/cameras
+ */
+export async function getAreaCameras(areaId) {
+  return apiGet(`/api/areas/${areaId}/cameras`);
+}
+
+/**
+ * Cập nhật danh sách camera gán vào Khu vực (ADMIN)
+ * PUT /api/areas/{id}/cameras
+ */
+export async function updateAreaCameras(areaId, cameraIds) {
+  return apiPut(`/api/areas/${areaId}/cameras`, { cameraIds });
+}
+
 

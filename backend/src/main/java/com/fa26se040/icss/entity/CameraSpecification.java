@@ -8,9 +8,15 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.util.UUID;
 
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
+
 @Entity
 @Table(name = "camera_specifications")
-@Data
+@Getter
+@Setter
+@ToString(exclude = {"camera"})
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -51,9 +57,6 @@ public class CameraSpecification {
 
     @Column(name = "night_vision")
     private Boolean nightVision;
-
-    @Column(name = "ptz_supported")
-    private Boolean ptzSupported;
 
     @Column(name = "weather_proof")
     private Boolean weatherProof;

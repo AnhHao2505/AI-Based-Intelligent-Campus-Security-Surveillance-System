@@ -14,6 +14,9 @@ import java.util.UUID;
 @AllArgsConstructor
 public class FaceDataResponseDto {
     private UUID id;
+    private UUID userId;
+    private String userCode;
+    private String userName;
     private String code;
     private String fullName;
     private String imageFrontUrl;
