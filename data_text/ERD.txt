@@ -92,7 +92,6 @@ Table camera_specifications {
   focal_length VARCHAR(50)
   field_of_view NUMERIC(5,2)
   night_vision BOOLEAN
-  ptz_supported BOOLEAN
   weather_proof BOOLEAN
   firmware_version VARCHAR(50)
 }
@@ -100,7 +99,6 @@ Table camera_specifications {
 Table camera_stream_configurations {
   id UUID [pk, default: `gen_random_uuid()`]
   camera_id UUID [not null, unique, note: 'FK to cameras']
-  protocol VARCHAR(50) [not null, note: 'RTSP | RTMP | HTTP | HTTPS']
   host VARCHAR(255) [not null]
   port INT [not null]
   username VARCHAR(100)
@@ -111,13 +109,21 @@ Table camera_stream_configurations {
   timeout_ms INT [not null, default: 5000]
 }
 
-Table camera_ai_configurations {
+Table ai_configurations {
   id UUID [pk, default: `gen_random_uuid()`]
-  camera_id UUID [not null, unique, note: 'FK to cameras']
-  person_detection_enabled BOOLEAN [not null, default: false]
-  face_recognition_enabled BOOLEAN [not null, default: false]
   face_match_threshold NUMERIC(3,2) [not null, note: 'ngưỡng tin cậy nhận dạng khuôn mặt']
   inference_fps INT [not null, note: 'số frame AI xử lý trong 1s']
+  updated_at TIMESTAMPTZ [default: `CURRENT_TIMESTAMP`]
+}
+
+Table face_data {
+  id UUID [pk, default: `gen_random_uuid()`]
+  user_id UUID [unique, note: 'FK to users']
+  code VARCHAR(50) [not null, note: 'MSSV hoặc MSNV']
+  full_name VARCHAR(100) [not null]
+  image_front_url VARCHAR(512) [not null]
+  embedding_front vector(512) [not null]
+  created_at TIMESTAMPTZ [not null, default: `CURRENT_TIMESTAMP`]
 }
 
 Table camera_health_logs {
@@ -187,7 +193,7 @@ Table user_area_schedules {
 // Relationships
 Ref: camera_specifications.camera_id - cameras.id
 Ref: camera_stream_configurations.camera_id - cameras.id
-Ref: camera_ai_configurations.camera_id - cameras.id
+Ref: face_data.user_id - users.id
 Ref: camera_health_logs.camera_id > cameras.id
 
 // Area - Camera N-N Relationships

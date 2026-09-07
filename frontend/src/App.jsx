@@ -17,6 +17,8 @@ import FaceManagementPage from './pages/faceData/FaceManagementPage';
 import GuardDashboardPage from './pages/guard/GuardDashboardPage';
 import AccessRequestPage from './pages/accessRequest/AccessRequestPage';
 import AccessRequestReviewPage from './pages/accessRequest/AccessRequestReviewPage';
+import AiSettingsPage from './pages/ai/AiSettingsPage';
+import AreaCameraManagementPage from './pages/areas/AreaCameraManagementPage';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
@@ -130,6 +132,25 @@ function App() {
                 element={
                   <ProtectedRoute allowedRoles={[ROLES.FACILITY_MANAGER, ROLES.ADMIN]}>
                     <AccessRequestReviewPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* AI & Area-Camera Management */}
+              <Route
+                path="/admin/ai-settings"
+                element={
+                  <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.FACILITY_MANAGER]}>
+                    <AiSettingsPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/admin/area-cameras"
+                element={
+                  <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.FACILITY_MANAGER]}>
+                    <AreaCameraManagementPage />
                   </ProtectedRoute>
                 }
               />

@@ -14,6 +14,10 @@ import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.exception.AreaErrorCode;
 import com.fa26se040.icss.exception.AreaException;
 import com.fa26se040.icss.exception.UnauthorizedException;
+import com.fa26se040.icss.dto.area.AreaCameraResponse;
+import com.fa26se040.icss.dto.camera.CameraSimpleResponse;
+import com.fa26se040.icss.entity.Camera;
+import com.fa26se040.icss.repository.CameraRepository;
 import com.fa26se040.icss.repository.AreaRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -25,12 +29,14 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class AreaService {
 
     private final AreaRepository areaRepository;
+    private final CameraRepository cameraRepository;
     private final UserRepository userRepository;
     private final AreaValidator areaValidator;
     private final AreaDependencyChecker dependencyChecker;
@@ -220,6 +226,45 @@ public class AreaService {
         area.setDeletedAt(OffsetDateTime.now());
 
         areaRepository.save(area);
+    }
+
+    @Transactional(readOnly = true)
+    public AreaCameraResponse getCamerasForArea(UUID areaId) {
+        Area area = areaRepository.findByIdAndDeletedAtIsNull(areaId)
+                .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
+
+        List<CameraSimpleResponse> cameraResponses = area.getCameras().stream()
+                .map(c -> CameraSimpleResponse.builder()
+                        .id(c.getId())
+                        .cameraCode(c.getCameraCode())
+                        .name(c.getName())
+                        .status(c.getStatus())
+                        .operationalStatus(c.getOperationalStatus())
+                        .build())
+                .collect(Collectors.toList());
+
+        return AreaCameraResponse.builder()
+                .areaId(area.getId())
+                .areaCode(area.getCode())
+                .areaName(area.getName())
+                .cameras(cameraResponses)
+                .build();
+    }
+
+    @Transactional
+    public AreaCameraResponse updateCamerasForArea(UUID areaId, List<UUID> cameraIds) {
+        Area area = areaRepository.findByIdAndDeletedAtIsNull(areaId)
+                .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
+
+        List<Camera> camerasToAssign = (cameraIds == null || cameraIds.isEmpty())
+                ? List.of()
+                : cameraRepository.findAllById(cameraIds);
+
+        area.getCameras().clear();
+        area.getCameras().addAll(camerasToAssign);
+        Area savedArea = areaRepository.save(area);
+
+        return getCamerasForArea(savedArea.getId());
     }
 
     private UUID resolveActorId(String email) {

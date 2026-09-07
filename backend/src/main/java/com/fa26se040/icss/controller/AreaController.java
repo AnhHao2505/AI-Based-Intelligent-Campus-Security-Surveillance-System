@@ -1,6 +1,8 @@
 package com.fa26se040.icss.controller;
 
 import com.fa26se040.icss.dto.accessrequest.AreaSimpleResponse;
+import com.fa26se040.icss.dto.area.AreaCameraResponse;
+import com.fa26se040.icss.dto.area.AreaCameraUpdateRequest;
 import com.fa26se040.icss.dto.area.AreaCreateRequest;
 import com.fa26se040.icss.dto.area.AreaDependencyResponse;
 import com.fa26se040.icss.dto.area.AreaGeometry;
@@ -146,5 +148,20 @@ public class AreaController {
         String actorEmail = authentication.getName();
         areaService.deactivate(id, actorEmail);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{id}/cameras")
+    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
+    public ResponseEntity<AreaCameraResponse> getCameras(@PathVariable UUID id) {
+        return ResponseEntity.ok(areaService.getCamerasForArea(id));
+    }
+
+    @PutMapping("/{id}/cameras")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<AreaCameraResponse> updateCameras(
+            @PathVariable UUID id,
+            @RequestBody AreaCameraUpdateRequest request
+    ) {
+        return ResponseEntity.ok(areaService.updateCamerasForArea(id, request.getCameraIds()));
     }
 }

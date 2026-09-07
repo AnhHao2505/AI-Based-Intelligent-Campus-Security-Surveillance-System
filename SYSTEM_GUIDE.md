@@ -33,13 +33,22 @@
 ## 2. Danh Sách Tài Khoản Kiểm Thử
 
 ### 1. Tài khoản Người dùng Hệ thống (Đăng nhập tại `/login`):
-| Vai trò (Role) | Email | Mật khẩu | Mã nhân sự (MSNV) | Quyền hạn |
+| Vai trò (Role) | Email | Mật khẩu | Mã nhân sự (MSNV/MSSV) | Quyền hạn |
 | :--- | :--- | :---: | :---: | :--- |
 | **Quản trị viên (ADMIN)** | `admin@fpt.edu.vn` | `123456` | `AD-001` | Toàn quyền hệ thống, quản lý tài khoản & dataset khuôn mặt |
 | **Bảo vệ (INTERNAL_GUARD)** | `guard.an@fpt.edu.vn` | `123456` | `SEC-001` | Xem camera trực tiếp, tiếp nhận cảnh báo đột nhập/lảng vảng |
 | **Quản lý CSVC (FACILITY_MANAGER)**| `manager.binh@fpt.edu.vn` | `123456` | `FM-001` | Quản lý thiết bị camera, xem báo cáo thống kê vi phạm |
+| **Sinh viên / Người dùng (NORMAL_USER)** | `student.tuan@fpt.edu.vn` | `123456` | `SV-001` | Người dùng sinh viên thông thường |
 
-### 2. Tài khoản Dịch vụ Hạ tầng:
+### 2. Danh sách Camera Mẫu Khởi Tạo (Seeded Cameras):
+| Mã Camera | Tên Camera | Trạng thái Hoạt động | Trạng thái Vận hành |
+| :--- | :--- | :---: | :---: |
+| `CAM-001` | Camera Cổng Chính | `ACTIVE` | `ONLINE` |
+| `CAM-002` | Camera Sảnh A | `ACTIVE` | `ONLINE` |
+| `CAM-003` | Camera Thư Viện | `ACTIVE` | `OFFLINE` |
+| `CAM-004` | Camera Bãi Xe | `ACTIVE` | `ONLINE` |
+
+### 3. Tài khoản Dịch vụ Hạ tầng:
 | Dịch vụ | Tên đăng nhập (User) | Mật khẩu (Password) | Ghi chú |
 | :--- | :--- | :--- | :--- |
 | **PostgreSQL Database** | `sep` | `123456` | Tên CSDL: `campus_security`, Port `5432` |

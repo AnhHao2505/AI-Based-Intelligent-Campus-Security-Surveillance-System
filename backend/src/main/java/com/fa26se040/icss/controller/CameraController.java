@@ -16,6 +16,7 @@ import com.fa26se040.icss.enums.CameraStatus;
 import com.fa26se040.icss.enums.OperationalStatus;
 import com.fa26se040.icss.service.CameraService;
 
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -44,6 +45,13 @@ public class CameraController {
         log.info("REST request to list cameras with filters");
         Page<CameraListResponse> list = cameraService.listCameras(search, status, operationalStatus, pageable);
         return ResponseEntity.ok(list);
+    }
+
+    @GetMapping("/all-simple")
+    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER', 'INTERNAL_GUARD')")
+    public ResponseEntity<List<CameraSimpleResponse>> getAllSimple() {
+        log.info("REST request to get simple active camera list");
+        return ResponseEntity.ok(cameraService.getAllActiveSimple());
     }
 
     @GetMapping("/{id}")
@@ -91,14 +99,6 @@ public class CameraController {
     public ResponseEntity<CameraStreamConfigResponse> upsertStream(@PathVariable UUID id, @Valid @RequestBody CameraStreamConfigRequest req) {
         log.info("REST request to upsert camera stream configuration: {}", id);
         CameraStreamConfigResponse config = cameraService.upsertStreamConfig(id, req);
-        return ResponseEntity.ok(config);
-    }
-
-    @PutMapping("/{id}/ai-config")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<CameraAIConfigResponse> upsertAI(@PathVariable UUID id, @Valid @RequestBody CameraAIConfigRequest req) {
-        log.info("REST request to upsert camera AI configuration: {}", id);
-        CameraAIConfigResponse config = cameraService.upsertAIConfig(id, req);
         return ResponseEntity.ok(config);
     }
 

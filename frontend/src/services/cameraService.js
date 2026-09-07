@@ -110,13 +110,10 @@ export function upsertStreamConfig(id, data) {
 }
 
 /**
- * Cập nhật/Tạo mới cấu hình AI camera
+ * Lấy danh sách gọn các camera đang hoạt động (dùng cho dropdown/gán khu vực)
  */
-export function upsertAIConfig(id, data) {
-  return request(`/api/cameras/${id}/ai-config`, {
-    method: 'PUT',
-    body: JSON.stringify(data),
-  });
+export function fetchAllSimpleCameras() {
+  return request('/api/cameras/all-simple');
 }
 
 /**

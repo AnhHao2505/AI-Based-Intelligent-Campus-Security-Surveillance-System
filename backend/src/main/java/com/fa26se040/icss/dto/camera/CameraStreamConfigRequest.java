@@ -1,7 +1,5 @@
 package com.fa26se040.icss.dto.camera;
 
-import com.fa26se040.icss.enums.StreamProtocol;
-
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -15,9 +13,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class CameraStreamConfigRequest {
-
-    @NotNull(message = "Protocol is required")
-    private StreamProtocol protocol;
 
     @NotBlank(message = "Host is required")
     @Size(max = 255, message = "Host cannot exceed 255 characters")

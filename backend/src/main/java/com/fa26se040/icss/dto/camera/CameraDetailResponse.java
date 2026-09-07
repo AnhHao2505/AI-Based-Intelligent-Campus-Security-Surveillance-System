@@ -29,5 +29,4 @@ public class CameraDetailResponse {
     private OffsetDateTime updatedAt;
     private CameraSpecificationResponse specification;
     private CameraStreamConfigResponse streamConfig;
-    private CameraAIConfigResponse aiConfig;
 }

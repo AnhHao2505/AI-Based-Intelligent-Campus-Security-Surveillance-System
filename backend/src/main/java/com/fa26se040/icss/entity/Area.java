@@ -31,10 +31,13 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
+import lombok.ToString;
+
 @Entity
 @Table(name = "areas")
 @Getter
 @Setter
+@ToString(exclude = {"cameras"})
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
