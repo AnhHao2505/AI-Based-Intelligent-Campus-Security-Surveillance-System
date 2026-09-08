@@ -284,8 +284,8 @@ export default function AreaListPage() {
         </header>
 
         {/* Toolbar: Floor Tabs & Zoom */}
-        <div className="area-toolbar">
-          <div className="area-floor-tabs">
+        <div className="zone-toolbar area-toolbar">
+          <div className="zone-toolbar__tabs area-floor-tabs">
             {availableFloors.map((fl) => (
               <button
                 key={fl}
@@ -298,13 +298,19 @@ export default function AreaListPage() {
             ))}
           </div>
 
-          <button type="button" className="zone-btn zone-btn--primary" onClick={handleOpenCreateModal}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <button
+            type="button"
+            className="zone-toolbar__add area-toolbar__create-btn"
+            onClick={handleOpenCreateModal}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
             <span>Thêm vùng mới</span>
           </button>
+
+          <div className="zone-toolbar__spacer" />
         </div>
 
         {/* Main Map Container */}
