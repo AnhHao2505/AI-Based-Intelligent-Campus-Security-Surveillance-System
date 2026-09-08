@@ -10,5 +10,7 @@ public record AreaListItemResponse(
     AreaLevel areaLevel,
     String building,
     String floor,
-    Boolean isActive
+    Boolean isActive,
+    AreaGeometry geometry,
+    Boolean hasGeometry
 ) {}

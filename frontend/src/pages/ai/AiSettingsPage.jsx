@@ -3,15 +3,24 @@ import { Cpu, Save, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { getAiConfig, updateAiConfig } from '../../services/aiConfigService';
 import '../../styles/AiSettingsPage.css';
 
+const DEFAULT_THRESHOLD = 0.75;
+const DEFAULT_FPS = 15;
+
 export default function AiSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
 
-  const [threshold, setThreshold] = useState(0.75);
-  const [fps, setFps] = useState(15);
+  const [threshold, setThreshold] = useState(DEFAULT_THRESHOLD);
+  const [fps, setFps] = useState(DEFAULT_FPS);
   const [updatedAt, setUpdatedAt] = useState(null);
+
+  // Track initial server values for change detection
+  const [initialConfig, setInitialConfig] = useState({
+    threshold: DEFAULT_THRESHOLD,
+    fps: DEFAULT_FPS
+  });
 
   useEffect(() => {
     fetchConfig();
@@ -23,9 +32,15 @@ export default function AiSettingsPage() {
     try {
       const data = await getAiConfig();
       if (data) {
-        setThreshold(data.faceMatchThreshold ?? 0.75);
-        setFps(data.inferenceFps ?? 15);
+        const loadedThreshold = data.faceMatchThreshold ?? DEFAULT_THRESHOLD;
+        const loadedFps = data.inferenceFps ?? DEFAULT_FPS;
+        setThreshold(loadedThreshold);
+        setFps(loadedFps);
         setUpdatedAt(data.updatedAt);
+        setInitialConfig({
+          threshold: loadedThreshold,
+          fps: loadedFps
+        });
       }
     } catch (err) {
       console.error('Lỗi khi tải cấu hình AI:', err);
@@ -33,6 +48,13 @@ export default function AiSettingsPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleResetDefault = () => {
+    setThreshold(DEFAULT_THRESHOLD);
+    setFps(DEFAULT_FPS);
+    setError(null);
+    setSuccessMsg(null);
   };
 
   const handleSubmit = async (e) => {
@@ -52,6 +74,10 @@ export default function AiSettingsPage() {
       if (res && res.updatedAt) {
         setUpdatedAt(res.updatedAt);
       }
+      setInitialConfig({
+        threshold: parseFloat(threshold),
+        fps: parseInt(fps, 10)
+      });
     } catch (err) {
       console.error('Lỗi khi lưu cấu hình AI:', err);
       setError(err.message || 'Cập nhật cấu hình AI thất bại.');
@@ -60,11 +86,22 @@ export default function AiSettingsPage() {
     }
   };
 
+  // Change detection
+  const hasChanges =
+    parseFloat(threshold) !== parseFloat(initialConfig.threshold) ||
+    parseInt(fps, 10) !== parseInt(initialConfig.fps, 10);
+
+  // Calculate filled slider percentage (range: 0.50 - 0.95)
+  const fillPercent = Math.max(
+    0,
+    Math.min(100, ((parseFloat(threshold) - 0.50) / (0.95 - 0.50)) * 100)
+  );
+
   if (loading) {
     return (
-      <div className="ai-settings-container">
-        <div className="ai-loading-spinner">
-          <Loader2 className="animate-spin text-blue" size={44} />
+      <div className="ai-settings-page">
+        <div className="ai-settings-loading">
+          <Loader2 className="animate-spin ai-settings-spinner" size={40} />
           <p>Đang tải cấu hình AI hệ thống...</p>
         </div>
       </div>
@@ -72,78 +109,130 @@ export default function AiSettingsPage() {
   }
 
   return (
-    <div className="ai-settings-container">
+    <div className="ai-settings-page">
+      {/* Page Header */}
       <div className="ai-settings-header">
         <h1>
-          <Cpu size={28} className="text-blue" />
-          Thiết Lập AI Hệ Thống
+          <Cpu size={24} className="ai-settings-header__icon" />
+          <span>Thiết Lập AI Hệ Thống</span>
         </h1>
         <p>Cấu hình tập trung thông số nhận diện khuôn mặt và tốc độ xử lý cho tất cả camera toàn trường.</p>
       </div>
 
+      {/* Main Settings Card */}
       <div className="ai-settings-card">
-        {error && (
-          <div className="ai-alert-banner error">
-            <AlertCircle size={20} />
-            <span>{error}</span>
-          </div>
-        )}
+        <form onSubmit={handleSubmit} className="ai-settings-form">
+          <div className="ai-settings-card__body">
+            {error && (
+              <div className="ai-alert-banner ai-alert-banner--error">
+                <AlertCircle size={18} />
+                <span>{error}</span>
+              </div>
+            )}
 
-        {successMsg && (
-          <div className="ai-alert-banner success">
-            <CheckCircle2 size={20} />
-            <span>{successMsg}</span>
-          </div>
-        )}
+            {successMsg && (
+              <div className="ai-alert-banner ai-alert-banner--success">
+                <CheckCircle2 size={18} />
+                <span>{successMsg}</span>
+              </div>
+            )}
 
-        <form onSubmit={handleSubmit}>
-          <div className="ai-form-group">
-            <label>Ngưỡng Nhận Diện Khuôn Mặt (Face Match Threshold)</label>
-            <div className="slider-container">
-              <input
-                type="range"
-                className="range-slider"
-                min="0.50"
-                max="0.95"
-                step="0.01"
-                value={threshold}
-                onChange={(e) => setThreshold(e.target.value)}
-              />
-              <div className="slider-value-badge">{parseFloat(threshold).toFixed(2)}</div>
+            {/* Setting 1: Face Match Threshold */}
+            <div className="ai-setting-block">
+              <div className="ai-setting-block__header">
+                <label htmlFor="ai-threshold-slider" className="ai-setting-block__label">
+                  Ngưỡng Nhận Diện Khuôn Mặt (Face Match Threshold)
+                </label>
+                <span className="ai-setting-block__badge">
+                  {parseFloat(threshold).toFixed(2)}
+                </span>
+              </div>
+              <p className="ai-setting-block__hint">
+                Giá trị từ 0.50 đến 0.95. Ngưỡng càng cao đòi hỏi độ chính xác càng cao, giúp giảm cảnh báo giả nhưng có thể bỏ sót khi ánh sáng yếu. Mặc định khuyến nghị: 0.75.
+              </p>
+              <div className="ai-slider-wrapper">
+                <input
+                  id="ai-threshold-slider"
+                  type="range"
+                  className="ai-slider"
+                  min="0.50"
+                  max="0.95"
+                  step="0.01"
+                  value={threshold}
+                  onChange={(e) => setThreshold(e.target.value)}
+                  style={{
+                    '--slider-fill': `${fillPercent}%`
+                  }}
+                />
+                <div className="ai-slider-range-labels">
+                  <span>0.50</span>
+                  <span>0.95</span>
+                </div>
+              </div>
             </div>
-            <p className="form-hint">
-              Giá trị từ 0.50 đến 0.95. Ngưỡng càng cao đòi hỏi độ chính xác càng cao, giúp giảm cảnh báo giả nhưng có thể bỏ sót khi ánh sáng yếu. Mặc định khuyến nghị: 0.75.
-            </p>
+
+            {/* Divider between setting blocks */}
+            <hr className="ai-settings-divider" />
+
+            {/* Setting 2: Inference FPS */}
+            <div className="ai-setting-block">
+              <label htmlFor="ai-fps-input" className="ai-setting-block__label">
+                Số Khung Hình Xử Lý Mới Mỗi Giây (Inference FPS)
+              </label>
+              <p className="ai-setting-block__hint">
+                Số lượng khung hình (frames) gửi cho mô hình AI phân tích trong 1 giây. FPS cao tăng khả năng phát hiện liên tục nhưng ngốn thêm tài nguyên Server. Mặc định: 15 FPS.
+              </p>
+              <div className="ai-fps-input-group">
+                <input
+                  id="ai-fps-input"
+                  type="number"
+                  className="ai-fps-input"
+                  min="1"
+                  max="60"
+                  value={fps}
+                  onChange={(e) => setFps(e.target.value)}
+                  required
+                />
+                <span className="ai-fps-unit">khung/giây</span>
+              </div>
+            </div>
           </div>
 
-          <div className="ai-form-group">
-            <label>Số Khung Hình Xử Lý Mới Mỗi Giây (Inference FPS)</label>
-            <input
-              type="number"
-              className="input-number-custom"
-              min="1"
-              max="60"
-              value={fps}
-              onChange={(e) => setFps(e.target.value)}
-              required
-            />
-            <p className="form-hint">
-              Số lượng khung hình (frames) gửi cho mô hình AI phân tích trong 1 giây. FPS cao tăng khả năng phát hiện liên tục nhưng ngốn thêm tài nguyên Server. Mặc định: 15 FPS.
-            </p>
+          {/* Footer Strip */}
+          <div className="ai-settings-card__footer">
+            {updatedAt ? (
+              <span className="ai-settings-updated-at">
+                Lần cập nhật gần nhất: {new Date(updatedAt).toLocaleString('vi-VN')}
+              </span>
+            ) : (
+              <span />
+            )}
+            <div className="ai-settings-actions">
+              <button
+                type="button"
+                className="ai-btn-ghost"
+                onClick={handleResetDefault}
+              >
+                Khôi phục mặc định
+              </button>
+              <div
+                className="ai-save-btn-wrapper"
+                title={!hasChanges ? 'Chưa có thay đổi nào' : ''}
+              >
+                <button
+                  type="submit"
+                  className="ai-btn-primary"
+                  disabled={!hasChanges || saving}
+                >
+                  {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                  <span>{saving ? 'Đang lưu...' : 'Lưu Thay Đổi Cấu Hình'}</span>
+                </button>
+              </div>
+            </div>
           </div>
-
-          {updatedAt && (
-            <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '1.5rem' }}>
-              Lần cập nhật gần nhất: {new Date(updatedAt).toLocaleString('vi-VN')}
-            </p>
-          )}
-
-          <button type="submit" className="btn-ai-save" disabled={saving}>
-            {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-            <span>{saving ? 'Đang lưu...' : 'Lưu Thay Đổi Cấu Hình'}</span>
-          </button>
         </form>
       </div>
     </div>
   );
 }
+
