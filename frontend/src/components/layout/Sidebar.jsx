@@ -4,12 +4,12 @@ import {
   MapPin,
   Map,
   Video,
-  UserRound,
   Cpu,
   Network,
   ShieldAlert,
   KeyRound,
   ClipboardCheck,
+  Users,
   Sun,
   Moon,
   LogOut
@@ -106,11 +106,11 @@ export default function Sidebar({ user, onLogout }) {
               </NavLink>
 
               <NavLink
-                to="/admin/faces"
+                to="/admin/accounts"
                 className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
               >
-                <UserRound size={18} />
-                <span>Quản lý Khuôn mặt</span>
+                <Users size={18} />
+                <span>Quản lý tài khoản</span>
               </NavLink>
 
               <NavLink

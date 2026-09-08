@@ -19,6 +19,7 @@ import AccessRequestPage from './pages/accessRequest/AccessRequestPage';
 import AccessRequestReviewPage from './pages/accessRequest/AccessRequestReviewPage';
 import AiSettingsPage from './pages/ai/AiSettingsPage';
 import AreaCameraManagementPage from './pages/areas/AreaCameraManagementPage';
+import ManageAccountPage from './pages/accounts/ManageAccountPage';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
@@ -107,6 +108,17 @@ function App() {
                   </ProtectedRoute>
                 }
               />
+
+              {/* Account management - Admin only */}
+              <Route
+                path="/admin/accounts"
+                element={
+                  <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                    <ManageAccountPage />
+                  </ProtectedRoute>
+                }
+              />
+
 
               <Route
                 path="/guard"
