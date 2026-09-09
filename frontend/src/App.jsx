@@ -10,7 +10,6 @@ import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import UnauthorizedPage from './pages/UnauthorizedPage';
 import AreaListPage from './pages/areas/AreaListPage';
-import AreaMapPage from './pages/areas/AreaMapPage';
 import CameraListPage from './pages/cameras/CameraListPage';
 import CameraDetailPage from './pages/cameras/CameraDetailPage';
 import FaceManagementPage from './pages/faceData/FaceManagementPage';
@@ -66,7 +65,7 @@ function App() {
               <Route
                 path="/admin/areas"
                 element={
-                  <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                  <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.FACILITY_MANAGER]}>
                     <AreaListPage />
                   </ProtectedRoute>
                 }
@@ -74,11 +73,7 @@ function App() {
 
               <Route
                 path="/admin/areas/map"
-                element={
-                  <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.FACILITY_MANAGER]}>
-                    <AreaMapPage />
-                  </ProtectedRoute>
-                }
+                element={<Navigate to="/admin/areas?view=map" replace />}
               />
 
               <Route
