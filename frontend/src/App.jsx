@@ -10,7 +10,6 @@ import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import UnauthorizedPage from './pages/UnauthorizedPage';
 import AreaListPage from './pages/areas/AreaListPage';
-import AreaMapPage from './pages/areas/AreaMapPage';
 import CameraListPage from './pages/cameras/CameraListPage';
 import CameraDetailPage from './pages/cameras/CameraDetailPage';
 import FaceManagementPage from './pages/faceData/FaceManagementPage';
@@ -19,6 +18,7 @@ import AccessRequestPage from './pages/accessRequest/AccessRequestPage';
 import AccessRequestReviewPage from './pages/accessRequest/AccessRequestReviewPage';
 import AiSettingsPage from './pages/ai/AiSettingsPage';
 import AreaCameraManagementPage from './pages/areas/AreaCameraManagementPage';
+import ManageAccountPage from './pages/accounts/ManageAccountPage';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
@@ -65,7 +65,7 @@ function App() {
               <Route
                 path="/admin/areas"
                 element={
-                  <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                  <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.FACILITY_MANAGER]}>
                     <AreaListPage />
                   </ProtectedRoute>
                 }
@@ -73,11 +73,7 @@ function App() {
 
               <Route
                 path="/admin/areas/map"
-                element={
-                  <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.FACILITY_MANAGER]}>
-                    <AreaMapPage />
-                  </ProtectedRoute>
-                }
+                element={<Navigate to="/admin/areas?view=map" replace />}
               />
 
               <Route
@@ -107,6 +103,17 @@ function App() {
                   </ProtectedRoute>
                 }
               />
+
+              {/* Account management - Admin only */}
+              <Route
+                path="/admin/accounts"
+                element={
+                  <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                    <ManageAccountPage />
+                  </ProtectedRoute>
+                }
+              />
+
 
               <Route
                 path="/guard"

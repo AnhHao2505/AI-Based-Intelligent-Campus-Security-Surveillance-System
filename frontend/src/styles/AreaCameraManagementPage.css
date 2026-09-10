@@ -1,191 +1,364 @@
-/* AreaCameraManagementPage.css */
+/* ==========================================================================
+   Area Camera Management — AreaCameraManagementPage.css
+   Clean Light Theme Dual-List Transfer Layout
+   ========================================================================== */
 
 .area-camera-container {
-  padding: 2rem;
+  padding: 24px 32px;
   max-width: 1200px;
   margin: 0 auto;
-  color: #f8fafc;
-}
-
-.area-camera-header {
-  margin-bottom: 2rem;
-}
-
-.area-camera-header h1 {
-  font-size: 1.875rem;
-  font-weight: 700;
-  color: #ffffff;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 0.5rem;
-}
-
-.area-camera-header p {
-  color: #94a3b8;
-  font-size: 0.95rem;
-}
-
-.area-selector-card {
-  background: rgba(30, 41, 59, 0.7);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 1rem;
-  padding: 1.5rem 2rem;
-  margin-bottom: 2rem;
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-}
-
-.area-selector-card label {
-  font-weight: 600;
-  color: #e2e8f0;
-  white-space: nowrap;
-  font-size: 1rem;
-}
-
-.area-select-dropdown {
-  flex: 1;
-  max-width: 400px;
-  background: #0f172a;
-  border: 1px solid #334155;
-  border-radius: 0.5rem;
-  padding: 0.75rem 1rem;
-  color: #f8fafc;
-  font-size: 1rem;
-  outline: none;
-  cursor: pointer;
-  transition: border-color 0.2s;
-}
-
-.area-select-dropdown:focus {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
-}
-
-.transfer-grid {
-  display: grid;
-  grid-template-columns: 1fr 60px 1fr;
-  gap: 1.5rem;
-  align-items: center;
-}
-
-@media (max-width: 768px) {
-  .transfer-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.transfer-box {
-  background: rgba(30, 41, 59, 0.7);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 1rem;
-  padding: 1.5rem;
-  height: 480px;
+  background-color: #F7F8FA;
+  min-height: calc(100vh - 64px);
+  color: #111827;
   display: flex;
   flex-direction: column;
 }
 
+/* --------------------------------------------------------------------------
+   Page Header
+   -------------------------------------------------------------------------- */
+.area-camera-header {
+  margin-bottom: 24px;
+}
+
+.area-camera-header h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #111827;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 6px 0;
+  line-height: 1.3;
+}
+
+.area-camera-header__icon {
+  color: #1D4ED8;
+  flex-shrink: 0;
+}
+
+.area-camera-header p {
+  color: #6B7280;
+  font-size: 0.875rem;
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* --------------------------------------------------------------------------
+   Loading State
+   -------------------------------------------------------------------------- */
+.area-camera-loading {
+  text-align: center;
+  padding: 4rem 1rem;
+  color: #6B7280;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.area-camera-spinner {
+  color: #1D4ED8;
+}
+
+/* --------------------------------------------------------------------------
+   Area Selector Bar
+   -------------------------------------------------------------------------- */
+.area-selector-card {
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.area-selector-card label {
+  font-weight: 600;
+  color: #111827;
+  white-space: nowrap;
+  font-size: 0.875rem;
+}
+
+.area-select-dropdown {
+  flex: 1;
+  max-width: 440px;
+  background: #FFFFFF;
+  border: 1px solid #D1D5DB;
+  border-radius: 8px;
+  padding: 8px 14px;
+  color: #111827;
+  font-size: 0.875rem;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.area-select-dropdown:focus {
+  border-color: #1D4ED8;
+  box-shadow: 0 0 0 3px #EFF6FF;
+}
+
+/* --------------------------------------------------------------------------
+   Alert Banners
+   -------------------------------------------------------------------------- */
+.ai-alert-banner {
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.ai-alert-banner.success {
+  background: #ECFDF5;
+  border: 1px solid #A7F3D0;
+  color: #059669;
+}
+
+.ai-alert-banner.error {
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  color: #DC2626;
+}
+
+/* --------------------------------------------------------------------------
+   Dual-List Transfer Grid
+   Equal height via display: flex and align-items: stretch
+   -------------------------------------------------------------------------- */
+.transfer-grid {
+  display: flex;
+  align-items: stretch;
+  gap: 20px;
+  flex: 1;
+  min-height: 480px;
+  max-height: 620px;
+}
+
+@media (max-width: 768px) {
+  .transfer-grid {
+    flex-direction: column;
+    max-height: none;
+    min-height: auto;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Transfer Box (Panel)
+   -------------------------------------------------------------------------- */
+.transfer-box {
+  flex: 1;
+  min-width: 0;
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
 .transfer-box-header {
+  background: #FAFBFC;
+  border-bottom: 1px solid #E5E7EB;
+  padding: 14px 18px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
 }
 
 .transfer-box-header h3 {
-  font-size: 1.1rem;
+  font-size: 0.9375rem;
   font-weight: 600;
-  color: #f8fafc;
+  color: #111827;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 8px;
+  margin: 0;
+}
+
+.transfer-box-header__icon {
+  color: #1D4ED8;
+  flex-shrink: 0;
+}
+
+.transfer-box-header__icon--success {
+  color: #059669;
 }
 
 .badge-count {
-  background: rgba(59, 130, 246, 0.2);
-  color: #60a5fa;
-  border: 1px solid rgba(59, 130, 246, 0.3);
+  background: #EFF6FF;
+  color: #1D4ED8;
   border-radius: 9999px;
-  padding: 0.15rem 0.6rem;
-  font-size: 0.8rem;
-  font-weight: 700;
+  padding: 2px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid rgba(29, 78, 216, 0.12);
+  line-height: 1.4;
 }
 
+.transfer-box-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* --------------------------------------------------------------------------
+   Search Input inside Panel
+   -------------------------------------------------------------------------- */
+.transfer-search-wrapper,
 .search-input-wrapper {
-  margin-bottom: 1rem;
   position: relative;
+  margin: 0 0 12px 0;
+  flex: 0 0 auto !important;
+  width: 100%;
 }
 
+.transfer-search-wrapper input,
 .search-input-wrapper input {
   width: 100%;
-  background: #0f172a;
-  border: 1px solid #334155;
-  border-radius: 0.5rem;
-  padding: 0.6rem 1rem 0.6rem 2.2rem;
-  color: #f8fafc;
-  font-size: 0.9rem;
+  height: 38px;
+  background: #FFFFFF;
+  border: 1px solid #D1D5DB;
+  border-radius: 8px;
+  padding: 0 12px 0 36px;
+  color: #111827;
+  font-size: 0.875rem;
   outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
+.transfer-search-wrapper input::placeholder,
+.search-input-wrapper input::placeholder {
+  color: #9CA3AF;
+}
+
+.transfer-search-wrapper input:focus,
 .search-input-wrapper input:focus {
-  border-color: #3b82f6;
+  border-color: #1D4ED8;
+  box-shadow: 0 0 0 3px #EFF6FF;
 }
 
-.search-icon-inside {
+.transfer-search-wrapper .search-icon-inside,
+.search-input-wrapper .search-icon-inside {
   position: absolute;
-  left: 0.75rem;
+  left: 12px;
   top: 50%;
   transform: translateY(-50%);
-  color: #64748b;
+  color: #9CA3AF;
+  pointer-events: none;
+  width: 16px;
+  height: 16px;
 }
 
+/* --------------------------------------------------------------------------
+   Camera List Container (Scrollable)
+   Starts immediately 12px below the search input, NO extra top spacing
+   -------------------------------------------------------------------------- */
+.camera-list,
 .camera-list-scroll {
   flex: 1;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  padding-right: 0.25rem;
+  gap: 8px;
+  margin: 0;
+  padding: 0 4px 0 0;
+  min-height: 0;
+  justify-content: flex-start;
+  align-items: stretch;
+  scrollbar-width: thin;
+  scrollbar-color: #D1D5DB transparent;
 }
 
+.camera-list::-webkit-scrollbar,
+.camera-list-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.camera-list::-webkit-scrollbar-track,
+.camera-list-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.camera-list::-webkit-scrollbar-thumb,
+.camera-list-scroll::-webkit-scrollbar-thumb {
+  background: #D1D5DB;
+  border-radius: 3px;
+}
+
+/* --------------------------------------------------------------------------
+   Camera Row Items
+   -------------------------------------------------------------------------- */
 .camera-item-card {
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 0.5rem;
-  padding: 0.75rem 1rem;
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  padding: 10px 14px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+  user-select: none;
+  gap: 12px;
+  flex-shrink: 0;
 }
 
 .camera-item-card:hover {
-  background: rgba(51, 65, 85, 0.8);
-  border-color: rgba(59, 130, 246, 0.4);
-  transform: translateX(2px);
+  background: #FAFBFC;
+  border-color: #D1D5DB;
 }
 
 .camera-item-info {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
 }
 
 .camera-item-code {
-  font-weight: 700;
-  font-size: 0.85rem;
-  color: #60a5fa;
+  font-weight: 600;
+  font-size: 0.8125rem;
+  color: #1D4ED8;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 .camera-item-name {
-  font-size: 0.9rem;
-  color: #e2e8f0;
+  font-size: 0.875rem;
+  color: #6B7280;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.camera-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.camera-item-arrow {
+  color: #6B7280;
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.camera-item-card:hover .camera-item-arrow {
+  color: #1D4ED8;
 }
 
 .status-dot {
@@ -193,77 +366,133 @@
   height: 8px;
   border-radius: 50%;
   display: inline-block;
+  flex-shrink: 0;
 }
 
 .status-dot.online {
-  background-color: #10b981;
-  box-shadow: 0 0 6px #10b981;
+  background-color: #059669;
 }
 
 .status-dot.offline {
-  background-color: #ef4444;
+  background-color: #9CA3AF;
 }
 
+/* --------------------------------------------------------------------------
+   Empty State
+   A short centred line of #6B7280 text, icon and text stacked with 8px gap
+   -------------------------------------------------------------------------- */
+.camera-list__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 24px 16px;
+  text-align: center;
+}
+
+.camera-list__empty-icon {
+  color: #9CA3AF;
+  flex-shrink: 0;
+}
+
+.camera-list__empty-text {
+  color: #6B7280;
+  font-size: 0.875rem;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.camera-list-empty {
+  color: #6B7280;
+  font-size: 0.875rem;
+  text-align: center;
+  padding: 24px 16px;
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* --------------------------------------------------------------------------
+   Middle Transfer Arrow Buttons
+   -------------------------------------------------------------------------- */
 .transfer-controls {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 12px;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+  padding: 0 4px;
+}
+
+@media (max-width: 768px) {
+  .transfer-controls {
+    flex-direction: row;
+  }
 }
 
 .btn-transfer {
-  background: #1e293b;
-  border: 1px solid #334155;
-  color: #cbd5e1;
-  width: 44px;
-  height: 44px;
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  color: #6B7280;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .btn-transfer:hover:not(:disabled) {
-  background: #3b82f6;
-  border-color: #3b82f6;
-  color: #ffffff;
-  transform: scale(1.1);
+  background: #EFF6FF;
+  border-color: #1D4ED8;
+  color: #1D4ED8;
+  transform: scale(1.06);
 }
 
 .btn-transfer:disabled {
-  opacity: 0.3;
+  opacity: 0.4;
   cursor: not-allowed;
+  pointer-events: none;
 }
 
+/* --------------------------------------------------------------------------
+   Footer & Save Button
+   -------------------------------------------------------------------------- */
 .area-save-footer {
-  margin-top: 2rem;
+  margin-top: 24px;
   display: flex;
   justify-content: flex-end;
-  gap: 1rem;
+  flex-shrink: 0;
 }
 
 .btn-save-area-cameras {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  background: linear-gradient(135deg, #10b981, #059669);
-  color: #ffffff;
-  padding: 0.75rem 2rem;
+  gap: 8px;
+  background: #1D4ED8;
+  color: #FFFFFF;
+  padding: 10px 22px;
   border: none;
-  border-radius: 0.5rem;
+  border-radius: 8px;
   font-weight: 600;
-  font-size: 1rem;
+  font-size: 0.875rem;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
-  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(29, 78, 216, 0.2);
+  transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 }
 
 .btn-save-area-cameras:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.5);
+  background: #1E40AF;
+  box-shadow: 0 4px 6px -1px rgba(29, 78, 216, 0.25);
+  transform: translateY(-1px);
+}
+
+.btn-save-area-cameras:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .btn-save-area-cameras:disabled {

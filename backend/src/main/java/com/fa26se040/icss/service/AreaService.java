@@ -297,7 +297,9 @@ public class AreaService {
                 area.getAreaLevel(),
                 area.getBuilding(),
                 area.getFloor(),
-                area.getIsActive()
+                area.getIsActive(),
+                area.getGeometry(),
+                area.getGeometry() != null
         );
     }
 }
