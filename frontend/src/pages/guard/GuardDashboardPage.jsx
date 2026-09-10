@@ -10,21 +10,48 @@ import {
   VolumeX, 
   Radio,
   Clock,
+  Loader2,
 } from 'lucide-react';
 import WebRtcPlayer from '../../components/video/WebRtcPlayer';
+import { fetchCameras } from '../../services/cameraService';
 import '../../styles/GuardDashboardPage.css';
 
 export default function GuardDashboardPage() {
-  const [selectedCamera, setSelectedCamera] = useState('cam01');
+  const [selectedCamera, setSelectedCamera] = useState('');
   const [cameraLayout, setCameraLayout] = useState(1);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [wsConnected, setWsConnected] = useState(false);
   const [activeAlerts, setActiveAlerts] = useState([]);
-  const [cameraList] = useState([
-    { code: 'cam01', name: 'Camera 01 - Cửa Server (Phone Live)', zone: 'Tòa Alpha Tầng 2', status: 'ONLINE' },
-    { code: 'cam02', name: 'Camera 02 - Cổng CSVC Vùng Cấm', zone: 'Khu CSVC Tân Uyên', status: 'STANDBY' },
-    { code: 'cam03', name: 'Camera 03 - Kho Thiết Bị Lab AI', zone: 'Tòa Beta Tầng 1', status: 'STANDBY' }
-  ]);
+  const [cameraList, setCameraList] = useState([]);
+  const [camerasLoading, setCamerasLoading] = useState(true);
+
+  // Tải danh sách camera đang hoạt động từ Backend CSDL
+  useEffect(() => {
+    async function loadActiveCameras() {
+      setCamerasLoading(true);
+      try {
+        const response = await fetchCameras({ page: 0, size: 50, status: 'ACTIVE' });
+        const list = (response?.content || []).map((cam) => ({
+          id: cam.id,
+          code: (cam.cameraCode || '').toLowerCase().replace(/[^a-z0-9_-]/g, '').trim(),
+          cameraCode: cam.cameraCode,
+          name: cam.name,
+          zone: 'Khuôn viên trường',
+          status: cam.operationalStatus || 'ONLINE'
+        }));
+        setCameraList(list);
+        if (list.length > 0) {
+          setSelectedCamera((prev) => (prev && list.some((c) => c.code === prev) ? prev : list[0].code));
+        }
+      } catch (err) {
+        console.error('Không thể tải danh sách camera:', err);
+      } finally {
+        setCamerasLoading(false);
+      }
+    }
+
+    loadActiveCameras();
+  }, []);
 
   // Âm thanh cảnh báo
   const playAlertSound = () => {
@@ -140,7 +167,7 @@ export default function GuardDashboardPage() {
   ];
 
   const visibleCameras = cameraLayout === 1
-    ? [cameraList.find((camera) => camera.code === selectedCamera) || cameraList[0]]
+    ? [cameraList.find((camera) => camera.code === selectedCamera) || cameraList[0]].filter(Boolean)
     : cameraList.slice(0, cameraLayout);
 
   return (
@@ -211,15 +238,27 @@ export default function GuardDashboardPage() {
           </div>
 
           <div className={`camera-grid camera-grid--${cameraLayout}`}>
-            {visibleCameras.map((camera) => (
-              <div className="video-viewport-card" key={camera.code}>
-                <WebRtcPlayer
-                  streamPath={camera.code}
-                  host="localhost:8889"
-                  cameraName={camera.name}
-                />
+            {camerasLoading ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '320px', color: '#64748b', gap: '8px' }}>
+                <Loader2 className="animate-spin" size={24} />
+                <span>Đang tải danh sách camera...</span>
               </div>
-            ))}
+            ) : visibleCameras.length === 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '320px', color: '#64748b', gap: '8px' }}>
+                <Video size={40} style={{ opacity: 0.4 }} />
+                <span>Chưa có camera nào đang hoạt động</span>
+              </div>
+            ) : (
+              visibleCameras.map((camera) => (
+                <div className="video-viewport-card" key={camera.code}>
+                  <WebRtcPlayer
+                    streamPath={camera.code}
+                    host="localhost:8889"
+                    cameraName={camera.name}
+                  />
+                </div>
+              ))
+            )}
           </div>
 
           {/* Camera Selection Switcher */}
@@ -229,18 +268,24 @@ export default function GuardDashboardPage() {
               <span>Chuyển luồng Camera:</span>
             </div>
             <div className="camera-tabs-list">
-              {cameraList.map((cam) => (
-                <button
-                  key={cam.code}
-                  type="button"
-                  className={`cam-tab-btn ${selectedCamera === cam.code ? 'active' : ''}`}
-                  onClick={() => setSelectedCamera(cam.code)}
-                >
-                  <span className={`status-dot ${cam.status === 'ONLINE' ? 'online' : 'standby'}`} />
-                  <span className="cam-tab-code">{cam.code.toUpperCase()}</span>
-                  <span className="cam-tab-name">{cam.name}</span>
-                </button>
-              ))}
+              {camerasLoading ? (
+                <span style={{ fontSize: '13px', color: '#64748b' }}>Đang tải...</span>
+              ) : cameraList.length === 0 ? (
+                <span style={{ fontSize: '13px', color: '#64748b' }}>Không có camera</span>
+              ) : (
+                cameraList.map((cam) => (
+                  <button
+                    key={cam.code}
+                    type="button"
+                    className={`cam-tab-btn ${selectedCamera === cam.code ? 'active' : ''}`}
+                    onClick={() => setSelectedCamera(cam.code)}
+                  >
+                    <span className={`status-dot ${cam.status === 'ONLINE' ? 'online' : 'standby'}`} />
+                    <span className="cam-tab-code">{cam.code.toUpperCase()}</span>
+                    <span className="cam-tab-name">{cam.name}</span>
+                  </button>
+                ))
+              )}
             </div>
           </div>
         </div>

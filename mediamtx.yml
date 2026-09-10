@@ -21,14 +21,18 @@ webrtcLocalUDPAddress: :8189
 api: yes
 apiAddress: :9997
 
-# 4. Danh sách Kênh Camera
-paths:
-  # Camera 01 — Điện thoại Samsung (IP Webcam App - Luồng Video Chuẩn H264)
-  cam01:
-    source: rtsp://admin:123456@192.168.1.10:8080/h264.sdp
-    sourceOnDemand: yes
-    sourceOnDemandCloseAfter: 10s
+authMethod: internal
+authInternalUsers:
+  - user: any
+    pass: ''
+    permissions:
+      - action: api
+      - action: read
+      - action: publish
 
-  # Mở sẵn cho các Camera khác tự phát (Push) vào MediaMTX
+# 4. Danh sách Kênh Camera
+# Tất cả các camera sẽ được Backend tự động đồng bộ qua MediaMTX API (/v3/config/paths/add)
+paths:
+  # Cho phép các nguồn khác kết nối hoặc đẩy luồng vào MediaMTX
   all_others:
     source: publisher
