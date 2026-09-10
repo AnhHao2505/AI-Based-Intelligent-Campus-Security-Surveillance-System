@@ -36,7 +36,7 @@ public class CameraController {
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER', 'INTERNAL_GUARD', 'OUTSOURCED_GUARD')")
     public ResponseEntity<Page<CameraListResponse>> list(
             @RequestParam(required = false) String search,
             @RequestParam(required = false) CameraStatus status,

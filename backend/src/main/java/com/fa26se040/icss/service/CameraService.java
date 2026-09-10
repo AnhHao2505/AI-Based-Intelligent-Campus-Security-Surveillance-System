@@ -2,6 +2,8 @@ package com.fa26se040.icss.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -30,6 +32,7 @@ public class CameraService {
     private final CameraSpecificationRepository cameraSpecificationRepository;
     private final CameraStreamConfigurationRepository cameraStreamConfigurationRepository;
     private final CameraHealthLogRepository cameraHealthLogRepository;
+    private final MediaMtxService mediaMtxService;
 
     // === Camera CRUD ===
 
@@ -60,10 +63,11 @@ public class CameraService {
         return mapToDetailResponse(saved);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public Page<CameraListResponse> listCameras(String search, CameraStatus status,
                                                 OperationalStatus opStatus, Pageable pageable) {
         log.info("Listing cameras with search: {}, status: {}, operationalStatus: {}", search, status, opStatus);
+        syncLiveOperationalStatuses();
         String searchParam = "%" + (search != null ? search.trim().toLowerCase() : "") + "%";
         Page<Camera> cameras = cameraRepository.findFiltered(searchParam, status, opStatus, pageable);
         return cameras.map(this::mapToListResponse);
@@ -84,12 +88,56 @@ public class CameraService {
                 .collect(Collectors.toList());
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public CameraDetailResponse getCameraDetail(UUID id) {
         log.info("Fetching camera detail for id: {}", id);
+        syncLiveOperationalStatuses();
         Camera camera = cameraRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Camera not found with id: " + id));
         return mapToDetailResponse(camera);
+    }
+
+    /**
+     * Tự động kiểm tra trạng thái luồng video từ MediaMTX và cập nhật operational_status cho các camera đang ACTIVE
+     */
+    @org.springframework.scheduling.annotation.Scheduled(fixedDelay = 15000)
+    @Transactional
+    public void syncLiveOperationalStatuses() {
+        try {
+            java.util.Map<String, Boolean> liveStatuses = mediaMtxService.getLivePathStatuses();
+            if (liveStatuses == null || liveStatuses.isEmpty()) {
+                return;
+            }
+
+            List<Camera> activeCameras = cameraRepository.findAll().stream()
+                    .filter(c -> c.getStatus() == CameraStatus.ACTIVE)
+                    .collect(Collectors.toList());
+
+            for (Camera cam : activeCameras) {
+                String pathName = mediaMtxService.formatPathName(cam.getCameraCode());
+                boolean isReady = Boolean.TRUE.equals(liveStatuses.get(pathName));
+                OperationalStatus currentStatus = cam.getOperationalStatus();
+                OperationalStatus newStatus = isReady ? OperationalStatus.ONLINE : OperationalStatus.OFFLINE;
+
+                if (currentStatus != newStatus) {
+                    cam.setOperationalStatus(newStatus);
+                    cameraRepository.save(cam);
+
+                    CameraHealthLog healthLog = CameraHealthLog.builder()
+                            .camera(cam)
+                            .status(newStatus)
+                            .checkedAt(OffsetDateTime.now())
+                            .errorMessage(newStatus == OperationalStatus.ONLINE
+                                    ? "Kết nối luồng RTSP thành công qua MediaMTX"
+                                    : "Mất tín hiệu luồng RTSP từ camera")
+                            .build();
+                    cameraHealthLogRepository.save(healthLog);
+                    log.info("Cập nhật trạng thái kết nối camera [{}]: {} -> {}", cam.getCameraCode(), currentStatus, newStatus);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Lỗi khi đồng bộ trạng thái kết nối từ MediaMTX: {}", e.getMessage());
+        }
     }
 
     public CameraDetailResponse updateCamera(UUID id, UpdateCameraRequest request) {
@@ -117,6 +165,7 @@ public class CameraService {
         camera.setDeletedAt(OffsetDateTime.now());
 
         Camera saved = cameraRepository.save(camera);
+        mediaMtxService.deleteCameraPath(camera.getCameraCode());
         return mapToDetailResponse(saved);
     }
 
@@ -129,7 +178,34 @@ public class CameraService {
         camera.setDeletedAt(null);
 
         Camera saved = cameraRepository.save(camera);
+        cameraStreamConfigurationRepository.findByCameraId(id).ifPresent(cfg -> {
+            String rtspUrl = buildRtspUrl(cfg);
+            if (rtspUrl != null) {
+                mediaMtxService.syncCameraPath(camera.getCameraCode(), rtspUrl);
+            }
+        });
         return mapToDetailResponse(saved);
+    }
+
+    @EventListener(ApplicationReadyEvent.class)
+    public void syncAllStreamsToMediaMtxOnStartup() {
+        log.info("Checking and syncing active camera stream paths to MediaMTX on startup...");
+        try {
+            var configs = cameraStreamConfigurationRepository.findAll();
+            int syncedCount = 0;
+            for (CameraStreamConfiguration cfg : configs) {
+                if (cfg.getCamera() != null && cfg.getCamera().getStatus() == CameraStatus.ACTIVE) {
+                    String rtspUrl = buildRtspUrl(cfg);
+                    if (rtspUrl != null) {
+                        mediaMtxService.syncCameraPath(cfg.getCamera().getCameraCode(), rtspUrl);
+                        syncedCount++;
+                    }
+                }
+            }
+            log.info("MediaMTX startup sync completed: {} active camera stream(s) processed.", syncedCount);
+        } catch (Exception e) {
+            log.warn("Failed to sync camera streams to MediaMTX on startup: {}", e.getMessage());
+        }
     }
 
     // === Configuration Upsert ===
@@ -176,6 +252,12 @@ public class CameraService {
         config.setTimeoutMs(req.getTimeoutMs() != null ? req.getTimeoutMs() : 5000);
 
         CameraStreamConfiguration saved = cameraStreamConfigurationRepository.save(config);
+
+        String rtspUrl = buildRtspUrl(saved);
+        if (rtspUrl != null && camera.getStatus() == CameraStatus.ACTIVE) {
+            mediaMtxService.syncCameraPath(camera.getCameraCode(), rtspUrl);
+        }
+
         return mapToStreamResponse(saved);
     }
 
@@ -280,5 +362,44 @@ public class CameraService {
                 .errorCode(log.getErrorCode())
                 .errorMessage(log.getErrorMessage())
                 .build();
+    }
+
+    private String buildRtspUrl(CameraStreamConfiguration config) {
+        if (config == null) {
+            return null;
+        }
+        if (config.getMainStreamPath() != null && (config.getMainStreamPath().startsWith("rtsp://") || config.getMainStreamPath().startsWith("rtsps://"))) {
+            return config.getMainStreamPath();
+        }
+        if (config.getHost() == null || config.getHost().isBlank()) {
+            return null;
+        }
+        if (config.getHost().startsWith("rtsp://") || config.getHost().startsWith("rtsps://")) {
+            return config.getHost();
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append("rtsp://");
+
+        if (config.getUsername() != null && !config.getUsername().isBlank()) {
+            sb.append(config.getUsername());
+            if (config.getCredentialRef() != null && !config.getCredentialRef().isBlank()) {
+                sb.append(":").append(config.getCredentialRef());
+            }
+            sb.append("@");
+        }
+
+        sb.append(config.getHost().trim());
+        if (config.getPort() != null) {
+            sb.append(":").append(config.getPort());
+        }
+
+        String path = config.getMainStreamPath();
+        if (path != null && !path.isBlank()) {
+            if (!path.startsWith("/")) {
+                sb.append("/");
+            }
+            sb.append(path.trim());
+        }
+        return sb.toString();
     }
 }

@@ -78,6 +78,11 @@ ai:
   service:
     url: http://${AI_SERVICE_HOST:localhost}:${AI_SERVICE_PORT:8000}
 
+# Cấu hình kết nối MediaMTX Gateway (Port 9997 API)
+mediamtx:
+  api:
+    url: http://${MEDIAMTX_HOST:localhost}:${MEDIAMTX_API_PORT:9997}
+
 app:
   jwt:
     secret: ${JWT_SECRET:9a4f2c8d3b7a1e5f8g2h6i0j3k7l1m5n9o3p7q1r5s9t3u7v1w5x9y3z7a1b5c9d}
