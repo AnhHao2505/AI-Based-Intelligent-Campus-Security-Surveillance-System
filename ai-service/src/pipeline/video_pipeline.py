@@ -1,6 +1,5 @@
 import time
 import logging
-import base64
 import cv2
 import numpy as np
 from typing import List, Optional, Tuple, Dict, Any
@@ -12,6 +11,7 @@ from ..core.face_detector import FaceDetector
 from ..core.face_matcher import FaceMatcher
 from ..core.loitering_engine import LoiteringEngine
 from ..integration.kafka_producer import SecurityKafkaProducer
+from ..integration.storage_service import StorageService
 from ..utils.visualizer import FrameVisualizer
 
 logger = logging.getLogger(__name__)
@@ -23,7 +23,7 @@ class VideoPipeline:
     2. Crop vùng người & Face Detection (YuNet)
     3. Face Recognition Matching (pgvector Cosine Search)
     4. Loitering & Violation Analysis (ROI Polygon Check + Loitering Timer)
-    5. Cảnh báo tự động (Kafka Event chứa Base64 Frame Snapshot)
+    5. Cảnh báo tự động (Kafka Event + MinIO Snapshot Upload)
     6. Visualization & Overlay Rendering
     """
     def __init__(
@@ -51,6 +51,7 @@ class VideoPipeline:
         
         # Khởi tạo các module tích hợp
         self.kafka_producer = SecurityKafkaProducer()
+        self.storage_service = StorageService()
         self.visualizer = FrameVisualizer()
         
         # Thống kê hiệu năng
@@ -138,10 +139,13 @@ class VideoPipeline:
                 self.loitering_threshold_seconds
             )
             
-            # Encode frame snapshot thành chuỗi JPEG Base64 để truyền về Backend xử lý upload MinIO
-            ret, buf = cv2.imencode(".jpg", snapshot_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
-            if ret:
-                alert.frame_base64 = base64.b64encode(buf.tobytes()).decode("utf-8")
+            # Upload ảnh chụp vi phạm lên MinIO
+            evidence_url = self.storage_service.upload_frame_evidence(
+                snapshot_frame,
+                self.camera_code,
+                alert.track_id
+            )
+            alert.image_url = evidence_url
 
             # Bắn sự kiện an ninh vào Kafka topic
             self.kafka_producer.send_alert(alert)

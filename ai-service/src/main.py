@@ -10,6 +10,9 @@ from typing import List, Optional, Dict, Any
 from .config import settings
 from .core.entity import Point
 from .pipeline.video_pipeline import VideoPipeline
+from .integration.storage_service import StorageService
+
+storage_service = StorageService()
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -58,7 +61,8 @@ async def health_check():
             "yolo_model": os.path.exists(settings.MODEL_YOLO_PATH) or True, # Ultralytics tải tự động
             "yunet_model": os.path.exists(settings.MODEL_YUNET_PATH)
         },
-        "kafka_connected": default_pipeline.kafka_producer.is_connected if default_pipeline else False
+        "kafka_connected": default_pipeline.kafka_producer.is_connected if default_pipeline else False,
+        "minio_connected": default_pipeline.storage_service.is_connected if default_pipeline else False
     }
 
 class ROIConfigRequest(BaseModel):
