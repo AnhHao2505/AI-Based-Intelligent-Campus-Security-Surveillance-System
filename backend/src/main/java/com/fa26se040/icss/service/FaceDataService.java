@@ -58,6 +58,25 @@ public class FaceDataService {
         try {
             log.info("Bắt đầu xử lý đăng ký khuôn mặt cho [{}]", code);
 
+            if (frontImage == null || frontImage.isEmpty()) {
+                throw new IllegalArgumentException("Ảnh khuôn mặt không được để trống.");
+            }
+
+            // VAL-05: Định dạng JPG/PNG, kích thước tối đa 350kB
+            long maxSizeBytes = 350 * 1024; // 350 KB
+            if (frontImage.getSize() > maxSizeBytes) {
+                throw new IllegalArgumentException(String.format("Kích thước ảnh vượt quá giới hạn tối đa 350KB (dung lượng file: %.1f KB)", frontImage.getSize() / 1024.0));
+            }
+
+            String contentType = frontImage.getContentType();
+            String filename = frontImage.getOriginalFilename() != null ? frontImage.getOriginalFilename().toLowerCase() : "";
+            boolean isValidFormat = (contentType != null && (contentType.equalsIgnoreCase("image/jpeg") || contentType.equalsIgnoreCase("image/jpg") || contentType.equalsIgnoreCase("image/png")))
+                    || (filename.endsWith(".jpg") || filename.endsWith(".jpeg") || filename.endsWith(".png"));
+
+            if (!isValidFormat) {
+                throw new IllegalArgumentException("Định dạng file không hợp lệ. Chỉ chấp nhận file ảnh định dạng JPG hoặc PNG.");
+            }
+
             byte[] imageBytes = frontImage.getBytes();
 
             // 1. Chuẩn bị request multipart gửi sang AI Service để detect khuôn mặt & trích xuất vector embedding

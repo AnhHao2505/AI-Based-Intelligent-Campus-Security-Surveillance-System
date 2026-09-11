@@ -111,7 +111,6 @@ Table face_data {
   id UUID [pk, default: `gen_random_uuid()`]
   user_id UUID [unique, note: 'FK to users']
   code VARCHAR(50) [not null, note: 'MSSV hoặc MSNV']
-  full_name VARCHAR(100) [not null]
   image_front_url VARCHAR(512) [not null]
   embedding_front vector(512) [not null]
   created_at TIMESTAMPTZ [not null, default: `CURRENT_TIMESTAMP`]

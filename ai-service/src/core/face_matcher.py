@@ -37,7 +37,11 @@ class FaceMatcher:
         try:
             conn = self._get_connection()
             cur = conn.cursor()
-            cur.execute("SELECT code, full_name, embedding_front::text FROM face_data;")
+            cur.execute("""
+                SELECT fd.code, COALESCE(u.full_name, fd.code) AS full_name, fd.embedding_front::text 
+                FROM face_data fd 
+                LEFT JOIN users u ON fd.user_id = u.id OR (fd.code = u.user_code AND u.deleted_at IS NULL);
+            """)
             rows = cur.fetchall()
             
             new_cache = []

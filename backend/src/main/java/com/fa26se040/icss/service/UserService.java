@@ -6,11 +6,13 @@ import com.fa26se040.icss.dto.user.StaffAccountCreateRequest;
 import com.fa26se040.icss.dto.user.StaffAccountCreateResponse;
 import com.fa26se040.icss.dto.user.UserListResponse;
 import com.fa26se040.icss.dto.user.UserPageResponse;
+import com.fa26se040.icss.entity.PasswordResetToken;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.exception.DuplicateResourceException;
 import com.fa26se040.icss.exception.InvalidRoleAssignmentException;
 import com.fa26se040.icss.exception.ResourceNotFoundException;
+import com.fa26se040.icss.repository.PasswordResetTokenRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -59,27 +61,31 @@ public class UserService {
     public StaffAccountCreateResponse createStaffAccount(StaffAccountCreateRequest request) {
         log.info("Creating staff account for userCode: {}, email: {}, role: {}", request.getUserCode(), request.getEmail(), request.getRole());
 
+        // BR-02: Check operational staff role (Reject ADMIN or NORMAL_USER for this API)
         Role role = request.getRole();
         if (role == Role.ADMIN || role == Role.NORMAL_USER) {
             throw new InvalidRoleAssignmentException("Không thể tạo tài khoản với vai trò " + role + " qua API này. Chỉ hỗ trợ FACILITY_MANAGER, INTERNAL_GUARD, OUTSOURCED_GUARD.");
         }
 
-        if (userRepository.existsByUserCodeAndDeletedAtIsNull(request.getUserCode())) {
+        // BR-03: Check userCode duplicate (active users only)
+        if (userRepository.existsByUserCodeAndDeletedAtIsNull(request.getUserCode().trim())) {
             throw new DuplicateResourceException("Mã cán bộ " + request.getUserCode() + " đã tồn tại trong hệ thống.");
         }
 
-        if (userRepository.existsByEmailAndDeletedAtIsNull(request.getEmail())) {
+        // BR-03: Check email duplicate (active users only)
+        if (userRepository.existsByEmailAndDeletedAtIsNull(request.getEmail().trim())) {
             throw new DuplicateResourceException("Email " + request.getEmail() + " đã tồn tại trong hệ thống.");
         }
 
+        // BR-06: Generate temporary password
         String tempPassword = generateRandomPassword(10);
         log.info("Pass {}", tempPassword); // for dev purpose
         String encodedPassword = passwordEncoder.encode(tempPassword);
 
-        // 1. Process Face Registration with AI-Service and upload to MinIO
+        // 1. Process Face Registration with AI-Service & MinIO (VAL-05, BR-04, BR-08)
         FaceDataResponseDto faceResponse = faceDataService.registerFace(request.getUserCode().trim(), request.getFaceImage());
 
-        // 2. Save User and construct response with compensating action on DB failure
+        // 2. Begin DB Transaction for User, FaceData & PasswordResetToken (BR-05, BR-06, BR-07)
         try {
             User user = User.builder()
                     .fullName(request.getFullName().trim())
@@ -87,7 +93,7 @@ public class UserService {
                     .email(request.getEmail().trim())
                     .password(encodedPassword)
                     .role(role)
-                    .isActive(true)
+                    .isActive(true) // BR-07: is_active = true by default
                     .createdAt(OffsetDateTime.now())
                     .updatedAt(OffsetDateTime.now())
                     .build();
@@ -130,86 +136,98 @@ public class UserService {
         return UserInfo.builder()
                 .id(user.getId())
                 .fullName(user.getFullName())
-                .email(user.getEmail())
-                .role(user.getRole() != null ? user.getRole().name() : null)
                 .userCode(user.getUserCode())
+                .email(user.getEmail())
+                .role(user.getRole())
+                .isActive(user.getIsActive())
+                .createdAt(user.getCreatedAt() != null ? user.getCreatedAt().toInstant() : null)
                 .build();
     }
 
     @Transactional(readOnly = true)
     public UserPageResponse getUsers(String keyword, String accountType, Boolean isActive, Pageable pageable) {
-        String trimmedKeyword = (keyword != null && !keyword.trim().isEmpty()) ? keyword.trim() : null;
-        Collection<Role> roles;
+        String kw = (keyword != null && !keyword.trim().isEmpty()) ? keyword.trim() : null;
 
-        if ("NORMAL".equalsIgnoreCase(accountType)) {
-            roles = NORMAL_ROLES;
-        } else if ("SYSTEM".equalsIgnoreCase(accountType)) {
-            roles = SYSTEM_ROLES;
-        } else {
-            roles = List.of(Role.values());
+        List<Role> roleFilter = null;
+        if ("SYSTEM".equalsIgnoreCase(accountType)) {
+            roleFilter = SYSTEM_ROLES;
+        } else if ("NORMAL".equalsIgnoreCase(accountType)) {
+            roleFilter = NORMAL_ROLES;
         }
 
-        Page<UserListResponse> userPage = userRepository.searchFilteredUsers(trimmedKeyword, roles, isActive, pageable)
-                .map(UserListResponse::fromEntity);
+        Page<User> userPage = userRepository.findUsersWithFilters(kw, roleFilter, isActive, pageable);
+        Page<UserListResponse> dtoPage = userPage.map(this::toUserListResponse);
 
-        long normalCount = userRepository.countByRoleAndDeletedAtIsNull(Role.NORMAL_USER);
-        long systemCount = userRepository.countByRolesAndDeletedAtIsNull(SYSTEM_ROLES);
+        long normalCount = userRepository.countByAccountType(NORMAL_ROLES, isActive);
+        long systemCount = userRepository.countByAccountType(SYSTEM_ROLES, isActive);
 
         return UserPageResponse.builder()
-                .users(userPage)
+                .users(dtoPage)
                 .normalCount(normalCount)
                 .systemCount(systemCount)
                 .build();
     }
 
     @Transactional
-    public UserListResponse toggleActive(UUID id, String currentUserEmail) {
-        log.info("Toggling active status for user with id: {}", id);
-        User user = userRepository.findById(id)
+    public UserListResponse toggleActive(UUID userId, String currentAdminEmail) {
+        User user = userRepository.findById(userId)
                 .filter(u -> u.getDeletedAt() == null)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với ID: " + userId));
 
-        if (currentUserEmail != null && user.getEmail().equalsIgnoreCase(currentUserEmail)) {
-            throw new IllegalArgumentException("Không thể tự thay đổi trạng thái tài khoản của chính bạn");
+        if (currentAdminEmail != null && currentAdminEmail.equalsIgnoreCase(user.getEmail())) {
+            throw new IllegalArgumentException("Không thể tự vô hiệu hóa tài khoản của chính mình.");
         }
 
-        boolean newStatus = !Boolean.TRUE.equals(user.getIsActive());
-        user.setIsActive(newStatus);
+        user.setIsActive(!user.getIsActive());
+        user.setUpdatedAt(OffsetDateTime.now());
+        User updatedUser = userRepository.save(user);
 
-        User savedUser = userRepository.save(user);
-        log.info("User {} active status toggled to {}", id, newStatus);
-        return UserListResponse.fromEntity(savedUser);
+        log.info("Toggled active state for user {}: now {}", userId, updatedUser.getIsActive());
+        return toUserListResponse(updatedUser);
     }
 
     @Transactional
-    public void softDelete(UUID id, String currentUserEmail) {
-        log.info("Soft-deleting user with id: {}", id);
-        User user = userRepository.findById(id)
+    public void softDelete(UUID userId, String currentAdminEmail) {
+        User user = userRepository.findById(userId)
                 .filter(u -> u.getDeletedAt() == null)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với ID: " + userId));
 
-        if (currentUserEmail != null && user.getEmail().equalsIgnoreCase(currentUserEmail)) {
-            throw new IllegalArgumentException("Không thể tự xóa tài khoản của chính bạn");
+        if (currentAdminEmail != null && currentAdminEmail.equalsIgnoreCase(user.getEmail())) {
+            throw new IllegalArgumentException("Không thể tự xóa tài khoản của chính mình.");
         }
 
-        user.setIsActive(false);
         user.setDeletedAt(OffsetDateTime.now());
+        user.setIsActive(false);
+        user.setUpdatedAt(OffsetDateTime.now());
         userRepository.save(user);
-        log.info("User {} soft-deleted successfully", id);
+
+        log.info("Soft-deleted user {}", userId);
     }
 
     public String generateSampleCsv() {
-        return "userCode,fullName,email,password\n" +
-               "SE150001,Nguyen Van A,nva@example.com,Password123!\n" +
-               "SE150002,Tran Thi B,ttb@example.com,Password123!\n";
+        return "full_name,user_code,email,role\n" +
+                "Nguyễn Văn A,NV001,nva@example.com,FACILITY_MANAGER\n" +
+                "Trần Thị B,NV002,ttb@example.com,INTERNAL_GUARD\n" +
+                "Lê Văn C,NV003,lvc@example.com,OUTSOURCED_GUARD\n";
     }
 
     private String generateRandomPassword(int length) {
         StringBuilder sb = new StringBuilder(length);
         for (int i = 0; i < length; i++) {
-            int rndCharAt = random.nextInt(DATA_FOR_RANDOM_STRING.length());
-            sb.append(DATA_FOR_RANDOM_STRING.charAt(rndCharAt));
+            sb.append(DATA_FOR_RANDOM_STRING.charAt(random.nextInt(DATA_FOR_RANDOM_STRING.length())));
         }
         return sb.toString();
+    }
+
+    private UserListResponse toUserListResponse(User user) {
+        return UserListResponse.builder()
+                .id(user.getId())
+                .fullName(user.getFullName())
+                .userCode(user.getUserCode())
+                .email(user.getEmail())
+                .role(user.getRole())
+                .isActive(user.getIsActive())
+                .createdAt(user.getCreatedAt() != null ? user.getCreatedAt().toInstant() : null)
+                .build();
     }
 }

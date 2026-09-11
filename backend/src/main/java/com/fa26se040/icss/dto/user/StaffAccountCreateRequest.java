@@ -17,13 +17,17 @@ import org.springframework.web.multipart.MultipartFile;
 public class StaffAccountCreateRequest {
 
     @NotBlank(message = "Họ và tên không được để trống")
+    @jakarta.validation.constraints.Size(min = 3, max = 100, message = "Họ và tên phải có độ dài từ 3 đến 100 ký tự")
     private String fullName;
 
     @NotBlank(message = "Mã cán bộ không được để trống")
+    @jakarta.validation.constraints.Size(min = 1, max = 50, message = "Mã cán bộ phải có độ dài từ 1 đến 50 ký tự")
+    @jakarta.validation.constraints.Pattern(regexp = "^[a-zA-Z0-9_-]+$", message = "Mã cán bộ chỉ chứa chữ cái, chữ số, dấu gạch ngang hoặc gạch dưới")
     private String userCode;
 
     @NotBlank(message = "Email không được để trống")
     @Email(message = "Email không đúng định dạng")
+    @jakarta.validation.constraints.Size(max = 255, message = "Email không được vượt quá 255 ký tự")
     private String email;
 
     @NotNull(message = "Vai trò không được để trống")
