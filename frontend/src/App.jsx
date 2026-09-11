@@ -12,7 +12,6 @@ import UnauthorizedPage from './pages/UnauthorizedPage';
 import AreaListPage from './pages/areas/AreaListPage';
 import CameraListPage from './pages/cameras/CameraListPage';
 import CameraDetailPage from './pages/cameras/CameraDetailPage';
-import FaceManagementPage from './pages/faceData/FaceManagementPage';
 import GuardDashboardPage from './pages/guard/GuardDashboardPage';
 import AccessRequestPage from './pages/accessRequest/AccessRequestPage';
 import AccessRequestReviewPage from './pages/accessRequest/AccessRequestReviewPage';
@@ -94,15 +93,6 @@ function App() {
                 }
               />
 
-              {/* Face management - Admin only */}
-              <Route
-                path="/admin/faces"
-                element={
-                  <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
-                    <FaceManagementPage />
-                  </ProtectedRoute>
-                }
-              />
 
               {/* Account management - Admin only */}
               <Route

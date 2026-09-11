@@ -1,0 +1,117 @@
+================================================================================
+                    HƯỚNG DẪN CHẠY MINIO TRÊN LOCAL VÀ DOCKER
+      AI-Based Intelligent Campus Security Surveillance System (ICSS)
+================================================================================
+
+1. GIỚI THIỆU
+--------------------------------------------------------------------------------
+MinIO là hệ thống Object Storage tương thích với Amazon S3, được sử dụng trong hệ
+thống ICSS để lưu trữ ảnh hồ sơ khuôn mặt (`face-profiles`) và ảnh bằng chứng vi
+phạm an ninh (`security-evidence`).
+
+Theo kiến trúc chuẩn của dự án:
+- MinIO CHỈ KẾT NỐI VỚI BACKEND (Spring Boot).
+- AI-Service không kết nối trực tiếp với MinIO.
+
+Cấu hình tài khoản mặc định của dự án:
+- Endpoint API : http://localhost:9000
+- Console Web UI : http://localhost:9001
+- Root Username  : minioadmin
+- Root Password  : 12345678abc
+
+
+================================================================================
+2. CÁCH 1: CHẠY MINIO BẰNG DOCKER (KHUYÊN DÙNG)
+--------------------------------------------------------------------------------
+
+2.1. Sử dụng Docker Compose (Cùng với toàn bộ Infrastructure của hệ thống)
+Dự án đã tích hợp sẵn dịch vụ MinIO trong file `docker-compose.yml` ở thư mục gốc.
+
+Bước 1: Mở terminal tại thư mục gốc dự án (`AI-Based-Intelligent-Campus-Security-Surveillance-System`).
+
+Bước 2: Khởi chạy container MinIO:
+   docker-compose up -d minio
+
+Bước 3: Kiểm tra trạng thái container:
+   docker-compose ps minio
+
+Bước 4: Kiểm tra log của MinIO:
+   docker-compose logs -f minio
+
+Bước 5: Dừng dịch vụ MinIO khi không sử dụng:
+   docker-compose stop minio
+
+
+2.2. Sử dụng Docker Command độc lập (Chỉ chạy MinIO container lẻ)
+Nếu bạn chỉ muốn chạy duy nhất một container MinIO độc lập mà không cần docker-compose:
+
+   docker run -d \
+     --name minio-server \
+     -p 9000:9000 \
+     -p 9001:9001 \
+     -e "MINIO_ROOT_USER=minioadmin" \
+     -e "MINIO_ROOT_PASSWORD=12345678abc" \
+     -v minio_data:/data \
+     minio/minio server /data --console-address ":9001"
+
+
+================================================================================
+3. CÁCH 2: CHẠY MINIO TRÊN LOCAL THUẦN (STANDALONE BINARY)
+--------------------------------------------------------------------------------
+
+3.1. Dành cho Windows (PowerShell / Command Prompt)
+
+Bước 1: Tải file thực thi `minio.exe` từ trang chủ MinIO:
+   Powershell command:
+   Invoke-WebRequest -Uri "https://dl.min.io/server/minio/release/windows-amd64/minio.exe" -OutFile "C:\minio\minio.exe"
+
+Bước 2: Tạo thư mục chứa dữ liệu lưu trữ (ví dụ: `C:\minio_data`).
+
+Bước 3: Thêm các biến môi trường cấu hình tài khoản trong PowerShell:
+   $env:MINIO_ROOT_USER="minioadmin"
+   $env:MINIO_ROOT_PASSWORD="12345678abc"
+
+   hoặc trong CMD (Command Prompt):
+   set MINIO_ROOT_USER=minioadmin
+   set MINIO_ROOT_PASSWORD=12345678abc
+
+Bước 4: Khởi chạy server MinIO:
+   C:\minio\minio.exe server C:\minio_data --console-address ":9001"
+
+
+3.2. Dành cho Linux / macOS
+
+Bước 1: Tải và cấp quyền thực thi cho MinIO binary:
+   wget https://dl.min.io/server/minio/release/linux-amd64/minio
+   chmod +x minio
+
+Bước 2: Khởi chạy MinIO server:
+   export MINIO_ROOT_USER=minioadmin
+   export MINIO_ROOT_PASSWORD=12345678abc
+   ./minio server ./data --console-address ":9001"
+
+
+================================================================================
+4. KẾT NỐI VÀ KIỂM TRA HỆ THỐNG
+--------------------------------------------------------------------------------
+
+4.1. Truy cập Giao diện MinIO Console (Web Dashboard)
+- Mở trình duyệt web và truy cập địa chỉ: http://localhost:9001
+- Tên đăng nhập : minioadmin
+- Mật khẩu      : 12345678abc
+- Sau khi đăng nhập, Backend (Spring Boot) sẽ TỰ ĐỘNG tạo 2 Buckets khi khởi chạy:
+  1) `face-profiles`   : Chứa ảnh hồ sơ cán bộ / nhân viên / sinh viên.
+  2) `security-evidence`: Chứa ảnh snapshot bằng chứng vi phạm an ninh.
+
+4.2. Cấu hình file `.env` của Backend
+Đảm bảo file `.env` ở thư mục gốc dự án hoặc trong thư mục `backend/` có các thông số:
+   MINIO_ENDPOINT=http://localhost:9000
+   MINIO_ROOT_USER=minioadmin
+   MINIO_ROOT_PASSWORD=12345678abc
+
+4.3. Kiểm tra kết nối từ Backend
+Khi khởi chạy Backend (Spring Boot), kiểm tra dòng log sau để xác nhận kết nối MinIO thành công:
+   [MINIO] Created MinIO bucket: face-profiles (hoặc verified thành công)
+   [MINIO] Created MinIO bucket: security-evidence
+
+================================================================================

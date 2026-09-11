@@ -89,3 +89,11 @@ app:
     expiration-ms: ${JWT_EXPIRATION:86400000} # 24 hours
   google:
     client-id: ${GOOGLE_CLIENT_ID:}
+
+minio:
+  endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+  access-key: ${MINIO_ROOT_USER:minioadmin}
+  secret-key: ${MINIO_ROOT_PASSWORD:12345678abc}
+  bucket:
+    faces: face-profiles
+    evidence: security-evidence

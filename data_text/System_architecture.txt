@@ -1,0 +1,78 @@
+================================================================================
+                      SYSTEM ARCHITECTURE SPECIFICATION
+      AI-Based Intelligent Campus Security Surveillance System (ICSS)
+================================================================================
+
+1. TỔNG QUAN KIẾN TRÚC HỆ THỐNG
+--------------------------------------------------------------------------------
+Hệ thống được thiết kế theo kiến trúc Microservices phân tách rõ ràng vai trò giữa:
+- Client (Frontend App)
+- Business & Storage Controller (Backend Server)
+- Pure Vision AI Engine (AI Microservice)
+- Infrastructure Layer (Database, Object Storage, Event Broker, Streaming Gateway)
+
+```
++-------------------------------------------------------------------------+
+|                               FRONTEND                                  |
+|                         (React / Vite App)                              |
++-------------------------------------------------------------------------+
+       |                                              ^
+       | REST API (HTTP)                              | WebSockets / STOMP
+       v                                              | (Real-time Alerts)
++-------------------------------------------------------------------------+
+|                                BACKEND                                  |
+|                       (Spring Boot 3.2.5 / Java 21)                     |
+|                   [Business Logic & Storage Master]                     |
++-------------------------------------------------------------------------+
+  |              |                          ^                ^
+  | HTTP         | MinIO Client (SDK)       | Kafka          | JPA / SQL
+  v              v                          | Consumer       v
++----------+   +----------------------+   +-----------+   +-------------------+
+| AI       |   | MinIO Object Storage |   | Apache    |   | PostgreSQL        |
+| Service  |   | - face-profiles      |   | Kafka     |   | - pgvector        |
+| (Python) |   | - security-evidence  |   | Broker    |   | - User & Logs     |
++----------+   +----------------------+   +-----------+   +-------------------+
+     ^                                         ^
+     | RTSP Stream                             | Kafka Producer (Alert Events)
++---------------+                              |
+| MediaMTX      |------------------------------+
+| RTSP Gateway  |
++---------------+
+```
+
+2. PHÂN CÔNG VAI TRÒ CHI TIẾT
+--------------------------------------------------------------------------------
+
+2.1. FRONTEND CLIENT (React + Vite)
+- Giao diện quản trị tài khoản, xem luồng camera thời gian thực, quản lý các vụ việc an ninh.
+- Gửi yêu cầu khởi tạo tài khoản qua REST API (`POST /api/users/staff-accounts`) đính kèm `faceImage`.
+- Nhận thông báo cảnh báo vi phạm an ninh thời gian thực thông qua kết nối WebSocket (STOMP).
+
+2.2. BACKEND SERVICE (Spring Boot 3.2.5 / Java 21)
+- Trung tâm xử lý nghiệp vụ chính và Quản lý Lưu trữ duy nhất (Storage Master):
+  + Quản lý kết nối trực tiếp với MinIO Object Storage bằng MinIO Java SDK.
+  + Quản lý 2 Buckets trên MinIO:
+    1) `face-profiles`: Lưu ảnh chân dung chính diện của Cán bộ / Nhân viên / Sinh viên (`{userCode}/{userCode}_front.jpg`).
+    2) `security-evidence`: Lưu ảnh bằng chứng vi phạm an ninh từ camera giám sát (`{YYYY-MM-DD}/{cameraCode}/{eventType}_Track{trackId}_{HHmmss}.jpg`).
+  + Đảm bảo tính toàn vẹn dữ liệu bằng cơ chế Transaction & Compensating Action (Tự động xóa ảnh trên MinIO nếu Transaction lưu CSDL thất bại).
+  + Giao tiếp REST với AI-Service để yêu cầu trích xuất vector khuôn mặt 512d.
+  + Lắng nghe sự kiện vi phạm an ninh từ Apache Kafka, upload ảnh bằng chứng từ `frame_base64` lên MinIO và bắn WebSocket tới Frontend.
+
+2.3. AI MICROSERVICE (Python FastAPI + OpenCV + InsightFace + YOLOv8)
+- Đóng vai trò là Engine xử lý AI thuần túy (Stateless Vision Engine):
+  + KHÔNG trực tiếp kết nối hay upload dữ liệu lên MinIO.
+  + **Luồng đăng ký khuôn mặt**: Nhận file ảnh từ Backend qua REST API (`/api/v1/faces/process-registration`), thực hiện đếm số khuôn mặt (`face_count`), cắt khuôn mặt & trích xuất vector embedding 512 chiều, trả về kết quả JSON cho Backend.
+  + **Luồng giám sát thời gian thực**:
+    - Nhận luồng video RTSP từ MediaMTX Gateway.
+    - Chạy thuật toán YOLOv8 + ByteTrack để phát hiện & theo dõi đối tượng người.
+    - Nhận diện khuôn mặt bằng YuNet + InsightFace.
+    - Phân tích hành vi lảng vảng (Loitering Engine) dựa trên vùng hạn chế (ROI polygon).
+    - Khi phát hiện vi phạm, vẽ annotation lên frame snapshot, encode snapshot sang dạng JPEG Base64 (`frame_base64`) và phát event an ninh qua Apache Kafka.
+
+2.4. INFRASTRUCTURE & STORAGE LAYER
+- **PostgreSQL 16 + pgvector**: Cơ sở dữ liệu quan hệ lưu trữ tài khoản, phân quyền, nhật ký cảnh báo và vector khuôn mặt 512 chiều (dùng cho tìm kiếm Cosine Similarity).
+- **MinIO Object Storage**: Lưu trữ tập trung toàn bộ file ảnh hồ sơ và ảnh bằng chứng an ninh. Chỉ kết nối duy nhất với Backend.
+- **Apache Kafka**: Message Broker truyền tải các sự kiện an ninh thời gian thực giữa AI-Service và Backend.
+- **MediaMTX**: Gateway chuyển đổi và phân phối luồng RTSP/WebRTC từ các camera an ninh.
+
+================================================================================

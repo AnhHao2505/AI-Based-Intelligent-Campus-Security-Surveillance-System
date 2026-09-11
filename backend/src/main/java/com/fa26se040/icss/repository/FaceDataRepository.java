@@ -13,8 +13,7 @@ import java.util.UUID;
 @Repository
 public interface FaceDataRepository extends JpaRepository<FaceData, UUID> {
 
-    Page<FaceData> findByCodeContainingIgnoreCaseOrFullNameContainingIgnoreCase(
-            String code, String fullName, Pageable pageable);
+    Page<FaceData> findByCodeContainingIgnoreCase(String code, Pageable pageable);
 
     Optional<FaceData> findByCode(String code);
 

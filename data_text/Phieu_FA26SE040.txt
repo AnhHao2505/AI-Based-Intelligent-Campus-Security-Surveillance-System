@@ -1,4 +1,3 @@
- 3. Register content of Capstone Project 
 (*) 3.1. Capstone Project name: 
 English: Develop an AI-Based Intelligent Campus Security Surveillance System for Restricted Area Access Control in Tân Uyên FPTU Campus.
 Vietnamese: Xây dựng hệ thống giám sát an ninh thông minh dựa trên AI nhằm kiểm soát truy cập vào khu vực hạn chế trong khuôn viên trường đại học FPT cơ sở Tân Uyên
@@ -28,7 +27,6 @@ Security
 The system shall implement role-based access control (RBAC), secure authentication, encrypted communication, and secure storage of surveillance data to protect sensitive security information.
 Reliability
 The system shall provide continuous monitoring with a minimum system availability of 99.5% and ensure that surveillance events are recorded reliably even during temporary network interruptions.
- (*) 3.2. Main proposal content (including result and product)   
 Proposed Solutions:
 The proposed system integrates AI-powered computer vision with existing surveillance cameras to automatically monitor restricted areas within the campus. The system identifies authorized and unauthorized individuals, detects access violations in real time, generates instant alerts, records security events, and provides a centralized dashboard for campus security management. The solution supports both automated surveillance and manual verification by security personnel.
 Actors and Functional Responsibilities

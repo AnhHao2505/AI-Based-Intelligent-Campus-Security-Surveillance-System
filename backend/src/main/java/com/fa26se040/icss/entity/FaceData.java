@@ -27,8 +27,6 @@ public class FaceData {
     @Column(nullable = false, length = 50)
     private String code; // MSSV hoặc MSNV
 
-    @Column(name = "full_name", nullable = false, length = 100)
-    private String fullName;
 
     @Column(name = "image_front_url", nullable = false, length = 512)
     private String imageFrontUrl;

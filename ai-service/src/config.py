@@ -12,15 +12,6 @@ class Settings(BaseSettings):
     KAFKA_TOPIC_HEALTH: str = "campus.camera.health"
     KAFKA_ENABLED: bool = True
     
-    # MinIO Storage Configuration
-    MINIO_ENDPOINT: str = Field(default="localhost:9000", alias="MINIO_ENDPOINT")
-    MINIO_ACCESS_KEY: str = Field(default="minioadmin", alias="MINIO_ROOT_USER")
-    MINIO_SECRET_KEY: str = Field(default="minioadmin123", alias="MINIO_ROOT_PASSWORD")
-    MINIO_BUCKET_FACES: str = "face-profiles"
-    MINIO_BUCKET_EVIDENCE: str = "security-evidence"
-    MINIO_SECURE: bool = False
-    MINIO_ENABLED: bool = True
-    
     # Backend Integration
     BACKEND_URL: str = Field(default="http://localhost:8080", alias="BACKEND_URL")
     

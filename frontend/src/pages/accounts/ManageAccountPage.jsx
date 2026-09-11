@@ -4,7 +4,6 @@ import {
   UserPlus,
   Search,
   X,
-  Edit2,
   Trash2,
   UserX,
   UserCheck,
@@ -13,22 +12,14 @@ import {
   ChevronDown,
   AlertCircle,
   CheckCircle2,
-  Eye,
-  EyeOff,
   RotateCw,
-  Upload,
-  FileSpreadsheet,
-  Download,
-  AlertTriangle,
-  FileUp
+  Camera,
+  Upload
 } from 'lucide-react';
 import {
   getUsers,
-  getUserCounts,
-  importUsers,
+  createStaffAccount,
   downloadUserTemplate,
-  registerUser,
-  updateUser,
   toggleUserActive,
   deleteUser
 } from '../../services/userService';
@@ -38,9 +29,8 @@ import '../../styles/ManageAccountPage.css';
 
 const DEFAULT_PAGE_SIZE = 10;
 
-// System account roles (NORMAL_USER excluded)
-const SYSTEM_ROLES_LIST = [
-  ROLES.ADMIN,
+// System account roles eligible for creation
+const SYSTEM_STAFF_ROLES = [
   ROLES.FACILITY_MANAGER,
   ROLES.INTERNAL_GUARD,
   ROLES.OUTSOURCED_GUARD
@@ -52,7 +42,7 @@ export default function ManageAccountPage() {
   // Tab State: 'NORMAL' (default) | 'SYSTEM'
   const [activeTab, setActiveTab] = useState('NORMAL');
 
-  // Count Summary for Tab Badges
+  // Count Summary for Tab Badges (Populated automatically by getUsers)
   const [counts, setCounts] = useState({ normalCount: 0, systemCount: 0 });
 
   // List & Pagination State
@@ -62,40 +52,25 @@ export default function ManageAccountPage() {
   const [currentPage, setCurrentPage] = useState(0);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [debouncedKeyword, setDebouncedKeyword] = useState('');
-  const [statusFilter, setStatusFilter] = useState(''); // '' (all), 'true' (active), 'false' (inactive)
+  const [statusFilter, setStatusFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Modals State: 'create' | 'edit' | 'delete' | 'disable' | 'activate' | 'import' | null
+  // Modals State: 'create' | 'delete' | 'disable' | 'activate' | null
   const [modalType, setModalType] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formErrors, setFormErrors] = useState({});
 
-  // Create Form State (Only for System Accounts)
+  // Create Staff Account Form State
   const [createForm, setCreateForm] = useState({
     fullName: '',
     userCode: '',
     email: '',
     role: ROLES.INTERNAL_GUARD,
-    password: '',
-    confirmPassword: ''
   });
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
-  // Edit Form State
-  const [editForm, setEditForm] = useState({
-    fullName: '',
-    role: ''
-  });
-
-  // CSV Import State
-  const [importFile, setImportFile] = useState(null);
-  const [isDragOver, setIsDragOver] = useState(false);
-  const [importResult, setImportResult] = useState(null);
-  const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false);
-  const fileInputRef = useRef(null);
+  const [frontFile, setFrontFile] = useState(null);
+  const [frontPreview, setFrontPreview] = useState(null);
 
   // Toast State
   const [toast, setToast] = useState(null);
@@ -109,21 +84,6 @@ export default function ManageAccountPage() {
     }, 4000);
   }, []);
 
-  // Fetch Counts
-  const fetchCounts = useCallback(async () => {
-    try {
-      const data = await getUserCounts();
-      if (data) {
-        setCounts({
-          normalCount: data.normalCount ?? 0,
-          systemCount: data.systemCount ?? 0
-        });
-      }
-    } catch (err) {
-      console.warn('Failed to load user counts:', err);
-    }
-  }, []);
-
   // Debounce search input (400ms)
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -133,7 +93,7 @@ export default function ManageAccountPage() {
     return () => clearTimeout(timer);
   }, [searchKeyword]);
 
-  // Fetch Users
+  // Fetch Users (Returns both user list page and merged counts)
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -150,9 +110,18 @@ export default function ManageAccountPage() {
       }
 
       const data = await getUsers(params);
-      setUsers(data?.content || []);
-      setTotalElements(data?.totalElements || 0);
-      setTotalPages(data?.totalPages || 1);
+      
+      const pageObj = data?.users || data;
+      setUsers(pageObj?.content || []);
+      setTotalElements(pageObj?.totalElements || 0);
+      setTotalPages(pageObj?.totalPages || 1);
+
+      if (data?.normalCount !== undefined && data?.systemCount !== undefined) {
+        setCounts({
+          normalCount: data.normalCount,
+          systemCount: data.systemCount
+        });
+      }
     } catch (err) {
       console.error('Error loading users:', err);
       setError(err.message || 'Không thể tải danh sách tài khoản');
@@ -161,14 +130,9 @@ export default function ManageAccountPage() {
     }
   }, [debouncedKeyword, activeTab, currentPage, statusFilter]);
 
-  // Initial load & when tab/page/filter changes
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
-
-  useEffect(() => {
-    fetchCounts();
-  }, [fetchCounts]);
 
   // Tab switching handler
   const handleTabChange = (tab) => {
@@ -180,15 +144,16 @@ export default function ManageAccountPage() {
     setDebouncedKeyword('');
   };
 
-  // Modal Closer with keyboard ESC
+  // Close Modal
   const closeModal = useCallback(() => {
     if (isSubmitting) return;
     setModalType(null);
     setSelectedUser(null);
     setFormErrors({});
-    setImportFile(null);
-    setImportResult(null);
-  }, [isSubmitting]);
+    setFrontFile(null);
+    if (frontPreview) URL.revokeObjectURL(frontPreview);
+    setFrontPreview(null);
+  }, [isSubmitting, frontPreview]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -200,31 +165,33 @@ export default function ManageAccountPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [modalType, closeModal]);
 
-  // Open Create Modal (Only for System Accounts)
+  // Open Create Modal
   const handleOpenCreate = () => {
     setCreateForm({
       fullName: '',
       userCode: '',
       email: '',
       role: ROLES.INTERNAL_GUARD,
-      password: '',
-      confirmPassword: ''
     });
-    setShowPassword(false);
-    setShowConfirmPassword(false);
+    setFrontFile(null);
+    setFrontPreview(null);
     setFormErrors({});
     setModalType('create');
   };
 
-  // Open Edit Modal
-  const handleOpenEdit = (user) => {
-    setSelectedUser(user);
-    setEditForm({
-      fullName: user.fullName || '',
-      role: user.role || ROLES.NORMAL_USER
-    });
-    setFormErrors({});
-    setModalType('edit');
+  // Handle Image File Input Change
+  const handleImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setFormErrors((prev) => ({ ...prev, faceImage: 'Vui lòng chọn file hình ảnh (JPG, PNG...)' }));
+      return;
+    }
+
+    setFrontFile(file);
+    setFrontPreview(URL.createObjectURL(file));
+    setFormErrors((prev) => ({ ...prev, faceImage: null }));
   };
 
   // Open Toggle Modal (Disable or Activate)
@@ -239,41 +206,17 @@ export default function ManageAccountPage() {
     setModalType('delete');
   };
 
-  // Open Import Modal
-  const handleOpenImport = () => {
-    setImportFile(null);
-    setImportResult(null);
-    setFormErrors({});
-    setModalType('import');
-  };
-
-  // Handle Download CSV Template
-  const handleDownloadTemplate = async () => {
-    setIsDownloadingTemplate(true);
-    try {
-      await downloadUserTemplate();
-    } catch (err) {
-      showToast(err.message || 'Không thể tải file mẫu', 'error');
-    } finally {
-      setIsDownloadingTemplate(false);
-    }
-  };
-
-  // Handle Submit: Create System Account
+  // Submit Create Staff Account
   const handleSubmitCreate = async (e) => {
     e.preventDefault();
     const errors = {};
 
     if (!createForm.fullName.trim()) {
       errors.fullName = 'Họ và tên là bắt buộc';
-    } else if (createForm.fullName.trim().length > 100) {
-      errors.fullName = 'Họ và tên không quá 100 ký tự';
     }
 
     if (!createForm.userCode.trim()) {
-      errors.userCode = 'Mã định danh là bắt buộc';
-    } else if (createForm.userCode.trim().length > 50) {
-      errors.userCode = 'Mã định danh không quá 50 ký tự';
+      errors.userCode = 'Mã cán bộ là bắt buộc';
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -283,16 +226,8 @@ export default function ManageAccountPage() {
       errors.email = 'Định dạng email không hợp lệ';
     }
 
-    if (!createForm.password) {
-      errors.password = 'Mật khẩu là bắt buộc';
-    } else if (createForm.password.length < 6) {
-      errors.password = 'Mật khẩu phải có ít nhất 6 ký tự';
-    }
-
-    if (!createForm.confirmPassword) {
-      errors.confirmPassword = 'Vui lòng xác nhận mật khẩu';
-    } else if (createForm.password !== createForm.confirmPassword) {
-      errors.confirmPassword = 'Mật khẩu xác nhận không khớp';
+    if (!frontFile) {
+      errors.faceImage = 'Vui lòng tải lên ảnh chân dung chính diện để đăng ký khuôn mặt';
     }
 
     if (Object.keys(errors).length > 0) {
@@ -304,23 +239,22 @@ export default function ManageAccountPage() {
     setFormErrors({});
 
     try {
-      await registerUser({
+      await createStaffAccount({
         fullName: createForm.fullName.trim(),
         userCode: createForm.userCode.trim(),
         email: createForm.email.trim(),
         role: createForm.role,
-        password: createForm.password
+        faceImage: frontFile
       });
-      showToast('Tạo tài khoản hệ thống mới thành công!', 'success');
+      showToast('Tạo tài khoản cán bộ thành công! Mật khẩu khởi tạo đã được gửi đến email.', 'success');
       closeModal();
       fetchUsers();
-      fetchCounts();
     } catch (err) {
-      console.error('Error creating user:', err);
-      const msg = err.message || 'Không thể tạo tài khoản';
+      console.error('Error creating staff account:', err);
+      const msg = err.message || 'Không thể tạo tài khoản cán bộ';
       if (msg.toLowerCase().includes('email')) {
         setFormErrors({ email: msg });
-      } else if (msg.toLowerCase().includes('user code') || msg.toLowerCase().includes('mã')) {
+      } else if (msg.toLowerCase().includes('mã') || msg.toLowerCase().includes('code')) {
         setFormErrors({ userCode: msg });
       } else {
         setFormErrors({ general: msg });
@@ -330,48 +264,7 @@ export default function ManageAccountPage() {
     }
   };
 
-  // Handle Submit: Edit User
-  const handleSubmitEdit = async (e) => {
-    e.preventDefault();
-    const errors = {};
-
-    if (!editForm.fullName.trim()) {
-      errors.fullName = 'Họ và tên là bắt buộc';
-    } else if (editForm.fullName.trim().length > 100) {
-      errors.fullName = 'Họ và tên không quá 100 ký tự';
-    }
-
-    if (Object.keys(errors).length > 0) {
-      setFormErrors(errors);
-      return;
-    }
-
-    setIsSubmitting(true);
-    setFormErrors({});
-
-    try {
-      // For Normal Users, preserve existing role (cannot change to system role)
-      const targetRole = selectedUser.role === ROLES.NORMAL_USER
-        ? ROLES.NORMAL_USER
-        : editForm.role;
-
-      await updateUser(selectedUser.id, {
-        fullName: editForm.fullName.trim(),
-        role: targetRole
-      });
-      showToast('Cập nhật thông tin tài khoản thành công!', 'success');
-      closeModal();
-      fetchUsers();
-      fetchCounts();
-    } catch (err) {
-      console.error('Error updating user:', err);
-      setFormErrors({ general: err.message || 'Không thể cập nhật thông tin tài khoản' });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // Handle Confirm: Toggle Active Status
+  // Confirm Toggle Active Status
   const handleConfirmToggle = async () => {
     if (!selectedUser) return;
     setIsSubmitting(true);
@@ -386,7 +279,6 @@ export default function ManageAccountPage() {
       );
       closeModal();
       fetchUsers();
-      fetchCounts();
     } catch (err) {
       console.error('Error toggling user status:', err);
       showToast(err.message || 'Không thể thay đổi trạng thái tài khoản', 'error');
@@ -395,75 +287,18 @@ export default function ManageAccountPage() {
     }
   };
 
-  // Handle Confirm: Delete User (System Accounts only)
+  // Confirm Delete User
   const handleConfirmDelete = async () => {
-    if (!selectedUser || selectedUser.role === ROLES.NORMAL_USER) return;
+    if (!selectedUser) return;
     setIsSubmitting(true);
     try {
       await deleteUser(selectedUser.id);
       showToast(`Đã xóa tài khoản ${selectedUser.fullName}`, 'success');
       closeModal();
       fetchUsers();
-      fetchCounts();
     } catch (err) {
       console.error('Error deleting user:', err);
       showToast(err.message || 'Không thể xóa tài khoản', 'error');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // Handle File Drop / Select for CSV Import
-  const handleFileSelect = (e) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (!file.name.toLowerCase().endsWith('.csv')) {
-        showToast('Vui lòng chọn file có định dạng .csv', 'error');
-        return;
-      }
-      setImportFile(file);
-      setImportResult(null);
-      setFormErrors({});
-    }
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    setIsDragOver(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) {
-      if (!file.name.toLowerCase().endsWith('.csv')) {
-        showToast('Vui lòng chọn file có định dạng .csv', 'error');
-        return;
-      }
-      setImportFile(file);
-      setImportResult(null);
-      setFormErrors({});
-    }
-  };
-
-  // Handle Submit: CSV Import
-  const handleSubmitImport = async (e) => {
-    e.preventDefault();
-    if (!importFile) {
-      showToast('Vui lòng chọn file CSV để import.', 'error');
-      return;
-    }
-
-    setIsSubmitting(true);
-    setFormErrors({});
-    try {
-      const res = await importUsers(importFile);
-      setImportResult(res);
-      showToast(
-        `Import hoàn tất: Thành công ${res.successCount}/${res.totalProcessed} người dùng!`,
-        res.failedCount > 0 ? 'error' : 'success'
-      );
-      fetchUsers();
-      fetchCounts();
-    } catch (err) {
-      console.error('Error importing users:', err);
-      setFormErrors({ general: err.message || 'Lỗi khi import danh sách người dùng' });
     } finally {
       setIsSubmitting(false);
     }
@@ -506,17 +341,7 @@ export default function ManageAccountPage() {
           </p>
         </div>
 
-        {activeTab === 'NORMAL' ? (
-          <button
-            type="button"
-            id="btn-import-accounts"
-            className="account-header__create-btn"
-            onClick={handleOpenImport}
-          >
-            <Upload size={18} />
-            <span>Import danh sách</span>
-          </button>
-        ) : (
+        {activeTab === 'SYSTEM' && (
           <button
             type="button"
             id="btn-create-account"
@@ -524,7 +349,7 @@ export default function ManageAccountPage() {
             onClick={handleOpenCreate}
           >
             <UserPlus size={18} />
-            <span>+ Thêm tài khoản</span>
+            <span>+ Thêm tài khoản cán bộ</span>
           </button>
         )}
       </header>
@@ -578,7 +403,6 @@ export default function ManageAccountPage() {
           )}
         </div>
 
-        {/* Status filter only for NORMAL user tab */}
         {activeTab === 'NORMAL' && (
           <div className="account-filter-select-wrapper">
             <select
@@ -605,29 +429,16 @@ export default function ManageAccountPage() {
           <table className="account-table">
             <thead>
               <tr>
-                {activeTab === 'NORMAL' ? (
-                  <>
-                    <th>Mã định danh</th>
-                    <th>Họ và tên</th>
-                    <th>Email</th>
-                    <th>Trạng thái</th>
-                    <th style={{ textAlign: 'center' }}>Thao tác</th>
-                  </>
-                ) : (
-                  <>
-                    <th>Mã định danh</th>
-                    <th>Họ và tên</th>
-                    <th>Email</th>
-                    <th>Quyền</th>
-                    <th>Trạng thái</th>
-                    <th style={{ textAlign: 'center' }}>Thao tác</th>
-                  </>
-                )}
+                <th>Mã định danh</th>
+                <th>Họ và tên</th>
+                <th>Email</th>
+                {activeTab === 'SYSTEM' && <th>Quyền</th>}
+                <th>Trạng thái</th>
+                <th style={{ textAlign: 'center' }}>Thao tác</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                // Skeleton Rows
                 Array.from({ length: 6 }).map((_, idx) => (
                   <tr key={idx} className="account-skeleton-row">
                     <td><div className="account-skeleton-block" style={{ width: '80px' }} /></td>
@@ -653,7 +464,6 @@ export default function ManageAccountPage() {
                   </tr>
                 ))
               ) : error ? (
-                // Error State
                 <tr>
                   <td colSpan={activeTab === 'NORMAL' ? 5 : 6}>
                     <div className="account-empty-state">
@@ -674,7 +484,6 @@ export default function ManageAccountPage() {
                   </td>
                 </tr>
               ) : users.length === 0 ? (
-                // Empty State
                 <tr>
                   <td colSpan={activeTab === 'NORMAL' ? 5 : 6}>
                     <div className="account-empty-state">
@@ -692,45 +501,23 @@ export default function ManageAccountPage() {
                         {debouncedKeyword || statusFilter !== ''
                           ? 'Không có kết quả nào khớp với bộ lọc hiện tại. Thử kiểm tra lại từ khóa hoặc xóa bộ lọc.'
                           : activeTab === 'NORMAL'
-                          ? 'Import danh sách để thêm người dùng thường vào hệ thống.'
-                          : 'Hệ thống hiện chưa có tài khoản nào. Hãy nhấn nút bên dưới để tạo tài khoản đầu tiên.'}
+                          ? 'Người dùng thường sẽ được tự động đồng bộ khi tương tác với hệ thống.'
+                          : 'Hệ thống hiện chưa có tài khoản cán bộ nào. Hãy nhấn nút bên dưới để tạo tài khoản đầu tiên.'}
                       </p>
-                      {debouncedKeyword || statusFilter !== '' ? (
-                        <button
-                          type="button"
-                          className="account-empty-state__btn"
-                          onClick={() => {
-                            setSearchKeyword('');
-                            setStatusFilter('');
-                          }}
-                        >
-                          <X size={14} />
-                          <span>Xóa bộ lọc</span>
-                        </button>
-                      ) : activeTab === 'NORMAL' ? (
-                        <button
-                          type="button"
-                          className="account-empty-state__btn"
-                          onClick={handleOpenImport}
-                        >
-                          <Upload size={14} />
-                          <span>Import danh sách</span>
-                        </button>
-                      ) : (
+                      {activeTab === 'SYSTEM' && !debouncedKeyword && (
                         <button
                           type="button"
                           className="account-empty-state__btn"
                           onClick={handleOpenCreate}
                         >
                           <UserPlus size={14} />
-                          <span>+ Thêm tài khoản</span>
+                          <span>+ Thêm tài khoản cán bộ</span>
                         </button>
                       )}
                     </div>
                   </td>
                 </tr>
               ) : (
-                // Data Rows
                 users.map((item) => {
                   const isSelf = currentUser?.email && item.email?.toLowerCase() === currentUser.email?.toLowerCase();
 
@@ -748,7 +535,6 @@ export default function ManageAccountPage() {
                         {item.email}
                       </td>
 
-                      {/* SYSTEM tab role column */}
                       {activeTab === 'SYSTEM' && (
                         <td>
                           <span className={`account-badge account-badge--role-${item.role}`}>
@@ -770,62 +556,36 @@ export default function ManageAccountPage() {
 
                       <td style={{ textAlign: 'center' }}>
                         <div className="account-actions" style={{ justifyContent: 'center' }}>
-                          {/* Tạm ẩn chức năng chỉnh sửa */}
-                          {/*
                           <button
                             type="button"
-                            className="account-action-btn account-action-btn--edit"
-                            title="Chỉnh sửa"
-                            onClick={() => handleOpenEdit(item)}
+                            className={`account-action-btn ${
+                              item.isActive
+                                ? 'account-action-btn--toggle-disable'
+                                : 'account-action-btn--toggle-activate'
+                            }`}
+                            title={
+                              isSelf
+                                ? 'Không thể tự thay đổi trạng thái của chính mình'
+                                : item.isActive
+                                ? 'Vô hiệu hóa tài khoản'
+                                : 'Kích hoạt tài khoản'
+                            }
+                            disabled={isSelf}
+                            onClick={() => handleOpenToggle(item)}
                           >
-                            <Edit2 size={15} />
+                            {item.isActive ? <UserX size={15} /> : <UserCheck size={15} />}
                           </button>
-                          */}
 
-                          {/* Action toggle: text link for NORMAL tab, icon for SYSTEM tab */}
-                          {activeTab === 'NORMAL' ? (
+                          {activeTab === 'SYSTEM' && (
                             <button
                               type="button"
-                              className={`account-action-link ${
-                                item.isActive ? 'account-action-link--disable' : 'account-action-link--activate'
-                              }`}
+                              className="account-action-btn account-action-btn--delete"
+                              title={isSelf ? 'Không thể tự xóa tài khoản của chính mình' : 'Xóa tài khoản'}
                               disabled={isSelf}
-                              onClick={() => handleOpenToggle(item)}
+                              onClick={() => handleOpenDelete(item)}
                             >
-                              {item.isActive ? 'Vô hiệu hoá' : 'Kích hoạt'}
+                              <Trash2 size={15} />
                             </button>
-                          ) : (
-                            <>
-                              <button
-                                type="button"
-                                className="account-action-btn account-action-btn--delete"
-                                title={isSelf ? 'Không thể tự xóa tài khoản của chính mình' : 'Xóa tài khoản'}
-                                disabled={isSelf}
-                                onClick={() => handleOpenDelete(item)}
-                              >
-                                <Trash2 size={15} />
-                              </button>
-
-                              <button
-                                type="button"
-                                className={`account-action-btn ${
-                                  item.isActive
-                                    ? 'account-action-btn--toggle-disable'
-                                    : 'account-action-btn--toggle-activate'
-                                }`}
-                                title={
-                                  isSelf
-                                    ? 'Không thể tự vô hiệu hóa tài khoản của chính mình'
-                                    : item.isActive
-                                    ? 'Vô hiệu hóa tài khoản'
-                                    : 'Kích hoạt tài khoản'
-                                }
-                                disabled={isSelf}
-                                onClick={() => handleOpenToggle(item)}
-                              >
-                                {item.isActive ? <UserX size={15} /> : <UserCheck size={15} />}
-                              </button>
-                            </>
                           )}
                         </div>
                       </td>
@@ -855,34 +615,16 @@ export default function ManageAccountPage() {
                 <ChevronLeft size={16} />
               </button>
 
-              {Array.from({ length: totalPages }).map((_, i) => {
-                if (
-                  totalPages > 7 &&
-                  i !== 0 &&
-                  i !== totalPages - 1 &&
-                  Math.abs(i - currentPage) > 1
-                ) {
-                  if (i === 1 || i === totalPages - 2) {
-                    return (
-                      <span key={i} style={{ padding: '0 4px', color: 'var(--theme-text-muted)' }}>
-                        ...
-                      </span>
-                    );
-                  }
-                  return null;
-                }
-
-                return (
-                  <button
-                    key={i}
-                    type="button"
-                    className={`account-page-btn ${currentPage === i ? 'account-page-btn--active' : ''}`}
-                    onClick={() => setCurrentPage(i)}
-                  >
-                    {i + 1}
-                  </button>
-                );
-              })}
+              {Array.from({ length: totalPages }).map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  className={`account-page-btn ${currentPage === i ? 'account-page-btn--active' : ''}`}
+                  onClick={() => setCurrentPage(i)}
+                >
+                  {i + 1}
+                </button>
+              ))}
 
               <button
                 type="button"
@@ -899,10 +641,8 @@ export default function ManageAccountPage() {
       </div>
 
       {/* ====================================================================
-          MODALS
+          CREATE STAFF ACCOUNT MODAL (MF1.1 Manual Creation with Face Image)
           ==================================================================== */}
-
-      {/* 1. Create Modal (Only for System Accounts) */}
       {modalType === 'create' && (
         <div
           className="account-modal-backdrop"
@@ -910,13 +650,13 @@ export default function ManageAccountPage() {
             if (e.target === e.currentTarget && !isSubmitting) closeModal();
           }}
         >
-          <div className="account-modal" role="dialog" aria-modal="true">
+          <div className="account-modal" role="dialog" aria-modal="true" style={{ maxWidth: '520px' }}>
             <div className="account-modal__header">
               <div className="account-modal__title-wrap">
                 <div className="account-modal__icon-badge account-modal__icon-badge--primary">
                   <UserPlus size={18} />
                 </div>
-                <h2 className="account-modal__title">Thêm tài khoản hệ thống</h2>
+                <h2 className="account-modal__title">Thêm tài khoản cán bộ/nhân viên</h2>
               </div>
               <button
                 type="button"
@@ -965,12 +705,12 @@ export default function ManageAccountPage() {
 
                 <div className="account-form-group">
                   <label className="account-form-label">
-                    <span>Mã định danh<span className="account-form-label__required">*</span></span>
+                    <span>Mã cán bộ/nhân viên<span className="account-form-label__required">*</span></span>
                   </label>
                   <input
                     type="text"
                     className={`account-form-input ${formErrors.userCode ? 'account-form-input--error' : ''}`}
-                    placeholder="Ví dụ: AD-002, SEC-002..."
+                    placeholder="Ví dụ: NV-SEC-001, FM-002..."
                     value={createForm.userCode}
                     onChange={(e) => setCreateForm({ ...createForm, userCode: e.target.value })}
                     disabled={isSubmitting}
@@ -982,12 +722,12 @@ export default function ManageAccountPage() {
 
                 <div className="account-form-group">
                   <label className="account-form-label">
-                    <span>Email<span className="account-form-label__required">*</span></span>
+                    <span>Email liên hệ<span className="account-form-label__required">*</span></span>
                   </label>
                   <input
                     type="email"
                     className={`account-form-input ${formErrors.email ? 'account-form-input--error' : ''}`}
-                    placeholder="Ví dụ: admin2@fpt.edu.vn"
+                    placeholder="Ví dụ: staff@fpt.edu.vn"
                     value={createForm.email}
                     onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
                     disabled={isSubmitting}
@@ -997,7 +737,6 @@ export default function ManageAccountPage() {
                   )}
                 </div>
 
-                {/* Role dropdown only contains SYSTEM roles, NEVER NORMAL_USER */}
                 <div className="account-form-group">
                   <label className="account-form-label">
                     <span>Quyền hạn<span className="account-form-label__required">*</span></span>
@@ -1008,7 +747,7 @@ export default function ManageAccountPage() {
                     onChange={(e) => setCreateForm({ ...createForm, role: e.target.value })}
                     disabled={isSubmitting}
                   >
-                    {SYSTEM_ROLES_LIST.map((r) => (
+                    {SYSTEM_STAFF_ROLES.map((r) => (
                       <option key={r} value={r}>
                         {ROLE_LABELS[r] || r}
                       </option>
@@ -1016,205 +755,76 @@ export default function ManageAccountPage() {
                   </select>
                 </div>
 
+                {/* Face Image Upload Section */}
                 <div className="account-form-group">
                   <label className="account-form-label">
-                    <span>Mật khẩu<span className="account-form-label__required">*</span></span>
+                    <span>Ảnh chân dung chính diện (Đăng ký khuôn mặt)<span className="account-form-label__required">*</span></span>
                   </label>
-                  <div className="account-form-password-wrapper">
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      className={`account-form-input ${formErrors.password ? 'account-form-input--error' : ''}`}
-                      placeholder="Ít nhất 6 ký tự"
-                      value={createForm.password}
-                      onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
-                      disabled={isSubmitting}
-                    />
-                    <button
-                      type="button"
-                      className="account-form-password-toggle"
-                      onClick={() => setShowPassword(!showPassword)}
-                      tabIndex="-1"
+                  
+                  {frontPreview ? (
+                    <div style={{ position: 'relative', textAlign: 'center', margin: '8px 0' }}>
+                      <img
+                        src={frontPreview}
+                        alt="Khuôn mặt chính diện"
+                        style={{
+                          width: '120px',
+                          height: '140px',
+                          objectFit: 'cover',
+                          borderRadius: '8px',
+                          border: '2px solid var(--theme-primary, #3b82f6)'
+                        }}
+                      />
+                      <div style={{ marginTop: '6px' }}>
+                        <label
+                          htmlFor="input-staff-face"
+                          style={{
+                            cursor: 'pointer',
+                            color: 'var(--theme-primary, #3b82f6)',
+                            fontSize: '0.8125rem',
+                            fontWeight: 500
+                          }}
+                        >
+                          Chọn ảnh khác
+                        </label>
+                      </div>
+                    </div>
+                  ) : (
+                    <label
+                      htmlFor="input-staff-face"
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '20px',
+                        border: '2px dashed #cbd5e1',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        backgroundColor: '#f8fafc',
+                        marginTop: '4px'
+                      }}
                     >
-                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                  {formErrors.password && (
-                    <span className="account-form-error">{formErrors.password}</span>
+                      <Camera size={32} color="#64748b" />
+                      <span style={{ fontSize: '0.875rem', marginTop: '8px', color: '#475569' }}>
+                        Tải lên ảnh chân dung chính diện
+                      </span>
+                      <span style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '2px' }}>
+                        Hỗ trợ định dạng JPG, PNG...
+                      </span>
+                    </label>
                   )}
-                </div>
-
-                <div className="account-form-group">
-                  <label className="account-form-label">
-                    <span>Xác nhận mật khẩu<span className="account-form-label__required">*</span></span>
-                  </label>
-                  <div className="account-form-password-wrapper">
-                    <input
-                      type={showConfirmPassword ? 'text' : 'password'}
-                      className={`account-form-input ${formErrors.confirmPassword ? 'account-form-input--error' : ''}`}
-                      placeholder="Nhập lại mật khẩu"
-                      value={createForm.confirmPassword}
-                      onChange={(e) => setCreateForm({ ...createForm, confirmPassword: e.target.value })}
-                      disabled={isSubmitting}
-                    />
-                    <button
-                      type="button"
-                      className="account-form-password-toggle"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      tabIndex="-1"
-                    >
-                      {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                  {formErrors.confirmPassword && (
-                    <span className="account-form-error">{formErrors.confirmPassword}</span>
-                  )}
-                </div>
-              </div>
-
-              <div className="account-modal__footer">
-                <button
-                  type="button"
-                  className="account-modal-btn account-modal-btn--secondary"
-                  onClick={closeModal}
-                  disabled={isSubmitting}
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  className="account-modal-btn account-modal-btn--primary"
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting && <RotateCw size={14} className="spin" />}
-                  <span>{isSubmitting ? 'Đang tạo...' : 'Tạo tài khoản'}</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* 2. Edit Modal */}
-      {modalType === 'edit' && selectedUser && (
-        <div
-          className="account-modal-backdrop"
-          onClick={(e) => {
-            if (e.target === e.currentTarget && !isSubmitting) closeModal();
-          }}
-        >
-          <div className="account-modal" role="dialog" aria-modal="true">
-            <div className="account-modal__header">
-              <div className="account-modal__title-wrap">
-                <div className="account-modal__icon-badge account-modal__icon-badge--primary">
-                  <Edit2 size={18} />
-                </div>
-                <h2 className="account-modal__title">Chỉnh sửa tài khoản</h2>
-              </div>
-              <button
-                type="button"
-                className="account-modal__close-btn"
-                onClick={closeModal}
-                disabled={isSubmitting}
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmitEdit}>
-              <div className="account-modal__body">
-                {formErrors.general && (
-                  <div
-                    style={{
-                      padding: '10px 14px',
-                      borderRadius: '6px',
-                      backgroundColor: '#fef2f2',
-                      color: '#dc2626',
-                      fontSize: '0.8125rem',
-                      border: '1px solid #fecaca'
-                    }}
-                  >
-                    {formErrors.general}
-                  </div>
-                )}
-
-                <div className="account-form-group">
-                  <label className="account-form-label">
-                    <span>Mã định danh</span>
-                  </label>
                   <input
-                    type="text"
-                    className="account-form-input"
-                    value={selectedUser.userCode}
-                    disabled
-                  />
-                  <span className="account-form-note">Mã định danh không thể thay đổi</span>
-                </div>
-
-                <div className="account-form-group">
-                  <label className="account-form-label">
-                    <span>Email</span>
-                  </label>
-                  <input
-                    type="email"
-                    className="account-form-input"
-                    value={selectedUser.email}
-                    disabled
-                  />
-                  <span className="account-form-note">Email không thể thay đổi</span>
-                </div>
-
-                <div className="account-form-group">
-                  <label className="account-form-label">
-                    <span>Họ và tên<span className="account-form-label__required">*</span></span>
-                  </label>
-                  <input
-                    type="text"
-                    className={`account-form-input ${formErrors.fullName ? 'account-form-input--error' : ''}`}
-                    value={editForm.fullName}
-                    onChange={(e) => setEditForm({ ...editForm, fullName: e.target.value })}
+                    id="input-staff-face"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    style={{ display: 'none' }}
                     disabled={isSubmitting}
-                    autoFocus
                   />
-                  {formErrors.fullName && (
-                    <span className="account-form-error">{formErrors.fullName}</span>
+                  {formErrors.faceImage && (
+                    <span className="account-form-error">{formErrors.faceImage}</span>
                   )}
                 </div>
-
-                {/* Role field: For Normal Users, show read-only. For System accounts, allow choosing among system roles */}
-                {selectedUser.role === ROLES.NORMAL_USER ? (
-                  <div className="account-form-group">
-                    <label className="account-form-label">
-                      <span>Quyền hạn</span>
-                    </label>
-                    <input
-                      type="text"
-                      className="account-form-input"
-                      value={ROLE_LABELS[ROLES.NORMAL_USER]}
-                      disabled
-                    />
-                    <span className="account-form-note">
-                      Tài khoản người dùng thường không thể chuyển thành tài khoản hệ thống tại đây
-                    </span>
-                  </div>
-                ) : (
-                  <div className="account-form-group">
-                    <label className="account-form-label">
-                      <span>Quyền hạn<span className="account-form-label__required">*</span></span>
-                    </label>
-                    <select
-                      className="account-form-select"
-                      value={editForm.role}
-                      onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
-                      disabled={isSubmitting}
-                    >
-                      {SYSTEM_ROLES_LIST.map((r) => (
-                        <option key={r} value={r}>
-                          {ROLE_LABELS[r] || r}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
               </div>
 
               <div className="account-modal__footer">
@@ -1232,7 +842,7 @@ export default function ManageAccountPage() {
                   disabled={isSubmitting}
                 >
                   {isSubmitting && <RotateCw size={14} className="spin" />}
-                  <span>{isSubmitting ? 'Đang lưu...' : 'Lưu thay đổi'}</span>
+                  <span>{isSubmitting ? 'Đang khởi tạo tài khoản...' : 'Khởi tạo tài khoản'}</span>
                 </button>
               </div>
             </form>
@@ -1240,7 +850,7 @@ export default function ManageAccountPage() {
         </div>
       )}
 
-      {/* 3. Disable Confirmation Modal */}
+      {/* Disable / Activate / Delete Modals */}
       {modalType === 'disable' && selectedUser && (
         <div className="account-modal-backdrop">
           <div className="account-modal account-modal--confirm" role="dialog" aria-modal="true">
@@ -1249,49 +859,24 @@ export default function ManageAccountPage() {
                 <div className="account-modal__icon-badge account-modal__icon-badge--warning">
                   <UserX size={18} />
                 </div>
-                <h2 className="account-modal__title">
-                  {selectedUser.role === ROLES.NORMAL_USER ? 'Vô hiệu hoá người dùng' : 'Vô hiệu hóa tài khoản'}
-                </h2>
+                <h2 className="account-modal__title">Vô hiệu hóa tài khoản</h2>
               </div>
-              <button
-                type="button"
-                className="account-modal__close-btn"
-                onClick={closeModal}
-                disabled={isSubmitting}
-              >
+              <button type="button" className="account-modal__close-btn" onClick={closeModal} disabled={isSubmitting}>
                 <X size={18} />
               </button>
             </div>
-
             <div className="account-modal__body">
               <p className="account-confirm-text">
-                {selectedUser.role === ROLES.NORMAL_USER
-                  ? 'Người dùng này sẽ không thể tiếp tục sử dụng hệ thống cho đến khi được kích hoạt lại.'
-                  : 'Bạn có chắc chắn muốn vô hiệu hóa tài khoản này? Người dùng sẽ không thể tiếp tục đăng nhập vào hệ thống cho đến khi được kích hoạt lại.'}
+                Bạn có chắc chắn muốn vô hiệu hóa tài khoản này? Người dùng sẽ không thể đăng nhập cho đến khi được kích hoạt lại.
               </p>
               <div className="account-confirm-user-info">
                 <span className="account-confirm-user-name">{selectedUser.fullName}</span>
-                <span className="account-confirm-user-code">
-                  Mã: {selectedUser.userCode} • Email: {selectedUser.email}
-                </span>
+                <span className="account-confirm-user-code">Mã: {selectedUser.userCode} • Email: {selectedUser.email}</span>
               </div>
             </div>
-
             <div className="account-modal__footer">
-              <button
-                type="button"
-                className="account-modal-btn account-modal-btn--secondary"
-                onClick={closeModal}
-                disabled={isSubmitting}
-              >
-                Huỷ
-              </button>
-              <button
-                type="button"
-                className="account-modal-btn account-modal-btn--warning"
-                onClick={handleConfirmToggle}
-                disabled={isSubmitting}
-              >
+              <button type="button" className="account-modal-btn account-modal-btn--secondary" onClick={closeModal} disabled={isSubmitting}>Huỷ</button>
+              <button type="button" className="account-modal-btn account-modal-btn--warning" onClick={handleConfirmToggle} disabled={isSubmitting}>
                 {isSubmitting && <RotateCw size={14} className="spin" />}
                 <span>{isSubmitting ? 'Đang xử lý...' : 'Vô hiệu hoá'}</span>
               </button>
@@ -1300,7 +885,6 @@ export default function ManageAccountPage() {
         </div>
       )}
 
-      {/* 4. Activate Confirmation Modal */}
       {modalType === 'activate' && selectedUser && (
         <div className="account-modal-backdrop">
           <div className="account-modal account-modal--confirm" role="dialog" aria-modal="true">
@@ -1309,49 +893,24 @@ export default function ManageAccountPage() {
                 <div className="account-modal__icon-badge account-modal__icon-badge--success">
                   <UserCheck size={18} />
                 </div>
-                <h2 className="account-modal__title">
-                  {selectedUser.role === ROLES.NORMAL_USER ? 'Kích hoạt người dùng' : 'Kích hoạt tài khoản'}
-                </h2>
+                <h2 className="account-modal__title">Kích hoạt tài khoản</h2>
               </div>
-              <button
-                type="button"
-                className="account-modal__close-btn"
-                onClick={closeModal}
-                disabled={isSubmitting}
-              >
+              <button type="button" className="account-modal__close-btn" onClick={closeModal} disabled={isSubmitting}>
                 <X size={18} />
               </button>
             </div>
-
             <div className="account-modal__body">
               <p className="account-confirm-text">
-                {selectedUser.role === ROLES.NORMAL_USER
-                  ? 'Người dùng sẽ có thể sử dụng hệ thống trở lại.'
-                  : 'Bạn có chắc chắn muốn kích hoạt lại tài khoản này? Người dùng sẽ có thể đăng nhập và sử dụng hệ thống bình thường.'}
+                Bạn có chắc chắn muốn kích hoạt lại tài khoản này? Người dùng sẽ có thể đăng nhập vào hệ thống bình thường.
               </p>
               <div className="account-confirm-user-info">
                 <span className="account-confirm-user-name">{selectedUser.fullName}</span>
-                <span className="account-confirm-user-code">
-                  Mã: {selectedUser.userCode} • Email: {selectedUser.email}
-                </span>
+                <span className="account-confirm-user-code">Mã: {selectedUser.userCode} • Email: {selectedUser.email}</span>
               </div>
             </div>
-
             <div className="account-modal__footer">
-              <button
-                type="button"
-                className="account-modal-btn account-modal-btn--secondary"
-                onClick={closeModal}
-                disabled={isSubmitting}
-              >
-                Huỷ
-              </button>
-              <button
-                type="button"
-                className="account-modal-btn account-modal-btn--primary"
-                onClick={handleConfirmToggle}
-                disabled={isSubmitting}
-              >
+              <button type="button" className="account-modal-btn account-modal-btn--secondary" onClick={closeModal} disabled={isSubmitting}>Huỷ</button>
+              <button type="button" className="account-modal-btn account-modal-btn--primary" onClick={handleConfirmToggle} disabled={isSubmitting}>
                 {isSubmitting && <RotateCw size={14} className="spin" />}
                 <span>{isSubmitting ? 'Đang xử lý...' : 'Kích hoạt'}</span>
               </button>
@@ -1360,7 +919,6 @@ export default function ManageAccountPage() {
         </div>
       )}
 
-      {/* 5. Delete Confirmation Modal */}
       {modalType === 'delete' && selectedUser && (
         <div className="account-modal-backdrop">
           <div className="account-modal account-modal--confirm" role="dialog" aria-modal="true">
@@ -1371,254 +929,26 @@ export default function ManageAccountPage() {
                 </div>
                 <h2 className="account-modal__title">Xóa tài khoản</h2>
               </div>
-              <button
-                type="button"
-                className="account-modal__close-btn"
-                onClick={closeModal}
-                disabled={isSubmitting}
-              >
+              <button type="button" className="account-modal__close-btn" onClick={closeModal} disabled={isSubmitting}>
                 <X size={18} />
               </button>
             </div>
-
             <div className="account-modal__body">
               <p className="account-confirm-text">
-                Bạn có chắc chắn muốn xóa tài khoản này? Tài khoản sẽ bị vô hiệu hóa và loại bỏ khỏi danh sách quản lý.
+                Bạn có chắc chắn muốn xóa tài khoản này? Tài khoản sẽ bị loại bỏ khỏi danh sách quản lý.
               </p>
               <div className="account-confirm-user-info">
                 <span className="account-confirm-user-name">{selectedUser.fullName}</span>
-                <span className="account-confirm-user-code">
-                  Mã: {selectedUser.userCode} • Email: {selectedUser.email}
-                </span>
+                <span className="account-confirm-user-code">Mã: {selectedUser.userCode} • Email: {selectedUser.email}</span>
               </div>
             </div>
-
             <div className="account-modal__footer">
-              <button
-                type="button"
-                className="account-modal-btn account-modal-btn--secondary"
-                onClick={closeModal}
-                disabled={isSubmitting}
-              >
-                Hủy
-              </button>
-              <button
-                type="button"
-                className="account-modal-btn account-modal-btn--danger"
-                onClick={handleConfirmDelete}
-                disabled={isSubmitting}
-              >
+              <button type="button" className="account-modal-btn account-modal-btn--secondary" onClick={closeModal} disabled={isSubmitting}>Hủy</button>
+              <button type="button" className="account-modal-btn account-modal-btn--danger" onClick={handleConfirmDelete} disabled={isSubmitting}>
                 {isSubmitting && <RotateCw size={14} className="spin" />}
                 <span>{isSubmitting ? 'Đang xóa...' : 'Xóa tài khoản'}</span>
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* 6. Import Modal (Normal Users CSV) */}
-      {modalType === 'import' && (
-        <div
-          className="account-modal-backdrop"
-          onClick={(e) => {
-            if (e.target === e.currentTarget && !isSubmitting) closeModal();
-          }}
-        >
-          <div className="account-modal account-modal--import" role="dialog" aria-modal="true">
-            <div className="account-modal__header">
-              <div className="account-modal__title-wrap">
-                <div className="account-modal__icon-badge account-modal__icon-badge--primary">
-                  <Upload size={18} />
-                </div>
-                <div>
-                  <h2 className="account-modal__title">Import danh sách người dùng</h2>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="account-modal__close-btn"
-                onClick={closeModal}
-                disabled={isSubmitting}
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmitImport}>
-              <div className="account-modal__body">
-                <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--theme-text-muted)' }}>
-                  Thêm nhiều người dùng thường vào hệ thống bằng file CSV. Các tài khoản hợp lệ sẽ được tự động tạo với quyền Người dùng thường.
-                </p>
-
-                {formErrors.general && (
-                  <div
-                    style={{
-                      padding: '10px 14px',
-                      borderRadius: '6px',
-                      backgroundColor: '#fef2f2',
-                      color: '#dc2626',
-                      fontSize: '0.8125rem',
-                      border: '1px solid #fecaca'
-                    }}
-                  >
-                    {formErrors.general}
-                  </div>
-                )}
-
-                {/* Dropzone or Selected File */}
-                {!importFile ? (
-                  <div
-                    className={`account-dropzone ${isDragOver ? 'account-dropzone--active' : ''}`}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      setIsDragOver(true);
-                    }}
-                    onDragLeave={() => setIsDragOver(false)}
-                    onDrop={handleDrop}
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    <FileUp size={36} className="account-dropzone__icon" />
-                    <p className="account-dropzone__title">
-                      Kéo thả file CSV vào đây hoặc <span style={{ color: 'var(--theme-primary)' }}>chọn file từ máy</span>
-                    </p>
-                    <p className="account-dropzone__subtitle">Hỗ trợ định dạng file .csv (UTF-8)</p>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept=".csv"
-                      style={{ display: 'none' }}
-                      onChange={handleFileSelect}
-                    />
-                  </div>
-                ) : (
-                  <div className="account-file-card">
-                    <div className="account-file-card__details">
-                      <FileSpreadsheet size={28} color="var(--theme-primary)" />
-                      <div>
-                        <div className="account-file-card__name">{importFile.name}</div>
-                        <div className="account-file-card__size">
-                          {(importFile.size / 1024).toFixed(1)} KB
-                        </div>
-                      </div>
-                    </div>
-                    {!isSubmitting && (
-                      <button
-                        type="button"
-                        className="account-file-card__remove-btn"
-                        onClick={() => {
-                          setImportFile(null);
-                          setImportResult(null);
-                        }}
-                        title="Hủy chọn file"
-                      >
-                        <X size={16} />
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                {/* Instructions & Template Download */}
-                <div className="account-import-info-box">
-                  <div>
-                    <strong>Các cột bắt buộc:</strong> Mã định danh, Họ và tên, Email, Mật khẩu (tùy chọn, mặc định 123456).
-                  </div>
-                  <div>
-                    Tải về file mẫu để đảm bảo định dạng file CSV chuẩn xác:
-                  </div>
-                  <button
-                    type="button"
-                    className="account-import-template-btn"
-                    onClick={handleDownloadTemplate}
-                    disabled={isDownloadingTemplate}
-                  >
-                    <Download size={14} />
-                    <span>{isDownloadingTemplate ? 'Đang tải mẫu...' : 'Tải file mẫu (sample_users.csv)'}</span>
-                  </button>
-                </div>
-
-                {/* Import Results Summary (if any) */}
-                {importResult && (
-                  <div>
-                    <h4 style={{ margin: '8px 0', fontSize: '0.875rem' }}>Kết quả import:</h4>
-                    <div className="account-import-summary">
-                      <div className="account-import-stat account-import-stat--total">
-                        <div className="account-import-stat__num">{importResult.totalProcessed}</div>
-                        <div className="account-import-stat__label">Tổng số</div>
-                      </div>
-                      <div className="account-import-stat account-import-stat--success">
-                        <div className="account-import-stat__num">{importResult.successCount}</div>
-                        <div className="account-import-stat__label">Thành công</div>
-                      </div>
-                      <div className="account-import-stat account-import-stat--failed">
-                        <div className="account-import-stat__num">{importResult.failedCount}</div>
-                        <div className="account-import-stat__label">Thất bại</div>
-                      </div>
-                    </div>
-
-                    {/* Error Table if failed rows exist */}
-                    {importResult.errors && importResult.errors.length > 0 && (
-                      <div style={{ marginTop: '12px' }}>
-                        <div
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            color: '#dc2626',
-                            fontSize: '0.8125rem',
-                            fontWeight: 600,
-                            marginBottom: '6px'
-                          }}
-                        >
-                          <AlertTriangle size={15} />
-                          <span>Chi tiết lỗi ({importResult.errors.length} dòng):</span>
-                        </div>
-                        <div className="account-import-error-table-container">
-                          <table className="account-import-error-table">
-                            <thead>
-                              <tr>
-                                <th style={{ width: '50px' }}>Dòng</th>
-                                <th style={{ width: '110px' }}>Mã định danh</th>
-                                <th>Lỗi</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {importResult.errors.map((err, idx) => (
-                                <tr key={idx}>
-                                  <td>{err.row}</td>
-                                  <td><code>{err.userCode || '-'}</code></td>
-                                  <td>{err.message}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div className="account-modal__footer">
-                <button
-                  type="button"
-                  className="account-modal-btn account-modal-btn--secondary"
-                  onClick={closeModal}
-                  disabled={isSubmitting}
-                >
-                  {importResult ? 'Đóng' : 'Hủy'}
-                </button>
-                {!importResult && (
-                  <button
-                    type="submit"
-                    className="account-modal-btn account-modal-btn--primary"
-                    disabled={isSubmitting || !importFile}
-                  >
-                    {isSubmitting && <RotateCw size={14} className="spin" />}
-                    <span>{isSubmitting ? 'Đang import danh sách...' : 'Bắt đầu Import'}</span>
-                  </button>
-                )}
-              </div>
-            </form>
           </div>
         </div>
       )}

@@ -13,7 +13,6 @@ import com.fa26se040.icss.enums.RequestStatus;
 import com.fa26se040.icss.enums.RequestType;
 import com.fa26se040.icss.exception.ResourceNotFoundException;
 import com.fa26se040.icss.exception.UnauthorizedException;
-import com.fa26se040.icss.repository.AccessRequestMemberRepository;
 import com.fa26se040.icss.repository.AccessRequestRepository;
 import com.fa26se040.icss.repository.AreaRepository;
 import com.fa26se040.icss.repository.UserRepository;
@@ -38,7 +37,6 @@ import java.util.UUID;
 public class AccessRequestService {
 
     private final AccessRequestRepository accessRequestRepository;
-    private final AccessRequestMemberRepository accessRequestMemberRepository;
     private final AreaRepository areaRepository;
     private final UserRepository userRepository;
 

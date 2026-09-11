@@ -88,6 +88,7 @@ class SecurityAlertEvent:
     duration_seconds: float = 0.0
     confidence: float = 1.0
     image_url: Optional[str] = None
+    frame_base64: Optional[str] = None
     detected_at: str = field(default_factory=lambda: time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
     details: str = ""
     location: Optional[Dict[str, Any]] = None
@@ -101,6 +102,7 @@ class SecurityAlertEvent:
             "duration_seconds": round(self.duration_seconds, 2),
             "confidence": round(self.confidence, 3),
             "image_url": self.image_url,
+            "frame_base64": self.frame_base64,
             "detected_at": self.detected_at,
             "details": self.details,
             "location": self.location or {}

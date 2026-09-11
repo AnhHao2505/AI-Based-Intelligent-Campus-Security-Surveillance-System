@@ -4,7 +4,6 @@ import com.fa26se040.icss.dto.AuthResponse;
 import com.fa26se040.icss.dto.ForgotPasswordRequest;
 import com.fa26se040.icss.dto.GoogleLoginRequest;
 import com.fa26se040.icss.dto.LoginRequest;
-import com.fa26se040.icss.dto.RegisterRequest;
 import com.fa26se040.icss.dto.ResetPasswordRequest;
 import com.fa26se040.icss.dto.UserInfo;
 import com.fa26se040.icss.entity.PasswordResetToken;
@@ -16,12 +15,9 @@ import com.fa26se040.icss.security.GoogleTokenVerifier;
 import com.fa26se040.icss.security.JwtTokenProvider;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 
-import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -35,7 +31,7 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final PasswordEncoder passwordEncoder;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
-    private final JavaMailSender mailSender;
+    private final NotificationService notificationService;
 
     @Value("${app.jwt.expiration-ms}")
     private long jwtExpirationMs;
@@ -57,39 +53,7 @@ public class AuthService {
         passwordResetTokenRepository.save(resetToken);
 
         String resetLink = "http://localhost:5173/?token=" + token;
-        sendResetEmail(email, resetLink);
-    }
-
-    private void sendResetEmail(String toEmail, String resetLink) {
-        try {
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = 
-                    new MimeMessageHelper(message, true, "UTF-8");
-
-            helper.setTo(toEmail);
-            helper.setSubject("[Campus Security] Xác nhận khôi phục mật khẩu");
-
-            String htmlContent = "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;'>"
-                    + "<h2 style='color: #4A90E2; text-align: center;'>Khôi phục mật khẩu tài khoản</h2>"
-                    + "<p>Xin chào,</p>"
-                    + "<p>Bạn nhận được email này vì đã gửi yêu cầu khôi phục mật khẩu cho tài khoản Campus Security của mình.</p>"
-                    + "<p>Vui lòng click vào nút bên dưới để tiến hành đổi mật khẩu. Đường dẫn này có hiệu lực trong vòng 15 phút:</p>"
-                    + "<div style='text-align: center; margin: 30px 0;'>"
-                    + "  <a href='" + resetLink + "' style='background-color: #4A90E2; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;'>Đổi mật khẩu mới</a>"
-                    + "</div>"
-                    + "<p>Nếu link nút trên không hoạt động, bạn có thể copy link sau dán vào trình duyệt:</p>"
-                    + "<p style='word-break: break-all;'><a href='" + resetLink + "'>" + resetLink + "</a></p>"
-                    + "<hr style='border: none; border-top: 1px solid #eee; margin-top: 30px;' />"
-                    + "<p style='font-size: 12px; color: #888;'>Nếu bạn không yêu cầu thay đổi mật khẩu này, hãy bỏ qua email này an toàn.</p>"
-                    + "</div>";
-
-            helper.setText(htmlContent, true);
-            mailSender.send(message);
-            log.info("Reset password email successfully sent to {}", toEmail);
-        } catch (Exception e) {
-            log.error("Failed to send reset password email to {}", toEmail, e);
-            log.warn("=== LOCAL DEVELOPMENT FALLBACK - RESET LINK: {} ===", resetLink);
-        }
+        notificationService.sendResetPasswordEmail(email, resetLink);
     }
 
     public void resetPassword(ResetPasswordRequest request) {
@@ -114,37 +78,6 @@ public class AuthService {
         token.setIsUsed(true);
         passwordResetTokenRepository.save(token);
         log.info("Password successfully reset for user: {}", token.getEmail());
-    }
-
-    public UserInfo registerUser(RegisterRequest request) {
-        log.info("Registering new user with email: {} and role: {}", request.getEmail(), request.getRole());
-
-        if (userRepository.findByEmail(request.getEmail()).isPresent()) {
-            throw new IllegalArgumentException("Email is already in use");
-        }
-
-        if (userRepository.findByUserCode(request.getUserCode()).isPresent()) {
-            throw new IllegalArgumentException("User code is already in use");
-        }
-
-        User user = User.builder()
-                .fullName(request.getFullName())
-                .userCode(request.getUserCode())
-                .role(request.getRole())
-                .email(request.getEmail())
-                .password(passwordEncoder.encode(request.getPassword()))
-                .isActive(true)
-                .build();
-
-        User savedUser = userRepository.save(user);
-
-        return UserInfo.builder()
-                .id(savedUser.getId())
-                .fullName(savedUser.getFullName())
-                .email(savedUser.getEmail())
-                .role(savedUser.getRole().name())
-                .userCode(savedUser.getUserCode())
-                .build();
     }
 
     public AuthResponse authenticateLocalUser(LoginRequest request) {

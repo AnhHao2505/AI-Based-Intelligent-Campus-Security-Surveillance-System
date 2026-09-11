@@ -27,10 +27,9 @@ public class FaceDataController {
     @PostMapping(value = "/register", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<FaceDataResponseDto> registerFace(
             @RequestParam("code") String code,
-            @RequestParam("fullName") String fullName,
             @RequestParam("frontImage") MultipartFile frontImage
     ) {
-        FaceDataResponseDto result = faceDataService.registerFace(code, fullName, frontImage);
+        FaceDataResponseDto result = faceDataService.registerFace(code, frontImage);
         return ResponseEntity.status(HttpStatus.CREATED).body(result);
     }
 

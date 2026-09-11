@@ -23,6 +23,9 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     boolean existsByUserCode(String userCode);
     boolean existsByEmail(String email);
 
+    boolean existsByUserCodeAndDeletedAtIsNull(String userCode);
+    boolean existsByEmailAndDeletedAtIsNull(String email);
+
     @Query(
         value = """
             SELECT u FROM User u
