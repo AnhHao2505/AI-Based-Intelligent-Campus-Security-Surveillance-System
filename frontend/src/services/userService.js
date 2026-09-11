@@ -88,3 +88,44 @@ export async function toggleUserActive(id) {
 export async function deleteUser(id) {
   return apiDelete(`/api/users/${id}`);
 }
+
+/**
+ * Nạp hàng loạt tài khoản người dùng thông thường từ file ZIP (.zip)
+ * POST /api/users/normal/bulk-import (multipart/form-data)
+ */
+export async function bulkImportNormalUsers(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  return apiFetch('/api/users/normal/bulk-import', {
+    method: 'POST',
+    body: formData,
+  });
+}
+
+/**
+ * Tải file CSV mẫu cho Nạp hàng loạt tài khoản thông thường
+ * GET /api/users/normal/bulk-import/template
+ */
+export async function downloadNormalUserTemplate() {
+  const token = localStorage.getItem('accessToken');
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+  const response = await fetch(`${API_BASE_URL}/api/users/normal/bulk-import/template`, {
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  if (!response.ok) {
+    throw new Error('Không thể tải file mẫu. Vui lòng thử lại sau.');
+  }
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'sample_normal_users.xlsx';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  window.URL.revokeObjectURL(url);
+}
+

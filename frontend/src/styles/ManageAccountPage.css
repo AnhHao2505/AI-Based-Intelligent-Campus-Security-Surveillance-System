@@ -1356,3 +1356,159 @@
     justify-content: center;
   }
 }
+
+/* --------------------------------------------------------------------------
+   Bulk Import Modal Styles
+   -------------------------------------------------------------------------- */
+.account-bulk-template-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  background-color: var(--theme-bg-canvas, #f8fafc);
+  border: 1px solid var(--theme-border, #e2e8f0);
+  border-radius: 8px;
+}
+
+.account-bulk-template-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.account-bulk-template-icon {
+  color: var(--theme-primary, #2563eb);
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.account-bulk-template-title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--theme-text-primary, #0f172a);
+}
+
+.account-bulk-template-desc {
+  font-size: 0.75rem;
+  color: var(--theme-text-muted, #64748b);
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+.account-bulk-download-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 0.775rem;
+  font-weight: 600;
+  color: var(--theme-primary, #2563eb);
+  background-color: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.account-bulk-download-btn:hover {
+  background-color: #dbeafe;
+  border-color: #93c5fd;
+}
+
+.account-bulk-summary-bar {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.account-bulk-summary-item {
+  padding: 12px;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.account-bulk-summary-item--success {
+  background-color: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.account-bulk-summary-item--failed {
+  background-color: #fef2f2;
+  border-color: #fecaca;
+}
+
+.account-bulk-summary-label {
+  font-size: 0.75rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.account-bulk-summary-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.account-bulk-summary-item--success .account-bulk-summary-value {
+  color: #16a34a;
+}
+
+.account-bulk-summary-item--failed .account-bulk-summary-value {
+  color: #dc2626;
+}
+
+.account-bulk-filter-pills {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.account-bulk-pill {
+  padding: 5px 12px;
+  border-radius: 9999px;
+  font-size: 0.775rem;
+  font-weight: 500;
+  background-color: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.account-bulk-pill:hover {
+  background-color: #e2e8f0;
+}
+
+.account-bulk-pill--active {
+  background-color: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+}
+
+.account-bulk-table-wrapper {
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.account-bulk-result-table {
+  font-size: 0.8125rem;
+}
+
+.account-bulk-error-cell {
+  color: #dc2626;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+

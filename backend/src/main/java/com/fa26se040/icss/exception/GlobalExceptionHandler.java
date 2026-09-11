@@ -7,12 +7,30 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(MaxRecordsExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleMaxRecordsExceeded(MaxRecordsExceededException ex) {
+        return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now().toString());
+        body.put("status", HttpStatus.PAYLOAD_TOO_LARGE.value());
+        body.put("error", HttpStatus.PAYLOAD_TOO_LARGE.getReasonPhrase());
+        body.put("code", "PAYLOAD_TOO_LARGE");
+        body.put("message", "File nạp vào vượt quá dung lượng tối đa cho phép (500MB).");
+        return new ResponseEntity<>(body, HttpStatus.PAYLOAD_TOO_LARGE);
+    }
 
     @ExceptionHandler(UnauthorizedException.class)
     public ResponseEntity<Map<String, Object>> handleUnauthorized(UnauthorizedException ex) {

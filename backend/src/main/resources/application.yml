@@ -40,11 +40,11 @@ spring:
           starttls:
             enable: true
 
-  # Cấu hình Multipart Upload (cho phép upload file ZIP dataset lên tới 100MB)
+  # Cấu hình Multipart Upload (cho phép upload file ZIP dataset lên tới 500MB)
   servlet:
     multipart:
-      max-file-size: 100MB
-      max-request-size: 100MB
+      max-file-size: 500MB
+      max-request-size: 510MB
 
   # Apache Kafka Configuration
   kafka:

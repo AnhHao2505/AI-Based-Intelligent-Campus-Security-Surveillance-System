@@ -1,5 +1,6 @@
 package com.fa26se040.icss.controller;
 
+import com.fa26se040.icss.dto.BulkImportResponse;
 import com.fa26se040.icss.dto.UserInfo;
 import com.fa26se040.icss.dto.user.StaffAccountCreateRequest;
 import com.fa26se040.icss.dto.user.StaffAccountCreateResponse;
@@ -19,6 +20,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
@@ -30,6 +32,26 @@ import java.util.UUID;
 public class UserController {
 
     private final UserService userService;
+
+    @PostMapping(value = "/normal/bulk-import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<BulkImportResponse> bulkImportNormalUsers(
+            @RequestParam("file") MultipartFile file
+    ) {
+        log.info("Received request for bulk import normal users with file: {}", file.getOriginalFilename());
+        BulkImportResponse response = userService.bulkImportNormalUsers(file);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/normal/bulk-import/template")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<byte[]> downloadNormalUserTemplate() {
+        byte[] excelData = userService.generateSampleExcel();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"sample_normal_users.xlsx\"")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(excelData);
+    }
 
     @PostMapping(value = "/staff-accounts", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('ADMIN')")
@@ -68,17 +90,6 @@ public class UserController {
         log.info("Received request to get user by code: {}", code);
         UserInfo userInfo = userService.getUserByCode(code);
         return ResponseEntity.ok(userInfo);
-    }
-
-    @GetMapping("/csv-template")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<byte[]> downloadTemplate() {
-        String csvContent = userService.generateSampleCsv();
-        byte[] csvData = csvContent.getBytes(StandardCharsets.UTF_8);
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"sample_users.csv\"")
-                .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
-                .body(csvData);
     }
 
     @PatchMapping("/{id}/toggle-active")

@@ -14,12 +14,16 @@ import {
   CheckCircle2,
   RotateCw,
   Camera,
-  Upload
+  Upload,
+  Download,
+  FileText
 } from 'lucide-react';
 import {
   getUsers,
   createStaffAccount,
   downloadUserTemplate,
+  downloadNormalUserTemplate,
+  bulkImportNormalUsers,
   toggleUserActive,
   deleteUser
 } from '../../services/userService';
@@ -71,6 +75,68 @@ export default function ManageAccountPage() {
   });
   const [frontFile, setFrontFile] = useState(null);
   const [frontPreview, setFrontPreview] = useState(null);
+
+  // Bulk Import Normal User Form State
+  const [bulkZipFile, setBulkZipFile] = useState(null);
+  const [bulkImportResult, setBulkImportResult] = useState(null);
+  const [bulkFilter, setBulkFilter] = useState('ALL');
+
+  const handleOpenBulkImport = () => {
+    setBulkZipFile(null);
+    setBulkImportResult(null);
+    setBulkFilter('ALL');
+    setFormErrors({});
+    setModalType('bulkImport');
+  };
+
+  const handleZipFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith('.zip')) {
+      setFormErrors((prev) => ({ ...prev, bulkZip: 'Vui lòng chọn file nén định dạng .zip' }));
+      return;
+    }
+
+    if (file.size > 500 * 1024 * 1024) {
+      setFormErrors((prev) => ({ ...prev, bulkZip: 'Kích thước file vượt quá giới hạn tối đa 500MB' }));
+      return;
+    }
+
+    setBulkZipFile(file);
+    setFormErrors((prev) => ({ ...prev, bulkZip: null }));
+  };
+
+  const handleDownloadTemplate = async () => {
+    try {
+      await downloadNormalUserTemplate();
+    } catch (err) {
+      showToast(err.message || 'Không thể tải file mẫu', 'error');
+    }
+  };
+
+  const handleSubmitBulkImport = async (e) => {
+    e.preventDefault();
+    if (!bulkZipFile) {
+      setFormErrors({ bulkZip: 'Vui lòng chọn file .zip chứa dữ liệu' });
+      return;
+    }
+
+    setIsSubmitting(true);
+    setFormErrors({});
+
+    try {
+      const res = await bulkImportNormalUsers(bulkZipFile);
+      setBulkImportResult(res);
+      showToast(`Đã nạp thành công ${res.successCount}/${res.totalRows} tài khoản`, 'success');
+      fetchUsers();
+    } catch (err) {
+      console.error('Error in bulk import:', err);
+      setFormErrors({ general: err.message || 'Lỗi khi nạp danh sách từ file ZIP' });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   // Toast State
   const [toast, setToast] = useState(null);
@@ -340,6 +406,18 @@ export default function ManageAccountPage() {
               : `${totalElements.toLocaleString('vi-VN')} tài khoản hệ thống trong hệ thống`}
           </p>
         </div>
+
+        {activeTab === 'NORMAL' && (
+          <button
+            type="button"
+            id="btn-bulk-import-normal"
+            className="account-header__create-btn"
+            onClick={handleOpenBulkImport}
+          >
+            <Upload size={18} />
+            <span>+ Nạp danh sách (ZIP)</span>
+          </button>
+        )}
 
         {activeTab === 'SYSTEM' && (
           <button
@@ -949,6 +1027,240 @@ export default function ManageAccountPage() {
                 <span>{isSubmitting ? 'Đang xóa...' : 'Xóa tài khoản'}</span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ====================================================================
+          BULK IMPORT NORMAL USERS MODAL (MF1.2 Import .zip)
+          ==================================================================== */}
+      {modalType === 'bulkImport' && (
+        <div
+          className="account-modal-backdrop"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isSubmitting) closeModal();
+          }}
+        >
+          <div className="account-modal" role="dialog" aria-modal="true" style={{ maxWidth: bulkImportResult ? '760px' : '520px' }}>
+            <div className="account-modal__header">
+              <div className="account-modal__title-wrap">
+                <div className="account-modal__icon-badge account-modal__icon-badge--primary">
+                  <Upload size={18} />
+                </div>
+                <h2 className="account-modal__title">
+                  {bulkImportResult ? 'Kết quả nạp danh sách' : 'Nạp hàng loạt tài khoản người dùng (.zip)'}
+                </h2>
+              </div>
+              <button
+                type="button"
+                className="account-modal__close-btn"
+                onClick={closeModal}
+                disabled={isSubmitting}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {!bulkImportResult ? (
+              <form onSubmit={handleSubmitBulkImport}>
+                <div className="account-modal__body">
+                  {formErrors.general && (
+                    <div
+                      style={{
+                        padding: '10px 14px',
+                        borderRadius: '6px',
+                        backgroundColor: '#fef2f2',
+                        color: '#dc2626',
+                        fontSize: '0.8125rem',
+                        border: '1px solid #fecaca'
+                      }}
+                    >
+                      {formErrors.general}
+                    </div>
+                  )}
+
+                  <div className="account-bulk-template-box">
+                    <div className="account-bulk-template-info">
+                      <FileText size={20} className="account-bulk-template-icon" />
+                      <div>
+                        <div className="account-bulk-template-title">File Excel Mẫu & Hướng dẫn nạp dữ liệu</div>
+                        <div className="account-bulk-template-desc">
+                          • Tải file mẫu Excel (<code>.xlsx</code>) và nhập thông tin (3 cột: <code>user_code</code>, <code>full_name</code>, <code>email</code>, tối đa 200 dòng).<br />
+                          • <strong>Lưu ý quan trọng:</strong> Cần Export / Lưu file Excel dưới dạng <code>metadata.csv</code>.<br />
+                          • Nén file <code>metadata.csv</code> cùng thư mục <code>images/</code> chứa ảnh chân dung (tối đa 350KB/ảnh, tên ảnh khớp với <code>user_code</code>) vào file <code>.zip</code> để nạp.
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="account-bulk-download-btn"
+                      onClick={handleDownloadTemplate}
+                    >
+                      <Download size={14} />
+                      <span>Tải mẫu Excel (.xlsx)</span>
+                    </button>
+                  </div>
+
+                  <div className="account-form-group">
+                    <label className="account-form-label">
+                      <span>Chọn file ZIP dữ liệu<span className="account-form-label__required">*</span></span>
+                    </label>
+                    <label
+                      htmlFor="input-bulk-zip"
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '24px',
+                        border: bulkZipFile ? '2px solid var(--theme-primary, #3b82f6)' : '2px dashed #cbd5e1',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        backgroundColor: bulkZipFile ? '#eff6ff' : '#f8fafc',
+                        marginTop: '4px'
+                      }}
+                    >
+                      <Upload size={32} color={bulkZipFile ? '#3b82f6' : '#64748b'} />
+                      <span style={{ fontSize: '0.875rem', marginTop: '8px', fontWeight: 500, color: bulkZipFile ? '#1e40af' : '#475569' }}>
+                        {bulkZipFile ? bulkZipFile.name : 'Tải lên file ZIP dữ liệu'}
+                      </span>
+                      <span style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '2px' }}>
+                        {bulkZipFile ? `${(bulkZipFile.size / (1024 * 1024)).toFixed(2)} MB` : 'Định dạng .zip, dung lượng tối đa 500MB'}
+                      </span>
+                    </label>
+                    <input
+                      id="input-bulk-zip"
+                      type="file"
+                      accept=".zip"
+                      onChange={handleZipFileChange}
+                      style={{ display: 'none' }}
+                      disabled={isSubmitting}
+                    />
+                    {formErrors.bulkZip && (
+                      <span className="account-form-error">{formErrors.bulkZip}</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="account-modal__footer">
+                  <button
+                    type="button"
+                    className="account-modal-btn account-modal-btn--secondary"
+                    onClick={closeModal}
+                    disabled={isSubmitting}
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="submit"
+                    className="account-modal-btn account-modal-btn--primary"
+                    disabled={isSubmitting || !bulkZipFile}
+                  >
+                    {isSubmitting && <RotateCw size={14} className="spin" />}
+                    <span>{isSubmitting ? 'Đang xử lý nạp dữ liệu...' : 'Tải lên & Nạp dữ liệu'}</span>
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div>
+                <div className="account-modal__body">
+                  {/* Summary Banner */}
+                  <div className="account-bulk-summary-bar">
+                    <div className="account-bulk-summary-item">
+                      <span className="account-bulk-summary-label">Tổng số bản ghi:</span>
+                      <span className="account-bulk-summary-value">{bulkImportResult.totalRows}</span>
+                    </div>
+                    <div className="account-bulk-summary-item account-bulk-summary-item--success">
+                      <span className="account-bulk-summary-label">Thành công:</span>
+                      <span className="account-bulk-summary-value">{bulkImportResult.successCount}</span>
+                    </div>
+                    <div className="account-bulk-summary-item account-bulk-summary-item--failed">
+                      <span className="account-bulk-summary-label">Thất bại:</span>
+                      <span className="account-bulk-summary-value">{bulkImportResult.failureCount}</span>
+                    </div>
+                  </div>
+
+                  {/* Filter Pills */}
+                  <div className="account-bulk-filter-pills">
+                    <button
+                      type="button"
+                      className={`account-bulk-pill ${bulkFilter === 'ALL' ? 'account-bulk-pill--active' : ''}`}
+                      onClick={() => setBulkFilter('ALL')}
+                    >
+                      Tất cả ({bulkImportResult.results?.length || 0})
+                    </button>
+                    <button
+                      type="button"
+                      className={`account-bulk-pill ${bulkFilter === 'SUCCESS' ? 'account-bulk-pill--active' : ''}`}
+                      onClick={() => setBulkFilter('SUCCESS')}
+                    >
+                      Thành công ({bulkImportResult.successCount})
+                    </button>
+                    <button
+                      type="button"
+                      className={`account-bulk-pill ${bulkFilter === 'FAILED' ? 'account-bulk-pill--active' : ''}`}
+                      onClick={() => setBulkFilter('FAILED')}
+                    >
+                      Thất bại ({bulkImportResult.failureCount})
+                    </button>
+                  </div>
+
+                  {/* Results Table */}
+                  <div className="account-bulk-table-wrapper">
+                    <table className="account-table account-bulk-result-table">
+                      <thead>
+                        <tr>
+                          <th style={{ width: '60px' }}>Dòng</th>
+                          <th>Mã ND</th>
+                          <th>Họ và tên</th>
+                          <th>Email</th>
+                          <th style={{ width: '110px' }}>Trạng thái</th>
+                          <th>Chi tiết lỗi</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(bulkImportResult.results || [])
+                          .filter((r) => {
+                            if (bulkFilter === 'SUCCESS') return r.status === 'SUCCESS';
+                            if (bulkFilter === 'FAILED') return r.status === 'FAILED';
+                            return true;
+                          })
+                          .map((r, idx) => (
+                            <tr key={idx}>
+                              <td>{r.rowIndex}</td>
+                              <td>{r.userCode || '-'}</td>
+                              <td>{r.fullName || '-'}</td>
+                              <td>{r.email || '-'}</td>
+                              <td>
+                                <span
+                                  className={`account-badge ${
+                                    r.status === 'SUCCESS' ? 'account-badge--active' : 'account-badge--inactive'
+                                  }`}
+                                >
+                                  {r.status === 'SUCCESS' ? 'Thành công' : 'Thất bại'}
+                                </span>
+                              </td>
+                              <td className="account-bulk-error-cell" title={r.errorMessage}>
+                                {r.errorMessage || '-'}
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="account-modal__footer">
+                  <button
+                    type="button"
+                    className="account-modal-btn account-modal-btn--primary"
+                    onClick={closeModal}
+                  >
+                    Hoàn tất
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
