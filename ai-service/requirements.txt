@@ -6,7 +6,6 @@ typing-extensions>=4.10.0
 ultralytics>=8.1.0
 opencv-python-headless>=4.9.0.80
 numpy>=1.26.0
-minio>=7.2.0
 kafka-python-ng>=2.2.2
 requests>=2.31.0
 pillow>=10.2.0

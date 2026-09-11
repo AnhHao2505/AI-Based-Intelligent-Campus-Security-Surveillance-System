@@ -1,8 +1,8 @@
-import { apiGet, apiPost, apiPut, apiPatch, apiDelete, apiFetch } from '../api/apiClient';
+import { apiGet, apiPost, apiPatch, apiDelete, apiFetch } from '../api/apiClient';
 
 /**
- * Lấy danh sách tài khoản người dùng có phân trang, tìm kiếm và bộ lọc (ADMIN)
- * GET /api/admin/users
+ * Lấy danh sách tài khoản người dùng kèm tổng số lượng phân nhóm (ADMIN)
+ * GET /api/users
  */
 export async function getUsers(params = {}) {
   const query = new URLSearchParams();
@@ -16,25 +16,24 @@ export async function getUsers(params = {}) {
   if (params.sort) query.append('sort', params.sort);
 
   const queryString = query.toString();
-  return apiGet(`/api/admin/users${queryString ? `?${queryString}` : ''}`);
+  return apiGet(`/api/users${queryString ? `?${queryString}` : ''}`);
 }
 
 /**
- * Lấy số lượng tài khoản theo phân nhóm Người dùng thường và Tài khoản hệ thống (ADMIN)
- * GET /api/admin/users/counts
+ * Tạo tài khoản cán bộ/nhân viên thủ công kèm ảnh khuôn mặt (ADMIN)
+ * POST /api/users/staff-accounts (multipart/form-data)
  */
-export async function getUserCounts() {
-  return apiGet('/api/admin/users/counts');
-}
-
-/**
- * Nạp danh sách người dùng thường từ file CSV (ADMIN)
- * POST /api/admin/users/import
- */
-export async function importUsers(file) {
+export async function createStaffAccount(data) {
   const formData = new FormData();
-  formData.append('file', file);
-  return apiFetch('/api/admin/users/import', {
+  formData.append('fullName', data.fullName);
+  formData.append('userCode', data.userCode);
+  formData.append('email', data.email);
+  formData.append('role', data.role);
+  if (data.faceImage) {
+    formData.append('faceImage', data.faceImage);
+  }
+
+  return apiFetch('/api/users/staff-accounts', {
     method: 'POST',
     body: formData,
   });
@@ -42,12 +41,12 @@ export async function importUsers(file) {
 
 /**
  * Tải file CSV mẫu để import người dùng
- * GET /api/admin/users/template
+ * GET /api/users/csv-template
  */
 export async function downloadUserTemplate() {
   const token = localStorage.getItem('accessToken');
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
-  const response = await fetch(`${API_BASE_URL}/api/admin/users/template`, {
+  const response = await fetch(`${API_BASE_URL}/api/users/csv-template`, {
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
@@ -67,7 +66,7 @@ export async function downloadUserTemplate() {
 }
 
 /**
- * Đăng ký/Tạo tài khoản mới
+ * Đăng ký/Tạo tài khoản người dùng
  * POST /api/auth/register
  */
 export async function registerUser(data) {
@@ -75,25 +74,58 @@ export async function registerUser(data) {
 }
 
 /**
- * Cập nhật thông tin tài khoản (Họ tên, Quyền) (ADMIN)
- * PUT /api/admin/users/{id}
- */
-export async function updateUser(id, data) {
-  return apiPut(`/api/admin/users/${id}`, data);
-}
-
-/**
  * Bật/Tắt trạng thái hoạt động của tài khoản (ADMIN)
- * PATCH /api/admin/users/{id}/toggle-active
+ * PATCH /api/users/{id}/toggle-active
  */
 export async function toggleUserActive(id) {
-  return apiPatch(`/api/admin/users/${id}/toggle-active`);
+  return apiPatch(`/api/users/${id}/toggle-active`);
 }
 
 /**
  * Xóa mềm tài khoản (ADMIN)
- * DELETE /api/admin/users/{id}
+ * DELETE /api/users/{id}
  */
 export async function deleteUser(id) {
-  return apiDelete(`/api/admin/users/${id}`);
+  return apiDelete(`/api/users/${id}`);
 }
+
+/**
+ * Nạp hàng loạt tài khoản người dùng thông thường từ file ZIP (.zip)
+ * POST /api/users/normal/bulk-import (multipart/form-data)
+ */
+export async function bulkImportNormalUsers(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  return apiFetch('/api/users/normal/bulk-import', {
+    method: 'POST',
+    body: formData,
+  });
+}
+
+/**
+ * Tải file CSV mẫu cho Nạp hàng loạt tài khoản thông thường
+ * GET /api/users/normal/bulk-import/template
+ */
+export async function downloadNormalUserTemplate() {
+  const token = localStorage.getItem('accessToken');
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+  const response = await fetch(`${API_BASE_URL}/api/users/normal/bulk-import/template`, {
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  if (!response.ok) {
+    throw new Error('Không thể tải file mẫu. Vui lòng thử lại sau.');
+  }
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'sample_normal_users.xlsx';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  window.URL.revokeObjectURL(url);
+}
+
