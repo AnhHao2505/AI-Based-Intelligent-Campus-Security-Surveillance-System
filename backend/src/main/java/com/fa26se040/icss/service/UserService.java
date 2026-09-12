@@ -26,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -34,6 +35,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
@@ -406,232 +408,277 @@ public class UserService {
             throw new IllegalArgumentException("Định dạng file không hợp lệ. Chỉ chấp nhận file nén .zip.");
         }
 
-        byte[] csvBytes = null;
-        Map<String, ZipImageEntry> imageMap = new HashMap<>();
-
-        try (InputStream is = zipFile.getInputStream();
-             ZipInputStream zis = new ZipInputStream(is)) {
-
-            ZipEntry entry;
-            while ((entry = zis.getNextEntry()) != null) {
-                if (entry.isDirectory() || entry.getName().startsWith("__MACOSX") || entry.getName().startsWith(".")) {
-                    continue;
-                }
-
-                String entryName = entry.getName().replace('\\', '/');
-                String fileNameOnly = entryName.contains("/") ? entryName.substring(entryName.lastIndexOf('/') + 1) : entryName;
-
-                if (fileNameOnly.equalsIgnoreCase("metadata.csv")) {
-                    csvBytes = zis.readAllBytes();
-                } else if (fileNameOnly.toLowerCase().endsWith(".jpg") || fileNameOnly.toLowerCase().endsWith(".jpeg") || fileNameOnly.toLowerCase().endsWith(".png")) {
-                    String baseName = fileNameOnly.contains(".") ? fileNameOnly.substring(0, fileNameOnly.lastIndexOf('.')) : fileNameOnly;
-                    byte[] imgBytes = zis.readAllBytes();
-                    imageMap.put(baseName.toLowerCase(), new ZipImageEntry(fileNameOnly, imgBytes));
-                }
-            }
+        File tempZip;
+        try {
+            tempZip = File.createTempFile("import-", ".zip");
         } catch (IOException e) {
-            log.error("Lỗi khi đọc file ZIP: {}", e.getMessage(), e);
-            throw new IllegalArgumentException("Không thể đọc file ZIP: " + e.getMessage());
+            log.error("Lỗi khi tạo file ZIP tạm: {}", e.getMessage(), e);
+            throw new RuntimeException("Không thể tạo file tạm để xử lý import", e);
         }
 
-        if (csvBytes == null) {
-            throw new IllegalArgumentException("Không tìm thấy file metadata.csv trong file ZIP.");
-        }
-
-        String csvText = new String(csvBytes, StandardCharsets.UTF_8);
-        if (csvText.startsWith("\uFEFF")) {
-            csvText = csvText.substring(1);
-        }
-
-        String[] lines = csvText.split("\\r?\\n");
-        List<String> validLines = new ArrayList<>();
-        for (String line : lines) {
-            if (!line.trim().isEmpty()) {
-                validLines.add(line);
-            }
-        }
-
-        if (validLines.isEmpty()) {
-            throw new IllegalArgumentException("File metadata.csv rỗng.");
-        }
-
-        int dataRowCount = validLines.size() - 1;
-        if (dataRowCount > 200) {
-            throw new MaxRecordsExceededException("File metadata.csv chứa " + dataRowCount + " bản ghi, vượt quá số lượng tối đa 200 bản ghi cho phép.");
-        }
-
-        String headerLine = validLines.get(0);
-        String[] headers = parseCsvLine(headerLine);
-        int colUserCode = -1;
-        int colFullName = -1;
-        int colEmail = -1;
-        int colRole = -1;
-
-        for (int i = 0; i < headers.length; i++) {
-            String h = headers[i].trim().toLowerCase().replace("_", "");
-            if (h.equals("usercode") || h.equals("code") || h.equals("manguoidung") || h.equals("mscanbo") || h.equals("msnv")) {
-                colUserCode = i;
-            } else if (h.equals("fullname") || h.equals("name") || h.equals("hovaten")) {
-                colFullName = i;
-            } else if (h.equals("email")) {
-                colEmail = i;
-            } else if (h.equals("role") || h.equals("vaitro") || h.equals("quyen")) {
-                colRole = i;
-            }
-        }
-
-        // Bỏ hoàn toàn phần dự phòng index. Nhận diện cột theo header, thiếu cột -> lỗi.
-        if (isStaffImport) {
-            if (colUserCode == -1 || colFullName == -1 || colEmail == -1 || colRole == -1) {
-                throw new IllegalArgumentException("File metadata thiếu cột bắt buộc. Luồng cán bộ cần đủ 4 cột: user_code, full_name, email, role.");
-            }
-        } else {
-            if (colUserCode == -1 || colFullName == -1 || colEmail == -1) {
-                throw new IllegalArgumentException("File metadata thiếu cột bắt buộc. Luồng người dùng thường cần đủ 3 cột: user_code, full_name, email.");
-            }
-        }
-
-        List<BulkImportRowResult> rowResults = new ArrayList<>();
-        int successCount = 0;
-        int failureCount = 0;
-
-        // Lượt 1: duyệt toàn bộ dòng, chuẩn hoá, đếm số lần xuất hiện mỗi code và mỗi email vào 2 Map (KHÔNG chạm DB)
-        Map<String, Integer> codeCountsInFile = new HashMap<>();
-        Map<String, Integer> emailCountsInFile = new HashMap<>();
-
-        for (int i = 1; i < validLines.size(); i++) {
-            String line = validLines.get(i);
-            String[] tokens = parseCsvLine(line);
-
-            String rawUserCode = (colUserCode < tokens.length) ? tokens[colUserCode] : "";
-            String rawEmail = (colEmail < tokens.length) ? tokens[colEmail] : "";
-
-            String userCode = StringNormalizer.normCode(rawUserCode);
-            String email = StringNormalizer.normEmail(rawEmail);
-
-            if (!userCode.isBlank()) {
-                codeCountsInFile.merge(userCode, 1, Integer::sum);
-            }
-            if (!email.isBlank()) {
-                emailCountsInFile.merge(email, 1, Integer::sum);
-            }
-        }
-
-        // Lượt 2: dòng nào có count > 1 thì FAIL ngay, không gọi processSingleRow
-        UUID importBatchId = UUID.randomUUID();
-        log.info("Bulk import batch {} started, file: {}", importBatchId, zipFile.getOriginalFilename());
-
-        for (int i = 1; i < validLines.size(); i++) {
-            int rowIndex = i + 1; // 1-based index
-            String line = validLines.get(i);
-            String[] tokens = parseCsvLine(line);
-
-            String rawUserCode = (colUserCode < tokens.length) ? tokens[colUserCode] : "";
-            String rawFullName = (colFullName < tokens.length) ? tokens[colFullName] : "";
-            String rawEmail = (colEmail < tokens.length) ? tokens[colEmail] : "";
-
-            String userCode = StringNormalizer.normCode(rawUserCode);
-            String fullName = StringNormalizer.normName(rawFullName);
-            String email = StringNormalizer.normEmail(rawEmail);
-
-            // Kiểm tra trùng lặp trong nội bộ file (count > 1 thì CẢ HAI dòng đều FAIL)
-            List<String> inDuplicateErrors = new ArrayList<>();
-            if (!userCode.isBlank() && codeCountsInFile.getOrDefault(userCode, 0) > 1) {
-                inDuplicateErrors.add("Mã người dùng bị trùng lặp trong file import");
-            }
-            if (!email.isBlank() && emailCountsInFile.getOrDefault(email, 0) > 1) {
-                inDuplicateErrors.add("Email bị trùng lặp trong file import");
+        try {
+            try {
+                zipFile.transferTo(tempZip);
+            } catch (IOException e) {
+                log.error("Lỗi khi ghi file ZIP tạm xuống đĩa: {}", e.getMessage(), e);
+                throw new IllegalArgumentException("Không thể lưu file ZIP tải lên: " + e.getMessage());
             }
 
-            // Xử lý Role theo luồng
-            Role targetRole = null;
-            String roleForReporting = null;
-            if (isStaffImport) {
-                String rawRole = (colRole < tokens.length) ? tokens[colRole].trim() : "";
-                roleForReporting = rawRole.isBlank() ? null : rawRole;
-                if (rawRole.isBlank()) {
-                    failureCount++;
-                    rowResults.add(BulkImportRowResult.builder()
-                            .rowIndex(rowIndex)
-                            .userCode(userCode)
-                            .fullName(fullName)
-                            .email(email)
-                            .role(null)
-                            .status("FAILED")
-                            .errorMessage("Cột role không được để trống")
-                            .build());
-                    continue;
+            try (ZipFile zf = new ZipFile(tempZip)) {
+                // Lượt 1: Chỉ tìm và đọc metadata.csv để kiểm tra số dòng
+                ZipEntry csvEntry = null;
+                Enumeration<? extends ZipEntry> entries = zf.entries();
+                while (entries.hasMoreElements()) {
+                    ZipEntry entry = entries.nextElement();
+                    if (entry.isDirectory() || entry.getName().startsWith("__MACOSX") || entry.getName().startsWith(".")) {
+                        continue;
+                    }
+                    String entryName = entry.getName().replace('\\', '/');
+                    String fileNameOnly = entryName.contains("/") ? entryName.substring(entryName.lastIndexOf('/') + 1) : entryName;
+                    if (fileNameOnly.equalsIgnoreCase("metadata.csv")) {
+                        csvEntry = entry;
+                        break;
+                    }
                 }
 
-                try {
-                    targetRole = Role.valueOf(rawRole.toUpperCase());
-                } catch (IllegalArgumentException ex) {
-                    targetRole = null;
+                if (csvEntry == null) {
+                    throw new IllegalArgumentException("Không tìm thấy file metadata.csv trong file ZIP.");
                 }
 
-                if (targetRole == null || !SYSTEM_ROLES.contains(targetRole)) {
-                    failureCount++;
-                    rowResults.add(BulkImportRowResult.builder()
-                            .rowIndex(rowIndex)
-                            .userCode(userCode)
-                            .fullName(fullName)
-                            .email(email)
-                            .role(rawRole)
-                            .status("FAILED")
-                            .errorMessage("Giá trị role không hợp lệ")
-                            .build());
-                    continue;
+                byte[] csvBytes;
+                try (InputStream is = zf.getInputStream(csvEntry)) {
+                    csvBytes = is.readAllBytes();
+                } catch (IOException e) {
+                    log.error("Lỗi khi đọc file metadata.csv từ ZIP: {}", e.getMessage(), e);
+                    throw new IllegalArgumentException("Không thể đọc file metadata.csv trong file ZIP: " + e.getMessage());
                 }
-                roleForReporting = targetRole.name();
-            } else {
-                targetRole = Role.NORMAL_USER;
-                roleForReporting = Role.NORMAL_USER.name();
+
+                String csvText = new String(csvBytes, StandardCharsets.UTF_8);
+                if (csvText.startsWith("\uFEFF")) {
+                    csvText = csvText.substring(1);
+                }
+
+                String[] lines = csvText.split("\\r?\\n");
+                List<String> validLines = new ArrayList<>();
+                for (String line : lines) {
+                    if (!line.trim().isEmpty()) {
+                        validLines.add(line);
+                    }
+                }
+
+                if (validLines.isEmpty()) {
+                    throw new IllegalArgumentException("File metadata.csv rỗng.");
+                }
+
+                int dataRowCount = validLines.size() - 1;
+                if (dataRowCount > 200) {
+                    throw new MaxRecordsExceededException("File metadata.csv chứa " + dataRowCount + " bản ghi, vượt quá số lượng tối đa 200 bản ghi cho phép.");
+                }
+
+                String headerLine = validLines.get(0);
+                String[] headers = parseCsvLine(headerLine);
+                int colUserCode = -1;
+                int colFullName = -1;
+                int colEmail = -1;
+                int colRole = -1;
+
+                for (int i = 0; i < headers.length; i++) {
+                    String h = headers[i].trim().toLowerCase().replace("_", "");
+                    if (h.equals("usercode") || h.equals("code") || h.equals("manguoidung") || h.equals("mscanbo") || h.equals("msnv")) {
+                        colUserCode = i;
+                    } else if (h.equals("fullname") || h.equals("name") || h.equals("hovaten")) {
+                        colFullName = i;
+                    } else if (h.equals("email")) {
+                        colEmail = i;
+                    } else if (h.equals("role") || h.equals("vaitro") || h.equals("quyen")) {
+                        colRole = i;
+                    }
+                }
+
+                // Bỏ hoàn toàn phần dự phòng index. Nhận diện cột theo header, thiếu cột -> lỗi.
+                if (isStaffImport) {
+                    if (colUserCode == -1 || colFullName == -1 || colEmail == -1 || colRole == -1) {
+                        throw new IllegalArgumentException("File metadata thiếu cột bắt buộc. Luồng cán bộ cần đủ 4 cột: user_code, full_name, email, role.");
+                    }
+                } else {
+                    if (colUserCode == -1 || colFullName == -1 || colEmail == -1) {
+                        throw new IllegalArgumentException("File metadata thiếu cột bắt buộc. Luồng người dùng thường cần đủ 3 cột: user_code, full_name, email.");
+                    }
+                }
+
+                // Lượt 2: Tới đây mới nạp ảnh vào imageMap
+                Map<String, ZipImageEntry> imageMap = new HashMap<>();
+                entries = zf.entries();
+                while (entries.hasMoreElements()) {
+                    ZipEntry entry = entries.nextElement();
+                    if (entry.isDirectory() || entry.getName().startsWith("__MACOSX") || entry.getName().startsWith(".")) {
+                        continue;
+                    }
+                    String entryName = entry.getName().replace('\\', '/');
+                    String fileNameOnly = entryName.contains("/") ? entryName.substring(entryName.lastIndexOf('/') + 1) : entryName;
+                    if (fileNameOnly.toLowerCase().endsWith(".jpg") || fileNameOnly.toLowerCase().endsWith(".jpeg") || fileNameOnly.toLowerCase().endsWith(".png")) {
+                        String baseName = fileNameOnly.contains(".") ? fileNameOnly.substring(0, fileNameOnly.lastIndexOf('.')) : fileNameOnly;
+                        byte[] imgBytes;
+                        try (InputStream is = zf.getInputStream(entry)) {
+                            imgBytes = is.readAllBytes();
+                        }
+                        imageMap.put(baseName.toLowerCase(), new ZipImageEntry(fileNameOnly, imgBytes));
+                    }
+                }
+
+                List<BulkImportRowResult> rowResults = new ArrayList<>();
+                int successCount = 0;
+                int failureCount = 0;
+
+                // Lượt 1: duyệt toàn bộ dòng, chuẩn hoá, đếm số lần xuất hiện mỗi code và mỗi email vào 2 Map (KHÔNG chạm DB)
+                Map<String, Integer> codeCountsInFile = new HashMap<>();
+                Map<String, Integer> emailCountsInFile = new HashMap<>();
+
+                for (int i = 1; i < validLines.size(); i++) {
+                    String line = validLines.get(i);
+                    String[] tokens = parseCsvLine(line);
+
+                    String rawUserCode = (colUserCode < tokens.length) ? tokens[colUserCode] : "";
+                    String rawEmail = (colEmail < tokens.length) ? tokens[colEmail] : "";
+
+                    String userCode = StringNormalizer.normCode(rawUserCode);
+                    String email = StringNormalizer.normEmail(rawEmail);
+
+                    if (!userCode.isBlank()) {
+                        codeCountsInFile.merge(userCode, 1, Integer::sum);
+                    }
+                    if (!email.isBlank()) {
+                        emailCountsInFile.merge(email, 1, Integer::sum);
+                    }
+                }
+
+                // Lượt 2: dòng nào có count > 1 thì FAIL ngay, không gọi processSingleRow
+                UUID importBatchId = UUID.randomUUID();
+                log.info("Bulk import batch {} started, file: {}", importBatchId, zipFile.getOriginalFilename());
+
+                for (int i = 1; i < validLines.size(); i++) {
+                    int rowIndex = i + 1; // 1-based index
+                    String line = validLines.get(i);
+                    String[] tokens = parseCsvLine(line);
+
+                    String rawUserCode = (colUserCode < tokens.length) ? tokens[colUserCode] : "";
+                    String rawFullName = (colFullName < tokens.length) ? tokens[colFullName] : "";
+                    String rawEmail = (colEmail < tokens.length) ? tokens[colEmail] : "";
+
+                    String userCode = StringNormalizer.normCode(rawUserCode);
+                    String fullName = StringNormalizer.normName(rawFullName);
+                    String email = StringNormalizer.normEmail(rawEmail);
+
+                    // Kiểm tra trùng lặp trong nội bộ file (count > 1 thì CẢ HAI dòng đều FAIL)
+                    List<String> inDuplicateErrors = new ArrayList<>();
+                    if (!userCode.isBlank() && codeCountsInFile.getOrDefault(userCode, 0) > 1) {
+                        inDuplicateErrors.add("Mã người dùng bị trùng lặp trong file import");
+                    }
+                    if (!email.isBlank() && emailCountsInFile.getOrDefault(email, 0) > 1) {
+                        inDuplicateErrors.add("Email bị trùng lặp trong file import");
+                    }
+
+                    // Xử lý Role theo luồng
+                    Role targetRole = null;
+                    String roleForReporting = null;
+                    if (isStaffImport) {
+                        String rawRole = (colRole < tokens.length) ? tokens[colRole].trim() : "";
+                        roleForReporting = rawRole.isBlank() ? null : rawRole;
+                        if (rawRole.isBlank()) {
+                            failureCount++;
+                            rowResults.add(BulkImportRowResult.builder()
+                                    .rowIndex(rowIndex)
+                                    .userCode(userCode)
+                                    .fullName(fullName)
+                                    .email(email)
+                                    .role(null)
+                                    .status("FAILED")
+                                    .errorMessage("Cột role không được để trống")
+                                    .build());
+                            continue;
+                        }
+
+                        try {
+                            targetRole = Role.valueOf(rawRole.toUpperCase());
+                        } catch (IllegalArgumentException ex) {
+                            targetRole = null;
+                        }
+
+                        if (targetRole == null || !SYSTEM_ROLES.contains(targetRole)) {
+                            failureCount++;
+                            rowResults.add(BulkImportRowResult.builder()
+                                    .rowIndex(rowIndex)
+                                    .userCode(userCode)
+                                    .fullName(fullName)
+                                    .email(email)
+                                    .role(rawRole)
+                                    .status("FAILED")
+                                    .errorMessage("Giá trị role không hợp lệ")
+                                    .build());
+                            continue;
+                        }
+                        roleForReporting = targetRole.name();
+                    } else {
+                        targetRole = Role.NORMAL_USER;
+                        roleForReporting = Role.NORMAL_USER.name();
+                    }
+
+                    // Dòng nào có count > 1 thì FAIL ngay, không gọi processSingleRow
+                    if (!inDuplicateErrors.isEmpty()) {
+                        failureCount++;
+                        rowResults.add(BulkImportRowResult.builder()
+                                .rowIndex(rowIndex)
+                                .userCode(userCode)
+                                .fullName(fullName)
+                                .email(email)
+                                .role(roleForReporting)
+                                .status("FAILED")
+                                .errorMessage(String.join(". ", inDuplicateErrors))
+                                .build());
+                        continue;
+                    }
+
+                    ZipImageEntry imgEntry = imageMap.get(userCode.toLowerCase());
+                    byte[] imgBytes = imgEntry != null ? imgEntry.bytes : null;
+                    String imgFileName = imgEntry != null ? imgEntry.fileName : userCode + ".jpg";
+
+                    // BR-06: 12-char random password
+                    String tempPassword = generateRandomPassword(12);
+
+                    BulkImportRowResult result = userBulkImportHelper.processSingleRow(
+                            rowIndex, userCode, fullName, email, targetRole, importBatchId, imgBytes, imgFileName, tempPassword
+                    );
+
+                    if ("SUCCESS".equalsIgnoreCase(result.getStatus())) {
+                        successCount++;
+                    } else {
+                        failureCount++;
+                    }
+                    rowResults.add(result);
+                }
+
+                log.info("Bulk import batch {} finished: total={}, success={}, failed={}",
+                         importBatchId, dataRowCount, successCount, failureCount);
+
+                return BulkImportResponse.builder()
+                        .importBatchId(importBatchId)
+                        .totalRows(dataRowCount)
+                        .successCount(successCount)
+                        .failureCount(failureCount)
+                        .results(rowResults)
+                        .build();
+            } catch (IOException e) {
+                log.error("Lỗi khi đọc file ZIP: {}", e.getMessage(), e);
+                throw new IllegalArgumentException("Không thể đọc file ZIP: " + e.getMessage());
             }
-
-            // Dòng nào có count > 1 thì FAIL ngay, không gọi processSingleRow
-            if (!inDuplicateErrors.isEmpty()) {
-                failureCount++;
-                rowResults.add(BulkImportRowResult.builder()
-                        .rowIndex(rowIndex)
-                        .userCode(userCode)
-                        .fullName(fullName)
-                        .email(email)
-                        .role(roleForReporting)
-                        .status("FAILED")
-                        .errorMessage(String.join(". ", inDuplicateErrors))
-                        .build());
-                continue;
+        } finally {
+            if (tempZip.exists()) {
+                boolean deleted = tempZip.delete();
+                if (!deleted) {
+                    log.warn("Không thể xoá file ZIP tạm: {}", tempZip.getAbsolutePath());
+                }
             }
-
-            ZipImageEntry imgEntry = imageMap.get(userCode.toLowerCase());
-            byte[] imgBytes = imgEntry != null ? imgEntry.bytes : null;
-            String imgFileName = imgEntry != null ? imgEntry.fileName : userCode + ".jpg";
-
-            // BR-06: 12-char random password
-            String tempPassword = generateRandomPassword(12);
-
-            BulkImportRowResult result = userBulkImportHelper.processSingleRow(
-                    rowIndex, userCode, fullName, email, targetRole, importBatchId, imgBytes, imgFileName, tempPassword
-            );
-
-            if ("SUCCESS".equalsIgnoreCase(result.getStatus())) {
-                successCount++;
-            } else {
-                failureCount++;
-            }
-            rowResults.add(result);
         }
-
-        log.info("Bulk import batch {} finished: total={}, success={}, failed={}",
-                 importBatchId, dataRowCount, successCount, failureCount);
-
-        return BulkImportResponse.builder()
-                .importBatchId(importBatchId)
-                .totalRows(dataRowCount)
-                .successCount(successCount)
-                .failureCount(failureCount)
-                .results(rowResults)
-                .build();
     }
 
     private String[] parseCsvLine(String line) {
