@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Data
@@ -15,9 +16,12 @@ public class CameraStreamConfigResponse {
     private String host;
     private Integer port;
     private String username;
-    private String credentialRef;
+    private Boolean isPasswordConfigured;
     private String mainStreamPath;
     private String subStreamPath;
+    private String whepUrl;
+    private String whepStreamUrl;
     private Integer retryTimeBeforeAlerting;
     private Integer timeoutMs;
+    private OffsetDateTime updatedAt;
 }

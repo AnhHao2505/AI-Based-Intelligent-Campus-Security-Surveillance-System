@@ -9,12 +9,16 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.fa26se040.icss.dto.accessrequest.AreaSimpleResponse;
 import com.fa26se040.icss.dto.camera.*;
 import com.fa26se040.icss.entity.*;
 import com.fa26se040.icss.enums.*;
+import com.fa26se040.icss.exception.CameraErrorCode;
+import com.fa26se040.icss.exception.CameraException;
 import com.fa26se040.icss.exception.DuplicateResourceException;
 import com.fa26se040.icss.exception.ResourceNotFoundException;
 import com.fa26se040.icss.repository.*;
+import com.fa26se040.icss.util.AesEncryptionUtil;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -29,10 +33,10 @@ import java.util.stream.Collectors;
 public class CameraService {
 
     private final CameraRepository cameraRepository;
-    private final CameraSpecificationRepository cameraSpecificationRepository;
     private final CameraStreamConfigurationRepository cameraStreamConfigurationRepository;
     private final CameraHealthLogRepository cameraHealthLogRepository;
     private final MediaMtxService mediaMtxService;
+    private final AesEncryptionUtil aesEncryptionUtil;
 
     // === Camera CRUD ===
 
@@ -41,8 +45,9 @@ public class CameraService {
 
         String cameraCode = request.getCameraCode();
         if (cameraCode != null && !cameraCode.trim().isEmpty()) {
+            cameraCode = cameraCode.trim();
             if (cameraRepository.existsByCameraCode(cameraCode)) {
-                throw new DuplicateResourceException("Camera code '" + cameraCode + "' already exists");
+                throw new CameraException(CameraErrorCode.ERR_CAM_003);
             }
         } else {
             cameraCode = generateCameraCode();
@@ -51,12 +56,10 @@ public class CameraService {
 
         Camera camera = Camera.builder()
                 .cameraCode(cameraCode)
-                .name(request.getName())
-                .mountingHeight(request.getMountingHeight())
-                .orientation(request.getOrientation())
-                .tiltAngle(request.getTiltAngle())
+                .name(request.getName().trim())
                 .status(CameraStatus.ACTIVE)
                 .operationalStatus(OperationalStatus.OFFLINE)
+                .installedAt(request.getInstalledAt() != null ? request.getInstalledAt() : OffsetDateTime.now())
                 .build();
 
         Camera saved = cameraRepository.save(camera);
@@ -65,12 +68,21 @@ public class CameraService {
 
     @Transactional
     public Page<CameraListResponse> listCameras(String search, CameraStatus status,
-                                                OperationalStatus opStatus, Pageable pageable) {
-        log.info("Listing cameras with search: {}, status: {}, operationalStatus: {}", search, status, opStatus);
-        syncLiveOperationalStatuses();
+                                                OperationalStatus opStatus, Boolean forceSync, Pageable pageable) {
+        log.info("Listing cameras with search: {}, status: {}, operationalStatus: {}, forceSync: {}",
+                search, status, opStatus, forceSync);
+        if (Boolean.TRUE.equals(forceSync)) {
+            syncLiveOperationalStatuses();
+        }
         String searchParam = "%" + (search != null ? search.trim().toLowerCase() : "") + "%";
         Page<Camera> cameras = cameraRepository.findFiltered(searchParam, status, opStatus, pageable);
         return cameras.map(this::mapToListResponse);
+    }
+
+    @Transactional
+    public Page<CameraListResponse> listCameras(String search, CameraStatus status,
+                                                OperationalStatus opStatus, Pageable pageable) {
+        return listCameras(search, status, opStatus, false, pageable);
     }
 
     @Transactional(readOnly = true)
@@ -88,12 +100,11 @@ public class CameraService {
                 .collect(Collectors.toList());
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public CameraDetailResponse getCameraDetail(UUID id) {
         log.info("Fetching camera detail for id: {}", id);
-        syncLiveOperationalStatuses();
         Camera camera = cameraRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Camera not found with id: " + id));
+                .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_CAM_002));
         return mapToDetailResponse(camera);
     }
 
@@ -143,12 +154,9 @@ public class CameraService {
     public CameraDetailResponse updateCamera(UUID id, UpdateCameraRequest request) {
         log.info("Updating camera basic details for id: {}", id);
         Camera camera = cameraRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Camera not found with id: " + id));
+                .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_CAM_002));
 
         camera.setName(request.getName());
-        camera.setMountingHeight(request.getMountingHeight());
-        camera.setOrientation(request.getOrientation());
-        camera.setTiltAngle(request.getTiltAngle());
         camera.setInstalledAt(request.getInstalledAt());
 
         Camera saved = cameraRepository.save(camera);
@@ -158,7 +166,7 @@ public class CameraService {
     public CameraDetailResponse decommissionCamera(UUID id) {
         log.info("Decommissioning camera for id: {}", id);
         Camera camera = cameraRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Camera not found with id: " + id));
+                .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_CAM_002));
 
         camera.setStatus(CameraStatus.DECOMMISSIONED);
         camera.setOperationalStatus(OperationalStatus.OFFLINE);
@@ -172,7 +180,7 @@ public class CameraService {
     public CameraDetailResponse reactivateCamera(UUID id) {
         log.info("Reactivating camera for id: {}", id);
         Camera camera = cameraRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Camera not found with id: " + id));
+                .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_CAM_002));
 
         camera.setStatus(CameraStatus.ACTIVE);
         camera.setDeletedAt(null);
@@ -203,6 +211,14 @@ public class CameraService {
                 }
             }
             log.info("MediaMTX startup sync completed: {} active camera stream(s) processed.", syncedCount);
+
+            // Reconcile: xóa bỏ các dynamic path trên MediaMTX của các camera đã chuyển sang DECOMMISSIONED
+            List<Camera> decommissionedCameras = cameraRepository.findAll().stream()
+                    .filter(c -> c.getStatus() == CameraStatus.DECOMMISSIONED)
+                    .toList();
+            for (Camera decommCam : decommissionedCameras) {
+                mediaMtxService.deleteCameraPath(decommCam.getCameraCode());
+            }
         } catch (Exception e) {
             log.warn("Failed to sync camera streams to MediaMTX on startup: {}", e.getMessage());
         }
@@ -210,54 +226,49 @@ public class CameraService {
 
     // === Configuration Upsert ===
 
-    public CameraSpecificationResponse upsertSpecification(UUID cameraId, CameraSpecificationRequest req) {
-        log.info("Upserting specification for camera id: {}", cameraId);
-        Camera camera = cameraRepository.findById(cameraId)
-                .orElseThrow(() -> new ResourceNotFoundException("Camera not found with id: " + cameraId));
-
-        CameraSpecification spec = cameraSpecificationRepository.findByCameraId(cameraId)
-                .orElse(CameraSpecification.builder().camera(camera).build());
-
-        spec.setManufacturer(req.getManufacturer());
-        spec.setModel(req.getModel());
-        spec.setSerialNumber(req.getSerialNumber());
-        spec.setResolution(req.getResolution());
-        spec.setFps(req.getFps());
-        spec.setLens(req.getLens());
-        spec.setFocalLength(req.getFocalLength());
-        spec.setFieldOfView(req.getFieldOfView());
-        spec.setNightVision(req.getNightVision());
-        spec.setWeatherProof(req.getWeatherProof());
-        spec.setFirmwareVersion(req.getFirmwareVersion());
-
-        CameraSpecification saved = cameraSpecificationRepository.save(spec);
-        return mapToSpecResponse(saved);
-    }
-
     public CameraStreamConfigResponse upsertStreamConfig(UUID cameraId, CameraStreamConfigRequest req) {
         log.info("Upserting stream configuration for camera id: {}", cameraId);
         Camera camera = cameraRepository.findById(cameraId)
-                .orElseThrow(() -> new ResourceNotFoundException("Camera not found with id: " + cameraId));
+                .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_CAM_002));
 
         CameraStreamConfiguration config = cameraStreamConfigurationRepository.findByCameraId(cameraId)
                 .orElse(CameraStreamConfiguration.builder().camera(camera).build());
 
-        config.setHost(req.getHost());
+        // Resolve plaintext password: from request or existing stored encrypted password
+        String rawPassword = req.getEffectivePassword();
+        String effectivePlainPassword = rawPassword;
+        if ((rawPassword == null || rawPassword.isBlank()) && config.getCredentialRef() != null && !config.getCredentialRef().isBlank()) {
+            effectivePlainPassword = aesEncryptionUtil.decrypt(config.getCredentialRef());
+        }
+
+        // Build in-memory RTSP URL
+        String rtspUrl = buildRtspUrlWithCredentials(
+                req.getHost(),
+                req.getPort(),
+                req.getUsername(),
+                effectivePlainPassword,
+                req.getMainStreamPath()
+        );
+
+        // [BƯỚC 1: GATEWAY-FIRST - Chống lệch pha DB & MediaMTX]
+        if (rtspUrl != null && camera.getStatus() == CameraStatus.ACTIVE) {
+            mediaMtxService.syncCameraPathStrict(camera.getCameraCode(), rtspUrl);
+        }
+
+        // [BƯỚC 2: AT-REST ENCRYPTION & CSDL]
+        if (rawPassword != null && !rawPassword.isBlank()) {
+            config.setCredentialRef(aesEncryptionUtil.encrypt(rawPassword));
+        }
+
+        config.setHost(req.getHost().trim());
         config.setPort(req.getPort());
-        config.setUsername(req.getUsername());
-        config.setCredentialRef(req.getCredentialRef());
-        config.setMainStreamPath(req.getMainStreamPath());
-        config.setSubStreamPath(req.getSubStreamPath());
+        config.setUsername(req.getUsername() != null ? req.getUsername().trim() : null);
+        config.setMainStreamPath(req.getMainStreamPath().trim());
+        config.setSubStreamPath(req.getSubStreamPath() != null ? req.getSubStreamPath().trim() : null);
         config.setRetryTimeBeforeAlerting(req.getRetryTimeBeforeAlerting() != null ? req.getRetryTimeBeforeAlerting() : 3);
         config.setTimeoutMs(req.getTimeoutMs() != null ? req.getTimeoutMs() : 5000);
 
         CameraStreamConfiguration saved = cameraStreamConfigurationRepository.save(config);
-
-        String rtspUrl = buildRtspUrl(saved);
-        if (rtspUrl != null && camera.getStatus() == CameraStatus.ACTIVE) {
-            mediaMtxService.syncCameraPath(camera.getCameraCode(), rtspUrl);
-        }
-
         return mapToStreamResponse(saved);
     }
 
@@ -267,15 +278,45 @@ public class CameraService {
     public Page<CameraHealthLogResponse> getHealthLogs(UUID cameraId, Pageable pageable) {
         log.info("Fetching health logs for camera id: {}", cameraId);
         if (!cameraRepository.existsById(cameraId)) {
-            throw new ResourceNotFoundException("Camera not found with id: " + cameraId);
+            throw new CameraException(CameraErrorCode.ERR_CAM_002);
         }
         Page<CameraHealthLog> logs = cameraHealthLogRepository.findByCameraIdOrderByCheckedAtDesc(cameraId, pageable);
         return logs.map(this::mapToHealthLogResponse);
     }
 
+    @Transactional(readOnly = true)
+    public List<AreaSimpleResponse> getCameraAreas(UUID cameraId) {
+        log.info("Fetching areas for camera id: {}", cameraId);
+        Camera camera = cameraRepository.findById(cameraId)
+                .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_CAM_002));
+
+        if (camera.getAreas() == null) {
+            return List.of();
+        }
+        return camera.getAreas().stream()
+                .filter(a -> a.getDeletedAt() == null)
+                .map(a -> new AreaSimpleResponse(
+                        a.getId(),
+                        a.getCode(),
+                        a.getName(),
+                        a.getAreaLevel(),
+                        a.getBuilding(),
+                        a.getFloor()
+                ))
+                .collect(Collectors.toList());
+    }
+
     // === Helpers & Mapping ===
 
     private String generateCameraCode() {
+        try {
+            Long nextSeq = cameraRepository.getNextCameraCodeSequence();
+            if (nextSeq != null) {
+                return String.format("CAM-%03d", nextSeq);
+            }
+        } catch (Exception e) {
+            log.warn("Could not fetch next sequence from DB, falling back: {}", e.getMessage());
+        }
         Optional<Camera> latestCamera = cameraRepository.findTopByCameraCodeStartingWithOrderByCameraCodeDesc("CAM-");
         if (latestCamera.isEmpty()) {
             return "CAM-001";
@@ -304,51 +345,51 @@ public class CameraService {
     }
 
     private CameraDetailResponse mapToDetailResponse(Camera camera) {
+        List<AreaSimpleResponse> assignedAreas = (camera.getAreas() == null) ? List.of() :
+                camera.getAreas().stream()
+                        .filter(a -> a.getDeletedAt() == null)
+                        .map(a -> new AreaSimpleResponse(
+                                a.getId(),
+                                a.getCode(),
+                                a.getName(),
+                                a.getAreaLevel(),
+                                a.getBuilding(),
+                                a.getFloor()
+                        ))
+                        .collect(Collectors.toList());
+
         return CameraDetailResponse.builder()
                 .id(camera.getId())
                 .cameraCode(camera.getCameraCode())
                 .name(camera.getName())
-                .mountingHeight(camera.getMountingHeight())
-                .orientation(camera.getOrientation())
-                .tiltAngle(camera.getTiltAngle())
                 .status(camera.getStatus())
                 .operationalStatus(camera.getOperationalStatus())
                 .installedAt(camera.getInstalledAt())
                 .createdAt(camera.getCreatedAt())
                 .updatedAt(camera.getUpdatedAt())
-                .specification(camera.getSpecification() != null ? mapToSpecResponse(camera.getSpecification()) : null)
                 .streamConfig(camera.getStreamConfiguration() != null ? mapToStreamResponse(camera.getStreamConfiguration()) : null)
-                .build();
-    }
-
-    private CameraSpecificationResponse mapToSpecResponse(CameraSpecification spec) {
-        return CameraSpecificationResponse.builder()
-                .id(spec.getId())
-                .manufacturer(spec.getManufacturer())
-                .model(spec.getModel())
-                .serialNumber(spec.getSerialNumber())
-                .resolution(spec.getResolution())
-                .fps(spec.getFps())
-                .lens(spec.getLens())
-                .focalLength(spec.getFocalLength())
-                .fieldOfView(spec.getFieldOfView())
-                .nightVision(spec.getNightVision())
-                .weatherProof(spec.getWeatherProof())
-                .firmwareVersion(spec.getFirmwareVersion())
+                .assignedAreas(assignedAreas)
                 .build();
     }
 
     private CameraStreamConfigResponse mapToStreamResponse(CameraStreamConfiguration config) {
+        String cameraCode = (config.getCamera() != null) ? config.getCamera().getCameraCode() : "";
+        String pathName = mediaMtxService.formatPathName(cameraCode);
+        String whepUrl = (!pathName.isEmpty()) ? "http://localhost:8889/" + pathName + "/whep" : null;
+
         return CameraStreamConfigResponse.builder()
                 .id(config.getId())
                 .host(config.getHost())
                 .port(config.getPort())
                 .username(config.getUsername())
-                .credentialRef(config.getCredentialRef())
+                .isPasswordConfigured(config.getCredentialRef() != null && !config.getCredentialRef().isBlank())
                 .mainStreamPath(config.getMainStreamPath())
                 .subStreamPath(config.getSubStreamPath())
+                .whepUrl(whepUrl)
+                .whepStreamUrl(whepUrl)
                 .retryTimeBeforeAlerting(config.getRetryTimeBeforeAlerting())
                 .timeoutMs(config.getTimeoutMs())
+                .updatedAt(config.getCamera() != null ? config.getCamera().getUpdatedAt() : null)
                 .build();
     }
 
@@ -368,32 +409,45 @@ public class CameraService {
         if (config == null) {
             return null;
         }
-        if (config.getMainStreamPath() != null && (config.getMainStreamPath().startsWith("rtsp://") || config.getMainStreamPath().startsWith("rtsps://"))) {
-            return config.getMainStreamPath();
+        String password = null;
+        if (config.getCredentialRef() != null && !config.getCredentialRef().isBlank()) {
+            password = aesEncryptionUtil.decrypt(config.getCredentialRef());
         }
-        if (config.getHost() == null || config.getHost().isBlank()) {
+        return buildRtspUrlWithCredentials(
+                config.getHost(),
+                config.getPort(),
+                config.getUsername(),
+                password,
+                config.getMainStreamPath()
+        );
+    }
+
+    private String buildRtspUrlWithCredentials(String host, Integer port, String username, String password, String path) {
+        if (path != null && (path.startsWith("rtsp://") || path.startsWith("rtsps://"))) {
+            return path;
+        }
+        if (host == null || host.isBlank()) {
             return null;
         }
-        if (config.getHost().startsWith("rtsp://") || config.getHost().startsWith("rtsps://")) {
-            return config.getHost();
+        if (host.startsWith("rtsp://") || host.startsWith("rtsps://")) {
+            return host;
         }
         StringBuilder sb = new StringBuilder();
         sb.append("rtsp://");
 
-        if (config.getUsername() != null && !config.getUsername().isBlank()) {
-            sb.append(config.getUsername());
-            if (config.getCredentialRef() != null && !config.getCredentialRef().isBlank()) {
-                sb.append(":").append(config.getCredentialRef());
+        if (username != null && !username.isBlank()) {
+            sb.append(username.trim());
+            if (password != null && !password.isBlank()) {
+                sb.append(":").append(password);
             }
             sb.append("@");
         }
 
-        sb.append(config.getHost().trim());
-        if (config.getPort() != null) {
-            sb.append(":").append(config.getPort());
+        sb.append(host.trim());
+        if (port != null) {
+            sb.append(":").append(port);
         }
 
-        String path = config.getMainStreamPath();
         if (path != null && !path.isBlank()) {
             if (!path.startsWith("/")) {
                 sb.append("/");

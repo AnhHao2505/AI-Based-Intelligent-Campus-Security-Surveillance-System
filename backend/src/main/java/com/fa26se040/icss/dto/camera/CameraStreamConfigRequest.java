@@ -19,6 +19,8 @@ public class CameraStreamConfigRequest {
     private String host;
 
     @NotNull(message = "Port is required")
+    @jakarta.validation.constraints.Min(value = 1, message = "Port must be at least 1")
+    @jakarta.validation.constraints.Max(value = 65535, message = "Port cannot exceed 65535")
     private Integer port;
 
     @Size(max = 100, message = "Username cannot exceed 100 characters")
@@ -26,6 +28,9 @@ public class CameraStreamConfigRequest {
 
     @Size(max = 255, message = "Credential reference cannot exceed 255 characters")
     private String credentialRef;
+
+    @Size(max = 255, message = "Password cannot exceed 255 characters")
+    private String password;
 
     @NotBlank(message = "Main stream path is required")
     @Size(max = 512, message = "Main stream path cannot exceed 512 characters")
@@ -37,4 +42,14 @@ public class CameraStreamConfigRequest {
     private Integer retryTimeBeforeAlerting;
 
     private Integer timeoutMs;
+
+    public String getEffectivePassword() {
+        if (password != null && !password.trim().isEmpty()) {
+            return password.trim();
+        }
+        if (credentialRef != null && !credentialRef.trim().isEmpty()) {
+            return credentialRef.trim();
+        }
+        return null;
+    }
 }

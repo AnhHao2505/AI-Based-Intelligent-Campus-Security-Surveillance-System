@@ -7,11 +7,8 @@ export default function CameraCreateModal({ isOpen, onClose, onSuccess }) {
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState(null);
 	const [formData, setFormData] = useState({
-		cameraCode: "",
 		name: "",
-		mountingHeight: "",
-		orientation: "",
-		tiltAngle: "",
+		installedAt: "",
 	});
 
 	if (!isOpen) return null;
@@ -26,18 +23,11 @@ export default function CameraCreateModal({ isOpen, onClose, onSuccess }) {
 		setLoading(true);
 		setError(null);
 
-		// Prepare payload matching CreateCameraRequest
+		// Prepare payload matching CreateCameraRequest (Spec 2.1)
 		const payload = {
-			name: formData.name,
-			cameraCode: formData.cameraCode || undefined,
-			mountingHeight: formData.mountingHeight
-				? parseFloat(formData.mountingHeight)
-				: undefined,
-			orientation: formData.orientation
-				? parseFloat(formData.orientation)
-				: undefined,
-			tiltAngle: formData.tiltAngle
-				? parseFloat(formData.tiltAngle)
+			name: formData.name.trim(),
+			installedAt: formData.installedAt
+				? new Date(formData.installedAt).toISOString()
 				: undefined,
 		};
 
@@ -93,56 +83,13 @@ export default function CameraCreateModal({ isOpen, onClose, onSuccess }) {
 						</div>
 
 						<div className="form-group col-span-2">
-							<label htmlFor="cameraCode">Mã Camera</label>
+							<label htmlFor="installedAt">Thời điểm lắp đặt</label>
 							<input
-								type="text"
-								id="cameraCode"
-								name="cameraCode"
-								value={formData.cameraCode}
+								type="datetime-local"
+								id="installedAt"
+								name="installedAt"
+								value={formData.installedAt}
 								onChange={handleChange}
-								placeholder="Ví dụ: CAM-001 (Tự động sinh nếu bỏ trống)"
-								disabled={loading}
-							/>
-						</div>
-
-						<div className="form-group">
-							<label htmlFor="mountingHeight">Độ cao lắp đặt (m)</label>
-							<input
-								type="number"
-								step="0.1"
-								id="mountingHeight"
-								name="mountingHeight"
-								value={formData.mountingHeight}
-								onChange={handleChange}
-								placeholder="Ví dụ: 3.5"
-								disabled={loading}
-							/>
-						</div>
-
-						<div className="form-group">
-							<label htmlFor="orientation">Góc quay (độ)</label>
-							<input
-								type="number"
-								step="0.1"
-								id="orientation"
-								name="orientation"
-								value={formData.orientation}
-								onChange={handleChange}
-								placeholder="Ví dụ: 180"
-								disabled={loading}
-							/>
-						</div>
-
-						<div className="form-group col-span-2">
-							<label htmlFor="tiltAngle">Góc nghiêng (độ)</label>
-							<input
-								type="number"
-								step="0.1"
-								id="tiltAngle"
-								name="tiltAngle"
-								value={formData.tiltAngle}
-								onChange={handleChange}
-								placeholder="Ví dụ: -15"
 								disabled={loading}
 							/>
 						</div>

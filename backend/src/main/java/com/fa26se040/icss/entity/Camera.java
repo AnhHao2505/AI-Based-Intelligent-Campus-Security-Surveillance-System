@@ -10,7 +10,6 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
 
-import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.HashSet;
 import java.util.List;
@@ -22,7 +21,7 @@ import java.util.UUID;
 @Table(name = "cameras")
 @Getter
 @Setter
-@ToString(exclude = {"specification", "streamConfiguration", "healthLogs", "areas"})
+@ToString(exclude = {"streamConfiguration", "healthLogs", "areas"})
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -38,15 +37,6 @@ public class Camera {
 
     @Column(name = "name", nullable = false, length = 100)
     private String name;
-
-    @Column(name = "mounting_height", precision = 5, scale = 2)
-    private BigDecimal mountingHeight;
-
-    @Column(name = "orientation", precision = 5, scale = 2)
-    private BigDecimal orientation;
-
-    @Column(name = "tilt_angle", precision = 5, scale = 2)
-    private BigDecimal tiltAngle;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 50)
@@ -67,9 +57,6 @@ public class Camera {
 
     @Column(name = "deleted_at")
     private OffsetDateTime deletedAt;
-
-    @OneToOne(mappedBy = "camera", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private CameraSpecification specification;
 
     @OneToOne(mappedBy = "camera", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private CameraStreamConfiguration streamConfiguration;

@@ -90,16 +90,6 @@ export function reactivateCamera(id) {
 }
 
 /**
- * Cập nhật/Tạo mới đặc tả kỹ thuật camera
- */
-export function upsertSpecification(id, data) {
-  return request(`/api/cameras/${id}/specification`, {
-    method: 'PUT',
-    body: JSON.stringify(data),
-  });
-}
-
-/**
  * Cập nhật/Tạo mới cấu hình stream camera
  */
 export function upsertStreamConfig(id, data) {
