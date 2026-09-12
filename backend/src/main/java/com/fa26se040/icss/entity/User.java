@@ -50,6 +50,9 @@ public class User {
     @Column(name = "deleted_at")
     private OffsetDateTime deletedAt;
 
+    @Column(name = "import_batch_id")
+    private UUID importBatchId;
+
     @PrePersist
     protected void onCreate() {
         if (createdAt == null) {

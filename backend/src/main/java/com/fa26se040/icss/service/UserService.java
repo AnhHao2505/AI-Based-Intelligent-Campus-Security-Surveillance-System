@@ -518,7 +518,8 @@ public class UserService {
         }
 
         // Lượt 2: dòng nào có count > 1 thì FAIL ngay, không gọi processSingleRow
-        log.info("Bulk import started, file: {}", zipFile.getOriginalFilename());
+        UUID importBatchId = UUID.randomUUID();
+        log.info("Bulk import batch {} started, file: {}", importBatchId, zipFile.getOriginalFilename());
 
         for (int i = 1; i < validLines.size(); i++) {
             int rowIndex = i + 1; // 1-based index
@@ -610,7 +611,7 @@ public class UserService {
             String tempPassword = generateRandomPassword(12);
 
             BulkImportRowResult result = userBulkImportHelper.processSingleRow(
-                    rowIndex, userCode, fullName, email, targetRole, imgBytes, imgFileName, tempPassword
+                    rowIndex, userCode, fullName, email, targetRole, importBatchId, imgBytes, imgFileName, tempPassword
             );
 
             if ("SUCCESS".equalsIgnoreCase(result.getStatus())) {
@@ -621,10 +622,11 @@ public class UserService {
             rowResults.add(result);
         }
 
-        log.info("Bulk import finished: total={}, success={}, failed={}",
-                 dataRowCount, successCount, failureCount);
+        log.info("Bulk import batch {} finished: total={}, success={}, failed={}",
+                 importBatchId, dataRowCount, successCount, failureCount);
 
         return BulkImportResponse.builder()
+                .importBatchId(importBatchId)
                 .totalRows(dataRowCount)
                 .successCount(successCount)
                 .failureCount(failureCount)

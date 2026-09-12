@@ -23,6 +23,7 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
 @Component
@@ -30,7 +31,7 @@ import java.util.regex.Pattern;
 @Slf4j
 public class UserBulkImportHelper {
 
-    private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
+    private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,6}$");
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -45,6 +46,7 @@ public class UserBulkImportHelper {
             String rawFullName,
             String rawEmail,
             Role role,
+            UUID importBatchId,
             byte[] imageBytes,
             String imageFileName,
             String tempPassword
@@ -109,6 +111,7 @@ public class UserBulkImportHelper {
                     .isActive(true)
                     .createdAt(OffsetDateTime.now())
                     .updatedAt(OffsetDateTime.now())
+                    .importBatchId(importBatchId)
                     .build();
 
             userRepository.save(user);
@@ -140,8 +143,10 @@ public class UserBulkImportHelper {
 
         } catch (Exception e) {
             log.error("Lỗi khi xử lý dòng {}: {}", rowIndex, e.getMessage());
+            // Mark transaction as rollback-only so User/FaceData DB records are undone
             TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
 
+            // Compensating action: cleanup MinIO if upload succeeded before exception
             try {
                 minioStorageService.deleteFaceImage(userCode);
             } catch (Exception minioEx) {

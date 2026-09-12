@@ -1233,6 +1233,19 @@ export default function ManageAccountPage() {
                     </div>
                   </div>
 
+                  {bulkImportResult.importBatchId && (
+                    <div
+                      style={{
+                        fontFamily: 'monospace',
+                        fontSize: '0.8125rem',
+                        color: 'var(--theme-text-muted, #64748b)',
+                        marginBottom: '12px'
+                      }}
+                    >
+                      Mã lô import: {bulkImportResult.importBatchId}
+                    </div>
+                  )}
+
                   {/* Filter Pills */}
                   <div className="account-bulk-filter-pills">
                     <button
