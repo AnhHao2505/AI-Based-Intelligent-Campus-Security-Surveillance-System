@@ -82,12 +82,14 @@ export default function ManageAccountPage() {
   const [bulkZipFile, setBulkZipFile] = useState(null);
   const [bulkImportResult, setBulkImportResult] = useState(null);
   const [bulkFilter, setBulkFilter] = useState('ALL');
+  const [showBulkConfirmModal, setShowBulkConfirmModal] = useState(false);
 
   const handleOpenBulkImport = () => {
     setBulkZipFile(null);
     setBulkImportResult(null);
     setBulkFilter('ALL');
     setFormErrors({});
+    setShowBulkConfirmModal(false);
     setModalType('bulkImport');
   };
 
@@ -121,12 +123,18 @@ export default function ManageAccountPage() {
     }
   };
 
-  const handleSubmitBulkImport = async (e) => {
+  const handleSubmitBulkImport = (e) => {
     e.preventDefault();
     if (!bulkZipFile) {
       setFormErrors({ bulkZip: 'Vui lòng chọn file .zip chứa dữ liệu' });
       return;
     }
+    setFormErrors({});
+    setShowBulkConfirmModal(true);
+  };
+
+  const handleExecuteBulkImport = async () => {
+    if (!bulkZipFile) return;
 
     setIsSubmitting(true);
     setFormErrors({});
@@ -136,11 +144,13 @@ export default function ManageAccountPage() {
         ? await bulkImportNormalUsers(bulkZipFile)
         : await bulkImportStaffUsers(bulkZipFile);
       setBulkImportResult(res);
+      setShowBulkConfirmModal(false);
       showToast(`Đã nạp thành công ${res.successCount}/${res.totalRows} tài khoản`, 'success');
       fetchUsers();
     } catch (err) {
       console.error('Error in bulk import:', err);
       setFormErrors({ general: err.message || 'Lỗi khi nạp danh sách từ file ZIP' });
+      setShowBulkConfirmModal(false);
     } finally {
       setIsSubmitting(false);
     }
@@ -225,6 +235,7 @@ export default function ManageAccountPage() {
     setSelectedUser(null);
     setFormErrors({});
     setFrontFile(null);
+    setShowBulkConfirmModal(false);
     if (frontPreview) URL.revokeObjectURL(frontPreview);
     setFrontPreview(null);
   }, [isSubmitting, frontPreview]);
@@ -1063,6 +1074,63 @@ export default function ManageAccountPage() {
               <button type="button" className="account-modal-btn account-modal-btn--danger" onClick={handleConfirmDelete} disabled={isSubmitting}>
                 {isSubmitting && <RotateCw size={14} className="spin" />}
                 <span>{isSubmitting ? 'Đang xóa...' : 'Xóa tài khoản'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal Before Bulk Import Upload */}
+      {showBulkConfirmModal && bulkZipFile && (
+        <div className="account-modal-backdrop" style={{ zIndex: 1100 }}>
+          <div className="account-modal account-modal--confirm" role="dialog" aria-modal="true">
+            <div className="account-modal__header">
+              <div className="account-modal__title-wrap">
+                <div className="account-modal__icon-badge account-modal__icon-badge--warning">
+                  <AlertCircle size={18} />
+                </div>
+                <h2 className="account-modal__title">Xác nhận nạp danh sách</h2>
+              </div>
+              <button
+                type="button"
+                className="account-modal__close-btn"
+                onClick={() => setShowBulkConfirmModal(false)}
+                disabled={isSubmitting}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="account-modal__body">
+              <p className="account-confirm-text">
+                Bạn có chắc chắn muốn tiến hành nạp danh sách tài khoản từ file này?
+              </p>
+              <div className="account-confirm-user-info" style={{ textAlign: 'left' }}>
+                <div style={{ fontWeight: 600, marginBottom: '6px', color: 'var(--theme-text-primary, #1e293b)' }}>
+                  File được chọn: <span style={{ color: 'var(--primary-color, #2563eb)' }}>{bulkZipFile.name}</span>
+                </div>
+                <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.8125rem', color: 'var(--theme-text-muted, #64748b)', lineHeight: '1.5' }}>
+                  <li>Tài khoản sẽ được tạo <strong>NGAY</strong> khi xử lý xong (không có bước xem trước).</li>
+                  <li>Thao tác không hoàn tác được từ giao diện.</li>
+                </ul>
+              </div>
+            </div>
+            <div className="account-modal__footer">
+              <button
+                type="button"
+                className="account-modal-btn account-modal-btn--secondary"
+                onClick={() => setShowBulkConfirmModal(false)}
+                disabled={isSubmitting}
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                className="account-modal-btn account-modal-btn--primary"
+                onClick={handleExecuteBulkImport}
+                disabled={isSubmitting}
+              >
+                {isSubmitting && <RotateCw size={14} className="spin" />}
+                <span>{isSubmitting ? 'Đang nạp...' : 'Xác nhận nạp'}</span>
               </button>
             </div>
           </div>
