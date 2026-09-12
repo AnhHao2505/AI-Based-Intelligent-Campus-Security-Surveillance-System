@@ -4,6 +4,7 @@ import com.fa26se040.icss.dto.BulkImportRowResult;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.repository.UserRepository;
+import com.fa26se040.icss.util.StringNormalizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -19,6 +20,10 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
 @Component
@@ -26,12 +31,13 @@ import java.util.regex.Pattern;
 @Slf4j
 public class UserBulkImportHelper {
 
-    private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
+    private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,6}$");
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final FaceDataService faceDataService;
     private final MinioStorageService minioStorageService;
+    private final NotificationService notificationService;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public BulkImportRowResult processSingleRow(
@@ -39,57 +45,59 @@ public class UserBulkImportHelper {
             String rawUserCode,
             String rawFullName,
             String rawEmail,
+            Role role,
+            UUID importBatchId,
             byte[] imageBytes,
             String imageFileName,
             String tempPassword
     ) {
-        String userCode = rawUserCode != null ? rawUserCode.trim() : "";
-        String fullName = rawFullName != null ? rawFullName.trim() : "";
-        String email = rawEmail != null ? rawEmail.trim() : "";
+        String userCode = StringNormalizer.normCode(rawUserCode);
+        String fullName = StringNormalizer.normName(rawFullName);
+        String email = StringNormalizer.normEmail(rawEmail);
+        String roleStr = role != null ? role.name() : null;
 
-        // 1. Validate fields
+        // 1. Validate fields & gom lý do lỗi
+        List<String> errors = new ArrayList<>();
         if (userCode.isBlank()) {
-            return buildError(rowIndex, userCode, fullName, email, "Mã người dùng không được để trống");
-        }
-        if (userCode.length() > 50) {
-            return buildError(rowIndex, userCode, fullName, email, "Mã người dùng không được vượt quá 50 ký tự");
-        }
-        if (userRepository.existsByUserCodeAndDeletedAtIsNull(userCode)) {
-            return buildError(rowIndex, userCode, fullName, email, "Mã người dùng đã tồn tại trong hệ thống");
+            errors.add("Mã người dùng không được để trống");
+        } else if (userCode.length() > 50) {
+            errors.add("Mã người dùng không được vượt quá 50 ký tự");
+        } else if (!userRepository.findExistingUserCodes(Set.of(userCode)).isEmpty()) {
+            errors.add("Mã người dùng đã tồn tại trong hệ thống");
         }
 
         if (fullName.isBlank()) {
-            return buildError(rowIndex, userCode, fullName, email, "Họ và tên không được để trống");
-        }
-        if (fullName.length() > 100) {
-            return buildError(rowIndex, userCode, fullName, email, "Họ và tên không được vượt quá 100 ký tự");
+            errors.add("Họ và tên không được để trống");
+        } else if (fullName.length() > 100) {
+            errors.add("Họ và tên không được vượt quá 100 ký tự");
         }
 
         if (email.isBlank()) {
-            return buildError(rowIndex, userCode, fullName, email, "Email không được để trống");
+            errors.add("Email không được để trống");
+        } else if (email.length() > 100) {
+            errors.add("Email không được vượt quá 100 ký tự");
+        } else if (!EMAIL_PATTERN.matcher(email).matches()) {
+            errors.add("Định dạng Email không hợp lệ");
+        } else if (!userRepository.findExistingEmails(Set.of(email)).isEmpty()) {
+            errors.add("Email đã tồn tại trong hệ thống");
         }
-        if (email.length() > 100) {
-            return buildError(rowIndex, userCode, fullName, email, "Email không được vượt quá 100 ký tự");
-        }
-        if (!EMAIL_PATTERN.matcher(email).matches()) {
-            return buildError(rowIndex, userCode, fullName, email, "Định dạng Email không hợp lệ");
-        }
-        if (userRepository.existsByEmailAndDeletedAtIsNull(email)) {
-            return buildError(rowIndex, userCode, fullName, email, "Email đã tồn tại trong hệ thống");
+
+        if (!errors.isEmpty()) {
+            return buildError(rowIndex, userCode, fullName, email, roleStr, String.join(". ", errors));
         }
 
         // 2. Validate face image
         if (imageBytes == null || imageBytes.length == 0) {
-            return buildError(rowIndex, userCode, fullName, email, "Không tìm thấy file ảnh tương ứng trong thư mục images/ (yêu cầu images/" + userCode + ".jpg hoặc .png)");
+            return buildError(rowIndex, userCode, fullName, email, roleStr, "Không tìm thấy file ảnh tương ứng trong thư mục images/ (yêu cầu images/" + userCode + ".jpg hoặc .png)");
         }
         long maxSizeBytes = 350 * 1024; // 350KB
         if (imageBytes.length > maxSizeBytes) {
-            return buildError(rowIndex, userCode, fullName, email, String.format("Kích thước ảnh vượt quá giới hạn tối đa 350KB (dung lượng file: %.1f KB)", imageBytes.length / 1024.0));
+            return buildError(rowIndex, userCode, fullName, email, roleStr, String.format("Kích thước ảnh vượt quá giới hạn tối đa 350KB (dung lượng file: %.1f KB)", imageBytes.length / 1024.0));
         }
 
         String lowerImgName = imageFileName != null ? imageFileName.toLowerCase() : "";
         if (!(lowerImgName.endsWith(".jpg") || lowerImgName.endsWith(".jpeg") || lowerImgName.endsWith(".png"))) {
-            return buildError(rowIndex, userCode, fullName, email, "Định dạng file ảnh không hợp lệ. Chỉ chấp nhận file JPG hoặc PNG.");
+            return buildError(rowIndex, userCode, fullName, email, roleStr, "Định dạng file ảnh không hợp lệ. Chỉ chấp nhận file JPG hoặc PNG.");
         }
 
         // 3. Perform DB User creation & Face Registration inside try-catch
@@ -99,10 +107,11 @@ public class UserBulkImportHelper {
                     .fullName(fullName)
                     .email(email)
                     .password(passwordEncoder.encode(tempPassword))
-                    .role(Role.NORMAL_USER)
+                    .role(role != null ? role : Role.NORMAL_USER)
                     .isActive(true)
                     .createdAt(OffsetDateTime.now())
                     .updatedAt(OffsetDateTime.now())
+                    .importBatchId(importBatchId)
                     .build();
 
             userRepository.save(user);
@@ -116,11 +125,19 @@ public class UserBulkImportHelper {
 
             faceDataService.registerFace(userCode, imageMultipart);
 
+            // 6c. Gửi email chứa mật khẩu trong khối try-catch riêng (lỗi gửi mail chỉ warning, không rollback)
+            try {
+                notificationService.sendStaffAccountSetupEmail(email, fullName, userCode, tempPassword);
+            } catch (Exception mailEx) {
+                log.warn("Gửi email mật khẩu cho [{}] thất bại nhưng giữ tài khoản: {}", userCode, mailEx.getMessage());
+            }
+
             return BulkImportRowResult.builder()
                     .rowIndex(rowIndex)
                     .userCode(userCode)
                     .fullName(fullName)
                     .email(email)
+                    .role(roleStr)
                     .status("SUCCESS")
                     .build();
 
@@ -141,16 +158,17 @@ public class UserBulkImportHelper {
                 errorMsg = "Lỗi hệ thống khi xử lý người dùng " + userCode;
             }
 
-            return buildError(rowIndex, userCode, fullName, email, errorMsg);
+            return buildError(rowIndex, userCode, fullName, email, roleStr, errorMsg);
         }
     }
 
-    private BulkImportRowResult buildError(int rowIndex, String userCode, String fullName, String email, String errorMessage) {
+    private BulkImportRowResult buildError(int rowIndex, String userCode, String fullName, String email, String role, String errorMessage) {
         return BulkImportRowResult.builder()
                 .rowIndex(rowIndex)
                 .userCode(userCode)
                 .fullName(fullName)
                 .email(email)
+                .role(role)
                 .status("FAILED")
                 .errorMessage(errorMessage)
                 .build();

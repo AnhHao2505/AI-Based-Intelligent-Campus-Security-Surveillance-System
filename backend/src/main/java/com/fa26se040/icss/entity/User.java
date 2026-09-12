@@ -24,14 +24,14 @@ public class User {
     @Column(name = "full_name", nullable = false, length = 100)
     private String fullName;
 
-    @Column(name = "user_code", nullable = false, unique = true, length = 50)
+    @Column(name = "user_code", nullable = false, length = 50)
     private String userCode;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "role", nullable = false, length = 50)
     private Role role;
 
-    @Column(name = "email", nullable = false, unique = true, length = 255)
+    @Column(name = "email", nullable = false, length = 255)
     private String email;
 
     @Column(name = "password", length = 60)
@@ -49,6 +49,9 @@ public class User {
 
     @Column(name = "deleted_at")
     private OffsetDateTime deletedAt;
+
+    @Column(name = "import_batch_id")
+    private UUID importBatchId;
 
     @PrePersist
     protected void onCreate() {

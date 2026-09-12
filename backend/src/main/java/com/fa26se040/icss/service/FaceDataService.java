@@ -109,7 +109,7 @@ public class FaceDataService {
 
             // 4. Lưu hoặc cập nhật vào CSDL
             Optional<FaceData> existingOpt = faceDataRepository.findByCode(code);
-            User matchedUser = userRepository.findByUserCode(code).orElse(null);
+            User matchedUser = userRepository.findByUserCodeAndDeletedAtIsNull(code).orElse(null);
 
             FaceData faceData;
             if (existingOpt.isPresent()) {

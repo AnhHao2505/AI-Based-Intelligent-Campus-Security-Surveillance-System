@@ -85,6 +85,38 @@
   transform: translateY(0);
 }
 
+.account-toolbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.account-toolbar__secondary-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background-color: #ffffff;
+  color: var(--theme-text-primary, #1e293b);
+  border: 1px solid var(--theme-border, #cbd5e1);
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.account-toolbar__secondary-btn:hover {
+  background-color: var(--theme-bg-surface-hover, #f8fafc);
+  border-color: #94a3b8;
+  transform: translateY(-1px);
+}
+
+.account-toolbar__secondary-btn:active {
+  transform: translateY(0);
+}
+
 /* --------------------------------------------------------------------------
    Tabs Navigation (Normal Users vs System Accounts)
    -------------------------------------------------------------------------- */

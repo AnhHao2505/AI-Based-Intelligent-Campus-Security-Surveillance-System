@@ -6,12 +6,14 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
+import java.util.UUID;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class BulkImportResponse {
+    private UUID importBatchId;
     private int totalRows;
     private int successCount;
     private int failureCount;

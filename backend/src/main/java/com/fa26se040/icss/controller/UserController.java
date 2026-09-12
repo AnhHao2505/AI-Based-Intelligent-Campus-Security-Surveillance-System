@@ -53,6 +53,26 @@ public class UserController {
                 .body(excelData);
     }
 
+    @PostMapping(value = "/staff/bulk-import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<BulkImportResponse> bulkImportStaffUsers(
+            @RequestParam("file") MultipartFile file
+    ) {
+        log.info("Received request for bulk import staff users with file: {}", file.getOriginalFilename());
+        BulkImportResponse response = userService.bulkImportStaffUsers(file);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/staff/bulk-import/template")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<byte[]> downloadStaffUserTemplate() {
+        byte[] excelData = userService.generateSampleStaffExcel();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"sample_staff_users.xlsx\"")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(excelData);
+    }
+
     @PostMapping(value = "/staff-accounts", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<StaffAccountCreateResponse> createStaffAccount(

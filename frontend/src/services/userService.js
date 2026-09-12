@@ -129,3 +129,44 @@ export async function downloadNormalUserTemplate() {
   window.URL.revokeObjectURL(url);
 }
 
+/**
+ * Nạp hàng loạt tài khoản cán bộ/nhân viên từ file ZIP (.zip) (ADMIN)
+ * POST /api/users/staff/bulk-import (multipart/form-data)
+ */
+export async function bulkImportStaffUsers(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  return apiFetch('/api/users/staff/bulk-import', {
+    method: 'POST',
+    body: formData,
+  });
+}
+
+/**
+ * Tải file Excel mẫu cho Nạp hàng loạt tài khoản cán bộ/nhân viên
+ * GET /api/users/staff/bulk-import/template
+ */
+export async function downloadStaffUserTemplate() {
+  const token = localStorage.getItem('accessToken');
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+  const response = await fetch(`${API_BASE_URL}/api/users/staff/bulk-import/template`, {
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  if (!response.ok) {
+    throw new Error('Không thể tải file mẫu. Vui lòng thử lại sau.');
+  }
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'sample_staff_users.xlsx';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  window.URL.revokeObjectURL(url);
+}
+
+

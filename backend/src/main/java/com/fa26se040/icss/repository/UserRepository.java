@@ -12,6 +12,7 @@ import com.fa26se040.icss.enums.Role;
 
 import java.util.Collection;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Repository
@@ -19,12 +20,19 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     Optional<User> findByEmail(String email);
     Optional<User> findByEmailAndIsActiveTrue(String email);
     Optional<User> findByUserCode(String userCode);
+    Optional<User> findByUserCodeAndDeletedAtIsNull(String userCode);
 
     boolean existsByUserCode(String userCode);
     boolean existsByEmail(String email);
 
     boolean existsByUserCodeAndDeletedAtIsNull(String userCode);
     boolean existsByEmailAndDeletedAtIsNull(String email);
+
+    @Query("SELECT UPPER(u.userCode) FROM User u WHERE u.deletedAt IS NULL AND UPPER(u.userCode) IN :userCodes")
+    Set<String> findExistingUserCodes(@Param("userCodes") Collection<String> userCodes);
+
+    @Query("SELECT LOWER(u.email) FROM User u WHERE u.deletedAt IS NULL AND LOWER(u.email) IN :emails")
+    Set<String> findExistingEmails(@Param("emails") Collection<String> emails);
 
     @Query(
         value = """

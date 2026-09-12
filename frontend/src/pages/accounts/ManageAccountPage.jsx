@@ -23,7 +23,9 @@ import {
   createStaffAccount,
   downloadUserTemplate,
   downloadNormalUserTemplate,
+  downloadStaffUserTemplate,
   bulkImportNormalUsers,
+  bulkImportStaffUsers,
   toggleUserActive,
   deleteUser
 } from '../../services/userService';
@@ -109,7 +111,11 @@ export default function ManageAccountPage() {
 
   const handleDownloadTemplate = async () => {
     try {
-      await downloadNormalUserTemplate();
+      if (activeTab === 'NORMAL') {
+        await downloadNormalUserTemplate();
+      } else {
+        await downloadStaffUserTemplate();
+      }
     } catch (err) {
       showToast(err.message || 'Không thể tải file mẫu', 'error');
     }
@@ -126,7 +132,9 @@ export default function ManageAccountPage() {
     setFormErrors({});
 
     try {
-      const res = await bulkImportNormalUsers(bulkZipFile);
+      const res = activeTab === 'NORMAL'
+        ? await bulkImportNormalUsers(bulkZipFile)
+        : await bulkImportStaffUsers(bulkZipFile);
       setBulkImportResult(res);
       showToast(`Đã nạp thành công ${res.successCount}/${res.totalRows} tài khoản`, 'success');
       fetchUsers();
@@ -237,7 +245,7 @@ export default function ManageAccountPage() {
       fullName: '',
       userCode: '',
       email: '',
-      role: ROLES.INTERNAL_GUARD,
+      role: activeTab === 'NORMAL' ? 'NORMAL_USER' : ROLES.INTERNAL_GUARD,
     });
     setFrontFile(null);
     setFrontPreview(null);
@@ -272,9 +280,10 @@ export default function ManageAccountPage() {
     setModalType('delete');
   };
 
-  // Submit Create Staff Account
+  // Submit Create Account (NORMAL_USER or Staff Account)
   const handleSubmitCreate = async (e) => {
     e.preventDefault();
+    const isNormal = activeTab === 'NORMAL';
     const errors = {};
 
     if (!createForm.fullName.trim()) {
@@ -282,7 +291,7 @@ export default function ManageAccountPage() {
     }
 
     if (!createForm.userCode.trim()) {
-      errors.userCode = 'Mã cán bộ là bắt buộc';
+      errors.userCode = isNormal ? 'Mã người dùng là bắt buộc' : 'Mã cán bộ là bắt buộc';
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -309,15 +318,20 @@ export default function ManageAccountPage() {
         fullName: createForm.fullName.trim(),
         userCode: createForm.userCode.trim(),
         email: createForm.email.trim(),
-        role: createForm.role,
+        role: isNormal ? 'NORMAL_USER' : createForm.role,
         faceImage: frontFile
       });
-      showToast('Tạo tài khoản cán bộ thành công! Mật khẩu khởi tạo đã được gửi đến email.', 'success');
+      showToast(
+        isNormal
+          ? 'Tạo tài khoản người dùng thành công! Mật khẩu khởi tạo đã được gửi đến email.'
+          : 'Tạo tài khoản cán bộ thành công! Mật khẩu khởi tạo đã được gửi đến email.',
+        'success'
+      );
       closeModal();
       fetchUsers();
     } catch (err) {
-      console.error('Error creating staff account:', err);
-      const msg = err.message || 'Không thể tạo tài khoản cán bộ';
+      console.error('Error creating account:', err);
+      const msg = err.message || (isNormal ? 'Không thể tạo tài khoản người dùng' : 'Không thể tạo tài khoản cán bộ');
       if (msg.toLowerCase().includes('email')) {
         setFormErrors({ email: msg });
       } else if (msg.toLowerCase().includes('mã') || msg.toLowerCase().includes('code')) {
@@ -408,27 +422,49 @@ export default function ManageAccountPage() {
         </div>
 
         {activeTab === 'NORMAL' && (
-          <button
-            type="button"
-            id="btn-bulk-import-normal"
-            className="account-header__create-btn"
-            onClick={handleOpenBulkImport}
-          >
-            <Upload size={18} />
-            <span>+ Nạp danh sách (ZIP)</span>
-          </button>
+          <div className="account-toolbar__actions">
+            <button
+              type="button"
+              id="btn-bulk-import-normal"
+              className="account-toolbar__secondary-btn"
+              onClick={handleOpenBulkImport}
+            >
+              <Upload size={18} />
+              <span>Nạp từ file ZIP</span>
+            </button>
+            <button
+              type="button"
+              id="btn-create-normal-account"
+              className="account-header__create-btn"
+              onClick={handleOpenCreate}
+            >
+              <UserPlus size={18} />
+              <span>+ Tạo tài khoản</span>
+            </button>
+          </div>
         )}
 
         {activeTab === 'SYSTEM' && (
-          <button
-            type="button"
-            id="btn-create-account"
-            className="account-header__create-btn"
-            onClick={handleOpenCreate}
-          >
-            <UserPlus size={18} />
-            <span>+ Thêm tài khoản cán bộ</span>
-          </button>
+          <div className="account-toolbar__actions">
+            <button
+              type="button"
+              id="btn-bulk-import-staff"
+              className="account-toolbar__secondary-btn"
+              onClick={handleOpenBulkImport}
+            >
+              <Upload size={18} />
+              <span>Nạp từ file ZIP</span>
+            </button>
+            <button
+              type="button"
+              id="btn-create-account"
+              className="account-header__create-btn"
+              onClick={handleOpenCreate}
+            >
+              <UserPlus size={18} />
+              <span>+ Tạo tài khoản cán bộ</span>
+            </button>
+          </div>
         )}
       </header>
 
@@ -654,17 +690,15 @@ export default function ManageAccountPage() {
                             {item.isActive ? <UserX size={15} /> : <UserCheck size={15} />}
                           </button>
 
-                          {activeTab === 'SYSTEM' && (
-                            <button
-                              type="button"
-                              className="account-action-btn account-action-btn--delete"
-                              title={isSelf ? 'Không thể tự xóa tài khoản của chính mình' : 'Xóa tài khoản'}
-                              disabled={isSelf}
-                              onClick={() => handleOpenDelete(item)}
-                            >
-                              <Trash2 size={15} />
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            className="account-action-btn account-action-btn--delete"
+                            title={isSelf ? 'Không thể tự xóa tài khoản của chính mình' : 'Xóa tài khoản'}
+                            disabled={isSelf}
+                            onClick={() => handleOpenDelete(item)}
+                          >
+                            <Trash2 size={15} />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -734,7 +768,9 @@ export default function ManageAccountPage() {
                 <div className="account-modal__icon-badge account-modal__icon-badge--primary">
                   <UserPlus size={18} />
                 </div>
-                <h2 className="account-modal__title">Thêm tài khoản cán bộ/nhân viên</h2>
+                <h2 className="account-modal__title">
+                  {activeTab === 'NORMAL' ? 'Tạo tài khoản người dùng' : 'Tạo tài khoản cán bộ / nhân viên'}
+                </h2>
               </div>
               <button
                 type="button"
@@ -783,12 +819,12 @@ export default function ManageAccountPage() {
 
                 <div className="account-form-group">
                   <label className="account-form-label">
-                    <span>Mã cán bộ/nhân viên<span className="account-form-label__required">*</span></span>
+                    <span>{activeTab === 'NORMAL' ? 'Mã người dùng' : 'Mã cán bộ/nhân viên'}<span className="account-form-label__required">*</span></span>
                   </label>
                   <input
                     type="text"
                     className={`account-form-input ${formErrors.userCode ? 'account-form-input--error' : ''}`}
-                    placeholder="Ví dụ: NV-SEC-001, FM-002..."
+                    placeholder={activeTab === 'NORMAL' ? 'Ví dụ: SV001, CB001...' : 'Ví dụ: NV-SEC-001, FM-002...'}
                     value={createForm.userCode}
                     onChange={(e) => setCreateForm({ ...createForm, userCode: e.target.value })}
                     disabled={isSubmitting}
@@ -815,23 +851,25 @@ export default function ManageAccountPage() {
                   )}
                 </div>
 
-                <div className="account-form-group">
-                  <label className="account-form-label">
-                    <span>Quyền hạn<span className="account-form-label__required">*</span></span>
-                  </label>
-                  <select
-                    className="account-form-select"
-                    value={createForm.role}
-                    onChange={(e) => setCreateForm({ ...createForm, role: e.target.value })}
-                    disabled={isSubmitting}
-                  >
-                    {SYSTEM_STAFF_ROLES.map((r) => (
-                      <option key={r} value={r}>
-                        {ROLE_LABELS[r] || r}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {activeTab !== 'NORMAL' && (
+                  <div className="account-form-group">
+                    <label className="account-form-label">
+                      <span>Quyền hạn<span className="account-form-label__required">*</span></span>
+                    </label>
+                    <select
+                      className="account-form-select"
+                      value={createForm.role}
+                      onChange={(e) => setCreateForm({ ...createForm, role: e.target.value })}
+                      disabled={isSubmitting}
+                    >
+                      {SYSTEM_STAFF_ROLES.map((r) => (
+                        <option key={r} value={r}>
+                          {ROLE_LABELS[r] || r}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 {/* Face Image Upload Section */}
                 <div className="account-form-group">
@@ -1048,7 +1086,11 @@ export default function ManageAccountPage() {
                   <Upload size={18} />
                 </div>
                 <h2 className="account-modal__title">
-                  {bulkImportResult ? 'Kết quả nạp danh sách' : 'Nạp hàng loạt tài khoản người dùng (.zip)'}
+                  {bulkImportResult
+                    ? 'Kết quả nạp danh sách'
+                    : (activeTab === 'NORMAL'
+                        ? 'Nạp hàng loạt tài khoản người dùng (.zip)'
+                        : 'Nạp hàng loạt tài khoản cán bộ (.zip)')}
                 </h2>
               </div>
               <button
@@ -1085,9 +1127,20 @@ export default function ManageAccountPage() {
                       <div>
                         <div className="account-bulk-template-title">File Excel Mẫu & Hướng dẫn nạp dữ liệu</div>
                         <div className="account-bulk-template-desc">
-                          • Tải file mẫu Excel (<code>.xlsx</code>) và nhập thông tin (3 cột: <code>user_code</code>, <code>full_name</code>, <code>email</code>, tối đa 200 dòng).<br />
-                          • <strong>Lưu ý quan trọng:</strong> Cần Export / Lưu file Excel dưới dạng <code>metadata.csv</code>.<br />
-                          • Nén file <code>metadata.csv</code> cùng thư mục <code>images/</code> chứa ảnh chân dung (tối đa 350KB/ảnh, tên ảnh khớp với <code>user_code</code>) vào file <code>.zip</code> để nạp.
+                          {activeTab === 'NORMAL' ? (
+                            <>
+                              • Tải file mẫu Excel (<code>.xlsx</code>) và nhập thông tin (3 cột: <code>user_code</code>, <code>full_name</code>, <code>email</code>, tối đa 200 dòng).<br />
+                              • <strong>Lưu ý quan trọng:</strong> Cần Export / Lưu file Excel dưới dạng <code>metadata.csv</code>.<br />
+                              • Nén file <code>metadata.csv</code> cùng thư mục <code>images/</code> chứa ảnh chân dung (tối đa 350KB/ảnh, tên ảnh khớp với <code>user_code</code>) vào file <code>.zip</code> để nạp.
+                            </>
+                          ) : (
+                            <>
+                              • Tải file mẫu Excel (<code>.xlsx</code>) và nhập thông tin (4 cột: <code>user_code</code>, <code>full_name</code>, <code>email</code>, <code>role</code>, tối đa 200 dòng).<br />
+                              • Cột <code>role</code> bắt buộc có giá trị ở mọi dòng, chọn một trong các vai trò: <code>ADMIN</code>, <code>FACILITY_MANAGER</code>, <code>INTERNAL_GUARD</code>, <code>OUTSOURCED_GUARD</code>.<br />
+                              • <strong>Lưu ý quan trọng:</strong> Cần Export / Lưu file Excel dưới dạng <code>metadata.csv</code>.<br />
+                              • Nén file <code>metadata.csv</code> cùng thư mục <code>images/</code> chứa ảnh chân dung (tối đa 350KB/ảnh, tên ảnh khớp với <code>user_code</code>) vào file <code>.zip</code> để nạp.
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1180,6 +1233,19 @@ export default function ManageAccountPage() {
                     </div>
                   </div>
 
+                  {bulkImportResult.importBatchId && (
+                    <div
+                      style={{
+                        fontFamily: 'monospace',
+                        fontSize: '0.8125rem',
+                        color: 'var(--theme-text-muted, #64748b)',
+                        marginBottom: '12px'
+                      }}
+                    >
+                      Mã lô import: {bulkImportResult.importBatchId}
+                    </div>
+                  )}
+
                   {/* Filter Pills */}
                   <div className="account-bulk-filter-pills">
                     <button
@@ -1211,9 +1277,10 @@ export default function ManageAccountPage() {
                       <thead>
                         <tr>
                           <th style={{ width: '60px' }}>Dòng</th>
-                          <th>Mã ND</th>
+                          <th>{activeTab === 'NORMAL' ? 'Mã ND' : 'Mã NV'}</th>
                           <th>Họ và tên</th>
                           <th>Email</th>
+                          {activeTab === 'SYSTEM' && <th style={{ width: '130px' }}>Quyền</th>}
                           <th style={{ width: '110px' }}>Trạng thái</th>
                           <th>Chi tiết lỗi</th>
                         </tr>
@@ -1231,6 +1298,13 @@ export default function ManageAccountPage() {
                               <td>{r.userCode || '-'}</td>
                               <td>{r.fullName || '-'}</td>
                               <td>{r.email || '-'}</td>
+                              {activeTab === 'SYSTEM' && (
+                                <td>
+                                  <span style={{ fontWeight: 500, fontSize: '0.8125rem' }}>
+                                    {r.role ? (ROLE_LABELS[r.role] || r.role) : '-'}
+                                  </span>
+                                </td>
+                              )}
                               <td>
                                 <span
                                   className={`account-badge ${
