@@ -13,10 +13,13 @@ import {
   AlertCircle,
   CheckCircle2,
   RotateCw,
+  RotateCcw,
   Camera,
   Upload,
   Download,
-  FileText
+  FileText,
+  Layers,
+  Eye
 } from 'lucide-react';
 import {
   getUsers,
@@ -27,7 +30,11 @@ import {
   bulkImportNormalUsers,
   bulkImportStaffUsers,
   toggleUserActive,
-  deleteUser
+  deleteUser,
+  getImportBatches,
+  getImportBatchDetails,
+  deleteImportBatch,
+  restoreImportBatch
 } from '../../services/userService';
 import { ROLES, ROLE_LABELS } from '../../constants/roles';
 import { useAuth } from '../../context/AuthContext';
@@ -82,12 +89,118 @@ export default function ManageAccountPage() {
   const [bulkZipFile, setBulkZipFile] = useState(null);
   const [bulkImportResult, setBulkImportResult] = useState(null);
   const [bulkFilter, setBulkFilter] = useState('ALL');
+  const [showBulkConfirmModal, setShowBulkConfirmModal] = useState(false);
+
+  // Batch Management State
+  const [showBatchListModal, setShowBatchListModal] = useState(false);
+  const [batches, setBatches] = useState([]);
+  const [batchPage, setBatchPage] = useState(0);
+  const [batchTotalPages, setBatchTotalPages] = useState(0);
+  const [batchTotalElements, setBatchTotalElements] = useState(0);
+  const [isBatchesLoading, setIsBatchesLoading] = useState(false);
+
+  // Batch Details Modal State
+  const [selectedBatchId, setSelectedBatchId] = useState(null);
+  const [batchDetails, setBatchDetails] = useState([]);
+  const [isBatchDetailsLoading, setIsBatchDetailsLoading] = useState(false);
+  const [showBatchDetailsModal, setShowBatchDetailsModal] = useState(false);
+
+  // Batch Action Confirmation States
+  const [batchToDelete, setBatchToDelete] = useState(null);
+  const [isDeletingBatch, setIsDeletingBatch] = useState(false);
+  const [batchToRestore, setBatchToRestore] = useState(null);
+  const [isRestoringBatch, setIsRestoringBatch] = useState(false);
+  const [restoreResult, setRestoreResult] = useState(null);
+
+  const fetchBatches = async (page = 0) => {
+    setIsBatchesLoading(true);
+    try {
+      const res = await getImportBatches(page, 10);
+      setBatches(res?.content || []);
+      setBatchTotalPages(res?.totalPages || 0);
+      setBatchTotalElements(res?.totalElements || 0);
+      setBatchPage(res?.number || 0);
+    } catch (err) {
+      console.error('Error fetching import batches:', err);
+      showToast(err.message || 'Không thể tải danh sách lô import', 'error');
+    } finally {
+      setIsBatchesLoading(false);
+    }
+  };
+
+  const handleOpenBatchesModal = () => {
+    setShowBatchListModal(true);
+    fetchBatches(0);
+  };
+
+  const handleViewBatchDetails = async (batchId) => {
+    setSelectedBatchId(batchId);
+    setShowBatchDetailsModal(true);
+    setIsBatchDetailsLoading(true);
+    try {
+      const details = await getImportBatchDetails(batchId);
+      setBatchDetails(details || []);
+    } catch (err) {
+      console.error('Error fetching batch details:', err);
+      showToast(err.message || 'Không thể tải chi tiết lô', 'error');
+    } finally {
+      setIsBatchDetailsLoading(false);
+    }
+  };
+
+  const handleConfirmDeleteBatch = (batch) => {
+    setBatchToDelete(batch);
+  };
+
+  const handleExecuteDeleteBatch = async () => {
+    if (!batchToDelete) return;
+    setIsDeletingBatch(true);
+    try {
+      const res = await deleteImportBatch(batchToDelete.importBatchId);
+      showToast(res?.message || `Đã gỡ ${res?.deletedCount || 0} tài khoản trong lô`, 'success');
+      setBatchToDelete(null);
+      await fetchBatches(batchPage);
+      fetchUsers();
+    } catch (err) {
+      console.error('Error deleting import batch:', err);
+      showToast(err.message || 'Lỗi khi gỡ lô tài khoản', 'error');
+    } finally {
+      setIsDeletingBatch(false);
+    }
+  };
+
+  const handleConfirmRestoreBatch = (batch) => {
+    setBatchToRestore(batch);
+  };
+
+  const handleExecuteRestoreBatch = async () => {
+    if (!batchToRestore) return;
+    setIsRestoringBatch(true);
+    try {
+      const res = await restoreImportBatch(batchToRestore.importBatchId);
+      setBatchToRestore(null);
+      if (res?.skippedCount > 0) {
+        setRestoreResult(res);
+        showToast(`Đã khôi phục ${res.restoredCount} tài khoản, bỏ qua ${res.skippedCount} tài khoản do xung đột`, 'warning');
+      } else {
+        showToast(`Đã khôi phục thành công ${res.restoredCount} tài khoản`, 'success');
+      }
+      await fetchBatches(batchPage);
+      fetchUsers();
+    } catch (err) {
+      console.error('Error restoring import batch:', err);
+      showToast(err.message || 'Lỗi khi khôi phục lô tài khoản', 'error');
+    } finally {
+      setIsRestoringBatch(false);
+    }
+  };
 
   const handleOpenBulkImport = () => {
     setBulkZipFile(null);
     setBulkImportResult(null);
     setBulkFilter('ALL');
     setFormErrors({});
+    setShowBulkConfirmModal(false);
     setModalType('bulkImport');
   };
 
@@ -121,12 +234,18 @@ export default function ManageAccountPage() {
     }
   };
 
-  const handleSubmitBulkImport = async (e) => {
+  const handleSubmitBulkImport = (e) => {
     e.preventDefault();
     if (!bulkZipFile) {
       setFormErrors({ bulkZip: 'Vui lòng chọn file .zip chứa dữ liệu' });
       return;
     }
+    setFormErrors({});
+    setShowBulkConfirmModal(true);
+  };
+
+  const handleExecuteBulkImport = async () => {
+    if (!bulkZipFile) return;
 
     setIsSubmitting(true);
     setFormErrors({});
@@ -136,11 +255,13 @@ export default function ManageAccountPage() {
         ? await bulkImportNormalUsers(bulkZipFile)
         : await bulkImportStaffUsers(bulkZipFile);
       setBulkImportResult(res);
+      setShowBulkConfirmModal(false);
       showToast(`Đã nạp thành công ${res.successCount}/${res.totalRows} tài khoản`, 'success');
       fetchUsers();
     } catch (err) {
       console.error('Error in bulk import:', err);
       setFormErrors({ general: err.message || 'Lỗi khi nạp danh sách từ file ZIP' });
+      setShowBulkConfirmModal(false);
     } finally {
       setIsSubmitting(false);
     }
@@ -225,6 +346,7 @@ export default function ManageAccountPage() {
     setSelectedUser(null);
     setFormErrors({});
     setFrontFile(null);
+    setShowBulkConfirmModal(false);
     if (frontPreview) URL.revokeObjectURL(frontPreview);
     setFrontPreview(null);
   }, [isSubmitting, frontPreview]);
@@ -425,6 +547,16 @@ export default function ManageAccountPage() {
           <div className="account-toolbar__actions">
             <button
               type="button"
+              id="btn-manage-batches-normal"
+              className="account-toolbar__secondary-btn"
+              onClick={handleOpenBatchesModal}
+              title="Xem lịch sử và quản lý gỡ/khôi phục các lô nạp"
+            >
+              <Layers size={18} />
+              <span>Quản lý lô nạp</span>
+            </button>
+            <button
+              type="button"
               id="btn-bulk-import-normal"
               className="account-toolbar__secondary-btn"
               onClick={handleOpenBulkImport}
@@ -446,6 +578,16 @@ export default function ManageAccountPage() {
 
         {activeTab === 'SYSTEM' && (
           <div className="account-toolbar__actions">
+            <button
+              type="button"
+              id="btn-manage-batches-staff"
+              className="account-toolbar__secondary-btn"
+              onClick={handleOpenBatchesModal}
+              title="Xem lịch sử và quản lý gỡ/khôi phục các lô nạp"
+            >
+              <Layers size={18} />
+              <span>Quản lý lô nạp</span>
+            </button>
             <button
               type="button"
               id="btn-bulk-import-staff"
@@ -1069,6 +1211,63 @@ export default function ManageAccountPage() {
         </div>
       )}
 
+      {/* Confirmation Modal Before Bulk Import Upload */}
+      {showBulkConfirmModal && bulkZipFile && (
+        <div className="account-modal-backdrop" style={{ zIndex: 1100 }}>
+          <div className="account-modal account-modal--confirm" role="dialog" aria-modal="true">
+            <div className="account-modal__header">
+              <div className="account-modal__title-wrap">
+                <div className="account-modal__icon-badge account-modal__icon-badge--warning">
+                  <AlertCircle size={18} />
+                </div>
+                <h2 className="account-modal__title">Xác nhận nạp danh sách</h2>
+              </div>
+              <button
+                type="button"
+                className="account-modal__close-btn"
+                onClick={() => setShowBulkConfirmModal(false)}
+                disabled={isSubmitting}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="account-modal__body">
+              <p className="account-confirm-text">
+                Bạn có chắc chắn muốn tiến hành nạp danh sách tài khoản từ file này?
+              </p>
+              <div className="account-confirm-user-info" style={{ textAlign: 'left' }}>
+                <div style={{ fontWeight: 600, marginBottom: '6px', color: 'var(--theme-text-primary, #1e293b)' }}>
+                  File được chọn: <span style={{ color: 'var(--primary-color, #2563eb)' }}>{bulkZipFile.name}</span>
+                </div>
+                <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.8125rem', color: 'var(--theme-text-muted, #64748b)', lineHeight: '1.5' }}>
+                  <li>Tài khoản sẽ được tạo <strong>NGAY</strong> khi xử lý xong (không có bước xem trước).</li>
+                  <li>Thao tác không hoàn tác được từ giao diện.</li>
+                </ul>
+              </div>
+            </div>
+            <div className="account-modal__footer">
+              <button
+                type="button"
+                className="account-modal-btn account-modal-btn--secondary"
+                onClick={() => setShowBulkConfirmModal(false)}
+                disabled={isSubmitting}
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                className="account-modal-btn account-modal-btn--primary"
+                onClick={handleExecuteBulkImport}
+                disabled={isSubmitting}
+              >
+                {isSubmitting && <RotateCw size={14} className="spin" />}
+                <span>{isSubmitting ? 'Đang nạp...' : 'Xác nhận nạp'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ====================================================================
           BULK IMPORT NORMAL USERS MODAL (MF1.2 Import .zip)
           ==================================================================== */}
@@ -1335,6 +1534,455 @@ export default function ManageAccountPage() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ====================================================================
+          BATCH MANAGEMENT MODAL (Lịch sử & Quản lý lô nạp)
+          ==================================================================== */}
+      {showBatchListModal && (
+        <div className="account-modal-backdrop" style={{ zIndex: 1050 }}>
+          <div className="account-modal account-modal--batches" role="dialog" aria-modal="true">
+            <div className="account-modal__header">
+              <div className="account-modal__title-wrap">
+                <div className="account-modal__icon-badge account-modal__icon-badge--primary">
+                  <Layers size={18} />
+                </div>
+                <h2 className="account-modal__title">Lịch sử & Quản lý lô nạp</h2>
+              </div>
+              <button
+                type="button"
+                className="account-modal__close-btn"
+                onClick={() => setShowBatchListModal(false)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="account-modal__body" style={{ padding: '16px 24px', maxHeight: '65vh', overflowY: 'auto' }}>
+              {isBatchesLoading ? (
+                <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--theme-text-muted, #64748b)' }}>
+                  <RotateCw size={24} className="spin" style={{ margin: '0 auto 12px' }} />
+                  <p>Đang tải danh sách lô import...</p>
+                </div>
+              ) : batches.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--theme-text-muted, #64748b)' }}>
+                  <Layers size={40} style={{ opacity: 0.3, marginBottom: '12px' }} />
+                  <p style={{ fontWeight: 500, fontSize: '0.9375rem' }}>Chưa có lô nạp nào trong hệ thống</p>
+                  <p style={{ fontSize: '0.8125rem' }}>Các tài khoản được nạp qua file ZIP sẽ tự động nhóm theo từng lô tại đây.</p>
+                </div>
+              ) : (
+                <>
+                  <div className="account-bulk-table-wrap">
+                    <table className="account-bulk-table">
+                      <thead>
+                        <tr>
+                          <th style={{ width: '220px' }}>Mã lô (Batch ID)</th>
+                          <th style={{ width: '150px' }}>Thời gian nạp</th>
+                          <th style={{ width: '170px' }}>Trạng thái tài khoản</th>
+                          <th style={{ width: '180px', textAlign: 'right' }}>Thao tác</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {batches.map((batch) => {
+                          const isAllDeleted = batch.activeCount === 0 && batch.deletedCount > 0;
+                          return (
+                            <tr key={batch.importBatchId}>
+                              <td>
+                                <code className="account-batch-code" title={batch.importBatchId}>
+                                  {batch.importBatchId}
+                                </code>
+                              </td>
+                              <td style={{ fontSize: '0.8125rem', color: 'var(--theme-text-secondary, #475569)' }}>
+                                {batch.createdAt ? new Date(batch.createdAt).toLocaleString('vi-VN', {
+                                  year: 'numeric',
+                                  month: '2-digit',
+                                  day: '2-digit',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                }) : '-'}
+                              </td>
+                              <td>
+                                {isAllDeleted ? (
+                                  <span className="account-badge account-badge--inactive" style={{ background: '#fef2f2', color: '#b91c1c' }}>
+                                    Đã gỡ ({batch.deletedCount})
+                                  </span>
+                                ) : (
+                                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                                    <span className="account-badge account-badge--active">
+                                      {batch.activeCount} hoạt động
+                                    </span>
+                                    {batch.deletedCount > 0 && (
+                                      <span className="account-badge account-badge--inactive">
+                                        {batch.deletedCount} đã gỡ
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </td>
+                              <td>
+                                <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                                  <button
+                                    type="button"
+                                    className="account-modal-btn account-modal-btn--secondary"
+                                    style={{ padding: '5px 10px', fontSize: '0.75rem', height: 'auto' }}
+                                    onClick={() => handleViewBatchDetails(batch.importBatchId)}
+                                    title="Xem chi tiết các tài khoản trong lô"
+                                  >
+                                    <Eye size={13} style={{ marginRight: '4px' }} />
+                                    Chi tiết
+                                  </button>
+
+                                  {batch.activeCount > 0 && (
+                                    <button
+                                      type="button"
+                                      className="account-modal-btn account-modal-btn--danger"
+                                      style={{ padding: '5px 10px', fontSize: '0.75rem', height: 'auto' }}
+                                      onClick={() => handleConfirmDeleteBatch(batch)}
+                                      title="Gỡ tất cả tài khoản đang hoạt động trong lô này"
+                                    >
+                                      <Trash2 size={13} style={{ marginRight: '4px' }} />
+                                      Gỡ lô
+                                    </button>
+                                  )}
+
+                                  {batch.deletedCount > 0 && (
+                                    <button
+                                      type="button"
+                                      className="account-modal-btn account-modal-btn--primary"
+                                      style={{ padding: '5px 10px', fontSize: '0.75rem', height: 'auto' }}
+                                      onClick={() => handleConfirmRestoreBatch(batch)}
+                                      title="Khôi phục các tài khoản đã bị gỡ trong lô này"
+                                    >
+                                      <RotateCcw size={13} style={{ marginRight: '4px' }} />
+                                      Khôi phục
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {batchTotalPages > 1 && (
+                    <div className="account-pagination" style={{ marginTop: '16px', borderTop: 'none', padding: 0 }}>
+                      <span className="account-pagination__info" style={{ fontSize: '0.8125rem' }}>
+                        Trang {batchPage + 1} / {batchTotalPages} ({batchTotalElements} lô)
+                      </span>
+                      <div className="account-pagination__controls">
+                        <button
+                          type="button"
+                          className="account-pagination__btn"
+                          onClick={() => fetchBatches(batchPage - 1)}
+                          disabled={batchPage === 0 || isBatchesLoading}
+                        >
+                          <ChevronLeft size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          className="account-pagination__btn"
+                          onClick={() => fetchBatches(batchPage + 1)}
+                          disabled={batchPage >= batchTotalPages - 1 || isBatchesLoading}
+                        >
+                          <ChevronRight size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            <div className="account-modal__footer">
+              <button
+                type="button"
+                className="account-modal-btn account-modal-btn--secondary"
+                onClick={() => setShowBatchListModal(false)}
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ====================================================================
+          BATCH DETAILS MODAL (Xem chi tiết tài khoản thuộc lô)
+          ==================================================================== */}
+      {showBatchDetailsModal && (
+        <div className="account-modal-backdrop" style={{ zIndex: 1100 }}>
+          <div className="account-modal account-modal--batch-details" role="dialog" aria-modal="true">
+            <div className="account-modal__header">
+              <div className="account-modal__title-wrap">
+                <div className="account-modal__icon-badge account-modal__icon-badge--primary">
+                  <Eye size={18} />
+                </div>
+                <div>
+                  <h2 className="account-modal__title">Chi tiết lô tài khoản</h2>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--theme-text-muted, #64748b)', fontFamily: 'monospace' }}>
+                    {selectedBatchId}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="account-modal__close-btn"
+                onClick={() => setShowBatchDetailsModal(false)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="account-modal__body" style={{ padding: '16px 24px', maxHeight: '60vh', overflowY: 'auto' }}>
+              {isBatchDetailsLoading ? (
+                <div style={{ textAlign: 'center', padding: '36px 0', color: 'var(--theme-text-muted, #64748b)' }}>
+                  <RotateCw size={24} className="spin" style={{ margin: '0 auto 12px' }} />
+                  <p>Đang tải chi tiết tài khoản...</p>
+                </div>
+              ) : batchDetails.length === 0 ? (
+                <p style={{ textAlign: 'center', padding: '24px 0', color: 'var(--theme-text-muted, #64748b)' }}>
+                  Không có tài khoản nào trong lô này.
+                </p>
+              ) : (
+                <div className="account-bulk-table-wrap">
+                  <table className="account-bulk-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: '110px' }}>Mã người dùng</th>
+                        <th>Họ và tên</th>
+                        <th>Email</th>
+                        <th style={{ width: '130px' }}>Vai trò</th>
+                        <th style={{ width: '120px' }}>Trạng thái</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {batchDetails.map((u) => (
+                        <tr key={u.id}>
+                          <td style={{ fontWeight: 600 }}>{u.userCode}</td>
+                          <td>{u.fullName}</td>
+                          <td style={{ fontSize: '0.8125rem' }}>{u.email}</td>
+                          <td style={{ fontSize: '0.8125rem' }}>
+                            {ROLE_LABELS[u.role] || u.role}
+                          </td>
+                          <td>
+                            {u.deletedAt ? (
+                              <span className="account-badge account-badge--inactive" style={{ background: '#fef2f2', color: '#b91c1c' }}>
+                                Đã gỡ
+                              </span>
+                            ) : u.isActive ? (
+                              <span className="account-badge account-badge--active">Hoạt động</span>
+                            ) : (
+                              <span className="account-badge account-badge--inactive">Vô hiệu hóa</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div className="account-modal__footer">
+              <button
+                type="button"
+                className="account-modal-btn account-modal-btn--secondary"
+                onClick={() => setShowBatchDetailsModal(false)}
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ====================================================================
+          BATCH DELETE CONFIRMATION MODAL
+          ==================================================================== */}
+      {batchToDelete && (
+        <div className="account-modal-backdrop" style={{ zIndex: 1200 }}>
+          <div className="account-modal account-modal--confirm" role="dialog" aria-modal="true">
+            <div className="account-modal__header">
+              <div className="account-modal__title-wrap">
+                <div className="account-modal__icon-badge account-modal__icon-badge--danger">
+                  <Trash2 size={18} />
+                </div>
+                <h2 className="account-modal__title">Xác nhận gỡ lô tài khoản</h2>
+              </div>
+              <button
+                type="button"
+                className="account-modal__close-btn"
+                onClick={() => setBatchToDelete(null)}
+                disabled={isDeletingBatch}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="account-modal__body">
+              <p className="account-confirm-text">
+                Bạn có chắc chắn muốn gỡ lô tài khoản này?
+              </p>
+              <div className="account-confirm-user-info" style={{ textAlign: 'left' }}>
+                <div style={{ marginBottom: '6px' }}>
+                  <strong>Mã lô:</strong> <code className="account-batch-code">{batchToDelete.importBatchId}</code>
+                </div>
+                <div style={{ marginBottom: '8px' }}>
+                  <strong>Số tài khoản sẽ bị gỡ:</strong> <span style={{ color: '#b91c1c', fontWeight: 600 }}>{batchToDelete.activeCount} tài khoản</span>
+                </div>
+                <div style={{ padding: '8px 12px', background: '#eff6ff', borderRadius: '6px', fontSize: '0.8125rem', color: '#1e40af', lineHeight: '1.4' }}>
+                  ℹ️ Thao tác này chỉ xoá mềm (soft-delete). Bạn <strong>hoàn toàn có thể khôi phục lại</strong> các tài khoản này sau đó từ danh sách lô.
+                </div>
+              </div>
+            </div>
+
+            <div className="account-modal__footer">
+              <button
+                type="button"
+                className="account-modal-btn account-modal-btn--secondary"
+                onClick={() => setBatchToDelete(null)}
+                disabled={isDeletingBatch}
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                className="account-modal-btn account-modal-btn--danger"
+                onClick={handleExecuteDeleteBatch}
+                disabled={isDeletingBatch}
+              >
+                {isDeletingBatch && <RotateCw size={14} className="spin" />}
+                <span>{isDeletingBatch ? 'Đang gỡ...' : 'Xác nhận gỡ lô'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ====================================================================
+          BATCH RESTORE CONFIRMATION MODAL
+          ==================================================================== */}
+      {batchToRestore && (
+        <div className="account-modal-backdrop" style={{ zIndex: 1200 }}>
+          <div className="account-modal account-modal--confirm" role="dialog" aria-modal="true">
+            <div className="account-modal__header">
+              <div className="account-modal__title-wrap">
+                <div className="account-modal__icon-badge account-modal__icon-badge--warning">
+                  <RotateCcw size={18} />
+                </div>
+                <h2 className="account-modal__title">Khôi phục lô tài khoản</h2>
+              </div>
+              <button
+                type="button"
+                className="account-modal__close-btn"
+                onClick={() => setBatchToRestore(null)}
+                disabled={isRestoringBatch}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="account-modal__body">
+              <p className="account-confirm-text">
+                Bạn có chắc chắn muốn khôi phục các tài khoản đã bị gỡ trong lô này?
+              </p>
+              <div className="account-confirm-user-info" style={{ textAlign: 'left' }}>
+                <div style={{ marginBottom: '6px' }}>
+                  <strong>Mã lô:</strong> <code className="account-batch-code">{batchToRestore.importBatchId}</code>
+                </div>
+                <div style={{ marginBottom: '8px' }}>
+                  <strong>Số tài khoản cần khôi phục:</strong> <span style={{ color: '#2563eb', fontWeight: 600 }}>{batchToRestore.deletedCount} tài khoản</span>
+                </div>
+                <div style={{ padding: '8px 12px', background: '#fefce8', borderRadius: '6px', fontSize: '0.8125rem', color: '#854d0e', lineHeight: '1.4' }}>
+                  ⚠️ Nếu có tài khoản trùng mã người dùng hoặc email với tài khoản đang hoạt động khác, hệ thống sẽ tự động bỏ qua và thông báo chi tiết.
+                </div>
+              </div>
+            </div>
+
+            <div className="account-modal__footer">
+              <button
+                type="button"
+                className="account-modal-btn account-modal-btn--secondary"
+                onClick={() => setBatchToRestore(null)}
+                disabled={isRestoringBatch}
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                className="account-modal-btn account-modal-btn--primary"
+                onClick={handleExecuteRestoreBatch}
+                disabled={isRestoringBatch}
+              >
+                {isRestoringBatch && <RotateCw size={14} className="spin" />}
+                <span>{isRestoringBatch ? 'Đang khôi phục...' : 'Khôi phục lô'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ====================================================================
+          BATCH RESTORE RESULT MODAL (Hiển thị chi tiết các hàng bị bỏ qua)
+          ==================================================================== */}
+      {restoreResult && restoreResult.skippedCount > 0 && (
+        <div className="account-modal-backdrop" style={{ zIndex: 1250 }}>
+          <div className="account-modal account-modal--restore-result" role="dialog" aria-modal="true">
+            <div className="account-modal__header">
+              <div className="account-modal__title-wrap">
+                <div className="account-modal__icon-badge account-modal__icon-badge--warning">
+                  <AlertCircle size={18} />
+                </div>
+                <h2 className="account-modal__title">Kết quả khôi phục lô</h2>
+              </div>
+              <button
+                type="button"
+                className="account-modal__close-btn"
+                onClick={() => setRestoreResult(null)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="account-modal__body" style={{ padding: '16px 24px' }}>
+              <div style={{ marginBottom: '14px', fontSize: '0.875rem' }}>
+                Đã khôi phục thành công <strong style={{ color: '#16a34a' }}>{restoreResult.restoredCount}</strong> tài khoản. Có <strong style={{ color: '#dc2626' }}>{restoreResult.skippedCount}</strong> tài khoản bị bỏ qua do xung đột định danh:
+              </div>
+              <div className="account-bulk-table-wrap" style={{ maxHeight: '250px', overflowY: 'auto' }}>
+                <table className="account-bulk-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '110px' }}>Mã người dùng</th>
+                      <th>Email</th>
+                      <th>Lý do bỏ qua</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {restoreResult.skippedUsers.map((item, idx) => (
+                      <tr key={idx}>
+                        <td style={{ fontWeight: 600 }}>{item.userCode}</td>
+                        <td style={{ fontSize: '0.8125rem' }}>{item.email}</td>
+                        <td style={{ fontSize: '0.8125rem', color: '#b91c1c' }}>{item.reason}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="account-modal__footer">
+              <button
+                type="button"
+                className="account-modal-btn account-modal-btn--primary"
+                onClick={() => setRestoreResult(null)}
+              >
+                Đã hiểu
+              </button>
+            </div>
           </div>
         </div>
       )}

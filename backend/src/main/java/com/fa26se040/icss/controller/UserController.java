@@ -6,10 +6,15 @@ import com.fa26se040.icss.dto.user.StaffAccountCreateRequest;
 import com.fa26se040.icss.dto.user.StaffAccountCreateResponse;
 import com.fa26se040.icss.dto.user.UserListResponse;
 import com.fa26se040.icss.dto.user.UserPageResponse;
+import com.fa26se040.icss.dto.user.ImportBatchSummaryResponse;
+import com.fa26se040.icss.dto.user.BatchUserResponse;
+import com.fa26se040.icss.dto.user.BatchDeleteResponse;
+import com.fa26se040.icss.dto.user.BatchRestoreResponse;
 import com.fa26se040.icss.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -23,6 +28,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -134,5 +140,47 @@ public class UserController {
         log.info("Admin {} soft-deleting user {}", currentUserEmail, id);
         userService.softDelete(id, currentUserEmail);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/import-batches")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Page<ImportBatchSummaryResponse>> getImportBatches(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        int cappedSize = Math.min(Math.max(1, size), 100);
+        Pageable pageable = PageRequest.of(Math.max(0, page), cappedSize);
+        Page<ImportBatchSummaryResponse> result = userService.getImportBatches(pageable);
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/import-batches/{batchId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<BatchUserResponse>> getBatchDetails(
+            @PathVariable UUID batchId
+    ) {
+        log.info("Admin requested details for import batch: {}", batchId);
+        List<BatchUserResponse> users = userService.getBatchDetails(batchId);
+        return ResponseEntity.ok(users);
+    }
+
+    @DeleteMapping("/import-batches/{batchId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<BatchDeleteResponse> deleteBatch(
+            @PathVariable UUID batchId
+    ) {
+        log.info("Admin soft-deleting import batch: {}", batchId);
+        BatchDeleteResponse response = userService.deleteBatch(batchId);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/import-batches/{batchId}/restore")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<BatchRestoreResponse> restoreBatch(
+            @PathVariable UUID batchId
+    ) {
+        log.info("Admin restoring import batch: {}", batchId);
+        BatchRestoreResponse response = userService.restoreBatch(batchId);
+        return ResponseEntity.ok(response);
     }
 }
