@@ -15,6 +15,7 @@ import com.fa26se040.icss.exception.InvalidRoleAssignmentException;
 import com.fa26se040.icss.exception.MaxRecordsExceededException;
 import com.fa26se040.icss.exception.ResourceNotFoundException;
 import com.fa26se040.icss.repository.UserRepository;
+import com.fa26se040.icss.util.StringNormalizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -75,14 +76,24 @@ public class UserService {
             throw new InvalidRoleAssignmentException("Không thể tạo tài khoản với vai trò " + role + " qua API này. Chỉ hỗ trợ FACILITY_MANAGER, INTERNAL_GUARD, OUTSOURCED_GUARD.");
         }
 
-        // BR-03: Check userCode duplicate (active users only)
-        if (userRepository.existsByUserCodeAndDeletedAtIsNull(request.getUserCode().trim())) {
-            throw new DuplicateResourceException("Mã cán bộ " + request.getUserCode() + " đã tồn tại trong hệ thống.");
-        }
+        // Apply shared normalization
+        String normUserCode = StringNormalizer.normCode(request.getUserCode());
+        String normEmail = StringNormalizer.normEmail(request.getEmail());
+        String normFullName = StringNormalizer.normName(request.getFullName());
 
-        // BR-03: Check email duplicate (active users only)
-        if (userRepository.existsByEmailAndDeletedAtIsNull(request.getEmail().trim())) {
-            throw new DuplicateResourceException("Email " + request.getEmail() + " đã tồn tại trong hệ thống.");
+        // Duplicate checks with UPPER(userCode) and LOWER(email)
+        Set<String> existingCodes = userRepository.findExistingUserCodes(Set.of(normUserCode));
+        Set<String> existingEmails = userRepository.findExistingEmails(Set.of(normEmail));
+
+        List<String> duplicateReasons = new ArrayList<>();
+        if (!existingCodes.isEmpty()) {
+            duplicateReasons.add("Mã người dùng đã tồn tại trong hệ thống");
+        }
+        if (!existingEmails.isEmpty()) {
+            duplicateReasons.add("Email đã tồn tại trong hệ thống");
+        }
+        if (!duplicateReasons.isEmpty()) {
+            throw new DuplicateResourceException(String.join(". ", duplicateReasons));
         }
 
         // BR-06: Generate temporary password
@@ -90,14 +101,14 @@ public class UserService {
         String encodedPassword = passwordEncoder.encode(tempPassword);
 
         // 1. Process Face Registration with AI-Service & MinIO (VAL-05, BR-04, BR-08)
-        FaceDataResponseDto faceResponse = faceDataService.registerFace(request.getUserCode().trim(), request.getFaceImage());
+        FaceDataResponseDto faceResponse = faceDataService.registerFace(normUserCode, request.getFaceImage());
 
         // 2. Begin DB Transaction for User, FaceData & PasswordResetToken (BR-05, BR-06, BR-07)
         try {
             User user = User.builder()
-                    .fullName(request.getFullName().trim())
-                    .userCode(request.getUserCode().trim())
-                    .email(request.getEmail().trim())
+                    .fullName(normFullName)
+                    .userCode(normUserCode)
+                    .email(normEmail)
                     .password(encodedPassword)
                     .role(role)
                     .isActive(true) // BR-07: is_active = true by default
@@ -368,22 +379,72 @@ public class UserService {
             }
         }
 
-        if (colUserCode == -1 && headers.length >= 1) colUserCode = 0;
-        if (colFullName == -1 && headers.length >= 2) colFullName = 1;
-        if (colEmail == -1 && headers.length >= 3) colEmail = 2;
+        // Bỏ đoán vị trí cột khi header không khớp, trả lỗi thiếu cột
+        if (colUserCode == -1 || colFullName == -1 || colEmail == -1) {
+            throw new IllegalArgumentException("File metadata thiếu cột bắt buộc. Luồng người dùng thường cần đủ 3 cột: user_code, full_name, email.");
+        }
 
         List<BulkImportRowResult> rowResults = new ArrayList<>();
         int successCount = 0;
         int failureCount = 0;
 
+        // Lượt 1: duyệt toàn bộ dòng, chuẩn hoá, đếm số lần xuất hiện mỗi code và mỗi email vào 2 Map (KHÔNG chạm DB)
+        Map<String, Integer> codeCountsInFile = new HashMap<>();
+        Map<String, Integer> emailCountsInFile = new HashMap<>();
+
+        for (int i = 1; i < validLines.size(); i++) {
+            String line = validLines.get(i);
+            String[] tokens = parseCsvLine(line);
+
+            String rawUserCode = (colUserCode < tokens.length) ? tokens[colUserCode] : "";
+            String rawEmail = (colEmail < tokens.length) ? tokens[colEmail] : "";
+
+            String userCode = StringNormalizer.normCode(rawUserCode);
+            String email = StringNormalizer.normEmail(rawEmail);
+
+            if (!userCode.isBlank()) {
+                codeCountsInFile.merge(userCode, 1, Integer::sum);
+            }
+            if (!email.isBlank()) {
+                emailCountsInFile.merge(email, 1, Integer::sum);
+            }
+        }
+
+        // Lượt 2: dòng nào có count > 1 thì FAIL ngay, không gọi processSingleRow
         for (int i = 1; i < validLines.size(); i++) {
             int rowIndex = i + 1; // 1-based index
             String line = validLines.get(i);
             String[] tokens = parseCsvLine(line);
 
-            String userCode = (colUserCode < tokens.length) ? tokens[colUserCode].trim() : "";
-            String fullName = (colFullName < tokens.length) ? tokens[colFullName].trim() : "";
-            String email = (colEmail < tokens.length) ? tokens[colEmail].trim() : "";
+            String rawUserCode = (colUserCode < tokens.length) ? tokens[colUserCode] : "";
+            String rawFullName = (colFullName < tokens.length) ? tokens[colFullName] : "";
+            String rawEmail = (colEmail < tokens.length) ? tokens[colEmail] : "";
+
+            String userCode = StringNormalizer.normCode(rawUserCode);
+            String fullName = StringNormalizer.normName(rawFullName);
+            String email = StringNormalizer.normEmail(rawEmail);
+
+            // Kiểm tra trùng lặp trong nội bộ file (count > 1 thì CẢ HAI dòng đều FAIL)
+            List<String> inDuplicateErrors = new ArrayList<>();
+            if (!userCode.isBlank() && codeCountsInFile.getOrDefault(userCode, 0) > 1) {
+                inDuplicateErrors.add("Mã người dùng bị trùng lặp trong file import");
+            }
+            if (!email.isBlank() && emailCountsInFile.getOrDefault(email, 0) > 1) {
+                inDuplicateErrors.add("Email bị trùng lặp trong file import");
+            }
+
+            if (!inDuplicateErrors.isEmpty()) {
+                failureCount++;
+                rowResults.add(BulkImportRowResult.builder()
+                        .rowIndex(rowIndex)
+                        .userCode(userCode)
+                        .fullName(fullName)
+                        .email(email)
+                        .status("FAILED")
+                        .errorMessage(String.join(". ", inDuplicateErrors))
+                        .build());
+                continue;
+            }
 
             ZipImageEntry imgEntry = imageMap.get(userCode.toLowerCase());
             byte[] imgBytes = imgEntry != null ? imgEntry.bytes : null;

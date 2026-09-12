@@ -4,6 +4,7 @@ import com.fa26se040.icss.dto.BulkImportRowResult;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.repository.UserRepository;
+import com.fa26se040.icss.util.StringNormalizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -19,6 +20,9 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 @Component
@@ -43,39 +47,38 @@ public class UserBulkImportHelper {
             String imageFileName,
             String tempPassword
     ) {
-        String userCode = rawUserCode != null ? rawUserCode.trim() : "";
-        String fullName = rawFullName != null ? rawFullName.trim() : "";
-        String email = rawEmail != null ? rawEmail.trim() : "";
+        String userCode = StringNormalizer.normCode(rawUserCode);
+        String fullName = StringNormalizer.normName(rawFullName);
+        String email = StringNormalizer.normEmail(rawEmail);
 
-        // 1. Validate fields
+        // 1. Validate fields & gom lý do lỗi
+        List<String> errors = new ArrayList<>();
         if (userCode.isBlank()) {
-            return buildError(rowIndex, userCode, fullName, email, "Mã người dùng không được để trống");
-        }
-        if (userCode.length() > 50) {
-            return buildError(rowIndex, userCode, fullName, email, "Mã người dùng không được vượt quá 50 ký tự");
-        }
-        if (userRepository.existsByUserCodeAndDeletedAtIsNull(userCode)) {
-            return buildError(rowIndex, userCode, fullName, email, "Mã người dùng đã tồn tại trong hệ thống");
+            errors.add("Mã người dùng không được để trống");
+        } else if (userCode.length() > 50) {
+            errors.add("Mã người dùng không được vượt quá 50 ký tự");
+        } else if (!userRepository.findExistingUserCodes(Set.of(userCode)).isEmpty()) {
+            errors.add("Mã người dùng đã tồn tại trong hệ thống");
         }
 
         if (fullName.isBlank()) {
-            return buildError(rowIndex, userCode, fullName, email, "Họ và tên không được để trống");
-        }
-        if (fullName.length() > 100) {
-            return buildError(rowIndex, userCode, fullName, email, "Họ và tên không được vượt quá 100 ký tự");
+            errors.add("Họ và tên không được để trống");
+        } else if (fullName.length() > 100) {
+            errors.add("Họ và tên không được vượt quá 100 ký tự");
         }
 
         if (email.isBlank()) {
-            return buildError(rowIndex, userCode, fullName, email, "Email không được để trống");
+            errors.add("Email không được để trống");
+        } else if (email.length() > 100) {
+            errors.add("Email không được vượt quá 100 ký tự");
+        } else if (!EMAIL_PATTERN.matcher(email).matches()) {
+            errors.add("Định dạng Email không hợp lệ");
+        } else if (!userRepository.findExistingEmails(Set.of(email)).isEmpty()) {
+            errors.add("Email đã tồn tại trong hệ thống");
         }
-        if (email.length() > 100) {
-            return buildError(rowIndex, userCode, fullName, email, "Email không được vượt quá 100 ký tự");
-        }
-        if (!EMAIL_PATTERN.matcher(email).matches()) {
-            return buildError(rowIndex, userCode, fullName, email, "Định dạng Email không hợp lệ");
-        }
-        if (userRepository.existsByEmailAndDeletedAtIsNull(email)) {
-            return buildError(rowIndex, userCode, fullName, email, "Email đã tồn tại trong hệ thống");
+
+        if (!errors.isEmpty()) {
+            return buildError(rowIndex, userCode, fullName, email, String.join(". ", errors));
         }
 
         // 2. Validate face image
@@ -126,10 +129,8 @@ public class UserBulkImportHelper {
 
         } catch (Exception e) {
             log.error("Lỗi khi xử lý dòng {}: {}", rowIndex, e.getMessage());
-            // Mark transaction as rollback-only so User/FaceData DB records are undone
             TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
 
-            // Compensating action: cleanup MinIO if upload succeeded before exception
             try {
                 minioStorageService.deleteFaceImage(userCode);
             } catch (Exception minioEx) {
