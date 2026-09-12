@@ -1329,15 +1329,13 @@ export default function ManageAccountPage() {
                           {activeTab === 'NORMAL' ? (
                             <>
                               • Tải file mẫu Excel (<code>.xlsx</code>) và nhập thông tin (3 cột: <code>user_code</code>, <code>full_name</code>, <code>email</code>, tối đa 200 dòng).<br />
-                              • <strong>Lưu ý quan trọng:</strong> Cần Export / Lưu file Excel dưới dạng <code>metadata.csv</code>.<br />
-                              • Nén file <code>metadata.csv</code> cùng thư mục <code>images/</code> chứa ảnh chân dung (tối đa 350KB/ảnh, tên ảnh khớp với <code>user_code</code>) vào file <code>.zip</code> để nạp.
+                              • Nén file <code>metadata.xlsx</code> cùng thư mục <code>images/</code> chứa ảnh chân dung (tối đa 350KB/ảnh, tên ảnh khớp với <code>user_code</code>) vào file <code>.zip</code> để nạp.
                             </>
                           ) : (
                             <>
                               • Tải file mẫu Excel (<code>.xlsx</code>) và nhập thông tin (4 cột: <code>user_code</code>, <code>full_name</code>, <code>email</code>, <code>role</code>, tối đa 200 dòng).<br />
                               • Cột <code>role</code> bắt buộc có giá trị ở mọi dòng, chọn một trong các vai trò: <code>ADMIN</code>, <code>FACILITY_MANAGER</code>, <code>INTERNAL_GUARD</code>, <code>OUTSOURCED_GUARD</code>.<br />
-                              • <strong>Lưu ý quan trọng:</strong> Cần Export / Lưu file Excel dưới dạng <code>metadata.csv</code>.<br />
-                              • Nén file <code>metadata.csv</code> cùng thư mục <code>images/</code> chứa ảnh chân dung (tối đa 350KB/ảnh, tên ảnh khớp với <code>user_code</code>) vào file <code>.zip</code> để nạp.
+                              • Nén file <code>metadata.xlsx</code> cùng thư mục <code>images/</code> chứa ảnh chân dung (tối đa 350KB/ảnh, tên ảnh khớp với <code>user_code</code>) vào file <code>.zip</code> để nạp.
                             </>
                           )}
                         </div>

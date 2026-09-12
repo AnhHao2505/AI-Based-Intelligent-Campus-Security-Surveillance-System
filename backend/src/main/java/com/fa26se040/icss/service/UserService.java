@@ -30,6 +30,18 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.CellType;
+import org.apache.poi.ss.usermodel.CellValue;
+import org.apache.poi.ss.usermodel.DataFormat;
+import org.apache.poi.ss.usermodel.DataFormatter;
+import org.apache.poi.ss.usermodel.FormulaEvaluator;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
@@ -42,7 +54,6 @@ import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipInputStream;
-import java.util.zip.ZipOutputStream;
 
 @Service
 @RequiredArgsConstructor
@@ -344,148 +355,102 @@ public class UserService {
     }
 
     public byte[] generateSampleExcel() {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        try (ZipOutputStream zos = new ZipOutputStream(baos)) {
-            addZipEntry(zos, "[Content_Types].xml",
-                    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" +
-                    "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">\n" +
-                    "  <Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>\n" +
-                    "  <Default Extension=\"xml\" ContentType=\"application/xml\"/>\n" +
-                    "  <Override PartName=\"/xl/workbook.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml\"/>\n" +
-                    "  <Override PartName=\"/xl/worksheets/sheet1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/>\n" +
-                    "</Types>");
+        try (Workbook workbook = new XSSFWorkbook();
+             ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            Sheet sheet = workbook.createSheet("Sheet1");
 
-            addZipEntry(zos, "_rels/.rels",
-                    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" +
-                    "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">\n" +
-                    "  <Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"xl/workbook.xml\"/>\n" +
-                    "</Relationships>");
+            // Định dạng TEXT cho cột user_code
+            DataFormat dataFormat = workbook.createDataFormat();
+            CellStyle textStyle = workbook.createCellStyle();
+            textStyle.setDataFormat(dataFormat.getFormat("@"));
 
-            addZipEntry(zos, "xl/_rels/workbook.xml.rels",
-                    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" +
-                    "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">\n" +
-                    "  <Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet1.xml\"/>\n" +
-                    "</Relationships>");
+            // Hàng tiêu đề
+            Row headerRow = sheet.createRow(0);
+            headerRow.createCell(0).setCellValue("user_code");
+            headerRow.createCell(1).setCellValue("full_name");
+            headerRow.createCell(2).setCellValue("email");
 
-            addZipEntry(zos, "xl/workbook.xml",
-                    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" +
-                    "<workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">\n" +
-                    "  <sheets>\n" +
-                    "    <sheet name=\"Sheet1\" sheetId=\"1\" r:id=\"rId1\"/>\n" +
-                    "  </sheets>\n" +
-                    "</workbook>");
+            // Dòng dữ liệu mẫu
+            String[][] samples = {
+                    {"SV001", "Nguyễn Văn A", "nva@example.com"},
+                    {"SV002", "Trần Thị B", "ttb@example.com"}
+            };
 
-            addZipEntry(zos, "xl/worksheets/sheet1.xml",
-                    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" +
-                    "<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">\n" +
-                    "  <sheetData>\n" +
-                    "    <row r=\"1\">\n" +
-                    "      <c r=\"A1\" t=\"inlineStr\"><is><t>user_code</t></is></c>\n" +
-                    "      <c r=\"B1\" t=\"inlineStr\"><is><t>full_name</t></is></c>\n" +
-                    "      <c r=\"C1\" t=\"inlineStr\"><is><t>email</t></is></c>\n" +
-                    "    </row>\n" +
-                    "    <row r=\"2\">\n" +
-                    "      <c r=\"A2\" t=\"inlineStr\"><is><t>SV001</t></is></c>\n" +
-                    "      <c r=\"B2\" t=\"inlineStr\"><is><t>Nguyễn Văn A</t></is></c>\n" +
-                    "      <c r=\"C2\" t=\"inlineStr\"><is><t>nva@example.com</t></is></c>\n" +
-                    "    </row>\n" +
-                    "    <row r=\"3\">\n" +
-                    "      <c r=\"A3\" t=\"inlineStr\"><is><t>SV002</t></is></c>\n" +
-                    "      <c r=\"B3\" t=\"inlineStr\"><is><t>Trần Thị B</t></is></c>\n" +
-                    "      <c r=\"C3\" t=\"inlineStr\"><is><t>ttb@example.com</t></is></c>\n" +
-                    "    </row>\n" +
-                    "  </sheetData>\n" +
-                    "</worksheet>");
+            for (int i = 0; i < samples.length; i++) {
+                Row row = sheet.createRow(i + 1);
+                Cell cell0 = row.createCell(0);
+                cell0.setCellStyle(textStyle);
+                cell0.setCellValue(samples[i][0]);
+
+                row.createCell(1).setCellValue(samples[i][1]);
+                row.createCell(2).setCellValue(samples[i][2]);
+            }
+
+            sheet.setDefaultColumnStyle(0, textStyle);
+            sheet.autoSizeColumn(0);
+            sheet.autoSizeColumn(1);
+            sheet.autoSizeColumn(2);
+
+            workbook.write(baos);
+            return baos.toByteArray();
         } catch (IOException e) {
             log.error("Lỗi khi tạo file Excel mẫu: {}", e.getMessage(), e);
             throw new RuntimeException("Không thể tạo file Excel mẫu", e);
         }
-        return baos.toByteArray();
     }
 
     public byte[] generateSampleStaffExcel() {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        try (ZipOutputStream zos = new ZipOutputStream(baos)) {
-            addZipEntry(zos, "[Content_Types].xml",
-                    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" +
-                    "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">\n" +
-                    "  <Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>\n" +
-                    "  <Default Extension=\"xml\" ContentType=\"application/xml\"/>\n" +
-                    "  <Override PartName=\"/xl/workbook.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml\"/>\n" +
-                    "  <Override PartName=\"/xl/worksheets/sheet1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/>\n" +
-                    "</Types>");
+        try (Workbook workbook = new XSSFWorkbook();
+             ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            Sheet sheet = workbook.createSheet("Sheet1");
 
-            addZipEntry(zos, "_rels/.rels",
-                    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" +
-                    "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">\n" +
-                    "  <Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"xl/workbook.xml\"/>\n" +
-                    "</Relationships>");
+            // Định dạng TEXT cho cột user_code
+            DataFormat dataFormat = workbook.createDataFormat();
+            CellStyle textStyle = workbook.createCellStyle();
+            textStyle.setDataFormat(dataFormat.getFormat("@"));
 
-            addZipEntry(zos, "xl/_rels/workbook.xml.rels",
-                    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" +
-                    "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">\n" +
-                    "  <Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet1.xml\"/>\n" +
-                    "</Relationships>");
+            // Hàng tiêu đề
+            Row headerRow = sheet.createRow(0);
+            headerRow.createCell(0).setCellValue("user_code");
+            headerRow.createCell(1).setCellValue("full_name");
+            headerRow.createCell(2).setCellValue("email");
+            headerRow.createCell(3).setCellValue("role");
 
-            addZipEntry(zos, "xl/workbook.xml",
-                    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" +
-                    "<workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">\n" +
-                    "  <sheets>\n" +
-                    "    <sheet name=\"Sheet1\" sheetId=\"1\" r:id=\"rId1\"/>\n" +
-                    "  </sheets>\n" +
-                    "</workbook>");
+            // Dòng dữ liệu mẫu
+            String[][] samples = {
+                    {"NV001", "Nguyễn Văn An", "nva@fpt.edu.vn", "INTERNAL_GUARD"},
+                    {"FM001", "Trần Thị Bình", "ttb@fpt.edu.vn", "FACILITY_MANAGER"},
+                    {"OG001", "Lê Hoàng Cường", "lhc@fpt.edu.vn", "OUTSOURCED_GUARD"},
+                    {"AD001", "Phạm Minh Đức", "pmd@fpt.edu.vn", "ADMIN"}
+            };
 
-            addZipEntry(zos, "xl/worksheets/sheet1.xml",
-                    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" +
-                    "<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">\n" +
-                    "  <sheetData>\n" +
-                    "    <row r=\"1\">\n" +
-                    "      <c r=\"A1\" t=\"inlineStr\"><is><t>user_code</t></is></c>\n" +
-                    "      <c r=\"B1\" t=\"inlineStr\"><is><t>full_name</t></is></c>\n" +
-                    "      <c r=\"C1\" t=\"inlineStr\"><is><t>email</t></is></c>\n" +
-                    "      <c r=\"D1\" t=\"inlineStr\"><is><t>role</t></is></c>\n" +
-                    "    </row>\n" +
-                    "    <row r=\"2\">\n" +
-                    "      <c r=\"A2\" t=\"inlineStr\"><is><t>NV001</t></is></c>\n" +
-                    "      <c r=\"B2\" t=\"inlineStr\"><is><t>Nguyễn Văn An</t></is></c>\n" +
-                    "      <c r=\"C2\" t=\"inlineStr\"><is><t>nva@fpt.edu.vn</t></is></c>\n" +
-                    "      <c r=\"D2\" t=\"inlineStr\"><is><t>INTERNAL_GUARD</t></is></c>\n" +
-                    "    </row>\n" +
-                    "    <row r=\"3\">\n" +
-                    "      <c r=\"A3\" t=\"inlineStr\"><is><t>FM001</t></is></c>\n" +
-                    "      <c r=\"B3\" t=\"inlineStr\"><is><t>Trần Thị Bình</t></is></c>\n" +
-                    "      <c r=\"C3\" t=\"inlineStr\"><is><t>ttb@fpt.edu.vn</t></is></c>\n" +
-                    "      <c r=\"D3\" t=\"inlineStr\"><is><t>FACILITY_MANAGER</t></is></c>\n" +
-                    "    </row>\n" +
-                    "    <row r=\"4\">\n" +
-                    "      <c r=\"A4\" t=\"inlineStr\"><is><t>OG001</t></is></c>\n" +
-                    "      <c r=\"B4\" t=\"inlineStr\"><is><t>Lê Hoàng Cường</t></is></c>\n" +
-                    "      <c r=\"C4\" t=\"inlineStr\"><is><t>lhc@fpt.edu.vn</t></is></c>\n" +
-                    "      <c r=\"D4\" t=\"inlineStr\"><is><t>OUTSOURCED_GUARD</t></is></c>\n" +
-                    "    </row>\n" +
-                    "    <row r=\"5\">\n" +
-                    "      <c r=\"A5\" t=\"inlineStr\"><is><t>AD001</t></is></c>\n" +
-                    "      <c r=\"B5\" t=\"inlineStr\"><is><t>Phạm Minh Đức</t></is></c>\n" +
-                    "      <c r=\"C5\" t=\"inlineStr\"><is><t>pmd@fpt.edu.vn</t></is></c>\n" +
-                    "      <c r=\"D5\" t=\"inlineStr\"><is><t>ADMIN</t></is></c>\n" +
-                    "    </row>\n" +
-                    "    <row r=\"7\">\n" +
-                    "      <c r=\"A7\" t=\"inlineStr\"><is><t>CHÚ THÍCH: Cột role bắt buộc nhập chính xác 1 trong các giá trị: ADMIN, FACILITY_MANAGER, INTERNAL_GUARD, OUTSOURCED_GUARD. Không để trống. Không chấp nhận NORMAL_USER. Xóa các dòng mẫu trước khi nạp.</t></is></c>\n" +
-                    "    </row>\n" +
-                    "  </sheetData>\n" +
-                    "</worksheet>");
+            for (int i = 0; i < samples.length; i++) {
+                Row row = sheet.createRow(i + 1);
+                Cell cell0 = row.createCell(0);
+                cell0.setCellStyle(textStyle);
+                cell0.setCellValue(samples[i][0]);
+
+                row.createCell(1).setCellValue(samples[i][1]);
+                row.createCell(2).setCellValue(samples[i][2]);
+                row.createCell(3).setCellValue(samples[i][3]);
+            }
+
+            // Dòng ghi chú liệt kê 4 giá trị hợp lệ
+            Row noteRow = sheet.createRow(6);
+            noteRow.createCell(0).setCellValue("CHÚ THÍCH: Cột role bắt buộc nhập chính xác 1 trong các giá trị: ADMIN, FACILITY_MANAGER, INTERNAL_GUARD, OUTSOURCED_GUARD. Không để trống. Không chấp nhận NORMAL_USER. Xóa các dòng mẫu trước khi nạp.");
+
+            sheet.setDefaultColumnStyle(0, textStyle);
+            sheet.autoSizeColumn(0);
+            sheet.autoSizeColumn(1);
+            sheet.autoSizeColumn(2);
+            sheet.autoSizeColumn(3);
+
+            workbook.write(baos);
+            return baos.toByteArray();
         } catch (IOException e) {
             log.error("Lỗi khi tạo file Excel mẫu cán bộ: {}", e.getMessage(), e);
             throw new RuntimeException("Không thể tạo file Excel mẫu cán bộ", e);
         }
-        return baos.toByteArray();
-    }
-
-    private void addZipEntry(ZipOutputStream zos, String path, String content) throws IOException {
-        ZipEntry entry = new ZipEntry(path);
-        zos.putNextEntry(entry);
-        zos.write(content.getBytes(StandardCharsets.UTF_8));
-        zos.closeEntry();
     }
 
     public BulkImportResponse bulkImportNormalUsers(MultipartFile zipFile) {
@@ -522,58 +487,19 @@ public class UserService {
             }
 
             try (ZipFile zf = new ZipFile(tempZip)) {
-                // Lượt 1: Chỉ tìm và đọc metadata.csv để kiểm tra số dòng
-                ZipEntry csvEntry = null;
-                Enumeration<? extends ZipEntry> entries = zf.entries();
-                while (entries.hasMoreElements()) {
-                    ZipEntry entry = entries.nextElement();
-                    if (entry.isDirectory() || entry.getName().startsWith("__MACOSX") || entry.getName().startsWith(".")) {
-                        continue;
-                    }
-                    String entryName = entry.getName().replace('\\', '/');
-                    String fileNameOnly = entryName.contains("/") ? entryName.substring(entryName.lastIndexOf('/') + 1) : entryName;
-                    if (fileNameOnly.equalsIgnoreCase("metadata.csv")) {
-                        csvEntry = entry;
-                        break;
-                    }
+                // Lượt 1: Chỉ tìm và đọc metadata.xlsx để kiểm tra số dòng
+                List<String[]> dataRows = docBangDuLieu(zf);
+
+                if (dataRows.isEmpty()) {
+                    throw new IllegalArgumentException("File metadata.xlsx rỗng.");
                 }
 
-                if (csvEntry == null) {
-                    throw new IllegalArgumentException("Không tìm thấy file metadata.csv trong file ZIP.");
-                }
-
-                byte[] csvBytes;
-                try (InputStream is = zf.getInputStream(csvEntry)) {
-                    csvBytes = is.readAllBytes();
-                } catch (IOException e) {
-                    log.error("Lỗi khi đọc file metadata.csv từ ZIP: {}", e.getMessage(), e);
-                    throw new IllegalArgumentException("Không thể đọc file metadata.csv trong file ZIP: " + e.getMessage());
-                }
-
-                String csvText = new String(csvBytes, StandardCharsets.UTF_8);
-                if (csvText.startsWith("\uFEFF")) {
-                    csvText = csvText.substring(1);
-                }
-
-                String[] lines = csvText.split("\\r?\\n");
-                List<String> validLines = new ArrayList<>();
-                for (String line : lines) {
-                    if (!line.trim().isEmpty()) {
-                        validLines.add(line);
-                    }
-                }
-
-                if (validLines.isEmpty()) {
-                    throw new IllegalArgumentException("File metadata.csv rỗng.");
-                }
-
-                int dataRowCount = validLines.size() - 1;
+                int dataRowCount = dataRows.size() - 1;
                 if (dataRowCount > 200) {
-                    throw new MaxRecordsExceededException("File metadata.csv chứa " + dataRowCount + " bản ghi, vượt quá số lượng tối đa 200 bản ghi cho phép.");
+                    throw new MaxRecordsExceededException("File metadata.xlsx chứa " + dataRowCount + " bản ghi, vượt quá số lượng tối đa 200 bản ghi cho phép.");
                 }
 
-                String headerLine = validLines.get(0);
-                String[] headers = parseCsvLine(headerLine);
+                String[] headers = dataRows.get(0);
                 int colUserCode = -1;
                 int colFullName = -1;
                 int colEmail = -1;
@@ -605,7 +531,7 @@ public class UserService {
 
                 // Lượt 2: Tới đây mới nạp ảnh vào imageMap
                 Map<String, ZipImageEntry> imageMap = new HashMap<>();
-                entries = zf.entries();
+                Enumeration<? extends ZipEntry> entries = zf.entries();
                 while (entries.hasMoreElements()) {
                     ZipEntry entry = entries.nextElement();
                     if (entry.isDirectory() || entry.getName().startsWith("__MACOSX") || entry.getName().startsWith(".")) {
@@ -631,9 +557,8 @@ public class UserService {
                 Map<String, Integer> codeCountsInFile = new HashMap<>();
                 Map<String, Integer> emailCountsInFile = new HashMap<>();
 
-                for (int i = 1; i < validLines.size(); i++) {
-                    String line = validLines.get(i);
-                    String[] tokens = parseCsvLine(line);
+                for (int i = 1; i < dataRows.size(); i++) {
+                    String[] tokens = dataRows.get(i);
 
                     String rawUserCode = (colUserCode < tokens.length) ? tokens[colUserCode] : "";
                     String rawEmail = (colEmail < tokens.length) ? tokens[colEmail] : "";
@@ -653,10 +578,9 @@ public class UserService {
                 UUID importBatchId = UUID.randomUUID();
                 log.info("Bulk import batch {} started, file: {}", importBatchId, zipFile.getOriginalFilename());
 
-                for (int i = 1; i < validLines.size(); i++) {
+                for (int i = 1; i < dataRows.size(); i++) {
                     int rowIndex = i + 1; // 1-based index
-                    String line = validLines.get(i);
-                    String[] tokens = parseCsvLine(line);
+                    String[] tokens = dataRows.get(i);
 
                     String rawUserCode = (colUserCode < tokens.length) ? tokens[colUserCode] : "";
                     String rawFullName = (colFullName < tokens.length) ? tokens[colFullName] : "";
@@ -778,23 +702,165 @@ public class UserService {
         }
     }
 
-    private String[] parseCsvLine(String line) {
-        List<String> values = new ArrayList<>();
-        StringBuilder sb = new StringBuilder();
-        boolean inQuotes = false;
-        for (int i = 0; i < line.length(); i++) {
-            char c = line.charAt(i);
-            if (c == '"') {
-                inQuotes = !inQuotes;
-            } else if (c == ',' && !inQuotes) {
-                values.add(sb.toString().trim());
-                sb.setLength(0);
-            } else {
-                sb.append(c);
+    private List<String[]> docBangDuLieu(ZipFile zf) {
+        ZipEntry xlsxEntry = null;
+        Enumeration<? extends ZipEntry> entries = zf.entries();
+        while (entries.hasMoreElements()) {
+            ZipEntry entry = entries.nextElement();
+            if (entry.isDirectory() || entry.getName().startsWith("__MACOSX") || entry.getName().startsWith(".")) {
+                continue;
+            }
+            String entryName = entry.getName().replace('\\', '/');
+            String fileNameOnly = entryName.contains("/") ? entryName.substring(entryName.lastIndexOf('/') + 1) : entryName;
+            if (fileNameOnly.equalsIgnoreCase("metadata.xlsx")) {
+                xlsxEntry = entry;
+                break;
             }
         }
-        values.add(sb.toString().trim());
-        return values.toArray(new String[0]);
+
+        if (xlsxEntry == null) {
+            throw new IllegalArgumentException("Không tìm thấy file metadata.xlsx trong file ZIP.");
+        }
+
+        List<String[]> result = new ArrayList<>();
+        try (InputStream is = zf.getInputStream(xlsxEntry);
+             Workbook workbook = new XSSFWorkbook(is)) {
+            if (workbook.getNumberOfSheets() == 0) {
+                throw new IllegalArgumentException("File metadata.xlsx không chứa sheet dữ liệu nào.");
+            }
+            Sheet sheet = workbook.getSheetAt(0);
+            DataFormatter formatter = new DataFormatter();
+            FormulaEvaluator evaluator = workbook.getCreationHelper().createFormulaEvaluator();
+
+            int firstRowNum = sheet.getFirstRowNum();
+            int lastRowNum = sheet.getLastRowNum();
+            if (firstRowNum < 0 || lastRowNum < firstRowNum) {
+                return result;
+            }
+
+            // Tìm hàng đầu tiên có dữ liệu làm header
+            int headerRowIdx = -1;
+            int maxCols = 0;
+            for (int r = firstRowNum; r <= lastRowNum; r++) {
+                Row row = sheet.getRow(r);
+                if (row == null) continue;
+                boolean hasData = false;
+                short lastCell = row.getLastCellNum();
+                if (lastCell > 0) {
+                    for (int c = 0; c < lastCell; c++) {
+                        String val = getCellValueAsString(row.getCell(c), formatter, evaluator);
+                        if (!val.isEmpty()) {
+                            hasData = true;
+                            break;
+                        }
+                    }
+                }
+                if (hasData) {
+                    headerRowIdx = r;
+                    maxCols = (int) lastCell;
+                    break;
+                }
+            }
+
+            if (headerRowIdx == -1) {
+                return result;
+            }
+
+            // Xác định maxCols của toàn bảng để các dòng luôn đủ ô
+            for (int r = headerRowIdx; r <= lastRowNum; r++) {
+                Row row = sheet.getRow(r);
+                if (row != null && row.getLastCellNum() > maxCols) {
+                    maxCols = (int) row.getLastCellNum();
+                }
+            }
+
+            for (int r = headerRowIdx; r <= lastRowNum; r++) {
+                Row row = sheet.getRow(r);
+                if (row == null) {
+                    continue;
+                }
+                String[] rowData = new String[maxCols];
+                boolean allEmpty = true;
+                for (int c = 0; c < maxCols; c++) {
+                    Cell cell = row.getCell(c);
+                    String val = getCellValueAsString(cell, formatter, evaluator);
+                    rowData[c] = val;
+                    if (!val.isEmpty()) {
+                        allEmpty = false;
+                    }
+                }
+                if (!allEmpty) {
+                    result.add(rowData);
+                }
+            }
+        } catch (IOException e) {
+            log.error("Lỗi khi mở/đọc file metadata.xlsx từ ZIP: {}", e.getMessage(), e);
+            throw new IllegalArgumentException("Không thể đọc file metadata.xlsx trong file ZIP: " + e.getMessage());
+        }
+
+        return result;
+    }
+
+    private String getCellValueAsString(Cell cell, DataFormatter formatter, FormulaEvaluator evaluator) {
+        if (cell == null) {
+            return "";
+        }
+        CellType cellType = cell.getCellType();
+        if (cellType == CellType.BLANK) {
+            return "";
+        }
+        if (cellType == CellType.FORMULA) {
+            try {
+                CellValue cellValue = evaluator.evaluate(cell);
+                if (cellValue == null) {
+                    return "";
+                }
+                switch (cellValue.getCellType()) {
+                    case STRING:
+                        return cellValue.getStringValue() != null ? cellValue.getStringValue().trim() : "";
+                    case NUMERIC:
+                        double numVal = cellValue.getNumberValue();
+                        if (numVal == (long) numVal) {
+                            return String.valueOf((long) numVal);
+                        }
+                        String strVal = String.valueOf(numVal);
+                        if (strVal.endsWith(".0")) {
+                            strVal = strVal.substring(0, strVal.length() - 2);
+                        }
+                        return strVal.trim();
+                    case BOOLEAN:
+                        return String.valueOf(cellValue.getBooleanValue());
+                    default:
+                        return "";
+                }
+            } catch (Exception e) {
+                String formatted = formatter.formatCellValue(cell);
+                return cleanNumberString(formatted);
+            }
+        }
+
+        if (cellType == CellType.STRING) {
+            return cell.getStringCellValue() != null ? cell.getStringCellValue().trim() : "";
+        }
+
+        if (cellType == CellType.NUMERIC) {
+            String formatted = formatter.formatCellValue(cell);
+            return cleanNumberString(formatted);
+        }
+
+        String formatted = formatter.formatCellValue(cell);
+        return cleanNumberString(formatted);
+    }
+
+    private String cleanNumberString(String str) {
+        if (str == null) {
+            return "";
+        }
+        str = str.trim();
+        if (str.endsWith(".0")) {
+            str = str.substring(0, str.length() - 2);
+        }
+        return str;
     }
 
     private String generateRandomPassword(int length) {
