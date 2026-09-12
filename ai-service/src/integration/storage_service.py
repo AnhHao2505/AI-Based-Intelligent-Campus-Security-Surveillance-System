@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 class StorageService:
     """
     Module quản lý lưu trữ đối tượng MinIO S3-compatible:
-    1. Bucket 'face-profiles': Lưu ảnh hồ sơ mẫu 3 góc của sinh viên / nhân sự ({code}/{code}_{angle}.jpg)
+    1. Bucket 'face-profiles': Lưu ảnh mặt chính diện của sinh viên / nhân sự ({code}.jpg)
     2. Bucket 'security-evidence': Lưu ảnh bằng chứng vi phạm an ninh ({YYYY-MM-DD}/{camera_code}/...)
     """
     def __init__(self):

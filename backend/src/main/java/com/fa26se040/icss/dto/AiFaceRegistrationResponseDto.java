@@ -16,11 +16,8 @@ public class AiFaceRegistrationResponseDto {
     private boolean success;
     private String code;
 
-    @JsonProperty("full_name")
-    private String fullName;
-
-    @JsonProperty("image_front_url")
-    private String imageFrontUrl;
+    @JsonProperty("face_count")
+    private Integer faceCount;
 
     @JsonProperty("embedding_front")
     private List<Float> embeddingFront;

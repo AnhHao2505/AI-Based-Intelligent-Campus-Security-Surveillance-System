@@ -4,9 +4,6 @@
 // Build incrementally (phát triển từ từ ERD, ko build toàn bộ hệ thống
 // mà chỉ build erd liên quan đến function)
 
-// ============================================================================
-// ENTITY OF AUTHENTICATION MODULE
-// ============================================================================
 Table users {
   id UUID [pk, default: `gen_random_uuid()`]
   full_name VARCHAR(100) [not null]
@@ -29,9 +26,6 @@ Table password_reset_tokens {
   created_at TIMESTAMPTZ [default: `CURRENT_TIMESTAMP`]
 }
 
-// ============================================================================
-// ENTITY OF M06 AREA MANAGEMENT MODULE
-// ============================================================================
 Table areas {
   id UUID [pk, default: `gen_random_uuid()`]
   code VARCHAR(50) [not null]
@@ -62,9 +56,6 @@ Table floor_plans {
   }
 }
 
-// ============================================================================
-// ENTITY OF CAMERA & AI SURVEILLANCE MODULE
-// ============================================================================
 Table cameras {
   id UUID [pk, default: `gen_random_uuid()`]
   camera_code VARCHAR(50) [not null, unique, note: 'CAM-001']
@@ -101,7 +92,6 @@ Table face_data {
   id UUID [pk, default: `gen_random_uuid()`]
   user_id UUID [unique, note: 'FK to users']
   code VARCHAR(50) [not null, note: 'MSSV hoặc MSNV']
-  full_name VARCHAR(100) [not null]
   image_front_url VARCHAR(512) [not null]
   embedding_front vector(512) [not null]
   created_at TIMESTAMPTZ [not null, default: `CURRENT_TIMESTAMP`]
@@ -128,9 +118,6 @@ Table area_cameras {
   }
 }
 
-// ============================================================================
-// ENTITY OF ACCESS REQUEST & SCHEDULING MODULE
-// ============================================================================
 Table access_requests {
   id UUID [pk, default: `gen_random_uuid()`]
   area_id UUID [not null, note: 'FK to areas — khu vực cần truy cập']

@@ -1,4 +1,3 @@
- 3. Register content of Capstone Project 
 (*) 3.1. Capstone Project name: 
 English: Develop an AI-Based Intelligent Campus Security Surveillance System for Restricted Area Access Control in Tân Uyên FPTU Campus.
 Vietnamese: Xây dựng hệ thống giám sát an ninh thông minh dựa trên AI nhằm kiểm soát truy cập vào khu vực hạn chế trong khuôn viên trường đại học FPT cơ sở Tân Uyên
@@ -28,7 +27,6 @@ Security
 The system shall implement role-based access control (RBAC), secure authentication, encrypted communication, and secure storage of surveillance data to protect sensitive security information.
 Reliability
 The system shall provide continuous monitoring with a minimum system availability of 99.5% and ensure that surveillance events are recorded reliably even during temporary network interruptions.
- (*) 3.2. Main proposal content (including result and product)   
 Proposed Solutions:
 The proposed system integrates AI-powered computer vision with existing surveillance cameras to automatically monitor restricted areas within the campus. The system identifies authorized and unauthorized individuals, detects access violations in real time, generates instant alerts, records security events, and provides a centralized dashboard for campus security management. The solution supports both automated surveillance and manual verification by security personnel.
 Actors and Functional Responsibilities
@@ -67,69 +65,5 @@ The AI Surveillance Engine shall be able to:
 ● Detect entry into restricted areas.
 ● Generate real-time alerts.
 ● Record AI detection logs.
-Applied Theory:
-Students are expected to study and apply knowledge in the following areas:
-Software Engineering
-● Software Requirements Engineering
-● Object-Oriented Analysis and Design
-● Software Architecture
-● RESTful API Development
-Artificial Intelligence
-● Computer Vision
-● Deep Learning for Object Detection
-● Face Detection and Recognition
-● Human Detection using YOLO or similar models
-● Image Classification
-Security
-● Access Control
-● Authentication and Authorization
-● Event Logging and Audit Trails
-Database and Cloud
-● PostgreSQL
-● File Storage
-● Docker
-● Cloud Deployment
-Recommended Technologies
-● Spring Boot
-● Python
-● ReactJS
-● OpenCV
-● YOLOv8 (or equivalent pre-trained model)
-● PostgreSQL
-● WebSocket for real-time notifications
-Products (Expected Deliverables):
-The final product shall include:
-Web Application
-● Security management dashboard
-● Live surveillance monitoring
-● AI incident management
-● Restricted area management
-● Security reporting module
-AI Detection Service
-● Real-time person detection
-● Unauthorized access detection
-● Event classification
-● Alert generation
-Mobile Application (Optional)
-● Real-time security notifications
-● Incident review
-● Alert acknowledgement
-Proposed Tasks:
-Package 1 Requirement Analysis
-Analyze campus security requirements, restricted-area scenarios, stakeholder needs, and AI surveillance objectives.
-Package 2  System Design
-Design the overall system architecture, database schema, AI processing workflow, camera integration, and user interface.
-Package 3 AI Surveillance Module
-Develop the AI-based video analysis module for human detection, unauthorized access detection, and incident logging.
-Package 4 Security Management Platform
-Develop the web application for managing restricted areas, surveillance cameras, users, and access permissions.
-Package  5 Real-Time Monitoring and Notification
-Implement live camera monitoring, real-time alerts, incident verification, and notification services.
-Package 6 Reporting and Analytics
-Develop security dashboards, incident statistics, historical event search, and report export functions.
-Package  7 System Integration and Testing
-Integrate all software components, perform functional, performance, security, and AI accuracy testing, and validate the complete surveillance workflow.
-Package 8 Documentation and Deployment
-Prepare technical documentation, user manuals, deployment guides, API documentation, and the final graduation thesis report.
  
  

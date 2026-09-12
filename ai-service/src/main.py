@@ -130,12 +130,12 @@ face_embedder = FaceEmbedder(embedding_dim=512)
 @app.post("/api/v1/faces/process-registration")
 async def process_face_registration(
     code: str = Form(...),
-    full_name: str = Form(...),
+    full_name: Optional[str] = Form(None),
     front_image: UploadFile = File(...)
 ):
     """
-    API nhận diện & trích xuất Vector Embedding 512 chiều từ ảnh khuôn mặt (Front)
-    và lưu trữ vào MinIO cho Dataset quản trị.
+    API nhận diện & trích xuất Vector Embedding 512 chiều từ ảnh khuôn mặt
+    và đếm số lượng khuôn mặt phát hiện được.
     """
     global default_pipeline
     if not default_pipeline:
@@ -154,6 +154,8 @@ async def process_face_registration(
 
     # Phát hiện khuôn mặt
     faces = default_pipeline.face_detector.detect_in_image(img)
+    face_count = len(faces)
+
     if not faces:
         # Nếu không tìm thấy mặt với ngưỡng cao, thử trích xuất trực tiếp trên toàn bộ ảnh chân dung
         face_crop = img
@@ -169,23 +171,13 @@ async def process_face_registration(
     # Trích xuất vector 512 chiều
     vector_512 = face_embedder.extract_embedding(face_crop)
 
-    # Upload ảnh JPEG đã được chuẩn hóa lên MinIO
-    uploaded_url = storage_service.upload_face_image(jpeg_bytes, code=code, angle="front")
-    image_front_url = uploaded_url or f"/storage/faces/{code}/{code}_front.jpg"
-
     return {
         "success": True,
         "code": code,
         "full_name": full_name,
-        "image_front_url": image_front_url,
+        "face_count": face_count,
         "embedding_front": vector_512
     }
-
-@app.delete("/api/v1/faces/{code}")
-async def delete_face_profile(code: str):
-    """Xóa toàn bộ ảnh hồ sơ trong MinIO theo mã định danh (MSSV/MSNV)"""
-    success = storage_service.delete_face_profile(code)
-    return {"success": success, "code": code}
 
 # Quản lý các Stream Worker đang chạy
 from .pipeline.stream_worker import CameraStreamWorker

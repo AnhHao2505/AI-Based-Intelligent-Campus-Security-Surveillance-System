@@ -8,13 +8,12 @@ import lombok.NoArgsConstructor;
 import java.util.List;
 
 @Data
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class BulkImportResponseDto {
-    private int totalProcessed;
+@Builder
+public class BulkImportResponse {
+    private int totalRows;
     private int successCount;
-    private int failedCount;
-    private List<String> importedCodes;
-    private List<String> errorMessages;
+    private int failureCount;
+    private List<BulkImportRowResult> results;
 }

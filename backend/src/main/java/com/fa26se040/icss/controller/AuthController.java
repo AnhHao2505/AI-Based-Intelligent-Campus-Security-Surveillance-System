@@ -11,7 +11,6 @@ import com.fa26se040.icss.dto.AuthResponse;
 import com.fa26se040.icss.dto.ForgotPasswordRequest;
 import com.fa26se040.icss.dto.GoogleLoginRequest;
 import com.fa26se040.icss.dto.LoginRequest;
-import com.fa26se040.icss.dto.RegisterRequest;
 import com.fa26se040.icss.dto.ResetPasswordRequest;
 import com.fa26se040.icss.dto.UserInfo;
 import com.fa26se040.icss.service.AuthService;
@@ -36,14 +35,6 @@ public class AuthController {
         log.info("Received request to reset password using token");
         authService.resetPassword(request);
         return ResponseEntity.ok().build();
-    }
-
-    @PostMapping("/register")
-    // @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<UserInfo> register(@Valid @RequestBody RegisterRequest request) {
-        log.info("Received request to register user with email: {} by Admin", request.getEmail());
-        UserInfo response = authService.registerUser(request);
-        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/login")
