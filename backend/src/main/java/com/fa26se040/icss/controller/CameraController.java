@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import com.fa26se040.icss.dto.accessrequest.AreaSimpleResponse;
 import com.fa26se040.icss.dto.camera.*;
 import com.fa26se040.icss.enums.CameraStatus;
 import com.fa26se040.icss.enums.OperationalStatus;
@@ -41,9 +42,10 @@ public class CameraController {
             @RequestParam(required = false) String search,
             @RequestParam(required = false) CameraStatus status,
             @RequestParam(required = false) OperationalStatus operationalStatus,
+            @RequestParam(required = false, defaultValue = "false") Boolean forceSync,
             @PageableDefault(size = 10) Pageable pageable) {
-        log.info("REST request to list cameras with filters");
-        Page<CameraListResponse> list = cameraService.listCameras(search, status, operationalStatus, pageable);
+        log.info("REST request to list cameras with filters, forceSync: {}", forceSync);
+        Page<CameraListResponse> list = cameraService.listCameras(search, status, operationalStatus, forceSync, pageable);
         return ResponseEntity.ok(list);
     }
 
@@ -55,7 +57,7 @@ public class CameraController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
     public ResponseEntity<CameraDetailResponse> getDetail(@PathVariable UUID id) {
         log.info("REST request to get camera detail for id: {}", id);
         CameraDetailResponse detail = cameraService.getCameraDetail(id);
@@ -86,14 +88,6 @@ public class CameraController {
         return ResponseEntity.ok(response);
     }
 
-    @PutMapping("/{id}/specification")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<CameraSpecificationResponse> upsertSpec(@PathVariable UUID id, @Valid @RequestBody CameraSpecificationRequest req) {
-        log.info("REST request to upsert camera spec: {}", id);
-        CameraSpecificationResponse spec = cameraService.upsertSpecification(id, req);
-        return ResponseEntity.ok(spec);
-    }
-
     @PutMapping("/{id}/stream-config")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<CameraStreamConfigResponse> upsertStream(@PathVariable UUID id, @Valid @RequestBody CameraStreamConfigRequest req) {
@@ -110,5 +104,12 @@ public class CameraController {
         log.info("REST request to get health logs for camera: {}", id);
         Page<CameraHealthLogResponse> logs = cameraService.getHealthLogs(id, pageable);
         return ResponseEntity.ok(logs);
+    }
+
+    @GetMapping("/{id}/areas")
+    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER', 'INTERNAL_GUARD')")
+    public ResponseEntity<List<AreaSimpleResponse>> getAreas(@PathVariable UUID id) {
+        log.info("REST request to get areas assigned to camera: {}", id);
+        return ResponseEntity.ok(cameraService.getCameraAreas(id));
     }
 }

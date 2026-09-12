@@ -35,6 +35,22 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(body, ex.getErrorCode().getHttpStatus());
     }
 
+    @ExceptionHandler(CameraException.class)
+    public ResponseEntity<Map<String, Object>> handleCameraException(CameraException ex) {
+        String message = ex.getErrorCode().getMessageTemplate();
+        if (ex.getArgs() != null && ex.getArgs().length > 0 && message.contains("{n}")) {
+            message = message.replace("{n}", String.valueOf(ex.getArgs()[0]));
+        }
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now().toString());
+        body.put("status", ex.getErrorCode().getHttpStatus().value());
+        body.put("error", ex.getErrorCode().getHttpStatus().getReasonPhrase());
+        body.put("code", ex.getErrorCode().getCode());
+        body.put("message", message);
+        return new ResponseEntity<>(body, ex.getErrorCode().getHttpStatus());
+    }
+
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<Map<String, Object>> handleAccessDenied(AccessDeniedException ex) {
         return buildResponse(HttpStatus.FORBIDDEN, "Access denied: " + ex.getMessage());

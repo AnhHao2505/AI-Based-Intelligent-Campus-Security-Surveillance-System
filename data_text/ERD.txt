@@ -69,31 +69,12 @@ Table cameras {
   id UUID [pk, default: `gen_random_uuid()`]
   camera_code VARCHAR(50) [not null, unique, note: 'CAM-001']
   name VARCHAR(100) [not null, note: 'Tên camera']
-  mounting_height NUMERIC(5,2)
-  orientation NUMERIC(5,2)
-  tilt_angle NUMERIC(5,2)
   status VARCHAR(50) [not null, note: 'ACTIVE | DECOMMISSIONED']
   operational_status VARCHAR(50) [not null, note: 'ONLINE | OFFLINE | ERROR']
   installed_at TIMESTAMPTZ
   created_at TIMESTAMPTZ [default: `CURRENT_TIMESTAMP`]
   updated_at TIMESTAMPTZ [default: `CURRENT_TIMESTAMP`]
   deleted_at TIMESTAMPTZ
-}
-
-Table camera_specifications {
-  id UUID [pk, default: `gen_random_uuid()`]
-  camera_id UUID [not null, unique, note: 'FK to cameras']
-  manufacturer VARCHAR(100)
-  model VARCHAR(100)
-  serial_number VARCHAR(100)
-  resolution VARCHAR(50)
-  fps INT
-  lens VARCHAR(100)
-  focal_length VARCHAR(50)
-  field_of_view NUMERIC(5,2)
-  night_vision BOOLEAN
-  weather_proof BOOLEAN
-  firmware_version VARCHAR(50)
 }
 
 Table camera_stream_configurations {
@@ -191,7 +172,6 @@ Table user_area_schedules {
 }
 
 // Relationships
-Ref: camera_specifications.camera_id - cameras.id
 Ref: camera_stream_configurations.camera_id - cameras.id
 Ref: face_data.user_id - users.id
 Ref: camera_health_logs.camera_id > cameras.id

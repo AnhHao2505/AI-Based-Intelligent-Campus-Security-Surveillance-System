@@ -4,10 +4,11 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
+import com.fa26se040.icss.dto.accessrequest.AreaSimpleResponse;
 import com.fa26se040.icss.enums.CameraStatus;
 import com.fa26se040.icss.enums.OperationalStatus;
 
@@ -19,14 +20,11 @@ public class CameraDetailResponse {
     private UUID id;
     private String cameraCode;
     private String name;
-    private BigDecimal mountingHeight;
-    private BigDecimal orientation;
-    private BigDecimal tiltAngle;
     private CameraStatus status;
     private OperationalStatus operationalStatus;
     private OffsetDateTime installedAt;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
-    private CameraSpecificationResponse specification;
     private CameraStreamConfigResponse streamConfig;
+    private List<AreaSimpleResponse> assignedAreas;
 }

@@ -28,4 +28,7 @@ public interface CameraRepository extends JpaRepository<Camera, UUID> {
                               @Param("status") CameraStatus status,
                               @Param("opStatus") OperationalStatus opStatus,
                               Pageable pageable);
+
+    @Query(value = "SELECT nextval('camera_code_seq')", nativeQuery = true)
+    Long getNextCameraCodeSequence();
 }

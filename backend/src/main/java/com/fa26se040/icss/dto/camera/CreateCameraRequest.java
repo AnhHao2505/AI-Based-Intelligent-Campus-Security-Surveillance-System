@@ -6,7 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 
 @Data
 @Builder
@@ -21,9 +21,5 @@ public class CreateCameraRequest {
     @Size(max = 100, message = "Camera name cannot exceed 100 characters")
     private String name;
 
-    private BigDecimal mountingHeight;
-
-    private BigDecimal orientation;
-
-    private BigDecimal tiltAngle;
+    private OffsetDateTime installedAt;
 }

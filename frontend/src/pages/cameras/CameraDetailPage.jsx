@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
-  Settings,
   Video,
   Activity,
   Info,
@@ -12,6 +11,7 @@ import {
   PowerOff,
   ChevronLeft,
   ChevronRight,
+  MapPin,
   HelpCircle,
 } from "lucide-react";
 import {
@@ -19,7 +19,6 @@ import {
   updateCamera,
   decommissionCamera,
   reactivateCamera,
-  upsertSpecification,
   upsertStreamConfig,
   fetchHealthLogs,
 } from "../../services/cameraService";
@@ -29,7 +28,7 @@ export default function CameraDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  // Tabs: 'general' | 'specification' | 'stream' | 'ai'
+  // Tabs: 'general' | 'stream'
   const [activeTab, setActiveTab] = useState("general");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -46,24 +45,7 @@ export default function CameraDetailPage() {
   const [camera, setCamera] = useState(null);
   const [generalForm, setGeneralForm] = useState({
     name: "",
-    mountingHeight: "",
-    orientation: "",
-    tiltAngle: "",
     installedAt: "",
-  });
-
-  const [specForm, setSpecForm] = useState({
-    manufacturer: "",
-    model: "",
-    serialNumber: "",
-    resolution: "",
-    fps: "",
-    lens: "",
-    focalLength: "",
-    fieldOfView: "",
-    nightVision: false,
-    weatherProof: false,
-    firmwareVersion: "",
   });
 
   const [streamForm, setStreamForm] = useState({
@@ -72,9 +54,6 @@ export default function CameraDetailPage() {
     username: "",
     credentialRef: "",
     mainStreamPath: "",
-    subStreamPath: "",
-    retryTimeBeforeAlerting: 3,
-    timeoutMs: 5000,
   });
 
   const loadCameraDetails = async () => {
@@ -87,45 +66,8 @@ export default function CameraDetailPage() {
       // Init General Form
       setGeneralForm({
         name: data.name || "",
-        mountingHeight:
-          data.mountingHeight !== null && data.mountingHeight !== undefined
-            ? data.mountingHeight.toString()
-            : "",
-        orientation:
-          data.orientation !== null && data.orientation !== undefined
-            ? data.orientation.toString()
-            : "",
-        tiltAngle:
-          data.tiltAngle !== null && data.tiltAngle !== undefined
-            ? data.tiltAngle.toString()
-            : "",
         installedAt: data.installedAt ? data.installedAt.substring(0, 16) : "", // format for datetime-local
       });
-
-      // Init Specification Form
-      if (data.specification) {
-        setSpecForm({
-          manufacturer: data.specification.manufacturer || "",
-          model: data.specification.model || "",
-          serialNumber: data.specification.serialNumber || "",
-          resolution: data.specification.resolution || "",
-          fps:
-            data.specification.fps !== null &&
-              data.specification.fps !== undefined
-              ? data.specification.fps.toString()
-              : "",
-          lens: data.specification.lens || "",
-          focalLength: data.specification.focalLength || "",
-          fieldOfView:
-            data.specification.fieldOfView !== null &&
-              data.specification.fieldOfView !== undefined
-              ? data.specification.fieldOfView.toString()
-              : "",
-          nightVision: !!data.specification.nightVision,
-          weatherProof: !!data.specification.weatherProof,
-          firmwareVersion: data.specification.firmwareVersion || "",
-        });
-      }
 
       // Init Stream Form
       if (data.streamConfig) {
@@ -137,15 +79,8 @@ export default function CameraDetailPage() {
               ? data.streamConfig.port.toString()
               : "",
           username: data.streamConfig.username || "",
-          credentialRef: data.streamConfig.credentialRef || "",
+          credentialRef: "",
           mainStreamPath: data.streamConfig.mainStreamPath || "",
-          subStreamPath: data.streamConfig.subStreamPath || "",
-          retryTimeBeforeAlerting:
-            data.streamConfig.retryTimeBeforeAlerting !== null &&
-            data.streamConfig.retryTimeBeforeAlerting !== undefined
-              ? data.streamConfig.retryTimeBeforeAlerting
-              : 3,
-          timeoutMs: data.streamConfig.timeoutMs || 5000,
         });
       }
     } catch (err) {
@@ -182,6 +117,11 @@ export default function CameraDetailPage() {
     setTimeout(() => setSuccessMsg(null), 4000);
   };
 
+  const showError = (msg) => {
+    setError(msg);
+    setTimeout(() => setError(null), 6000);
+  };
+
   const handleToggleStatus = async () => {
     if (!camera) return;
     setSaving(true);
@@ -196,7 +136,7 @@ export default function CameraDetailPage() {
       }
       setCamera(updated);
     } catch (err) {
-      setError(err.message || "Thay đổi trạng thái thất bại.");
+      showError(err.message || "Thay đổi trạng thái thất bại.");
     } finally {
       setSaving(false);
     }
@@ -209,15 +149,6 @@ export default function CameraDetailPage() {
     try {
       const payload = {
         name: generalForm.name,
-        mountingHeight: generalForm.mountingHeight
-          ? parseFloat(generalForm.mountingHeight)
-          : null,
-        orientation: generalForm.orientation
-          ? parseFloat(generalForm.orientation)
-          : null,
-        tiltAngle: generalForm.tiltAngle
-          ? parseFloat(generalForm.tiltAngle)
-          : null,
         installedAt: generalForm.installedAt
           ? new Date(generalForm.installedAt).toISOString()
           : null,
@@ -227,37 +158,7 @@ export default function CameraDetailPage() {
       setCamera(updated);
       showNotification("Đã lưu thông tin chung thành công");
     } catch (err) {
-      setError(err.message || "Lỗi lưu thông tin chung");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleSpecSubmit = async (e) => {
-    e.preventDefault();
-    setSaving(true);
-    setError(null);
-    try {
-      const payload = {
-        manufacturer: specForm.manufacturer || null,
-        model: specForm.model || null,
-        serialNumber: specForm.serialNumber || null,
-        resolution: specForm.resolution || null,
-        fps: specForm.fps ? parseInt(specForm.fps, 10) : null,
-        lens: specForm.lens || null,
-        focalLength: specForm.focalLength || null,
-        fieldOfView: specForm.fieldOfView
-          ? parseFloat(specForm.fieldOfView)
-          : null,
-        nightVision: specForm.nightVision,
-        weatherProof: specForm.weatherProof,
-        firmwareVersion: specForm.firmwareVersion || null,
-      };
-
-      await upsertSpecification(id, payload);
-      showNotification("Đã lưu đặc tả kỹ thuật thành công");
-    } catch (err) {
-      setError(err.message || "Lỗi lưu đặc tả kỹ thuật");
+      showError(err.message || "Lỗi lưu thông tin chung");
     } finally {
       setSaving(false);
     }
@@ -273,20 +174,15 @@ export default function CameraDetailPage() {
         port: parseInt(streamForm.port, 10),
         username: streamForm.username || null,
         credentialRef: streamForm.credentialRef || null,
+        password: streamForm.credentialRef || null,
         mainStreamPath: streamForm.mainStreamPath,
-        subStreamPath: streamForm.subStreamPath || null,
-        retryTimeBeforeAlerting: streamForm.retryTimeBeforeAlerting
-          ? parseInt(streamForm.retryTimeBeforeAlerting, 10)
-          : null,
-        timeoutMs: streamForm.timeoutMs
-          ? parseInt(streamForm.timeoutMs, 10)
-          : null,
       };
 
-      await upsertStreamConfig(id, payload);
+      const updatedConfig = await upsertStreamConfig(id, payload);
+      setCamera((prev) => (prev ? { ...prev, streamConfig: updatedConfig } : prev));
       showNotification("Đã lưu cấu hình Stream thành công");
     } catch (err) {
-      setError(err.message || "Lỗi lưu cấu hình stream");
+      showError(err.message || "Lỗi lưu cấu hình stream");
     } finally {
       setSaving(false);
     }
@@ -342,7 +238,18 @@ export default function CameraDetailPage() {
       </div>
 
       {successMsg && <div className="success-toast">{successMsg}</div>}
-      {error && <div className="error-banner">{error}</div>}
+      {error && (
+        <div className="error-banner" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span>{error}</span>
+          <button
+            onClick={() => setError(null)}
+            style={{ background: "transparent", border: "none", color: "inherit", cursor: "pointer", fontSize: "1rem", opacity: 0.8, padding: "0 0.25rem" }}
+            title="Đóng thông báo"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Main Details Header */}
       <div className="detail-header-card">
@@ -366,11 +273,17 @@ export default function CameraDetailPage() {
               >
                 ● {camera.operationalStatus}
               </span>
-              {camera.floor && (
-                <span className="location-tag">Tầng {camera.floor}</span>
-              )}
-              {camera.zoneName && (
-                <span className="location-tag">{camera.zoneName}</span>
+              {camera.assignedAreas && camera.assignedAreas.length > 0 ? (
+                camera.assignedAreas.map((area) => (
+                  <span key={area.id} className="location-tag" title={area.name}>
+                    <MapPin size={12} style={{ display: "inline", verticalAlign: "middle", marginRight: "4px" }} />
+                    {area.name} ({area.building} - {area.floor})
+                  </span>
+                ))
+              ) : (
+                <span className="location-tag" style={{ opacity: 0.7 }}>
+                  Chưa gán khu vực
+                </span>
               )}
             </div>
           </div>
@@ -396,13 +309,6 @@ export default function CameraDetailPage() {
             >
               <Info size={16} />
               <span>Thông tin chung</span>
-            </button>
-            <button
-              className={`tab-btn ${activeTab === "specification" ? "tab-btn--active" : ""}`}
-              onClick={() => setActiveTab("specification")}
-            >
-              <Settings size={16} />
-              <span>Đặc tả kỹ thuật</span>
             </button>
             <button
               className={`tab-btn ${activeTab === "stream" ? "tab-btn--active" : ""}`}
@@ -432,71 +338,7 @@ export default function CameraDetailPage() {
                       required
                     />
                   </div>
-                  <div className="form-group">
-                    <label>Chiều cao lắp đặt (m)</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={generalForm.mountingHeight}
-                      onChange={(e) =>
-                        setGeneralForm({
-                          ...generalForm,
-                          mountingHeight: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.25rem",
-                      }}
-                    >
-                      Góc quay (độ)
-                      <span data-tooltip="Góc hướng quay của camera (0-360)" className="help-icon-wrapper">
-                        <HelpCircle size={14} className="help-icon" />
-                      </span>
-                    </label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={generalForm.orientation}
-                      onChange={(e) =>
-                        setGeneralForm({
-                          ...generalForm,
-                          orientation: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.25rem",
-                      }}
-                    >
-                      Góc nghiêng (độ)
-                      <span data-tooltip="Góc nghiêng vật lý của camera" className="help-icon-wrapper">
-                        <HelpCircle size={14} className="help-icon" />
-                      </span>
-                    </label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={generalForm.tiltAngle}
-                      onChange={(e) =>
-                        setGeneralForm({
-                          ...generalForm,
-                          tiltAngle: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="form-group">
+                  <div className="form-group col-span-2">
                     <label>Ngày lắp đặt</label>
                     <input
                       type="datetime-local"
@@ -508,6 +350,39 @@ export default function CameraDetailPage() {
                         })
                       }
                     />
+                  </div>
+                  <div className="form-group col-span-2">
+                    <label style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                      <MapPin size={15} className="text-blue" />
+                      <span>Khu vực đang phụ trách</span>
+                    </label>
+                    <div style={{
+                      padding: "0.75rem 1rem",
+                      background: "var(--theme-bg-desc)",
+                      borderRadius: "8px",
+                      border: "1px solid var(--theme-border)",
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: "0.5rem",
+                      minHeight: "42px",
+                      alignItems: "center"
+                    }}>
+                      {camera.assignedAreas && camera.assignedAreas.length > 0 ? (
+                        camera.assignedAreas.map((area) => (
+                          <span
+                            key={area.id}
+                            className="location-tag"
+                            style={{ fontSize: "0.85rem", padding: "0.3rem 0.75rem" }}
+                          >
+                            <strong>{area.code}</strong> - {area.name} ({area.building} - {area.floor})
+                          </span>
+                        ))
+                      ) : (
+                        <span style={{ color: "var(--theme-text-muted)", fontSize: "0.875rem" }}>
+                          Camera này chưa được gán vào khu vực nào.
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <div className="form-actions">
@@ -525,177 +400,6 @@ export default function CameraDetailPage() {
                       <Save size={16} />
                     )}
                     <span>Lưu thông tin</span>
-                  </button>
-                </div>
-              </form>
-            )}
-
-            {/* SPECIFICATION TAB */}
-            {activeTab === "specification" && (
-              <form
-                onSubmit={handleSpecSubmit}
-                className="tab-form"
-              >
-                <div className="form-grid">
-                  <div className="form-group">
-                    <label>Nhà sản xuất</label>
-                    <input
-                      type="text"
-                      placeholder="Hikvision, Dahua..."
-                      value={specForm.manufacturer}
-                      onChange={(e) =>
-                        setSpecForm({
-                          ...specForm,
-                          manufacturer: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Dòng máy (Model)</label>
-                    <input
-                      type="text"
-                      placeholder="DS-2CD2T47G2-L"
-                      value={specForm.model}
-                      onChange={(e) =>
-                        setSpecForm({ ...specForm, model: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Số Serial (S/N)</label>
-                    <input
-                      type="text"
-                      placeholder="SN123456789"
-                      value={specForm.serialNumber}
-                      onChange={(e) =>
-                        setSpecForm({
-                          ...specForm,
-                          serialNumber: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Độ phân giải</label>
-                    <input
-                      type="text"
-                      placeholder="1920x1080, 2688x1520"
-                      value={specForm.resolution}
-                      onChange={(e) =>
-                        setSpecForm({ ...specForm, resolution: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Khung hình/giây (FPS)</label>
-                    <input
-                      type="number"
-                      placeholder="25 hoặc 30"
-                      value={specForm.fps}
-                      onChange={(e) =>
-                        setSpecForm({ ...specForm, fps: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Loại ống kính (Lens)</label>
-                    <input
-                      type="text"
-                      placeholder="2.8mm fixed"
-                      value={specForm.lens}
-                      onChange={(e) =>
-                        setSpecForm({ ...specForm, lens: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Tiêu cự (Focal Length)</label>
-                    <input
-                      type="text"
-                      placeholder="2.8mm"
-                      value={specForm.focalLength}
-                      onChange={(e) =>
-                        setSpecForm({
-                          ...specForm,
-                          focalLength: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Góc nhìn (Field of View - FoV độ)</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      placeholder="107"
-                      value={specForm.fieldOfView}
-                      onChange={(e) =>
-                        setSpecForm({
-                          ...specForm,
-                          fieldOfView: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Firmware Version</label>
-                    <input
-                      type="text"
-                      placeholder="v5.7.11"
-                      value={specForm.firmwareVersion}
-                      onChange={(e) =>
-                        setSpecForm({
-                          ...specForm,
-                          firmwareVersion: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="form-group col-span-2 checkbox-row">
-                    <label className="checkbox-label">
-                      <input
-                        type="checkbox"
-                        checked={specForm.nightVision}
-                        onChange={(e) =>
-                          setSpecForm({
-                            ...specForm,
-                            nightVision: e.target.checked,
-                          })
-                        }
-                      />
-                      <span>Hỗ trợ hồng ngoại (Night Vision)</span>
-                    </label>
-                    <label className="checkbox-label">
-                      <input
-                        type="checkbox"
-                        checked={specForm.weatherProof}
-                        onChange={(e) =>
-                          setSpecForm({
-                            ...specForm,
-                            weatherProof: e.target.checked,
-                          })
-                        }
-                      />
-                      <span>Kháng nước/thời tiết (Weatherproof)</span>
-                    </label>
-                  </div>
-                </div>
-                <div className="form-actions">
-                  <button
-                    type="submit"
-                    className="btn-save"
-                    disabled={saving}
-                  >
-                    {saving ? (
-                      <Loader2
-                        className="animate-spin"
-                        size={16}
-                      />
-                    ) : (
-                      <Save size={16} />
-                    )}
-                    <span>Lưu đặc tả</span>
                   </button>
                 </div>
               </form>
@@ -765,14 +469,14 @@ export default function CameraDetailPage() {
                         gap: "0.25rem",
                       }}
                     >
-                      Mã khoá xác thực (Credential Ref)
-                      <span data-tooltip="Khoá bảo mật hoặc mật khẩu kết nối camera" className="help-icon-wrapper">
+                      Mật khẩu RTSP / Khóa bảo mật
+                      <span data-tooltip="Mật khẩu tài khoản camera (được mã hóa AES-256 an toàn)" className="help-icon-wrapper">
                         <HelpCircle size={14} className="help-icon" />
                       </span>
                     </label>
                     <input
-                      type="text"
-                      placeholder="mật khẩu camera hoặc khóa tham chiếu"
+                      type="password"
+                      placeholder={camera?.streamConfig?.isPasswordConfigured ? "•••••••• (Đã mã hóa và lưu bảo mật)" : "Nhập mật khẩu RTSP"}
                       value={streamForm.credentialRef}
                       onChange={(e) =>
                         setStreamForm({
@@ -795,48 +499,6 @@ export default function CameraDetailPage() {
                         })
                       }
                       required
-                    />
-                  </div>
-                  <div className="form-group col-span-2">
-                    <label>Sub Stream Path</label>
-                    <input
-                      type="text"
-                      placeholder="/Streaming/Channels/102"
-                      value={streamForm.subStreamPath}
-                      onChange={(e) =>
-                        setStreamForm({
-                          ...streamForm,
-                          subStreamPath: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Số lần kết nối lại trước khi cảnh báo</label>
-                    <input
-                      type="number"
-                      placeholder="3"
-                      value={streamForm.retryTimeBeforeAlerting}
-                      onChange={(e) =>
-                        setStreamForm({
-                          ...streamForm,
-                          retryTimeBeforeAlerting: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Thời gian chờ phản hồi (ms)</label>
-                    <input
-                      type="number"
-                      placeholder="5000"
-                      value={streamForm.timeoutMs}
-                      onChange={(e) =>
-                        setStreamForm({
-                          ...streamForm,
-                          timeoutMs: e.target.value,
-                        })
-                      }
                     />
                   </div>
                 </div>

@@ -10,9 +10,12 @@ import com.fa26se040.icss.dto.area.AreaResponse;
 import com.fa26se040.icss.dto.area.AreaUpdateRequest;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.enums.AreaLevel;
+import com.fa26se040.icss.enums.CameraStatus;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.exception.AreaErrorCode;
 import com.fa26se040.icss.exception.AreaException;
+import com.fa26se040.icss.exception.CameraErrorCode;
+import com.fa26se040.icss.exception.CameraException;
 import com.fa26se040.icss.exception.UnauthorizedException;
 import com.fa26se040.icss.dto.area.AreaCameraResponse;
 import com.fa26se040.icss.dto.camera.CameraSimpleResponse;
@@ -67,7 +70,7 @@ public class AreaService {
 
     @Transactional(readOnly = true)
     public AreaResponse getAreaById(UUID id) {
-        Area area = areaRepository.findByIdAndDeletedAtIsNull(id)
+        Area area = areaRepository.findById(id)
                 .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
         return mapToAreaResponse(area);
     }
@@ -256,9 +259,20 @@ public class AreaService {
         Area area = areaRepository.findByIdAndDeletedAtIsNull(areaId)
                 .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
 
-        List<Camera> camerasToAssign = (cameraIds == null || cameraIds.isEmpty())
-                ? List.of()
-                : cameraRepository.findAllById(cameraIds);
+        List<Camera> camerasToAssign;
+        if (cameraIds == null || cameraIds.isEmpty()) {
+            camerasToAssign = List.of();
+        } else {
+            camerasToAssign = cameraRepository.findAllById(cameraIds);
+            if (camerasToAssign.size() != cameraIds.size()) {
+                throw new CameraException(CameraErrorCode.ERR_CAM_002);
+            }
+            boolean hasDecommissioned = camerasToAssign.stream()
+                    .anyMatch(c -> c.getStatus() != CameraStatus.ACTIVE);
+            if (hasDecommissioned) {
+                throw new CameraException(CameraErrorCode.ERR_MAP_002);
+            }
+        }
 
         area.getCameras().clear();
         area.getCameras().addAll(camerasToAssign);
