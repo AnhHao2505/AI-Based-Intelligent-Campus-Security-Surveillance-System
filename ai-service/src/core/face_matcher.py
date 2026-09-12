@@ -15,13 +15,14 @@ class FaceMatcher:
     Module so khớp đặc trưng khuôn mặt (Face Recognition) trực tiếp với PostgreSQL pgvector.
     Có bộ đệm In-Memory Cache để tìm kiếm siêu tốc (Sub-millisecond).
     """
-    def __init__(self, db_host="localhost", db_port=5432, db_user="sep", db_pass="123456", db_name="campus_security"):
+    def __init__(self, db_host=None, db_port=None, db_user=None, db_pass=None, db_name=None):
+        import os
         self.db_params = {
-            "host": db_host,
-            "port": db_port,
-            "user": db_user,
-            "password": db_pass,
-            "dbname": db_name
+            "host": db_host or os.getenv("POSTGRES_HOST") or os.getenv("DB_HOST") or "localhost",
+            "port": int(db_port or os.getenv("POSTGRES_PORT") or os.getenv("DB_PORT") or 5432),
+            "user": db_user or os.getenv("POSTGRES_USER") or "sep",
+            "password": db_pass or os.getenv("POSTGRES_PASSWORD") or "123456",
+            "dbname": db_name or os.getenv("POSTGRES_DB") or "campus_security"
         }
         self.embedder = FaceEmbedder(embedding_dim=512)
         self.cached_faces: List[Dict] = []
