@@ -810,6 +810,28 @@
   max-width: 560px;
 }
 
+.account-modal--batches {
+  max-width: 880px;
+}
+
+.account-modal--batch-details {
+  max-width: 780px;
+}
+
+.account-modal--restore-result {
+  max-width: 620px;
+}
+
+.account-batch-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.775rem;
+  background-color: var(--theme-bg-canvas, #f1f5f9);
+  color: var(--theme-text-primary, #0f172a);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--theme-border, #e2e8f0);
+}
+
 /* --------------------------------------------------------------------------
    Import Modal Components
    -------------------------------------------------------------------------- */

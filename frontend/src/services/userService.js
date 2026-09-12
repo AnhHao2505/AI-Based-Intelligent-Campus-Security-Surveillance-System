@@ -169,4 +169,36 @@ export async function downloadStaffUserTemplate() {
   window.URL.revokeObjectURL(url);
 }
 
+/**
+ * Lấy danh sách các lô import theo phân trang (ADMIN)
+ * GET /api/users/import-batches
+ */
+export async function getImportBatches(page = 0, size = 10) {
+  return apiGet(`/api/users/import-batches?page=${page}&size=${size}`);
+}
+
+/**
+ * Lấy danh sách tài khoản thuộc lô import (ADMIN)
+ * GET /api/users/import-batches/{batchId}
+ */
+export async function getImportBatchDetails(batchId) {
+  return apiGet(`/api/users/import-batches/${batchId}`);
+}
+
+/**
+ * Gỡ lô import (soft-delete các tài khoản trong lô) (ADMIN)
+ * DELETE /api/users/import-batches/{batchId}
+ */
+export async function deleteImportBatch(batchId) {
+  return apiDelete(`/api/users/import-batches/${batchId}`);
+}
+
+/**
+ * Khôi phục các tài khoản đã gỡ trong lô import (ADMIN)
+ * POST /api/users/import-batches/{batchId}/restore
+ */
+export async function restoreImportBatch(batchId) {
+  return apiPost(`/api/users/import-batches/${batchId}/restore`);
+}
+
 

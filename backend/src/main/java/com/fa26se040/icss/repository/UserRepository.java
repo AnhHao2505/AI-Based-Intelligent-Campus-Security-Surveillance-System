@@ -88,6 +88,39 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     @Query("SELECT COUNT(u) FROM User u WHERE u.deletedAt IS NULL AND u.role IN :roles")
     long countByRolesAndDeletedAtIsNull(@Param("roles") Collection<Role> roles);
+
+    @Query(
+        value = """
+            SELECT new com.fa26se040.icss.dto.user.ImportBatchSummaryResponse(
+                u.importBatchId,
+                COUNT(CASE WHEN u.deletedAt IS NULL THEN 1 ELSE null END),
+                COUNT(CASE WHEN u.deletedAt IS NOT NULL THEN 1 ELSE null END),
+                MIN(u.createdAt)
+            )
+            FROM User u
+            WHERE u.importBatchId IS NOT NULL
+            GROUP BY u.importBatchId
+            ORDER BY MIN(u.createdAt) DESC
+            """,
+        countQuery = "SELECT COUNT(DISTINCT u.importBatchId) FROM User u WHERE u.importBatchId IS NOT NULL"
+    )
+    Page<com.fa26se040.icss.dto.user.ImportBatchSummaryResponse> findImportBatchSummaries(Pageable pageable);
+
+    boolean existsByImportBatchId(UUID importBatchId);
+
+    java.util.List<User> findByImportBatchIdOrderByUserCodeAsc(UUID importBatchId);
+
+    java.util.List<User> findByImportBatchIdAndDeletedAtIsNotNullOrderByUserCodeAsc(UUID importBatchId);
+
+    @org.springframework.data.jpa.repository.Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = "UPDATE users SET deleted_at = NOW(), is_active = false, updated_at = NOW() WHERE import_batch_id = :batchId AND deleted_at IS NULL", nativeQuery = true)
+    int softDeleteByImportBatchId(@Param("batchId") UUID batchId);
+
+    @Query("SELECT COUNT(u) > 0 FROM User u WHERE u.deletedAt IS NULL AND u.id <> :userId AND UPPER(TRIM(u.userCode)) = :userCode")
+    boolean existsActiveByUserCodeUpperAndIdNot(@Param("userCode") String userCode, @Param("userId") UUID userId);
+
+    @Query("SELECT COUNT(u) > 0 FROM User u WHERE u.deletedAt IS NULL AND u.id <> :userId AND LOWER(TRIM(u.email)) = :email")
+    boolean existsActiveByEmailLowerAndIdNot(@Param("email") String email, @Param("userId") UUID userId);
 }
 
 

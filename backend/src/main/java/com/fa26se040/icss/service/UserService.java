@@ -8,6 +8,11 @@ import com.fa26se040.icss.dto.user.StaffAccountCreateRequest;
 import com.fa26se040.icss.dto.user.StaffAccountCreateResponse;
 import com.fa26se040.icss.dto.user.UserListResponse;
 import com.fa26se040.icss.dto.user.UserPageResponse;
+import com.fa26se040.icss.dto.user.ImportBatchSummaryResponse;
+import com.fa26se040.icss.dto.user.BatchUserResponse;
+import com.fa26se040.icss.dto.user.BatchDeleteResponse;
+import com.fa26se040.icss.dto.user.BatchRestoreResponse;
+import com.fa26se040.icss.dto.user.BatchRestoreSkippedUser;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.exception.DuplicateResourceException;
@@ -238,6 +243,98 @@ public class UserService {
         userRepository.save(user);
 
         log.info("Soft-deleted user {}", userId);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ImportBatchSummaryResponse> getImportBatches(Pageable pageable) {
+        return userRepository.findImportBatchSummaries(pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public List<BatchUserResponse> getBatchDetails(UUID batchId) {
+        if (!userRepository.existsByImportBatchId(batchId)) {
+            throw new ResourceNotFoundException("Không tìm thấy lô import với mã: " + batchId);
+        }
+        return userRepository.findByImportBatchIdOrderByUserCodeAsc(batchId)
+                .stream()
+                .map(BatchUserResponse::fromEntity)
+                .toList();
+    }
+
+    @Transactional
+    public BatchDeleteResponse deleteBatch(UUID batchId) {
+        if (!userRepository.existsByImportBatchId(batchId)) {
+            throw new ResourceNotFoundException("Không tìm thấy lô import với mã: " + batchId);
+        }
+        int deletedCount = userRepository.softDeleteByImportBatchId(batchId);
+        log.info("Soft-deleted import batch {}: {} users affected", batchId, deletedCount);
+        return new BatchDeleteResponse(batchId, deletedCount, "Đã gỡ " + deletedCount + " tài khoản trong lô.");
+    }
+
+    @Transactional
+    public BatchRestoreResponse restoreBatch(UUID batchId) {
+        if (!userRepository.existsByImportBatchId(batchId)) {
+            throw new ResourceNotFoundException("Không tìm thấy lô import với mã: " + batchId);
+        }
+
+        List<User> deletedUsers = userRepository.findByImportBatchIdAndDeletedAtIsNotNullOrderByUserCodeAsc(batchId);
+        if (deletedUsers.isEmpty()) {
+            return new BatchRestoreResponse(batchId, 0, 0, List.of());
+        }
+
+        Set<String> restoredCodes = new HashSet<>();
+        Set<String> restoredEmails = new HashSet<>();
+        List<BatchRestoreSkippedUser> skippedUsers = new ArrayList<>();
+        int restoredCount = 0;
+
+        for (User u : deletedUsers) {
+            String normCode = StringNormalizer.normCode(u.getUserCode());
+            String normEmail = StringNormalizer.normEmail(u.getEmail());
+
+            boolean codeConflict = restoredCodes.contains(normCode) ||
+                    userRepository.existsActiveByUserCodeUpperAndIdNot(normCode, u.getId());
+            boolean emailConflict = restoredEmails.contains(normEmail) ||
+                    userRepository.existsActiveByEmailLowerAndIdNot(normEmail, u.getId());
+
+            if (codeConflict && emailConflict) {
+                skippedUsers.add(new BatchRestoreSkippedUser(
+                        u.getUserCode(),
+                        u.getEmail(),
+                        "Mã tài khoản và Email đã được sử dụng bởi tài khoản khác đang hoạt động."
+                ));
+                continue;
+            }
+
+            if (codeConflict) {
+                skippedUsers.add(new BatchRestoreSkippedUser(
+                        u.getUserCode(),
+                        u.getEmail(),
+                        "Mã tài khoản '" + u.getUserCode() + "' đã được sử dụng bởi một tài khoản khác đang hoạt động."
+                ));
+                continue;
+            }
+
+            if (emailConflict) {
+                skippedUsers.add(new BatchRestoreSkippedUser(
+                        u.getUserCode(),
+                        u.getEmail(),
+                        "Email '" + u.getEmail() + "' đã được sử dụng bởi một tài khoản khác đang hoạt động."
+                ));
+                continue;
+            }
+
+            u.setDeletedAt(null);
+            u.setIsActive(true);
+            u.setUpdatedAt(OffsetDateTime.now());
+            userRepository.save(u);
+
+            restoredCodes.add(normCode);
+            restoredEmails.add(normEmail);
+            restoredCount++;
+        }
+
+        log.info("Restored import batch {}: {} restored, {} skipped", batchId, restoredCount, skippedUsers.size());
+        return new BatchRestoreResponse(batchId, restoredCount, skippedUsers.size(), skippedUsers);
     }
 
     public String generateSampleCsv() {
