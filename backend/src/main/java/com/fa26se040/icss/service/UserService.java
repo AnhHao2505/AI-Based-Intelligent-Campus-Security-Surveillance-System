@@ -53,6 +53,14 @@ public class UserService {
             Role.NORMAL_USER
     );
 
+    private static final Set<Role> ALLOWED_CREATE_ROLES = EnumSet.of(
+            Role.ADMIN,
+            Role.FACILITY_MANAGER,
+            Role.INTERNAL_GUARD,
+            Role.OUTSOURCED_GUARD,
+            Role.NORMAL_USER
+    );
+
     private static final String CHAR_LOWER = "abcdefghijklmnopqrstuvwxyz";
     private static final String CHAR_UPPER = CHAR_LOWER.toUpperCase();
     private static final String NUMBER = "0123456789";
@@ -64,16 +72,16 @@ public class UserService {
     private final FaceDataService faceDataService;
     private final MinioStorageService minioStorageService;
     private final UserBulkImportHelper userBulkImportHelper;
-    // private final NotificationService notificationService;
+    private final NotificationService notificationService;
 
     @Transactional
     public StaffAccountCreateResponse createStaffAccount(StaffAccountCreateRequest request) {
-        log.info("Creating staff account for userCode: {}, email: {}, role: {}", request.getUserCode(), request.getEmail(), request.getRole());
+        log.info("Creating account for userCode: {}, email: {}, role: {}", request.getUserCode(), request.getEmail(), request.getRole());
 
-        // BR-02: Check operational staff role (Reject ADMIN or NORMAL_USER for this API)
+        // Validate role must belong to ALLOWED_CREATE_ROLES (ADMIN, FACILITY_MANAGER, INTERNAL_GUARD, OUTSOURCED_GUARD, NORMAL_USER)
         Role role = request.getRole();
-        if (role == Role.ADMIN || role == Role.NORMAL_USER) {
-            throw new InvalidRoleAssignmentException("Không thể tạo tài khoản với vai trò " + role + " qua API này. Chỉ hỗ trợ FACILITY_MANAGER, INTERNAL_GUARD, OUTSOURCED_GUARD.");
+        if (role == null || !ALLOWED_CREATE_ROLES.contains(role)) {
+            throw new IllegalArgumentException("Vai trò không hợp lệ. Chỉ chấp nhận: ADMIN, FACILITY_MANAGER, INTERNAL_GUARD, OUTSOURCED_GUARD, NORMAL_USER");
         }
 
         // Apply shared normalization
@@ -96,14 +104,14 @@ public class UserService {
             throw new DuplicateResourceException(String.join(". ", duplicateReasons));
         }
 
-        // BR-06: Generate temporary password
-        String tempPassword = generateRandomPassword(10);
+        // BR-06: Generate 12-char temporary password
+        String tempPassword = generateRandomPassword(12);
         String encodedPassword = passwordEncoder.encode(tempPassword);
 
         // 1. Process Face Registration with AI-Service & MinIO (VAL-05, BR-04, BR-08)
         FaceDataResponseDto faceResponse = faceDataService.registerFace(normUserCode, request.getFaceImage());
 
-        // 2. Begin DB Transaction for User, FaceData & PasswordResetToken (BR-05, BR-06, BR-07)
+        // 2. Begin DB Transaction for User, FaceData
         try {
             User user = User.builder()
                     .fullName(normFullName)
@@ -118,12 +126,17 @@ public class UserService {
 
             User savedUser = userRepository.save(user);
 
-            // notificationService.sendStaffAccountSetupEmail(
-            //         savedUser.getEmail(),
-            //         savedUser.getFullName(),
-            //         savedUser.getUserCode(),
-            //         tempPassword
-            // );
+            // 6b. Gửi email thông tin tài khoản và mật khẩu khởi tạo
+            try {
+                notificationService.sendStaffAccountSetupEmail(
+                        savedUser.getEmail(),
+                        savedUser.getFullName(),
+                        savedUser.getUserCode(),
+                        tempPassword
+                );
+            } catch (Exception mailEx) {
+                log.warn("Gửi email khởi tạo tài khoản cho [{}] thất bại nhưng giữ tài khoản: {}", normUserCode, mailEx.getMessage());
+            }
 
             return StaffAccountCreateResponse.builder()
                     .id(savedUser.getId())
@@ -139,16 +152,15 @@ public class UserService {
                     .createdAt(savedUser.getCreatedAt() != null ? savedUser.getCreatedAt().toInstant() : Instant.now())
                     .build();
         } catch (Exception e) {
-            log.error("DB Transaction failed for userCode {}. Deleting uploaded image from MinIO.", request.getUserCode(), e);
-            minioStorageService.deleteFaceImage(request.getUserCode().trim());
+            log.error("DB Transaction failed for userCode {}. Deleting uploaded image from MinIO.", normUserCode, e);
+            minioStorageService.deleteFaceImage(normUserCode);
             throw e;
         }
     }
 
     @Transactional(readOnly = true)
     public UserInfo getUserByCode(String code) {
-        User user = userRepository.findByUserCode(code)
-                .filter(u -> u.getDeletedAt() == null)
+        User user = userRepository.findByUserCodeAndDeletedAtIsNull(code)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với mã: " + code));
 
         return UserInfo.builder()
@@ -292,6 +304,84 @@ public class UserService {
         return baos.toByteArray();
     }
 
+    public byte[] generateSampleStaffExcel() {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (ZipOutputStream zos = new ZipOutputStream(baos)) {
+            addZipEntry(zos, "[Content_Types].xml",
+                    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" +
+                    "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">\n" +
+                    "  <Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>\n" +
+                    "  <Default Extension=\"xml\" ContentType=\"application/xml\"/>\n" +
+                    "  <Override PartName=\"/xl/workbook.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml\"/>\n" +
+                    "  <Override PartName=\"/xl/worksheets/sheet1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/>\n" +
+                    "</Types>");
+
+            addZipEntry(zos, "_rels/.rels",
+                    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" +
+                    "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">\n" +
+                    "  <Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"xl/workbook.xml\"/>\n" +
+                    "</Relationships>");
+
+            addZipEntry(zos, "xl/_rels/workbook.xml.rels",
+                    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" +
+                    "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">\n" +
+                    "  <Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet1.xml\"/>\n" +
+                    "</Relationships>");
+
+            addZipEntry(zos, "xl/workbook.xml",
+                    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" +
+                    "<workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">\n" +
+                    "  <sheets>\n" +
+                    "    <sheet name=\"Sheet1\" sheetId=\"1\" r:id=\"rId1\"/>\n" +
+                    "  </sheets>\n" +
+                    "</workbook>");
+
+            addZipEntry(zos, "xl/worksheets/sheet1.xml",
+                    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" +
+                    "<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">\n" +
+                    "  <sheetData>\n" +
+                    "    <row r=\"1\">\n" +
+                    "      <c r=\"A1\" t=\"inlineStr\"><is><t>user_code</t></is></c>\n" +
+                    "      <c r=\"B1\" t=\"inlineStr\"><is><t>full_name</t></is></c>\n" +
+                    "      <c r=\"C1\" t=\"inlineStr\"><is><t>email</t></is></c>\n" +
+                    "      <c r=\"D1\" t=\"inlineStr\"><is><t>role</t></is></c>\n" +
+                    "    </row>\n" +
+                    "    <row r=\"2\">\n" +
+                    "      <c r=\"A2\" t=\"inlineStr\"><is><t>NV001</t></is></c>\n" +
+                    "      <c r=\"B2\" t=\"inlineStr\"><is><t>Nguyễn Văn An</t></is></c>\n" +
+                    "      <c r=\"C2\" t=\"inlineStr\"><is><t>nva@fpt.edu.vn</t></is></c>\n" +
+                    "      <c r=\"D2\" t=\"inlineStr\"><is><t>INTERNAL_GUARD</t></is></c>\n" +
+                    "    </row>\n" +
+                    "    <row r=\"3\">\n" +
+                    "      <c r=\"A3\" t=\"inlineStr\"><is><t>FM001</t></is></c>\n" +
+                    "      <c r=\"B3\" t=\"inlineStr\"><is><t>Trần Thị Bình</t></is></c>\n" +
+                    "      <c r=\"C3\" t=\"inlineStr\"><is><t>ttb@fpt.edu.vn</t></is></c>\n" +
+                    "      <c r=\"D3\" t=\"inlineStr\"><is><t>FACILITY_MANAGER</t></is></c>\n" +
+                    "    </row>\n" +
+                    "    <row r=\"4\">\n" +
+                    "      <c r=\"A4\" t=\"inlineStr\"><is><t>OG001</t></is></c>\n" +
+                    "      <c r=\"B4\" t=\"inlineStr\"><is><t>Lê Hoàng Cường</t></is></c>\n" +
+                    "      <c r=\"C4\" t=\"inlineStr\"><is><t>lhc@fpt.edu.vn</t></is></c>\n" +
+                    "      <c r=\"D4\" t=\"inlineStr\"><is><t>OUTSOURCED_GUARD</t></is></c>\n" +
+                    "    </row>\n" +
+                    "    <row r=\"5\">\n" +
+                    "      <c r=\"A5\" t=\"inlineStr\"><is><t>AD001</t></is></c>\n" +
+                    "      <c r=\"B5\" t=\"inlineStr\"><is><t>Phạm Minh Đức</t></is></c>\n" +
+                    "      <c r=\"C5\" t=\"inlineStr\"><is><t>pmd@fpt.edu.vn</t></is></c>\n" +
+                    "      <c r=\"D5\" t=\"inlineStr\"><is><t>ADMIN</t></is></c>\n" +
+                    "    </row>\n" +
+                    "    <row r=\"7\">\n" +
+                    "      <c r=\"A7\" t=\"inlineStr\"><is><t>CHÚ THÍCH: Cột role bắt buộc nhập chính xác 1 trong các giá trị: ADMIN, FACILITY_MANAGER, INTERNAL_GUARD, OUTSOURCED_GUARD. Không để trống. Không chấp nhận NORMAL_USER. Xóa các dòng mẫu trước khi nạp.</t></is></c>\n" +
+                    "    </row>\n" +
+                    "  </sheetData>\n" +
+                    "</worksheet>");
+        } catch (IOException e) {
+            log.error("Lỗi khi tạo file Excel mẫu cán bộ: {}", e.getMessage(), e);
+            throw new RuntimeException("Không thể tạo file Excel mẫu cán bộ", e);
+        }
+        return baos.toByteArray();
+    }
+
     private void addZipEntry(ZipOutputStream zos, String path, String content) throws IOException {
         ZipEntry entry = new ZipEntry(path);
         zos.putNextEntry(entry);
@@ -300,6 +390,14 @@ public class UserService {
     }
 
     public BulkImportResponse bulkImportNormalUsers(MultipartFile zipFile) {
+        return processBulkImport(zipFile, false);
+    }
+
+    public BulkImportResponse bulkImportStaffUsers(MultipartFile zipFile) {
+        return processBulkImport(zipFile, true);
+    }
+
+    private BulkImportResponse processBulkImport(MultipartFile zipFile, boolean isStaffImport) {
         if (zipFile == null || zipFile.isEmpty()) {
             throw new IllegalArgumentException("Vui lòng chọn file ZIP để nạp dữ liệu.");
         }
@@ -367,21 +465,30 @@ public class UserService {
         int colUserCode = -1;
         int colFullName = -1;
         int colEmail = -1;
+        int colRole = -1;
 
         for (int i = 0; i < headers.length; i++) {
             String h = headers[i].trim().toLowerCase().replace("_", "");
-            if (h.equals("usercode") || h.equals("code") || h.equals("manguoidung")) {
+            if (h.equals("usercode") || h.equals("code") || h.equals("manguoidung") || h.equals("mscanbo") || h.equals("msnv")) {
                 colUserCode = i;
             } else if (h.equals("fullname") || h.equals("name") || h.equals("hovaten")) {
                 colFullName = i;
             } else if (h.equals("email")) {
                 colEmail = i;
+            } else if (h.equals("role") || h.equals("vaitro") || h.equals("quyen")) {
+                colRole = i;
             }
         }
 
-        // Bỏ đoán vị trí cột khi header không khớp, trả lỗi thiếu cột
-        if (colUserCode == -1 || colFullName == -1 || colEmail == -1) {
-            throw new IllegalArgumentException("File metadata thiếu cột bắt buộc. Luồng người dùng thường cần đủ 3 cột: user_code, full_name, email.");
+        // Bỏ hoàn toàn phần dự phòng index. Nhận diện cột theo header, thiếu cột -> lỗi.
+        if (isStaffImport) {
+            if (colUserCode == -1 || colFullName == -1 || colEmail == -1 || colRole == -1) {
+                throw new IllegalArgumentException("File metadata thiếu cột bắt buộc. Luồng cán bộ cần đủ 4 cột: user_code, full_name, email, role.");
+            }
+        } else {
+            if (colUserCode == -1 || colFullName == -1 || colEmail == -1) {
+                throw new IllegalArgumentException("File metadata thiếu cột bắt buộc. Luồng người dùng thường cần đủ 3 cột: user_code, full_name, email.");
+            }
         }
 
         List<BulkImportRowResult> rowResults = new ArrayList<>();
@@ -411,6 +518,8 @@ public class UserService {
         }
 
         // Lượt 2: dòng nào có count > 1 thì FAIL ngay, không gọi processSingleRow
+        log.info("Bulk import started, file: {}", zipFile.getOriginalFilename());
+
         for (int i = 1; i < validLines.size(); i++) {
             int rowIndex = i + 1; // 1-based index
             String line = validLines.get(i);
@@ -433,6 +542,52 @@ public class UserService {
                 inDuplicateErrors.add("Email bị trùng lặp trong file import");
             }
 
+            // Xử lý Role theo luồng
+            Role targetRole = null;
+            String roleForReporting = null;
+            if (isStaffImport) {
+                String rawRole = (colRole < tokens.length) ? tokens[colRole].trim() : "";
+                roleForReporting = rawRole.isBlank() ? null : rawRole;
+                if (rawRole.isBlank()) {
+                    failureCount++;
+                    rowResults.add(BulkImportRowResult.builder()
+                            .rowIndex(rowIndex)
+                            .userCode(userCode)
+                            .fullName(fullName)
+                            .email(email)
+                            .role(null)
+                            .status("FAILED")
+                            .errorMessage("Cột role không được để trống")
+                            .build());
+                    continue;
+                }
+
+                try {
+                    targetRole = Role.valueOf(rawRole.toUpperCase());
+                } catch (IllegalArgumentException ex) {
+                    targetRole = null;
+                }
+
+                if (targetRole == null || !SYSTEM_ROLES.contains(targetRole)) {
+                    failureCount++;
+                    rowResults.add(BulkImportRowResult.builder()
+                            .rowIndex(rowIndex)
+                            .userCode(userCode)
+                            .fullName(fullName)
+                            .email(email)
+                            .role(rawRole)
+                            .status("FAILED")
+                            .errorMessage("Giá trị role không hợp lệ")
+                            .build());
+                    continue;
+                }
+                roleForReporting = targetRole.name();
+            } else {
+                targetRole = Role.NORMAL_USER;
+                roleForReporting = Role.NORMAL_USER.name();
+            }
+
+            // Dòng nào có count > 1 thì FAIL ngay, không gọi processSingleRow
             if (!inDuplicateErrors.isEmpty()) {
                 failureCount++;
                 rowResults.add(BulkImportRowResult.builder()
@@ -440,6 +595,7 @@ public class UserService {
                         .userCode(userCode)
                         .fullName(fullName)
                         .email(email)
+                        .role(roleForReporting)
                         .status("FAILED")
                         .errorMessage(String.join(". ", inDuplicateErrors))
                         .build());
@@ -450,10 +606,11 @@ public class UserService {
             byte[] imgBytes = imgEntry != null ? imgEntry.bytes : null;
             String imgFileName = imgEntry != null ? imgEntry.fileName : userCode + ".jpg";
 
-            String tempPassword = generateRandomPassword(10);
+            // BR-06: 12-char random password
+            String tempPassword = generateRandomPassword(12);
 
             BulkImportRowResult result = userBulkImportHelper.processSingleRow(
-                    rowIndex, userCode, fullName, email, imgBytes, imgFileName, tempPassword
+                    rowIndex, userCode, fullName, email, targetRole, imgBytes, imgFileName, tempPassword
             );
 
             if ("SUCCESS".equalsIgnoreCase(result.getStatus())) {
@@ -463,6 +620,9 @@ public class UserService {
             }
             rowResults.add(result);
         }
+
+        log.info("Bulk import finished: total={}, success={}, failed={}",
+                 dataRowCount, successCount, failureCount);
 
         return BulkImportResponse.builder()
                 .totalRows(dataRowCount)

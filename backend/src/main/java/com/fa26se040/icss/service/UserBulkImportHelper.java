@@ -36,6 +36,7 @@ public class UserBulkImportHelper {
     private final PasswordEncoder passwordEncoder;
     private final FaceDataService faceDataService;
     private final MinioStorageService minioStorageService;
+    private final NotificationService notificationService;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public BulkImportRowResult processSingleRow(
@@ -43,6 +44,7 @@ public class UserBulkImportHelper {
             String rawUserCode,
             String rawFullName,
             String rawEmail,
+            Role role,
             byte[] imageBytes,
             String imageFileName,
             String tempPassword
@@ -50,6 +52,7 @@ public class UserBulkImportHelper {
         String userCode = StringNormalizer.normCode(rawUserCode);
         String fullName = StringNormalizer.normName(rawFullName);
         String email = StringNormalizer.normEmail(rawEmail);
+        String roleStr = role != null ? role.name() : null;
 
         // 1. Validate fields & gom lý do lỗi
         List<String> errors = new ArrayList<>();
@@ -78,21 +81,21 @@ public class UserBulkImportHelper {
         }
 
         if (!errors.isEmpty()) {
-            return buildError(rowIndex, userCode, fullName, email, String.join(". ", errors));
+            return buildError(rowIndex, userCode, fullName, email, roleStr, String.join(". ", errors));
         }
 
         // 2. Validate face image
         if (imageBytes == null || imageBytes.length == 0) {
-            return buildError(rowIndex, userCode, fullName, email, "Không tìm thấy file ảnh tương ứng trong thư mục images/ (yêu cầu images/" + userCode + ".jpg hoặc .png)");
+            return buildError(rowIndex, userCode, fullName, email, roleStr, "Không tìm thấy file ảnh tương ứng trong thư mục images/ (yêu cầu images/" + userCode + ".jpg hoặc .png)");
         }
         long maxSizeBytes = 350 * 1024; // 350KB
         if (imageBytes.length > maxSizeBytes) {
-            return buildError(rowIndex, userCode, fullName, email, String.format("Kích thước ảnh vượt quá giới hạn tối đa 350KB (dung lượng file: %.1f KB)", imageBytes.length / 1024.0));
+            return buildError(rowIndex, userCode, fullName, email, roleStr, String.format("Kích thước ảnh vượt quá giới hạn tối đa 350KB (dung lượng file: %.1f KB)", imageBytes.length / 1024.0));
         }
 
         String lowerImgName = imageFileName != null ? imageFileName.toLowerCase() : "";
         if (!(lowerImgName.endsWith(".jpg") || lowerImgName.endsWith(".jpeg") || lowerImgName.endsWith(".png"))) {
-            return buildError(rowIndex, userCode, fullName, email, "Định dạng file ảnh không hợp lệ. Chỉ chấp nhận file JPG hoặc PNG.");
+            return buildError(rowIndex, userCode, fullName, email, roleStr, "Định dạng file ảnh không hợp lệ. Chỉ chấp nhận file JPG hoặc PNG.");
         }
 
         // 3. Perform DB User creation & Face Registration inside try-catch
@@ -102,7 +105,7 @@ public class UserBulkImportHelper {
                     .fullName(fullName)
                     .email(email)
                     .password(passwordEncoder.encode(tempPassword))
-                    .role(Role.NORMAL_USER)
+                    .role(role != null ? role : Role.NORMAL_USER)
                     .isActive(true)
                     .createdAt(OffsetDateTime.now())
                     .updatedAt(OffsetDateTime.now())
@@ -119,11 +122,19 @@ public class UserBulkImportHelper {
 
             faceDataService.registerFace(userCode, imageMultipart);
 
+            // 6c. Gửi email chứa mật khẩu trong khối try-catch riêng (lỗi gửi mail chỉ warning, không rollback)
+            try {
+                notificationService.sendStaffAccountSetupEmail(email, fullName, userCode, tempPassword);
+            } catch (Exception mailEx) {
+                log.warn("Gửi email mật khẩu cho [{}] thất bại nhưng giữ tài khoản: {}", userCode, mailEx.getMessage());
+            }
+
             return BulkImportRowResult.builder()
                     .rowIndex(rowIndex)
                     .userCode(userCode)
                     .fullName(fullName)
                     .email(email)
+                    .role(roleStr)
                     .status("SUCCESS")
                     .build();
 
@@ -142,16 +153,17 @@ public class UserBulkImportHelper {
                 errorMsg = "Lỗi hệ thống khi xử lý người dùng " + userCode;
             }
 
-            return buildError(rowIndex, userCode, fullName, email, errorMsg);
+            return buildError(rowIndex, userCode, fullName, email, roleStr, errorMsg);
         }
     }
 
-    private BulkImportRowResult buildError(int rowIndex, String userCode, String fullName, String email, String errorMessage) {
+    private BulkImportRowResult buildError(int rowIndex, String userCode, String fullName, String email, String role, String errorMessage) {
         return BulkImportRowResult.builder()
                 .rowIndex(rowIndex)
                 .userCode(userCode)
                 .fullName(fullName)
                 .email(email)
+                .role(role)
                 .status("FAILED")
                 .errorMessage(errorMessage)
                 .build();
