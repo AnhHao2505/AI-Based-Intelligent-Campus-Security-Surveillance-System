@@ -428,8 +428,8 @@
 
 /* Individual Zone Card */
 .zone-card {
-  background: var(--dark-bg-surface);
-  border: 0.5px solid var(--dark-border);
+  background: var(--theme-bg-surface);
+  border: 0.5px solid var(--theme-border);
   border-left: 3px solid #22c55e;
   border-radius: 0 10px 10px 0;
   padding: 13px;
@@ -445,8 +445,8 @@
 
 .zone-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
-  border-color: var(--dark-border);
+  box-shadow: var(--theme-card-shadow-hover);
+  border-color: var(--theme-border);
 }
 
 .zone-card--selected {
@@ -456,17 +456,17 @@
 
 /* Zone Card by Level Styling — 3px left border */
 .zone-card--public {
-  background: var(--dark-bg-surface);
+  background: var(--theme-bg-surface);
   border-left: 3px solid #22c55e;
 }
 
 .zone-card--semi-private {
-  background: var(--dark-bg-surface);
+  background: var(--theme-bg-surface);
   border-left: 3px solid #fbbf24;
 }
 
 .zone-card--private {
-  background: var(--dark-bg-surface);
+  background: var(--theme-bg-surface);
   border-left: 3px solid #f87171;
 }
 
@@ -479,7 +479,7 @@
 
 .zone-card__code {
   font-family: 'JetBrains Mono', monospace, sans-serif;
-  color: var(--dark-text-muted);
+  color: var(--theme-text-muted);
   font-weight: 500;
   font-size: 11px;
   letter-spacing: 0.02em;
@@ -501,7 +501,7 @@
 .zone-card__title {
   font-size: 15px;
   font-weight: 500;
-  color: var(--dark-text-primary);
+  color: var(--theme-text-primary);
   margin: 0;
   line-height: 1.35;
 }
@@ -512,7 +512,7 @@
   justify-content: space-between;
   margin-top: auto;
   padding-top: 9px;
-  border-top: 0.5px solid var(--dark-border);
+  border-top: 0.5px solid var(--theme-border);
 }
 
 .zone-card__camera-status {
@@ -534,7 +534,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: #94a3b8;
+  color: var(--theme-text-disabled);
   font-size: 11px;
 }
 
@@ -1351,9 +1351,9 @@
   padding: 24px 32px;
   max-width: 1440px;
   margin: 0 auto;
-  background-color: var(--dark-bg-page);
+  background-color: var(--theme-bg-page);
   min-height: calc(100vh - 64px);
-  color: var(--dark-text-primary);
+  color: var(--theme-text-primary);
   box-sizing: border-box;
 }
 
@@ -1430,8 +1430,8 @@
 .zone-toolbar__building {
   display: flex;
   align-items: center;
-  background: var(--dark-bg-elevated);
-  border: 0.5px solid var(--dark-border);
+  background: var(--theme-bg-surface-elevated);
+  border: 0.5px solid var(--theme-border);
   border-radius: 8px;
   padding: 0 12px;
   height: 36px;
@@ -1451,15 +1451,15 @@
   background: transparent;
   font-size: 13px;
   font-weight: 600;
-  color: var(--dark-text-primary);
+  color: var(--theme-text-primary);
   outline: none;
   cursor: pointer;
   padding: 0;
 }
 
 .zone-toolbar__building-select option {
-  background: var(--dark-bg-elevated);
-  color: var(--dark-text-primary);
+  background: var(--theme-bg-surface-elevated);
+  color: var(--theme-text-primary);
 }
 
 .zone-toolbar__tabs {
@@ -1477,9 +1477,9 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s ease;
-  border: 0.5px solid var(--dark-border);
-  background: var(--dark-bg-surface);
-  color: var(--dark-text-secondary);
+  border: 0.5px solid var(--theme-border);
+  background: var(--theme-bg-surface);
+  color: var(--theme-text-secondary);
   box-sizing: border-box;
   display: inline-flex;
   align-items: center;
@@ -1488,9 +1488,9 @@
 }
 
 .zone-toolbar__tab:hover {
-  background: var(--dark-bg-elevated);
+  background: var(--theme-bg-surface-elevated);
   border-color: var(--brand-blue);
-  color: var(--dark-text-primary);
+  color: var(--theme-text-primary);
 }
 
 .zone-toolbar__tab--active {
@@ -1517,8 +1517,8 @@
 .zone-view-toggle {
   display: inline-flex;
   align-items: center;
-  background: var(--dark-bg-surface);
-  border: 0.5px solid var(--dark-border);
+  background: var(--theme-bg-surface);
+  border: 0.5px solid var(--theme-border);
   border-radius: 8px;
   padding: 3px;
   height: 36px;
@@ -1536,7 +1536,7 @@
   border-radius: 6px;
   border: none;
   background: transparent;
-  color: var(--dark-text-secondary);
+  color: var(--theme-text-secondary);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -1545,13 +1545,14 @@
 }
 
 .zone-view-toggle__btn:hover {
-  color: var(--dark-text-primary);
+  color: var(--theme-text-primary);
 }
 
 .zone-view-toggle__btn--active {
-  background: #242c38 !important;
-  color: var(--dark-text-primary) !important;
+  background: var(--theme-bg-surface-elevated) !important;
+  color: var(--theme-text-primary) !important;
   font-weight: 600;
+  box-shadow: var(--theme-card-shadow);
 }
 
 /* Add Area Button */
@@ -2280,15 +2281,15 @@
   width: 24px;
   height: 24px;
   border-radius: 4px;
-  border: 0.5px solid var(--dark-border);
-  background: var(--dark-bg-elevated);
-  color: var(--dark-text-secondary);
+  border: 0.5px solid var(--theme-border);
+  background: var(--theme-bg-surface-elevated);
+  color: var(--theme-text-secondary);
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .zone-card__quick-btn:hover {
-  background: #242c38;
+  background: var(--theme-bg-surface-elevated);
   border-color: var(--brand-blue);
   color: var(--brand-cyan);
 }
