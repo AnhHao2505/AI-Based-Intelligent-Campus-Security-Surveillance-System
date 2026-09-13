@@ -41,7 +41,7 @@
 
 .btn-back:hover {
   background: var(--theme-bg-surface-elevated);
-  color: var(--brand-cyan);
+  color: var(--brand-text);
   border-color: var(--theme-border-hover);
 }
 
@@ -51,7 +51,7 @@
 }
 
 .current {
-  color: var(--brand-cyan);
+  color: var(--brand-text);
   font-weight: 700;
   font-family: 'JetBrains Mono', monospace;
 }
@@ -242,13 +242,13 @@
 }
 
 .tab-btn:hover {
-  color: var(--brand-cyan);
+  color: var(--brand-text);
   background: var(--theme-bg-surface-elevated);
 }
 
 .tab-btn--active {
-  color: var(--brand-cyan);
-  border-bottom-color: var(--brand-cyan);
+  color: var(--brand-text-strong);
+  border-bottom-color: var(--brand-blue);
   background: var(--theme-bg-surface);
 }
 
@@ -331,7 +331,7 @@
   gap: 0.5rem;
   background: var(--brand-gradient);
   border: 1px solid transparent;
-  color: #0d1117;
+  color: var(--brand-on-gradient);
   padding: 0.65rem 1.5rem;
   border-radius: 10px;
   font-weight: 600;
@@ -449,7 +449,7 @@
 
 .pagination-btn-small:hover:not(:disabled) {
   background: var(--theme-bg-surface-elevated);
-  color: var(--brand-cyan);
+  color: var(--brand-text);
   border-color: var(--brand-blue);
 }
 

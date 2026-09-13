@@ -46,7 +46,7 @@
 .cam-code-tag {
   background: rgba(59, 168, 217, 0.15);
   border: 1px solid rgba(59, 168, 217, 0.35);
-  color: var(--brand-cyan);
+  color: var(--brand-text);
   font-size: 0.72rem;
   font-weight: 700;
   padding: 2px 8px;

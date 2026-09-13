@@ -90,6 +90,10 @@
   --brand-gradient: linear-gradient(135deg, #7ed3f2 0%, #3ba8d9 55%, #7c5cd6 100%);
   --brand-glow: rgba(59, 168, 217, 0.35);
 
+  /* Brand Text Variations (Contrast-safe) */
+  --brand-text: #0e7490;        /* cyan đậm, đọc rõ trên nền trắng */
+  --brand-text-strong: #155e75; /* đậm hơn cho chữ quan trọng */
+  --brand-on-gradient: #ffffff; /* chữ trên nền gradient ở light mode */
 }
 
 [data-theme="dark"] {
@@ -178,4 +182,8 @@
   --brand-gradient: linear-gradient(135deg, #7ed3f2 0%, #3ba8d9 55%, #7c5cd6 100%);
   --brand-glow: rgba(59, 168, 217, 0.35);
 
+  /* Brand Text Variations (Contrast-safe) */
+  --brand-text: #7ed3f2;
+  --brand-text-strong: #a5e3f7;
+  --brand-on-gradient: #0d1117;
 }

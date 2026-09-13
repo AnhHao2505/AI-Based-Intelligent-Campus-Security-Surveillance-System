@@ -172,13 +172,13 @@
 .arr-filter-btn--active {
   background: var(--brand-gradient);
   border-color: transparent;
-  color: #0d1117;
+  color: var(--brand-on-gradient);
   font-weight: 600;
 }
 
 .arr-filter-btn--active:hover {
   opacity: 0.92;
-  color: #0d1117;
+  color: var(--brand-on-gradient);
 }
 
 /* Search Input */
@@ -302,7 +302,7 @@
   height: 34px;
   border-radius: 9999px;
   background: rgba(59, 168, 217, 0.12);
-  color: var(--brand-cyan);
+  color: var(--brand-text);
   font-size: 0.75rem;
   font-weight: 700;
   display: flex;
@@ -624,7 +624,7 @@
   border-radius: 9999px;
   background: rgba(59, 168, 217, 0.1);
   border: 1px solid rgba(59, 168, 217, 0.25);
-  color: var(--brand-cyan);
+  color: var(--brand-text);
   font-size: 0.8125rem;
 }
 

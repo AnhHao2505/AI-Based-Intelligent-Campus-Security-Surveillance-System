@@ -208,12 +208,12 @@
 
 .camera-layout-option:hover:not(:disabled) {
   background: rgba(59, 168, 217, 0.15);
-  color: var(--brand-cyan);
+  color: var(--brand-text);
 }
 
 .camera-layout-option.active {
   background: rgba(59, 168, 217, 0.25);
-  color: var(--brand-cyan);
+  color: var(--brand-text-strong);
 }
 
 .camera-layout-option:disabled {
@@ -410,7 +410,7 @@
 }
 
 .cam-tab-code {
-  color: var(--brand-cyan);
+  color: var(--brand-text);
   font-size: 0.75rem;
   font-weight: 700;
 }

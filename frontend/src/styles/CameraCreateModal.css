@@ -169,7 +169,7 @@
 .btn-primary {
   background: var(--brand-gradient);
   border: 1px solid transparent;
-  color: #0d1117;
+  color: var(--brand-on-gradient);
   font-weight: 600;
   box-shadow: var(--brand-glow);
 }

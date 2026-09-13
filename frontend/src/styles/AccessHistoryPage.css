@@ -106,7 +106,7 @@
 
 .ahp-filter-btn--active {
   background: rgba(59, 168, 217, 0.12);
-  color: var(--brand-cyan);
+  color: var(--brand-text-strong);
   border-color: var(--brand-blue);
   font-weight: 500;
 }

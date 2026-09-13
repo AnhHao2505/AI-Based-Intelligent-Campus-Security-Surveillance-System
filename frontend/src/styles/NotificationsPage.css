@@ -77,7 +77,7 @@
 .notif-mark-all-btn {
   background: transparent;
   border: none;
-  color: var(--brand-cyan);
+  color: var(--brand-text);
   font-size: 12px;
   cursor: pointer;
   padding: 4px 8px;
