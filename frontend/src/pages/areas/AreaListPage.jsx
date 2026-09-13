@@ -17,6 +17,7 @@ import {
   Layers,
   Cctv,
   VideoOff,
+  MapPinPlus,
 } from 'lucide-react';
 import {
   getAreas,
@@ -40,17 +41,27 @@ const EPS = 0.0005;
 const round6 = (n) => Math.round(n * 1e6) / 1e6;
 
 const GEOMETRY_ERROR_MESSAGES = {
-  ERR_AREA_011: 'Hình phải có ít nhất 3 đỉnh.',
-  ERR_AREA_012: 'Có đỉnh nằm ngoài phạm vi bản đồ. Vui lòng vẽ lại.',
+  ERR_AREA_001: 'Mã khu vực đã tồn tại trong hệ thống.',
+  ERR_AREA_002: 'Mã khu vực không đúng định dạng cho phép.',
+  ERR_AREA_003: 'Không tìm thấy khu vực được yêu cầu.',
+  ERR_AREA_004: 'Khu vực này hiện đang có camera hoặc dữ liệu liên kết, không thể xoá.',
+  ERR_AREA_005: 'Khu vực này hiện đang bị vô hiệu hoá.',
+  ERR_AREA_006: 'Khu vực này hiện đã ở trạng thái hoạt động.',
+  ERR_AREA_007: 'Lý do giải trình không được để trống khi hạ cấp an ninh.',
+  ERR_AREA_008: 'Dữ liệu toạ độ hình đa giác không hợp lệ.',
+  ERR_AREA_009: 'Hình đa giác phải có từ 3 đến 20 đỉnh.',
+  ERR_AREA_010: 'Toạ độ các đỉnh phải nằm trong khoảng chuẩn hoá [0.0, 1.0].',
+  ERR_AREA_011: 'Các cạnh của hình đa giác không được cắt nhau.',
+  ERR_AREA_012: 'Khu vực này đã được vẽ hình trên bản đồ.',
   ERR_AREA_013: 'Hình bị chồng lấn với khu vực khác trên cùng tầng.',
   ERR_AREA_015: 'Khu vực này chưa có thông tin toà nhà và tầng.',
   ERR_AREA_016: 'Hình phải có ít nhất 3 đỉnh khác nhau.',
 };
 
-const AREA_LEVEL_OPTIONS = [
-  { value: 'PUBLIC', label: 'PUBLIC — Công cộng (Level 1)' },
-  { value: 'SEMI_PRIVATE', label: 'SEMI_PRIVATE — Bán hạn chế (Level 2)' },
-  { value: 'PRIVATE', label: 'PRIVATE — Hạn chế tuyệt đối (Level 3)' },
+const AREA_LEVEL_CARDS = [
+  { value: 'PUBLIC', name: 'Công cộng', level: 'Level 1', color: '#22c55e' },
+  { value: 'SEMI_PRIVATE', name: 'Hạn chế', level: 'Level 2', color: '#fbbf24' },
+  { value: 'PRIVATE', name: 'Riêng tư', level: 'Level 3', color: '#f87171' },
 ];
 
 export default function AreaListPage() {
@@ -1080,9 +1091,22 @@ export default function AreaListPage() {
         <div className="area-modal-backdrop" onClick={() => setCreateModalOpen(false)}>
           <div className="area-modal" onClick={(e) => e.stopPropagation()}>
             <div className="area-modal__header">
-              <h3 className="area-modal__title">Thêm vùng mới</h3>
-              <button type="button" className="area-modal__close" onClick={() => setCreateModalOpen(false)}>
-                <X size={18} />
+              <div className="area-modal__header-left">
+                <div className="area-modal__icon-badge">
+                  <MapPinPlus size={16} />
+                </div>
+                <div className="area-modal__header-text">
+                  <h3 className="area-modal__title">Thêm vùng mới</h3>
+                  <p className="area-modal__subtitle">Tạo khu vực giám sát trong toà nhà</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="area-modal__close-btn"
+                onClick={() => setCreateModalOpen(false)}
+                aria-label="Đóng"
+              >
+                <X size={16} />
               </button>
             </div>
 
@@ -1090,57 +1114,88 @@ export default function AreaListPage() {
               <div className="area-modal__body">
                 {modalError && (
                   <div className="zone-modal-alert">
-                    <AlertCircle size={16} />
+                    <AlertCircle size={15} />
                     <span>{modalError}</span>
                   </div>
                 )}
 
+                {/* 3a. Mã khu vực (bắt buộc) */}
                 <div className="area-form-group">
-                  <label htmlFor="create-code">Mã khu vực *</label>
+                  <label htmlFor="create-code" className="area-form-label">
+                    Mã khu vực <span className="required">*</span>
+                  </label>
                   <input
                     id="create-code"
                     type="text"
                     required
-                    placeholder="VD: FPTA-G-GATE"
+                    className="area-form-input area-form-input--code"
+                    placeholder="FPTA-G-GATE"
                     value={formData.code}
                     onChange={(e) => setFormData({ ...formData, code: e.target.value })}
                   />
-                  <small>Định dạng gợi ý: [TÒA]-[TẦNG]-[TÊN_VIẾT_TẮT]</small>
+                  <div className="area-form-hint">Định dạng: [TÒA]-[TẦNG]-[TÊN_VIẾT_TẮT]</div>
                 </div>
 
+                {/* 3b. Tên khu vực (bắt buộc) */}
                 <div className="area-form-group">
-                  <label htmlFor="create-name">Tên khu vực *</label>
+                  <label htmlFor="create-name" className="area-form-label">
+                    Tên khu vực <span className="required">*</span>
+                  </label>
                   <input
                     id="create-name"
                     type="text"
                     required
-                    placeholder="VD: Cổng chính toà nhà"
+                    className="area-form-input"
+                    placeholder="Cổng chính toà nhà"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   />
                 </div>
 
+                {/* 3c. Cấp độ an ninh (bắt buộc) - 3 thẻ chọn */}
                 <div className="area-form-group">
-                  <label htmlFor="create-level">Cấp độ an ninh *</label>
-                  <select
-                    id="create-level"
-                    value={formData.areaLevel}
-                    onChange={(e) => setFormData({ ...formData, areaLevel: e.target.value })}
-                  >
-                    {AREA_LEVEL_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
+                  <label className="area-form-label">
+                    Cấp độ an ninh <span className="required">*</span>
+                  </label>
+                  <div className="area-level-selector">
+                    {AREA_LEVEL_CARDS.map((card) => {
+                      const isSelected = formData.areaLevel === card.value;
+                      const levelClass =
+                        card.value === 'PUBLIC'
+                          ? 'area-level-btn--public'
+                          : card.value === 'SEMI_PRIVATE'
+                          ? 'area-level-btn--semi'
+                          : 'area-level-btn--private';
+
+                      return (
+                        <button
+                          key={card.value}
+                          type="button"
+                          className={`area-level-btn ${levelClass} ${isSelected ? 'is-selected' : ''}`}
+                          onClick={() => setFormData({ ...formData, areaLevel: card.value })}
+                        >
+                          <span
+                            className="area-level-btn__dot"
+                            style={{ backgroundColor: card.color }}
+                          />
+                          <span className="area-level-btn__name">{card.name}</span>
+                          <span className="area-level-btn__sub">{card.level}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
+                {/* 3d. Toà nhà và Tầng - xếp cạnh nhau */}
                 <div className="area-form-row">
                   <div className="area-form-group">
-                    <label htmlFor="create-building">Toà nhà</label>
+                    <label htmlFor="create-building" className="area-form-label">
+                      Toà nhà
+                    </label>
                     <input
                       id="create-building"
                       type="text"
+                      className="area-form-input"
                       placeholder="VD: FPT_AROUND"
                       value={formData.building}
                       onChange={(e) => setFormData({ ...formData, building: e.target.value })}
@@ -1148,10 +1203,13 @@ export default function AreaListPage() {
                   </div>
 
                   <div className="area-form-group">
-                    <label htmlFor="create-floor">Tầng</label>
+                    <label htmlFor="create-floor" className="area-form-label">
+                      Tầng
+                    </label>
                     <input
                       id="create-floor"
                       type="text"
+                      className="area-form-input"
                       placeholder="VD: G hoặc 1"
                       value={formData.floor}
                       onChange={(e) => setFormData({ ...formData, floor: e.target.value })}
@@ -1159,11 +1217,15 @@ export default function AreaListPage() {
                   </div>
                 </div>
 
+                {/* 3e. Mô tả */}
                 <div className="area-form-group">
-                  <label htmlFor="create-desc">Mô tả</label>
+                  <label htmlFor="create-desc" className="area-form-label">
+                    Mô tả
+                  </label>
                   <textarea
                     id="create-desc"
                     rows={3}
+                    className="area-form-input area-form-input--textarea"
                     placeholder="Thông tin chi tiết về phạm vi, chức năng của khu vực..."
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -1171,10 +1233,11 @@ export default function AreaListPage() {
                 </div>
               </div>
 
+              {/* 4. Phần chân: 2 nút chia đôi chiều rộng, gap 9px */}
               <div className="area-modal__footer">
                 <button
                   type="button"
-                  className="zone-btn zone-btn--outline"
+                  className="area-btn-modal area-btn-modal--cancel"
                   onClick={() => setCreateModalOpen(false)}
                   disabled={modalLoading}
                 >
@@ -1182,7 +1245,7 @@ export default function AreaListPage() {
                 </button>
                 <button
                   type="submit"
-                  className="zone-btn zone-btn--primary"
+                  className="area-btn-modal area-btn-modal--submit"
                   disabled={modalLoading}
                 >
                   {modalLoading ? 'Đang tạo...' : 'Tạo khu vực'}
@@ -1198,9 +1261,22 @@ export default function AreaListPage() {
         <div className="area-modal-backdrop" onClick={() => setEditModalOpen(false)}>
           <div className="area-modal" onClick={(e) => e.stopPropagation()}>
             <div className="area-modal__header">
-              <h3 className="area-modal__title">Chỉnh sửa khu vực: {selectedArea.code}</h3>
-              <button type="button" className="area-modal__close" onClick={() => setEditModalOpen(false)}>
-                <X size={18} />
+              <div className="area-modal__header-left">
+                <div className="area-modal__icon-badge">
+                  <Pencil size={16} />
+                </div>
+                <div className="area-modal__header-text">
+                  <h3 className="area-modal__title">Chỉnh sửa khu vực</h3>
+                  <p className="area-modal__subtitle">Cập nhật thông tin mã: {selectedArea.code}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="area-modal__close-btn"
+                onClick={() => setEditModalOpen(false)}
+                aria-label="Đóng"
+              >
+                <X size={16} />
               </button>
             </div>
 
@@ -1208,46 +1284,72 @@ export default function AreaListPage() {
               <div className="area-modal__body">
                 {modalError && (
                   <div className="zone-modal-alert">
-                    <AlertCircle size={16} />
+                    <AlertCircle size={15} />
                     <span>{modalError}</span>
                   </div>
                 )}
 
                 <div className="area-form-group">
-                  <label>Mã khu vực (Không thể sửa)</label>
-                  <input type="text" disabled value={selectedArea.code} />
+                  <label className="area-form-label">Mã khu vực (Không thể sửa)</label>
+                  <input
+                    type="text"
+                    disabled
+                    className="area-form-input area-form-input--code"
+                    value={selectedArea.code}
+                  />
                 </div>
 
                 <div className="area-form-group">
-                  <label htmlFor="edit-name">Tên khu vực *</label>
+                  <label htmlFor="edit-name" className="area-form-label">
+                    Tên khu vực <span className="required">*</span>
+                  </label>
                   <input
                     id="edit-name"
                     type="text"
                     required
+                    className="area-form-input"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   />
                 </div>
 
                 <div className="area-form-group">
-                  <label htmlFor="edit-level">Cấp độ an ninh *</label>
-                  <select
-                    id="edit-level"
-                    value={formData.areaLevel}
-                    onChange={(e) => setFormData({ ...formData, areaLevel: e.target.value })}
-                  >
-                    {AREA_LEVEL_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
+                  <label className="area-form-label">
+                    Cấp độ an ninh <span className="required">*</span>
+                  </label>
+                  <div className="area-level-selector">
+                    {AREA_LEVEL_CARDS.map((card) => {
+                      const isSelected = formData.areaLevel === card.value;
+                      const levelClass =
+                        card.value === 'PUBLIC'
+                          ? 'area-level-btn--public'
+                          : card.value === 'SEMI_PRIVATE'
+                          ? 'area-level-btn--semi'
+                          : 'area-level-btn--private';
+
+                      return (
+                        <button
+                          key={card.value}
+                          type="button"
+                          className={`area-level-btn ${levelClass} ${isSelected ? 'is-selected' : ''}`}
+                          onClick={() => setFormData({ ...formData, areaLevel: card.value })}
+                        >
+                          <span
+                            className="area-level-btn__dot"
+                            style={{ backgroundColor: card.color }}
+                          />
+                          <span className="area-level-btn__name">{card.name}</span>
+                          <span className="area-level-btn__sub">{card.level}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {isDowngradingInEdit && (
                   <div className="area-form-group area-downgrade-warning">
                     <div className="area-downgrade-warning__title">
-                      <AlertCircle size={16} />
+                      <AlertCircle size={15} />
                       <span>Cảnh báo hạ cấp độ an ninh</span>
                     </div>
                     <p className="area-downgrade-warning__desc">
@@ -1258,6 +1360,7 @@ export default function AreaListPage() {
                     <textarea
                       required
                       rows={3}
+                      className="area-form-input area-form-input--textarea"
                       placeholder="Nhập lý do hạ cấp an ninh..."
                       value={formData.reason}
                       onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
@@ -1267,20 +1370,26 @@ export default function AreaListPage() {
 
                 <div className="area-form-row">
                   <div className="area-form-group">
-                    <label htmlFor="edit-building">Toà nhà</label>
+                    <label htmlFor="edit-building" className="area-form-label">
+                      Toà nhà
+                    </label>
                     <input
                       id="edit-building"
                       type="text"
+                      className="area-form-input"
                       value={formData.building}
                       onChange={(e) => setFormData({ ...formData, building: e.target.value })}
                     />
                   </div>
 
                   <div className="area-form-group">
-                    <label htmlFor="edit-floor">Tầng</label>
+                    <label htmlFor="edit-floor" className="area-form-label">
+                      Tầng
+                    </label>
                     <input
                       id="edit-floor"
                       type="text"
+                      className="area-form-input"
                       value={formData.floor}
                       onChange={(e) => setFormData({ ...formData, floor: e.target.value })}
                     />
@@ -1288,10 +1397,13 @@ export default function AreaListPage() {
                 </div>
 
                 <div className="area-form-group">
-                  <label htmlFor="edit-desc">Mô tả</label>
+                  <label htmlFor="edit-desc" className="area-form-label">
+                    Mô tả
+                  </label>
                   <textarea
                     id="edit-desc"
                     rows={3}
+                    className="area-form-input area-form-input--textarea"
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   />
@@ -1301,7 +1413,7 @@ export default function AreaListPage() {
               <div className="area-modal__footer">
                 <button
                   type="button"
-                  className="zone-btn zone-btn--outline"
+                  className="area-btn-modal area-btn-modal--cancel"
                   onClick={() => setEditModalOpen(false)}
                   disabled={modalLoading}
                 >
@@ -1309,7 +1421,7 @@ export default function AreaListPage() {
                 </button>
                 <button
                   type="submit"
-                  className="zone-btn zone-btn--primary"
+                  className="area-btn-modal area-btn-modal--submit"
                   disabled={modalLoading}
                 >
                   {modalLoading ? 'Đang lưu...' : 'Lưu thay đổi'}
@@ -1325,16 +1437,29 @@ export default function AreaListPage() {
         <div className="area-modal-backdrop" onClick={() => setDeactivateModalOpen(false)}>
           <div className="area-modal" onClick={(e) => e.stopPropagation()}>
             <div className="area-modal__header">
-              <h3 className="area-modal__title">Vô hiệu hoá khu vực</h3>
-              <button type="button" className="area-modal__close" onClick={() => setDeactivateModalOpen(false)}>
-                <X size={18} />
+              <div className="area-modal__header-left">
+                <div className="area-modal__icon-badge area-modal__icon-badge--danger">
+                  <Trash2 size={16} />
+                </div>
+                <div className="area-modal__header-text">
+                  <h3 className="area-modal__title">Vô hiệu hoá khu vực</h3>
+                  <p className="area-modal__subtitle">Xác nhận ngừng kích hoạt khu vực này</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="area-modal__close-btn"
+                onClick={() => setDeactivateModalOpen(false)}
+                aria-label="Đóng"
+              >
+                <X size={16} />
               </button>
             </div>
 
             <div className="area-modal__body">
               {modalError && (
                 <div className="zone-modal-alert">
-                  <AlertCircle size={16} />
+                  <AlertCircle size={15} />
                   <span>{modalError}</span>
                 </div>
               )}
@@ -1359,7 +1484,7 @@ export default function AreaListPage() {
             <div className="area-modal__footer">
               <button
                 type="button"
-                className="zone-btn zone-btn--outline"
+                className="area-btn-modal area-btn-modal--cancel"
                 onClick={() => setDeactivateModalOpen(false)}
                 disabled={modalLoading}
               >
@@ -1367,7 +1492,7 @@ export default function AreaListPage() {
               </button>
               <button
                 type="button"
-                className="zone-btn zone-btn--destructive"
+                className="area-btn-modal area-btn-modal--danger"
                 onClick={handleDeactivateSubmit}
                 disabled={modalLoading}
               >
