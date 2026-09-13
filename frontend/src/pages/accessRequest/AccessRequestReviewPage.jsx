@@ -201,17 +201,7 @@ export default function AccessRequestReviewPage() {
 
       {/* Notifications */}
       {actionSuccess && (
-        <div style={{
-          padding: '0.75rem 1rem',
-          borderRadius: '0.5rem',
-          background: 'var(--theme-success-bg)',
-          border: '1px solid var(--theme-success-border)',
-          color: 'var(--theme-success-text)',
-          marginBottom: '1rem',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem'
-        }}>
+        <div className="arr-alert arr-alert--success">
           <CheckCircle2 size={18} />
           <span>{actionSuccess}</span>
         </div>
@@ -280,22 +270,14 @@ export default function AccessRequestReviewPage() {
           ))}
         </div>
 
-        <div style={{ position: 'relative', minWidth: '240px' }}>
-          <Search size={14} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--theme-text-muted)' }} />
+        <div className="arr-search-wrap">
+          <Search size={14} className="arr-search-icon" />
           <input
             type="text"
+            className="arr-search-input"
             placeholder="Tìm theo tên, mã số, khu vực..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            style={{
-              width: '100%',
-              padding: '0.45rem 0.75rem 0.45rem 2.2rem',
-              fontSize: '0.8125rem',
-              borderRadius: '0.5rem',
-              border: '1px solid var(--theme-input-border)',
-              background: 'var(--theme-bg-input)',
-              color: 'var(--theme-text-primary)'
-            }}
           />
         </div>
       </div>
@@ -303,12 +285,12 @@ export default function AccessRequestReviewPage() {
       {/* Table Card */}
       <div className="arr-table-card">
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--theme-text-muted)' }}>
+          <div className="arr-table-empty">
             <RefreshCw size={24} className="spin" style={{ marginBottom: '0.5rem' }} />
             <div>Đang tải dữ liệu yêu cầu...</div>
           </div>
         ) : filteredRequests.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--theme-text-muted)' }}>
+          <div className="arr-table-empty">
             <Calendar size={32} style={{ opacity: 0.4, marginBottom: '0.5rem' }} />
             <div>Không tìm thấy yêu cầu truy cập nào</div>
           </div>
@@ -355,17 +337,14 @@ export default function AccessRequestReviewPage() {
                     {/* Time */}
                     <td>
                       <div style={{ fontSize: '0.8125rem' }}>{formatDateTime(req.startTime)}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--theme-text-muted)' }}>
+                      <div className="arr-text-muted" style={{ fontSize: '0.75rem' }}>
                         đến {formatDateTime(req.endTime)}
                       </div>
                     </td>
 
                     {/* Type */}
                     <td>
-                      <span className={`arr-badge ${req.requestType === 'GROUP' ? 'arr-badge--group' : 'arr-badge--individual'}`} style={{
-                        background: req.requestType === 'GROUP' ? '#ede9fe' : '#f1f5f9',
-                        color: req.requestType === 'GROUP' ? '#6b21a8' : '#334155'
-                      }}>
+                      <span className={`arr-badge ${req.requestType === 'GROUP' ? 'arr-badge--group' : 'arr-badge--individual'}`}>
                         {req.requestType === 'GROUP' ? `Nhóm (${req.members?.length || 0})` : 'Cá nhân'}
                       </span>
                     </td>
@@ -380,7 +359,7 @@ export default function AccessRequestReviewPage() {
                     </td>
 
                     {/* Created At */}
-                    <td style={{ fontSize: '0.8125rem', color: 'var(--theme-text-muted)' }}>
+                    <td className="arr-text-muted" style={{ fontSize: '0.8125rem' }}>
                       {formatDateTime(req.createdAt)}
                     </td>
 
@@ -469,24 +448,16 @@ export default function AccessRequestReviewPage() {
 
             <div className="arr-modal__body">
               {actionError && (
-                <div style={{ padding: '0.5rem', background: 'var(--theme-danger-bg)', color: 'var(--theme-danger-text)', borderRadius: '0.375rem', fontSize: '0.8125rem' }}>
+                <div className="arr-alert arr-alert--danger">
                   {actionError}
                 </div>
               )}
 
-              <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--theme-text-primary)' }}>
+              <p className="arr-confirm-text">
                 Bạn có chắc chắn muốn <strong>phê duyệt</strong> yêu cầu truy cập khu vực <strong>{approveItem.areaName}</strong> cho <strong>{approveItem.requesterName}</strong>?
               </p>
 
-              <div style={{
-                background: 'var(--theme-bg-page)',
-                padding: '0.75rem 1rem',
-                borderRadius: '0.5rem',
-                fontSize: '0.8125rem',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.25rem'
-              }}>
+              <div className="arr-info-box">
                 <div><strong>Khu vực:</strong> [{approveItem.areaCode}] {approveItem.areaName}</div>
                 <div><strong>Thời gian:</strong> {formatDateTime(approveItem.startTime)} - {formatDateTime(approveItem.endTime)}</div>
                 <div><strong>Mục đích:</strong> {approveItem.purpose}</div>
@@ -504,8 +475,7 @@ export default function AccessRequestReviewPage() {
               </button>
               <button
                 type="button"
-                className="arr-filter-btn"
-                style={{ background: 'var(--theme-success)', color: '#fff', borderColor: 'var(--theme-success)' }}
+                className="arr-filter-btn arr-btn--approve-modal"
                 onClick={handleConfirmApprove}
                 disabled={actionLoading}
               >
@@ -534,18 +504,18 @@ export default function AccessRequestReviewPage() {
 
             <div className="arr-modal__body">
               {actionError && (
-                <div style={{ padding: '0.5rem', background: 'var(--theme-danger-bg)', color: 'var(--theme-danger-text)', borderRadius: '0.375rem', fontSize: '0.8125rem' }}>
+                <div className="arr-alert arr-alert--danger">
                   {actionError}
                 </div>
               )}
 
-              <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--theme-text-primary)' }}>
+              <p className="arr-confirm-text">
                 Từ chối yêu cầu của <strong>{rejectItem.requesterName}</strong> tại khu vực <strong>{rejectItem.areaName}</strong>. Vui lòng nêu rõ lý do:
               </p>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, marginBottom: '0.35rem', color: 'var(--theme-text-primary)' }}>
-                  Lý do từ chối <span style={{ color: 'var(--theme-danger)' }}>*</span>
+                <label className="arr-form-label">
+                  Lý do từ chối <span className="arr-required">*</span>
                 </label>
                 <textarea
                   className="arr-textarea"
@@ -556,7 +526,7 @@ export default function AccessRequestReviewPage() {
                   disabled={actionLoading}
                   required
                 />
-                <div style={{ fontSize: '0.75rem', color: 'var(--theme-text-muted)', textAlign: 'right' }}>
+                <div className="arr-char-count">
                   {rejectionReason.length}/500 ký tự
                 </div>
               </div>
@@ -573,8 +543,7 @@ export default function AccessRequestReviewPage() {
               </button>
               <button
                 type="button"
-                className="arr-filter-btn"
-                style={{ background: 'var(--theme-danger)', color: '#fff', borderColor: 'var(--theme-danger)' }}
+                className="arr-filter-btn arr-btn--reject-modal"
                 onClick={handleConfirmReject}
                 disabled={actionLoading || !rejectionReason.trim()}
               >
@@ -604,15 +573,15 @@ export default function AccessRequestReviewPage() {
             <div className="arr-modal__body">
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
                 <div>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--theme-text-muted)' }}>NGƯỜI YÊU CẦU</div>
+                  <div className="arr-detail-label">NGƯỜI YÊU CẦU</div>
                   <div style={{ fontWeight: 600, fontSize: '0.9375rem' }}>{detailItem.requesterName}</div>
-                  <div style={{ fontSize: '0.8125rem', color: 'var(--theme-text-muted)' }}>
+                  <div className="arr-text-muted" style={{ fontSize: '0.8125rem' }}>
                     Mã số: {detailItem.requesterCode || '—'} | {detailItem.requesterEmail}
                   </div>
                 </div>
 
                 <div>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--theme-text-muted)' }}>TRẠNG THÁI</div>
+                  <div className="arr-detail-label">TRẠNG THÁI</div>
                   <div style={{ marginTop: '0.2rem' }}>
                     <span className={`arr-badge arr-badge--${detailItem.status.toLowerCase()}`}>
                       {detailItem.status === 'PENDING' && 'Chờ phê duyệt'}
@@ -623,35 +592,35 @@ export default function AccessRequestReviewPage() {
                 </div>
 
                 <div>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--theme-text-muted)' }}>KHU VỰC ĐĂNG KÝ</div>
+                  <div className="arr-detail-label">KHU VỰC ĐĂNG KÝ</div>
                   <div style={{ fontWeight: 600 }}>{detailItem.areaName} ({detailItem.areaCode})</div>
-                  <div style={{ fontSize: '0.8125rem', color: 'var(--theme-text-muted)' }}>
+                  <div className="arr-text-muted" style={{ fontSize: '0.8125rem' }}>
                     Cấp độ: {detailItem.areaLevel} | {detailItem.building} - Tầng {detailItem.floor}
                   </div>
                 </div>
 
                 <div>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--theme-text-muted)' }}>HÌNH THỨC</div>
+                  <div className="arr-detail-label">HÌNH THỨC</div>
                   <div style={{ fontWeight: 600 }}>
                     {detailItem.requestType === 'GROUP' ? 'Tập thể / Nhóm' : 'Cá nhân'}
                   </div>
                 </div>
 
                 <div>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--theme-text-muted)' }}>THỜI GIAN BẮT ĐẦU</div>
+                  <div className="arr-detail-label">THỜI GIAN BẮT ĐẦU</div>
                   <div style={{ fontSize: '0.875rem' }}>{formatDateTime(detailItem.startTime)}</div>
                 </div>
 
                 <div>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--theme-text-muted)' }}>THỜI GIAN KẾT THÚC</div>
+                  <div className="arr-detail-label">THỜI GIAN KẾT THÚC</div>
                   <div style={{ fontSize: '0.875rem' }}>{formatDateTime(detailItem.endTime)}</div>
                 </div>
               </div>
 
               {/* Purpose */}
               <div>
-                <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--theme-text-muted)', marginBottom: '0.25rem' }}>MỤC ĐÍCH SỬ DỤNG</div>
-                <div style={{ background: 'var(--theme-bg-page)', padding: '0.75rem 1rem', borderRadius: '0.5rem', fontSize: '0.875rem', border: '1px solid var(--theme-border)' }}>
+                <div className="arr-detail-label" style={{ marginBottom: '0.25rem' }}>MỤC ĐÍCH SỬ DỤNG</div>
+                <div className="arr-detail-box">
                   {detailItem.purpose}
                 </div>
               </div>
@@ -659,22 +628,12 @@ export default function AccessRequestReviewPage() {
               {/* Members (if group) */}
               {detailItem.requestType === 'GROUP' && detailItem.members && detailItem.members.length > 0 && (
                 <div>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--theme-text-muted)', marginBottom: '0.35rem' }}>
+                  <div className="arr-detail-label" style={{ marginBottom: '0.35rem' }}>
                     DANH SÁCH THÀNH VIÊN NHÓM ({detailItem.members.length})
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
                     {detailItem.members.map(m => (
-                      <span key={m.userId || m.userCode} style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.4rem',
-                        padding: '0.35rem 0.75rem',
-                        borderRadius: '9999px',
-                        background: 'var(--theme-primary-light)',
-                        border: '1px solid var(--theme-primary-border)',
-                        color: 'var(--theme-primary)',
-                        fontSize: '0.8125rem'
-                      }}>
+                      <span key={m.userId || m.userCode} className="arr-member-chip">
                         <strong>{m.userCode}</strong> - {m.fullName}
                       </span>
                     ))}
@@ -685,8 +644,8 @@ export default function AccessRequestReviewPage() {
               {/* Rejection reason (if rejected) */}
               {detailItem.status === 'REJECTED' && detailItem.rejectionReason && (
                 <div>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--theme-danger)', marginBottom: '0.25rem' }}>LÝ DO TỪ CHỐI</div>
-                  <div style={{ background: 'var(--theme-danger-bg)', padding: '0.75rem 1rem', borderRadius: '0.5rem', fontSize: '0.875rem', border: '1px solid var(--theme-danger-border)', color: 'var(--theme-danger-text)' }}>
+                  <div className="arr-detail-label arr-detail-label--danger" style={{ marginBottom: '0.25rem' }}>LÝ DO TỪ CHỐI</div>
+                  <div className="arr-detail-box arr-detail-box--danger">
                     {detailItem.rejectionReason}
                   </div>
                 </div>
@@ -694,7 +653,7 @@ export default function AccessRequestReviewPage() {
 
               {/* Reviewer info */}
               {detailItem.reviewedAt && (
-                <div style={{ fontSize: '0.8125rem', color: 'var(--theme-text-secondary)', background: 'var(--theme-bg-page)', padding: '0.625rem 1rem', borderRadius: '0.5rem' }}>
+                <div className="arr-reviewer-meta">
                   Xử lý bởi: <strong>{detailItem.reviewerName || 'Ban quản lý'}</strong> ({detailItem.reviewerEmail}) vào lúc {formatDateTime(detailItem.reviewedAt)}
                 </div>
               )}

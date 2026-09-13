@@ -2,11 +2,11 @@
   position: relative;
   width: 100%;
   aspect-ratio: 16 / 9;
-  background: #060913;
+  background: var(--theme-bg-canvas);
   border-radius: 12px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--theme-border);
+  box-shadow: var(--theme-card-shadow);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -44,9 +44,9 @@
 }
 
 .cam-code-tag {
-  background: rgba(99, 102, 241, 0.25);
-  border: 1px solid rgba(99, 102, 241, 0.5);
-  color: #a5b4fc;
+  background: rgba(59, 168, 217, 0.15);
+  border: 1px solid rgba(59, 168, 217, 0.35);
+  color: var(--brand-text);
   font-size: 0.72rem;
   font-weight: 700;
   padding: 2px 8px;
@@ -55,7 +55,7 @@
 }
 
 .cam-title {
-  color: #f1f5f9;
+  color: var(--theme-text-primary);
   font-size: 0.88rem;
   font-weight: 600;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
@@ -69,9 +69,9 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: rgba(239, 68, 68, 0.2);
-  border: 1px solid rgba(239, 68, 68, 0.5);
-  color: #fca5a5;
+  background: var(--theme-danger-bg);
+  border: 1px solid var(--theme-danger-border);
+  color: var(--theme-danger-text);
   font-size: 0.75rem;
   font-weight: 700;
   padding: 3px 10px;
@@ -83,7 +83,7 @@
 .live-dot {
   width: 8px;
   height: 8px;
-  background-color: #ef4444;
+  background-color: var(--theme-danger);
   border-radius: 50%;
   animation: pulse-live 1.5s infinite;
 }
@@ -98,9 +98,9 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: rgba(234, 179, 8, 0.15);
-  border: 1px solid rgba(234, 179, 8, 0.4);
-  color: #fde047;
+  background: var(--theme-warning-bg);
+  border: 1px solid var(--theme-warning-border);
+  color: var(--theme-warning-text);
   font-size: 0.75rem;
   font-weight: 600;
   padding: 3px 10px;
@@ -110,16 +110,16 @@
 .spinner-dot {
   width: 8px;
   height: 8px;
-  border: 2px solid #fde047;
+  border: 2px solid var(--theme-warning);
   border-top-color: transparent;
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
 
 .offline-chip {
-  background: rgba(148, 163, 184, 0.15);
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  color: #94a3b8;
+  background: var(--theme-bg-desc);
+  border: 1px solid var(--theme-border);
+  color: var(--theme-text-muted);
   font-size: 0.75rem;
   font-weight: 600;
   padding: 3px 10px;
@@ -132,7 +132,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(circle at center, #0f172a 0%, #060913 100%);
+  background: radial-gradient(circle at center, var(--theme-bg-surface-elevated) 0%, var(--theme-bg-canvas) 100%);
   z-index: 5;
 }
 
@@ -148,8 +148,8 @@
 .radar-spinner {
   width: 44px;
   height: 44px;
-  border: 3px solid rgba(99, 102, 241, 0.2);
-  border-top-color: #6366f1;
+  border: 3px solid rgba(59, 168, 217, 0.2);
+  border-top-color: var(--brand-cyan);
   border-radius: 50%;
   animation: spin 1.2s cubic-bezier(0.68, -0.55, 0.27, 1.55) infinite;
   margin-bottom: 12px;
@@ -162,30 +162,25 @@
 }
 
 .fallback-content p {
-  color: #cbd5e1;
+  color: var(--theme-text-primary);
   font-size: 0.92rem;
   font-weight: 600;
   margin: 0 0 4px 0;
 }
 
 .sub-hint {
-  color: #64748b;
+  color: var(--theme-text-muted);
   font-size: 0.78rem;
 }
 
 .error-detail {
-  color: #f87171;
+  color: var(--theme-danger-text);
   font-size: 0.76rem;
   margin-bottom: 12px;
-  background: rgba(239, 68, 68, 0.08);
+  background: var(--theme-danger-bg);
+  border: 1px solid var(--theme-danger-border);
   padding: 4px 8px;
   border-radius: 4px;
-}
-
-[data-theme="light"] .webrtc-player-wrapper {
-  background: var(--theme-bg-surface);
-  border-color: var(--theme-border);
-  box-shadow: var(--theme-card-shadow);
 }
 
 [data-theme="light"] .player-header-overlay {
@@ -193,54 +188,14 @@
 }
 
 [data-theme="light"] .cam-code-tag {
-  background: var(--theme-primary-light);
-  border-color: var(--theme-primary-border);
-  color: var(--theme-primary);
+  background: rgba(59, 168, 217, 0.12);
+  border-color: rgba(59, 168, 217, 0.3);
+  color: var(--brand-blue);
 }
 
 [data-theme="light"] .cam-title {
   color: var(--theme-text-primary);
   text-shadow: 0 1px 3px rgba(255, 255, 255, 0.8);
-}
-
-[data-theme="light"] .live-indicator-chip {
-  background: var(--theme-danger-bg);
-  border-color: var(--theme-danger-border);
-  color: var(--theme-danger-text);
-}
-
-[data-theme="light"] .connecting-chip {
-  background: var(--theme-warning-bg);
-  border-color: var(--theme-warning-border);
-  color: var(--theme-warning-text);
-}
-
-[data-theme="light"] .spinner-dot {
-  border-color: var(--theme-warning);
-  border-top-color: transparent;
-}
-
-[data-theme="light"] .offline-chip {
-  background: var(--theme-bg-desc);
-  border-color: var(--theme-border);
-  color: var(--theme-text-muted);
-}
-
-[data-theme="light"] .player-fallback-overlay {
-  background: radial-gradient(circle at center, var(--theme-bg-surface-elevated) 0%, var(--theme-bg-page) 100%);
-}
-
-[data-theme="light"] .fallback-content p {
-  color: var(--theme-text-primary);
-}
-
-[data-theme="light"] .sub-hint {
-  color: var(--theme-text-muted);
-}
-
-[data-theme="light"] .error-detail {
-  color: var(--theme-danger-text);
-  background: var(--theme-danger-bg);
 }
 
 @keyframes spin {

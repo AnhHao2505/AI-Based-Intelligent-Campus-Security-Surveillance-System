@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { ThemeProvider } from './context/ThemeContext';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { ROLES } from './constants/roles';
 import ProtectedRoute from './components/ProtectedRoute';
 import AppLayout from './components/layout/AppLayout';
@@ -15,11 +15,29 @@ import CameraDetailPage from './pages/cameras/CameraDetailPage';
 import GuardDashboardPage from './pages/guard/GuardDashboardPage';
 import AccessRequestPage from './pages/accessRequest/AccessRequestPage';
 import AccessRequestReviewPage from './pages/accessRequest/AccessRequestReviewPage';
+import AccessHistoryPage from './pages/accessHistory/AccessHistoryPage';
+import NotificationsPage from './pages/notifications/NotificationsPage';
 import AiSettingsPage from './pages/ai/AiSettingsPage';
 import AreaCameraManagementPage from './pages/areas/AreaCameraManagementPage';
 import ManageAccountPage from './pages/accounts/ManageAccountPage';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+
+function RootRoute() {
+  const { user } = useAuth();
+  if (user?.role === ROLES.NORMAL_USER) {
+    return <Navigate to="/access-requests" replace />;
+  }
+  return <Navigate to="/dashboard" replace />;
+}
+
+function DashboardRoute() {
+  const { user } = useAuth();
+  if (user?.role === ROLES.NORMAL_USER) {
+    return <Navigate to="/access-requests" replace />;
+  }
+  return <DashboardPage />;
+}
 
 function App() {
   const [resetToken, setResetToken] = useState(() => {
@@ -56,8 +74,8 @@ function App() {
                 </ProtectedRoute>
               }
             >
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/" element={<RootRoute />} />
+              <Route path="/dashboard" element={<DashboardRoute />} />
 
 
 
@@ -125,6 +143,24 @@ function App() {
               />
 
               <Route
+                path="/access-history"
+                element={
+                  <ProtectedRoute allowedRoles={[ROLES.NORMAL_USER]}>
+                    <AccessHistoryPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/notifications"
+                element={
+                  <ProtectedRoute allowedRoles={[ROLES.NORMAL_USER]}>
+                    <NotificationsPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
                 path="/admin/access-requests"
                 element={
                   <ProtectedRoute allowedRoles={[ROLES.FACILITY_MANAGER, ROLES.ADMIN]}>
@@ -154,7 +190,7 @@ function App() {
             </Route>
 
             {/* Fallback */}
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            <Route path="*" element={<RootRoute />} />
           </Routes>
         </AuthProvider>
       </ThemeProvider>

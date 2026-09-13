@@ -3,53 +3,20 @@
    Light Theme Baseline with CSS Custom Property Theme Adaptability (CASE B)
    ========================================================================== */
 
-:root,
-[data-theme="light"] {
-  --ai-page-bg: #F7F8FA;
-  --ai-surface: #FFFFFF;
-  --ai-surface-subtle: #FAFBFC;
-  --ai-border: #E5E7EB;
-  --ai-border-input: #D1D5DB;
-  --ai-text-primary: #111827;
-  --ai-text-muted: #6B7280;
-  --ai-text-range: #9CA3AF;
-  --ai-accent: #1D4ED8;
-  --ai-accent-hover: #1E40AF;
-  --ai-accent-tint: #EFF6FF;
-  --ai-accent-ring: rgba(29, 78, 216, 0.15);
-  --ai-card-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
-}
-
-[data-theme="dark"] {
-  --ai-page-bg: var(--theme-bg-page, #0B0F19);
-  --ai-surface: var(--theme-bg-surface, #111827);
-  --ai-surface-subtle: var(--theme-bg-desc, #1E293B);
-  --ai-border: var(--theme-border, #1E293B);
-  --ai-border-input: var(--theme-input-border, #334155);
-  --ai-text-primary: var(--theme-text-primary, #F8FAFC);
-  --ai-text-muted: var(--theme-text-muted, #94A3B8);
-  --ai-text-range: var(--theme-text-disabled, #64748B);
-  --ai-accent: var(--theme-primary, #3B82F6);
-  --ai-accent-hover: var(--theme-primary-hover, #2563EB);
-  --ai-accent-tint: var(--theme-primary-light, rgba(59, 130, 246, 0.15));
-  --ai-accent-ring: rgba(59, 130, 246, 0.25);
-  --ai-card-shadow: var(--theme-card-shadow, 0 4px 12px rgba(0, 0, 0, 0.35));
-}
-
 .ai-settings-page {
-  --page-bg: var(--ai-page-bg);
-  --surface: var(--ai-surface);
-  --surface-subtle: var(--ai-surface-subtle);
-  --border: var(--ai-border);
-  --border-input: var(--ai-border-input);
-  --text: var(--ai-text-primary);
-  --text-muted: var(--ai-text-muted);
-  --text-range: var(--ai-text-range);
-  --accent: var(--ai-accent);
-  --accent-hover: var(--ai-accent-hover);
-  --accent-tint: var(--ai-accent-tint);
-  --accent-ring: var(--ai-accent-ring);
-  --card-shadow: var(--ai-card-shadow);
+  --page-bg: var(--theme-bg-page);
+  --surface: var(--theme-bg-surface);
+  --surface-subtle: var(--theme-bg-surface-elevated);
+  --border: var(--theme-border);
+  --border-input: var(--theme-input-border);
+  --text: var(--theme-text-primary);
+  --text-muted: var(--theme-text-muted);
+  --text-range: var(--theme-text-muted);
+  --accent: var(--brand-cyan);
+  --accent-hover: var(--brand-blue);
+  --accent-tint: rgba(59, 168, 217, 0.12);
+  --accent-ring: rgba(59, 168, 217, 0.25);
+  --card-shadow: var(--theme-card-shadow);
 
   padding: 24px 32px;
   background-color: var(--page-bg);
@@ -308,9 +275,9 @@
 }
 
 .ai-btn-ghost {
-  background: transparent;
-  border: 1px solid transparent;
-  color: var(--text-muted);
+  background: var(--theme-bg-input);
+  border: 1px solid var(--theme-input-border);
+  color: var(--theme-text-secondary);
   font-size: 0.875rem;
   font-weight: 500;
   padding: 0 16px;
@@ -324,8 +291,9 @@
 }
 
 .ai-btn-ghost:hover {
-  background-color: var(--border);
-  color: var(--text);
+  background-color: var(--theme-bg-surface-elevated);
+  border-color: var(--theme-border-hover);
+  color: var(--theme-text-primary);
 }
 
 .ai-save-btn-wrapper {
@@ -336,22 +304,22 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background-color: var(--accent);
-  color: #ffffff;
-  border: 1px solid var(--accent);
+  background: var(--brand-gradient);
+  color: var(--brand-on-gradient);
+  font-weight: 600;
+  border: 1px solid transparent;
   border-radius: 6px;
   padding: 0 18px;
   height: 40px;
   font-size: 0.875rem;
-  font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
-  box-shadow: 0 1px 2px rgba(29, 78, 216, 0.2);
+  box-shadow: var(--brand-glow);
 }
 
 .ai-btn-primary:hover:not(:disabled) {
-  background-color: var(--accent-hover);
-  border-color: var(--accent-hover);
+  opacity: 0.92;
+  box-shadow: var(--brand-glow);
 }
 
 .ai-btn-primary:disabled {
@@ -375,27 +343,15 @@
 }
 
 .ai-alert-banner--error {
-  background-color: #FEF2F2;
-  border: 1px solid #FCA5A5;
-  color: #991B1B;
+  background-color: var(--theme-danger-bg);
+  border: 1px solid var(--theme-danger-border);
+  color: var(--theme-danger-text);
 }
 
 .ai-alert-banner--success {
-  background-color: #F0FDF4;
-  border: 1px solid #86EFAC;
-  color: #166534;
-}
-
-[data-theme="dark"] .ai-alert-banner--error {
-  background-color: rgba(239, 68, 68, 0.12);
-  border-color: rgba(248, 113, 113, 0.35);
-  color: #FCA5A5;
-}
-
-[data-theme="dark"] .ai-alert-banner--success {
-  background-color: rgba(16, 185, 129, 0.12);
-  border-color: rgba(52, 211, 153, 0.35);
-  color: #6EE7B7;
+  background-color: var(--theme-success-bg);
+  border: 1px solid var(--theme-success-border);
+  color: var(--theme-success-text);
 }
 
 /* --------------------------------------------------------------------------

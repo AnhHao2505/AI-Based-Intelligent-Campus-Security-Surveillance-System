@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { GoogleLogin } from '@react-oauth/google';
 import { useAuth } from '../context/AuthContext';
+import { ROLES } from '../constants/roles';
 import {
   sendResetLink,
   resetPasswordWithToken
@@ -30,6 +31,8 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
   // Form states
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
   // Switch to reset mode if token exists in URL
@@ -43,9 +46,10 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
     setError(null);
     setLoading(true);
     try {
-      await loginWithGoogleToken(credentialResponse.credential);
+      const res = await loginWithGoogleToken(credentialResponse.credential);
       if (onLoginSuccess) onLoginSuccess();
-      navigate('/dashboard');
+      const role = res?.user?.role;
+      navigate(role === ROLES.NORMAL_USER ? '/access-requests' : '/dashboard');
     } catch (err) {
       console.error('Google login failed:', err);
       setError(err.message || 'Đăng nhập Google thất bại. Vui lòng thử lại.');
@@ -63,9 +67,10 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
     setError(null);
     setLoading(true);
     try {
-      await loginWithPassword(email, password);
+      const res = await loginWithPassword(email, password);
       if (onLoginSuccess) onLoginSuccess();
-      navigate('/dashboard');
+      const role = res?.user?.role;
+      navigate(role === ROLES.NORMAL_USER ? '/access-requests' : '/dashboard');
     } catch (err) {
       console.error('Credentials login failed:', err);
       setError(err.message || 'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.');

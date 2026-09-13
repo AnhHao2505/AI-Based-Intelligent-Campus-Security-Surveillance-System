@@ -36,9 +36,9 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background: var(--theme-primary-light);
-  border: 1px solid var(--theme-primary-border);
-  color: var(--theme-primary);
+  background: rgba(59, 168, 217, 0.12);
+  border: 1px solid rgba(59, 168, 217, 0.25);
+  color: var(--brand-text);
   font-size: 11px;
   font-weight: 700;
   padding: 4px 12px;
@@ -51,7 +51,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--theme-primary);
+  background: var(--brand-cyan);
 }
 
 .dashboard-header__title {
@@ -125,9 +125,9 @@
 }
 
 .kpi-card__icon--blue {
-  background: var(--theme-primary-light);
-  border: 1px solid var(--theme-primary-border);
-  color: var(--theme-primary);
+  background: rgba(59, 168, 217, 0.12);
+  border: 1px solid rgba(59, 168, 217, 0.25);
+  color: var(--brand-cyan);
 }
 
 .kpi-card__icon--emerald {
@@ -152,7 +152,7 @@
   font-size: 0.7rem;
   font-weight: 600;
   color: var(--theme-text-muted);
-  background: var(--theme-bg-desc);
+  background: var(--theme-bg-surface-elevated);
   border: 1px solid var(--theme-border);
   padding: 0.2rem 0.55rem;
   border-radius: 6px;
@@ -194,20 +194,20 @@
 /* KPI Disconnected State (FIX 1) */
 .kpi-card--disconnected {
   opacity: 0.6;
-  border: 1px dashed var(--theme-border, #E5E7EB);
+  border: 1px dashed var(--theme-border);
   box-shadow: none;
 }
 
 .kpi-card--disconnected:hover {
   transform: none;
   box-shadow: none;
-  border-color: var(--theme-border, #E5E7EB);
+  border-color: var(--theme-border);
 }
 
 .kpi-card__value--disconnected {
   font-size: 0.8rem;
   font-weight: 400;
-  color: #9CA3AF;
+  color: var(--theme-text-muted);
   line-height: 1.4;
   letter-spacing: normal;
 }
@@ -244,9 +244,9 @@
   width: 36px;
   height: 36px;
   border-radius: 8px;
-  background: var(--theme-primary-light);
-  border: 1px solid var(--theme-primary-border);
-  color: var(--theme-primary);
+  background: rgba(59, 168, 217, 0.12);
+  border: 1px solid rgba(59, 168, 217, 0.25);
+  color: var(--brand-cyan);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -324,15 +324,15 @@
 }
 
 .security-legend__dot--public {
-  background: var(--theme-success, #059669);
+  background: var(--theme-success);
 }
 
 .security-legend__dot--semi {
-  background: var(--theme-warning, #F59E0B);
+  background: var(--theme-warning);
 }
 
 .security-legend__dot--private {
-  background: var(--theme-danger, #DC2626);
+  background: var(--theme-danger);
 }
 
 /* Compact Area Summary Panel (FIX 4) */
@@ -347,7 +347,7 @@
   width: 100%;
   height: 12px;
   border-radius: 6px;
-  background-color: var(--theme-border, #E5E7EB);
+  background-color: var(--theme-border);
   display: flex;
   overflow: hidden;
   box-sizing: border-box;
@@ -359,15 +359,15 @@
 }
 
 .area-stacked-bar__segment--public {
-  background-color: #059669;
+  background-color: #22c55e;
 }
 
 .area-stacked-bar__segment--semi {
-  background-color: #F59E0B;
+  background-color: #fbbf24;
 }
 
 .area-stacked-bar__segment--private {
-  background-color: #DC2626;
+  background-color: #f87171;
 }
 
 .area-level-stats {
@@ -391,25 +391,25 @@
 }
 
 .area-level-stat__dot--public {
-  background-color: #059669;
+  background-color: #22c55e;
 }
 
 .area-level-stat__dot--semi {
-  background-color: #F59E0B;
+  background-color: #fbbf24;
 }
 
 .area-level-stat__dot--private {
-  background-color: #DC2626;
+  background-color: #f87171;
 }
 
 .area-level-stat__name {
-  color: var(--theme-text-muted, #6B7280);
+  color: var(--theme-text-muted);
   font-size: 0.775rem;
   font-weight: 500;
 }
 
 .area-level-stat__count {
-  color: var(--theme-text-primary, #111827);
+  color: var(--theme-text-primary);
   font-weight: 700;
   font-size: 0.875rem;
 }
@@ -430,20 +430,20 @@
 .area-boundary-progress__label {
   font-size: 0.8125rem;
   font-weight: 500;
-  color: var(--theme-text-primary, #111827);
+  color: var(--theme-text-primary);
 }
 
 .area-progress-bar {
   width: 100%;
   height: 4px;
   border-radius: 2px;
-  background-color: var(--theme-border, #E5E7EB);
+  background-color: var(--theme-border);
   overflow: hidden;
 }
 
 .area-progress-bar__fill {
   height: 100%;
-  background-color: #1D4ED8;
+  background: var(--brand-gradient);
   border-radius: 2px;
   transition: width 0.4s ease;
 }
@@ -457,7 +457,7 @@
 .area-summary-link {
   font-size: 0.8125rem;
   font-weight: 600;
-  color: #1D4ED8;
+  color: var(--brand-text);
   text-decoration: none;
   transition: color 0.15s ease, opacity 0.15s ease;
   display: inline-flex;
@@ -466,7 +466,7 @@
 
 .area-summary-link:hover {
   text-decoration: underline;
-  color: #1E40AF;
+  opacity: 0.85;
 }
 
 /* System Health List & Collapsed (FIX 2) */
@@ -481,7 +481,7 @@
 .system-health-collapsed__summary {
   font-size: 0.9375rem;
   font-weight: 600;
-  color: var(--theme-text-primary, #111827);
+  color: var(--theme-text-primary);
   line-height: 1.3;
 }
 
@@ -506,20 +506,20 @@
 }
 
 .system-health-collapsed__dot--connected {
-  background-color: #059669;
+  background-color: #22c55e;
 }
 
 .system-health-collapsed__dot--not_connected {
-  background-color: #D1D5DB;
+  background-color: var(--theme-border);
 }
 
 .system-health-collapsed__dot--error {
-  background-color: #DC2626;
+  background-color: #f87171;
 }
 
 .system-health-collapsed__name {
   font-size: 12px;
-  color: var(--theme-text-muted, #6B7280);
+  color: var(--theme-text-muted);
   line-height: 1.2;
 }
 
@@ -535,7 +535,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 0.75rem 0.9rem;
-  background: var(--theme-bg-desc);
+  background: var(--theme-bg-surface-elevated);
   border: 1px solid var(--theme-border);
   border-radius: 10px;
   transition: all 0.2s ease;
@@ -586,9 +586,9 @@
 }
 
 .health-row__status--connected {
-  background: var(--theme-success-bg, #F0FDF4);
-  border: 1px solid var(--theme-success-border, #86EFAC);
-  color: var(--theme-success-text, #166534);
+  background: var(--theme-success-bg);
+  border: 1px solid var(--theme-success-border);
+  color: var(--theme-success-text);
 }
 
 .dash-card__footer-note {
@@ -606,8 +606,8 @@
 .dashboard-disconnected-strip {
   width: 100%;
   min-height: 80px;
-  background-color: var(--theme-bg-desc, #FAFBFC);
-  border: 1px dashed var(--theme-border, #E5E7EB);
+  background-color: var(--theme-bg-surface-elevated);
+  border: 1px dashed var(--theme-border);
   border-radius: 10px;
   display: flex;
   align-items: center;
@@ -617,12 +617,12 @@
 }
 
 .dashboard-disconnected-strip__icon {
-  color: #9CA3AF;
+  color: var(--theme-text-muted);
   flex-shrink: 0;
 }
 
 .dashboard-disconnected-strip__text {
-  color: var(--theme-text-muted, #6B7280);
+  color: var(--theme-text-muted);
   font-size: 13px;
   line-height: 1.5;
 }

@@ -525,7 +525,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: var(--brand-cyan);
+  color: var(--brand-text);
   font-size: 11px;
   font-weight: 500;
 }
@@ -1207,7 +1207,7 @@
 
 .area-btn-modal--submit {
   background: var(--brand-gradient);
-  color: #0d1117;
+  color: var(--brand-on-gradient);
   font-weight: 600;
   border: none;
   box-shadow: 0 2px 8px var(--brand-glow);
@@ -1496,7 +1496,7 @@
 .zone-toolbar__tab--active {
   background: var(--brand-gradient) !important;
   border-color: transparent !important;
-  color: #0d1117 !important;
+  color: var(--brand-on-gradient) !important;
   font-weight: 700 !important;
   box-shadow: 0 2px 8px var(--brand-glow);
 }
@@ -1566,7 +1566,7 @@
   border-radius: 8px;
   border: none;
   background: var(--brand-gradient);
-  color: #0d1117;
+  color: var(--brand-on-gradient);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -1742,7 +1742,7 @@
 }
 
 .zone-draw-bar__info strong {
-  color: var(--brand-cyan);
+  color: var(--brand-text);
 }
 
 .zone-draw-bar__sep {
@@ -2291,7 +2291,7 @@
 .zone-card__quick-btn:hover {
   background: var(--theme-bg-surface-elevated);
   border-color: var(--brand-blue);
-  color: var(--brand-cyan);
+  color: var(--brand-text);
 }
 
 .zone-card__quick-btn--danger:hover {

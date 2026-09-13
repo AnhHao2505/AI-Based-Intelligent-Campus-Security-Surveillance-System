@@ -11,7 +11,9 @@ import {
   Users,
   Sun,
   Moon,
-  LogOut
+  LogOut,
+  History,
+  Bell
 } from 'lucide-react';
 import { ROLES, ROLE_LABELS } from '../../constants/roles';
 import { useTheme } from '../../context/ThemeContext';
@@ -19,6 +21,9 @@ import '../../styles/Sidebar.css';
 
 export default function Sidebar({ user, onLogout }) {
   const { theme, toggleTheme } = useTheme();
+
+  // TODO: nối API lấy số thông báo chưa đọc khi backend có bảng notifications
+  const unreadCount = 0;
 
   const getInitials = (name) => {
     if (!name) return 'U';
@@ -39,7 +44,7 @@ export default function Sidebar({ user, onLogout }) {
   return (
     <aside className="sidebar">
       <div className="sidebar__header">
-        <NavLink to="/dashboard" className="sidebar__brand">
+        <NavLink to={isNormalUser ? "/access-requests" : "/dashboard"} className="sidebar__brand">
           <div className="sidebar__logo">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -54,80 +59,120 @@ export default function Sidebar({ user, onLogout }) {
         </NavLink>
 
         <nav className="sidebar__nav">
-          <NavLink
-            to="/dashboard"
-            className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
-          >
-            <LayoutDashboard size={18} />
-            <span>Dashboard</span>
-          </NavLink>
+          {isNormalUser ? (
+            <div className="sidebar__section">
+              <NavLink
+                to="/access-requests"
+                className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+              >
+                <KeyRound size={18} />
+                <span>Yêu cầu truy cập</span>
+              </NavLink>
 
-          {isGuard && (
-            <NavLink
-              to="/guard"
-              className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
-            >
-              <ShieldAlert size={18} />
-              <span>Giám sát An ninh</span>
-            </NavLink>
-          )}
+              <NavLink
+                to="/access-history"
+                className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+              >
+                <History size={18} />
+                <span>Lịch sử truy cập</span>
+              </NavLink>
 
-          {/* Yêu cầu truy cập dành cho Normal User */}
-          {(isNormalUser) && (
-            <NavLink
-              to="/access-requests"
-              className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
-            >
-              <KeyRound size={18} />
-              <span>Yêu cầu truy cập</span>
-            </NavLink>
-          )}
-
-          {/* Phê duyệt truy cập dành cho Facility Manager & Admin */}
-          {(isFacilityManager) && (
-            <NavLink
-              to="/admin/access-requests"
-              className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
-            >
-              <ClipboardCheck size={18} />
-              <span>Phê duyệt truy cập</span>
-            </NavLink>
-          )}
-
-          {isAdmin && (
+              <NavLink
+                to="/notifications"
+                className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+              >
+                <Bell size={18} />
+                <span>Thông báo</span>
+                {unreadCount > 0 && (
+                  <span className="sidebar__unread-badge">{unreadCount}</span>
+                )}
+              </NavLink>
+            </div>
+          ) : (
             <>
-              <NavLink
-                to="/cameras"
-                className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
-              >
-                <Video size={18} />
-                <span>Quản lý Camera</span>
-              </NavLink>
+              {/* GIÁM SÁT */}
+              <div className="sidebar__section">
+                <div className="sidebar__section-title">GIÁM SÁT</div>
+                <NavLink
+                  to="/dashboard"
+                  className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+                >
+                  <LayoutDashboard size={18} />
+                  <span>Dashboard</span>
+                </NavLink>
 
-              <NavLink
-                to="/admin/accounts"
-                className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
-              >
-                <Users size={18} />
-                <span>Quản lý tài khoản</span>
-              </NavLink>
+                {isGuard && (
+                  <NavLink
+                    to="/guard"
+                    className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+                  >
+                    <ShieldAlert size={18} />
+                    <span>Giám sát An ninh</span>
+                  </NavLink>
+                )}
 
-              <NavLink
-                to="/admin/areas"
-                className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
-              >
-                <MapPin size={18} />
-                <span>Cấu hình vùng (Zones)</span>
-              </NavLink>
+                {isAdmin && (
+                  <NavLink
+                    to="/cameras"
+                    className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+                  >
+                    <Video size={18} />
+                    <span>Quản lý Camera</span>
+                  </NavLink>
+                )}
+              </div>
 
-              <NavLink
-                to="/admin/area-cameras"
-                className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
-              >
-                <Network size={18} />
-                <span>Gán Camera – Khu vực</span>
-              </NavLink>
+              {/* QUẢN TRỊ */}
+              {(isFacilityManager || isAdmin) && (
+                <div className="sidebar__section">
+                  <div className="sidebar__section-title">QUẢN TRỊ</div>
 
+                  {isFacilityManager && (
+                    <NavLink
+                      to="/admin/access-requests"
+                      className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+                    >
+                      <ClipboardCheck size={18} />
+                      <span>Phê duyệt truy cập</span>
+                    </NavLink>
+                  )}
+
+                  {isAdmin && (
+                    <>
+                      <NavLink
+                        to="/admin/accounts"
+                        className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+                      >
+                        <Users size={18} />
+                        <span>Quản lý tài khoản</span>
+                      </NavLink>
+
+                      <NavLink
+                        to="/admin/areas"
+                        className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+                      >
+                        <MapPin size={18} />
+                        <span>Cấu hình vùng (Zones)</span>
+                      </NavLink>
+
+                      <NavLink
+                        to="/admin/area-cameras"
+                        className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+                      >
+                        <Network size={18} />
+                        <span>Gán Camera – Khu vực</span>
+                      </NavLink>
+                    </>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* HỆ THỐNG */}
+          {isAdmin && (
+            <div className="sidebar__section">
+              <div className="sidebar__section-title">HỆ THỐNG</div>
               <NavLink
                 to="/admin/ai-settings"
                 className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
@@ -135,7 +180,7 @@ export default function Sidebar({ user, onLogout }) {
                 <Cpu size={18} />
                 <span>Thiết lập AI</span>
               </NavLink>
-            </>
+            </div>
           )}
         </nav>
       </div>
