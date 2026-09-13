@@ -1,15 +1,15 @@
 /* ==========================================================================
    Area Camera Management — AreaCameraManagementPage.css
-   Clean Light Theme Dual-List Transfer Layout
+   Clean Theme-Aware Dual-List Transfer Layout
    ========================================================================== */
 
 .area-camera-container {
   padding: 24px 32px;
   max-width: 1200px;
   margin: 0 auto;
-  background-color: #F7F8FA;
+  background-color: var(--theme-bg-page);
   min-height: calc(100vh - 64px);
-  color: #111827;
+  color: var(--theme-text-primary);
   display: flex;
   flex-direction: column;
 }
@@ -24,7 +24,7 @@
 .area-camera-header h1 {
   font-size: 1.5rem;
   font-weight: 700;
-  color: #111827;
+  color: var(--theme-text-primary);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -33,12 +33,12 @@
 }
 
 .area-camera-header__icon {
-  color: #1D4ED8;
+  color: var(--theme-primary);
   flex-shrink: 0;
 }
 
 .area-camera-header p {
-  color: #6B7280;
+  color: var(--theme-text-secondary);
   font-size: 0.875rem;
   margin: 0;
   line-height: 1.4;
@@ -50,7 +50,7 @@
 .area-camera-loading {
   text-align: center;
   padding: 4rem 1rem;
-  color: #6B7280;
+  color: var(--theme-text-secondary);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -59,27 +59,27 @@
 }
 
 .area-camera-spinner {
-  color: #1D4ED8;
+  color: var(--theme-primary);
 }
 
 /* --------------------------------------------------------------------------
    Area Selector Bar
    -------------------------------------------------------------------------- */
 .area-selector-card {
-  background: #FFFFFF;
-  border: 1px solid #E5E7EB;
+  background: var(--theme-bg-surface);
+  border: 1px solid var(--theme-border);
   border-radius: 10px;
   padding: 16px 20px;
   margin-bottom: 24px;
   display: flex;
   align-items: center;
   gap: 16px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--theme-card-shadow);
 }
 
 .area-selector-card label {
   font-weight: 600;
-  color: #111827;
+  color: var(--theme-text-primary);
   white-space: nowrap;
   font-size: 0.875rem;
 }
@@ -87,20 +87,25 @@
 .area-select-dropdown {
   flex: 1;
   max-width: 440px;
-  background: #FFFFFF;
-  border: 1px solid #D1D5DB;
+  background: var(--theme-bg-input);
+  border: 1px solid var(--theme-input-border);
   border-radius: 8px;
   padding: 8px 14px;
-  color: #111827;
+  color: var(--theme-text-primary);
   font-size: 0.875rem;
   outline: none;
   cursor: pointer;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
+.area-select-dropdown option {
+  background: var(--theme-bg-surface-elevated);
+  color: var(--theme-text-primary);
+}
+
 .area-select-dropdown:focus {
-  border-color: #1D4ED8;
-  box-shadow: 0 0 0 3px #EFF6FF;
+  border-color: var(--theme-border-focus);
+  box-shadow: 0 0 0 3px var(--theme-primary-light);
 }
 
 /* --------------------------------------------------------------------------
@@ -119,15 +124,15 @@
 }
 
 .ai-alert-banner.success {
-  background: #ECFDF5;
-  border: 1px solid #A7F3D0;
-  color: #059669;
+  background: var(--theme-success-bg);
+  border: 1px solid var(--theme-success-border);
+  color: var(--theme-success-text);
 }
 
 .ai-alert-banner.error {
-  background: #FEF2F2;
-  border: 1px solid #FECACA;
-  color: #DC2626;
+  background: var(--theme-danger-bg);
+  border: 1px solid var(--theme-danger-border);
+  color: var(--theme-danger-text);
 }
 
 /* --------------------------------------------------------------------------
@@ -157,18 +162,18 @@
 .transfer-box {
   flex: 1;
   min-width: 0;
-  background: #FFFFFF;
-  border: 1px solid #E5E7EB;
+  background: var(--theme-bg-surface);
+  border: 1px solid var(--theme-border);
   border-radius: 10px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--theme-card-shadow);
 }
 
 .transfer-box-header {
-  background: #FAFBFC;
-  border-bottom: 1px solid #E5E7EB;
+  background: var(--theme-bg-surface-elevated);
+  border-bottom: 1px solid var(--theme-border);
   padding: 14px 18px;
   display: flex;
   justify-content: space-between;
@@ -179,7 +184,7 @@
 .transfer-box-header h3 {
   font-size: 0.9375rem;
   font-weight: 600;
-  color: #111827;
+  color: var(--theme-text-primary);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -187,22 +192,22 @@
 }
 
 .transfer-box-header__icon {
-  color: #1D4ED8;
+  color: var(--theme-primary);
   flex-shrink: 0;
 }
 
 .transfer-box-header__icon--success {
-  color: #059669;
+  color: var(--theme-success);
 }
 
 .badge-count {
-  background: #EFF6FF;
-  color: #1D4ED8;
+  background: var(--theme-primary-light);
+  color: var(--theme-primary);
   border-radius: 9999px;
   padding: 2px 10px;
   font-size: 0.75rem;
   font-weight: 600;
-  border: 1px solid rgba(29, 78, 216, 0.12);
+  border: 1px solid var(--theme-primary-border);
   line-height: 1.4;
 }
 
@@ -229,11 +234,11 @@
 .search-input-wrapper input {
   width: 100%;
   height: 38px;
-  background: #FFFFFF;
-  border: 1px solid #D1D5DB;
+  background: var(--theme-bg-input);
+  border: 1px solid var(--theme-input-border);
   border-radius: 8px;
   padding: 0 12px 0 36px;
-  color: #111827;
+  color: var(--theme-text-primary);
   font-size: 0.875rem;
   outline: none;
   box-sizing: border-box;
@@ -242,13 +247,13 @@
 
 .transfer-search-wrapper input::placeholder,
 .search-input-wrapper input::placeholder {
-  color: #9CA3AF;
+  color: var(--theme-text-muted);
 }
 
 .transfer-search-wrapper input:focus,
 .search-input-wrapper input:focus {
-  border-color: #1D4ED8;
-  box-shadow: 0 0 0 3px #EFF6FF;
+  border-color: var(--theme-border-focus);
+  box-shadow: 0 0 0 3px var(--theme-primary-light);
 }
 
 .transfer-search-wrapper .search-icon-inside,
@@ -257,7 +262,7 @@
   left: 12px;
   top: 50%;
   transform: translateY(-50%);
-  color: #9CA3AF;
+  color: var(--theme-text-muted);
   pointer-events: none;
   width: 16px;
   height: 16px;
@@ -280,7 +285,7 @@
   justify-content: flex-start;
   align-items: stretch;
   scrollbar-width: thin;
-  scrollbar-color: #D1D5DB transparent;
+  scrollbar-color: var(--theme-border-hover) transparent;
 }
 
 .camera-list::-webkit-scrollbar,
@@ -295,7 +300,7 @@
 
 .camera-list::-webkit-scrollbar-thumb,
 .camera-list-scroll::-webkit-scrollbar-thumb {
-  background: #D1D5DB;
+  background: var(--theme-border-hover);
   border-radius: 3px;
 }
 
@@ -303,8 +308,8 @@
    Camera Row Items
    -------------------------------------------------------------------------- */
 .camera-item-card {
-  background: #FFFFFF;
-  border: 1px solid #E5E7EB;
+  background: var(--theme-bg-surface);
+  border: 1px solid var(--theme-border);
   border-radius: 8px;
   padding: 10px 14px;
   display: flex;
@@ -318,8 +323,8 @@
 }
 
 .camera-item-card:hover {
-  background: #FAFBFC;
-  border-color: #D1D5DB;
+  background: var(--theme-bg-surface-elevated);
+  border-color: var(--theme-border-hover);
 }
 
 .camera-item-info {
@@ -333,13 +338,13 @@
 .camera-item-code {
   font-weight: 600;
   font-size: 0.8125rem;
-  color: #1D4ED8;
+  color: var(--theme-primary);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 .camera-item-name {
   font-size: 0.875rem;
-  color: #6B7280;
+  color: var(--theme-text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -353,12 +358,12 @@
 }
 
 .camera-item-arrow {
-  color: #6B7280;
+  color: var(--theme-text-muted);
   transition: color 0.15s ease, transform 0.15s ease;
 }
 
 .camera-item-card:hover .camera-item-arrow {
-  color: #1D4ED8;
+  color: var(--theme-primary);
 }
 
 .status-dot {
@@ -370,16 +375,15 @@
 }
 
 .status-dot.online {
-  background-color: #059669;
+  background-color: var(--theme-active-dot);
 }
 
 .status-dot.offline {
-  background-color: #9CA3AF;
+  background-color: var(--theme-inactive-dot);
 }
 
 /* --------------------------------------------------------------------------
    Empty State
-   A short centred line of #6B7280 text, icon and text stacked with 8px gap
    -------------------------------------------------------------------------- */
 .camera-list__empty {
   display: flex;
@@ -392,19 +396,19 @@
 }
 
 .camera-list__empty-icon {
-  color: #9CA3AF;
+  color: var(--theme-text-muted);
   flex-shrink: 0;
 }
 
 .camera-list__empty-text {
-  color: #6B7280;
+  color: var(--theme-text-secondary);
   font-size: 0.875rem;
   margin: 0;
   line-height: 1.4;
 }
 
 .camera-list-empty {
-  color: #6B7280;
+  color: var(--theme-text-secondary);
   font-size: 0.875rem;
   text-align: center;
   padding: 24px 16px;
@@ -432,9 +436,9 @@
 }
 
 .btn-transfer {
-  background: #FFFFFF;
-  border: 1px solid #E5E7EB;
-  color: #6B7280;
+  background: var(--theme-bg-surface);
+  border: 1px solid var(--theme-border);
+  color: var(--theme-text-secondary);
   width: 40px;
   height: 40px;
   border-radius: 50%;
@@ -443,13 +447,13 @@
   justify-content: center;
   cursor: pointer;
   transition: all 0.15s ease;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--theme-card-shadow);
 }
 
 .btn-transfer:hover:not(:disabled) {
-  background: #EFF6FF;
-  border-color: #1D4ED8;
-  color: #1D4ED8;
+  background: var(--theme-primary-light);
+  border-color: var(--theme-primary);
+  color: var(--theme-primary);
   transform: scale(1.06);
 }
 
@@ -473,21 +477,21 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background: #1D4ED8;
-  color: #FFFFFF;
+  background: var(--theme-primary);
+  color: #ffffff;
   padding: 10px 22px;
   border: none;
   border-radius: 8px;
   font-weight: 600;
   font-size: 0.875rem;
   cursor: pointer;
-  box-shadow: 0 1px 2px rgba(29, 78, 216, 0.2);
+  box-shadow: var(--theme-card-shadow);
   transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 }
 
 .btn-save-area-cameras:hover:not(:disabled) {
-  background: #1E40AF;
-  box-shadow: 0 4px 6px -1px rgba(29, 78, 216, 0.25);
+  background: var(--theme-primary-hover);
+  box-shadow: var(--theme-card-shadow-hover);
   transform: translateY(-1px);
 }
 
