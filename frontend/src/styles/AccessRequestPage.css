@@ -69,12 +69,12 @@
 }
 
 .arp-tab:hover {
-  color: var(--theme-primary);
+  color: var(--brand-cyan);
 }
 
 .arp-tab--active {
-  color: var(--theme-primary);
-  border-bottom-color: var(--theme-primary);
+  color: var(--brand-cyan);
+  border-bottom-color: var(--brand-cyan);
 }
 
 .arp-tab__badge {
@@ -87,8 +87,8 @@
 }
 
 .arp-tab--active .arp-tab__badge {
-  background: var(--theme-primary-light);
-  color: var(--theme-primary);
+  background: rgba(59, 168, 217, 0.15);
+  color: var(--brand-cyan);
 }
 
 /* Form Layout */
@@ -96,7 +96,7 @@
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
   border-radius: 0.75rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--theme-card-shadow);
   padding: 1.75rem;
 }
 
@@ -159,8 +159,8 @@
 .arp-select:focus,
 .arp-textarea:focus {
   outline: none;
-  border-color: var(--theme-border-focus);
-  box-shadow: 0 0 0 3px var(--theme-primary-subtle);
+  border-color: var(--brand-blue);
+  box-shadow: 0 0 0 2px rgba(59, 168, 217, 0.15);
 }
 
 .arp-textarea {
@@ -194,14 +194,14 @@
 }
 
 .arp-type-card:hover:not(.arp-type-card--disabled) {
-  border-color: var(--theme-primary);
-  background: var(--theme-primary-light);
+  border-color: var(--brand-blue);
+  background: rgba(59, 168, 217, 0.05);
 }
 
 .arp-type-card--selected {
-  border-color: var(--theme-primary);
-  background: var(--theme-primary-light);
-  box-shadow: 0 0 0 2px var(--theme-primary);
+  border-color: var(--brand-blue);
+  background: rgba(59, 168, 217, 0.1);
+  box-shadow: 0 0 0 2px rgba(59, 168, 217, 0.15);
 }
 
 .arp-type-card--disabled {
@@ -214,8 +214,8 @@
   width: 36px;
   height: 36px;
   border-radius: 0.5rem;
-  background: var(--theme-primary-subtle);
-  color: var(--theme-primary);
+  background: rgba(59, 168, 217, 0.12);
+  color: var(--brand-cyan);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -247,15 +247,15 @@
 }
 
 .arp-area-info--private {
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  color: #991b1b;
+  background: var(--theme-danger-bg);
+  border: 1px solid var(--theme-danger-border);
+  color: var(--theme-danger-text);
 }
 
 .arp-area-info--semi {
-  background: #fefce8;
-  border: 1px solid #fef08a;
-  color: #854d0e;
+  background: var(--theme-warning-bg);
+  border: 1px solid var(--theme-warning-border);
+  color: var(--theme-warning-text);
 }
 
 /* Member lookup & chips */
@@ -276,9 +276,9 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.35rem 0.75rem;
-  background: var(--theme-primary-light);
-  border: 1px solid var(--theme-primary-border);
-  color: var(--theme-primary);
+  background: rgba(59, 168, 217, 0.1);
+  border: 1px solid rgba(59, 168, 217, 0.25);
+  color: var(--brand-cyan);
   border-radius: 9999px;
   font-size: 0.8125rem;
   font-weight: 500;
@@ -316,23 +316,24 @@
 }
 
 .arp-btn--primary {
-  background: var(--theme-primary);
-  color: #ffffff;
+  background: var(--brand-gradient);
+  color: #0d1117;
+  font-weight: 600;
 }
 
 .arp-btn--primary:hover:not(:disabled) {
-  background: var(--theme-primary-hover);
-  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.25);
+  opacity: 0.92;
+  box-shadow: var(--brand-glow);
 }
 
 .arp-btn--secondary {
-  background: var(--theme-bg-surface);
-  border-color: var(--theme-border);
+  background: var(--theme-bg-input);
+  border-color: var(--theme-input-border);
   color: var(--theme-text-secondary);
 }
 
 .arp-btn--secondary:hover:not(:disabled) {
-  background: var(--theme-bg-page);
+  background: var(--theme-bg-surface-elevated);
   border-color: var(--theme-border-hover);
   color: var(--theme-text-primary);
 }
@@ -396,15 +397,15 @@
 }
 
 .arp-badge--individual {
-  background: #f1f5f9;
-  color: #334155;
-  border: 1px solid #cbd5e1;
+  background: var(--theme-bg-surface-elevated);
+  color: var(--theme-text-secondary);
+  border: 1px solid var(--theme-border);
 }
 
 .arp-badge--group {
-  background: #ede9fe;
-  color: #6b21a8;
-  border: 1px solid #ddd6fe;
+  background: rgba(139, 92, 246, 0.12);
+  color: var(--brand-violet);
+  border: 1px solid rgba(139, 92, 246, 0.25);
 }
 
 /* Table */
@@ -441,7 +442,7 @@
 }
 
 .arp-table tr:hover {
-  background: var(--theme-primary-subtle);
+  background: rgba(59, 168, 217, 0.04);
 }
 
 /* Modal */
