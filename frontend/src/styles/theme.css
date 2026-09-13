@@ -82,6 +82,14 @@
   --theme-modal-backdrop: rgba(15, 23, 42, 0.45);
 
   --theme-ambient-opacity: 0.12;
+
+  /* Brand Cyan-Violet Identity (Pilot Screens) */
+  --brand-cyan: #7ed3f2;        /* cyan sáng - dùng cho chữ, icon, nhấn mạnh */
+  --brand-blue: #3ba8d9;        /* xanh đậm - dùng cho nền nút, viền */
+  --brand-violet: #7c5cd6;      /* tím - chỉ dùng ở cuối gradient */
+  --brand-gradient: linear-gradient(135deg, #7ed3f2 0%, #3ba8d9 55%, #7c5cd6 100%);
+  --brand-glow: rgba(59, 168, 217, 0.35);
+
 }
 
 [data-theme="dark"] {
@@ -162,4 +170,12 @@
   --theme-modal-backdrop: rgba(0, 0, 0, 0.7);
 
   --theme-ambient-opacity: 0.22;
+
+  /* Brand Cyan-Violet Identity (Pilot Screens) */
+  --brand-cyan: #7ed3f2;        /* cyan sáng - dùng cho chữ, icon, nhấn mạnh */
+  --brand-blue: #3ba8d9;        /* xanh đậm - dùng cho nền nút, viền */
+  --brand-violet: #7c5cd6;      /* tím - chỉ dùng ở cuối gradient */
+  --brand-gradient: linear-gradient(135deg, #7ed3f2 0%, #3ba8d9 55%, #7c5cd6 100%);
+  --brand-glow: rgba(59, 168, 217, 0.35);
+
 }
