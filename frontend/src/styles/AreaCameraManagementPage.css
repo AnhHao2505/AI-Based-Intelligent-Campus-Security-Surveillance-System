@@ -33,7 +33,7 @@
 }
 
 .area-camera-header__icon {
-  color: var(--theme-primary);
+  color: var(--brand-cyan);
   flex-shrink: 0;
 }
 
@@ -59,7 +59,7 @@
 }
 
 .area-camera-spinner {
-  color: var(--theme-primary);
+  color: var(--brand-cyan);
 }
 
 /* --------------------------------------------------------------------------
@@ -104,8 +104,8 @@
 }
 
 .area-select-dropdown:focus {
-  border-color: var(--theme-border-focus);
-  box-shadow: 0 0 0 3px var(--theme-primary-light);
+  border-color: var(--brand-blue);
+  box-shadow: 0 0 0 2px rgba(59, 168, 217, 0.15);
 }
 
 /* --------------------------------------------------------------------------
@@ -201,13 +201,13 @@
 }
 
 .badge-count {
-  background: var(--theme-primary-light);
-  color: var(--theme-primary);
+  background: rgba(59, 168, 217, 0.12);
+  color: var(--brand-cyan);
   border-radius: 9999px;
   padding: 2px 10px;
   font-size: 0.75rem;
   font-weight: 600;
-  border: 1px solid var(--theme-primary-border);
+  border: 1px solid rgba(59, 168, 217, 0.25);
   line-height: 1.4;
 }
 
@@ -252,8 +252,8 @@
 
 .transfer-search-wrapper input:focus,
 .search-input-wrapper input:focus {
-  border-color: var(--theme-border-focus);
-  box-shadow: 0 0 0 3px var(--theme-primary-light);
+  border-color: var(--brand-blue);
+  box-shadow: 0 0 0 2px rgba(59, 168, 217, 0.15);
 }
 
 .transfer-search-wrapper .search-icon-inside,
@@ -338,7 +338,7 @@
 .camera-item-code {
   font-weight: 600;
   font-size: 0.8125rem;
-  color: var(--theme-primary);
+  color: var(--brand-cyan);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
@@ -363,7 +363,7 @@
 }
 
 .camera-item-card:hover .camera-item-arrow {
-  color: var(--theme-primary);
+  color: var(--brand-cyan);
 }
 
 .status-dot {
@@ -451,22 +451,24 @@
 }
 
 .btn-transfer:hover:not(:disabled) {
-  background: var(--theme-primary-light);
-  border-color: var(--theme-primary);
-  color: var(--theme-primary);
-  transform: scale(1.06);
+  background: var(--theme-bg-surface-elevated);
+  border-color: var(--brand-blue);
+  color: var(--brand-cyan);
+  box-shadow: var(--theme-card-shadow-hover);
+  transform: scale(1.05);
 }
 
 .btn-transfer:disabled {
-  opacity: 0.4;
+  opacity: 0.35;
   cursor: not-allowed;
-  pointer-events: none;
+  transform: none;
 }
 
 /* --------------------------------------------------------------------------
-   Footer & Save Button
+   Footer / Save Button Area
+   Fixed at the bottom, does not scroll
    -------------------------------------------------------------------------- */
-.area-save-footer {
+.area-camera-footer {
   margin-top: 24px;
   display: flex;
   justify-content: flex-end;
@@ -477,21 +479,21 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background: var(--theme-primary);
-  color: #ffffff;
+  background: var(--brand-gradient);
+  color: #0d1117;
   padding: 10px 22px;
   border: none;
   border-radius: 8px;
   font-weight: 600;
   font-size: 0.875rem;
   cursor: pointer;
-  box-shadow: var(--theme-card-shadow);
-  transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+  box-shadow: var(--brand-glow);
+  transition: opacity 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 }
 
 .btn-save-area-cameras:hover:not(:disabled) {
-  background: var(--theme-primary-hover);
-  box-shadow: var(--theme-card-shadow-hover);
+  opacity: 0.92;
+  box-shadow: var(--brand-glow);
   transform: translateY(-1px);
 }
 
