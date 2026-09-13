@@ -15,6 +15,8 @@ import {
   Loader2,
   Undo2,
   Layers,
+  Cctv,
+  VideoOff,
 } from 'lucide-react';
 import {
   getAreas,
@@ -1015,42 +1017,52 @@ export default function AreaListPage() {
                     </div>
 
                     <h3 className="zone-card__title">{area.name}</h3>
+                    <div className="zone-card__code">{area.code}</div>
 
                     <div className="zone-card__footer">
-                      <span className="zone-card__code">{area.code}</span>
-                      <span className="zone-card__location">
-                        {area.building ? `Tòa ${area.building}` : ''} {area.floor ? `· Tầng ${area.floor}` : ''}
-                      </span>
-                    </div>
-
-                    {isAdmin && (
-                      <div className="zone-card__quick-actions">
-                        <button
-                          type="button"
-                          className="zone-card__quick-btn"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedAreaId(area.id);
-                            handleOpenEditModal();
-                          }}
-                          title="Sửa khu vực"
-                        >
-                          <Pencil size={14} />
-                        </button>
-                        <button
-                          type="button"
-                          className="zone-card__quick-btn zone-card__quick-btn--danger"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedAreaId(area.id);
-                            handleOpenDeactivateModal();
-                          }}
-                          title="Vô hiệu hoá"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                      <div className="zone-card__camera-status">
+                        {area.cameraCount && area.cameraCount > 0 ? (
+                          <span className="zone-card__camera-status--has">
+                            <Cctv size={13} />
+                            <span>{area.cameraCount} camera</span>
+                          </span>
+                        ) : (
+                          <span className="zone-card__camera-status--none">
+                            <VideoOff size={13} />
+                            <span>Chưa có camera</span>
+                          </span>
+                        )}
                       </div>
-                    )}
+
+                      {isAdmin && (
+                        <div className="zone-card__quick-actions">
+                          <button
+                            type="button"
+                            className="zone-card__quick-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedAreaId(area.id);
+                              handleOpenEditModal();
+                            }}
+                            title="Sửa khu vực"
+                          >
+                            <Pencil size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            className="zone-card__quick-btn zone-card__quick-btn--danger"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedAreaId(area.id);
+                              handleOpenDeactivateModal();
+                            }}
+                            title="Vô hiệu hoá"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 );
               })}

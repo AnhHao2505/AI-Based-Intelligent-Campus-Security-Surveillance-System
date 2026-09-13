@@ -82,6 +82,23 @@
   --theme-modal-backdrop: rgba(15, 23, 42, 0.45);
 
   --theme-ambient-opacity: 0.12;
+
+  /* Brand Cyan-Violet Identity (Pilot Screens) */
+  --brand-cyan: #7ed3f2;        /* cyan sáng - dùng cho chữ, icon, nhấn mạnh */
+  --brand-blue: #3ba8d9;        /* xanh đậm - dùng cho nền nút, viền */
+  --brand-violet: #7c5cd6;      /* tím - chỉ dùng ở cuối gradient */
+  --brand-gradient: linear-gradient(135deg, #7ed3f2 0%, #3ba8d9 55%, #7c5cd6 100%);
+  --brand-glow: rgba(59, 168, 217, 0.35);
+
+  /* Nền tối cho các màn đã chuyển phong cách */
+  --dark-bg-page: #0d1117;
+  --dark-bg-surface: #141920;
+  --dark-bg-elevated: #161b24;
+  --dark-border: #242c38;
+  --dark-border-soft: #222a36;
+  --dark-text-primary: #f0f3f8;
+  --dark-text-secondary: #8b94a3;
+  --dark-text-muted: #6b7484;
 }
 
 [data-theme="dark"] {
@@ -162,4 +179,21 @@
   --theme-modal-backdrop: rgba(0, 0, 0, 0.7);
 
   --theme-ambient-opacity: 0.22;
+
+  /* Brand Cyan-Violet Identity (Pilot Screens) */
+  --brand-cyan: #7ed3f2;        /* cyan sáng - dùng cho chữ, icon, nhấn mạnh */
+  --brand-blue: #3ba8d9;        /* xanh đậm - dùng cho nền nút, viền */
+  --brand-violet: #7c5cd6;      /* tím - chỉ dùng ở cuối gradient */
+  --brand-gradient: linear-gradient(135deg, #7ed3f2 0%, #3ba8d9 55%, #7c5cd6 100%);
+  --brand-glow: rgba(59, 168, 217, 0.35);
+
+  /* Nền tối cho các màn đã chuyển phong cách */
+  --dark-bg-page: #0d1117;
+  --dark-bg-surface: #141920;
+  --dark-bg-elevated: #161b24;
+  --dark-border: #242c38;
+  --dark-border-soft: #222a36;
+  --dark-text-primary: #f0f3f8;
+  --dark-text-secondary: #8b94a3;
+  --dark-text-muted: #6b7484;
 }
