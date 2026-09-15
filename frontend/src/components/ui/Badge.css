@@ -1,0 +1,122 @@
+/* ==========================================================================
+   UI Kit — Badge Component
+   ========================================================================== */
+
+.ui-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  vertical-align: middle;
+  box-sizing: border-box;
+}
+
+.ui-badge__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.ui-badge__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ui-badge__label {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* 1. Security Level: PUBLIC (#22c55e) */
+.ui-badge--public {
+  background: var(--theme-level-pub-bg);
+  border: 1px solid var(--theme-level-pub-border);
+  color: var(--theme-level-pub-text);
+}
+.ui-badge--public .ui-badge__dot {
+  background: #22c55e;
+  box-shadow: 0 0 4px rgba(34, 197, 94, 0.4);
+}
+
+/* 2. Security Level: SEMI_PRIVATE (#fbbf24) */
+.ui-badge--semiPrivate {
+  background: var(--theme-level-semi-bg);
+  border: 1px solid var(--theme-level-semi-border);
+  color: var(--theme-level-semi-text);
+}
+.ui-badge--semiPrivate .ui-badge__dot {
+  background: #fbbf24;
+  box-shadow: 0 0 4px rgba(251, 191, 36, 0.4);
+}
+
+/* 3. Security Level: PRIVATE (#f87171) */
+.ui-badge--private {
+  background: var(--theme-level-priv-bg);
+  border: 1px solid var(--theme-level-priv-border);
+  color: var(--theme-level-priv-text);
+}
+.ui-badge--private .ui-badge__dot {
+  background: #f87171;
+  box-shadow: 0 0 4px rgba(248, 113, 113, 0.4);
+}
+
+/* 4. Semantic Status: SUCCESS */
+.ui-badge--success {
+  background: var(--theme-success-bg);
+  border: 1px solid var(--theme-success-border);
+  color: var(--theme-success-text);
+}
+.ui-badge--success .ui-badge__dot {
+  background: var(--theme-success);
+}
+
+/* 5. Semantic Status: WARNING */
+.ui-badge--warning {
+  background: var(--theme-warning-bg);
+  border: 1px solid var(--theme-warning-border);
+  color: var(--theme-warning-text);
+}
+.ui-badge--warning .ui-badge__dot {
+  background: var(--theme-warning);
+}
+
+/* 6. Semantic Status: DANGER */
+.ui-badge--danger {
+  background: var(--theme-danger-bg);
+  border: 1px solid var(--theme-danger-border);
+  color: var(--theme-danger-text);
+}
+.ui-badge--danger .ui-badge__dot {
+  background: var(--theme-danger);
+}
+
+/* 7. NEUTRAL */
+.ui-badge--neutral {
+  background: var(--theme-bg-surface-elevated);
+  border: 1px solid var(--theme-border);
+  color: var(--theme-text-secondary);
+}
+.ui-badge--neutral .ui-badge__dot {
+  background: var(--theme-text-muted);
+}
+
+/* 8. BRAND */
+.ui-badge--brand {
+  background: var(--brand-subtle);
+  border: 1px solid var(--brand-subtle-border);
+  color: var(--brand-text);
+}
+.ui-badge--brand .ui-badge__dot {
+  background: var(--brand-blue);
+  box-shadow: 0 0 4px var(--brand-glow);
+}
