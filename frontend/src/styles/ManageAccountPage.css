@@ -63,8 +63,8 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background-color: var(--theme-primary);
-  color: #ffffff;
+  background: var(--brand-gradient);
+  color: var(--brand-on-gradient);
   border: none;
   padding: 10px 18px;
   border-radius: 8px;
@@ -72,12 +72,12 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.2);
+  box-shadow: 0 2px 8px var(--brand-glow);
 }
 
 .account-header__create-btn:hover {
-  background-color: var(--theme-primary-hover);
-  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.3);
+  filter: brightness(1.08);
+  box-shadow: 0 4px 12px var(--brand-glow);
   transform: translateY(-1px);
 }
 
