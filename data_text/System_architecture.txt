@@ -5,7 +5,7 @@
 
 1. TỔNG QUAN KIẾN TRÚC HỆ THỐNG
 --------------------------------------------------------------------------------
-Hệ thống được thiết kế theo kiến trúc Microservices phân tách rõ ràng vai trò giữa:
+Hệ thống được thiết kế theo kiến trúc Modulith với AI-service là 1 service độc lập, với mô tả sau:
 - Client (Frontend React / Vite App)
 - Business & Storage Controller (Backend Spring Boot Server)
 - Pure Vision AI Engine (AI Microservice Python)
