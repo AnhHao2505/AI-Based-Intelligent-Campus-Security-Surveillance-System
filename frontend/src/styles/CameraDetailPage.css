@@ -109,8 +109,8 @@
   width: 58px;
   height: 58px;
   border-radius: 14px;
-  background: rgba(59, 168, 217, 0.12);
-  border: 1.5px solid rgba(59, 168, 217, 0.25);
+  background: var(--brand-subtle);
+  border: 1.5px solid var(--brand-subtle-border);
   color: var(--brand-text);
   display: flex;
   align-items: center;

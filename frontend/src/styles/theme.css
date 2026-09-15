@@ -89,6 +89,8 @@
   --brand-violet: #7c5cd6;      /* tím - chỉ dùng ở cuối gradient */
   --brand-gradient: linear-gradient(135deg, #7ed3f2 0%, #3ba8d9 55%, #7c5cd6 100%);
   --brand-glow: rgba(59, 168, 217, 0.35);
+  --brand-subtle: rgba(59, 168, 217, 0.12);
+  --brand-subtle-border: rgba(59, 168, 217, 0.25);
 
   /* Brand Text Variations (Contrast-safe) */
   --brand-text: #0e7490;        /* cyan đậm, đọc rõ trên nền trắng */
@@ -181,6 +183,8 @@
   --brand-violet: #7c5cd6;      /* tím - chỉ dùng ở cuối gradient */
   --brand-gradient: linear-gradient(135deg, #7ed3f2 0%, #3ba8d9 55%, #7c5cd6 100%);
   --brand-glow: rgba(59, 168, 217, 0.35);
+  --brand-subtle: rgba(59, 168, 217, 0.12);
+  --brand-subtle-border: rgba(59, 168, 217, 0.25);
 
   /* Brand Text Variations (Contrast-safe) */
   --brand-text: #7ed3f2;

@@ -115,10 +115,9 @@ export default function DashboardPage() {
   const kpiCards = [
     {
       id: 'areas',
-      label: 'Total Areas',
+      label: 'Tổng số khu vực',
       badge: 'Khu vực',
       icon: MapPin,
-      iconVariant: 'blue',
       isConnected: kpiConnection.areas.isConnected,
       value: areaLoading ? '...' : areaCount !== null ? areaCount : '—',
       subtext: areaCount !== null ? 'Khu vực quản lý an ninh' : 'Đang tải dữ liệu...',
@@ -126,10 +125,9 @@ export default function DashboardPage() {
     },
     {
       id: 'cameras',
-      label: 'Active Cameras',
+      label: 'Camera đang hoạt động',
       badge: 'Camera',
       icon: Camera,
-      iconVariant: 'emerald',
       isConnected: kpiConnection.cameras.isConnected,
       value: null,
       subtext: '',
@@ -137,10 +135,9 @@ export default function DashboardPage() {
     },
     {
       id: 'faceProfiles',
-      label: 'Face Profiles',
+      label: 'Hồ sơ khuôn mặt',
       badge: 'Khuôn mặt',
       icon: Users,
-      iconVariant: 'indigo',
       isConnected: kpiConnection.faceProfiles.isConnected,
       value: null,
       subtext: '',
@@ -148,10 +145,9 @@ export default function DashboardPage() {
     },
     {
       id: 'incidents',
-      label: 'Active Incidents',
+      label: 'Sự cố đang xử lý',
       badge: 'Sự cố',
       icon: AlertTriangle,
-      iconVariant: 'amber',
       isConnected: kpiConnection.incidents.isConnected,
       value: null,
       subtext: '',
@@ -192,7 +188,7 @@ export default function DashboardPage() {
                 className={`kpi-card ${!card.isConnected ? 'kpi-card--disconnected' : ''}`}
               >
                 <div className="kpi-card__top">
-                  <span className={`kpi-card__icon kpi-card__icon--${card.iconVariant}`}>
+                  <span className="kpi-card__icon">
                     <IconComponent size={20} />
                   </span>
                   <span className="kpi-card__badge">{card.badge}</span>
@@ -227,7 +223,7 @@ export default function DashboardPage() {
                   <MapIcon size={18} />
                 </div>
                 <div>
-                  <h2 className="dash-card__title">Campus Security Overview</h2>
+                  <h2 className="dash-card__title">Tổng quan an ninh khuôn viên</h2>
                   <p className="dash-card__subtitle">
                     Sơ đồ tổng quan phân vùng an ninh khuôn viên
                   </p>

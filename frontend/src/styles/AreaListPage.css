@@ -910,7 +910,7 @@
   width: 30px;
   height: 30px;
   border-radius: 8px;
-  background: rgba(59, 168, 217, 0.12);
+  background: var(--brand-subtle);
   color: var(--brand-text);
   display: flex;
   align-items: center;
