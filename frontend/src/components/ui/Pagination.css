@@ -1,0 +1,108 @@
+/* ==========================================================================
+   UI Kit — Pagination Component
+   ========================================================================== */
+
+.ui-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background-color: var(--theme-bg-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: 10px;
+  box-sizing: border-box;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+/* Left Info text */
+.ui-pagination__info {
+  font-size: 0.8125rem;
+  color: var(--theme-text-muted);
+  user-select: none;
+}
+
+.ui-pagination__info strong {
+  color: var(--theme-text-primary);
+  font-weight: 600;
+}
+
+/* Right Controls */
+.ui-pagination__controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ui-pagination__pages {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Buttons */
+.ui-pagination__btn {
+  height: 32px;
+  min-width: 32px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  background-color: var(--theme-bg-surface);
+  border: 1px solid var(--theme-border);
+  color: var(--theme-text-primary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  box-sizing: border-box;
+}
+
+.ui-pagination__btn:hover:not(:disabled) {
+  background-color: var(--theme-bg-surface-elevated);
+  border-color: var(--theme-border-hover);
+  color: var(--theme-text-primary);
+}
+
+.ui-pagination__btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  border-color: var(--theme-border);
+}
+
+/* Active Page Button (Dùng --brand-*) */
+.ui-pagination__btn--active {
+  background: var(--brand-gradient) !important;
+  color: var(--brand-on-gradient) !important;
+  border-color: transparent !important;
+  font-weight: 700;
+  box-shadow: 0 2px 6px var(--brand-glow);
+}
+
+.ui-pagination__btn--active:hover {
+  filter: brightness(1.08);
+}
+
+/* Ellipsis (...) */
+.ui-pagination__ellipsis {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 32px;
+  font-size: 0.875rem;
+  color: var(--theme-text-muted);
+  user-select: none;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .ui-pagination {
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+}
