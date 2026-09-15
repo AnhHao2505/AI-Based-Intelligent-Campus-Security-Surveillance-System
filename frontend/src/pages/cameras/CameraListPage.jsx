@@ -108,12 +108,12 @@ export default function CameraListPage() {
 
       <div className="page-header">
         <div>
-          <h1>Hệ thống Camera Giám sát</h1>
+          <h1>Hệ thống camera giám sát</h1>
           <p className="subtitle">Quản lý và cấu hình thiết bị camera trong khuôn viên trường</p>
         </div>
         <button className="btn-add-camera" onClick={() => setIsCreateOpen(true)}>
           <Plus size={18} />
-          <span>Thêm Camera</span>
+          <span>Thêm camera</span>
         </button>
       </div>
 

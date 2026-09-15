@@ -1323,19 +1323,19 @@ export default function ManageAccountPage() {
                     <div className="account-bulk-template-info">
                       <FileText size={20} className="account-bulk-template-icon" />
                       <div>
-                        <div className="account-bulk-template-title">File Excel Mẫu & Hướng dẫn nạp dữ liệu</div>
+                        <div className="account-bulk-template-title">File Excel mẫu & hướng dẫn nạp dữ liệu</div>
                         <div className="account-bulk-template-desc">
                           {activeTab === 'NORMAL' ? (
                             <>
                               • Tải file mẫu Excel (<code>.xlsx</code>) và nhập thông tin (3 cột: <code>user_code</code>, <code>full_name</code>, <code>email</code>, tối đa 200 dòng).<br />
-                              • <strong>Lưu ý quan trọng:</strong> Cần Export / Lưu file Excel dưới dạng <code>metadata.csv</code>.<br />
+                              • <strong>Lưu ý quan trọng:</strong> Cần export / lưu file Excel dưới dạng <code>metadata.csv</code>.<br />
                               • Nén file <code>metadata.csv</code> cùng thư mục <code>images/</code> chứa ảnh chân dung (tối đa 350KB/ảnh, tên ảnh khớp với <code>user_code</code>) vào file <code>.zip</code> để nạp.
                             </>
                           ) : (
                             <>
                               • Tải file mẫu Excel (<code>.xlsx</code>) và nhập thông tin (4 cột: <code>user_code</code>, <code>full_name</code>, <code>email</code>, <code>role</code>, tối đa 200 dòng).<br />
                               • Cột <code>role</code> bắt buộc có giá trị ở mọi dòng, chọn một trong các vai trò: <code>ADMIN</code>, <code>FACILITY_MANAGER</code>, <code>GUARD</code>.<br />
-                              • <strong>Lưu ý quan trọng:</strong> Cần Export / Lưu file Excel dưới dạng <code>metadata.csv</code>.<br />
+                              • <strong>Lưu ý quan trọng:</strong> Cần export / lưu file Excel dưới dạng <code>metadata.csv</code>.<br />
                               • Nén file <code>metadata.csv</code> cùng thư mục <code>images/</code> chứa ảnh chân dung (tối đa 350KB/ảnh, tên ảnh khớp với <code>user_code</code>) vào file <code>.zip</code> để nạp.
                             </>
                           )}

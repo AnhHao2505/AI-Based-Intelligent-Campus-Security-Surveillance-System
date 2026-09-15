@@ -133,13 +133,13 @@ export default function AreaCameraManagementPage() {
       <div className="area-camera-header">
         <h1>
           <Network size={26} className="area-camera-header__icon" />
-          <span>Gán Camera Vào Khu Vực (N - N)</span>
+          <span>Gán camera vào khu vực</span>
         </h1>
         <p>Quản lý và hỗ trợ liên kết linh hoạt giữa các Camera giám sát và Khu vực thuộc khuôn viên trường.</p>
       </div>
 
       <div className="area-selector-card">
-        <label htmlFor="area-select">Chọn Khu Vực Quản Lý:</label>
+        <label htmlFor="area-select">Chọn khu vực quản lý</label>
         <select
           id="area-select"
           className="area-select-dropdown"
@@ -181,7 +181,7 @@ export default function AreaCameraManagementPage() {
               <div className="transfer-box-header">
                 <h3>
                   <Video size={18} className="transfer-box-header__icon" />
-                  <span>Camera Khả Dụng (Chưa Gán)</span>
+                  <span>Camera khả dụng</span>
                 </h3>
                 <span className="badge-count">{filteredAvailable.length}</span>
               </div>
@@ -256,7 +256,7 @@ export default function AreaCameraManagementPage() {
               <div className="transfer-box-header">
                 <h3>
                   <CheckCircle2 size={18} className="transfer-box-header__icon transfer-box-header__icon--success" />
-                  <span>Camera Đã Gán Vẫn Đang Hoạt Động</span>
+                  <span>Camera đã gán</span>
                 </h3>
                 <span className="badge-count">{filteredAssigned.length}</span>
               </div>
@@ -304,7 +304,7 @@ export default function AreaCameraManagementPage() {
           <div className="area-save-footer">
             <button type="button" className="btn-save-area-cameras" onClick={handleSave} disabled={saving}>
               {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-              <span>{saving ? 'Đang lưu...' : 'Lưu Thay Đổi Liên Kết'}</span>
+              <span>{saving ? 'Đang lưu...' : 'Lưu thay đổi'}</span>
             </button>
           </div>
         </>

@@ -125,7 +125,7 @@ export default function Sidebar({ user, onLogout }) {
                     title={sidebarCollapsed ? "Giám sát An ninh" : undefined}
                   >
                     <ShieldAlert size={18} />
-                    <span>Giám sát An ninh</span>
+                    <span>Giám sát an ninh</span>
                   </NavLink>
                 )}
 
@@ -136,7 +136,7 @@ export default function Sidebar({ user, onLogout }) {
                     title={sidebarCollapsed ? "Quản lý Camera" : undefined}
                   >
                     <Video size={18} />
-                    <span>Quản lý Camera</span>
+                    <span>Quản lý camera</span>
                   </NavLink>
                 )}
               </div>
@@ -183,7 +183,7 @@ export default function Sidebar({ user, onLogout }) {
                         title={sidebarCollapsed ? "Gán Camera – Khu vực" : undefined}
                       >
                         <Network size={18} />
-                        <span>Gán Camera – Khu vực</span>
+                        <span>Gán camera – khu vực</span>
                       </NavLink>
                     </>
                   )}
