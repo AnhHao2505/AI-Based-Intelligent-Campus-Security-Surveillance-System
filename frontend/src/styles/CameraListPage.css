@@ -401,15 +401,15 @@
 }
 
 .btn-decommission {
-  background: var(--theme-danger-bg);
-  border-color: var(--theme-danger-border);
-  color: var(--theme-danger-text);
+  background: var(--theme-bg-surface-elevated);
+  border-color: var(--theme-border);
+  color: var(--theme-text-secondary);
 }
 
 .btn-decommission:hover:not(:disabled) {
-  background: var(--theme-danger);
-  color: #0d1117;
-  border-color: var(--theme-danger);
+  background: var(--theme-bg-page);
+  border-color: var(--theme-border-hover);
+  color: var(--theme-text-primary);
   transform: translateY(-1px);
 }
 

@@ -441,7 +441,7 @@ export default function DashboardPage() {
                       <Bell size={18} />
                     </div>
                     <div>
-                      <h2 className="dash-card__title">Attention Required</h2>
+                      <h2 className="dash-card__title">Cần xử lý</h2>
                       <p className="dash-card__subtitle">
                         Cảnh báo cần xử lý ưu tiên
                       </p>
@@ -461,7 +461,7 @@ export default function DashboardPage() {
                       <Clock size={18} />
                     </div>
                     <div>
-                      <h2 className="dash-card__title">Recent Security Events</h2>
+                      <h2 className="dash-card__title">Sự kiện an ninh gần đây</h2>
                       <p className="dash-card__subtitle">
                         Nhật ký sự kiện an ninh gần đây
                       </p>
