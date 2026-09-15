@@ -20,6 +20,7 @@ import NotificationsPage from './pages/notifications/NotificationsPage';
 import AiSettingsPage from './pages/ai/AiSettingsPage';
 import AreaCameraManagementPage from './pages/areas/AreaCameraManagementPage';
 import ManageAccountPage from './pages/accounts/ManageAccountPage';
+import UiKitPage from './pages/_devPreview/UiKitPage';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
@@ -65,6 +66,7 @@ function App() {
               }
             />
             <Route path="/unauthorized" element={<UnauthorizedPage />} />
+            <Route path="/dev/ui-kit" element={<UiKitPage />} />
 
             {/* Authenticated Management Routes using shared AppLayout */}
             <Route
