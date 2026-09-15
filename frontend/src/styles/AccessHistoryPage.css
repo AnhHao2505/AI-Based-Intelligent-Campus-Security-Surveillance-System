@@ -52,7 +52,7 @@
   height: 30px;
   border-radius: 8px;
   background: rgba(59, 168, 217, 0.12);
-  color: var(--brand-cyan);
+  color: var(--brand-text);
   display: flex;
   align-items: center;
   justify-content: center;
