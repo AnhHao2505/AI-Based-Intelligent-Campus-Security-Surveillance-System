@@ -1,0 +1,70 @@
+/* ==========================================================================
+   UI Kit — Card Component
+   ========================================================================== */
+
+.ui-card {
+  background-color: var(--theme-bg-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: 10px;
+  box-shadow: var(--theme-card-shadow);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* Accent Strip: 3px BÊN TRÁI, border-radius 0 10px 10px 0 */
+.ui-card--has-accent {
+  border-left-width: 3px;
+  border-left-style: solid;
+  border-radius: 0 10px 10px 0;
+}
+
+/* Padding variants */
+.ui-card--pad-md {
+  padding: 20px 24px;
+}
+
+.ui-card--pad-sm {
+  padding: 12px 16px;
+}
+
+/* Clickable state */
+.ui-card--clickable {
+  cursor: pointer;
+}
+
+.ui-card--clickable:hover {
+  transform: translateY(-2px);
+  border-color: var(--theme-border-hover);
+  box-shadow: var(--theme-card-shadow-hover);
+}
+
+.ui-card--clickable:active {
+  transform: translateY(0);
+}
+
+/* Sub-elements */
+.ui-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--theme-border);
+}
+
+.ui-card__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.ui-card__footer {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--theme-border);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
