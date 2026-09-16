@@ -42,14 +42,17 @@ CREATE TABLE IF NOT EXISTS camera_specifications (
 CREATE TABLE IF NOT EXISTS camera_stream_configurations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     camera_id UUID NOT NULL UNIQUE REFERENCES cameras(id) ON DELETE CASCADE,
+    protocol VARCHAR(50) NOT NULL,
     host VARCHAR(255) NOT NULL,
     port INT NOT NULL,
     username VARCHAR(100),
     credential_ref VARCHAR(255),
-    main_stream_path VARCHAR(512) NOT NULL,
-    sub_stream_path VARCHAR(512),
-    retries_before_alert INT NOT NULL DEFAULT 3,
-    timeout_ms INT NOT NULL DEFAULT 5000
+    main_stream_url VARCHAR(512) NOT NULL,
+    sub_stream_url VARCHAR(512),
+    stream_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    reconnect_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    timeout_ms INT NOT NULL DEFAULT 5000,
+    CONSTRAINT chk_camera_stream_protocol CHECK (protocol IN ('RTSP', 'RTMP', 'HTTP', 'HTTPS'))
 );
 
 CREATE TABLE IF NOT EXISTS camera_ai_configurations (
