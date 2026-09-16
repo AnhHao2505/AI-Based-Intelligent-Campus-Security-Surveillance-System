@@ -395,16 +395,10 @@
   border-color: #bfdbfe;
 }
 
-.account-badge--role-INTERNAL_GUARD {
+.account-badge--role-GUARD {
   background-color: #e0f2fe;
   color: #0369a1;
   border-color: #bae6fd;
-}
-
-.account-badge--role-OUTSOURCED_GUARD {
-  background-color: #ccfbf1;
-  color: #0f766e;
-  border-color: #99f6e4;
 }
 
 .account-badge--role-NORMAL_USER {
@@ -426,16 +420,10 @@
   border-color: rgba(59, 130, 246, 0.35);
 }
 
-[data-theme="dark"] .account-badge--role-INTERNAL_GUARD {
+[data-theme="dark"] .account-badge--role-GUARD {
   background-color: rgba(14, 165, 233, 0.18);
   color: #7dd3fc;
   border-color: rgba(14, 165, 233, 0.35);
-}
-
-[data-theme="dark"] .account-badge--role-OUTSOURCED_GUARD {
-  background-color: rgba(20, 184, 166, 0.18);
-  color: #5eead4;
-  border-color: rgba(20, 184, 166, 0.35);
 }
 
 [data-theme="dark"] .account-badge--role-NORMAL_USER {

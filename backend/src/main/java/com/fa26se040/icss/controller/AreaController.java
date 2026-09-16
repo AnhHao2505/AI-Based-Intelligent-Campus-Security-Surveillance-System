@@ -151,7 +151,7 @@ public class AreaController {
     }
 
     @GetMapping("/{id}/cameras")
-    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER', 'INTERNAL_GUARD')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER', 'GUARD')")
     public ResponseEntity<AreaCameraResponse> getCameras(@PathVariable UUID id) {
         return ResponseEntity.ok(areaService.getCamerasForArea(id));
     }

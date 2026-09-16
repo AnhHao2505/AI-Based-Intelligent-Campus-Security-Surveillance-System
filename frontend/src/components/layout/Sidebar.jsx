@@ -17,10 +17,12 @@ import {
 } from 'lucide-react';
 import { ROLES, ROLE_LABELS } from '../../constants/roles';
 import { useTheme } from '../../context/ThemeContext';
+import { useUiStore } from '../../store/useUiStore';
 import '../../styles/Sidebar.css';
 
 export default function Sidebar({ user, onLogout }) {
   const { theme, toggleTheme } = useTheme();
+  const { sidebarCollapsed, toggleSidebar } = useUiStore();
 
   // TODO: nối API lấy số thông báo chưa đọc khi backend có bảng notifications
   const unreadCount = 0;
@@ -39,10 +41,10 @@ export default function Sidebar({ user, onLogout }) {
   const isAdmin = userRole === ROLES.ADMIN;
   const isFacilityManager = userRole === ROLES.FACILITY_MANAGER;
   const isNormalUser = userRole === ROLES.NORMAL_USER;
-  const isGuard = userRole === ROLES.INTERNAL_GUARD || userRole === ROLES.OUTSOURCED_GUARD;
+  const isGuard = userRole === ROLES.GUARD;
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${sidebarCollapsed ? 'sidebar--collapsed' : ''}`}>
       <div className="sidebar__header">
         <NavLink to={isNormalUser ? "/access-requests" : "/dashboard"} className="sidebar__brand">
           <div className="sidebar__logo">
@@ -57,6 +59,15 @@ export default function Sidebar({ user, onLogout }) {
             <div className="sidebar__subtitle">Campus Security</div>
           </div>
         </NavLink>
+        <button
+          type="button"
+          className="sidebar__collapse-button"
+          onClick={toggleSidebar}
+          aria-label={sidebarCollapsed ? 'Mở rộng thanh điều hướng' : 'Thu gọn thanh điều hướng'}
+          title={sidebarCollapsed ? 'Mở rộng' : 'Thu gọn'}
+        >
+          <span aria-hidden="true">{sidebarCollapsed ? '»' : '«'}</span>
+        </button>
 
         <nav className="sidebar__nav">
           {isNormalUser ? (

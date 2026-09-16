@@ -1,5 +1,15 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
+function getDemoResponse(path) {
+  if (path.includes('/auth/me')) return JSON.parse(localStorage.getItem('user') || 'null');
+  if (path.includes('/areas')) return { content: [], totalElements: 0, totalPages: 0 };
+  if (path.includes('/floor-plans') || path.includes('/notifications')) return [];
+  if (path.includes('/cameras') || path.includes('/access-requests')) {
+    return { content: [], totalElements: 0, totalPages: 0 };
+  }
+  return {};
+}
+
 /**
  * Native fetch wrapper with automatic Authorization header,
  * 401 auto-logout & redirect, and error handling.
@@ -16,6 +26,12 @@ export async function apiFetch(path, options = {}) {
 
   if (options.body && !(options.body instanceof FormData) && !headers['Content-Type']) {
     headers['Content-Type'] = 'application/json';
+  }
+
+  if (token?.startsWith('frontend-demo-')) {
+    return (options.method || 'GET').toUpperCase() === 'GET'
+      ? getDemoResponse(path)
+      : null;
   }
 
   let response;

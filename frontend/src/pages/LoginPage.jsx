@@ -1,23 +1,25 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { GoogleLogin } from '@react-oauth/google';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { toast } from 'sonner';
 import { useAuth } from '../context/AuthContext';
-import { ROLES } from '../constants/roles';
+import { ROLES, ROLE_LABELS } from '../constants/roles';
 import {
   sendResetLink,
   resetPasswordWithToken
 } from '../services/authService';
 import '../styles/LoginPage.css';
 
-const ROLE_LABELS = {
-  ADMIN: 'Quản trị viên',
-  FACILITY_MANAGER: 'Quản lý cơ sở',
-  INTERNAL_GUARD: 'Bảo vệ nội bộ',
-  OUTSOURCED_GUARD: 'Bảo vệ thuê ngoài',
-};
+const credentialSchema = z.object({
+  email: z.string().trim().email('Vui lòng nhập email hợp lệ.'),
+  password: z.string().min(6, 'Mật khẩu phải có ít nhất 6 ký tự.'),
+});
 
 export default function LoginPage({ onLoginSuccess, initialResetToken, onResetComplete }) {
-  const { loginWithGoogleToken, loginWithPassword } = useAuth();
+  const { loginWithGoogleToken, loginWithPassword, loginAsDemoRole } = useAuth();
   const navigate = useNavigate();
 
   const [mode, setMode] = useState('login'); // 'login' | 'forgot' | 'reset'
@@ -34,6 +36,10 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
   const [forgotEmail, setForgotEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const credentialForm = useForm({
+    resolver: zodResolver(credentialSchema),
+    defaultValues: { email: '', password: '' },
+  });
 
   // Switch to reset mode if token exists in URL
   useEffect(() => {
@@ -50,6 +56,7 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
       if (onLoginSuccess) onLoginSuccess();
       const role = res?.user?.role;
       navigate(role === ROLES.NORMAL_USER ? '/access-requests' : '/dashboard');
+      toast.success('Đăng nhập thành công');
     } catch (err) {
       console.error('Google login failed:', err);
       setError(err.message || 'Đăng nhập Google thất bại. Vui lòng thử lại.');
@@ -62,15 +69,30 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
     setError('Đăng nhập Google thất bại. Vui lòng thử lại.');
   };
 
-  const handleCredentialLoginSubmit = async (e) => {
-    e.preventDefault();
+  const handleRoleBypass = (role) => {
+    setError(null);
+    loginAsDemoRole(role);
+    if (onLoginSuccess) onLoginSuccess();
+
+    const destination = role === ROLES.NORMAL_USER
+      ? '/access-requests'
+      : role === ROLES.GUARD
+        ? '/guard'
+        : '/dashboard';
+
+    navigate(destination);
+    toast.success(`Đang xem giao diện với vai trò ${ROLE_LABELS[role]}`);
+  };
+
+  const handleCredentialLoginSubmit = async ({ email: formEmail, password: formPassword }) => {
     setError(null);
     setLoading(true);
     try {
-      const res = await loginWithPassword(email, password);
+      const res = await loginWithPassword(formEmail, formPassword);
       if (onLoginSuccess) onLoginSuccess();
       const role = res?.user?.role;
       navigate(role === ROLES.NORMAL_USER ? '/access-requests' : '/dashboard');
+      toast.success('Đăng nhập thành công');
     } catch (err) {
       console.error('Credentials login failed:', err);
       setError(err.message || 'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.');
@@ -203,28 +225,30 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
             )}
 
             {activeTab === 'credentials' && (
-              <form className="login-card__form" onSubmit={handleCredentialLoginSubmit}>
+              <form className="login-card__form" onSubmit={credentialForm.handleSubmit(handleCredentialLoginSubmit)}>
                 <div className="login-card__input-group">
                   <label className="login-card__input-label">Email</label>
                   <input
                     type="email"
-                    required
                     placeholder="name@campus.edu.vn"
                     className="login-card__input"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    {...credentialForm.register('email')}
                   />
+                  {credentialForm.formState.errors.email && (
+                    <span className="login-card__field-error">{credentialForm.formState.errors.email.message}</span>
+                  )}
                 </div>
                 <div className="login-card__input-group">
                   <label className="login-card__input-label">Mật khẩu</label>
                   <input
                     type="password"
-                    required
                     placeholder="••••••••"
                     className="login-card__input"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    {...credentialForm.register('password')}
                   />
+                  {credentialForm.formState.errors.password && (
+                    <span className="login-card__field-error">{credentialForm.formState.errors.password.message}</span>
+                  )}
                 </div>
                 <span
                   className="login-card__forgot-link"
@@ -351,9 +375,17 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
         {/* Role badges */}
         <div className="login-card__roles">
           {Object.entries(ROLE_LABELS).map(([key, label]) => (
-            <span key={key} className="login-card__role-badge">
+            <button
+              key={key}
+              type="button"
+              className="login-card__role-badge"
+              onClick={() => handleRoleBypass(key)}
+              disabled={loading}
+              aria-label={`Đăng nhập bypass với vai trò ${label}`}
+              title={`Đăng nhập bypass: ${label}`}
+            >
               {label}
-            </span>
+            </button>
           ))}
         </div>
       </div>

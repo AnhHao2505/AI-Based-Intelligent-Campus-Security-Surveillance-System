@@ -17,6 +17,10 @@
   transition: background-color 0.25s ease, color 0.25s ease;
 }
 
+.app-layout__content--collapsed {
+  margin-left: 76px;
+}
+
 @media (max-width: 768px) {
   .app-layout__content {
     margin-left: 72px;
