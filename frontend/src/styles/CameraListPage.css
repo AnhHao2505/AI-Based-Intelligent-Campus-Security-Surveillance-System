@@ -146,7 +146,7 @@
 .search-box input:focus {
   outline: none;
   border-color: var(--brand-blue);
-  box-shadow: 0 0 0 2px rgba(59, 168, 217, 0.15);
+  box-shadow: var(--focus-ring);
   background: var(--theme-bg-input);
 }
 
@@ -171,8 +171,9 @@
 }
 
 .filter-dropdowns select:focus {
+  outline: none;
   border-color: var(--brand-blue);
-  box-shadow: 0 0 0 2px rgba(59, 168, 217, 0.15);
+  box-shadow: var(--focus-ring);
 }
 
 .btn-search {

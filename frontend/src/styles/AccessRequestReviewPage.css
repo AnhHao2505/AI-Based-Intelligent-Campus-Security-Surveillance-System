@@ -209,8 +209,9 @@
 }
 
 .arr-search-input:focus {
+  outline: none;
   border-color: var(--brand-blue);
-  box-shadow: 0 0 0 2px rgba(59, 168, 217, 0.15);
+  box-shadow: var(--focus-ring);
 }
 
 /* Alerts */
@@ -585,7 +586,7 @@
 .arr-textarea:focus {
   outline: none;
   border-color: var(--brand-blue);
-  box-shadow: 0 0 0 2px rgba(59, 168, 217, 0.15);
+  box-shadow: var(--focus-ring);
 }
 
 /* Detail Modal Styles */

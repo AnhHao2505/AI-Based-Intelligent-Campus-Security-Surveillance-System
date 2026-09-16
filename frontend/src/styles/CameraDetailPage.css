@@ -572,7 +572,7 @@
 
 .help-icon-wrapper:hover .help-icon {
   opacity: 1;
-  color: var(--theme-primary);
+  color: var(--brand-text);
 }
 
 input[type="datetime-local"]::-webkit-calendar-picker-indicator {

@@ -75,7 +75,7 @@
 
 .ui-input__field:focus {
   border-color: var(--brand-blue);
-  box-shadow: 0 0 0 3px var(--brand-subtle);
+  box-shadow: var(--focus-ring);
   background-color: var(--theme-bg-surface);
 }
 

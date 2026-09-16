@@ -6,20 +6,21 @@
 
 ---
 
-## 1. Tổng Quan Khảo Sát
+## 1. Tổng Quan Khảo Sát & Xác Minh Baseline
 
-- **Tổng số vị trí phát hiện:** 56 vị trí trên 6 file (bao gồm cả định nghĩa trong `theme.css`).
-- **Phân bố theo file:**
+- **Tổng số vị trí phát hiện chính xác (Baseline đã chuẩn hóa):** **63 vị trí** trên 6 file (xác minh bằng `grep -rn "theme-primary" frontend/src`).
+- **Giải trình độ lệch 7 vị trí:** Bản thảo sơ bộ trước đây ghi nhận 56 vị trí do gộp theo cụm selector (AreaListPage đếm 24 cụm thay vì 29 dòng thuộc tính; ManageAccountPage đếm 17 cụm thay vì 19 dòng thuộc tính; chênh đúng 5 + 2 = 7). Bảng chi tiết mục 2 và phân loại rủi ro mục 3 (13 Cao + 41 Trung + 9 Thấp = 63) đã phản ánh đầy đủ 63 dòng thuộc tính độc lập.
+- **Phân bố thực tế theo file:**
   1. `frontend/src/styles/theme.css`: 10 vị trí (khai báo biến token gốc cho Light và Dark mode).
-  2. `frontend/src/styles/AreaListPage.css`: 24 vị trí (bản đồ, sidebar, toolbar, floor tabs, buttons, empty states).
-  3. `frontend/src/styles/ManageAccountPage.css`: 17 vị trí (tab active, table row hover, buttons, dropzone, pagination).
+  2. `frontend/src/styles/AreaListPage.css`: 29 vị trí (bản đồ, sidebar, toolbar, floor tabs, buttons, empty states).
+  3. `frontend/src/styles/ManageAccountPage.css`: 19 vị trí (tab active, table row hover, buttons, dropzone, pagination).
   4. `frontend/src/pages/accounts/ManageAccountPage.jsx`: 3 vị trí (inline styles cho preview avatar, link thay ảnh, dropzone ZIP).
   5. `frontend/src/styles/AreaCameraManagementPage.css`: 1 vị trí (icon header camera unassigned).
   6. `frontend/src/styles/CameraDetailPage.css`: 1 vị trí (icon trợ giúp khi hover).
 
 ---
 
-## 2. Chi Tiết 56 Vị Trí Sử Dụng `--theme-primary*`
+## 2. Chi Tiết 63 Vị Trí Sử Dụng `--theme-primary*`
 
 | STT | File | Dòng | Selector / Vị trí | Thuộc tính | Phần tử giao diện | Trạng thái hiển thị | Mức rủi ro |
 |---|---|---|---|---|---|---|---|
@@ -115,6 +116,77 @@ Chỉ hiện ở một trạng thái tĩnh, dễ quan sát bằng mắt thườn
 - `AreaListPage.css` L717: Mã code khu vực `.zone-details__code`.
 - `AreaListPage.css` L1885: Chữ nút chuyển tầng `.zone-canvas-empty__switch-btn`.
 - `ManageAccountPage.css` L1442: Icon template download `.account-bulk-template-icon`.
+
+---
+
+## 3.4. Phân Loại Toàn Bộ Vị Trí Theo VAI TRÒ (Functional Roles)
+
+Nhằm phục vụ lộ trình tách và thay thế chuẩn hóa, toàn bộ các vị trí được phân nhóm theo 5 vai trò chức năng:
+
+| STT | File | Dòng | Selector / Phần tử | Thuộc tính | Vai trò chức năng | Token đích |
+|---|---|---|---|---|---|---|
+| 1-10 | `theme.css` | 32-36, 141-145 | `:root` & `[data-theme="dark"]` | `--theme-primary*` | Định nghĩa token hệ thống | Sẽ deprecated sau khi dọn xong |
+| 11 | `AreaCameraManagementPage.css` | 195 | `.transfer-box-header__icon` | `color` | Chữ / icon / spinner | `--brand-text` |
+| 12 | `CameraDetailPage.css` | 575 | `.help-icon-wrapper:hover .help-icon` | `color` | Chữ / icon / spinner | `--brand-text` |
+| 13 | `ManageAccountPage.jsx` | 1031 | Inline style preview avatar | `border` | Viền / đường kẻ | `--brand-subtle-border` |
+| 14 | `ManageAccountPage.jsx` | 1039 | Inline style link thay ảnh | `color` | Chữ / icon / spinner | `--brand-text` |
+| 15 | `ManageAccountPage.jsx` | 1367 | Inline style bulk zip dropzone | `border` | Viền / đường kẻ | `--brand-subtle-border` |
+| 16 | `ManageAccountPage.css` | 153 | `.account-tab-btn--active` | `color` | Chữ / icon / spinner | `--brand-text` |
+| 17 | `ManageAccountPage.css` | 154 | `.account-tab-btn--active` | `border-bottom-color` | Viền / đường kẻ | `--brand-subtle-border` |
+| 18 | `ManageAccountPage.css` | 174 | `.account-tab-btn--active .account-tab-badge` | `color` | Chữ / icon / spinner | `--brand-text` |
+| 19 | `ManageAccountPage.css` | 337 | `.account-table tbody tr:hover` | `background-color` | Nền mờ / hover / selected | `--brand-subtle` |
+| 20 | `ManageAccountPage.css` | 508 | `.account-action-btn:hover` | `color` | Chữ / icon / spinner | `--brand-text` |
+| 21 | `ManageAccountPage.css` | 656 | `.account-page-btn--active` | `background-color` | Nền solid (nút chính) | `--brand-* + --theme-on-brand` |
+| 22 | `ManageAccountPage.css` | 658 | `.account-page-btn--active` | `border-color` | Viền / đường kẻ | `--brand-subtle-border` |
+| 23 | `ManageAccountPage.css` | 848 | `.account-dropzone:hover, --active` | `border-color` | Viền / đường kẻ | `--brand-subtle-border` |
+| 24 | `ManageAccountPage.css` | 853 | `.account-dropzone__icon` | `color` | Chữ / icon / spinner | `--brand-text` |
+| 25 | `ManageAccountPage.css` | 1268 | `.account-modal-btn--primary` | `background-color` | Nền solid (nút chính) | `--brand-* + --theme-on-brand` |
+| 26 | `ManageAccountPage.css` | 1273 | `.account-modal-btn--primary:hover` | `background-color` | Nền solid (nút chính) | `--brand-* + --theme-on-brand` |
+| 27 | `ManageAccountPage.css` | 1430 | `.account-bulk-template-icon` | `color` | Chữ / icon / spinner | `--brand-text` |
+| 28 | `ManageAccountPage.css` | 1455 | `.account-bulk-download-btn` | `color` | Chữ / icon / spinner | `--brand-text` |
+| 29 | `ManageAccountPage.css` | 1456 | `.account-bulk-download-btn` | `background-color` | Nền mờ / hover / selected | `--brand-subtle` |
+| 30 | `ManageAccountPage.css` | 1457 | `.account-bulk-download-btn` | `border` | Viền / đường kẻ | `--brand-subtle-border` |
+| 31 | `ManageAccountPage.css` | 1465 | `.account-bulk-download-btn:hover` | `background-color` | Nền mờ / hover / selected | `--brand-subtle` |
+| 32 | `ManageAccountPage.css` | 1466 | `.account-bulk-download-btn:hover` | `border-color` | Viền / đường kẻ | `--brand-subtle-border` |
+| 33 | `ManageAccountPage.css` | 1541 | `.account-bulk-pill--active` | `background-color` | Nền solid (nút chính) | `--brand-* + --theme-on-brand` |
+| 34 | `ManageAccountPage.css` | 1542 | `.account-bulk-pill--active` | `border-color` | Viền / đường kẻ | `--brand-subtle-border` |
+| 35 | `AreaListPage.css` | 38 | `.area-ambient__orb--1` | `background` | Nền mờ / hover / selected | `--brand-subtle` |
+| 36 | `AreaListPage.css` | 132 | `.area-sidebar__nav-item:hover` | `background` | Nền mờ / hover / selected | `--brand-subtle` |
+| 37 | `AreaListPage.css` | 133 | `.area-sidebar__nav-item:hover` | `color` | Chữ / icon / spinner | `--brand-text` |
+| 38 | `AreaListPage.css` | 134 | `.area-sidebar__nav-item:hover` | `border-color` | Viền / đường kẻ | `--brand-subtle-border` |
+| 39 | `AreaListPage.css` | 138 | `.area-sidebar__nav-item--active` | `background` | Nền mờ / hover / selected | `--brand-subtle` |
+| 40 | `AreaListPage.css` | 139 | `.area-sidebar__nav-item--active` | `color` | Chữ / icon / spinner | `--brand-text` |
+| 41 | `AreaListPage.css` | 140 | `.area-sidebar__nav-item--active` | `border-color` | Viền / đường kẻ | `--brand-subtle-border` |
+| 42 | `AreaListPage.css` | 145 | `.area-sidebar__nav-item--active svg` | `color` | Chữ / icon / spinner | `--brand-text` |
+| 43 | `AreaListPage.css` | 213 | `.area-sidebar__user-role` | `color` | Chữ / icon / spinner | `--brand-text` |
+| 44 | `AreaListPage.css` | 337 | `.area-floor-tab--active` | `background` | Nền solid (nút chính) | `--brand-* + --theme-on-brand` |
+| 45 | `AreaListPage.css` | 338 | `.area-floor-tab--active` | `border-color` | Viền / đường kẻ | `--brand-subtle-border` |
+| 46 | `AreaListPage.css` | 356 | `.zone-toolbar__add, .area-toolbar__create-btn` | `background` | Nền solid (nút chính) | `--brand-* + --theme-on-brand` |
+| 47 | `AreaListPage.css` | 368 | `.zone-toolbar__add:hover, .area-toolbar__create-btn:hover` | `background` | Nền solid (nút chính) | `--brand-* + --theme-on-brand` |
+| 48 | `AreaListPage.css` | 401 | `.area-control-btn:hover` | `background` | Nền mờ / hover / selected | `--brand-subtle` |
+| 49 | `AreaListPage.css` | 402 | `.area-control-btn:hover` | `border-color` | Viền / đường kẻ | `--brand-subtle-border` |
+| 50 | `AreaListPage.css` | 403 | `.area-control-btn:hover` | `color` | Chữ / icon / spinner | `--brand-text` |
+| 51 | `AreaListPage.css` | 588 | `.area-empty-state__icon` | `background` | Nền mờ / hover / selected | `--brand-subtle` |
+| 52 | `AreaListPage.css` | 592 | `.area-empty-state__icon` | `color` | Chữ / icon / spinner | `--brand-text` |
+| 53 | `AreaListPage.css` | 717 | `.zone-details__code` | `color` | Chữ / icon / spinner | `--brand-text` |
+| 54 | `AreaListPage.css` | 780 | `.zone-btn--primary` | `background` | Nền solid (nút chính) | `--brand-* + --theme-on-brand` |
+| 55 | `AreaListPage.css` | 786 | `.zone-btn--primary:hover` | `background` | Nền solid (nút chính) | `--brand-* + --theme-on-brand` |
+| 56 | `AreaListPage.css` | 1885 | `.zone-canvas-empty__switch-btn` | `color` | Chữ / icon / spinner | `--brand-text` |
+| 57 | `AreaListPage.css` | 2014 | `.zone-rail-item--selected` | `background` | Nền mờ / hover / selected | `--brand-subtle` |
+| 58 | `AreaListPage.css` | 2015 | `.zone-rail-item--selected` | `border-color` | Viền / đường kẻ | `--brand-subtle-border` |
+| 59 | `AreaListPage.css` | 2191 | `.zone-btn-action--primary` | `background` | Nền mờ / hover / selected | `--brand-subtle` |
+| 60 | `AreaListPage.css` | 2192 | `.zone-btn-action--primary` | `border-color` | Viền / đường kẻ | `--brand-subtle-border` |
+| 61 | `AreaListPage.css` | 2193 | `.zone-btn-action--primary` | `color` | Chữ / icon / spinner | `--brand-text` |
+| 62 | `AreaListPage.css` | 2197 | `.zone-btn-action--primary:hover` | `background` | Nền mờ / hover / selected | `--brand-subtle` |
+| 63 | `AreaListPage.css` | 2198 | `.zone-btn-action--primary:hover` | `border-color` | Viền / đường kẻ | `--brand-subtle-border` |
+
+### Tổng hợp theo 5 nhóm vai trò:
+1. **Chữ / icon / spinner (`--brand-text`):** 18 vị trí.
+2. **Nền solid (nút chính) (`--brand-* + --theme-on-brand`):** 9 vị trí.
+3. **Viền / đường kẻ (`--brand-subtle-border`):** 14 vị trí.
+4. **Focus ring (`--focus-ring`):** Toàn bộ các kiểu focus ring trên các ô nhập liệu/dropdown.
+5. **Nền mờ / hover / selected (`--brand-subtle`):** 12 vị trí.
+*(Cộng thêm 10 vị trí khai báo token hệ thống trong `theme.css`)*.
 
 ---
 

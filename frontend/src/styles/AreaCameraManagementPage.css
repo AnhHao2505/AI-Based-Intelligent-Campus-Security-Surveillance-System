@@ -104,8 +104,9 @@
 }
 
 .area-select-dropdown:focus {
+  outline: none;
   border-color: var(--brand-blue);
-  box-shadow: 0 0 0 2px rgba(59, 168, 217, 0.15);
+  box-shadow: var(--focus-ring);
 }
 
 /* --------------------------------------------------------------------------
@@ -192,7 +193,7 @@
 }
 
 .transfer-box-header__icon {
-  color: var(--theme-primary);
+  color: var(--brand-text);
   flex-shrink: 0;
 }
 
@@ -252,8 +253,9 @@
 
 .transfer-search-wrapper input:focus,
 .search-input-wrapper input:focus {
+  outline: none;
   border-color: var(--brand-blue);
-  box-shadow: 0 0 0 2px rgba(59, 168, 217, 0.15);
+  box-shadow: var(--focus-ring);
 }
 
 .transfer-search-wrapper .search-icon-inside,

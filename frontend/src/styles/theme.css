@@ -111,6 +111,9 @@
   --brand-text: #0e7490;        /* cyan đậm, đọc rõ trên nền trắng */
   --brand-text-strong: #155e75; /* đậm hơn cho chữ quan trọng */
   --brand-on-gradient: #ffffff; /* chữ trên nền gradient ở light mode */
+
+  /* Focus Ring Token (WCAG Focus Visible Safe for Light & Dark) */
+  --focus-ring: 0 0 0 2px var(--brand-glow);
 }
 
 [data-theme="dark"] {
@@ -272,3 +275,14 @@
   cursor: not-allowed;
   transform: none;
 }
+
+/* ==========================================================================
+   Input Focus Common Utility Class
+   ========================================================================== */
+.input-focus,
+.focus-ring:focus {
+  outline: none;
+  border-color: var(--brand-blue) !important;
+  box-shadow: var(--focus-ring) !important;
+}
+

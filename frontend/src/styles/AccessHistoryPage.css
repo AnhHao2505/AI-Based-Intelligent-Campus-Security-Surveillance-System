@@ -130,6 +130,7 @@
 .ahp-select:focus {
   outline: none;
   border-color: var(--brand-blue);
+  box-shadow: var(--focus-ring);
 }
 
 .ahp-refresh-btn {

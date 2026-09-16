@@ -130,19 +130,19 @@
 
 .area-sidebar__nav-item:hover {
   background: var(--theme-primary-light);
-  color: var(--theme-primary);
+  color: var(--brand-text);
   border-color: var(--theme-primary-border);
 }
 
 .area-sidebar__nav-item--active {
   background: var(--theme-primary-light);
-  color: var(--theme-primary);
+  color: var(--brand-text);
   border-color: var(--theme-primary-border);
   font-weight: 600;
 }
 
 .area-sidebar__nav-item--active svg {
-  color: var(--theme-primary);
+  color: var(--brand-text);
 }
 
 .area-sidebar__nav-item--disabled {
@@ -210,7 +210,7 @@
 
 .area-sidebar__user-role {
   font-size: 0.7rem;
-  color: var(--theme-primary);
+  color: var(--brand-text);
   font-weight: 500;
 }
 
@@ -400,7 +400,7 @@
 .area-control-btn:hover {
   background: var(--theme-primary-light);
   border-color: var(--theme-primary-border);
-  color: var(--theme-primary);
+  color: var(--brand-text);
 }
 
 /* Map Canvas Container */
@@ -589,7 +589,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--theme-primary);
+  color: var(--brand-text);
   margin-bottom: 16px;
 }
 
@@ -714,7 +714,7 @@
 .zone-details__code {
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.75rem;
-  color: var(--theme-primary);
+  color: var(--brand-text);
   font-weight: 600;
 }
 
@@ -1036,7 +1036,7 @@
 .area-form-input:focus {
   outline: none;
   border-color: var(--brand-blue);
-  box-shadow: 0 0 0 2px rgba(59, 168, 217, 0.15);
+  box-shadow: var(--focus-ring);
 }
 
 .area-form-input:disabled {
@@ -1882,7 +1882,7 @@
   padding: 8px 16px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--theme-primary);
+  color: var(--brand-text);
   cursor: pointer;
   transition: all 0.15s ease;
 }
@@ -2190,7 +2190,7 @@
 .zone-btn-action--primary {
   background: var(--theme-primary-light);
   border-color: var(--theme-primary-border);
-  color: var(--theme-primary);
+  color: var(--brand-text);
 }
 
 .zone-btn-action--primary:hover {
