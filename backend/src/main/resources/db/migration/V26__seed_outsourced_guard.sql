@@ -10,7 +10,7 @@ VALUES (
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP
 )
-ON CONFLICT (email) DO UPDATE
+ON CONFLICT (LOWER(email)) WHERE deleted_at IS NULL DO UPDATE
 SET
     full_name = EXCLUDED.full_name,
     user_code = EXCLUDED.user_code,
