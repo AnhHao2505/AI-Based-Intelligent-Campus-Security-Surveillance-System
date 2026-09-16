@@ -225,7 +225,7 @@
   border-radius: 8px;
   background: rgba(59, 168, 217, 0.12);
   border: 1px solid rgba(59, 168, 217, 0.25);
-  color: var(--brand-cyan);
+  color: var(--brand-text);
   display: flex;
   align-items: center;
   justify-content: center;

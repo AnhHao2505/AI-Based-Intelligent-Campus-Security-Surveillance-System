@@ -167,7 +167,7 @@
 
 .notif-icon-box--default {
   background: rgba(59, 168, 217, 0.12);
-  color: var(--brand-cyan);
+  color: var(--brand-text);
 }
 
 /* Cột 2: Tiêu đề & nội dung */

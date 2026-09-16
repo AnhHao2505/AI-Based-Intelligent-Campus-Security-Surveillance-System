@@ -45,7 +45,7 @@
 }
 
 .ai-settings-header__icon {
-  color: var(--accent);
+  color: var(--brand-text);
   flex-shrink: 0;
 }
 
@@ -109,7 +109,7 @@
 
 .ai-setting-block__badge {
   background-color: var(--accent-tint);
-  color: var(--accent);
+  color: var(--brand-text);
   font-weight: 600;
   font-size: 0.875rem;
   font-variant-numeric: tabular-nums;
@@ -368,7 +368,7 @@
 }
 
 .ai-settings-spinner {
-  color: var(--accent);
+  color: var(--brand-text);
 }
 
 /* --------------------------------------------------------------------------

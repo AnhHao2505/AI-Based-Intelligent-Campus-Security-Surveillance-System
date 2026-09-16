@@ -1441,7 +1441,7 @@
 }
 
 .zone-toolbar__building-icon {
-  color: var(--brand-cyan);
+  color: var(--brand-text);
   margin-right: 8px;
   flex-shrink: 0;
 }

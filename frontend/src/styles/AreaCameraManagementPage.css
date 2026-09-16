@@ -33,7 +33,7 @@
 }
 
 .area-camera-header__icon {
-  color: var(--brand-cyan);
+  color: var(--brand-text);
   flex-shrink: 0;
 }
 
@@ -59,7 +59,7 @@
 }
 
 .area-camera-spinner {
-  color: var(--brand-cyan);
+  color: var(--brand-text);
 }
 
 /* --------------------------------------------------------------------------
