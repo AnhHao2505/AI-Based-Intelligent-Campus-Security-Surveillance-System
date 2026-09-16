@@ -206,3 +206,87 @@ Liệt kê để chuẩn bị cho các giai đoạn refactor tiếp theo (không
 * [x] **Barrel File**: `src/components/ui/index.js` (đã commit `fa33c75`).
 * [x] **Trang Demo**: `src/pages/_devPreview/UiKitPage.jsx` + route `/dev/ui-kit` (đã commit `998f37c`).
 * [x] **Báo Cáo**: Hoàn tất 100% theo đúng mọi yêu cầu, không có phần nào bị bỏ dở.
+
+---
+
+# DỌN MÀU CÒN SÓT (VIỆC A, B, C, D)
+
+## 1. TỔNG HỢP FILE ĐÃ SỬA & COMMIT
+
+| Việc | Nội dung | Các file đã sửa | Commit |
+|---|---|---|---|
+| **Việc A** | Thay `var(--brand-cyan)` bằng `var(--brand-text)` cho các vị trí chữ, icon, spinner, nhãn slider | `AccessRequestReviewPage.css`<br>`AreaCameraManagementPage.css`<br>`DashboardPage.css`<br>`NotificationsPage.css`<br>`AreaListPage.css`<br>`AiSettingsPage.css` | `1978d31` (`fix(ui): dùng brand-text thay brand-cyan cho các icon còn lại`) |
+| **Việc B** | Thay `rgba(59, 168, 217, 0.12)` và `rgba(59, 168, 217, 0.25)` viết cứng bằng `var(--brand-subtle)` và `var(--brand-subtle-border)` | `AccessHistoryPage.css`<br>`AccessRequestPage.css`<br>`AccessRequestReviewPage.css`<br>`AiSettingsPage.css`<br>`AreaCameraManagementPage.css`<br>`CameraListPage.css`<br>`DashboardPage.css`<br>`GuardDashboardPage.css`<br>`NotificationsPage.css`<br>`WebRtcPlayer.css` | `7f9c7e2` (`fix(ui): thay rgba viết cứng bằng token brand-subtle`) |
+| **Việc C** | Kiểm tra 2 nút kích hoạt lại camera (`#0d1117` trên nền lục `var(--theme-success)`) | **DỪNG theo quy tắc giám sát**, không tự tiện thêm biến vào `theme.css` | *(Chưa commit code - chờ quyết định)* |
+| **Việc D** | Khảo sát chi tiết 56 vị trí dùng `--theme-primary` trên 6 file, phân loại rủi ro & khảo sát 7 kiểu input focus | `docs/theme-primary-audit.md` (tài liệu độc lập, **TUYỆT ĐỐI KHÔNG SỬA CODE**) | *(Commit tài liệu)* |
+
+### Chi tiết xử lý đặc thù ở Việc A & B:
+1. **Tại `AiSettingsPage.css` (Việc A):**
+   - Biến `--accent: var(--brand-cyan)` được dùng ở các vị trí:
+     - Dùng cho `color`: dòng 48 (icon tiêu đề header), dòng 112 (nhãn giá trị slider), dòng 371 (spinner loading).
+     - Dùng cho `background` & `border-color`: dòng 146-147 (thanh trượt slider fill), dòng 170 & 200 (viền núm slider & switch), dòng 191 (nền switch khi bật), dòng 241 (viền input focus).
+   - **Thực hiện đúng chỉ thị:** Do `--accent` được dùng cho cả `background` và `border-color`, ta **KHÔNG** đổi định nghĩa `--accent` (để tránh làm tối viền/nền ở light mode). Thay vào đó, ta **sửa riêng 3 vị trí dùng cho `color`** (L48, L112, L371) thành `color: var(--brand-text)`.
+2. **Tại `LoginPage.css` (Việc A & B):**
+   - Giữ nguyên toàn bộ theo đúng ngoại lệ được giao (màn hình login có nền tối đặc thù theo thiết kế).
+3. **Tại `theme.css` (Việc B):**
+   - Giữ nguyên định nghĩa gốc của `--brand-subtle` và `--brand-subtle-border`.
+
+---
+
+## 2. NHỮNG CHỖ PHẢI DỪNG VÌ CẦN BẠN QUYẾT ĐỊNH
+
+### Vấn đề tại Việc C: Nút kích hoạt lại camera dùng chữ cứng `#0d1117` trên nền lục
+- **Vị trí phát hiện:**
+  1. `CameraDetailPage.css` dòng 196-201: `.btn-status-active:hover`
+  2. `CameraListPage.css` dòng 422-426: `.btn-activate:hover:not(:disabled)`
+- **Thực trạng kỹ thuật:**
+  - Hai nút này khi hover có `background: var(--theme-success);`.
+  - Đây là nền **màu success/lục**, **KHÔNG PHẢI** gradient hay màu brand đặc:
+    - Ở Light mode: `var(--theme-success)` là `#16a34a` (xanh lá cây đậm). Chữ `#0d1117` trên nền này có độ tương phản cực kỳ kém, khó đọc. Chữ trên nền này cần màu trắng (`#ffffff`).
+    - Ở Dark mode: `var(--theme-success)` là `#34d399` (xanh mint ngọc sáng). Chữ `#0d1117` đọc rất rõ.
+  - Kiểm tra hệ thống biến trong `theme.css`:
+    - Chỉ có `--theme-success` (nền solid), `--theme-success-bg` (nền nhạt 12%), `--theme-success-border` (viền nhạt), `--theme-success-text` (màu chữ đậm dùng trên nền nhạt, light là `#166534`).
+    - **HOÀN TOÀN KHÔNG CÓ** biến token nào dành cho chữ đặt trên nền solid status (ví dụ `--theme-on-success` hay `--theme-text-on-solid`).
+  - **Quyết định dừng:** Thực hiện nghiêm lệnh *"Không có biến phù hợp thì DỪNG, ghi vào báo cáo, không tự thêm biến vào theme.css"*.
+
+### Các phương án đề xuất để bạn lựa chọn:
+- **Phương án 1 (Khuyên dùng - Chuẩn hóa Design System):** Thêm cặp token tương phản vào `theme.css`:
+  - Trong `:root` (Light mode): `--theme-on-success: #ffffff;`
+  - Trong `[data-theme="dark"]` (Dark mode): `--theme-on-success: #0d1117;`
+  Sau đó cập nhật 2 file CSS thành: `color: var(--theme-on-success);`.
+- **Phương án 2 (Đổi kiểu hover sang dạng viền/nền nhạt):**
+  - Không tô nền solid khi hover, mà giữ nền nhạt:
+    `background: var(--theme-success-bg); border-color: var(--theme-success); color: var(--theme-success);`
+  - Ưu điểm: Tận dụng được các biến token hiện có, không cần thêm biến mới.
+- **Phương án 3 (Dùng component chuẩn):** Thay nút này bằng `<Button variant="success">` từ bộ UI kit vừa xây dựng.
+
+---
+
+## 3. HƯỚNG DẪN TEST BẰNG MẮT (TIẾNG VIỆT)
+
+### 3.1. Kiểm tra Việc A (Các icon chữ và spinner)
+| Màn hình | Đường dẫn / Thao tác | Điểm cần nhìn (Light mode) | Điểm cần nhìn (Dark mode) |
+|---|---|---|---|
+| **Tổng quan yêu cầu truy cập** | Vào `/access-requests/review` | Nhìn ô thống kê tổng số "Tổng yêu cầu". Icon hồ sơ hiển thị màu xanh tím đậm rõ nét (`#0f766e`), nền xanh nhạt, không bị mờ nhạt chìm vào nền trắng. | Icon hiển thị màu cyan sáng (`#7ed3f2`), hài hòa trên nền tối. |
+| **Quản lý Camera theo Khu vực** | Vào `/areas/cameras` | Nhìn icon Camera trên tiêu đề trang (`.area-camera-header__icon`) và biểu tượng xoay khi đang tải dữ liệu. Màu chữ sắc nét, đậm đà, dễ nhận diện. | Icon hiển thị sáng rõ với tone màu thương hiệu. |
+| **Dashboard** | Vào `/dashboard` | Nhìn các icon trong tiêu đề của các thẻ thống kê (`.dash-card__icon-box`). Icon màu đậm rõ ràng, viền và nền ăn khớp. | Icon sáng rõ trên nền tối. |
+| **Thông báo** | Vào `/notifications` | Các thông báo hệ thống mặc định (`.notif-icon-box--default`): icon chuông/hệ thống có màu chữ đậm, độ tương phản cao trên nền thẻ trắng. | Icon sáng rõ, không chói mắt. |
+| **Cấu hình AI** | Vào `/ai-settings` | 1. Icon CPU/Brain trên tiêu đề header.<br>2. Nhãn giá trị phần trăm/FPS của các slider (`.ai-setting-block__badge`).<br>3. Spinner xoay khi tải.<br>Tất cả chữ số và icon đều là màu xanh đậm dễ đọc, không bị bạc màu. | Hiển thị cyan nổi bật trên nền xám đậm. |
+| **Bản đồ khu vực** | Vào `/areas` | Nhìn dropdown chọn toà nhà trên thanh công cụ (`.zone-toolbar__building-icon`): icon toà nhà màu xanh đậm nét. | Icon màu cyan sáng. |
+
+### 3.2. Kiểm tra Việc B (Nền mờ và viền mờ `brand-subtle`)
+| Màn hình | Đường dẫn / Thao tác | Điểm cần nhìn (Light mode & Dark mode) |
+|---|---|---|
+| **Lịch sử truy cập** | Vào `/access-requests/history` | Bấm chọn các nút lọc trạng thái (`.ahp-filter-btn--active`). Nền nút chuyển sang màu xanh mờ dịu mắt chuẩn token `--brand-subtle`, không còn giá trị cứng. |
+| **Đăng ký truy cập** | Vào `/access-requests` | 1. Các nút lọc danh sách khi kích hoạt (`.arp-filter-btn--active`).<br>2. Các tag nhóm đối tượng (`.arp-badge--group`) hiển thị viền mờ `--brand-subtle-border` thanh thoát, đồng đều. |
+| **Duyệt yêu cầu** | Vào `/access-requests/review` | Avatar viết tắt của người gửi (`.arr-user-avatar`): nền tròn xanh mờ, viền mảnh chuẩn token. |
+| **Dashboard** | Vào `/dashboard` | Huy hiệu trạng thái "Hệ thống bảo vệ đang bật" trên header (`.dashboard-header__badge`) có nền và viền đồng nhất với Design System. |
+| **Camera theo khu vực** | Vào `/areas/cameras` | Badge đếm số lượng camera khả dụng/đã gán (`.badge-count`): viền bo tròn pill tròn trịa, nền mờ tinh tế. |
+
+---
+
+## 4. BÁO CÁO KHẢO SÁT VIỆC D: `--theme-primary`
+
+Toàn bộ kết quả khảo sát kỹ thuật, bảng phân loại rủi ro 56 vị trí và câu trả lời chi tiết cho 4 câu hỏi chuyên sâu (bao gồm bảng thống kê 7 kiểu input focus trên toàn hệ thống) được lưu trữ tại file tài liệu chuyên biệt:  
+👉 **[`docs/theme-primary-audit.md`](file:///Users/anhhao/Documents/SEP/docs/theme-primary-audit.md)**
+
