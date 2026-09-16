@@ -467,7 +467,7 @@
 }
 
 .arp-filter-btn--active {
-  background: rgba(59, 168, 217, 0.12);
+  background: var(--brand-subtle);
   color: var(--brand-text-strong);
   border-color: var(--brand-blue);
 }
@@ -613,9 +613,9 @@
 }
 
 .arp-badge--group {
-  background: rgba(59, 168, 217, 0.12);
+  background: var(--brand-subtle);
   color: var(--brand-text);
-  border: 0.5px solid rgba(59, 168, 217, 0.25);
+  border: 0.5px solid var(--brand-subtle-border);
 }
 
 /* ==========================================================================

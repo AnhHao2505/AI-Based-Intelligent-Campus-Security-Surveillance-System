@@ -14,8 +14,8 @@
   --text-range: var(--theme-text-muted);
   --accent: var(--brand-cyan);
   --accent-hover: var(--brand-blue);
-  --accent-tint: rgba(59, 168, 217, 0.12);
-  --accent-ring: rgba(59, 168, 217, 0.25);
+  --accent-tint: var(--brand-subtle);
+  --accent-ring: var(--brand-subtle-border);
   --card-shadow: var(--theme-card-shadow);
 
   padding: 24px 32px;

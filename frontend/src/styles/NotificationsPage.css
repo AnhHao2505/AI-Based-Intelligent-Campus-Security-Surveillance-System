@@ -166,7 +166,7 @@
 }
 
 .notif-icon-box--default {
-  background: rgba(59, 168, 217, 0.12);
+  background: var(--brand-subtle);
   color: var(--brand-text);
 }
 

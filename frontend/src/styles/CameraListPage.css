@@ -389,7 +389,7 @@
 
 .btn-view {
   background: rgba(59, 168, 217, 0.1);
-  border-color: rgba(59, 168, 217, 0.25);
+  border-color: var(--brand-subtle-border);
   color: var(--brand-text);
 }
 

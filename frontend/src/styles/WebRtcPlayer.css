@@ -188,7 +188,7 @@
 }
 
 [data-theme="light"] .cam-code-tag {
-  background: rgba(59, 168, 217, 0.12);
+  background: var(--brand-subtle);
   border-color: rgba(59, 168, 217, 0.3);
   color: var(--brand-blue);
 }

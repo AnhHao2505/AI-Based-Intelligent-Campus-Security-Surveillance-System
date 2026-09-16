@@ -92,7 +92,7 @@
 }
 
 .arr-stat-card__icon--total {
-  background: rgba(59, 168, 217, 0.12);
+  background: var(--brand-subtle);
   color: var(--brand-text);
 }
 
@@ -301,7 +301,7 @@
   width: 34px;
   height: 34px;
   border-radius: 9999px;
-  background: rgba(59, 168, 217, 0.12);
+  background: var(--brand-subtle);
   color: var(--brand-text);
   font-size: 0.75rem;
   font-weight: 700;
@@ -309,7 +309,7 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  border: 1px solid rgba(59, 168, 217, 0.25);
+  border: 1px solid var(--brand-subtle-border);
 }
 
 .arr-user-meta {
@@ -623,7 +623,7 @@
   padding: 0.35rem 0.75rem;
   border-radius: 9999px;
   background: rgba(59, 168, 217, 0.1);
-  border: 1px solid rgba(59, 168, 217, 0.25);
+  border: 1px solid var(--brand-subtle-border);
   color: var(--brand-text);
   font-size: 0.8125rem;
 }
