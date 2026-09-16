@@ -83,6 +83,21 @@
 
   --theme-ambient-opacity: 0.12;
 
+  /* On-Solid Status Text Colors (WCAG Contrast-safe >= 4.5:1)
+     Được tính toán để đạt độ tương phản tối thiểu 4.5:1 trên các nền solid tương ứng:
+     - --theme-success (#16a34a light, #34d399 dark): #0d1117 đạt 5.74:1 (light) và 9.84:1 (dark).
+     - --theme-danger (#ef4444 light, #f87171 dark): #0d1117 đạt 5.03:1 (light) và 6.84:1 (dark).
+     - --theme-warning (#f59e0b light, #fbbf24 dark): #0d1117 đạt 8.81:1 (light) và 11.34:1 (dark).
+     - --theme-info (#0284c7 light, #38bdf8 dark): #0d1117 đạt 4.62:1 (light) và 8.83:1 (dark).
+     - --theme-on-brand: Chữ trên nền brand solid/gradient (tự đảo qua --brand-on-gradient).
+     Vì các nền solid đều sáng hơn đáng kể so với #0d1117 ở cả 2 mode, nhóm token này chỉ cần khai báo tại :root.
+  */
+  --theme-on-success: #0d1117;
+  --theme-on-danger: #0d1117;
+  --theme-on-warning: #0d1117;
+  --theme-on-info: #0d1117;
+  --theme-on-brand: var(--brand-on-gradient);
+
   /* Brand Cyan-Violet Identity (Pilot Screens) */
   --brand-cyan: #7ed3f2;        /* cyan sáng - dùng cho chữ, icon, nhấn mạnh */
   --brand-blue: #3ba8d9;        /* xanh đậm - dùng cho nền nút, viền */
@@ -190,4 +205,70 @@
   --brand-text: #7ed3f2;
   --brand-text-strong: #a5e3f7;
   --brand-on-gradient: #0d1117;
+}
+
+/* ==========================================================================
+   Status Button Utility Classes (3 states: default, hover, disabled)
+   ========================================================================== */
+.btn-status--success {
+  background: var(--theme-success-bg);
+  border: 1px solid var(--theme-success-border);
+  color: var(--theme-success-text);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-status--success:hover:not(:disabled) {
+  background: var(--theme-success);
+  border-color: var(--theme-success);
+  color: var(--theme-on-success);
+  transform: translateY(-1px);
+}
+
+.btn-status--success:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-status--danger {
+  background: var(--theme-danger-bg);
+  border: 1px solid var(--theme-danger-border);
+  color: var(--theme-danger-text);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-status--danger:hover:not(:disabled) {
+  background: var(--theme-danger);
+  border-color: var(--theme-danger);
+  color: var(--theme-on-danger);
+  transform: translateY(-1px);
+}
+
+.btn-status--danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-status--warning {
+  background: var(--theme-warning-bg);
+  border: 1px solid var(--theme-warning-border);
+  color: var(--theme-warning-text);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-status--warning:hover:not(:disabled) {
+  background: var(--theme-warning);
+  border-color: var(--theme-warning);
+  color: var(--theme-on-warning);
+  transform: translateY(-1px);
+}
+
+.btn-status--warning:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
 }

@@ -87,7 +87,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #ffffff;
+  color: var(--theme-on-brand);
   box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
 }
 
@@ -189,7 +189,7 @@
   justify-content: center;
   font-size: 0.85rem;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--theme-on-brand);
   flex-shrink: 0;
 }
 
@@ -1219,7 +1219,7 @@
 
 .area-btn-modal--danger {
   background: var(--theme-danger);
-  color: #ffffff;
+  color: var(--theme-on-danger);
   font-weight: 600;
   border: none;
 }
@@ -1791,8 +1791,8 @@
 
 .zone-draw-btn--finish {
   background: var(--theme-success);
-  color: #ffffff;
-}
+  color: var(--theme-on-success);
+ }
 
 .zone-draw-btn--finish:hover:not(:disabled) {
   filter: brightness(0.9);
@@ -2206,7 +2206,7 @@
 
 .zone-btn-action--danger:hover {
   background: var(--theme-danger);
-  color: #ffffff;
+  color: var(--theme-on-danger);
 }
 
 /* Two-step Inline Confirmation */
@@ -2230,7 +2230,7 @@
 
 .zone-inline-confirm__btn-yes {
   background: var(--theme-danger);
-  color: #ffffff;
+  color: var(--theme-on-danger);
   border: none;
   border-radius: 4px;
   padding: 3px 8px;

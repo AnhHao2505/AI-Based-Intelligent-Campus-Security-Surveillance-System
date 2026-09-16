@@ -116,7 +116,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #ffffff;
+  color: var(--theme-on-brand);
   box-shadow: var(--brand-glow);
   flex-shrink: 0;
 }
@@ -230,7 +230,7 @@
   padding: 0 4px;
   border-radius: 999px;
   background: var(--brand-blue);
-  color: #0d1117;
+  color: var(--theme-on-brand);
   font-size: 10px;
   font-weight: 700;
   display: inline-flex;
@@ -295,7 +295,7 @@
   justify-content: center;
   font-size: 0.85rem;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--theme-on-brand);
   flex-shrink: 0;
 }
 
