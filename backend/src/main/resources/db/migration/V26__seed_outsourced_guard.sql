@@ -1,7 +1,3 @@
-ALTER TABLE users DROP CONSTRAINT IF EXISTS chk_users_role;
-ALTER TABLE users ADD CONSTRAINT chk_users_role
-    CHECK (role IN ('ADMIN', 'FACILITY_MANAGER', 'GUARD', 'NORMAL_USER', 'INTERNAL_GUARD', 'OUTSOURCED_GUARD'));
-
 -- Seed the demo guard account used by the role quick-login button on the frontend.
 INSERT INTO users (full_name, user_code, role, email, password, is_active, created_at, updated_at)
 VALUES (
