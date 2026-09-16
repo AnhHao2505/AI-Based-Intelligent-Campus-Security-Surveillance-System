@@ -122,7 +122,7 @@ export async function downloadNormalUserTemplate() {
   const url = window.URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'sample_normal_users.xlsx';
+  a.download = 'metadata.xlsx';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -162,7 +162,7 @@ export async function downloadStaffUserTemplate() {
   const url = window.URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'sample_staff_users.xlsx';
+  a.download = 'metadata.xlsx';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
