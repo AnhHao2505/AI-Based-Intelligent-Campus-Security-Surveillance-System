@@ -18,13 +18,85 @@
   padding: 24px 16px;
   z-index: 100;
   box-shadow: var(--theme-card-shadow);
-  transition: background-color 0.25s ease, border-color 0.25s ease;
+  transition: width 0.25s ease, min-width 0.25s ease, padding 0.25s ease, background-color 0.25s ease, border-color 0.25s ease;
 }
 
 .sidebar__header {
   display: flex;
   flex-direction: column;
   gap: 28px;
+}
+
+.sidebar__collapse-button {
+  position: absolute;
+  top: 18px;
+  right: 14px;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--theme-border);
+  border-radius: 8px;
+  background: var(--theme-bg-surface);
+  color: var(--theme-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.sidebar__collapse-button:hover {
+  background: var(--theme-bg-surface-elevated);
+  color: var(--theme-text-primary);
+  border-color: var(--theme-border-hover);
+}
+
+.sidebar--collapsed {
+  width: 76px;
+  min-width: 76px;
+  padding: 24px 8px;
+}
+
+.sidebar--collapsed .sidebar__title,
+.sidebar--collapsed .sidebar__subtitle,
+.sidebar--collapsed .sidebar__section-title,
+.sidebar--collapsed .sidebar__link span,
+.sidebar--collapsed .sidebar__theme-toggle span,
+.sidebar--collapsed .sidebar__user-info,
+.sidebar--collapsed .sidebar__user-actions,
+.sidebar--collapsed .sidebar__badge-soon,
+.sidebar--collapsed .sidebar__unread-badge {
+  display: none;
+}
+
+.sidebar--collapsed .sidebar__brand {
+  justify-content: center;
+  padding: 0;
+}
+
+.sidebar--collapsed .sidebar__collapse-button {
+  top: 14px;
+  right: 6px;
+}
+
+.sidebar--collapsed .sidebar__link {
+  justify-content: center;
+  padding: 10px 0;
+}
+
+.sidebar--collapsed .sidebar__theme-toggle {
+  justify-content: center;
+  padding: 10px 0;
+}
+
+.sidebar--collapsed .sidebar__footer {
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 4px;
+  align-items: center;
+}
+
+.sidebar--collapsed .sidebar__user {
+  justify-content: center;
 }
 
 .sidebar__brand {

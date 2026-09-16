@@ -79,6 +79,14 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const loginAsDemoRole = (role) => {
+    const response = authService.createDemoAuth(role);
+    authService.saveAuth(response);
+    setUser(response.user);
+    setToken(response.accessToken);
+    return response;
+  };
+
   const hasRole = useCallback((allowedRoles) => {
     if (!user) return false;
     if (!allowedRoles || allowedRoles.length === 0) return true;
@@ -122,6 +130,7 @@ export function AuthProvider({ children }) {
     loginWithPassword: loginWithCredentials,
     loginWithGoogle,
     loginWithGoogleToken: loginWithGoogle,
+    loginAsDemoRole,
     logout,
     hasRole,
   };

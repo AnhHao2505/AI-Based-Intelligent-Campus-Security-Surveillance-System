@@ -37,7 +37,7 @@ public class CameraController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER', 'INTERNAL_GUARD', 'OUTSOURCED_GUARD')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER', 'GUARD')")
     public ResponseEntity<Page<CameraListResponse>> list(
             @RequestParam(required = false) String search,
             @RequestParam(required = false) CameraStatus status,
@@ -50,7 +50,7 @@ public class CameraController {
     }
 
     @GetMapping("/all-simple")
-    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER', 'INTERNAL_GUARD')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER', 'GUARD')")
     public ResponseEntity<List<CameraSimpleResponse>> getAllSimple() {
         log.info("REST request to get simple active camera list");
         return ResponseEntity.ok(cameraService.getAllActiveSimple());
@@ -107,7 +107,7 @@ public class CameraController {
     }
 
     @GetMapping("/{id}/areas")
-    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER', 'INTERNAL_GUARD')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER', 'GUARD')")
     public ResponseEntity<List<AreaSimpleResponse>> getAreas(@PathVariable UUID id) {
         log.info("REST request to get areas assigned to camera: {}", id);
         return ResponseEntity.ok(cameraService.getCameraAreas(id));

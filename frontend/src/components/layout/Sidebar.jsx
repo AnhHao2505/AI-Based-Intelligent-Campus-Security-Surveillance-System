@@ -13,14 +13,18 @@ import {
   Moon,
   LogOut,
   History,
-  Bell
+  Bell,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { ROLES, ROLE_LABELS } from '../../constants/roles';
 import { useTheme } from '../../context/ThemeContext';
+import { useUiStore } from '../../store/useUiStore';
 import '../../styles/Sidebar.css';
 
 export default function Sidebar({ user, onLogout }) {
   const { theme, toggleTheme } = useTheme();
+  const { sidebarCollapsed, toggleSidebar } = useUiStore();
 
   // TODO: nối API lấy số thông báo chưa đọc khi backend có bảng notifications
   const unreadCount = 0;
@@ -39,12 +43,12 @@ export default function Sidebar({ user, onLogout }) {
   const isAdmin = userRole === ROLES.ADMIN;
   const isFacilityManager = userRole === ROLES.FACILITY_MANAGER;
   const isNormalUser = userRole === ROLES.NORMAL_USER;
-  const isGuard = userRole === ROLES.INTERNAL_GUARD || userRole === ROLES.OUTSOURCED_GUARD;
+  const isGuard = userRole === ROLES.GUARD;
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${sidebarCollapsed ? 'sidebar--collapsed' : ''}`}>
       <div className="sidebar__header">
-        <NavLink to={isNormalUser ? "/access-requests" : "/dashboard"} className="sidebar__brand">
+        <NavLink to={isNormalUser ? "/access-requests" : "/dashboard"} className="sidebar__brand" title={sidebarCollapsed ? "FPTU SecureVision" : undefined}>
           <div className="sidebar__logo">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -57,6 +61,15 @@ export default function Sidebar({ user, onLogout }) {
             <div className="sidebar__subtitle">Campus Security</div>
           </div>
         </NavLink>
+        <button
+          type="button"
+          className="sidebar__collapse-button"
+          onClick={toggleSidebar}
+          aria-label={sidebarCollapsed ? 'Mở rộng thanh điều hướng' : 'Thu gọn thanh điều hướng'}
+          title={sidebarCollapsed ? 'Mở rộng' : 'Thu gọn'}
+        >
+          {sidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+        </button>
 
         <nav className="sidebar__nav">
           {isNormalUser ? (
@@ -64,6 +77,7 @@ export default function Sidebar({ user, onLogout }) {
               <NavLink
                 to="/access-requests"
                 className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+                title={sidebarCollapsed ? "Yêu cầu truy cập" : undefined}
               >
                 <KeyRound size={18} />
                 <span>Yêu cầu truy cập</span>
@@ -72,6 +86,7 @@ export default function Sidebar({ user, onLogout }) {
               <NavLink
                 to="/access-history"
                 className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+                title={sidebarCollapsed ? "Lịch sử truy cập" : undefined}
               >
                 <History size={18} />
                 <span>Lịch sử truy cập</span>
@@ -80,6 +95,7 @@ export default function Sidebar({ user, onLogout }) {
               <NavLink
                 to="/notifications"
                 className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+                title={sidebarCollapsed ? "Thông báo" : undefined}
               >
                 <Bell size={18} />
                 <span>Thông báo</span>
@@ -96,6 +112,7 @@ export default function Sidebar({ user, onLogout }) {
                 <NavLink
                   to="/dashboard"
                   className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+                  title={sidebarCollapsed ? "Dashboard" : undefined}
                 >
                   <LayoutDashboard size={18} />
                   <span>Dashboard</span>
@@ -105,6 +122,7 @@ export default function Sidebar({ user, onLogout }) {
                   <NavLink
                     to="/guard"
                     className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+                    title={sidebarCollapsed ? "Giám sát An ninh" : undefined}
                   >
                     <ShieldAlert size={18} />
                     <span>Giám sát An ninh</span>
@@ -115,6 +133,7 @@ export default function Sidebar({ user, onLogout }) {
                   <NavLink
                     to="/cameras"
                     className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+                    title={sidebarCollapsed ? "Quản lý Camera" : undefined}
                   >
                     <Video size={18} />
                     <span>Quản lý Camera</span>
@@ -131,6 +150,7 @@ export default function Sidebar({ user, onLogout }) {
                     <NavLink
                       to="/admin/access-requests"
                       className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+                      title={sidebarCollapsed ? "Phê duyệt truy cập" : undefined}
                     >
                       <ClipboardCheck size={18} />
                       <span>Phê duyệt truy cập</span>
@@ -142,6 +162,7 @@ export default function Sidebar({ user, onLogout }) {
                       <NavLink
                         to="/admin/accounts"
                         className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+                        title={sidebarCollapsed ? "Quản lý tài khoản" : undefined}
                       >
                         <Users size={18} />
                         <span>Quản lý tài khoản</span>
@@ -150,6 +171,7 @@ export default function Sidebar({ user, onLogout }) {
                       <NavLink
                         to="/admin/areas"
                         className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+                        title={sidebarCollapsed ? "Cấu hình vùng (Zones)" : undefined}
                       >
                         <MapPin size={18} />
                         <span>Cấu hình vùng (Zones)</span>
@@ -158,6 +180,7 @@ export default function Sidebar({ user, onLogout }) {
                       <NavLink
                         to="/admin/area-cameras"
                         className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+                        title={sidebarCollapsed ? "Gán Camera – Khu vực" : undefined}
                       >
                         <Network size={18} />
                         <span>Gán Camera – Khu vực</span>
@@ -176,6 +199,7 @@ export default function Sidebar({ user, onLogout }) {
               <NavLink
                 to="/admin/ai-settings"
                 className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+                title={sidebarCollapsed ? "Thiết lập AI" : undefined}
               >
                 <Cpu size={18} />
                 <span>Thiết lập AI</span>

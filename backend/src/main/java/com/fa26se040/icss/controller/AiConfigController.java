@@ -17,7 +17,7 @@ public class AiConfigController {
     private final AiConfigService aiConfigService;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER', 'INTERNAL_GUARD')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER', 'GUARD')")
     public ResponseEntity<AiConfigResponse> getAiConfig() {
         return ResponseEntity.ok(aiConfigService.getAiConfig());
     }

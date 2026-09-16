@@ -207,6 +207,8 @@
 }
 
 .login-card__role-badge {
+  appearance: none;
+  font-family: inherit;
   padding: 4px 12px;
   border-radius: 20px;
   font-size: 0.7rem;
@@ -215,7 +217,13 @@
   background: rgba(59, 168, 217, 0.1);
   border: 0.5px solid rgba(59, 168, 217, 0.22);
   color: #9fd9ef;
+  cursor: pointer;
   transition: all 0.25s ease;
+}
+
+.login-card__role-badge:disabled {
+  cursor: wait;
+  opacity: 0.6;
 }
 
 .login-card__role-badge:hover {
@@ -312,6 +320,12 @@
   color: #f8fafc;
   font-size: 0.95rem;
   transition: all 0.3s ease;
+}
+
+.login-card__field-error {
+  color: #fca5a5;
+  font-size: 0.75rem;
+  padding-left: 4px;
 }
 
 .login-card__input:focus {

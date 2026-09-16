@@ -77,8 +77,6 @@ function App() {
               <Route path="/" element={<RootRoute />} />
               <Route path="/dashboard" element={<DashboardRoute />} />
 
-
-
               <Route
                 path="/admin/areas"
                 element={
@@ -111,7 +109,6 @@ function App() {
                 }
               />
 
-
               {/* Account management - Admin only */}
               <Route
                 path="/admin/accounts"
@@ -122,11 +119,10 @@ function App() {
                 }
               />
 
-
               <Route
                 path="/guard"
                 element={
-                  <ProtectedRoute allowedRoles={[ROLES.INTERNAL_GUARD, ROLES.OUTSOURCED_GUARD]}>
+                  <ProtectedRoute allowedRoles={[ROLES.GUARD]}>
                     <GuardDashboardPage />
                   </ProtectedRoute>
                 }

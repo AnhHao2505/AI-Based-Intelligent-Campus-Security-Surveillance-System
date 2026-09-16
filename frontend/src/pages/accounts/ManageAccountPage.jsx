@@ -45,8 +45,7 @@ const DEFAULT_PAGE_SIZE = 10;
 // System account roles eligible for creation
 const SYSTEM_STAFF_ROLES = [
   ROLES.FACILITY_MANAGER,
-  ROLES.INTERNAL_GUARD,
-  ROLES.OUTSOURCED_GUARD
+  ROLES.GUARD
 ];
 
 export default function ManageAccountPage() {
@@ -80,7 +79,7 @@ export default function ManageAccountPage() {
     fullName: '',
     userCode: '',
     email: '',
-    role: ROLES.INTERNAL_GUARD,
+    role: ROLES.GUARD,
   });
   const [frontFile, setFrontFile] = useState(null);
   const [frontPreview, setFrontPreview] = useState(null);
@@ -367,7 +366,7 @@ export default function ManageAccountPage() {
       fullName: '',
       userCode: '',
       email: '',
-      role: activeTab === 'NORMAL' ? 'NORMAL_USER' : ROLES.INTERNAL_GUARD,
+      role: activeTab === 'NORMAL' ? 'NORMAL_USER' : ROLES.GUARD,
     });
     setFrontFile(null);
     setFrontPreview(null);
@@ -1335,7 +1334,7 @@ export default function ManageAccountPage() {
                           ) : (
                             <>
                               • Tải file mẫu Excel (<code>.xlsx</code>) và nhập thông tin (4 cột: <code>user_code</code>, <code>full_name</code>, <code>email</code>, <code>role</code>, tối đa 200 dòng).<br />
-                              • Cột <code>role</code> bắt buộc có giá trị ở mọi dòng, chọn một trong các vai trò: <code>ADMIN</code>, <code>FACILITY_MANAGER</code>, <code>INTERNAL_GUARD</code>, <code>OUTSOURCED_GUARD</code>.<br />
+                              • Cột <code>role</code> bắt buộc có giá trị ở mọi dòng, chọn một trong các vai trò: <code>ADMIN</code>, <code>FACILITY_MANAGER</code>, <code>GUARD</code>.<br />
                               • <strong>Lưu ý quan trọng:</strong> Cần Export / Lưu file Excel dưới dạng <code>metadata.csv</code>.<br />
                               • Nén file <code>metadata.csv</code> cùng thư mục <code>images/</code> chứa ảnh chân dung (tối đa 350KB/ảnh, tên ảnh khớp với <code>user_code</code>) vào file <code>.zip</code> để nạp.
                             </>

@@ -50,8 +50,7 @@ public class UserService {
     public static final List<Role> SYSTEM_ROLES = List.of(
             Role.ADMIN,
             Role.FACILITY_MANAGER,
-            Role.INTERNAL_GUARD,
-            Role.OUTSOURCED_GUARD
+            Role.GUARD
     );
 
     public static final List<Role> NORMAL_ROLES = List.of(
@@ -61,8 +60,7 @@ public class UserService {
     private static final Set<Role> ALLOWED_CREATE_ROLES = EnumSet.of(
             Role.ADMIN,
             Role.FACILITY_MANAGER,
-            Role.INTERNAL_GUARD,
-            Role.OUTSOURCED_GUARD,
+            Role.GUARD,
             Role.NORMAL_USER
     );
 
@@ -83,10 +81,10 @@ public class UserService {
     public StaffAccountCreateResponse createStaffAccount(StaffAccountCreateRequest request) {
         log.info("Creating account for userCode: {}, email: {}, role: {}", request.getUserCode(), request.getEmail(), request.getRole());
 
-        // Validate role must belong to ALLOWED_CREATE_ROLES (ADMIN, FACILITY_MANAGER, INTERNAL_GUARD, OUTSOURCED_GUARD, NORMAL_USER)
+        // Validate role must belong to ALLOWED_CREATE_ROLES (ADMIN, FACILITY_MANAGER, GUARD, NORMAL_USER)
         Role role = request.getRole();
         if (role == null || !ALLOWED_CREATE_ROLES.contains(role)) {
-            throw new IllegalArgumentException("Vai trò không hợp lệ. Chỉ chấp nhận: ADMIN, FACILITY_MANAGER, INTERNAL_GUARD, OUTSOURCED_GUARD, NORMAL_USER");
+            throw new IllegalArgumentException("Vai trò không hợp lệ. Chỉ chấp nhận: ADMIN, FACILITY_MANAGER, GUARD, NORMAL_USER");
         }
 
         // Apply shared normalization
@@ -447,7 +445,7 @@ public class UserService {
                     "      <c r=\"A2\" t=\"inlineStr\"><is><t>NV001</t></is></c>\n" +
                     "      <c r=\"B2\" t=\"inlineStr\"><is><t>Nguyễn Văn An</t></is></c>\n" +
                     "      <c r=\"C2\" t=\"inlineStr\"><is><t>nva@fpt.edu.vn</t></is></c>\n" +
-                    "      <c r=\"D2\" t=\"inlineStr\"><is><t>INTERNAL_GUARD</t></is></c>\n" +
+                    "      <c r=\"D2\" t=\"inlineStr\"><is><t>GUARD</t></is></c>\n" +
                     "    </row>\n" +
                     "    <row r=\"3\">\n" +
                     "      <c r=\"A3\" t=\"inlineStr\"><is><t>FM001</t></is></c>\n" +
@@ -459,7 +457,7 @@ public class UserService {
                     "      <c r=\"A4\" t=\"inlineStr\"><is><t>OG001</t></is></c>\n" +
                     "      <c r=\"B4\" t=\"inlineStr\"><is><t>Lê Hoàng Cường</t></is></c>\n" +
                     "      <c r=\"C4\" t=\"inlineStr\"><is><t>lhc@fpt.edu.vn</t></is></c>\n" +
-                    "      <c r=\"D4\" t=\"inlineStr\"><is><t>OUTSOURCED_GUARD</t></is></c>\n" +
+                    "      <c r=\"D4\" t=\"inlineStr\"><is><t>GUARD</t></is></c>\n" +
                     "    </row>\n" +
                     "    <row r=\"5\">\n" +
                     "      <c r=\"A5\" t=\"inlineStr\"><is><t>AD001</t></is></c>\n" +
@@ -468,7 +466,7 @@ public class UserService {
                     "      <c r=\"D5\" t=\"inlineStr\"><is><t>ADMIN</t></is></c>\n" +
                     "    </row>\n" +
                     "    <row r=\"7\">\n" +
-                    "      <c r=\"A7\" t=\"inlineStr\"><is><t>CHÚ THÍCH: Cột role bắt buộc nhập chính xác 1 trong các giá trị: ADMIN, FACILITY_MANAGER, INTERNAL_GUARD, OUTSOURCED_GUARD. Không để trống. Không chấp nhận NORMAL_USER. Xóa các dòng mẫu trước khi nạp.</t></is></c>\n" +
+                    "      <c r=\"A7\" t=\"inlineStr\"><is><t>CHÚ THÍCH: Cột role bắt buộc nhập chính xác 1 trong các giá trị: ADMIN, FACILITY_MANAGER, GUARD. Không để trống. Không chấp nhận NORMAL_USER. Xóa các dòng mẫu trước khi nạp.</t></is></c>\n" +
                     "    </row>\n" +
                     "  </sheetData>\n" +
                     "</worksheet>");

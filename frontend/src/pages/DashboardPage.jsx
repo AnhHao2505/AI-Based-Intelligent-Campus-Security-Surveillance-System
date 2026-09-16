@@ -1,5 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { format } from 'date-fns';
+import { vi } from 'date-fns/locale';
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import {
   MapPin,
   Camera,
@@ -17,13 +21,21 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getAreas } from '../services/areaService';
+import { DataTable } from '../components/ui/data-table';
 import '../styles/DashboardPage.css';
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const [areas, setAreas] = useState([]);
-  const [areaCount, setAreaCount] = useState(null);
-  const [areaLoading, setAreaLoading] = useState(false);
+  const isAreaAuthorized = user?.role === 'ADMIN' || user?.role === 'FACILITY_MANAGER';
+  const { data: areaResponse, isLoading: areaLoading } = useQuery({
+    queryKey: ['areas', { page: 0, size: 100 }],
+    queryFn: () => getAreas({ page: 0, size: 100 }),
+    enabled: isAreaAuthorized,
+  });
+  const areas = areaResponse?.content || [];
+  const areaCount = typeof areaResponse?.totalElements === 'number'
+    ? areaResponse.totalElements
+    : isAreaAuthorized ? areas.length : null;
 
   // Per-card connection flags (FIX 1)
   const [kpiConnection] = useState({
@@ -46,49 +58,7 @@ export default function DashboardPage() {
   const [attentionEvents] = useState([]);
   const [securityLogs] = useState([]);
 
-  // Safe RBAC check: only request Area API if role has permission
-  useEffect(() => {
-    let isMounted = true;
-    const isAreaAuthorized =
-      user?.role === 'ADMIN' || user?.role === 'FACILITY_MANAGER';
-
-    if (isAreaAuthorized) {
-      setAreaLoading(true);
-      getAreas({ page: 0, size: 100 })
-        .then((res) => {
-          if (isMounted && res) {
-            const list = res.content || [];
-            setAreas(list);
-            if (typeof res.totalElements === 'number') {
-              setAreaCount(res.totalElements);
-            } else {
-              setAreaCount(list.length);
-            }
-          }
-        })
-        .catch(() => {
-          if (isMounted) {
-            setAreas([]);
-            setAreaCount(null);
-          }
-        })
-        .finally(() => {
-          if (isMounted) setAreaLoading(false);
-        });
-    }
-
-    return () => {
-      isMounted = false;
-    };
-  }, [user]);
-
-  // Current formatted date string
-  const currentDateStr = new Intl.DateTimeFormat('vi-VN', {
-    weekday: 'long',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date());
+  const currentDateStr = format(new Date(), 'EEEE, dd/MM/yyyy', { locale: vi });
 
   // Derive Area data for FIX 4
   const totalAreas = areas.length > 0 ? areas.length : (areaCount || 0);
@@ -108,6 +78,24 @@ export default function DashboardPage() {
   const publicPct = totalAreas > 0 ? (publicCount / totalAreas) * 100 : 0;
   const semiPct = totalAreas > 0 ? (semiCount / totalAreas) * 100 : 0;
   const privatePct = totalAreas > 0 ? (privateCount / totalAreas) * 100 : 0;
+  const areaChartData = [
+    { name: 'PUBLIC', value: publicCount, color: '#22c55e' },
+    { name: 'SEMI_PRIVATE', value: semiCount, color: '#f59e0b' },
+    { name: 'PRIVATE', value: privateCount, color: '#ef4444' },
+  ].filter((item) => item.value > 0);
+  const subsystemColumns = [
+    { accessorKey: 'name', header: 'Phân hệ', cell: ({ row }) => <span className="font-medium">{row.original.name}</span> },
+    {
+      accessorKey: 'status',
+      header: 'Trạng thái',
+      cell: ({ row }) => (
+        <span className="inline-flex items-center gap-2 text-slate-500">
+          <span className={`h-2 w-2 rounded-full ${row.original.status === 'connected' ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+          {row.original.status === 'connected' ? 'Connected' : 'Unavailable'}
+        </span>
+      ),
+    },
+  ];
 
   const areasWithGeometryCount = areas.filter(
     (a) => a.geometry && ((a.geometry.vertices && a.geometry.vertices.length >= 3) || a.geometry.type)
@@ -398,10 +386,42 @@ export default function DashboardPage() {
               </div>
             )}
 
+            <DataTable columns={subsystemColumns} data={subsystems} className="mt-4" />
+
             <div className="dash-card__footer-note">
               <Info size={14} />
               <span>Chưa kết nối dịch vụ giám sát thời gian thực</span>
             </div>
+          </article>
+        </section>
+
+        <section className="dashboard-grid-bottom">
+          <article className="dash-card">
+            <div className="dash-card__header">
+              <div className="dash-card__title-wrap">
+                <div className="dash-card__icon-box dash-card__icon-box--blue">
+                  <MapPin size={18} />
+                </div>
+                <div>
+                  <h2 className="dash-card__title">Area distribution</h2>
+                  <p className="dash-card__subtitle">Phân bổ khu vực theo cấp độ an ninh</p>
+                </div>
+              </div>
+            </div>
+            {areaChartData.length ? (
+              <div style={{ width: '100%', height: 220 }}>
+                <ResponsiveContainer>
+                  <PieChart>
+                    <Pie data={areaChartData} dataKey="value" nameKey="name" innerRadius={58} outerRadius={82} paddingAngle={3}>
+                      {areaChartData.map((entry) => <Cell key={entry.name} fill={entry.color} />)}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="dashboard-disconnected-strip__text">Chưa có dữ liệu phân vùng để hiển thị.</div>
+            )}
           </article>
         </section>
 
