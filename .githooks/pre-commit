@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# .githooks/pre-commit
+# Pre-commit hook kiểm tra tự động màu sắc Design System
+# ==============================================================================
+
+set -e
+
+echo "Running pre-commit check: scripts/check-colors.sh..."
+./scripts/check-colors.sh

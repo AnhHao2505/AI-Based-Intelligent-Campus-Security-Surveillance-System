@@ -224,7 +224,7 @@
 }
 
 .arp-type-btn--selected {
-  background: rgba(59, 168, 217, 0.1);
+  background: var(--brand-subtle);
   border: 1px solid var(--brand-blue);
 }
 

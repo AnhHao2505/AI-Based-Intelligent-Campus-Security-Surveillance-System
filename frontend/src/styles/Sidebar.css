@@ -182,7 +182,7 @@
 }
 
 .sidebar__link:hover {
-  background: rgba(59, 168, 217, 0.06);
+  background: var(--brand-subtle);
   color: var(--brand-text);
 }
 
@@ -191,7 +191,7 @@
 }
 
 .sidebar__link--active {
-  background: rgba(59, 168, 217, 0.1);
+  background: var(--brand-subtle);
   color: var(--brand-text-strong);
   border-left: 2px solid var(--brand-blue);
   font-weight: 600;

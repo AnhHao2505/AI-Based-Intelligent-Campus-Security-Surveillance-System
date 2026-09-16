@@ -123,7 +123,7 @@
 }
 
 .notif-item--unread {
-  background: rgba(59, 168, 217, 0.05);
+  background: var(--brand-subtle);
 }
 
 .notif-item--read {

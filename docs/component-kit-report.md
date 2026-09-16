@@ -217,48 +217,38 @@ Liệt kê để chuẩn bị cho các giai đoạn refactor tiếp theo (không
 |---|---|---|---|
 | **Việc A** | Thay `var(--brand-cyan)` bằng `var(--brand-text)` cho các vị trí chữ, icon, spinner, nhãn slider | `AccessRequestReviewPage.css`<br>`AreaCameraManagementPage.css`<br>`DashboardPage.css`<br>`NotificationsPage.css`<br>`AreaListPage.css`<br>`AiSettingsPage.css` | `1978d31` (`fix(ui): dùng brand-text thay brand-cyan cho các icon còn lại`) |
 | **Việc B** | Thay `rgba(59, 168, 217, 0.12)` và `rgba(59, 168, 217, 0.25)` viết cứng bằng `var(--brand-subtle)` và `var(--brand-subtle-border)` | `AccessHistoryPage.css`<br>`AccessRequestPage.css`<br>`AccessRequestReviewPage.css`<br>`AiSettingsPage.css`<br>`AreaCameraManagementPage.css`<br>`CameraListPage.css`<br>`DashboardPage.css`<br>`GuardDashboardPage.css`<br>`NotificationsPage.css`<br>`WebRtcPlayer.css` | `7f9c7e2` (`fix(ui): thay rgba viết cứng bằng token brand-subtle`) |
-| **Việc C** | Kiểm tra 2 nút kích hoạt lại camera (`#0d1117` trên nền lục `var(--theme-success)`) | **DỪNG theo quy tắc giám sát**, không tự tiện thêm biến vào `theme.css` | *(Chưa commit code - chờ quyết định)* |
-| **Việc D** | Khảo sát chi tiết 56 vị trí dùng `--theme-primary` trên 6 file, phân loại rủi ro & khảo sát 7 kiểu input focus | `docs/theme-primary-audit.md` (tài liệu độc lập, **TUYỆT ĐỐI KHÔNG SỬA CODE**) | *(Commit tài liệu)* |
+| **Việc C** | Thêm nhóm token `--theme-on-*` trên nền solid, utility classes `.btn-status--*` và dọn chữ viết cứng | `theme.css`<br>`CameraDetailPage.css`<br>`CameraListPage.css`<br>`Sidebar.css`<br>`AccessRequestReviewPage.css`<br>`AreaListPage.css` | `3a696be` (`style(theme): add on-solid status text tokens and status button utilities`) |
+| **Việc D** | Xác minh baseline 63 vị trí, lập bảng 5 vai trò, gom 7 kiểu focus về `--focus-ring` (GĐ 1) và chuyển chữ/icon sang `--brand-text` (GĐ 2) | `docs/theme-primary-audit.md`<br>`theme.css`<br>`Input.css`, `Select.css`<br>`ManageAccountPage.css`<br>`AreaListPage.css`<br>`AreaCameraManagementPage.css`<br>`CameraDetailPage.css`<br>`CameraListPage.css`<br>`AccessRequestPage.css`<br>`AccessRequestReviewPage.css`<br>`AccessHistoryPage.css`<br>`CameraCreateModal.css`<br>`AiSettingsPage.css` | `0b97164` (`style(theme): unify focus ring to --focus-ring and migrate text icons to brand-text`) |
+| **Hàng rào** | Script chặn hồi quy màu `scripts/check-colors.sh` & Git hook `.githooks/pre-commit` | `scripts/check-colors.sh`<br>`.githooks/pre-commit`<br>`README.md`<br>+ dọn dẹp các `rgba(59, 168, 217)` còn sót trong 8 file css | *(Commit đợt 3)* |
 
-### Chi tiết xử lý đặc thù ở Việc A & B:
-1. **Tại `AiSettingsPage.css` (Việc A):**
-   - Biến `--accent: var(--brand-cyan)` được dùng ở các vị trí:
-     - Dùng cho `color`: dòng 48 (icon tiêu đề header), dòng 112 (nhãn giá trị slider), dòng 371 (spinner loading).
-     - Dùng cho `background` & `border-color`: dòng 146-147 (thanh trượt slider fill), dòng 170 & 200 (viền núm slider & switch), dòng 191 (nền switch khi bật), dòng 241 (viền input focus).
-   - **Thực hiện đúng chỉ thị:** Do `--accent` được dùng cho cả `background` và `border-color`, ta **KHÔNG** đổi định nghĩa `--accent` (để tránh làm tối viền/nền ở light mode). Thay vào đó, ta **sửa riêng 3 vị trí dùng cho `color`** (L48, L112, L371) thành `color: var(--brand-text)`.
-2. **Tại `LoginPage.css` (Việc A & B):**
-   - Giữ nguyên toàn bộ theo đúng ngoại lệ được giao (màn hình login có nền tối đặc thù theo thiết kế).
-3. **Tại `theme.css` (Việc B):**
-   - Giữ nguyên định nghĩa gốc của `--brand-subtle` và `--brand-subtle-border`.
+### Chi tiết xử lý ở Việc C & D:
+1. **Tại Việc C (Token chữ trên nền solid):**
+   - Đã tính toán tương phản WCAG 2.1:
+     - `--theme-success` (#16a34a light, #34d399 dark): `#0d1117` đạt **5.74:1** (light) và **9.84:1** (dark). Cả 2 mode đều $\ge 4.5:1$ (vượt trội so với `#ffffff` chỉ đạt 3.30:1 ở light và 1.92:1 ở dark).
+     - `--theme-danger` (#ef4444 light, #f87171 dark): `#0d1117` đạt **5.03:1** (light) và **6.84:1** (dark).
+     - `--theme-warning` (#f59e0b light, #fbbf24 dark): `#0d1117` đạt **8.81:1** (light) và **11.34:1** (dark).
+     - `--theme-info` (#0284c7 light, #38bdf8 dark): `#0d1117` đạt **4.62:1** (light) và **8.83:1** (dark).
+     - Do các nền solid đều sáng hơn `#0d1117`, toàn bộ nhóm `--theme-on-success/danger/warning/info` chỉ cần khai báo tại `:root`, không cần override ở dark mode. Riêng `--theme-on-brand` trỏ về `var(--brand-on-gradient)` để tự đảo theo mode.
+   - Đã thêm nhóm class `.btn-status--success / --danger / --warning` (xử lý đủ 3 state: default, hover, disabled).
+2. **Tại Việc D (Chuẩn hóa input focus & Brand text):**
+   - Đã thêm token `--focus-ring: 0 0 0 2px var(--brand-glow);` và class `.input-focus` dùng chung.
+   - Đồng bộ toàn bộ 7 biến thể focus ring rải rác về `--focus-ring` chuẩn (ngoại trừ `LoginPage.css` giữ nguyên).
+   - Đã chuyển 17 vị trí chữ/icon/spinner từ `var(--theme-primary)` sang `var(--brand-text)` (tương phản 5.37:1 ở light và 10.68:1 ở dark).
+   - DỪNG LẠI sau Giai đoạn 2: còn 46 vị trí (nền solid, viền, nền mờ và 1 inline jsx) chờ đợt sau.
 
 ---
 
-## 2. NHỮNG CHỖ PHẢI DỪNG VÌ CẦN BẠN QUYẾT ĐỊNH
+## 2. NHỮNG CHỖ ĐÃ DỪNG VÀ CẦN BẠN QUYẾT ĐỊNH
 
-### Vấn đề tại Việc C: Nút kích hoạt lại camera dùng chữ cứng `#0d1117` trên nền lục
-- **Vị trí phát hiện:**
-  1. `CameraDetailPage.css` dòng 196-201: `.btn-status-active:hover`
-  2. `CameraListPage.css` dòng 422-426: `.btn-activate:hover:not(:disabled)`
-- **Thực trạng kỹ thuật:**
-  - Hai nút này khi hover có `background: var(--theme-success);`.
-  - Đây là nền **màu success/lục**, **KHÔNG PHẢI** gradient hay màu brand đặc:
-    - Ở Light mode: `var(--theme-success)` là `#16a34a` (xanh lá cây đậm). Chữ `#0d1117` trên nền này có độ tương phản cực kỳ kém, khó đọc. Chữ trên nền này cần màu trắng (`#ffffff`).
-    - Ở Dark mode: `var(--theme-success)` là `#34d399` (xanh mint ngọc sáng). Chữ `#0d1117` đọc rất rõ.
-  - Kiểm tra hệ thống biến trong `theme.css`:
-    - Chỉ có `--theme-success` (nền solid), `--theme-success-bg` (nền nhạt 12%), `--theme-success-border` (viền nhạt), `--theme-success-text` (màu chữ đậm dùng trên nền nhạt, light là `#166534`).
-    - **HOÀN TOÀN KHÔNG CÓ** biến token nào dành cho chữ đặt trên nền solid status (ví dụ `--theme-on-success` hay `--theme-text-on-solid`).
-  - **Quyết định dừng:** Thực hiện nghiêm lệnh *"Không có biến phù hợp thì DỪNG, ghi vào báo cáo, không tự thêm biến vào theme.css"*.
+1. **46 vị trí còn lại của `--theme-primary` (Việc D - Giai đoạn 3 & 4):**
+   - 9 vị trí nền solid nút chính: Nút phân trang active, nút Lưu modal, nút Thêm khu vực, v.v. (Cần đối chiếu screenshot trước/sau khi chuyển sang `--brand-gradient` / `--brand-blue`).
+   - 14 vị trí viền/đường kẻ: Viền tab active, viền modal, viền dropzone (Đích: `--brand-subtle-border`).
+   - 12 vị trí nền mờ / hover / selected: Dòng bảng hover, nền menu active (Đích: `--brand-subtle`).
+   - 1 vị trí inline style trong JSX: `ManageAccountPage.jsx:1039` (Tuân thủ nghiêm ràng buộc không sửa file JSX).
+   - 10 vị trí khai báo token gốc trong `theme.css`.
+2. **Đưa variant="success" vào component Button:**
+   - Dành cho đợt sau theo đúng ràng buộc số 2.
 
-### Các phương án đề xuất để bạn lựa chọn:
-- **Phương án 1 (Khuyên dùng - Chuẩn hóa Design System):** Thêm cặp token tương phản vào `theme.css`:
-  - Trong `:root` (Light mode): `--theme-on-success: #ffffff;`
-  - Trong `[data-theme="dark"]` (Dark mode): `--theme-on-success: #0d1117;`
-  Sau đó cập nhật 2 file CSS thành: `color: var(--theme-on-success);`.
-- **Phương án 2 (Đổi kiểu hover sang dạng viền/nền nhạt):**
-  - Không tô nền solid khi hover, mà giữ nền nhạt:
-    `background: var(--theme-success-bg); border-color: var(--theme-success); color: var(--theme-success);`
-  - Ưu điểm: Tận dụng được các biến token hiện có, không cần thêm biến mới.
-- **Phương án 3 (Dùng component chuẩn):** Thay nút này bằng `<Button variant="success">` từ bộ UI kit vừa xây dựng.
 
 ---
 

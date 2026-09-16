@@ -315,7 +315,7 @@
   border-radius: 50%;
   background: var(--brand-blue);
   cursor: pointer;
-  box-shadow: 0 0 8px rgba(59, 168, 217, 0.4);
+  box-shadow: 0 0 8px var(--brand-glow);
   transition: transform 0.1s;
 }
 
