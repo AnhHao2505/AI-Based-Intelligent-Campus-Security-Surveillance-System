@@ -1,12 +1,21 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import * as authService from '../services/authService';
+import { normalizeRole } from '../constants/roles';
 
 const AuthContext = createContext(null);
+
+function normalizeUser(user) {
+  return user ? { ...user, role: normalizeRole(user.role || user.role_type) } : user;
+}
+
+function normalizeAuthResponse(response) {
+  return response ? { ...response, user: normalizeUser(response.user) } : response;
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
     const savedUser = localStorage.getItem('user');
-    return savedUser ? JSON.parse(savedUser) : null;
+    return savedUser ? normalizeUser(JSON.parse(savedUser)) : null;
   });
 
   const [token, setToken] = useState(() => {
@@ -32,15 +41,15 @@ export function AuthProvider({ children }) {
 
       try {
         const userData = await authService.getCurrentUser();
-        setUser(userData);
+        setUser(normalizeUser(userData));
         setToken(storedToken);
-        localStorage.setItem('user', JSON.stringify(userData));
+        localStorage.setItem('user', JSON.stringify(normalizeUser(userData)));
       } catch (err) {
         console.warn('Session verification failed on mount:', err.message);
         // If stored user exists and is valid, keep offline session if not 401
         const storedUser = authService.getStoredUser();
         if (storedUser) {
-          setUser(storedUser);
+          setUser(normalizeUser(storedUser));
           setToken(storedToken);
         } else {
           logout();
@@ -57,10 +66,11 @@ export function AuthProvider({ children }) {
     setLoading(true);
     try {
       const response = await authService.loginWithCredentials(email, password);
-      authService.saveAuth(response);
-      setUser(response.user);
+      const normalizedResponse = normalizeAuthResponse(response);
+      authService.saveAuth(normalizedResponse);
+      setUser(normalizedResponse.user);
       setToken(response.accessToken);
-      return response;
+      return normalizedResponse;
     } finally {
       setLoading(false);
     }
@@ -70,13 +80,32 @@ export function AuthProvider({ children }) {
     setLoading(true);
     try {
       const response = await authService.loginWithGoogle(idToken);
-      authService.saveAuth(response);
-      setUser(response.user);
+      const normalizedResponse = normalizeAuthResponse(response);
+      authService.saveAuth(normalizedResponse);
+      setUser(normalizedResponse.user);
       setToken(response.accessToken);
-      return response;
+      return normalizedResponse;
     } finally {
       setLoading(false);
     }
+  };
+
+  const loginAsRole = (role) => {
+    const demoUser = {
+      id: 'demo-guard',
+      email: 'guard@demo.campus.local',
+      fullName: 'Demo Bảo vệ',
+      role,
+    };
+    const demoResponse = {
+      accessToken: `demo-token-${role.toLowerCase()}`,
+      user: demoUser,
+    };
+
+    authService.saveAuth(demoResponse);
+    setUser(demoUser);
+    setToken(demoResponse.accessToken);
+    return demoResponse;
   };
 
   const hasRole = useCallback((allowedRoles) => {
@@ -122,6 +151,7 @@ export function AuthProvider({ children }) {
     loginWithPassword: loginWithCredentials,
     loginWithGoogle,
     loginWithGoogleToken: loginWithGoogle,
+    loginAsRole,
     logout,
     hasRole,
   };

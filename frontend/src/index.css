@@ -3,6 +3,7 @@
    ======================================== */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import 'tailwindcss';
 @import './styles/theme.css';
 
 *,
@@ -38,4 +39,34 @@ a {
 
 button {
   font-family: inherit;
+}
+
+.ui-button {
+  border: 0;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+}
+
+.ui-button:focus-visible,
+.ui-input:focus-visible {
+  outline: 2px solid var(--theme-border-focus);
+  outline-offset: 2px;
+}
+
+.ui-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.ui-button--ghost {
+  background: transparent;
+}
+
+.ui-button--secondary {
+  background: var(--theme-bg-desc);
+  color: var(--theme-text-primary);
+}
+
+.ui-input {
+  font: inherit;
 }

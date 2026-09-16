@@ -1,5 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
+import { toast } from 'sonner';
 import { 
   Video, 
   Search, 
@@ -13,6 +16,9 @@ import {
 } from 'lucide-react';
 import { fetchCameras, decommissionCamera, reactivateCamera } from '../../services/cameraService';
 import CameraCreateModal from './CameraCreateModal';
+import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
+import { useCameraStore } from '../../stores/cameraStore';
 import '../../styles/CameraListPage.css';
 
 const STATUS_LABELS = {
@@ -28,75 +34,52 @@ const OP_STATUS_LABELS = {
 
 export default function CameraListPage() {
   const navigate = useNavigate();
-  const [cameras, setCameras] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  
-  // Filters & Pagination state
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [opStatusFilter, setOpStatusFilter] = useState('');
-  const [page, setPage] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
-  const [totalElements, setTotalElements] = useState(0);
-  
-  // Modal state
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const queryClient = useQueryClient();
+  const { search, status, operationalStatus, page, isCreateOpen, setFilters, setSearch, setPage, setCreateOpen } = useCameraStore();
+  const [searchDraft, setSearchDraft] = useState(search);
   const [actionLoadingId, setActionLoadingId] = useState(null);
 
-  const loadCameras = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await fetchCameras({
-        page,
-        size: 10,
-        search,
-        status: statusFilter || undefined,
-        operationalStatus: opStatusFilter || undefined,
-      });
-      setCameras(data.content || []);
-      setTotalPages(data.totalPages || 0);
-      setTotalElements(data.totalElements || 0);
-    } catch (err) {
-      console.error('Failed to load cameras:', err);
-      setError(err.message || 'Lỗi tải danh sách camera.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const cameraQuery = useQuery({
+    queryKey: ['cameras', { page, search, status, operationalStatus }],
+    queryFn: () => fetchCameras({ page, size: 10, search, status, operationalStatus }),
+    placeholderData: (previousData) => previousData,
+  });
 
-  useEffect(() => {
-    loadCameras();
-  }, [page, statusFilter, opStatusFilter]);
+  const toggleMutation = useMutation({
+    mutationFn: ({ id, isDecommissioned }) => isDecommissioned ? reactivateCamera(id) : decommissionCamera(id),
+    onSuccess: (_, variables) => {
+      toast.success(variables.isDecommissioned ? 'Đã kích hoạt camera' : 'Đã tắt camera');
+      queryClient.invalidateQueries({ queryKey: ['cameras'] });
+    },
+    onError: (err) => toast.error(err.message || 'Thao tác thất bại.'),
+    onSettled: () => setActionLoadingId(null),
+  });
+
+  const cameras = cameraQuery.data?.content || [];
+  const totalPages = cameraQuery.data?.totalPages || 0;
+  const totalElements = cameraQuery.data?.totalElements || 0;
+  const loading = cameraQuery.isLoading;
+  const error = cameraQuery.error?.message;
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
-    setPage(0);
-    loadCameras();
+    setSearch(searchDraft);
   };
 
   const handleToggleDecommission = async (id, isDecommissioned) => {
     setActionLoadingId(id);
-    try {
-      if (isDecommissioned) {
-        await reactivateCamera(id);
-      } else {
-        await decommissionCamera(id);
-      }
-      // Reload list
-      await loadCameras();
-    } catch (err) {
-      alert(err.message || 'Thao tác thất bại.');
-    } finally {
-      setActionLoadingId(null);
-    }
+    toggleMutation.mutate({ id, isDecommissioned });
   };
 
-  const handleCreateSuccess = () => {
-    setPage(0);
-    loadCameras();
-  };
+  const columns = [
+    { accessorKey: 'cameraCode', header: 'Mã Camera', cell: ({ getValue }) => <span className="font-mono font-bold text-blue">{getValue()}</span> },
+    { accessorKey: 'name', header: 'Tên thiết bị', cell: ({ getValue }) => <span className="camera-name">{getValue()}</span> },
+    { id: 'location', header: 'Vị trí', cell: ({ row }) => `${row.original.floor !== null ? `Tầng ${row.original.floor}` : 'N/A'}${row.original.zoneName ? ` - ${row.original.zoneName}` : ''}` },
+    { accessorKey: 'status', header: 'Trạng thái thiết bị', cell: ({ getValue }) => <span className={`status-badge badge-${getValue().toLowerCase()}`}>{STATUS_LABELS[getValue()] || getValue()}</span> },
+    { accessorKey: 'operationalStatus', header: 'Trạng thái kết nối', cell: ({ getValue }) => <span className={`status-badge op-badge-${getValue().toLowerCase()}`}><span className="badge-dot">●</span>{OP_STATUS_LABELS[getValue()] || getValue()}</span> },
+    { id: 'actions', header: 'Hành động', cell: ({ row }) => { const camera = row.original; const isDecommissioned = camera.status === 'DECOMMISSIONED'; return <div className="actions-cell"><Button variant="ghost" className="btn-action btn-view" onClick={() => navigate(`/cameras/${camera.id}`)} title="Xem chi tiết"><Eye size={16} /><span>Chi tiết</span></Button><Button variant="ghost" className={`btn-action ${isDecommissioned ? 'btn-activate' : 'btn-decommission'}`} onClick={() => handleToggleDecommission(camera.id, isDecommissioned)} disabled={actionLoadingId === camera.id}>{actionLoadingId === camera.id ? <Loader2 className="animate-spin" size={16} /> : isDecommissioned ? <Power size={16} /> : <PowerOff size={16} />}<span>{isDecommissioned ? 'Bật' : 'Tắt'}</span></Button></div>; } },
+  ];
+  const table = useReactTable({ data: cameras, columns, getCoreRowModel: getCoreRowModel() });
 
   return (
     <div className="camera-list-page">
@@ -105,10 +88,10 @@ export default function CameraListPage() {
           <h1>Hệ thống Camera Giám sát</h1>
           <p className="subtitle">Quản lý và cấu hình thiết bị camera trong khuôn viên trường</p>
         </div>
-        <button className="btn-add-camera" onClick={() => setIsCreateOpen(true)}>
+        <Button className="btn-add-camera" onClick={() => setCreateOpen(true)}>
           <Plus size={18} />
           <span>Thêm Camera</span>
-        </button>
+        </Button>
       </div>
 
       {/* Filters Form */}
@@ -116,20 +99,19 @@ export default function CameraListPage() {
         <form onSubmit={handleSearchSubmit} className="filter-form">
           <div className="search-box">
             <Search size={18} className="search-icon" />
-            <input
+            <Input
               type="text"
               placeholder="Tìm theo tên, mã camera, khu vực..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              value={searchDraft}
+              onChange={(e) => setSearchDraft(e.target.value)}
             />
           </div>
 
           <div className="filter-dropdowns">
             <select
-              value={statusFilter}
+              value={status}
               onChange={(e) => {
-                setStatusFilter(e.target.value);
-                setPage(0);
+                setFilters({ status: e.target.value });
               }}
             >
               <option value="">-- Trạng thái thiết bị --</option>
@@ -138,10 +120,9 @@ export default function CameraListPage() {
             </select>
 
             <select
-              value={opStatusFilter}
+              value={operationalStatus}
               onChange={(e) => {
-                setOpStatusFilter(e.target.value);
-                setPage(0);
+                setFilters({ operationalStatus: e.target.value });
               }}
             >
               <option value="">-- Trạng thái kết nối --</option>
@@ -150,9 +131,9 @@ export default function CameraListPage() {
               <option value="ERROR">Lỗi</option>
             </select>
 
-            <button type="submit" className="btn-search">
+            <Button type="submit" variant="secondary" className="btn-search">
               Tìm kiếm
-            </button>
+            </Button>
           </div>
         </form>
       </div>
@@ -186,61 +167,11 @@ export default function CameraListPage() {
                 </tr>
               </thead>
               <tbody>
-                {cameras.map((cam) => {
-                  const isDecommissioned = cam.status === 'DECOMMISSIONED';
-                  const opStatus = cam.operationalStatus;
-
-                  return (
-                    <tr key={cam.id}>
-                      <td className="font-mono font-bold text-blue">{cam.cameraCode}</td>
-                      <td>
-                        <div className="camera-name-cell">
-                          <span className="camera-name">{cam.name}</span>
-                        </div>
-                      </td>
-                      <td>
-                        {cam.floor !== null ? `Tầng ${cam.floor}` : 'N/A'}{' '}
-                        {cam.zoneName ? ` - ${cam.zoneName}` : ''}
-                      </td>
-                      <td>
-                        <span className={`status-badge badge-${cam.status.toLowerCase()}`}>
-                          {STATUS_LABELS[cam.status] || cam.status}
-                        </span>
-                      </td>
-                      <td>
-                        <span className={`status-badge op-badge-${opStatus.toLowerCase()}`}>
-                          <span className="badge-dot">●</span>
-                          {OP_STATUS_LABELS[opStatus] || opStatus}
-                        </span>
-                      </td>
-                      <td className="text-right actions-cell">
-                        <button 
-                          className="btn-action btn-view" 
-                          onClick={() => navigate(`/cameras/${cam.id}`)}
-                          title="Xem chi tiết & Cấu hình"
-                        >
-                          <Eye size={16} />
-                          <span>Chi tiết</span>
-                        </button>
-                        <button
-                          className={`btn-action ${isDecommissioned ? 'btn-activate' : 'btn-decommission'}`}
-                          onClick={() => handleToggleDecommission(cam.id, isDecommissioned)}
-                          disabled={actionLoadingId === cam.id}
-                          title={isDecommissioned ? 'Kích hoạt lại' : 'Tắt camera'}
-                        >
-                          {actionLoadingId === cam.id ? (
-                            <Loader2 className="animate-spin" size={16} />
-                          ) : isDecommissioned ? (
-                            <Power size={16} />
-                          ) : (
-                            <PowerOff size={16} />
-                          )}
-                          <span>{isDecommissioned ? 'Bật' : 'Tắt'}</span>
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {table.getRowModel().rows.map((row) => (
+                  <tr key={row.id}>
+                    {row.getVisibleCells().map((cell) => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}
+                  </tr>
+                ))}
               </tbody>
             </table>
 
@@ -252,14 +183,14 @@ export default function CameraListPage() {
                 </span>
                 <div className="pagination-buttons">
                   <button
-                    onClick={() => setPage((p) => Math.max(0, p - 1))}
+                    onClick={() => setPage(Math.max(0, page - 1))}
                     disabled={page === 0}
                     className="pagination-btn"
                   >
                     <ChevronLeft size={18} />
                   </button>
                   <button
-                    onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                    onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
                     disabled={page === totalPages - 1}
                     className="pagination-btn"
                   >
@@ -274,8 +205,7 @@ export default function CameraListPage() {
 
       <CameraCreateModal
         isOpen={isCreateOpen}
-        onClose={() => setIsCreateOpen(false)}
-        onSuccess={handleCreateSuccess}
+        onClose={() => setCreateOpen(false)}
       />
     </div>
   );

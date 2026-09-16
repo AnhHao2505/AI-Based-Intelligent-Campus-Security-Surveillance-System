@@ -209,6 +209,7 @@
 }
 
 .login-card__role-badge {
+  appearance: none;
   padding: 4px 12px;
   border-radius: 20px;
   font-size: 0.7rem;
@@ -218,13 +219,26 @@
   border: 1px solid rgba(99, 102, 241, 0.15);
   color: #a5b4fc;
   transition: all 0.25s ease;
+  cursor: pointer;
+  font-family: inherit;
 }
 
-.login-card__role-badge:hover {
+.login-card__role-badge:hover:not(:disabled),
+.login-card__role-badge:focus-visible {
   background: rgba(99, 102, 241, 0.15);
   border-color: rgba(99, 102, 241, 0.3);
   color: #c7d2fe;
   transform: translateY(-1px);
+}
+
+.login-card__role-badge:focus-visible {
+  outline: 2px solid #a5b4fc;
+  outline-offset: 2px;
+}
+
+.login-card__role-badge:disabled {
+  cursor: wait;
+  opacity: 0.65;
 }
 
 /* --- Footer --- */

@@ -31,7 +31,7 @@ export default function Sidebar({ user, onLogout }) {
   const userRole = user?.role || user?.role_type || '';
   const isAdmin = userRole === ROLES.ADMIN;
   const isFacilityManager = userRole === ROLES.FACILITY_MANAGER;
-  const isGuard = userRole === ROLES.INTERNAL_GUARD || userRole === ROLES.OUTSOURCED_GUARD;
+  const isGuard = userRole === ROLES.GUARD;
 
   return (
     <aside className="sidebar">

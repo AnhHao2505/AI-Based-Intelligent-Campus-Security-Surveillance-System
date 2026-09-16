@@ -1,4 +1,7 @@
 import { useState, useEffect } from 'react';
+import { format } from 'date-fns';
+import { vi } from 'date-fns/locale';
+import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 import {
   MapPin,
   Camera,
@@ -52,12 +55,16 @@ export default function DashboardPage() {
   }, [user]);
 
   // Current formatted date string
-  const currentDateStr = new Intl.DateTimeFormat('vi-VN', {
-    weekday: 'long',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date());
+  const currentDateStr = format(new Date(), 'EEEE, dd/MM/yyyy', { locale: vi });
+  const activityData = [
+    { day: 'T2', events: 0 },
+    { day: 'T3', events: 0 },
+    { day: 'T4', events: 0 },
+    { day: 'T5', events: 0 },
+    { day: 'T6', events: 0 },
+    { day: 'T7', events: 0 },
+    { day: 'CN', events: 0 },
+  ];
 
   return (
     <div className="dashboard-page">
@@ -284,6 +291,16 @@ export default function DashboardPage() {
             <div className="dash-card__footer-note">
               <Info size={14} />
               <span>Chưa kết nối dịch vụ giám sát thời gian thực</span>
+            </div>
+            <div style={{ height: 104, marginTop: 18 }} aria-label="Biểu đồ hoạt động 7 ngày">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={activityData} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+                  <defs><linearGradient id="activityFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#10b981" stopOpacity={0.24} /><stop offset="100%" stopColor="#10b981" stopOpacity={0} /></linearGradient></defs>
+                  <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: 'var(--theme-text-muted)' }} />
+                  <Tooltip cursor={false} />
+                  <Area type="monotone" dataKey="events" stroke="#10b981" fill="url(#activityFill)" strokeWidth={2} />
+                </AreaChart>
+              </ResponsiveContainer>
             </div>
           </article>
         </section>

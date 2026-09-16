@@ -2,21 +2,15 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { GoogleLogin } from '@react-oauth/google';
 import { useAuth } from '../context/AuthContext';
+import { ROLE_LABELS } from '../constants/roles';
 import {
   sendResetLink,
   resetPasswordWithToken
 } from '../services/authService';
 import '../styles/LoginPage.css';
 
-const ROLE_LABELS = {
-  ADMIN: 'Quản trị viên',
-  FACILITY_MANAGER: 'Quản lý cơ sở',
-  INTERNAL_GUARD: 'Bảo vệ nội bộ',
-  OUTSOURCED_GUARD: 'Bảo vệ thuê ngoài',
-};
-
 export default function LoginPage({ onLoginSuccess, initialResetToken, onResetComplete }) {
-  const { loginWithGoogleToken, loginWithPassword } = useAuth();
+  const { loginWithGoogleToken, loginWithPassword, loginAsRole } = useAuth();
   const navigate = useNavigate();
 
   const [mode, setMode] = useState('login'); // 'login' | 'forgot' | 'reset'
@@ -31,6 +25,19 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+
+  const handleRoleLogin = (role) => {
+    setError(null);
+    setLoading(true);
+    try {
+      loginAsRole(role);
+      if (onLoginSuccess) onLoginSuccess();
+      navigate(role === 'GUARD' ? '/guard' : '/dashboard');
+    } catch (err) {
+      setError(err.message || 'Không thể đăng nhập với vai trò đã chọn.');
+      setLoading(false);
+    }
+  };
 
   // Switch to reset mode if token exists in URL
   useEffect(() => {
@@ -346,9 +353,16 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
         {/* Role badges */}
         <div className="login-card__roles">
           {Object.entries(ROLE_LABELS).map(([key, label]) => (
-            <span key={key} className="login-card__role-badge">
+            <button
+              key={key}
+              type="button"
+              className="login-card__role-badge"
+              onClick={() => handleRoleLogin(key)}
+              disabled={loading}
+              title={`Đăng nhập thử với vai trò ${label}`}
+            >
               {label}
-            </span>
+            </button>
           ))}
         </div>
       </div>

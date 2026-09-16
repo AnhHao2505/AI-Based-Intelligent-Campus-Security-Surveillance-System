@@ -108,7 +108,7 @@ function App() {
               <Route
                 path="/guard"
                 element={
-                  <ProtectedRoute allowedRoles={[ROLES.INTERNAL_GUARD, ROLES.OUTSOURCED_GUARD]}>
+                  <ProtectedRoute allowedRoles={[ROLES.GUARD]}>
                     <GuardDashboardPage />
                   </ProtectedRoute>
                 }
