@@ -77,8 +77,6 @@ function App() {
               <Route path="/" element={<RootRoute />} />
               <Route path="/dashboard" element={<DashboardRoute />} />
 
-
-
               <Route
                 path="/admin/areas"
                 element={
@@ -111,7 +109,6 @@ function App() {
                 }
               />
 
-
               {/* Account management - Admin only */}
               <Route
                 path="/admin/accounts"
@@ -121,7 +118,6 @@ function App() {
                   </ProtectedRoute>
                 }
               />
-
 
               <Route
                 path="/guard"
