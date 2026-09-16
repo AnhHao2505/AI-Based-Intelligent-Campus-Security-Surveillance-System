@@ -15,8 +15,6 @@ import com.fa26se040.icss.entity.*;
 import com.fa26se040.icss.enums.*;
 import com.fa26se040.icss.exception.CameraErrorCode;
 import com.fa26se040.icss.exception.CameraException;
-import com.fa26se040.icss.exception.DuplicateResourceException;
-import com.fa26se040.icss.exception.ResourceNotFoundException;
 import com.fa26se040.icss.repository.*;
 import com.fa26se040.icss.util.AesEncryptionUtil;
 

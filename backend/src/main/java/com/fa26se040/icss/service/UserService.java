@@ -16,7 +16,6 @@ import com.fa26se040.icss.dto.user.BatchRestoreSkippedUser;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.exception.DuplicateResourceException;
-import com.fa26se040.icss.exception.InvalidRoleAssignmentException;
 import com.fa26se040.icss.exception.MaxRecordsExceededException;
 import com.fa26se040.icss.exception.ResourceNotFoundException;
 import com.fa26se040.icss.repository.UserRepository;
@@ -41,7 +40,6 @@ import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
-import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
 @Service
