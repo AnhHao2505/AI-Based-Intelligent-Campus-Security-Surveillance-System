@@ -4,19 +4,17 @@ import {
   Clock,
   CheckCircle2,
   XCircle,
-  Users,
-  User,
-  Building,
+  Ban,
+  CalendarX,
+  Calendar,
   Search,
   RefreshCw,
   Eye,
   Check,
   X,
-  AlertCircle,
-  FileText,
-  Calendar,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  AlertTriangle
 } from 'lucide-react';
 import accessRequestService from '../../services/accessRequestService';
 import '../../styles/AccessRequestReviewPage.css';
@@ -38,13 +36,16 @@ export default function AccessRequestReviewPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState(null);
   const [actionSuccess, setActionSuccess] = useState(null);
+  const [actionWarning, setActionWarning] = useState(null);
 
   // Stats
   const [stats, setStats] = useState({
     total: 0,
     pending: 0,
     approved: 0,
-    rejected: 0
+    rejected: 0,
+    cancelled: 0,
+    expired: 0
   });
 
   // Load Requests
@@ -70,17 +71,21 @@ export default function AccessRequestReviewPage() {
   // Load Stats counts
   const loadStats = useCallback(async () => {
     try {
-      const [allRes, pendingRes, approvedRes, rejectedRes] = await Promise.all([
+      const [allRes, pendingRes, approvedRes, rejectedRes, cancelledRes, expiredRes] = await Promise.all([
         accessRequestService.getAllRequests({ page: 0, size: 1 }),
         accessRequestService.getAllRequests({ status: 'PENDING', page: 0, size: 1 }),
         accessRequestService.getAllRequests({ status: 'APPROVED', page: 0, size: 1 }),
-        accessRequestService.getAllRequests({ status: 'REJECTED', page: 0, size: 1 })
+        accessRequestService.getAllRequests({ status: 'REJECTED', page: 0, size: 1 }),
+        accessRequestService.getAllRequests({ status: 'CANCELLED', page: 0, size: 1 }),
+        accessRequestService.getAllRequests({ status: 'EXPIRED', page: 0, size: 1 })
       ]);
       setStats({
         total: allRes?.totalElements || 0,
         pending: pendingRes?.totalElements || 0,
         approved: approvedRes?.totalElements || 0,
-        rejected: rejectedRes?.totalElements || 0
+        rejected: rejectedRes?.totalElements || 0,
+        cancelled: cancelledRes?.totalElements || 0,
+        expired: expiredRes?.totalElements || 0
       });
     } catch (err) {
       console.error('Lỗi khi tải thống kê:', err);
@@ -107,7 +112,15 @@ export default function AccessRequestReviewPage() {
       loadStats();
       setTimeout(() => setActionSuccess(null), 3000);
     } catch (err) {
-      setActionError(err.message || 'Lỗi khi phê duyệt yêu cầu');
+      if (err.status === 409) {
+        setApproveItem(null);
+        setActionWarning(err.message || 'Yêu cầu này đã được xử lý bởi người khác. Danh sách đã được làm mới.');
+        loadRequests(page, statusFilter);
+        loadStats();
+        setTimeout(() => setActionWarning(null), 7000);
+      } else {
+        setActionError(err.message || 'Lỗi khi phê duyệt yêu cầu');
+      }
     } finally {
       setActionLoading(false);
     }
@@ -135,7 +148,16 @@ export default function AccessRequestReviewPage() {
       loadStats();
       setTimeout(() => setActionSuccess(null), 3000);
     } catch (err) {
-      setActionError(err.message || 'Lỗi khi từ chối yêu cầu');
+      if (err.status === 409) {
+        setRejectItem(null);
+        setRejectionReason('');
+        setActionWarning(err.message || 'Yêu cầu này đã được xử lý bởi người khác. Danh sách đã được làm mới.');
+        loadRequests(page, statusFilter);
+        loadStats();
+        setTimeout(() => setActionWarning(null), 7000);
+      } else {
+        setActionError(err.message || 'Lỗi khi từ chối yêu cầu');
+      }
     } finally {
       setActionLoading(false);
     }
@@ -207,6 +229,13 @@ export default function AccessRequestReviewPage() {
         </div>
       )}
 
+      {actionWarning && (
+        <div className="arr-alert arr-alert--warning">
+          <AlertTriangle size={18} />
+          <span>{actionWarning}</span>
+        </div>
+      )}
+
       {/* Stats Cards */}
       <div className="arr-stats-grid">
         <div className="arr-stat-card">
@@ -248,6 +277,26 @@ export default function AccessRequestReviewPage() {
             <span className="arr-stat-card__value">{stats.rejected}</span>
           </div>
         </div>
+
+        <div className="arr-stat-card">
+          <div className="arr-stat-card__icon arr-stat-card__icon--cancelled">
+            <Ban size={22} />
+          </div>
+          <div className="arr-stat-card__content">
+            <span className="arr-stat-card__label">Đã huỷ</span>
+            <span className="arr-stat-card__value">{stats.cancelled}</span>
+          </div>
+        </div>
+
+        <div className="arr-stat-card">
+          <div className="arr-stat-card__icon arr-stat-card__icon--expired">
+            <CalendarX size={22} />
+          </div>
+          <div className="arr-stat-card__content">
+            <span className="arr-stat-card__label">Hết hạn</span>
+            <span className="arr-stat-card__value">{stats.expired}</span>
+          </div>
+        </div>
       </div>
 
       {/* Filter Toolbar */}
@@ -257,7 +306,9 @@ export default function AccessRequestReviewPage() {
             { label: 'Tất cả', val: '' },
             { label: 'Chờ duyệt', val: 'PENDING' },
             { label: 'Đã duyệt', val: 'APPROVED' },
-            { label: 'Đã từ chối', val: 'REJECTED' }
+            { label: 'Đã từ chối', val: 'REJECTED' },
+            { label: 'Đã huỷ', val: 'CANCELLED' },
+            { label: 'Hết hạn', val: 'EXPIRED' }
           ].map(f => (
             <button
               key={f.val}
@@ -355,6 +406,8 @@ export default function AccessRequestReviewPage() {
                         {req.status === 'PENDING' && 'Chờ duyệt'}
                         {req.status === 'APPROVED' && 'Đã duyệt'}
                         {req.status === 'REJECTED' && 'Từ chối'}
+                        {req.status === 'CANCELLED' && 'Đã huỷ'}
+                        {req.status === 'EXPIRED' && 'Hết hạn'}
                       </span>
                     </td>
 
@@ -587,6 +640,8 @@ export default function AccessRequestReviewPage() {
                       {detailItem.status === 'PENDING' && 'Chờ phê duyệt'}
                       {detailItem.status === 'APPROVED' && 'Đã phê duyệt'}
                       {detailItem.status === 'REJECTED' && 'Bị từ chối'}
+                      {detailItem.status === 'CANCELLED' && 'Đã huỷ'}
+                      {detailItem.status === 'EXPIRED' && 'Hết hạn'}
                     </span>
                   </div>
                 </div>

@@ -179,7 +179,7 @@ export default function GuardDashboardPage() {
             <Radio className="pulse-icon" size={18} />
             <span>LIVE MONITORING</span>
           </div>
-          <h2>Bảng Giám Sát An Ninh Trực Tiếp (Guard Console)</h2>
+          <h2>Bảng giám sát an ninh trực tiếp</h2>
         </div>
 
         <div className="guard-header-actions">
@@ -205,7 +205,7 @@ export default function GuardDashboardPage() {
             title="Bắn cảnh báo test để kiểm tra chuông và popup"
           >
             <Bell size={16} />
-            <span>Test Báo Động</span>
+            <span>Test báo động</span>
           </button>
         </div>
       </div>
@@ -295,7 +295,7 @@ export default function GuardDashboardPage() {
           <div className="panel-header">
             <div className="panel-title">
               <ShieldAlert size={20} className="alert-header-icon" />
-              <h3>Sự Kiện Cảnh Báo An Ninh</h3>
+              <h3>Sự kiện cảnh báo an ninh</h3>
             </div>
             <span className="incident-count-chip">
               {activeAlerts.filter((a) => a.status === 'PENDING').length} Chưa xử lý
@@ -340,7 +340,7 @@ export default function GuardDashboardPage() {
                   {alert.snapshotUrl && (
                     <div className="incident-snapshot-box">
                       <img src={alert.snapshotUrl} alt="Bằng chứng vi phạm" />
-                      <span className="snapshot-tag">Ảnh Chụp MinIO</span>
+                      <span className="snapshot-tag">Ảnh chụp MinIO</span>
                     </div>
                   )}
 
@@ -352,7 +352,7 @@ export default function GuardDashboardPage() {
                         onClick={() => handleAcknowledge(alert.id)}
                       >
                         <CheckCircle2 size={16} />
-                        <span>Xác Nhận Đã Xử Lý</span>
+                        <span>Xác nhận đã xử lý</span>
                       </button>
                     ) : (
                       <span className="resolved-status-tag">

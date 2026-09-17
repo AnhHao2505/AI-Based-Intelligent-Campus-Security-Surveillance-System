@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -20,14 +21,42 @@ import {
 import { ROLES, ROLE_LABELS } from '../../constants/roles';
 import { useTheme } from '../../context/ThemeContext';
 import { useUiStore } from '../../store/useUiStore';
+import { notificationService } from '../../services/notificationService';
 import '../../styles/Sidebar.css';
 
 export default function Sidebar({ user, onLogout }) {
   const { theme, toggleTheme } = useTheme();
   const { sidebarCollapsed, toggleSidebar } = useUiStore();
 
-  // TODO: nối API lấy số thông báo chưa đọc khi backend có bảng notifications
-  const unreadCount = 0;
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchUnread = async () => {
+      try {
+        if (!user) return;
+        const res = await notificationService.getUnreadCount();
+        if (isMounted) {
+          setUnreadCount(res?.count ?? 0);
+        }
+      } catch {
+        // Silent poll error
+      }
+    };
+
+    fetchUnread();
+    const intervalId = setInterval(fetchUnread, 60000);
+
+    const handleUpdate = () => fetchUnread();
+    window.addEventListener('notification-updated', handleUpdate);
+
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+      window.removeEventListener('notification-updated', handleUpdate);
+    };
+  }, [user]);
 
   const getInitials = (name) => {
     if (!name) return 'U';
@@ -100,7 +129,9 @@ export default function Sidebar({ user, onLogout }) {
                 <Bell size={18} />
                 <span>Thông báo</span>
                 {unreadCount > 0 && (
-                  <span className="sidebar__unread-badge">{unreadCount}</span>
+                  <span className="sidebar__unread-badge">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
                 )}
               </NavLink>
             </div>
@@ -118,6 +149,20 @@ export default function Sidebar({ user, onLogout }) {
                   <span>Dashboard</span>
                 </NavLink>
 
+                <NavLink
+                  to="/notifications"
+                  className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+                  title={sidebarCollapsed ? "Thông báo" : undefined}
+                >
+                  <Bell size={18} />
+                  <span>Thông báo</span>
+                  {unreadCount > 0 && (
+                    <span className="sidebar__unread-badge">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </NavLink>
+
                 {isGuard && (
                   <NavLink
                     to="/guard"
@@ -125,7 +170,7 @@ export default function Sidebar({ user, onLogout }) {
                     title={sidebarCollapsed ? "Giám sát An ninh" : undefined}
                   >
                     <ShieldAlert size={18} />
-                    <span>Giám sát An ninh</span>
+                    <span>Giám sát an ninh</span>
                   </NavLink>
                 )}
 
@@ -136,7 +181,7 @@ export default function Sidebar({ user, onLogout }) {
                     title={sidebarCollapsed ? "Quản lý Camera" : undefined}
                   >
                     <Video size={18} />
-                    <span>Quản lý Camera</span>
+                    <span>Quản lý camera</span>
                   </NavLink>
                 )}
               </div>
@@ -183,7 +228,7 @@ export default function Sidebar({ user, onLogout }) {
                         title={sidebarCollapsed ? "Gán Camera – Khu vực" : undefined}
                       >
                         <Network size={18} />
-                        <span>Gán Camera – Khu vực</span>
+                        <span>Gán camera – khu vực</span>
                       </NavLink>
                     </>
                   )}

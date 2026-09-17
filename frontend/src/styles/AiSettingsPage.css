@@ -14,8 +14,8 @@
   --text-range: var(--theme-text-muted);
   --accent: var(--brand-cyan);
   --accent-hover: var(--brand-blue);
-  --accent-tint: rgba(59, 168, 217, 0.12);
-  --accent-ring: rgba(59, 168, 217, 0.25);
+  --accent-tint: var(--brand-subtle);
+  --accent-ring: var(--brand-subtle-border);
   --card-shadow: var(--theme-card-shadow);
 
   padding: 24px 32px;
@@ -45,7 +45,7 @@
 }
 
 .ai-settings-header__icon {
-  color: var(--accent);
+  color: var(--brand-text);
   flex-shrink: 0;
 }
 
@@ -109,7 +109,7 @@
 
 .ai-setting-block__badge {
   background-color: var(--accent-tint);
-  color: var(--accent);
+  color: var(--brand-text);
   font-weight: 600;
   font-size: 0.875rem;
   font-variant-numeric: tabular-nums;
@@ -238,8 +238,9 @@
 }
 
 .ai-fps-input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-ring);
+  outline: none;
+  border-color: var(--brand-blue);
+  box-shadow: var(--focus-ring);
 }
 
 .ai-fps-unit {
@@ -368,7 +369,7 @@
 }
 
 .ai-settings-spinner {
-  color: var(--accent);
+  color: var(--brand-text);
 }
 
 /* --------------------------------------------------------------------------

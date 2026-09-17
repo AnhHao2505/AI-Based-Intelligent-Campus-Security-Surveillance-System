@@ -87,7 +87,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #ffffff;
+  color: var(--theme-on-brand);
   box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
 }
 
@@ -130,19 +130,19 @@
 
 .area-sidebar__nav-item:hover {
   background: var(--theme-primary-light);
-  color: var(--theme-primary);
+  color: var(--brand-text);
   border-color: var(--theme-primary-border);
 }
 
 .area-sidebar__nav-item--active {
   background: var(--theme-primary-light);
-  color: var(--theme-primary);
+  color: var(--brand-text);
   border-color: var(--theme-primary-border);
   font-weight: 600;
 }
 
 .area-sidebar__nav-item--active svg {
-  color: var(--theme-primary);
+  color: var(--brand-text);
 }
 
 .area-sidebar__nav-item--disabled {
@@ -189,7 +189,7 @@
   justify-content: center;
   font-size: 0.85rem;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--theme-on-brand);
   flex-shrink: 0;
 }
 
@@ -210,7 +210,7 @@
 
 .area-sidebar__user-role {
   font-size: 0.7rem;
-  color: var(--theme-primary);
+  color: var(--brand-text);
   font-weight: 500;
 }
 
@@ -400,7 +400,7 @@
 .area-control-btn:hover {
   background: var(--theme-primary-light);
   border-color: var(--theme-primary-border);
-  color: var(--theme-primary);
+  color: var(--brand-text);
 }
 
 /* Map Canvas Container */
@@ -589,7 +589,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--theme-primary);
+  color: var(--brand-text);
   margin-bottom: 16px;
 }
 
@@ -714,7 +714,7 @@
 .zone-details__code {
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.75rem;
-  color: var(--theme-primary);
+  color: var(--brand-text);
   font-weight: 600;
 }
 
@@ -910,8 +910,8 @@
   width: 30px;
   height: 30px;
   border-radius: 8px;
-  background: rgba(59, 168, 217, 0.12);
-  color: var(--brand-cyan);
+  background: var(--brand-subtle);
+  color: var(--brand-text);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1036,7 +1036,7 @@
 .area-form-input:focus {
   outline: none;
   border-color: var(--brand-blue);
-  box-shadow: 0 0 0 2px rgba(59, 168, 217, 0.15);
+  box-shadow: var(--focus-ring);
 }
 
 .area-form-input:disabled {
@@ -1219,7 +1219,7 @@
 
 .area-btn-modal--danger {
   background: var(--theme-danger);
-  color: #ffffff;
+  color: var(--theme-on-danger);
   font-weight: 600;
   border: none;
 }
@@ -1441,7 +1441,7 @@
 }
 
 .zone-toolbar__building-icon {
-  color: var(--brand-cyan);
+  color: var(--brand-text);
   margin-right: 8px;
   flex-shrink: 0;
 }
@@ -1791,8 +1791,8 @@
 
 .zone-draw-btn--finish {
   background: var(--theme-success);
-  color: #ffffff;
-}
+  color: var(--theme-on-success);
+ }
 
 .zone-draw-btn--finish:hover:not(:disabled) {
   filter: brightness(0.9);
@@ -1882,7 +1882,7 @@
   padding: 8px 16px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--theme-primary);
+  color: var(--brand-text);
   cursor: pointer;
   transition: all 0.15s ease;
 }
@@ -2190,7 +2190,7 @@
 .zone-btn-action--primary {
   background: var(--theme-primary-light);
   border-color: var(--theme-primary-border);
-  color: var(--theme-primary);
+  color: var(--brand-text);
 }
 
 .zone-btn-action--primary:hover {
@@ -2206,7 +2206,7 @@
 
 .zone-btn-action--danger:hover {
   background: var(--theme-danger);
-  color: #ffffff;
+  color: var(--theme-on-danger);
 }
 
 /* Two-step Inline Confirmation */
@@ -2230,7 +2230,7 @@
 
 .zone-inline-confirm__btn-yes {
   background: var(--theme-danger);
-  color: #ffffff;
+  color: var(--theme-on-danger);
   border: none;
   border-radius: 4px;
   padding: 3px 8px;

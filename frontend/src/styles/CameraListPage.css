@@ -33,7 +33,7 @@
   height: 500px;
   top: -100px;
   right: -50px;
-  background: radial-gradient(circle, rgba(126, 211, 242, 0.15) 0%, rgba(59, 168, 217, 0) 70%);
+  background: radial-gradient(circle, rgba(126, 211, 242, 0.15) 0%, transparent 70%);
 }
 
 .camera-ambient__orb--2 {
@@ -146,7 +146,7 @@
 .search-box input:focus {
   outline: none;
   border-color: var(--brand-blue);
-  box-shadow: 0 0 0 2px rgba(59, 168, 217, 0.15);
+  box-shadow: var(--focus-ring);
   background: var(--theme-bg-input);
 }
 
@@ -171,8 +171,9 @@
 }
 
 .filter-dropdowns select:focus {
+  outline: none;
   border-color: var(--brand-blue);
-  box-shadow: 0 0 0 2px rgba(59, 168, 217, 0.15);
+  box-shadow: var(--focus-ring);
 }
 
 .btn-search {
@@ -285,7 +286,7 @@
 }
 
 .camera-table tbody tr:hover {
-  background: rgba(59, 168, 217, 0.04);
+  background: var(--brand-subtle);
 }
 
 .font-mono {
@@ -388,8 +389,8 @@
 }
 
 .btn-view {
-  background: rgba(59, 168, 217, 0.1);
-  border-color: rgba(59, 168, 217, 0.25);
+  background: var(--brand-subtle);
+  border-color: var(--brand-subtle-border);
   color: var(--brand-text);
 }
 
@@ -401,15 +402,15 @@
 }
 
 .btn-decommission {
-  background: var(--theme-danger-bg);
-  border-color: var(--theme-danger-border);
-  color: var(--theme-danger-text);
+  background: var(--theme-bg-surface-elevated);
+  border-color: var(--theme-border);
+  color: var(--theme-text-secondary);
 }
 
 .btn-decommission:hover:not(:disabled) {
-  background: var(--theme-danger);
-  color: #0d1117;
-  border-color: var(--theme-danger);
+  background: var(--theme-bg-page);
+  border-color: var(--theme-border-hover);
+  color: var(--theme-text-primary);
   transform: translateY(-1px);
 }
 
@@ -421,7 +422,7 @@
 
 .btn-activate:hover:not(:disabled) {
   background: var(--theme-success);
-  color: #0d1117;
+  color: var(--theme-on-success);
   border-color: var(--theme-success);
   transform: translateY(-1px);
 }

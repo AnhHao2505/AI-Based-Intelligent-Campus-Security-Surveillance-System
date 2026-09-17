@@ -114,7 +114,7 @@ export default function AiSettingsPage() {
       <div className="ai-settings-header">
         <h1>
           <Cpu size={24} className="ai-settings-header__icon" />
-          <span>Thiết Lập AI Hệ Thống</span>
+          <span>Thiết lập AI hệ thống</span>
         </h1>
         <p>Cấu hình tập trung thông số nhận diện khuôn mặt và tốc độ xử lý cho tất cả camera toàn trường.</p>
       </div>
@@ -141,7 +141,7 @@ export default function AiSettingsPage() {
             <div className="ai-setting-block">
               <div className="ai-setting-block__header">
                 <label htmlFor="ai-threshold-slider" className="ai-setting-block__label">
-                  Ngưỡng Nhận Diện Khuôn Mặt (Face Match Threshold)
+                  Ngưỡng nhận diện khuôn mặt (Face Match Threshold)
                 </label>
                 <span className="ai-setting-block__badge">
                   {parseFloat(threshold).toFixed(2)}
@@ -177,7 +177,7 @@ export default function AiSettingsPage() {
             {/* Setting 2: Inference FPS */}
             <div className="ai-setting-block">
               <label htmlFor="ai-fps-input" className="ai-setting-block__label">
-                Số Khung Hình Xử Lý Mới Mỗi Giây (Inference FPS)
+                Số khung hình xử lý mỗi giây (Inference FPS)
               </label>
               <p className="ai-setting-block__hint">
                 Số lượng khung hình (frames) gửi cho mô hình AI phân tích trong 1 giây. FPS cao tăng khả năng phát hiện liên tục nhưng ngốn thêm tài nguyên Server. Mặc định: 15 FPS.
@@ -225,7 +225,7 @@ export default function AiSettingsPage() {
                   disabled={!hasChanges || saving}
                 >
                   {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                  <span>{saving ? 'Đang lưu...' : 'Lưu Thay Đổi Cấu Hình'}</span>
+                  <span>{saving ? 'Đang lưu...' : 'Lưu thay đổi'}</span>
                 </button>
               </div>
             </div>

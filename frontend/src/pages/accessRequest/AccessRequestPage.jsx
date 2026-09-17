@@ -14,8 +14,11 @@ import {
   Send,
   Inbox,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Ban
 } from 'lucide-react';
+import Modal from '../../components/ui/Modal';
+import Button from '../../components/ui/Button';
 import accessRequestService from '../../services/accessRequestService';
 import '../../styles/AccessRequestPage.css';
 
@@ -53,6 +56,12 @@ export default function AccessRequestPage() {
 
   // Expandable Rejection Reason rows in table (Set of request IDs)
   const [expandedRejectIds, setExpandedRejectIds] = useState(new Set());
+
+  // Cancel Request state
+  const [cancelItem, setCancelItem] = useState(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState(null);
+  const [historyWarning, setHistoryWarning] = useState(null);
 
   // Ref to scroll down to history card upon successful submission
   const historyCardRef = useRef(null);
@@ -98,6 +107,31 @@ export default function AccessRequestPage() {
     }
 
     const diffMin = endMin - startMin;
+    if (diffMin > 12 * 60) {
+      return {
+        isError: true,
+        text: 'Thời lượng truy cập tối đa không quá 12 giờ'
+      };
+    }
+
+    const startDateTime = new Date(`${requestDate}T${startHour}:00`);
+    const nowBuffer = new Date(Date.now() - 5 * 60 * 1000);
+    if (startDateTime < nowBuffer) {
+      return {
+        isError: true,
+        text: 'Thời gian bắt đầu không được ở trong quá khứ'
+      };
+    }
+
+    const maxAdvance = new Date();
+    maxAdvance.setDate(maxAdvance.getDate() + 30);
+    if (startDateTime > maxAdvance) {
+      return {
+        isError: true,
+        text: 'Thời gian bắt đầu không được vượt quá 30 ngày tới'
+      };
+    }
+
     const hours = Math.floor(diffMin / 60);
     const mins = diffMin % 60;
     let durationStr = '';
@@ -249,9 +283,62 @@ export default function AccessRequestPage() {
       return;
     }
 
-    if (requestType === 'GROUP' && memberList.length === 0) {
-      setFormError('Yêu cầu theo nhóm bắt buộc phải thêm ít nhất một mã số thành viên');
+    const start = new Date(`${requestDate}T${startHour}:00`);
+    const end = new Date(`${requestDate}T${endHour}:00`);
+    const nowBuffer = new Date(Date.now() - 5 * 60 * 1000);
+
+    if (start < nowBuffer) {
+      setFormError('Thời gian bắt đầu không được ở trong quá khứ.');
       return;
+    }
+
+    const diffMs = end.getTime() - start.getTime();
+    if (diffMs > 12 * 60 * 60 * 1000) {
+      setFormError('Thời lượng truy cập tối đa không quá 12 giờ.');
+      return;
+    }
+
+    const maxAdvance = new Date();
+    maxAdvance.setDate(maxAdvance.getDate() + 30);
+    if (start > maxAdvance) {
+      setFormError('Thời gian bắt đầu không được vượt quá 30 ngày tới.');
+      return;
+    }
+
+    let cleanMemberCodes = [];
+    if (requestType === 'GROUP') {
+      if (currentArea?.areaLevel === 'PRIVATE') {
+        setFormError('Khu vực riêng tư (PRIVATE) chỉ cho phép đăng ký cá nhân.');
+        return;
+      }
+
+      if (memberList.length === 0) {
+        setFormError('Yêu cầu theo nhóm bắt buộc phải thêm ít nhất một mã số thành viên');
+        return;
+      }
+
+      // Deduplicate and silently exclude requester
+      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      const myCode = (currentUser.userCode || '').trim().toLowerCase();
+      const seen = new Set();
+      for (const m of memberList) {
+        const code = (m.userCode || '').trim();
+        const lower = code.toLowerCase();
+        if (lower && lower !== myCode && !seen.has(lower)) {
+          seen.add(lower);
+          cleanMemberCodes.push(code);
+        }
+      }
+
+      if (cleanMemberCodes.length === 0) {
+        setFormError('Yêu cầu theo nhóm bắt buộc phải có ít nhất một thành viên khác ngoài người tạo.');
+        return;
+      }
+
+      if (cleanMemberCodes.length > 30) {
+        setFormError('Số lượng thành viên trong nhóm tối đa 30 người (không tính người tạo).');
+        return;
+      }
     }
 
     if (!purpose.trim()) {
@@ -261,19 +348,23 @@ export default function AccessRequestPage() {
 
     setSubmitting(true);
     try {
-      const start = new Date(`${requestDate}T${startHour}:00`);
-      const end = new Date(`${requestDate}T${endHour}:00`);
+      if (requestType === 'GROUP') {
+        await accessRequestService.createGroupRequest({
+          areaId: selectedAreaId,
+          startTime: start.toISOString(),
+          endTime: end.toISOString(),
+          purpose: purpose.trim(),
+          memberUserCodes: cleanMemberCodes
+        });
+      } else {
+        await accessRequestService.createIndividualRequest({
+          areaId: selectedAreaId,
+          startTime: start.toISOString(),
+          endTime: end.toISOString(),
+          purpose: purpose.trim()
+        });
+      }
 
-      const payload = {
-        areaId: selectedAreaId,
-        requestType,
-        startTime: start.toISOString(),
-        endTime: end.toISOString(),
-        purpose: purpose.trim(),
-        memberUserCodes: requestType === 'GROUP' ? memberList.map((m) => m.userCode) : []
-      };
-
-      await accessRequestService.createRequest(payload);
       setFormSuccess('Gửi yêu cầu truy cập thành công! Ban quản lý sẽ sớm xem xét phê duyệt.');
 
       // Reset form
@@ -291,6 +382,31 @@ export default function AccessRequestPage() {
       setFormError(err.message || 'Đã có lỗi xảy ra khi tạo yêu cầu.');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // Confirm cancel request
+  const handleConfirmCancel = async () => {
+    if (!cancelItem) return;
+    setCancelling(true);
+    setCancelError(null);
+    try {
+      await accessRequestService.cancelRequest(cancelItem.id);
+      setCancelItem(null);
+      setFormSuccess('Huỷ yêu cầu truy cập thành công!');
+      loadMyRequests(historyPage, historyStatusFilter);
+      setTimeout(() => setFormSuccess(null), 4000);
+    } catch (err) {
+      if (err.status === 409) {
+        setCancelItem(null);
+        setHistoryWarning(err.message || 'Yêu cầu này vừa được xử lý, không thể huỷ.');
+        loadMyRequests(historyPage, historyStatusFilter);
+        setTimeout(() => setHistoryWarning(null), 7000);
+      } else {
+        setCancelError(err.message || 'Không thể huỷ yêu cầu truy cập.');
+      }
+    } finally {
+      setCancelling(false);
     }
   };
 
@@ -624,7 +740,9 @@ export default function AccessRequestPage() {
               { label: 'Tất cả', val: '' },
               { label: 'Chờ duyệt', val: 'PENDING' },
               { label: 'Đã duyệt', val: 'APPROVED' },
-              { label: 'Bị từ chối', val: 'REJECTED' }
+              { label: 'Bị từ chối', val: 'REJECTED' },
+              { label: 'Đã huỷ', val: 'CANCELLED' },
+              { label: 'Hết hạn', val: 'EXPIRED' }
             ].map((f) => (
               <button
                 key={f.val}
@@ -647,6 +765,13 @@ export default function AccessRequestPage() {
             </button>
           </div>
         </div>
+
+        {historyWarning && (
+          <div className="arp-banner arp-banner--warning" style={{ margin: '14px 20px 0 20px' }}>
+            <AlertTriangle size={16} />
+            <span>{historyWarning}</span>
+          </div>
+        )}
 
         {/* 3b. Bảng & 3d. Bảng rỗng */}
         <div className="arp-card__table-wrapper">
@@ -717,6 +842,18 @@ export default function AccessRequestPage() {
                                 <span>Từ chối</span>
                               </>
                             )}
+                            {req.status === 'CANCELLED' && (
+                              <>
+                                <Ban size={11} />
+                                <span>Đã huỷ</span>
+                              </>
+                            )}
+                            {req.status === 'EXPIRED' && (
+                              <>
+                                <AlertTriangle size={11} />
+                                <span>Hết hạn</span>
+                              </>
+                            )}
                           </span>
                         </td>
                         <td style={{ fontSize: '12px', color: 'var(--theme-text-muted)' }}>
@@ -724,6 +861,19 @@ export default function AccessRequestPage() {
                         </td>
                         <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                            {req.status === 'PENDING' && (
+                              <button
+                                type="button"
+                                className="arp-btn arp-btn--danger-ghost arp-btn--sm"
+                                onClick={() => {
+                                  setCancelItem(req);
+                                  setCancelError(null);
+                                }}
+                                title="Huỷ yêu cầu truy cập này"
+                              >
+                                Huỷ
+                              </button>
+                            )}
                             {req.status === 'REJECTED' && (
                               <button
                                 type="button"
@@ -882,6 +1032,18 @@ export default function AccessRequestPage() {
                           <span>Bị từ chối</span>
                         </>
                       )}
+                      {selectedDetail.status === 'CANCELLED' && (
+                        <>
+                          <Ban size={11} />
+                          <span>Đã huỷ</span>
+                        </>
+                      )}
+                      {selectedDetail.status === 'EXPIRED' && (
+                        <>
+                          <AlertTriangle size={11} />
+                          <span>Hết hạn</span>
+                        </>
+                      )}
                     </span>
                   </div>
                 </div>
@@ -976,6 +1138,56 @@ export default function AccessRequestPage() {
           </div>
         </div>
       )}
+
+      {/* MODAL XÁC NHẬN HUỶ YÊU CẦU */}
+      <Modal
+        isOpen={Boolean(cancelItem)}
+        onClose={() => !cancelling && setCancelItem(null)}
+        title="Xác nhận huỷ yêu cầu truy cập"
+        subtitle="Thao tác này sẽ huỷ bỏ yêu cầu của bạn và không thể hoàn tác."
+        icon={AlertTriangle}
+        iconVariant="danger"
+        size="md"
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', width: '100%' }}>
+            <Button
+              variant="secondary"
+              onClick={() => setCancelItem(null)}
+              disabled={cancelling}
+            >
+              Đóng
+            </Button>
+            <Button
+              variant="danger"
+              onClick={handleConfirmCancel}
+              loading={cancelling}
+              disabled={cancelling}
+            >
+              Xác nhận huỷ
+            </Button>
+          </div>
+        }
+      >
+        {cancelError && (
+          <div className="arp-banner arp-banner--error" style={{ marginBottom: '14px' }}>
+            <AlertCircle size={16} />
+            <span>{cancelError}</span>
+          </div>
+        )}
+        {cancelItem && (
+          <div style={{ fontSize: '13px', lineHeight: '1.6', color: 'var(--theme-text-secondary)' }}>
+            <p style={{ margin: '0 0 10px 0' }}>
+              Bạn có chắc chắn muốn huỷ yêu cầu truy cập vào khu vực sau không?
+            </p>
+            <div style={{ background: 'var(--theme-bg-surface-elevated)', padding: '12px', borderRadius: '6px', border: '1px solid var(--theme-border)' }}>
+              <div><strong>Khu vực:</strong> {cancelItem.areaName} ({cancelItem.areaCode})</div>
+              <div><strong>Khung giờ:</strong> {formatTableTime(cancelItem.startTime, cancelItem.endTime)}</div>
+              <div><strong>Hình thức:</strong> {cancelItem.requestType === 'GROUP' ? `Theo nhóm (${cancelItem.members?.length || 0} thành viên)` : 'Cá nhân'}</div>
+              <div><strong>Mục đích:</strong> {cancelItem.purpose}</div>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

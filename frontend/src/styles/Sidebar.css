@@ -116,7 +116,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #ffffff;
+  color: var(--theme-on-brand);
   box-shadow: var(--brand-glow);
   flex-shrink: 0;
 }
@@ -182,7 +182,7 @@
 }
 
 .sidebar__link:hover {
-  background: rgba(59, 168, 217, 0.06);
+  background: var(--brand-subtle);
   color: var(--brand-text);
 }
 
@@ -191,7 +191,7 @@
 }
 
 .sidebar__link--active {
-  background: rgba(59, 168, 217, 0.1);
+  background: var(--brand-subtle);
   color: var(--brand-text-strong);
   border-left: 2px solid var(--brand-blue);
   font-weight: 600;
@@ -230,7 +230,7 @@
   padding: 0 4px;
   border-radius: 999px;
   background: var(--brand-blue);
-  color: #0d1117;
+  color: var(--theme-on-brand);
   font-size: 10px;
   font-weight: 700;
   display: inline-flex;
@@ -295,7 +295,7 @@
   justify-content: center;
   font-size: 0.85rem;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--theme-on-brand);
   flex-shrink: 0;
 }
 

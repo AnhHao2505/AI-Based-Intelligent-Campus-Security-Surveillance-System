@@ -1,0 +1,12 @@
+package com.fa26se040.icss.enums;
+
+public enum NotificationType {
+    REQUEST_APPROVED,
+    REQUEST_REJECTED,
+    EXPIRING_SOON,
+    ACCESS_DENIED,
+    ADDED_TO_GROUP,
+    NEW_REQUEST_PENDING,
+    REQUEST_CANCELLED,
+    PENDING_OVERDUE
+}

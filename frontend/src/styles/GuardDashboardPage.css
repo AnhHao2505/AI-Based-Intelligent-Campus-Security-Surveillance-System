@@ -207,12 +207,12 @@
 }
 
 .camera-layout-option:hover:not(:disabled) {
-  background: rgba(59, 168, 217, 0.15);
+  background: var(--brand-subtle);
   color: var(--brand-text);
 }
 
 .camera-layout-option.active {
-  background: rgba(59, 168, 217, 0.25);
+  background: var(--brand-subtle-border);
   color: var(--brand-text-strong);
 }
 
@@ -405,8 +405,8 @@
 }
 
 .cam-tab-btn.active {
-  background: rgba(59, 168, 217, 0.15);
-  border-color: rgba(59, 168, 217, 0.6);
+  background: var(--brand-subtle);
+  border-color: var(--brand-blue);
 }
 
 .cam-tab-code {
@@ -670,12 +670,12 @@
 }
 
 [data-theme="light"] .camera-layout-option:hover:not(:disabled) {
-  background: rgba(59, 168, 217, 0.12);
+  background: var(--brand-subtle);
   color: var(--brand-blue);
 }
 
 [data-theme="light"] .camera-layout-option.active {
-  background: rgba(59, 168, 217, 0.15);
+  background: var(--brand-subtle);
   color: var(--brand-blue);
 }
 
@@ -685,7 +685,7 @@
 }
 
 [data-theme="light"] .cam-tab-btn.active {
-  background: rgba(59, 168, 217, 0.12);
+  background: var(--brand-subtle);
   border-color: var(--brand-blue);
 }
 

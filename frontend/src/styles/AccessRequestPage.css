@@ -53,8 +53,8 @@
   width: 30px;
   height: 30px;
   border-radius: 8px;
-  background: rgba(59, 168, 217, 0.12);
-  color: var(--brand-cyan);
+  background: var(--brand-subtle);
+  color: var(--brand-text);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -149,7 +149,7 @@
 .arp-textarea:focus {
   outline: none;
   border-color: var(--brand-blue);
-  box-shadow: 0 0 0 2px rgba(59, 168, 217, 0.15);
+  box-shadow: var(--focus-ring);
 }
 
 .arp-textarea {
@@ -224,7 +224,7 @@
 }
 
 .arp-type-btn--selected {
-  background: rgba(59, 168, 217, 0.1);
+  background: var(--brand-subtle);
   border: 1px solid var(--brand-blue);
 }
 
@@ -367,6 +367,18 @@
   background: var(--theme-bg-desc);
 }
 
+.arp-btn--danger-ghost {
+  background: transparent;
+  border-color: rgba(248, 113, 113, 0.3);
+  color: var(--theme-danger-text, #f87171);
+}
+
+.arp-btn--danger-ghost:hover:not(:disabled) {
+  background: rgba(248, 113, 113, 0.1);
+  border-color: rgba(248, 113, 113, 0.5);
+  color: #fca5a5;
+}
+
 .arp-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -433,6 +445,12 @@
   color: var(--theme-success-text);
 }
 
+.arp-banner--warning {
+  background: var(--theme-warning-bg);
+  border: 0.5px solid var(--theme-warning-border);
+  color: var(--theme-warning-text);
+}
+
 .arp-banner--error {
   background: var(--theme-danger-bg);
   border: 0.5px solid var(--theme-danger-border);
@@ -467,7 +485,7 @@
 }
 
 .arp-filter-btn--active {
-  background: rgba(59, 168, 217, 0.12);
+  background: var(--brand-subtle);
   color: var(--brand-text-strong);
   border-color: var(--brand-blue);
 }
@@ -597,6 +615,16 @@
   color: #fca5a5;
 }
 
+.arp-status-badge--cancelled {
+  background: rgba(148, 163, 184, 0.12);
+  color: #94a3b8;
+}
+
+.arp-status-badge--expired {
+  background: rgba(245, 158, 11, 0.12);
+  color: #fbbf24;
+}
+
 .arp-badge {
   display: inline-flex;
   align-items: center;
@@ -613,9 +641,9 @@
 }
 
 .arp-badge--group {
-  background: rgba(59, 168, 217, 0.12);
+  background: var(--brand-subtle);
   color: var(--brand-text);
-  border: 0.5px solid rgba(59, 168, 217, 0.25);
+  border: 0.5px solid var(--brand-subtle-border);
 }
 
 /* ==========================================================================
@@ -760,8 +788,8 @@
   width: 30px;
   height: 30px;
   border-radius: 8px;
-  background: rgba(59, 168, 217, 0.12);
-  color: var(--brand-cyan);
+  background: var(--brand-subtle);
+  color: var(--brand-text);
   display: flex;
   align-items: center;
   justify-content: center;

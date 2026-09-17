@@ -295,7 +295,7 @@ export default function CameraDetailPage() {
           disabled={saving}
         >
           {isDecommissioned ? <Power size={18} /> : <PowerOff size={18} />}
-          <span>{isDecommissioned ? "Bật Camera" : "Tắt Camera"}</span>
+          <span>{isDecommissioned ? "Bật camera" : "Tắt camera"}</span>
         </button>
       </div>
 
@@ -328,7 +328,7 @@ export default function CameraDetailPage() {
               >
                 <div className="form-grid">
                   <div className="form-group col-span-2">
-                    <label>Tên Camera *</label>
+                    <label>Tên camera *</label>
                     <input
                       type="text"
                       value={generalForm.name}

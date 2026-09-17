@@ -63,8 +63,8 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background-color: var(--theme-primary);
-  color: #ffffff;
+  background: var(--brand-gradient);
+  color: var(--brand-on-gradient);
   border: none;
   padding: 10px 18px;
   border-radius: 8px;
@@ -72,12 +72,12 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.2);
+  box-shadow: 0 2px 8px var(--brand-glow);
 }
 
 .account-header__create-btn:hover {
-  background-color: var(--theme-primary-hover);
-  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.3);
+  filter: brightness(1.08);
+  box-shadow: 0 4px 12px var(--brand-glow);
   transform: translateY(-1px);
 }
 
@@ -150,7 +150,7 @@
 }
 
 .account-tab-btn--active {
-  color: var(--theme-primary) !important;
+  color: var(--brand-text) !important;
   border-bottom-color: var(--theme-primary) !important;
   font-weight: 600;
 }
@@ -171,7 +171,7 @@
 
 .account-tab-btn--active .account-tab-badge {
   background-color: rgba(37, 99, 235, 0.1);
-  color: var(--theme-primary);
+  color: var(--brand-text);
   border-color: rgba(37, 99, 235, 0.25);
 }
 
@@ -214,8 +214,9 @@
 }
 
 .account-filter-select:focus {
-  border-color: var(--theme-border-focus);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+  outline: none;
+  border-color: var(--brand-blue);
+  box-shadow: var(--focus-ring);
 }
 
 .account-filter-select-icon {
@@ -256,8 +257,9 @@
 }
 
 .account-search__input:focus {
-  border-color: var(--theme-border-focus);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+  outline: none;
+  border-color: var(--brand-blue);
+  box-shadow: var(--focus-ring);
 }
 
 .account-search__clear-btn {
@@ -505,7 +507,7 @@
 
 .account-action-btn:hover {
   background-color: var(--theme-bg-surface-elevated);
-  color: var(--theme-primary);
+  color: var(--brand-text);
   border-color: var(--theme-border-hover);
 }
 
@@ -850,7 +852,7 @@
 }
 
 .account-dropzone__icon {
-  color: var(--theme-primary);
+  color: var(--brand-text);
 }
 
 .account-dropzone__title {
@@ -1143,8 +1145,9 @@
 
 .account-form-input:focus,
 .account-form-select:focus {
-  border-color: var(--theme-border-focus);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+  outline: none;
+  border-color: var(--brand-blue);
+  box-shadow: var(--focus-ring);
 }
 
 .account-form-input:disabled {
@@ -1427,7 +1430,7 @@
 }
 
 .account-bulk-template-icon {
-  color: var(--theme-primary);
+  color: var(--brand-text);
   margin-top: 2px;
   flex-shrink: 0;
 }
@@ -1452,7 +1455,7 @@
   padding: 6px 12px;
   font-size: 0.775rem;
   font-weight: 600;
-  color: var(--theme-primary);
+  color: var(--brand-text);
   background-color: var(--theme-primary-light);
   border: 1px solid var(--theme-primary-border);
   border-radius: 6px;

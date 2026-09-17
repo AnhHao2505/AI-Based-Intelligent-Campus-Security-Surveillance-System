@@ -49,7 +49,7 @@ export default function CameraCreateModal({ isOpen, onClose, onSuccess }) {
 		<div className="modal-overlay">
 			<div className="modal-container">
 				<div className="modal-header">
-					<h2>Thêm Camera Mới</h2>
+					<h2>Thêm camera mới</h2>
 					<button
 						className="modal-close"
 						onClick={onClose}
@@ -68,7 +68,7 @@ export default function CameraCreateModal({ isOpen, onClose, onSuccess }) {
 					<div className="form-grid">
 						<div className="form-group col-span-2">
 							<label htmlFor="name">
-								Tên Camera <span className="required">*</span>
+								Tên camera <span className="required">*</span>
 							</label>
 							<input
 								type="text"
@@ -76,7 +76,7 @@ export default function CameraCreateModal({ isOpen, onClose, onSuccess }) {
 								name="name"
 								value={formData.name}
 								onChange={handleChange}
-								placeholder="Ví dụ: Camera Cổng Chính A"
+								placeholder="Ví dụ: Camera cổng chính A"
 								required
 								disabled={loading}
 							/>

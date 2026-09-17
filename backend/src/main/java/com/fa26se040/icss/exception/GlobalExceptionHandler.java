@@ -84,6 +84,11 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.CONFLICT, ex.getMessage());
     }
 
+    @ExceptionHandler(ConcurrentReviewException.class)
+    public ResponseEntity<Map<String, Object>> handleConcurrentReview(ConcurrentReviewException ex) {
+        return buildResponse(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
     @ExceptionHandler(FaceDetectionException.class)
     public ResponseEntity<Map<String, Object>> handleFaceDetection(FaceDetectionException ex) {
         return buildResponse(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());

@@ -1,0 +1,129 @@
+/* ==========================================================================
+   UI Kit — Select Component
+   ========================================================================== */
+
+.ui-select-group {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.ui-select__label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--theme-text-secondary);
+  margin-bottom: 6px;
+  line-height: 1.3;
+}
+
+.ui-select__required {
+  color: var(--theme-danger);
+  font-weight: 700;
+}
+
+.ui-select__container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.ui-select__field {
+  width: 100%;
+  box-sizing: border-box;
+  height: 38px;
+  padding: 0 34px 0 12px;
+  background-color: var(--theme-bg-input);
+  border: 1px solid var(--theme-input-border);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.875rem;
+  color: var(--theme-text-primary);
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  cursor: pointer;
+}
+
+.ui-select__field:hover:not(:disabled) {
+  border-color: var(--theme-border-hover);
+}
+
+.ui-select__field:focus {
+  border-color: var(--brand-blue);
+  box-shadow: var(--focus-ring);
+  background-color: var(--theme-bg-surface);
+}
+
+.ui-select__arrow {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--theme-text-muted);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.ui-select__field option {
+  background-color: var(--theme-bg-surface);
+  color: var(--theme-text-primary);
+  padding: 8px 12px;
+}
+
+/* Error State */
+.ui-select-group--error .ui-select__field {
+  border-color: var(--theme-danger);
+  background-color: var(--theme-bg-input);
+}
+
+.ui-select-group--error .ui-select__field:focus {
+  border-color: var(--theme-danger);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
+}
+
+.ui-select__error {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  color: var(--theme-danger-text);
+  margin-top: 5px;
+  line-height: 1.3;
+}
+
+.ui-select__error-icon {
+  flex-shrink: 0;
+  color: var(--theme-danger);
+}
+
+/* Hint */
+.ui-select__hint {
+  font-size: 0.75rem;
+  color: var(--theme-text-muted);
+  margin-top: 5px;
+  line-height: 1.3;
+}
+
+/* Disabled State */
+.ui-select-group--disabled .ui-select__field {
+  background-color: var(--theme-bg-desc);
+  color: var(--theme-text-disabled);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.ui-select-group--disabled .ui-select__label {
+  opacity: 0.7;
+  cursor: not-allowed;
+}

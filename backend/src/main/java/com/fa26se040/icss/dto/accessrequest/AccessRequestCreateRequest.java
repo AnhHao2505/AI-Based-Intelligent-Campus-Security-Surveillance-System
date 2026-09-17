@@ -26,5 +26,6 @@ public record AccessRequestCreateRequest(
     @Size(max = 1000, message = "Mục đích tối đa 1000 ký tự")
     String purpose,
 
+    @Size(max = 30, message = "Số lượng thành viên trong nhóm tối đa 30 người")
     List<String> memberUserCodes
 ) {}

@@ -33,7 +33,7 @@
 }
 
 .area-camera-header__icon {
-  color: var(--brand-cyan);
+  color: var(--brand-text);
   flex-shrink: 0;
 }
 
@@ -59,7 +59,7 @@
 }
 
 .area-camera-spinner {
-  color: var(--brand-cyan);
+  color: var(--brand-text);
 }
 
 /* --------------------------------------------------------------------------
@@ -104,8 +104,9 @@
 }
 
 .area-select-dropdown:focus {
+  outline: none;
   border-color: var(--brand-blue);
-  box-shadow: 0 0 0 2px rgba(59, 168, 217, 0.15);
+  box-shadow: var(--focus-ring);
 }
 
 /* --------------------------------------------------------------------------
@@ -192,7 +193,7 @@
 }
 
 .transfer-box-header__icon {
-  color: var(--theme-primary);
+  color: var(--brand-text);
   flex-shrink: 0;
 }
 
@@ -201,13 +202,13 @@
 }
 
 .badge-count {
-  background: rgba(59, 168, 217, 0.12);
+  background: var(--brand-subtle);
   color: var(--brand-text);
   border-radius: 9999px;
   padding: 2px 10px;
   font-size: 0.75rem;
   font-weight: 600;
-  border: 1px solid rgba(59, 168, 217, 0.25);
+  border: 1px solid var(--brand-subtle-border);
   line-height: 1.4;
 }
 
@@ -252,8 +253,9 @@
 
 .transfer-search-wrapper input:focus,
 .search-input-wrapper input:focus {
+  outline: none;
   border-color: var(--brand-blue);
-  box-shadow: 0 0 0 2px rgba(59, 168, 217, 0.15);
+  box-shadow: var(--focus-ring);
 }
 
 .transfer-search-wrapper .search-icon-inside,
