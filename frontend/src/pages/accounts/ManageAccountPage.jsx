@@ -24,7 +24,6 @@ import {
 import {
   getUsers,
   createStaffAccount,
-  downloadUserTemplate,
   downloadNormalUserTemplate,
   downloadStaffUserTemplate,
   bulkImportNormalUsers,

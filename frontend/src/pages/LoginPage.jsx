@@ -33,8 +33,6 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
   // Form states
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [forgotEmail, setForgotEmail] = useState('');
-  const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const credentialForm = useForm({
     resolver: zodResolver(credentialSchema),
