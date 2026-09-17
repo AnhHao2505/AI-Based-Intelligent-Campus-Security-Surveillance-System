@@ -152,7 +152,7 @@ function App() {
               <Route
                 path="/notifications"
                 element={
-                  <ProtectedRoute allowedRoles={[ROLES.NORMAL_USER]}>
+                  <ProtectedRoute allowedRoles={[ROLES.NORMAL_USER, ROLES.FACILITY_MANAGER, ROLES.ADMIN, ROLES.GUARD]}>
                     <NotificationsPage />
                   </ProtectedRoute>
                 }

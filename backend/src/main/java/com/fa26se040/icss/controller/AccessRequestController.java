@@ -4,6 +4,8 @@ import com.fa26se040.icss.dto.accessrequest.AccessRequestCreateRequest;
 import com.fa26se040.icss.dto.accessrequest.AccessRequestResponse;
 import com.fa26se040.icss.dto.accessrequest.AccessRequestReviewRequest;
 import com.fa26se040.icss.dto.accessrequest.AreaSimpleResponse;
+import com.fa26se040.icss.dto.accessrequest.GroupAccessRequestCreateRequest;
+import com.fa26se040.icss.dto.accessrequest.IndividualAccessRequestCreateRequest;
 import com.fa26se040.icss.enums.RequestStatus;
 import com.fa26se040.icss.service.AccessRequestService;
 import com.fa26se040.icss.service.AreaService;
@@ -41,6 +43,30 @@ public class AccessRequestController {
     @PreAuthorize("hasAnyRole('NORMAL_USER', 'FACILITY_MANAGER', 'ADMIN')")
     public ResponseEntity<List<AreaSimpleResponse>> getAvailableAreas() {
         return ResponseEntity.ok(areaService.getAvailableAreasForRequest());
+    }
+
+    @PostMapping("/individual")
+    @PreAuthorize("hasRole('NORMAL_USER')")
+    public ResponseEntity<AccessRequestResponse> createIndividualRequest(
+            @Valid @RequestBody IndividualAccessRequestCreateRequest request,
+            Authentication authentication
+    ) {
+        String actorEmail = authentication.getName();
+        AccessRequestResponse response = accessRequestService.createIndividualRequest(request, actorEmail);
+        URI location = URI.create("/api/access-requests/" + response.id());
+        return ResponseEntity.created(location).body(response);
+    }
+
+    @PostMapping("/group")
+    @PreAuthorize("hasRole('NORMAL_USER')")
+    public ResponseEntity<AccessRequestResponse> createGroupRequest(
+            @Valid @RequestBody GroupAccessRequestCreateRequest request,
+            Authentication authentication
+    ) {
+        String actorEmail = authentication.getName();
+        AccessRequestResponse response = accessRequestService.createGroupRequest(request, actorEmail);
+        URI location = URI.create("/api/access-requests/" + response.id());
+        return ResponseEntity.created(location).body(response);
     }
 
     @PostMapping
@@ -102,5 +128,15 @@ public class AccessRequestController {
     ) {
         String actorEmail = authentication.getName();
         return ResponseEntity.ok(accessRequestService.reviewRequest(id, reviewRequest, actorEmail));
+    }
+
+    @PatchMapping("/{id}/cancel")
+    @PreAuthorize("hasRole('NORMAL_USER')")
+    public ResponseEntity<AccessRequestResponse> cancelRequest(
+            @PathVariable UUID id,
+            Authentication authentication
+    ) {
+        String actorEmail = authentication.getName();
+        return ResponseEntity.ok(accessRequestService.cancelRequest(id, actorEmail));
     }
 }

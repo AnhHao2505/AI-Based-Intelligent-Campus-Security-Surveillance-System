@@ -13,11 +13,27 @@ export const accessRequestService = {
   },
 
   /**
-   * Tạo yêu cầu truy cập mới (Cá nhân hoặc Nhóm)
+   * Tạo yêu cầu truy cập mới (Cá nhân hoặc Nhóm) - Endpoint cũ tương thích ngược
    * @param {Object} data - { areaId, requestType, startTime, endTime, purpose, memberUserCodes }
    */
   async createRequest(data) {
     return await apiPost('/api/access-requests', data);
+  },
+
+  /**
+   * Tạo yêu cầu truy cập cá nhân mới
+   * @param {Object} data - { areaId, startTime, endTime, purpose }
+   */
+  async createIndividualRequest(data) {
+    return await apiPost('/api/access-requests/individual', data);
+  },
+
+  /**
+   * Tạo yêu cầu truy cập theo nhóm mới
+   * @param {Object} data - { areaId, startTime, endTime, purpose, memberUserCodes }
+   */
+  async createGroupRequest(data) {
+    return await apiPost('/api/access-requests/group', data);
   },
 
   /**
@@ -59,6 +75,15 @@ export const accessRequestService = {
    */
   async reviewRequest(id, data) {
     return await apiPatch(`/api/access-requests/${id}/review`, data);
+  },
+
+  /**
+   * Huỷ yêu cầu truy cập của bản thân (chỉ áp dụng khi trạng thái đang là PENDING)
+   * Lưu ý: Endpoint PATCH /api/access-requests/{id}/cancel của backend không yêu cầu request body.
+   * @param {string} id - UUID của yêu cầu
+   */
+  async cancelRequest(id) {
+    return await apiPatch(`/api/access-requests/${id}/cancel`);
   },
 
   /**

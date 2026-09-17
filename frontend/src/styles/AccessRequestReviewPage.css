@@ -47,18 +47,24 @@
 /* Stats Cards */
 .arr-stats-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 1rem;
   margin-bottom: 1.5rem;
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 1400px) {
+  .arr-stats-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
   .arr-stats-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 480px) {
   .arr-stats-grid {
     grid-template-columns: 1fr;
   }
@@ -109,6 +115,16 @@
 .arr-stat-card__icon--rejected {
   background: var(--theme-danger-bg);
   color: var(--theme-danger);
+}
+
+.arr-stat-card__icon--cancelled {
+  background: rgba(148, 163, 184, 0.15);
+  color: #94a3b8;
+}
+
+.arr-stat-card__icon--expired {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
 }
 
 .arr-stat-card__content {
@@ -229,6 +245,12 @@
   background: var(--theme-success-bg);
   border: 1px solid var(--theme-success-border);
   color: var(--theme-success-text);
+}
+
+.arr-alert--warning {
+  background: var(--theme-warning-bg);
+  border: 1px solid var(--theme-warning-border);
+  color: var(--theme-warning-text);
 }
 
 .arr-alert--danger {
@@ -372,6 +394,18 @@
   background: var(--theme-danger-bg);
   color: var(--theme-danger-text);
   border: 1px solid var(--theme-danger-border);
+}
+
+.arr-badge--cancelled {
+  background: rgba(148, 163, 184, 0.12);
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.arr-badge--expired {
+  background: rgba(245, 158, 11, 0.12);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.25);
 }
 
 .arr-badge--individual {

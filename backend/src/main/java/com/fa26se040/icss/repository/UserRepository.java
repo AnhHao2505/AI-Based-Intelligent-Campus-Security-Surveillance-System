@@ -89,6 +89,9 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     @Query("SELECT COUNT(u) FROM User u WHERE u.deletedAt IS NULL AND u.role IN :roles")
     long countByRolesAndDeletedAtIsNull(@Param("roles") Collection<Role> roles);
 
+    @Query("SELECT u FROM User u WHERE u.deletedAt IS NULL AND u.isActive = true AND u.role = :role")
+    java.util.List<User> findActiveUsersByRole(@Param("role") Role role);
+
     @Query(
         value = """
             SELECT new com.fa26se040.icss.dto.user.ImportBatchSummaryResponse(
