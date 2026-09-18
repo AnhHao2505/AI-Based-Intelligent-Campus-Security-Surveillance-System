@@ -11,6 +11,7 @@ import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.Role;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -30,6 +31,8 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     @Query("SELECT UPPER(u.userCode) FROM User u WHERE u.deletedAt IS NULL AND UPPER(u.userCode) IN :userCodes")
     Set<String> findExistingUserCodes(@Param("userCodes") Collection<String> userCodes);
+
+    List<User> findAllByUserCodeIn(Collection<String> userCodes);
 
     @Query("SELECT LOWER(u.email) FROM User u WHERE u.deletedAt IS NULL AND LOWER(u.email) IN :emails")
     Set<String> findExistingEmails(@Param("emails") Collection<String> emails);

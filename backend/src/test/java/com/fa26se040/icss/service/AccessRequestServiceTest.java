@@ -22,6 +22,9 @@ import com.fa26se040.icss.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import com.fa26se040.icss.dto.accessrequest.MemberLookupResult;
+import com.fa26se040.icss.dto.accessrequest.ResolveMembersRequest;
+import com.fa26se040.icss.security.MemberLookupRateLimiter;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -65,6 +68,9 @@ class AccessRequestServiceTest {
 
     @Mock
     private SystemConfigService systemConfigService;
+
+    @Mock
+    private MemberLookupRateLimiter memberLookupRateLimiter;
 
     @InjectMocks
     private AccessRequestService accessRequestService;
@@ -806,5 +812,95 @@ class AccessRequestServiceTest {
 
         assertEquals(3, expiredCount);
         verify(accessRequestRepository).expireOverdueRequests(eq(RequestStatus.PENDING), eq(RequestStatus.EXPIRED), any(OffsetDateTime.class));
+    }
+
+    @Test
+    @DisplayName("resolveMembers với danh sách hợp lệ trả đủ và đúng thứ tự nhập")
+    void resolveMembers_ValidList_ReturnsInInputOrder() {
+        when(systemConfigService.getInt(ConfigKey.ACCESS_REQUEST_MAX_GROUP_MEMBERS)).thenReturn(30);
+        when(userRepository.findAllByUserCodeIn(any())).thenReturn(List.of(member2, member1));
+
+        ResolveMembersRequest request = new ResolveMembersRequest(List.of("SV-002", "SV-003"));
+        List<MemberLookupResult> results = accessRequestService.resolveMembers(request, requester.getEmail());
+
+        assertEquals(2, results.size());
+        assertEquals("SV-002", results.get(0).userCode());
+        assertEquals("Lê Văn An", results.get(0).fullName());
+        assertTrue(results.get(0).found());
+        assertEquals("SV-003", results.get(1).userCode());
+        assertEquals("Phạm Thị Hoa", results.get(1).fullName());
+        assertTrue(results.get(1).found());
+        verify(memberLookupRateLimiter).checkRateLimit(requester.getEmail());
+    }
+
+    @Test
+    @DisplayName("resolveMembers có mã trùng thì loại bỏ trùng lặp")
+    void resolveMembers_DuplicateCodes_DedupesWithoutDuplicates() {
+        when(systemConfigService.getInt(ConfigKey.ACCESS_REQUEST_MAX_GROUP_MEMBERS)).thenReturn(30);
+        when(userRepository.findAllByUserCodeIn(any())).thenReturn(List.of(member1));
+
+        ResolveMembersRequest request = new ResolveMembersRequest(List.of("SV-002", "sv-002", "  SV-002  "));
+        List<MemberLookupResult> results = accessRequestService.resolveMembers(request, requester.getEmail());
+
+        assertEquals(1, results.size());
+        assertEquals("SV-002", results.get(0).userCode());
+        assertEquals("Lê Văn An", results.get(0).fullName());
+        assertTrue(results.get(0).found());
+    }
+
+    @Test
+    @DisplayName("resolveMembers mã không tồn tại trả found = false không ném exception")
+    void resolveMembers_NonExistentUser_ReturnsNotFoundWithoutException() {
+        when(systemConfigService.getInt(ConfigKey.ACCESS_REQUEST_MAX_GROUP_MEMBERS)).thenReturn(30);
+        when(userRepository.findAllByUserCodeIn(any())).thenReturn(Collections.emptyList());
+
+        ResolveMembersRequest request = new ResolveMembersRequest(List.of("NON-EXISTENT"));
+        List<MemberLookupResult> results = accessRequestService.resolveMembers(request, requester.getEmail());
+
+        assertEquals(1, results.size());
+        assertEquals("NON-EXISTENT", results.get(0).userCode());
+        assertFalse(results.get(0).found());
+        assertEquals("Không tìm thấy người dùng hợp lệ với mã này", results.get(0).reason());
+    }
+
+    @Test
+    @DisplayName("resolveMembers user bị vô hiệu hoá trả found = false và reason giống hệt không tồn tại")
+    void resolveMembers_InactiveUser_ReturnsNotFoundWithIdenticalReason() {
+        User inactiveUser = User.builder()
+                .id(UUID.randomUUID())
+                .userCode("SV-INACTIVE")
+                .fullName("Nguyễn Inactive")
+                .email("inactive@fpt.edu.vn")
+                .isActive(false)
+                .build();
+
+        when(systemConfigService.getInt(ConfigKey.ACCESS_REQUEST_MAX_GROUP_MEMBERS)).thenReturn(30);
+        when(userRepository.findAllByUserCodeIn(any())).thenReturn(List.of(inactiveUser));
+
+        ResolveMembersRequest request = new ResolveMembersRequest(List.of("SV-INACTIVE", "NON-EXISTENT"));
+        List<MemberLookupResult> results = accessRequestService.resolveMembers(request, requester.getEmail());
+
+        assertEquals(2, results.size());
+        MemberLookupResult inactiveResult = results.get(0);
+        MemberLookupResult notFoundResult = results.get(1);
+
+        assertFalse(inactiveResult.found());
+        assertFalse(notFoundResult.found());
+        assertEquals("Không tìm thấy người dùng hợp lệ với mã này", inactiveResult.reason());
+        assertEquals(notFoundResult.reason(), inactiveResult.reason());
+    }
+
+    @Test
+    @DisplayName("resolveMembers vượt giới hạn từ cấu hình ném IllegalArgumentException chứa số cấu hình")
+    void resolveMembers_ExceedsConfigLimit_ThrowsExceptionWithConfigValue() {
+        when(systemConfigService.getInt(ConfigKey.ACCESS_REQUEST_MAX_GROUP_MEMBERS)).thenReturn(2);
+
+        ResolveMembersRequest request = new ResolveMembersRequest(List.of("SV-001", "SV-002", "SV-003"));
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> accessRequestService.resolveMembers(request, requester.getEmail())
+        );
+
+        assertTrue(ex.getMessage().contains("2"));
     }
 }

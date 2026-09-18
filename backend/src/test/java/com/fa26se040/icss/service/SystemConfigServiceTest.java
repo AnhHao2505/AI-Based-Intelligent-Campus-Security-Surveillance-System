@@ -12,6 +12,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -190,5 +192,59 @@ class SystemConfigServiceTest {
         assertEquals("30", savedLog.getOldValue());
         assertEquals("50", savedLog.getNewValue());
         assertEquals(adminUser, savedLog.getChangedBy());
+    }
+
+    @Test
+    @DisplayName("7. getBoolean với giá trị rác trả default không ném exception")
+    void getBoolean_InvalidValue_ReturnsDefaultWithoutException() {
+        SystemConfiguration invalidBoolConfig = SystemConfiguration.builder()
+                .configKey(ConfigKey.ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE.getKey())
+                .configValue("invalid_boolean_string")
+                .dataType("BOOLEAN")
+                .editable(true)
+                .build();
+
+        when(systemConfigurationRepository.findAll()).thenReturn(List.of(invalidBoolConfig));
+        systemConfigService.initCache();
+
+        boolean result = systemConfigService.getBoolean(ConfigKey.ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE);
+
+        // Default value của ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE là false
+        assertFalse(result);
+    }
+
+    @Test
+    @DisplayName("8. update thành công thì cache chỉ đổi SAU khi commit")
+    void update_Success_CacheUpdatesOnlyAfterCommit() {
+        when(systemConfigurationRepository.findAll()).thenReturn(List.of(maxMembersConfig));
+        systemConfigService.initCache();
+        assertEquals(30, systemConfigService.getInt(ConfigKey.ACCESS_REQUEST_MAX_GROUP_MEMBERS));
+
+        when(systemConfigurationRepository.findById(ConfigKey.ACCESS_REQUEST_MAX_GROUP_MEMBERS.getKey()))
+                .thenReturn(Optional.of(maxMembersConfig));
+        when(userRepository.findByEmail(adminUser.getEmail())).thenReturn(Optional.of(adminUser));
+        when(systemConfigurationRepository.save(any(SystemConfiguration.class))).thenAnswer(i -> i.getArgument(0));
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            systemConfigService.update(
+                    ConfigKey.ACCESS_REQUEST_MAX_GROUP_MEMBERS.getKey(),
+                    "50",
+                    adminUser.getEmail()
+            );
+
+            // Trước khi commit: Cache vẫn giữ giá trị cũ (30)
+            assertEquals(30, systemConfigService.getInt(ConfigKey.ACCESS_REQUEST_MAX_GROUP_MEMBERS));
+
+            // Giả lập commit transaction thành công
+            for (TransactionSynchronization sync : TransactionSynchronizationManager.getSynchronizations()) {
+                sync.afterCommit();
+            }
+
+            // Sau khi commit: Cache đã đổi sang giá trị mới (50)
+            assertEquals(50, systemConfigService.getInt(ConfigKey.ACCESS_REQUEST_MAX_GROUP_MEMBERS));
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
     }
 }

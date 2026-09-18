@@ -37,7 +37,7 @@ export default function AccessRequestPage() {
 
   // Group Members state
   const [memberCodeInput, setMemberCodeInput] = useState('');
-  const [memberList, setMemberList] = useState([]); // [{ userCode, fullName, email }]
+  const [memberList, setMemberList] = useState([]); // [{ userCode, fullName }]
   const [lookingUpMember, setLookingUpMember] = useState(false);
 
   // Submit & Alert state
@@ -213,33 +213,69 @@ export default function AccessRequestPage() {
 
   // Member lookup
   const handleAddMember = async () => {
-    const code = memberCodeInput.trim();
-    if (!code) return;
+    const rawInput = memberCodeInput.trim();
+    if (!rawInput) return;
 
-    if (memberList.some((m) => m.userCode.toLowerCase() === code.toLowerCase())) {
-      setFormError(`Mã người dùng ${code} đã có trong danh sách.`);
+    // Tách danh sách mã bằng dấu phẩy, chấm phẩy hoặc khoảng trắng
+    const candidateCodes = rawInput
+      .split(/[\s,;]+/)
+      .map((c) => c.trim())
+      .filter(Boolean);
+
+    if (candidateCodes.length === 0) return;
+
+    // Lọc các mã đã có trong danh sách
+    const existingCodeSet = new Set(memberList.map((m) => m.userCode.toLowerCase()));
+    const newCodes = [];
+    const duplicateCodes = [];
+
+    for (const code of candidateCodes) {
+      if (existingCodeSet.has(code.toLowerCase())) {
+        duplicateCodes.push(code);
+      } else {
+        newCodes.push(code);
+      }
+    }
+
+    if (newCodes.length === 0) {
+      setFormError(`Mã người dùng ${duplicateCodes.join(', ')} đã có trong danh sách.`);
       return;
     }
 
     setLookingUpMember(true);
     setFormError(null);
     try {
-      const user = await accessRequestService.getUserByCode(code);
-      if (user) {
-        setMemberList((prev) => [
-          ...prev,
-          {
-            userCode: user.userCode || code,
-            fullName: user.fullName || 'Người dùng',
-            email: user.email || ''
+      const results = await accessRequestService.resolveMembers(newCodes);
+      const validMembers = [];
+      const invalidMessages = [];
+
+      if (Array.isArray(results)) {
+        for (const res of results) {
+          if (res.found) {
+            validMembers.push({
+              userCode: res.userCode,
+              fullName: res.fullName || 'Người dùng',
+            });
+          } else {
+            invalidMessages.push(`${res.userCode}: ${res.reason || 'Không tìm thấy người dùng hợp lệ'}`);
           }
-        ]);
+        }
+      }
+
+      if (validMembers.length > 0) {
+        setMemberList((prev) => [...prev, ...validMembers]);
         setMemberCodeInput('');
-      } else {
-        setFormError(`Không tìm thấy người dùng với mã số: ${code}`);
+      }
+
+      if (invalidMessages.length > 0) {
+        setFormError(invalidMessages.join(' | '));
       }
     } catch (err) {
-      setFormError(err.message || `Không thể tra cứu mã người dùng ${code}`);
+      if (err.status === 429) {
+        setFormError('Bạn tra cứu quá nhanh, vui lòng thử lại sau ít phút');
+      } else {
+        setFormError(err.message || 'Không thể tra cứu danh sách mã người dùng');
+      }
     } finally {
       setLookingUpMember(false);
     }

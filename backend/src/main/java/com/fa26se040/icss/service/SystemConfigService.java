@@ -18,6 +18,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -80,7 +82,13 @@ public class SystemConfigService {
                     configKey.getKey(), configKey.getDefaultValue());
             return Boolean.parseBoolean(configKey.getDefaultValue());
         }
-        return Boolean.parseBoolean(raw.trim());
+        String trimmed = raw.trim();
+        if (!trimmed.equalsIgnoreCase("true") && !trimmed.equalsIgnoreCase("false")) {
+            log.warn("Invalid boolean value [{}] for config key [{}]. Using default: {}",
+                    raw, configKey.getKey(), configKey.getDefaultValue());
+            return Boolean.parseBoolean(configKey.getDefaultValue());
+        }
+        return Boolean.parseBoolean(trimmed);
     }
 
     @Transactional(readOnly = true)
@@ -136,13 +144,28 @@ public class SystemConfigService {
                 .build();
         changeLogRepository.save(logEntry);
 
-        // Update in-memory cache immediately
-        cache.put(key, value);
+        // Update in-memory cache only after transaction commits successfully
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    cache.put(key, value);
+                }
+            });
+        } else {
+            cache.put(key, value);
+        }
 
         log.info("Cập nhật SystemConfiguration thành công: key={}, old={}, new={}, actor={}",
                 key, oldValue, value, actorEmail);
 
         return mapToResponse(saved);
+    }
+
+    @Transactional(readOnly = true)
+    public int reloadCache() {
+        refreshCache();
+        return cache.size();
     }
 
     private void validateValue(SystemConfiguration config, String value) {
