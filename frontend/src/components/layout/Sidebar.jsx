@@ -16,7 +16,8 @@ import {
   History,
   Bell,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  CalendarClock
 } from 'lucide-react';
 import { ROLES, ROLE_LABELS } from '../../constants/roles';
 import { useTheme } from '../../context/ThemeContext';
@@ -72,7 +73,7 @@ export default function Sidebar({ user, onLogout }) {
   const isAdmin = userRole === ROLES.ADMIN;
   const isFacilityManager = userRole === ROLES.FACILITY_MANAGER;
   const isNormalUser = userRole === ROLES.NORMAL_USER;
-  const isGuard = userRole === ROLES.GUARD;
+  const isGuard = userRole === ROLES.GUARD || userRole === 'GUARD' || userRole === 'INTERNAL_GUARD' || userRole === 'OUTSOURCED_GUARD';
 
   return (
     <aside className={`sidebar ${sidebarCollapsed ? 'sidebar--collapsed' : ''}`}>
@@ -204,6 +205,15 @@ export default function Sidebar({ user, onLogout }) {
 
                   {isAdmin && (
                     <>
+                      <NavLink
+                        to="/admin/guard-schedules"
+                        className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+                        title={sidebarCollapsed ? "Lịch trực Bảo vệ" : undefined}
+                      >
+                        <CalendarClock size={18} />
+                        <span>Lịch trực Bảo vệ</span>
+                      </NavLink>
+
                       <NavLink
                         to="/admin/accounts"
                         className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}

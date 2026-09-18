@@ -58,4 +58,7 @@ public interface AreaRepository extends JpaRepository<Area, UUID> {
         @Param("isActive") Boolean isActive,
         Pageable pageable
     );
+
+    @Query("SELECT a FROM Area a JOIN a.cameras c WHERE c.cameraCode = :cameraCode AND a.deletedAt IS NULL")
+    java.util.List<Area> findAreasByCameraCode(@Param("cameraCode") String cameraCode);
 }

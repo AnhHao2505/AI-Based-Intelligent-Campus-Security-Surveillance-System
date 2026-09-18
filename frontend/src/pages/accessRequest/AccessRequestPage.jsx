@@ -160,7 +160,8 @@ export default function AccessRequestPage() {
     setLoadingAreas(true);
     try {
       const data = await accessRequestService.getAvailableAreas();
-      setAreas(data || []);
+      const list = Array.isArray(data) ? data : (data?.content || []);
+      setAreas(list);
     } catch (err) {
       console.error('Lỗi khi tải danh sách khu vực:', err);
     } finally {
@@ -198,13 +199,14 @@ export default function AccessRequestPage() {
   }, [historyStatusFilter, loadMyRequests]);
 
   // Selected area object
-  const currentArea = areas.find((a) => a.id === selectedAreaId);
+  const areaList = Array.isArray(areas) ? areas : (areas?.content || []);
+  const currentArea = areaList.find((a) => a.id === selectedAreaId);
 
   // When area changes, if area is PRIVATE, force INDIVIDUAL
   const handleAreaChange = (e) => {
     const areaId = e.target.value;
     setSelectedAreaId(areaId);
-    const found = areas.find((a) => a.id === areaId);
+    const found = areaList.find((a) => a.id === areaId);
     if (found && found.areaLevel === 'PRIVATE') {
       setRequestType('INDIVIDUAL');
       setMemberList([]);

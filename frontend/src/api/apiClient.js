@@ -4,6 +4,36 @@ function getDemoResponse(path) {
   if (path.includes('/auth/me')) return JSON.parse(localStorage.getItem('user') || 'null');
   if (path.includes('/areas')) return { content: [], totalElements: 0, totalPages: 0 };
   if (path.includes('/floor-plans') || path.includes('/notifications')) return [];
+  if (path.includes('/access-requests/available-areas')) return [];
+  if (path.includes('/guard-shifts') || path.includes('/guard-schedules')) return [];
+  if (path.includes('/api/users')) {
+    return {
+      users: {
+        content: [
+          {
+            id: 'fa744a70-3db2-434d-a6c3-6c00a452578c',
+            fullName: 'Nguyễn Văn An (Bảo Vệ)',
+            userCode: 'NV-BV01',
+            email: 'guard.an@fpt.edu.vn',
+            role: 'GUARD',
+            isActive: true,
+          },
+          {
+            id: '84cc1997-bae7-4a88-a20e-519b857cb722',
+            fullName: 'Bảo Vệ Demo',
+            userCode: 'NV-BV02',
+            email: 'guard.demo@fpt.edu.vn',
+            role: 'GUARD',
+            isActive: true,
+          },
+        ],
+        totalElements: 2,
+        totalPages: 1,
+      },
+      normalCount: 0,
+      systemCount: 2,
+    };
+  }
   if (path.includes('/cameras') || path.includes('/access-requests')) {
     return { content: [], totalElements: 0, totalPages: 0 };
   }
