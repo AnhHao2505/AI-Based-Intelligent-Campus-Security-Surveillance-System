@@ -1,11 +1,11 @@
 package com.fa26se040.icss.consumer;
 
 import com.fa26se040.icss.dto.incident.IncidentEventDto;
+import com.fa26se040.icss.service.SecurityIncidentService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
 
 @Slf4j
@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class SecurityIncidentKafkaConsumer {
 
-    private final SimpMessagingTemplate messagingTemplate;
+    private final SecurityIncidentService securityIncidentService;
     private final ObjectMapper objectMapper;
 
     /**
@@ -26,19 +26,8 @@ public class SecurityIncidentKafkaConsumer {
     public void consumeIncidentEvent(String message) {
         try {
             log.info("🔔 [Kafka Consumer] Nhận sự kiện an ninh từ AI Service: {}", message);
-
             IncidentEventDto incident = objectMapper.readValue(message, IncidentEventDto.class);
-
-            // Chuẩn hóa đường dẫn ảnh MinIO cho trình duyệt Web nếu cần
-            if (incident.getImageUrl() != null && incident.getImageUrl().contains("minio:9000")) {
-                incident.setImageUrl(incident.getImageUrl().replace("minio:9000", "localhost:9000"));
-            }
-
-            // Đẩy tức thì qua WebSocket tới topic /topic/security-alerts
-            messagingTemplate.convertAndSend("/topic/security-alerts", incident);
-            log.info("🚀 [WebSocket Broadcast] Đã đẩy cảnh báo [{}] của camera [{}] tới Màn hình Bảo vệ!",
-                    incident.getEventType(), incident.getCameraCode());
-
+            securityIncidentService.ingestIncident(incident);
         } catch (Exception e) {
             log.error("❌ [Kafka Consumer] Lỗi xử lý sự kiện an ninh từ Kafka: {}", e.getMessage(), e);
         }

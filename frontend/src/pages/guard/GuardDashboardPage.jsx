@@ -100,21 +100,47 @@ export default function GuardDashboardPage() {
               }
 
               const newAlert = {
-                id: incident.event_id || Date.now(),
-                cameraCode: incident.camera_code || 'CAM-001',
-                cameraName: 'Cửa Phòng Server (Điện thoại Live)',
-                eventType: incident.event_type || 'LOITERING_UNIDENTIFIED',
-                message: incident.details || 'Phát hiện đối tượng khả nghi trong vùng cấm',
+                id: incident.id || incident.event_id || Date.now(),
+                cameraCode: incident.camera_code || incident.cameraCode || 'CAM-001',
+                cameraName: incident.areaName || incident.area_name || 'Khu vực camera',
+                eventType: incident.event_type || incident.eventType || 'LOITERING_UNIDENTIFIED',
+                message: incident.details || incident.resolutionNotes || 'Phát hiện đối tượng khả nghi trong vùng cấm',
                 duration: incident.duration_seconds ? `${incident.duration_seconds}s` : 'Vừa phát hiện',
                 timestamp: new Date().toLocaleTimeString('vi-VN'),
-                status: 'PENDING',
-                snapshotUrl: snapshot
+                status: incident.status || 'PENDING',
+                snapshotUrl: snapshot,
+                radioChannel: incident.radioChannel || 'Kênh 2 (Bộ đàm)',
+                claimedByName: incident.claimedByName || null
               };
 
               setActiveAlerts((prev) => [newAlert, ...prev]);
               playAlertSound();
             } catch (err) {
               console.error('Lỗi parse incident JSON:', err);
+            }
+          }
+        });
+
+        // Lắng nghe cập nhật trạng thái sự vụ (Claim, Resolve) từ Mobile App
+        stompClient.subscribe('/topic/incidents/updates', (message) => {
+          if (message.body) {
+            try {
+              const update = JSON.parse(message.body);
+              setActiveAlerts((prev) =>
+                prev.map((a) => {
+                  if (a.id === update.incidentId || String(a.id) === String(update.incidentId)) {
+                    return {
+                      ...a,
+                      status: update.status,
+                      claimedByName: update.claimedByName || a.claimedByName,
+                      resolvedByName: update.resolvedByName || a.resolvedByName
+                    };
+                  }
+                  return a;
+                })
+              );
+            } catch (err) {
+              console.error('Lỗi parse incident update:', err);
             }
           }
         });
@@ -335,6 +361,18 @@ export default function GuardDashboardPage() {
                       <strong>Lưu trú:</strong> {alert.duration}
                     </span>
                   </div>
+
+                  {alert.radioChannel && (
+                    <div style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 600, marginTop: '4px' }}>
+                      📻 Bộ đàm: {alert.radioChannel}
+                    </div>
+                  )}
+
+                  {alert.claimedByName && (
+                    <div style={{ fontSize: '11px', color: '#38bdf8', fontWeight: 600, marginTop: '2px' }}>
+                      👮 Đang xử lý: {alert.claimedByName}
+                    </div>
+                  )}
 
                   {/* Snapshot Evidence Thumbnail */}
                   {alert.snapshotUrl && (

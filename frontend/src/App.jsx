@@ -22,6 +22,7 @@ import AreaCameraManagementPage from './pages/areas/AreaCameraManagementPage';
 import ManageAccountPage from './pages/accounts/ManageAccountPage';
 import SystemConfigPage from './pages/system/SystemConfigPage';
 import UiKitPage from './pages/_devPreview/UiKitPage';
+import GuardScheduleManagementPage from './pages/admin/GuardScheduleManagementPage';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
@@ -123,9 +124,18 @@ function App() {
               />
 
               <Route
+                path="/admin/guard-schedules"
+                element={
+                  <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                    <GuardScheduleManagementPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
                 path="/guard"
                 element={
-                  <ProtectedRoute allowedRoles={[ROLES.GUARD]}>
+                  <ProtectedRoute allowedRoles={[ROLES.GUARD, ROLES.ADMIN, ROLES.INTERNAL_GUARD, ROLES.OUTSOURCED_GUARD]}>
                     <GuardDashboardPage />
                   </ProtectedRoute>
                 }

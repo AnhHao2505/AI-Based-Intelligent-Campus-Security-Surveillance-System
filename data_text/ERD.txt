@@ -1,5 +1,5 @@
 // ============================================================================
-// DATABASE DESIGN V4 — HỆ THỐNG GIÁM SÁT AN NINH THÔNG MINH (FA26SE040)
+// DATABASE DESIGN V5 — HỆ THỐNG GIÁM SÁT AN NINH THÔNG MINH (FA26SE040)
 // ============================================================================
 // Build incrementally (phát triển từ từ ERD, ko build toàn bộ hệ thống
 // mà chỉ build erd liên quan đến function)
@@ -8,7 +8,7 @@ Table users {
   id UUID [pk, default: `gen_random_uuid()`]
   full_name VARCHAR(100) [not null]
   user_code VARCHAR(50) [not null, unique, note: 'MSNV or MSSV']
-  role VARCHAR(50) [not null, note: 'ADMIN | FACILITY_MANAGER | INTERNAL_GUARD | OUTSOURCED_GUARD | NORMAL_USER']
+  role VARCHAR(50) [not null, note: 'ADMIN | FACILITY_MANAGER | GUARD | NORMAL_USER']
   email VARCHAR(255) [not null, unique]
   password VARCHAR(60) [note: 'b64-encoded bcrypt hash, length=60'] 
   is_active BOOLEAN [not null, default: true, note: 'true: Active, false: Inactive']
@@ -198,6 +198,86 @@ Ref: access_requests.reviewer_id > users.id
 
 Ref: access_request_members.access_request_id > access_requests.id
 Ref: access_request_members.user_id > users.id
+
+// ============================================================================
+// GUARD SCHEDULES & INCIDENT MANAGEMENT (DATABASE DESIGN V5)
+// ============================================================================
+
+Table guard_schedule_templates {
+  id UUID [pk, default: `gen_random_uuid()`]
+  guard_id UUID [not null, note: 'FK to users (role GUARD)']
+  day_of_week INT [not null, note: '1: Sunday, 2: Monday, ..., 7: Saturday']
+  shift_type VARCHAR(20) [not null, note: 'SHIFT_MORNING | SHIFT_AFTERNOON | SHIFT_NIGHT | SHIFT_OFF']
+  start_time TIME [not null]
+  end_time TIME [not null]
+  area_id UUID [note: 'FK to areas — chốt trực cụ thể (Phòng bảo vệ, Sảnh, Tuần tra)']
+  radio_channel VARCHAR(50) [note: 'Kênh bộ đàm, vd: Kênh 2 - Tòa Alpha']
+  notes TEXT [note: 'Ghi chú nhiệm vụ']
+  is_active BOOLEAN [not null, default: true]
+  created_at TIMESTAMPTZ [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at TIMESTAMPTZ [not null, default: `CURRENT_TIMESTAMP`]
+}
+
+Table guard_shifts {
+  id UUID [pk, default: `gen_random_uuid()`]
+  guard_id UUID [not null, note: 'FK to users']
+  shift_date DATE [not null, note: 'Ngày trực cụ thể YYYY-MM-DD']
+  shift_type VARCHAR(20) [not null]
+  start_time TIME [not null]
+  end_time TIME [not null]
+  area_id UUID [note: 'FK to areas']
+  radio_channel VARCHAR(50)
+  status VARCHAR(20) [not null, default: 'SCHEDULED', note: 'SCHEDULED | CHECKED_IN | COMPLETED | ABSENT | CANCELLED']
+  check_in_at TIMESTAMPTZ
+  check_out_at TIMESTAMPTZ
+  notes TEXT
+  created_at TIMESTAMPTZ [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at TIMESTAMPTZ [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    (guard_id, shift_date, start_time) [unique]
+    (shift_date, area_id)
+  }
+}
+
+Table security_incidents {
+  id UUID [pk, default: `gen_random_uuid()`]
+  event_id VARCHAR(100) [note: 'ID sự kiện từ AI Service Kafka']
+  camera_code VARCHAR(50) [not null, note: 'Mã camera phát hiện']
+  area_id UUID [not null, note: 'FK to areas']
+  building VARCHAR(50) [not null, note: 'Mã tòa nhà / cơ sở để lọc thông báo tức thì']
+  event_type VARCHAR(50) [not null, note: 'UNAUTHORIZED_ENTRY | UNKNOWN_PERSON | AFTER_HOURS_ACCESS | LOITERING | CROWD_OVERCROWDING']
+  image_url VARCHAR(512) [note: 'Ảnh snapshot bằng chứng từ MinIO']
+  detected_at TIMESTAMPTZ [not null, default: `CURRENT_TIMESTAMP`]
+  status VARCHAR(30) [not null, default: 'NEW', note: 'NEW | CLAIMED | RESOLVED_VERIFIED | RESOLVED_DISMISSED']
+  
+  // Thông tin tiếp nhận xử lý
+  claimed_by UUID [note: 'FK to users — bảo vệ nhận việc trên mobile app']
+  claimed_at TIMESTAMPTZ
+  
+  // Báo cáo kết quả xử lý
+  resolved_by UUID [note: 'FK to users — bảo vệ hoàn tất xử lý']
+  resolved_at TIMESTAMPTZ
+  outcome VARCHAR(20) [note: 'VERIFIED | DISMISSED']
+  resolution_category VARCHAR(50) [note: 'FALSE_ALARM | AUTHORIZED_EXCEPTION | REMINDED_DISPERSED | ESCORTED_OUT | REPORT_FILED | DETAINED_ESCALATED | OTHER']
+  resolution_notes TEXT [note: 'Ghi chú biên bản xử lý của bảo vệ']
+  evidence_image_url VARCHAR(512) [note: 'Ảnh hiện trường sau xử lý nếu có']
+  version INT [not null, default: 0, note: 'Optimistic locking counter chống tranh chấp khi claim']
+
+  indexes {
+    (building, status)
+    (detected_at)
+  }
+}
+
+// Guard Schedules & Incident Relationships
+Ref: guard_schedule_templates.guard_id > users.id
+Ref: guard_schedule_templates.area_id > areas.id
+Ref: guard_shifts.guard_id > users.id
+Ref: guard_shifts.area_id > areas.id
+Ref: security_incidents.area_id > areas.id
+Ref: security_incidents.claimed_by > users.id
+Ref: security_incidents.resolved_by > users.id
 
 // Notification Relationships
 Ref: notifications.recipient_id > users.id
