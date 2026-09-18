@@ -25,6 +25,25 @@
   display: flex;
   flex-direction: column;
   gap: 28px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--theme-border) transparent;
+}
+
+.sidebar__header::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar__header::-webkit-scrollbar-thumb {
+  background: var(--theme-border);
+  border-radius: 4px;
+}
+
+.sidebar__header::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .sidebar__collapse-button {
@@ -96,7 +115,7 @@
 }
 
 .sidebar--collapsed .sidebar__user {
-  justify-content: center;
+  display: none;
 }
 
 .sidebar__brand {
@@ -244,6 +263,8 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  flex-shrink: 0;
+  padding-top: 12px;
 }
 
 .sidebar__theme-toggle {
@@ -327,10 +348,14 @@
   padding: 6px;
   border-radius: 6px;
   cursor: pointer;
-  display: flex;
+  display: none; /* Chỉ hiển thị khi collapse sidebar */
   align-items: center;
   justify-content: center;
   transition: background-color 0.2s ease;
+}
+
+.sidebar--collapsed .sidebar__logout-btn {
+  display: flex;
 }
 
 .sidebar__logout-btn:hover {
@@ -367,6 +392,6 @@
     padding: 8px 4px;
   }
   .sidebar__user {
-    justify-content: center;
+    display: none;
   }
 }

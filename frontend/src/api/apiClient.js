@@ -2,8 +2,63 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080
 
 function getDemoResponse(path) {
   if (path.includes('/auth/me')) return JSON.parse(localStorage.getItem('user') || 'null');
+  if (path.includes('/notifications/unread-count')) return { count: 2 };
+  if (path.includes('/notifications')) {
+    return {
+      content: [
+        {
+          id: 'demo-notif-1',
+          title: 'Yêu cầu truy cập đã được phê duyệt',
+          message: 'Yêu cầu truy cập Phòng Máy Chủ A1 của bạn đã được Quản lý cơ sở phê duyệt.',
+          createdAt: new Date().toISOString(),
+          isRead: false,
+          referenceType: 'ACCESS_REQUEST',
+          referenceId: 'demo-req-1'
+        },
+        {
+          id: 'demo-notif-2',
+          title: 'Cảnh báo hệ thống',
+          message: 'Hệ thống vừa cập nhật danh sách khu vực giám sát mới.',
+          createdAt: new Date(Date.now() - 86400000).toISOString(),
+          isRead: true,
+          referenceType: 'SYSTEM',
+          referenceId: null
+        }
+      ],
+      totalElements: 2,
+      totalPages: 1,
+      number: 0
+    };
+  }
+  if (path.includes('/access-requests/available-areas')) {
+    return [
+      { id: 'demo-area-1', name: 'Phòng Server A1 (Khu A)', accessLevel: 'RESTRICTED', description: 'Khu vực máy chủ trung tâm' },
+      { id: 'demo-area-2', name: 'Phòng Thí nghiệm AI (Khu B)', accessLevel: 'PRIVATE', description: 'Khu vực nghiên cứu AI & Robotics' },
+      { id: 'demo-area-3', name: 'Kho Thiết bị An ninh (Khu C)', accessLevel: 'RESTRICTED', description: 'Lưu trữ camera và cảm biến' }
+    ];
+  }
+  if (path.includes('/access-requests/my')) {
+    return {
+      content: [
+        {
+          id: 'demo-req-1',
+          areaId: 'demo-area-1',
+          areaName: 'Phòng Server A1 (Khu A)',
+          requestType: 'INDIVIDUAL',
+          startTime: new Date(Date.now() + 3600000).toISOString(),
+          endTime: new Date(Date.now() + 14400000).toISOString(),
+          purpose: 'Bảo trì máy chủ định kỳ',
+          status: 'APPROVED',
+          createdAt: new Date().toISOString()
+        }
+      ],
+      totalElements: 1,
+      totalPages: 1,
+      number: 0
+    };
+  }
   if (path.includes('/areas')) return { content: [], totalElements: 0, totalPages: 0 };
-  if (path.includes('/floor-plans') || path.includes('/notifications')) return [];
+  if (path.includes('/floor-plans')) return [];
   if (path.includes('/cameras') || path.includes('/access-requests')) {
     return { content: [], totalElements: 0, totalPages: 0 };
   }
