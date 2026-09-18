@@ -6,6 +6,8 @@ import com.fa26se040.icss.dto.accessrequest.AccessRequestReviewRequest;
 import com.fa26se040.icss.dto.accessrequest.AreaSimpleResponse;
 import com.fa26se040.icss.dto.accessrequest.GroupAccessRequestCreateRequest;
 import com.fa26se040.icss.dto.accessrequest.IndividualAccessRequestCreateRequest;
+import com.fa26se040.icss.dto.accessrequest.MemberLookupResult;
+import com.fa26se040.icss.dto.accessrequest.ResolveMembersRequest;
 import com.fa26se040.icss.enums.RequestStatus;
 import com.fa26se040.icss.service.AccessRequestService;
 import com.fa26se040.icss.service.AreaService;
@@ -107,6 +109,16 @@ public class AccessRequestController {
         return ResponseEntity.ok(accessRequestService.getAllRequests(status, pageable));
     }
 
+    @PostMapping("/resolve-members")
+    @PreAuthorize("hasAnyRole('NORMAL_USER','FACILITY_MANAGER','ADMIN')")
+    public ResponseEntity<List<MemberLookupResult>> resolveMembers(
+            @Valid @RequestBody ResolveMembersRequest request,
+            Authentication authentication
+    ) {
+        String actorEmail = authentication.getName();
+        return ResponseEntity.ok(accessRequestService.resolveMembers(request, actorEmail));
+    }
+
     @GetMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<AccessRequestResponse> getRequestById(
@@ -115,7 +127,7 @@ public class AccessRequestController {
     ) {
         String actorEmail = authentication.getName();
         boolean isStaff = authentication.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_FACILITY_MANAGER") || a.getAuthority().equals("ROLE_ADMIN"));
+                .anyMatch(a -> a.getAuthority().equals("ROLE_FACILITY_MANAGER"));
         return ResponseEntity.ok(accessRequestService.getRequestById(id, actorEmail, isStaff));
     }
 

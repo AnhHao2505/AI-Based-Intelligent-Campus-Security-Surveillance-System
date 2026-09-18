@@ -87,12 +87,12 @@ export const accessRequestService = {
   },
 
   /**
-   * Tra cứu thông tin người dùng theo mã số (userCode / MSSV / MSNV)
+   * Tra cứu thông tin danh sách thành viên theo danh sách mã người dùng (userCode)
    * Dùng để thêm thành viên nhóm trong flow tạo yêu cầu
-   * @param {string} code - Mã người dùng
+   * @param {string[]} userCodes - Danh sách mã người dùng cần kiểm tra
    */
-  async getUserByCode(code) {
-    return await apiGet(`/api/users/${encodeURIComponent(code)}`);
+  async resolveMembers(userCodes) {
+    return await apiPost('/api/access-requests/resolve-members', { userCodes });
   },
 };
 
