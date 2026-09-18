@@ -21,9 +21,6 @@ class Settings(BaseSettings):
     MINIO_SECURE: bool = False
     MINIO_ENABLED: bool = True
     
-    # Backend Integration
-    BACKEND_URL: str = Field(default="http://localhost:8080", alias="BACKEND_URL")
-    
     # AI Models & Default Thresholds
     MODEL_YOLO_PATH: str = "yolov8n.pt"
     MODEL_YUNET_PATH: str = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models", "face_detection_yunet.onnx")

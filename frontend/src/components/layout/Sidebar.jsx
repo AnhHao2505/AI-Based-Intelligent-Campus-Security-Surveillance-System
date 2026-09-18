@@ -18,6 +18,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CalendarClock
+  Sliders
 } from 'lucide-react';
 import { ROLES, ROLE_LABELS } from '../../constants/roles';
 import { useTheme } from '../../context/ThemeContext';
@@ -138,9 +139,7 @@ export default function Sidebar({ user, onLogout }) {
             </div>
           ) : (
             <>
-              {/* GIÁM SÁT */}
               <div className="sidebar__section">
-                <div className="sidebar__section-title">GIÁM SÁT</div>
                 <NavLink
                   to="/dashboard"
                   className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
@@ -187,11 +186,8 @@ export default function Sidebar({ user, onLogout }) {
                 )}
               </div>
 
-              {/* QUẢN TRỊ */}
               {(isFacilityManager || isAdmin) && (
                 <div className="sidebar__section">
-                  <div className="sidebar__section-title">QUẢN TRỊ</div>
-
                   {isFacilityManager && (
                     <NavLink
                       to="/admin/access-requests"
@@ -240,17 +236,15 @@ export default function Sidebar({ user, onLogout }) {
                         <Network size={18} />
                         <span>Gán camera – khu vực</span>
                       </NavLink>
-                    </>
+                    </> 
                   )}
                 </div>
               )}
             </>
           )}
 
-          {/* HỆ THỐNG */}
           {isAdmin && (
             <div className="sidebar__section">
-              <div className="sidebar__section-title">HỆ THỐNG</div>
               <NavLink
                 to="/admin/ai-settings"
                 className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
@@ -258,6 +252,15 @@ export default function Sidebar({ user, onLogout }) {
               >
                 <Cpu size={18} />
                 <span>Thiết lập AI</span>
+              </NavLink>
+
+              <NavLink
+                to="/admin/system-configurations"
+                className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+                title={sidebarCollapsed ? "Cấu hình hệ thống" : undefined}
+              >
+                <Sliders size={18} />
+                <span>Cấu hình hệ thống</span>
               </NavLink>
             </div>
           )}

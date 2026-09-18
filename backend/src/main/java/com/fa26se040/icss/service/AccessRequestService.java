@@ -6,6 +6,8 @@ import com.fa26se040.icss.dto.accessrequest.AccessRequestReviewRequest;
 import com.fa26se040.icss.dto.accessrequest.GroupAccessRequestCreateRequest;
 import com.fa26se040.icss.dto.accessrequest.IndividualAccessRequestCreateRequest;
 import com.fa26se040.icss.dto.accessrequest.MemberInfo;
+import com.fa26se040.icss.dto.accessrequest.MemberLookupResult;
+import com.fa26se040.icss.dto.accessrequest.ResolveMembersRequest;
 import com.fa26se040.icss.entity.AccessRequest;
 import com.fa26se040.icss.entity.AccessRequestMember;
 import com.fa26se040.icss.entity.Area;
@@ -22,6 +24,8 @@ import com.fa26se040.icss.exception.UnauthorizedException;
 import com.fa26se040.icss.repository.AccessRequestRepository;
 import com.fa26se040.icss.repository.AreaRepository;
 import com.fa26se040.icss.repository.UserRepository;
+import com.fa26se040.icss.security.MemberLookupRateLimiter;
+import com.fa26se040.icss.util.StringNormalizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -37,10 +41,14 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+
+import com.fa26se040.icss.enums.ConfigKey;
 
 @Slf4j
 @Service
@@ -54,6 +62,8 @@ public class AccessRequestService {
     private final AreaRepository areaRepository;
     private final UserRepository userRepository;
     private final InAppNotificationService inAppNotificationService;
+    private final SystemConfigService systemConfigService;
+    private final MemberLookupRateLimiter memberLookupRateLimiter;
 
     @Transactional
     public AccessRequestResponse createIndividualRequest(IndividualAccessRequestCreateRequest request, String actorEmail) {
@@ -106,7 +116,8 @@ public class AccessRequestService {
 
         validateCommonRules(area, request.startTime(), request.endTime());
 
-        if (area.getAreaLevel() == AreaLevel.PRIVATE) {
+        boolean groupAllowedInPrivate = systemConfigService.getBoolean(ConfigKey.ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE);
+        if (!groupAllowedInPrivate && area.getAreaLevel() == AreaLevel.PRIVATE) {
             throw new IllegalArgumentException("Khu vực riêng tư (PRIVATE) chỉ cho phép đăng ký truy cập cá nhân (INDIVIDUAL)");
         }
 
@@ -185,6 +196,55 @@ public class AccessRequestService {
             );
             return createIndividualRequest(individualRequest, actorEmail);
         }
+    }
+
+    @Transactional(readOnly = true)
+    public List<MemberLookupResult> resolveMembers(ResolveMembersRequest request, String actorEmail) {
+        memberLookupRateLimiter.checkRateLimit(actorEmail);
+
+        if (request == null || request.userCodes() == null || request.userCodes().isEmpty()) {
+            throw new IllegalArgumentException("Danh sách mã người dùng không được để trống");
+        }
+
+        int maxGroupMembers = systemConfigService.getInt(ConfigKey.ACCESS_REQUEST_MAX_GROUP_MEMBERS);
+        if (request.userCodes().size() > maxGroupMembers) {
+            throw new IllegalArgumentException("Số lượng mã cần tra cứu không được vượt quá " + maxGroupMembers + " mã");
+        }
+
+        Set<String> distinctCodes = new LinkedHashSet<>();
+        for (String rawCode : request.userCodes()) {
+            if (rawCode != null) {
+                String norm = StringNormalizer.normCode(rawCode);
+                if (!norm.isEmpty()) {
+                    distinctCodes.add(norm);
+                }
+            }
+        }
+
+        if (distinctCodes.isEmpty()) {
+            throw new IllegalArgumentException("Danh sách mã người dùng không được để trống");
+        }
+
+        List<User> foundUsers = userRepository.findAllByUserCodeIn(distinctCodes);
+        Map<String, User> userMap = new HashMap<>();
+        for (User user : foundUsers) {
+            if (user.getUserCode() != null) {
+                userMap.put(StringNormalizer.normCode(user.getUserCode()), user);
+            }
+        }
+
+        final String commonFailureReason = "Không tìm thấy người dùng hợp lệ với mã này";
+        List<MemberLookupResult> results = new ArrayList<>();
+        for (String code : distinctCodes) {
+            User user = userMap.get(code);
+            if (user == null || Boolean.FALSE.equals(user.getIsActive()) || user.getDeletedAt() != null) {
+                results.add(new MemberLookupResult(code, null, false, commonFailureReason));
+            } else {
+                results.add(new MemberLookupResult(user.getUserCode(), user.getFullName(), true, null));
+            }
+        }
+
+        return results;
     }
 
     @Transactional(readOnly = true)
@@ -390,7 +450,7 @@ public class AccessRequestService {
         throw new ConcurrentReviewException("Yêu cầu này vừa được " + reviewerName + " " + actionVerb + ", không thể huỷ.");
     }
 
-    @Scheduled(cron = "0 */15 * * * *")
+    @Scheduled(cron = "${icss.scheduler.expire-overdue-cron:0 */15 * * * *}")
     @Transactional
     public int expireOverdueRequests() {
         OffsetDateTime now = OffsetDateTime.now();
@@ -456,17 +516,20 @@ public class AccessRequestService {
             throw new IllegalArgumentException("Thời gian bắt đầu phải trước thời gian kết thúc");
         }
 
-        if (startTime.isBefore(OffsetDateTime.now().minusMinutes(5))) {
+        int bufferMinutes = systemConfigService.getInt(ConfigKey.ACCESS_REQUEST_PAST_START_BUFFER_MINUTES);
+        if (startTime.isBefore(OffsetDateTime.now().minusMinutes(bufferMinutes))) {
             throw new IllegalArgumentException("Thời gian bắt đầu không được ở trong quá khứ");
         }
 
-        if (startTime.isAfter(OffsetDateTime.now().plusDays(30))) {
-            throw new IllegalArgumentException("Thời gian bắt đầu không được vượt quá 30 ngày tới");
+        int maxAdvanceDays = systemConfigService.getInt(ConfigKey.ACCESS_REQUEST_MAX_ADVANCE_DAYS);
+        if (startTime.isAfter(OffsetDateTime.now().plusDays(maxAdvanceDays))) {
+            throw new IllegalArgumentException("Thời gian bắt đầu không được vượt quá " + maxAdvanceDays + " ngày tới");
         }
 
+        int maxDurationHours = systemConfigService.getInt(ConfigKey.ACCESS_REQUEST_MAX_DURATION_HOURS);
         long durationMinutes = Duration.between(startTime, endTime).toMinutes();
-        if (durationMinutes > 12 * 60) {
-            throw new IllegalArgumentException("Thời lượng truy cập tối đa không quá 12 giờ");
+        if (durationMinutes > (long) maxDurationHours * 60) {
+            throw new IllegalArgumentException("Thời lượng truy cập tối đa không quá " + maxDurationHours + " giờ");
         }
     }
 
@@ -490,8 +553,9 @@ public class AccessRequestService {
             throw new IllegalArgumentException("Yêu cầu nhóm bắt buộc phải có ít nhất một thành viên khác ngoài người tạo");
         }
 
-        if (cleanCodes.size() > 30) {
-            throw new IllegalArgumentException("Số lượng thành viên trong nhóm tối đa 30 người (không tính người tạo)");
+        int maxGroupMembers = systemConfigService.getInt(ConfigKey.ACCESS_REQUEST_MAX_GROUP_MEMBERS);
+        if (cleanCodes.size() > maxGroupMembers) {
+            throw new IllegalArgumentException("Số lượng thành viên trong nhóm tối đa " + maxGroupMembers + " người (không tính người tạo)");
         }
 
         List<User> memberUsers = new ArrayList<>();
@@ -556,8 +620,7 @@ public class AccessRequestService {
                     .map(m -> new MemberInfo(
                             m.getUser() != null ? m.getUser().getId() : null,
                             m.getUser() != null ? m.getUser().getUserCode() : null,
-                            m.getUser() != null ? m.getUser().getFullName() : null,
-                            m.getUser() != null ? m.getUser().getEmail() : null
+                            m.getUser() != null ? m.getUser().getFullName() : null
                     ))
                     .toList();
         }

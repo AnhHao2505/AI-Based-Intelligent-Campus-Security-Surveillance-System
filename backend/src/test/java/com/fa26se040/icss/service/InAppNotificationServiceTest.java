@@ -5,6 +5,7 @@ import com.fa26se040.icss.entity.AccessRequest;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.Notification;
 import com.fa26se040.icss.entity.User;
+import com.fa26se040.icss.enums.ConfigKey;
 import com.fa26se040.icss.enums.NotificationType;
 import com.fa26se040.icss.enums.RequestStatus;
 import com.fa26se040.icss.enums.Role;
@@ -55,6 +56,9 @@ class InAppNotificationServiceTest {
 
     @Mock
     private AccessRequestRepository accessRequestRepository;
+
+    @Mock
+    private SystemConfigService systemConfigService;
 
     @InjectMocks
     private InAppNotificationService inAppNotificationService;
@@ -185,6 +189,7 @@ class InAppNotificationServiceTest {
                 .status(RequestStatus.APPROVED)
                 .build();
 
+        when(systemConfigService.getInt(ConfigKey.NOTIFICATION_EXPIRING_SOON_LEAD_MINUTES)).thenReturn(30);
         when(accessRequestRepository.findApprovedRequestsStartingBetween(eq(RequestStatus.APPROVED), any(), any()))
                 .thenReturn(List.of(req));
         when(notificationRepository.existsByReferenceIdAndType(refId, NotificationType.EXPIRING_SOON))
@@ -209,6 +214,7 @@ class InAppNotificationServiceTest {
                 .createdAt(OffsetDateTime.now().minusHours(25))
                 .build();
 
+        when(systemConfigService.getInt(ConfigKey.NOTIFICATION_PENDING_OVERDUE_HOURS)).thenReturn(24);
         when(accessRequestRepository.findPendingRequestsCreatedBefore(eq(RequestStatus.PENDING), any()))
                 .thenReturn(List.of(req));
         when(userRepository.findActiveUsersByRole(Role.FACILITY_MANAGER))

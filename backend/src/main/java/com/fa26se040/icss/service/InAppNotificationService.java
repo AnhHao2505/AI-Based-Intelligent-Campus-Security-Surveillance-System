@@ -31,6 +31,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import com.fa26se040.icss.enums.ConfigKey;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -44,6 +46,7 @@ public class InAppNotificationService {
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
     private final AccessRequestRepository accessRequestRepository;
+    private final SystemConfigService systemConfigService;
 
     public static String formatTimeRange(OffsetDateTime startTime, OffsetDateTime endTime) {
         if (startTime == null || endTime == null) {
@@ -183,12 +186,13 @@ public class InAppNotificationService {
      * Quét các yêu cầu đã duyệt sắp bắt đầu trong vòng 25-35 phút để gửi EXPIRING_SOON.
      * Chạy định kỳ mỗi 10 phút.
      */
-    @Scheduled(cron = "0 */10 * * * *")
+    @Scheduled(cron = "${icss.scheduler.notification-expiring-soon-cron:0 */10 * * * *}")
     @Transactional
     public void scanAndNotifyExpiringSoonRequests() {
         OffsetDateTime now = OffsetDateTime.now();
-        OffsetDateTime windowStart = now.plusMinutes(25);
-        OffsetDateTime windowEnd = now.plusMinutes(35);
+        int leadMinutes = systemConfigService.getInt(ConfigKey.NOTIFICATION_EXPIRING_SOON_LEAD_MINUTES);
+        OffsetDateTime windowStart = now.plusMinutes(leadMinutes - 5);
+        OffsetDateTime windowEnd = now.plusMinutes(leadMinutes + 5);
 
         List<AccessRequest> startingRequests = accessRequestRepository.findApprovedRequestsStartingBetween(
                 RequestStatus.APPROVED,
@@ -221,7 +225,7 @@ public class InAppNotificationService {
                 String areaName = req.getArea() != null ? req.getArea().getName() : "khu vực";
                 String timeRange = formatTimeRange(req.getStartTime(), req.getEndTime());
                 String title = "Sắp đến giờ truy cập khu vực";
-                String message = "Yêu cầu vào " + areaName + " (" + timeRange + ") sắp bắt đầu trong 30 phút tới. Vui lòng chuẩn bị.";
+                String message = "Yêu cầu vào " + areaName + " (" + timeRange + ") sắp bắt đầu trong " + leadMinutes + " phút tới. Vui lòng chuẩn bị.";
 
                 createForUsers(recipients, NotificationType.EXPIRING_SOON, title, message, req.getId(), REF_TYPE_ACCESS_REQUEST);
             } catch (Exception e) {
@@ -234,11 +238,12 @@ public class InAppNotificationService {
      * Quét các yêu cầu PENDING tồn đọng quá 24 giờ để gửi PENDING_OVERDUE cho Facility Manager.
      * Chạy định kỳ mỗi 1 giờ.
      */
-    @Scheduled(cron = "0 0 * * * *")
+    @Scheduled(cron = "${icss.scheduler.notification-pending-overdue-cron:0 0 * * * *}")
     @Transactional
     public void scanAndNotifyPendingOverdueRequests() {
         OffsetDateTime now = OffsetDateTime.now();
-        OffsetDateTime threshold = now.minusHours(24);
+        int overdueHours = systemConfigService.getInt(ConfigKey.NOTIFICATION_PENDING_OVERDUE_HOURS);
+        OffsetDateTime threshold = now.minusHours(overdueHours);
 
         List<AccessRequest> overdueRequests = accessRequestRepository.findPendingRequestsCreatedBefore(
                 RequestStatus.PENDING,
@@ -264,8 +269,8 @@ public class InAppNotificationService {
                 String areaName = req.getArea() != null ? req.getArea().getName() : "khu vực";
                 String requesterName = req.getRequester() != null ? req.getRequester().getFullName() : "Người dùng";
                 String timeRange = formatTimeRange(req.getStartTime(), req.getEndTime());
-                String title = "Yêu cầu tồn đọng quá 24 giờ";
-                String message = "Yêu cầu truy cập khu vực " + areaName + " của " + requesterName + " (" + timeRange + ") chưa được xử lý quá 24 giờ.";
+                String title = "Yêu cầu tồn đọng quá " + overdueHours + " giờ";
+                String message = "Yêu cầu truy cập khu vực " + areaName + " của " + requesterName + " (" + timeRange + ") chưa được xử lý quá " + overdueHours + " giờ.";
 
                 createForUsers(fms, NotificationType.PENDING_OVERDUE, title, message, req.getId(), REF_TYPE_ACCESS_REQUEST);
             } catch (Exception e) {

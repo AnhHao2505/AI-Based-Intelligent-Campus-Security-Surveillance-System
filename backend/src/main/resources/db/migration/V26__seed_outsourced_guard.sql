@@ -3,7 +3,7 @@ INSERT INTO users (full_name, user_code, role, email, password, is_active, creat
 VALUES (
     'Bảo Vệ Demo',
     'SEC-002',
-    'GUARD',
+    'OUTSOURCED_GUARD',
     'guard.demo@fpt.edu.vn',
     '$2a$10$9hN/LUMwb.SHa8gRAbRmaOBMkM/qzZ8i4PZMIHig/6QYZEqsuWc5.',
     true,

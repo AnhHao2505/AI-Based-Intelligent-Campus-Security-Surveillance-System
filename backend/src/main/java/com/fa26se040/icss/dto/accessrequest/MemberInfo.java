@@ -5,6 +5,5 @@ import java.util.UUID;
 public record MemberInfo(
     UUID userId,
     String userCode,
-    String fullName,
-    String email
+    String fullName
 ) {}
