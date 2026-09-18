@@ -96,4 +96,10 @@ minio:
   secret-key: ${MINIO_ROOT_PASSWORD:12345678abc}
   bucket:
     faces: face-profiles
-    evidence: security-evidence
+    evidence: security-evidence
+
+icss:
+  scheduler:
+    expire-overdue-cron: ${EXPIRE_OVERDUE_CRON:0 */15 * * * *}
+    notification-expiring-soon-cron: ${NOTIFICATION_EXPIRING_SOON_CRON:0 */10 * * * *}
+    notification-pending-overdue-cron: ${NOTIFICATION_PENDING_OVERDUE_CRON:0 0 * * * *}

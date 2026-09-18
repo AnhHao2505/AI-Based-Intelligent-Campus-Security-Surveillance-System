@@ -20,6 +20,7 @@ import NotificationsPage from './pages/notifications/NotificationsPage';
 import AiSettingsPage from './pages/ai/AiSettingsPage';
 import AreaCameraManagementPage from './pages/areas/AreaCameraManagementPage';
 import ManageAccountPage from './pages/accounts/ManageAccountPage';
+import SystemConfigPage from './pages/system/SystemConfigPage';
 import UiKitPage from './pages/_devPreview/UiKitPage';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
@@ -182,6 +183,15 @@ function App() {
                 element={
                   <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.FACILITY_MANAGER]}>
                     <AreaCameraManagementPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/admin/system-configurations"
+                element={
+                  <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                    <SystemConfigPage />
                   </ProtectedRoute>
                 }
               />

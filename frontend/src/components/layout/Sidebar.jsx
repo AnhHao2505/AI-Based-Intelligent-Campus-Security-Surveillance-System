@@ -16,7 +16,8 @@ import {
   History,
   Bell,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Sliders
 } from 'lucide-react';
 import { ROLES, ROLE_LABELS } from '../../constants/roles';
 import { useTheme } from '../../context/ThemeContext';
@@ -241,6 +242,15 @@ export default function Sidebar({ user, onLogout }) {
               >
                 <Cpu size={18} />
                 <span>Thiết lập AI</span>
+              </NavLink>
+
+              <NavLink
+                to="/admin/system-configurations"
+                className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
+                title={sidebarCollapsed ? "Cấu hình hệ thống" : undefined}
+              >
+                <Sliders size={18} />
+                <span>Cấu hình hệ thống</span>
               </NavLink>
             </div>
           )}
