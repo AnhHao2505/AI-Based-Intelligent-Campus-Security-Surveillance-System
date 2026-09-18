@@ -42,6 +42,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
+import com.fa26se040.icss.enums.ConfigKey;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -54,6 +56,7 @@ public class AccessRequestService {
     private final AreaRepository areaRepository;
     private final UserRepository userRepository;
     private final InAppNotificationService inAppNotificationService;
+    private final SystemConfigService systemConfigService;
 
     @Transactional
     public AccessRequestResponse createIndividualRequest(IndividualAccessRequestCreateRequest request, String actorEmail) {
@@ -106,7 +109,8 @@ public class AccessRequestService {
 
         validateCommonRules(area, request.startTime(), request.endTime());
 
-        if (area.getAreaLevel() == AreaLevel.PRIVATE) {
+        boolean groupAllowedInPrivate = systemConfigService.getBoolean(ConfigKey.ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE);
+        if (!groupAllowedInPrivate && area.getAreaLevel() == AreaLevel.PRIVATE) {
             throw new IllegalArgumentException("Khu vực riêng tư (PRIVATE) chỉ cho phép đăng ký truy cập cá nhân (INDIVIDUAL)");
         }
 
@@ -390,7 +394,7 @@ public class AccessRequestService {
         throw new ConcurrentReviewException("Yêu cầu này vừa được " + reviewerName + " " + actionVerb + ", không thể huỷ.");
     }
 
-    @Scheduled(cron = "0 */15 * * * *")
+    @Scheduled(cron = "${icss.scheduler.expire-overdue-cron:0 */15 * * * *}")
     @Transactional
     public int expireOverdueRequests() {
         OffsetDateTime now = OffsetDateTime.now();
@@ -456,17 +460,20 @@ public class AccessRequestService {
             throw new IllegalArgumentException("Thời gian bắt đầu phải trước thời gian kết thúc");
         }
 
-        if (startTime.isBefore(OffsetDateTime.now().minusMinutes(5))) {
+        int bufferMinutes = systemConfigService.getInt(ConfigKey.ACCESS_REQUEST_PAST_START_BUFFER_MINUTES);
+        if (startTime.isBefore(OffsetDateTime.now().minusMinutes(bufferMinutes))) {
             throw new IllegalArgumentException("Thời gian bắt đầu không được ở trong quá khứ");
         }
 
-        if (startTime.isAfter(OffsetDateTime.now().plusDays(30))) {
-            throw new IllegalArgumentException("Thời gian bắt đầu không được vượt quá 30 ngày tới");
+        int maxAdvanceDays = systemConfigService.getInt(ConfigKey.ACCESS_REQUEST_MAX_ADVANCE_DAYS);
+        if (startTime.isAfter(OffsetDateTime.now().plusDays(maxAdvanceDays))) {
+            throw new IllegalArgumentException("Thời gian bắt đầu không được vượt quá " + maxAdvanceDays + " ngày tới");
         }
 
+        int maxDurationHours = systemConfigService.getInt(ConfigKey.ACCESS_REQUEST_MAX_DURATION_HOURS);
         long durationMinutes = Duration.between(startTime, endTime).toMinutes();
-        if (durationMinutes > 12 * 60) {
-            throw new IllegalArgumentException("Thời lượng truy cập tối đa không quá 12 giờ");
+        if (durationMinutes > (long) maxDurationHours * 60) {
+            throw new IllegalArgumentException("Thời lượng truy cập tối đa không quá " + maxDurationHours + " giờ");
         }
     }
 
@@ -490,8 +497,9 @@ public class AccessRequestService {
             throw new IllegalArgumentException("Yêu cầu nhóm bắt buộc phải có ít nhất một thành viên khác ngoài người tạo");
         }
 
-        if (cleanCodes.size() > 30) {
-            throw new IllegalArgumentException("Số lượng thành viên trong nhóm tối đa 30 người (không tính người tạo)");
+        int maxGroupMembers = systemConfigService.getInt(ConfigKey.ACCESS_REQUEST_MAX_GROUP_MEMBERS);
+        if (cleanCodes.size() > maxGroupMembers) {
+            throw new IllegalArgumentException("Số lượng thành viên trong nhóm tối đa " + maxGroupMembers + " người (không tính người tạo)");
         }
 
         List<User> memberUsers = new ArrayList<>();

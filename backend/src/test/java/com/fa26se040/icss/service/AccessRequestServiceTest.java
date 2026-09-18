@@ -8,6 +8,7 @@ import com.fa26se040.icss.entity.AccessRequest;
 import com.fa26se040.icss.entity.AccessRequestMember;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.User;
+import com.fa26se040.icss.enums.ConfigKey;
 import com.fa26se040.icss.enums.AreaLevel;
 import com.fa26se040.icss.enums.RequestStatus;
 import com.fa26se040.icss.enums.RequestType;
@@ -61,6 +62,9 @@ class AccessRequestServiceTest {
 
     @Mock
     private InAppNotificationService inAppNotificationService;
+
+    @Mock
+    private SystemConfigService systemConfigService;
 
     @InjectMocks
     private AccessRequestService accessRequestService;
@@ -138,6 +142,12 @@ class AccessRequestServiceTest {
                 .areaLevel(AreaLevel.PUBLIC)
                 .isActive(true)
                 .build();
+
+        org.mockito.Mockito.lenient().when(systemConfigService.getInt(ConfigKey.ACCESS_REQUEST_MAX_GROUP_MEMBERS)).thenReturn(30);
+        org.mockito.Mockito.lenient().when(systemConfigService.getInt(ConfigKey.ACCESS_REQUEST_MAX_DURATION_HOURS)).thenReturn(12);
+        org.mockito.Mockito.lenient().when(systemConfigService.getInt(ConfigKey.ACCESS_REQUEST_MAX_ADVANCE_DAYS)).thenReturn(30);
+        org.mockito.Mockito.lenient().when(systemConfigService.getInt(ConfigKey.ACCESS_REQUEST_PAST_START_BUFFER_MINUTES)).thenReturn(5);
+        org.mockito.Mockito.lenient().when(systemConfigService.getBoolean(ConfigKey.ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE)).thenReturn(false);
     }
 
     @Test
@@ -757,6 +767,33 @@ class AccessRequestServiceTest {
 
         verify(inAppNotificationService, never()).createForUsers(any(), any(), any(), any(), any());
         verify(inAppNotificationService, never()).createForUser(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("Tạo yêu cầu nhóm vượt quá số thành viên cấu hình động thì ném ngoại lệ chứa số cấu hình")
+    void createGroupRequest_ExceedsDynamicMaxMembers_ThrowsException() {
+        OffsetDateTime startTime = OffsetDateTime.now().plusHours(1);
+        OffsetDateTime endTime = OffsetDateTime.now().plusHours(3);
+
+        List<String> memberCodes = List.of("SV-002", "SV-003", "SV-004", "SV-005", "SV-006", "SV-007");
+        GroupAccessRequestCreateRequest request = new GroupAccessRequestCreateRequest(
+                semiPrivateArea.getId(),
+                startTime,
+                endTime,
+                "Mục đích học nhóm",
+                memberCodes
+        );
+
+        when(userRepository.findByEmail(requester.getEmail())).thenReturn(Optional.of(requester));
+        when(areaRepository.findByIdAndDeletedAtIsNull(semiPrivateArea.getId())).thenReturn(Optional.of(semiPrivateArea));
+        when(systemConfigService.getInt(ConfigKey.ACCESS_REQUEST_MAX_GROUP_MEMBERS)).thenReturn(5);
+
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> accessRequestService.createGroupRequest(request, requester.getEmail())
+        );
+
+        assertTrue(ex.getMessage().contains("5"));
     }
 
     @Test

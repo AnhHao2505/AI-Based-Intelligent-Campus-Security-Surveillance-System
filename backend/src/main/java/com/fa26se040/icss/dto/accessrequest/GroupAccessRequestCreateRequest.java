@@ -25,6 +25,5 @@ public record GroupAccessRequestCreateRequest(
 
     @NotNull(message = "Danh sách thành viên không được để trống")
     @NotEmpty(message = "Danh sách thành viên không được để trống")
-    @Size(min = 1, max = 30, message = "Số lượng thành viên trong nhóm phải từ 1 đến 30 người")
     List<String> memberUserCodes
 ) {}
