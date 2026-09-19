@@ -17,7 +17,7 @@ import {
   Bell,
   ChevronLeft,
   ChevronRight,
-  CalendarClock
+  CalendarClock,
   Sliders
 } from 'lucide-react';
 import { ROLES, ROLE_LABELS } from '../../constants/roles';
