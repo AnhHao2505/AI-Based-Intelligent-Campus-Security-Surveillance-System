@@ -26,5 +26,6 @@ public class CameraDetailResponse {
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
     private CameraStreamConfigResponse streamConfig;
+    private RoiGeometry roiGeometry;
     private List<AreaSimpleResponse> assignedAreas;
 }

@@ -112,3 +112,21 @@ export function fetchAllSimpleCameras() {
 export function fetchHealthLogs(id, { page = 0, size = 10 } = {}) {
   return request(`/api/cameras/${id}/health-logs?page=${page}&size=${size}`);
 }
+
+/**
+ * Kết nối RTSP stream, chụp snapshot, set operationalStatus = ONLINE
+ */
+export function connectStream(cameraId) {
+  return request(`/api/cameras/${cameraId}/connect`, { method: 'POST' });
+}
+
+/**
+ * Cập nhật ROI geometry cho camera
+ */
+export function updateRoiGeometry(cameraId, roiGeometry) {
+  return request(`/api/cameras/${cameraId}/roi`, {
+    method: 'PUT',
+    body: JSON.stringify({ roiGeometry }),
+  });
+}
+

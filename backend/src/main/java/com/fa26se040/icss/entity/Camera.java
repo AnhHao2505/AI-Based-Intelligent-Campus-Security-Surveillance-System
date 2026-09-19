@@ -1,5 +1,6 @@
 package com.fa26se040.icss.entity;
 
+import com.fa26se040.icss.dto.camera.RoiGeometry;
 import com.fa26se040.icss.enums.CameraStatus;
 import com.fa26se040.icss.enums.OperationalStatus;
 import jakarta.persistence.*;
@@ -9,6 +10,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.OffsetDateTime;
 import java.util.HashSet;
@@ -57,6 +60,10 @@ public class Camera {
 
     @Column(name = "deleted_at")
     private OffsetDateTime deletedAt;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "roi_geometry", columnDefinition = "jsonb")
+    private RoiGeometry roiGeometry;
 
     @OneToOne(mappedBy = "camera", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private CameraStreamConfiguration streamConfiguration;
