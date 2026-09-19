@@ -16,6 +16,7 @@ import com.fa26se040.icss.dto.camera.*;
 import com.fa26se040.icss.enums.CameraStatus;
 import com.fa26se040.icss.enums.OperationalStatus;
 import com.fa26se040.icss.service.CameraService;
+import com.fa26se040.icss.service.CameraSnapshotService;
 
 import java.util.List;
 import java.util.UUID;
@@ -27,6 +28,7 @@ import java.util.UUID;
 public class CameraController {
 
     private final CameraService cameraService;
+    private final CameraSnapshotService cameraSnapshotService;
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
@@ -111,5 +113,23 @@ public class CameraController {
     public ResponseEntity<List<AreaSimpleResponse>> getAreas(@PathVariable UUID id) {
         log.info("REST request to get areas assigned to camera: {}", id);
         return ResponseEntity.ok(cameraService.getCameraAreas(id));
+    }
+
+    @PostMapping("/{id}/connect")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ConnectStreamResponse> connectStream(@PathVariable UUID id) {
+        log.info("REST request to connect RTSP stream for camera: {}", id);
+        ConnectStreamResponse response = cameraSnapshotService.connectAndCapture(id);
+        return ResponseEntity.ok(response);
+    }
+
+    @PutMapping("/{id}/roi")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<CameraDetailResponse> updateRoi(
+            @PathVariable UUID id,
+            @Valid @RequestBody RoiUpdateRequest request) {
+        log.info("REST request to update ROI geometry for camera: {}", id);
+        CameraDetailResponse response = cameraService.updateRoiGeometry(id, request);
+        return ResponseEntity.ok(response);
     }
 }

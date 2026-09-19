@@ -1,6 +1,7 @@
 import os
 import cv2
 import time
+import base64
 import numpy as np
 from fastapi import FastAPI, File, UploadFile, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -215,5 +216,53 @@ async def get_stream_status(camera_code: str = Query(..., description="Mã camer
         return {"status": "STOPPED", "camera_code": camera_code, "is_running": False}
     
     return active_workers[camera_code].get_status()
+
+
+class SnapshotRequest(BaseModel):
+    rtsp_url: str
+    timeout_ms: int = 5000
+
+
+@app.post("/api/v1/cameras/snapshot")
+async def capture_rtsp_snapshot(req: SnapshotRequest):
+    """
+    Kết nối RTSP stream, trích xuất 1 frame JPEG, trả về base64.
+    """
+    start_time = time.time()
+    
+    os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp"
+    cap = cv2.VideoCapture(req.rtsp_url, cv2.CAP_FFMPEG)
+    cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, req.timeout_ms)
+    cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, req.timeout_ms)
+    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+    
+    try:
+        if not cap.isOpened():
+            raise HTTPException(status_code=502, detail="Không thể kết nối RTSP stream")
+        
+        ret, frame = cap.read()
+        if not ret or frame is None:
+            raise HTTPException(status_code=502, detail="Không thể đọc frame từ RTSP")
+        
+        latency_ms = int((time.time() - start_time) * 1000)
+        height, width = frame.shape[:2]
+        
+        _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+        base64_str = base64.b64encode(buffer).decode('utf-8')
+        
+        return {
+            "success": True,
+            "snapshot_base64": f"data:image/jpeg;base64,{base64_str}",
+            "width": width,
+            "height": height,
+            "latency_ms": latency_ms
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Lỗi trích xuất snapshot: {str(e)}")
+    finally:
+        cap.release()
+
 
 

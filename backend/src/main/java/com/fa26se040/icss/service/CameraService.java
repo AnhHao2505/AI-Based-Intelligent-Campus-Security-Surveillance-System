@@ -35,6 +35,7 @@ public class CameraService {
     private final CameraHealthLogRepository cameraHealthLogRepository;
     private final MediaMtxService mediaMtxService;
     private final AesEncryptionUtil aesEncryptionUtil;
+    private final RoiGeometryValidator roiGeometryValidator;
 
     // === Camera CRUD ===
 
@@ -304,6 +305,23 @@ public class CameraService {
                 .collect(Collectors.toList());
     }
 
+    public CameraDetailResponse updateRoiGeometry(UUID cameraId, RoiUpdateRequest request) {
+        log.info("Updating ROI geometry for camera id: {}", cameraId);
+        Camera camera = cameraRepository.findById(cameraId)
+                .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_CAM_002));
+
+        RoiGeometry roi = request.getRoiGeometry();
+        roiGeometryValidator.validate(roi);
+
+        roi.setUpdatedAt(OffsetDateTime.now());
+        roi.setDeletedAt(null);
+
+        camera.setRoiGeometry(roi);
+        camera.setUpdatedAt(OffsetDateTime.now());
+        Camera saved = cameraRepository.save(camera);
+        return mapToDetailResponse(saved);
+    }
+
     // === Helpers & Mapping ===
 
     private String generateCameraCode() {
@@ -366,6 +384,7 @@ public class CameraService {
                 .createdAt(camera.getCreatedAt())
                 .updatedAt(camera.getUpdatedAt())
                 .streamConfig(camera.getStreamConfiguration() != null ? mapToStreamResponse(camera.getStreamConfiguration()) : null)
+                .roiGeometry(camera.getRoiGeometry())
                 .assignedAreas(assignedAreas)
                 .build();
     }
@@ -403,7 +422,7 @@ public class CameraService {
                 .build();
     }
 
-    private String buildRtspUrl(CameraStreamConfiguration config) {
+    public String buildRtspUrl(CameraStreamConfiguration config) {
         if (config == null) {
             return null;
         }

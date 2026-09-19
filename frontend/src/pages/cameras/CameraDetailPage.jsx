@@ -13,6 +13,9 @@ import {
   ChevronRight,
   MapPin,
   HelpCircle,
+  Wifi,
+  Layers,
+  Scan,
 } from "lucide-react";
 import {
   fetchCameraDetail,
@@ -21,7 +24,10 @@ import {
   reactivateCamera,
   upsertStreamConfig,
   fetchHealthLogs,
+  connectStream,
+  updateRoiGeometry,
 } from "../../services/cameraService";
+import RoiEditorModal from "../../components/camera/RoiEditorModal";
 import "../../styles/CameraDetailPage.css";
 
 export default function CameraDetailPage() {
@@ -40,6 +46,11 @@ export default function CameraDetailPage() {
   const [logPage, setLogPage] = useState(0);
   const [logTotalPages, setLogTotalPages] = useState(0);
   const [logsLoading, setLogsLoading] = useState(false);
+
+  // ROI & Connect State
+  const [snapshotData, setSnapshotData] = useState(null);
+  const [connecting, setConnecting] = useState(false);
+  const [roiModalOpen, setRoiModalOpen] = useState(false);
 
   // Form states
   const [camera, setCamera] = useState(null);
@@ -119,7 +130,40 @@ export default function CameraDetailPage() {
 
   const showError = (msg) => {
     setError(msg);
-    setTimeout(() => setError(null), 6000);
+    setTimeout(() => setError(null), 5000);
+  };
+
+  const handleConnectStream = async () => {
+    setConnecting(true);
+    setError(null);
+    try {
+      const res = await connectStream(id);
+      if (res && res.success) {
+        setSnapshotData(res);
+        setCamera((prev) => ({
+          ...prev,
+          operationalStatus: res.operationalStatus || "ONLINE",
+        }));
+        showNotification("Kết nối RTSP thành công! Trạng thái camera đã chuyển sang ONLINE.");
+        loadLogs();
+      } else {
+        showError(res.errorMessage || "Kết nối RTSP không thành công.");
+      }
+    } catch (err) {
+      console.error("Failed to connect stream:", err);
+      showError(err.message || "Không thể kết nối RTSP stream để chụp snapshot.");
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  const handleSaveRoi = async (roiGeometry) => {
+    const updated = await updateRoiGeometry(id, roiGeometry);
+    setCamera((prev) => ({
+      ...prev,
+      roiGeometry: updated.roiGeometry || roiGeometry,
+    }));
+    showNotification("Cấu hình vùng giám sát (ROI) đã được lưu thành công!");
   };
 
   const handleToggleStatus = async () => {
@@ -407,10 +451,11 @@ export default function CameraDetailPage() {
 
             {/* STREAM TAB */}
             {activeTab === "stream" && (
-              <form
-                onSubmit={handleStreamSubmit}
-                className="tab-form"
-              >
+              <>
+                <form
+                  onSubmit={handleStreamSubmit}
+                  className="tab-form"
+                >
                 <div className="form-grid">
                   <div className="form-group">
                     <label>Địa chỉ IP/Host *</label>
@@ -520,7 +565,141 @@ export default function CameraDetailPage() {
                   </button>
                 </div>
               </form>
-            )}
+
+              {/* ROI CONFIGURATION SECTION */}
+              <div className="roi-config-section">
+                <div className="roi-section-header">
+                  <div className="roi-section-info">
+                    <h4>
+                      <Layers size={18} color="#38bdf8" />
+                      Cấu hình vùng giám sát (ROI)
+                    </h4>
+                    <p>
+                      Kiểm tra luồng RTSP và chụp ảnh snapshot tức thời từ camera để khoanh các vùng quan sát (ROI) và gán quy tắc cảnh báo.
+                    </p>
+                  </div>
+
+                  <div className="roi-action-bar">
+                    <button
+                      type="button"
+                      className="btn-connect"
+                      onClick={handleConnectStream}
+                      disabled={connecting}
+                    >
+                      {connecting ? (
+                        <>
+                          <Loader2 className="animate-spin" size={16} />
+                          Đang kết nối RTSP...
+                        </>
+                      ) : (
+                        <>
+                          <Wifi size={16} />
+                          Kết nối & Chụp Snapshot
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      className="btn-open-editor"
+                      onClick={() => setRoiModalOpen(true)}
+                      disabled={!snapshotData?.snapshotBase64}
+                      title={!snapshotData?.snapshotBase64 ? "Hãy bấm 'Kết nối & Chụp Snapshot' trước khi mở ROI Editor" : ""}
+                    >
+                      <Scan size={16} />
+                      Mở ROI Editor
+                    </button>
+                  </div>
+                </div>
+
+                {/* Snapshot & Polygon Overlay Preview */}
+                <div className="roi-preview-container">
+                  {snapshotData?.snapshotBase64 ? (
+                    <>
+                      <div className="roi-preview-wrapper">
+                        <div className="roi-preview-stage">
+                          <img
+                            src={snapshotData.snapshotBase64}
+                            alt="Camera Snapshot Preview"
+                            className="roi-preview-img"
+                          />
+                          {/* SVG Overlay of Polygons */}
+                          {camera?.roiGeometry?.polygons && camera.roiGeometry.polygons.length > 0 && (
+                            <svg
+                              viewBox={`0 0 ${snapshotData.width || 1920} ${snapshotData.height || 1080}`}
+                              preserveAspectRatio="none"
+                              className="roi-preview-svg"
+                            >
+                              {camera.roiGeometry.polygons.map((poly, idx) => {
+                                const sw = snapshotData.width || 1920;
+                                const sh = snapshotData.height || 1080;
+                                const pts = (poly.vertices || [])
+                                  .map((v) => `${v.x * sw},${v.y * sh}`)
+                                  .join(" ");
+                                return (
+                                  <polygon
+                                    key={idx}
+                                    points={pts}
+                                    className="roi-preview-poly"
+                                  >
+                                    <title>{poly.label || `Vùng ${idx + 1}`}</title>
+                                  </polygon>
+                                );
+                              })}
+                            </svg>
+                          )}
+                        </div>
+                      </div>
+                      <div className="roi-preview-meta">
+                        <span className="roi-meta-badge">
+                          <Wifi size={14} /> Trực tiếp từ RTSP ({snapshotData.width || 1920}x{snapshotData.height || 1080})
+                        </span>
+                        <span>Độ trễ: {snapshotData.latencyMs ? `${snapshotData.latencyMs}ms` : "N/A"}</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="roi-preview-placeholder">
+                      <Video size={40} />
+                      <p>
+                        Chưa có snapshot từ luồng. Bấm nút <strong>"Kết nối & Chụp Snapshot"</strong> để kiểm tra luồng RTSP camera và lấy khung hình mẫu.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Existing ROI Polygons Summary */}
+                {camera?.roiGeometry?.polygons && camera.roiGeometry.polygons.length > 0 && (
+                  <div>
+                    <h5 style={{ fontSize: "0.875rem", fontWeight: 700, marginBottom: "0.5rem", color: "var(--theme-text-primary)" }}>
+                      Vùng giám sát hiện hành ({camera.roiGeometry.polygons.length} vùng)
+                    </h5>
+                    <div className="roi-summary-list">
+                      {camera.roiGeometry.polygons.map((poly, idx) => (
+                        <div key={idx} className="roi-summary-card">
+                          <div className="roi-summary-card-header">
+                            <div className="roi-summary-title">
+                              <span className="roi-summary-index">{idx + 1}</span>
+                              <span>{poly.label || `Vùng ${idx + 1}`}</span>
+                            </div>
+                            <span style={{ fontSize: "0.75rem", color: "var(--theme-text-muted)" }}>
+                              {poly.vertices ? poly.vertices.length : 0} đỉnh
+                            </span>
+                          </div>
+                          <div className="roi-rules-tags">
+                            {(poly.alert_rules || poly.alertRules || ["INTRUSION_DETECTION"]).map((rule, rIdx) => (
+                              <span key={rIdx} className="roi-badge-rule">
+                                {rule}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
           </div>
         </div>
 
@@ -614,6 +793,17 @@ export default function CameraDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* ROI Editor Modal */}
+      <RoiEditorModal
+        isOpen={roiModalOpen}
+        onClose={() => setRoiModalOpen(false)}
+        snapshotBase64={snapshotData?.snapshotBase64}
+        snapshotWidth={snapshotData?.width || 1920}
+        snapshotHeight={snapshotData?.height || 1080}
+        initialRoiGeometry={camera?.roiGeometry}
+        onSave={handleSaveRoi}
+      />
     </div>
   );
 }
