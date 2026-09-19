@@ -49,6 +49,16 @@ export default function RoiEditorModal({
 
   const svgRef = useRef(null);
 
+  const formattedSnapshot = snapshotBase64 && snapshotBase64.includes("minio:9000")
+    ? snapshotBase64.replace("minio:9000", "localhost:9000")
+    : snapshotBase64;
+
+  const imageSrc = formattedSnapshot
+    ? (formattedSnapshot.startsWith("data:") || formattedSnapshot.startsWith("http")
+        ? formattedSnapshot
+        : `data:image/jpeg;base64,${formattedSnapshot}`)
+    : null;
+
   // Initialize polygons from initialRoiGeometry
   useEffect(() => {
     if (isOpen) {
@@ -322,8 +332,6 @@ export default function RoiEditorModal({
     setError(null);
 
     const payload = {
-      updated_at: new Date().toISOString(),
-      deleted_at: null,
       polygons: polygons.map((p) => ({
         label: p.label ? p.label.trim().slice(0, 100) : undefined,
         alert_rules:
@@ -338,7 +346,11 @@ export default function RoiEditorModal({
     };
 
     try {
-      await onSave(payload);
+      await onSave(payload, {
+        snapshotBase64: snapshotBase64 && !snapshotBase64.startsWith("http") ? snapshotBase64 : null,
+        snapshotWidth: imgDimensions.width,
+        snapshotHeight: imgDimensions.height,
+      });
       onClose();
     } catch (err) {
       console.error("Failed to save ROI:", err);
@@ -482,9 +494,9 @@ export default function RoiEditorModal({
                   lineHeight: 0,
                 }}
               >
-                {snapshotBase64 ? (
+                {imageSrc ? (
                   <img
-                    src={snapshotBase64}
+                    src={imageSrc}
                     alt="Camera Snapshot"
                     className="roi-snapshot-img"
                     onLoad={handleImageLoad}

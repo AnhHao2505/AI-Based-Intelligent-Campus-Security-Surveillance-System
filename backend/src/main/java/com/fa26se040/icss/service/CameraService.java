@@ -36,6 +36,7 @@ public class CameraService {
     private final MediaMtxService mediaMtxService;
     private final AesEncryptionUtil aesEncryptionUtil;
     private final RoiGeometryValidator roiGeometryValidator;
+    private final MinioStorageService minioStorageService;
 
     // === Camera CRUD ===
 
@@ -313,8 +314,29 @@ public class CameraService {
         RoiGeometry roi = request.getRoiGeometry();
         roiGeometryValidator.validate(roi);
 
-        roi.setUpdatedAt(OffsetDateTime.now());
-        roi.setDeletedAt(null);
+        // Upload reference snapshot to MinIO if provided
+        if (request.getSnapshotBase64() != null && !request.getSnapshotBase64().isBlank()) {
+            try {
+                String cleanBase64 = request.getSnapshotBase64();
+                if (cleanBase64.contains(",")) {
+                    cleanBase64 = cleanBase64.substring(cleanBase64.indexOf(",") + 1);
+                }
+                byte[] imageBytes = java.util.Base64.getDecoder().decode(cleanBase64);
+                String snapshotUrl = minioStorageService.uploadRoiReferenceSnapshot(imageBytes, camera.getCameraCode());
+                roi.setReferenceSnapshotUrl(snapshotUrl);
+                roi.setReferenceSnapshotWidth(request.getSnapshotWidth());
+                roi.setReferenceSnapshotHeight(request.getSnapshotHeight());
+                roi.setReferenceCapturedAt(OffsetDateTime.now());
+            } catch (Exception e) {
+                log.error("Failed to upload reference snapshot to MinIO for camera {}: {}", camera.getCameraCode(), e.getMessage());
+            }
+        } else if (camera.getRoiGeometry() != null) {
+            // Retain existing reference snapshot info if no new snapshot is supplied
+            roi.setReferenceSnapshotUrl(camera.getRoiGeometry().getReferenceSnapshotUrl());
+            roi.setReferenceSnapshotWidth(camera.getRoiGeometry().getReferenceSnapshotWidth());
+            roi.setReferenceSnapshotHeight(camera.getRoiGeometry().getReferenceSnapshotHeight());
+            roi.setReferenceCapturedAt(camera.getRoiGeometry().getReferenceCapturedAt());
+        }
 
         camera.setRoiGeometry(roi);
         camera.setUpdatedAt(OffsetDateTime.now());

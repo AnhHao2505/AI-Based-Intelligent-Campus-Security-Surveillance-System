@@ -123,6 +123,14 @@ public class CameraController {
         return ResponseEntity.ok(response);
     }
 
+    @PostMapping("/{id}/test-connection")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<TestConnectionResponse> testConnection(@PathVariable UUID id) {
+        log.info("REST request to test RTSP stream connection for camera: {}", id);
+        TestConnectionResponse response = cameraSnapshotService.testConnection(id);
+        return ResponseEntity.ok(response);
+    }
+
     @PutMapping("/{id}/roi")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<CameraDetailResponse> updateRoi(

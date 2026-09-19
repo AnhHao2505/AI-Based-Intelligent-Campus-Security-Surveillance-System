@@ -16,6 +16,13 @@ import {
   Wifi,
   Layers,
   Scan,
+  Radio,
+  Camera as CameraIcon,
+  RefreshCw,
+  AlertTriangle,
+  CheckCircle2,
+  XCircle,
+  X,
 } from "lucide-react";
 import {
   fetchCameraDetail,
@@ -25,16 +32,25 @@ import {
   upsertStreamConfig,
   fetchHealthLogs,
   connectStream,
+  testConnection,
   updateRoiGeometry,
 } from "../../services/cameraService";
 import RoiEditorModal from "../../components/camera/RoiEditorModal";
 import "../../styles/CameraDetailPage.css";
 
+function formatImageUrl(url) {
+  if (!url) return "";
+  if (url.includes("minio:9000")) {
+    return url.replace("minio:9000", "localhost:9000");
+  }
+  return url;
+}
+
 export default function CameraDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  // Tabs: 'general' | 'stream'
+  // Tabs: 'general' | 'stream' | 'surveillance'
   const [activeTab, setActiveTab] = useState("general");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -47,10 +63,17 @@ export default function CameraDetailPage() {
   const [logTotalPages, setLogTotalPages] = useState(0);
   const [logsLoading, setLogsLoading] = useState(false);
 
-  // ROI & Connect State
-  const [snapshotData, setSnapshotData] = useState(null);
+  // Stream Tab - Test Connection State
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [testResult, setTestResult] = useState(null);
+
+  // Surveillance Tab - ROI, Reference Snapshot & Drift Detection State
   const [connecting, setConnecting] = useState(false);
+  const [refreshingLive, setRefreshingLive] = useState(false);
+  const [liveSnapshot, setLiveSnapshot] = useState(null);
+  const [compareMode, setCompareMode] = useState(false);
   const [roiModalOpen, setRoiModalOpen] = useState(false);
+  const [activeSnapshotForModal, setActiveSnapshotForModal] = useState(null);
 
   // Form states
   const [camera, setCamera] = useState(null);
@@ -133,36 +156,132 @@ export default function CameraDetailPage() {
     setTimeout(() => setError(null), 5000);
   };
 
-  const handleConnectStream = async () => {
+  const handleTestConnection = async () => {
+    setTestingConnection(true);
+    setTestResult(null);
+    try {
+      const res = await testConnection(id);
+      if (res && res.success) {
+        setTestResult({
+          success: true,
+          message: res.message || "Kết nối RTSP thành công!",
+          latencyMs: res.latencyMs,
+        });
+        showNotification(res.message || "Kiểm tra kết nối RTSP thành công!");
+      } else {
+        const msg = res?.message || "Không thể kết nối đến camera.";
+        setTestResult({ success: false, message: msg });
+        showError(msg);
+      }
+    } catch (err) {
+      console.error("Failed to test connection:", err);
+      const msg = err.message || "Lỗi kiểm tra kết nối stream.";
+      setTestResult({ success: false, message: msg });
+      showError(msg);
+    } finally {
+      setTestingConnection(false);
+    }
+  };
+
+  const handleCaptureNewSnapshot = async () => {
     setConnecting(true);
     setError(null);
     try {
       const res = await connectStream(id);
       if (res && res.success) {
-        setSnapshotData(res);
         setCamera((prev) => ({
           ...prev,
           operationalStatus: res.operationalStatus || "ONLINE",
         }));
-        showNotification("Kết nối RTSP thành công! Trạng thái camera đã chuyển sang ONLINE.");
+        showNotification("Kết nối RTSP thành công! Đã trích xuất khung hình mới.");
         loadLogs();
+        setActiveSnapshotForModal({
+          data: res.snapshotBase64,
+          width: res.width || 1920,
+          height: res.height || 1080,
+        });
+        setRoiModalOpen(true);
       } else {
-        showError(res.errorMessage || "Kết nối RTSP không thành công.");
+        showError(res?.errorMessage || "Không thể kết nối RTSP để chụp snapshot.");
       }
     } catch (err) {
-      console.error("Failed to connect stream:", err);
-      showError(err.message || "Không thể kết nối RTSP stream để chụp snapshot.");
+      console.error("Failed to capture snapshot:", err);
+      showError(err.message || "Không thể kết nối RTSP stream.");
     } finally {
       setConnecting(false);
     }
   };
 
-  const handleSaveRoi = async (roiGeometry) => {
-    const updated = await updateRoiGeometry(id, roiGeometry);
+  const handleEditCurrentRoi = () => {
+    const rawRefUrl =
+      camera?.roiGeometry?.reference_snapshot_url ||
+      camera?.roiGeometry?.referenceSnapshotUrl;
+    const refUrl = formatImageUrl(rawRefUrl);
+    const refWidth =
+      camera?.roiGeometry?.reference_snapshot_width ||
+      camera?.roiGeometry?.referenceSnapshotWidth ||
+      1920;
+    const refHeight =
+      camera?.roiGeometry?.reference_snapshot_height ||
+      camera?.roiGeometry?.referenceSnapshotHeight ||
+      1080;
+
+    if (!refUrl) {
+      showError("Chưa có ảnh chụp tham chiếu. Vui lòng bấm 'Kết nối & Chụp mới'.");
+      return;
+    }
+
+    setActiveSnapshotForModal({
+      data: refUrl,
+      width: refWidth,
+      height: refHeight,
+    });
+    setRoiModalOpen(true);
+  };
+
+  const handleRefreshForComparison = async () => {
+    setRefreshingLive(true);
+    setError(null);
+    try {
+      const res = await connectStream(id);
+      if (res && res.success) {
+        setLiveSnapshot(res);
+        setCompareMode(true);
+        setCamera((prev) => ({
+          ...prev,
+          operationalStatus: res.operationalStatus || "ONLINE",
+        }));
+        showNotification("Đã lấy khung hình trực tiếp để đối chiếu góc quay camera.");
+        loadLogs();
+      } else {
+        showError(res?.errorMessage || "Không thể lấy khung hình trực tiếp.");
+      }
+    } catch (err) {
+      console.error("Failed to refresh snapshot for comparison:", err);
+      showError(err.message || "Lỗi khi lấy khung hình đối chiếu.");
+    } finally {
+      setRefreshingLive(false);
+    }
+  };
+
+  const handleApplyLiveSnapshotToRoi = () => {
+    if (!liveSnapshot?.snapshotBase64) return;
+    setActiveSnapshotForModal({
+      data: liveSnapshot.snapshotBase64,
+      width: liveSnapshot.width || 1920,
+      height: liveSnapshot.height || 1080,
+    });
+    setRoiModalOpen(true);
+  };
+
+  const handleSaveRoi = async (roiGeometry, snapshotMeta) => {
+    const updated = await updateRoiGeometry(id, roiGeometry, snapshotMeta);
     setCamera((prev) => ({
       ...prev,
       roiGeometry: updated.roiGeometry || roiGeometry,
     }));
+    setCompareMode(false);
+    setLiveSnapshot(null);
     showNotification("Cấu hình vùng giám sát (ROI) đã được lưu thành công!");
   };
 
@@ -361,6 +480,13 @@ export default function CameraDetailPage() {
               <Video size={16} />
               <span>Cấu hình Stream</span>
             </button>
+            <button
+              className={`tab-btn ${activeTab === "surveillance" ? "tab-btn--active" : ""}`}
+              onClick={() => setActiveTab("surveillance")}
+            >
+              <Layers size={16} />
+              <span>Vùng Giám Sát</span>
+            </button>
           </div>
 
           <div className="tab-content">
@@ -451,11 +577,10 @@ export default function CameraDetailPage() {
 
             {/* STREAM TAB */}
             {activeTab === "stream" && (
-              <>
-                <form
-                  onSubmit={handleStreamSubmit}
-                  className="tab-form"
-                >
+              <form
+                onSubmit={handleStreamSubmit}
+                className="tab-form"
+              >
                 <div className="form-grid">
                   <div className="form-group">
                     <label>Địa chỉ IP/Host *</label>
@@ -547,11 +672,56 @@ export default function CameraDetailPage() {
                     />
                   </div>
                 </div>
-                <div className="form-actions">
+
+                {/* Test Connection Result Alert */}
+                {testResult && (
+                  <div
+                    className={`test-conn-alert ${testResult.success ? "test-conn-alert--success" : "test-conn-alert--error"}`}
+                  >
+                    {testResult.success ? (
+                      <CheckCircle2 size={18} className="text-emerald-400 shrink-0" />
+                    ) : (
+                      <XCircle size={18} className="text-rose-400 shrink-0" />
+                    )}
+                    <div className="test-conn-alert-content">
+                      <span>{testResult.message}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setTestResult(null)}
+                      className="test-conn-alert-close"
+                      title="Đóng"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
+
+                <div className="form-actions stream-form-actions">
+                  <button
+                    type="button"
+                    className="btn-test-stream"
+                    onClick={handleTestConnection}
+                    disabled={testingConnection || saving}
+                    title="Kiểm tra tín hiệu luồng RTSP mà không thay đổi trạng thái hoạt động"
+                  >
+                    {testingConnection ? (
+                      <>
+                        <Loader2 className="animate-spin" size={16} />
+                        <span>Đang thử kết nối...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Radio size={16} />
+                        <span>Thử kết nối</span>
+                      </>
+                    )}
+                  </button>
+
                   <button
                     type="submit"
                     className="btn-save"
-                    disabled={saving}
+                    disabled={saving || testingConnection}
                   >
                     {saving ? (
                       <Loader2
@@ -565,141 +735,344 @@ export default function CameraDetailPage() {
                   </button>
                 </div>
               </form>
+            )}
 
-              {/* ROI CONFIGURATION SECTION */}
-              <div className="roi-config-section">
-                <div className="roi-section-header">
-                  <div className="roi-section-info">
-                    <h4>
-                      <Layers size={18} color="#38bdf8" />
-                      Cấu hình vùng giám sát (ROI)
-                    </h4>
-                    <p>
-                      Kiểm tra luồng RTSP và chụp ảnh snapshot tức thời từ camera để khoanh các vùng quan sát (ROI) và gán quy tắc cảnh báo.
-                    </p>
-                  </div>
+            {/* SURVEILLANCE / ROI TAB */}
+            {activeTab === "surveillance" && (() => {
+              const rawRefUrl =
+                camera?.roiGeometry?.reference_snapshot_url ||
+                camera?.roiGeometry?.referenceSnapshotUrl;
+              const refUrl = formatImageUrl(rawRefUrl);
+              const refWidth =
+                camera?.roiGeometry?.reference_snapshot_width ||
+                camera?.roiGeometry?.referenceSnapshotWidth ||
+                1920;
+              const refHeight =
+                camera?.roiGeometry?.reference_snapshot_height ||
+                camera?.roiGeometry?.referenceSnapshotHeight ||
+                1080;
+              const refCapturedAt =
+                camera?.roiGeometry?.reference_captured_at ||
+                camera?.roiGeometry?.referenceCapturedAt;
+              const roiPolygons = camera?.roiGeometry?.polygons || [];
 
-                  <div className="roi-action-bar">
-                    <button
-                      type="button"
-                      className="btn-connect"
-                      onClick={handleConnectStream}
-                      disabled={connecting}
-                    >
-                      {connecting ? (
+              return (
+                <div className="roi-config-section">
+                  <div className="roi-section-header">
+                    <div className="roi-section-info">
+                      <h4>
+                        <Layers size={20} color="#38bdf8" />
+                        Vùng Giám Sát & Ảnh Tham Chiếu
+                      </h4>
+                      <p>
+                        Quản lý các vùng phát hiện xâm nhập (ROI). Ảnh chụp tham chiếu được lưu trữ bền vững trên MinIO để đối chiếu góc quan sát của camera và phát hiện lệch khung hình.
+                      </p>
+                    </div>
+
+                    <div className="roi-action-bar">
+                      <button
+                        type="button"
+                        className="btn-connect"
+                        onClick={handleCaptureNewSnapshot}
+                        disabled={connecting || refreshingLive}
+                        title="Kết nối camera qua RTSP và lấy khung hình mới để thiết lập hoặc thay thế ROI"
+                      >
+                        {connecting ? (
+                          <>
+                            <Loader2 className="animate-spin" size={16} />
+                            <span>Đang kết nối RTSP...</span>
+                          </>
+                        ) : (
+                          <>
+                            <CameraIcon size={16} />
+                            <span>Kết nối & Chụp mới</span>
+                          </>
+                        )}
+                      </button>
+
+                      {refUrl && (
                         <>
-                          <Loader2 className="animate-spin" size={16} />
-                          Đang kết nối RTSP...
-                        </>
-                      ) : (
-                        <>
-                          <Wifi size={16} />
-                          Kết nối & Chụp Snapshot
+                          <button
+                            type="button"
+                            className="btn-open-editor"
+                            onClick={handleEditCurrentRoi}
+                            disabled={connecting || refreshingLive}
+                            title="Chỉnh sửa các polygon ROI trên ảnh tham chiếu hiện tại"
+                          >
+                            <Scan size={16} />
+                            <span>Sửa vùng ROI</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            className={`btn-refresh-compare ${compareMode ? "btn-refresh-compare--active" : ""}`}
+                            onClick={handleRefreshForComparison}
+                            disabled={refreshingLive || connecting}
+                            title="Lấy khung hình thực tế hiện tại để so sánh xem camera có bị lệch góc quay không"
+                          >
+                            {refreshingLive ? (
+                              <>
+                                <Loader2 className="animate-spin" size={16} />
+                                <span>Đang đối chiếu...</span>
+                              </>
+                            ) : (
+                              <>
+                                <RefreshCw size={16} />
+                                <span>Đối chiếu góc quay</span>
+                              </>
+                            )}
+                          </button>
                         </>
                       )}
-                    </button>
-
-                    <button
-                      type="button"
-                      className="btn-open-editor"
-                      onClick={() => setRoiModalOpen(true)}
-                      disabled={!snapshotData?.snapshotBase64}
-                      title={!snapshotData?.snapshotBase64 ? "Hãy bấm 'Kết nối & Chụp Snapshot' trước khi mở ROI Editor" : ""}
-                    >
-                      <Scan size={16} />
-                      Mở ROI Editor
-                    </button>
+                    </div>
                   </div>
-                </div>
 
-                {/* Snapshot & Polygon Overlay Preview */}
-                <div className="roi-preview-container">
-                  {snapshotData?.snapshotBase64 ? (
-                    <>
-                      <div className="roi-preview-wrapper">
-                        <div className="roi-preview-stage">
-                          <img
-                            src={snapshotData.snapshotBase64}
-                            alt="Camera Snapshot Preview"
-                            className="roi-preview-img"
-                          />
-                          {/* SVG Overlay of Polygons */}
-                          {camera?.roiGeometry?.polygons && camera.roiGeometry.polygons.length > 0 && (
-                            <svg
-                              viewBox={`0 0 ${snapshotData.width || 1920} ${snapshotData.height || 1080}`}
-                              preserveAspectRatio="none"
-                              className="roi-preview-svg"
-                            >
-                              {camera.roiGeometry.polygons.map((poly, idx) => {
-                                const sw = snapshotData.width || 1920;
-                                const sh = snapshotData.height || 1080;
-                                const pts = (poly.vertices || [])
-                                  .map((v) => `${v.x * sw},${v.y * sh}`)
-                                  .join(" ");
-                                return (
-                                  <polygon
-                                    key={idx}
-                                    points={pts}
-                                    className="roi-preview-poly"
-                                  >
-                                    <title>{poly.label || `Vùng ${idx + 1}`}</title>
-                                  </polygon>
-                                );
-                              })}
-                            </svg>
-                          )}
+                  {/* Drift Warning Banner in Compare Mode */}
+                  {compareMode && liveSnapshot && (
+                    <div className="drift-warning-banner">
+                      <div className="drift-warning-icon">
+                        <AlertTriangle size={22} />
+                      </div>
+                      <div className="drift-warning-content">
+                        <h5>Kiểm Tra Độ Lệch Khung Hình Camera</h5>
+                        <p>
+                          Đối chiếu giữa <strong>Ảnh tham chiếu gốc (khi tạo ROI)</strong> và <strong>Khung hình thực tế hiện tại</strong>.
+                          Nếu camera bị xoay hoặc thay đổi góc quan sát, các polygon ROI có thể không còn khớp với thực tế.
+                        </p>
+                      </div>
+                      <div className="drift-warning-actions">
+                        <button
+                          type="button"
+                          className="btn-apply-drift-snapshot"
+                          onClick={handleApplyLiveSnapshotToRoi}
+                        >
+                          <CameraIcon size={15} />
+                          <span>Cập nhật ROI với khung hình mới</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-close-compare"
+                          onClick={() => {
+                            setCompareMode(false);
+                            setLiveSnapshot(null);
+                          }}
+                        >
+                          <X size={15} />
+                          <span>Đóng đối chiếu</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Dual Comparison Mode or Single Reference Preview */}
+                  {compareMode && liveSnapshot ? (
+                    <div className="roi-compare-grid">
+                      {/* Left: Reference Snapshot */}
+                      <div className="roi-compare-card">
+                        <div className="roi-compare-header">
+                          <div className="roi-compare-badge roi-compare-badge--ref">
+                            <span>Ảnh tham chiếu gốc (MinIO)</span>
+                          </div>
+                          <span className="roi-compare-time">
+                            {refCapturedAt
+                              ? new Date(refCapturedAt).toLocaleString("vi-VN")
+                              : "Gốc"}
+                          </span>
+                        </div>
+
+                        <div className="roi-preview-wrapper">
+                          <div className="roi-preview-stage">
+                            <img
+                              src={refUrl}
+                              alt="Reference Snapshot"
+                              className="roi-preview-img"
+                            />
+                            {roiPolygons.length > 0 && (
+                              <svg
+                                viewBox={`0 0 ${refWidth} ${refHeight}`}
+                                preserveAspectRatio="none"
+                                className="roi-preview-svg"
+                              >
+                                {roiPolygons.map((poly, idx) => {
+                                  const pts = (poly.vertices || [])
+                                    .map((v) => `${v.x * refWidth},${v.y * refHeight}`)
+                                    .join(" ");
+                                  return (
+                                    <polygon
+                                      key={idx}
+                                      points={pts}
+                                      className="roi-preview-poly roi-preview-poly--ref"
+                                    >
+                                      <title>{poly.label || `Vùng ${idx + 1}`}</title>
+                                    </polygon>
+                                  );
+                                })}
+                              </svg>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="roi-preview-meta">
+                          <span className="roi-meta-badge">
+                            Độ phân giải: {refWidth}x{refHeight}
+                          </span>
+                          <span>{roiPolygons.length} vùng ROI đã lưu</span>
                         </div>
                       </div>
-                      <div className="roi-preview-meta">
-                        <span className="roi-meta-badge">
-                          <Wifi size={14} /> Trực tiếp từ RTSP ({snapshotData.width || 1920}x{snapshotData.height || 1080})
-                        </span>
-                        <span>Độ trễ: {snapshotData.latencyMs ? `${snapshotData.latencyMs}ms` : "N/A"}</span>
+
+                      {/* Right: Live Snapshot */}
+                      <div className="roi-compare-card">
+                        <div className="roi-compare-header">
+                          <div className="roi-compare-badge roi-compare-badge--live">
+                            <span className="pulse-dot" />
+                            <span>Khung hình trực tiếp (Vừa chụp)</span>
+                          </div>
+                          <span className="roi-compare-time">
+                            {liveSnapshot.latencyMs ? `${liveSnapshot.latencyMs}ms` : "Trực tiếp"}
+                          </span>
+                        </div>
+
+                        <div className="roi-preview-wrapper">
+                          <div className="roi-preview-stage">
+                            <img
+                              src={liveSnapshot.snapshotBase64}
+                              alt="Live Snapshot"
+                              className="roi-preview-img"
+                            />
+                            {roiPolygons.length > 0 && (
+                              <svg
+                                viewBox={`0 0 ${liveSnapshot.width || 1920} ${liveSnapshot.height || 1080}`}
+                                preserveAspectRatio="none"
+                                className="roi-preview-svg"
+                              >
+                                {roiPolygons.map((poly, idx) => {
+                                  const sw = liveSnapshot.width || 1920;
+                                  const sh = liveSnapshot.height || 1080;
+                                  const pts = (poly.vertices || [])
+                                    .map((v) => `${v.x * sw},${v.y * sh}`)
+                                    .join(" ");
+                                  return (
+                                    <polygon
+                                      key={idx}
+                                      points={pts}
+                                      className="roi-preview-poly roi-preview-poly--drift"
+                                    >
+                                      <title>{poly.label || `Vùng ${idx + 1}`}</title>
+                                    </polygon>
+                                  );
+                                })}
+                              </svg>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="roi-preview-meta">
+                          <span className="roi-meta-badge" style={{ color: "#34d399" }}>
+                            <Wifi size={14} /> RTSP ({liveSnapshot.width || 1920}x{liveSnapshot.height || 1080})
+                          </span>
+                          <span style={{ color: "#f59e0b", fontWeight: 600 }}>
+                            Kiểm tra góc quan sát có bị xê dịch
+                          </span>
+                        </div>
                       </div>
-                    </>
+                    </div>
                   ) : (
-                    <div className="roi-preview-placeholder">
-                      <Video size={40} />
-                      <p>
-                        Chưa có snapshot từ luồng. Bấm nút <strong>"Kết nối & Chụp Snapshot"</strong> để kiểm tra luồng RTSP camera và lấy khung hình mẫu.
-                      </p>
+                    /* Single Reference Preview */
+                    <div className="roi-preview-container">
+                      {refUrl ? (
+                        <>
+                          <div className="roi-preview-wrapper">
+                            <div className="roi-preview-stage">
+                              <img
+                                src={refUrl}
+                                alt="Camera ROI Reference Snapshot"
+                                className="roi-preview-img"
+                              />
+                              {roiPolygons.length > 0 && (
+                                <svg
+                                  viewBox={`0 0 ${refWidth} ${refHeight}`}
+                                  preserveAspectRatio="none"
+                                  className="roi-preview-svg"
+                                >
+                                  {roiPolygons.map((poly, idx) => {
+                                    const pts = (poly.vertices || [])
+                                      .map((v) => `${v.x * refWidth},${v.y * refHeight}`)
+                                      .join(" ");
+                                    return (
+                                      <polygon
+                                        key={idx}
+                                        points={pts}
+                                        className="roi-preview-poly"
+                                      >
+                                        <title>{poly.label || `Vùng ${idx + 1}`}</title>
+                                      </polygon>
+                                    );
+                                  })}
+                                </svg>
+                              )}
+                            </div>
+                          </div>
+                          <div className="roi-preview-meta">
+                            <span className="roi-meta-badge">
+                              <CheckCircle2 size={14} className="text-emerald-400" />
+                              Ảnh tham chiếu ROI ({refWidth}x{refHeight})
+                            </span>
+                            <span>
+                              Thời gian lưu:{" "}
+                              {refCapturedAt
+                                ? new Date(refCapturedAt).toLocaleString("vi-VN")
+                                : "Đã lưu trên MinIO"}
+                            </span>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="roi-preview-placeholder">
+                          <Layers size={44} />
+                          <p style={{ fontWeight: 600, fontSize: "1rem", color: "var(--theme-text-primary)" }}>
+                            Chưa cấu hình vùng giám sát
+                          </p>
+                          <p>
+                            Camera này chưa có ảnh tham chiếu và vùng ROI. Bấm nút{" "}
+                            <strong>"Kết nối & Chụp mới"</strong> để kết nối luồng RTSP và bắt đầu khoanh vùng giám sát an ninh.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Existing ROI Polygons Summary */}
+                  {roiPolygons.length > 0 && (
+                    <div className="roi-summary-section">
+                      <h5 style={{ fontSize: "0.875rem", fontWeight: 700, marginBottom: "0.5rem", color: "var(--theme-text-primary)" }}>
+                        Vùng giám sát hiện hành ({roiPolygons.length} vùng)
+                      </h5>
+                      <div className="roi-summary-list">
+                        {roiPolygons.map((poly, idx) => (
+                          <div key={idx} className="roi-summary-card">
+                            <div className="roi-summary-card-header">
+                              <div className="roi-summary-title">
+                                <span className="roi-summary-index">{idx + 1}</span>
+                                <span>{poly.label || `Vùng ${idx + 1}`}</span>
+                              </div>
+                              <span style={{ fontSize: "0.75rem", color: "var(--theme-text-muted)" }}>
+                                {poly.vertices ? poly.vertices.length : 0} đỉnh
+                              </span>
+                            </div>
+                            <div className="roi-rules-tags">
+                              {(poly.alert_rules || poly.alertRules || ["INTRUSION_DETECTION"]).map((rule, rIdx) => (
+                                <span key={rIdx} className="roi-badge-rule">
+                                  {rule}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
-
-                {/* Existing ROI Polygons Summary */}
-                {camera?.roiGeometry?.polygons && camera.roiGeometry.polygons.length > 0 && (
-                  <div>
-                    <h5 style={{ fontSize: "0.875rem", fontWeight: 700, marginBottom: "0.5rem", color: "var(--theme-text-primary)" }}>
-                      Vùng giám sát hiện hành ({camera.roiGeometry.polygons.length} vùng)
-                    </h5>
-                    <div className="roi-summary-list">
-                      {camera.roiGeometry.polygons.map((poly, idx) => (
-                        <div key={idx} className="roi-summary-card">
-                          <div className="roi-summary-card-header">
-                            <div className="roi-summary-title">
-                              <span className="roi-summary-index">{idx + 1}</span>
-                              <span>{poly.label || `Vùng ${idx + 1}`}</span>
-                            </div>
-                            <span style={{ fontSize: "0.75rem", color: "var(--theme-text-muted)" }}>
-                              {poly.vertices ? poly.vertices.length : 0} đỉnh
-                            </span>
-                          </div>
-                          <div className="roi-rules-tags">
-                            {(poly.alert_rules || poly.alertRules || ["INTRUSION_DETECTION"]).map((rule, rIdx) => (
-                              <span key={rIdx} className="roi-badge-rule">
-                                {rule}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
+              );
+            })()}
           </div>
         </div>
 
@@ -720,77 +1093,68 @@ export default function CameraDetailPage() {
                   className="animate-spin"
                   size={24}
                 />
+                <span>Đang tải nhật ký...</span>
               </div>
             ) : logs.length === 0 ? (
-              <div className="logs-empty">
-                Chưa có lịch sử kết nối của camera này.
-              </div>
+              <div className="empty-logs">Chưa có nhật ký kết nối nào.</div>
             ) : (
-              <>
-                <table className="logs-table">
-                  <thead>
-                    <tr>
-                      <th>Thời gian</th>
-                      <th>Trạng thái</th>
-                      <th>Độ trễ</th>
-                      <th>FPS</th>
-                      <th>Lỗi</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {logs.map((log) => (
-                      <tr key={log.id}>
-                        <td className="font-mono text-small">
+              <div className="logs-list">
+                {logs.map((log) => (
+                  <div
+                    key={log.id}
+                    className="log-item"
+                  >
+                    <div className="log-status-indicator">
+                      <span
+                        className={`status-dot ${log.status === "ONLINE" ? "status-dot--online" : "status-dot--offline"}`}
+                      />
+                    </div>
+                    <div className="log-content">
+                      <div className="log-row">
+                        <span className="log-status">{log.status}</span>
+                        <span className="log-time">
                           {new Date(log.checkedAt).toLocaleString("vi-VN")}
-                        </td>
-                        <td>
-                          <span
-                            className={`status-badge text-small op-badge-${log.status.toLowerCase()}`}
-                          >
-                            {log.status}
-                          </span>
-                        </td>
-                        <td>
-                          {log.latencyMs !== null ? `${log.latencyMs} ms` : "-"}
-                        </td>
-                        <td>{log.fps !== null ? `${log.fps} fps` : "-"}</td>
-                        <td
-                          className="text-red font-bold text-small"
-                          title={log.errorMessage}
-                        >
-                          {log.errorCode || "-"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-
-                {logTotalPages > 1 && (
-                  <div className="logs-pagination">
-                    <button
-                      onClick={() => setLogPage((p) => Math.max(0, p - 1))}
-                      disabled={logPage === 0}
-                      className="pagination-btn-small"
-                    >
-                      <ChevronLeft size={16} />
-                    </button>
-                    <span className="log-page-info">
-                      Trang {logPage + 1}/{logTotalPages}
-                    </span>
-                    <button
-                      onClick={() =>
-                        setLogPage((p) => Math.min(logTotalPages - 1, p + 1))
-                      }
-                      disabled={logPage === logTotalPages - 1}
-                      className="pagination-btn-small"
-                    >
-                      <ChevronRight size={16} />
-                    </button>
+                        </span>
+                      </div>
+                      {log.latencyMs !== null && log.latencyMs !== undefined && (
+                        <div className="log-meta">
+                          <span>Độ trễ: {log.latencyMs}ms</span>
+                          {log.fps && <span>FPS: {log.fps}</span>}
+                        </div>
+                      )}
+                      {log.errorMessage && (
+                        <div className="log-error">{log.errorMessage}</div>
+                      )}
+                    </div>
                   </div>
-                )}
-              </>
+                ))}
+              </div>
             )}
           </div>
+
+          {logTotalPages > 1 && (
+            <div className="logs-pagination">
+              <button
+                onClick={() => setLogPage((p) => Math.max(0, p - 1))}
+                disabled={logPage === 0}
+                className="btn-page"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <span className="page-indicator">
+                {logPage + 1} / {logTotalPages}
+              </span>
+              <button
+                onClick={() =>
+                  setLogPage((p) => Math.min(logTotalPages - 1, p + 1))
+                }
+                disabled={logPage >= logTotalPages - 1}
+                className="btn-page"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -798,9 +1162,9 @@ export default function CameraDetailPage() {
       <RoiEditorModal
         isOpen={roiModalOpen}
         onClose={() => setRoiModalOpen(false)}
-        snapshotBase64={snapshotData?.snapshotBase64}
-        snapshotWidth={snapshotData?.width || 1920}
-        snapshotHeight={snapshotData?.height || 1080}
+        snapshotBase64={activeSnapshotForModal?.data}
+        snapshotWidth={activeSnapshotForModal?.width || 1920}
+        snapshotHeight={activeSnapshotForModal?.height || 1080}
         initialRoiGeometry={camera?.roiGeometry}
         onSave={handleSaveRoi}
       />

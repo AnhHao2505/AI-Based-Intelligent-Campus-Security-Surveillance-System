@@ -1,6 +1,7 @@
 package com.fa26se040.icss.service;
 
 import com.fa26se040.icss.dto.camera.ConnectStreamResponse;
+import com.fa26se040.icss.dto.camera.TestConnectionResponse;
 import com.fa26se040.icss.entity.Camera;
 import com.fa26se040.icss.entity.CameraHealthLog;
 import com.fa26se040.icss.entity.CameraStreamConfiguration;
@@ -105,6 +106,64 @@ public class CameraSnapshotService {
         } catch (Exception e) {
             log.error("AI-service snapshot connection failed for camera [{}]: {}", cameraId, e.getMessage());
             throw new CameraException(CameraErrorCode.ERR_SNAPSHOT_001);
+        }
+    }
+
+    /**
+     * "Thử kết nối": Chỉ kiểm tra kết nối luồng RTSP qua AI-service.
+     * KHÔNG thay đổi operationalStatus, KHÔNG ghi health log, KHÔNG lưu snapshot.
+     */
+    @Transactional(readOnly = true)
+    public TestConnectionResponse testConnection(UUID cameraId) {
+        Camera camera = cameraRepository.findById(cameraId)
+                .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_CAM_002));
+
+        CameraStreamConfiguration config = streamConfigRepo.findByCameraId(cameraId)
+                .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_STREAM_001));
+
+        String rtspUrl = cameraService.buildRtspUrl(config);
+        if (rtspUrl == null || rtspUrl.isBlank()) {
+            throw new CameraException(CameraErrorCode.ERR_STREAM_001);
+        }
+
+        try {
+            String aiEndpoint = aiServiceUrl + "/api/v1/cameras/snapshot";
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            int timeout = (config.getTimeoutMs() != null && config.getTimeoutMs() > 0) ? config.getTimeoutMs() : 5000;
+            Map<String, Object> body = Map.of(
+                    "rtsp_url", rtspUrl,
+                    "timeout_ms", timeout
+            );
+
+            HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
+            Map<String, Object> response = restTemplate.postForObject(aiEndpoint, request, Map.class);
+
+            if (response == null || !Boolean.TRUE.equals(response.get("success"))) {
+                return TestConnectionResponse.builder()
+                        .success(false)
+                        .message("Không thể kết nối đến luồng RTSP của camera")
+                        .build();
+            }
+
+            Number latencyNumber = (Number) response.get("latency_ms");
+            Long latency = latencyNumber != null ? latencyNumber.longValue() : null;
+
+            return TestConnectionResponse.builder()
+                    .success(true)
+                    .latencyMs(latency)
+                    .message("Kết nối thành công tới luồng RTSP (Độ trễ: " + (latency != null ? latency + "ms" : "N/A") + ")")
+                    .build();
+
+        } catch (CameraException ce) {
+            throw ce;
+        } catch (Exception e) {
+            log.error("AI-service test connection failed for camera [{}]: {}", cameraId, e.getMessage());
+            return TestConnectionResponse.builder()
+                    .success(false)
+                    .message("Kiểm tra kết nối thất bại: " + e.getMessage())
+                    .build();
         }
     }
 }

@@ -53,6 +53,9 @@ class CameraServiceTest {
     @Mock
     private AesEncryptionUtil aesEncryptionUtil;
 
+    @Mock
+    private MinioStorageService minioStorageService;
+
     @InjectMocks
     private CameraService cameraService;
 
