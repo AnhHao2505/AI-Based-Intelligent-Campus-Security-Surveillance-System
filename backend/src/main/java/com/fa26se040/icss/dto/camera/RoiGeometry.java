@@ -1,5 +1,7 @@
 package com.fa26se040.icss.dto.camera;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -14,13 +16,21 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class RoiGeometry {
 
-    @JsonProperty("updated_at")
-    private OffsetDateTime updatedAt;
+    @JsonProperty("reference_snapshot_url")
+    private String referenceSnapshotUrl;
 
-    @JsonProperty("deleted_at")
-    private OffsetDateTime deletedAt;
+    @JsonProperty("reference_snapshot_width")
+    private Integer referenceSnapshotWidth;
+
+    @JsonProperty("reference_snapshot_height")
+    private Integer referenceSnapshotHeight;
+
+    @JsonProperty("reference_captured_at")
+    private OffsetDateTime referenceCapturedAt;
 
     private List<RoiPolygon> polygons;
 
@@ -28,6 +38,8 @@ public class RoiGeometry {
     @NoArgsConstructor
     @AllArgsConstructor
     @Builder
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class RoiPolygon {
         private String label;
 
@@ -40,6 +52,8 @@ public class RoiGeometry {
         @NoArgsConstructor
         @AllArgsConstructor
         @Builder
+        @JsonIgnoreProperties(ignoreUnknown = true)
+        @JsonInclude(JsonInclude.Include.NON_NULL)
         public static class Vertex {
             private BigDecimal x;
             private BigDecimal y;

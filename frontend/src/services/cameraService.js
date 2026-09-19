@@ -121,12 +121,24 @@ export function connectStream(cameraId) {
 }
 
 /**
- * Cập nhật ROI geometry cho camera
+ * Thử kết nối RTSP stream (không đổi trạng thái camera, không ghi health log)
  */
-export function updateRoiGeometry(cameraId, roiGeometry) {
+export function testConnection(cameraId) {
+  return request(`/api/cameras/${cameraId}/test-connection`, { method: 'POST' });
+}
+
+/**
+ * Cập nhật ROI geometry cho camera kèm ảnh reference snapshot nếu có
+ */
+export function updateRoiGeometry(cameraId, roiGeometry, { snapshotBase64, snapshotWidth, snapshotHeight } = {}) {
   return request(`/api/cameras/${cameraId}/roi`, {
     method: 'PUT',
-    body: JSON.stringify({ roiGeometry }),
+    body: JSON.stringify({
+      roiGeometry,
+      snapshot_base64: snapshotBase64,
+      snapshot_width: snapshotWidth,
+      snapshot_height: snapshotHeight,
+    }),
   });
 }
 

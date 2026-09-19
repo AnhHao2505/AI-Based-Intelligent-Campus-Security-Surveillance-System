@@ -7,6 +7,7 @@ import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
 import io.minio.Result;
+import io.minio.SetBucketPolicyArgs;
 import io.minio.messages.Item;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,6 +18,7 @@ import jakarta.annotation.PostConstruct;
 import java.io.ByteArrayInputStream;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 
 @Service
@@ -35,11 +37,15 @@ public class MinioStorageService {
     @Value("${minio.bucket.evidence:security-evidence}")
     private String bucketEvidence;
 
+    @Value("${minio.bucket.snapshots:camera-snapshots}")
+    private String bucketSnapshots;
+
     @PostConstruct
     public void initBuckets() {
         try {
             ensureBucketExists(bucketFaces);
             ensureBucketExists(bucketEvidence);
+            ensureBucketExists(bucketSnapshots);
         } catch (Exception e) {
             log.warn("Could not verify/create MinIO buckets at startup (Endpoint: {}): {}", minioEndpoint, e.getMessage());
         }
@@ -50,6 +56,34 @@ public class MinioStorageService {
         if (!exists) {
             minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucketName).build());
             log.info("Created MinIO bucket: {}", bucketName);
+        }
+        setBucketPublicReadPolicy(bucketName);
+    }
+
+    private void setBucketPublicReadPolicy(String bucketName) {
+        String policyJson = String.format("""
+            {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Principal": {"AWS": ["*"]},
+                  "Action": ["s3:GetObject"],
+                  "Resource": ["arn:aws:s3:::%s/*"]
+                }
+              ]
+            }
+            """, bucketName);
+        try {
+            minioClient.setBucketPolicy(
+                    SetBucketPolicyArgs.builder()
+                            .bucket(bucketName)
+                            .config(policyJson)
+                            .build()
+            );
+            log.info("[MINIO] Set public read policy for bucket: {}", bucketName);
+        } catch (Exception e) {
+            log.warn("[MINIO] Could not set public read policy for bucket {}: {}", bucketName, e.getMessage());
         }
     }
 
@@ -148,6 +182,40 @@ public class MinioStorageService {
         } catch (Exception e) {
             log.error("[MINIO ERROR] Failed to upload security evidence: {}", e.getMessage(), e);
             return null;
+        }
+    }
+
+    /**
+     * Upload camera ROI reference snapshot into 'camera-snapshots' bucket:
+     * Path: camera-snapshots/{cameraCode}/roi_reference_{timestamp}.jpg
+     */
+    public String uploadRoiReferenceSnapshot(byte[] imageBytes, String cameraCode) {
+        if (imageBytes == null || imageBytes.length == 0) {
+            return null;
+        }
+
+        String timestamp = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss").format(OffsetDateTime.now());
+        String fileName = String.format("roi_reference_%s.jpg", timestamp);
+        String objectName = String.format("%s/%s", cameraCode, fileName);
+
+        try {
+            ensureBucketExists(bucketSnapshots);
+            ByteArrayInputStream inputStream = new ByteArrayInputStream(imageBytes);
+            minioClient.putObject(
+                    PutObjectArgs.builder()
+                            .bucket(bucketSnapshots)
+                            .object(objectName)
+                            .stream(inputStream, imageBytes.length, -1)
+                            .contentType("image/jpeg")
+                            .build()
+            );
+
+            String fileUrl = minioEndpoint + "/" + bucketSnapshots + "/" + objectName;
+            log.info("[MINIO] Uploaded ROI reference snapshot: {}", fileUrl);
+            return fileUrl;
+        } catch (Exception e) {
+            log.error("[MINIO ERROR] Failed to upload ROI reference snapshot for camera {}: {}", cameraCode, e.getMessage(), e);
+            throw new RuntimeException("Failed to upload snapshot to MinIO: " + e.getMessage(), e);
         }
     }
 }
