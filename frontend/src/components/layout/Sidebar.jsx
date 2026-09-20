@@ -17,7 +17,7 @@ import {
   Bell,
   ChevronLeft,
   ChevronRight,
-  CalendarClock
+  CalendarClock,
   Sliders
 } from 'lucide-react';
 import { ROLES, ROLE_LABELS } from '../../constants/roles';
@@ -228,15 +228,7 @@ export default function Sidebar({ user, onLogout }) {
                         <span>Cấu hình vùng (Zones)</span>
                       </NavLink>
 
-                      <NavLink
-                        to="/admin/area-cameras"
-                        className={({ isActive }) => `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`}
-                        title={sidebarCollapsed ? "Gán Camera – Khu vực" : undefined}
-                      >
-                        <Network size={18} />
-                        <span>Gán camera – khu vực</span>
-                      </NavLink>
-                    </> 
+                    </>
                   )}
                 </div>
               )}

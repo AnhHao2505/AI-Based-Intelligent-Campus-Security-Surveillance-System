@@ -1,22 +1,22 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Video, 
-  Search, 
-  Plus, 
-  ChevronLeft, 
-  ChevronRight, 
-  Power, 
-  PowerOff, 
-  Eye, 
-  Loader2 
+import {
+  Video,
+  Search,
+  Plus,
+  ChevronLeft,
+  ChevronRight,
+  Power,
+  PowerOff,
+  Eye,
+  Loader2
 } from 'lucide-react';
 import { fetchCameras, decommissionCamera, reactivateCamera } from '../../services/cameraService';
 import CameraCreateModal from '../../components/CameraCreateModal';
 import '../../styles/CameraListPage.css';
 
 const STATUS_LABELS = {
-  ACTIVE: 'Đang chạy',
+  ACTIVE: 'Đang hoạt động',
   DECOMMISSIONED: 'Đã tắt',
 };
 
@@ -31,7 +31,7 @@ export default function CameraListPage() {
   const [cameras, setCameras] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
+
   // Filters & Pagination state
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -39,7 +39,7 @@ export default function CameraListPage() {
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
-  
+
   // Modal state
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState(null);
@@ -215,8 +215,8 @@ export default function CameraListPage() {
                         </span>
                       </td>
                       <td className="text-right actions-cell">
-                        <button 
-                          className="btn-action btn-view" 
+                        <button
+                          className="btn-action btn-view"
                           onClick={() => navigate(`/cameras/${cam.id}`)}
                           title="Xem chi tiết & Cấu hình"
                         >

@@ -2300,3 +2300,330 @@
   color: #f87171;
 }
 
+/* Area Camera Modal Styles */
+.area-modal--medium {
+  max-width: 500px;
+}
+
+.area-camera-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  text-align: center;
+}
+
+.area-camera-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.area-camera-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--theme-bg-surface);
+  border: 1px solid var(--theme-border);
+  transition: all 0.15s ease;
+}
+
+.area-camera-item:hover {
+  background: var(--theme-bg-surface-elevated);
+  border-color: var(--theme-border-hover);
+}
+
+.area-camera-item__icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--brand-subtle);
+  color: var(--brand-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.area-camera-item__info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.area-camera-item__name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--theme-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.area-camera-item__code {
+  font-size: 11px;
+  color: var(--theme-text-muted);
+  font-family: ui-monospace, SFMono-Regular, monospace;
+}
+
+.area-camera-status-pill {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.area-camera-status-pill--online {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.area-camera-status-pill--offline {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* Notification Banners */
+.area-modal-notification {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  margin-bottom: 12px;
+  animation: modalSlideUp 0.2s ease;
+}
+
+.area-modal-notification--error {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #f87171;
+}
+
+.area-modal-notification--success {
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #34d399;
+}
+
+.area-modal-notification__icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.area-modal-notification__text {
+  flex: 1;
+}
+
+.area-modal-notification__close {
+  background: none;
+  border: none;
+  color: currentColor;
+  opacity: 0.7;
+  cursor: pointer;
+  padding: 2px;
+  margin-left: 4px;
+
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.area-modal-notification__close:hover {
+  opacity: 1;
+}
+
+/* Camera Tabs */
+.area-camera-tabs {
+  display: flex;
+  gap: 6px;
+  background: var(--theme-bg-surface-elevated);
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px solid var(--theme-border);
+  margin-bottom: 12px;
+}
+
+.area-camera-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--theme-text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.area-camera-tab:hover {
+  color: var(--theme-text-primary);
+}
+
+.area-camera-tab.is-active {
+  background: var(--theme-bg-surface);
+  color: var(--brand-text);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Camera Search Box */
+.area-camera-search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.area-camera-search-icon {
+  position: absolute;
+  left: 12px;
+  color: var(--theme-text-muted);
+  pointer-events: none;
+}
+
+.area-camera-search-input {
+  width: 100%;
+  padding: 8px 32px 8px 36px;
+  border-radius: 8px;
+  border: 1px solid var(--theme-border);
+  background: var(--theme-bg-surface);
+  color: var(--theme-text-primary);
+  font-size: 13px;
+  transition: all 0.15s ease;
+}
+
+.area-camera-search-input:focus {
+  outline: none;
+  border-color: var(--brand-blue);
+  box-shadow: 0 0 0 3px var(--brand-subtle);
+}
+
+.area-camera-search-clear {
+  position: absolute;
+  right: 10px;
+  background: none;
+  border: none;
+  color: var(--theme-text-muted);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.area-camera-search-clear:hover {
+  color: var(--theme-text-primary);
+}
+
+/* Item Actions Group */
+.area-camera-item__right-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.area-camera-item__remove-btn {
+  background: none;
+  border: 1px solid transparent;
+  color: var(--theme-text-muted);
+  padding: 5px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.area-camera-item__remove-btn:hover {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+/* Add Button */
+.area-camera-add-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--brand-blue);
+  background: var(--brand-subtle);
+  color: var(--brand-text);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.area-camera-add-btn:hover {
+  background: var(--brand-blue);
+  color: #ffffff;
+}
+
+.area-camera-add-btn--offline {
+  border-color: var(--theme-border);
+  background: var(--theme-bg-surface-elevated);
+  color: var(--theme-text-muted);
+}
+
+.area-camera-add-btn--offline:hover {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #ef4444;
+}
+
+.area-camera-item--disabled {
+  opacity: 0.75;
+}
+
+.area-camera-add-hint {
+  font-size: 11px;
+  color: var(--theme-text-muted);
+  background: var(--theme-bg-surface-elevated);
+  border: 1px solid var(--theme-border);
+  padding: 8px 12px;
+  border-radius: 6px;
+  margin-bottom: 10px;
+}
+
+.area-btn-add-shortcut {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: none;
+  background: var(--brand-blue);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.area-btn-add-shortcut:hover {
+  opacity: 0.9;
+}
+
+
+

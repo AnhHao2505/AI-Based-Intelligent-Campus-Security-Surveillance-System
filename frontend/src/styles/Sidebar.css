@@ -348,14 +348,10 @@
   padding: 6px;
   border-radius: 6px;
   cursor: pointer;
-  display: none; /* Chỉ hiển thị khi collapse sidebar */
+  display: flex;
   align-items: center;
   justify-content: center;
   transition: background-color 0.2s ease;
-}
-
-.sidebar--collapsed .sidebar__logout-btn {
-  display: flex;
 }
 
 .sidebar__logout-btn:hover {
