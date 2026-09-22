@@ -114,4 +114,46 @@ export async function updateAreaCameras(areaId, cameraIds) {
   return apiPut(`/api/areas/${areaId}/cameras`, { cameraIds });
 }
 
+/**
+ * Cập nhật quy tắc truy cập khu vực (FACILITY_MANAGER)
+ * PATCH /api/areas/{id}/access-rules
+ */
+export async function updateAreaAccessRules(areaId, data) {
+  return apiPatch(`/api/areas/${areaId}/access-rules`, data);
+}
+
+/**
+ * Lấy danh sách nhân sự được gán vào khu vực (FACILITY_MANAGER, ADMIN)
+ * GET /api/areas/{areaId}/assigned-personnel?status=
+ */
+export async function getAssignedPersonnel(areaId, status) {
+  const query = status ? `?status=${encodeURIComponent(status)}` : '';
+  return apiGet(`/api/areas/${areaId}/assigned-personnel${query}`);
+}
+
+/**
+ * Gán nhân sự vào khu vực (FACILITY_MANAGER)
+ * POST /api/areas/{areaId}/assigned-personnel
+ */
+export async function assignPersonnel(areaId, data) {
+  return apiPost(`/api/areas/${areaId}/assigned-personnel`, data);
+}
+
+/**
+ * Cập nhật thời hạn gán nhân sự (FACILITY_MANAGER)
+ * PATCH /api/areas/{areaId}/assigned-personnel/{id}
+ */
+export async function updateAssignedPersonnel(areaId, id, data) {
+  return apiPatch(`/api/areas/${areaId}/assigned-personnel/${id}`, data);
+}
+
+/**
+ * Thu hồi quyền gán nhân sự (FACILITY_MANAGER)
+ * PATCH /api/areas/{areaId}/assigned-personnel/{id}/revoke
+ */
+export async function revokeAssignedPersonnel(areaId, id, data) {
+  return apiPatch(`/api/areas/${areaId}/assigned-personnel/${id}/revoke`, data);
+}
+
+
 

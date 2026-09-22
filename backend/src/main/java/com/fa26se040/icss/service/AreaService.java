@@ -350,6 +350,8 @@ public class AreaService {
                 area.getCode(),
                 area.getName(),
                 area.getAreaLevel(),
+                area.getAreaAccessLevel(),
+                area.getExplicitAuthorizationRequired(),
                 area.getBuilding(),
                 area.getFloor(),
                 area.getIsActive(),

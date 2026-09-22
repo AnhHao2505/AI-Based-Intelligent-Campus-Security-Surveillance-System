@@ -201,4 +201,26 @@ export async function restoreImportBatch(batchId) {
   return apiPost(`/api/users/import-batches/${batchId}/restore`);
 }
 
+/**
+ * Tìm kiếm người dùng theo từ khoá (FACILITY_MANAGER, ADMIN)
+ * GET /api/users/search?q=&page=&size=
+ */
+export async function searchUsers(q, page = 0, size = 20) {
+  const query = new URLSearchParams({
+    q: q || '',
+    page: String(page),
+    size: String(size),
+  });
+  return apiGet(`/api/users/search?${query.toString()}`);
+}
+
+/**
+ * Cập nhật cấp độ truy cập của người dùng (FACILITY_MANAGER)
+ * PATCH /api/users/{id}/access-level
+ */
+export async function updateUserAccessLevel(id, accessLevel) {
+  return apiPatch(`/api/users/${id}/access-level`, { accessLevel });
+}
+
+
 

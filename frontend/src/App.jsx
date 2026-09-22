@@ -22,6 +22,7 @@ import ManageAccountPage from "./pages/accounts/ManageAccountPage";
 import SystemConfigPage from "./pages/system/SystemConfigPage";
 import UiKitPage from "./pages/_devPreview/UiKitPage";
 import GuardScheduleManagementPage from "./pages/admin/GuardScheduleManagementPage";
+import UserAccessLevelPage from "./pages/accessControl/UserAccessLevelPage";
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
 
@@ -222,6 +223,15 @@ function App() {
 								element={
 									<ProtectedRoute allowedRoles={[ROLES.FACILITY_MANAGER]}>
 										<AccessRequestReviewPage />
+									</ProtectedRoute>
+								}
+							/>
+
+							<Route
+								path="/fm/access-levels"
+								element={
+									<ProtectedRoute allowedRoles={[ROLES.FACILITY_MANAGER]}>
+										<UserAccessLevelPage />
 									</ProtectedRoute>
 								}
 							/>

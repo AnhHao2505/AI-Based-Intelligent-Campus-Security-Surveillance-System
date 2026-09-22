@@ -21,7 +21,11 @@ import {
   Search,
   AlertTriangle,
   CheckCircle2,
+  ShieldCheck,
+  Users,
 } from 'lucide-react';
+import AreaAccessRulesModal from '../../components/area/AreaAccessRulesModal';
+import AreaAssignedPersonnelModal from '../../components/area/AreaAssignedPersonnelModal';
 import {
   getAreas,
   getDependencies,
@@ -72,6 +76,7 @@ const AREA_LEVEL_CARDS = [
 export default function AreaListPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
+  const isFacilityManager = user?.role === 'FACILITY_MANAGER';
 
   const [searchParams, setSearchParams] = useSearchParams();
   const viewMode = searchParams.get('view') === 'list' ? 'list' : 'map';
@@ -127,6 +132,34 @@ export default function AreaListPage() {
   const [loadingAllCameras, setLoadingAllCameras] = useState(false);
   const [addingCameraId, setAddingCameraId] = useState(null);
   const [cameraNotification, setCameraNotification] = useState(null);
+
+  // Access rules modal states (Facility Manager)
+  const [accessRulesModalOpen, setAccessRulesModalOpen] = useState(false);
+  const [accessRulesModalArea, setAccessRulesModalArea] = useState(null);
+
+  const handleOpenAccessRulesModal = useCallback((area) => {
+    if (!area) return;
+    setAccessRulesModalArea(area);
+    setAccessRulesModalOpen(true);
+  }, []);
+
+  const handleAccessRulesSuccess = useCallback((updatedArea) => {
+    if (!updatedArea) return;
+    setAreas((prev) =>
+      prev.map((a) => (a.id === updatedArea.id ? { ...a, ...updatedArea } : a))
+    );
+    setAccessRulesModalArea((prev) => (prev?.id === updatedArea.id ? { ...prev, ...updatedArea } : prev));
+  }, []);
+
+  // Assigned personnel modal states (Facility Manager & Admin)
+  const [assignedPersonnelModalOpen, setAssignedPersonnelModalOpen] = useState(false);
+  const [assignedPersonnelModalArea, setAssignedPersonnelModalArea] = useState(null);
+
+  const handleOpenAssignedPersonnelModal = useCallback((area) => {
+    if (!area) return;
+    setAssignedPersonnelModalArea(area);
+    setAssignedPersonnelModalOpen(true);
+  }, []);
 
   const handleOpenCamerasModal = useCallback(async (area) => {
     if (!area) return;
@@ -1019,6 +1052,24 @@ export default function AreaListPage() {
                     </div>
 
                     <div className="zone-detail-meta-row">
+                      <span className="zone-detail-meta-label">Level vào tự do</span>
+                      <span className="zone-detail-meta-val">
+                        Level {selectedArea.areaAccessLevel ?? 1}
+                      </span>
+                    </div>
+
+                    <div className="zone-detail-meta-row">
+                      <span className="zone-detail-meta-label">Chế độ vào</span>
+                      <span className="zone-detail-meta-val">
+                        {selectedArea.explicitAuthorizationRequired ? (
+                          <span className="zone-pill-explicit">Chỉ định đích danh</span>
+                        ) : (
+                          <span className="zone-pill-standard">Vào theo cấp độ</span>
+                        )}
+                      </span>
+                    </div>
+
+                    <div className="zone-detail-meta-row">
                       <span className="zone-detail-meta-label">Vị trí</span>
                       <span className="zone-detail-meta-val">
                         Tòa {selectedArea.building || '—'}, Tầng {selectedArea.floor || '—'}
@@ -1037,6 +1088,28 @@ export default function AreaListPage() {
 
                   {/* Actions */}
                   <div className="zone-detail-actions">
+                    <button
+                      type="button"
+                      className="zone-btn-action"
+                      onClick={() => handleOpenAssignedPersonnelModal(selectedArea)}
+                      title="Xem và quản lý nhân sự chỉ định cố định"
+                    >
+                      <Users size={14} />
+                      <span>Nhân sự gán</span>
+                    </button>
+
+                    {isFacilityManager && (
+                      <button
+                        type="button"
+                        className="zone-btn-action zone-btn-action--primary"
+                        onClick={() => handleOpenAccessRulesModal(selectedArea)}
+                        title="Cấu hình quy tắc truy cập khu vực"
+                      >
+                        <ShieldCheck size={14} />
+                        <span>Quy tắc truy cập</span>
+                      </button>
+                    )}
+
                     {isAdmin && (
                       <button
                         type="button"
@@ -1135,9 +1208,19 @@ export default function AreaListPage() {
                     onClick={() => setSelectedAreaId(area.id)}
                   >
                     <div className="zone-card__header">
-                      <span className={`level-badge ${levelConfig.badgeClass}`}>
-                        {levelConfig.badgeLabel}
-                      </span>
+                      <div className="zone-card__badges">
+                        <span className={`level-badge ${levelConfig.badgeClass}`}>
+                          {levelConfig.badgeLabel}
+                        </span>
+                        <span className="zone-card__pill-level" title="Cấp độ người dùng tối thiểu để vào tự do">
+                          Level {area.areaAccessLevel ?? 1}
+                        </span>
+                        {area.explicitAuthorizationRequired && (
+                          <span className="zone-card__pill-explicit" title="Yêu cầu chỉ định đích danh (cần được gán hoặc có đơn duyệt)">
+                            Đích danh
+                          </span>
+                        )}
+                      </div>
                       <span
                         className={`zone-card__status-dot ${area.isActive ? '' : 'zone-card__status-dot--inactive'}`}
                         title={area.isActive ? 'Active' : 'Inactive'}
@@ -1184,6 +1267,32 @@ export default function AreaListPage() {
                           title="Xem danh sách Camera gán"
                         >
                           <Cctv size={13} />
+                        </button>
+
+                        {isFacilityManager && (
+                          <button
+                            type="button"
+                            className="zone-card__quick-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenAccessRulesModal(area);
+                            }}
+                            title="Cấu hình quy tắc truy cập"
+                          >
+                            <ShieldCheck size={13} />
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          className="zone-card__quick-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenAssignedPersonnelModal(area);
+                          }}
+                          title="Xem nhân sự chỉ định cố định"
+                        >
+                          <Users size={13} />
                         </button>
 
                         {isAdmin && (
@@ -1704,17 +1813,19 @@ export default function AreaListPage() {
                   <Cctv size={14} />
                   <span>Đã gán ({areaCamerasList.length})</span>
                 </button>
-                <button
-                  type="button"
-                  className={`area-camera-tab ${activeCameraTab === 'add' ? 'is-active' : ''}`}
-                  onClick={() => {
-                    setActiveCameraTab('add');
-                    setCameraNotification(null);
-                  }}
-                >
-                  <Plus size={14} />
-                  <span>Thêm camera mới</span>
-                </button>
+                {isAdmin && (
+                  <button
+                    type="button"
+                    className={`area-camera-tab ${activeCameraTab === 'add' ? 'is-active' : ''}`}
+                    onClick={() => {
+                      setActiveCameraTab('add');
+                      setCameraNotification(null);
+                    }}
+                  >
+                    <Plus size={14} />
+                    <span>Thêm camera mới</span>
+                  </button>
+                )}
               </div>
 
               {/* Search Bar */}
@@ -1892,6 +2003,22 @@ export default function AreaListPage() {
           </div>
         </div>
       )}
+
+      {/* Area Access Rules Modal (FM only) */}
+      <AreaAccessRulesModal
+        isOpen={accessRulesModalOpen}
+        onClose={() => setAccessRulesModalOpen(false)}
+        area={accessRulesModalArea}
+        onSuccess={handleAccessRulesSuccess}
+      />
+
+      {/* Area Assigned Personnel Modal (FM & ADMIN) */}
+      <AreaAssignedPersonnelModal
+        isOpen={assignedPersonnelModalOpen}
+        onClose={() => setAssignedPersonnelModalOpen(false)}
+        area={assignedPersonnelModalArea}
+        isFacilityManager={isFacilityManager}
+      />
     </div>
   );
 }

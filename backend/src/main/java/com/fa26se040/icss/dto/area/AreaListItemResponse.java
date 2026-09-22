@@ -8,6 +8,8 @@ public record AreaListItemResponse(
     String code,
     String name,
     AreaLevel areaLevel,
+    Integer areaAccessLevel,
+    Boolean explicitAuthorizationRequired,
     String building,
     String floor,
     Boolean isActive,
