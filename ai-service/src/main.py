@@ -69,24 +69,44 @@ async def health_check():
 class ROIConfigRequest(BaseModel):
     camera_code: str
     loitering_threshold_seconds: int = 10
-    roi_polygon: List[Dict[str, float]] # [{"x": 100, "y": 200}, ...]
+    roi_polygon: Optional[List[Dict[str, float]]] = None # Legacy: [{"x": 100, "y": 200}, ...]
+    polygons: Optional[List[Dict[str, Any]]] = None # Normalized multi-polygons
+    reference_width: Optional[int] = 1920
+    reference_height: Optional[int] = 1080
 
 @app.post("/api/v1/cameras/configure")
 async def configure_camera(req: ROIConfigRequest):
     global default_pipeline
     if not default_pipeline:
         raise HTTPException(status_code=500, detail="Pipeline chưa sẵn sàng.")
-    
-    polygon_points = [Point(p["x"], p["y"]) for p in req.roi_polygon]
+
+    polygons_to_set = []
+    if req.polygons:
+        polygons_to_set = req.polygons
+    elif req.roi_polygon:
+        polygons_to_set = [{
+            "label": "Vùng ROI",
+            "alert_rules": ["ENTRY_EXIT_TRACKING", "LOITERING"],
+            "vertices": req.roi_polygon
+        }]
+
+    # Cập nhật pipeline mặc định
     default_pipeline.camera_code = req.camera_code
     default_pipeline.loitering_threshold_seconds = req.loitering_threshold_seconds
-    default_pipeline.set_roi_polygon(polygon_points)
-    
+    default_pipeline.set_roi_config(polygons_to_set)
+
+    # Cập nhật real-time cho Stream Worker đang chạy của camera này nếu có
+    worker_updated = False
+    if req.camera_code in active_workers:
+        active_workers[req.camera_code].update_roi(polygons_to_set, req.loitering_threshold_seconds)
+        worker_updated = True
+
     return {
         "success": True,
         "camera_code": req.camera_code,
         "loitering_threshold_seconds": req.loitering_threshold_seconds,
-        "roi_points_count": len(polygon_points)
+        "polygons_count": len(polygons_to_set),
+        "worker_updated": worker_updated
     }
 
 @app.post("/api/v1/analyze-frame")
@@ -187,6 +207,7 @@ active_workers: Dict[str, CameraStreamWorker] = {}
 class StreamStartRequest(BaseModel):
     camera_code: str = "CAM-001"
     rtsp_url: str = "rtsp://localhost:8554/cam01"
+    roi_geometry: Optional[Dict[str, Any]] = None
 
 @app.post("/api/v1/stream/start")
 async def start_camera_stream(req: StreamStartRequest):
@@ -194,7 +215,11 @@ async def start_camera_stream(req: StreamStartRequest):
     if req.camera_code in active_workers and active_workers[req.camera_code].is_running:
         return {"status": "ALREADY_RUNNING", "camera_code": req.camera_code}
 
-    worker = CameraStreamWorker(camera_code=req.camera_code, rtsp_url=req.rtsp_url)
+    worker = CameraStreamWorker(
+        camera_code=req.camera_code,
+        rtsp_url=req.rtsp_url,
+        roi_geometry=req.roi_geometry
+    )
     worker.start()
     active_workers[req.camera_code] = worker
     return {"status": "STARTED", "camera_code": req.camera_code, "rtsp_url": req.rtsp_url}
