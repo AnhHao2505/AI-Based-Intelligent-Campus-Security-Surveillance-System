@@ -72,6 +72,7 @@ const AREA_LEVEL_CARDS = [
 export default function AreaListPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
+  const isFacilityManager = user?.role === 'FACILITY_MANAGER';
 
   const [searchParams, setSearchParams] = useSearchParams();
   const viewMode = searchParams.get('view') === 'list' ? 'list' : 'map';
@@ -1019,6 +1020,24 @@ export default function AreaListPage() {
                     </div>
 
                     <div className="zone-detail-meta-row">
+                      <span className="zone-detail-meta-label">Level vào tự do</span>
+                      <span className="zone-detail-meta-val">
+                        Level {selectedArea.areaAccessLevel ?? 1}
+                      </span>
+                    </div>
+
+                    <div className="zone-detail-meta-row">
+                      <span className="zone-detail-meta-label">Chế độ vào</span>
+                      <span className="zone-detail-meta-val">
+                        {selectedArea.explicitAuthorizationRequired ? (
+                          <span className="zone-pill-explicit">Chỉ định đích danh</span>
+                        ) : (
+                          <span className="zone-pill-standard">Vào theo cấp độ</span>
+                        )}
+                      </span>
+                    </div>
+
+                    <div className="zone-detail-meta-row">
                       <span className="zone-detail-meta-label">Vị trí</span>
                       <span className="zone-detail-meta-val">
                         Tòa {selectedArea.building || '—'}, Tầng {selectedArea.floor || '—'}
@@ -1135,9 +1154,19 @@ export default function AreaListPage() {
                     onClick={() => setSelectedAreaId(area.id)}
                   >
                     <div className="zone-card__header">
-                      <span className={`level-badge ${levelConfig.badgeClass}`}>
-                        {levelConfig.badgeLabel}
-                      </span>
+                      <div className="zone-card__badges">
+                        <span className={`level-badge ${levelConfig.badgeClass}`}>
+                          {levelConfig.badgeLabel}
+                        </span>
+                        <span className="zone-card__pill-level" title="Cấp độ người dùng tối thiểu để vào tự do">
+                          Level {area.areaAccessLevel ?? 1}
+                        </span>
+                        {area.explicitAuthorizationRequired && (
+                          <span className="zone-card__pill-explicit" title="Yêu cầu chỉ định đích danh (cần được gán hoặc có đơn duyệt)">
+                            Đích danh
+                          </span>
+                        )}
+                      </div>
                       <span
                         className={`zone-card__status-dot ${area.isActive ? '' : 'zone-card__status-dot--inactive'}`}
                         title={area.isActive ? 'Active' : 'Inactive'}
@@ -1704,17 +1733,19 @@ export default function AreaListPage() {
                   <Cctv size={14} />
                   <span>Đã gán ({areaCamerasList.length})</span>
                 </button>
-                <button
-                  type="button"
-                  className={`area-camera-tab ${activeCameraTab === 'add' ? 'is-active' : ''}`}
-                  onClick={() => {
-                    setActiveCameraTab('add');
-                    setCameraNotification(null);
-                  }}
-                >
-                  <Plus size={14} />
-                  <span>Thêm camera mới</span>
-                </button>
+                {isAdmin && (
+                  <button
+                    type="button"
+                    className={`area-camera-tab ${activeCameraTab === 'add' ? 'is-active' : ''}`}
+                    onClick={() => {
+                      setActiveCameraTab('add');
+                      setCameraNotification(null);
+                    }}
+                  >
+                    <Plus size={14} />
+                    <span>Thêm camera mới</span>
+                  </button>
+                )}
               </div>
 
               {/* Search Bar */}

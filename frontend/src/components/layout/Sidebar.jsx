@@ -19,6 +19,7 @@ import {
 	ChevronRight,
 	CalendarClock,
 	Sliders,
+	ShieldCheck,
 } from "lucide-react";
 import { ROLES, ROLE_LABELS } from "../../constants/roles";
 import { useTheme } from "../../context/ThemeContext";
@@ -228,6 +229,17 @@ export default function Sidebar({ user, onLogout }) {
 
 							{(isFacilityManager || isAdmin) && (
 								<div className="sidebar__section">
+									<NavLink
+										to="/admin/areas"
+										className={({ isActive }) =>
+											`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
+										}
+										title={sidebarCollapsed ? "Quản lý vùng" : undefined}
+									>
+										<MapPin size={18} />
+										<span>Quản lý vùng</span>
+									</NavLink>
+
 									{isFacilityManager && (
 										<>
 											<NavLink
@@ -269,6 +281,18 @@ export default function Sidebar({ user, onLogout }) {
 												<CalendarClock size={18} />
 												<span>Lịch trực Bảo vệ</span>
 											</NavLink>
+											<NavLink
+												to="/fm/access-levels"
+												className={({ isActive }) =>
+													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
+												}
+												title={
+													sidebarCollapsed ? "Phân quyền người dùng" : undefined
+												}
+											>
+												<ShieldCheck size={18} />
+												<span>Phân quyền người dùng</span>
+											</NavLink>
 										</>
 									)}
 
@@ -287,16 +311,6 @@ export default function Sidebar({ user, onLogout }) {
 												<span>Quản lý tài khoản</span>
 											</NavLink>
 
-											<NavLink
-												to="/admin/areas"
-												className={({ isActive }) =>
-													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
-												}
-												title={sidebarCollapsed ? "Quản lý vùng" : undefined}
-											>
-												<MapPin size={18} />
-												<span>Quản lý vùng</span>
-											</NavLink>
 											<div className="sidebar__section">
 												<NavLink
 													to="/admin/ai-settings"
