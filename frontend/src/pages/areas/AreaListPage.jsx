@@ -21,7 +21,9 @@ import {
   Search,
   AlertTriangle,
   CheckCircle2,
+  ShieldCheck,
 } from 'lucide-react';
+import AreaAccessRulesModal from '../../components/area/AreaAccessRulesModal';
 import {
   getAreas,
   getDependencies,
@@ -128,6 +130,24 @@ export default function AreaListPage() {
   const [loadingAllCameras, setLoadingAllCameras] = useState(false);
   const [addingCameraId, setAddingCameraId] = useState(null);
   const [cameraNotification, setCameraNotification] = useState(null);
+
+  // Access rules modal states (Facility Manager)
+  const [accessRulesModalOpen, setAccessRulesModalOpen] = useState(false);
+  const [accessRulesModalArea, setAccessRulesModalArea] = useState(null);
+
+  const handleOpenAccessRulesModal = useCallback((area) => {
+    if (!area) return;
+    setAccessRulesModalArea(area);
+    setAccessRulesModalOpen(true);
+  }, []);
+
+  const handleAccessRulesSuccess = useCallback((updatedArea) => {
+    if (!updatedArea) return;
+    setAreas((prev) =>
+      prev.map((a) => (a.id === updatedArea.id ? { ...a, ...updatedArea } : a))
+    );
+    setAccessRulesModalArea((prev) => (prev?.id === updatedArea.id ? { ...prev, ...updatedArea } : prev));
+  }, []);
 
   const handleOpenCamerasModal = useCallback(async (area) => {
     if (!area) return;
@@ -1056,6 +1076,18 @@ export default function AreaListPage() {
 
                   {/* Actions */}
                   <div className="zone-detail-actions">
+                    {isFacilityManager && (
+                      <button
+                        type="button"
+                        className="zone-btn-action zone-btn-action--primary"
+                        onClick={() => handleOpenAccessRulesModal(selectedArea)}
+                        title="Cấu hình quy tắc truy cập khu vực"
+                      >
+                        <ShieldCheck size={14} />
+                        <span>Quy tắc truy cập</span>
+                      </button>
+                    )}
+
                     {isAdmin && (
                       <button
                         type="button"
@@ -1214,6 +1246,20 @@ export default function AreaListPage() {
                         >
                           <Cctv size={13} />
                         </button>
+
+                        {isFacilityManager && (
+                          <button
+                            type="button"
+                            className="zone-card__quick-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenAccessRulesModal(area);
+                            }}
+                            title="Cấu hình quy tắc truy cập"
+                          >
+                            <ShieldCheck size={13} />
+                          </button>
+                        )}
 
                         {isAdmin && (
                           <>
@@ -1923,6 +1969,14 @@ export default function AreaListPage() {
           </div>
         </div>
       )}
+
+      {/* Area Access Rules Modal (FM only) */}
+      <AreaAccessRulesModal
+        isOpen={accessRulesModalOpen}
+        onClose={() => setAccessRulesModalOpen(false)}
+        area={accessRulesModalArea}
+        onSuccess={handleAccessRulesSuccess}
+      />
     </div>
   );
 }
