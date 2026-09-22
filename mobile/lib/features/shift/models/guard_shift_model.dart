@@ -93,6 +93,19 @@ class GuardShiftModel {
 
   String get shiftTimeRange => '$shortStartTime - $shortEndTime';
 
+  String get shiftTypeName {
+    switch (shiftType) {
+      case 'SHIFT_MORNING':
+        return 'Ca Sáng';
+      case 'SHIFT_AFTERNOON':
+        return 'Ca Chiều';
+      case 'SHIFT_NIGHT':
+        return 'Ca Đêm';
+      default:
+        return shiftType;
+    }
+  }
+
   String get shiftTypeLabel {
     switch (shiftType) {
       case 'SHIFT_MORNING':

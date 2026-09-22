@@ -28,7 +28,7 @@ class WeeklyDateBar extends StatelessWidget {
       shiftsByDate[s.shiftDate] = s;
     }
 
-    final weekRangeTitle = 'Tuần ${DateFormat('dd/MM').format(monday)} - ${DateFormat('dd/MM/yyyy').format(sunday)}';
+    final weekRangeTitle = 'Tuần ${DateFormat('dd/MM').format(monday)} - ${DateFormat('dd/MM').format(sunday)}';
 
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),

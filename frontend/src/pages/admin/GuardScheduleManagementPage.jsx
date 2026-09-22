@@ -87,7 +87,6 @@ export default function GuardScheduleManagementPage() {
   const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [showShiftModal, setShowShiftModal] = useState(false);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
-  const [showWarningModal, setShowWarningModal] = useState(false);
   const [editingShift, setEditingShift] = useState(null);
   const [generateResult, setGenerateResult] = useState(null);
 
@@ -96,10 +95,6 @@ export default function GuardScheduleManagementPage() {
     dayOfWeek: 2, // Monday
     guardId: '',
     shiftType: 'SHIFT_MORNING',
-    startTime: '06:00',
-    endTime: '14:00',
-    areaId: '',
-    radioChannel: 'Kênh 1 - Phòng Camera',
     building: 'CO_SO_HCM'
   });
 
@@ -265,45 +260,6 @@ export default function GuardScheduleManagementPage() {
   const todayAfternoonCount = todayShifts.filter((s) => s.shiftType === 'SHIFT_AFTERNOON').length;
   const todayNightCount = todayShifts.filter((s) => s.shiftType === 'SHIFT_NIGHT').length;
 
-  // Security Room Coverage Warnings
-  const missingSecurityRoomWarnings = useMemo(() => {
-    const warnings = [];
-    const shiftTypes = ['SHIFT_MORNING', 'SHIFT_AFTERNOON', 'SHIFT_NIGHT'];
-
-    weekDays.forEach((day) => {
-      const dateStr = formatLocalDate(day);
-      const dayShifts = shifts.filter((s) => s.shiftDate === dateStr);
-
-      shiftTypes.forEach((st) => {
-        const matching = dayShifts.filter((s) => s.shiftType === st);
-        if (matching.length > 0) {
-          const hasSecurityRoom = matching.some((s) => {
-            const name = (s.areaName || '').toLowerCase();
-            return (
-              name.includes('phòng bảo vệ') ||
-              name.includes('security room') ||
-              name.includes('camera') ||
-              name.includes('điều khiển')
-            );
-          });
-
-          if (!hasSecurityRoom) {
-            const label =
-              st === 'SHIFT_MORNING' ? 'Ca Sáng' : st === 'SHIFT_AFTERNOON' ? 'Ca Chiều' : 'Ca Đêm';
-            warnings.push(
-              `Ngày ${day.toLocaleDateString('vi-VN', {
-                day: '2-digit',
-                month: '2-digit'
-              })} - ${label}: Chưa có bảo vệ phân công trực phòng camera an ninh!`
-            );
-          }
-        }
-      });
-    });
-
-    return warnings;
-  }, [shifts, weekDays]);
-
   // Delete shift handler
   const handleDeleteShift = async (id) => {
     if (!window.confirm('Bạn có chắc chắn muốn xóa ca trực này?')) return;
@@ -333,10 +289,25 @@ export default function GuardScheduleManagementPage() {
   const handleCreateTemplate = async (e) => {
     e.preventDefault();
     try {
+      const type = newTemplate.shiftType || 'SHIFT_MORNING';
+      let s = '06:00';
+      let en = '14:00';
+      if (type === 'SHIFT_AFTERNOON') {
+        s = '14:00';
+        en = '22:00';
+      } else if (type === 'SHIFT_NIGHT') {
+        s = '22:00';
+        en = '06:00';
+      }
       await guardScheduleApi.createTemplate({
-        ...newTemplate,
+        dayOfWeek: newTemplate.dayOfWeek,
+        guardId: newTemplate.guardId,
+        shiftType: type,
+        startTime: s,
+        endTime: en,
         building: newTemplate.building === 'ALL' ? undefined : newTemplate.building,
-        areaId: newTemplate.areaId ? newTemplate.areaId : null
+        areaId: null,
+        radioChannel: null
       });
       fetchData();
       alert('Đã thêm mẫu ca trực thành công!');
@@ -394,14 +365,14 @@ export default function GuardScheduleManagementPage() {
         <div className="schedule-kpi-card">
           <div>
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              Quân Số Sẵn Sàng
+              Tổng Quân Số Bảo Vệ
             </span>
             <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">
               {totalGuardsCount} <span className="text-sm font-normal text-slate-500">nhân viên</span>
             </div>
             <div className="flex items-center gap-1.5 mt-2">
-              <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                <span className="live-pulse" /> Sẵn sàng trực
+              <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+                <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" /> Đang hoạt động
               </span>
             </div>
           </div>
@@ -448,49 +419,6 @@ export default function GuardScheduleManagementPage() {
           </div>
           <div className="schedule-kpi-icon-wrap kpi-icon-amber">
             <Clock size={22} />
-          </div>
-        </div>
-
-        {/* Card 4: Security Room Warning Status */}
-        <div
-          id="kpiCardSecurityRoom"
-          className={`schedule-kpi-card ${
-            missingSecurityRoomWarnings.length > 0
-              ? 'cursor-pointer border-amber-300 dark:border-amber-800/80 hover:border-amber-500 hover:shadow-md transition'
-              : ''
-          }`}
-          onClick={() => {
-            if (missingSecurityRoomWarnings.length > 0) setShowWarningModal(true);
-          }}
-          title={missingSecurityRoomWarnings.length > 0 ? 'Nhấn để xem chi tiết cảnh báo' : ''}
-        >
-          <div>
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              Độ Phủ Phòng Camera
-            </span>
-            <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">
-              {missingSecurityRoomWarnings.length === 0 ? (
-                <span className="text-emerald-600 dark:text-emerald-400 text-xl font-bold flex items-center gap-1">
-                  <CheckCircle2 size={20} /> 100% Đạt Chuẩn
-                </span>
-              ) : (
-                <span className="text-amber-600 dark:text-amber-400 text-xl font-bold flex items-center gap-1">
-                  <AlertTriangle size={20} /> {missingSecurityRoomWarnings.length} Cảnh Báo
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
-              {missingSecurityRoomWarnings.length === 0
-                ? 'Đầy đủ bảo vệ trực màn hình giám sát'
-                : 'Nhấn để xem chi tiết ca thiếu quân số'}
-            </p>
-          </div>
-          <div
-            className={`schedule-kpi-icon-wrap ${
-              missingSecurityRoomWarnings.length === 0 ? 'kpi-icon-emerald' : 'kpi-icon-amber'
-            }`}
-          >
-            <Shield size={22} />
           </div>
         </div>
       </div>
@@ -716,28 +644,9 @@ export default function GuardScheduleManagementPage() {
                                   <div className="flex items-center gap-1 mt-1 text-[11px] font-semibold opacity-90">
                                     <Clock size={11} />
                                     <span>
-                                      {shift.startTime} — {shift.endTime}
+                                      {(shift.startTime && shift.startTime.length >= 5 ? shift.startTime.substring(0, 5) : shift.startTime)} — {(shift.endTime && shift.endTime.length >= 5 ? shift.endTime.substring(0, 5) : shift.endTime)}
                                     </span>
                                   </div>
-
-                                  {/* Area */}
-                                  {shift.areaName && (
-                                    <div
-                                      className="flex items-center gap-1 mt-1 text-[11px] font-medium truncate"
-                                      title={shift.areaName}
-                                    >
-                                      <MapPin size={11} className="shrink-0" />
-                                      <span className="truncate">{shift.areaName}</span>
-                                    </div>
-                                  )}
-
-                                  {/* Radio */}
-                                  {shift.radioChannel && (
-                                    <div className="flex items-center gap-1 mt-0.5 text-[10px] opacity-80">
-                                      <Radio size={10} />
-                                      <span>{shift.radioChannel}</span>
-                                    </div>
-                                  )}
 
                                   {/* Status badge */}
                                   <div className="mt-1.5 pt-1 border-t border-black/10 flex items-center justify-between text-[10px]">
@@ -746,7 +655,11 @@ export default function GuardScheduleManagementPage() {
                                         <span className="live-pulse" /> Đang nhận ca
                                       </span>
                                     ) : shift.status === 'COMPLETED' ? (
-                                      <span className="opacity-75">Đã hoàn thành</span>
+                                      <span className="opacity-80 font-medium">Đã hoàn thành</span>
+                                    ) : shift.status === 'ABSENT' ? (
+                                      <span className="text-rose-600 dark:text-rose-400 font-bold">Vắng mặt</span>
+                                    ) : shift.status === 'CANCELLED' ? (
+                                      <span className="text-slate-500 font-medium line-through">Đã hủy</span>
                                     ) : (
                                       <span className="opacity-75">Đã lên lịch</span>
                                     )}
@@ -763,8 +676,7 @@ export default function GuardScheduleManagementPage() {
                                   shiftDate: dateStr,
                                   shiftType: 'SHIFT_MORNING',
                                   startTime: '06:00',
-                                  endTime: '14:00',
-                                  radioChannel: 'Kênh 1 - Phòng Camera'
+                                  endTime: '14:00'
                                 });
                                 setShowShiftModal(true);
                               }}
@@ -830,16 +742,27 @@ export default function GuardScheduleManagementPage() {
               onSubmit={async (e) => {
                 e.preventDefault();
                 const form = e.target;
+                const shiftType = form.shiftType.value;
+                let startTime = '06:00';
+                let endTime = '14:00';
+                if (shiftType === 'SHIFT_AFTERNOON') {
+                  startTime = '14:00';
+                  endTime = '22:00';
+                } else if (shiftType === 'SHIFT_NIGHT') {
+                  startTime = '22:00';
+                  endTime = '06:00';
+                }
+
                 const payload = {
                   guardId: form.guardId.value,
                   shiftDate: form.shiftDate.value,
-                  shiftType: form.shiftType.value,
-                  startTime: form.startTime.value,
-                  endTime: form.endTime.value,
-                  areaId: form.areaId.value ? form.areaId.value : null,
-                  radioChannel: form.radioChannel.value,
-                  notes: form.notes.value,
-                  status: form.status ? form.status.value : 'SCHEDULED'
+                  shiftType: shiftType,
+                  startTime: startTime,
+                  endTime: endTime,
+                  areaId: null,
+                  radioChannel: null,
+                  notes: form.notes ? form.notes.value : '',
+                  status: form.status ? form.status.value : (editingShift?.status || 'SCHEDULED')
                 };
 
                 try {
@@ -899,21 +822,6 @@ export default function GuardScheduleManagementPage() {
                     <select
                       name="shiftType"
                       defaultValue={editingShift ? editingShift.shiftType : 'SHIFT_MORNING'}
-                      onChange={(e) => {
-                        const type = e.target.value;
-                        const sInput = document.getElementById('startTimeInput');
-                        const eInput = document.getElementById('endTimeInput');
-                        if (type === 'SHIFT_MORNING') {
-                          if (sInput) sInput.value = '06:00';
-                          if (eInput) eInput.value = '14:00';
-                        } else if (type === 'SHIFT_AFTERNOON') {
-                          if (sInput) sInput.value = '14:00';
-                          if (eInput) eInput.value = '22:00';
-                        } else if (type === 'SHIFT_NIGHT') {
-                          if (sInput) sInput.value = '22:00';
-                          if (eInput) eInput.value = '06:00';
-                        }
-                      }}
                       className="schedule-form-select"
                     >
                       <option value="SHIFT_MORNING">Ca Sáng (06:00 - 14:00)</option>
@@ -923,99 +831,21 @@ export default function GuardScheduleManagementPage() {
                   </div>
                 </div>
 
-                <div className="schedule-form-row">
+                {editingShift && editingShift.id && (
                   <div className="schedule-form-group">
                     <label className="schedule-form-label">
-                      <span>Giờ Bắt Đầu</span>
-                      <span className="required">*</span>
+                      <span>Trạng Thái Điểm Danh</span>
                     </label>
-                    <input
-                      type="time"
-                      id="startTimeInput"
-                      name="startTime"
-                      defaultValue={editingShift ? editingShift.startTime : '06:00'}
-                      required
-                      className="schedule-form-input"
-                    />
-                  </div>
-
-                  <div className="schedule-form-group">
-                    <label className="schedule-form-label">
-                      <span>Giờ Kết Thúc</span>
-                      <span className="required">*</span>
-                    </label>
-                    <input
-                      type="time"
-                      id="endTimeInput"
-                      name="endTime"
-                      defaultValue={editingShift ? editingShift.endTime : '14:00'}
-                      required
-                      className="schedule-form-input"
-                    />
-                  </div>
-                </div>
-
-                <div className="schedule-form-group">
-                  <label className="schedule-form-label">
-                    <span>Chốt Trực Phân Công (Khu Vực)</span>
-                  </label>
-                  <select
-                    name="areaId"
-                    defaultValue={editingShift ? editingShift.areaId : ''}
-                    className="schedule-form-select"
-                  >
-                    <option value="">-- Chưa gán chốt (Tuần tra cơ động) --</option>
-                    {areas.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.name} ({a.building || 'Khuôn viên FPT TP.HCM'})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {editingShift && editingShift.id ? (
-                  <div className="schedule-form-row">
-                    <div className="schedule-form-group">
-                      <label className="schedule-form-label">
-                        <span>Kênh Bộ Đàm</span>
-                      </label>
-                      <input
-                        type="text"
-                        name="radioChannel"
-                        defaultValue={editingShift.radioChannel || 'Kênh 1 - Phòng Camera'}
-                        placeholder="Kênh 1 - Phòng Camera"
-                        className="schedule-form-input"
-                      />
-                    </div>
-
-                    <div className="schedule-form-group">
-                      <label className="schedule-form-label">
-                        <span>Trạng Thái Điểm Danh</span>
-                      </label>
-                      <select
-                        name="status"
-                        defaultValue={editingShift.status}
-                        className="schedule-form-select"
-                      >
-                        <option value="SCHEDULED">SCHEDULED (Lên lịch)</option>
-                        <option value="CHECKED_IN">CHECKED_IN (Đang trực)</option>
-                        <option value="COMPLETED">COMPLETED (Hoàn thành)</option>
-                        <option value="ABSENT">ABSENT (Vắng mặt)</option>
-                      </select>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="schedule-form-group">
-                    <label className="schedule-form-label">
-                      <span>Kênh Bộ Đàm</span>
-                    </label>
-                    <input
-                      type="text"
-                      name="radioChannel"
-                      defaultValue="Kênh 1 - Phòng Camera"
-                      placeholder="Kênh 1 - Phòng Camera"
-                      className="schedule-form-input"
-                    />
+                    <select
+                      name="status"
+                      defaultValue={editingShift.status}
+                      className="schedule-form-select"
+                    >
+                      <option value="SCHEDULED">SCHEDULED (Lên lịch)</option>
+                      <option value="CHECKED_IN">CHECKED_IN (Đang trực)</option>
+                      <option value="COMPLETED">COMPLETED (Hoàn thành)</option>
+                      <option value="ABSENT">ABSENT (Vắng mặt)</option>
+                    </select>
                   </div>
                 )}
 
@@ -1319,64 +1149,18 @@ export default function GuardScheduleManagementPage() {
                     </label>
                     <select
                       value={newTemplate.shiftType}
-                      onChange={(e) => {
-                        const type = e.target.value;
-                        let s = '06:00';
-                        let en = '14:00';
-                        if (type === 'SHIFT_AFTERNOON') {
-                          s = '14:00';
-                          en = '22:00';
-                        }
-                        if (type === 'SHIFT_NIGHT') {
-                          s = '22:00';
-                          en = '06:00';
-                        }
+                      onChange={(e) =>
                         setNewTemplate({
                           ...newTemplate,
-                          shiftType: type,
-                          startTime: s,
-                          endTime: en
-                        });
-                      }}
+                          shiftType: e.target.value
+                        })
+                      }
                       className="schedule-form-select"
                     >
                       <option value="SHIFT_MORNING">Ca Sáng (06:00 - 14:00)</option>
                       <option value="SHIFT_AFTERNOON">Ca Chiều (14:00 - 22:00)</option>
                       <option value="SHIFT_NIGHT">Ca Đêm (22:00 - 06:00)</option>
                     </select>
-                  </div>
-                </div>
-
-                <div className="schedule-form-row">
-                  <div className="schedule-form-group">
-                    <label className="schedule-form-label">
-                      <span>Chốt Gác Phân Công</span>
-                    </label>
-                    <select
-                      value={newTemplate.areaId}
-                      onChange={(e) => setNewTemplate({ ...newTemplate, areaId: e.target.value })}
-                      className="schedule-form-select"
-                    >
-                      <option value="">-- Chưa gán chốt (Cơ động) --</option>
-                      {areas.map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {a.name} ({a.building || 'Khuôn viên FPT TP.HCM'})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="schedule-form-group">
-                    <label className="schedule-form-label">
-                      <span>Kênh Bộ Đàm</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={newTemplate.radioChannel}
-                      onChange={(e) => setNewTemplate({ ...newTemplate, radioChannel: e.target.value })}
-                      placeholder="Kênh 1 - Phòng Camera"
-                      className="schedule-form-input"
-                    />
                   </div>
                 </div>
 
@@ -1420,15 +1204,6 @@ export default function GuardScheduleManagementPage() {
                             <Clock size={12} /> {t.startTime} - {t.endTime}
                           </span>
                         </div>
-                        <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
-                          <span className="flex items-center gap-1">
-                            <MapPin size={12} /> {t.areaName || 'Chưa gán chốt'}
-                          </span>
-                          <span>•</span>
-                          <span className="flex items-center gap-1">
-                            <Radio size={12} /> {t.radioChannel || '—'}
-                          </span>
-                        </div>
                       </div>
                       <button
                         type="button"
@@ -1456,74 +1231,6 @@ export default function GuardScheduleManagementPage() {
                 className="schedule-btn-modal schedule-btn-modal--cancel"
               >
                 Đóng
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================
-          MODAL: SECURITY ROOM WARNING DETAILS
-      ======================================================== */}
-      {showWarningModal && (
-        <div
-          className="schedule-modal-backdrop"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setShowWarningModal(false);
-            }
-          }}
-        >
-          <div className="schedule-modal schedule-modal--md">
-            <div className="schedule-modal__header">
-              <div className="schedule-modal__header-left">
-                <div className="schedule-modal__icon-badge schedule-modal__icon-badge--warning">
-                  <AlertTriangle size={18} />
-                </div>
-                <div className="schedule-modal__header-text">
-                  <h3 className="schedule-modal__title text-amber-600 dark:text-amber-400">
-                    Cảnh Báo Quân Số Phòng Camera ({missingSecurityRoomWarnings.length})
-                  </h3>
-                  <p className="schedule-modal__subtitle">
-                    Phát hiện ca trực an ninh chưa có nhân sự trực phòng camera
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="schedule-modal__close-btn"
-                onClick={() => setShowWarningModal(false)}
-                aria-label="Đóng"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="schedule-modal__body">
-              <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 rounded-xl text-amber-800 dark:text-amber-200 text-xs font-medium leading-relaxed">
-                Phát hiện {missingSecurityRoomWarnings.length} ca trực trong tuần chưa có bảo vệ phụ trách phòng camera điều khiển. Vui lòng phân công bổ sung bảo vệ cho các ca này để đảm bảo an ninh khuôn viên 24/7.
-              </div>
-
-              <div className="space-y-2 text-xs">
-                {missingSecurityRoomWarnings.map((warning, idx) => (
-                  <div
-                    key={idx}
-                    className="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 flex items-start gap-2.5 text-slate-700 dark:text-slate-200"
-                  >
-                    <AlertTriangle size={15} className="text-amber-500 shrink-0 mt-0.5" />
-                    <span className="font-medium">{warning}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="schedule-modal__footer">
-              <button
-                type="button"
-                onClick={() => setShowWarningModal(false)}
-                className="schedule-btn-modal schedule-btn-modal--cancel"
-              >
-                Đã hiểu & Đóng
               </button>
             </div>
           </div>
