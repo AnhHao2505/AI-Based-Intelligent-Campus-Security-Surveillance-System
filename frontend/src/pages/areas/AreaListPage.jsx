@@ -202,17 +202,7 @@ export default function AreaListPage() {
     if (!camerasModalArea || !cam) return;
     setCameraNotification(null);
 
-    // CRITICAL REQUIREMENT: Only cameras with ONLINE status can be added
-    const opStatus = (cam.operationalStatus || cam.status || '').toUpperCase();
-    const isOnline = opStatus === 'ONLINE' || opStatus === 'ACTIVE';
-
-    if (!isOnline) {
-      setCameraNotification({
-        type: 'error',
-        message: `⚠️ Không thể gán! Chỉ camera có trạng thái Hoạt động (ONLINE) mới được phép gán vào khu vực. Camera "${cam.name || cam.cameraCode}" hiện đang ở trạng thái "${opStatus || 'OFFLINE'}".`,
-      });
-      return;
-    }
+    // Note: Allow assigning both ONLINE and OFFLINE active cameras to area
 
     setAddingCameraId(cam.id);
     try {
@@ -1851,7 +1841,7 @@ export default function AreaListPage() {
                         return (
                           <div
                             key={cam.id || cam.cameraCode}
-                            className={`area-camera-item ${!isOnline ? 'area-camera-item--disabled' : ''}`}
+                            className="area-camera-item"
                           >
                             <div className="area-camera-item__icon">
                               <Cctv size={16} />
@@ -1867,10 +1857,10 @@ export default function AreaListPage() {
 
                               <button
                                 type="button"
-                                className={`area-camera-add-btn ${!isOnline ? 'area-camera-add-btn--offline' : ''}`}
+                                className="area-camera-add-btn"
                                 onClick={() => handleAddCameraToArea(cam)}
                                 disabled={isAdding}
-                                title={isOnline ? 'Thêm camera này vào khu vực' : 'Camera đang OFFLINE - Không thể gán'}
+                                title="Thêm camera này vào khu vực"
                               >
                                 {isAdding ? (
                                   <Loader2 size={13} className="spin-icon" />

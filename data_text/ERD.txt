@@ -62,7 +62,7 @@ Table cameras {
   camera_code VARCHAR(50) [not null, unique, note: 'CAM-001']
   name VARCHAR(100) [not null, note: 'Tên camera']
   status VARCHAR(50) [not null, note: 'ACTIVE | DECOMMISSIONED']
-  operational_status VARCHAR(50) [not null, note: 'ONLINE | OFFLINE | ERROR']
+  operational_status VARCHAR(50) [not null, note: 'ONLINE | OFFLINE']
   installed_at TIMESTAMPTZ
   created_at TIMESTAMPTZ [default: `CURRENT_TIMESTAMP`]
   updated_at TIMESTAMPTZ [default: `CURRENT_TIMESTAMP`]

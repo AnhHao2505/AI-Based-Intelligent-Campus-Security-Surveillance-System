@@ -5,7 +5,7 @@ import numpy as np
 from typing import List, Optional, Tuple, Dict, Any
 
 from ..config import settings
-from ..core.entity import Point, TrackedPerson, SecurityAlertEvent
+from ..core.entity import Point, TrackedPerson, SecurityAlertEvent, RoiPolygonConfig
 from ..core.human_detector import HumanDetector
 from ..core.face_detector import FaceDetector
 from ..core.face_matcher import FaceMatcher
@@ -33,34 +33,71 @@ class VideoPipeline:
         loitering_threshold_seconds: int = 10,
         conf_threshold: float = 0.5,
         model_yolo_path: Optional[str] = None,
-        model_yunet_path: Optional[str] = None
+        model_yunet_path: Optional[str] = None,
+        roi_polygons: Optional[List[Any]] = None
     ):
         self.camera_code = camera_code
         self.roi_polygon = roi_polygon or []
+        self.roi_polygons: List[RoiPolygonConfig] = []
         self.loitering_threshold_seconds = loitering_threshold_seconds
-        
+
+        if roi_polygons:
+            self.set_roi_config(roi_polygons)
+        elif self.roi_polygon:
+            self.set_roi_polygon(self.roi_polygon)
+
         # Khởi tạo các module core
         yolo_path = model_yolo_path or settings.MODEL_YOLO_PATH
         yunet_path = model_yunet_path or settings.MODEL_YUNET_PATH
-        
+
         logger.info(f"Khởi tạo VideoPipeline cho Camera [{camera_code}]...")
         self.human_detector = HumanDetector(model_path=yolo_path, conf_threshold=conf_threshold)
         self.face_detector = FaceDetector(model_path=yunet_path, score_threshold=settings.DEFAULT_FACE_CONFIDENCE)
         self.face_matcher = FaceMatcher()
         self.loitering_engine = LoiteringEngine(loitering_threshold_seconds=loitering_threshold_seconds)
-        
+
         # Khởi tạo các module tích hợp
         self.kafka_producer = SecurityKafkaProducer()
         self.storage_service = StorageService()
         self.visualizer = FrameVisualizer()
-        
+
         # Thống kê hiệu năng
         self.prev_frame_time = time.time()
         self.current_fps = 0.0
 
     def set_roi_polygon(self, polygon: List[Point]):
-        """Cập nhật tọa độ vùng cấm ROI theo cấu hình camera"""
+        """Cập nhật tọa độ vùng cấm ROI (đơn lẻ, tương thích ngược)"""
         self.roi_polygon = polygon
+        self.roi_polygons = [
+            RoiPolygonConfig(
+                label="Vùng ROI",
+                alert_rules=["ENTRY_EXIT_TRACKING", "LOITERING"],
+                vertices=polygon
+            )
+        ]
+
+    def set_roi_config(self, polygons: List[Any]):
+        """Cập nhật danh sách đa polygon ROI đầy đủ thuộc tính chuẩn hóa"""
+        configs: List[RoiPolygonConfig] = []
+        for p in polygons:
+            if isinstance(p, RoiPolygonConfig):
+                configs.append(p)
+            elif isinstance(p, dict):
+                raw_vertices = p.get("vertices", [])
+                pts = [Point(v["x"], v["y"]) if isinstance(v, dict) else v for v in raw_vertices]
+                configs.append(
+                    RoiPolygonConfig(
+                        label=p.get("label", ""),
+                        alert_rules=p.get("alert_rules", ["ENTRY_EXIT_TRACKING"]),
+                        target_area_id=p.get("target_area_id"),
+                        vertices=pts
+                    )
+                )
+        self.roi_polygons = configs
+        if configs:
+            self.roi_polygon = configs[0].vertices
+        else:
+            self.roi_polygon = []
 
     def process_frame(
         self,
@@ -125,14 +162,19 @@ class VideoPipeline:
             detected_tracks=detected_tracks,
             roi_polygon=self.roi_polygon,
             camera_code=self.camera_code,
-            current_time=current_time
+            current_time=current_time,
+            roi_polygons=self.roi_polygons,
+            frame_size=(w, h)
         )
 
         # 5. Xử lý lưu bằng chứng và gửi cảnh báo tự động
         for alert in alerts:
             # Tạo frame snapshot có vẽ thông tin cảnh báo
             snapshot_frame = frame.copy()
-            snapshot_frame = self.visualizer.draw_roi(snapshot_frame, self.roi_polygon)
+            if self.roi_polygons:
+                snapshot_frame = self.visualizer.draw_multiple_rois(snapshot_frame, self.roi_polygons)
+            else:
+                snapshot_frame = self.visualizer.draw_roi(snapshot_frame, self.roi_polygon)
             snapshot_frame = self.visualizer.draw_tracked_persons(
                 snapshot_frame,
                 active_persons,
@@ -152,7 +194,10 @@ class VideoPipeline:
 
         # 6. Render các lớp đồ họa lên khung hình hiển thị (Overlay Annotations)
         annotated_frame = frame.copy()
-        annotated_frame = self.visualizer.draw_roi(annotated_frame, self.roi_polygon)
+        if self.roi_polygons:
+            annotated_frame = self.visualizer.draw_multiple_rois(annotated_frame, self.roi_polygons)
+        else:
+            annotated_frame = self.visualizer.draw_roi(annotated_frame, self.roi_polygon)
         annotated_frame = self.visualizer.draw_tracked_persons(
             annotated_frame,
             active_persons,

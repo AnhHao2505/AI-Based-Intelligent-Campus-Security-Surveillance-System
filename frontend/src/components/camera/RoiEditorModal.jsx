@@ -17,11 +17,23 @@ import "../../styles/RoiEditorModal.css";
 const MAX_POLYGONS = 10;
 const MIN_VERTICES = 3;
 
-const AVAILABLE_ALERT_RULES = [
-  { id: "INTRUSION_DETECTION", label: "Phát hiện xâm nhập (Intrusion)" },
-  { id: "LOITERING_DETECTION", label: "Phát hiện lảng vảng (Loitering)" },
-  { id: "UNAUTHORIZED_ACCESS", label: "Truy cập trái phép (Unauthorized)" },
+export const AVAILABLE_ALERT_RULES = [
+  { id: "ENTRY_EXIT_TRACKING", label: "Ra / Vào (Entry / Exit Logging)" },
+  { id: "LOITERING", label: "Lảng vảng (Loitering)" },
+  { id: "CROWD_OVERCROWDING", label: "Tụ tập Đám đông (Overcrowd)" },
 ];
+
+const ALLOWED_RULE_IDS = new Set(AVAILABLE_ALERT_RULES.map((r) => r.id));
+
+export function mapAlertRuleList(rules) {
+  if (!rules || !Array.isArray(rules) || rules.length === 0) {
+    return ["ENTRY_EXIT_TRACKING"];
+  }
+  const valid = rules
+    .map((r) => String(r || "").trim().toUpperCase())
+    .filter((r) => ALLOWED_RULE_IDS.has(r));
+  return valid.length > 0 ? valid : ["ENTRY_EXIT_TRACKING"];
+}
 
 export default function RoiEditorModal({
   isOpen,
@@ -30,6 +42,7 @@ export default function RoiEditorModal({
   snapshotWidth = 1920,
   snapshotHeight = 1080,
   initialRoiGeometry,
+  availableAreas = [],
   onSave,
 }) {
   const [polygons, setPolygons] = useState([]);
@@ -48,6 +61,7 @@ export default function RoiEditorModal({
   });
 
   const svgRef = useRef(null);
+  const imgRef = useRef(null);
 
   const formattedSnapshot = snapshotBase64 && snapshotBase64.includes("minio:9000")
     ? snapshotBase64.replace("minio:9000", "localhost:9000")
@@ -55,11 +69,11 @@ export default function RoiEditorModal({
 
   const imageSrc = formattedSnapshot
     ? (formattedSnapshot.startsWith("data:") || formattedSnapshot.startsWith("http")
-        ? formattedSnapshot
-        : `data:image/jpeg;base64,${formattedSnapshot}`)
+      ? formattedSnapshot
+      : `data:image/jpeg;base64,${formattedSnapshot}`)
     : null;
 
-  // Initialize polygons from initialRoiGeometry
+  // Initialize polygons and dimensions from initialRoiGeometry & image
   useEffect(() => {
     if (isOpen) {
       setError(null);
@@ -69,11 +83,25 @@ export default function RoiEditorModal({
       setIsNearFirst(false);
       setDraggedVertex(null);
 
+      // Lock dimensions to actual natural dimensions if already loaded, else fallback
+      if (imgRef.current?.naturalWidth && imgRef.current?.naturalHeight) {
+        setImgDimensions({
+          width: imgRef.current.naturalWidth,
+          height: imgRef.current.naturalHeight,
+        });
+      } else {
+        setImgDimensions({
+          width: snapshotWidth || 1920,
+          height: snapshotHeight || 1080,
+        });
+      }
+
       if (initialRoiGeometry && Array.isArray(initialRoiGeometry.polygons)) {
         const mapped = initialRoiGeometry.polygons.map((p, idx) => ({
           id: `poly_${Date.now()}_${idx}`,
           label: p.label || `Vùng giám sát ${idx + 1}`,
-          alertRules: p.alert_rules || p.alertRules || ["INTRUSION_DETECTION"],
+          targetAreaId: p.target_area_id || p.targetAreaId || null,
+          alertRules: mapAlertRuleList(p.alert_rules || p.alertRules),
           vertices: (p.vertices || []).map((v) => ({
             x: Number(v.x),
             y: Number(v.y),
@@ -86,7 +114,7 @@ export default function RoiEditorModal({
         setSelectedPolygonIndex(null);
       }
     }
-  }, [isOpen, initialRoiGeometry]);
+  }, [isOpen, initialRoiGeometry, snapshotWidth, snapshotHeight]);
 
   // Read actual image natural dimensions when image loads
   const handleImageLoad = (e) => {
@@ -135,7 +163,8 @@ export default function RoiEditorModal({
     const newPolygon = {
       id: `poly_${Date.now()}`,
       label: `Vùng ${polygons.length + 1}`,
-      alertRules: ["INTRUSION_DETECTION"],
+      targetAreaId: null,
+      alertRules: ["ENTRY_EXIT_TRACKING"],
       vertices: [...draftVertices],
     };
 
@@ -332,24 +361,25 @@ export default function RoiEditorModal({
     setError(null);
 
     const payload = {
-      polygons: polygons.map((p) => ({
-        label: p.label ? p.label.trim().slice(0, 100) : undefined,
-        alert_rules:
-          p.alertRules && p.alertRules.length > 0
-            ? p.alertRules
-            : ["INTRUSION_DETECTION"],
-        vertices: p.vertices.map((v) => ({
-          x: Number(v.x.toFixed(4)),
-          y: Number(v.y.toFixed(4)),
-        })),
-      })),
+      polygons: polygons.map((p) => {
+        const cleanRules = mapAlertRuleList(p.alertRules);
+        return {
+          label: p.label ? p.label.trim().slice(0, 100) : undefined,
+          target_area_id: p.targetAreaId || undefined,
+          alert_rules: cleanRules.length > 0 ? cleanRules : ["ENTRY_EXIT_TRACKING"],
+          vertices: p.vertices.map((v) => ({
+            x: Number(Math.min(Math.max(Number(v.x) || 0, 0), 1).toFixed(4)),
+            y: Number(Math.min(Math.max(Number(v.y) || 0, 0), 1).toFixed(4)),
+          })),
+        };
+      }),
     };
 
     try {
       await onSave(payload, {
         snapshotBase64: snapshotBase64 && !snapshotBase64.startsWith("http") ? snapshotBase64 : null,
-        snapshotWidth: imgDimensions.width,
-        snapshotHeight: imgDimensions.height,
+        snapshotWidth: imgDimensions.width || snapshotWidth || 1920,
+        snapshotHeight: imgDimensions.height || snapshotHeight || 1080,
       });
       onClose();
     } catch (err) {
@@ -496,6 +526,7 @@ export default function RoiEditorModal({
               >
                 {imageSrc ? (
                   <img
+                    ref={imgRef}
                     src={imageSrc}
                     alt="Camera Snapshot"
                     className="roi-snapshot-img"
@@ -644,9 +675,8 @@ export default function RoiEditorModal({
                               cx={v.x * imgDimensions.width}
                               cy={v.y * imgDimensions.height}
                               r={isFirst && isNearFirst ? handleRadius * 1.4 : handleRadius}
-                              className={`roi-draft-vertex ${
-                                isFirst ? "roi-draft-vertex--first" : ""
-                              } ${isFirst && isNearFirst ? "roi-draft-vertex--closing" : ""}`}
+                              className={`roi-draft-vertex ${isFirst ? "roi-draft-vertex--first" : ""
+                                } ${isFirst && isNearFirst ? "roi-draft-vertex--closing" : ""}`}
                             />
 
                             {/* Large invisible click target on first vertex to easily close polygon */}
@@ -777,6 +807,23 @@ export default function RoiEditorModal({
                       placeholder="VD: Cổng chính, Lối ra vào..."
                       onChange={(e) => handleUpdateSelected("label", e.target.value)}
                     />
+                  </div>
+
+                  {/* Target Area */}
+                  <div className="roi-form-group">
+                    <label className="roi-form-label">Khu vực liên kết (Target Area)</label>
+                    <select
+                      className="roi-form-input"
+                      value={selectedPoly.targetAreaId || ""}
+                      onChange={(e) => handleUpdateSelected("targetAreaId", e.target.value || null)}
+                    >
+                      <option value="">-- Không chọn khu vực --</option>
+                      {availableAreas.map((area) => (
+                        <option key={area.id} value={area.id}>
+                          {area.name || area.code} {area.building ? `(${area.building}${area.floor ? ` - Tầng ${area.floor}` : ""})` : ""}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   {/* Alert Rules */}

@@ -18,16 +18,32 @@ class CameraStreamWorker:
     - Phân tích qua VideoPipeline (YOLOv8 + YuNet + Loitering)
     - Gửi Incident Event sang Kafka khi phát hiện vi phạm
     """
-    def __init__(self, camera_code: str = "CAM-001", rtsp_url: str = "rtsp://localhost:8554/cam01"):
+    def __init__(
+        self,
+        camera_code: str = "CAM-001",
+        rtsp_url: str = "rtsp://localhost:8554/cam01",
+        roi_geometry: Optional[Dict[str, Any]] = None
+    ):
         self.camera_code = camera_code
         self.rtsp_url = rtsp_url
         self.pipeline = VideoPipeline(camera_code=camera_code)
+        if roi_geometry and "polygons" in roi_geometry:
+            self.pipeline.set_roi_config(roi_geometry["polygons"])
         
         self.is_running = False
         self.thread: Optional[threading.Thread] = None
         self.latest_frame = None
         self.processed_fps = 0.0
         self.lock = threading.Lock()
+
+    def update_roi(self, polygons: List[Any], loitering_threshold_seconds: Optional[int] = None):
+        """Cập nhật cấu hình ROI cho worker đang chạy"""
+        if self.pipeline:
+            self.pipeline.set_roi_config(polygons)
+            if loitering_threshold_seconds:
+                self.pipeline.loitering_threshold_seconds = loitering_threshold_seconds
+                self.pipeline.loitering_engine.loitering_threshold_seconds = loitering_threshold_seconds
+            logger.info(f"Đã cập nhật ROI ({len(polygons)} polygons) cho Stream Worker [{self.camera_code}].")
 
     def start(self):
         """Bắt đầu worker đọc luồng trong luồng riêng (Thread)"""

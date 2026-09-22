@@ -1,203 +1,340 @@
-.webrtc-player-wrapper {
+/* ==========================================================================
+   CCTV Surveillance Video Player & On-Screen Display (OSD) Styling
+   Deep Black CCTV Monitor Theme (#000000)
+   Tập trung tại: frontend/src/styles/WebRtcPlayer.css
+   ========================================================================== */
+
+.cctv-player-wrapper {
   position: relative;
   width: 100%;
   aspect-ratio: 16 / 9;
-  background: var(--theme-bg-canvas);
-  border-radius: 12px;
+  background: #000000;
+  border-radius: 8px;
   overflow: hidden;
-  border: 1px solid var(--theme-border);
-  box-shadow: var(--theme-card-shadow);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7);
   display: flex;
   align-items: center;
   justify-content: center;
+  user-select: none;
+  margin: 0 auto;
 }
 
-.webrtc-video-element {
+.cctv-video-element {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   display: none;
+  background: #000000;
 }
 
-.webrtc-video-element.active {
+.cctv-video-element.active {
   display: block;
 }
 
-.player-header-overlay {
+/* --------------------------------------------------------------------------
+   Thanh OSD Phía Trên (Top Bar)
+   Tên camera đứng riêng ở góc trái trên (thu nhỏ kích thước tinh tế),
+   LIVE/REC & Đồng hồ ở bên phải
+   -------------------------------------------------------------------------- */
+.cctv-osd-top-bar {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
-  padding: 12px 16px;
-  background: linear-gradient(180deg, rgba(6, 9, 19, 0.85) 0%, transparent 100%);
+  padding: 6px 12px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.88) 0%, rgba(0, 0, 0, 0.4) 60%, transparent 100%);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  z-index: 10;
+  z-index: 15;
   pointer-events: none;
 }
 
-.camera-label {
+.cctv-osd-top-left {
   display: flex;
   align-items: center;
-  gap: 8px;
+  min-width: 0;
+  flex: 1;
 }
 
-.cam-code-tag {
-  background: var(--brand-subtle);
-  border: 1px solid var(--brand-subtle-border);
-  color: var(--brand-text);
-  font-size: 0.72rem;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 4px;
-  letter-spacing: 0.5px;
-}
-
-.cam-title {
-  color: var(--theme-text-primary);
-  font-size: 0.88rem;
+/* Tên camera đứng 1 mình: Đã thu nhỏ kích thước theo yêu cầu */
+.cctv-cam-name-isolated {
+  color: #f1f5f9;
+  font-size: 0.78rem;
   font-weight: 600;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+  letter-spacing: 0.3px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
 }
 
-.stream-badge-box {
+.cctv-osd-top-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   pointer-events: auto;
+  flex-shrink: 0;
 }
 
-.live-indicator-chip {
-  display: inline-flex;
+.cctv-indicator-group {
+  display: flex;
   align-items: center;
   gap: 6px;
-  background: var(--theme-danger-bg);
-  border: 1px solid var(--theme-danger-border);
-  color: var(--theme-danger-text);
-  font-size: 0.75rem;
+}
+
+.cctv-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+/* Đèn LIVE xanh ngọc */
+.cctv-tag--live {
+  background: rgba(34, 197, 94, 0.18);
+  border: 1px solid rgba(34, 197, 94, 0.45);
+  color: #4ade80;
+}
+
+.cctv-tag--live.idle {
+  background: rgba(148, 163, 184, 0.15);
+  border-color: rgba(148, 163, 184, 0.3);
+  color: #94a3b8;
+}
+
+/* Đèn REC đỏ cờ đang ghi hình */
+.cctv-tag--rec {
+  background: rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  color: #f87171;
+}
+
+.cctv-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.cctv-dot--green {
+  background-color: #22c55e;
+  box-shadow: 0 0 8px #22c55e;
+  animation: cctv-pulse-green 1.5s infinite;
+}
+
+.cctv-dot--red {
+  background-color: #ef4444;
+  box-shadow: 0 0 8px #ef4444;
+  animation: cctv-pulse-red 1.2s infinite;
+}
+
+@keyframes cctv-pulse-green {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.15); opacity: 1; box-shadow: 0 0 10px #22c55e; }
+  100% { transform: scale(0.95); opacity: 0.8; }
+}
+
+@keyframes cctv-pulse-red {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.2); opacity: 1; box-shadow: 0 0 12px #ef4444; }
+  100% { transform: scale(0.95); opacity: 0.8; }
+}
+
+/* Đồng hồ số thời gian thực chạy từng giây */
+.cctv-clock-text {
+  font-family: 'JetBrains Mono', 'Consolas', monospace;
+  font-size: 0.78rem;
   font-weight: 700;
-  padding: 3px 10px;
-  border-radius: 20px;
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
+  color: #f8fafc;
+  letter-spacing: 0.6px;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.95);
+  font-variant-numeric: tabular-nums;
 }
 
-.live-dot {
-  width: 8px;
-  height: 8px;
-  background-color: var(--theme-danger);
-  border-radius: 50%;
-  animation: pulse-live 1.5s infinite;
-}
-
-@keyframes pulse-live {
-  0% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
-  70% { transform: scale(1.1); box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
-  100% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
-}
-
-.connecting-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--theme-warning-bg);
-  border: 1px solid var(--theme-warning-border);
-  color: var(--theme-warning-text);
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 3px 10px;
-  border-radius: 20px;
-}
-
-.spinner-dot {
-  width: 8px;
-  height: 8px;
-  border: 2px solid var(--theme-warning);
-  border-top-color: transparent;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-.offline-chip {
-  background: var(--theme-bg-desc);
-  border: 1px solid var(--theme-border);
-  color: var(--theme-text-muted);
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 3px 10px;
-  border-radius: 20px;
-}
-
-.player-fallback-overlay {
-  position: absolute;
-  inset: 0;
+.cctv-quick-expand-btn {
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #cbd5e1;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(circle at center, var(--theme-bg-surface-elevated) 0%, var(--theme-bg-canvas) 100%);
+  cursor: pointer;
+  font-size: 0.78rem;
+  transition: all 0.2s ease;
+}
+
+.cctv-quick-expand-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  border-color: #ffffff;
+}
+
+/* --------------------------------------------------------------------------
+   Thanh OSD Phía Dưới (Bottom Bar)
+   CAM-001 • 1080p • 30 FPS                      15:53:21
+   -------------------------------------------------------------------------- */
+.cctv-osd-bottom-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 4px 12px;
+  background: linear-gradient(0deg, rgba(0, 0, 0, 0.88) 0%, rgba(0, 0, 0, 0.4) 60%, transparent 100%);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 15;
+  pointer-events: none;
+}
+
+.cctv-osd-bottom-left {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: 'JetBrains Mono', 'Consolas', monospace;
+  font-size: 0.74rem;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.95);
+}
+
+.cctv-spec-code {
+  color: #38bdf8;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+
+.cctv-spec-divider {
+  color: rgba(255, 255, 255, 0.4);
+  font-weight: 400;
+}
+
+.cctv-spec-item {
+  color: #cbd5e1;
+  font-weight: 600;
+}
+
+.cctv-osd-bottom-right {
+  display: flex;
+  align-items: center;
+}
+
+.cctv-osd-timestamp {
+  font-family: 'JetBrains Mono', 'Consolas', monospace;
+  font-size: 0.74rem;
+  color: #94a3b8;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.95);
+}
+
+/* --------------------------------------------------------------------------
+   Màn hình ĐEN THUẦN khi mất tín hiệu (#000000)
+   Chuẩn màn hình giám sát phòng an ninh chuyên nghiệp (CCTV Blackout)
+   -------------------------------------------------------------------------- */
+.cctv-blackout-screen {
+  position: absolute;
+  inset: 0;
+  background: #000000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   z-index: 5;
 }
 
-.fallback-content {
+.cctv-offline-telemetry {
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: 8px;
   text-align: center;
-  padding: 20px;
-  max-width: 80%;
+  padding: 12px;
 }
 
-.radar-spinner {
-  width: 44px;
-  height: 44px;
-  border: 3px solid var(--brand-subtle-border);
-  border-top-color: var(--brand-cyan);
-  border-radius: 50%;
-  animation: spin 1.2s cubic-bezier(0.68, -0.55, 0.27, 1.55) infinite;
-  margin-bottom: 12px;
-}
-
-.offline-icon {
-  font-size: 2.2rem;
-  margin-bottom: 8px;
-  opacity: 0.7;
-}
-
-.fallback-content p {
-  color: var(--theme-text-primary);
-  font-size: 0.92rem;
-  font-weight: 600;
-  margin: 0 0 4px 0;
-}
-
-.sub-hint {
-  color: var(--theme-text-muted);
-  font-size: 0.78rem;
-}
-
-.error-detail {
-  color: var(--theme-danger-text);
-  font-size: 0.76rem;
-  margin-bottom: 12px;
-  background: var(--theme-danger-bg);
-  border: 1px solid var(--theme-danger-border);
-  padding: 4px 8px;
+.cctv-no-signal-badge {
+  font-family: 'JetBrains Mono', 'Consolas', monospace;
+  font-size: 0.85rem;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  padding: 5px 14px;
   border-radius: 4px;
+  animation: cctv-blink-signal 1.8s infinite;
 }
 
-[data-theme="light"] .player-header-overlay {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94) 0%, rgba(255, 255, 255, 0) 100%);
+@keyframes cctv-blink-signal {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
 }
 
-[data-theme="light"] .cam-code-tag {
-  background: var(--brand-subtle);
-  border-color: var(--brand-subtle-border);
-  color: var(--brand-blue);
+.cctv-offline-details {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'JetBrains Mono', 'Consolas', monospace;
+  font-size: 0.72rem;
+  color: #64748b;
+  font-weight: 600;
+  letter-spacing: 0.5px;
 }
 
-[data-theme="light"] .cam-title {
-  color: var(--theme-text-primary);
-  text-shadow: 0 1px 3px rgba(255, 255, 255, 0.8);
+.cctv-sep {
+  color: #334155;
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
+/* --------------------------------------------------------------------------
+   Responsive Cho Thiết Bị Di Động (Điện thoại ngang/dọc, Màn hình nhỏ)
+   -------------------------------------------------------------------------- */
+@media (max-width: 768px), (max-height: 500px) {
+  .cctv-osd-top-bar {
+    padding: 4px 8px;
+  }
+
+  .cctv-cam-name-isolated {
+    font-size: 0.68rem;
+    max-width: 150px;
+  }
+
+  .cctv-osd-top-right {
+    gap: 6px;
+  }
+
+  .cctv-tag {
+    font-size: 0.6rem;
+    padding: 1px 4px;
+  }
+
+  .cctv-clock-text {
+    font-size: 0.68rem;
+  }
+
+  .cctv-osd-bottom-bar {
+    padding: 3px 8px;
+  }
+
+  .cctv-osd-bottom-left {
+    font-size: 0.68rem;
+    gap: 3px;
+  }
+
+  .cctv-osd-timestamp {
+    font-size: 0.68rem;
+  }
+
+  .cctv-no-signal-badge {
+    font-size: 0.75rem;
+    padding: 3px 10px;
+  }
 }

@@ -3,6 +3,7 @@ package com.fa26se040.icss.service;
 import com.fa26se040.icss.dto.camera.RoiGeometry;
 import com.fa26se040.icss.exception.CameraErrorCode;
 import com.fa26se040.icss.exception.CameraException;
+import com.fa26se040.icss.repository.AreaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -15,10 +16,12 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class RoiGeometryValidator {
 
+    private final AreaRepository areaRepository;
+
     public static final Set<String> ALLOWED_ALERT_RULES = Set.of(
-            "INTRUSION_DETECTION",
-            "LOITERING_DETECTION",
-            "UNAUTHORIZED_ACCESS"
+            "ENTRY_EXIT_TRACKING",
+            "LOITERING",
+            "CROWD_OVERCROWDING"
     );
 
     public void validate(RoiGeometry geometry) {
@@ -46,13 +49,32 @@ public class RoiGeometryValidator {
             throw new CameraException(CameraErrorCode.ERR_ROI_005);
         }
 
-        // Alert Rules validation
-        if (polygon.getAlertRules() != null) {
-            for (String rule : polygon.getAlertRules()) {
-                if (rule == null || rule.isBlank() || !ALLOWED_ALERT_RULES.contains(rule.trim().toUpperCase())) {
+        // Target Area validation (ERR_ROI_006)
+        if (polygon.getTargetAreaId() != null) {
+            if (!areaRepository.existsByIdAndDeletedAtIsNull(polygon.getTargetAreaId())) {
+                throw new CameraException(CameraErrorCode.ERR_ROI_006);
+            }
+        }
+
+        // Alert Rules validation (ERR_ROI_007) - only 3 rules: ENTRY_EXIT_TRACKING, LOITERING, CROWD_OVERCROWDING
+        if (polygon.getAlertRules() == null || polygon.getAlertRules().isEmpty()) {
+            polygon.setAlertRules(List.of("ENTRY_EXIT_TRACKING"));
+        } else {
+            List<String> cleanRules = new ArrayList<>();
+            for (String rawRule : polygon.getAlertRules()) {
+                if (rawRule == null || rawRule.isBlank()) continue;
+                String rule = rawRule.trim().toUpperCase();
+                if (!ALLOWED_ALERT_RULES.contains(rule)) {
                     throw new CameraException(CameraErrorCode.ERR_ROI_007);
                 }
+                if (!cleanRules.contains(rule)) {
+                    cleanRules.add(rule);
+                }
             }
+            if (cleanRules.isEmpty()) {
+                cleanRules.add("ENTRY_EXIT_TRACKING");
+            }
+            polygon.setAlertRules(cleanRules);
         }
 
         // V2 — At least 3 vertices

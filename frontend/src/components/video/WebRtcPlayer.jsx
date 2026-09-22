@@ -1,172 +1,228 @@
-import React, { useEffect, useRef, useState } from 'react';
-import '../../styles/WebRtcPlayer.css';
+import React, { useEffect, useRef, useState } from "react";
+import "../../styles/WebRtcPlayer.css";
 
 /**
- * WebRtcPlayer: Component phát luồng video WebRTC (WHEP) từ MediaMTX với độ trễ siêu thấp (< 0.2s)
- * @param {string} streamPath - Tên kênh camera trên MediaMTX (ví dụ 'cam01')
- * @param {string} host - Địa chỉ MediaMTX (mặc định localhost:8889)
- * @param {boolean} autoPlay - Tự động phát
- * @param {boolean} muted - Tắt tiếng mặc định để browser cho phép autoplay
- * @param {function} onStatusChange - Callback báo trạng thái kết nối
+ * WebRtcPlayer: Component phát luồng video WebRTC (WHEP) từ MediaMTX với chuẩn giao diện OSD CCTV chuyên nghiệp.
+ *
+ * Bố cục OSD theo yêu cầu:
+ * - Góc trái trên: Tên camera đứng 1 mình (ví dụ "Cổng chính")
+ * - Phía trên (giữa/phải): ● LIVE   ● REC   [Đồng hồ thời gian thực HH:mm:ss]
+ * - Góc trái dưới: Mã camera kèm thông số: [CAM-001 • 1080p • 30 FPS]
+ * - Góc phải dưới: [Đồng hồ thời gian thực HH:mm:ss]
+ * - Khi mất kết nối: Màn hình đen thuần (#000000) chuẩn màn hình CCTV giám sát an ninh
  */
 export default function WebRtcPlayer({
-  streamPath = 'cam01',
-  host = 'localhost:8889',
-  autoPlay = true,
-  muted = true,
-  cameraName = 'Camera 01',
-  onStatusChange = null
+	streamPath = "cam01",
+	cameraCode = "CAM-001",
+	cameraName = "Cổng chính",
+	resolution = "1080p",
+	fps = "30 FPS",
+	isRecording = true,
+	host = "localhost:8889",
+	autoPlay = true,
+	muted = true,
+	onStatusChange = null,
+	onToggleMaximize = null,
 }) {
-  const videoRef = useRef(null);
-  const pcRef = useRef(null);
-  const [status, setStatus] = useState('connecting'); // 'connecting' | 'live' | 'error' | 'offline'
-  const [errorMsg, setErrorMsg] = useState('');
-  const [retryCount, setRetryCount] = useState(0);
+	const videoRef = useRef(null);
+	const pcRef = useRef(null);
+	const [status, setStatus] = useState("connecting"); // 'connecting' | 'live' | 'error' | 'offline'
+	const [errorMsg, setErrorMsg] = useState("");
+	const [retryCount, setRetryCount] = useState(0);
 
-  useEffect(() => {
-    let isMounted = true;
-    let peerConnection = null;
+	// Đồng hồ số chạy thời gian thực mỗi 1 giây chuẩn CCTV (HH:mm:ss)
+	const [liveClock, setLiveClock] = useState(() => {
+		return new Date().toLocaleTimeString("vi-VN", { hour12: false });
+	});
 
-    async function startWebRTC() {
-      setStatus('connecting');
-      setErrorMsg('');
+	useEffect(() => {
+		const timer = setInterval(() => {
+			setLiveClock(new Date().toLocaleTimeString("vi-VN", { hour12: false }));
+		}, 1000);
+		return () => clearInterval(timer);
+	}, []);
 
-      try {
-        peerConnection = new RTCPeerConnection({
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' }
-          ]
-        });
-        pcRef.current = peerConnection;
+	useEffect(() => {
+		let isMounted = true;
+		let peerConnection = null;
 
-        // Chỉ yêu cầu nhận Video (không cần Audio) để tránh lỗi lệch Clock rate WebRTC
-        peerConnection.addTransceiver('video', { direction: 'recvonly' });
+		async function startWebRTC() {
+			setStatus("connecting");
+			setErrorMsg("");
 
-        peerConnection.ontrack = (event) => {
-          if (videoRef.current && event.streams && event.streams[0]) {
-            videoRef.current.srcObject = event.streams[0];
-            if (isMounted) {
-              setStatus('live');
-              if (onStatusChange) onStatusChange('live');
-            }
-          }
-        };
+			try {
+				peerConnection = new RTCPeerConnection({
+					iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+				});
+				pcRef.current = peerConnection;
 
-        peerConnection.onconnectionstatechange = () => {
-          if (!isMounted) return;
-          const state = peerConnection.connectionState;
-          if (state === 'connected') {
-            setStatus('live');
-          } else if (state === 'disconnected' || state === 'failed') {
-            setStatus('offline');
-            // Tự động thử kết nối lại sau 3 giây
-            setTimeout(() => {
-              if (isMounted) setRetryCount((prev) => prev + 1);
-            }, 3000);
-          }
-        };
+				// Chỉ yêu cầu nhận Video (không nhận Audio) để tránh lỗi lệch clock rate
+				peerConnection.addTransceiver("video", { direction: "recvonly" });
 
-        // 1. Tạo SDP Offer
-        const offer = await peerConnection.createOffer();
-        await peerConnection.setLocalDescription(offer);
+				peerConnection.ontrack = (event) => {
+					if (videoRef.current && event.streams && event.streams[0]) {
+						videoRef.current.srcObject = event.streams[0];
+						if (isMounted) {
+							setStatus("live");
+							if (onStatusChange) onStatusChange("live");
+						}
+					}
+				};
 
-        // 2. Gửi Offer sang MediaMTX WHEP endpoint
-        const whepUrl = `http://${host}/${streamPath}/whep`;
-        const response = await fetch(whepUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/sdp'
-          },
-          body: offer.sdp
-        });
+				peerConnection.onconnectionstatechange = () => {
+					if (!isMounted) return;
+					const state = peerConnection.connectionState;
+					if (state === "connected") {
+						setStatus("live");
+					} else if (state === "disconnected" || state === "failed") {
+						setStatus("offline");
+						setTimeout(() => {
+							if (isMounted) setRetryCount((prev) => prev + 1);
+						}, 3000);
+					}
+				};
 
-        if (!response.ok) {
-          throw new Error(`MediaMTX trả về mã lỗi: ${response.status} (${response.statusText})`);
-        }
+				// 1. Tạo SDP Offer
+				const offer = await peerConnection.createOffer();
+				await peerConnection.setLocalDescription(offer);
 
-        // 3. Nhận SDP Answer từ MediaMTX
-        const answerSdp = await response.text();
-        await peerConnection.setRemoteDescription({
-          type: 'answer',
-          sdp: answerSdp
-        });
+				// 2. Gửi Offer sang MediaMTX WHEP endpoint
+				const whepUrl = `http://${host}/${streamPath}/whep`;
+				const response = await fetch(whepUrl, {
+					method: "POST",
+					headers: {
+						"Content-Type": "application/sdp",
+					},
+					body: offer.sdp,
+				});
 
-      } catch (err) {
-        console.warn(`[WebRTC Player] Lỗi kết nối luồng ${streamPath}:`, err);
-        if (isMounted) {
-          setStatus('error');
-          setErrorMsg(err.message || 'Không thể kết nối luồng WebRTC');
-          if (onStatusChange) onStatusChange('error');
-          // Tự động thử lại
-          setTimeout(() => {
-            if (isMounted) setRetryCount((prev) => prev + 1);
-          }, 4000);
-        }
-      }
-    }
+				if (!response.ok) {
+					throw new Error(
+						`Kênh ${streamPath} không phản hồi (${response.status})`,
+					);
+				}
 
-    startWebRTC();
+				// 3. Nhận SDP Answer từ MediaMTX
+				const answerSdp = await response.text();
+				await peerConnection.setRemoteDescription({
+					type: "answer",
+					sdp: answerSdp,
+				});
+			} catch (err) {
+				if (isMounted) {
+					setStatus("offline");
+					setErrorMsg(err.message || "Mất kết nối luồng video");
+					if (onStatusChange) onStatusChange("offline");
+					setTimeout(() => {
+						if (isMounted) setRetryCount((prev) => prev + 1);
+					}, 4000);
+				}
+			}
+		}
 
-    return () => {
-      isMounted = false;
-      if (peerConnection) {
-        peerConnection.close();
-      }
-    };
-  }, [streamPath, host, retryCount]);
+		startWebRTC();
 
-  return (
-    <div className="webrtc-player-wrapper">
-      {/* Video Stream Element */}
-      <video
-        ref={videoRef}
-        autoPlay={autoPlay}
-        muted={muted}
-        playsInline
-        className={`webrtc-video-element ${status === 'live' ? 'active' : ''}`}
-      />
+		return () => {
+			isMounted = false;
+			if (peerConnection) {
+				peerConnection.close();
+			}
+		};
+	}, [streamPath, host, retryCount]);
 
-      {/* Header Info Overlay */}
-      <div className="player-header-overlay">
-        <div className="camera-label">
-          <span className="cam-code-tag">{streamPath.toUpperCase()}</span>
-          <span className="cam-title">{cameraName}</span>
-        </div>
-        <div className="stream-badge-box">
-          {status === 'live' && (
-            <span className="live-indicator-chip">
-              <span className="live-dot" /> LIVE WebRTC
-            </span>
-          )}
-          {status === 'connecting' && (
-            <span className="connecting-chip">
-              <span className="spinner-dot" /> Đang kết nối...
-            </span>
-          )}
-          {(status === 'error' || status === 'offline') && (
-            <span className="offline-chip">Mất tín hiệu</span>
-          )}
-        </div>
-      </div>
+	const displayCamCode = (cameraCode || streamPath || "CAM-001").toUpperCase();
+	const displayCamName = cameraName || "Camera quan sát";
 
-      {/* Placeholder / Connecting State */}
-      {status !== 'live' && (
-        <div className="player-fallback-overlay">
-          {status === 'connecting' ? (
-            <div className="fallback-content">
-              <div className="radar-spinner" />
-              <p>Đang kéo luồng WebRTC từ MediaMTX...</p>
-              <span className="sub-hint">Đảm bảo App điện thoại đang mở và phát</span>
-            </div>
-          ) : (
-            <div className="fallback-content">
-              <div className="offline-icon">📹</div>
-              <p>Chưa có tín hiệu từ Camera ({streamPath})</p>
-              <span className="error-detail">{errorMsg || 'Đang chờ nguồn phát từ điện thoại...'}</span>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
+	return (
+		<div
+			className={`cctv-player-wrapper ${status !== "live" ? "cctv-player--blackout" : ""}`}
+		>
+			{/* Thẻ Video phát luồng trực tiếp */}
+			<video
+				ref={videoRef}
+				autoPlay={autoPlay}
+				muted={muted}
+				playsInline
+				className={`cctv-video-element ${status === "live" ? "active" : ""}`}
+			/>
+
+			{/* ┌──────────────────────────────────────────────────────────────┐
+          │  CAM-001 Cổng chính    ● LIVE    ● REC    15:53:21          │
+          └──────────────────────────────────────────────────────────────┘
+          Thanh OSD Phía Trên: Tên camera đứng 1 mình ở góc trái trên */}
+			<div className="cctv-osd-top-bar">
+				{/* Góc trái trên: Tên camera đứng 1 mình */}
+				<div className="cctv-osd-top-left">
+					<span className="cctv-cam-name-isolated">{displayCamName}</span>
+				</div>
+
+				{/* Phía trên bên phải: LIVE, REC, Đồng hồ số chạy từng giây */}
+				<div className="cctv-osd-top-right">
+					<div className="cctv-indicator-group">
+						{/* Đèn chỉ thị LIVE xanh ngọc */}
+						<span
+							className={`cctv-tag cctv-tag--live ${status === "live" ? "active" : "idle"}`}
+						>
+							<span className="cctv-dot cctv-dot--green" />
+							LIVE
+						</span>
+
+						{/* Đèn chỉ thị REC đỏ cờ đang ghi hình */}
+						{isRecording && (
+							<span className="cctv-tag cctv-tag--rec">
+								<span className="cctv-dot cctv-dot--red" />
+								REC
+							</span>
+						)}
+					</div>
+
+					{/* Đồng hồ số thời gian thực chuẩn CCTV */}
+					<span className="cctv-clock-text">{liveClock}</span>
+
+					{/* Nút phóng to nhanh ô camera (nếu có callback) */}
+					{onToggleMaximize && (
+						<button
+							type="button"
+							className="cctv-quick-expand-btn"
+							onClick={onToggleMaximize}
+							title="Phóng to chỉ xem camera này"
+						>
+							⛶
+						</button>
+					)}
+				</div>
+			</div>
+
+			{/* ┌──────────────────────────────────────────────────────────────┐
+          │  CAM-001 • 1080p • 30 FPS                    15:53:21        │
+          └──────────────────────────────────────────────────────────────┘
+          Thanh OSD Phía Dưới: Mã camera ở góc trái dưới kèm thông số */}
+			<div className="cctv-osd-bottom-bar">
+				{/* Góc trái dưới: Mã camera • 1080p • 30 FPS */}
+				<div className="cctv-osd-bottom-left">
+					<span className="cctv-spec-code">{displayCamCode}</span>
+					<span className="cctv-spec-divider">•</span>
+					<span className="cctv-spec-item">{resolution}</span>
+					<span className="cctv-spec-divider">•</span>
+					<span className="cctv-spec-item">{fps}</span>
+				</div>
+			</div>
+
+			{/* Màn hình ĐEN THUẦN khi mất kết nối / Đang tải (Chuẩn màn hình giám sát chuyên nghiệp) */}
+			{status !== "live" && (
+				<div className="cctv-blackout-screen">
+					<div className="cctv-offline-telemetry">
+						<div className="cctv-no-signal-badge">
+							{status === "connecting" ? "[ ĐANG KẾT NỐI]" : "[ MẤT TÍN HIỆU ]"}
+						</div>
+						<div className="cctv-offline-details">
+							<span>SOURCE: {displayCamCode}</span>
+							<span className="cctv-sep">|</span>
+							<span>{displayCamName.toUpperCase()}</span>
+						</div>
+					</div>
+				</div>
+			)}
+		</div>
+	);
 }

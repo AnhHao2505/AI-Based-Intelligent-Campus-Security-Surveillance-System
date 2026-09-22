@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List, Tuple, Any
 from ..core.entity import Point
 
 def is_point_in_polygon(point: Point, polygon: List[Point]) -> bool:
@@ -37,3 +37,40 @@ def normalize_polygon(polygon_pts: List[Tuple[float, float]], frame_width: int, 
         else:
             result.append(Point(float(x), float(y)))
     return result
+
+def scale_polygon_to_frame(points: List[Any], frame_width: int, frame_height: int) -> List[Point]:
+    """
+    Chuẩn hóa và co giãn danh sách đỉnh đa giác (Point, Dict, Tuple)
+    về đúng tọa độ pixel trên kích thước khung hình (frame_width, frame_height).
+    """
+    if not points:
+        return []
+
+    result: List[Point] = []
+    for pt in points:
+        if isinstance(pt, Point):
+            x, y = pt.x, pt.y
+        elif isinstance(pt, dict):
+            x = float(pt.get("x", 0.0))
+            y = float(pt.get("y", 0.0))
+        elif isinstance(pt, (tuple, list)) and len(pt) >= 2:
+            x, y = float(pt[0]), float(pt[1])
+        else:
+            continue
+
+        if 0.0 <= x <= 1.0 and 0.0 <= y <= 1.0 and frame_width > 1 and frame_height > 1:
+            px = max(0.0, min(float(frame_width), x * frame_width))
+            py = max(0.0, min(float(frame_height), y * frame_height))
+            result.append(Point(px, py))
+        else:
+            result.append(Point(float(x), float(y)))
+
+    return result
+
+def normalize_to_unit(x: float, y: float, ref_width: int, ref_height: int) -> Tuple[float, float]:
+    """Chuyển đổi tọa độ pixel về khoảng [0.0, 1.0] dựa trên kích thước tham chiếu"""
+    if ref_width <= 0 or ref_height <= 0:
+        return (x, y)
+    nx = max(0.0, min(1.0, x / ref_width))
+    ny = max(0.0, min(1.0, y / ref_height))
+    return (round(nx, 4), round(ny, 4))

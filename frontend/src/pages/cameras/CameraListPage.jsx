@@ -16,14 +16,13 @@ import CameraCreateModal from '../../components/CameraCreateModal';
 import '../../styles/CameraListPage.css';
 
 const STATUS_LABELS = {
-  ACTIVE: 'Đang hoạt động',
+  ACTIVE: 'Đang kích hoạt',
   DECOMMISSIONED: 'Đã tắt',
 };
 
 const OP_STATUS_LABELS = {
   ONLINE: 'Online',
   OFFLINE: 'Offline',
-  ERROR: 'Lỗi kết nối',
 };
 
 export default function CameraListPage() {

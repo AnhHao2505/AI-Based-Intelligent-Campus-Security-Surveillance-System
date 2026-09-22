@@ -17,11 +17,14 @@ import com.fa26se040.icss.exception.CameraErrorCode;
 import com.fa26se040.icss.exception.CameraException;
 import com.fa26se040.icss.repository.*;
 import com.fa26se040.icss.util.AesEncryptionUtil;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.web.client.RestTemplate;
 
 import java.time.OffsetDateTime;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -37,6 +40,11 @@ public class CameraService {
     private final AesEncryptionUtil aesEncryptionUtil;
     private final RoiGeometryValidator roiGeometryValidator;
     private final MinioStorageService minioStorageService;
+
+    @Value("${ai.service.url:http://localhost:8000}")
+    private String aiServiceUrl;
+
+    private final RestTemplate restTemplate = new RestTemplate();
 
     // === Camera CRUD ===
 
@@ -126,9 +134,19 @@ public class CameraService {
 
             for (Camera cam : activeCameras) {
                 String pathName = mediaMtxService.formatPathName(cam.getCameraCode());
+                boolean hasPathInMediaMtx = liveStatuses.containsKey(pathName);
                 boolean isReady = Boolean.TRUE.equals(liveStatuses.get(pathName));
                 OperationalStatus currentStatus = cam.getOperationalStatus();
-                OperationalStatus newStatus = isReady ? OperationalStatus.ONLINE : OperationalStatus.OFFLINE;
+
+                OperationalStatus newStatus;
+                if (isReady) {
+                    newStatus = OperationalStatus.ONLINE;
+                } else if (hasPathInMediaMtx && currentStatus == OperationalStatus.ONLINE) {
+                    // Giữ nguyên trạng thái ONLINE nếu luồng MediaMTX đã được đăng ký và sẵn sàng ở chế độ sourceOnDemand
+                    newStatus = OperationalStatus.ONLINE;
+                } else {
+                    newStatus = OperationalStatus.OFFLINE;
+                }
 
                 if (currentStatus != newStatus) {
                     cam.setOperationalStatus(newStatus);
@@ -324,8 +342,8 @@ public class CameraService {
                 byte[] imageBytes = java.util.Base64.getDecoder().decode(cleanBase64);
                 String snapshotUrl = minioStorageService.uploadRoiReferenceSnapshot(imageBytes, camera.getCameraCode());
                 roi.setReferenceSnapshotUrl(snapshotUrl);
-                roi.setReferenceSnapshotWidth(request.getSnapshotWidth());
-                roi.setReferenceSnapshotHeight(request.getSnapshotHeight());
+                roi.setReferenceSnapshotWidth(request.getSnapshotWidth() != null ? request.getSnapshotWidth() : 1920);
+                roi.setReferenceSnapshotHeight(request.getSnapshotHeight() != null ? request.getSnapshotHeight() : 1080);
                 roi.setReferenceCapturedAt(OffsetDateTime.now());
             } catch (Exception e) {
                 log.error("Failed to upload reference snapshot to MinIO for camera {}: {}", camera.getCameraCode(), e.getMessage());
@@ -333,15 +351,68 @@ public class CameraService {
         } else if (camera.getRoiGeometry() != null) {
             // Retain existing reference snapshot info if no new snapshot is supplied
             roi.setReferenceSnapshotUrl(camera.getRoiGeometry().getReferenceSnapshotUrl());
-            roi.setReferenceSnapshotWidth(camera.getRoiGeometry().getReferenceSnapshotWidth());
-            roi.setReferenceSnapshotHeight(camera.getRoiGeometry().getReferenceSnapshotHeight());
+            roi.setReferenceSnapshotWidth(request.getSnapshotWidth() != null ? request.getSnapshotWidth() : camera.getRoiGeometry().getReferenceSnapshotWidth());
+            roi.setReferenceSnapshotHeight(request.getSnapshotHeight() != null ? request.getSnapshotHeight() : camera.getRoiGeometry().getReferenceSnapshotHeight());
             roi.setReferenceCapturedAt(camera.getRoiGeometry().getReferenceCapturedAt());
         }
 
         camera.setRoiGeometry(roi);
         camera.setUpdatedAt(OffsetDateTime.now());
         Camera saved = cameraRepository.save(camera);
+
+        // Synchronize normalized ROI geometry to AI Service in real-time
+        syncRoiToAiService(camera.getCameraCode(), saved.getRoiGeometry());
+
         return mapToDetailResponse(saved);
+    }
+
+    private void syncRoiToAiService(String cameraCode, RoiGeometry roi) {
+        if (aiServiceUrl == null || aiServiceUrl.isBlank() || roi == null) {
+            return;
+        }
+        try {
+            String endpoint = aiServiceUrl + "/api/v1/cameras/configure";
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            List<Map<String, Object>> polygonsList = new ArrayList<>();
+            if (roi.getPolygons() != null) {
+                for (RoiGeometry.RoiPolygon p : roi.getPolygons()) {
+                    Map<String, Object> polyMap = new HashMap<>();
+                    polyMap.put("label", p.getLabel() != null ? p.getLabel() : "");
+                    polyMap.put("alert_rules", p.getAlertRules() != null ? p.getAlertRules() : List.of("ENTRY_EXIT_TRACKING"));
+                    if (p.getTargetAreaId() != null) {
+                        polyMap.put("target_area_id", p.getTargetAreaId().toString());
+                    }
+                    List<Map<String, Object>> verticesList = new ArrayList<>();
+                    if (p.getVertices() != null) {
+                        for (RoiGeometry.RoiPolygon.Vertex v : p.getVertices()) {
+                            if (v.getX() != null && v.getY() != null) {
+                                verticesList.add(Map.of(
+                                        "x", v.getX().doubleValue(),
+                                        "y", v.getY().doubleValue()
+                                ));
+                            }
+                        }
+                    }
+                    polyMap.put("vertices", verticesList);
+                    polygonsList.add(polyMap);
+                }
+            }
+
+            Map<String, Object> body = new HashMap<>();
+            body.put("camera_code", cameraCode);
+            body.put("loitering_threshold_seconds", 10);
+            body.put("reference_width", roi.getReferenceSnapshotWidth() != null ? roi.getReferenceSnapshotWidth() : 1920);
+            body.put("reference_height", roi.getReferenceSnapshotHeight() != null ? roi.getReferenceSnapshotHeight() : 1080);
+            body.put("polygons", polygonsList);
+
+            HttpEntity<Map<String, Object>> httpEntity = new HttpEntity<>(body, headers);
+            restTemplate.postForObject(endpoint, httpEntity, Map.class);
+            log.info("Successfully synced ROI geometry to AI Service for camera [{}]", cameraCode);
+        } catch (Exception e) {
+            log.warn("Could not sync ROI geometry to AI Service for camera [{}]: {}", cameraCode, e.getMessage());
+        }
     }
 
     // === Helpers & Mapping ===

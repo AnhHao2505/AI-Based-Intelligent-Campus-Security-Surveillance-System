@@ -105,3 +105,27 @@ class SecurityAlertEvent:
             "details": self.details,
             "location": self.location or {}
         }
+
+@dataclass
+class RoiPolygonConfig:
+    label: str = ""
+    alert_rules: List[str] = field(default_factory=lambda: ["ENTRY_EXIT_TRACKING"])
+    vertices: List[Point] = field(default_factory=list) # normalized [0.0..1.0] or pixel points
+    target_area_id: Optional[str] = None
+
+    def to_pixel_points(self, width: int, height: int) -> List[Point]:
+        """Chuyển đổi các đỉnh tọa độ chuẩn hóa sang tọa độ pixel thực tế của khung hình (width, height)"""
+        if width <= 0 or height <= 0:
+            return self.vertices
+
+        scaled: List[Point] = []
+        for p in self.vertices:
+            # Nếu tọa độ nằm trong khoảng [0.0, 1.0], scale theo width/height của frame
+            if 0.0 <= p.x <= 1.0 and 0.0 <= p.y <= 1.0:
+                px = max(0.0, min(float(width), p.x * width))
+                py = max(0.0, min(float(height), p.y * height))
+                scaled.append(Point(px, py))
+            else:
+                # Đã là pixel tuyệt đối (ví dụ từ test cũ)
+                scaled.append(Point(p.x, p.y))
+        return scaled

@@ -1,39 +1,123 @@
 import cv2
 import numpy as np
-from typing import List, Optional
-from ..core.entity import TrackedPerson, Point
+from typing import List, Optional, Any, Union, Dict
+from ..core.entity import TrackedPerson, Point, RoiPolygonConfig
 
 class FrameVisualizer:
     """Tiện ích vẽ bounding box, track ID, polygon ROI, thông tin khuôn mặt và cảnh báo lên khung hình"""
 
     @staticmethod
-    def draw_roi(frame: np.ndarray, roi_polygon: Optional[List[Point]], color=(0, 0, 255), thickness=2) -> np.ndarray:
-        """Vẽ đa giác vùng cấm (Restricted Area ROI)"""
-        if not roi_polygon or len(roi_polygon) < 3:
+    def draw_roi(
+        frame: np.ndarray,
+        roi_polygon: Optional[Union[List[Point], List[Any], RoiPolygonConfig]] = None,
+        color=(0, 0, 255),
+        thickness=2,
+        label: Optional[str] = None
+    ) -> np.ndarray:
+        """
+        Vẽ đa giác vùng ROI lên khung hình với cơ chế tự động co giãn pixel theo frame:
+        - Tự động scale nếu đỉnh đa giác ở dạng chuẩn hóa [0.0, 1.0]
+        - Hỗ trợ danh sách Point, Dict hoặc đối tượng RoiPolygonConfig
+        """
+        if not roi_polygon:
             return frame
 
-        pts = np.array([[int(p.x), int(p.y)] for p in roi_polygon], np.int32)
-        pts = pts.reshape((-1, 1, 2))
-        
+        h, w = frame.shape[:2]
+
+        # Trích xuất danh sách các Point
+        pts_list: List[Point] = []
+        poly_label = label
+
+        if isinstance(roi_polygon, RoiPolygonConfig):
+            pts_list = roi_polygon.vertices
+            if not poly_label:
+                poly_label = roi_polygon.label
+        elif isinstance(roi_polygon, dict):
+            raw_vertices = roi_polygon.get("vertices", [])
+            for item in raw_vertices:
+                if isinstance(item, Point):
+                    pts_list.append(item)
+                elif isinstance(item, dict):
+                    pts_list.append(Point(float(item.get("x", 0.0)), float(item.get("y", 0.0))))
+                elif isinstance(item, (tuple, list)) and len(item) >= 2:
+                    pts_list.append(Point(float(item[0]), float(item[1])))
+            if not poly_label:
+                poly_label = roi_polygon.get("label", "")
+        elif isinstance(roi_polygon, (list, tuple)):
+            for item in roi_polygon:
+                if isinstance(item, Point):
+                    pts_list.append(item)
+                elif isinstance(item, dict):
+                    pts_list.append(Point(float(item.get("x", 0.0)), float(item.get("y", 0.0))))
+                elif isinstance(item, (tuple, list)) and len(item) >= 2:
+                    pts_list.append(Point(float(item[0]), float(item[1])))
+
+        if len(pts_list) < 3:
+            return frame
+
+        # Chuyển đổi chuẩn hóa [0.0..1.0] -> pixel frame thực tế
+        pixel_pts = []
+        for p in pts_list:
+            if 0.0 <= p.x <= 1.0 and 0.0 <= p.y <= 1.0 and w > 1 and h > 1:
+                px = int(round(p.x * w))
+                py = int(round(p.y * h))
+            else:
+                px = int(round(p.x))
+                py = int(round(p.y))
+            pixel_pts.append([px, py])
+
+        pts = np.array(pixel_pts, np.int32).reshape((-1, 1, 2))
+
         # Vẽ viền polygon
         cv2.polylines(frame, [pts], isClosed=True, color=color, thickness=thickness)
-        
+
         # Tạo hiệu ứng nền mờ bán trong suốt (semi-transparent overlay)
         overlay = frame.copy()
         cv2.fillPoly(overlay, [pts], color)
         cv2.addWeighted(overlay, 0.15, frame, 0.85, 0, frame)
 
-        # Ghi nhãn RESTRICTED ZONE
-        first_pt = roi_polygon[0]
+        # Ghi nhãn vùng ROI
+        first_pt = pixel_pts[0]
+        text_label = poly_label if poly_label else "[!] KHU VUC HAN CHE (ROI)"
         cv2.putText(
             frame,
-            "[!] KHU VUC HAN CHE (ROI)",
-            (int(first_pt.x), max(20, int(first_pt.y) - 8)),
+            text_label,
+            (first_pt[0], max(20, first_pt[1] - 8)),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.55,
             color,
             2
         )
+        return frame
+
+    @staticmethod
+    def draw_multiple_rois(
+        frame: np.ndarray,
+        polygons: Optional[List[Any]] = None,
+        thickness=2
+    ) -> np.ndarray:
+        """Vẽ toàn bộ các vùng ROI với nhãn và màu sắc nhận diện trực quan"""
+        if not polygons:
+            return frame
+
+        palette = [
+            (0, 0, 255),    # Đỏ: Khu vực cấm / Loitering
+            (255, 140, 0),  # Cam: Khu vực hạn chế
+            (255, 0, 128),  # Tím hồng: Cảnh báo đám đông
+            (0, 215, 255),  # Vàng: Khu vực quan sát
+            (50, 205, 50),  # Xanh lá: Ra vào
+        ]
+
+        for idx, poly in enumerate(polygons):
+            c = palette[idx % len(palette)]
+            label_text = None
+            if hasattr(poly, "label") and poly.label:
+                label_text = f"ROI {idx+1}: {poly.label}"
+            elif isinstance(poly, dict) and poly.get("label"):
+                label_text = f"ROI {idx+1}: {poly.get('label')}"
+
+            FrameVisualizer.draw_roi(frame, poly, color=c, thickness=thickness, label=label_text)
+
         return frame
 
     @staticmethod

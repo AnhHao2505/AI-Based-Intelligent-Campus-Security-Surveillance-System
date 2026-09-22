@@ -1,7 +1,9 @@
 package com.fa26se040.icss.dto.camera;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -19,14 +21,19 @@ public class RoiUpdateRequest {
 
     @NotNull(message = "ROI geometry không được null")
     @Valid
+    @JsonProperty("roi_geometry")
+    @JsonAlias({"roi_geometry", "roiGeometry"})
     private RoiGeometry roiGeometry;
 
-    @com.fasterxml.jackson.annotation.JsonProperty("snapshot_base64")
+    @JsonProperty("snapshot_base64")
+    @JsonAlias({"snapshot_base64", "snapshotBase64"})
     private String snapshotBase64;
 
-    @com.fasterxml.jackson.annotation.JsonProperty("snapshot_width")
+    @JsonProperty("snapshot_width")
+    @JsonAlias({"snapshot_width", "snapshotWidth"})
     private Integer snapshotWidth;
 
-    @com.fasterxml.jackson.annotation.JsonProperty("snapshot_height")
+    @JsonProperty("snapshot_height")
+    @JsonAlias({"snapshot_height", "snapshotHeight"})
     private Integer snapshotHeight;
 }

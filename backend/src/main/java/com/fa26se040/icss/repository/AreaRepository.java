@@ -18,6 +18,8 @@ public interface AreaRepository extends JpaRepository<Area, UUID> {
 
     boolean existsByCodeAndDeletedAtIsNull(String code);
 
+    boolean existsByIdAndDeletedAtIsNull(UUID id);
+
     Optional<Area> findByIdAndDeletedAtIsNull(UUID id);
 
     java.util.List<Area> findByBuildingIgnoreCaseAndFloorIgnoreCaseAndDeletedAtIsNull(String building, String floor);
