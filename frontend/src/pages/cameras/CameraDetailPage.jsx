@@ -94,7 +94,7 @@ export default function CameraDetailPage() {
           host: data.streamConfig.host || "",
           port:
             data.streamConfig.port !== null &&
-            data.streamConfig.port !== undefined
+              data.streamConfig.port !== undefined
               ? data.streamConfig.port.toString()
               : "",
           username: data.streamConfig.username || "",
@@ -391,7 +391,7 @@ export default function CameraDetailPage() {
       <div className="breadcrumb">
         <button
           className="btn-back"
-          onClick={() => navigate("/admin/cameras")}
+          onClick={() => navigate("/cameras")}
         >
           <ArrowLeft size={16} /> Danh sách Camera
         </button>
@@ -455,7 +455,7 @@ export default function CameraDetailPage() {
               <span
                 className={`status-badge badge-${camera.status.toLowerCase()}`}
               >
-                {camera.status === "ACTIVE" ? "Đang chạy" : "Đã tắt"}
+                {camera.status === "ACTIVE" ? "Đang kích hoạt" : "Đã tắt"}
               </span>
               <span
                 className={`status-badge op-badge-${camera.operationalStatus.toLowerCase()}`}
@@ -490,9 +490,8 @@ export default function CameraDetailPage() {
         </div>
 
         <button
-          className={`btn-toggle-status ${
-            isDecommissioned ? "btn-status-active" : "btn-status-decommission"
-          }`}
+          className={`btn-toggle-status ${isDecommissioned ? "btn-status-active" : "btn-status-decommission"
+            }`}
           onClick={handleToggleStatus}
           disabled={saving}
         >
@@ -506,27 +505,24 @@ export default function CameraDetailPage() {
         <div className="config-card">
           <div className="tabs-navigation">
             <button
-              className={`tab-btn ${
-                activeTab === "general" ? "tab-btn--active" : ""
-              }`}
+              className={`tab-btn ${activeTab === "general" ? "tab-btn--active" : ""
+                }`}
               onClick={() => setActiveTab("general")}
             >
               <Info size={16} />
               <span>Thông tin chung</span>
             </button>
             <button
-              className={`tab-btn ${
-                activeTab === "stream" ? "tab-btn--active" : ""
-              }`}
+              className={`tab-btn ${activeTab === "stream" ? "tab-btn--active" : ""
+                }`}
               onClick={() => setActiveTab("stream")}
             >
               <Video size={16} />
               <span>Cấu hình Stream</span>
             </button>
             <button
-              className={`tab-btn ${
-                activeTab === "surveillance" ? "tab-btn--active" : ""
-              }`}
+              className={`tab-btn ${activeTab === "surveillance" ? "tab-btn--active" : ""
+                }`}
               onClick={() => setActiveTab("surveillance")}
             >
               <Layers size={16} />

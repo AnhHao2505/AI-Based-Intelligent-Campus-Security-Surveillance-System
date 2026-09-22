@@ -5,7 +5,6 @@ import {
 	Video,
 	Bell,
 	CheckCircle2,
-	AlertTriangle,
 	Volume2,
 	VolumeX,
 	Radio,
@@ -89,7 +88,6 @@ export function SecuritySurveillancePage() {
 	const [cameraLayout, setCameraLayout] = useState(1); // 1 | 4 (2x2) | 9 (3x3) | 16 (4x4)
 	const [isTheaterMode, setIsTheaterMode] = useState(false); // Chế độ phóng to chỉ view màn hình
 	const [soundEnabled, setSoundEnabled] = useState(true);
-	const [autoSwitchEnabled, setAutoSwitchEnabled] = useState(true);
 	const [wsConnected, setWsConnected] = useState(false);
 	const [activeAlerts, setActiveAlerts] = useState([]);
 	const [cameraList, setCameraList] = useState([]);
@@ -99,6 +97,11 @@ export function SecuritySurveillancePage() {
 	const [statusNotification, setStatusNotification] = useState(null);
 
 	const flashTimeoutRef = useRef(null);
+	const soundEnabledRef = useRef(soundEnabled);
+
+	useEffect(() => {
+		soundEnabledRef.current = soundEnabled;
+	}, [soundEnabled]);
 
 	// Phím tắt ESC để thoát chế độ phóng to màn hình
 	useEffect(() => {
@@ -250,7 +253,7 @@ export function SecuritySurveillancePage() {
 
 	// Âm thanh cảnh báo
 	const playAlertSound = () => {
-		if (!soundEnabled) return;
+		if (!soundEnabledRef.current) return;
 		try {
 			const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 			const osc = audioCtx.createOscillator();
@@ -323,19 +326,18 @@ export function SecuritySurveillancePage() {
 		playAlertSound();
 		flashCameraAlert(camCodeClean);
 
-		// Cơ chế TỰ ĐỘNG CHUYỂN CAMERA nếu bật autoSwitchEnabled
-		if (autoSwitchEnabled) {
-			setSelectedCamera(camCodeClean);
-			triggerNotification(
-				`⚡ Tự động chuyển đến ${newAlert.cameraCode}: ${getSeverityMeta(newAlert.eventType).label}`,
-			);
-		}
+		// Tự động chuyển camera đang chọn (cho Layout 1)
+		setSelectedCamera(camCodeClean);
 	};
 
 	// Lắng nghe sự kiện cảnh báo an ninh qua WebSocket STOMP
 	useEffect(() => {
+		const API_BASE_URL =
+			import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
+		const brokerURL = API_BASE_URL.replace(/^http/, "ws") + "/ws-security";
+
 		const stompClient = new Client({
-			brokerURL: "ws://localhost:8080/ws-security",
+			brokerURL,
 			reconnectDelay: 4000,
 			heartbeatIncoming: 4000,
 			heartbeatOutgoing: 4000,
@@ -372,12 +374,16 @@ export function SecuritySurveillancePage() {
 				});
 			},
 			onDisconnect: () => setWsConnected(false),
+			onWebSocketClose: () => setWsConnected(false),
+			onWebSocketError: () => setWsConnected(false),
 			onStompError: () => setWsConnected(false),
 		});
 
 		stompClient.activate();
-		return () => stompClient.deactivate();
-	}, [soundEnabled, autoSwitchEnabled]);
+		return () => {
+			stompClient.deactivate();
+		};
+	}, []);
 
 	// Xác nhận xử lý cảnh báo
 	const handleAcknowledge = (id) => {
@@ -486,14 +492,8 @@ export function SecuritySurveillancePage() {
 		// Tự động chuyển ngay sang camera có sự cố NGUY CẤP NHẤT (CAM-003)
 		const highestPriorityCam =
 			targets[0].cam.code || targets[0].cam.cameraCode.toLowerCase();
-		if (autoSwitchEnabled) {
-			setSelectedCamera(highestPriorityCam);
-			flashCameraAlert(highestPriorityCam);
-		}
-
-		triggerNotification(
-			"🚨 Kích hoạt 3 sự cố mô phỏng! Camera tự động re-rank ưu tiên: CAM-003 (Xâm nhập) > CAM-001 (Lảng vảng) > CAM-002 (Đám đông)",
-		);
+		setSelectedCamera(highestPriorityCam);
+		flashCameraAlert(highestPriorityCam);
 	};
 
 	// 4 TÙY CHỌN BỐ CỤC LƯỚI CAMERA: 1, 2x2, 3x3, 4x4
@@ -537,15 +537,8 @@ export function SecuritySurveillancePage() {
 			{!isTheaterMode && (
 				<div className="guard-top-header">
 					<div className="guard-title-box">
-						<div className="live-pulse-badge">
-							<Radio
-								className="pulse-icon"
-								size={17}
-							/>
-							<span>LIVE SOC</span>
-						</div>
 						<div>
-							<h2>Trung tâm Giám sát An ninh (SOC)</h2>
+							<h2>Trung tâm Giám sát An ninh</h2>
 						</div>
 					</div>
 
@@ -564,14 +557,17 @@ export function SecuritySurveillancePage() {
 						{/* Bật/Tắt âm thanh chuông */}
 						<button
 							type="button"
-							className={`btn-sound-toggle ${soundEnabled ? "active" : ""}`}
-							onClick={() => setSoundEnabled(!soundEnabled)}
+							className={`btn-sound-toggle ${soundEnabled ? "active" : "muted"}`}
+							onClick={() => {
+								const next = !soundEnabled;
+								setSoundEnabled(next);
+							}}
 							title={
 								soundEnabled ? "Tắt âm thanh còi báo" : "Bật âm thanh còi báo"
 							}
 						>
 							{soundEnabled ? <Volume2 size={15} /> : <VolumeX size={15} />}
-							<span>{soundEnabled ? "Chuông: BẬT" : "Chuông: TẮT"}</span>
+							<span>{soundEnabled ? "Âm thanh" : "Tắt tiếng"}</span>
 						</button>
 
 						{/* Nhóm nút TEST mô phỏng */}
@@ -580,7 +576,7 @@ export function SecuritySurveillancePage() {
 								type="button"
 								className="btn-sim-alert"
 								onClick={handleSimulateSingleAlert}
-								title="Mô phỏng 1 sự cố ngẫu nhiên để kiểm tra tự chuyển camera"
+								title="Mô phỏng 1 sự cố ngẫu nhiên"
 							>
 								<Bell size={14} />
 								<span>Test 1 sự cố</span>
@@ -677,6 +673,22 @@ export function SecuritySurveillancePage() {
 							<div className="theater-actions-bar">
 								<button
 									type="button"
+									className={`btn-theater-test ${soundEnabled ? "" : "muted"}`}
+									onClick={() => {
+										const next = !soundEnabled;
+										setSoundEnabled(next);
+									}}
+									title={
+										soundEnabled
+											? "Tắt âm thanh còi báo"
+											: "Bật âm thanh còi báo"
+									}
+								>
+									{soundEnabled ? <Volume2 size={12} /> : <VolumeX size={12} />}
+									<span>{soundEnabled ? "Âm thanh" : "Tắt tiếng"}</span>
+								</button>
+								<button
+									type="button"
 									className="btn-theater-test"
 									onClick={handleSimulateSingleAlert}
 									title="Mô phỏng 1 sự cố để kiểm tra tự chuyển camera & tô đỏ màn hình trong chế độ phóng to"
@@ -763,6 +775,17 @@ export function SecuritySurveillancePage() {
 											fps="30 FPS"
 											isRecording={true}
 											host="localhost:8889"
+											onStatusChange={(playerStatus) => {
+												const newOpStatus =
+													playerStatus === "live" ? "ONLINE" : "OFFLINE";
+												setCameraList((prev) =>
+													prev.map((c) =>
+														c.code === camera.code
+															? { ...c, status: newOpStatus }
+															: c,
+													),
+												);
+											}}
 											onToggleMaximize={() => {
 												setSelectedCamera(camera.code);
 												setCameraLayout(1);
@@ -838,7 +861,7 @@ export function SecuritySurveillancePage() {
 								<div className="soc-safe-system-state">
 									<div className="soc-green-pulse-circle" />
 									<h4 className="soc-safe-title">HỆ THỐNG AN TOÀN</h4>
-									<p className="soc-safe-desc">Không có sự kiện</p>
+									<p className="soc-safe-desc">Không có sự cố</p>
 								</div>
 							) : (
 								<div className="soc-incident-list">

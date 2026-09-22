@@ -370,6 +370,12 @@
   color: var(--theme-primary, #2563eb);
 }
 
+.btn-sound-toggle.muted {
+  opacity: 0.65;
+  border-color: var(--theme-border, #e2e8f0);
+  color: var(--theme-text-muted, #64748b);
+}
+
 /* Nhóm nút TEST mô phỏng */
 .test-btn-group {
   display: flex;
@@ -1276,6 +1282,8 @@
   font-weight: 700;
   color: var(--theme-text-primary, #0f172a);
 }
+
+
 
 /* --------------------------------------------------------------------------
    Media Queries Responsive Cho Điện Thoại & Màn Hình Nhỏ

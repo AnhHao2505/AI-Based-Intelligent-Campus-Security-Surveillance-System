@@ -34,6 +34,7 @@ public class CameraSnapshotService {
     private final CameraStreamConfigurationRepository streamConfigRepo;
     private final CameraHealthLogRepository healthLogRepo;
     private final CameraService cameraService;
+    private final MediaMtxService mediaMtxService;
     private final RestTemplate restTemplate = new RestTemplate();
 
     @Value("${ai.service.url:http://localhost:8000}")
@@ -41,7 +42,8 @@ public class CameraSnapshotService {
 
     /**
      * "Kết nối": Build RTSP URL -> Gọi AI-service trích xuất snapshot frame.
-     * Khi thành công: cập nhật operationalStatus = ONLINE, ghi health log và trả về base64 snapshot.
+     * Khi thành công: đồng bộ MediaMTX path, cập nhật operationalStatus = ONLINE, ghi health log và trả về base64 snapshot.
+     * Khi thất bại: cập nhật operationalStatus = OFFLINE, ghi health log báo lỗi.
      */
     @Transactional
     public ConnectStreamResponse connectAndCapture(UUID cameraId) {
@@ -71,8 +73,27 @@ public class CameraSnapshotService {
             Map<String, Object> response = restTemplate.postForObject(aiEndpoint, request, Map.class);
 
             if (response == null || !Boolean.TRUE.equals(response.get("success"))) {
-                throw new CameraException(CameraErrorCode.ERR_SNAPSHOT_001);
+                camera.setOperationalStatus(OperationalStatus.OFFLINE);
+                camera.setUpdatedAt(OffsetDateTime.now());
+                cameraRepository.save(camera);
+
+                CameraHealthLog healthLog = CameraHealthLog.builder()
+                        .camera(camera)
+                        .status(OperationalStatus.OFFLINE)
+                        .checkedAt(OffsetDateTime.now())
+                        .errorMessage("Không thể trích xuất khung hình từ RTSP stream")
+                        .build();
+                healthLogRepo.save(healthLog);
+
+                return ConnectStreamResponse.builder()
+                        .success(false)
+                        .operationalStatus(OperationalStatus.OFFLINE)
+                        .errorMessage("Không thể trích xuất khung hình từ RTSP stream")
+                        .build();
             }
+
+            // Đồng bộ sang MediaMTX Gateway để đảm bảo path đã được đăng ký
+            mediaMtxService.syncCameraPath(camera.getCameraCode(), rtspUrl);
 
             // Cập nhật operationalStatus = ONLINE
             camera.setOperationalStatus(OperationalStatus.ONLINE);
@@ -105,7 +126,24 @@ public class CameraSnapshotService {
             throw ce;
         } catch (Exception e) {
             log.error("AI-service snapshot connection failed for camera [{}]: {}", cameraId, e.getMessage());
-            throw new CameraException(CameraErrorCode.ERR_SNAPSHOT_001);
+
+            camera.setOperationalStatus(OperationalStatus.OFFLINE);
+            camera.setUpdatedAt(OffsetDateTime.now());
+            cameraRepository.save(camera);
+
+            CameraHealthLog healthLog = CameraHealthLog.builder()
+                    .camera(camera)
+                    .status(OperationalStatus.OFFLINE)
+                    .checkedAt(OffsetDateTime.now())
+                    .errorMessage("Kết nối RTSP thất bại: " + e.getMessage())
+                    .build();
+            healthLogRepo.save(healthLog);
+
+            return ConnectStreamResponse.builder()
+                    .success(false)
+                    .operationalStatus(OperationalStatus.OFFLINE)
+                    .errorMessage("Không thể kết nối RTSP stream: " + e.getMessage())
+                    .build();
         }
     }
 

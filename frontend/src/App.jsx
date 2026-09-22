@@ -146,6 +146,16 @@ function App() {
 								}
 							/>
 
+							<Route
+								path="/admin/cameras"
+								element={<Navigate to="/cameras" replace />}
+							/>
+
+							<Route
+								path="/admin/cameras/:id"
+								element={<Navigate to="/cameras" replace />}
+							/>
+
 							{/* Account management - Admin only */}
 							<Route
 								path="/admin/accounts"

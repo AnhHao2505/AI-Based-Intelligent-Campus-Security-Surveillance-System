@@ -184,7 +184,7 @@ export default function CameraSurveillanceTab({
 							Đối chiếu trực quan giữa <strong>Ảnh tham chiếu gốc </strong> và{" "}
 							<strong>Khung hình thực tế hiện tại</strong>. Giúp nhận biết
 							camera có bị rung lắc, xoay góc hoặc dịch chuyển vị trí thực địa
-							so với các vùng ROI đã thiết lập.
+							so với khi lắp đặt.
 						</p>
 					</div>
 					<div className="drift-warning-actions">
