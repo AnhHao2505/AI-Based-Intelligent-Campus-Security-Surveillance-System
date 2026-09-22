@@ -181,8 +181,7 @@ export default function CameraSurveillanceTab({
 					<div className="drift-warning-content">
 						<h5>Kiểm Tra Sai Lệch Khung Hình Camera</h5>
 						<p>
-							Đối chiếu trực quan giữa{" "}
-							<strong>Ảnh tham chiếu gốc (khi tạo ROI)</strong> và{" "}
+							Đối chiếu trực quan giữa <strong>Ảnh tham chiếu gốc </strong> và{" "}
 							<strong>Khung hình thực tế hiện tại</strong>. Giúp nhận biết
 							camera có bị rung lắc, xoay góc hoặc dịch chuyển vị trí thực địa
 							so với các vùng ROI đã thiết lập.
@@ -329,7 +328,7 @@ export default function CameraSurveillanceTab({
 								className="roi-meta-badge"
 								style={{ color: "#34d399" }}
 							>
-								Trực tiếp: {liveSnapshot.width || 1920}x
+								Độ phân giải: {liveSnapshot.width || 1920}x
 								{liveSnapshot.height || 1080}
 							</span>
 							<span style={{ color: "#f59e0b", fontWeight: 600 }}>
@@ -394,7 +393,7 @@ export default function CameraSurveillanceTab({
 										size={14}
 										className="text-emerald-400"
 									/>
-									Ảnh tham chiếu ROI ({refWidth}x{refHeight})
+									Ảnh tham chiếu ({refWidth}x{refHeight})
 								</span>
 								<span>
 									Thời gian lưu:{" "}

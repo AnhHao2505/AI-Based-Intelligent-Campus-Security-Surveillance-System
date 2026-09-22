@@ -1,237 +1,737 @@
+/* ==========================================================================
+   Security Operations Center (SOC) — GuardDashboardPage.css
+   Modern, Sleek, Adaptive High-Contrast Security Surveillance Theme
+   Tập trung tại: frontend/src/styles/GuardDashboardPage.css
+   ========================================================================== */
+
 .guard-dashboard-container {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 12px;
   width: 100%;
-  min-height: calc(100vh - 40px);
-  padding: 4px;
+  min-height: calc(100vh - 36px);
+  padding: 8px 12px;
+  position: relative;
+  background: var(--theme-bg-page, #f8fafc);
+  color: var(--theme-text-primary, #0f172a);
+  box-sizing: border-box;
 }
 
-/* Top Header */
+/* --------------------------------------------------------------------------
+   Chế độ Phóng To Chỉ View Màn Hình (Theater / Focus Mode)
+   Tối ưu hóa 100% cho Desktop & Điện Thoại Di Động (Landscape / Portrait)
+   Đảm bảo cả thanh OSD trên và dưới KHÔNG BAO GIỜ bị tràn màn hình
+   -------------------------------------------------------------------------- */
+.guard-dashboard-container.soc-theater-mode {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  /* dvh hỗ trợ chuẩn xác thanh địa chỉ trên trình duyệt di động */
+  padding: 4px 8px;
+  background: #000000;
+  overflow: hidden;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.guard-dashboard-container.soc-theater-mode .guard-main-grid {
+  grid-template-columns: 1fr !important;
+  flex: 1;
+  min-height: 0;
+  height: 100% !important;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  gap: 0;
+}
+
+.guard-dashboard-container.soc-theater-mode .video-surveillance-panel {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.guard-dashboard-container.soc-theater-mode .camera-control-bar {
+  flex-shrink: 0;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(11, 15, 25, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.guard-dashboard-container.soc-theater-mode .camera-grid {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  width: 100%;
+  display: grid;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  gap: 6px;
+}
+
+/* Đảm bảo khung camera luôn nằm trọn vẹn trong viewport của điện thoại */
+.guard-dashboard-container.soc-theater-mode .video-viewport-card {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000000;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+}
+
+/* Bố cục 1 Camera: Tự động khóa chiều cao để chiều rộng 16:9 không làm mất thanh dưới OSD */
+.guard-dashboard-container.soc-theater-mode .camera-grid--1 .cctv-player-wrapper {
+  max-height: 100%;
+  max-width: calc((100dvh - 52px) * 16 / 9);
+  height: 100%;
+  width: auto;
+  aspect-ratio: 16 / 9;
+  margin: auto;
+}
+
+/* Bố cục nhiều camera trong chế độ phóng to */
+.guard-dashboard-container.soc-theater-mode .camera-grid--4 .cctv-player-wrapper,
+.guard-dashboard-container.soc-theater-mode .camera-grid--9 .cctv-player-wrapper,
+.guard-dashboard-container.soc-theater-mode .camera-grid--16 .cctv-player-wrapper {
+  max-width: 100%;
+  max-height: 100%;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  margin: auto;
+}
+
+/* Nút Thu nhỏ trên thanh điều khiển */
+.soc-exit-theater-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.5);
+  color: #38bdf8;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.2);
+  transition: all 0.2s ease;
+}
+
+.soc-exit-theater-btn:hover {
+  background: #38bdf8;
+  color: #020617;
+  border-color: #ffffff;
+}
+
+/* Thao tác trong chế độ Phóng to: Nút Test & Thu nhỏ */
+.theater-actions-bar {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.btn-theater-test {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.5);
+  color: #fbbf24;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.btn-theater-test:hover {
+  background: #f59e0b;
+  color: #000000;
+}
+
+.btn-theater-test.priority {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(239, 68, 68, 0.6);
+  color: #f87171;
+}
+
+.btn-theater-test.priority:hover {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+/* Floating Toast Notification */
+.soc-floating-toast {
+  position: fixed;
+  top: 68px;
+  right: 20px;
+  z-index: 10050;
+  /* Đảm bảo nổi trên cùng kể cả trong Theater mode (z-index 9999) */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  color: #e0f2fe;
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 15px rgba(56, 189, 248, 0.2);
+  backdrop-filter: blur(10px);
+  animation: slideToastIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.soc-floating-toast svg {
+  color: #38bdf8;
+  flex-shrink: 0;
+}
+
+@keyframes slideToastIn {
+  from {
+    transform: translateY(-16px) scale(0.96);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Top SOC Header Điều Hành
+   -------------------------------------------------------------------------- */
 .guard-top-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 20px;
-  background: var(--theme-bg-surface);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--theme-border);
-  border-radius: 14px;
+  gap: 14px;
+  padding: 10px 16px;
+  background: var(--theme-bg-surface, #ffffff);
+  border: 1px solid var(--theme-border, #e2e8f0);
+  border-radius: 12px;
+  box-shadow: var(--theme-card-shadow);
+  flex-wrap: wrap;
 }
 
 .guard-title-box {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
 }
 
 .guard-title-box h2 {
-  color: var(--theme-text-primary);
-  font-size: 1.25rem;
+  color: var(--theme-text-primary, #0f172a);
+  font-size: 1.15rem;
   font-weight: 700;
   margin: 0;
-  letter-spacing: -0.3px;
+  letter-spacing: -0.2px;
 }
 
 .live-pulse-badge {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  background: var(--theme-danger-bg);
-  border: 1px solid var(--theme-danger-border);
-  color: var(--theme-danger-text);
-  font-size: 0.75rem;
-  font-weight: 700;
-  padding: 4px 10px;
+  gap: 5px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+  font-size: 0.7rem;
+  font-weight: 800;
+  padding: 3px 8px;
   border-radius: 20px;
-  letter-spacing: 0.8px;
+  letter-spacing: 0.6px;
 }
 
 .pulse-icon {
-  animation: pulse-icon-anim 1.5s infinite;
+  animation: pulse-icon-anim 1.6s infinite;
 }
 
 @keyframes pulse-icon-anim {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.4; transform: scale(0.85); }
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
 }
 
 .guard-header-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
-.ws-status-chip {
+/* Nút Phóng to màn hình */
+.btn-theater-mode {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 0.78rem;
-  font-weight: 600;
-  padding: 6px 12px;
-  border-radius: 20px;
-}
-
-.ws-status-chip.connected {
-  background: var(--theme-success-bg);
-  border: 1px solid var(--theme-success-border);
-  color: var(--theme-success-text);
-}
-
-.ws-status-chip.connected .dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background-color: var(--theme-success);
-  box-shadow: 0 0 8px var(--theme-success);
-}
-
-.ws-status-chip.disconnected {
-  background: var(--theme-warning-bg);
-  border: 1px solid var(--theme-warning-border);
-  color: var(--theme-warning-text);
-}
-
-.ws-status-chip.disconnected .dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background-color: var(--theme-warning);
-}
-
-.btn-sound-toggle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--theme-bg-surface-elevated);
-  border: 1px solid var(--theme-border);
-  color: var(--theme-text-secondary);
-  padding: 8px 14px;
+  gap: 5px;
+  background: var(--theme-primary-subtle, rgba(37, 99, 235, 0.08));
+  border: 1px solid var(--theme-primary-border, #bfdbfe);
+  color: var(--theme-primary, #2563eb);
+  padding: 5px 11px;
   border-radius: 8px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.btn-sound-toggle.active {
-  background: var(--theme-success-bg);
-  border-color: var(--theme-success-border);
-  color: var(--theme-success-text);
-}
-
-.btn-sim-alert {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--theme-danger-bg);
-  border: 1px solid var(--theme-danger-border);
-  color: var(--theme-danger-text);
-  padding: 8px 14px;
-  border-radius: 8px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.btn-sim-alert:hover {
-  background: var(--theme-danger-border);
-  color: var(--theme-danger-text);
-}
-
-/* Main Grid Layout */
-.guard-main-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
-  gap: 20px;
-  flex: 1;
-}
-
-@media (max-width: 1200px) {
-  .guard-main-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* Left Column: Video Surveillance */
-.video-surveillance-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  min-width: 0;
-}
-
-.camera-layout-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-height: 46px;
-  padding: 8px 12px;
-  background: var(--theme-bg-surface);
-  border: 1px solid var(--theme-border);
-  border-radius: 10px;
-}
-
-.camera-layout-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--theme-text-secondary);
-  font-size: 0.82rem;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.camera-layout-options {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px;
-  background: var(--theme-bg-desc);
-  border: 1px solid var(--theme-border);
-  border-radius: 8px;
-}
-
-.camera-layout-option {
-  min-width: 42px;
-  padding: 5px 9px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--theme-text-muted);
-  font-size: 0.78rem;
+  font-size: 0.775rem;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
-.camera-layout-option:hover:not(:disabled) {
-  background: var(--brand-subtle);
-  color: var(--brand-text);
+.btn-theater-mode:hover {
+  background: var(--theme-primary, #2563eb);
+  color: #ffffff;
+}
+
+/* Nút Tự động chuyển camera */
+.btn-auto-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--theme-bg-page, #f8fafc);
+  border: 1px solid var(--theme-border, #e2e8f0);
+  color: var(--theme-text-secondary, #475569);
+  padding: 5px 11px;
+  border-radius: 8px;
+  font-size: 0.775rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-auto-switch:hover {
+  border-color: var(--theme-border-hover);
+  color: var(--theme-text-primary);
+}
+
+.btn-auto-switch.active {
+  background: var(--theme-success-bg, #f0fdf4);
+  border-color: var(--theme-success-border, #86efac);
+  color: var(--theme-success-text, #166534);
+}
+
+.icon-bolt-active {
+  color: #16a34a;
+  filter: drop-shadow(0 0 5px rgba(22, 163, 74, 0.5));
+}
+
+/* Nút Bật/Tắt chuông */
+.btn-sound-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--theme-bg-page, #f8fafc);
+  border: 1px solid var(--theme-border, #e2e8f0);
+  color: var(--theme-text-secondary, #475569);
+  padding: 5px 11px;
+  border-radius: 8px;
+  font-size: 0.775rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-sound-toggle.active {
+  border-color: var(--theme-primary-border, #bfdbfe);
+  color: var(--theme-primary, #2563eb);
+}
+
+/* Nhóm nút TEST mô phỏng */
+.test-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 6px;
+  border-left: 1px solid var(--theme-border, #e2e8f0);
+}
+
+.btn-sim-alert {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--theme-warning-bg, #fffbeb);
+  border: 1px solid var(--theme-warning-border, #fcd34d);
+  color: var(--theme-warning-text, #92400e);
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-sim-alert:hover {
+  background: #f59e0b;
+  color: #ffffff;
+}
+
+.btn-sim-multi-alert {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--theme-danger-bg, #fef2f2);
+  border: 1px solid var(--theme-danger-border, #fca5a5);
+  color: var(--theme-danger-text, #991b1b);
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-sim-multi-alert:hover {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+/* --------------------------------------------------------------------------
+   Bố Cục Lưới Chính
+   -------------------------------------------------------------------------- */
+.guard-main-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  gap: 12px;
+  align-items: start;
+  width: 100%;
+}
+
+@media (max-width: 1140px) {
+  .guard-main-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Cột Trái: Giám Sát Video Trực Tiếp
+   -------------------------------------------------------------------------- */
+.video-surveillance-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+}
+
+/* Thanh điều khiển tích hợp trên video */
+.camera-control-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 10px;
+  background: var(--theme-bg-surface, #ffffff);
+  border: 1px solid var(--theme-border, #e2e8f0);
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
+
+.camera-layout-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.control-bar-label {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--theme-text-muted, #64748b);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.camera-layout-options {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  background: var(--theme-bg-page, #f8fafc);
+  border: 1px solid var(--theme-border, #e2e8f0);
+  border-radius: 6px;
+}
+
+.camera-layout-option {
+  padding: 3px 7px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--theme-text-secondary, #475569);
+  font-size: 0.725rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.camera-layout-option:hover {
+  color: var(--theme-text-primary, #0f172a);
 }
 
 .camera-layout-option.active {
-  background: var(--brand-subtle-border);
-  color: var(--brand-text-strong);
+  background: var(--theme-bg-surface, #ffffff);
+  color: var(--theme-primary, #2563eb);
+  box-shadow: var(--theme-card-shadow);
 }
 
-.camera-layout-option:disabled {
-  color: var(--theme-text-disabled);
-  cursor: not-allowed;
-  opacity: 0.65;
-}
-
-.camera-availability-count {
-  margin-left: auto;
-  color: var(--theme-text-muted);
-  font-size: 0.75rem;
+/* Nút chuyển đổi sắp xếp Camera Tăng dần hoặc Ưu tiên sự cố */
+.cam-sort-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--theme-bg-page, #f8fafc);
+  border: 1px solid var(--theme-border, #e2e8f0);
+  color: var(--theme-text-secondary, #475569);
+  font-size: 0.725rem;
+  font-weight: 700;
+  cursor: pointer;
   white-space: nowrap;
+  transition: all 0.2s ease;
 }
 
+.cam-sort-toggle-btn:hover {
+  color: var(--theme-text-primary, #0f172a);
+  border-color: var(--theme-border-hover);
+}
+
+.cam-sort-toggle-btn.priority-active {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+/* Dải Camera Quick Switcher */
+.camera-quick-switcher {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px;
+  scrollbar-width: thin;
+  flex: 1;
+}
+
+.camera-quick-switcher::-webkit-scrollbar {
+  height: 3px;
+}
+
+.camera-quick-switcher::-webkit-scrollbar-thumb {
+  background: var(--theme-border, #cbd5e1);
+  border-radius: 4px;
+}
+
+.switcher-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.75rem;
+  color: var(--theme-text-muted, #64748b);
+}
+
+.cam-chip-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--theme-bg-page, #f8fafc);
+  border: 1px solid var(--theme-border, #e2e8f0);
+  color: var(--theme-text-secondary, #475569);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.cam-chip-btn:hover {
+  background: var(--theme-bg-surface-elevated, #ffffff);
+  border-color: var(--theme-border-hover);
+  color: var(--theme-text-primary);
+}
+
+.cam-chip-btn.active {
+  background: var(--theme-primary-subtle, rgba(37, 99, 235, 0.08));
+  border-color: var(--theme-primary, #2563eb);
+  color: var(--theme-primary, #2563eb);
+}
+
+.status-indicator-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-indicator-dot.online {
+  background: #16a34a;
+  box-shadow: 0 0 5px #16a34a;
+}
+
+.status-indicator-dot.standby {
+  background: #94a3b8;
+}
+
+.cam-chip-code {
+  font-family: monospace;
+  font-weight: 700;
+}
+
+.cam-chip-btn.has-incident {
+  border-color: rgba(239, 68, 68, 0.6);
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+/* 1. Mức độ NGUY CẤP (Critical - Đỏ) cho Chip Camera */
+.cam-chip-btn.has-incident.severity-critical {
+  border-color: rgba(239, 68, 68, 0.8);
+  background: rgba(239, 68, 68, 0.14);
+  color: #ef4444;
+}
+
+.cam-chip-btn.has-incident.severity-critical .cam-chip-incident-badge {
+  background: #ef4444;
+}
+
+.cam-chip-btn.flashing.severity-critical {
+  animation: chipPulseCritical 1.2s infinite;
+}
+
+/* 2. Mức độ CAO (High - Cam / Vàng hổ phách) cho Chip Camera */
+.cam-chip-btn.has-incident.severity-high {
+  border-color: rgba(245, 158, 11, 0.8);
+  background: rgba(245, 158, 11, 0.14);
+  color: #d97706;
+}
+
+.cam-chip-btn.has-incident.severity-high .cam-chip-incident-badge {
+  background: #f59e0b;
+}
+
+.cam-chip-btn.flashing.severity-high {
+  animation: chipPulseHigh 1.2s infinite;
+}
+
+/* 3. Mức độ CẢNH BÁO (Warning - Xanh lam / Cyan) cho Chip Camera */
+.cam-chip-btn.has-incident.severity-warning {
+  border-color: rgba(2, 132, 199, 0.8);
+  background: rgba(2, 132, 199, 0.14);
+  color: #0284c7;
+}
+
+.cam-chip-btn.has-incident.severity-warning .cam-chip-incident-badge {
+  background: #0284c7;
+}
+
+.cam-chip-btn.flashing.severity-warning {
+  animation: chipPulseWarning 1.2s infinite;
+}
+
+.cam-chip-incident-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 0.62rem;
+  font-weight: 800;
+  padding: 1px 4px;
+  border-radius: 6px;
+}
+
+.cam-chip-btn.flashing {
+  animation: chipPulseCritical 1.2s infinite;
+}
+
+@keyframes chipPulseCritical {
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+    border-color: #ef4444;
+  }
+
+  50% {
+    box-shadow: 0 0 0 5px rgba(239, 68, 68, 0);
+    border-color: #ef4444;
+  }
+}
+
+@keyframes chipPulseHigh {
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7);
+    border-color: #f59e0b;
+  }
+
+  50% {
+    box-shadow: 0 0 0 5px rgba(245, 158, 11, 0);
+    border-color: #f59e0b;
+  }
+}
+
+@keyframes chipPulseWarning {
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(2, 132, 199, 0.7);
+    border-color: #0284c7;
+  }
+
+  50% {
+    box-shadow: 0 0 0 5px rgba(2, 132, 199, 0);
+    border-color: #0284c7;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Lưới Video (Hỗ trợ 4 Layout Options: 1, 2x2, 3x3, 4x4)
+   -------------------------------------------------------------------------- */
 .camera-grid {
   display: grid;
-  gap: 12px;
+  gap: 8px;
   min-width: 0;
   width: 100%;
 }
@@ -244,452 +744,577 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.camera-grid--9 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .camera-grid--16 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
-.camera-grid--64 {
-  grid-template-columns: repeat(8, minmax(0, 1fr));
+.camera-grid-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 360px;
+  background: var(--theme-bg-surface, #ffffff);
+  border: 1px dashed var(--theme-border, #e2e8f0);
+  border-radius: 8px;
+  color: var(--theme-text-muted, #64748b);
+  gap: 8px;
+  font-size: 0.825rem;
 }
 
-.camera-grid--16 .player-header-overlay,
-.camera-grid--64 .player-header-overlay {
-  padding: 6px;
-}
-
-.camera-grid--16 .cam-title,
-.camera-grid--64 .cam-title {
-  display: none;
-}
-
-.camera-grid--16 .cam-code-tag,
-.camera-grid--64 .cam-code-tag {
-  padding: 2px 5px;
-  font-size: 0.62rem;
-}
-
-.camera-grid--16 .live-indicator-chip,
-.camera-grid--16 .connecting-chip,
-.camera-grid--16 .offline-chip {
-  padding: 2px 5px;
-  font-size: 0.58rem;
-}
-
-.camera-grid--64 .live-indicator-chip,
-.camera-grid--64 .connecting-chip,
-.camera-grid--64 .offline-chip {
-  padding: 2px 4px;
-  font-size: 0;
-}
-
-.camera-grid--64 .live-dot,
-.camera-grid--64 .spinner-dot {
-  width: 6px;
-  height: 6px;
-}
-
-.camera-grid--16 .fallback-content,
-.camera-grid--64 .fallback-content {
-  padding: 8px;
-  max-width: 100%;
-}
-
-.camera-grid--16 .fallback-content p,
-.camera-grid--64 .fallback-content p {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.camera-grid--16 .fallback-content p,
-.camera-grid--16 .sub-hint,
-.camera-grid--16 .error-detail,
-.camera-grid--64 .fallback-content p,
-.camera-grid--64 .sub-hint,
-.camera-grid--64 .error-detail {
-  font-size: 0.62rem;
-}
-
-.camera-grid--64 .sub-hint,
-.camera-grid--64 .error-detail {
-  display: none;
-}
-
-.camera-grid--64 .fallback-content p {
-  display: none;
-}
-
-@media (max-width: 640px) {
-  .camera-layout-toolbar {
-    flex-wrap: wrap;
-  }
-
-  .camera-availability-count {
-    margin-left: 0;
-  }
-}
-
+/* Khung chứa Video Viewport */
 .video-viewport-card {
-  width: 100%;
-  min-width: 0;
-}
-
-.camera-switcher-bar {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #000000;
+  border: 1px solid rgba(255, 255, 255, 0.12);
   display: flex;
   align-items: center;
-  gap: 12px;
-  min-width: 0;
-  padding: 12px 16px;
-  background: var(--theme-bg-surface);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--theme-border);
-  border-radius: 12px;
-  overflow-x: auto;
-  overflow-y: hidden;
+  justify-content: center;
+  transition: all 0.25s ease;
 }
 
-.camera-switcher-bar::-webkit-scrollbar {
-  height: 5px;
+/* 1. Mức độ NGUY CẤP (Critical - Đỏ) */
+.video-viewport-card.card-has-incident.severity-critical {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 16px rgba(239, 68, 68, 0.45) !important;
 }
 
-.camera-switcher-bar::-webkit-scrollbar-track {
-  background: transparent;
+.video-viewport-card.card-has-incident.severity-critical .cctv-player-wrapper,
+.video-viewport-card.card-flashing.severity-critical .cctv-player-wrapper {
+  border-color: #ef4444 !important;
+  animation: cctvRedAlertFlash 1s infinite alternate !important;
 }
 
-.camera-switcher-bar::-webkit-scrollbar-thumb {
-  background: var(--theme-border-hover);
-  border-radius: 0;
+/* 2. Mức độ CAO (High - Cam / Vàng hổ phách) */
+.video-viewport-card.card-has-incident.severity-high {
+  border-color: #f59e0b !important;
+  box-shadow: 0 0 16px rgba(245, 158, 11, 0.45) !important;
 }
 
-.camera-switcher-bar {
-  scrollbar-width: thin;
-  scrollbar-color: var(--theme-border-hover) transparent;
+.video-viewport-card.card-has-incident.severity-high .cctv-player-wrapper,
+.video-viewport-card.card-flashing.severity-high .cctv-player-wrapper {
+  border-color: #f59e0b !important;
+  animation: cctvAmberAlertFlash 1s infinite alternate !important;
 }
 
-.switcher-label {
+/* 3. Mức độ CẢNH BÁO (Warning - Xanh lam / Cyan) */
+.video-viewport-card.card-has-incident.severity-warning {
+  border-color: #0284c7 !important;
+  box-shadow: 0 0 16px rgba(2, 132, 199, 0.45) !important;
+}
+
+.video-viewport-card.card-has-incident.severity-warning .cctv-player-wrapper,
+.video-viewport-card.card-flashing.severity-warning .cctv-player-wrapper {
+  border-color: #0284c7 !important;
+  animation: cctvBlueAlertFlash 1s infinite alternate !important;
+}
+
+/* Fallback chung */
+.video-viewport-card.card-has-incident {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 16px rgba(239, 68, 68, 0.4) !important;
+}
+
+.video-viewport-card.card-has-incident .cctv-player-wrapper,
+.video-viewport-card.card-flashing .cctv-player-wrapper {
+  border-color: #ef4444 !important;
+  animation: cctvRedAlertFlash 1s infinite alternate !important;
+}
+
+@keyframes cctvRedAlertFlash {
+  0% {
+    border-color: #ef4444;
+    box-shadow: 0 0 25px rgba(239, 68, 68, 0.85), inset 0 0 22px rgba(239, 68, 68, 0.35);
+  }
+
+  100% {
+    border-color: rgba(239, 68, 68, 0.35);
+    box-shadow: 0 0 6px rgba(239, 68, 68, 0.2), inset 0 0 0 transparent;
+  }
+}
+
+@keyframes cctvAmberAlertFlash {
+  0% {
+    border-color: #f59e0b;
+    box-shadow: 0 0 25px rgba(245, 158, 11, 0.85), inset 0 0 22px rgba(245, 158, 11, 0.35);
+  }
+
+  100% {
+    border-color: rgba(245, 158, 11, 0.35);
+    box-shadow: 0 0 6px rgba(245, 158, 11, 0.2), inset 0 0 0 transparent;
+  }
+}
+
+@keyframes cctvBlueAlertFlash {
+  0% {
+    border-color: #0284c7;
+    box-shadow: 0 0 25px rgba(2, 132, 199, 0.85), inset 0 0 22px rgba(2, 132, 199, 0.35);
+  }
+
+  100% {
+    border-color: rgba(2, 132, 199, 0.35);
+    box-shadow: 0 0 6px rgba(2, 132, 199, 0.2), inset 0 0 0 transparent;
+  }
+}
+
+/* Viewport Incident Banner theo màu sắc từng mức độ ưu tiên */
+.viewport-incident-banner {
+  position: absolute;
+  top: 32px;
+  left: 8px;
+  right: 8px;
+  z-index: 25;
+  color: #ffffff;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 0.74rem;
+  font-weight: 800;
   display: flex;
   align-items: center;
   gap: 6px;
-  color: var(--theme-text-secondary);
-  font-size: 0.82rem;
-  font-weight: 600;
-  white-space: nowrap;
-  flex-shrink: 0;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(4px);
+  animation: bannerSlideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.camera-tabs-list {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: max-content;
-  flex-shrink: 0;
+.viewport-incident-banner.severity-critical {
+  background: rgba(220, 38, 38, 0.95);
+  border-color: rgba(254, 202, 202, 0.4);
 }
 
-.cam-tab-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--theme-bg-desc);
-  border: 1px solid var(--theme-border);
-  padding: 6px 12px;
-  border-radius: 8px;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.2s ease;
+.viewport-incident-banner.severity-high {
+  background: rgba(217, 119, 6, 0.95);
+  border-color: rgba(254, 243, 199, 0.4);
 }
 
-.cam-tab-btn:hover {
-  background: var(--theme-bg-surface-elevated);
-  border-color: var(--theme-border-hover);
+.viewport-incident-banner.severity-warning {
+  background: rgba(2, 132, 199, 0.95);
+  border-color: rgba(186, 230, 253, 0.4);
 }
 
-.cam-tab-btn.active {
-  background: var(--brand-subtle);
-  border-color: var(--brand-blue);
+.banner-flame-icon {
+  animation: flameFlicker 0.8s infinite alternate;
 }
 
-.cam-tab-code {
-  color: var(--brand-text);
-  font-size: 0.75rem;
-  font-weight: 700;
+@keyframes flameFlicker {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.85;
+  }
+
+  100% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
 }
 
-.cam-tab-name {
-  color: var(--theme-text-primary);
-  font-size: 0.8rem;
-  font-weight: 500;
+@keyframes bannerSlideDown {
+  from {
+    transform: translateY(-8px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
-.status-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-}
-
-.status-dot.online {
-  background-color: var(--theme-success);
-  box-shadow: 0 0 8px var(--theme-success);
-}
-
-.status-dot.standby {
-  background-color: var(--theme-text-disabled);
-}
-
-/* Right Column: Incidents */
+/* --------------------------------------------------------------------------
+   Cột Phải: SỰ KIỆN AN NINH & THỐNG KÊ HỆ THỐNG (Format Chuẩn Theme Light/Dark)
+   -------------------------------------------------------------------------- */
 .incident-alerts-panel {
   display: flex;
   flex-direction: column;
-  background: var(--theme-bg-surface);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--theme-border);
-  border-radius: 14px;
-  padding: 16px;
-  max-height: calc(100vh - 160px);
-}
-
-.panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--theme-border);
-  margin-bottom: 14px;
-}
-
-.panel-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.panel-title h3 {
-  color: var(--theme-text-primary);
-  font-size: 0.95rem;
-  font-weight: 700;
-  margin: 0;
-}
-
-.alert-header-icon {
-  color: var(--theme-danger);
-}
-
-.incident-count-chip {
-  background: var(--theme-danger-bg);
-  border: 1px solid var(--theme-danger-border);
-  color: var(--theme-danger-text);
-  font-size: 0.75rem;
-  font-weight: 700;
-  padding: 2px 8px;
+  background: var(--theme-bg-surface, #ffffff);
+  border: 1px solid var(--theme-border, #e2e8f0);
   border-radius: 12px;
+  box-shadow: var(--theme-card-shadow);
+  height: calc(100vh - 100px);
+  max-height: 820px;
+  overflow: hidden;
 }
 
-.incident-list-scroll {
+/* Header Panel: 🛡 SỰ KIỆN AN NINH */
+.soc-panel-header {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
-  overflow-y: auto;
-  padding-right: 4px;
-}
-
-.incident-list-scroll::-webkit-scrollbar {
-  width: 4px;
-}
-
-.incident-list-scroll::-webkit-scrollbar-thumb {
-  background: var(--theme-border-hover);
-  border-radius: 4px;
-}
-
-.empty-incident-box {
-  display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 40px 20px;
-  text-align: center;
-}
-
-.check-ok-icon {
-  color: var(--theme-success);
-  margin-bottom: 8px;
-  opacity: 0.8;
-}
-
-.empty-incident-box p {
-  color: var(--theme-text-primary);
-  font-size: 0.95rem;
-  font-weight: 600;
-  margin: 0 0 4px 0;
-}
-
-.empty-incident-box span {
-  color: var(--theme-text-muted);
-  font-size: 0.8rem;
-}
-
-/* Incident Cards */
-.incident-alert-card {
-  background: var(--theme-bg-desc);
-  border: 1px solid var(--theme-border);
-  border-radius: 10px;
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  transition: all 0.2s ease;
-}
-
-.incident-alert-card.pending {
-  border-left: 3px solid var(--theme-danger);
-  background: var(--theme-danger-bg);
-}
-
-.incident-alert-card.resolved {
-  border-left: 3px solid var(--theme-success);
-  opacity: 0.7;
-}
-
-.incident-card-top {
-  display: flex;
   justify-content: space-between;
-  align-items: center;
+  padding: 12px 16px;
+  background: var(--theme-bg-surface, #ffffff);
+  border-bottom: 1px solid var(--theme-border, #e2e8f0);
 }
 
-.incident-badge {
+.soc-panel-title {
   display: flex;
   align-items: center;
-  gap: 4px;
-  color: var(--theme-danger-text);
-  font-size: 0.72rem;
-  font-weight: 700;
+  gap: 8px;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--theme-text-primary, #0f172a);
+  letter-spacing: 0.4px;
   text-transform: uppercase;
 }
 
-.incident-time {
+.soc-shield-icon {
+  color: var(--theme-primary, #2563eb);
+}
+
+.soc-header-count {
+  font-family: 'JetBrains Mono', 'Consolas', monospace;
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: var(--theme-bg-page, #f8fafc);
+  border: 1px solid var(--theme-border, #e2e8f0);
+  color: var(--theme-text-muted, #64748b);
+}
+
+.soc-header-count.has-incidents {
+  background: var(--theme-danger-bg, #fef2f2);
+  border-color: var(--theme-danger-border, #fca5a5);
+  color: var(--theme-danger, #ef4444);
+}
+
+/* Tabs Bộ Lọc: [Tất cả 0]  [Chưa xử lý 0] */
+.soc-filter-tabs {
   display: flex;
   align-items: center;
-  gap: 4px;
-  color: var(--theme-text-muted);
-  font-size: 0.72rem;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--theme-bg-page, #f8fafc);
+  border-bottom: 1px solid var(--theme-border, #e2e8f0);
 }
 
-.incident-message {
-  color: var(--theme-text-primary);
-  font-size: 0.82rem;
-  font-weight: 600;
-  line-height: 1.35;
-  margin: 0;
-}
-
-.incident-details-row {
-  display: flex;
-  gap: 12px;
+.soc-tab-btn {
+  flex: 1;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--theme-text-secondary, #475569);
   font-size: 0.75rem;
-  color: var(--theme-text-secondary);
-}
-
-.incident-snapshot-box {
-  position: relative;
-  width: 100%;
-  height: 110px;
+  font-weight: 600;
+  padding: 5px 8px;
   border-radius: 6px;
-  overflow: hidden;
-  border: 1px solid var(--theme-border);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
 }
 
-.incident-snapshot-box img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+.soc-tab-btn:hover {
+  color: var(--theme-text-primary, #0f172a);
+  background: var(--theme-bg-surface, #ffffff);
 }
 
-.snapshot-tag {
-  position: absolute;
-  bottom: 4px;
-  right: 4px;
-  background: rgba(0, 0, 0, 0.75);
-  color: var(--theme-text-primary);
-  font-size: 0.65rem;
-  padding: 2px 6px;
-  border-radius: 4px;
+.soc-tab-btn.active {
+  background: var(--theme-bg-surface, #ffffff);
+  border: 1px solid var(--theme-border, #cbd5e1);
+  color: var(--theme-primary, #2563eb);
+  font-weight: 700;
+  box-shadow: var(--theme-card-shadow);
 }
 
-.incident-action-box {
-  margin-top: 4px;
-}
-
-.btn-ack-incident {
+.soc-btn-clear {
+  background: transparent;
+  border: none;
+  color: var(--theme-text-muted, #64748b);
+  cursor: pointer;
+  padding: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  width: 100%;
-  background: var(--theme-success-bg);
-  border: 1px solid var(--theme-success-border);
-  color: var(--theme-success-text);
-  padding: 6px 12px;
-  border-radius: 6px;
+  border-radius: 4px;
+}
+
+.soc-btn-clear:hover {
+  color: var(--theme-danger, #ef4444);
+  background: var(--theme-danger-bg, #fef2f2);
+}
+
+/* Alert Feed Body */
+.soc-alert-feed-body {
+  display: flex;
+  flex-direction: column;
+  padding: 14px;
+  overflow-y: auto;
+  flex: 1;
+  background: var(--theme-bg-surface, #ffffff);
+}
+
+/* Trạng thái an toàn: 🟢 HỆ THỐNG AN TOÀN / Không có sự kiện */
+.soc-safe-system-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  margin: auto 0;
+  padding: 28px 10px;
+  gap: 10px;
+}
+
+.soc-green-pulse-circle {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #16a34a;
+  box-shadow: 0 0 16px rgba(22, 163, 74, 0.45);
+  animation: safeRadarGlow 2s infinite alternate;
+}
+
+@keyframes safeRadarGlow {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.85;
+    box-shadow: 0 0 10px rgba(22, 163, 74, 0.3);
+  }
+
+  100% {
+    transform: scale(1.1);
+    opacity: 1;
+    box-shadow: 0 0 22px rgba(22, 163, 74, 0.6);
+  }
+}
+
+.soc-safe-title {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--theme-text-primary, #0f172a);
+  margin: 0;
+  letter-spacing: 0.5px;
+}
+
+.soc-safe-desc {
   font-size: 0.8rem;
-  font-weight: 600;
+  color: var(--theme-text-muted, #64748b);
+  margin: 0;
+  font-weight: 500;
+}
+
+/* Danh sách thẻ sự cố */
+.soc-incident-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.soc-incident-card {
+  background: var(--theme-bg-page, #f8fafc);
+  border: 1px solid var(--theme-border, #e2e8f0);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.soc-incident-card:hover {
+  background: var(--theme-bg-surface-elevated, #ffffff);
+  border-color: var(--theme-border-hover, #cbd5e1);
+  box-shadow: var(--theme-card-shadow);
+}
+
+.soc-incident-card.pending.severity-critical {
+  border-left: 4px solid #ef4444;
+}
+
+.soc-incident-card.pending.severity-high {
+  border-left: 4px solid #f59e0b;
+}
+
+.soc-incident-card.pending.severity-warning {
+  border-left: 4px solid #0284c7;
+}
+
+.soc-incident-card.resolved {
+  opacity: 0.7;
+  border-left: 4px solid var(--theme-text-disabled, #94a3b8);
+}
+
+.soc-incident-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.soc-incident-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.2px;
+}
+
+.severity-critical .soc-incident-tag {
+  color: #ef4444;
+}
+
+.severity-high .soc-incident-tag {
+  color: #d97706;
+}
+
+.severity-warning .soc-incident-tag {
+  color: #0284c7;
+}
+
+.soc-incident-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.7rem;
+  color: var(--theme-text-muted, #64748b);
+  font-family: monospace;
+}
+
+.soc-incident-msg {
+  font-size: 0.8rem;
+  color: var(--theme-text-primary, #0f172a);
+  line-height: 1.4;
+  margin: 0;
+  font-weight: 500;
+}
+
+.soc-incident-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding-top: 4px;
+}
+
+.btn-soc-jump-cam {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--theme-primary-subtle, rgba(37, 99, 235, 0.08));
+  border: 1px solid var(--theme-primary-border, #bfdbfe);
+  color: var(--theme-primary, #2563eb);
+  padding: 4px 8px;
+  border-radius: 5px;
+  font-size: 0.725rem;
+  font-weight: 700;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
-.btn-ack-incident:hover {
-  background: var(--theme-success-border);
-  color: var(--theme-success-text);
+.btn-soc-jump-cam:hover {
+  background: var(--theme-primary, #2563eb);
+  color: #ffffff;
 }
 
-.resolved-status-tag {
+.btn-soc-ack {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: var(--theme-success-text);
-  font-size: 0.75rem;
+  background: var(--theme-success-bg, #f0fdf4);
+  border: 1px solid var(--theme-success-border, #86efac);
+  color: var(--theme-success-text, #166534);
+  padding: 4px 8px;
+  border-radius: 5px;
+  font-size: 0.725rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-soc-ack:hover {
+  background: #16a34a;
+  color: #ffffff;
+}
+
+.soc-resolved-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--theme-success, #16a34a);
+  font-size: 0.7rem;
   font-weight: 600;
 }
 
-[data-theme="light"] .guard-dashboard-container {
-  color: var(--theme-text-primary);
+/* Đường phân cách */
+.soc-panel-divider {
+  height: 1px;
+  background: var(--theme-border, #e2e8f0);
+  margin: 0 14px;
 }
 
-[data-theme="light"] .guard-top-header,
-[data-theme="light"] .camera-switcher-bar,
-[data-theme="light"] .incident-alerts-panel {
-  background: var(--theme-bg-surface);
-  border-color: var(--theme-border);
-  box-shadow: var(--theme-card-shadow);
-  backdrop-filter: none;
+/* Thống kê chân bảng: Camera online 3/4, Đang ghi hình 3 */
+.soc-system-status-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 16px 14px 16px;
+  background: var(--theme-bg-surface, #ffffff);
 }
 
-[data-theme="light"] .camera-layout-toolbar {
-  background: var(--theme-bg-surface);
-  border-color: var(--theme-border);
-  box-shadow: var(--theme-card-shadow);
+.soc-stat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
-[data-theme="light"] .camera-layout-option:hover:not(:disabled) {
-  background: var(--brand-subtle);
-  color: var(--brand-blue);
+.soc-stat-label {
+  font-size: 0.82rem;
+  color: var(--theme-text-secondary, #475569);
+  font-weight: 500;
 }
 
-[data-theme="light"] .camera-layout-option.active {
-  background: var(--brand-subtle);
-  color: var(--brand-blue);
+.soc-stat-value {
+  font-family: 'JetBrains Mono', 'Consolas', monospace;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--theme-text-primary, #0f172a);
 }
 
-[data-theme="light"] .cam-tab-btn:hover {
-  background: var(--theme-bg-surface-elevated);
-  border-color: var(--theme-border-hover);
-}
+/* --------------------------------------------------------------------------
+   Media Queries Responsive Cho Điện Thoại & Màn Hình Nhỏ
+   -------------------------------------------------------------------------- */
+@media (max-width: 768px) {
+  .guard-dashboard-container {
+    padding: 6px 8px;
+    gap: 8px;
+  }
 
-[data-theme="light"] .cam-tab-btn.active {
-  background: var(--brand-subtle);
-  border-color: var(--brand-blue);
-}
+  .guard-top-header {
+    padding: 8px 10px;
+    gap: 8px;
+  }
 
-[data-theme="light"] .cam-tab-code {
-  color: var(--brand-blue);
-}
+  .guard-title-box h2 {
+    font-size: 0.95rem;
+  }
 
+  .guard-header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .btn-theater-mode,
+  .btn-auto-switch,
+  .btn-sound-toggle,
+  .btn-sim-alert,
+  .btn-sim-multi-alert {
+    padding: 4px 8px;
+    font-size: 0.72rem;
+  }
+
+  .camera-control-bar {
+    padding: 4px 6px;
+    gap: 6px;
+  }
+
+  .incident-alerts-panel {
+    max-height: 500px;
+  }
+}

@@ -205,10 +205,10 @@ export default function Sidebar({ user, onLogout }) {
 										className={({ isActive }) =>
 											`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
 										}
-										title={sidebarCollapsed ? "Giám sát An ninh" : undefined}
+										title={sidebarCollapsed ? "Trung tâm Giám sát" : undefined}
 									>
 										<ShieldAlert size={18} />
-										<span>Giám sát an ninh</span>
+										<span>Trung tâm Giám sát</span>
 									</NavLink>
 								)}
 
