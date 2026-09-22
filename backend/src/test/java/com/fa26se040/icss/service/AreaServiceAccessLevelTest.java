@@ -137,6 +137,36 @@ class AreaServiceAccessLevelTest {
     }
 
     @Test
+    @DisplayName("Tạo area khi thiếu preset -> fail-closed (accessLevel = 3, explicitAuthorizationRequired = true)")
+    void createArea_WhenPresetMissing_FailsClosedWithLevel3AndExplicitAuthTrue() {
+        AreaCreateRequest reqMissing = new AreaCreateRequest(
+                "UNKNOWN-ROOM",
+                "Phòng Mới",
+                AreaLevel.SEMI_PRIVATE,
+                "Tòa B",
+                "Tầng 1",
+                "Khu vực chưa có preset"
+        );
+
+        when(areaValidator.validateAndNormalizeCode(reqMissing.code())).thenReturn(reqMissing.code());
+        when(areaValidator.validateAndNormalizeName(reqMissing.name())).thenReturn(reqMissing.name());
+        when(areaRepository.existsByCodeAndDeletedAtIsNull(reqMissing.code())).thenReturn(false);
+        when(userRepository.findByEmail(adminEmail)).thenReturn(Optional.of(admin));
+        when(areaLevelPresetRepository.findById(AreaLevel.SEMI_PRIVATE)).thenReturn(Optional.empty());
+
+        when(areaRepository.save(any(Area.class))).thenAnswer(inv -> {
+            Area a = inv.getArgument(0);
+            a.setId(UUID.randomUUID());
+            return a;
+        });
+
+        AreaResponse resp = areaService.create(reqMissing, adminEmail);
+        assertNotNull(resp);
+        assertEquals(3, resp.areaAccessLevel());
+        assertTrue(resp.explicitAuthorizationRequired());
+    }
+
+    @Test
     @DisplayName("Cập nhật area_level khi update -> KHÔNG tự động thay đổi access-rules")
     void updateArea_AreaLevelChange_DoesNotTouchAccessRules() {
         UUID areaId = UUID.randomUUID();

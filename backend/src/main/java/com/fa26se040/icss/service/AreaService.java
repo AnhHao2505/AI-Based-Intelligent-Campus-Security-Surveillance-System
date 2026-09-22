@@ -27,6 +27,7 @@ import com.fa26se040.icss.repository.CameraRepository;
 import com.fa26se040.icss.repository.AreaRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -34,9 +35,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AreaService {
@@ -101,15 +104,25 @@ public class AreaService {
 
         resolveActorId(actorEmail);
 
-        AreaLevelPreset preset = areaLevelPresetRepository.findById(req.areaLevel())
-                .orElseThrow(() -> new IllegalStateException("Preset không tồn tại cho area_level: " + req.areaLevel()));
+        // Fail-closed, khớp DEFAULT trong V38 khi thiếu preset (level 3, explicit_authorization_required = true)
+        int areaAccessLevel = 3;
+        boolean explicitAuthRequired = true;
+
+        Optional<AreaLevelPreset> presetOpt = areaLevelPresetRepository.findById(req.areaLevel());
+        if (presetOpt.isPresent()) {
+            AreaLevelPreset preset = presetOpt.get();
+            areaAccessLevel = preset.getAreaAccessLevel();
+            explicitAuthRequired = preset.getExplicitAuthorizationRequired();
+        } else {
+            log.warn("Không tìm thấy preset cấu hình cho area_level: {}. Áp dụng fail-closed (accessLevel=3, explicitAuthRequired=true)", req.areaLevel());
+        }
 
         Area area = Area.builder()
                 .code(code)
                 .name(name)
                 .areaLevel(req.areaLevel())
-                .areaAccessLevel(preset.getAreaAccessLevel())
-                .explicitAuthorizationRequired(preset.getExplicitAuthorizationRequired())
+                .areaAccessLevel(areaAccessLevel)
+                .explicitAuthorizationRequired(explicitAuthRequired)
                 .building(req.building() != null ? req.building().trim() : null)
                 .floor(req.floor() != null ? req.floor().trim() : null)
                 .description(req.description())
