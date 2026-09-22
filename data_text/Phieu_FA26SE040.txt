@@ -57,6 +57,7 @@ The Facility Manager shall be able to:
 The Authorized User shall be able to:
 ● View personal access history.
 ● Receive notifications related to access events.
+● Submit access authorization requests (optional).
 5. AI Surveillance Engine (System Actor)
 The AI Surveillance Engine shall be able to:
 ● Detect human presence.

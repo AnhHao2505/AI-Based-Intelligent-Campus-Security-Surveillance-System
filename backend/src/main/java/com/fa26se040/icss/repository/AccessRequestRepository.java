@@ -138,4 +138,25 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, UU
             @Param("now") OffsetDateTime now,
             @Param("expectedStatus") RequestStatus expectedStatus
     );
+
+    /**
+     * Chỉ đọc, dùng cho AccessDecisionService#checkEntry: đơn có status = :status tại :areaId,
+     * startTime <= :at < endTime, và user là requester hoặc là member của đơn nhóm.
+     */
+    @Query("SELECT ar FROM AccessRequest ar " +
+           "WHERE ar.area.id = :areaId " +
+           "AND ar.status = :status " +
+           "AND ar.startTime <= :at " +
+           "AND ar.endTime > :at " +
+           "AND (ar.requester.id = :userId OR EXISTS (" +
+           "    SELECT 1 FROM AccessRequestMember arm " +
+           "    WHERE arm.accessRequest.id = ar.id AND arm.user.id = :userId" +
+           ")) " +
+           "ORDER BY ar.startTime ASC")
+    List<AccessRequest> findCoveringRequestsForUser(
+            @Param("userId") UUID userId,
+            @Param("areaId") UUID areaId,
+            @Param("at") OffsetDateTime at,
+            @Param("status") RequestStatus status
+    );
 }

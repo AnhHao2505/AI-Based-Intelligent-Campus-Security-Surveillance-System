@@ -7,6 +7,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.time.LocalDateTime;
@@ -69,6 +70,17 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(body, ex.getErrorCode().getHttpStatus());
     }
 
+    @ExceptionHandler(AssignedPersonnelException.class)
+    public ResponseEntity<Map<String, Object>> handleAssignedPersonnelException(AssignedPersonnelException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now().toString());
+        body.put("status", ex.getErrorCode().getHttpStatus().value());
+        body.put("error", ex.getErrorCode().getHttpStatus().getReasonPhrase());
+        body.put("code", ex.getErrorCode().getCode());
+        body.put("message", ex.getErrorCode().getMessageTemplate());
+        return new ResponseEntity<>(body, ex.getErrorCode().getHttpStatus());
+    }
+
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<Map<String, Object>> handleAccessDenied(AccessDeniedException ex) {
         return buildResponse(HttpStatus.FORBIDDEN, "Access denied: " + ex.getMessage());
@@ -112,6 +124,14 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({IllegalArgumentException.class, IllegalStateException.class})
     public ResponseEntity<Map<String, Object>> handleBadRequest(RuntimeException ex) {
         return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Map<String, Object>> handleMethodArgumentTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        String name = ex.getName();
+        Object value = ex.getValue();
+        String message = String.format("Giá trị '%s' không hợp lệ cho tham số '%s'", value, name);
+        return buildResponse(HttpStatus.BAD_REQUEST, message);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
