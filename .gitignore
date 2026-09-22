@@ -62,3 +62,7 @@ env/
 ai-service/evidence_snapshots/
 ai-service/runs/
 ai-service/face_storage/
+
+# local only
+Claude outputs/
+backup_*.sql
