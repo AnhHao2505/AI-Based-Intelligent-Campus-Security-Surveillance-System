@@ -1,0 +1,405 @@
+/* ==========================================================================
+   AreaAssignedPersonnelModal.css — Dual Theme Assigned Personnel Modal
+   ========================================================================== */
+
+.ap-modal-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Top Bar */
+.ap-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ap-filter-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--theme-bg-page, rgba(0, 0, 0, 0.05));
+  padding: 4px;
+  border-radius: 8px;
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.1));
+}
+
+.ap-filter-tab {
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  border: none;
+  background: transparent;
+  color: var(--theme-text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ap-filter-tab:hover {
+  color: var(--theme-text-primary);
+}
+
+.ap-filter-tab.is-active {
+  background: var(--theme-bg-surface, #ffffff);
+  color: var(--theme-text-primary);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Add Form Card */
+.ap-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 10px;
+  background: var(--theme-bg-page, rgba(0, 0, 0, 0.03));
+  border: 1px solid var(--brand-subtle-border);
+}
+
+.ap-add-form__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--theme-text-primary);
+}
+
+.ap-add-form__icon {
+  color: var(--brand-text);
+}
+
+.ap-add-form__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.ap-form-group--full {
+  grid-column: span 2;
+}
+
+.ap-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ap-form-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--theme-text-primary);
+}
+
+.ap-form-required {
+  color: #ef4444;
+}
+
+.ap-form-hint {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--theme-text-muted);
+}
+
+.ap-form-input {
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 6px;
+  background: var(--theme-bg-surface, #ffffff);
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.1));
+  color: var(--theme-text-primary);
+  font-size: 13px;
+  transition: all 0.2s ease;
+}
+
+.ap-form-input:focus {
+  outline: none;
+  border-color: var(--brand-text);
+  box-shadow: 0 0 0 2px var(--brand-subtle);
+}
+
+.ap-form-checkbox-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--theme-text-secondary);
+  cursor: pointer;
+  margin-top: 4px;
+}
+
+.ap-form-checkbox-inline input {
+  accent-color: var(--theme-primary);
+  cursor: pointer;
+}
+
+.ap-form-textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--theme-bg-surface, #ffffff);
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.1));
+  color: var(--theme-text-primary);
+  font-size: 13px;
+  resize: vertical;
+}
+
+.ap-form-textarea:focus {
+  outline: none;
+  border-color: var(--brand-text);
+  box-shadow: 0 0 0 2px var(--brand-subtle);
+}
+
+.ap-add-form__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+/* Table Container */
+.ap-table-container {
+  max-height: 400px;
+  overflow-y: auto;
+  border-radius: 8px;
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.1));
+}
+
+.ap-table-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--theme-text-muted);
+  gap: 8px;
+}
+
+.ap-table-empty__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--theme-text-primary);
+}
+
+.ap-table-empty__desc {
+  font-size: 12px;
+}
+
+.ap-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  text-align: left;
+}
+
+.ap-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--theme-bg-page, #f8fafc);
+  padding: 10px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--theme-text-muted);
+  border-bottom: 1px solid var(--theme-border);
+  z-index: 1;
+}
+
+.ap-table tbody td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--theme-border);
+  color: var(--theme-text-primary);
+  vertical-align: middle;
+}
+
+.ap-table tbody tr:hover {
+  background: var(--brand-subtle);
+}
+
+.ap-row--revoked {
+  opacity: 0.65;
+}
+
+.ap-cell--code {
+  font-weight: 600;
+  font-family: monospace;
+}
+
+.ap-cell--name {
+  font-weight: 500;
+}
+
+.ap-cell--creator {
+  max-width: 120px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  color: var(--theme-text-muted);
+}
+
+.ap-cell--note {
+  max-width: 160px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  color: var(--theme-text-secondary);
+}
+
+.ap-revoke-note {
+  color: #ef4444;
+  font-style: italic;
+}
+
+.ap-text--indefinite {
+  font-weight: 600;
+  color: var(--theme-text-secondary);
+}
+
+/* Status Badges */
+.ap-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.ap-badge--active {
+  background: rgba(34, 197, 94, 0.12);
+  color: #22c55e;
+}
+
+.ap-badge--upcoming {
+  background: rgba(59, 130, 246, 0.12);
+  color: #3b82f6;
+}
+
+.ap-badge--expired {
+  background: rgba(100, 116, 139, 0.15);
+  color: var(--theme-text-muted);
+}
+
+.ap-badge--revoked {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+}
+
+/* Role Pills */
+.ap-role-pill {
+  display: inline-flex;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  background: var(--theme-border);
+  color: var(--theme-text-secondary);
+}
+
+.ap-role-pill.role--ADMIN {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+}
+
+.ap-role-pill.role--FACILITY_MANAGER {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+}
+
+.ap-role-pill.role--GUARD {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+}
+
+.ap-role-pill.role--NORMAL_USER {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+}
+
+/* Actions in Table */
+.ap-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.ap-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--theme-border);
+  background: var(--theme-bg-surface, #ffffff);
+  color: var(--theme-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ap-action-btn--edit:hover {
+  border-color: var(--brand-text);
+  color: var(--brand-text);
+  background: var(--brand-subtle);
+}
+
+.ap-action-btn--revoke:hover {
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.ap-action-disabled {
+  color: var(--theme-text-muted);
+}
+
+/* Revoke Dialog Warning */
+.ap-revoke-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #ef4444;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.ap-revoke-warning__icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.ap-revoke-warning__text strong {
+  color: #ef4444;
+}
+
+.ap-modal__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.ap-modal__count {
+  font-size: 12px;
+  color: var(--theme-text-muted);
+}
+
+.ap-modal__count strong {
+  color: var(--theme-text-primary);
+}

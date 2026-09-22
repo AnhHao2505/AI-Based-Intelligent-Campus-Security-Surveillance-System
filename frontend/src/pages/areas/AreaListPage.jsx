@@ -22,8 +22,10 @@ import {
   AlertTriangle,
   CheckCircle2,
   ShieldCheck,
+  Users,
 } from 'lucide-react';
 import AreaAccessRulesModal from '../../components/area/AreaAccessRulesModal';
+import AreaAssignedPersonnelModal from '../../components/area/AreaAssignedPersonnelModal';
 import {
   getAreas,
   getDependencies,
@@ -147,6 +149,16 @@ export default function AreaListPage() {
       prev.map((a) => (a.id === updatedArea.id ? { ...a, ...updatedArea } : a))
     );
     setAccessRulesModalArea((prev) => (prev?.id === updatedArea.id ? { ...prev, ...updatedArea } : prev));
+  }, []);
+
+  // Assigned personnel modal states (Facility Manager & Admin)
+  const [assignedPersonnelModalOpen, setAssignedPersonnelModalOpen] = useState(false);
+  const [assignedPersonnelModalArea, setAssignedPersonnelModalArea] = useState(null);
+
+  const handleOpenAssignedPersonnelModal = useCallback((area) => {
+    if (!area) return;
+    setAssignedPersonnelModalArea(area);
+    setAssignedPersonnelModalOpen(true);
   }, []);
 
   const handleOpenCamerasModal = useCallback(async (area) => {
@@ -1076,6 +1088,16 @@ export default function AreaListPage() {
 
                   {/* Actions */}
                   <div className="zone-detail-actions">
+                    <button
+                      type="button"
+                      className="zone-btn-action"
+                      onClick={() => handleOpenAssignedPersonnelModal(selectedArea)}
+                      title="Xem và quản lý nhân sự chỉ định cố định"
+                    >
+                      <Users size={14} />
+                      <span>Nhân sự gán</span>
+                    </button>
+
                     {isFacilityManager && (
                       <button
                         type="button"
@@ -1260,6 +1282,18 @@ export default function AreaListPage() {
                             <ShieldCheck size={13} />
                           </button>
                         )}
+
+                        <button
+                          type="button"
+                          className="zone-card__quick-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenAssignedPersonnelModal(area);
+                          }}
+                          title="Xem nhân sự chỉ định cố định"
+                        >
+                          <Users size={13} />
+                        </button>
 
                         {isAdmin && (
                           <>
@@ -1976,6 +2010,14 @@ export default function AreaListPage() {
         onClose={() => setAccessRulesModalOpen(false)}
         area={accessRulesModalArea}
         onSuccess={handleAccessRulesSuccess}
+      />
+
+      {/* Area Assigned Personnel Modal (FM & ADMIN) */}
+      <AreaAssignedPersonnelModal
+        isOpen={assignedPersonnelModalOpen}
+        onClose={() => setAssignedPersonnelModalOpen(false)}
+        area={assignedPersonnelModalArea}
+        isFacilityManager={isFacilityManager}
       />
     </div>
   );

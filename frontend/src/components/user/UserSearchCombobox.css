@@ -1,0 +1,239 @@
+/* ==========================================================================
+   UserSearchCombobox.css — User Search Autocomplete Combobox
+   ========================================================================== */
+
+.user-combobox {
+  position: relative;
+  width: 100%;
+}
+
+.user-combobox__input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.user-combobox__search-icon {
+  position: absolute;
+  left: 12px;
+  color: var(--theme-text-muted);
+  pointer-events: none;
+}
+
+.user-combobox__input {
+  width: 100%;
+  height: 38px;
+  padding: 0 36px 0 36px;
+  border-radius: 8px;
+  background: var(--theme-bg-surface, #ffffff);
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.1));
+  color: var(--theme-text-primary);
+  font-size: 13px;
+  transition: all 0.2s ease;
+}
+
+.user-combobox__input:focus {
+  outline: none;
+  border-color: var(--brand-text);
+  box-shadow: 0 0 0 2px var(--brand-subtle);
+}
+
+.user-combobox__spinner {
+  position: absolute;
+  right: 12px;
+  color: var(--theme-primary);
+}
+
+.user-combobox__input-clear {
+  position: absolute;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: var(--theme-text-muted);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.user-combobox__input-clear:hover {
+  color: var(--theme-text-primary);
+  background: var(--theme-border);
+}
+
+/* Selected User Box */
+.user-combobox__selected {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--brand-subtle);
+  border: 1px solid var(--brand-subtle-border);
+}
+
+.user-combobox__selected-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.user-combobox__selected-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--theme-text-primary);
+}
+
+.user-combobox__selected-code {
+  font-size: 12px;
+  color: var(--theme-text-muted);
+}
+
+.user-combobox__clear-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--theme-text-muted);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.user-combobox__clear-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+/* Badges / Pills */
+.user-combobox__role-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  background: var(--theme-border);
+  color: var(--theme-text-secondary);
+}
+
+.user-combobox__role-pill.role--ADMIN {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+}
+
+.user-combobox__role-pill.role--FACILITY_MANAGER {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+}
+
+.user-combobox__role-pill.role--GUARD {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+}
+
+.user-combobox__role-pill.role--NORMAL_USER {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+}
+
+.user-combobox__level-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  background: var(--brand-subtle);
+  border: 1px solid var(--brand-subtle-border);
+  color: var(--brand-text);
+}
+
+/* Dropdown Menu */
+.user-combobox__dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 250px;
+  overflow-y: auto;
+  border-radius: 8px;
+  background: var(--theme-bg-surface, #ffffff);
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.1));
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
+  z-index: 1000;
+}
+
+.user-combobox__hint,
+.user-combobox__empty {
+  padding: 12px 14px;
+  font-size: 12px;
+  color: var(--theme-text-muted);
+  text-align: center;
+}
+
+.user-combobox__loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px;
+  font-size: 12px;
+  color: var(--theme-text-muted);
+}
+
+.user-combobox__list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+}
+
+.user-combobox__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  gap: 10px;
+}
+
+.user-combobox__item:hover {
+  background: var(--brand-subtle);
+}
+
+.user-combobox__item-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.user-combobox__item-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--theme-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-combobox__item-code {
+  font-size: 12px;
+  color: var(--theme-text-muted);
+}
+
+.user-combobox__item-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
