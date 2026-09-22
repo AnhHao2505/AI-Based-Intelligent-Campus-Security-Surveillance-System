@@ -1,6 +1,7 @@
 package com.fa26se040.icss.controller;
 
 import com.fa26se040.icss.dto.accessrequest.AreaSimpleResponse;
+import com.fa26se040.icss.dto.area.AreaAccessRulesUpdateRequest;
 import com.fa26se040.icss.dto.area.AreaCameraResponse;
 import com.fa26se040.icss.dto.area.AreaCameraUpdateRequest;
 import com.fa26se040.icss.dto.area.AreaCreateRequest;
@@ -163,5 +164,14 @@ public class AreaController {
             @RequestBody AreaCameraUpdateRequest request
     ) {
         return ResponseEntity.ok(areaService.updateCamerasForArea(id, request.getCameraIds()));
+    }
+
+    @PatchMapping("/{id}/access-rules")
+    @PreAuthorize("hasRole('FACILITY_MANAGER')")
+    public ResponseEntity<AreaResponse> updateAccessRules(
+            @PathVariable UUID id,
+            @Valid @RequestBody AreaAccessRulesUpdateRequest request
+    ) {
+        return ResponseEntity.ok(areaService.updateAccessRules(id, request));
     }
 }

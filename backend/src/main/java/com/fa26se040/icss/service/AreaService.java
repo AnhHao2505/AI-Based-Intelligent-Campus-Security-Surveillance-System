@@ -17,13 +17,17 @@ import com.fa26se040.icss.exception.AreaException;
 import com.fa26se040.icss.exception.CameraErrorCode;
 import com.fa26se040.icss.exception.CameraException;
 import com.fa26se040.icss.exception.UnauthorizedException;
+import com.fa26se040.icss.dto.area.AreaAccessRulesUpdateRequest;
 import com.fa26se040.icss.dto.area.AreaCameraResponse;
 import com.fa26se040.icss.dto.camera.CameraSimpleResponse;
+import com.fa26se040.icss.entity.AreaLevelPreset;
 import com.fa26se040.icss.entity.Camera;
+import com.fa26se040.icss.repository.AreaLevelPresetRepository;
 import com.fa26se040.icss.repository.CameraRepository;
 import com.fa26se040.icss.repository.AreaRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -31,9 +35,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AreaService {
@@ -41,6 +47,7 @@ public class AreaService {
     private final AreaRepository areaRepository;
     private final CameraRepository cameraRepository;
     private final UserRepository userRepository;
+    private final AreaLevelPresetRepository areaLevelPresetRepository;
     private final AreaValidator areaValidator;
     private final AreaDependencyChecker dependencyChecker;
     private final AreaGeometryValidator geometryValidator;
@@ -97,10 +104,25 @@ public class AreaService {
 
         resolveActorId(actorEmail);
 
+        // Fail-closed, khớp DEFAULT trong V38 khi thiếu preset (level 3, explicit_authorization_required = true)
+        int areaAccessLevel = 3;
+        boolean explicitAuthRequired = true;
+
+        Optional<AreaLevelPreset> presetOpt = areaLevelPresetRepository.findById(req.areaLevel());
+        if (presetOpt.isPresent()) {
+            AreaLevelPreset preset = presetOpt.get();
+            areaAccessLevel = preset.getAreaAccessLevel();
+            explicitAuthRequired = preset.getExplicitAuthorizationRequired();
+        } else {
+            log.warn("Không tìm thấy preset cấu hình cho area_level: {}. Áp dụng fail-closed (accessLevel=3, explicitAuthRequired=true)", req.areaLevel());
+        }
+
         Area area = Area.builder()
                 .code(code)
                 .name(name)
                 .areaLevel(req.areaLevel())
+                .areaAccessLevel(areaAccessLevel)
+                .explicitAuthorizationRequired(explicitAuthRequired)
                 .building(req.building() != null ? req.building().trim() : null)
                 .floor(req.floor() != null ? req.floor().trim() : null)
                 .description(req.description())
@@ -287,12 +309,31 @@ public class AreaService {
                 .orElseThrow(() -> new UnauthorizedException("Phiên đăng nhập không hợp lệ"));
     }
 
+    @Transactional
+    public AreaResponse updateAccessRules(UUID id, AreaAccessRulesUpdateRequest req) {
+        Area area = areaRepository.findById(id)
+                .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
+
+        if (!Boolean.TRUE.equals(area.getIsActive()) || area.getDeletedAt() != null) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_017);
+        }
+
+        area.setAreaAccessLevel(req.areaAccessLevel());
+        area.setExplicitAuthorizationRequired(req.explicitAuthorizationRequired());
+        area.setUpdatedAt(OffsetDateTime.now());
+
+        Area savedArea = areaRepository.save(area);
+        return mapToAreaResponse(savedArea);
+    }
+
     private AreaResponse mapToAreaResponse(Area area) {
         return new AreaResponse(
                 area.getId(),
                 area.getCode(),
                 area.getName(),
                 area.getAreaLevel(),
+                area.getAreaAccessLevel(),
+                area.getExplicitAuthorizationRequired(),
                 area.getBuilding(),
                 area.getFloor(),
                 area.getDescription(),

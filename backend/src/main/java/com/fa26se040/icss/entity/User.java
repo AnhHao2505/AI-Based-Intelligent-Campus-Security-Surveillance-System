@@ -41,6 +41,11 @@ public class User {
     @Builder.Default
     private Boolean isActive = true;
 
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.SMALLINT)
+    @Column(name = "access_level", nullable = false)
+    @Builder.Default
+    private Integer accessLevel = 1;
+
     @Column(name = "created_at")
     private OffsetDateTime createdAt;
 

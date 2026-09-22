@@ -373,4 +373,153 @@ class AccessDecisionServiceTest {
         assertThrows(IllegalArgumentException.class,
                 () -> accessDecisionService.checkEntry(lecturer.getId(), lab.getId(), null));
     }
+
+    @Test
+    @DisplayName("Hiệu trưởng level 3, phòng server (cờ true, không gán, không đơn) → deny")
+    void principalLevel3_ServerRoomFlagTrue_NoAssign_NoRequest_Denied() {
+        User principal = user("HT001", "Hiệu Trưởng");
+        principal.setAccessLevel(3);
+        lenient().when(userRepository.findById(principal.getId())).thenReturn(Optional.of(principal));
+
+        Area serverRoom = Area.builder()
+                .id(UUID.randomUUID())
+                .code("SRV-01")
+                .name("Phòng Server")
+                .areaLevel(AreaLevel.PRIVATE)
+                .areaAccessLevel(3)
+                .explicitAuthorizationRequired(true)
+                .isActive(true)
+                .build();
+        lenient().when(areaRepository.findById(serverRoom.getId())).thenReturn(Optional.of(serverRoom));
+
+        AccessDecision d = accessDecisionService.checkEntry(principal.getId(), serverRoom.getId(), at(10));
+        assertFalse(d.allowed());
+        assertEquals(AccessSource.NONE, d.source());
+    }
+
+    @Test
+    @DisplayName("Hiệu trưởng được gán vào phòng hiệu trưởng (cờ true) → allow ASSIGNED_PERSONNEL")
+    void principalAssignedToOffice_FlagTrue_AllowedAssignedPersonnel() {
+        User principal = user("HT001", "Hiệu Trưởng");
+        principal.setAccessLevel(3);
+        lenient().when(userRepository.findById(principal.getId())).thenReturn(Optional.of(principal));
+
+        Area office = Area.builder()
+                .id(UUID.randomUUID())
+                .code("OFFICE-HT")
+                .name("Phòng Hiệu Trưởng")
+                .areaLevel(AreaLevel.PRIVATE)
+                .areaAccessLevel(3)
+                .explicitAuthorizationRequired(true)
+                .isActive(true)
+                .build();
+        lenient().when(areaRepository.findById(office.getId())).thenReturn(Optional.of(office));
+
+        AreaAssignedPersonnel a = AreaAssignedPersonnel.builder()
+                .id(UUID.randomUUID())
+                .area(office)
+                .user(principal)
+                .validFrom(DAY.minusDays(30))
+                .validTo(null)
+                .build();
+        assignments.add(a);
+
+        AccessDecision d = accessDecisionService.checkEntry(principal.getId(), office.getId(), at(10));
+        assertTrue(d.allowed());
+        assertEquals(AccessSource.ASSIGNED_PERSONNEL, d.source());
+        assertEquals(a.getId(), d.sourceRefId());
+    }
+
+    @Test
+    @DisplayName("FM level 2 vào SEMI_PRIVATE (level 2, cờ false) → allow ACCESS_LEVEL")
+    void facilityManagerLevel2_SemiPrivateAreaLevel2FlagFalse_AllowedAccessLevel() {
+        User fm = user("FM001", "Quản Lý CSVN");
+        fm.setRole(Role.FACILITY_MANAGER);
+        fm.setAccessLevel(2);
+        lenient().when(userRepository.findById(fm.getId())).thenReturn(Optional.of(fm));
+
+        Area meetingRoom = Area.builder()
+                .id(UUID.randomUUID())
+                .code("SEMI-01")
+                .name("Phòng Họp Chung")
+                .areaLevel(AreaLevel.SEMI_PRIVATE)
+                .areaAccessLevel(2)
+                .explicitAuthorizationRequired(false)
+                .isActive(true)
+                .build();
+        lenient().when(areaRepository.findById(meetingRoom.getId())).thenReturn(Optional.of(meetingRoom));
+
+        AccessDecision d = accessDecisionService.checkEntry(fm.getId(), meetingRoom.getId(), at(10));
+        assertTrue(d.allowed());
+        assertEquals(AccessSource.ACCESS_LEVEL, d.source());
+        assertNull(d.sourceRefId());
+    }
+
+    @Test
+    @DisplayName("User level 1 vào khu vực level 2 cờ false, có đơn APPROVED → allow ACCESS_REQUEST")
+    void userLevel1_AreaLevel2FlagFalse_WithApprovedRequest_AllowedAccessRequest() {
+        student.setAccessLevel(1);
+
+        Area meetingRoom = Area.builder()
+                .id(UUID.randomUUID())
+                .code("SEMI-01")
+                .name("Phòng Họp Chung")
+                .areaLevel(AreaLevel.SEMI_PRIVATE)
+                .areaAccessLevel(2)
+                .explicitAuthorizationRequired(false)
+                .isActive(true)
+                .build();
+        lenient().when(areaRepository.findById(meetingRoom.getId())).thenReturn(Optional.of(meetingRoom));
+
+        AccessRequest req = AccessRequest.builder()
+                .id(UUID.randomUUID())
+                .area(meetingRoom)
+                .requester(student)
+                .requestType(RequestType.INDIVIDUAL)
+                .purpose("Học nhóm")
+                .startTime(at(8))
+                .endTime(at(12))
+                .status(RequestStatus.APPROVED)
+                .build();
+        requests.add(req);
+
+        AccessDecision d = accessDecisionService.checkEntry(student.getId(), meetingRoom.getId(), at(10));
+        assertTrue(d.allowed());
+        assertEquals(AccessSource.ACCESS_REQUEST, d.source());
+        assertEquals(req.getId(), d.sourceRefId());
+    }
+
+    @Test
+    @DisplayName("User level 1 vào khu vực level 2 cờ false, không có gì → deny")
+    void userLevel1_AreaLevel2FlagFalse_NoAssignNoRequest_Denied() {
+        student.setAccessLevel(1);
+
+        Area meetingRoom = Area.builder()
+                .id(UUID.randomUUID())
+                .code("SEMI-01")
+                .name("Phòng Họp Chung")
+                .areaLevel(AreaLevel.SEMI_PRIVATE)
+                .areaAccessLevel(2)
+                .explicitAuthorizationRequired(false)
+                .isActive(true)
+                .build();
+        lenient().when(areaRepository.findById(meetingRoom.getId())).thenReturn(Optional.of(meetingRoom));
+
+        AccessDecision d = accessDecisionService.checkEntry(student.getId(), meetingRoom.getId(), at(10));
+        assertFalse(d.allowed());
+        assertEquals(AccessSource.NONE, d.source());
+    }
+
+    @Test
+    @DisplayName("Cờ true, user level 3, có đơn APPROVED → allow ACCESS_REQUEST")
+    void flagTrue_UserLevel3_WithApprovedRequest_AllowedAccessRequest() {
+        lecturer.setAccessLevel(3);
+
+        AccessRequest req = request(lecturer, RequestStatus.APPROVED, at(8), at(12));
+
+        AccessDecision d = accessDecisionService.checkEntry(lecturer.getId(), lab.getId(), at(10));
+        assertTrue(d.allowed());
+        assertEquals(AccessSource.ACCESS_REQUEST, d.source());
+        assertEquals(req.getId(), d.sourceRefId());
+    }
 }

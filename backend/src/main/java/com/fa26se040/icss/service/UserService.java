@@ -13,17 +13,21 @@ import com.fa26se040.icss.dto.user.BatchUserResponse;
 import com.fa26se040.icss.dto.user.BatchDeleteResponse;
 import com.fa26se040.icss.dto.user.BatchRestoreResponse;
 import com.fa26se040.icss.dto.user.BatchRestoreSkippedUser;
+import com.fa26se040.icss.dto.user.UserSearchResponse;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.exception.DuplicateResourceException;
 import com.fa26se040.icss.exception.MaxRecordsExceededException;
 import com.fa26se040.icss.exception.ResourceNotFoundException;
+import com.fa26se040.icss.exception.UnauthorizedException;
 import com.fa26se040.icss.repository.UserRepository;
 import com.fa26se040.icss.util.StringNormalizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -76,6 +80,7 @@ public class UserService {
     private final MinioStorageService minioStorageService;
     private final UserBulkImportHelper userBulkImportHelper;
     private final NotificationService notificationService;
+    private final UserAccessLevelHelper userAccessLevelHelper;
 
     @Transactional
     public StaffAccountCreateResponse createStaffAccount(StaffAccountCreateRequest request) {
@@ -116,12 +121,14 @@ public class UserService {
 
         // 2. Begin DB Transaction for User, FaceData
         try {
+            int defaultAccessLevel = resolveDefaultAccessLevel(role);
             User user = User.builder()
                     .fullName(normFullName)
                     .userCode(normUserCode)
                     .email(normEmail)
                     .password(encodedPassword)
                     .role(role)
+                    .accessLevel(defaultAccessLevel)
                     .isActive(true) // BR-07: is_active = true by default
                     .createdAt(OffsetDateTime.now())
                     .updatedAt(OffsetDateTime.now())
@@ -801,12 +808,60 @@ public class UserService {
         return sb.toString();
     }
 
-    private static class ZipImageEntry {
+        private static class ZipImageEntry {
         final String fileName;
         final byte[] bytes;
         ZipImageEntry(String fileName, byte[] bytes) {
             this.fileName = fileName;
             this.bytes = bytes;
         }
+    }
+
+    @Transactional(readOnly = true)
+    public Page<UserSearchResponse> searchUsers(String q, Pageable pageable) {
+        if (q == null || q.trim().length() < 2) {
+            throw new IllegalArgumentException("Từ khoá tìm kiếm phải có tối thiểu 2 ký tự");
+        }
+        String cleanQ = q.trim();
+        int cappedSize = Math.min(Math.max(1, pageable.getPageSize()), 20);
+        Pageable cappedPageable = PageRequest.of(pageable.getPageNumber(), cappedSize, pageable.getSort());
+        Page<User> page = userRepository.searchActiveUsers(cleanQ, cappedPageable);
+        return page.map(u -> new UserSearchResponse(
+                u.getId(),
+                u.getUserCode(),
+                u.getFullName(),
+                u.getRole(),
+                u.getAccessLevel()
+        ));
+    }
+
+    public int resolveDefaultAccessLevel(Role role) {
+        return userAccessLevelHelper.resolveDefaultAccessLevel(role);
+    }
+
+    @Transactional
+    public UserSearchResponse updateAccessLevel(UUID id, Integer accessLevel, String actorEmail) {
+        if (actorEmail != null) {
+            User actor = userRepository.findByEmail(actorEmail)
+                    .orElseThrow(() -> new UnauthorizedException("Phiên đăng nhập không hợp lệ"));
+            if (actor.getId().equals(id)) {
+                throw new AccessDeniedException("Bạn không thể tự thay đổi cấp truy cập của chính mình");
+            }
+        }
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng"));
+        if (user.getDeletedAt() != null) {
+            throw new ResourceNotFoundException("Không tìm thấy người dùng");
+        }
+        user.setAccessLevel(accessLevel);
+        user.setUpdatedAt(OffsetDateTime.now());
+        User saved = userRepository.save(user);
+        return new UserSearchResponse(
+                saved.getId(),
+                saved.getUserCode(),
+                saved.getFullName(),
+                saved.getRole(),
+                saved.getAccessLevel()
+        );
     }
 }

@@ -25,6 +25,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
@@ -210,11 +211,12 @@ class GuardScheduleServiceTest {
     @DisplayName("Bảo vệ điểm danh thất bại khi chưa đến khung giờ nhận ca (trước hơn 5 phút)")
     void testCheckIn_Fail_TooEarly() {
         UUID shiftId = UUID.randomUUID();
-        LocalTime futureTime = LocalTime.now().plusHours(2);
+        LocalDateTime futureDateTime = LocalDateTime.now().plusHours(2);
+        LocalTime futureTime = futureDateTime.toLocalTime();
         GuardShift shift = GuardShift.builder()
                 .id(shiftId)
                 .guard(guardUser)
-                .shiftDate(LocalDate.now())
+                .shiftDate(futureDateTime.toLocalDate())
                 .shiftType(ShiftType.SHIFT_AFTERNOON)
                 .startTime(futureTime)
                 .endTime(futureTime.plusHours(8))
@@ -235,11 +237,12 @@ class GuardScheduleServiceTest {
     @DisplayName("Bảo vệ điểm danh thất bại và bị đánh vắng khi quá 5 phút sau giờ bắt đầu ca")
     void testCheckIn_Fail_Overdue_MarksAbsent() {
         UUID shiftId = UUID.randomUUID();
-        LocalTime pastTime = LocalTime.now().minusHours(1);
+        LocalDateTime pastDateTime = LocalDateTime.now().minusHours(1);
+        LocalTime pastTime = pastDateTime.toLocalTime();
         GuardShift shift = GuardShift.builder()
                 .id(shiftId)
                 .guard(guardUser)
-                .shiftDate(LocalDate.now())
+                .shiftDate(pastDateTime.toLocalDate())
                 .shiftType(ShiftType.SHIFT_MORNING)
                 .startTime(pastTime)
                 .endTime(pastTime.plusHours(8))
