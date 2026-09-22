@@ -38,6 +38,7 @@ public class UserBulkImportHelper {
     private final FaceDataService faceDataService;
     private final MinioStorageService minioStorageService;
     private final NotificationService notificationService;
+    private final UserAccessLevelHelper userAccessLevelHelper;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public BulkImportRowResult processSingleRow(
@@ -102,12 +103,15 @@ public class UserBulkImportHelper {
 
         // 3. Perform DB User creation & Face Registration inside try-catch
         try {
+            Role effectiveRole = role != null ? role : Role.NORMAL_USER;
+            int defaultAccessLevel = userAccessLevelHelper.resolveDefaultAccessLevel(effectiveRole);
             User user = User.builder()
                     .userCode(userCode)
                     .fullName(fullName)
                     .email(email)
                     .password(passwordEncoder.encode(tempPassword))
-                    .role(role != null ? role : Role.NORMAL_USER)
+                    .role(effectiveRole)
+                    .accessLevel(defaultAccessLevel)
                     .isActive(true)
                     .createdAt(OffsetDateTime.now())
                     .updatedAt(OffsetDateTime.now())

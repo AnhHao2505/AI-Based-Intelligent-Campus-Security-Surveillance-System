@@ -17,9 +17,12 @@ import com.fa26se040.icss.exception.AreaException;
 import com.fa26se040.icss.exception.CameraErrorCode;
 import com.fa26se040.icss.exception.CameraException;
 import com.fa26se040.icss.exception.UnauthorizedException;
+import com.fa26se040.icss.dto.area.AreaAccessRulesUpdateRequest;
 import com.fa26se040.icss.dto.area.AreaCameraResponse;
 import com.fa26se040.icss.dto.camera.CameraSimpleResponse;
+import com.fa26se040.icss.entity.AreaLevelPreset;
 import com.fa26se040.icss.entity.Camera;
+import com.fa26se040.icss.repository.AreaLevelPresetRepository;
 import com.fa26se040.icss.repository.CameraRepository;
 import com.fa26se040.icss.repository.AreaRepository;
 import com.fa26se040.icss.repository.UserRepository;
@@ -41,6 +44,7 @@ public class AreaService {
     private final AreaRepository areaRepository;
     private final CameraRepository cameraRepository;
     private final UserRepository userRepository;
+    private final AreaLevelPresetRepository areaLevelPresetRepository;
     private final AreaValidator areaValidator;
     private final AreaDependencyChecker dependencyChecker;
     private final AreaGeometryValidator geometryValidator;
@@ -97,10 +101,15 @@ public class AreaService {
 
         resolveActorId(actorEmail);
 
+        AreaLevelPreset preset = areaLevelPresetRepository.findById(req.areaLevel())
+                .orElseThrow(() -> new IllegalStateException("Preset không tồn tại cho area_level: " + req.areaLevel()));
+
         Area area = Area.builder()
                 .code(code)
                 .name(name)
                 .areaLevel(req.areaLevel())
+                .areaAccessLevel(preset.getAreaAccessLevel())
+                .explicitAuthorizationRequired(preset.getExplicitAuthorizationRequired())
                 .building(req.building() != null ? req.building().trim() : null)
                 .floor(req.floor() != null ? req.floor().trim() : null)
                 .description(req.description())
@@ -287,12 +296,31 @@ public class AreaService {
                 .orElseThrow(() -> new UnauthorizedException("Phiên đăng nhập không hợp lệ"));
     }
 
+    @Transactional
+    public AreaResponse updateAccessRules(UUID id, AreaAccessRulesUpdateRequest req) {
+        Area area = areaRepository.findById(id)
+                .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
+
+        if (!Boolean.TRUE.equals(area.getIsActive()) || area.getDeletedAt() != null) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_017);
+        }
+
+        area.setAreaAccessLevel(req.areaAccessLevel());
+        area.setExplicitAuthorizationRequired(req.explicitAuthorizationRequired());
+        area.setUpdatedAt(OffsetDateTime.now());
+
+        Area savedArea = areaRepository.save(area);
+        return mapToAreaResponse(savedArea);
+    }
+
     private AreaResponse mapToAreaResponse(Area area) {
         return new AreaResponse(
                 area.getId(),
                 area.getCode(),
                 area.getName(),
                 area.getAreaLevel(),
+                area.getAreaAccessLevel(),
+                area.getExplicitAuthorizationRequired(),
                 area.getBuilding(),
                 area.getFloor(),
                 area.getDescription(),

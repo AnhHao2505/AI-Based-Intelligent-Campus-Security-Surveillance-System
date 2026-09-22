@@ -9,6 +9,8 @@ public record AreaResponse(
     String code,
     String name,
     AreaLevel areaLevel,
+    Integer areaAccessLevel,
+    Boolean explicitAuthorizationRequired,
     String building,
     String floor,
     String description,
@@ -16,4 +18,20 @@ public record AreaResponse(
     Boolean isActive,
     OffsetDateTime createdAt,
     OffsetDateTime updatedAt
-) {}
+) {
+    public AreaResponse(
+        UUID id,
+        String code,
+        String name,
+        AreaLevel areaLevel,
+        String building,
+        String floor,
+        String description,
+        AreaGeometry geometry,
+        Boolean isActive,
+        OffsetDateTime createdAt,
+        OffsetDateTime updatedAt
+    ) {
+        this(id, code, name, areaLevel, null, null, building, floor, description, geometry, isActive, createdAt, updatedAt);
+    }
+}

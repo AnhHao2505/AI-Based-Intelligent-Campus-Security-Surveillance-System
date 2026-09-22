@@ -10,6 +10,8 @@ import com.fa26se040.icss.dto.user.ImportBatchSummaryResponse;
 import com.fa26se040.icss.dto.user.BatchUserResponse;
 import com.fa26se040.icss.dto.user.BatchDeleteResponse;
 import com.fa26se040.icss.dto.user.BatchRestoreResponse;
+import com.fa26se040.icss.dto.user.UserAccessLevelUpdateRequest;
+import com.fa26se040.icss.dto.user.UserSearchResponse;
 import com.fa26se040.icss.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -181,6 +183,32 @@ public class UserController {
     ) {
         log.info("Admin restoring import batch: {}", batchId);
         BatchRestoreResponse response = userService.restoreBatch(batchId);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/search")
+    @PreAuthorize("hasAnyRole('FACILITY_MANAGER', 'ADMIN')")
+    public ResponseEntity<Page<UserSearchResponse>> searchUsers(
+            @RequestParam String q,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        int cappedSize = Math.min(Math.max(1, size), 20);
+        Pageable pageable = PageRequest.of(Math.max(0, page), cappedSize);
+        Page<UserSearchResponse> result = userService.searchUsers(q, pageable);
+        return ResponseEntity.ok(result);
+    }
+
+    @PatchMapping("/{id}/access-level")
+    @PreAuthorize("hasRole('FACILITY_MANAGER')")
+    public ResponseEntity<UserSearchResponse> updateAccessLevel(
+            @PathVariable UUID id,
+            @Valid @RequestBody UserAccessLevelUpdateRequest request,
+            Authentication authentication
+    ) {
+        String actorEmail = authentication != null ? authentication.getName() : null;
+        log.info("Facility Manager [{}] updating access level for user {}: {}", actorEmail, id, request.accessLevel());
+        UserSearchResponse response = userService.updateAccessLevel(id, request.accessLevel(), actorEmail);
         return ResponseEntity.ok(response);
     }
 }

@@ -97,6 +97,24 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     @Query(
         value = """
+            SELECT u FROM User u
+            WHERE u.deletedAt IS NULL
+              AND u.isActive = true
+              AND (LOWER(u.userCode) LIKE LOWER(CONCAT('%', :q, '%'))
+                   OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :q, '%')))
+            """,
+        countQuery = """
+            SELECT COUNT(u) FROM User u
+            WHERE u.deletedAt IS NULL
+              AND u.isActive = true
+              AND (LOWER(u.userCode) LIKE LOWER(CONCAT('%', :q, '%'))
+                   OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :q, '%')))
+            """
+    )
+    Page<User> searchActiveUsers(@Param("q") String q, Pageable pageable);
+
+    @Query(
+        value = """
             SELECT new com.fa26se040.icss.dto.user.ImportBatchSummaryResponse(
                 u.importBatchId,
                 COUNT(CASE WHEN u.deletedAt IS NULL THEN 1 ELSE null END),

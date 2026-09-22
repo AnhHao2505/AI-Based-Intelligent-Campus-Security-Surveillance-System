@@ -5,6 +5,7 @@ package com.fa26se040.icss.enums;
  */
 public enum AccessSource {
     ASSIGNED_PERSONNEL,
+    ACCESS_LEVEL,
     ACCESS_REQUEST,
     NONE
 }

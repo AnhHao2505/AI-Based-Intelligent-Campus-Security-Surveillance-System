@@ -26,9 +26,6 @@ import java.util.UUID;
  * <p>Đây là điểm bàn giao cho module AI (làm sau): hiện CHƯA có endpoint nào gọi, và không nơi nào
  * khác trong backend được tự xét quyền ra vào. Module nào cần biết "user X có được vào area Y lúc T
  * không" thì gọi {@link #checkEntry(UUID, UUID, OffsetDateTime)}.</p>
- *
- * <p>Phạm vi hiện tại: CHỈ xét Assigned Personnel và đơn access_requests đã APPROVED.
- * KHÔNG xét area level, giờ hoạt động hay role (chưa tồn tại trong mô hình).</p>
  */
 @Service
 @RequiredArgsConstructor
@@ -45,6 +42,7 @@ public class AccessDecisionService {
      *   <li>User không tồn tại / inactive / xoá mềm → denied, NONE</li>
      *   <li>Area không tồn tại / inactive / xoá mềm → denied, NONE</li>
      *   <li>Có Assigned Personnel chưa thu hồi, validFrom &lt;= at &lt; validTo (NULL = vô hạn) → allowed, ASSIGNED_PERSONNEL</li>
+     *   <li>explicit_authorization_required = false VÀ user.accessLevel &gt;= area.areaAccessLevel → allowed, ACCESS_LEVEL</li>
      *   <li>Có đơn APPROVED của area, startTime &lt;= at &lt; endTime, user là requester hoặc member → allowed, ACCESS_REQUEST</li>
      *   <li>Còn lại → denied, NONE</li>
      * </ol>
@@ -85,7 +83,20 @@ public class AccessDecisionService {
             );
         }
 
-        // 4. Đơn access_requests đã APPROVED (requester hoặc member đơn nhóm)
+        // 4. Access Level (khi khu vực không yêu cầu chỉ định đích danh)
+        boolean explicitRequired = Boolean.TRUE.equals(area.getExplicitAuthorizationRequired());
+        if (!explicitRequired
+                && user.getAccessLevel() != null
+                && area.getAreaAccessLevel() != null
+                && user.getAccessLevel() >= area.getAreaAccessLevel()) {
+            return AccessDecision.allowed(
+                    AccessSource.ACCESS_LEVEL,
+                    null,
+                    "Cấp độ truy cập của người dùng phù hợp với khu vực"
+            );
+        }
+
+        // 5. Đơn access_requests đã APPROVED (requester hoặc member đơn nhóm)
         List<AccessRequest> requests = accessRequestRepository.findCoveringRequestsForUser(
                 userId, areaId, at, RequestStatus.APPROVED);
         if (!requests.isEmpty()) {
@@ -96,7 +107,7 @@ public class AccessDecisionService {
             );
         }
 
-        // 5. Không có nguồn cấp quyền nào
+        // 6. Không có nguồn cấp quyền nào
         return AccessDecision.denied("Không có quyền ra vào khu vực tại thời điểm này");
     }
 }

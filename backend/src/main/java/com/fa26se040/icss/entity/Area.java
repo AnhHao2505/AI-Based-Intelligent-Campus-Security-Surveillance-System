@@ -57,6 +57,15 @@ public class Area {
     @Column(name = "area_level", nullable = false, length = 30)
     private AreaLevel areaLevel;
 
+    @JdbcTypeCode(SqlTypes.SMALLINT)
+    @Column(name = "area_access_level", nullable = false)
+    @Builder.Default
+    private Integer areaAccessLevel = 3;
+
+    @Column(name = "explicit_authorization_required", nullable = false)
+    @Builder.Default
+    private Boolean explicitAuthorizationRequired = true;
+
     @Column(name = "building", length = 50)
     private String building;
 

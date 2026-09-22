@@ -20,7 +20,8 @@ public enum AreaErrorCode {
     ERR_AREA_013("ERR_AREA_013", HttpStatus.CONFLICT, "Toạ độ đa giác bị chồng lấn với khu vực khác cùng tầng"),
     ERR_AREA_014("ERR_AREA_014", HttpStatus.BAD_REQUEST, "Không thể thay đổi toà nhà hoặc tầng khi khu vực đang có toạ độ đa giác. Vui lòng xoá đa giác trước"),
     ERR_AREA_015("ERR_AREA_015", HttpStatus.BAD_REQUEST, "Khu vực phải có thông tin toà nhà và tầng trước khi gán toạ độ đa giác"),
-    ERR_AREA_016("ERR_AREA_016", HttpStatus.BAD_REQUEST, "Hình đa giác phải có ít nhất 3 đỉnh phân biệt (không trùng nhau)");
+    ERR_AREA_016("ERR_AREA_016", HttpStatus.BAD_REQUEST, "Hình đa giác phải có ít nhất 3 đỉnh phân biệt (không trùng nhau)"),
+    ERR_AREA_017("ERR_AREA_017", HttpStatus.BAD_REQUEST, "Khu vực đã ngừng hoạt động hoặc đã bị xoá");
 
     private final String code;
     private final HttpStatus httpStatus;
