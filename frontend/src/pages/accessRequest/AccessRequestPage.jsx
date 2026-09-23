@@ -20,7 +20,7 @@ import {
 import Modal from "../../components/ui/Modal";
 import Button from "../../components/ui/Button";
 import accessRequestService from "../../services/accessRequestService";
-import { getLevelConfig } from "../../utils/areaHelpers";
+import { getLevelConfig, AREA_LEVEL_CONFIG } from "../../utils/areaHelpers";
 import { useAuth } from "../../context/AuthContext";
 import "../../styles/AccessRequestPage.css";
 
@@ -378,7 +378,7 @@ export default function AccessRequestPage() {
 				currentArea?.areaLevel === "PRIVATE"
 			) {
 				setFormError(
-					"Khu vực bảo mật cao (HIGHLY_CONFIDENTIAL) chỉ cho phép đăng ký cá nhân.",
+					`Khu vực ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name} chỉ cho phép đăng ký cá nhân.`,
 				);
 				return;
 			}
@@ -634,7 +634,7 @@ export default function AccessRequestPage() {
 											</div>
 											<div>
 												{isHighlyConf
-													? "Khu vực bảo mật cao. Chỉ áp dụng hình thức đăng ký truy cập Cá nhân (Individual)."
+													? `Khu vực ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name}. Chỉ áp dụng hình thức đăng ký truy cập Cá nhân (Individual).`
 													: "Khu vực yêu cầu xác nhận. Nhân sự Level 2 cần làm đơn đăng ký (Cá nhân hoặc Nhóm) hoặc có tên trong danh sách chỉ định."}
 											</div>
 										</div>
@@ -679,7 +679,7 @@ export default function AccessRequestPage() {
 								}
 								title={
 									currentArea?.areaLevel === "HIGHLY_CONFIDENTIAL"
-										? "Khu vực bảo mật cao chỉ cho phép đăng ký cá nhân"
+										? `Khu vực ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name} chỉ cho phép đăng ký cá nhân`
 										: ""
 								}
 							>
@@ -1249,7 +1249,7 @@ export default function AccessRequestPage() {
 											color: "var(--theme-text-muted)",
 										}}
 									>
-										Cấp độ: {selectedDetail.areaLevel} |{" "}
+										Cấp độ: {getLevelConfig(selectedDetail.areaLevel).name} |{" "}
 										{selectedDetail.building} - Tầng {selectedDetail.floor}
 									</span>
 								</div>

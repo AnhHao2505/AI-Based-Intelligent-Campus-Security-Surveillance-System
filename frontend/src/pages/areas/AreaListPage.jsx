@@ -23,11 +23,13 @@ import {
   CheckCircle2,
   ShieldCheck,
   Users,
+  Info,
 } from 'lucide-react';
 import AreaAccessRulesModal from '../../components/area/AreaAccessRulesModal';
 import AreaAssignedPersonnelModal from '../../components/area/AreaAssignedPersonnelModal';
 import AreaMapView from '../../components/area/AreaMapView';
 import AreaListView from '../../components/area/AreaListView';
+import { getLevelPresets } from '../../services/accessControlService';
 import {
   getAreas,
   getDependencies,
@@ -42,7 +44,7 @@ import {
 } from '../../services/areaService';
 import { fetchAllSimpleCameras } from '../../services/cameraService';
 import {
-  getLevelConfig,
+  AREA_LEVEL_CONFIG,
   getLevelPolygonClass,
   getErrorMessage,
 } from '../../utils/areaHelpers';
@@ -70,10 +72,10 @@ const GEOMETRY_ERROR_MESSAGES = {
 };
 
 const AREA_LEVEL_CARDS = [
-  { value: 'PUBLIC', name: 'Công khai', level: 'Level 1', color: '#22c55e' },
-  { value: 'INTERNAL_CONFIDENTIAL', name: 'Bảo mật nội bộ', level: 'Level 2', color: '#3b82f6' },
-  { value: 'CONFIDENTIAL_CONTACT_REQUIRED', name: 'Bảo mật - liên hệ trước', level: 'Level 2', color: '#fbbf24' },
-  { value: 'HIGHLY_CONFIDENTIAL', name: 'Bảo mật cao - Tuyệt đối cấm vào', level: 'Level 3', color: '#f87171' },
+  { value: 'PUBLIC', name: AREA_LEVEL_CONFIG.PUBLIC.name, color: AREA_LEVEL_CONFIG.PUBLIC.color },
+  { value: 'INTERNAL_CONFIDENTIAL', name: AREA_LEVEL_CONFIG.INTERNAL_CONFIDENTIAL.name, color: AREA_LEVEL_CONFIG.INTERNAL_CONFIDENTIAL.color },
+  { value: 'CONFIDENTIAL_CONTACT_REQUIRED', name: AREA_LEVEL_CONFIG.CONFIDENTIAL_CONTACT_REQUIRED.name, color: AREA_LEVEL_CONFIG.CONFIDENTIAL_CONTACT_REQUIRED.color },
+  { value: 'HIGHLY_CONFIDENTIAL', name: AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name, color: AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.color },
 ];
 
 export default function AreaListPage() {
@@ -112,6 +114,32 @@ export default function AreaListPage() {
   const [savingGeometry, setSavingGeometry] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [deletingGeometryId, setDeletingGeometryId] = useState(null);
+
+  // Level Presets (ADMIN / FM)
+  const [levelPresets, setLevelPresets] = useState(null);
+
+  useEffect(() => {
+    getLevelPresets()
+      .then((presets) => {
+        if (Array.isArray(presets)) {
+          const map = {};
+          presets.forEach((p) => {
+            map[p.areaLevel] = p;
+          });
+          setLevelPresets(map);
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not load level presets:', err);
+        setLevelPresets(null);
+      });
+  }, []);
+
+  const getPresetSubtitle = (areaLevelValue) => {
+    const preset = levelPresets?.[areaLevelValue];
+    if (!preset) return null;
+    return `Mặc định: Level ${preset.areaAccessLevel} · Chỉ định: ${preset.explicitAuthorizationRequired ? 'có' : 'không'}`;
+  };
 
   // Modal states
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -613,7 +641,6 @@ export default function AreaListPage() {
         building: formData.building ? formData.building.trim() : null,
         floor: formData.floor ? formData.floor.trim() : null,
         description: formData.description ? formData.description.trim() : null,
-        reason: isDowngrade ? formData.reason.trim() : null,
       };
 
       const updated = await updateArea(selectedArea.id, payload);
@@ -661,8 +688,6 @@ export default function AreaListPage() {
       setModalLoading(false);
     }
   };
-
-  const isDowngradingInEdit = false;
 
   const isSelectedAreaInCurrentScope =
     selectedArea &&
@@ -831,6 +856,7 @@ export default function AreaListPage() {
           cameraCounts={cameraCounts}
           isAdmin={isAdmin}
           isFacilityManager={isFacilityManager}
+          levelPresets={levelPresets}
           onSelectArea={(id) => handleSelectArea(id, false)}
           onOpenCreateModal={handleOpenCreateModal}
           onOpenCamerasModal={handleOpenCamerasModal}
@@ -922,9 +948,12 @@ export default function AreaListPage() {
                       const levelClass =
                         card.value === 'PUBLIC'
                           ? 'area-level-btn--public'
-                          : card.value === 'SEMI_PRIVATE'
-                            ? 'area-level-btn--semi'
-                            : 'area-level-btn--private';
+                          : card.value === 'INTERNAL_CONFIDENTIAL'
+                            ? 'area-level-btn--internal'
+                            : card.value === 'CONFIDENTIAL_CONTACT_REQUIRED'
+                              ? 'area-level-btn--contact'
+                              : 'area-level-btn--private';
+                      const subText = getPresetSubtitle(card.value);
 
                       return (
                         <button
@@ -938,7 +967,7 @@ export default function AreaListPage() {
                             style={{ backgroundColor: card.color }}
                           />
                           <span className="area-level-btn__name">{card.name}</span>
-                          <span className="area-level-btn__sub">{card.level}</span>
+                          {subText && <span className="area-level-btn__sub">{subText}</span>}
                         </button>
                       );
                     })}
@@ -1082,9 +1111,12 @@ export default function AreaListPage() {
                       const levelClass =
                         card.value === 'PUBLIC'
                           ? 'area-level-btn--public'
-                          : card.value === 'SEMI_PRIVATE'
-                            ? 'area-level-btn--semi'
-                            : 'area-level-btn--private';
+                          : card.value === 'INTERNAL_CONFIDENTIAL'
+                            ? 'area-level-btn--internal'
+                            : card.value === 'CONFIDENTIAL_CONTACT_REQUIRED'
+                              ? 'area-level-btn--contact'
+                              : 'area-level-btn--private';
+                      const subText = getPresetSubtitle(card.value);
 
                       return (
                         <button
@@ -1098,34 +1130,17 @@ export default function AreaListPage() {
                             style={{ backgroundColor: card.color }}
                           />
                           <span className="area-level-btn__name">{card.name}</span>
-                          <span className="area-level-btn__sub">{card.level}</span>
+                          {subText && <span className="area-level-btn__sub">{subText}</span>}
                         </button>
                       );
                     })}
                   </div>
                 </div>
 
-                {isDowngradingInEdit && (
-                  <div className="area-form-group area-downgrade-warning">
-                    <div className="area-downgrade-warning__title">
-                      <AlertCircle size={15} />
-                      <span>Cảnh báo hạ cấp độ an ninh</span>
-                    </div>
-                    <p className="area-downgrade-warning__desc">
-                      Bạn đang hạ cấp an ninh của khu vực này từ{' '}
-                      <strong>{selectedArea.areaLevel || selectedArea.level?.code}</strong> xuống{' '}
-                      <strong>{formData.areaLevel}</strong>. Vui lòng nhập lý do giải trình bắt buộc (10 - 255 ký tự).
-                    </p>
-                    <textarea
-                      required
-                      rows={3}
-                      className="area-form-input area-form-input--textarea"
-                      placeholder="Nhập lý do hạ cấp an ninh..."
-                      value={formData.reason}
-                      onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
-                    />
-                  </div>
-                )}
+                <div className="area-edit-info-box">
+                  <Info size={15} style={{ flexShrink: 0, color: 'var(--theme-primary, #3b82f6)' }} />
+                  <span>Đổi loại khu vực không thay đổi quy tắc truy cập hiện tại. Quy tắc do Quản lý cơ sở cấu hình.</span>
+                </div>
 
                 <div className="area-form-row">
                   <div className="area-form-group">

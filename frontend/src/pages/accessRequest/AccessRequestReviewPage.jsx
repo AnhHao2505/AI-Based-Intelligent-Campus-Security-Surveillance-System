@@ -17,6 +17,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import accessRequestService from '../../services/accessRequestService';
+import { getLevelConfig } from '../../utils/areaHelpers';
 import '../../styles/AccessRequestReviewPage.css';
 
 export default function AccessRequestReviewPage() {
@@ -380,7 +381,7 @@ export default function AccessRequestReviewPage() {
                       <div className="arr-area-tag">
                         <span className="arr-area-name">{req.areaName}</span>
                         <span className="arr-area-sub">
-                          [{req.areaCode}] - {req.building || 'Campus'} - {req.areaLevel}
+                          [{req.areaCode}] - {req.building || 'Campus'} - {getLevelConfig(req.areaLevel).name}
                         </span>
                       </div>
                     </td>
@@ -650,7 +651,7 @@ export default function AccessRequestReviewPage() {
                   <div className="arr-detail-label">KHU VỰC ĐĂNG KÝ</div>
                   <div style={{ fontWeight: 600 }}>{detailItem.areaName} ({detailItem.areaCode})</div>
                   <div className="arr-text-muted" style={{ fontSize: '0.8125rem' }}>
-                    Cấp độ: {detailItem.areaLevel} | {detailItem.building} - Tầng {detailItem.floor}
+                    Cấp độ: {getLevelConfig(detailItem.areaLevel).name} | {detailItem.building} - Tầng {detailItem.floor}
                   </div>
                 </div>
 
