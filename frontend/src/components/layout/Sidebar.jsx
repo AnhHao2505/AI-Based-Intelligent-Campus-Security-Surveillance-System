@@ -313,17 +313,6 @@ export default function Sidebar({ user, onLogout }) {
 
 											<div className="sidebar__section">
 												<NavLink
-													to="/admin/ai-settings"
-													className={({ isActive }) =>
-														`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
-													}
-													title={sidebarCollapsed ? "Thiết lập AI" : undefined}
-												>
-													<Cpu size={18} />
-													<span>Thiết lập AI</span>
-												</NavLink>
-
-												<NavLink
 													to="/admin/system-configurations"
 													className={({ isActive }) =>
 														`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
@@ -335,9 +324,9 @@ export default function Sidebar({ user, onLogout }) {
 													<Sliders size={18} />
 													<span>Cấu hình hệ thống</span>
 												</NavLink>
-											</div>
-										</>
-									)}
+							</div>
+						</>
+					)}
 								</div>
 							)}
 						</>

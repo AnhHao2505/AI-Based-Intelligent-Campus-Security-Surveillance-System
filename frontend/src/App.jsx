@@ -17,7 +17,6 @@ import AccessRequestPage from "./pages/accessRequest/AccessRequestPage";
 import AccessRequestReviewPage from "./pages/accessRequest/AccessRequestReviewPage";
 import AccessHistoryPage from "./pages/accessHistory/AccessHistoryPage";
 import NotificationsPage from "./pages/notifications/NotificationsPage";
-import AiSettingsPage from "./pages/ai/AiSettingsPage";
 import ManageAccountPage from "./pages/accounts/ManageAccountPage";
 import SystemConfigPage from "./pages/system/SystemConfigPage";
 import UiKitPage from "./pages/_devPreview/UiKitPage";
@@ -236,15 +235,6 @@ function App() {
 								}
 							/>
 
-							{/* AI & Area-Camera Management */}
-							<Route
-								path="/admin/ai-settings"
-								element={
-									<ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
-										<AiSettingsPage />
-									</ProtectedRoute>
-								}
-							/>
 
 							<Route
 								path="/admin/system-configurations"
