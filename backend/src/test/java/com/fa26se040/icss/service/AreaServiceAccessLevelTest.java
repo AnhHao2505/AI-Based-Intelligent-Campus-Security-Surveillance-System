@@ -110,11 +110,11 @@ class AreaServiceAccessLevelTest {
         assertEquals(1, respPublic.areaAccessLevel());
         assertFalse(respPublic.explicitAuthorizationRequired());
 
-        // Test tạo khu vực PRIVATE
+        // Test tạo khu vực HIGHLY_CONFIDENTIAL
         AreaCreateRequest reqPrivate = new AreaCreateRequest(
                 "SERVER-ROOM",
                 "Phòng Máy Chủ",
-                AreaLevel.PRIVATE,
+                AreaLevel.HIGHLY_CONFIDENTIAL,
                 "Tòa A",
                 "Tầng 2",
                 "Phòng kỹ thuật"
@@ -124,11 +124,11 @@ class AreaServiceAccessLevelTest {
         when(areaRepository.existsByCodeAndDeletedAtIsNull(reqPrivate.code())).thenReturn(false);
 
         AreaLevelPreset privatePreset = AreaLevelPreset.builder()
-                .areaLevel(AreaLevel.PRIVATE)
+                .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
                 .areaAccessLevel(3)
                 .explicitAuthorizationRequired(true)
                 .build();
-        when(areaLevelPresetRepository.findById(AreaLevel.PRIVATE)).thenReturn(Optional.of(privatePreset));
+        when(areaLevelPresetRepository.findById(AreaLevel.HIGHLY_CONFIDENTIAL)).thenReturn(Optional.of(privatePreset));
 
         AreaResponse respPrivate = areaService.create(reqPrivate, adminEmail);
         assertNotNull(respPrivate);
@@ -142,7 +142,7 @@ class AreaServiceAccessLevelTest {
         AreaCreateRequest reqMissing = new AreaCreateRequest(
                 "UNKNOWN-ROOM",
                 "Phòng Mới",
-                AreaLevel.SEMI_PRIVATE,
+                AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED,
                 "Tòa B",
                 "Tầng 1",
                 "Khu vực chưa có preset"
@@ -152,7 +152,7 @@ class AreaServiceAccessLevelTest {
         when(areaValidator.validateAndNormalizeName(reqMissing.name())).thenReturn(reqMissing.name());
         when(areaRepository.existsByCodeAndDeletedAtIsNull(reqMissing.code())).thenReturn(false);
         when(userRepository.findByEmail(adminEmail)).thenReturn(Optional.of(admin));
-        when(areaLevelPresetRepository.findById(AreaLevel.SEMI_PRIVATE)).thenReturn(Optional.empty());
+        when(areaLevelPresetRepository.findById(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)).thenReturn(Optional.empty());
 
         when(areaRepository.save(any(Area.class))).thenAnswer(inv -> {
             Area a = inv.getArgument(0);
@@ -185,7 +185,7 @@ class AreaServiceAccessLevelTest {
         AreaUpdateRequest updateReq = new AreaUpdateRequest(
                 "ROOM-101",
                 "Phòng Học 101 Đổi Cấp",
-                AreaLevel.PRIVATE,
+                AreaLevel.HIGHLY_CONFIDENTIAL,
                 "Tòa A",
                 "Tầng 1",
                 "Mô tả mới"
@@ -199,7 +199,7 @@ class AreaServiceAccessLevelTest {
         AreaResponse resp = areaService.update(areaId, updateReq, adminEmail);
 
         assertNotNull(resp);
-        assertEquals(AreaLevel.PRIVATE, resp.areaLevel());
+        assertEquals(AreaLevel.HIGHLY_CONFIDENTIAL, resp.areaLevel());
         assertEquals(2, resp.areaAccessLevel(), "areaAccessLevel phải giữ nguyên không tự đổi");
         assertTrue(resp.explicitAuthorizationRequired(), "explicitAuthorizationRequired phải giữ nguyên");
     }
@@ -212,7 +212,7 @@ class AreaServiceAccessLevelTest {
                 .id(areaId)
                 .code("ROOM-202")
                 .name("Phòng Nghiên Cứu")
-                .areaLevel(AreaLevel.SEMI_PRIVATE)
+                .areaLevel(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
                 .areaAccessLevel(2)
                 .explicitAuthorizationRequired(false)
                 .isActive(true)

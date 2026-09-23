@@ -173,11 +173,15 @@ export default function SystemConfigPage() {
 	const getGroupTitle = (groupKey) => {
 		switch (groupKey) {
 			case "ACCESS_REQUEST":
-				return "Yêu cầu ra vào khu vực";
+				return "Yêu cầu vào khu vực";
 			case "NOTIFICATION":
-				return "Chính sách thông báo In-App";
+				return "Thông báo In-App";
 			case "AI_CONFIG":
-				return "Cấu hình AI hệ thống";
+				return "AI";
+			case "ACCESS_LEVEL":
+				return "Mức truy cập";
+			case "SECURITY":
+				return "An ninh";
 			default:
 				return groupKey;
 		}
@@ -287,16 +291,6 @@ export default function SystemConfigPage() {
 									key={groupKey}
 									className="syscfg-group-section"
 								>
-									<div className="syscfg-group-header">
-										<div className="syscfg-group-header__left">
-											{getGroupIcon(groupKey)}
-											<h2 className="syscfg-group-header__title">
-												{getGroupTitle(groupKey)}
-											</h2>
-										</div>
-										<Badge variant="neutral">{groupItems.length} tham số</Badge>
-									</div>
-
 									<div className="syscfg-items-grid">
 										{groupItems.map((cfg) => {
 											const currentValue =

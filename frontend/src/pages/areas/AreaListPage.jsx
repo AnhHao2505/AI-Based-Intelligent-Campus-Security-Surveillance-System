@@ -44,6 +44,7 @@ import { fetchAllSimpleCameras } from '../../services/cameraService';
 import {
   AREA_LEVEL_CONFIG,
   getLevelConfig,
+  getLevelPolygonClass,
   getErrorMessage,
 } from '../../utils/areaHelpers';
 import '../../styles/AreaListPage.css';
@@ -70,9 +71,10 @@ const GEOMETRY_ERROR_MESSAGES = {
 };
 
 const AREA_LEVEL_CARDS = [
-  { value: 'PUBLIC', name: 'Công cộng', level: 'Level 1', color: '#22c55e' },
-  { value: 'SEMI_PRIVATE', name: 'Hạn chế', level: 'Level 2', color: '#fbbf24' },
-  { value: 'PRIVATE', name: 'Riêng tư', level: 'Level 3', color: '#f87171' },
+  { value: 'PUBLIC', name: 'Công khai', level: 'Level 1', color: '#22c55e' },
+  { value: 'INTERNAL_CONFIDENTIAL', name: 'Bảo mật nội bộ', level: 'Level 2', color: '#3b82f6' },
+  { value: 'CONFIDENTIAL_CONTACT_REQUIRED', name: 'Bảo mật - liên hệ trước', level: 'Level 2', color: '#fbbf24' },
+  { value: 'HIGHLY_CONFIDENTIAL', name: 'Bảo mật cao - Tuyệt đối cấm vào', level: 'Level 3', color: '#f87171' },
 ];
 
 export default function AreaListPage() {
@@ -509,14 +511,7 @@ export default function AreaListPage() {
     setDraftVertices((prev) => [...prev, { x: roundedX, y: roundedY }]);
   };
 
-  // Level Polygon Class
-  const getLevelPolygonClass = (level) => {
-    const key = typeof level === 'object' && level !== null ? (level.code || level.areaLevel || level.level) : level;
-    if (key === 'PUBLIC' || key === 1 || key === '1') return 'zone-polygon--public';
-    if (key === 'SEMI_PRIVATE' || key === 2 || key === '2') return 'zone-polygon--semi';
-    if (key === 'PRIVATE' || key === 3 || key === '3') return 'zone-polygon--private';
-    return 'zone-polygon--default';
-  };
+
 
   // Polygons for current floor plan
   const mapPolygons = useMemo(() => {
@@ -1396,16 +1391,20 @@ export default function AreaListPage() {
                       <VideoOff size={36} style={{ color: 'var(--theme-text-muted)', marginBottom: '8px' }} />
                       <p style={{ margin: 0, fontWeight: 600, color: 'var(--theme-text-primary)' }}>Chưa có camera nào được gán</p>
                       <p style={{ margin: '4px 0 12px 0', fontSize: '12px', color: 'var(--theme-text-muted)' }}>
-                        Khu vực này hiện chưa có camera giám sát. Hãy chuyển sang tab "Thêm camera mới" để gán.
+                        {isAdmin
+                          ? 'Khu vực này hiện chưa có camera giám sát. Hãy chuyển sang tab "Thêm camera mới" để gán.'
+                          : 'Liên hệ với Admin để gán camera giám sát cho khu vực.'}
                       </p>
-                      <button
-                        type="button"
-                        className="area-btn-add-shortcut"
-                        onClick={() => setActiveCameraTab('add')}
-                      >
-                        <Plus size={14} />
-                        <span>Thêm camera ngay</span>
-                      </button>
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          className="area-btn-add-shortcut"
+                          onClick={() => setActiveCameraTab('add')}
+                        >
+                          <Plus size={14} />
+                          <span>Thêm camera ngay</span>
+                        </button>
+                      )}
                     </div>
                   ) : (
                     <div className="area-camera-list">
@@ -1528,14 +1527,6 @@ export default function AreaListPage() {
           </div>
         </div>
       )}
-
-      {/* Area Access Rules Modal (FM only) */}
-      <AreaAccessRulesModal
-        isOpen={accessRulesModalOpen}
-        onClose={() => setAccessRulesModalOpen(false)}
-        area={accessRulesModalArea}
-        onSuccess={handleAccessRulesSuccess}
-      />
 
       {/* Area Assigned Personnel Modal (FM & ADMIN) */}
       <AreaAssignedPersonnelModal

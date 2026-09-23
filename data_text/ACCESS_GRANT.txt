@@ -1,0 +1,32 @@
+Context:
+- Đổi logic AreaLevel sẽ được đổi thành AreaSecurityLevel gồm [PUBLIC, INTERNAL_CONFIDENTIAL, CONFIDENTIAL_CONTACT_REQUIRED, HIGHLY_CONFIDENTIAL]
+- Dịch ra tiếng việt 4 loại level là [Công khai, Bảo mật nội bộ, Bảo mật - liên hệ trước, Bảo mật cao - Tuyệt đối cấm vào]
+- Vẫn giữ AreaAccessLevel gồm 3 level, public mặc định là 1, 2 loại confidential mặc định là 2, highly_confidential là 3.
+- "Nhân sự chỉ định cố định" chỉ hợp lệ với CONFIDENTIAL_CONTACT_REQUIRED, HIGHLY_CONFIDENTIAL 
+- Vẫn giữ logic [user_access_level >= AreaAccessLevel], nếu không phải là phòng CONFIDENTIAL_CONTACT_REQUIRED
+- Phòng CONFIDENTIAL_CONTACT_REQUIRED cần chức năng request access hiện tại (hiểu như làm đơn, FM cần state lifecycle approved/finish/reject).
+- CONFIDENTIAL_CONTACT_REQUIRED means that LV2 users require additional authorization/contact before entering, while LV3 users are considered sufficiently authorized to enter directly.
+- Trong hệ thống của nhóm, access level biểu diễn mức clearance của người dùng,
+ còn CONFIDENTIAL_CONTACT_REQUIRED biểu diễn một additional access condition 
+ áp dụng cho người dùng LV2. Người dùng LV3 đã có clearance cao hơn 
+ mức bảo mật của phòng, nên hệ thống không yêu cầu thêm bước contact/approval cho họ.
+ 
+Logic xét user có thể vào 1 phòng:
+                         ┌─────────────────────┐
+                         │ User Access Level   │
+                         └──────────┬──────────┘
+                                    │
+                                    ▼
+                         Is Level >= Room Level?
+                           /              \
+                         No                Yes
+                         │                  │
+                       DENY          Is room contact-required?
+                                         /       \
+                                       No         Yes
+                                       │            │
+                                     ALLOW      User Level >= 3?
+                                                    /      \
+                                                  Yes       No
+                                                   │         │
+                                                 ALLOW   Require Request

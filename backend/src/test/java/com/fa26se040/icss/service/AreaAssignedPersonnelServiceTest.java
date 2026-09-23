@@ -90,7 +90,7 @@ class AreaAssignedPersonnelServiceTest {
                 .id(UUID.randomUUID())
                 .code("LAB-01")
                 .name("Phòng Lab 01")
-                .areaLevel(AreaLevel.PRIVATE)
+                .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
                 .isActive(true)
                 .build();
 

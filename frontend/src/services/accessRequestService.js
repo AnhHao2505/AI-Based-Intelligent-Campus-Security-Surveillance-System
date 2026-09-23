@@ -94,6 +94,14 @@ export const accessRequestService = {
   async resolveMembers(userCodes) {
     return await apiPost('/api/access-requests/resolve-members', { userCodes });
   },
+
+  /**
+   * Chuyển yêu cầu truy cập từ APPROVED sang FINISHED
+   * @param {string} id - UUID của yêu cầu
+   */
+  async finishRequest(id) {
+    return await apiPatch(`/api/access-requests/${id}/finish`);
+  },
 };
 
 export default accessRequestService;

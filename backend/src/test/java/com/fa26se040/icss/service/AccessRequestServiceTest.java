@@ -125,7 +125,7 @@ class AccessRequestServiceTest {
                 .id(UUID.randomUUID())
                 .code("LAB-01")
                 .name("Phòng Thí Nghiệm AI")
-                .areaLevel(AreaLevel.SEMI_PRIVATE)
+                .areaLevel(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
                 .building("Tòa Alpha")
                 .floor("Tầng 2")
                 .isActive(true)
@@ -135,7 +135,7 @@ class AccessRequestServiceTest {
                 .id(UUID.randomUUID())
                 .code("SERVER-01")
                 .name("Phòng Server Trung Tâm")
-                .areaLevel(AreaLevel.PRIVATE)
+                .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
                 .building("Tòa Beta")
                 .floor("Tầng 1")
                 .isActive(true)
@@ -378,7 +378,7 @@ class AccessRequestServiceTest {
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> accessRequestService.createGroupRequest(request, requester.getEmail()));
-        assertTrue(ex.getMessage().contains("PRIVATE"));
+        assertTrue(ex.getMessage().contains("HIGHLY_CONFIDENTIAL"));
     }
 
     @Test
