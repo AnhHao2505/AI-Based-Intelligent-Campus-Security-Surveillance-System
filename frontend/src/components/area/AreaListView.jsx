@@ -107,7 +107,7 @@ export default function AreaListView({
                       ) : (
                         <span className="zone-card__camera-status--none">
                           <VideoOff size={13} />
-                          <span>Camera </span>
+                          <span>Camera: 0</span>
                         </span>
                       );
                     })()}
@@ -121,7 +121,7 @@ export default function AreaListView({
                         e.stopPropagation();
                         onOpenCamerasModal(area);
                       }}
-                      title="Xem danh sách Camera gán"
+                      title="Xem danh sách Camera"
                     >
                       <Cctv size={13} />
                     </button>

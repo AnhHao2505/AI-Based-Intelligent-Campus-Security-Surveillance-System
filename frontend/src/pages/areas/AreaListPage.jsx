@@ -376,27 +376,38 @@ export default function AreaListPage() {
     return areas.find((a) => a.id === selectedAreaId) || null;
   }, [areas, selectedAreaId]);
 
-  // Fetch camera count for selected area if not fetched
+  // Automatically pre-fetch camera counts for all loaded areas so count is ready before clicking any card
   useEffect(() => {
-    if (!selectedAreaId) return;
-    if (cameraCounts[selectedAreaId] !== undefined) return;
-
+    if (!areas || areas.length === 0) return;
     let active = true;
-    getAreaCameras(selectedAreaId)
-      .then((res) => {
-        if (active) {
-          const count = res?.cameras?.length ?? 0;
-          setCameraCounts((prev) => ({ ...prev, [selectedAreaId]: count }));
+
+    const missingAreas = areas.filter((a) => cameraCounts[a.id] === undefined);
+    if (missingAreas.length === 0) return;
+
+    Promise.all(
+      missingAreas.map(async (a) => {
+        try {
+          const res = await getAreaCameras(a.id);
+          const count = res?.cameras?.length ?? (Array.isArray(res) ? res.length : 0);
+          return { id: a.id, count };
+        } catch {
+          return { id: a.id, count: 0 };
         }
       })
-      .catch(() => {
-        if (active) {
-          setCameraCounts((prev) => ({ ...prev, [selectedAreaId]: 0 }));
-        }
-      });
+    ).then((results) => {
+      if (active) {
+        const countsMap = {};
+        results.forEach(({ id, count }) => {
+          countsMap[id] = count;
+        });
+        setCameraCounts((prev) => ({ ...prev, ...countsMap }));
+      }
+    });
 
-    return () => { active = false; };
-  }, [selectedAreaId, cameraCounts]);
+    return () => {
+      active = false;
+    };
+  }, [areas, cameraCounts]);
 
   // Handle switching building or floor
   const handleSelectBuilding = (b) => {
