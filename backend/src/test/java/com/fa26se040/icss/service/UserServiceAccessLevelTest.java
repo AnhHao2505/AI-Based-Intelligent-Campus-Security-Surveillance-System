@@ -62,6 +62,9 @@ class UserServiceAccessLevelTest {
     @Mock
     private UserAccessLevelHelper userAccessLevelHelper;
 
+    @Mock
+    private AccessControlAuditService auditService;
+
     @InjectMocks
     private UserService userService;
 
@@ -183,7 +186,7 @@ class UserServiceAccessLevelTest {
         when(userRepository.findById(targetUserId)).thenReturn(Optional.of(targetUser));
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        UserSearchResponse resp = userService.updateAccessLevel(targetUserId, 3, actorEmail);
+        UserSearchResponse resp = userService.updateAccessLevel(targetUserId, 3, "Nâng quyền nhân viên", actorEmail);
 
         assertNotNull(resp);
         assertEquals(3, resp.accessLevel());
@@ -199,7 +202,7 @@ class UserServiceAccessLevelTest {
         when(userRepository.findByEmail(myEmail)).thenReturn(Optional.of(me));
 
         AccessDeniedException ex = assertThrows(AccessDeniedException.class,
-                () -> userService.updateAccessLevel(myId, 3, myEmail));
+                () -> userService.updateAccessLevel(myId, 3, "Tự nâng quyền", myEmail));
 
         assertEquals("Bạn không thể tự thay đổi cấp truy cập của chính mình", ex.getMessage());
     }
@@ -210,7 +213,7 @@ class UserServiceAccessLevelTest {
         UUID targetId = UUID.randomUUID();
         when(userRepository.findById(targetId)).thenReturn(Optional.empty());
 
-        assertThrows(ResourceNotFoundException.class, () -> userService.updateAccessLevel(targetId, 2, null));
+        assertThrows(ResourceNotFoundException.class, () -> userService.updateAccessLevel(targetId, 2, "Lý do", null));
 
         User deletedUser = User.builder()
                 .id(targetId)
@@ -219,6 +222,6 @@ class UserServiceAccessLevelTest {
                 .build();
         when(userRepository.findById(targetId)).thenReturn(Optional.of(deletedUser));
 
-        assertThrows(ResourceNotFoundException.class, () -> userService.updateAccessLevel(targetId, 2, null));
+        assertThrows(ResourceNotFoundException.class, () -> userService.updateAccessLevel(targetId, 2, "Lý do", null));
     }
 }

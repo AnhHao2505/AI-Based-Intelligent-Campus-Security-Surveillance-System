@@ -55,14 +55,14 @@ class AreaControllerAccessLevelTest {
         UUID areaId = UUID.randomUUID();
 
         // Level = 0
-        String body0 = objectMapper.writeValueAsString(new AreaAccessRulesUpdateRequest(0, true));
+        String body0 = objectMapper.writeValueAsString(new AreaAccessRulesUpdateRequest(0, true, "Lý do"));
         mockMvc.perform(patch("/api/areas/{id}/access-rules", areaId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body0))
                 .andExpect(status().isBadRequest());
 
         // Level = 4
-        String body4 = objectMapper.writeValueAsString(new AreaAccessRulesUpdateRequest(4, false));
+        String body4 = objectMapper.writeValueAsString(new AreaAccessRulesUpdateRequest(4, false, "Lý do"));
         mockMvc.perform(patch("/api/areas/{id}/access-rules", areaId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body4))
@@ -73,7 +73,7 @@ class AreaControllerAccessLevelTest {
     @DisplayName("PATCH /api/areas/{id}/access-rules thiếu explicitAuthorizationRequired -> 400 Bad Request")
     void updateAccessRules_MissingFlag_Returns400() throws Exception {
         UUID areaId = UUID.randomUUID();
-        String body = "{\"areaAccessLevel\": 2}";
+        String body = "{\"areaAccessLevel\": 2, \"reason\": \"Lý do\"}";
 
         mockMvc.perform(patch("/api/areas/{id}/access-rules", areaId)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -85,10 +85,10 @@ class AreaControllerAccessLevelTest {
     @DisplayName("PATCH /api/areas/{id}/access-rules cho area inactive/đã xoá -> 400 Bad Request")
     void updateAccessRules_InactiveArea_Returns400() throws Exception {
         UUID areaId = UUID.randomUUID();
-        when(areaService.updateAccessRules(eq(areaId), any()))
+        when(areaService.updateAccessRules(eq(areaId), any(), any()))
                 .thenThrow(new AreaException(AreaErrorCode.ERR_AREA_017));
 
-        String body = objectMapper.writeValueAsString(new AreaAccessRulesUpdateRequest(2, false));
+        String body = objectMapper.writeValueAsString(new AreaAccessRulesUpdateRequest(2, false, "Lý do"));
         mockMvc.perform(patch("/api/areas/{id}/access-rules", areaId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
@@ -116,9 +116,9 @@ class AreaControllerAccessLevelTest {
                 OffsetDateTime.now()
         );
 
-        when(areaService.updateAccessRules(eq(areaId), any())).thenReturn(resp);
+        when(areaService.updateAccessRules(eq(areaId), any(), any())).thenReturn(resp);
 
-        String body = objectMapper.writeValueAsString(new AreaAccessRulesUpdateRequest(2, false));
+        String body = objectMapper.writeValueAsString(new AreaAccessRulesUpdateRequest(2, false, "Lý do cập nhật"));
         mockMvc.perform(patch("/api/areas/{id}/access-rules", areaId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))

@@ -60,6 +60,9 @@ class AreaAssignedPersonnelServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private AccessControlAuditService auditService;
+
     @InjectMocks
     private AreaAssignedPersonnelService service;
 
@@ -545,9 +548,9 @@ class AreaAssignedPersonnelServiceTest {
                 "Gán vào sảnh"
         );
 
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+        AssignedPersonnelException ex = assertThrows(AssignedPersonnelException.class,
                 () -> service.create(publicArea.getId(), req, FM_EMAIL));
-        assertTrue(ex.getMessage().contains("PUBLIC"));
+        assertEquals(AssignedPersonnelErrorCode.ERR_AP_010, ex.getErrorCode());
     }
 
     @Test

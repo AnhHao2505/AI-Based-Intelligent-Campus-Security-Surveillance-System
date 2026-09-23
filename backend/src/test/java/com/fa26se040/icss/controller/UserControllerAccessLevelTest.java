@@ -98,24 +98,31 @@ class UserControllerAccessLevelTest {
         UUID userId = UUID.randomUUID();
 
         // Level = 0
-        String body0 = objectMapper.writeValueAsString(new UserAccessLevelUpdateRequest(0));
+        String body0 = objectMapper.writeValueAsString(new UserAccessLevelUpdateRequest(0, "Lý do"));
         mockMvc.perform(patch("/api/users/{id}/access-level", userId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body0))
                 .andExpect(status().isBadRequest());
 
         // Level = 4
-        String body4 = objectMapper.writeValueAsString(new UserAccessLevelUpdateRequest(4));
+        String body4 = objectMapper.writeValueAsString(new UserAccessLevelUpdateRequest(4, "Lý do"));
         mockMvc.perform(patch("/api/users/{id}/access-level", userId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body4))
                 .andExpect(status().isBadRequest());
 
         // Level = null
-        String bodyNull = "{\"accessLevel\": null}";
+        String bodyNull = "{\"accessLevel\": null, \"reason\": \"Lý do\"}";
         mockMvc.perform(patch("/api/users/{id}/access-level", userId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(bodyNull))
+                .andExpect(status().isBadRequest());
+
+        // Reason = blank
+        String bodyBlankReason = "{\"accessLevel\": 2, \"reason\": \"   \"}";
+        mockMvc.perform(patch("/api/users/{id}/access-level", userId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bodyBlankReason))
                 .andExpect(status().isBadRequest());
     }
 
@@ -124,9 +131,9 @@ class UserControllerAccessLevelTest {
     void updateAccessLevel_Valid_Returns200() throws Exception {
         UUID userId = UUID.randomUUID();
         UserSearchResponse resp = new UserSearchResponse(userId, "NV001", "Nguyễn Văn A", Role.GUARD, 3);
-        when(userService.updateAccessLevel(eq(userId), eq(3), any())).thenReturn(resp);
+        when(userService.updateAccessLevel(eq(userId), eq(3), eq("Cập nhật cấp độ"), any())).thenReturn(resp);
 
-        String body = objectMapper.writeValueAsString(new UserAccessLevelUpdateRequest(3));
+        String body = objectMapper.writeValueAsString(new UserAccessLevelUpdateRequest(3, "Cập nhật cấp độ"));
         mockMvc.perform(patch("/api/users/{id}/access-level", userId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
@@ -139,10 +146,10 @@ class UserControllerAccessLevelTest {
     @DisplayName("PATCH /api/users/{id}/access-level: FM tự sửa chính mình -> 403 Forbidden")
     void updateAccessLevel_SelfModification_Returns403() throws Exception {
         UUID myId = UUID.randomUUID();
-        when(userService.updateAccessLevel(eq(myId), eq(3), any()))
+        when(userService.updateAccessLevel(eq(myId), eq(3), eq("Cập nhật cấp độ"), any()))
                 .thenThrow(new org.springframework.security.access.AccessDeniedException("Bạn không thể tự thay đổi cấp truy cập của chính mình"));
 
-        String body = objectMapper.writeValueAsString(new UserAccessLevelUpdateRequest(3));
+        String body = objectMapper.writeValueAsString(new UserAccessLevelUpdateRequest(3, "Cập nhật cấp độ"));
         mockMvc.perform(patch("/api/users/{id}/access-level", myId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))

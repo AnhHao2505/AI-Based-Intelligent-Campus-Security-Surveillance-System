@@ -81,6 +81,28 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(body, ex.getErrorCode().getHttpStatus());
     }
 
+    @ExceptionHandler(AccessControlException.class)
+    public ResponseEntity<Map<String, Object>> handleAccessControlException(AccessControlException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now().toString());
+        body.put("status", ex.getErrorCode().getHttpStatus().value());
+        body.put("error", ex.getErrorCode().getHttpStatus().getReasonPhrase());
+        body.put("code", ex.getErrorCode().getCode());
+        body.put("message", ex.getMessage() != null ? ex.getMessage() : ex.getErrorCode().getMessageTemplate());
+        return new ResponseEntity<>(body, ex.getErrorCode().getHttpStatus());
+    }
+
+    @ExceptionHandler(org.springframework.orm.ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<Map<String, Object>> handleOptimisticLockingFailure(org.springframework.orm.ObjectOptimisticLockingFailureException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now().toString());
+        body.put("status", HttpStatus.CONFLICT.value());
+        body.put("error", HttpStatus.CONFLICT.getReasonPhrase());
+        body.put("code", AccessControlErrorCode.ERR_AC_003.getCode());
+        body.put("message", AccessControlErrorCode.ERR_AC_003.getMessageTemplate());
+        return new ResponseEntity<>(body, HttpStatus.CONFLICT);
+    }
+
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<Map<String, Object>> handleAccessDenied(AccessDeniedException ex) {
         return buildResponse(HttpStatus.FORBIDDEN, "Access denied: " + ex.getMessage());

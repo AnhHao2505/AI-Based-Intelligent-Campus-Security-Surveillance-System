@@ -57,6 +57,9 @@ class AreaServiceAccessLevelTest {
     @Mock
     private AreaGeometryValidator geometryValidator;
 
+    @Mock
+    private AccessControlAuditService auditService;
+
     @InjectMocks
     private AreaService areaService;
 
@@ -219,10 +222,11 @@ class AreaServiceAccessLevelTest {
                 .build();
 
         when(areaRepository.findById(areaId)).thenReturn(Optional.of(existing));
+        when(userRepository.findByEmail(adminEmail)).thenReturn(Optional.of(admin));
         when(areaRepository.save(any(Area.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        AreaAccessRulesUpdateRequest req = new AreaAccessRulesUpdateRequest(1, true);
-        AreaResponse resp = areaService.updateAccessRules(areaId, req);
+        AreaAccessRulesUpdateRequest req = new AreaAccessRulesUpdateRequest(1, true, "Cập nhật quyền vào phòng");
+        AreaResponse resp = areaService.updateAccessRules(areaId, req, adminEmail);
 
         assertNotNull(resp);
         assertEquals(1, resp.areaAccessLevel());
@@ -242,8 +246,8 @@ class AreaServiceAccessLevelTest {
 
         when(areaRepository.findById(areaId)).thenReturn(Optional.of(inactiveArea));
 
-        AreaAccessRulesUpdateRequest req = new AreaAccessRulesUpdateRequest(2, false);
-        AreaException ex = assertThrows(AreaException.class, () -> areaService.updateAccessRules(areaId, req));
+        AreaAccessRulesUpdateRequest req = new AreaAccessRulesUpdateRequest(2, false, "Cập nhật");
+        AreaException ex = assertThrows(AreaException.class, () -> areaService.updateAccessRules(areaId, req, adminEmail));
         assertEquals(AreaErrorCode.ERR_AREA_017, ex.getErrorCode());
 
         // Test deleted area
@@ -255,7 +259,7 @@ class AreaServiceAccessLevelTest {
                 .deletedAt(OffsetDateTime.now())
                 .build();
         when(areaRepository.findById(areaId)).thenReturn(Optional.of(deletedArea));
-        AreaException exDel = assertThrows(AreaException.class, () -> areaService.updateAccessRules(areaId, req));
+        AreaException exDel = assertThrows(AreaException.class, () -> areaService.updateAccessRules(areaId, req, adminEmail));
         assertEquals(AreaErrorCode.ERR_AREA_017, exDel.getErrorCode());
     }
 }

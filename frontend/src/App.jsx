@@ -229,10 +229,17 @@ function App() {
 							<Route
 								path="/fm/access-levels"
 								element={
-									<ProtectedRoute allowedRoles={[ROLES.FACILITY_MANAGER]}>
+									<ProtectedRoute
+										allowedRoles={[ROLES.FACILITY_MANAGER, ROLES.ADMIN]}
+									>
 										<UserAccessLevelPage />
 									</ProtectedRoute>
 								}
+							/>
+
+							<Route
+								path="/admin/access-levels"
+								element={<Navigate to="/fm/access-levels" replace />}
 							/>
 
 
