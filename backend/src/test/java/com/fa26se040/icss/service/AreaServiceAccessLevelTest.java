@@ -113,7 +113,7 @@ class AreaServiceAccessLevelTest {
                 .build();
         when(areaLevelPresetRepository.findById(AreaLevel.PUBLIC)).thenReturn(Optional.of(publicPreset));
 
-        when(areaRepository.save(any(Area.class))).thenAnswer(inv -> {
+        when(areaRepository.saveAndFlush(any(Area.class))).thenAnswer(inv -> {
             Area a = inv.getArgument(0);
             a.setId(UUID.randomUUID());
             return a;
@@ -168,7 +168,7 @@ class AreaServiceAccessLevelTest {
         when(userRepository.findByEmail(adminEmail)).thenReturn(Optional.of(admin));
         when(areaLevelPresetRepository.findById(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)).thenReturn(Optional.empty());
 
-        when(areaRepository.save(any(Area.class))).thenAnswer(inv -> {
+        when(areaRepository.saveAndFlush(any(Area.class))).thenAnswer(inv -> {
             Area a = inv.getArgument(0);
             a.setId(UUID.randomUUID());
             return a;
@@ -208,7 +208,7 @@ class AreaServiceAccessLevelTest {
         when(areaRepository.findByIdAndDeletedAtIsNull(areaId)).thenReturn(Optional.of(existing));
         when(areaValidator.validateAndNormalizeName(updateReq.name())).thenReturn(updateReq.name());
         when(userRepository.findByEmail(adminEmail)).thenReturn(Optional.of(admin));
-        when(areaRepository.save(any(Area.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(areaRepository.saveAndFlush(any(Area.class))).thenAnswer(inv -> inv.getArgument(0));
 
         AreaResponse resp = areaService.update(areaId, updateReq, adminEmail);
 

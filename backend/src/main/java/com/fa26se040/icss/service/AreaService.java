@@ -162,15 +162,18 @@ public class AreaService {
                 .build();
 
         try {
-            Area savedArea = areaRepository.save(area);
+            Area savedArea = areaRepository.saveAndFlush(area);
             return mapToAreaResponse(savedArea);
         } catch (DataIntegrityViolationException ex) {
             log.warn("Data integrity violation on creating area [{}]: {}", name, ex.getMessage());
             String msg = (ex.getMessage() + " " + (ex.getRootCause() != null ? ex.getRootCause().getMessage() : "")).toLowerCase();
-            if (msg.contains("ux_areas_code")) {
+            if (msg.contains("ux_areas_name_building_floor")) {
+                throw new AreaException(AreaErrorCode.ERR_AREA_020);
+            }
+            if (msg.contains("ux_areas_code") || msg.contains("areas_code_key")) {
                 throw new AreaException(AreaErrorCode.ERR_AREA_001);
             }
-            throw new AreaException(AreaErrorCode.ERR_AREA_020);
+            throw ex;
         }
     }
 
@@ -218,15 +221,18 @@ public class AreaService {
         area.setDescription(req.description());
 
         try {
-            Area savedArea = areaRepository.save(area);
+            Area savedArea = areaRepository.saveAndFlush(area);
             return mapToAreaResponse(savedArea);
         } catch (DataIntegrityViolationException ex) {
             log.warn("Data integrity violation on updating area [{}]: {}", name, ex.getMessage());
             String msg = (ex.getMessage() + " " + (ex.getRootCause() != null ? ex.getRootCause().getMessage() : "")).toLowerCase();
-            if (msg.contains("ux_areas_code")) {
+            if (msg.contains("ux_areas_name_building_floor")) {
+                throw new AreaException(AreaErrorCode.ERR_AREA_020);
+            }
+            if (msg.contains("ux_areas_code") || msg.contains("areas_code_key")) {
                 throw new AreaException(AreaErrorCode.ERR_AREA_001);
             }
-            throw new AreaException(AreaErrorCode.ERR_AREA_020);
+            throw ex;
         }
     }
 

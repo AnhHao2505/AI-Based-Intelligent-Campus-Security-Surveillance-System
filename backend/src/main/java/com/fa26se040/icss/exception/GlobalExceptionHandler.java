@@ -147,10 +147,10 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Map<String, Object>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
         String msg = (ex.getMessage() + " " + (ex.getRootCause() != null ? ex.getRootCause().getMessage() : "")).toLowerCase();
-        if (msg.contains("ux_areas_name_building_floor") || msg.contains("areas_name_building_floor")) {
+        if (msg.contains("ux_areas_name_building_floor")) {
             return handleAreaException(new AreaException(AreaErrorCode.ERR_AREA_020));
         }
-        if (msg.contains("ux_areas_code")) {
+        if (msg.contains("ux_areas_code") || msg.contains("areas_code_key")) {
             return handleAreaException(new AreaException(AreaErrorCode.ERR_AREA_001));
         }
         return buildResponse(HttpStatus.CONFLICT, "Dữ liệu bị trùng lặp hoặc vi phạm ràng buộc toàn vẹn");

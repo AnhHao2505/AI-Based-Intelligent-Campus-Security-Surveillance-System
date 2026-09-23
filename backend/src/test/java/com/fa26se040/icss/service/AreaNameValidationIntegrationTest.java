@@ -358,4 +358,41 @@ public class AreaNameValidationIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code", is("ERR_AREA_019")));
     }
+
+    @Test
+    @DisplayName("Vi phạm constraint khác (trùng code) -> Trả về đúng ERR_AREA_001, không phải ERR_AREA_020")
+    void testDuplicateCode_ReturnsErrArea001_NotErrArea020() throws Exception {
+        String suffix = UUID.randomUUID().toString().substring(0, 6);
+        String code = "DUP-" + suffix;
+
+        AreaCreateRequest req1 = new AreaCreateRequest(
+                code,
+                "Phòng Ban Đầu " + suffix,
+                AreaLevel.PUBLIC,
+                "Tòa Nhà 1 " + suffix,
+                "Tầng 1",
+                "Mô tả 1"
+        );
+        mockMvc.perform(post("/api/areas")
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req1)))
+                .andExpect(status().isCreated());
+
+        // Tạo khu vực thứ 2: tên khác, tòa khác, tầng khác nhưng TRÙNG CODE
+        AreaCreateRequest req2 = new AreaCreateRequest(
+                code,
+                "Phòng Khác Hoàn Toàn " + suffix,
+                AreaLevel.PUBLIC,
+                "Tòa Nhà 2 " + suffix,
+                "Tầng 2",
+                "Mô tả 2"
+        );
+        mockMvc.perform(post("/api/areas")
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req2)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code", is("ERR_AREA_001")));
+    }
 }
