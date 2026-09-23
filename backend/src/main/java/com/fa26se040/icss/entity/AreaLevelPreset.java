@@ -49,6 +49,10 @@ public class AreaLevelPreset {
     @JoinColumn(name = "updated_by")
     private User updatedBy;
 
+    @jakarta.persistence.Version
+    @Column(name = "version", nullable = false)
+    private Long version;
+
     @PrePersist
     protected void onCreate() {
         if (updatedAt == null) {

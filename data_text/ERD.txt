@@ -82,13 +82,6 @@ Table camera_stream_configurations {
   timeout_ms INT [not null, default: 5000]
 }
 
-Table ai_configurations {
-  id UUID [pk, default: `gen_random_uuid()`]
-  face_match_threshold NUMERIC(3,2) [not null, note: 'ngưỡng tin cậy nhận dạng khuôn mặt']
-  inference_fps INT [not null, note: 'số frame AI xử lý trong 1s']
-  updated_at TIMESTAMPTZ [default: `CURRENT_TIMESTAMP`]
-}
-
 Table face_data {
   id UUID [pk, default: `gen_random_uuid()`]
   user_id UUID [not null, unique, note: 'FK to users']
@@ -165,7 +158,7 @@ Table system_configurations {
   min_value NUMERIC
   max_value NUMERIC
   unit VARCHAR(30)
-  config_group VARCHAR(50) [not null]
+  config_group VARCHAR(50) [not null, note: 'ACCESS_REQUEST | NOTIFICATION | AI_CONFIG | OTHER']
   display_order INT [not null]
   description TEXT [not null]
   editable BOOLEAN [not null, default: true]

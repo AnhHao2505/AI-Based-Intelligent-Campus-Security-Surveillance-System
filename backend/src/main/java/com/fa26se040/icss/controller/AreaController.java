@@ -170,8 +170,10 @@ public class AreaController {
     @PreAuthorize("hasRole('FACILITY_MANAGER')")
     public ResponseEntity<AreaResponse> updateAccessRules(
             @PathVariable UUID id,
-            @Valid @RequestBody AreaAccessRulesUpdateRequest request
+            @Valid @RequestBody AreaAccessRulesUpdateRequest request,
+            Authentication authentication
     ) {
-        return ResponseEntity.ok(areaService.updateAccessRules(id, request));
+        String actorEmail = authentication != null ? authentication.getName() : null;
+        return ResponseEntity.ok(areaService.updateAccessRules(id, request, actorEmail));
     }
 }

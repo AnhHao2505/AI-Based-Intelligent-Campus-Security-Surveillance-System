@@ -287,17 +287,29 @@ export default function Sidebar({ user, onLogout }) {
 													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
 												}
 												title={
-													sidebarCollapsed ? "Phân quyền người dùng" : undefined
+													sidebarCollapsed ? "Phân quyền truy cập" : undefined
 												}
 											>
 												<ShieldCheck size={18} />
-												<span>Phân quyền người dùng</span>
+												<span>Phân quyền truy cập</span>
 											</NavLink>
 										</>
 									)}
 
 									{isAdmin && (
 										<>
+											<NavLink
+												to="/fm/access-levels"
+												className={({ isActive }) =>
+													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
+												}
+												title={
+													sidebarCollapsed ? "Phân quyền truy cập" : undefined
+												}
+											>
+												<ShieldCheck size={18} />
+												<span>Phân quyền truy cập</span>
+											</NavLink>
 											<NavLink
 												to="/admin/accounts"
 												className={({ isActive }) =>
@@ -313,17 +325,6 @@ export default function Sidebar({ user, onLogout }) {
 
 											<div className="sidebar__section">
 												<NavLink
-													to="/admin/ai-settings"
-													className={({ isActive }) =>
-														`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
-													}
-													title={sidebarCollapsed ? "Thiết lập AI" : undefined}
-												>
-													<Cpu size={18} />
-													<span>Thiết lập AI</span>
-												</NavLink>
-
-												<NavLink
 													to="/admin/system-configurations"
 													className={({ isActive }) =>
 														`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
@@ -335,9 +336,9 @@ export default function Sidebar({ user, onLogout }) {
 													<Sliders size={18} />
 													<span>Cấu hình hệ thống</span>
 												</NavLink>
-											</div>
-										</>
-									)}
+							</div>
+						</>
+					)}
 								</div>
 							)}
 						</>

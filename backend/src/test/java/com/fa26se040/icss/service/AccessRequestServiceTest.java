@@ -125,7 +125,7 @@ class AccessRequestServiceTest {
                 .id(UUID.randomUUID())
                 .code("LAB-01")
                 .name("Phòng Thí Nghiệm AI")
-                .areaLevel(AreaLevel.SEMI_PRIVATE)
+                .areaLevel(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
                 .building("Tòa Alpha")
                 .floor("Tầng 2")
                 .isActive(true)
@@ -135,7 +135,7 @@ class AccessRequestServiceTest {
                 .id(UUID.randomUUID())
                 .code("SERVER-01")
                 .name("Phòng Server Trung Tâm")
-                .areaLevel(AreaLevel.PRIVATE)
+                .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
                 .building("Tòa Beta")
                 .floor("Tầng 1")
                 .isActive(true)
@@ -292,6 +292,43 @@ class AccessRequestServiceTest {
     }
 
     @Test
+    @DisplayName("Tạo yêu cầu thành công khi khu vực là INTERNAL_CONFIDENTIAL")
+    void createIndividualRequest_InternalConfidentialArea_Success() {
+        Area internalArea = Area.builder()
+                .id(UUID.randomUUID())
+                .code("INTERNAL-01")
+                .name("Khu vực nội bộ")
+                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
+                .building("Tòa A")
+                .floor("Tầng 2")
+                .isActive(true)
+                .build();
+
+        OffsetDateTime startTime = OffsetDateTime.now().plusHours(1);
+        OffsetDateTime endTime = startTime.plusHours(2);
+        IndividualAccessRequestCreateRequest request = new IndividualAccessRequestCreateRequest(
+                internalArea.getId(),
+                startTime,
+                endTime,
+                "Truy cập phòng ban nội bộ"
+        );
+
+        when(userRepository.findByEmail(requester.getEmail())).thenReturn(Optional.of(requester));
+        when(areaRepository.findByIdAndDeletedAtIsNull(internalArea.getId())).thenReturn(Optional.of(internalArea));
+        when(accessRequestRepository.findOverlappingRequests(org.mockito.ArgumentMatchers.anyList(), org.mockito.ArgumentMatchers.eq(internalArea.getId()), org.mockito.ArgumentMatchers.eq(startTime), org.mockito.ArgumentMatchers.eq(endTime), org.mockito.ArgumentMatchers.anyList()))
+                .thenReturn(Collections.emptyList());
+        when(accessRequestRepository.save(org.mockito.ArgumentMatchers.any(AccessRequest.class))).thenAnswer(inv -> {
+            AccessRequest ar = inv.getArgument(0);
+            ar.setId(UUID.randomUUID());
+            return ar;
+        });
+
+        AccessRequestResponse response = accessRequestService.createIndividualRequest(request, requester.getEmail());
+        assertNotNull(response);
+        assertEquals(internalArea.getCode(), response.areaCode());
+    }
+
+    @Test
     @DisplayName("Chặn trùng lịch yêu cầu cá nhân trả về DuplicateResourceException (409 Conflict)")
     void createIndividualRequest_OverlapDetected_ThrowsDuplicateResourceException() {
         OffsetDateTime startTime = OffsetDateTime.now().plusHours(1);
@@ -378,7 +415,7 @@ class AccessRequestServiceTest {
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> accessRequestService.createGroupRequest(request, requester.getEmail()));
-        assertTrue(ex.getMessage().contains("PRIVATE"));
+        assertTrue(ex.getMessage().contains("HIGHLY_CONFIDENTIAL"));
     }
 
     @Test

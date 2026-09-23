@@ -318,17 +318,14 @@ Toàn dự án có **196 vị trí** dùng `style={{ ... }}` trong 15 file `.jsx
   - **125 vị trí thuần bố cục:** Chỉ thiết lập kích thước, khoảng đệm, căn lề, hiển thị (như `margin: '14px 20px 0 20px'`, `maxHeight: '65vh'`, `overflowY: 'auto'`, `textAlign: 'right'`, `display: 'flex'`, `width: '100%'`).
 - **Phân biệt với tài liệu cũ:** Con số 196 này khác với "3 vị trí inline style" trong các tài liệu kiểm toán trước (`docs/theme-primary-audit.md`) — 3 vị trí đó chỉ tính riêng 3 vị trí JSX sử dụng token `--theme-primary` tại [`ManageAccountPage.jsx:1031, 1039, 1367`](file:///Users/anhhao/Documents/SEP/frontend/src/pages/accounts/ManageAccountPage.jsx#L1031). Riêng `ManageAccountPage.jsx` hiện chiếm 95/196 vị trí `style={{` (trong đó có 29 vị trí chứa màu).
 
-### B. Phạm vi kiểm tra của hook pre-commit
-Kịch bản chặn hồi quy mã màu [`scripts/check-colors.sh`](file:///Users/anhhao/Documents/SEP/scripts/check-colors.sh) chỉ kiểm tra các file có phần mở rộng `*.css` trong `frontend/src` (loại trừ `LoginPage.css` và `theme.css`). Kịch bản **hoàn toàn không quét các file `.jsx` hay `.js`**. Do đó, toàn bộ 71 vị trí inline style chứa màu trong `.jsx` hiện nằm ngoài tầm kiểm soát của hook pre-commit và sẽ không bị chặn nếu phát sinh mã màu viết cứng tại JSX.
-
-### C. Các màn hình không có thông báo lỗi cho người dùng
+### B. Các màn hình không có thông báo lỗi cho người dùng
 Bốn màn hình hiện không hiển thị bất kỳ thông báo lỗi trực quan nào trên giao diện khi gặp sự cố:
 1. [`DashboardPage.jsx`](file:///Users/anhhao/Documents/SEP/frontend/src/pages/DashboardPage.jsx): **Thiếu tính năng xử lý lỗi** do hoàn toàn không destructure `isError` hay `error` từ `useQuery` tại dòng [L30](file:///Users/anhhao/Documents/SEP/frontend/src/pages/DashboardPage.jsx#L30).
 2. [`GuardDashboardPage.jsx`](file:///Users/anhhao/Documents/SEP/frontend/src/pages/guard/GuardDashboardPage.jsx): Nuốt lỗi kết nối STOMP/WebSocket và lỗi parse JSON vào `console.error` ([L47](file:///Users/anhhao/Documents/SEP/frontend/src/pages/guard/GuardDashboardPage.jsx#L47), [L117](file:///Users/anhhao/Documents/SEP/frontend/src/pages/guard/GuardDashboardPage.jsx#L117)) và `console.warn` ([L126](file:///Users/anhhao/Documents/SEP/frontend/src/pages/guard/GuardDashboardPage.jsx#L126)) mà không có chỉ báo lỗi trên màn hình giám sát.
 3. [`UnauthorizedPage.jsx`](file:///Users/anhhao/Documents/SEP/frontend/src/pages/UnauthorizedPage.jsx): Chỉ render khối giao diện tĩnh 403.
 4. [`NotificationsPage.jsx`](file:///Users/anhhao/Documents/SEP/frontend/src/pages/notifications/NotificationsPage.jsx): Không có cơ chế bắt và hiển thị lỗi tải thông báo (chỉ render trạng thái trống).
 
-### D. File CSS vượt ngưỡng 1000 dòng
+### C. File CSS vượt ngưỡng 1000 dòng
 Hai file CSS có quy mô rất lớn, nguy cơ xung đột và khó kiểm soát hiển thị cao:
 1. [`frontend/src/styles/AreaListPage.css`](file:///Users/anhhao/Documents/SEP/frontend/src/styles/AreaListPage.css): **2.302 dòng** (giao diện vẽ polygon canvas, sidebar, floor tabs, drawer chi tiết).
 2. [`frontend/src/styles/ManageAccountPage.css`](file:///Users/anhhao/Documents/SEP/frontend/src/styles/ManageAccountPage.css): **1.568 dòng** (bảng dữ liệu, dropzone tải ảnh, modal thêm tài khoản, modal import hàng loạt).

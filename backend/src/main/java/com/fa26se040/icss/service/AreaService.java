@@ -51,10 +51,32 @@ public class AreaService {
     private final AreaValidator areaValidator;
     private final AreaDependencyChecker dependencyChecker;
     private final AreaGeometryValidator geometryValidator;
+    private final AccessControlAuditService auditService;
+
+    private java.util.Map<AreaLevel, AreaLevelPreset> loadPresetMap() {
+        return areaLevelPresetRepository.findAll().stream()
+                .collect(Collectors.toMap(AreaLevelPreset::getAreaLevel, java.util.function.Function.identity(), (a, b) -> a));
+    }
+
+    private boolean computeDiffersFromPreset(Area area, java.util.Map<AreaLevel, AreaLevelPreset> presetMap) {
+        if (area == null || area.getAreaLevel() == null) {
+            return false;
+        }
+        AreaLevelPreset preset = presetMap.get(area.getAreaLevel());
+        if (preset == null) {
+            return false;
+        }
+        return !java.util.Objects.equals(area.getAreaAccessLevel(), preset.getAreaAccessLevel())
+                || !java.util.Objects.equals(area.getExplicitAuthorizationRequired(), preset.getExplicitAuthorizationRequired());
+    }
 
     @Transactional(readOnly = true)
     public List<AreaSimpleResponse> getAvailableAreasForRequest() {
-        List<Area> areas = areaRepository.findAvailableForRequest(List.of(AreaLevel.SEMI_PRIVATE, AreaLevel.PRIVATE));
+        List<Area> areas = areaRepository.findAvailableForRequest(List.of(
+                AreaLevel.INTERNAL_CONFIDENTIAL,
+                AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED,
+                AreaLevel.HIGHLY_CONFIDENTIAL
+        ));
         return areas.stream()
                 .map(a -> new AreaSimpleResponse(
                         a.getId(),
@@ -72,14 +94,16 @@ public class AreaService {
         String cleanKeyword = (keyword != null && !keyword.trim().isEmpty()) ? keyword.trim() : null;
         String cleanBuilding = (building != null && !building.trim().isEmpty()) ? building.trim() : null;
         Page<Area> page = areaRepository.searchAreas(cleanKeyword, areaLevel, cleanBuilding, isActive, pageable);
-        return page.map(this::mapToAreaListItemResponse);
+        java.util.Map<AreaLevel, AreaLevelPreset> presetMap = loadPresetMap();
+        return page.map(a -> mapToAreaListItemResponse(a, computeDiffersFromPreset(a, presetMap)));
     }
 
     @Transactional(readOnly = true)
     public AreaResponse getAreaById(UUID id) {
         Area area = areaRepository.findById(id)
                 .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
-        return mapToAreaResponse(area);
+        java.util.Map<AreaLevel, AreaLevelPreset> presetMap = loadPresetMap();
+        return mapToAreaResponse(area, computeDiffersFromPreset(area, presetMap));
     }
 
     @Transactional(readOnly = true)
@@ -114,7 +138,8 @@ public class AreaService {
             areaAccessLevel = preset.getAreaAccessLevel();
             explicitAuthRequired = preset.getExplicitAuthorizationRequired();
         } else {
-            log.warn("Không tìm thấy preset cấu hình cho area_level: {}. Áp dụng fail-closed (accessLevel=3, explicitAuthRequired=true)", req.areaLevel());
+            log.warn("Không tìm thấy preset cho area_level = {}, áp dụng fallback fail-closed (level 3, explicit_authorization_required = true)",
+                    req.areaLevel());
         }
 
         Area area = Area.builder()
@@ -311,6 +336,11 @@ public class AreaService {
 
     @Transactional
     public AreaResponse updateAccessRules(UUID id, AreaAccessRulesUpdateRequest req) {
+        return updateAccessRules(id, req, null);
+    }
+
+    @Transactional
+    public AreaResponse updateAccessRules(UUID id, AreaAccessRulesUpdateRequest req, String actorEmail) {
         Area area = areaRepository.findById(id)
                 .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
 
@@ -318,15 +348,57 @@ public class AreaService {
             throw new AreaException(AreaErrorCode.ERR_AREA_017);
         }
 
+        java.util.Map<AreaLevel, AreaLevelPreset> presetMap = loadPresetMap();
+
+        // BR-AL-06: Thao tác không làm thay đổi giá trị (new == old) -> không ghi log, trả về trạng thái hiện tại
+        if (java.util.Objects.equals(area.getAreaAccessLevel(), req.areaAccessLevel()) &&
+                java.util.Objects.equals(area.getExplicitAuthorizationRequired(), req.explicitAuthorizationRequired())) {
+            log.info("Area {} access rules unchanged, skipping audit log", id);
+            return mapToAreaResponse(area, computeDiffersFromPreset(area, presetMap));
+        }
+
+        Integer oldAccessLevel = area.getAreaAccessLevel();
+        Boolean oldExplicit = area.getExplicitAuthorizationRequired();
+
         area.setAreaAccessLevel(req.areaAccessLevel());
         area.setExplicitAuthorizationRequired(req.explicitAuthorizationRequired());
         area.setUpdatedAt(OffsetDateTime.now());
 
         Area savedArea = areaRepository.save(area);
-        return mapToAreaResponse(savedArea);
+
+        if (actorEmail != null) {
+            User actor = userRepository.findByEmail(actorEmail)
+                    .orElseThrow(() -> new UnauthorizedException("Phiên đăng nhập không hợp lệ"));
+
+            com.fa26se040.icss.dto.accesscontrol.snapshot.AreaAccessRulesAuditSnapshot oldSnapshot =
+                    new com.fa26se040.icss.dto.accesscontrol.snapshot.AreaAccessRulesAuditSnapshot(oldAccessLevel, oldExplicit);
+            com.fa26se040.icss.dto.accesscontrol.snapshot.AreaAccessRulesAuditSnapshot newSnapshot =
+                    new com.fa26se040.icss.dto.accesscontrol.snapshot.AreaAccessRulesAuditSnapshot(
+                            savedArea.getAreaAccessLevel(),
+                            savedArea.getExplicitAuthorizationRequired()
+                    );
+
+            auditService.record(
+                    com.fa26se040.icss.enums.AccessControlTargetType.AREA_ACCESS_RULES,
+                    com.fa26se040.icss.enums.AccessControlAction.UPDATE,
+                    savedArea.getId().toString(),
+                    savedArea,
+                    null,
+                    oldSnapshot,
+                    newSnapshot,
+                    req.reason(),
+                    actor
+            );
+        }
+
+        return mapToAreaResponse(savedArea, computeDiffersFromPreset(savedArea, presetMap));
     }
 
     private AreaResponse mapToAreaResponse(Area area) {
+        return mapToAreaResponse(area, false);
+    }
+
+    private AreaResponse mapToAreaResponse(Area area, boolean differsFromPreset) {
         return new AreaResponse(
                 area.getId(),
                 area.getCode(),
@@ -340,11 +412,16 @@ public class AreaService {
                 area.getGeometry(),
                 area.getIsActive(),
                 area.getCreatedAt(),
-                area.getUpdatedAt()
+                area.getUpdatedAt(),
+                differsFromPreset
         );
     }
 
     private AreaListItemResponse mapToAreaListItemResponse(Area area) {
+        return mapToAreaListItemResponse(area, false);
+    }
+
+    private AreaListItemResponse mapToAreaListItemResponse(Area area, boolean differsFromPreset) {
         return new AreaListItemResponse(
                 area.getId(),
                 area.getCode(),
@@ -356,7 +433,8 @@ public class AreaService {
                 area.getFloor(),
                 area.getIsActive(),
                 area.getGeometry(),
-                area.getGeometry() != null
+                area.getGeometry() != null,
+                differsFromPreset
         );
     }
 }

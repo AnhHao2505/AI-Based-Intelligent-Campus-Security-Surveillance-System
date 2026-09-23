@@ -4,39 +4,51 @@
 export const AREA_LEVEL_CONFIG = {
   PUBLIC: {
     code: 'PUBLIC',
-    name: 'Công cộng',
-    rank: 1,
-    badgeLabel: 'PUBLIC',
+    name: 'Công khai',
+    badgeLabel: 'Công khai',
     badgeClass: 'level-badge--public',
     cardClass: 'zone-card--public',
     color: '#10b981',
     bgColor: 'rgba(16, 185, 129, 0.08)',
     borderColor: 'rgba(16, 185, 129, 0.35)',
-    icon: 'globe'
+    icon: 'globe',
+    description: 'Khu vực tự do ra vào cho tất cả người dùng trong khuôn viên (ai cũng vào).'
   },
-  SEMI_PRIVATE: {
-    code: 'SEMI_PRIVATE',
-    name: 'Bán hạn chế',
-    rank: 2,
-    badgeLabel: 'SEMI PRIVATE',
-    badgeClass: 'level-badge--semi-private',
-    cardClass: 'zone-card--semi-private',
+  INTERNAL_CONFIDENTIAL: {
+    code: 'INTERNAL_CONFIDENTIAL',
+    name: 'Bảo mật nội bộ',
+    badgeLabel: 'Bảo mật nội bộ',
+    badgeClass: 'level-badge--internal',
+    cardClass: 'zone-card--internal',
+    color: '#3b82f6',
+    bgColor: 'rgba(59, 130, 246, 0.08)',
+    borderColor: 'rgba(59, 130, 246, 0.35)',
+    icon: 'shield',
+    description: 'Khu vực nội bộ campus. Người dùng đủ cấp độ truy cập (level) là được vào.'
+  },
+  CONFIDENTIAL_CONTACT_REQUIRED: {
+    code: 'CONFIDENTIAL_CONTACT_REQUIRED',
+    name: 'Bảo mật - liên hệ trước',
+    badgeLabel: 'Liên hệ trước',
+    badgeClass: 'level-badge--contact',
+    cardClass: 'zone-card--contact',
     color: '#f59e0b',
     bgColor: 'rgba(245, 158, 11, 0.08)',
     borderColor: 'rgba(245, 158, 11, 0.35)',
-    icon: 'shield'
+    icon: 'alert-triangle',
+    description: 'Khu vực yêu cầu: cấp độ cao vào tự do, còn lại cần nhân sự chỉ định hoặc đơn đăng ký.'
   },
-  PRIVATE: {
-    code: 'PRIVATE',
-    name: 'Hạn chế tuyệt đối',
-    rank: 3,
-    badgeLabel: 'PRIVATE',
+  HIGHLY_CONFIDENTIAL: {
+    code: 'HIGHLY_CONFIDENTIAL',
+    name: 'Tuyệt mật – chỉ người được chỉ định',
+    badgeLabel: 'Tuyệt mật',
     badgeClass: 'level-badge--private',
     cardClass: 'zone-card--private',
     color: '#ef4444',
     bgColor: 'rgba(239, 68, 68, 0.08)',
     borderColor: 'rgba(239, 68, 68, 0.35)',
-    icon: 'lock'
+    icon: 'lock',
+    description: 'Khu vực an ninh đặc biệt nghiêm ngặt. Chỉ người được chỉ định mới được phép vào.'
   }
 };
 
@@ -46,16 +58,15 @@ export const AREA_LEVEL_CONFIG = {
 export function getLevelConfig(level) {
   let key = level;
   if (typeof level === 'object' && level !== null) {
-    key = level.code || level.areaLevel || level.level;
+    key = level.code || level.areaLevel || level.areaType || level.level;
   }
   if (key === 1 || key === '1') key = 'PUBLIC';
-  if (key === 2 || key === '2') key = 'SEMI_PRIVATE';
-  if (key === 3 || key === '3') key = 'PRIVATE';
+  if (key === 2 || key === '2' || key === 'SEMI_PRIVATE') key = 'INTERNAL_CONFIDENTIAL';
+  if (key === 3 || key === '3' || key === 'PRIVATE') key = 'HIGHLY_CONFIDENTIAL';
 
   return AREA_LEVEL_CONFIG[key] || {
     code: key || 'UNKNOWN',
-    name: 'Unknown Level',
-    rank: 0,
+    name: key || 'Unknown Level',
     badgeLabel: `${key || '?'}`,
     badgeClass: 'level-badge--unknown',
     cardClass: '',
@@ -64,6 +75,21 @@ export function getLevelConfig(level) {
     borderColor: 'rgba(99, 102, 241, 0.3)',
     icon: 'shield'
   };
+}
+
+/**
+ * Lấy class CSS polygon tương ứng cho từng Cấp độ An ninh khu vực
+ */
+export function getLevelPolygonClass(level) {
+  let key = level;
+  if (typeof level === 'object' && level !== null) {
+    key = level.code || level.areaLevel || level.areaType || level.level;
+  }
+  if (key === 'PUBLIC' || key === 1 || key === '1') return 'zone-polygon--public';
+  if (key === 'INTERNAL_CONFIDENTIAL' || key === 'SEMI_PRIVATE' || key === 2 || key === '2') return 'zone-polygon--internal';
+  if (key === 'CONFIDENTIAL_CONTACT_REQUIRED') return 'zone-polygon--contact';
+  if (key === 'HIGHLY_CONFIDENTIAL' || key === 'PRIVATE' || key === 3 || key === '3') return 'zone-polygon--private';
+  return 'zone-polygon--default';
 }
 
 /**
@@ -84,8 +110,11 @@ export const ERROR_MESSAGES = {
 
 export function getErrorMessage(error) {
   if (!error) return 'Đã có lỗi xảy ra. Vui lòng thử lại.';
+  if (error.message && !error.message.startsWith('Yêu cầu thất bại (HTTP')) {
+    return error.message;
+  }
   if (error.code && ERROR_MESSAGES[error.code]) {
-    return ERROR_MESSAGES[error.code];
+    return `[${error.code}] ${ERROR_MESSAGES[error.code]}`;
   }
   return error.message || 'Đã có lỗi xảy ra. Vui lòng thử lại.';
 }

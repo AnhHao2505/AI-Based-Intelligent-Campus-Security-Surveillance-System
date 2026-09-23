@@ -1,0 +1,57 @@
+Context & Mô hình phân quyền ra vào khu vực (Cập nhật 23/09/2026 sau fix hồi quy PR #33):
+- AreaLevel gồm 4 giá trị enum: [PUBLIC, INTERNAL_CONFIDENTIAL, CONFIDENTIAL_CONTACT_REQUIRED, HIGHLY_CONFIDENTIAL]
+- Dịch tiếng Việt: [Công khai, Bảo mật nội bộ, Bảo mật - liên hệ trước, Bảo mật cao - Tuyệt đối cấm vào]
+- Giá trị mặc định (area_access_level, explicit_authorization_required) trong bảng area_level_presets:
+    PUBLIC                        → 1, false
+    INTERNAL_CONFIDENTIAL         → 2, false
+    CONFIDENTIAL_CONTACT_REQUIRED → 3, false
+    HIGHLY_CONFIDENTIAL           → 3, true
+  Khi tạo khu vực, giá trị được đọc từ bảng preset qua repository. Thiếu preset thì fail-closed: 3, true, log WARN.
+  Khi ADMIN cập nhật khu vực (PUT /api/areas/{id}), KHÔNG thay đổi areaAccessLevel và explicitAuthorizationRequired.
+  Hai trường này chỉ được sửa bởi FM qua PATCH /api/areas/{id}/access-rules.
+- Nhân sự chỉ định cố định (Assigned Personnel) và Đơn truy cập (Access Request): áp dụng cho TẤT CẢ các phòng TRỪ PUBLIC.
+
+Thứ tự xét quyền ra vào duy nhất trong AccessDecisionService.checkEntry(userId, areaId, at):
+    (1) user hoặc area không tồn tại / không active / đã bị xoá mềm → DENY (NONE)
+    (2) Có Assigned Personnel còn hiệu lực tại at (chưa thu hồi, valid_from <= at < valid_to, valid_to NULL = vô hạn) → ALLOW (ASSIGNED_PERSONNEL)
+    (3) area.explicitAuthorizationRequired == false VÀ user.accessLevel >= area.areaAccessLevel → ALLOW (ACCESS_LEVEL)
+        * Lưu ý: Khi explicit == true, accessLevel KHÔNG bao giờ cho vào, kể cả Level 3.
+    (4) Có Access Request status == APPROVED trong khung giờ (startTime <= at < endTime), user là người tạo hoặc thành viên nhóm → ALLOW (ACCESS_REQUEST)
+        * Các trạng thái FINISHED, PENDING, REJECTED, CANCELLED, EXPIRED đều KHÔNG cho vào.
+    (5) Còn lại → DENY (NONE)
+
+Sơ đồ quyết định (checkEntry):
+                       ┌─────────────────────────┐
+                       │  User & Area hợp lệ?    │
+                       └───────────┬─────────────┘
+                                   │
+                           Yes ────┴──── No ──────────────► DENY
+                           │
+             ┌─────────────┴─────────────┐
+             │ Có Assigned Personnel     │
+             │ còn hiệu lực tại `at`?    │
+             └─────────────┬─────────────┘
+                           │
+                   Yes ────┴──── No
+                   │             │
+                   ▼             ▼
+                 ALLOW    ┌─────────────────────────┐
+             (ASSIGNED_   │ explicit == false VÀ    │
+              PERSONNEL)  │ userLevel >= areaLevel? │
+                          └──────────┬──────────────┘
+                                     │
+                             Yes ────┴──── No
+                             │             │
+                             ▼             ▼
+                           ALLOW    ┌─────────────────────────┐
+                          (ACCESS_  │ Có đơn APPROVED trong   │
+                           LEVEL)   │ khung giờ (startTime    │
+                                    │ <= at < endTime)?       │
+                                    └──────────┬──────────────┘
+                                               │
+                                       Yes ────┴──── No
+                                       │             │
+                                       ▼             ▼
+                                     ALLOW         DENY
+                                    (ACCESS_      (NONE)
+                                    REQUEST)

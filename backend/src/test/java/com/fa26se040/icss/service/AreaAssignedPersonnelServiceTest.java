@@ -34,10 +34,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * Unit test cho AreaAssignedPersonnelService.
@@ -57,6 +59,9 @@ class AreaAssignedPersonnelServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private AccessControlAuditService auditService;
 
     @InjectMocks
     private AreaAssignedPersonnelService service;
@@ -90,7 +95,7 @@ class AreaAssignedPersonnelServiceTest {
                 .id(UUID.randomUUID())
                 .code("LAB-01")
                 .name("Phòng Lab 01")
-                .areaLevel(AreaLevel.PRIVATE)
+                .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
                 .isActive(true)
                 .build();
 
@@ -522,5 +527,252 @@ class AreaAssignedPersonnelServiceTest {
         assertEquals(AssignedPersonnelStatus.EXPIRED, AreaAssignedPersonnelService.computeStatus(rec, t));
         assertEquals(AssignedPersonnelStatus.ACTIVE, AreaAssignedPersonnelService.computeStatus(rec, t.minusSeconds(1)));
         assertEquals(AssignedPersonnelStatus.UPCOMING, AreaAssignedPersonnelService.computeStatus(rec, t.minusHours(3)));
+    }
+
+    @Test
+    @DisplayName("Gán nhân sự vào khu vực PUBLIC -> ném IllegalArgumentException")
+    void create_PublicArea_ThrowsException() {
+        Area publicArea = Area.builder()
+                .id(UUID.randomUUID())
+                .code("PUB-01")
+                .name("Sảnh công cộng")
+                .areaLevel(AreaLevel.PUBLIC)
+                .isActive(true)
+                .build();
+        when(areaRepository.findById(publicArea.getId())).thenReturn(Optional.of(publicArea));
+
+        AssignedPersonnelCreateRequest req = new AssignedPersonnelCreateRequest(
+                lecturer.getId(),
+                OffsetDateTime.now(),
+                OffsetDateTime.now().plusDays(1),
+                "Gán vào sảnh"
+        );
+
+        AssignedPersonnelException ex = assertThrows(AssignedPersonnelException.class,
+                () -> service.create(publicArea.getId(), req, FM_EMAIL));
+        assertEquals(AssignedPersonnelErrorCode.ERR_AP_010, ex.getErrorCode());
+    }
+
+    @Test
+    @DisplayName("Gán nhân sự vào khu vực INTERNAL_CONFIDENTIAL -> thành công")
+    void create_InternalConfidentialArea_Success() {
+        Area internalArea = Area.builder()
+                .id(UUID.randomUUID())
+                .code("INTERNAL-01")
+                .name("Phòng ban nội bộ")
+                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
+                .isActive(true)
+                .build();
+        when(areaRepository.findById(internalArea.getId())).thenReturn(Optional.of(internalArea));
+
+        AssignedPersonnelCreateRequest req = new AssignedPersonnelCreateRequest(
+                lecturer.getId(),
+                OffsetDateTime.now(),
+                OffsetDateTime.now().plusDays(1),
+                "Gán vào phòng ban"
+        );
+
+        AssignedPersonnelResponse resp = service.create(internalArea.getId(), req, FM_EMAIL);
+        assertNotNull(resp);
+        assertEquals(lecturer.getId(), resp.user().id());
+    }
+
+    @Test
+    @DisplayName("Gán nhân sự vào khu vực CONFIDENTIAL_CONTACT_REQUIRED -> thành công")
+    void create_ConfidentialContactRequiredArea_Success() {
+        Area contactArea = Area.builder()
+                .id(UUID.randomUUID())
+                .code("CONTACT-01")
+                .name("Phòng cần xác nhận")
+                .areaLevel(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
+                .isActive(true)
+                .build();
+        when(areaRepository.findById(contactArea.getId())).thenReturn(Optional.of(contactArea));
+
+        AssignedPersonnelCreateRequest req = new AssignedPersonnelCreateRequest(
+                lecturer.getId(),
+                OffsetDateTime.now(),
+                OffsetDateTime.now().plusDays(1),
+                "Gán vào phòng xác nhận"
+        );
+
+        AssignedPersonnelResponse resp = service.create(contactArea.getId(), req, FM_EMAIL);
+        assertNotNull(resp);
+        assertEquals(lecturer.getId(), resp.user().id());
+    }
+
+    @Test
+    @DisplayName("E.1: create AP ghi nhận audit log với đầy đủ tham số qua ArgumentCaptor")
+    void create_AuditsChange_WithArgumentCaptor() {
+        OffsetDateTime from = OffsetDateTime.now().minusDays(1);
+        OffsetDateTime to = OffsetDateTime.now().plusMonths(3);
+        AssignedPersonnelCreateRequest req = new AssignedPersonnelCreateRequest(
+                lecturer.getId(),
+                from,
+                to,
+                "Ghi chú",
+                "Gán quyền cho giảng viên"
+        );
+
+        AssignedPersonnelResponse resp = service.create(lab.getId(), req, FM_EMAIL);
+        assertNotNull(resp);
+
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.enums.AccessControlTargetType> targetTypeCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.enums.AccessControlTargetType.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.enums.AccessControlAction> actionCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.enums.AccessControlAction.class);
+        org.mockito.ArgumentCaptor<String> targetIdCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
+        org.mockito.ArgumentCaptor<Area> areaCaptor = org.mockito.ArgumentCaptor.forClass(Area.class);
+        org.mockito.ArgumentCaptor<User> userCaptor = org.mockito.ArgumentCaptor.forClass(User.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot> oldSnapshotCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot> newSnapshotCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot.class);
+        org.mockito.ArgumentCaptor<String> reasonCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
+        org.mockito.ArgumentCaptor<User> actorCaptor = org.mockito.ArgumentCaptor.forClass(User.class);
+
+        verify(auditService, org.mockito.Mockito.times(1)).record(
+                targetTypeCaptor.capture(),
+                actionCaptor.capture(),
+                targetIdCaptor.capture(),
+                areaCaptor.capture(),
+                userCaptor.capture(),
+                oldSnapshotCaptor.capture(),
+                newSnapshotCaptor.capture(),
+                reasonCaptor.capture(),
+                actorCaptor.capture()
+        );
+
+        assertEquals(com.fa26se040.icss.enums.AccessControlTargetType.AREA_ASSIGNMENT, targetTypeCaptor.getValue());
+        assertEquals(com.fa26se040.icss.enums.AccessControlAction.ASSIGN, actionCaptor.getValue());
+        assertEquals(resp.id().toString(), targetIdCaptor.getValue());
+        assertEquals(lab, areaCaptor.getValue());
+        assertEquals(lecturer, userCaptor.getValue());
+        org.junit.jupiter.api.Assertions.assertNull(oldSnapshotCaptor.getValue());
+        assertEquals(new com.fa26se040.icss.dto.accesscontrol.snapshot.AreaAssignmentAuditSnapshot(
+                from, to, AssignedPersonnelStatus.ACTIVE), newSnapshotCaptor.getValue());
+        assertEquals("Gán quyền cho giảng viên", reasonCaptor.getValue());
+        assertEquals(fm, actorCaptor.getValue());
+    }
+
+    @Test
+    @DisplayName("E.1: updateValidTo AP ghi nhận audit log với đầy đủ tham số qua ArgumentCaptor")
+    void updateValidTo_AuditsChange_WithArgumentCaptor() {
+        OffsetDateTime from = OffsetDateTime.now().minusDays(1);
+        OffsetDateTime oldTo = OffsetDateTime.now().plusMonths(1);
+        OffsetDateTime newTo = OffsetDateTime.now().plusMonths(6);
+
+        AreaAssignedPersonnel rec = existing(from, oldTo);
+
+        AssignedPersonnelUpdateRequest req = new AssignedPersonnelUpdateRequest(newTo, "Gia hạn thêm 5 tháng");
+        AssignedPersonnelResponse resp = service.updateValidTo(lab.getId(), rec.getId(), req, FM_EMAIL);
+        assertNotNull(resp);
+
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.enums.AccessControlTargetType> targetTypeCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.enums.AccessControlTargetType.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.enums.AccessControlAction> actionCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.enums.AccessControlAction.class);
+        org.mockito.ArgumentCaptor<String> targetIdCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
+        org.mockito.ArgumentCaptor<Area> areaCaptor = org.mockito.ArgumentCaptor.forClass(Area.class);
+        org.mockito.ArgumentCaptor<User> userCaptor = org.mockito.ArgumentCaptor.forClass(User.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot> oldSnapshotCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot> newSnapshotCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot.class);
+        org.mockito.ArgumentCaptor<String> reasonCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
+        org.mockito.ArgumentCaptor<User> actorCaptor = org.mockito.ArgumentCaptor.forClass(User.class);
+
+        verify(auditService, org.mockito.Mockito.times(1)).record(
+                targetTypeCaptor.capture(),
+                actionCaptor.capture(),
+                targetIdCaptor.capture(),
+                areaCaptor.capture(),
+                userCaptor.capture(),
+                oldSnapshotCaptor.capture(),
+                newSnapshotCaptor.capture(),
+                reasonCaptor.capture(),
+                actorCaptor.capture()
+        );
+
+        assertEquals(com.fa26se040.icss.enums.AccessControlTargetType.AREA_ASSIGNMENT, targetTypeCaptor.getValue());
+        assertEquals(com.fa26se040.icss.enums.AccessControlAction.UPDATE_VALIDITY, actionCaptor.getValue());
+        assertEquals(rec.getId().toString(), targetIdCaptor.getValue());
+        assertEquals(lab, areaCaptor.getValue());
+        assertEquals(lecturer, userCaptor.getValue());
+        assertEquals(new com.fa26se040.icss.dto.accesscontrol.snapshot.AreaAssignmentAuditSnapshot(
+                from, oldTo, AssignedPersonnelStatus.ACTIVE), oldSnapshotCaptor.getValue());
+        assertEquals(new com.fa26se040.icss.dto.accesscontrol.snapshot.AreaAssignmentAuditSnapshot(
+                from, newTo, AssignedPersonnelStatus.ACTIVE), newSnapshotCaptor.getValue());
+        assertEquals("Gia hạn thêm 5 tháng", reasonCaptor.getValue());
+        assertEquals(fm, actorCaptor.getValue());
+    }
+
+    @Test
+    @DisplayName("E.1: revoke AP ghi nhận audit log với đầy đủ tham số qua ArgumentCaptor")
+    void revoke_AuditsChange_WithArgumentCaptor() {
+        OffsetDateTime from = OffsetDateTime.now().minusDays(1);
+        OffsetDateTime to = OffsetDateTime.now().plusMonths(1);
+
+        AreaAssignedPersonnel rec = existing(from, to);
+
+        AssignedPersonnelRevokeRequest req = new AssignedPersonnelRevokeRequest("Chuyển công tác sang cơ sở khác");
+        AssignedPersonnelResponse resp = service.revoke(lab.getId(), rec.getId(), req, FM_EMAIL);
+        assertNotNull(resp);
+
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.enums.AccessControlTargetType> targetTypeCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.enums.AccessControlTargetType.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.enums.AccessControlAction> actionCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.enums.AccessControlAction.class);
+        org.mockito.ArgumentCaptor<String> targetIdCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
+        org.mockito.ArgumentCaptor<Area> areaCaptor = org.mockito.ArgumentCaptor.forClass(Area.class);
+        org.mockito.ArgumentCaptor<User> userCaptor = org.mockito.ArgumentCaptor.forClass(User.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot> oldSnapshotCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot> newSnapshotCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot.class);
+        org.mockito.ArgumentCaptor<String> reasonCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
+        org.mockito.ArgumentCaptor<User> actorCaptor = org.mockito.ArgumentCaptor.forClass(User.class);
+
+        verify(auditService, org.mockito.Mockito.times(1)).record(
+                targetTypeCaptor.capture(),
+                actionCaptor.capture(),
+                targetIdCaptor.capture(),
+                areaCaptor.capture(),
+                userCaptor.capture(),
+                oldSnapshotCaptor.capture(),
+                newSnapshotCaptor.capture(),
+                reasonCaptor.capture(),
+                actorCaptor.capture()
+        );
+
+        assertEquals(com.fa26se040.icss.enums.AccessControlTargetType.AREA_ASSIGNMENT, targetTypeCaptor.getValue());
+        assertEquals(com.fa26se040.icss.enums.AccessControlAction.REVOKE, actionCaptor.getValue());
+        assertEquals(rec.getId().toString(), targetIdCaptor.getValue());
+        assertEquals(lab, areaCaptor.getValue());
+        assertEquals(lecturer, userCaptor.getValue());
+        assertEquals(new com.fa26se040.icss.dto.accesscontrol.snapshot.AreaAssignmentAuditSnapshot(
+                from, to, AssignedPersonnelStatus.ACTIVE), oldSnapshotCaptor.getValue());
+        assertEquals(new com.fa26se040.icss.dto.accesscontrol.snapshot.AreaAssignmentAuditSnapshot(
+                from, to, AssignedPersonnelStatus.REVOKED), newSnapshotCaptor.getValue());
+        assertEquals("Chuyển công tác sang cơ sở khác", reasonCaptor.getValue());
+        assertEquals(fm, actorCaptor.getValue());
+    }
+
+    @Test
+    @DisplayName("BR-AL-06: updateValidTo no-op (validTo không đổi) -> không lưu DB, không ghi audit log")
+    void updateValidTo_NoOp_DoesNotSaveOrAudit() {
+        OffsetDateTime from = OffsetDateTime.now().minusDays(1);
+        OffsetDateTime to = OffsetDateTime.now().plusMonths(3);
+
+        AreaAssignedPersonnel rec = existing(from, to);
+
+        AssignedPersonnelUpdateRequest req = new AssignedPersonnelUpdateRequest(to, "Không đổi hạn");
+        AssignedPersonnelResponse resp = service.updateValidTo(lab.getId(), rec.getId(), req, FM_EMAIL);
+
+        assertNotNull(resp);
+        assertEquals(to, resp.validTo());
+
+        verify(assignedPersonnelRepository, org.mockito.Mockito.never()).save(any(AreaAssignedPersonnel.class));
+        verify(auditService, org.mockito.Mockito.never()).record(any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 }

@@ -151,4 +151,14 @@ public class AccessRequestController {
         String actorEmail = authentication.getName();
         return ResponseEntity.ok(accessRequestService.cancelRequest(id, actorEmail));
     }
+
+    @PatchMapping("/{id}/finish")
+    @PreAuthorize("hasRole('FACILITY_MANAGER')")
+    public ResponseEntity<AccessRequestResponse> finishRequest(
+            @PathVariable UUID id,
+            Authentication authentication
+    ) {
+        String actorEmail = authentication.getName();
+        return ResponseEntity.ok(accessRequestService.finishRequest(id, actorEmail));
+    }
 }

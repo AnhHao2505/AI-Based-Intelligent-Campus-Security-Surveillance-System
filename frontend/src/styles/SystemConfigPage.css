@@ -128,6 +128,64 @@
   }
 }
 
+/* Tab Navigation */
+.syscfg-tabs-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--theme-border);
+  padding-bottom: 12px;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+}
+
+.syscfg-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--theme-text-secondary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.syscfg-tab-btn:hover {
+  background: var(--theme-bg-hover);
+  color: var(--theme-text-primary);
+}
+
+.syscfg-tab-btn--active {
+  background: var(--brand-subtle);
+  color: var(--brand-text);
+  border-color: var(--brand-subtle-border);
+  font-weight: 600;
+}
+
+.syscfg-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: var(--theme-bg-input);
+  color: var(--theme-text-secondary);
+  border: 1px solid var(--theme-border);
+}
+
+.syscfg-tab-btn--active .syscfg-tab-badge {
+  background: var(--theme-bg-surface);
+  color: var(--brand-text);
+  border-color: var(--brand-subtle-border);
+}
+
 /* Groups Layout */
 .syscfg-groups {
   display: flex;

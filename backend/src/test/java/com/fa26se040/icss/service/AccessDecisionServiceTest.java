@@ -19,9 +19,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.stream.Stream;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -83,7 +88,7 @@ class AccessDecisionServiceTest {
                 .id(UUID.randomUUID())
                 .code("LAB-01")
                 .name("Phòng Lab 01")
-                .areaLevel(AreaLevel.PRIVATE)
+                .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
                 .isActive(true)
                 .build();
 
@@ -375,27 +380,29 @@ class AccessDecisionServiceTest {
     }
 
     @Test
-    @DisplayName("Hiệu trưởng level 3, phòng server (cờ true, không gán, không đơn) → deny")
-    void principalLevel3_ServerRoomFlagTrue_NoAssign_NoRequest_Denied() {
-        User principal = user("HT001", "Hiệu Trưởng");
-        principal.setAccessLevel(3);
-        lenient().when(userRepository.findById(principal.getId())).thenReturn(Optional.of(principal));
+    @DisplayName("User level 2 vào HIGHLY_CONFIDENTIAL (level 3), không gán/đơn → deny")
+    void userLevel2_HighlyConfidentialAreaLevel3_NoAssign_NoRequest_Denied() {
+        User staff = user("ST001", "Nhân viên");
+        staff.setAccessLevel(2);
+        lenient().when(userRepository.findById(staff.getId())).thenReturn(Optional.of(staff));
 
         Area serverRoom = Area.builder()
                 .id(UUID.randomUUID())
                 .code("SRV-01")
                 .name("Phòng Server")
-                .areaLevel(AreaLevel.PRIVATE)
+                .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
                 .areaAccessLevel(3)
                 .explicitAuthorizationRequired(true)
                 .isActive(true)
                 .build();
         lenient().when(areaRepository.findById(serverRoom.getId())).thenReturn(Optional.of(serverRoom));
 
-        AccessDecision d = accessDecisionService.checkEntry(principal.getId(), serverRoom.getId(), at(10));
+        AccessDecision d = accessDecisionService.checkEntry(staff.getId(), serverRoom.getId(), at(10));
         assertFalse(d.allowed());
         assertEquals(AccessSource.NONE, d.source());
     }
+
+
 
     @Test
     @DisplayName("Hiệu trưởng được gán vào phòng hiệu trưởng (cờ true) → allow ASSIGNED_PERSONNEL")
@@ -408,7 +415,7 @@ class AccessDecisionServiceTest {
                 .id(UUID.randomUUID())
                 .code("OFFICE-HT")
                 .name("Phòng Hiệu Trưởng")
-                .areaLevel(AreaLevel.PRIVATE)
+                .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
                 .areaAccessLevel(3)
                 .explicitAuthorizationRequired(true)
                 .isActive(true)
@@ -431,7 +438,7 @@ class AccessDecisionServiceTest {
     }
 
     @Test
-    @DisplayName("FM level 2 vào SEMI_PRIVATE (level 2, cờ false) → allow ACCESS_LEVEL")
+    @DisplayName("FM level 2 vào INTERNAL_CONFIDENTIAL (level 2, cờ false) → allow ACCESS_LEVEL")
     void facilityManagerLevel2_SemiPrivateAreaLevel2FlagFalse_AllowedAccessLevel() {
         User fm = user("FM001", "Quản Lý CSVN");
         fm.setRole(Role.FACILITY_MANAGER);
@@ -442,7 +449,7 @@ class AccessDecisionServiceTest {
                 .id(UUID.randomUUID())
                 .code("SEMI-01")
                 .name("Phòng Họp Chung")
-                .areaLevel(AreaLevel.SEMI_PRIVATE)
+                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
                 .areaAccessLevel(2)
                 .explicitAuthorizationRequired(false)
                 .isActive(true)
@@ -456,6 +463,52 @@ class AccessDecisionServiceTest {
     }
 
     @Test
+    @DisplayName("User level 3 vào CONFIDENTIAL_CONTACT_REQUIRED (level 3, cờ false) → allow ACCESS_LEVEL trực tiếp")
+    void userLevel3_ConfidentialContactRequired_AllowedAccessLevel() {
+        User lv3User = user("LV3_001", "Cán bộ cấp cao");
+        lv3User.setAccessLevel(3);
+        lenient().when(userRepository.findById(lv3User.getId())).thenReturn(Optional.of(lv3User));
+
+        Area contactArea = Area.builder()
+                .id(UUID.randomUUID())
+                .code("CONTACT-01")
+                .name("Phòng Yêu Cầu Xác Nhận")
+                .areaLevel(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
+                .areaAccessLevel(3)
+                .explicitAuthorizationRequired(false)
+                .isActive(true)
+                .build();
+        lenient().when(areaRepository.findById(contactArea.getId())).thenReturn(Optional.of(contactArea));
+
+        AccessDecision d = accessDecisionService.checkEntry(lv3User.getId(), contactArea.getId(), at(10));
+        assertTrue(d.allowed());
+        assertEquals(AccessSource.ACCESS_LEVEL, d.source());
+    }
+
+    @Test
+    @DisplayName("User level 2 vào CONFIDENTIAL_CONTACT_REQUIRED (level 3, cờ false) không đơn/gán → deny")
+    void userLevel2_ConfidentialContactRequired_NoRequest_Denied() {
+        User lv2User = user("LV2_001", "Giảng viên");
+        lv2User.setAccessLevel(2);
+        lenient().when(userRepository.findById(lv2User.getId())).thenReturn(Optional.of(lv2User));
+
+        Area contactArea = Area.builder()
+                .id(UUID.randomUUID())
+                .code("CONTACT-01")
+                .name("Phòng Yêu Cầu Xác Nhận")
+                .areaLevel(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
+                .areaAccessLevel(3)
+                .explicitAuthorizationRequired(false)
+                .isActive(true)
+                .build();
+        lenient().when(areaRepository.findById(contactArea.getId())).thenReturn(Optional.of(contactArea));
+
+        AccessDecision d = accessDecisionService.checkEntry(lv2User.getId(), contactArea.getId(), at(10));
+        assertFalse(d.allowed());
+        assertEquals(AccessSource.NONE, d.source());
+    }
+
+    @Test
     @DisplayName("User level 1 vào khu vực level 2 cờ false, có đơn APPROVED → allow ACCESS_REQUEST")
     void userLevel1_AreaLevel2FlagFalse_WithApprovedRequest_AllowedAccessRequest() {
         student.setAccessLevel(1);
@@ -464,7 +517,7 @@ class AccessDecisionServiceTest {
                 .id(UUID.randomUUID())
                 .code("SEMI-01")
                 .name("Phòng Họp Chung")
-                .areaLevel(AreaLevel.SEMI_PRIVATE)
+                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
                 .areaAccessLevel(2)
                 .explicitAuthorizationRequired(false)
                 .isActive(true)
@@ -498,7 +551,7 @@ class AccessDecisionServiceTest {
                 .id(UUID.randomUUID())
                 .code("SEMI-01")
                 .name("Phòng Họp Chung")
-                .areaLevel(AreaLevel.SEMI_PRIVATE)
+                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
                 .areaAccessLevel(2)
                 .explicitAuthorizationRequired(false)
                 .isActive(true)
@@ -521,5 +574,192 @@ class AccessDecisionServiceTest {
         assertTrue(d.allowed());
         assertEquals(AccessSource.ACCESS_REQUEST, d.source());
         assertEquals(req.getId(), d.sourceRefId());
+    }
+
+    @Test
+    @DisplayName("User level 3 vào HIGHLY_CONFIDENTIAL (cờ true) không có AP và không có đơn → deny NONE")
+    void userLevel3_HighlyConfidential_NoAssign_NoRequest_Denied() {
+        User lv3User = user("LV3_SERVER", "Chuyên gia Level 3");
+        lv3User.setAccessLevel(3);
+        lenient().when(userRepository.findById(lv3User.getId())).thenReturn(Optional.of(lv3User));
+
+        Area serverRoom = Area.builder()
+                .id(UUID.randomUUID())
+                .code("SRV-CRITICAL")
+                .name("Phòng Máy Chủ Tối Mật")
+                .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
+                .areaAccessLevel(3)
+                .explicitAuthorizationRequired(true)
+                .isActive(true)
+                .build();
+        lenient().when(areaRepository.findById(serverRoom.getId())).thenReturn(Optional.of(serverRoom));
+
+        AccessDecision d = accessDecisionService.checkEntry(lv3User.getId(), serverRoom.getId(), at(10));
+        assertFalse(d.allowed(), "Cờ explicit == true thì access level không bao giờ cho vào, kể cả level 3");
+        assertEquals(AccessSource.NONE, d.source());
+    }
+
+    enum AccessScenario {
+        HAS_AP,
+        APPROVED_IN_WINDOW,
+        APPROVED_OUT_OF_WINDOW,
+        FINISHED,
+        NOTHING
+    }
+
+    private static Stream<Arguments> provideAccessDecisionMatrix() {
+        List<Arguments> args = new ArrayList<>();
+        AreaLevel[] areas = AreaLevel.values();
+        int[] userLevels = {1, 2, 3};
+        AccessScenario[] scenarios = AccessScenario.values();
+
+        for (AreaLevel areaLevel : areas) {
+            int areaAccessLevel;
+            boolean explicitRequired;
+            switch (areaLevel) {
+                case PUBLIC -> { areaAccessLevel = 1; explicitRequired = false; }
+                case INTERNAL_CONFIDENTIAL -> { areaAccessLevel = 2; explicitRequired = false; }
+                case CONFIDENTIAL_CONTACT_REQUIRED -> { areaAccessLevel = 3; explicitRequired = false; }
+                case HIGHLY_CONFIDENTIAL -> { areaAccessLevel = 3; explicitRequired = true; }
+                default -> throw new IllegalStateException();
+            }
+
+            for (int userLevel : userLevels) {
+                for (AccessScenario scenario : scenarios) {
+                    boolean expectedAllowed;
+                    AccessSource expectedSource;
+
+                    if (scenario == AccessScenario.HAS_AP) {
+                        expectedAllowed = true;
+                        expectedSource = AccessSource.ASSIGNED_PERSONNEL;
+                    } else if (!explicitRequired && userLevel >= areaAccessLevel) {
+                        expectedAllowed = true;
+                        expectedSource = AccessSource.ACCESS_LEVEL;
+                    } else if (scenario == AccessScenario.APPROVED_IN_WINDOW) {
+                        expectedAllowed = true;
+                        expectedSource = AccessSource.ACCESS_REQUEST;
+                    } else {
+                        expectedAllowed = false;
+                        expectedSource = AccessSource.NONE;
+                    }
+
+                    args.add(Arguments.of(areaLevel, userLevel, scenario, expectedAllowed, expectedSource));
+                }
+            }
+        }
+        return args.stream();
+    }
+
+    @ParameterizedTest(name = "[{index}] {0} | Level {1} | Scenario {2} -> Allowed={3}, Source={4}")
+    @MethodSource("provideAccessDecisionMatrix")
+    @DisplayName("Ma trận 4 loại khu vực × 3 cấp độ user × 5 kịch bản")
+    void checkEntry_MatrixTest(
+            AreaLevel areaLevel,
+            int userLevel,
+            AccessScenario scenario,
+            boolean expectedAllowed,
+            AccessSource expectedSource
+    ) {
+        assignments.clear();
+        requests.clear();
+
+        User testUser = user("USR_MTRX", "Test Matrix User");
+        testUser.setAccessLevel(userLevel);
+        lenient().when(userRepository.findById(testUser.getId())).thenReturn(Optional.of(testUser));
+
+        int areaAccessLevel;
+        boolean explicitAuthRequired;
+        switch (areaLevel) {
+            case PUBLIC -> { areaAccessLevel = 1; explicitAuthRequired = false; }
+            case INTERNAL_CONFIDENTIAL -> { areaAccessLevel = 2; explicitAuthRequired = false; }
+            case CONFIDENTIAL_CONTACT_REQUIRED -> { areaAccessLevel = 3; explicitAuthRequired = false; }
+            case HIGHLY_CONFIDENTIAL -> { areaAccessLevel = 3; explicitAuthRequired = true; }
+            default -> throw new IllegalArgumentException("Unknown level: " + areaLevel);
+        }
+
+        Area targetArea = Area.builder()
+                .id(UUID.randomUUID())
+                .code("AREA-" + areaLevel.name())
+                .name("Area " + areaLevel.name())
+                .areaLevel(areaLevel)
+                .areaAccessLevel(areaAccessLevel)
+                .explicitAuthorizationRequired(explicitAuthRequired)
+                .isActive(true)
+                .build();
+        lenient().when(areaRepository.findById(targetArea.getId())).thenReturn(Optional.of(targetArea));
+
+        OffsetDateTime checkTime = at(10);
+
+        UUID expectedSourceRefId = null;
+        switch (scenario) {
+            case HAS_AP -> {
+                AreaAssignedPersonnel ap = AreaAssignedPersonnel.builder()
+                        .id(UUID.randomUUID())
+                        .area(targetArea)
+                        .user(testUser)
+                        .validFrom(at(8))
+                        .validTo(at(12))
+                        .build();
+                assignments.add(ap);
+                if (expectedSource == AccessSource.ASSIGNED_PERSONNEL) {
+                    expectedSourceRefId = ap.getId();
+                }
+            }
+            case APPROVED_IN_WINDOW -> {
+                AccessRequest req = AccessRequest.builder()
+                        .id(UUID.randomUUID())
+                        .area(targetArea)
+                        .requester(testUser)
+                        .requestType(RequestType.INDIVIDUAL)
+                        .purpose("Đơn hợp lệ trong giờ")
+                        .startTime(at(8))
+                        .endTime(at(12))
+                        .status(RequestStatus.APPROVED)
+                        .build();
+                requests.add(req);
+                if (expectedSource == AccessSource.ACCESS_REQUEST) {
+                    expectedSourceRefId = req.getId();
+                }
+            }
+            case APPROVED_OUT_OF_WINDOW -> {
+                AccessRequest req = AccessRequest.builder()
+                        .id(UUID.randomUUID())
+                        .area(targetArea)
+                        .requester(testUser)
+                        .requestType(RequestType.INDIVIDUAL)
+                        .purpose("Đơn ngoài giờ")
+                        .startTime(at(14))
+                        .endTime(at(18))
+                        .status(RequestStatus.APPROVED)
+                        .build();
+                requests.add(req);
+            }
+            case FINISHED -> {
+                AccessRequest req = AccessRequest.builder()
+                        .id(UUID.randomUUID())
+                        .area(targetArea)
+                        .requester(testUser)
+                        .requestType(RequestType.INDIVIDUAL)
+                        .purpose("Đơn đã kết thúc")
+                        .startTime(at(8))
+                        .endTime(at(12))
+                        .status(RequestStatus.FINISHED)
+                        .build();
+                requests.add(req);
+            }
+            case NOTHING -> {
+                // Không có gì
+            }
+        }
+
+        AccessDecision decision = accessDecisionService.checkEntry(testUser.getId(), targetArea.getId(), checkTime);
+
+        assertEquals(expectedAllowed, decision.allowed(),
+                String.format("Sai allowed() cho Area: %s, UserLevel: %d, Scenario: %s", areaLevel, userLevel, scenario));
+        assertEquals(expectedSource, decision.source(),
+                String.format("Sai source() cho Area: %s, UserLevel: %d, Scenario: %s", areaLevel, userLevel, scenario));
+        if (expectedSourceRefId != null) {
+            assertEquals(expectedSourceRefId, decision.sourceRefId());
+        }
     }
 }

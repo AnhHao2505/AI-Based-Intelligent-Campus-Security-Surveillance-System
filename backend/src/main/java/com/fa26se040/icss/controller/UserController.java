@@ -208,7 +208,7 @@ public class UserController {
     ) {
         String actorEmail = authentication != null ? authentication.getName() : null;
         log.info("Facility Manager [{}] updating access level for user {}: {}", actorEmail, id, request.accessLevel());
-        UserSearchResponse response = userService.updateAccessLevel(id, request.accessLevel(), actorEmail);
+        UserSearchResponse response = userService.updateAccessLevel(id, request.accessLevel(), request.reason(), actorEmail);
         return ResponseEntity.ok(response);
     }
 }

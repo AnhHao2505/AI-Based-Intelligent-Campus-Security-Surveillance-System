@@ -179,7 +179,7 @@ Chuyển đổi `data-table.jsx` sang sử dụng component `Table` thuần có 
 |---|---|
 | **Khối lượng công việc** | Rất nhỏ: đụng 4 file ([`DashboardPage.jsx`](file:///Users/anhhao/Documents/SEP/frontend/src/pages/DashboardPage.jsx), [`data-table.jsx`](file:///Users/anhhao/Documents/SEP/frontend/src/components/ui/data-table.jsx) hoặc xoá file này, [`index.css`](file:///Users/anhhao/Documents/SEP/frontend/src/index.css), [`vite.config.js`](file:///Users/anhhao/Documents/SEP/frontend/vite.config.js)). |
 | **Cái gì mất đi** | Khả năng viết nhanh giao diện bằng utility classes; hệ sinh thái copy-paste của shadcn/ui. |
-| **Tận dụng công Đợt 1** | **100%**. Bộ 8 component UI, 73 token `theme.css`, hệ thống script chặn màu `check-colors.sh` được giữ nguyên toàn vẹn và tiếp tục mở rộng. |
+| **Tận dụng công Đợt 1** | **100%**. Bộ 8 component UI, 73 token `theme.css`.
 | **Rủi ro lớn nhất** | Tốc độ xây dựng các màn hình phức tạp mới có thể chậm hơn nếu lập trình viên quen dùng utility-first; phải tự viết CSS cho từng biến thể linh kiện. |
 
 ---
@@ -192,7 +192,7 @@ Chuyển đổi `data-table.jsx` sang sử dụng component `Table` thuần có 
 |---|---|
 | **Khối lượng công việc** | Cực lớn: đụng toàn bộ **28 file CSS** (hơn 12.000 dòng CSS cần refactor hoặc xoá), viết lại CSS của 15 màn hình, chuyển đổi 8 component UI. |
 | **Cái gì mất đi** | Toàn bộ 28 file CSS hiện tại; cấu trúc scope prefix BEM (`.arp-`, `.zone-`...); quy trình quản lý CSS modules/vanilla hiện tại. |
-| **Tận dụng công Đợt 1** | **Rất thấp (~15%)**. Bộ 8 linh kiện CSS thuần bị bỏ; hệ thống token phải chuyển đổi cú pháp sang chỉ thị `@theme` của Tailwind v4; script `check-colors.sh` (vốn quét file `.css`) phải viết lại hoàn toàn để quét class JSX. |
+| **Tận dụng công Đợt 1** | **Rất thấp (~15%)**. Bộ 8 linh kiện CSS thuần bị bỏ; hệ thống token phải chuyển đổi cú pháp sang chỉ thị `@theme` của Tailwind v4; cơ chế kiểm tra màu (vốn quét file `.css`) phải viết lại hoàn toàn để quét class JSX. |
 | **Rủi ro lớn nhất** | Rủi ro hồi quy giao diện trên diện rộng trong lúc chuyển đổi; tốn nhiều tuần làm việc chỉ để tái cấu trúc mã mà không tạo thêm tính năng nghiệp vụ; xung đột mã nguồn lớn khi merge nhánh. |
 
 ---
