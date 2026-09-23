@@ -17,6 +17,7 @@ import {
 	Sparkles,
 	Maximize2,
 	Minimize2,
+	AlertTriangle,
 } from "lucide-react";
 import WebRtcPlayer from "../../components/video/WebRtcPlayer";
 import { fetchCameras } from "../../services/cameraService";

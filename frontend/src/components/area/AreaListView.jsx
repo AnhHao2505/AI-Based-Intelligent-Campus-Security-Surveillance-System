@@ -279,14 +279,14 @@ export default function AreaListView({
 					<div className="zone-list-info-banner__card zone-list-info-banner__card--private">
 						<div className="zone-list-info-banner__card-header">
 							<span className="zone-list-info-banner__card-badge level-badge level-badge--private">
-								Bảo mật cao
+								Tuyệt mật
 							</span>
 							<span className="zone-list-info-banner__card-level">
-								Chỉ định đích danh
+								Chỉ người được chỉ định
 							</span>
 						</div>
 						<div className="zone-list-info-banner__card-desc">
-							Khu vực nghiêm ngặt. Yêu cầu chỉ định đích danh (nhân sự chỉ định hoặc đơn đăng ký được duyệt).
+							Khu vực an ninh đặc biệt nghiêm ngặt. Chỉ người được chỉ định mới được phép vào.
 						</div>
 						<div className="zone-list-info-banner__card-personnel">
 							<span>Danh sách chỉ định:</span>

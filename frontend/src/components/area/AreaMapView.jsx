@@ -249,7 +249,7 @@ export default function AreaMapView({
 					</div>
 					<div className="zone-canvas-legend__item">
 						<span className="zone-canvas-legend__dot zone-canvas-legend__dot--private" />
-						<span>Bảo mật cao</span>
+						<span>Tuyệt mật</span>
 					</div>
 				</div>
 			</div>
