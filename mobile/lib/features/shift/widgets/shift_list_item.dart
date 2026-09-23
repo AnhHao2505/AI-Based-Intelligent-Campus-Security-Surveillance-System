@@ -97,6 +97,25 @@ class ShiftListItem extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
+                        if (shift.isOvertime) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                            decoration: BoxDecoration(
+                              color: Colors.amber.withAlpha(40),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: Colors.amber.shade700),
+                            ),
+                            child: const Text(
+                              'OT',
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.amber,
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ],

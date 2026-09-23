@@ -18,6 +18,7 @@ class GuardShiftModel {
   final String? checkInAt;
   final String? checkOutAt;
   final String? notes;
+  final bool isOvertime;
 
   GuardShiftModel({
     required this.id,
@@ -36,6 +37,7 @@ class GuardShiftModel {
     this.checkInAt,
     this.checkOutAt,
     this.notes,
+    this.isOvertime = false,
   });
 
   factory GuardShiftModel.fromJson(Map<String, dynamic> json) {
@@ -56,6 +58,7 @@ class GuardShiftModel {
       checkInAt: json['checkInAt']?.toString(),
       checkOutAt: json['checkOutAt']?.toString(),
       notes: json['notes']?.toString(),
+      isOvertime: json['isOvertime'] == true,
     );
   }
 
