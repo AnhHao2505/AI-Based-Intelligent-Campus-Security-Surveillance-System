@@ -38,12 +38,27 @@
 
 ### 1. Tài khoản Người dùng Hệ thống (Đăng nhập tại `/login`):
 
-| Vai trò (Role)                           | Email                     | Mật khẩu | Mã nhân sự (MSNV/MSSV) | Quyền hạn                                                   |
-| :--------------------------------------- | :------------------------ | :------: | :--------------------: | :---------------------------------------------------------- |
-| **Quản trị viên (ADMIN)**                | `admin@fpt.edu.vn`        | `123456` |        `AD-001`        | Toàn quyền hệ thống, quản lý tài khoản & dataset khuôn mặt  |
-| **Bảo vệ (INTERNAL_GUARD)**              | `guard.an@fpt.edu.vn`     | `123456` |       `SEC-001`        | Xem camera trực tiếp, tiếp nhận cảnh báo đột nhập/lảng vảng |
-| **Quản lý CSVC (FACILITY_MANAGER)**      | `manager.binh@fpt.edu.vn` | `123456` |        `FM-001`        | Quản lý thiết bị camera, xem báo cáo thống kê vi phạm       |
-| **Sinh viên / Người dùng (NORMAL_USER)** | `student.tuan@fpt.edu.vn` | `123456` |        `SV-001`        | Người dùng sinh viên thông thường                           |
+> **Mật khẩu chung cho tài khoản demo: 123456 (chỉ DB dev)**
+
+| Vai trò (Role) | Email | Mật khẩu | MSNV/MSSV | Quyền hạn / Mục đích demo |
+|:---|:---|:---:|:---:|:---|
+| **Quản trị viên (ADMIN)** | `admin@fpt.edu.vn` | `123456` | `AD-001` | Toàn quyền hệ thống, quản lý tài khoản & dataset khuôn mặt |
+| **Quản lý CSVC (FACILITY_MANAGER)** | `manager.binh@fpt.edu.vn` | `123456` | `FM-001` | Quản lý thiết bị camera, xét duyệt đơn, chỉ định nhân viên |
+| **Quản lý CSVC (FACILITY_MANAGER)** | `manager.chi@fpt.edu.vn` | `123456` | `FM-002` | Quản lý cơ sở thứ 2, kiểm tra nhật ký audit log |
+| **Bảo vệ (GUARD)** | `guard.an@fpt.edu.vn` | `123456` | `SEC-001` | Trực ca sáng Cổng chính, nhận và xử lý sự cố an ninh |
+| **Bảo vệ (GUARD)** | `guard.demo@fpt.edu.vn` | `123456` | `SEC-002` | Trực ca chiều Thư viện, tiếp nhận và xử lý sự cố an ninh |
+| **Bảo vệ (GUARD)** | `guard.dung@fpt.edu.vn` | `123456` | `SEC-003` | Trực ca đêm Phòng Server, xử lý sự cố an ninh |
+| **Sinh viên (NORMAL_USER - L1)** | `student.tuan@fpt.edu.vn` | `123456` | `SV-001` | Sinh viên, đơn đăng ký truy cập phòng Lab AI (PENDING) |
+| **Sinh viên (NORMAL_USER - L1)** | `student.hoa@fpt.edu.vn` | `123456` | `SV-002` | Sinh viên, từng được chỉ định vào Lab IoT (đã hết hạn) |
+| **Sinh viên (NORMAL_USER - L1)** | `student.nam@fpt.edu.vn` | `123456` | `SV-003` | Sinh viên, trưởng nhóm đăng ký truy cập nhóm vào Lab IoT |
+| **Sinh viên (NORMAL_USER - L1)** | `student.linh@fpt.edu.vn` | `123456` | `SV-004` | Sinh viên, gửi đơn vào Phòng Server (bị từ chối) |
+| **Giảng viên (NORMAL_USER - L2)** | `lecturer.hung@fpt.edu.vn` | `123456` | `GV-001` | Giảng viên, được chỉ định vào Lab AI (sắp hiệu lực) |
+| **Giảng viên (NORMAL_USER - L2)** | `lecturer.mai@fpt.edu.vn` | `123456` | `GV-002` | Giảng viên, đơn đã duyệt trong khung giờ Phòng họp 1 |
+| **Giảng viên (NORMAL_USER - L2)** | `lecturer.khoa@fpt.edu.vn` | `123456` | `GV-003` | Giảng viên, đơn đăng ký đã kết thúc (FINISHED) |
+| **Kỹ thuật IT (NORMAL_USER - L3)** | `it.cuong@fpt.edu.vn` | `123456` | `IT-001` | Kỹ sư IT, chỉ định Phòng Server (đang hiệu lực không thời hạn) |
+| **Kỹ thuật IT (NORMAL_USER - L3)** | `it.phuc@fpt.edu.vn` | `123456` | `IT-002` | Kỹ sư Mạng, chỉ định Phòng điện (sắp hết hạn trong vài giờ) |
+| **Kỹ thuật IT (NORMAL_USER - L3)** | `it.tuan@fpt.edu.vn` | `123456` | `IT-003` | Admin IT hệ thống, người dùng cấp độ an ninh Level 3 |
+| **Vô hiệu hóa (NORMAL_USER - Inactive)** | `user.disabled@fpt.edu.vn` | `123456` | `DIS-001` | Tài khoản vô hiệu hoá (`is_active = false`), kiểm tra từ chối login |
 
 ### 2. Danh sách Camera Mẫu Khởi Tạo (Seeded Cameras):
 
