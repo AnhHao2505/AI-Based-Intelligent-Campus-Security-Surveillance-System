@@ -104,7 +104,7 @@ class AreaControllerAccessLevelTest {
                 areaId,
                 "LAB-01",
                 "Phòng Lab",
-                AreaLevel.PRIVATE,
+                AreaLevel.HIGHLY_CONFIDENTIAL,
                 2,
                 false,
                 "Tòa A",

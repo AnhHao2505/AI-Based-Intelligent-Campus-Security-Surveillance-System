@@ -83,7 +83,7 @@ class AccessDecisionServiceTest {
                 .id(UUID.randomUUID())
                 .code("LAB-01")
                 .name("Phòng Lab 01")
-                .areaLevel(AreaLevel.PRIVATE)
+                .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
                 .isActive(true)
                 .build();
 
@@ -375,27 +375,29 @@ class AccessDecisionServiceTest {
     }
 
     @Test
-    @DisplayName("Hiệu trưởng level 3, phòng server (cờ true, không gán, không đơn) → deny")
-    void principalLevel3_ServerRoomFlagTrue_NoAssign_NoRequest_Denied() {
-        User principal = user("HT001", "Hiệu Trưởng");
-        principal.setAccessLevel(3);
-        lenient().when(userRepository.findById(principal.getId())).thenReturn(Optional.of(principal));
+    @DisplayName("User level 2 vào HIGHLY_CONFIDENTIAL (level 3), không gán/đơn → deny")
+    void userLevel2_HighlyConfidentialAreaLevel3_NoAssign_NoRequest_Denied() {
+        User staff = user("ST001", "Nhân viên");
+        staff.setAccessLevel(2);
+        lenient().when(userRepository.findById(staff.getId())).thenReturn(Optional.of(staff));
 
         Area serverRoom = Area.builder()
                 .id(UUID.randomUUID())
                 .code("SRV-01")
                 .name("Phòng Server")
-                .areaLevel(AreaLevel.PRIVATE)
+                .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
                 .areaAccessLevel(3)
                 .explicitAuthorizationRequired(true)
                 .isActive(true)
                 .build();
         lenient().when(areaRepository.findById(serverRoom.getId())).thenReturn(Optional.of(serverRoom));
 
-        AccessDecision d = accessDecisionService.checkEntry(principal.getId(), serverRoom.getId(), at(10));
+        AccessDecision d = accessDecisionService.checkEntry(staff.getId(), serverRoom.getId(), at(10));
         assertFalse(d.allowed());
         assertEquals(AccessSource.NONE, d.source());
     }
+
+
 
     @Test
     @DisplayName("Hiệu trưởng được gán vào phòng hiệu trưởng (cờ true) → allow ASSIGNED_PERSONNEL")
@@ -408,7 +410,7 @@ class AccessDecisionServiceTest {
                 .id(UUID.randomUUID())
                 .code("OFFICE-HT")
                 .name("Phòng Hiệu Trưởng")
-                .areaLevel(AreaLevel.PRIVATE)
+                .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
                 .areaAccessLevel(3)
                 .explicitAuthorizationRequired(true)
                 .isActive(true)
@@ -431,7 +433,7 @@ class AccessDecisionServiceTest {
     }
 
     @Test
-    @DisplayName("FM level 2 vào SEMI_PRIVATE (level 2, cờ false) → allow ACCESS_LEVEL")
+    @DisplayName("FM level 2 vào INTERNAL_CONFIDENTIAL (level 2, cờ false) → allow ACCESS_LEVEL")
     void facilityManagerLevel2_SemiPrivateAreaLevel2FlagFalse_AllowedAccessLevel() {
         User fm = user("FM001", "Quản Lý CSVN");
         fm.setRole(Role.FACILITY_MANAGER);
@@ -442,7 +444,7 @@ class AccessDecisionServiceTest {
                 .id(UUID.randomUUID())
                 .code("SEMI-01")
                 .name("Phòng Họp Chung")
-                .areaLevel(AreaLevel.SEMI_PRIVATE)
+                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
                 .areaAccessLevel(2)
                 .explicitAuthorizationRequired(false)
                 .isActive(true)
@@ -456,6 +458,52 @@ class AccessDecisionServiceTest {
     }
 
     @Test
+    @DisplayName("User level 3 vào CONFIDENTIAL_CONTACT_REQUIRED (level 2) → allow ACCESS_LEVEL trực tiếp")
+    void userLevel3_ConfidentialContactRequired_AllowedAccessLevel() {
+        User lv3User = user("LV3_001", "Cán bộ cấp cao");
+        lv3User.setAccessLevel(3);
+        lenient().when(userRepository.findById(lv3User.getId())).thenReturn(Optional.of(lv3User));
+
+        Area contactArea = Area.builder()
+                .id(UUID.randomUUID())
+                .code("CONTACT-01")
+                .name("Phòng Yêu Cầu Xác Nhận")
+                .areaLevel(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
+                .areaAccessLevel(2)
+                .explicitAuthorizationRequired(true)
+                .isActive(true)
+                .build();
+        lenient().when(areaRepository.findById(contactArea.getId())).thenReturn(Optional.of(contactArea));
+
+        AccessDecision d = accessDecisionService.checkEntry(lv3User.getId(), contactArea.getId(), at(10));
+        assertTrue(d.allowed());
+        assertEquals(AccessSource.ACCESS_LEVEL, d.source());
+    }
+
+    @Test
+    @DisplayName("User level 2 vào CONFIDENTIAL_CONTACT_REQUIRED (level 2) không đơn/gán → deny")
+    void userLevel2_ConfidentialContactRequired_NoRequest_Denied() {
+        User lv2User = user("LV2_001", "Giảng viên");
+        lv2User.setAccessLevel(2);
+        lenient().when(userRepository.findById(lv2User.getId())).thenReturn(Optional.of(lv2User));
+
+        Area contactArea = Area.builder()
+                .id(UUID.randomUUID())
+                .code("CONTACT-01")
+                .name("Phòng Yêu Cầu Xác Nhận")
+                .areaLevel(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
+                .areaAccessLevel(2)
+                .explicitAuthorizationRequired(true)
+                .isActive(true)
+                .build();
+        lenient().when(areaRepository.findById(contactArea.getId())).thenReturn(Optional.of(contactArea));
+
+        AccessDecision d = accessDecisionService.checkEntry(lv2User.getId(), contactArea.getId(), at(10));
+        assertFalse(d.allowed());
+        assertEquals(AccessSource.NONE, d.source());
+    }
+
+    @Test
     @DisplayName("User level 1 vào khu vực level 2 cờ false, có đơn APPROVED → allow ACCESS_REQUEST")
     void userLevel1_AreaLevel2FlagFalse_WithApprovedRequest_AllowedAccessRequest() {
         student.setAccessLevel(1);
@@ -464,7 +512,7 @@ class AccessDecisionServiceTest {
                 .id(UUID.randomUUID())
                 .code("SEMI-01")
                 .name("Phòng Họp Chung")
-                .areaLevel(AreaLevel.SEMI_PRIVATE)
+                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
                 .areaAccessLevel(2)
                 .explicitAuthorizationRequired(false)
                 .isActive(true)
@@ -498,7 +546,7 @@ class AccessDecisionServiceTest {
                 .id(UUID.randomUUID())
                 .code("SEMI-01")
                 .name("Phòng Họp Chung")
-                .areaLevel(AreaLevel.SEMI_PRIVATE)
+                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
                 .areaAccessLevel(2)
                 .explicitAuthorizationRequired(false)
                 .isActive(true)

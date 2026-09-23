@@ -65,6 +65,10 @@ public class AreaAssignedPersonnelService {
             throw new AssignedPersonnelException(AssignedPersonnelErrorCode.ERR_AP_007);
         }
 
+        if (area.getAreaLevel() != com.fa26se040.icss.enums.AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED && area.getAreaLevel() != com.fa26se040.icss.enums.AreaLevel.HIGHLY_CONFIDENTIAL) {
+            throw new IllegalArgumentException("Chỉ khu vực Yêu cầu xác nhận (CONFIDENTIAL_CONTACT_REQUIRED) hoặc Bảo mật cao (HIGHLY_CONFIDENTIAL) mới được phép gán nhân sự chỉ định.");
+        }
+
         // Khoá dòng users để tuần tự hoá các thao tác gán cùng user (chống race BR-AP-03)
         User user = assignedPersonnelRepository.findUserByIdForUpdate(request.userId())
                 .orElseThrow(() -> new AssignedPersonnelException(AssignedPersonnelErrorCode.ERR_AP_005));

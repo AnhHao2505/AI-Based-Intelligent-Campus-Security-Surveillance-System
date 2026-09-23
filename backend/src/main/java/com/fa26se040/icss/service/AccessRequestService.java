@@ -117,8 +117,8 @@ public class AccessRequestService {
         validateCommonRules(area, request.startTime(), request.endTime());
 
         boolean groupAllowedInPrivate = systemConfigService.getBoolean(ConfigKey.ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE);
-        if (!groupAllowedInPrivate && area.getAreaLevel() == AreaLevel.PRIVATE) {
-            throw new IllegalArgumentException("Khu vực riêng tư (PRIVATE) chỉ cho phép đăng ký truy cập cá nhân (INDIVIDUAL)");
+        if (!groupAllowedInPrivate && area.getAreaLevel() == AreaLevel.HIGHLY_CONFIDENTIAL) {
+            throw new IllegalArgumentException("Khu vực bảo mật cao (HIGHLY_CONFIDENTIAL) chỉ cho phép đăng ký truy cập cá nhân (INDIVIDUAL)");
         }
 
         List<User> memberUsers = resolveAndValidateGroupMembers(request.memberUserCodes(), requester);
@@ -503,13 +503,43 @@ public class AccessRequestService {
                 .orElseThrow(() -> new ResourceNotFoundException("Khu vực không tồn tại hoặc đã bị vô hiệu hoá"));
     }
 
-    private void validateCommonRules(Area area, OffsetDateTime startTime, OffsetDateTime endTime) {
-        if (area.getAreaLevel() == AreaLevel.PUBLIC) {
-            throw new IllegalArgumentException("Khu vực công cộng (PUBLIC) không cần và không cho phép tạo yêu cầu truy cập");
+    @Transactional
+    public AccessRequestResponse finishRequest(UUID id, String actorEmail) {
+        log.info("Finishing access request {} by user {}", id, actorEmail);
+
+        AccessRequest accessRequest = accessRequestRepository.findByIdWithDetails(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu truy cập với mã: " + id));
+
+        if (accessRequest.getStatus() != RequestStatus.APPROVED) {
+            throw new IllegalArgumentException("Chỉ yêu cầu truy cập ở trạng thái Đã duyệt (APPROVED) mới có thể chuyển sang Hoàn thành.");
         }
 
-        if (area.getAreaLevel() != AreaLevel.SEMI_PRIVATE && area.getAreaLevel() != AreaLevel.PRIVATE) {
-            throw new IllegalArgumentException("Chỉ khu vực SEMI_PRIVATE hoặc PRIVATE mới cần tạo yêu cầu truy cập");
+        User actor = userRepository.findByEmail(actorEmail)
+                .orElseThrow(() -> new UnauthorizedException("Không tìm thấy thông tin người dùng"));
+
+        boolean isRequester = accessRequest.getRequester().getEmail().equalsIgnoreCase(actorEmail);
+        boolean isStaff = actor.getRole() == Role.FACILITY_MANAGER || actor.getRole() == Role.ADMIN;
+
+        if (!isRequester && !isStaff) {
+            throw new AccessDeniedException("Bạn không có quyền chuyển yêu cầu truy cập này sang Hoàn thành.");
+        }
+
+        accessRequest.setStatus(RequestStatus.FINISHED);
+        accessRequest.setUpdatedAt(OffsetDateTime.now());
+
+        AccessRequest updated = accessRequestRepository.save(accessRequest);
+        log.info("Access request {} marked as FINISHED", updated.getId());
+
+        return mapToResponse(updated);
+    }
+
+    private void validateCommonRules(Area area, OffsetDateTime startTime, OffsetDateTime endTime) {
+        if (area.getAreaLevel() == AreaLevel.PUBLIC || area.getAreaLevel() == AreaLevel.INTERNAL_CONFIDENTIAL) {
+            throw new IllegalArgumentException("Khu vực công cộng (PUBLIC) hoặc Nội bộ (INTERNAL_CONFIDENTIAL) không cần tạo yêu cầu truy cập.");
+        }
+
+        if (area.getAreaLevel() != AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED && area.getAreaLevel() != AreaLevel.HIGHLY_CONFIDENTIAL) {
+            throw new IllegalArgumentException("Chỉ khu vực CONFIDENTIAL_CONTACT_REQUIRED hoặc HIGHLY_CONFIDENTIAL mới cho phép tạo yêu cầu truy cập.");
         }
 
         if (!startTime.isBefore(endTime)) {

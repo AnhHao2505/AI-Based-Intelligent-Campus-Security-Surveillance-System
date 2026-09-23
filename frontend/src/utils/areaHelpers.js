@@ -4,39 +4,55 @@
 export const AREA_LEVEL_CONFIG = {
   PUBLIC: {
     code: 'PUBLIC',
-    name: 'Công cộng',
+    name: 'Công khai',
     rank: 1,
-    badgeLabel: 'PUBLIC',
+    badgeLabel: 'Công khai',
     badgeClass: 'level-badge--public',
     cardClass: 'zone-card--public',
     color: '#10b981',
     bgColor: 'rgba(16, 185, 129, 0.08)',
     borderColor: 'rgba(16, 185, 129, 0.35)',
-    icon: 'globe'
+    icon: 'globe',
+    description: 'Khu vực tự do ra vào cho tất cả người dùng (Level 1, 2, 3).'
   },
-  SEMI_PRIVATE: {
-    code: 'SEMI_PRIVATE',
-    name: 'Bán hạn chế',
+  INTERNAL_CONFIDENTIAL: {
+    code: 'INTERNAL_CONFIDENTIAL',
+    name: 'Bảo mật nội bộ',
     rank: 2,
-    badgeLabel: 'SEMI PRIVATE',
-    badgeClass: 'level-badge--semi-private',
-    cardClass: 'zone-card--semi-private',
+    badgeLabel: 'Bảo mật nội bộ',
+    badgeClass: 'level-badge--internal',
+    cardClass: 'zone-card--internal',
+    color: '#3b82f6',
+    bgColor: 'rgba(59, 130, 246, 0.08)',
+    borderColor: 'rgba(59, 130, 246, 0.35)',
+    icon: 'shield',
+    description: 'Khu vực nội bộ campus. Chỉ dành cho người dùng từ Level 2 trở lên.'
+  },
+  CONFIDENTIAL_CONTACT_REQUIRED: {
+    code: 'CONFIDENTIAL_CONTACT_REQUIRED',
+    name: 'Bảo mật - liên hệ trước',
+    rank: 2,
+    badgeLabel: 'Liên hệ trước',
+    badgeClass: 'level-badge--contact',
+    cardClass: 'zone-card--contact',
     color: '#f59e0b',
     bgColor: 'rgba(245, 158, 11, 0.08)',
     borderColor: 'rgba(245, 158, 11, 0.35)',
-    icon: 'shield'
+    icon: 'alert-triangle',
+    description: 'Khu vực yêu cầu người dùng Level 2 làm đơn đăng ký / liên hệ trước. Người dùng Level 3 có clearance ra vào trực tiếp.'
   },
-  PRIVATE: {
-    code: 'PRIVATE',
-    name: 'Hạn chế tuyệt đối',
+  HIGHLY_CONFIDENTIAL: {
+    code: 'HIGHLY_CONFIDENTIAL',
+    name: 'Bảo mật cao - Tuyệt đối cấm vào',
     rank: 3,
-    badgeLabel: 'PRIVATE',
+    badgeLabel: 'Bảo mật cao',
     badgeClass: 'level-badge--private',
     cardClass: 'zone-card--private',
     color: '#ef4444',
     bgColor: 'rgba(239, 68, 68, 0.08)',
     borderColor: 'rgba(239, 68, 68, 0.35)',
-    icon: 'lock'
+    icon: 'lock',
+    description: 'Khu vực an ninh đặc biệt nghiêm ngặt. Chỉ người dùng Level 3 hoặc nhân sự gán cố định mới được truy cập.'
   }
 };
 
@@ -49,12 +65,12 @@ export function getLevelConfig(level) {
     key = level.code || level.areaLevel || level.level;
   }
   if (key === 1 || key === '1') key = 'PUBLIC';
-  if (key === 2 || key === '2') key = 'SEMI_PRIVATE';
-  if (key === 3 || key === '3') key = 'PRIVATE';
+  if (key === 2 || key === '2' || key === 'SEMI_PRIVATE') key = 'INTERNAL_CONFIDENTIAL';
+  if (key === 3 || key === '3' || key === 'PRIVATE') key = 'HIGHLY_CONFIDENTIAL';
 
   return AREA_LEVEL_CONFIG[key] || {
     code: key || 'UNKNOWN',
-    name: 'Unknown Level',
+    name: key || 'Unknown Level',
     rank: 0,
     badgeLabel: `${key || '?'}`,
     badgeClass: 'level-badge--unknown',
@@ -64,6 +80,21 @@ export function getLevelConfig(level) {
     borderColor: 'rgba(99, 102, 241, 0.3)',
     icon: 'shield'
   };
+}
+
+/**
+ * Lấy class CSS polygon tương ứng cho từng Cấp độ An ninh khu vực
+ */
+export function getLevelPolygonClass(level) {
+  let key = level;
+  if (typeof level === 'object' && level !== null) {
+    key = level.code || level.areaLevel || level.level;
+  }
+  if (key === 'PUBLIC' || key === 1 || key === '1') return 'zone-polygon--public';
+  if (key === 'INTERNAL_CONFIDENTIAL' || key === 'SEMI_PRIVATE' || key === 2 || key === '2') return 'zone-polygon--internal';
+  if (key === 'CONFIDENTIAL_CONTACT_REQUIRED') return 'zone-polygon--contact';
+  if (key === 'HIGHLY_CONFIDENTIAL' || key === 'PRIVATE' || key === 3 || key === '3') return 'zone-polygon--private';
+  return 'zone-polygon--default';
 }
 
 /**

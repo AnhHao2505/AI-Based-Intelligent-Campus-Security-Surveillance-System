@@ -59,7 +59,7 @@ class AreaCameraMappingTest {
                 .id(testAreaId)
                 .code("AREA-LAB-01")
                 .name("Phòng Lab AI")
-                .areaLevel(AreaLevel.SEMI_PRIVATE)
+                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
                 .building("Tòa Alpha")
                 .floor("Tầng 2")
                 .cameras(new HashSet<>())

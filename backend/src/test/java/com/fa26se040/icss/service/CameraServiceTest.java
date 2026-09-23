@@ -232,7 +232,7 @@ class CameraServiceTest {
                 .id(UUID.randomUUID())
                 .code("AREA-02")
                 .name("Phòng Server")
-                .areaLevel(AreaLevel.PRIVATE)
+                .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
                 .building("Tòa B")
                 .floor("Tầng 3")
                 .build();
