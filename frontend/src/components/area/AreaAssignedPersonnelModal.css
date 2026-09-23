@@ -163,10 +163,30 @@
   gap: 10px;
 }
 
+/* User Selection Hint */
+.ap-selected-user-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--theme-warning-bg, rgba(245, 158, 11, 0.1));
+  border: 1px solid var(--theme-warning-border, rgba(245, 158, 11, 0.25));
+  color: var(--theme-warning, #f59e0b);
+  font-size: 12px;
+  margin-top: 6px;
+  line-height: 1.4;
+}
+
+.ap-selected-user-hint__icon {
+  flex-shrink: 0;
+}
+
 /* Table Container */
 .ap-table-container {
-  max-height: 400px;
+  max-height: 420px;
   overflow-y: auto;
+  overflow-x: auto;
   border-radius: 8px;
   border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.1));
 }
@@ -195,6 +215,7 @@
 
 .ap-table {
   width: 100%;
+  min-width: 820px;
   border-collapse: collapse;
   font-size: 12px;
   text-align: left;
@@ -221,12 +242,17 @@
   vertical-align: middle;
 }
 
-.ap-table tbody tr:hover {
+.ap-table tbody tr:hover td {
   background: var(--brand-subtle);
 }
 
-.ap-row--revoked {
-  opacity: 0.65;
+.ap-row--revoked td {
+  color: var(--theme-text-muted);
+}
+
+.ap-row--revoked .ap-cell--code,
+.ap-row--revoked .ap-cell--name {
+  color: var(--theme-text-secondary);
 }
 
 .ap-cell--code {
@@ -238,8 +264,34 @@
   font-weight: 500;
 }
 
+/* Validity Column (Merged) */
+.ap-cell--validity {
+  min-width: 160px;
+}
+
+.ap-validity-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.ap-validity-label {
+  color: var(--theme-text-muted);
+  width: 26px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.ap-validity-val {
+  color: var(--theme-text-primary);
+  white-space: nowrap;
+}
+
+/* Truncated Columns */
 .ap-cell--creator {
-  max-width: 120px;
+  max-width: 100px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -248,7 +300,7 @@
 }
 
 .ap-cell--note {
-  max-width: 160px;
+  max-width: 130px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -327,7 +379,23 @@
   color: #34d399;
 }
 
-/* Actions in Table */
+/* Sticky Actions Column */
+.ap-th--sticky-actions {
+  position: sticky;
+  right: 0;
+  background: var(--theme-bg-page, #f8fafc);
+  z-index: 3;
+  box-shadow: -3px 0 6px rgba(0, 0, 0, 0.05);
+}
+
+.ap-cell--sticky-actions {
+  position: sticky;
+  right: 0;
+  background: var(--theme-bg-surface, #ffffff);
+  z-index: 2;
+  box-shadow: -3px 0 6px rgba(0, 0, 0, 0.05);
+}
+
 .ap-actions {
   display: flex;
   align-items: center;
