@@ -93,6 +93,42 @@ export function getLevelPolygonClass(level) {
 }
 
 /**
+ * BR-AR-01: Chuẩn hoá Unicode NFC trước, sau đó trim và gộp khoảng trắng liên tiếp.
+ */
+export function normalizeAreaName(name) {
+  if (!name) return '';
+  return name.normalize('NFC').trim().replace(/ +/g, ' ');
+}
+
+/**
+ * BR-AR-01..04: Validate tên khu vực theo chuẩn backend.
+ * Trả về message lỗi nếu không hợp lệ, hoặc null nếu hợp lệ.
+ */
+export function validateAreaName(name) {
+  if (!name || !name.trim()) {
+    return 'Tên khu vực bắt buộc, dài 3–100 ký tự.';
+  }
+  const normalized = normalizeAreaName(name);
+
+  // BR-AR-02: Độ dài 3–100 ký tự sau chuẩn hoá
+  if (normalized.length < 3 || normalized.length > 100) {
+    return 'Tên khu vực bắt buộc, dài 3–100 ký tự.';
+  }
+
+  // BR-AR-03: Phải chứa ít nhất một chữ cái (Unicode, gồm tiếng Việt có dấu)
+  if (!/\p{L}/u.test(normalized)) {
+    return 'Tên khu vực phải chứa ít nhất một chữ cái.';
+  }
+
+  // BR-AR-04: Ký tự cho phép: chữ (Unicode), số, khoảng trắng thường ' ', - _ ( ) . , /
+  if (!/^[\p{L}0-9 \-_().,/]+$/u.test(normalized)) {
+    return 'Tên khu vực chỉ được chứa chữ cái, số, khoảng trắng và các ký tự: - _ ( ) . , /';
+  }
+
+  return null;
+}
+
+/**
  * Error Code Mapping sang thông báo thân thiện
  */
 export const ERROR_MESSAGES = {
@@ -100,11 +136,14 @@ export const ERROR_MESSAGES = {
   ERR_AREA_002: 'Không tìm thấy khu vực hoặc khu vực đã bị vô hiệu hóa.',
   ERR_AREA_003: 'Cấp độ an ninh không hợp lệ hoặc đã bị vô hiệu hóa.',
   ERR_AREA_004: 'Mã khu vực chỉ gồm chữ in hoa, số và dấu gạch ngang, dài 3–50 ký tự.',
-  ERR_AREA_005: 'Tên khu vực bắt buộc, tối đa 150 ký tự.',
+  ERR_AREA_005: 'Tên khu vực bắt buộc, dài 3–100 ký tự.',
   ERR_AREA_007: 'Không được thay đổi mã khu vực sau khi tạo.',
   ERR_AREA_008: 'Khi hạ cấp độ an ninh, lý do là bắt buộc (10–255 ký tự).',
   ERR_AREA_009: 'Không thể vô hiệu hóa khu vực do còn camera đang gán.',
   ERR_AREA_010: 'Không thể vô hiệu hóa khu vực do còn quyền truy cập.',
+  ERR_AREA_018: 'Tên khu vực phải chứa ít nhất một chữ cái.',
+  ERR_AREA_019: 'Tên khu vực chỉ được chứa chữ cái, số, khoảng trắng và các ký tự: - _ ( ) . , /',
+  ERR_AREA_020: 'Tên khu vực đã tồn tại trong cùng toà nhà và tầng.',
 };
 
 

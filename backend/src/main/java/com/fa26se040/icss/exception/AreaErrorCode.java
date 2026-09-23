@@ -9,7 +9,7 @@ public enum AreaErrorCode {
     ERR_AREA_002("ERR_AREA_002", HttpStatus.NOT_FOUND, "Không tìm thấy khu vực"),
     ERR_AREA_003("ERR_AREA_003", HttpStatus.BAD_REQUEST, "Cấp độ khu vực không hợp lệ hoặc đã ngừng sử dụng"),
     ERR_AREA_004("ERR_AREA_004", HttpStatus.BAD_REQUEST, "Mã khu vực chỉ gồm chữ in hoa, số và dấu gạch ngang, dài 3–50 ký tự"),
-    ERR_AREA_005("ERR_AREA_005", HttpStatus.BAD_REQUEST, "Tên khu vực bắt buộc, tối đa 150 ký tự"),
+    ERR_AREA_005("ERR_AREA_005", HttpStatus.BAD_REQUEST, "Tên khu vực bắt buộc, dài 3–100 ký tự"),
     ERR_AREA_006("ERR_AREA_006", HttpStatus.BAD_REQUEST, "Toạ độ bản đồ phải có đủ cả X và Y"),
     ERR_AREA_007("ERR_AREA_007", HttpStatus.BAD_REQUEST, "Không được thay đổi mã khu vực sau khi tạo"),
     ERR_AREA_008("ERR_AREA_008", HttpStatus.BAD_REQUEST, "Hạ cấp độ khu vực bắt buộc nhập lý do"),
@@ -21,7 +21,10 @@ public enum AreaErrorCode {
     ERR_AREA_014("ERR_AREA_014", HttpStatus.BAD_REQUEST, "Không thể thay đổi toà nhà hoặc tầng khi khu vực đang có toạ độ đa giác. Vui lòng xoá đa giác trước"),
     ERR_AREA_015("ERR_AREA_015", HttpStatus.BAD_REQUEST, "Khu vực phải có thông tin toà nhà và tầng trước khi gán toạ độ đa giác"),
     ERR_AREA_016("ERR_AREA_016", HttpStatus.BAD_REQUEST, "Hình đa giác phải có ít nhất 3 đỉnh phân biệt (không trùng nhau)"),
-    ERR_AREA_017("ERR_AREA_017", HttpStatus.BAD_REQUEST, "Khu vực đã ngừng hoạt động hoặc đã bị xoá");
+    ERR_AREA_017("ERR_AREA_017", HttpStatus.BAD_REQUEST, "Khu vực đã ngừng hoạt động hoặc đã bị xoá"),
+    ERR_AREA_018("ERR_AREA_018", HttpStatus.BAD_REQUEST, "Tên khu vực phải chứa ít nhất một chữ cái"),
+    ERR_AREA_019("ERR_AREA_019", HttpStatus.BAD_REQUEST, "Tên khu vực chỉ được chứa chữ cái, số, khoảng trắng và các ký tự: - _ ( ) . , /"),
+    ERR_AREA_020("ERR_AREA_020", HttpStatus.CONFLICT, "Tên khu vực đã tồn tại trong cùng toà nhà và tầng");
 
     private final String code;
     private final HttpStatus httpStatus;

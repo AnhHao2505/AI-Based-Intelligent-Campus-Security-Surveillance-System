@@ -20,6 +20,30 @@ public interface AreaRepository extends JpaRepository<Area, UUID> {
 
     boolean existsByIdAndDeletedAtIsNull(UUID id);
 
+    @Query("SELECT COUNT(a) > 0 FROM Area a " +
+            "WHERE LOWER(COALESCE(TRIM(a.name), '')) = LOWER(COALESCE(TRIM(:name), '')) " +
+            "AND LOWER(COALESCE(TRIM(a.building), '')) = LOWER(COALESCE(TRIM(:building), '')) " +
+            "AND LOWER(COALESCE(TRIM(a.floor), '')) = LOWER(COALESCE(TRIM(:floor), '')) " +
+            "AND a.deletedAt IS NULL")
+    boolean existsByNameAndBuildingAndFloor(
+            @Param("name") String name,
+            @Param("building") String building,
+            @Param("floor") String floor
+    );
+
+    @Query("SELECT COUNT(a) > 0 FROM Area a " +
+            "WHERE a.id != :id " +
+            "AND LOWER(COALESCE(TRIM(a.name), '')) = LOWER(COALESCE(TRIM(:name), '')) " +
+            "AND LOWER(COALESCE(TRIM(a.building), '')) = LOWER(COALESCE(TRIM(:building), '')) " +
+            "AND LOWER(COALESCE(TRIM(a.floor), '')) = LOWER(COALESCE(TRIM(:floor), '')) " +
+            "AND a.deletedAt IS NULL")
+    boolean existsByNameAndBuildingAndFloorExcludingId(
+            @Param("id") UUID id,
+            @Param("name") String name,
+            @Param("building") String building,
+            @Param("floor") String floor
+    );
+
     Optional<Area> findByIdAndDeletedAtIsNull(UUID id);
 
     java.util.List<Area> findByBuildingIgnoreCaseAndFloorIgnoreCaseAndDeletedAtIsNull(String building, String floor);

@@ -28,6 +28,7 @@ import com.fa26se040.icss.repository.AreaRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -117,9 +118,15 @@ public class AreaService {
     public AreaResponse create(AreaCreateRequest req, String actorEmail) {
         String code = areaValidator.validateAndNormalizeCode(req.code());
         String name = areaValidator.validateAndNormalizeName(req.name());
+        String building = req.building() != null ? req.building().trim() : null;
+        String floor = req.floor() != null ? req.floor().trim() : null;
 
         if (areaRepository.existsByCodeAndDeletedAtIsNull(code)) {
             throw new AreaException(AreaErrorCode.ERR_AREA_001);
+        }
+
+        if (areaRepository.existsByNameAndBuildingAndFloor(name, building, floor)) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_020);
         }
 
         if (req.areaLevel() == null) {
@@ -148,14 +155,23 @@ public class AreaService {
                 .areaLevel(req.areaLevel())
                 .areaAccessLevel(areaAccessLevel)
                 .explicitAuthorizationRequired(explicitAuthRequired)
-                .building(req.building() != null ? req.building().trim() : null)
-                .floor(req.floor() != null ? req.floor().trim() : null)
+                .building(building)
+                .floor(floor)
                 .description(req.description())
                 .isActive(true)
                 .build();
 
-        Area savedArea = areaRepository.save(area);
-        return mapToAreaResponse(savedArea);
+        try {
+            Area savedArea = areaRepository.save(area);
+            return mapToAreaResponse(savedArea);
+        } catch (DataIntegrityViolationException ex) {
+            log.warn("Data integrity violation on creating area [{}]: {}", name, ex.getMessage());
+            String msg = (ex.getMessage() + " " + (ex.getRootCause() != null ? ex.getRootCause().getMessage() : "")).toLowerCase();
+            if (msg.contains("ux_areas_code")) {
+                throw new AreaException(AreaErrorCode.ERR_AREA_001);
+            }
+            throw new AreaException(AreaErrorCode.ERR_AREA_020);
+        }
     }
 
     @Transactional
@@ -182,6 +198,12 @@ public class AreaService {
 
         areaValidator.validateCodeUpdate(req.code(), area.getCode());
         String name = areaValidator.validateAndNormalizeName(req.name());
+        String building = req.building() != null ? req.building().trim() : null;
+        String floor = req.floor() != null ? req.floor().trim() : null;
+
+        if (areaRepository.existsByNameAndBuildingAndFloorExcludingId(id, name, building, floor)) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_020);
+        }
 
         if (req.areaLevel() == null) {
             throw new AreaException(AreaErrorCode.ERR_AREA_003);
@@ -191,12 +213,21 @@ public class AreaService {
 
         area.setName(name);
         area.setAreaLevel(req.areaLevel());
-        area.setBuilding(req.building() != null ? req.building().trim() : null);
-        area.setFloor(req.floor() != null ? req.floor().trim() : null);
+        area.setBuilding(building);
+        area.setFloor(floor);
         area.setDescription(req.description());
 
-        Area savedArea = areaRepository.save(area);
-        return mapToAreaResponse(savedArea);
+        try {
+            Area savedArea = areaRepository.save(area);
+            return mapToAreaResponse(savedArea);
+        } catch (DataIntegrityViolationException ex) {
+            log.warn("Data integrity violation on updating area [{}]: {}", name, ex.getMessage());
+            String msg = (ex.getMessage() + " " + (ex.getRootCause() != null ? ex.getRootCause().getMessage() : "")).toLowerCase();
+            if (msg.contains("ux_areas_code")) {
+                throw new AreaException(AreaErrorCode.ERR_AREA_001);
+            }
+            throw new AreaException(AreaErrorCode.ERR_AREA_020);
+        }
     }
 
     @Transactional

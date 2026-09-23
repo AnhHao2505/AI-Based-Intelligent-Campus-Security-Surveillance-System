@@ -7,6 +7,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
@@ -141,6 +142,18 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(InvalidRoleAssignmentException.class)
     public ResponseEntity<Map<String, Object>> handleInvalidRoleAssignment(InvalidRoleAssignmentException ex) {
         return buildResponse(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, Object>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        String msg = (ex.getMessage() + " " + (ex.getRootCause() != null ? ex.getRootCause().getMessage() : "")).toLowerCase();
+        if (msg.contains("ux_areas_name_building_floor") || msg.contains("areas_name_building_floor")) {
+            return handleAreaException(new AreaException(AreaErrorCode.ERR_AREA_020));
+        }
+        if (msg.contains("ux_areas_code")) {
+            return handleAreaException(new AreaException(AreaErrorCode.ERR_AREA_001));
+        }
+        return buildResponse(HttpStatus.CONFLICT, "Dữ liệu bị trùng lặp hoặc vi phạm ràng buộc toàn vẹn");
     }
 
     @ExceptionHandler({IllegalArgumentException.class, IllegalStateException.class})

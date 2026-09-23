@@ -1126,6 +1126,16 @@
   margin: 5px 0 0;
 }
 
+.area-form-error {
+  font-size: 11px;
+  color: var(--theme-danger, #ef4444);
+  margin: 5px 0 0;
+}
+
+.area-form-input--error {
+  border-color: var(--theme-danger, #ef4444) !important;
+}
+
 /* Security Level Selector (3 Buttons) */
 .area-level-selector {
   display: grid;
