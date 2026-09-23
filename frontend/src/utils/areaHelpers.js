@@ -26,12 +26,12 @@ export const AREA_LEVEL_CONFIG = {
     bgColor: 'rgba(59, 130, 246, 0.08)',
     borderColor: 'rgba(59, 130, 246, 0.35)',
     icon: 'shield',
-    description: 'Khu vực nội bộ campus. Chỉ dành cho người dùng từ Level 2 trở lên.'
+    description: 'Khu vực nội bộ campus. Dành cho người dùng từ Level 2 trở lên hoặc có đơn đăng ký / nhân sự chỉ định.'
   },
   CONFIDENTIAL_CONTACT_REQUIRED: {
     code: 'CONFIDENTIAL_CONTACT_REQUIRED',
     name: 'Bảo mật - liên hệ trước',
-    rank: 2,
+    rank: 3,
     badgeLabel: 'Liên hệ trước',
     badgeClass: 'level-badge--contact',
     cardClass: 'zone-card--contact',
@@ -39,7 +39,7 @@ export const AREA_LEVEL_CONFIG = {
     bgColor: 'rgba(245, 158, 11, 0.08)',
     borderColor: 'rgba(245, 158, 11, 0.35)',
     icon: 'alert-triangle',
-    description: 'Khu vực yêu cầu người dùng Level 2 làm đơn đăng ký / liên hệ trước. Người dùng Level 3 có clearance ra vào trực tiếp.'
+    description: 'Khu vực yêu cầu người dùng Level 1, 2 làm đơn đăng ký / có nhân sự chỉ định. Người dùng Level 3 có clearance ra vào trực tiếp.'
   },
   HIGHLY_CONFIDENTIAL: {
     code: 'HIGHLY_CONFIDENTIAL',
@@ -52,7 +52,7 @@ export const AREA_LEVEL_CONFIG = {
     bgColor: 'rgba(239, 68, 68, 0.08)',
     borderColor: 'rgba(239, 68, 68, 0.35)',
     icon: 'lock',
-    description: 'Khu vực an ninh đặc biệt nghiêm ngặt. Chỉ người dùng Level 3 hoặc nhân sự gán cố định mới được truy cập.'
+    description: 'Khu vực an ninh đặc biệt nghiêm ngặt. Yêu cầu chỉ định đích danh (nhân sự chỉ định hoặc đơn đăng ký được duyệt); cấp độ truy cập không cho phép vào trực tiếp.'
   }
 };
 

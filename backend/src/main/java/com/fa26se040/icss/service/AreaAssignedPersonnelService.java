@@ -8,6 +8,7 @@ import com.fa26se040.icss.dto.assignedpersonnel.AssignedPersonnelUserInfo;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.AreaAssignedPersonnel;
 import com.fa26se040.icss.entity.User;
+import com.fa26se040.icss.enums.AreaLevel;
 import com.fa26se040.icss.enums.AssignedPersonnelStatus;
 import com.fa26se040.icss.exception.AreaErrorCode;
 import com.fa26se040.icss.exception.AreaException;
@@ -65,8 +66,8 @@ public class AreaAssignedPersonnelService {
             throw new AssignedPersonnelException(AssignedPersonnelErrorCode.ERR_AP_007);
         }
 
-        if (area.getAreaLevel() != com.fa26se040.icss.enums.AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED && area.getAreaLevel() != com.fa26se040.icss.enums.AreaLevel.HIGHLY_CONFIDENTIAL) {
-            throw new IllegalArgumentException("Chỉ khu vực Yêu cầu xác nhận (CONFIDENTIAL_CONTACT_REQUIRED) hoặc Bảo mật cao (HIGHLY_CONFIDENTIAL) mới được phép gán nhân sự chỉ định.");
+        if (area.getAreaLevel() == AreaLevel.PUBLIC) {
+            throw new IllegalArgumentException("Khu vực công cộng (PUBLIC) không áp dụng gán nhân sự chỉ định.");
         }
 
         // Khoá dòng users để tuần tự hoá các thao tác gán cùng user (chống race BR-AP-03)

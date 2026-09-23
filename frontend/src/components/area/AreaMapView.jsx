@@ -402,13 +402,30 @@ export default function AreaMapView({
 									}
 								</p>
 								<p style={{ margin: 0, fontSize: "11.5px", color: "var(--theme-text-muted)", borderTop: "1px dashed var(--theme-border)", paddingTop: "6px" }}>
-									💡 <em>Lưu ý: Danh sách nhân viên chỉ định cố định chỉ tồn tại và áp dụng cho các phòng thuộc mức độ an ninh: <strong>Bảo mật cao</strong> hoặc <strong>Bảo mật - liên hệ trước</strong>.</em>
+									💡 <em>Lưu ý: Danh sách nhân viên chỉ định cố định áp dụng cho mọi phòng trừ loại <strong>Công khai (PUBLIC)</strong>.</em>
 								</p>
 							</div>
 
 							{/* Actions */}
 							<div className="zone-detail-actions">
-
+								{isFacilityManager && (selectedArea.areaLevel || selectedArea.level?.code) !== "PUBLIC" && (
+									<button
+										type="button"
+										className="zone-btn-action"
+										onClick={() => onOpenAssignedPersonnelModal(selectedArea)}
+									>
+										Nhân sự chỉ định
+									</button>
+								)}
+								{isFacilityManager && (
+									<button
+										type="button"
+										className="zone-btn-action"
+										onClick={() => onOpenAccessRulesModal(selectedArea)}
+									>
+										Quy tắc truy cập
+									</button>
+								)}
 								{isAdmin && (
 									<button
 										type="button"

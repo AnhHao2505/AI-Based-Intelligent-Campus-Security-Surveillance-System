@@ -73,7 +73,7 @@ public class AccessDecisionService {
             return AccessDecision.denied("Khu vực đã ngừng hoạt động hoặc đã bị xoá");
         }
 
-        // 3. Assigned Personnel
+        // 3. Assigned Personnel còn hiệu lực tại at (validTo NULL = không hạn)
         List<AreaAssignedPersonnel> assignments = assignedPersonnelRepository.findEffectiveAt(userId, areaId, at);
         if (!assignments.isEmpty()) {
             return AccessDecision.allowed(
@@ -83,7 +83,22 @@ public class AccessDecisionService {
             );
         }
 
-        // 4. Đơn access_requests đã APPROVED (requester hoặc member đơn nhóm)
+        // 4. Access Level (khi khu vực không yêu cầu chỉ định đích danh)
+        // Khi explicit == true thì level KHÔNG bao giờ cho vào, kể cả level cao nhất.
+        boolean explicitRequired = Boolean.TRUE.equals(area.getExplicitAuthorizationRequired());
+        if (!explicitRequired
+                && user.getAccessLevel() != null
+                && area.getAreaAccessLevel() != null
+                && user.getAccessLevel() >= area.getAreaAccessLevel()) {
+            return AccessDecision.allowed(
+                    AccessSource.ACCESS_LEVEL,
+                    null,
+                    "Cấp độ truy cập của người dùng phù hợp với khu vực"
+            );
+        }
+
+        // 5. Đơn access_requests đã APPROVED (requester hoặc member đơn nhóm)
+        // status == APPROVED (FINISHED, PENDING, REJECTED, CANCELLED... đều KHÔNG tính)
         List<AccessRequest> requests = accessRequestRepository.findCoveringRequestsForUser(
                 userId, areaId, at, RequestStatus.APPROVED);
         if (!requests.isEmpty()) {
@@ -94,33 +109,7 @@ public class AccessDecisionService {
             );
         }
 
-        // 5. Access Level check according to security level decision tree
-        if (user.getAccessLevel() != null && area.getAreaAccessLevel() != null) {
-            if (user.getAccessLevel() >= area.getAreaAccessLevel()) {
-                if (area.getAreaLevel() == com.fa26se040.icss.enums.AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED) {
-                    if (user.getAccessLevel() >= 3) {
-                        return AccessDecision.allowed(
-                                AccessSource.ACCESS_LEVEL,
-                                null,
-                                "Cấp độ truy cập Level 3 vượt trội so với khu vực yêu cầu xác nhận (Level 2)"
-                        );
-                    } else {
-                        return AccessDecision.denied("Khu vực yêu cầu đăng ký/chỉ định trước khi ra vào đối với người dùng Level 2");
-                    }
-                } else {
-                    boolean explicitRequired = Boolean.TRUE.equals(area.getExplicitAuthorizationRequired());
-                    if (!explicitRequired || user.getAccessLevel() >= area.getAreaAccessLevel()) {
-                        return AccessDecision.allowed(
-                                AccessSource.ACCESS_LEVEL,
-                                null,
-                                "Cấp độ truy cập của người dùng phù hợp với khu vực"
-                        );
-                    }
-                }
-            }
-        }
-
-        // 6. Không có nguồn cấp quyền nào
+        // 6. Không có nguồn cấp quyền nào -> deny NONE
         return AccessDecision.denied("Không có quyền ra vào khu vực tại thời điểm này");
     }
 }

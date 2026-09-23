@@ -54,7 +54,11 @@ public class AreaService {
 
     @Transactional(readOnly = true)
     public List<AreaSimpleResponse> getAvailableAreasForRequest() {
-        List<Area> areas = areaRepository.findAvailableForRequest(List.of(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED, AreaLevel.HIGHLY_CONFIDENTIAL));
+        List<Area> areas = areaRepository.findAvailableForRequest(List.of(
+                AreaLevel.INTERNAL_CONFIDENTIAL,
+                AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED,
+                AreaLevel.HIGHLY_CONFIDENTIAL
+        ));
         return areas.stream()
                 .map(a -> new AreaSimpleResponse(
                         a.getId(),
@@ -114,12 +118,8 @@ public class AreaService {
             areaAccessLevel = preset.getAreaAccessLevel();
             explicitAuthRequired = preset.getExplicitAuthorizationRequired();
         } else {
-            switch (req.areaLevel()) {
-                case PUBLIC -> { areaAccessLevel = 1; explicitAuthRequired = false; }
-                case INTERNAL_CONFIDENTIAL -> { areaAccessLevel = 2; explicitAuthRequired = false; }
-                case CONFIDENTIAL_CONTACT_REQUIRED -> { areaAccessLevel = 2; explicitAuthRequired = true; }
-                case HIGHLY_CONFIDENTIAL -> { areaAccessLevel = 3; explicitAuthRequired = true; }
-            }
+            log.warn("Không tìm thấy preset cho area_level = {}, áp dụng fallback fail-closed (level 3, explicit_authorization_required = true)",
+                    req.areaLevel());
         }
 
         Area area = Area.builder()
@@ -167,35 +167,10 @@ public class AreaService {
             throw new AreaException(AreaErrorCode.ERR_AREA_003);
         }
 
+        resolveActorId(actorEmail);
+
         area.setName(name);
         area.setAreaLevel(req.areaLevel());
-
-        Optional<AreaLevelPreset> presetOpt = areaLevelPresetRepository.findById(req.areaLevel());
-        if (presetOpt.isPresent()) {
-            AreaLevelPreset preset = presetOpt.get();
-            area.setAreaAccessLevel(preset.getAreaAccessLevel());
-            area.setExplicitAuthorizationRequired(preset.getExplicitAuthorizationRequired());
-        } else {
-            switch (req.areaLevel()) {
-                case PUBLIC -> {
-                    area.setAreaAccessLevel(1);
-                    area.setExplicitAuthorizationRequired(false);
-                }
-                case INTERNAL_CONFIDENTIAL -> {
-                    area.setAreaAccessLevel(2);
-                    area.setExplicitAuthorizationRequired(false);
-                }
-                case CONFIDENTIAL_CONTACT_REQUIRED -> {
-                    area.setAreaAccessLevel(2);
-                    area.setExplicitAuthorizationRequired(true);
-                }
-                case HIGHLY_CONFIDENTIAL -> {
-                    area.setAreaAccessLevel(3);
-                    area.setExplicitAuthorizationRequired(true);
-                }
-            }
-        }
-
         area.setBuilding(req.building() != null ? req.building().trim() : null);
         area.setFloor(req.floor() != null ? req.floor().trim() : null);
         area.setDescription(req.description());

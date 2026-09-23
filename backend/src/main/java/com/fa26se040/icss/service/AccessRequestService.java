@@ -534,12 +534,8 @@ public class AccessRequestService {
     }
 
     private void validateCommonRules(Area area, OffsetDateTime startTime, OffsetDateTime endTime) {
-        if (area.getAreaLevel() == AreaLevel.PUBLIC || area.getAreaLevel() == AreaLevel.INTERNAL_CONFIDENTIAL) {
-            throw new IllegalArgumentException("Khu vực công cộng (PUBLIC) hoặc Nội bộ (INTERNAL_CONFIDENTIAL) không cần tạo yêu cầu truy cập.");
-        }
-
-        if (area.getAreaLevel() != AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED && area.getAreaLevel() != AreaLevel.HIGHLY_CONFIDENTIAL) {
-            throw new IllegalArgumentException("Chỉ khu vực CONFIDENTIAL_CONTACT_REQUIRED hoặc HIGHLY_CONFIDENTIAL mới cho phép tạo yêu cầu truy cập.");
+        if (area.getAreaLevel() == AreaLevel.PUBLIC) {
+            throw new IllegalArgumentException("Khu vực công cộng (PUBLIC) không cần tạo yêu cầu truy cập.");
         }
 
         if (!startTime.isBefore(endTime)) {
