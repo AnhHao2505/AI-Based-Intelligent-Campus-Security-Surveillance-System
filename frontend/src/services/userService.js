@@ -218,8 +218,8 @@ export async function searchUsers(q, page = 0, size = 20) {
  * Cập nhật cấp độ truy cập của người dùng (FACILITY_MANAGER)
  * PATCH /api/users/{id}/access-level
  */
-export async function updateUserAccessLevel(id, accessLevel) {
-  return apiPatch(`/api/users/${id}/access-level`, { accessLevel });
+export async function updateUserAccessLevel(id, accessLevel, reason) {
+  return apiPatch(`/api/users/${id}/access-level`, { accessLevel, reason });
 }
 
 

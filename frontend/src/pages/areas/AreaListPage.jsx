@@ -42,7 +42,6 @@ import {
 } from '../../services/areaService';
 import { fetchAllSimpleCameras } from '../../services/cameraService';
 import {
-  AREA_LEVEL_CONFIG,
   getLevelConfig,
   getLevelPolygonClass,
   getErrorMessage,
@@ -605,15 +604,6 @@ export default function AreaListPage() {
     e.preventDefault();
     setModalError(null);
 
-    const oldLevelRank = AREA_LEVEL_CONFIG[selectedArea.areaLevel || selectedArea.level?.code || 'PUBLIC']?.rank || 1;
-    const newLevelRank = AREA_LEVEL_CONFIG[formData.areaLevel]?.rank || 1;
-    const isDowngrade = newLevelRank < oldLevelRank;
-
-    if (isDowngrade && (!formData.reason || formData.reason.trim().length < 10 || formData.reason.trim().length > 255)) {
-      setModalError('Khi hạ cấp độ an ninh, lý do là bắt buộc và phải từ 10 đến 255 ký tự.');
-      return;
-    }
-
     setModalLoading(true);
     try {
       const payload = {
@@ -672,9 +662,7 @@ export default function AreaListPage() {
     }
   };
 
-  const currentAreaRank = AREA_LEVEL_CONFIG[selectedArea?.areaLevel || selectedArea?.level?.code || 'PUBLIC']?.rank || 1;
-  const selectedFormRank = AREA_LEVEL_CONFIG[formData.areaLevel]?.rank || 1;
-  const isDowngradingInEdit = editModalOpen && selectedArea && selectedFormRank < currentAreaRank;
+  const isDowngradingInEdit = false;
 
   const isSelectedAreaInCurrentScope =
     selectedArea &&

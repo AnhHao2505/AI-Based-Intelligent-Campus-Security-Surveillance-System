@@ -17,5 +17,12 @@ public record AssignedPersonnelCreateRequest(
     OffsetDateTime validTo,
 
     @Size(max = 1000, message = "Ghi chú tối đa 1000 ký tự")
-    String note
-) {}
+    String note,
+
+    @Size(max = 500, message = "Lý do tối đa 500 ký tự")
+    String reason
+) {
+    public AssignedPersonnelCreateRequest(UUID userId, OffsetDateTime validFrom, OffsetDateTime validTo, String note) {
+        this(userId, validFrom, validTo, note, null);
+    }
+}

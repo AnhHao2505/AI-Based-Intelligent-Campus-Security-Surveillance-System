@@ -81,6 +81,7 @@ public class UserService {
     private final UserBulkImportHelper userBulkImportHelper;
     private final NotificationService notificationService;
     private final UserAccessLevelHelper userAccessLevelHelper;
+    private final AccessControlAuditService auditService;
 
     @Transactional
     public StaffAccountCreateResponse createStaffAccount(StaffAccountCreateRequest request) {
@@ -841,8 +842,14 @@ public class UserService {
 
     @Transactional
     public UserSearchResponse updateAccessLevel(UUID id, Integer accessLevel, String actorEmail) {
+        return updateAccessLevel(id, accessLevel, "Cập nhật cấp độ truy cập", actorEmail);
+    }
+
+    @Transactional
+    public UserSearchResponse updateAccessLevel(UUID id, Integer accessLevel, String reason, String actorEmail) {
+        User actor = null;
         if (actorEmail != null) {
-            User actor = userRepository.findByEmail(actorEmail)
+            actor = userRepository.findByEmail(actorEmail)
                     .orElseThrow(() -> new UnauthorizedException("Phiên đăng nhập không hợp lệ"));
             if (actor.getId().equals(id)) {
                 throw new AccessDeniedException("Bạn không thể tự thay đổi cấp truy cập của chính mình");
@@ -853,9 +860,43 @@ public class UserService {
         if (user.getDeletedAt() != null) {
             throw new ResourceNotFoundException("Không tìm thấy người dùng");
         }
+
+        // BR-AL-06: Thao tác không làm thay đổi giá trị (new == old) -> không ghi log, trả về trạng thái hiện tại
+        if (Objects.equals(user.getAccessLevel(), accessLevel)) {
+            log.info("User {} accessLevel unchanged ({}), skipping audit log", id, accessLevel);
+            return new UserSearchResponse(
+                    user.getId(),
+                    user.getUserCode(),
+                    user.getFullName(),
+                    user.getRole(),
+                    user.getAccessLevel()
+            );
+        }
+
+        Integer oldLevel = user.getAccessLevel();
         user.setAccessLevel(accessLevel);
         user.setUpdatedAt(OffsetDateTime.now());
         User saved = userRepository.save(user);
+
+        if (actor != null) {
+            com.fa26se040.icss.dto.accesscontrol.snapshot.UserAccessLevelAuditSnapshot oldSnapshot =
+                    new com.fa26se040.icss.dto.accesscontrol.snapshot.UserAccessLevelAuditSnapshot(oldLevel);
+            com.fa26se040.icss.dto.accesscontrol.snapshot.UserAccessLevelAuditSnapshot newSnapshot =
+                    new com.fa26se040.icss.dto.accesscontrol.snapshot.UserAccessLevelAuditSnapshot(saved.getAccessLevel());
+
+            auditService.record(
+                    com.fa26se040.icss.enums.AccessControlTargetType.USER_ACCESS_LEVEL,
+                    com.fa26se040.icss.enums.AccessControlAction.UPDATE,
+                    saved.getId().toString(),
+                    null,
+                    saved,
+                    oldSnapshot,
+                    newSnapshot,
+                    reason,
+                    actor
+            );
+        }
+
         return new UserSearchResponse(
                 saved.getId(),
                 saved.getUserCode(),

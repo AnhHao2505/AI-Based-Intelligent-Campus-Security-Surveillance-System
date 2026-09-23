@@ -77,6 +77,25 @@ export default function AreaListView({
 										>
 											Level {area.areaAccessLevel ?? 1}
 										</span>
+										{isFacilityManager && area.differsFromPreset && (
+											<span
+												className="zone-card__pill-differs"
+												title="Quy tắc truy cập của khu vực này khác với giá trị mặc định của loại khu vực"
+												style={{
+													display: "inline-flex",
+													alignItems: "center",
+													padding: "2px 8px",
+													borderRadius: "12px",
+													fontSize: "11px",
+													fontWeight: 600,
+													background: "rgba(234, 88, 12, 0.12)",
+													color: "var(--theme-warning, #ea580c)",
+													border: "1px solid rgba(234, 88, 12, 0.3)",
+												}}
+											>
+												Khác mặc định
+											</span>
+										)}
 									</div>
 								</div>
 

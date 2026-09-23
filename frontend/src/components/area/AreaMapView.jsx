@@ -343,7 +343,27 @@ export default function AreaMapView({
 						<div className="zone-detail-content">
 							<div className="zone-detail-header">
 								<h2 className="zone-detail-title">{selectedArea.name}</h2>
-								<span className="zone-detail-code">{selectedArea.code}</span>
+								<div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+									<span className="zone-detail-code">{selectedArea.code}</span>
+									{selectedArea.differsFromPreset && (
+										<span
+											title="Quy tắc truy cập của khu vực này khác với giá trị mặc định của loại khu vực"
+											style={{
+												display: "inline-flex",
+												alignItems: "center",
+												padding: "2px 8px",
+												borderRadius: "12px",
+												fontSize: "11px",
+												fontWeight: 600,
+												background: "rgba(234, 88, 12, 0.12)",
+												color: "var(--theme-warning, #ea580c)",
+												border: "1px solid rgba(234, 88, 12, 0.3)",
+											}}
+										>
+											Khác mặc định
+										</span>
+									)}
+								</div>
 							</div>
 
 							<div className="zone-detail-meta">

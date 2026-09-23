@@ -42,6 +42,7 @@ export default function AreaAccessRulesModal({
 }) {
 	const [accessLevel, setAccessLevel] = useState(1);
 	const [explicitAuth, setExplicitAuth] = useState(false);
+	const [reason, setReason] = useState("");
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState(null);
 
@@ -49,6 +50,7 @@ export default function AreaAccessRulesModal({
 		if (area) {
 			setAccessLevel(area.areaAccessLevel ?? 1);
 			setExplicitAuth(Boolean(area.explicitAuthorizationRequired));
+			setReason("");
 			setError(null);
 		}
 	}, [area, isOpen]);
@@ -57,13 +59,25 @@ export default function AreaAccessRulesModal({
 
 	const handleSubmit = async (e) => {
 		e?.preventDefault();
-		setSaving(true);
 		setError(null);
+
+		const trimmedReason = reason.trim();
+		if (!trimmedReason) {
+			setError("Lý do cập nhật quy tắc là bắt buộc.");
+			return;
+		}
+		if (trimmedReason.length > 500) {
+			setError("Lý do cập nhật không được vượt quá 500 ký tự.");
+			return;
+		}
+
+		setSaving(true);
 
 		try {
 			const payload = {
 				areaAccessLevel: Number(accessLevel),
 				explicitAuthorizationRequired: Boolean(explicitAuth),
+				reason: trimmedReason,
 			};
 
 			const updated = await updateAreaAccessRules(area.id, payload);
@@ -196,6 +210,55 @@ export default function AreaAccessRulesModal({
 							</p>
 						</div>
 					</label>
+				</div>
+
+				{/* Section 3: Lý do cập nhật (Bắt buộc) */}
+				<div className="access-rules-group" style={{ marginTop: "16px" }}>
+					<label
+						htmlFor="access-rules-reason"
+						style={{
+							display: "block",
+							marginBottom: "6px",
+							fontSize: "13.5px",
+							fontWeight: 600,
+							color: "var(--theme-text-primary, #0f172a)",
+						}}
+					>
+						Lý do cập nhật <span style={{ color: "var(--theme-danger, #ef4444)" }}>*</span>
+					</label>
+					<textarea
+						id="access-rules-reason"
+						rows={3}
+						style={{
+							width: "100%",
+							padding: "8px 12px",
+							borderRadius: "8px",
+							border: "1px solid var(--theme-border, #cbd5e1)",
+							background: "var(--theme-card-bg, #ffffff)",
+							color: "var(--theme-text-primary, #0f172a)",
+							fontSize: "13.5px",
+							lineHeight: "1.5",
+							resize: "vertical",
+							boxSizing: "border-box",
+						}}
+						placeholder="Nhập lý do điều chỉnh quy tắc truy cập khu vực (tối đa 500 ký tự)..."
+						value={reason}
+						onChange={(e) => setReason(e.target.value)}
+						maxLength={500}
+						required
+					/>
+					<div
+						style={{
+							display: "flex",
+							justifyContent: "space-between",
+							fontSize: "12px",
+							color: "var(--theme-text-muted, #64748b)",
+							marginTop: "4px",
+						}}
+					>
+						<span>Bắt buộc theo quy định kiểm toán truy cập</span>
+						<span>{reason.length}/500</span>
+					</div>
 				</div>
 			</form>
 		</Modal>

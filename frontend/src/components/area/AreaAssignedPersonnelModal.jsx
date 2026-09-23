@@ -54,12 +54,14 @@ export default function AreaAssignedPersonnelModal({
 	const [validToInput, setValidToInput] = useState("");
 	const [isIndefinite, setIsIndefinite] = useState(false);
 	const [noteInput, setNoteInput] = useState("");
+	const [addReasonInput, setAddReasonInput] = useState("");
 	const [submittingAdd, setSubmittingAdd] = useState(false);
 
 	// Modal Sửa Hạn State
 	const [editItem, setEditItem] = useState(null);
 	const [editValidToInput, setEditValidToInput] = useState("");
 	const [editIsIndefinite, setEditIsIndefinite] = useState(false);
+	const [editReasonInput, setEditReasonInput] = useState("");
 	const [submittingEdit, setSubmittingEdit] = useState(false);
 
 	// Modal Thu Hồi State
@@ -92,7 +94,9 @@ export default function AreaAssignedPersonnelModal({
 			setValidToInput("");
 			setIsIndefinite(false);
 			setNoteInput("");
+			setAddReasonInput("");
 			setEditItem(null);
+			setEditReasonInput("");
 			setRevokeItem(null);
 		}
 	}, [isOpen, area?.id, loadData]);
@@ -119,6 +123,7 @@ export default function AreaAssignedPersonnelModal({
 						? null
 						: formatToOffsetDateTime(validToInput),
 				note: noteInput.trim() || null,
+				reason: addReasonInput.trim() || undefined,
 			};
 
 			await assignPersonnel(area.id, payload);
@@ -131,6 +136,7 @@ export default function AreaAssignedPersonnelModal({
 			setValidToInput("");
 			setIsIndefinite(false);
 			setNoteInput("");
+			setAddReasonInput("");
 			loadData();
 		} catch (err) {
 			console.error("Lỗi khi gán nhân sự:", err);
@@ -147,6 +153,7 @@ export default function AreaAssignedPersonnelModal({
 	// Mở modal sửa hạn
 	const handleOpenEditValidTo = (item) => {
 		setEditItem(item);
+		setEditReasonInput("");
 		if (!item.validTo) {
 			setEditIsIndefinite(true);
 			setEditValidToInput("");
@@ -175,6 +182,7 @@ export default function AreaAssignedPersonnelModal({
 					editIsIndefinite || !editValidToInput
 						? null
 						: formatToOffsetDateTime(editValidToInput),
+				reason: editReasonInput.trim() || undefined,
 			};
 
 			await updateAssignedPersonnel(area.id, editItem.id, payload);
@@ -384,6 +392,19 @@ export default function AreaAssignedPersonnelModal({
 										value={noteInput}
 										onChange={(e) => setNoteInput(e.target.value)}
 										maxLength={1000}
+									/>
+								</div>
+
+								{/* Reason (Optional) */}
+								<div className="ap-form-group ap-form-group--full">
+									<label className="ap-form-label">Lý do gán (tuỳ chọn)</label>
+									<input
+										type="text"
+										className="ap-form-input"
+										placeholder="Nhập lý do phân quyền chỉ định (tối đa 500 ký tự)..."
+										value={addReasonInput}
+										onChange={(e) => setAddReasonInput(e.target.value)}
+										maxLength={500}
 									/>
 								</div>
 							</div>
@@ -602,6 +623,18 @@ export default function AreaAssignedPersonnelModal({
 								/>
 								<span>Không thời hạn (quyền cố định vô hạn)</span>
 							</label>
+						</div>
+
+						<div className="ap-form-group" style={{ marginTop: "12px" }}>
+							<label className="ap-form-label">Lý do điều chỉnh (tuỳ chọn)</label>
+							<input
+								type="text"
+								className="ap-form-input"
+								placeholder="Ví dụ: Gia hạn theo yêu cầu trưởng bộ môn (tối đa 500 ký tự)..."
+								value={editReasonInput}
+								onChange={(e) => setEditReasonInput(e.target.value)}
+								maxLength={500}
+							/>
 						</div>
 					</div>
 				</Modal>

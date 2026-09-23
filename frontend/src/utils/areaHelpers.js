@@ -5,7 +5,6 @@ export const AREA_LEVEL_CONFIG = {
   PUBLIC: {
     code: 'PUBLIC',
     name: 'Công khai',
-    rank: 1,
     badgeLabel: 'Công khai',
     badgeClass: 'level-badge--public',
     cardClass: 'zone-card--public',
@@ -13,12 +12,11 @@ export const AREA_LEVEL_CONFIG = {
     bgColor: 'rgba(16, 185, 129, 0.08)',
     borderColor: 'rgba(16, 185, 129, 0.35)',
     icon: 'globe',
-    description: 'Khu vực tự do ra vào cho tất cả người dùng (Level 1, 2, 3).'
+    description: 'Khu vực tự do ra vào cho tất cả người dùng trong khuôn viên.'
   },
   INTERNAL_CONFIDENTIAL: {
     code: 'INTERNAL_CONFIDENTIAL',
     name: 'Bảo mật nội bộ',
-    rank: 2,
     badgeLabel: 'Bảo mật nội bộ',
     badgeClass: 'level-badge--internal',
     cardClass: 'zone-card--internal',
@@ -26,12 +24,11 @@ export const AREA_LEVEL_CONFIG = {
     bgColor: 'rgba(59, 130, 246, 0.08)',
     borderColor: 'rgba(59, 130, 246, 0.35)',
     icon: 'shield',
-    description: 'Khu vực nội bộ campus. Dành cho người dùng từ Level 2 trở lên hoặc có đơn đăng ký / nhân sự chỉ định.'
+    description: 'Khu vực nội bộ campus. Dành cho người dùng đủ điều kiện hoặc có đơn đăng ký / nhân sự chỉ định.'
   },
   CONFIDENTIAL_CONTACT_REQUIRED: {
     code: 'CONFIDENTIAL_CONTACT_REQUIRED',
     name: 'Bảo mật - liên hệ trước',
-    rank: 3,
     badgeLabel: 'Liên hệ trước',
     badgeClass: 'level-badge--contact',
     cardClass: 'zone-card--contact',
@@ -39,12 +36,11 @@ export const AREA_LEVEL_CONFIG = {
     bgColor: 'rgba(245, 158, 11, 0.08)',
     borderColor: 'rgba(245, 158, 11, 0.35)',
     icon: 'alert-triangle',
-    description: 'Khu vực yêu cầu người dùng Level 1, 2 làm đơn đăng ký / có nhân sự chỉ định. Người dùng Level 3 có clearance ra vào trực tiếp.'
+    description: 'Khu vực yêu cầu người dùng làm đơn đăng ký / có nhân sự chỉ định hoặc có clearance ra vào trực tiếp.'
   },
   HIGHLY_CONFIDENTIAL: {
     code: 'HIGHLY_CONFIDENTIAL',
     name: 'Bảo mật cao - Tuyệt đối cấm vào',
-    rank: 3,
     badgeLabel: 'Bảo mật cao',
     badgeClass: 'level-badge--private',
     cardClass: 'zone-card--private',
@@ -52,7 +48,7 @@ export const AREA_LEVEL_CONFIG = {
     bgColor: 'rgba(239, 68, 68, 0.08)',
     borderColor: 'rgba(239, 68, 68, 0.35)',
     icon: 'lock',
-    description: 'Khu vực an ninh đặc biệt nghiêm ngặt. Yêu cầu chỉ định đích danh (nhân sự chỉ định hoặc đơn đăng ký được duyệt); cấp độ truy cập không cho phép vào trực tiếp.'
+    description: 'Khu vực an ninh đặc biệt nghiêm ngặt. Yêu cầu chỉ định đích danh (nhân sự chỉ định hoặc đơn đăng ký được duyệt).'
   }
 };
 
@@ -71,7 +67,6 @@ export function getLevelConfig(level) {
   return AREA_LEVEL_CONFIG[key] || {
     code: key || 'UNKNOWN',
     name: key || 'Unknown Level',
-    rank: 0,
     badgeLabel: `${key || '?'}`,
     badgeClass: 'level-badge--unknown',
     cardClass: '',

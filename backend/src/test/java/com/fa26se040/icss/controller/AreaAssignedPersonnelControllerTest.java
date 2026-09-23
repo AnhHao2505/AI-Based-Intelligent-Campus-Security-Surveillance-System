@@ -231,4 +231,91 @@ class AreaAssignedPersonnelControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
     }
+
+    @Test
+    @DisplayName("BR-AP-08: PATCH /{id}/revoke reason = null → 400 Bad Request (bắt buộc lý do)")
+    void revoke_NullReason_Returns400() throws Exception {
+        mockMvc.perform(patch("/api/areas/{areaId}/assigned-personnel/{id}/revoke", areaId, recordId)
+                        .principal(auth)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\": null}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("BR-AL-03: POST /assigned-personnel reason tuỳ chọn (null -> 201; 501 ký tự -> 400)")
+    void create_ReasonValidation() throws Exception {
+        // reason = null -> 201 Created
+        AssignedPersonnelCreateRequest nullReasonReq = new AssignedPersonnelCreateRequest(
+                userId,
+                OffsetDateTime.now(),
+                OffsetDateTime.now().plusMonths(3),
+                "Ghi chú",
+                null
+        );
+        when(service.create(eq(areaId), any(AssignedPersonnelCreateRequest.class), eq(fmEmail)))
+                .thenReturn(sampleResponse(AssignedPersonnelStatus.ACTIVE));
+
+        mockMvc.perform(post("/api/areas/{areaId}/assigned-personnel", areaId)
+                        .principal(auth)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(nullReasonReq)))
+                .andExpect(status().isCreated());
+
+        // reason = 501 ký tự -> 400 Bad Request
+        AssignedPersonnelCreateRequest req501 = new AssignedPersonnelCreateRequest(
+                userId,
+                OffsetDateTime.now(),
+                OffsetDateTime.now().plusMonths(3),
+                "Ghi chú",
+                "a".repeat(501)
+        );
+        mockMvc.perform(post("/api/areas/{areaId}/assigned-personnel", areaId)
+                        .principal(auth)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req501)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("BR-AL-03: PATCH /{id} reason tuỳ chọn (null -> 200; 501 ký tự -> 400)")
+    void updateValidTo_ReasonValidation() throws Exception {
+        // reason = null -> 200 OK
+        AssignedPersonnelUpdateRequest nullReasonReq = new AssignedPersonnelUpdateRequest(
+                OffsetDateTime.now().plusMonths(6),
+                null
+        );
+        when(service.updateValidTo(eq(areaId), eq(recordId), any(AssignedPersonnelUpdateRequest.class), eq(fmEmail)))
+                .thenReturn(sampleResponse(AssignedPersonnelStatus.ACTIVE));
+
+        mockMvc.perform(patch("/api/areas/{areaId}/assigned-personnel/{id}", areaId, recordId)
+                        .principal(auth)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(nullReasonReq)))
+                .andExpect(status().isOk());
+
+        // reason = 501 ký tự -> 400 Bad Request
+        AssignedPersonnelUpdateRequest req501 = new AssignedPersonnelUpdateRequest(
+                OffsetDateTime.now().plusMonths(6),
+                "a".repeat(501)
+        );
+        mockMvc.perform(patch("/api/areas/{areaId}/assigned-personnel/{id}", areaId, recordId)
+                        .principal(auth)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req501)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("BR-AL-03: PATCH /{id}/revoke reason 501 ký tự -> 400 Bad Request và service không được gọi")
+    void revoke_Reason501Chars_Returns400_AndServiceNeverCalled() throws Exception {
+        mockMvc.perform(patch("/api/areas/{areaId}/assigned-personnel/{id}/revoke", areaId, recordId)
+                        .principal(auth)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\": \"" + "a".repeat(501) + "\"}"))
+                .andExpect(status().isBadRequest());
+
+        org.mockito.Mockito.verify(service, org.mockito.Mockito.never())
+                .revoke(any(), any(), any(), any());
+    }
 }
