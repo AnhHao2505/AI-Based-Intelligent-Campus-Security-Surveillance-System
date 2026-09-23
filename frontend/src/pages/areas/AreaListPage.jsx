@@ -44,7 +44,7 @@ import {
 } from '../../services/areaService';
 import { fetchAllSimpleCameras } from '../../services/cameraService';
 import {
-  getLevelConfig,
+  AREA_LEVEL_CONFIG,
   getLevelPolygonClass,
   getErrorMessage,
 } from '../../utils/areaHelpers';
@@ -72,10 +72,10 @@ const GEOMETRY_ERROR_MESSAGES = {
 };
 
 const AREA_LEVEL_CARDS = [
-  { value: 'PUBLIC', name: 'Công khai', color: '#22c55e' },
-  { value: 'INTERNAL_CONFIDENTIAL', name: 'Bảo mật nội bộ', color: '#3b82f6' },
-  { value: 'CONFIDENTIAL_CONTACT_REQUIRED', name: 'Bảo mật - liên hệ trước', color: '#fbbf24' },
-  { value: 'HIGHLY_CONFIDENTIAL', name: 'Tuyệt mật – chỉ người được chỉ định', color: '#f87171' },
+  { value: 'PUBLIC', name: AREA_LEVEL_CONFIG.PUBLIC.name, color: AREA_LEVEL_CONFIG.PUBLIC.color },
+  { value: 'INTERNAL_CONFIDENTIAL', name: AREA_LEVEL_CONFIG.INTERNAL_CONFIDENTIAL.name, color: AREA_LEVEL_CONFIG.INTERNAL_CONFIDENTIAL.color },
+  { value: 'CONFIDENTIAL_CONTACT_REQUIRED', name: AREA_LEVEL_CONFIG.CONFIDENTIAL_CONTACT_REQUIRED.name, color: AREA_LEVEL_CONFIG.CONFIDENTIAL_CONTACT_REQUIRED.color },
+  { value: 'HIGHLY_CONFIDENTIAL', name: AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name, color: AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.color },
 ];
 
 export default function AreaListPage() {
@@ -856,6 +856,7 @@ export default function AreaListPage() {
           cameraCounts={cameraCounts}
           isAdmin={isAdmin}
           isFacilityManager={isFacilityManager}
+          levelPresets={levelPresets}
           onSelectArea={(id) => handleSelectArea(id, false)}
           onOpenCreateModal={handleOpenCreateModal}
           onOpenCamerasModal={handleOpenCamerasModal}

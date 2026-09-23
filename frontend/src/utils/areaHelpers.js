@@ -58,7 +58,7 @@ export const AREA_LEVEL_CONFIG = {
 export function getLevelConfig(level) {
   let key = level;
   if (typeof level === 'object' && level !== null) {
-    key = level.code || level.areaLevel || level.level;
+    key = level.code || level.areaLevel || level.areaType || level.level;
   }
   if (key === 1 || key === '1') key = 'PUBLIC';
   if (key === 2 || key === '2' || key === 'SEMI_PRIVATE') key = 'INTERNAL_CONFIDENTIAL';
@@ -83,7 +83,7 @@ export function getLevelConfig(level) {
 export function getLevelPolygonClass(level) {
   let key = level;
   if (typeof level === 'object' && level !== null) {
-    key = level.code || level.areaLevel || level.level;
+    key = level.code || level.areaLevel || level.areaType || level.level;
   }
   if (key === 'PUBLIC' || key === 1 || key === '1') return 'zone-polygon--public';
   if (key === 'INTERNAL_CONFIDENTIAL' || key === 'SEMI_PRIVATE' || key === 2 || key === '2') return 'zone-polygon--internal';

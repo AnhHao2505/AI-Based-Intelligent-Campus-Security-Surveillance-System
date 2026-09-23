@@ -9,7 +9,7 @@ import {
 	Pencil,
 	Trash2,
 } from "lucide-react";
-import { getLevelConfig } from "../../utils/areaHelpers";
+import { getLevelConfig, AREA_LEVEL_CONFIG } from "../../utils/areaHelpers";
 
 export default function AreaListView({
 	floorAreas,
@@ -19,6 +19,7 @@ export default function AreaListView({
 	cameraCounts,
 	isAdmin,
 	isFacilityManager,
+	levelPresets,
 	onSelectArea,
 	onOpenCreateModal,
 	onOpenCamerasModal,
@@ -77,7 +78,7 @@ export default function AreaListView({
 										>
 											Level {area.areaAccessLevel ?? 1}
 										</span>
-										{isFacilityManager && area.differsFromPreset && (
+										{area.differsFromPreset && (
 											<span
 												className="zone-card__pill-differs"
 												title="Quy tắc truy cập của khu vực này khác với giá trị mặc định của loại khu vực"
@@ -209,92 +210,72 @@ export default function AreaListView({
 				</div>
 
 				<div className="zone-list-info-banner__grid">
-					{/* 1. PUBLIC */}
-					<div className="zone-list-info-banner__card zone-list-info-banner__card--public">
-						<div className="zone-list-info-banner__card-header">
-							<span className="zone-list-info-banner__card-badge level-badge level-badge--public">
-								Công khai
-							</span>
-							<span className="zone-list-info-banner__card-level">
-								Level 1+
-							</span>
-						</div>
-						<div className="zone-list-info-banner__card-desc">
-							Khu vực tự do ra vào cho tất cả người dùng hệ thống (Level 1, 2,
-							3).
-						</div>
-						<div className="zone-list-info-banner__card-personnel">
-							<span>Danh sách chỉ định:</span>
-							<span className="zone-list-info-banner__personnel-tag zone-list-info-banner__personnel-tag--none">
-								Không áp dụng
-							</span>
-						</div>
-					</div>
+					{['PUBLIC', 'INTERNAL_CONFIDENTIAL', 'CONFIDENTIAL_CONTACT_REQUIRED', 'HIGHLY_CONFIDENTIAL'].map((key) => {
+						const config = AREA_LEVEL_CONFIG[key] || getLevelConfig(key);
+						const preset = levelPresets?.[key];
+						const cardModifier =
+							key === 'PUBLIC'
+								? 'zone-list-info-banner__card--public'
+								: key === 'INTERNAL_CONFIDENTIAL'
+									? 'zone-list-info-banner__card--internal'
+									: key === 'CONFIDENTIAL_CONTACT_REQUIRED'
+										? 'zone-list-info-banner__card--contact'
+										: 'zone-list-info-banner__card--private';
 
-					{/* 2. INTERNAL_CONFIDENTIAL */}
-					<div className="zone-list-info-banner__card zone-list-info-banner__card--internal">
-						<div className="zone-list-info-banner__card-header">
-							<span className="zone-list-info-banner__card-badge level-badge level-badge--internal">
-								Bảo mật nội bộ
-							</span>
-							<span className="zone-list-info-banner__card-level">
-								Level 2+
-							</span>
-						</div>
-						<div className="zone-list-info-banner__card-desc">
-							Dành cho nhân sự, giảng viên, cán bộ campus (từ Level 2 trở lên)
-							tự do truy cập hoặc có đơn / nhân sự chỉ định.
-						</div>
-						<div className="zone-list-info-banner__card-personnel">
-							<span>Danh sách chỉ định:</span>
-							<span className="zone-list-info-banner__personnel-tag zone-list-info-banner__personnel-tag--has">
-								<Users size={11} /> Có áp dụng
-							</span>
-						</div>
-					</div>
+						const hasLevel = preset && preset.areaAccessLevel != null;
+						const levelLabel = hasLevel
+							? `Level ${preset.areaAccessLevel}${preset.explicitAuthorizationRequired ? ' · Chỉ định' : '+'}`
+							: null;
 
-					{/* 3. CONFIDENTIAL_CONTACT_REQUIRED */}
-					<div className="zone-list-info-banner__card zone-list-info-banner__card--contact">
-						<div className="zone-list-info-banner__card-header">
-							<span className="zone-list-info-banner__card-badge level-badge level-badge--contact">
-								Liên hệ trước
-							</span>
-							<span className="zone-list-info-banner__card-level">
-								Level 3 (hoặc có đơn/gán)
-							</span>
-						</div>
-						<div className="zone-list-info-banner__card-desc">
-							Người dùng Level 1, 2 cần gửi đơn đăng ký hoặc có nhân sự chỉ định
-							trước khi vào. Level 3 tự do ra vào.
-						</div>
-						<div className="zone-list-info-banner__card-personnel">
-							<span>Danh sách chỉ định:</span>
-							<span className="zone-list-info-banner__personnel-tag zone-list-info-banner__personnel-tag--has">
-								<Users size={11} /> Có áp dụng
-							</span>
-						</div>
-					</div>
+						let explicitTag = null;
+						if (key === 'PUBLIC') {
+							explicitTag = (
+								<span className="zone-list-info-banner__personnel-tag zone-list-info-banner__personnel-tag--none">
+									Không áp dụng
+								</span>
+							);
+						} else if (!preset) {
+							explicitTag = (
+								<span className="zone-list-info-banner__personnel-tag zone-list-info-banner__personnel-tag--none">
+									—
+								</span>
+							);
+						} else if (preset.explicitAuthorizationRequired) {
+							explicitTag = (
+								<span className="zone-list-info-banner__personnel-tag zone-list-info-banner__personnel-tag--has">
+									<Users size={11} /> Bắt buộc chỉ định
+								</span>
+							);
+						} else {
+							explicitTag = (
+								<span className="zone-list-info-banner__personnel-tag zone-list-info-banner__personnel-tag--none">
+									Không bắt buộc
+								</span>
+							);
+						}
 
-					{/* 4. HIGHLY_CONFIDENTIAL */}
-					<div className="zone-list-info-banner__card zone-list-info-banner__card--private">
-						<div className="zone-list-info-banner__card-header">
-							<span className="zone-list-info-banner__card-badge level-badge level-badge--private">
-								Tuyệt mật
-							</span>
-							<span className="zone-list-info-banner__card-level">
-								Chỉ người được chỉ định
-							</span>
-						</div>
-						<div className="zone-list-info-banner__card-desc">
-							Khu vực an ninh đặc biệt nghiêm ngặt. Chỉ người được chỉ định mới được phép vào.
-						</div>
-						<div className="zone-list-info-banner__card-personnel">
-							<span>Danh sách chỉ định:</span>
-							<span className="zone-list-info-banner__personnel-tag zone-list-info-banner__personnel-tag--has">
-								<Users size={11} /> Có Áp dụng
-							</span>
-						</div>
-					</div>
+						return (
+							<div key={key} className={`zone-list-info-banner__card ${cardModifier}`}>
+								<div className="zone-list-info-banner__card-header">
+									<span className={`zone-list-info-banner__card-badge level-badge ${config.badgeClass}`}>
+										{config.badgeLabel}
+									</span>
+									{levelLabel && (
+										<span className="zone-list-info-banner__card-level">
+											{levelLabel}
+										</span>
+									)}
+								</div>
+								<div className="zone-list-info-banner__card-desc">
+									{config.description}
+								</div>
+								<div className="zone-list-info-banner__card-personnel">
+									<span>Chỉ định đích danh:</span>
+									{explicitTag}
+								</div>
+							</div>
+						);
+					})}
 				</div>
 
 				<div className="zone-list-info-banner__footer">
@@ -310,7 +291,7 @@ export default function AreaListView({
 							style={{ display: "inline", margin: "0 2px" }}
 						/>
 						) hiển thị trên thẻ của mọi phòng trừ loại{" "}
-						<strong>Công khai (PUBLIC)</strong> để cấp quyền ra vào cho nhân
+						<strong>{AREA_LEVEL_CONFIG.PUBLIC.name} (PUBLIC)</strong> để cấp quyền ra vào cho nhân
 						sự.
 					</span>
 				</div>
