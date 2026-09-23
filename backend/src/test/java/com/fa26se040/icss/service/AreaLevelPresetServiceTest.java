@@ -116,6 +116,53 @@ class AreaLevelPresetServiceTest {
     }
 
     @Test
+    @DisplayName("E.1: Cập nhật preset ghi nhận audit log đầy đủ các trường qua ArgumentCaptor (targetType, action, targetId, snapshots, reason, changedBy)")
+    void updatePreset_AuditsChange_WithArgumentCaptor() {
+        when(userRepository.findByEmail("fm@fpt.edu.vn")).thenReturn(Optional.of(fm));
+        when(presetRepository.findById(AreaLevel.PUBLIC)).thenReturn(Optional.of(publicPreset));
+        when(presetRepository.save(any(AreaLevelPreset.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        LevelPresetUpdateRequest req = new LevelPresetUpdateRequest(2, true, "Tăng cường bảo vệ sảnh", 0L);
+        presetService.updatePreset(AreaLevel.PUBLIC, req, "fm@fpt.edu.vn");
+
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.enums.AccessControlTargetType> targetTypeCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.enums.AccessControlTargetType.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.enums.AccessControlAction> actionCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.enums.AccessControlAction.class);
+        org.mockito.ArgumentCaptor<String> targetIdCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
+        org.mockito.ArgumentCaptor<Area> areaCaptor = org.mockito.ArgumentCaptor.forClass(Area.class);
+        org.mockito.ArgumentCaptor<User> userCaptor = org.mockito.ArgumentCaptor.forClass(User.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot> oldSnapshotCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot> newSnapshotCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot.class);
+        org.mockito.ArgumentCaptor<String> reasonCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
+        org.mockito.ArgumentCaptor<User> actorCaptor = org.mockito.ArgumentCaptor.forClass(User.class);
+
+        verify(auditService, org.mockito.Mockito.times(1)).record(
+                targetTypeCaptor.capture(),
+                actionCaptor.capture(),
+                targetIdCaptor.capture(),
+                areaCaptor.capture(),
+                userCaptor.capture(),
+                oldSnapshotCaptor.capture(),
+                newSnapshotCaptor.capture(),
+                reasonCaptor.capture(),
+                actorCaptor.capture()
+        );
+
+        assertEquals(com.fa26se040.icss.enums.AccessControlTargetType.LEVEL_PRESET, targetTypeCaptor.getValue());
+        assertEquals(com.fa26se040.icss.enums.AccessControlAction.UPDATE, actionCaptor.getValue());
+        assertEquals("PUBLIC", targetIdCaptor.getValue());
+        org.junit.jupiter.api.Assertions.assertNull(areaCaptor.getValue());
+        org.junit.jupiter.api.Assertions.assertNull(userCaptor.getValue());
+        assertEquals(new com.fa26se040.icss.dto.accesscontrol.snapshot.LevelPresetAuditSnapshot(1, false), oldSnapshotCaptor.getValue());
+        assertEquals(new com.fa26se040.icss.dto.accesscontrol.snapshot.LevelPresetAuditSnapshot(2, true), newSnapshotCaptor.getValue());
+        assertEquals("Tăng cường bảo vệ sảnh", reasonCaptor.getValue());
+        assertEquals(fm, actorCaptor.getValue());
+    }
+
+    @Test
     @DisplayName("Cập nhật preset không tìm thấy loại khu vực -> ném AccessControlException(ERR_AC_004)")
     void updatePreset_NotFound_ThrowsNotFound() {
         when(userRepository.findByEmail("fm@fpt.edu.vn")).thenReturn(Optional.of(fm));

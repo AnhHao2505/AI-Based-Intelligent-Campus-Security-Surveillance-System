@@ -13,8 +13,11 @@ import jakarta.persistence.PersistenceException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.SpyBean;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
@@ -25,9 +28,19 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
+@AutoConfigureMockMvc
 class AccessControlAuditLogIntegrationTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private com.fa26se040.icss.security.JwtTokenProvider jwtTokenProvider;
 
     @Autowired
     private EntityManager entityManager;
@@ -184,5 +197,81 @@ class AccessControlAuditLogIntegrationTest {
 
         AreaResponse resp2 = areaService.getAreaById(area.getId());
         assertTrue(resp2.differsFromPreset(), "Khác preset thì differsFromPreset phải là true");
+    }
+
+    @Test
+    @Transactional
+    @DisplayName("BR-AL-03: Gửi request qua MockMvc với lý do trống/null -> 400, dữ liệu DB không đổi và không có audit log")
+    void testMissingOrBlankReason_ViaMockMvc_DoesNotChangeDataAndRecordsNoAuditLog() throws Exception {
+        String uniqueSuffix = UUID.randomUUID().toString().substring(0, 8);
+        User fmActor = User.builder()
+                .userCode("FM-" + uniqueSuffix)
+                .fullName("FM MockMvc Reason Test")
+                .email("fm-" + uniqueSuffix + "@fpt.edu.vn")
+                .role(Role.FACILITY_MANAGER)
+                .isActive(true)
+                .build();
+        fmActor = userRepository.save(fmActor);
+        String token = "Bearer " + jwtTokenProvider.generateToken(fmActor);
+
+        User targetUser = User.builder()
+                .userCode("USR-" + uniqueSuffix)
+                .fullName("Target User Reason Test")
+                .email("usr-" + uniqueSuffix + "@fpt.edu.vn")
+                .role(Role.NORMAL_USER)
+                .accessLevel(1)
+                .isActive(true)
+                .build();
+        targetUser = userRepository.save(targetUser);
+
+        Area testArea = Area.builder()
+                .code("AREA-" + uniqueSuffix)
+                .name("Area Reason Test")
+                .areaLevel(AreaLevel.PUBLIC)
+                .areaAccessLevel(1)
+                .explicitAuthorizationRequired(false)
+                .isActive(true)
+                .build();
+        testArea = areaRepository.save(testArea);
+        entityManager.flush();
+
+        // 1. Thử cập nhật User access level với reason = "" qua MockMvc -> 400
+        mockMvc.perform(patch("/api/users/{id}/access-level", targetUser.getId())
+                        .header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"accessLevel\": 3, \"reason\": \"   \"}"))
+                .andExpect(status().isBadRequest());
+
+        // 2. Thử cập nhật Area access rules với reason = null qua MockMvc -> 400
+        mockMvc.perform(patch("/api/areas/{id}/access-rules", testArea.getId())
+                        .header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"areaAccessLevel\": 3, \"explicitAuthorizationRequired\": true, \"reason\": null}"))
+                .andExpect(status().isBadRequest());
+
+        // 3. Thử cập nhật Preset với reason = 501 chars qua MockMvc -> 400
+        mockMvc.perform(put("/api/access-control/level-presets/{areaLevel}", AreaLevel.PUBLIC)
+                        .header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"areaAccessLevel\": 2, \"explicitAuthorizationRequired\": true, \"reason\": \"" + "a".repeat(501) + "\", \"version\": 0}"))
+                .andExpect(status().isBadRequest());
+
+        entityManager.flush();
+        entityManager.clear();
+
+        // Kiểm tra trên PostgreSQL thật: dữ liệu User không bị thay đổi
+        User refreshedUser = userRepository.findById(targetUser.getId()).orElseThrow();
+        assertEquals(1, refreshedUser.getAccessLevel(), "User access level trong DB phải giữ nguyên là 1");
+
+        // Kiểm tra trên PostgreSQL thật: dữ liệu Area không bị thay đổi
+        Area refreshedArea = areaRepository.findById(testArea.getId()).orElseThrow();
+        assertEquals(1, refreshedArea.getAreaAccessLevel(), "Area access level trong DB phải giữ nguyên là 1");
+        assertFalse(refreshedArea.getExplicitAuthorizationRequired(), "explicitAuthorizationRequired phải giữ nguyên là false");
+
+        // Kiểm tra trên PostgreSQL thật: không có bản ghi nào được ghi vào access_control_audit_logs bởi actor này
+        Number auditCount = (Number) entityManager.createNativeQuery(
+                "SELECT COUNT(*) FROM access_control_audit_logs WHERE changed_by = :actorId"
+        ).setParameter("actorId", fmActor.getId()).getSingleResult();
+        assertEquals(0, auditCount.intValue(), "Không có bản ghi audit log nào được ghi vào DB khi request bị từ chối");
     }
 }

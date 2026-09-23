@@ -82,6 +82,43 @@ class AreaControllerAccessLevelTest {
     }
 
     @Test
+    @DisplayName("BR-AL-03: PATCH /api/areas/{id}/access-rules với reason null, rỗng, khoảng trắng, 501 ký tự -> 400 Bad Request và service không được gọi")
+    void updateAccessRules_ReasonValidation_Returns400_AndServiceNeverCalled() throws Exception {
+        UUID areaId = UUID.randomUUID();
+
+        // 1. reason = null
+        String bodyNull = "{\"areaAccessLevel\": 2, \"explicitAuthorizationRequired\": false, \"reason\": null}";
+        mockMvc.perform(patch("/api/areas/{id}/access-rules", areaId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bodyNull))
+                .andExpect(status().isBadRequest());
+
+        // 2. reason = ""
+        String bodyEmpty = "{\"areaAccessLevel\": 2, \"explicitAuthorizationRequired\": false, \"reason\": \"\"}";
+        mockMvc.perform(patch("/api/areas/{id}/access-rules", areaId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bodyEmpty))
+                .andExpect(status().isBadRequest());
+
+        // 3. reason = "   "
+        String bodySpaces = "{\"areaAccessLevel\": 2, \"explicitAuthorizationRequired\": false, \"reason\": \"   \"}";
+        mockMvc.perform(patch("/api/areas/{id}/access-rules", areaId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bodySpaces))
+                .andExpect(status().isBadRequest());
+
+        // 4. reason = 501 ký tự
+        String body501 = "{\"areaAccessLevel\": 2, \"explicitAuthorizationRequired\": false, \"reason\": \"" + "a".repeat(501) + "\"}";
+        mockMvc.perform(patch("/api/areas/{id}/access-rules", areaId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body501))
+                .andExpect(status().isBadRequest());
+
+        org.mockito.Mockito.verify(areaService, org.mockito.Mockito.never())
+                .updateAccessRules(any(), any(), any());
+    }
+
+    @Test
     @DisplayName("PATCH /api/areas/{id}/access-rules cho area inactive/đã xoá -> 400 Bad Request")
     void updateAccessRules_InactiveArea_Returns400() throws Exception {
         UUID areaId = UUID.randomUUID();

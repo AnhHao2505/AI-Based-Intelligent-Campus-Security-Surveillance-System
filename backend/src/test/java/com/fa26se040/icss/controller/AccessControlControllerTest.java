@@ -34,6 +34,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -109,13 +110,38 @@ class AccessControlControllerTest {
     }
 
     @Test
-    @DisplayName("PATCH /api/access-control/level-presets/{areaType} thiếu reason hoặc reason rỗng -> 400 Bad Request")
-    void updateLevelPreset_BlankReason_Returns400() throws Exception {
-        LevelPresetUpdateRequest req = new LevelPresetUpdateRequest(2, false, "   ", 0L);
+    @DisplayName("BR-AL-03: PUT/PATCH /api/access-control/level-presets/{areaType} với reason null, rỗng, khoảng trắng, 501 ký tự -> 400 Bad Request và service không được gọi")
+    void updateLevelPreset_ReasonValidation_Returns400_AndServiceNeverCalled() throws Exception {
+        // 1. reason = null
+        String bodyNull = "{\"areaAccessLevel\": 2, \"explicitAuthorizationRequired\": false, \"reason\": null, \"version\": 0}";
         mockMvc.perform(patch("/api/access-control/level-presets/{areaType}", "PUBLIC")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
+                        .content(bodyNull))
                 .andExpect(status().isBadRequest());
+
+        // 2. reason = ""
+        String bodyEmpty = "{\"areaAccessLevel\": 2, \"explicitAuthorizationRequired\": false, \"reason\": \"\", \"version\": 0}";
+        mockMvc.perform(put("/api/access-control/level-presets/{areaType}", "PUBLIC")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bodyEmpty))
+                .andExpect(status().isBadRequest());
+
+        // 3. reason = "   "
+        String bodySpaces = "{\"areaAccessLevel\": 2, \"explicitAuthorizationRequired\": false, \"reason\": \"   \", \"version\": 0}";
+        mockMvc.perform(patch("/api/access-control/level-presets/{areaType}", "PUBLIC")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bodySpaces))
+                .andExpect(status().isBadRequest());
+
+        // 4. reason = 501 ký tự
+        String body501 = "{\"areaAccessLevel\": 2, \"explicitAuthorizationRequired\": false, \"reason\": \"" + "a".repeat(501) + "\", \"version\": 0}";
+        mockMvc.perform(put("/api/access-control/level-presets/{areaType}", "PUBLIC")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body501))
+                .andExpect(status().isBadRequest());
+
+        org.mockito.Mockito.verify(presetService, org.mockito.Mockito.never())
+                .updatePreset(any(), any(), any());
     }
 
     @Test

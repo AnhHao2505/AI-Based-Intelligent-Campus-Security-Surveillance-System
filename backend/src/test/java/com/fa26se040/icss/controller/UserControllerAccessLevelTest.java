@@ -127,6 +127,43 @@ class UserControllerAccessLevelTest {
     }
 
     @Test
+    @DisplayName("BR-AL-03: PATCH /api/users/{id}/access-level với reason null, rỗng, khoảng trắng, 501 ký tự -> 400 Bad Request và service không được gọi")
+    void updateAccessLevel_ReasonValidation_Returns400_AndServiceNeverCalled() throws Exception {
+        UUID userId = UUID.randomUUID();
+
+        // 1. reason = null
+        String bodyNull = "{\"accessLevel\": 2, \"reason\": null}";
+        mockMvc.perform(patch("/api/users/{id}/access-level", userId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bodyNull))
+                .andExpect(status().isBadRequest());
+
+        // 2. reason = ""
+        String bodyEmpty = "{\"accessLevel\": 2, \"reason\": \"\"}";
+        mockMvc.perform(patch("/api/users/{id}/access-level", userId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bodyEmpty))
+                .andExpect(status().isBadRequest());
+
+        // 3. reason = "   "
+        String bodySpaces = "{\"accessLevel\": 2, \"reason\": \"   \"}";
+        mockMvc.perform(patch("/api/users/{id}/access-level", userId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bodySpaces))
+                .andExpect(status().isBadRequest());
+
+        // 4. reason = 501 ký tự
+        String body501 = "{\"accessLevel\": 2, \"reason\": \"" + "a".repeat(501) + "\"}";
+        mockMvc.perform(patch("/api/users/{id}/access-level", userId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body501))
+                .andExpect(status().isBadRequest());
+
+        org.mockito.Mockito.verify(userService, org.mockito.Mockito.never())
+                .updateAccessLevel(any(), any(), any(), any());
+    }
+
+    @Test
     @DisplayName("PATCH /api/users/{id}/access-level hợp lệ (1..3) -> 200 OK")
     void updateAccessLevel_Valid_Returns200() throws Exception {
         UUID userId = UUID.randomUUID();

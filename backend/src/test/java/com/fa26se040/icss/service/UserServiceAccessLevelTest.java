@@ -194,6 +194,96 @@ class UserServiceAccessLevelTest {
     }
 
     @Test
+    @DisplayName("E.1: updateAccessLevel ghi nhận audit log với đầy đủ tham số qua ArgumentCaptor")
+    void updateAccessLevel_AuditsChange_WithArgumentCaptor() {
+        UUID actorId = UUID.randomUUID();
+        String actorEmail = "fm@fpt.edu.vn";
+        User actor = User.builder().id(actorId).email(actorEmail).role(Role.FACILITY_MANAGER).build();
+        when(userRepository.findByEmail(actorEmail)).thenReturn(Optional.of(actor));
+
+        UUID targetUserId = UUID.randomUUID();
+        User targetUser = User.builder()
+                .id(targetUserId)
+                .userCode("NV001")
+                .fullName("Nhân Viên")
+                .role(Role.NORMAL_USER)
+                .accessLevel(1)
+                .isActive(true)
+                .build();
+
+        when(userRepository.findById(targetUserId)).thenReturn(Optional.of(targetUser));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        userService.updateAccessLevel(targetUserId, 3, "Nâng quyền nhân viên", actorEmail);
+
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.enums.AccessControlTargetType> targetTypeCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.enums.AccessControlTargetType.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.enums.AccessControlAction> actionCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.enums.AccessControlAction.class);
+        org.mockito.ArgumentCaptor<String> targetIdCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.entity.Area> areaCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.entity.Area.class);
+        org.mockito.ArgumentCaptor<User> userCaptor = org.mockito.ArgumentCaptor.forClass(User.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot> oldSnapshotCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot> newSnapshotCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot.class);
+        org.mockito.ArgumentCaptor<String> reasonCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
+        org.mockito.ArgumentCaptor<User> actorCaptor = org.mockito.ArgumentCaptor.forClass(User.class);
+
+        verify(auditService, org.mockito.Mockito.times(1)).record(
+                targetTypeCaptor.capture(),
+                actionCaptor.capture(),
+                targetIdCaptor.capture(),
+                areaCaptor.capture(),
+                userCaptor.capture(),
+                oldSnapshotCaptor.capture(),
+                newSnapshotCaptor.capture(),
+                reasonCaptor.capture(),
+                actorCaptor.capture()
+        );
+
+        assertEquals(com.fa26se040.icss.enums.AccessControlTargetType.USER_ACCESS_LEVEL, targetTypeCaptor.getValue());
+        assertEquals(com.fa26se040.icss.enums.AccessControlAction.UPDATE, actionCaptor.getValue());
+        assertEquals(targetUserId.toString(), targetIdCaptor.getValue());
+        org.junit.jupiter.api.Assertions.assertNull(areaCaptor.getValue());
+        assertEquals(targetUser, userCaptor.getValue());
+        assertEquals(new com.fa26se040.icss.dto.accesscontrol.snapshot.UserAccessLevelAuditSnapshot(1), oldSnapshotCaptor.getValue());
+        assertEquals(new com.fa26se040.icss.dto.accesscontrol.snapshot.UserAccessLevelAuditSnapshot(3), newSnapshotCaptor.getValue());
+        assertEquals("Nâng quyền nhân viên", reasonCaptor.getValue());
+        assertEquals(actor, actorCaptor.getValue());
+    }
+
+    @Test
+    @DisplayName("BR-AL-06: updateAccessLevel no-op (level không đổi) -> không lưu DB, không ghi audit log")
+    void updateAccessLevel_NoOp_DoesNotSaveOrAudit() {
+        UUID actorId = UUID.randomUUID();
+        String actorEmail = "fm@fpt.edu.vn";
+        User actor = User.builder().id(actorId).email(actorEmail).role(Role.FACILITY_MANAGER).build();
+        when(userRepository.findByEmail(actorEmail)).thenReturn(Optional.of(actor));
+
+        UUID targetUserId = UUID.randomUUID();
+        User targetUser = User.builder()
+                .id(targetUserId)
+                .userCode("NV001")
+                .fullName("Nhân Viên")
+                .role(Role.NORMAL_USER)
+                .accessLevel(1)
+                .isActive(true)
+                .build();
+
+        when(userRepository.findById(targetUserId)).thenReturn(Optional.of(targetUser));
+
+        UserSearchResponse resp = userService.updateAccessLevel(targetUserId, 1, "Giữ nguyên cấp độ", actorEmail);
+
+        assertNotNull(resp);
+        assertEquals(1, resp.accessLevel());
+
+        verify(userRepository, org.mockito.Mockito.never()).save(any(User.class));
+        verify(auditService, org.mockito.Mockito.never()).record(any(), any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
     @DisplayName("updateAccessLevel: FM không được tự sửa access level của chính mình -> ném AccessDeniedException")
     void updateAccessLevel_SelfUpdate_ThrowsAccessDeniedException() {
         UUID myId = UUID.randomUUID();
