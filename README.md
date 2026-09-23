@@ -69,8 +69,8 @@ docker exec -i sep_postgres psql -U sep -d campus_security < scripts/demo-seed.s
 | 9 | Trần Văn Nam | `student.nam@fpt.edu.vn` | **NORMAL_USER** | Level 1 | Sinh viên, trưởng nhóm đăng ký truy cập nhóm vào Lab IoT |
 | 10 | Vũ Thùy Linh | `student.linh@fpt.edu.vn` | **NORMAL_USER** | Level 1 | Sinh viên, gửi đơn vào Phòng Server (bị từ chối - REJECTED) |
 | 11 | TS. Lê Hùng | `lecturer.hung@fpt.edu.vn` | **NORMAL_USER** | Level 2 | Giảng viên, được chỉ định vào Lab AI (sắp hiệu lực) |
-| 12 | ThS. Đỗ Tuyết Mai | `lecturer.mai@fpt.edu.vn` | **NORMAL_USER** | Level 2 | Giảng viên, có đơn duyệt đang trong khung giờ Phòng họp 1 |
-| 13 | TS. Bùi Đăng Khoa | `lecturer.khoa@fpt.edu.vn` | **NORMAL_USER** | Level 2 | Giảng viên, đơn đăng ký đã kết thúc (FINISHED) |
+| 12 | ThS. Đỗ Tuyết Mai | `lecturer.mai@fpt.edu.vn` | **NORMAL_USER** | Level 2 | Giảng viên, có đơn duyệt đang trong khung giờ Lab AI (cấp quyền vào khu vực Level 3) |
+| 13 | TS. Bùi Đăng Khoa | `lecturer.khoa@fpt.edu.vn` | **NORMAL_USER** | Level 2 | Giảng viên, đơn đăng ký đã kết thúc (FINISHED - Phòng LB01) |
 | 14 | Đặng Quốc Cường | `it.cuong@fpt.edu.vn` | **NORMAL_USER** | Level 3 | Kỹ sư IT, chỉ định Phòng Server (đang hiệu lực không thời hạn) |
 | 15 | Nguyễn Hoàng Phúc | `it.phuc@fpt.edu.vn` | **NORMAL_USER** | Level 3 | Kỹ sư Mạng, chỉ định Phòng điện (sắp hết hạn trong vài giờ) |
 | 16 | Võ Anh Tuấn | `it.tuan@fpt.edu.vn` | **NORMAL_USER** | Level 3 | Admin IT hệ thống, người dùng cấp độ an ninh Level 3 |
@@ -86,10 +86,10 @@ Hệ thống sử dụng hệ toạ độ chuẩn hoá `[0.0, 1.0]` tương ứn
   - `FPTA-G-GATE`: Cổng chính (PUBLIC, Level 1)
   - `FPTA-G-LOTUS`: Hồ Sen tầng G (PUBLIC, Level 1)
   - `FPTA-G-CAN`: Căng tin tầng G (PUBLIC, Level 1)
-  - `FPTA-G-LIB`: Thư viện tầng G (INTERNAL_CONFIDENTIAL, Level 2)
-  - `FPTA-G-LB01`: Phòng LB01 (HIGHLY_CONFIDENTIAL, Level 3, Explicit)
-  - `FPTA-G-LB02`: Phòng LB02 (HIGHLY_CONFIDENTIAL, Level 3, Explicit)
-  - `FPTA-G-MED`: Phòng Y tế (HIGHLY_CONFIDENTIAL, Level 3, Explicit)
+  - `FPTA-G-LIB`: Thư viện tầng G (PUBLIC, Level 1)
+  - `FPTA-G-MED`: Phòng Y tế (PUBLIC, Level 1)
+  - `FPTA-G-LB01`: Phòng LB01 (CONFIDENTIAL_CONTACT_REQUIRED, Level 3)
+  - `FPTA-G-LB02`: Phòng LB02 (CONFIDENTIAL_CONTACT_REQUIRED, Level 3)
 - **Tầng 1**:
   - `FPTA-1-LEC`: Phòng giảng viên (INTERNAL_CONFIDENTIAL, Level 2)
   - `FPTA-1-MR1`: Phòng họp tầng 1 (INTERNAL_CONFIDENTIAL, Level 2)

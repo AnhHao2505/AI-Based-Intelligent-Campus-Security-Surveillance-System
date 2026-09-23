@@ -53,8 +53,8 @@
 | **Sinh viên (NORMAL_USER - L1)** | `student.nam@fpt.edu.vn` | `123456` | `SV-003` | Sinh viên, trưởng nhóm đăng ký truy cập nhóm vào Lab IoT |
 | **Sinh viên (NORMAL_USER - L1)** | `student.linh@fpt.edu.vn` | `123456` | `SV-004` | Sinh viên, gửi đơn vào Phòng Server (bị từ chối) |
 | **Giảng viên (NORMAL_USER - L2)** | `lecturer.hung@fpt.edu.vn` | `123456` | `GV-001` | Giảng viên, được chỉ định vào Lab AI (sắp hiệu lực) |
-| **Giảng viên (NORMAL_USER - L2)** | `lecturer.mai@fpt.edu.vn` | `123456` | `GV-002` | Giảng viên, đơn đã duyệt trong khung giờ Phòng họp 1 |
-| **Giảng viên (NORMAL_USER - L2)** | `lecturer.khoa@fpt.edu.vn` | `123456` | `GV-003` | Giảng viên, đơn đăng ký đã kết thúc (FINISHED) |
+| **Giảng viên (NORMAL_USER - L2)** | `lecturer.mai@fpt.edu.vn` | `123456` | `GV-002` | Giảng viên, đơn đã duyệt trong khung giờ Lab AI (cấp quyền vào khu vực Level 3) |
+| **Giảng viên (NORMAL_USER - L2)** | `lecturer.khoa@fpt.edu.vn` | `123456` | `GV-003` | Giảng viên, đơn đăng ký đã kết thúc (FINISHED - Phòng LB01) |
 | **Kỹ thuật IT (NORMAL_USER - L3)** | `it.cuong@fpt.edu.vn` | `123456` | `IT-001` | Kỹ sư IT, chỉ định Phòng Server (đang hiệu lực không thời hạn) |
 | **Kỹ thuật IT (NORMAL_USER - L3)** | `it.phuc@fpt.edu.vn` | `123456` | `IT-002` | Kỹ sư Mạng, chỉ định Phòng điện (sắp hết hạn trong vài giờ) |
 | **Kỹ thuật IT (NORMAL_USER - L3)** | `it.tuan@fpt.edu.vn` | `123456` | `IT-003` | Admin IT hệ thống, người dùng cấp độ an ninh Level 3 |

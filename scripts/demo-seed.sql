@@ -69,23 +69,53 @@ SET
 -- Toà FPT_AROUND, tầng G, 1, 2. Bounding box không chồng lấn.
 -- ----------------------------------------------------------------------------
 
--- 2.1. Cập nhật toạ độ Geometry cho 6 khu vực seed sẵn trong migration (Tầng G)
-UPDATE areas SET geometry = '{"type":"polygon","version":1,"vertices":[{"x":0.05,"y":0.10},{"x":0.25,"y":0.10},{"x":0.25,"y":0.35},{"x":0.05,"y":0.35}]}'::jsonb
+-- 2.1. Cập nhật phân loại và toạ độ Geometry cho 6 khu vực seed sẵn trong migration (Tầng G)
+UPDATE areas
+SET area_level = 'PUBLIC',
+    area_access_level = 1,
+    explicit_authorization_required = false,
+    geometry = '{"type":"polygon","version":1,"vertices":[{"x":0.05,"y":0.10},{"x":0.25,"y":0.10},{"x":0.25,"y":0.35},{"x":0.05,"y":0.35}]}'::jsonb,
+    updated_at = CURRENT_TIMESTAMP
 WHERE code = 'FPTA-G-GATE';
 
-UPDATE areas SET geometry = '{"type":"polygon","version":1,"vertices":[{"x":0.30,"y":0.10},{"x":0.50,"y":0.10},{"x":0.50,"y":0.35},{"x":0.30,"y":0.35}]}'::jsonb
+UPDATE areas
+SET area_level = 'PUBLIC',
+    area_access_level = 1,
+    explicit_authorization_required = false,
+    geometry = '{"type":"polygon","version":1,"vertices":[{"x":0.30,"y":0.10},{"x":0.50,"y":0.10},{"x":0.50,"y":0.35},{"x":0.30,"y":0.35}]}'::jsonb,
+    updated_at = CURRENT_TIMESTAMP
 WHERE code = 'FPTA-G-LOTUS';
 
-UPDATE areas SET geometry = '{"type":"polygon","version":1,"vertices":[{"x":0.80,"y":0.10},{"x":0.95,"y":0.10},{"x":0.95,"y":0.35},{"x":0.80,"y":0.35}]}'::jsonb
+UPDATE areas
+SET area_level = 'PUBLIC',
+    area_access_level = 1,
+    explicit_authorization_required = false,
+    geometry = '{"type":"polygon","version":1,"vertices":[{"x":0.80,"y":0.10},{"x":0.95,"y":0.10},{"x":0.95,"y":0.35},{"x":0.80,"y":0.35}]}'::jsonb,
+    updated_at = CURRENT_TIMESTAMP
 WHERE code = 'FPTA-G-LIB';
 
-UPDATE areas SET geometry = '{"type":"polygon","version":1,"vertices":[{"x":0.05,"y":0.55},{"x":0.30,"y":0.55},{"x":0.30,"y":0.85},{"x":0.05,"y":0.85}]}'::jsonb
+UPDATE areas
+SET area_level = 'CONFIDENTIAL_CONTACT_REQUIRED',
+    area_access_level = 3,
+    explicit_authorization_required = false,
+    geometry = '{"type":"polygon","version":1,"vertices":[{"x":0.05,"y":0.55},{"x":0.30,"y":0.55},{"x":0.30,"y":0.85},{"x":0.05,"y":0.85}]}'::jsonb,
+    updated_at = CURRENT_TIMESTAMP
 WHERE code = 'FPTA-G-LB01';
 
-UPDATE areas SET geometry = '{"type":"polygon","version":1,"vertices":[{"x":0.35,"y":0.55},{"x":0.60,"y":0.55},{"x":0.60,"y":0.85},{"x":0.35,"y":0.85}]}'::jsonb
+UPDATE areas
+SET area_level = 'CONFIDENTIAL_CONTACT_REQUIRED',
+    area_access_level = 3,
+    explicit_authorization_required = false,
+    geometry = '{"type":"polygon","version":1,"vertices":[{"x":0.35,"y":0.55},{"x":0.60,"y":0.55},{"x":0.60,"y":0.85},{"x":0.35,"y":0.85}]}'::jsonb,
+    updated_at = CURRENT_TIMESTAMP
 WHERE code = 'FPTA-G-LB02';
 
-UPDATE areas SET geometry = '{"type":"polygon","version":1,"vertices":[{"x":0.65,"y":0.55},{"x":0.90,"y":0.55},{"x":0.90,"y":0.85},{"x":0.65,"y":0.85}]}'::jsonb
+UPDATE areas
+SET area_level = 'PUBLIC',
+    area_access_level = 1,
+    explicit_authorization_required = false,
+    geometry = '{"type":"polygon","version":1,"vertices":[{"x":0.65,"y":0.55},{"x":0.90,"y":0.55},{"x":0.90,"y":0.85},{"x":0.65,"y":0.85}]}'::jsonb,
+    updated_at = CURRENT_TIMESTAMP
 WHERE code = 'FPTA-G-MED';
 
 -- 2.2. Thêm 8 khu vực mới để đủ 4 phân loại và các tầng G, 1, 2
@@ -225,11 +255,11 @@ VALUES
      now() + interval '1 day', now() + interval '1 day 4 hours',
      'PENDING', NULL, NULL, NULL, now() - interval '2 hours', now() - interval '2 hours'),
 
-    -- 2. Đã duyệt đang trong khung giờ (INDIVIDUAL)
+    -- 2. Đã duyệt đang trong khung giờ (INDIVIDUAL) - Giảng viên Level 2 cần đơn để vào Lab AI Level 3
     ('b1000000-0000-0000-0000-000000000002',
-     (SELECT id FROM areas WHERE code = 'FPTA-1-MR1'),
+     (SELECT id FROM areas WHERE code = 'FPTA-1-AI'),
      (SELECT id FROM users WHERE email = 'lecturer.mai@fpt.edu.vn'),
-     'INDIVIDUAL', 'Họp hội đồng thẩm định giáo trình học kỳ mới',
+     'INDIVIDUAL', 'Thực nghiệm mô hình AI phục vụ nghiên cứu đề tài khoa học',
      now() - interval '1 hour', now() + interval '2 hours',
      'APPROVED', (SELECT id FROM users WHERE email = 'manager.binh@fpt.edu.vn'), now() - interval '1 day', NULL,
      now() - interval '1 day 2 hours', now() - interval '1 day'),
@@ -253,16 +283,20 @@ VALUES
      'Khu vực bảo mật cấp độ cao, sinh viên không được phép truy cập theo quy định',
      now() - interval '5 hours', now() - interval '3 hours'),
 
-    -- 5. Đã kết thúc (FINISHED, INDIVIDUAL)
+    -- 5. Đã kết thúc (FINISHED, INDIVIDUAL) - Giảng viên Level 2 cần đơn để vào Phòng LB01 Level 3
     ('b1000000-0000-0000-0000-000000000005',
-     (SELECT id FROM areas WHERE code = 'FPTA-1-LEC'),
+     (SELECT id FROM areas WHERE code = 'FPTA-G-LB01'),
      (SELECT id FROM users WHERE email = 'lecturer.khoa@fpt.edu.vn'),
-     'INDIVIDUAL', 'Tiếp sinh viên giải đáp thắc mắc đồ án tốt nghiệp',
+     'INDIVIDUAL', 'Sử dụng trang thiết bị thí nghiệm phòng LB01 phục vụ nghiên cứu',
      now() - interval '2 days 3 hours', now() - interval '2 days',
      'FINISHED', (SELECT id FROM users WHERE email = 'manager.chi@fpt.edu.vn'), now() - interval '3 days', NULL,
      now() - interval '3 days 4 hours', now() - interval '2 days')
 ON CONFLICT (id) DO UPDATE
 SET
+    area_id = EXCLUDED.area_id,
+    requester_id = EXCLUDED.requester_id,
+    request_type = EXCLUDED.request_type,
+    purpose = EXCLUDED.purpose,
     start_time = EXCLUDED.start_time,
     end_time = EXCLUDED.end_time,
     status = EXCLUDED.status,
