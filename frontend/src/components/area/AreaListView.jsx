@@ -124,8 +124,7 @@ export default function AreaListView({
 										</button>
 
 										{isFacilityManager &&
-											(levelKey === "CONFIDENTIAL_CONTACT_REQUIRED" ||
-												levelKey === "HIGHLY_CONFIDENTIAL") && (
+											levelKey !== "PUBLIC" && (
 												<button
 													type="button"
 													className="zone-card__quick-btn"
@@ -225,12 +224,12 @@ export default function AreaListView({
 						</div>
 						<div className="zone-list-info-banner__card-desc">
 							Dành cho nhân sự, giảng viên, cán bộ campus (từ Level 2 trở lên)
-							tự do truy cập.
+							tự do truy cập hoặc có đơn / nhân sự chỉ định.
 						</div>
 						<div className="zone-list-info-banner__card-personnel">
 							<span>Danh sách chỉ định:</span>
-							<span className="zone-list-info-banner__personnel-tag zone-list-info-banner__personnel-tag--none">
-								Không áp dụng
+							<span className="zone-list-info-banner__personnel-tag zone-list-info-banner__personnel-tag--has">
+								<Users size={11} /> Có áp dụng
 							</span>
 						</div>
 					</div>
@@ -242,11 +241,11 @@ export default function AreaListView({
 								Liên hệ trước
 							</span>
 							<span className="zone-list-info-banner__card-level">
-								Level 2+ (Chỉ định)
+								Level 3 (hoặc có đơn/gán)
 							</span>
 						</div>
 						<div className="zone-list-info-banner__card-desc">
-							Người dùng Level 2 cần gửi đơn đăng ký hoặc liên hệ người quản lý
+							Người dùng Level 1, 2 cần gửi đơn đăng ký hoặc có nhân sự chỉ định
 							trước khi vào. Level 3 tự do ra vào.
 						</div>
 						<div className="zone-list-info-banner__card-personnel">
@@ -264,12 +263,11 @@ export default function AreaListView({
 								Bảo mật cao
 							</span>
 							<span className="zone-list-info-banner__card-level">
-								Level 3 / Chỉ định
+								Chỉ định đích danh
 							</span>
 						</div>
 						<div className="zone-list-info-banner__card-desc">
-							Khu vực nghiêm ngặt. Chỉ dành cho nhân sự quản lý Level 3 hoặc cá
-							nhân được chỉ định trực tiếp.
+							Khu vực nghiêm ngặt. Yêu cầu chỉ định đích danh (nhân sự chỉ định hoặc đơn đăng ký được duyệt).
 						</div>
 						<div className="zone-list-info-banner__card-personnel">
 							<span>Danh sách chỉ định:</span>
@@ -292,9 +290,8 @@ export default function AreaListView({
 							size={12}
 							style={{ display: "inline", margin: "0 2px" }}
 						/>
-						) hiển thị trên thẻ của các phòng thuộc loại{" "}
-						<strong>Bảo mật - liên hệ trước</strong> và{" "}
-						<strong>Bảo mật cao</strong> để cấp quyền ra vào cố định cho nhân
+						) hiển thị trên thẻ của mọi phòng trừ loại{" "}
+						<strong>Công khai (PUBLIC)</strong> để cấp quyền ra vào cho nhân
 						sự.
 					</span>
 				</div>

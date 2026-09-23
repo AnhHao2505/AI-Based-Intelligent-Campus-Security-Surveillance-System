@@ -34,10 +34,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * Unit test cho AreaAssignedPersonnelService.
@@ -522,5 +524,77 @@ class AreaAssignedPersonnelServiceTest {
         assertEquals(AssignedPersonnelStatus.EXPIRED, AreaAssignedPersonnelService.computeStatus(rec, t));
         assertEquals(AssignedPersonnelStatus.ACTIVE, AreaAssignedPersonnelService.computeStatus(rec, t.minusSeconds(1)));
         assertEquals(AssignedPersonnelStatus.UPCOMING, AreaAssignedPersonnelService.computeStatus(rec, t.minusHours(3)));
+    }
+
+    @Test
+    @DisplayName("Gán nhân sự vào khu vực PUBLIC -> ném IllegalArgumentException")
+    void create_PublicArea_ThrowsException() {
+        Area publicArea = Area.builder()
+                .id(UUID.randomUUID())
+                .code("PUB-01")
+                .name("Sảnh công cộng")
+                .areaLevel(AreaLevel.PUBLIC)
+                .isActive(true)
+                .build();
+        when(areaRepository.findById(publicArea.getId())).thenReturn(Optional.of(publicArea));
+
+        AssignedPersonnelCreateRequest req = new AssignedPersonnelCreateRequest(
+                lecturer.getId(),
+                OffsetDateTime.now(),
+                OffsetDateTime.now().plusDays(1),
+                "Gán vào sảnh"
+        );
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> service.create(publicArea.getId(), req, FM_EMAIL));
+        assertTrue(ex.getMessage().contains("PUBLIC"));
+    }
+
+    @Test
+    @DisplayName("Gán nhân sự vào khu vực INTERNAL_CONFIDENTIAL -> thành công")
+    void create_InternalConfidentialArea_Success() {
+        Area internalArea = Area.builder()
+                .id(UUID.randomUUID())
+                .code("INTERNAL-01")
+                .name("Phòng ban nội bộ")
+                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
+                .isActive(true)
+                .build();
+        when(areaRepository.findById(internalArea.getId())).thenReturn(Optional.of(internalArea));
+
+        AssignedPersonnelCreateRequest req = new AssignedPersonnelCreateRequest(
+                lecturer.getId(),
+                OffsetDateTime.now(),
+                OffsetDateTime.now().plusDays(1),
+                "Gán vào phòng ban"
+        );
+
+        AssignedPersonnelResponse resp = service.create(internalArea.getId(), req, FM_EMAIL);
+        assertNotNull(resp);
+        assertEquals(lecturer.getId(), resp.user().id());
+    }
+
+    @Test
+    @DisplayName("Gán nhân sự vào khu vực CONFIDENTIAL_CONTACT_REQUIRED -> thành công")
+    void create_ConfidentialContactRequiredArea_Success() {
+        Area contactArea = Area.builder()
+                .id(UUID.randomUUID())
+                .code("CONTACT-01")
+                .name("Phòng cần xác nhận")
+                .areaLevel(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
+                .isActive(true)
+                .build();
+        when(areaRepository.findById(contactArea.getId())).thenReturn(Optional.of(contactArea));
+
+        AssignedPersonnelCreateRequest req = new AssignedPersonnelCreateRequest(
+                lecturer.getId(),
+                OffsetDateTime.now(),
+                OffsetDateTime.now().plusDays(1),
+                "Gán vào phòng xác nhận"
+        );
+
+        AssignedPersonnelResponse resp = service.create(contactArea.getId(), req, FM_EMAIL);
+        assertNotNull(resp);
+        assertEquals(lecturer.getId(), resp.user().id());
     }
 }
