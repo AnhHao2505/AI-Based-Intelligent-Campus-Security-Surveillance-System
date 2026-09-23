@@ -11,6 +11,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -65,6 +66,10 @@ public class Area {
     @Column(name = "explicit_authorization_required", nullable = false)
     @Builder.Default
     private Boolean explicitAuthorizationRequired = true;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "floor_id")
+    private Floor floorEntity;
 
     @Column(name = "building", length = 50)
     private String building;

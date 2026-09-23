@@ -21,5 +21,11 @@ public record AreaUpdateRequest(
     @Size(max = 20, message = "Tầng tối đa 20 ký tự")
     String floor,
 
-    String description
-) {}
+    String description,
+
+    java.util.UUID floorId
+) {
+    public AreaUpdateRequest(String code, String name, AreaLevel areaLevel, String building, String floor, String description) {
+        this(code, name, areaLevel, building, floor, description, null);
+    }
+}
