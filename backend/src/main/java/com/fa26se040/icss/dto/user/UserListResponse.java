@@ -13,9 +13,12 @@ public record UserListResponse(
     String email,
     Role role,
     Boolean isActive,
-    OffsetDateTime createdAt
+    OffsetDateTime createdAt,
+    UUID teamId,
+    String teamName
 ) {
     public static UserListResponse fromEntity(User user) {
+        boolean hasActiveTeam = user.getTeam() != null && Boolean.TRUE.equals(user.getTeam().getIsActive());
         return new UserListResponse(
             user.getId(),
             user.getUserCode(),
@@ -23,7 +26,9 @@ public record UserListResponse(
             user.getEmail(),
             user.getRole(),
             user.getIsActive(),
-            user.getCreatedAt()
+            user.getCreatedAt(),
+            hasActiveTeam ? user.getTeam().getId() : null,
+            hasActiveTeam ? user.getTeam().getTeamName() : null
         );
     }
 }

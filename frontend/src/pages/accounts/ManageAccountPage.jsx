@@ -561,7 +561,7 @@ export default function ManageAccountPage() {
               onClick={handleOpenBulkImport}
             >
               <Upload size={18} />
-              <span>Nạp từ file ZIP</span>
+              <span>Nạp người dùng (.zip)</span>
             </button>
             <button
               type="button"
@@ -594,7 +594,7 @@ export default function ManageAccountPage() {
               onClick={handleOpenBulkImport}
             >
               <Upload size={18} />
-              <span>Nạp từ file ZIP</span>
+              <span>Nạp cán bộ / bảo vệ (.zip)</span>
             </button>
             <button
               type="button"
@@ -1304,6 +1304,21 @@ export default function ManageAccountPage() {
             {!bulkImportResult ? (
               <form onSubmit={handleSubmitBulkImport}>
                 <div className="account-modal__body">
+                  <div style={{
+                    marginBottom: '14px',
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    fontSize: '0.85rem',
+                    fontWeight: 500,
+                    backgroundColor: activeTab === 'NORMAL' ? '#eff6ff' : '#f0fdf4',
+                    color: activeTab === 'NORMAL' ? '#1e40af' : '#166534',
+                    border: `1px solid ${activeTab === 'NORMAL' ? '#bfdbfe' : '#bbf7d0'}`
+                  }}>
+                    {activeTab === 'NORMAL'
+                      ? 'Luồng nạp: Người dùng thường (Nếu file có cột role cán bộ/bảo vệ, hệ thống sẽ tự động nhận diện đúng vai trò).'
+                      : 'Luồng nạp: Tài khoản hệ thống (Cán bộ / Bảo vệ / Quản trị viên).'}
+                  </div>
+
                   {formErrors.general && (
                     <div
                       style={{
@@ -1328,15 +1343,15 @@ export default function ManageAccountPage() {
                           {activeTab === 'NORMAL' ? (
                             <>
                               • Tải file mẫu Excel (<code>.xlsx</code>) và nhập thông tin (3 cột: <code>user_code</code>, <code>full_name</code>, <code>email</code>, tối đa 200 dòng).<br />
-                              • <strong>Lưu ý quan trọng:</strong> Cần export / lưu file Excel dưới dạng <code>metadata.csv</code>.<br />
-                              • Nén file <code>metadata.csv</code> cùng thư mục <code>images/</code> chứa ảnh chân dung (tối đa 350KB/ảnh, tên ảnh khớp với <code>user_code</code>) vào file <code>.zip</code> để nạp.
+                              • <strong>Hỗ trợ trực tiếp file Excel:</strong> Bạn có thể dùng trực tiếp file <code>metadata.xlsx</code> (hoặc <code>metadata.csv</code>) mà không lo lỗi font tiếng Việt.<br />
+                              • Nén file <code>metadata.xlsx</code> (hoặc <code>metadata.csv</code>) cùng thư mục <code>images/</code> chứa ảnh chân dung (tối đa 350KB/ảnh, tên ảnh khớp với <code>user_code</code>) vào file <code>.zip</code> để nạp.
                             </>
                           ) : (
                             <>
                               • Tải file mẫu Excel (<code>.xlsx</code>) và nhập thông tin (4 cột: <code>user_code</code>, <code>full_name</code>, <code>email</code>, <code>role</code>, tối đa 200 dòng).<br />
                               • Cột <code>role</code> bắt buộc có giá trị ở mọi dòng, chọn một trong các vai trò: <code>ADMIN</code>, <code>FACILITY_MANAGER</code>, <code>GUARD</code>.<br />
-                              • <strong>Lưu ý quan trọng:</strong> Cần export / lưu file Excel dưới dạng <code>metadata.csv</code>.<br />
-                              • Nén file <code>metadata.csv</code> cùng thư mục <code>images/</code> chứa ảnh chân dung (tối đa 350KB/ảnh, tên ảnh khớp với <code>user_code</code>) vào file <code>.zip</code> để nạp.
+                              • <strong>Hỗ trợ trực tiếp file Excel:</strong> Bạn có thể dùng trực tiếp file <code>metadata.xlsx</code> (hoặc <code>metadata.csv</code>) mà không lo lỗi font tiếng Việt.<br />
+                              • Nén file <code>metadata.xlsx</code> (hoặc <code>metadata.csv</code>) cùng thư mục <code>images/</code> chứa ảnh chân dung (tối đa 350KB/ảnh, tên ảnh khớp với <code>user_code</code>) vào file <code>.zip</code> để nạp.
                             </>
                           )}
                         </div>
