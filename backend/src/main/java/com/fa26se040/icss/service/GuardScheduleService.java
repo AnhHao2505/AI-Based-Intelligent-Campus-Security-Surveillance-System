@@ -29,8 +29,11 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import com.fa26se040.icss.dto.guard.BulkClearShiftsRequest;
@@ -413,8 +416,54 @@ public class GuardScheduleService {
             }
         }
 
+        // Lấy lịch sử ca trực của các bảo vệ trong 7 ngày trước startDate để bảo đảm an toàn nghỉ ngơi liên tuần (Cross-week Rest & Fatigue Guard)
+        LocalDate historyStartDate = request.getStartDate().minusDays(7);
+        LocalDate historyEndDate = request.getStartDate().minusDays(1);
+        List<GuardShift> priorShifts = shiftRepository.findByShiftDateBetween(historyStartDate, historyEndDate);
+
+        Map<UUID, Map<LocalDate, GuardShift>> priorShiftsByGuard = new HashMap<>();
+        for (GuardShift ps : priorShifts) {
+            if (ps.getStatus() != ShiftStatus.CANCELLED && ps.getGuard() != null) {
+                priorShiftsByGuard
+                        .computeIfAbsent(ps.getGuard().getId(), k -> new HashMap<>())
+                        .put(ps.getShiftDate(), ps);
+            }
+        }
+
         List<GuardScheduleState> guardStates = guards.stream()
-                .map(GuardScheduleState::new)
+                .map(g -> {
+                    GuardScheduleState state = new GuardScheduleState(g);
+                    Map<LocalDate, GuardShift> guardHistory = priorShiftsByGuard.getOrDefault(g.getId(), Collections.emptyMap());
+
+                    // 1. Ghi nhận ca trực ngày hôm trước (ví dụ: ca đêm Chủ nhật trước Thứ 2 bắt đầu lịch)
+                    GuardShift yesterdayShiftObj = guardHistory.get(historyEndDate);
+                    if (yesterdayShiftObj != null) {
+                        state.yesterdayShift = yesterdayShiftObj.getShiftType();
+                    }
+
+                    // 2. Tính số ngày làm/nghỉ liên tiếp lùi dần từ ngày hôm trước
+                    LocalDate d = historyEndDate;
+                    if (state.yesterdayShift != null) {
+                        while (!d.isBefore(historyStartDate) && guardHistory.containsKey(d)) {
+                            state.consecutiveWorkDays++;
+                            d = d.minusDays(1);
+                        }
+                    } else {
+                        while (!d.isBefore(historyStartDate) && !guardHistory.containsKey(d)) {
+                            state.consecutiveRestDays++;
+                            d = d.minusDays(1);
+                        }
+                    }
+
+                    // 3. Tích lũy số lượng từng loại ca trong tuần trước để luân phiên đồng đều
+                    for (GuardShift ps : guardHistory.values()) {
+                        if (ps.getShiftType() == ShiftType.SHIFT_MORNING) state.morningCount++;
+                        else if (ps.getShiftType() == ShiftType.SHIFT_AFTERNOON) state.afternoonCount++;
+                        else if (ps.getShiftType() == ShiftType.SHIFT_NIGHT) state.nightCount++;
+                    }
+
+                    return state;
+                })
                 .collect(Collectors.toList());
 
         List<GuardShift> createdShifts = new ArrayList<>();
@@ -434,29 +483,29 @@ public class GuardScheduleService {
 
             // 1. Chọn trước các nhân viên ĐƯỢC NGHỈ trong ngày hôm nay:
             // Ưu tiên:
-            // a. Cân bằng tải tuyệt đối: Người có số ca nhiều hơn bắt buộc phải được nghỉ trước
-            // b. Nghỉ 2 ngày liền kề (consecutiveRestDays >= 1)
-            // c. Vừa trực ca Đêm hôm qua (để được nghỉ ngơi hồi phục)
+            // a. Vừa trực ca Đêm hôm qua (để được nghỉ ngơi hồi phục thể lực)
+            // b. Cân bằng tải tuyệt đối: Người có số ca nhiều hơn bắt buộc phải được nghỉ trước
+            // c. Nghỉ 2 ngày liền kề (consecutiveRestDays >= 1)
             // d. Người đã làm việc nhiều ngày liên tục
             Set<UUID> restingGuardIdsToday = new HashSet<>();
             if (numRestingToday > 0) {
                 List<GuardScheduleState> restCandidates = new ArrayList<>(guardStates);
                 restCandidates.sort((a, b) -> {
-                    // a. Người có nhiều ca làm việc tích lũy hơn phải được nghỉ trước để cân bằng tải
-                    if (a.totalAssigned != b.totalAssigned) {
-                        return Integer.compare(b.totalAssigned, a.totalAssigned);
-                    }
-
-                    // b. Ưu tiên nghỉ 2 ngày liền kề (nếu hôm qua đã nghỉ)
-                    if (a.consecutiveRestDays != b.consecutiveRestDays) {
-                        return Integer.compare(b.consecutiveRestDays, a.consecutiveRestDays);
-                    }
-
-                    // c. Vừa trực ca đêm hôm qua
+                    // a. Vừa trực ca đêm hôm qua: Ưu tiên nghỉ ngơi hồi phục thể lực cao nhất
                     boolean aNightYest = (a.yesterdayShift == ShiftType.SHIFT_NIGHT);
                     boolean bNightYest = (b.yesterdayShift == ShiftType.SHIFT_NIGHT);
                     if (aNightYest != bNightYest) {
                         return aNightYest ? -1 : 1;
+                    }
+
+                    // b. Người có nhiều ca làm việc tích lũy hơn phải được nghỉ trước để cân bằng tải
+                    if (a.totalAssigned != b.totalAssigned) {
+                        return Integer.compare(b.totalAssigned, a.totalAssigned);
+                    }
+
+                    // c. Ưu tiên nghỉ 2 ngày liền kề (nếu hôm qua đã nghỉ)
+                    if (a.consecutiveRestDays != b.consecutiveRestDays) {
+                        return Integer.compare(b.consecutiveRestDays, a.consecutiveRestDays);
                     }
 
                     // d. Đã làm việc nhiều ngày liên tục
@@ -497,7 +546,18 @@ public class GuardScheduleService {
                     break;
                 }
 
-                availableCandidates.sort((a, b) -> {
+                List<GuardScheduleState> eligibleCandidates = availableCandidates;
+                // Ràng buộc an toàn sức khỏe tuyệt đối: Ca sáng KHÔNG BAO GIỜ nhận người vừa trực đêm hôm qua nếu có ứng viên khác
+                if (shiftType == ShiftType.SHIFT_MORNING) {
+                    List<GuardScheduleState> nonNightCandidates = availableCandidates.stream()
+                            .filter(s -> s.yesterdayShift != ShiftType.SHIFT_NIGHT)
+                            .collect(Collectors.toList());
+                    if (!nonNightCandidates.isEmpty()) {
+                        eligibleCandidates = nonNightCandidates;
+                    }
+                }
+
+                eligibleCandidates.sort((a, b) -> {
                     // 1. Ràng buộc an toàn sức khỏe cứng: Ca sáng không nhận người vừa trực đêm hôm qua
                     if (shiftType == ShiftType.SHIFT_MORNING) {
                         boolean aHadNight = (a.yesterdayShift == ShiftType.SHIFT_NIGHT);
@@ -537,7 +597,7 @@ public class GuardScheduleService {
                     return a.guard.getId().compareTo(b.guard.getId());
                 });
 
-                GuardScheduleState chosen = availableCandidates.get(0);
+                GuardScheduleState chosen = eligibleCandidates.get(0);
                 chosen.recordShift(shiftType);
                 User guard = chosen.guard;
 
