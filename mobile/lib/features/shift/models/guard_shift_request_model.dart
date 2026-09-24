@@ -81,7 +81,26 @@ class AvailableSwapShiftModel {
     return shiftDate;
   }
 
-  String get timeRange => '${startTime.substring(0, 5)} — ${endTime.substring(0, 5)}';
+  String get pureShiftName {
+    switch (shiftType) {
+      case 'SHIFT_MORNING':
+        return 'Ca Sáng';
+      case 'SHIFT_AFTERNOON':
+        return 'Ca Chiều';
+      case 'SHIFT_NIGHT':
+        return 'Ca Đêm';
+      default:
+        return shiftTypeName.split('(').first.trim();
+    }
+  }
+
+  String get timeRange {
+    final start = startTime.length >= 5 ? startTime.substring(0, 5) : startTime;
+    final end = endTime.length >= 5 ? endTime.substring(0, 5) : endTime;
+    return '$start — $end';
+  }
+
+  String get fullShiftTitle => '$formattedDate • $pureShiftName ($timeRange)';
 }
 
 class GuardShiftRequestModel {

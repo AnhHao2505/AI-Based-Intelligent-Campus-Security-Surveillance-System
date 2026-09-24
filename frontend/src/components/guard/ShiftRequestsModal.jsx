@@ -471,14 +471,14 @@ export default function ShiftRequestsModal({
                       <option value="">-- Chọn nhân viên bảo vệ trực thay --</option>
                       {leaveSubModal.substitutes.map((sub) => (
                         <option key={sub.id} value={sub.id}>
-                          {sub.fullName}
+                          {sub.fullName} ({sub.userCode || 'NV-BV'}) — {sub.isSameTeam ? `[Cùng đội] ${sub.teamName}` : (sub.teamName || 'Chưa phân đội')}
                         </option>
                       ))}
                       <option value="CANCEL_SHIFT">Không có người thay (Hủy bỏ ca trực này)</option>
                     </select>
                   )}
                   <p className="text-[11px] text-slate-500">
-                    Danh sách chỉ gồm các bảo vệ cùng đội có lịch nghỉ trong ngày này và đảm bảo an toàn nghỉ ngơi.
+                    Danh sách hiển thị tất cả bảo vệ có lịch nghỉ trong ngày (ưu tiên cùng đội) và đảm bảo an toàn nghỉ ngơi.
                   </p>
                 </div>
               </div>

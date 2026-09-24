@@ -58,6 +58,15 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
     final provider = context.read<ShiftProvider>();
     final list = await provider.getAvailableSwapShifts(widget.shift.id);
 
+    // Sort by shift date ascending -> start time -> full name
+    list.sort((a, b) {
+      final d = a.shiftDate.compareTo(b.shiftDate);
+      if (d != 0) return d;
+      final t = a.startTime.compareTo(b.startTime);
+      if (t != 0) return t;
+      return a.fullName.compareTo(b.fullName);
+    });
+
     if (mounted) {
       setState(() {
         _swapOptions = list;
@@ -413,79 +422,55 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
                       isExpanded: true,
                       value: _selectedTargetShiftId,
                       dropdownColor: AppColors.crd(context),
+                      itemHeight: null,
                       selectedItemBuilder: (BuildContext context) {
                         return _swapOptions.map<Widget>((opt) {
-                          return Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  '${opt.fullName} — ${opt.formattedDate} (${opt.timeRange})',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.txtPrimary(context),
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
+                          return Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              '${opt.formattedDate} • ${opt.pureShiftName} — ${opt.fullName}',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.txtPrimary(context),
                               ),
-                              const SizedBox(width: 6),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: AppColors.primary.withAlpha(20),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  opt.shiftTypeName.split(' ').first,
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.primary,
-                                  ),
-                                ),
-                              ),
-                            ],
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
                           );
                         }).toList();
                       },
                       items: _swapOptions.map((opt) {
                         return DropdownMenuItem<String>(
                           value: opt.targetShiftId,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      opt.fullName,
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.bold,
-                                        color: AppColors.txtPrimary(context),
-                                      ),
-                                    ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  '${opt.formattedDate} • ${opt.pureShiftName}',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.txtPrimary(context),
                                   ),
-                                  Text(
-                                    opt.teamName ?? 'Chưa phân đội',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: AppColors.txtMuted(context),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                '${opt.formattedDate} • ${opt.shiftTypeName} (${opt.timeRange})',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.primary,
-                                  fontWeight: FontWeight.w500,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                              ),
-                            ],
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Đồng nghiệp: ${opt.fullName}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.txtSecondary(context),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
                           ),
                         );
                       }).toList(),

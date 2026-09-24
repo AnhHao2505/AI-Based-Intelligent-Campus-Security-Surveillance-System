@@ -671,7 +671,7 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
                       <option value="">-- Chọn bảo vệ trực thay --</option>
                       {leaveModal.substitutes.map((s) => (
                         <option key={s.id} value={s.id}>
-                          {s.fullName} ({s.userCode})
+                          {s.fullName} ({s.userCode || 'NV-BV'}) — {s.isSameTeam ? `[Cùng đội] ${s.teamName}` : s.teamName}
                         </option>
                       ))}
                       <option value="CANCEL_SHIFT">
@@ -680,7 +680,7 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
                     </select>
                   )}
                   <p className="text-[11px] text-slate-400 mt-1">
-                    Hệ thống tự động lọc ra các bảo vệ đang không có ca trùng giờ vào ngày này.
+                    Hệ thống tự động lọc các bảo vệ đang nghỉ trong ngày và đảm bảo nhịp sinh học nghỉ ngơi (ưu tiên cùng đội).
                   </p>
                 </div>
               </div>

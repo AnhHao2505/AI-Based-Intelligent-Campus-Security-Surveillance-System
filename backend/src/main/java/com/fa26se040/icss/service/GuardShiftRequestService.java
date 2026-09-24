@@ -19,11 +19,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -60,22 +63,15 @@ public class GuardShiftRequestService {
             throw new IllegalArgumentException("Bạn chỉ có thể tìm người trực thay cho ca trực của chính mình");
         }
 
-        if (shiftGuard == null || shiftGuard.getTeam() == null) {
-            log.warn("Shift guard does not belong to any team");
-            return new ArrayList<>();
-        }
+        // Fetch all active guards across the entire facility
+        List<User> allCandidates = userRepository.findByRoleAndDeletedAtIsNullAndIsActiveTrue(Role.GUARD);
 
-        UUID teamId = shiftGuard.getTeam().getId();
-        List<User> teamMembers = userRepository.findByTeamIdAndDeletedAtIsNullAndIsActiveTrue(teamId);
-        List<User> unassignedGuards = userRepository.findByRoleAndTeamIsNullAndDeletedAtIsNullAndIsActiveTrue(Role.GUARD);
-
-        List<User> allCandidates = new ArrayList<>(teamMembers);
-        allCandidates.addAll(unassignedGuards);
+        UUID currentTeamId = (shiftGuard != null && shiftGuard.getTeam() != null) ? shiftGuard.getTeam().getId() : null;
 
         List<AvailableSubstituteDto> availableGuards = new ArrayList<>();
 
         for (User candidate : allCandidates) {
-            if (candidate.getId().equals(shiftGuard.getId())) {
+            if (shiftGuard != null && candidate.getId().equals(shiftGuard.getId())) {
                 continue;
             }
 
@@ -116,14 +112,30 @@ public class GuardShiftRequestService {
                 }
             }
 
+            boolean isSameTeam = currentTeamId != null && candidate.getTeam() != null && currentTeamId.equals(candidate.getTeam().getId());
+
             availableGuards.add(AvailableSubstituteDto.builder()
                     .id(candidate.getId())
                     .userCode(candidate.getUserCode())
                     .fullName(candidate.getFullName())
                     .email(candidate.getEmail())
+                    .teamId(candidate.getTeam() != null ? candidate.getTeam().getId() : null)
                     .teamName(candidate.getTeam() != null ? candidate.getTeam().getTeamName() : "Chưa phân đội")
+                    .isSameTeam(isSameTeam)
                     .build());
         }
+
+        // Sort: Prioritize same team first, then by team name, then by full name
+        availableGuards.sort((g1, g2) -> {
+            boolean same1 = Boolean.TRUE.equals(g1.getIsSameTeam());
+            boolean same2 = Boolean.TRUE.equals(g2.getIsSameTeam());
+            if (same1 != same2) {
+                return same1 ? -1 : 1;
+            }
+            int teamCmp = (g1.getTeamName() != null ? g1.getTeamName() : "").compareTo(g2.getTeamName() != null ? g2.getTeamName() : "");
+            if (teamCmp != 0) return teamCmp;
+            return g1.getFullName().compareTo(g2.getFullName());
+        });
 
         return availableGuards;
     }
@@ -161,8 +173,11 @@ public class GuardShiftRequestService {
         allCandidates.addAll(unassignedGuards);
 
         LocalDate today = LocalDate.now();
-        LocalDate windowEnd = sa.getShiftDate().plusWeeks(2);
-        LocalDate windowStart = today.isBefore(sa.getShiftDate().minusDays(3)) ? today : sa.getShiftDate().minusDays(3);
+        // Limit swap scope strictly to the same week of shift Sa (Monday to Sunday)
+        LocalDate weekStart = sa.getShiftDate().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        LocalDate weekEnd = sa.getShiftDate().with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY));
+        LocalDate windowStart = today.isAfter(weekStart) ? today : weekStart;
+        LocalDate windowEnd = weekEnd;
 
         LocalDate dateA = sa.getShiftDate();
         ShiftType typeA = sa.getShiftType();
@@ -314,6 +329,11 @@ public class GuardShiftRequestService {
                         .build());
             }
         }
+
+        // Sort candidates by Shift Date -> Start Time -> Guard Name
+        result.sort(Comparator.comparing(AvailableSwapShiftDto::getShiftDate)
+                .thenComparing(AvailableSwapShiftDto::getStartTime)
+                .thenComparing(AvailableSwapShiftDto::getFullName));
 
         return result;
     }
