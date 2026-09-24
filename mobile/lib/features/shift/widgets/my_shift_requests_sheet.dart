@@ -170,7 +170,7 @@ class _MyShiftRequestsSheetState extends State<MyShiftRequestsSheet> {
 
                                   if (req.shiftDate != null)
                                     Text(
-                                      'Ca trực: ${req.shiftDate} (${req.shiftStartTime?.substring(0, 5)} - ${req.shiftEndTime?.substring(0, 5)})',
+                                      'Ca trực: ${req.shiftDate!.split('-').length == 3 ? "${req.shiftDate!.split('-')[2]}-${req.shiftDate!.split('-')[1]}-${req.shiftDate!.split('-')[0]}" : req.shiftDate} (${req.shiftStartTime?.substring(0, 5)} - ${req.shiftEndTime?.substring(0, 5)})',
                                       style: TextStyle(
                                         fontSize: 13,
                                         fontWeight: FontWeight.w600,
@@ -181,8 +181,12 @@ class _MyShiftRequestsSheetState extends State<MyShiftRequestsSheet> {
                                   if (req.isSwap && req.targetSubstituteGuardName != null) ...[
                                     const SizedBox(height: 4),
                                     Text(
-                                      'Người trực thay: ${req.targetSubstituteGuardName}',
-                                      style: TextStyle(fontSize: 12, color: AppColors.txtSecondary(context)),
+                                      'Đổi với: ${req.targetSubstituteGuardName}${req.formattedTargetShiftDate.isNotEmpty ? " (Ca gốc của ${req.targetSubstituteGuardName}: ${req.formattedTargetShiftDate})" : ""}',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.primary,
+                                      ),
                                     ),
                                   ],
 

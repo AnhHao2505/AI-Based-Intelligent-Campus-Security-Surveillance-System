@@ -160,7 +160,7 @@ class ShiftProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // Get available substitutes for a shift
+  // Get available substitutes for a shift (1-way cover / FM approval)
   Future<List<AvailableSubstituteModel>> getAvailableSubstitutes(String shiftId) async {
     try {
       final response = await _apiClient.dio.get(ApiEndpoints.availableSubstitutes(shiftId));
@@ -175,10 +175,26 @@ class ShiftProvider with ChangeNotifier {
     }
   }
 
-  // Create shift swap / leave request
+  // Get available shifts of colleagues for mutual 2-way swap
+  Future<List<AvailableSwapShiftModel>> getAvailableSwapShifts(String shiftId) async {
+    try {
+      final response = await _apiClient.dio.get(ApiEndpoints.availableSwapShifts(shiftId));
+      if (response.data is List) {
+        return (response.data as List)
+            .map((item) => AvailableSwapShiftModel.fromJson(item as Map<String, dynamic>))
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  // Create shift swap (2-way) / leave request
   Future<String?> createShiftRequest({
     required String shiftId,
     required String requestType,
+    String? targetShiftId,
     String? targetSubstituteGuardId,
     String? reason,
   }) async {
@@ -190,6 +206,7 @@ class ShiftProvider with ChangeNotifier {
       final payload = {
         'shiftId': shiftId,
         'requestType': normalizedType,
+        if (targetShiftId != null && targetShiftId.isNotEmpty) 'targetShiftId': targetShiftId,
         if (targetSubstituteGuardId != null && targetSubstituteGuardId.isNotEmpty) ...{
           'substituteGuardId': targetSubstituteGuardId,
           'targetSubstituteGuardId': targetSubstituteGuardId,

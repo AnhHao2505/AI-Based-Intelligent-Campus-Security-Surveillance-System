@@ -31,16 +31,16 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
   String _requestType = 'SWAP';
   final TextEditingController _reasonController = TextEditingController();
 
-  List<AvailableSubstituteModel> _substitutes = [];
-  String? _selectedSubstituteId;
-  bool _loadingSubstitutes = false;
+  List<AvailableSwapShiftModel> _swapOptions = [];
+  String? _selectedTargetShiftId;
+  bool _loadingSwapOptions = false;
   bool _submitting = false;
   String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    _fetchSubstitutes();
+    _fetchSwapOptions();
   }
 
   @override
@@ -49,39 +49,57 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
     super.dispose();
   }
 
-  Future<void> _fetchSubstitutes() async {
+  Future<void> _fetchSwapOptions() async {
     setState(() {
-      _loadingSubstitutes = true;
+      _loadingSwapOptions = true;
       _errorMessage = null;
     });
 
     final provider = context.read<ShiftProvider>();
-    final list = await provider.getAvailableSubstitutes(widget.shift.id);
+    final list = await provider.getAvailableSwapShifts(widget.shift.id);
 
     if (mounted) {
       setState(() {
-        _substitutes = list;
-        _loadingSubstitutes = false;
+        _swapOptions = list;
+        _loadingSwapOptions = false;
         if (list.isNotEmpty) {
-          _selectedSubstituteId = list.first.id;
+          _selectedTargetShiftId = list.first.targetShiftId;
         }
       });
     }
   }
 
+  bool get _isShiftEmergency {
+    try {
+      final parts = widget.shift.shiftDate.split('-');
+      final timeParts = widget.shift.startTime.split(':');
+      if (parts.length == 3 && timeParts.length >= 2) {
+        final shiftStart = DateTime(
+          int.parse(parts[0]),
+          int.parse(parts[1]),
+          int.parse(parts[2]),
+          int.parse(timeParts[0]),
+          int.parse(timeParts[1]),
+        );
+        return shiftStart.difference(DateTime.now()).inHours < 24;
+      }
+    } catch (_) {}
+    return true;
+  }
+
   Future<void> _handleSubmit() async {
     final reason = _reasonController.text.trim();
 
-    if (_requestType == 'SWAP' && (_selectedSubstituteId == null || _selectedSubstituteId!.isEmpty)) {
+    if (_requestType == 'SWAP' && (_selectedTargetShiftId == null || _selectedTargetShiftId!.isEmpty)) {
       setState(() {
-        _errorMessage = 'Vui lòng chọn nhân viên bảo vệ trực thay';
+        _errorMessage = 'Vui lòng chọn một ca trực của đồng nghiệp để hoán đổi';
       });
       return;
     }
 
     if (_requestType == 'LEAVE' && reason.isEmpty) {
       setState(() {
-        _errorMessage = 'Vui lòng nhập lý do xin nghỉ đột xuất';
+        _errorMessage = 'Vui lòng nhập lý do xin nghỉ';
       });
       return;
     }
@@ -92,10 +110,21 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
     });
 
     final provider = context.read<ShiftProvider>();
+
+    String? subId;
+    if (_requestType == 'SWAP') {
+      final selectedOpt = _swapOptions.firstWhere(
+        (o) => o.targetShiftId == _selectedTargetShiftId,
+        orElse: () => _swapOptions.first,
+      );
+      subId = selectedOpt.guardId;
+    }
+
     final err = await provider.createShiftRequest(
       shiftId: widget.shift.id,
       requestType: _requestType,
-      targetSubstituteGuardId: _requestType == 'SWAP' ? _selectedSubstituteId : null,
+      targetShiftId: _requestType == 'SWAP' ? _selectedTargetShiftId : null,
+      targetSubstituteGuardId: subId,
       reason: reason,
     );
 
@@ -114,8 +143,8 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(_requestType == 'SWAP'
-              ? 'Đã gửi yêu cầu nhờ trực thay đến Quản lý cơ sở'
-              : 'Đã gửi yêu cầu nghỉ đột xuất đến Quản lý cơ sở'),
+              ? 'Đã gửi yêu cầu đổi ca đến Quản lý cơ sở'
+              : 'Đã gửi đơn xin nghỉ ca đến Quản lý cơ sở'),
           backgroundColor: AppColors.success,
           behavior: SnackBarBehavior.floating,
         ),
@@ -127,6 +156,11 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
   Widget build(BuildContext context) {
     final s = widget.shift;
     final isDark = AppColors.isDark(context);
+    final isEmergency = _isShiftEmergency;
+
+    final dateFormatted = s.shiftDate.split('-').length == 3
+        ? '${s.shiftDate.split('-')[2]}-${s.shiftDate.split('-')[1]}-${s.shiftDate.split('-')[0]}'
+        : s.shiftDate;
 
     return Container(
       padding: EdgeInsets.only(
@@ -178,9 +212,9 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
             ),
             const SizedBox(height: 6),
 
-            // Shift summary banner
+            // Current shift info card
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: AppColors.surfLight(context),
                 borderRadius: BorderRadius.circular(12),
@@ -202,7 +236,7 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          'Ngày trực: ${s.shiftDate}',
+                          'Ngày trực của bạn: $dateFormatted',
                           style: TextStyle(
                             fontSize: 12,
                             color: AppColors.txtSecondary(context),
@@ -228,7 +262,7 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
             ),
             const SizedBox(height: 16),
 
-            // Toggle Tab: [Nhờ trực thay] / [Nghỉ đột xuất]
+            // Toggle Tab: [Đổi ca] / [Xin nghỉ]
             Row(
               children: [
                 Expanded(
@@ -250,7 +284,7 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(
-                        'Nhờ trực thay',
+                        'Đổi ca',
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
@@ -280,7 +314,7 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(
-                        'Nghỉ đột xuất',
+                        'Xin nghỉ ca',
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
@@ -294,7 +328,7 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
             ),
             const SizedBox(height: 14),
 
-            // Lead time guideline banner (Khong emoji)
+            // Lead time guideline banner
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
@@ -304,12 +338,15 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
               ),
               child: Text(
                 _requestType == 'SWAP'
-                    ? 'Lưu ý: Đơn đổi ca cần được gửi trước giờ bắt đầu ca tối thiểu 2 giờ.'
-                    : 'Lưu ý: Đơn xin nghỉ cần được gửi trước khi ca trực bắt đầu.',
+                    ? 'Lưu ý: Hoán đổi 2 ca trực giữa bạn và đồng nghiệp. Đơn cần gửi trước giờ ca ít nhất 2 giờ.'
+                    : (isEmergency
+                        ? 'Phân loại: [Nghỉ đột xuất] do gửi trong vòng 24h trước ca. Quản lý sẽ chỉ định người trực thay trên hệ thống.'
+                        : 'Phân loại: [Nghỉ phép thường]. Quản lý cơ sở sẽ xem xét và bố trí nhân sự phù hợp.'),
                 style: TextStyle(
                   fontSize: 11,
-                  color: AppColors.txtMuted(context),
+                  color: _requestType == 'LEAVE' && isEmergency ? AppColors.warning : AppColors.txtMuted(context),
                   fontStyle: FontStyle.italic,
+                  fontWeight: _requestType == 'LEAVE' && isEmergency ? FontWeight.w600 : FontWeight.normal,
                 ),
               ),
             ),
@@ -332,10 +369,10 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
               const SizedBox(height: 14),
             ],
 
-            // SECTION A: SUBSTITUTE SELECTION (for SWAP)
+            // SECTION A: SWAP SHIFT SELECTION (for SWAP)
             if (_requestType == 'SWAP') ...[
               Text(
-                'Chọn đồng nghiệp trực thay:',
+                'Chọn ca trực của đồng nghiệp muốn đổi:',
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
@@ -344,14 +381,14 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
               ),
               const SizedBox(height: 8),
 
-              if (_loadingSubstitutes)
+              if (_loadingSwapOptions)
                 const Center(
                   child: Padding(
                     padding: EdgeInsets.symmetric(vertical: 14),
                     child: CircularProgressIndicator(strokeWidth: 2),
                   ),
                 )
-              else if (_substitutes.isEmpty)
+              else if (_swapOptions.isEmpty)
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -359,7 +396,7 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
-                    'Không có đồng nghiệp nào có lịch nghỉ trong ngày này để trực thay.',
+                    'Hiện không có ca trực của đồng nghiệp nào thỏa mãn điều kiện hoán đổi (không trùng lịch và đạt chuẩn nghỉ ngơi).',
                     style: TextStyle(fontSize: 12, color: AppColors.txtMuted(context)),
                   ),
                 )
@@ -374,24 +411,87 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
                       isExpanded: true,
-                      value: _selectedSubstituteId,
+                      value: _selectedTargetShiftId,
                       dropdownColor: AppColors.crd(context),
-                      items: _substitutes.map((sub) {
+                      selectedItemBuilder: (BuildContext context) {
+                        return _swapOptions.map<Widget>((opt) {
+                          return Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  '${opt.fullName} — ${opt.formattedDate} (${opt.timeRange})',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.txtPrimary(context),
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withAlpha(20),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  opt.shiftTypeName.split(' ').first,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        }).toList();
+                      },
+                      items: _swapOptions.map((opt) {
                         return DropdownMenuItem<String>(
-                          value: sub.id,
-                          child: Text(
-                            sub.fullName,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.txtPrimary(context),
-                            ),
+                          value: opt.targetShiftId,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      opt.fullName,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.txtPrimary(context),
+                                      ),
+                                    ),
+                                  ),
+                                  Text(
+                                    opt.teamName ?? 'Chưa phân đội',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: AppColors.txtMuted(context),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${opt.formattedDate} • ${opt.shiftTypeName} (${opt.timeRange})',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
                           ),
                         );
                       }).toList(),
                       onChanged: (val) {
                         setState(() {
-                          _selectedSubstituteId = val;
+                          _selectedTargetShiftId = val;
                         });
                       },
                     ),
@@ -402,7 +502,7 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
 
             // SECTION B: REASON INPUT
             Text(
-              _requestType == 'SWAP' ? 'Lý do đổi ca (Tùy chọn):' : 'Lý do xin nghỉ đột xuất:',
+              _requestType == 'SWAP' ? 'Lý do đổi ca (Tùy chọn):' : 'Lý do xin nghỉ ca (Bắt buộc):',
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
@@ -417,7 +517,7 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
               decoration: InputDecoration(
                 hintText: _requestType == 'SWAP'
                     ? 'Nhập lý do gửi đến Quản lý cơ sở...'
-                    : 'Nhập lý do xin nghỉ (việc gia đình, đột xuất...)...',
+                    : 'Nhập lý do xin nghỉ (việc gia đình, đau ốm đột xuất...)...',
                 hintStyle: TextStyle(fontSize: 12, color: AppColors.txtMuted(context)),
                 filled: true,
                 fillColor: AppColors.surfLight(context),

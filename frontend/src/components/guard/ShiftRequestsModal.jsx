@@ -2,6 +2,27 @@ import React, { useState, useEffect } from 'react';
 import { X, Search, Check, AlertCircle, Clock, Calendar, CheckCircle2 } from 'lucide-react';
 import { guardScheduleApi } from '../../api/guardScheduleApi';
 
+const formatDateVN = (dateStr) => {
+  if (!dateStr) return '';
+  const match = String(dateStr).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    const [, y, m, d] = match;
+    return `${d}-${m}-${y}`;
+  }
+  try {
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) {
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      return `${day}-${month}-${year}`;
+    }
+  } catch (e) {
+    // ignore
+  }
+  return dateStr;
+};
+
 export default function ShiftRequestsModal({
   isOpen,
   onClose,
@@ -250,6 +271,10 @@ export default function ShiftRequestsModal({
                 const substituteName = req.substituteGuardName || req.targetSubstituteGuard?.fullName;
                 const substituteCode = req.substituteGuardCode || req.targetSubstituteGuard?.userCode;
                 const reviewNote = req.reviewNotes || req.reviewNote;
+                const isEmergency = req.isEmergency === true;
+                const targetDate = req.targetShiftDate || req.targetShift?.shiftDate || '';
+                const targetStartTime = (req.targetStartTime || req.targetShift?.startTime || '').substring(0, 5);
+                const targetEndTime = (req.targetEndTime || req.targetShift?.endTime || '').substring(0, 5);
 
                 return (
                   <div
@@ -263,10 +288,16 @@ export default function ShiftRequestsModal({
                           className={`px-2 py-0.5 rounded text-[11px] font-bold ${
                             isSwap
                               ? 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300'
+                              : isEmergency
+                              ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
                               : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
                           }`}
                         >
-                          {isSwap ? '[Nhờ trực thay]' : '[Nghỉ đột xuất]'}
+                          {isSwap
+                            ? '[Đổi ca]'
+                            : isEmergency
+                            ? '[Nghỉ đột xuất]'
+                            : '[Nghỉ phép thường]'}
                         </span>
 
                         <span
@@ -296,13 +327,15 @@ export default function ShiftRequestsModal({
                       <div className="text-xs text-slate-800 dark:text-slate-100 font-semibold">
                         <span>{requesterName} ({requesterCode})</span>
                         <span className="mx-1 text-slate-400">•</span>
-                        <span>Ca trực: {shiftDate} ({startTime} - {endTime})</span>
+                        <span>Ca trực: {formatDateVN(shiftDate)} ({startTime} - {endTime})</span>
                       </div>
 
                       {/* Detail note / substitute */}
                       {isSwap ? (
                         <div className="text-xs text-slate-600 dark:text-slate-300">
-                          Người nhận trực thay: <strong className="text-slate-900 dark:text-white">{substituteName}</strong> {substituteCode ? `(${substituteCode})` : ''}
+                          Đổi với: <strong className="text-slate-900 dark:text-white">{substituteName}</strong> {substituteCode ? `(${substituteCode})` : ''} {targetDate && (
+                            <span>— <strong>{formatDateVN(targetDate)} ({targetStartTime} — {targetEndTime})</strong></span>
+                          )}
                         </div>
                       ) : (
                         <div className="text-xs text-slate-600 dark:text-slate-300">
@@ -412,7 +445,7 @@ export default function ShiftRequestsModal({
               <div className="schedule-modal__body space-y-4">
                 <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-lg text-xs space-y-1">
                   <div>Nhân viên xin nghỉ: <strong>{leaveSubModal.request?.requesterName || leaveSubModal.request?.requesterGuard?.fullName || 'Bảo vệ'}</strong></div>
-                  <div>Ca trực: <strong>{leaveSubModal.request?.shiftDate || leaveSubModal.request?.shift?.shiftDate} ({(leaveSubModal.request?.startTime || leaveSubModal.request?.shift?.startTime || '').substring(0, 5)} - {(leaveSubModal.request?.endTime || leaveSubModal.request?.shift?.endTime || '').substring(0, 5)})</strong></div>
+                  <div>Ca trực: <strong>{formatDateVN(leaveSubModal.request?.shiftDate || leaveSubModal.request?.shift?.shiftDate)} ({(leaveSubModal.request?.startTime || leaveSubModal.request?.shift?.startTime || '').substring(0, 5)} - {(leaveSubModal.request?.endTime || leaveSubModal.request?.shift?.endTime || '').substring(0, 5)})</strong></div>
                   {leaveSubModal.request?.reason && (
                     <div className="text-slate-500 italic">"{leaveSubModal.request.reason}"</div>
                   )}

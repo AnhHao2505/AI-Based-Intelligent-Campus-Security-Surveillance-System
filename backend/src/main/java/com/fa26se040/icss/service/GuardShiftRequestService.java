@@ -1,6 +1,7 @@
 package com.fa26se040.icss.service;
 
 import com.fa26se040.icss.dto.guard.AvailableSubstituteDto;
+import com.fa26se040.icss.dto.guard.AvailableSwapShiftDto;
 import com.fa26se040.icss.dto.guard.GuardShiftRequestCreateDto;
 import com.fa26se040.icss.dto.guard.GuardShiftRequestResponseDto;
 import com.fa26se040.icss.dto.guard.GuardShiftRequestReviewDto;
@@ -19,6 +20,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -37,6 +40,10 @@ public class GuardShiftRequestService {
     private final UserRepository userRepository;
     private final NotificationRepository notificationRepository;
 
+    /**
+     * Finds guards who have a day off (OFF) on shiftId date and satisfy circadian fatigue.
+     * Used by Manager (FM) when assigning a replacement for LEAVE_REQUEST.
+     */
     @Transactional(readOnly = true)
     public List<AvailableSubstituteDto> getAvailableSubstitutes(UUID shiftId, String requesterEmail) {
         GuardShift shift = shiftRepository.findById(shiftId)
@@ -60,10 +67,14 @@ public class GuardShiftRequestService {
 
         UUID teamId = shiftGuard.getTeam().getId();
         List<User> teamMembers = userRepository.findByTeamIdAndDeletedAtIsNullAndIsActiveTrue(teamId);
+        List<User> unassignedGuards = userRepository.findByRoleAndTeamIsNullAndDeletedAtIsNullAndIsActiveTrue(Role.GUARD);
+
+        List<User> allCandidates = new ArrayList<>(teamMembers);
+        allCandidates.addAll(unassignedGuards);
 
         List<AvailableSubstituteDto> availableGuards = new ArrayList<>();
 
-        for (User candidate : teamMembers) {
+        for (User candidate : allCandidates) {
             if (candidate.getId().equals(shiftGuard.getId())) {
                 continue;
             }
@@ -110,11 +121,210 @@ public class GuardShiftRequestService {
                     .userCode(candidate.getUserCode())
                     .fullName(candidate.getFullName())
                     .email(candidate.getEmail())
-                    .teamName(candidate.getTeam() != null ? candidate.getTeam().getTeamName() : shiftGuard.getTeam().getTeamName())
+                    .teamName(candidate.getTeam() != null ? candidate.getTeam().getTeamName() : "Chưa phân đội")
                     .build());
         }
 
         return availableGuards;
+    }
+
+    /**
+     * Finds candidate shifts of colleagues that can be mutually exchanged (2-way swap)
+     * with the current shift Sa.
+     */
+    @Transactional(readOnly = true)
+    public List<AvailableSwapShiftDto> getAvailableSwapShifts(UUID shiftId, String requesterEmail) {
+        GuardShift sa = shiftRepository.findById(shiftId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy ca trực"));
+
+        User requester = userRepository.findByEmail(requesterEmail)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thông tin tài khoản"));
+
+        User guardA = sa.getGuard();
+        boolean isShiftOwner = guardA != null && guardA.getId().equals(requester.getId());
+        boolean isManager = requester.getRole() == Role.ADMIN || requester.getRole() == Role.FACILITY_MANAGER;
+
+        if (!isShiftOwner && !isManager) {
+            throw new IllegalArgumentException("Bạn chỉ có thể tìm ca đổi cho ca trực của chính mình");
+        }
+
+        if (guardA == null || guardA.getTeam() == null) {
+            log.warn("Shift guard does not belong to any team");
+            return new ArrayList<>();
+        }
+
+        UUID teamId = guardA.getTeam().getId();
+        List<User> teamMembers = userRepository.findByTeamIdAndDeletedAtIsNullAndIsActiveTrue(teamId);
+        List<User> unassignedGuards = userRepository.findByRoleAndTeamIsNullAndDeletedAtIsNullAndIsActiveTrue(Role.GUARD);
+
+        List<User> allCandidates = new ArrayList<>(teamMembers);
+        allCandidates.addAll(unassignedGuards);
+
+        LocalDate today = LocalDate.now();
+        LocalDate windowEnd = sa.getShiftDate().plusWeeks(2);
+        LocalDate windowStart = today.isBefore(sa.getShiftDate().minusDays(3)) ? today : sa.getShiftDate().minusDays(3);
+
+        LocalDate dateA = sa.getShiftDate();
+        ShiftType typeA = sa.getShiftType();
+
+        List<AvailableSwapShiftDto> result = new ArrayList<>();
+
+        for (User guardB : allCandidates) {
+            if (guardB.getId().equals(guardA.getId())) {
+                continue;
+            }
+
+            // Fetch candidate shifts of guard B
+            List<GuardShift> bShifts = shiftRepository.findByGuardIdAndShiftDateBetweenOrderByShiftDateAscStartTimeAsc(
+                    guardB.getId(), windowStart, windowEnd
+            );
+
+            for (GuardShift sb : bShifts) {
+                if (sb.getStatus() != ShiftStatus.SCHEDULED) {
+                    continue;
+                }
+                if (sb.getId().equals(sa.getId())) {
+                    continue;
+                }
+
+                // Check lead time: Sb must not have passed
+                LocalDateTime sbStart = LocalDateTime.of(sb.getShiftDate(), sb.getStartTime());
+                if (LocalDateTime.now().isAfter(sbStart)) {
+                    continue;
+                }
+
+                LocalDate dateB = sb.getShiftDate();
+                ShiftType typeB = sb.getShiftType();
+
+                // Validation 1: Same day swap
+                if (dateA.equals(dateB)) {
+                    // Cannot swap identical shift type on the same day
+                    if (typeA == typeB) {
+                        continue;
+                    }
+                    // Circadian check for A taking Sb (typeB) on dateA
+                    if (typeB == ShiftType.SHIFT_MORNING) {
+                        List<GuardShift> aYest = shiftRepository.findByGuardIdAndShiftDateAndStatusNot(
+                                guardA.getId(), dateA.minusDays(1), ShiftStatus.CANCELLED
+                        );
+                        if (aYest.stream().anyMatch(s -> s.getShiftType() == ShiftType.SHIFT_NIGHT)) {
+                            continue;
+                        }
+                    }
+                    if (typeB == ShiftType.SHIFT_NIGHT) {
+                        List<GuardShift> aTomo = shiftRepository.findByGuardIdAndShiftDateAndStatusNot(
+                                guardA.getId(), dateA.plusDays(1), ShiftStatus.CANCELLED
+                        );
+                        if (aTomo.stream().anyMatch(s -> s.getShiftType() == ShiftType.SHIFT_MORNING)) {
+                            continue;
+                        }
+                    }
+
+                    // Circadian check for B taking Sa (typeA) on dateA
+                    if (typeA == ShiftType.SHIFT_MORNING) {
+                        List<GuardShift> bYest = shiftRepository.findByGuardIdAndShiftDateAndStatusNot(
+                                guardB.getId(), dateA.minusDays(1), ShiftStatus.CANCELLED
+                        );
+                        if (bYest.stream().anyMatch(s -> s.getShiftType() == ShiftType.SHIFT_NIGHT)) {
+                            continue;
+                        }
+                    }
+                    if (typeA == ShiftType.SHIFT_NIGHT) {
+                        List<GuardShift> bTomo = shiftRepository.findByGuardIdAndShiftDateAndStatusNot(
+                                guardB.getId(), dateA.plusDays(1), ShiftStatus.CANCELLED
+                        );
+                        if (bTomo.stream().anyMatch(s -> s.getShiftType() == ShiftType.SHIFT_MORNING)) {
+                            continue;
+                        }
+                    }
+                } else {
+                    // Validation 2: Different days swap (dateA != dateB)
+                    // Guard A must be OFF on dateB (no active shifts on dateB)
+                    List<GuardShift> aShiftsOnDateB = shiftRepository.findByGuardIdAndShiftDateAndStatusNot(
+                            guardA.getId(), dateB, ShiftStatus.CANCELLED
+                    );
+                    if (!aShiftsOnDateB.isEmpty()) {
+                        continue;
+                    }
+
+                    // Guard B must be OFF on dateA (no active shifts on dateA)
+                    List<GuardShift> bShiftsOnDateA = shiftRepository.findByGuardIdAndShiftDateAndStatusNot(
+                            guardB.getId(), dateA, ShiftStatus.CANCELLED
+                    );
+                    if (!bShiftsOnDateA.isEmpty()) {
+                        continue;
+                    }
+
+                    // Circadian check for A taking Sb (dateB, typeB)
+                    if (typeB == ShiftType.SHIFT_MORNING) {
+                        List<GuardShift> aYest = shiftRepository.findByGuardIdAndShiftDateAndStatusNot(
+                                guardA.getId(), dateB.minusDays(1), ShiftStatus.CANCELLED
+                        );
+                        boolean workedNight = aYest.stream()
+                                .filter(s -> !s.getId().equals(sa.getId())) // exclude Sa if Sa was moved
+                                .anyMatch(s -> s.getShiftType() == ShiftType.SHIFT_NIGHT);
+                        if (workedNight) continue;
+                    }
+                    if (typeB == ShiftType.SHIFT_NIGHT) {
+                        List<GuardShift> aTomo = shiftRepository.findByGuardIdAndShiftDateAndStatusNot(
+                                guardA.getId(), dateB.plusDays(1), ShiftStatus.CANCELLED
+                        );
+                        boolean hasMorning = aTomo.stream()
+                                .filter(s -> !s.getId().equals(sa.getId()))
+                                .anyMatch(s -> s.getShiftType() == ShiftType.SHIFT_MORNING);
+                        if (hasMorning) continue;
+                    }
+
+                    // Circadian check for B taking Sa (dateA, typeA)
+                    if (typeA == ShiftType.SHIFT_MORNING) {
+                        List<GuardShift> bYest = shiftRepository.findByGuardIdAndShiftDateAndStatusNot(
+                                guardB.getId(), dateA.minusDays(1), ShiftStatus.CANCELLED
+                        );
+                        boolean workedNight = bYest.stream()
+                                .filter(s -> !s.getId().equals(sb.getId())) // exclude Sb if Sb was moved
+                                .anyMatch(s -> s.getShiftType() == ShiftType.SHIFT_NIGHT);
+                        if (workedNight) continue;
+                    }
+                    if (typeA == ShiftType.SHIFT_NIGHT) {
+                        List<GuardShift> bTomo = shiftRepository.findByGuardIdAndShiftDateAndStatusNot(
+                                guardB.getId(), dateA.plusDays(1), ShiftStatus.CANCELLED
+                        );
+                        boolean hasMorning = bTomo.stream()
+                                .filter(s -> !s.getId().equals(sb.getId()))
+                                .anyMatch(s -> s.getShiftType() == ShiftType.SHIFT_MORNING);
+                        if (hasMorning) continue;
+                    }
+                }
+
+                // Add valid swap option
+                result.add(AvailableSwapShiftDto.builder()
+                        .targetShiftId(sb.getId())
+                        .guardId(guardB.getId())
+                        .userCode(guardB.getUserCode())
+                        .fullName(guardB.getFullName())
+                        .email(guardB.getEmail())
+                        .teamName(guardB.getTeam() != null ? guardB.getTeam().getTeamName() : "Chưa phân đội")
+                        .shiftDate(sb.getShiftDate())
+                        .shiftType(sb.getShiftType())
+                        .shiftTypeName(getShiftTypeName(sb.getShiftType()))
+                        .startTime(sb.getStartTime())
+                        .endTime(sb.getEndTime())
+                        .areaName(sb.getArea() != null ? sb.getArea().getName() : null)
+                        .building(sb.getArea() != null ? sb.getArea().getBuilding() : null)
+                        .build());
+            }
+        }
+
+        return result;
+    }
+
+    private String getShiftTypeName(ShiftType type) {
+        if (type == null) return "";
+        return switch (type) {
+            case SHIFT_MORNING -> "Ca Sáng (06:00 - 14:00)";
+            case SHIFT_AFTERNOON -> "Ca Chiều (14:00 - 22:00)";
+            case SHIFT_NIGHT -> "Ca Đêm (22:00 - 06:00)";
+        };
     }
 
     @Transactional
@@ -134,15 +344,15 @@ public class GuardShiftRequestService {
         }
 
         // Lead time checks
-        java.time.LocalDateTime now = java.time.LocalDateTime.now();
-        java.time.LocalDateTime shiftStart = java.time.LocalDateTime.of(shift.getShiftDate(), shift.getStartTime());
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime shiftStart = LocalDateTime.of(shift.getShiftDate(), shift.getStartTime());
 
         if (now.isAfter(shiftStart)) {
             throw new IllegalStateException("Không thể tạo đơn cho ca trực đã diễn ra");
         }
 
         if (dto.getRequestType() == GuardShiftRequestType.SWAP_SHIFT && now.isAfter(shiftStart.minusHours(2))) {
-            throw new IllegalStateException("Yêu cầu nhờ trực thay phải được gửi trước giờ bắt đầu ca ít nhất 2 giờ để kịp thời xác nhận");
+            throw new IllegalStateException("Yêu cầu đổi ca phải được gửi trước giờ bắt đầu ca ít nhất 2 giờ để kịp thời xác nhận");
         }
 
         if (requestRepository.existsByShiftIdAndStatus(shift.getId(), GuardShiftRequestStatus.PENDING)) {
@@ -150,50 +360,34 @@ public class GuardShiftRequestService {
         }
 
         User substituteGuard = null;
+        GuardShift targetShift = null;
+
         if (dto.getRequestType() == GuardShiftRequestType.SWAP_SHIFT) {
-            if (dto.getSubstituteGuardId() == null) {
-                throw new IllegalArgumentException("Vui lòng chọn người trực thay cho yêu cầu đổi ca");
+            if (dto.getTargetShiftId() == null) {
+                throw new IllegalArgumentException("Vui lòng chọn ca trực của đồng nghiệp để thực hiện đổi ca");
             }
-            substituteGuard = userRepository.findById(dto.getSubstituteGuardId())
-                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thông tin người trực thay"));
+
+            targetShift = shiftRepository.findById(dto.getTargetShiftId())
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy ca trực đối ứng của đồng nghiệp"));
+
+            substituteGuard = targetShift.getGuard();
+            if (substituteGuard == null) {
+                throw new IllegalArgumentException("Ca trực đối ứng chưa có người đảm nhiệm");
+            }
 
             if (substituteGuard.getId().equals(requester.getId())) {
-                throw new IllegalArgumentException("Không thể chọn chính mình làm người trực thay");
+                throw new IllegalArgumentException("Không thể chọn ca trực của chính mình để đổi");
             }
 
-            // 1-shift/day rule check for substitute
-            List<GuardShift> subToday = shiftRepository.findByGuardIdAndShiftDateAndStatusNot(
-                    substituteGuard.getId(), shift.getShiftDate(), ShiftStatus.CANCELLED
-            );
-            if (!subToday.isEmpty()) {
-                throw new IllegalArgumentException("Người trực thay đã có ca trực trong ngày này");
+            if (targetShift.getStatus() != ShiftStatus.SCHEDULED) {
+                throw new IllegalStateException("Ca trực đối ứng phải ở trạng thái ĐÃ LÊN LỊCH");
             }
 
-            // Backward Circadian Fatigue Check
-            if (shift.getShiftType() == ShiftType.SHIFT_MORNING) {
-                List<GuardShift> yest = shiftRepository.findByGuardIdAndShiftDateAndStatusNot(
-                        substituteGuard.getId(), shift.getShiftDate().minusDays(1), ShiftStatus.CANCELLED
-                );
-                if (yest.stream().anyMatch(s -> s.getShiftType() == ShiftType.SHIFT_NIGHT)) {
-                    throw new IllegalArgumentException("Người trực thay vừa trực ca đêm hôm trước, không thể nhận ca sáng");
-                }
+            // Lead time check for target shift
+            LocalDateTime targetStart = LocalDateTime.of(targetShift.getShiftDate(), targetShift.getStartTime());
+            if (now.isAfter(targetStart)) {
+                throw new IllegalStateException("Ca trực đối ứng đã diễn ra, không thể đổi");
             }
-
-            // Forward Circadian Fatigue Check
-            if (shift.getShiftType() == ShiftType.SHIFT_NIGHT) {
-                List<GuardShift> tomo = shiftRepository.findByGuardIdAndShiftDateAndStatusNot(
-                        substituteGuard.getId(), shift.getShiftDate().plusDays(1), ShiftStatus.CANCELLED
-                );
-                if (tomo.stream().anyMatch(s -> s.getShiftType() == ShiftType.SHIFT_MORNING)) {
-                    throw new IllegalArgumentException("Người trực thay có ca sáng vào ngày hôm sau, không thể nhận ca đêm");
-                }
-            }
-        }
-
-        GuardShift targetShift = null;
-        if (dto.getTargetShiftId() != null) {
-            targetShift = shiftRepository.findById(dto.getTargetShiftId())
-                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy ca trực đối ứng"));
         }
 
         GuardShiftRequest request = GuardShiftRequest.builder()
@@ -250,26 +444,32 @@ public class GuardShiftRequestService {
 
         if (request.getRequestType() == GuardShiftRequestType.SWAP_SHIFT) {
             User substitute = request.getSubstituteGuard();
+            GuardShift target = request.getTargetShift();
+
             if (substitute == null) {
                 throw new IllegalStateException("Đơn đổi ca thiếu thông tin người trực thay");
             }
 
-            // Transfer shift to substitute
+            // 1. Transfer shift Sa to substitute B
             shift.setGuard(substitute);
-            shift.setNotes(buildNotes(shift.getNotes(), "Trực thay cho " + request.getRequester().getFullName() + " theo đơn #" + request.getId()));
+            shift.setNotes(buildNotes(shift.getNotes(), "Đổi ca: Chuyển từ " + request.getRequester().getFullName() + " sang " + substitute.getFullName() + " theo đơn #" + request.getId()));
             shiftRepository.save(shift);
 
-            // If 2-way swap
-            if (request.getTargetShift() != null) {
-                GuardShift target = request.getTargetShift();
+            // 2. Transfer target shift Sb to requester A (2-way mutual swap)
+            if (target != null) {
                 target.setGuard(request.getRequester());
-                target.setNotes(buildNotes(target.getNotes(), "Đổi ca từ " + substitute.getFullName() + " theo đơn #" + request.getId()));
+                target.setNotes(buildNotes(target.getNotes(), "Đổi ca: Chuyển từ " + substitute.getFullName() + " sang " + request.getRequester().getFullName() + " theo đơn #" + request.getId()));
                 shiftRepository.save(target);
+
+                notifyUser(request.getRequester(), "Đổi ca trực thành công",
+                        String.format("Yêu cầu đổi ca đã được duyệt. Bạn tiếp nhận ca %s ngày %s của %s.",
+                                target.getShiftType(), target.getShiftDate(), substitute.getFullName()),
+                        request.getId());
             }
 
-            notifyUser(substitute, "Phân công trực thay",
-                    String.format("Bạn được phân công trực thay cho %s vào %s ngày %s.",
-                            request.getRequester().getFullName(), shift.getShiftType(), shift.getShiftDate()),
+            notifyUser(substitute, "Hoán đổi ca trực",
+                    String.format("Đơn đổi ca đã được phê duyệt. Bạn tiếp nhận ca %s ngày %s của %s.",
+                            shift.getShiftType(), shift.getShiftDate(), request.getRequester().getFullName()),
                     request.getId());
 
         } else if (request.getRequestType() == GuardShiftRequestType.LEAVE_REQUEST) {
@@ -309,8 +509,8 @@ public class GuardShiftRequestService {
                 shiftRepository.save(shift);
                 request.setSubstituteGuard(substitute);
 
-                notifyUser(substitute, "Phân công trực thay khẩn cấp",
-                        String.format("Bạn được phân công trực thay do %s xin nghỉ vào %s ngày %s.",
+                notifyUser(substitute, "Phân công trực thay",
+                        String.format("Bạn được Quản lý phân công trực thay do %s xin nghỉ vào %s ngày %s.",
                                 request.getRequester().getFullName(), shift.getShiftType(), shift.getShiftDate()),
                         request.getId());
             } else {
@@ -319,6 +519,11 @@ public class GuardShiftRequestService {
                 shift.setNotes(buildNotes(shift.getNotes(), "Ca trực bị hủy do " + request.getRequester().getFullName() + " nghỉ phép"));
                 shiftRepository.save(shift);
             }
+
+            notifyUser(request.getRequester(), "Đơn xin nghỉ đã được duyệt",
+                    String.format("Đơn xin nghỉ ca %s ngày %s của bạn đã được Quản lý phê duyệt.",
+                            shift.getShiftType(), shift.getShiftDate()),
+                    request.getId());
         }
 
         request.setStatus(GuardShiftRequestStatus.APPROVED);
@@ -328,16 +533,10 @@ public class GuardShiftRequestService {
             request.setReviewNotes(reviewDto.getReviewNotes().trim());
         }
 
-        GuardShiftRequest saved = requestRepository.save(request);
+        GuardShiftRequest updated = requestRepository.save(request);
+        log.info("Request [{}] approved by [{}]", requestId, reviewer.getFullName());
 
-        notifyUser(request.getRequester(), "Đơn đã được phê duyệt",
-                String.format("Đơn %s cho ca trực ngày %s của bạn đã được Quản lý phê duyệt.",
-                        request.getRequestType() == GuardShiftRequestType.SWAP_SHIFT ? "đổi ca" : "xin nghỉ",
-                        shift.getShiftDate()),
-                saved.getId());
-
-        log.info("Request [{}] approved by [{}]", saved.getId(), reviewer.getFullName());
-        return mapToDto(saved);
+        return mapToDto(updated);
     }
 
     @Transactional
@@ -359,20 +558,20 @@ public class GuardShiftRequestService {
             request.setReviewNotes(reviewDto.getReviewNotes().trim());
         }
 
-        GuardShiftRequest saved = requestRepository.save(request);
+        GuardShiftRequest updated = requestRepository.save(request);
+        log.info("Request [{}] rejected by [{}]", requestId, reviewer.getFullName());
 
-        notifyUser(request.getRequester(), "Đơn đã bị từ chối",
-                String.format("Đơn %s cho ca trực ngày %s của bạn đã bị từ chối. Lý do: %s",
+        notifyUser(request.getRequester(), "Yêu cầu ca trực bị từ chối",
+                String.format("Đơn %s cho ca %s ngày %s của bạn đã bị từ chối.",
                         request.getRequestType() == GuardShiftRequestType.SWAP_SHIFT ? "đổi ca" : "xin nghỉ",
-                        request.getShift().getShiftDate(),
-                        request.getReviewNotes() != null ? request.getReviewNotes() : "Không có lý do cụ thể"),
-                saved.getId());
+                        request.getShift().getShiftType(), request.getShift().getShiftDate()),
+                request.getId());
 
-        log.info("Request [{}] rejected by [{}]", saved.getId(), reviewer.getFullName());
-        return mapToDto(saved);
+        return mapToDto(updated);
     }
 
     private void notifyUser(User recipient, String title, String message, UUID requestId) {
+        if (recipient == null) return;
         try {
             Notification notification = Notification.builder()
                     .recipient(recipient)
@@ -401,24 +600,45 @@ public class GuardShiftRequestService {
         User req = request.getRequester();
         User sub = request.getSubstituteGuard();
         User rev = request.getReviewedBy();
+        GuardShift ts = request.getTargetShift();
+
+        LocalDate shiftDate = s != null ? s.getShiftDate() : request.getShiftDateSnapshot();
+        ShiftType shiftType = s != null ? s.getShiftType() : (request.getShiftTypeSnapshot() != null ? ShiftType.valueOf(request.getShiftTypeSnapshot()) : null);
+        LocalTime startTime = s != null ? s.getStartTime() : request.getStartTimeSnapshot();
+        LocalTime endTime = s != null ? s.getEndTime() : request.getEndTimeSnapshot();
+        String areaName = s != null && s.getArea() != null ? s.getArea().getName() : null;
+
+        // Calculate isEmergency: true if submitted < 24h before shift start
+        boolean isEmergency = false;
+        if (shiftDate != null && startTime != null) {
+            LocalDateTime shiftStart = LocalDateTime.of(shiftDate, startTime);
+            LocalDateTime created = request.getCreatedAt() != null ? request.getCreatedAt().toLocalDateTime() : LocalDateTime.now();
+            isEmergency = created.plusHours(24).isAfter(shiftStart);
+        }
 
         return GuardShiftRequestResponseDto.builder()
                 .id(request.getId())
-                .requesterId(req.getId())
-                .requesterName(req.getFullName())
-                .requesterCode(req.getUserCode())
-                .requesterTeamName(req.getTeam() != null ? req.getTeam().getTeamName() : null)
-                .shiftId(s.getId())
-                .shiftDate(s.getShiftDate())
-                .shiftType(s.getShiftType())
-                .startTime(s.getStartTime())
-                .endTime(s.getEndTime())
-                .areaName(s.getArea() != null ? s.getArea().getName() : null)
+                .requesterId(req != null ? req.getId() : null)
+                .requesterName(req != null ? req.getFullName() : null)
+                .requesterCode(req != null ? req.getUserCode() : null)
+                .requesterTeamName(req != null && req.getTeam() != null ? req.getTeam().getTeamName() : null)
+                .shiftId(s != null ? s.getId() : null)
+                .shiftDate(shiftDate)
+                .shiftType(shiftType)
+                .startTime(startTime)
+                .endTime(endTime)
+                .areaName(areaName)
                 .requestType(request.getRequestType())
+                .isEmergency(isEmergency)
                 .substituteGuardId(sub != null ? sub.getId() : null)
                 .substituteGuardName(sub != null ? sub.getFullName() : null)
                 .substituteGuardCode(sub != null ? sub.getUserCode() : null)
-                .targetShiftId(request.getTargetShift() != null ? request.getTargetShift().getId() : null)
+                .targetShiftId(ts != null ? ts.getId() : null)
+                .targetShiftDate(ts != null ? ts.getShiftDate() : null)
+                .targetShiftType(ts != null ? ts.getShiftType() : null)
+                .targetStartTime(ts != null ? ts.getStartTime() : null)
+                .targetEndTime(ts != null ? ts.getEndTime() : null)
+                .targetAreaName(ts != null && ts.getArea() != null ? ts.getArea().getName() : null)
                 .reason(request.getReason())
                 .status(request.getStatus())
                 .reviewedById(rev != null ? rev.getId() : null)
