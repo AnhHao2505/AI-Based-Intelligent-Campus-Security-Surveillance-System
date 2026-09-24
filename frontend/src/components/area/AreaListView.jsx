@@ -76,21 +76,10 @@ export default function AreaListView({
 										>
 											Level {area.areaAccessLevel ?? 1}
 										</span>
-										{area.differsFromPreset && (
+										{area.explicitAuthorizationRequired && (
 											<span
-												className="zone-card__pill-differs"
-												title="Khu vực có cấu hình chỉ định riêng"
-												style={{
-													display: "inline-flex",
-													alignItems: "center",
-													padding: "2px 8px",
-													borderRadius: "12px",
-													fontSize: "11px",
-													fontWeight: 600,
-													background: "rgba(234, 88, 12, 0.12)",
-													color: "var(--theme-warning, #ea580c)",
-													border: "1px solid rgba(234, 88, 12, 0.3)",
-												}}
+												className="zone-card__pill-explicit"
+												title="Khu vực bắt buộc chỉ định nhân sự đích danh"
 											>
 												Chỉ định
 											</span>
@@ -167,7 +156,7 @@ export default function AreaListView({
 													onClick={(e) => {
 														e.stopPropagation();
 														onSelectArea(area.id);
-														onOpenEditModal();
+														onOpenEditModal(area);
 													}}
 													title="Sửa khu vực"
 												>
@@ -179,7 +168,7 @@ export default function AreaListView({
 													onClick={(e) => {
 														e.stopPropagation();
 														onSelectArea(area.id);
-														onOpenDeactivateModal();
+														onOpenDeactivateModal(area);
 													}}
 													title="Vô hiệu hoá"
 												>
@@ -242,10 +231,16 @@ export default function AreaListView({
 									Không áp dụng
 								</span>
 							);
-						} else {
+						} else if (key === "HIGHLY_CONFIDENTIAL") {
 							explicitTag = (
 								<span className="zone-list-info-banner__personnel-tag zone-list-info-banner__personnel-tag--has">
 									<Users size={11} /> Bắt buộc chỉ định
+								</span>
+							);
+						} else {
+							explicitTag = (
+								<span className="zone-list-info-banner__personnel-tag zone-list-info-banner__personnel-tag--has">
+									<Users size={11} /> Chỉ định hoặc đơn duyệt
 								</span>
 							);
 						}

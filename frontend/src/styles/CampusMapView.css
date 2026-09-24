@@ -1,0 +1,557 @@
+/* ==========================================================================
+   Campus Map View (MapLibre + OpenFreeMap / CartoDB) Stylesheet
+   Follows Global Campus Security Design Tokens
+   ========================================================================== */
+
+.campus-map-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: 16px;
+  height: calc(100vh - 165px);
+  min-height: 580px;
+  box-sizing: border-box;
+  transition: grid-template-columns 0.25s ease;
+}
+
+.campus-map-layout--expanded {
+  grid-template-columns: minmax(0, 1fr) 0px;
+  gap: 0;
+}
+
+.campus-map-layout--expanded .campus-rail {
+  display: none;
+}
+
+@media (max-width: 860px) {
+  .campus-map-layout {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    gap: 16px;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   LEFT: MAIN MAP CANVAS CARD
+   -------------------------------------------------------------------------- */
+.campus-map-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--theme-bg-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--theme-card-shadow);
+  height: 100%;
+  min-height: 480px;
+}
+
+.campus-map-viewport {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  min-height: 480px;
+  background: #f4f6f8;
+}
+
+/* MapLibre Map Container overrides */
+.campus-map-viewport .maplibregl-map {
+  font-family: inherit;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.campus-map-viewport .maplibregl-ctrl-top-right {
+  top: 14px;
+  right: 14px;
+}
+
+.campus-map-viewport .maplibregl-ctrl-group {
+  background: var(--theme-bg-surface) !important;
+  border: 1px solid var(--theme-border) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12) !important;
+  overflow: hidden;
+}
+
+.campus-map-viewport .maplibregl-ctrl-group button {
+  border-bottom: 1px solid var(--theme-border) !important;
+}
+
+.campus-map-viewport .maplibregl-ctrl-group button:last-child {
+  border-bottom: none !important;
+}
+
+/* Floating Glassmorphism Controls (Top Left) */
+.campus-map-floating-bar {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--theme-border);
+  border-radius: 10px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="dark"] .campus-map-floating-bar {
+  background: rgba(15, 23, 42, 0.92);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.campus-map-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--theme-primary);
+  background: var(--theme-primary-light);
+  padding: 3px 8px;
+  border-radius: 6px;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+.campus-map-style-select {
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 6px;
+  border: 1px solid var(--theme-border);
+  background: var(--theme-bg-surface);
+  color: var(--theme-text-primary);
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s ease;
+  max-width: 220px;
+}
+
+.campus-map-style-select:hover {
+  border-color: var(--theme-primary);
+}
+
+.campus-map-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--theme-border);
+  background: var(--theme-bg-surface);
+  color: var(--theme-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.campus-map-btn-icon:hover {
+  color: var(--theme-primary);
+  border-color: var(--theme-primary);
+  background: var(--theme-primary-light);
+}
+
+/* Zone Marker Pin */
+.campus-zone-pin {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(8px);
+  border: 1.5px solid #cbd5e1;
+  border-radius: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+[data-theme="dark"] .campus-zone-pin {
+  background: rgba(15, 23, 42, 0.94);
+}
+
+.campus-zone-pin:hover {
+  transform: scale(1.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.campus-zone-pin--selected {
+  transform: scale(1.12);
+  border-width: 2px !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25), 0 4px 14px rgba(0, 0, 0, 0.3) !important;
+}
+
+.campus-zone-pin__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.campus-zone-pin__label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--theme-text-primary);
+  white-space: nowrap;
+}
+
+/* Drawing Hint Bar */
+.campus-draw-bar {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: rgba(15, 23, 42, 0.94);
+  color: #f8fafc;
+  padding: 8px 16px;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.campus-draw-bar__info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.campus-draw-bar__sep {
+  opacity: 0.4;
+}
+
+.campus-draw-bar__count {
+  font-weight: 600;
+  color: #38bdf8;
+}
+
+.campus-draw-bar__hint {
+  font-size: 11.5px;
+  opacity: 0.7;
+}
+
+.campus-draw-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.campus-draw-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.campus-draw-btn--undo {
+  background: rgba(255, 255, 255, 0.15);
+  color: #f8fafc;
+}
+.campus-draw-btn--undo:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.campus-draw-btn--finish {
+  background: #16a34a;
+  color: #ffffff;
+}
+.campus-draw-btn--finish:hover:not(:disabled) {
+  background: #15803d;
+}
+
+.campus-draw-btn--cancel {
+  background: rgba(239, 68, 68, 0.25);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+.campus-draw-btn--cancel:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.4);
+}
+
+.campus-draw-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Floating Bottom Legend */
+.campus-map-legend {
+  position: absolute;
+  bottom: 14px;
+  left: 14px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--theme-border);
+  border-radius: 8px;
+  font-size: 11.5px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="dark"] .campus-map-legend {
+  background: rgba(15, 23, 42, 0.92);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.campus-map-legend__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--theme-text-secondary);
+}
+
+.campus-map-legend__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.campus-map-legend__dot--public { background: #10b981; }
+.campus-map-legend__dot--internal { background: #3b82f6; }
+.campus-map-legend__dot--contact { background: #f59e0b; }
+.campus-map-legend__dot--private { background: #ef4444; }
+
+/* --------------------------------------------------------------------------
+   RIGHT RAIL (AREAS LIST & DETAILS)
+   -------------------------------------------------------------------------- */
+.campus-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  height: 100%;
+  min-height: 0;
+  width: 380px;
+}
+
+.campus-rail-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--theme-bg-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: 12px;
+  box-shadow: var(--theme-card-shadow);
+  overflow: hidden;
+}
+
+.campus-rail-card--list {
+  flex: 1.1;
+  min-height: 240px;
+}
+
+.campus-rail-card--detail {
+  flex: 1;
+  min-height: 220px;
+}
+
+.campus-rail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--theme-border);
+  background: var(--theme-bg-surface-elevated);
+}
+
+.campus-rail-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--theme-text-primary);
+}
+
+.campus-rail-subtitle {
+  font-size: 11.5px;
+  color: var(--theme-text-muted);
+}
+
+.campus-rail-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.campus-rail-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.campus-rail-item:hover {
+  background: var(--theme-bg-canvas);
+  border-color: var(--theme-border);
+}
+
+.campus-rail-item--selected {
+  background: var(--theme-primary-subtle) !important;
+  border-color: var(--theme-primary) !important;
+}
+
+.campus-rail-item__left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.campus-rail-item__name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--theme-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.campus-rail-item__right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.campus-level-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.campus-level-dot--public { background: #10b981; }
+.campus-level-dot--internal_confidential { background: #3b82f6; }
+.campus-level-dot--confidential_contact_required { background: #f59e0b; }
+.campus-level-dot--highly_confidential { background: #ef4444; }
+
+/* Detail Card Content */
+.campus-detail-content {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.campus-detail-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.campus-detail-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--theme-text-primary);
+  margin: 0;
+}
+
+.campus-detail-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--theme-bg-canvas);
+  border: 1px solid var(--theme-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.campus-detail-meta-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12.5px;
+}
+
+.campus-detail-meta-label {
+  color: var(--theme-text-muted);
+}
+
+.campus-detail-meta-val {
+  font-weight: 500;
+  color: var(--theme-text-primary);
+}
+
+.campus-detail-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 8px;
+  flex-wrap: wrap;
+}
+
+.campus-btn-action {
+  flex: 1;
+  min-width: 90px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-weight: 500;
+  border: 1px solid var(--theme-border);
+  background: var(--theme-bg-surface);
+  color: var(--theme-text-primary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.campus-btn-action:hover:not(:disabled) {
+  background: var(--theme-bg-canvas);
+  border-color: var(--theme-border-hover);
+}
+
+.campus-btn-action--primary {
+  background: var(--theme-primary);
+  color: #ffffff;
+  border-color: var(--theme-primary);
+}
+
+.campus-btn-action--primary:hover:not(:disabled) {
+  background: var(--theme-primary-hover);
+  border-color: var(--theme-primary-hover);
+}
+
+.campus-detail-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 24px;
+  text-align: center;
+  color: var(--theme-text-muted);
+  font-size: 13px;
+}

@@ -619,7 +619,7 @@ class AccessDecisionServiceTest {
             switch (areaLevel) {
                 case PUBLIC -> { areaAccessLevel = 1; explicitRequired = false; }
                 case INTERNAL_CONFIDENTIAL -> { areaAccessLevel = 2; explicitRequired = false; }
-                case CONFIDENTIAL_CONTACT_REQUIRED -> { areaAccessLevel = 3; explicitRequired = false; }
+                case CONFIDENTIAL_CONTACT_REQUIRED -> { areaAccessLevel = 2; explicitRequired = true; }
                 case HIGHLY_CONFIDENTIAL -> { areaAccessLevel = 3; explicitRequired = true; }
                 default -> throw new IllegalStateException();
             }
@@ -672,7 +672,7 @@ class AccessDecisionServiceTest {
         switch (areaLevel) {
             case PUBLIC -> { areaAccessLevel = 1; explicitAuthRequired = false; }
             case INTERNAL_CONFIDENTIAL -> { areaAccessLevel = 2; explicitAuthRequired = false; }
-            case CONFIDENTIAL_CONTACT_REQUIRED -> { areaAccessLevel = 3; explicitAuthRequired = false; }
+            case CONFIDENTIAL_CONTACT_REQUIRED -> { areaAccessLevel = 2; explicitAuthRequired = true; }
             case HIGHLY_CONFIDENTIAL -> { areaAccessLevel = 3; explicitAuthRequired = true; }
             default -> throw new IllegalArgumentException("Unknown level: " + areaLevel);
         }

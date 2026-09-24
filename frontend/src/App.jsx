@@ -10,6 +10,7 @@ import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import UnauthorizedPage from "./pages/UnauthorizedPage";
 import AreaListPage from "./pages/areas/AreaListPage";
+import CampusMapPage from "./pages/areas/CampusMapPage";
 import CameraListPage from "./pages/cameras/CameraListPage";
 import CameraDetailPage from "./pages/cameras/CameraDetailPage";
 import GuardDashboardPage from "./pages/guard/GuardDashboardPage";
@@ -108,6 +109,17 @@ function App() {
 							/>
 
 							<Route
+								path="/admin/map"
+								element={
+									<ProtectedRoute
+										allowedRoles={[ROLES.ADMIN, ROLES.FACILITY_MANAGER]}
+									>
+										<CampusMapPage />
+									</ProtectedRoute>
+								}
+							/>
+
+							<Route
 								path="/admin/areas"
 								element={
 									<ProtectedRoute
@@ -122,7 +134,7 @@ function App() {
 								path="/admin/areas/map"
 								element={
 									<Navigate
-										to="/admin/areas?view=map"
+										to="/admin/map"
 										replace
 									/>
 								}
@@ -230,7 +242,7 @@ function App() {
 								path="/fm/access-levels"
 								element={
 									<ProtectedRoute
-										allowedRoles={[ROLES.FACILITY_MANAGER, ROLES.ADMIN]}
+										allowedRoles={[ROLES.FACILITY_MANAGER]}
 									>
 										<UserAccessLevelPage />
 									</ProtectedRoute>
