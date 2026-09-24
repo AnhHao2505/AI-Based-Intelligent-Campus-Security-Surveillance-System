@@ -117,6 +117,14 @@ export async function updateAreaCameras(areaId, cameraIds) {
 }
 
 /**
+ * Cập nhật quy tắc truy cập khu vực (FACILITY_MANAGER)
+ * PATCH /api/areas/{id}/access-rules
+ */
+export async function updateAreaAccessRules(areaId, data) {
+	return apiPatch(`/api/areas/${areaId}/access-rules`, data);
+}
+
+/**
  * Lấy danh sách nhân sự được gán vào khu vực (FACILITY_MANAGER, ADMIN)
  * GET /api/areas/{areaId}/assigned-personnel?status=
  */

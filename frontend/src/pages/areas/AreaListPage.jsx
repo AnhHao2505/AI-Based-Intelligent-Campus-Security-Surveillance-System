@@ -26,6 +26,7 @@ import {
 	Compass,
 	Info,
 } from "lucide-react";
+import AreaAccessRulesModal from "../../components/area/AreaAccessRulesModal";
 import AreaAssignedPersonnelModal from "../../components/area/AreaAssignedPersonnelModal";
 import AreaMapView from "../../components/area/AreaMapView";
 import AreaListView from "../../components/area/AreaListView";
@@ -183,6 +184,26 @@ export default function AreaListPage() {
 	const [loadingAllCameras, setLoadingAllCameras] = useState(false);
 	const [addingCameraId, setAddingCameraId] = useState(null);
 	const [cameraNotification, setCameraNotification] = useState(null);
+
+	// Access rules modal states (Facility Manager)
+	const [accessRulesModalOpen, setAccessRulesModalOpen] = useState(false);
+	const [accessRulesModalArea, setAccessRulesModalArea] = useState(null);
+
+	const handleOpenAccessRulesModal = useCallback((area) => {
+		if (!area) return;
+		setAccessRulesModalArea(area);
+		setAccessRulesModalOpen(true);
+	}, []);
+
+	const handleAccessRulesSuccess = useCallback((updatedArea) => {
+		if (!updatedArea) return;
+		setAreas((prev) =>
+			prev.map((a) => (a.id === updatedArea.id ? { ...a, ...updatedArea } : a))
+		);
+		setAccessRulesModalArea((prev) =>
+			prev?.id === updatedArea.id ? { ...prev, ...updatedArea } : prev
+		);
+	}, []);
 
 	// Assigned personnel modal states (Facility Manager & Admin)
 	const [assignedPersonnelModalOpen, setAssignedPersonnelModalOpen] =
@@ -1036,6 +1057,7 @@ export default function AreaListPage() {
 					onDeleteGeometry={handleDeleteGeometry}
 					setConfirmDeleteId={setConfirmDeleteId}
 					onOpenAssignedPersonnelModal={handleOpenAssignedPersonnelModal}
+					onOpenAccessRulesModal={handleOpenAccessRulesModal}
 					onOpenEditModal={handleOpenEditModal}
 					getLevelPolygonClass={getLevelPolygonClass}
 				/>
@@ -1050,9 +1072,11 @@ export default function AreaListPage() {
 					cameraCounts={cameraCounts}
 					isAdmin={isAdmin}
 					isFacilityManager={isFacilityManager}
+					levelPresets={levelPresets}
 					onSelectArea={(id) => handleSelectArea(id, false)}
 					onOpenCreateModal={handleOpenCreateModal}
 					onOpenCamerasModal={handleOpenCamerasModal}
+					onOpenAccessRulesModal={handleOpenAccessRulesModal}
 					onOpenAssignedPersonnelModal={handleOpenAssignedPersonnelModal}
 					onOpenEditModal={handleOpenEditModal}
 					onOpenDeactivateModal={handleOpenDeactivateModal}
@@ -1973,6 +1997,14 @@ export default function AreaListPage() {
 				onClose={() => setAssignedPersonnelModalOpen(false)}
 				area={assignedPersonnelModalArea}
 				isFacilityManager={isFacilityManager}
+			/>
+
+			{/* Area Access Rules Modal (FM only) */}
+			<AreaAccessRulesModal
+				isOpen={accessRulesModalOpen}
+				onClose={() => setAccessRulesModalOpen(false)}
+				area={accessRulesModalArea}
+				onSuccess={handleAccessRulesSuccess}
 			/>
 		</div>
 	);
