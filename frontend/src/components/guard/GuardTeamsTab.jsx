@@ -271,7 +271,7 @@ export default function GuardTeamsTab({
     const unassigned = linkedGuards
       .filter((g) => !g.team?.id && !g.teamId)
       .sort(compareUserCodes);
-    const countNeeded = minGuardsRecommended || 10;
+    const countNeeded = safeGuardsRecommended || minGuardsRecommended || 10;
     const chosen = unassigned.slice(0, countNeeded).map((g) => g.id);
     setNewTeamMemberIds(chosen);
   };
@@ -1560,7 +1560,7 @@ export default function GuardTeamsTab({
                         </span>
                         <span className="text-slate-300 dark:text-slate-600">•</span>
                         <span className="text-slate-600 dark:text-slate-300">
-                          Đề xuất: <strong className="text-blue-600 dark:text-blue-400 font-bold">{minGuardsRecommended} bảo vệ</strong>
+                          Đề xuất: <strong className="text-blue-600 dark:text-blue-400 font-bold">{minGuardsRecommended === safeGuardsRecommended ? `${safeGuardsRecommended} bảo vệ` : `${minGuardsRecommended} – ${safeGuardsRecommended} bảo vệ`}</strong>
                         </span>
                       </div>
 
@@ -1576,7 +1576,7 @@ export default function GuardTeamsTab({
                         ) : (
                           <AlertCircle size={12} />
                         )}
-                        Đã chọn: {newTeamMemberIds.length}/{minGuardsRecommended} BV
+                        Đã chọn: {newTeamMemberIds.length}/{safeGuardsRecommended || minGuardsRecommended} BV
                       </span>
                     </div>
 
@@ -1594,7 +1594,7 @@ export default function GuardTeamsTab({
                             className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 transition flex items-center gap-1.5"
                           >
                             <Zap size={12} className="text-amber-500 fill-amber-500" />
-                            <span>Chọn nhanh {minGuardsRecommended} bảo vệ</span>
+                            <span>Chọn nhanh {safeGuardsRecommended || minGuardsRecommended} bảo vệ</span>
                           </button>
 
                           {newTeamMemberIds.length > 0 && (
