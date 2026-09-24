@@ -853,7 +853,7 @@ export default function GuardTeamsTab({
             let assignedLocation = '';
             if (buildingCodes.length > 0) {
               assignedLocation = buildingCodes.map((code) => {
-                const b = (buildings || []).find((item) => item.code === code || item.id === code);
+                const b = (buildings || []).find((item) => item.code === code || item.id === code || item.name === code);
                 if (b?.name) return b.name;
                 const a = (areas || []).find((item) => item.building === code);
                 if (a?.building) return a.building;
@@ -863,10 +863,22 @@ export default function GuardTeamsTab({
                 if (code === 'FPT_AROUND') return 'Khuôn viên Ngoài trời';
                 return code;
               }).join(', ');
-            } else if (team.description && (team.description.includes('TOA_') || team.description.includes('KHU_') || team.description.includes('FPT_'))) {
+            } else if (team.description) {
               const code = team.description;
-              const b = (buildings || []).find((item) => item.code === code || item.id === code);
-              assignedLocation = b?.name || (code === 'TOA_ALPHA' ? 'Tòa Alpha' : code === 'TOA_BETA' ? 'Tòa Beta' : code === 'KHU_THE_THAO' ? 'Khu Thể Thao' : code === 'FPT_AROUND' ? 'Khuôn viên Ngoài trời' : code);
+              const b = (buildings || []).find((item) => item.code === code || item.id === code || item.name === code);
+              if (b?.name) {
+                assignedLocation = b.name;
+              } else if (code === 'TOA_ALPHA') {
+                assignedLocation = 'Tòa Alpha';
+              } else if (code === 'TOA_BETA') {
+                assignedLocation = 'Tòa Beta';
+              } else if (code === 'KHU_THE_THAO') {
+                assignedLocation = 'Khu Thể Thao';
+              } else if (code === 'FPT_AROUND') {
+                assignedLocation = 'Khuôn viên Ngoài trời';
+              } else if (!code.startsWith('Tổ tạo nhanh')) {
+                assignedLocation = code;
+              }
             }
 
             return (
@@ -1692,18 +1704,31 @@ export default function GuardTeamsTab({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                      Mô Tả / Ghi Chú (Tùy chọn)
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
+                      <span>Tòa Nhà / Cơ Sở Phụ Trách</span>
                     </label>
-                    <input
-                      type="text"
-                      placeholder="Nhập ghi chú hoặc nhiệm vụ (không bắt buộc)"
-                      value={teamForm.description}
+                    <select
+                      value={teamForm.description || ''}
                       onChange={(e) =>
                         setTeamForm((prev) => ({ ...prev, description: e.target.value }))
                       }
                       className="w-full px-3 py-2 text-xs font-medium rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+                    >
+                      <option value="">-- Chưa gán tòa / Tùy chỉnh sau --</option>
+                      {(buildings || []).map((b) => (
+                        <option key={b.code || b.id} value={b.code || b.id}>
+                          {b.name} ({b.code || b.id})
+                        </option>
+                      ))}
+                      {(!buildings || buildings.length === 0) && (
+                        <>
+                          <option value="TOA_ALPHA">Tòa Alpha (TOA_ALPHA)</option>
+                          <option value="TOA_BETA">Tòa Beta (TOA_BETA)</option>
+                          <option value="KHU_THE_THAO">Khu Thể Thao & Sân Bóng (KHU_THE_THAO)</option>
+                          <option value="FPT_AROUND">Khuôn viên Ngoài trời (FPT_AROUND)</option>
+                        </>
+                      )}
+                    </select>
                   </div>
                 </div>
 

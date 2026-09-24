@@ -137,7 +137,7 @@ export default function StaffingWizardModal({
     return (teams || []).find((t) => t.id === selectedTeamId) || null;
   }, [teams, selectedTeamId]);
 
-  // Cập nhật cấu hình nhu cầu ca trực khi đổi đội
+  // Cập nhật cấu hình nhu cầu ca trực và tòa nhà mặc định khi đổi đội
   useEffect(() => {
     if (activeTeam) {
       setWeekdayMorningDemand(activeTeam.weekdayMorningDemand ?? 2);
@@ -147,8 +147,20 @@ export default function StaffingWizardModal({
       setSundayAfternoonDemand(activeTeam.sundayAfternoonDemand ?? 2);
       setSundayNightDemand(activeTeam.sundayNightDemand ?? 2);
       setHasSundayCustom(activeTeam.hasSundayCustom ?? true);
+
+      if (activeTeam.description) {
+        const desc = activeTeam.description;
+        const matchingBuilding = (buildings || []).find(
+          (b) => b.code === desc || b.id === desc || b.name === desc
+        );
+        if (matchingBuilding) {
+          setBuilding(matchingBuilding.code || matchingBuilding.id);
+        } else if (['TOA_ALPHA', 'TOA_BETA', 'KHU_THE_THAO', 'FPT_AROUND'].includes(desc)) {
+          setBuilding(desc);
+        }
+      }
     }
-  }, [activeTeam]);
+  }, [activeTeam, buildings]);
 
   // Danh sách thành viên của đội đang chọn
   const activeTeamMembers = useMemo(() => {
@@ -239,6 +251,30 @@ export default function StaffingWizardModal({
       };
 
       const res = await guardScheduleApi.generateShiftsFromWizard(payload);
+
+      // Cập nhật tòa nhà phụ trách vào thông tin Đội để hiển thị vị trí ở tab Quản lý Đội
+      if (selectedTeamId && building) {
+        try {
+          const targetTeam = teams.find((t) => t.id === selectedTeamId);
+          if (targetTeam) {
+            await guardScheduleApi.updateTeam(selectedTeamId, {
+              teamName: targetTeam.teamName,
+              description: building,
+              colorCode: targetTeam.colorCode || '#2563eb',
+              weekdayMorningDemand: targetTeam.weekdayMorningDemand ?? 2,
+              weekdayAfternoonDemand: targetTeam.weekdayAfternoonDemand ?? 2,
+              weekdayNightDemand: targetTeam.weekdayNightDemand ?? 2,
+              sundayMorningDemand: targetTeam.sundayMorningDemand ?? 2,
+              sundayAfternoonDemand: targetTeam.sundayAfternoonDemand ?? 2,
+              sundayNightDemand: targetTeam.sundayNightDemand ?? 2,
+              hasSundayCustom: true
+            });
+          }
+        } catch (updateErr) {
+          console.warn('Lỗi khi cập nhật tòa nhà vào Đội:', updateErr);
+        }
+      }
+
       setResult(res);
       if (onSuccess) {
         onSuccess();

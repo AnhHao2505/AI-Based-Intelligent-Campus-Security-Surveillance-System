@@ -292,6 +292,10 @@ public class GuardScheduleService {
             team = teamRepository.findById(request.getTeamId())
                     .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy tổ đội được chỉ định"));
             guards = userRepository.findByTeamIdAndDeletedAtIsNullAndIsActiveTrue(team.getId());
+            if (request.getBuilding() != null && !request.getBuilding().isBlank()) {
+                team.setDescription(request.getBuilding());
+                team = teamRepository.save(team);
+            }
         } else if (request.getNewTeamName() != null && !request.getNewTeamName().isBlank()) {
             String trimmedName = request.getNewTeamName().trim();
             Optional<GuardTeam> existingOpt = teamRepository.findByTeamNameIgnoreCase(trimmedName);
@@ -299,12 +303,15 @@ public class GuardScheduleService {
                 team = existingOpt.get();
                 if (Boolean.FALSE.equals(team.getIsActive())) {
                     team.setIsActive(true);
-                    team = teamRepository.save(team);
                 }
+                if (request.getBuilding() != null && !request.getBuilding().isBlank()) {
+                    team.setDescription(request.getBuilding());
+                }
+                team = teamRepository.save(team);
             } else {
                 team = teamRepository.save(GuardTeam.builder()
                         .teamName(trimmedName)
-                        .description("Tổ tạo nhanh từ Wizard")
+                        .description(request.getBuilding() != null && !request.getBuilding().isBlank() ? request.getBuilding() : "Tổ tạo nhanh từ Wizard")
                         .isActive(true)
                         .build());
             }
