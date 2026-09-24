@@ -19,11 +19,9 @@ export default function AreaListView({
 	cameraCounts,
 	isAdmin,
 	isFacilityManager,
-	levelPresets,
 	onSelectArea,
 	onOpenCreateModal,
 	onOpenCamerasModal,
-	onOpenAccessRulesModal,
 	onOpenAssignedPersonnelModal,
 	onOpenEditModal,
 	onOpenDeactivateModal,
@@ -81,7 +79,7 @@ export default function AreaListView({
 										{area.differsFromPreset && (
 											<span
 												className="zone-card__pill-differs"
-												title="Quy tắc truy cập của khu vực này khác với giá trị mặc định của loại khu vực"
+												title="Khu vực có cấu hình chỉ định riêng"
 												style={{
 													display: "inline-flex",
 													alignItems: "center",
@@ -94,7 +92,7 @@ export default function AreaListView({
 													border: "1px solid rgba(234, 88, 12, 0.3)",
 												}}
 											>
-												Khác mặc định
+												Chỉ định
 											</span>
 										)}
 									</div>
@@ -144,7 +142,10 @@ export default function AreaListView({
 										</button>
 
 										{isFacilityManager &&
-											levelKey !== "PUBLIC" && (
+											[
+												"CONFIDENTIAL_CONTACT_REQUIRED",
+												"HIGHLY_CONFIDENTIAL",
+											].includes(levelKey) && (
 												<button
 													type="button"
 													className="zone-card__quick-btn"
@@ -201,7 +202,7 @@ export default function AreaListView({
 					</div>
 					<div>
 						<h4 className="zone-list-info-banner__title">
-							Quy định Quyền Truy Cập
+							Quy định quyền truy cập
 						</h4>
 						<p className="zone-list-info-banner__subtitle">
 							Chi tiết về điều kiện ra vào
@@ -210,54 +211,54 @@ export default function AreaListView({
 				</div>
 
 				<div className="zone-list-info-banner__grid">
-					{['PUBLIC', 'INTERNAL_CONFIDENTIAL', 'CONFIDENTIAL_CONTACT_REQUIRED', 'HIGHLY_CONFIDENTIAL'].map((key) => {
+					{[
+						"PUBLIC",
+						"INTERNAL_CONFIDENTIAL",
+						"CONFIDENTIAL_CONTACT_REQUIRED",
+						"HIGHLY_CONFIDENTIAL",
+					].map((key) => {
 						const config = AREA_LEVEL_CONFIG[key] || getLevelConfig(key);
-						const preset = levelPresets?.[key];
+						const accessLevelByType = {
+							PUBLIC: 1,
+							INTERNAL_CONFIDENTIAL: 2,
+							CONFIDENTIAL_CONTACT_REQUIRED: 2,
+							HIGHLY_CONFIDENTIAL: 3,
+						};
 						const cardModifier =
-							key === 'PUBLIC'
-								? 'zone-list-info-banner__card--public'
-								: key === 'INTERNAL_CONFIDENTIAL'
-									? 'zone-list-info-banner__card--internal'
-									: key === 'CONFIDENTIAL_CONTACT_REQUIRED'
-										? 'zone-list-info-banner__card--contact'
-										: 'zone-list-info-banner__card--private';
+							key === "PUBLIC"
+								? "zone-list-info-banner__card--public"
+								: key === "INTERNAL_CONFIDENTIAL"
+									? "zone-list-info-banner__card--internal"
+									: key === "CONFIDENTIAL_CONTACT_REQUIRED"
+										? "zone-list-info-banner__card--contact"
+										: "zone-list-info-banner__card--private";
 
-						const hasLevel = preset && preset.areaAccessLevel != null;
-						const levelLabel = hasLevel
-							? `Level ${preset.areaAccessLevel}${preset.explicitAuthorizationRequired ? ' · Chỉ định' : '+'}`
-							: null;
+						const levelLabel = `Level ${accessLevelByType[key]}`;
 
 						let explicitTag = null;
-						if (key === 'PUBLIC') {
+						if (key === "PUBLIC" || key === "INTERNAL_CONFIDENTIAL") {
 							explicitTag = (
 								<span className="zone-list-info-banner__personnel-tag zone-list-info-banner__personnel-tag--none">
 									Không áp dụng
 								</span>
 							);
-						} else if (!preset) {
-							explicitTag = (
-								<span className="zone-list-info-banner__personnel-tag zone-list-info-banner__personnel-tag--none">
-									—
-								</span>
-							);
-						} else if (preset.explicitAuthorizationRequired) {
+						} else {
 							explicitTag = (
 								<span className="zone-list-info-banner__personnel-tag zone-list-info-banner__personnel-tag--has">
 									<Users size={11} /> Bắt buộc chỉ định
 								</span>
 							);
-						} else {
-							explicitTag = (
-								<span className="zone-list-info-banner__personnel-tag zone-list-info-banner__personnel-tag--none">
-									Không bắt buộc
-								</span>
-							);
 						}
 
 						return (
-							<div key={key} className={`zone-list-info-banner__card ${cardModifier}`}>
+							<div
+								key={key}
+								className={`zone-list-info-banner__card ${cardModifier}`}
+							>
 								<div className="zone-list-info-banner__card-header">
-									<span className={`zone-list-info-banner__card-badge level-badge ${config.badgeClass}`}>
+									<span
+										className={`zone-list-info-banner__card-badge level-badge ${config.badgeClass}`}
+									>
 										{config.badgeLabel}
 									</span>
 									{levelLabel && (
@@ -290,9 +291,12 @@ export default function AreaListView({
 							size={12}
 							style={{ display: "inline", margin: "0 2px" }}
 						/>
-						) hiển thị trên thẻ của mọi phòng trừ loại{" "}
-						<strong>{AREA_LEVEL_CONFIG.PUBLIC.name} (PUBLIC)</strong> để cấp quyền ra vào cho nhân
-						sự.
+						) chỉ hiển thị trên thẻ của loại{" "}
+						<strong>
+							{AREA_LEVEL_CONFIG.CONFIDENTIAL_CONTACT_REQUIRED.name}
+						</strong>{" "}
+						và <strong>{AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name}</strong> để
+						quản lý nhân sự được chỉ định.
 					</span>
 				</div>
 			</div>

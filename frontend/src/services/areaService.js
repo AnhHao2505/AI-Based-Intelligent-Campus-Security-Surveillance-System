@@ -1,25 +1,29 @@
-import { apiGet, apiPost, apiPut, apiPatch, apiDelete } from '../api/apiClient';
+import { apiGet, apiPost, apiPut, apiPatch, apiDelete } from "../api/apiClient";
 
 /**
  * Lấy danh sách Area có phân trang và bộ lọc
  * GET /api/areas
  */
 export async function getAreas(params = {}) {
-  const query = new URLSearchParams();
-  if (params.keyword) query.append('keyword', params.keyword);
-  if (params.areaLevel !== undefined && params.areaLevel !== null && params.areaLevel !== '') {
-    query.append('areaLevel', params.areaLevel);
-  }
-  if (params.building) query.append('building', params.building);
-  if (params.isActive !== undefined && params.isActive !== null) {
-    query.append('isActive', params.isActive);
-  }
-  if (params.page !== undefined) query.append('page', params.page);
-  if (params.size !== undefined) query.append('size', params.size);
-  if (params.sort) query.append('sort', params.sort);
+	const query = new URLSearchParams();
+	if (params.keyword) query.append("keyword", params.keyword);
+	if (
+		params.areaLevel !== undefined &&
+		params.areaLevel !== null &&
+		params.areaLevel !== ""
+	) {
+		query.append("areaLevel", params.areaLevel);
+	}
+	if (params.building) query.append("building", params.building);
+	if (params.isActive !== undefined && params.isActive !== null) {
+		query.append("isActive", params.isActive);
+	}
+	if (params.page !== undefined) query.append("page", params.page);
+	if (params.size !== undefined) query.append("size", params.size);
+	if (params.sort) query.append("sort", params.sort);
 
-  const queryString = query.toString();
-  return apiGet(`/api/areas${queryString ? `?${queryString}` : ''}`);
+	const queryString = query.toString();
+	return apiGet(`/api/areas${queryString ? `?${queryString}` : ""}`);
 }
 
 /**
@@ -27,16 +31,15 @@ export async function getAreas(params = {}) {
  * GET /api/areas/{id}
  */
 export async function getAreaById(id) {
-  return apiGet(`/api/areas/${id}`);
+	return apiGet(`/api/areas/${id}`);
 }
-
 
 /**
  * Kiểm tra các phụ thuộc trước khi xóa/vô hiệu hóa khu vực
  * GET /api/areas/{id}/dependencies
  */
 export async function getDependencies(id) {
-  return apiGet(`/api/areas/${id}/dependencies`);
+	return apiGet(`/api/areas/${id}/dependencies`);
 }
 
 /**
@@ -44,7 +47,7 @@ export async function getDependencies(id) {
  * POST /api/areas
  */
 export async function createArea(data) {
-  return apiPost('/api/areas', data);
+	return apiPost("/api/areas", data);
 }
 
 /**
@@ -52,7 +55,7 @@ export async function createArea(data) {
  * PUT /api/areas/{id}
  */
 export async function updateArea(id, data) {
-  return apiPut(`/api/areas/${id}`, data);
+	return apiPut(`/api/areas/${id}`, data);
 }
 
 /**
@@ -60,16 +63,15 @@ export async function updateArea(id, data) {
  * DELETE /api/areas/{id}
  */
 export async function deactivateArea(id) {
-  return apiDelete(`/api/areas/${id}`);
+	return apiDelete(`/api/areas/${id}`);
 }
-
 
 /**
  * Lấy danh sách floor plan
  * GET /api/floor-plans
  */
 export async function getFloorPlans() {
-  return apiGet('/api/floor-plans');
+	return apiGet("/api/floor-plans");
 }
 
 /**
@@ -78,8 +80,8 @@ export async function getFloorPlans() {
  * Cả hai tham số đều BẮT BUỘC.
  */
 export async function getAreaGeometries(building, floor) {
-  const query = new URLSearchParams({ building, floor });
-  return apiGet(`/api/areas/geometries?${query.toString()}`);
+	const query = new URLSearchParams({ building, floor });
+	return apiGet(`/api/areas/geometries?${query.toString()}`);
 }
 
 /**
@@ -87,7 +89,7 @@ export async function getAreaGeometries(building, floor) {
  * PATCH /api/areas/{id}/geometry
  */
 export async function saveAreaGeometry(areaId, vertices) {
-  return apiPatch(`/api/areas/${areaId}/geometry`, { vertices });
+	return apiPatch(`/api/areas/${areaId}/geometry`, { vertices });
 }
 
 /**
@@ -95,7 +97,7 @@ export async function saveAreaGeometry(areaId, vertices) {
  * DELETE /api/areas/{id}/geometry
  */
 export async function deleteAreaGeometry(areaId) {
-  return apiDelete(`/api/areas/${areaId}/geometry`);
+	return apiDelete(`/api/areas/${areaId}/geometry`);
 }
 
 /**
@@ -103,7 +105,7 @@ export async function deleteAreaGeometry(areaId) {
  * GET /api/areas/{id}/cameras
  */
 export async function getAreaCameras(areaId) {
-  return apiGet(`/api/areas/${areaId}/cameras`);
+	return apiGet(`/api/areas/${areaId}/cameras`);
 }
 
 /**
@@ -111,15 +113,7 @@ export async function getAreaCameras(areaId) {
  * PUT /api/areas/{id}/cameras
  */
 export async function updateAreaCameras(areaId, cameraIds) {
-  return apiPut(`/api/areas/${areaId}/cameras`, { cameraIds });
-}
-
-/**
- * Cập nhật quy tắc truy cập khu vực (FACILITY_MANAGER)
- * PATCH /api/areas/{id}/access-rules
- */
-export async function updateAreaAccessRules(areaId, data) {
-  return apiPatch(`/api/areas/${areaId}/access-rules`, data);
+	return apiPut(`/api/areas/${areaId}/cameras`, { cameraIds });
 }
 
 /**
@@ -127,8 +121,8 @@ export async function updateAreaAccessRules(areaId, data) {
  * GET /api/areas/{areaId}/assigned-personnel?status=
  */
 export async function getAssignedPersonnel(areaId, status) {
-  const query = status ? `?status=${encodeURIComponent(status)}` : '';
-  return apiGet(`/api/areas/${areaId}/assigned-personnel${query}`);
+	const query = status ? `?status=${encodeURIComponent(status)}` : "";
+	return apiGet(`/api/areas/${areaId}/assigned-personnel${query}`);
 }
 
 /**
@@ -136,7 +130,7 @@ export async function getAssignedPersonnel(areaId, status) {
  * POST /api/areas/{areaId}/assigned-personnel
  */
 export async function assignPersonnel(areaId, data) {
-  return apiPost(`/api/areas/${areaId}/assigned-personnel`, data);
+	return apiPost(`/api/areas/${areaId}/assigned-personnel`, data);
 }
 
 /**
@@ -144,7 +138,7 @@ export async function assignPersonnel(areaId, data) {
  * PATCH /api/areas/{areaId}/assigned-personnel/{id}
  */
 export async function updateAssignedPersonnel(areaId, id, data) {
-  return apiPatch(`/api/areas/${areaId}/assigned-personnel/${id}`, data);
+	return apiPatch(`/api/areas/${areaId}/assigned-personnel/${id}`, data);
 }
 
 /**
@@ -152,8 +146,5 @@ export async function updateAssignedPersonnel(areaId, id, data) {
  * PATCH /api/areas/{areaId}/assigned-personnel/{id}/revoke
  */
 export async function revokeAssignedPersonnel(areaId, id, data) {
-  return apiPatch(`/api/areas/${areaId}/assigned-personnel/${id}/revoke`, data);
+	return apiPatch(`/api/areas/${areaId}/assigned-personnel/${id}/revoke`, data);
 }
-
-
-
