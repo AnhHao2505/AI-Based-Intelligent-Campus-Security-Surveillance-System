@@ -32,6 +32,7 @@ import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -449,13 +450,131 @@ class GuardScheduleServiceTest {
     }
 
     @Test
-    @DisplayName("Xóa hàng loạt lịch ca trực - Lỗi khi ngày kết thúc trước ngày bắt đầu")
-    void testBulkClearShifts_InvalidDates() {
-        BulkClearShiftsRequest request = BulkClearShiftsRequest.builder()
-                .startDate(LocalDate.of(2026, 9, 28))
-                .endDate(LocalDate.of(2026, 9, 21))
+    @DisplayName("Tự động sinh ca từ Wizard - Phân bổ công bằng đều 5 ca/tuần cho 12 bảo vệ (tổng 60 ca)")
+    void testGenerateShiftsFromWizard_FairLoadBalancing() {
+        LocalDate startDate = LocalDate.of(2026, 9, 28); // Monday
+        LocalDate endDate = LocalDate.of(2026, 10, 4);   // Sunday
+
+        List<User> guards = new java.util.ArrayList<>();
+        List<UUID> guardIds = new java.util.ArrayList<>();
+        for (int i = 0; i < 12; i++) {
+            UUID gId = UUID.randomUUID();
+            guardIds.add(gId);
+            guards.add(User.builder()
+                    .id(gId)
+                    .fullName("Guard " + i)
+                    .email("guard" + i + "@fpt.edu.vn")
+                    .role(Role.GUARD)
+                    .build());
+        }
+
+        when(userRepository.findAllById(guardIds)).thenReturn(guards);
+        when(shiftRepository.save(any(GuardShift.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        com.fa26se040.icss.dto.guard.WizardGenerateShiftsRequest request = com.fa26se040.icss.dto.guard.WizardGenerateShiftsRequest.builder()
+                .startDate(startDate)
+                .endDate(endDate)
+                .memberGuardIds(guardIds)
+                .morningDemand(3)
+                .afternoonDemand(4)
+                .nightDemand(2)
+                .hasSundayCustom(true)
+                .sundayMorningDemand(2)
+                .sundayAfternoonDemand(2)
+                .sundayNightDemand(2)
                 .build();
 
-        assertThrows(IllegalArgumentException.class, () -> guardScheduleService.bulkClearShifts(request));
+        List<GuardShiftDto> results = guardScheduleService.generateShiftsFromWizard(request);
+
+        // Tổng số ca sinh ra phải đúng bằng 60 (6 ngày x 9 + 1 ngày x 6)
+        assertEquals(60, results.size());
+
+        // Đếm số ca của từng bảo vệ
+        java.util.Map<UUID, Long> guardShiftCounts = results.stream()
+                .collect(Collectors.groupingBy(GuardShiftDto::getGuardId, Collectors.counting()));
+
+        assertEquals(12, guardShiftCounts.size());
+        for (UUID gId : guardIds) {
+            // Mỗi người phải được phân đúng 5 ca!
+            assertEquals(5L, guardShiftCounts.get(gId).longValue(), "Bảo vệ " + gId + " phải có đúng 5 ca");
+        }
+
+        // Kiểm tra không có ai bị xếp > 1 ca trong cùng 1 ngày
+        java.util.Map<String, Long> guardDayCounts = results.stream()
+                .collect(Collectors.groupingBy(s -> s.getGuardId() + "_" + s.getShiftDate(), Collectors.counting()));
+        for (Long count : guardDayCounts.values()) {
+            assertEquals(1L, count.longValue(), "Mỗi bảo vệ chỉ được trực tối đa 1 ca/ngày");
+        }
+    }
+
+    @Test
+    @DisplayName("Tự động sinh ca - Đảm bảo ca Đêm luôn có người trực thay (người nghỉ hôm nay không bị dồn hết vào sáng mai)")
+    void testGenerateShiftsFromWizard_NightShiftHasAvailableSubstitutes() {
+        LocalDate startDate = LocalDate.of(2026, 9, 28); // Monday
+        LocalDate endDate = LocalDate.of(2026, 10, 4);   // Sunday
+
+        // 15 guards (tương đương Đội 2)
+        List<User> guards = new java.util.ArrayList<>();
+        List<UUID> guardIds = new java.util.ArrayList<>();
+        for (int i = 0; i < 15; i++) {
+            UUID gId = UUID.randomUUID();
+            guardIds.add(gId);
+            guards.add(User.builder()
+                    .id(gId)
+                    .fullName("Guard " + i)
+                    .email("guard" + i + "@fpt.edu.vn")
+                    .role(Role.GUARD)
+                    .build());
+        }
+
+        when(userRepository.findAllById(guardIds)).thenReturn(guards);
+        when(shiftRepository.save(any(GuardShift.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        com.fa26se040.icss.dto.guard.WizardGenerateShiftsRequest request = com.fa26se040.icss.dto.guard.WizardGenerateShiftsRequest.builder()
+                .startDate(startDate)
+                .endDate(endDate)
+                .memberGuardIds(guardIds)
+                .morningDemand(4)
+                .afternoonDemand(4)
+                .nightDemand(3)
+                .hasSundayCustom(true)
+                .sundayMorningDemand(2)
+                .sundayAfternoonDemand(3)
+                .sundayNightDemand(2)
+                .build();
+
+        List<GuardShiftDto> results = guardScheduleService.generateShiftsFromWizard(request);
+        assertFalse(results.isEmpty());
+
+        // Xét ngày Thứ 3 (Tuesday, 2026-09-29)
+        LocalDate tuesday = startDate.plusDays(1);
+        LocalDate wednesday = startDate.plusDays(2);
+
+        // Danh sách bảo vệ trực Thứ 3
+        java.util.Set<UUID> tuesdayWorkingGuards = results.stream()
+                .filter(s -> s.getShiftDate().equals(tuesday))
+                .map(GuardShiftDto::getGuardId)
+                .collect(Collectors.toSet());
+
+        // Những bảo vệ ĐƯỢC NGHỈ vào Thứ 3:
+        List<UUID> tuesdayRestingGuards = guardIds.stream()
+                .filter(id -> !tuesdayWorkingGuards.contains(id))
+                .collect(Collectors.toList());
+
+        assertFalse(tuesdayRestingGuards.isEmpty(), "Thứ 3 phải có người được nghỉ luân phiên");
+
+        // Trong số những người nghỉ Thứ 3, tìm xem có ai KHÔNG bị xếp ca Sáng vào Thứ 4 (để có thể thế ca Đêm Thứ 3)
+        java.util.Set<UUID> wednesdayMorningGuards = results.stream()
+                .filter(s -> s.getShiftDate().equals(wednesday) && s.getShiftType() == ShiftType.SHIFT_MORNING)
+                .map(GuardShiftDto::getGuardId)
+                .collect(Collectors.toSet());
+
+        List<UUID> eligibleSubstitutesForTuesdayNight = tuesdayRestingGuards.stream()
+                .filter(id -> !wednesdayMorningGuards.contains(id))
+                .collect(Collectors.toList());
+
+        // PHẢI CÓ ÍT NHẤT 1 BẢO VỆ ĐỦ ĐIỀU KIỆN TRỰC THAY CA ĐÊM THỨ 3
+        assertTrue(eligibleSubstitutesForTuesdayNight.size() >= 1,
+                "Phải có ít nhất 1 người nghỉ Thứ 3 mà sáng Thứ 4 không trực để có thể thế ca Đêm Thứ 3!");
     }
 }

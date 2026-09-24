@@ -38,9 +38,11 @@ import com.fa26se040.icss.dto.guard.BulkClearShiftsResponse;
 import com.fa26se040.icss.dto.guard.CapacityCalculateRequest;
 import com.fa26se040.icss.dto.guard.CapacityCalculateResponse;
 import com.fa26se040.icss.dto.guard.WizardGenerateShiftsRequest;
+import com.fa26se040.icss.entity.GuardShiftRequest;
 import com.fa26se040.icss.entity.GuardTeam;
 import com.fa26se040.icss.entity.GuardTeamDispatch;
 import com.fa26se040.icss.enums.GuardDispatchStatus;
+import com.fa26se040.icss.enums.GuardShiftRequestStatus;
 import com.fa26se040.icss.repository.GuardShiftRequestRepository;
 import com.fa26se040.icss.repository.GuardTeamDispatchRepository;
 import com.fa26se040.icss.repository.GuardTeamRepository;
@@ -366,6 +368,55 @@ public class GuardScheduleService {
             }
         }
 
+        // Khởi tạo bộ theo dõi tải làm việc cho từng bảo vệ (Fair Load Balancing & Ergonomic Rotation)
+        class GuardScheduleState {
+            final User guard;
+            int totalAssigned = 0;
+            int morningCount = 0;
+            int afternoonCount = 0;
+            int nightCount = 0;
+            int consecutiveWorkDays = 0;
+            int consecutiveRestDays = 0;
+            ShiftType yesterdayShift = null;
+            ShiftType todayShift = null;
+
+            GuardScheduleState(User guard) {
+                this.guard = guard;
+            }
+
+            int getShiftTypeCount(ShiftType type) {
+                if (type == ShiftType.SHIFT_MORNING) return morningCount;
+                if (type == ShiftType.SHIFT_AFTERNOON) return afternoonCount;
+                if (type == ShiftType.SHIFT_NIGHT) return nightCount;
+                return 0;
+            }
+
+            void recordShift(ShiftType type) {
+                this.todayShift = type;
+                this.totalAssigned++;
+                if (type == ShiftType.SHIFT_MORNING) morningCount++;
+                else if (type == ShiftType.SHIFT_AFTERNOON) afternoonCount++;
+                else if (type == ShiftType.SHIFT_NIGHT) nightCount++;
+            }
+
+            void endDay() {
+                if (todayShift != null) {
+                    consecutiveWorkDays++;
+                    consecutiveRestDays = 0;
+                    yesterdayShift = todayShift;
+                    todayShift = null;
+                } else {
+                    consecutiveWorkDays = 0;
+                    consecutiveRestDays++;
+                    yesterdayShift = null;
+                }
+            }
+        }
+
+        List<GuardScheduleState> guardStates = guards.stream()
+                .map(GuardScheduleState::new)
+                .collect(Collectors.toList());
+
         List<GuardShift> createdShifts = new ArrayList<>();
         LocalDate currentDate = request.getStartDate();
         int dayIndex = 0;
@@ -378,74 +429,179 @@ public class GuardScheduleService {
             int dayAfternoon = (isSunday && customSunday && suA != null) ? suA : nAfternoon;
             int dayNight = (isSunday && customSunday && suN != null) ? suN : nNight;
 
-            List<ShiftType> daySlots = new ArrayList<>();
-            for (int i = 0; i < dayMorning; i++) daySlots.add(ShiftType.SHIFT_MORNING);
-            for (int i = 0; i < dayAfternoon; i++) daySlots.add(ShiftType.SHIFT_AFTERNOON);
-            for (int i = 0; i < dayNight; i++) daySlots.add(ShiftType.SHIFT_NIGHT);
+            int totalDayDemand = dayMorning + dayAfternoon + dayNight;
+            int numRestingToday = Math.max(0, m - totalDayDemand);
 
-            for (int guardIdx = 0; guardIdx < m; guardIdx++) {
-                User guard = guards.get(guardIdx);
-
-                int slotIdx = (guardIdx + dayIndex) % m;
-                if (slotIdx < daySlots.size()) {
-                    ShiftType shiftType = daySlots.get(slotIdx);
-                    LocalTime startTime;
-                    LocalTime endTime;
-                    switch (shiftType) {
-                        case SHIFT_MORNING:
-                            startTime = LocalTime.of(6, 0);
-                            endTime = LocalTime.of(14, 0);
-                            break;
-                        case SHIFT_AFTERNOON:
-                            startTime = LocalTime.of(14, 0);
-                            endTime = LocalTime.of(22, 0);
-                            break;
-                        case SHIFT_NIGHT:
-                            startTime = LocalTime.of(22, 0);
-                            endTime = LocalTime.of(6, 0);
-                            break;
-                        default:
-                            continue;
+            // 1. Chọn trước các nhân viên ĐƯỢC NGHỈ trong ngày hôm nay:
+            // Ưu tiên:
+            // a. Cân bằng tải tuyệt đối: Người có số ca nhiều hơn bắt buộc phải được nghỉ trước
+            // b. Nghỉ 2 ngày liền kề (consecutiveRestDays >= 1)
+            // c. Vừa trực ca Đêm hôm qua (để được nghỉ ngơi hồi phục)
+            // d. Người đã làm việc nhiều ngày liên tục
+            Set<UUID> restingGuardIdsToday = new HashSet<>();
+            if (numRestingToday > 0) {
+                List<GuardScheduleState> restCandidates = new ArrayList<>(guardStates);
+                restCandidates.sort((a, b) -> {
+                    // a. Người có nhiều ca làm việc tích lũy hơn phải được nghỉ trước để cân bằng tải
+                    if (a.totalAssigned != b.totalAssigned) {
+                        return Integer.compare(b.totalAssigned, a.totalAssigned);
                     }
 
-                    boolean exists = shiftRepository.existsByGuardIdAndShiftDateAndStartTime(
-                            guard.getId(), currentDate, startTime
-                    );
+                    // b. Ưu tiên nghỉ 2 ngày liền kề (nếu hôm qua đã nghỉ)
+                    if (a.consecutiveRestDays != b.consecutiveRestDays) {
+                        return Integer.compare(b.consecutiveRestDays, a.consecutiveRestDays);
+                    }
 
-                    if (!exists) {
-                        GuardShift shift = GuardShift.builder()
-                                .guard(guard)
-                                .shiftDate(currentDate)
-                                .shiftType(shiftType)
-                                .startTime(startTime)
-                                .endTime(endTime)
-                                .area(targetArea)
-                                .status(ShiftStatus.SCHEDULED)
-                                .isOvertime(false)
-                                .notes("Khởi tạo tự động từ Wizard" + (request.getBuilding() != null ? " (" + request.getBuilding() + ")" : ""))
-                                .build();
-                        createdShifts.add(shiftRepository.save(shift));
+                    // c. Vừa trực ca đêm hôm qua
+                    boolean aNightYest = (a.yesterdayShift == ShiftType.SHIFT_NIGHT);
+                    boolean bNightYest = (b.yesterdayShift == ShiftType.SHIFT_NIGHT);
+                    if (aNightYest != bNightYest) {
+                        return aNightYest ? -1 : 1;
+                    }
 
-                        if (Boolean.TRUE.equals(request.getSaveAsTemplate()) && dayIndex < 7) {
-                            boolean tExists = templateRepository.existsByGuardIdAndDayOfWeekAndStartTimeAndIsActiveTrue(
-                                     guard.getId(), dow, startTime
-                            );
-                            if (!tExists) {
-                                GuardScheduleTemplate template = GuardScheduleTemplate.builder()
-                                        .guard(guard)
-                                        .dayOfWeek(dow)
-                                        .shiftType(shiftType)
-                                        .startTime(startTime)
-                                        .endTime(endTime)
-                                        .area(targetArea)
-                                        .isActive(true)
-                                        .notes("Mẫu sinh tự động")
-                                        .build();
-                                templateRepository.save(template);
-                            }
+                    // d. Đã làm việc nhiều ngày liên tục
+                    if (a.consecutiveWorkDays != b.consecutiveWorkDays) {
+                        return Integer.compare(b.consecutiveWorkDays, a.consecutiveWorkDays);
+                    }
+
+                    return a.guard.getId().compareTo(b.guard.getId());
+                });
+
+                for (int i = 0; i < Math.min(numRestingToday, restCandidates.size()); i++) {
+                    restingGuardIdsToday.add(restCandidates.get(i).guard.getId());
+                }
+            }
+
+            // 2. Danh sách nhân sự đi làm trong ngày
+            List<GuardScheduleState> workingGuardsToday = guardStates.stream()
+                    .filter(s -> !restingGuardIdsToday.contains(s.guard.getId()))
+                    .collect(Collectors.toList());
+
+            // 3. Đan xen các ca trực (M, A, N, M, A, N...) để phân bổ người nghỉ đều vào Sáng, Chiều, Đêm
+            List<ShiftType> daySlots = new ArrayList<>();
+            int mRem = dayMorning;
+            int aRem = dayAfternoon;
+            int nRem = dayNight;
+            while (mRem > 0 || aRem > 0 || nRem > 0) {
+                if (mRem > 0) { daySlots.add(ShiftType.SHIFT_MORNING); mRem--; }
+                if (aRem > 0) { daySlots.add(ShiftType.SHIFT_AFTERNOON); aRem--; }
+                if (nRem > 0) { daySlots.add(ShiftType.SHIFT_NIGHT); nRem--; }
+            }
+
+            for (ShiftType shiftType : daySlots) {
+                List<GuardScheduleState> availableCandidates = workingGuardsToday.stream()
+                        .filter(s -> s.todayShift == null)
+                        .collect(Collectors.toList());
+
+                if (availableCandidates.isEmpty()) {
+                    break;
+                }
+
+                availableCandidates.sort((a, b) -> {
+                    // 1. Ràng buộc an toàn sức khỏe cứng: Ca sáng không nhận người vừa trực đêm hôm qua
+                    if (shiftType == ShiftType.SHIFT_MORNING) {
+                        boolean aHadNight = (a.yesterdayShift == ShiftType.SHIFT_NIGHT);
+                        boolean bHadNight = (b.yesterdayShift == ShiftType.SHIFT_NIGHT);
+                        if (aHadNight != bHadNight) {
+                            return aHadNight ? 1 : -1;
+                        }
+                    }
+
+                    // 2. Cân bằng tải tuyệt đối (Min-shift priority)
+                    if (a.totalAssigned != b.totalAssigned) {
+                        return Integer.compare(a.totalAssigned, b.totalAssigned);
+                    }
+
+                    // 3. Ưu tiên nghỉ ngơi: Ca chiều sau đêm hôm qua
+                    if (shiftType == ShiftType.SHIFT_AFTERNOON) {
+                        boolean aHadNight = (a.yesterdayShift == ShiftType.SHIFT_NIGHT);
+                        boolean bHadNight = (b.yesterdayShift == ShiftType.SHIFT_NIGHT);
+                        if (aHadNight != bHadNight) {
+                            return aHadNight ? 1 : -1;
+                        }
+                    }
+
+                    // 4. Cân bằng loại ca (Morning / Afternoon / Night)
+                    int aTypeCount = a.getShiftTypeCount(shiftType);
+                    int bTypeCount = b.getShiftTypeCount(shiftType);
+                    if (aTypeCount != bTypeCount) {
+                        return Integer.compare(aTypeCount, bTypeCount);
+                    }
+
+                    // 5. Cân bằng số ngày làm liên tục
+                    if (a.consecutiveWorkDays != b.consecutiveWorkDays) {
+                        return Integer.compare(a.consecutiveWorkDays, b.consecutiveWorkDays);
+                    }
+
+                    // 6. Ổn định
+                    return a.guard.getId().compareTo(b.guard.getId());
+                });
+
+                GuardScheduleState chosen = availableCandidates.get(0);
+                chosen.recordShift(shiftType);
+                User guard = chosen.guard;
+
+                LocalTime startTime;
+                LocalTime endTime;
+                switch (shiftType) {
+                    case SHIFT_MORNING:
+                        startTime = LocalTime.of(6, 0);
+                        endTime = LocalTime.of(14, 0);
+                        break;
+                    case SHIFT_AFTERNOON:
+                        startTime = LocalTime.of(14, 0);
+                        endTime = LocalTime.of(22, 0);
+                        break;
+                    case SHIFT_NIGHT:
+                        startTime = LocalTime.of(22, 0);
+                        endTime = LocalTime.of(6, 0);
+                        break;
+                    default:
+                        continue;
+                }
+
+                boolean exists = shiftRepository.existsByGuardIdAndShiftDateAndStartTime(
+                        guard.getId(), currentDate, startTime
+                );
+
+                if (!exists) {
+                    GuardShift shift = GuardShift.builder()
+                            .guard(guard)
+                            .shiftDate(currentDate)
+                            .shiftType(shiftType)
+                            .startTime(startTime)
+                            .endTime(endTime)
+                            .area(targetArea)
+                            .status(ShiftStatus.SCHEDULED)
+                            .isOvertime(false)
+                            .notes("Khởi tạo tự động từ Wizard" + (request.getBuilding() != null ? " (" + request.getBuilding() + ")" : ""))
+                            .build();
+                    createdShifts.add(shiftRepository.save(shift));
+
+                    if (Boolean.TRUE.equals(request.getSaveAsTemplate()) && dayIndex < 7) {
+                        boolean tExists = templateRepository.existsByGuardIdAndDayOfWeekAndStartTimeAndIsActiveTrue(
+                                 guard.getId(), dow, startTime
+                        );
+                        if (!tExists) {
+                            GuardScheduleTemplate template = GuardScheduleTemplate.builder()
+                                    .guard(guard)
+                                    .dayOfWeek(dow)
+                                    .shiftType(shiftType)
+                                    .startTime(startTime)
+                                    .endTime(endTime)
+                                    .area(targetArea)
+                                    .isActive(true)
+                                    .notes("Mẫu sinh tự động")
+                                    .build();
+                            templateRepository.save(template);
                         }
                     }
                 }
+            }
+
+            // Chốt kết quả ngày và chuẩn bị cho ngày tiếp theo
+            for (GuardScheduleState state : guardStates) {
+                state.endDay();
             }
 
             currentDate = currentDate.plusDays(1);
@@ -548,10 +704,35 @@ public class GuardScheduleService {
 
     @Transactional
     public void deleteShift(UUID id) {
-        if (shiftRequestRepository.existsByShiftId(id)) {
-            throw new IllegalStateException("Không thể xóa ca trực này do đã có đơn xin đổi ca hoặc xin nghỉ phép liên kết");
+        GuardShift shift = shiftRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy ca trực cần xóa"));
+
+        if (shift.getStatus() == ShiftStatus.CHECKED_IN || shift.getStatus() == ShiftStatus.COMPLETED) {
+            throw new IllegalStateException("Không thể xóa ca trực đang diễn ra hoặc đã hoàn thành");
         }
-        shiftRepository.deleteById(id);
+
+        // Nullify foreign key references in shiftRequestRepository before deletion to preserve audit history
+        List<GuardShiftRequest> linkedRequests = shiftRequestRepository.findAll().stream()
+                .filter(r -> (r.getShift() != null && r.getShift().getId().equals(id)) ||
+                             (r.getTargetShift() != null && r.getTargetShift().getId().equals(id)))
+                .toList();
+
+        for (GuardShiftRequest r : linkedRequests) {
+            if (r.getStatus() == GuardShiftRequestStatus.PENDING) {
+                r.setStatus(GuardShiftRequestStatus.CANCELLED);
+                r.setReviewNotes("Ca trực đã bị Quản lý xóa khỏi lịch phân công.");
+            }
+            if (r.getShift() != null && r.getShift().getId().equals(id)) {
+                r.setShift(null);
+            }
+            if (r.getTargetShift() != null && r.getTargetShift().getId().equals(id)) {
+                r.setTargetShift(null);
+            }
+            shiftRequestRepository.save(r);
+        }
+
+        shiftRepository.delete(shift);
+        log.info("Admin/FM deleted shift [{}]", id);
     }
 
     @Transactional
@@ -593,8 +774,28 @@ public class GuardScheduleService {
 
         List<GuardShift> shiftsToDelete = candidateShifts.stream()
                 .filter(s -> s.getStatus() == ShiftStatus.SCHEDULED)
-                .filter(s -> !shiftRequestRepository.existsByShiftId(s.getId()))
                 .collect(Collectors.toList());
+
+        Set<UUID> idsToDelete = shiftsToDelete.stream().map(GuardShift::getId).collect(Collectors.toSet());
+        if (!idsToDelete.isEmpty()) {
+            List<GuardShiftRequest> linkedRequests = shiftRequestRepository.findAll().stream()
+                    .filter(r -> (r.getShift() != null && idsToDelete.contains(r.getShift().getId())) ||
+                                 (r.getTargetShift() != null && idsToDelete.contains(r.getTargetShift().getId())))
+                    .toList();
+            for (GuardShiftRequest r : linkedRequests) {
+                if (r.getStatus() == GuardShiftRequestStatus.PENDING) {
+                    r.setStatus(GuardShiftRequestStatus.CANCELLED);
+                    r.setReviewNotes("Lịch tuần đã được xóa hàng loạt bởi Quản lý.");
+                }
+                if (r.getShift() != null && idsToDelete.contains(r.getShift().getId())) {
+                    r.setShift(null);
+                }
+                if (r.getTargetShift() != null && idsToDelete.contains(r.getTargetShift().getId())) {
+                    r.setTargetShift(null);
+                }
+                shiftRequestRepository.save(r);
+            }
+        }
 
         int count = shiftsToDelete.size();
         if (count > 0) {

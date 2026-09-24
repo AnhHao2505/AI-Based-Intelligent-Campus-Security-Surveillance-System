@@ -23,12 +23,12 @@ public interface GuardShiftRequestRepository extends JpaRepository<GuardShiftReq
     boolean existsByShiftId(UUID shiftId);
 
     @Query("SELECT r FROM GuardShiftRequest r " +
-            "JOIN r.shift s " +
+            "LEFT JOIN r.shift s " +
             "JOIN r.requester req " +
             "WHERE (:status IS NULL OR r.status = :status) " +
             "AND (:teamId IS NULL OR req.team.id = :teamId) " +
-            "AND (CAST(:startDate AS date) IS NULL OR s.shiftDate >= :startDate) " +
-            "AND (CAST(:endDate AS date) IS NULL OR s.shiftDate <= :endDate) " +
+            "AND (CAST(:startDate AS date) IS NULL OR COALESCE(s.shiftDate, r.shiftDateSnapshot) >= :startDate) " +
+            "AND (CAST(:endDate AS date) IS NULL OR COALESCE(s.shiftDate, r.shiftDateSnapshot) <= :endDate) " +
             "ORDER BY r.createdAt DESC")
     List<GuardShiftRequest> findRequests(
             @Param("status") GuardShiftRequestStatus status,

@@ -27,7 +27,7 @@ public class GuardShiftRequest {
     private User requester;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "shift_id", nullable = false)
+    @JoinColumn(name = "shift_id")
     private GuardShift shift;
 
     @Enumerated(EnumType.STRING)
