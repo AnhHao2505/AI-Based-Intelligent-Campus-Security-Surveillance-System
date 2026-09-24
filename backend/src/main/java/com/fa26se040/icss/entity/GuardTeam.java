@@ -32,6 +32,34 @@ public class GuardTeam {
     @Builder.Default
     private Boolean isActive = true;
 
+    @Column(name = "weekday_morning_demand")
+    @Builder.Default
+    private Integer weekdayMorningDemand = 3;
+
+    @Column(name = "weekday_afternoon_demand")
+    @Builder.Default
+    private Integer weekdayAfternoonDemand = 4;
+
+    @Column(name = "weekday_night_demand")
+    @Builder.Default
+    private Integer weekdayNightDemand = 2;
+
+    @Column(name = "sunday_morning_demand")
+    @Builder.Default
+    private Integer sundayMorningDemand = 2;
+
+    @Column(name = "sunday_afternoon_demand")
+    @Builder.Default
+    private Integer sundayAfternoonDemand = 2;
+
+    @Column(name = "sunday_night_demand")
+    @Builder.Default
+    private Integer sundayNightDemand = 2;
+
+    @Column(name = "has_sunday_custom")
+    @Builder.Default
+    private Boolean hasSundayCustom = true;
+
     @OneToMany(mappedBy = "team", fetch = FetchType.LAZY)
     @Builder.Default
     private List<User> members = new ArrayList<>();

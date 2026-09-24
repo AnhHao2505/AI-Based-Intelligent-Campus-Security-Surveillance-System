@@ -341,6 +341,12 @@ export default function GuardTeamsTab({
   // Open Edit Modal
   const handleOpenEdit = (team) => {
     setEditingTeam(team);
+    setWeekdayMorningDemand(team.weekdayMorningDemand ?? 3);
+    setWeekdayAfternoonDemand(team.weekdayAfternoonDemand ?? 4);
+    setWeekdayNightDemand(team.weekdayNightDemand ?? 2);
+    setSundayMorningDemand(team.sundayMorningDemand ?? 2);
+    setSundayAfternoonDemand(team.sundayAfternoonDemand ?? 2);
+    setSundayNightDemand(team.sundayNightDemand ?? 2);
     setTeamForm({
       teamName: team.teamName || '',
       description: team.description || '',
@@ -365,7 +371,14 @@ export default function GuardTeamsTab({
         await guardScheduleApi.updateTeam(editingTeam.id, {
           teamName: teamForm.teamName.trim(),
           description: teamForm.description.trim(),
-          colorCode: teamForm.colorCode
+          colorCode: teamForm.colorCode,
+          weekdayMorningDemand,
+          weekdayAfternoonDemand,
+          weekdayNightDemand,
+          sundayMorningDemand,
+          sundayAfternoonDemand,
+          sundayNightDemand,
+          hasSundayCustom: true
         });
       } else {
         const finalDescription = teamForm.description ? teamForm.description.trim() : '';
@@ -373,13 +386,27 @@ export default function GuardTeamsTab({
         const createdTeam = await guardScheduleApi.createTeam({
           teamName: teamForm.teamName.trim(),
           description: finalDescription,
-          colorCode: teamForm.colorCode
+          colorCode: teamForm.colorCode,
+          weekdayMorningDemand,
+          weekdayAfternoonDemand,
+          weekdayNightDemand,
+          sundayMorningDemand,
+          sundayAfternoonDemand,
+          sundayNightDemand,
+          hasSundayCustom: true
         });
 
         // Tự động gán ngay quân số đã chọn cho đội vừa tạo
         if (createdTeam && createdTeam.id && newTeamMemberIds.length > 0) {
           await guardScheduleApi.assignTeamMembers(createdTeam.id, {
-            guardIds: newTeamMemberIds
+            guardIds: newTeamMemberIds,
+            weekdayMorningDemand,
+            weekdayAfternoonDemand,
+            weekdayNightDemand,
+            sundayMorningDemand,
+            sundayAfternoonDemand,
+            sundayNightDemand,
+            hasSundayCustom: true
           });
         }
       }
@@ -415,13 +442,13 @@ export default function GuardTeamsTab({
   const handleOpenAssignMembers = (team) => {
     setAssigningTeam(team);
     setAssignModalTab('PERMANENT');
-    // Khởi tạo lại cấu hình nhu cầu ca trực chuẩn
-    setWeekdayMorningDemand(3);
-    setWeekdayAfternoonDemand(4);
-    setWeekdayNightDemand(2);
-    setSundayMorningDemand(2);
-    setSundayAfternoonDemand(2);
-    setSundayNightDemand(2);
+    // Khởi tạo lại cấu hình nhu cầu ca trực đã lưu của đội (fallback về 3, 4, 2 / 2, 2, 2)
+    setWeekdayMorningDemand(team.weekdayMorningDemand ?? 3);
+    setWeekdayAfternoonDemand(team.weekdayAfternoonDemand ?? 4);
+    setWeekdayNightDemand(team.weekdayNightDemand ?? 2);
+    setSundayMorningDemand(team.sundayMorningDemand ?? 2);
+    setSundayAfternoonDemand(team.sundayAfternoonDemand ?? 2);
+    setSundayNightDemand(team.sundayNightDemand ?? 2);
     // Find all guards currently in this team
     const currentMemberIds = (team.members && team.members.length > 0)
       ? team.members.map((m) => m.id)
@@ -484,7 +511,14 @@ export default function GuardTeamsTab({
     setSavingMembers(true);
     try {
       await guardScheduleApi.assignTeamMembers(assigningTeam.id, {
-        guardIds: selectedGuardIds
+        guardIds: selectedGuardIds,
+        weekdayMorningDemand,
+        weekdayAfternoonDemand,
+        weekdayNightDemand,
+        sundayMorningDemand,
+        sundayAfternoonDemand,
+        sundayNightDemand,
+        hasSundayCustom: true
       });
       await fetchTeams();
       if (onTeamsUpdated) onTeamsUpdated();

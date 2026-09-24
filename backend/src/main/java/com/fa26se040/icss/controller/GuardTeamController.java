@@ -59,7 +59,7 @@ public class GuardTeamController {
             @PathVariable UUID id,
             @Valid @RequestBody GuardTeamMemberAssignRequest request
     ) {
-        return ResponseEntity.ok(guardTeamService.assignMembers(id, request.getGuardIds()));
+        return ResponseEntity.ok(guardTeamService.assignMembers(id, request));
     }
 
     @GetMapping("/unassigned-guards")

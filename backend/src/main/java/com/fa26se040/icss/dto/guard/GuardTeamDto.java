@@ -16,6 +16,13 @@ public class GuardTeamDto {
     private String teamName;
     private String description;
     private Boolean isActive;
+    private Integer weekdayMorningDemand;
+    private Integer weekdayAfternoonDemand;
+    private Integer weekdayNightDemand;
+    private Integer sundayMorningDemand;
+    private Integer sundayAfternoonDemand;
+    private Integer sundayNightDemand;
+    private Boolean hasSundayCustom;
     private Integer memberCount;
     private List<TeamMemberDto> members;
     private OffsetDateTime createdAt;

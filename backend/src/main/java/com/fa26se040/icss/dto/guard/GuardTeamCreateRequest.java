@@ -16,4 +16,12 @@ public class GuardTeamCreateRequest {
     private String teamName;
 
     private String description;
+
+    private Integer weekdayMorningDemand;
+    private Integer weekdayAfternoonDemand;
+    private Integer weekdayNightDemand;
+    private Integer sundayMorningDemand;
+    private Integer sundayAfternoonDemand;
+    private Integer sundayNightDemand;
+    private Boolean hasSundayCustom;
 }

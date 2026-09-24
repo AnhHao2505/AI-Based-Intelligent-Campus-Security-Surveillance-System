@@ -2,6 +2,7 @@ package com.fa26se040.icss.service;
 
 import com.fa26se040.icss.dto.guard.GuardTeamCreateRequest;
 import com.fa26se040.icss.dto.guard.GuardTeamDto;
+import com.fa26se040.icss.dto.guard.GuardTeamMemberAssignRequest;
 import com.fa26se040.icss.entity.GuardTeam;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.Role;
@@ -61,6 +62,13 @@ public class GuardTeamService {
                 .teamName(trimmedName)
                 .description(request.getDescription())
                 .isActive(true)
+                .weekdayMorningDemand(request.getWeekdayMorningDemand() != null ? request.getWeekdayMorningDemand() : 3)
+                .weekdayAfternoonDemand(request.getWeekdayAfternoonDemand() != null ? request.getWeekdayAfternoonDemand() : 4)
+                .weekdayNightDemand(request.getWeekdayNightDemand() != null ? request.getWeekdayNightDemand() : 2)
+                .sundayMorningDemand(request.getSundayMorningDemand() != null ? request.getSundayMorningDemand() : 2)
+                .sundayAfternoonDemand(request.getSundayAfternoonDemand() != null ? request.getSundayAfternoonDemand() : 2)
+                .sundayNightDemand(request.getSundayNightDemand() != null ? request.getSundayNightDemand() : 2)
+                .hasSundayCustom(request.getHasSundayCustom() != null ? request.getHasSundayCustom() : true)
                 .build();
 
         GuardTeam saved = teamRepository.save(team);
@@ -90,6 +98,14 @@ public class GuardTeamService {
 
         team.setTeamName(trimmedName);
         team.setDescription(request.getDescription());
+        if (request.getWeekdayMorningDemand() != null) team.setWeekdayMorningDemand(request.getWeekdayMorningDemand());
+        if (request.getWeekdayAfternoonDemand() != null) team.setWeekdayAfternoonDemand(request.getWeekdayAfternoonDemand());
+        if (request.getWeekdayNightDemand() != null) team.setWeekdayNightDemand(request.getWeekdayNightDemand());
+        if (request.getSundayMorningDemand() != null) team.setSundayMorningDemand(request.getSundayMorningDemand());
+        if (request.getSundayAfternoonDemand() != null) team.setSundayAfternoonDemand(request.getSundayAfternoonDemand());
+        if (request.getSundayNightDemand() != null) team.setSundayNightDemand(request.getSundayNightDemand());
+        if (request.getHasSundayCustom() != null) team.setHasSundayCustom(request.getHasSundayCustom());
+
         GuardTeam saved = teamRepository.save(team);
         log.info("Updated guard team [{}]", saved.getId());
         return mapToDto(saved);
@@ -114,9 +130,18 @@ public class GuardTeamService {
     }
 
     @Transactional
-    public GuardTeamDto assignMembers(UUID teamId, List<UUID> guardIds) {
+    public GuardTeamDto assignMembers(UUID teamId, GuardTeamMemberAssignRequest request) {
         GuardTeam team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy tổ đội bảo vệ"));
+
+        // Update shift demands on team if provided
+        if (request.getWeekdayMorningDemand() != null) team.setWeekdayMorningDemand(request.getWeekdayMorningDemand());
+        if (request.getWeekdayAfternoonDemand() != null) team.setWeekdayAfternoonDemand(request.getWeekdayAfternoonDemand());
+        if (request.getWeekdayNightDemand() != null) team.setWeekdayNightDemand(request.getWeekdayNightDemand());
+        if (request.getSundayMorningDemand() != null) team.setSundayMorningDemand(request.getSundayMorningDemand());
+        if (request.getSundayAfternoonDemand() != null) team.setSundayAfternoonDemand(request.getSundayAfternoonDemand());
+        if (request.getSundayNightDemand() != null) team.setSundayNightDemand(request.getSundayNightDemand());
+        if (request.getHasSundayCustom() != null) team.setHasSundayCustom(request.getHasSundayCustom());
 
         // Detach existing members of this team
         List<User> currentMembers = userRepository.findByTeamIdAndDeletedAtIsNullAndIsActiveTrue(teamId);
@@ -126,6 +151,7 @@ public class GuardTeamService {
         userRepository.saveAll(currentMembers);
 
         // Assign new members
+        List<UUID> guardIds = request.getGuardIds();
         if (guardIds != null && !guardIds.isEmpty()) {
             List<User> newMembers = userRepository.findAllById(guardIds);
             for (User u : newMembers) {
@@ -138,7 +164,8 @@ public class GuardTeamService {
             log.info("Assigned {} guards to team [{}]", newMembers.size(), team.getTeamName());
         }
 
-        return mapToDto(team);
+        GuardTeam saved = teamRepository.save(team);
+        return mapToDto(saved);
     }
 
     @Transactional(readOnly = true)
@@ -170,6 +197,13 @@ public class GuardTeamService {
                 .teamName(team.getTeamName())
                 .description(team.getDescription())
                 .isActive(team.getIsActive())
+                .weekdayMorningDemand(team.getWeekdayMorningDemand() != null ? team.getWeekdayMorningDemand() : 3)
+                .weekdayAfternoonDemand(team.getWeekdayAfternoonDemand() != null ? team.getWeekdayAfternoonDemand() : 4)
+                .weekdayNightDemand(team.getWeekdayNightDemand() != null ? team.getWeekdayNightDemand() : 2)
+                .sundayMorningDemand(team.getSundayMorningDemand() != null ? team.getSundayMorningDemand() : 2)
+                .sundayAfternoonDemand(team.getSundayAfternoonDemand() != null ? team.getSundayAfternoonDemand() : 2)
+                .sundayNightDemand(team.getSundayNightDemand() != null ? team.getSundayNightDemand() : 2)
+                .hasSundayCustom(team.getHasSundayCustom() != null ? team.getHasSundayCustom() : true)
                 .memberCount(memberDtos.size())
                 .members(memberDtos)
                 .createdAt(team.getCreatedAt())
