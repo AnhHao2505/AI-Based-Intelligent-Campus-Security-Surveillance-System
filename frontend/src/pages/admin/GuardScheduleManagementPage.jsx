@@ -340,7 +340,55 @@ export default function GuardScheduleManagementPage() {
     return shiftRequests.filter((r) => r.status === 'PENDING').length;
   }, [shiftRequests]);
 
-  // Filtered guards by team and search
+  // Set of guard IDs having shifts in current view
+  const guardIdsWithShiftsThisWeek = useMemo(() => {
+    const set = new Set();
+    shifts.forEach((s) => {
+      if (s.guard?.id) set.add(s.guard.id);
+      if (s.guardId) set.add(s.guardId);
+    });
+    return set;
+  }, [shifts]);
+
+  // Teams that have active shifts at the currently selected building
+  const activeTeamsForBuilding = useMemo(() => {
+    if (selectedBuilding === 'ALL') return [];
+
+    const guardTeamMap = new Map();
+    guards.forEach((g) => {
+      const tid = g.team?.id || g.teamId;
+      if (tid) guardTeamMap.set(g.id, tid);
+    });
+
+    const teamShiftCounts = new Map();
+    shifts.forEach((s) => {
+      const gid = s.guard?.id || s.guardId;
+      const tid = guardTeamMap.get(gid);
+      if (tid) {
+        teamShiftCounts.set(tid, (teamShiftCounts.get(tid) || 0) + 1);
+      }
+    });
+
+    return teams
+      .map((t) => ({
+        team: t,
+        shiftCount: teamShiftCounts.get(t.id) || 0
+      }))
+      .filter((item) => item.shiftCount > 0)
+      .sort((a, b) => b.shiftCount - a.shiftCount);
+  }, [selectedBuilding, shifts, guards, teams]);
+
+  // Map of teamId -> shiftCount for dropdown labels
+  const teamShiftCountsMap = useMemo(() => {
+    if (selectedBuilding === 'ALL') return new Map();
+    const map = new Map();
+    activeTeamsForBuilding.forEach(({ team, shiftCount }) => {
+      map.set(team.id, shiftCount);
+    });
+    return map;
+  }, [selectedBuilding, activeTeamsForBuilding]);
+
+  // Filtered guards by team, building and search
   const filteredGuards = useMemo(() => {
     let result = guards;
     if (selectedTeam !== 'ALL') {
@@ -355,7 +403,11 @@ export default function GuardScheduleManagementPage() {
           (teamMemberIds && teamMemberIds.has(g.id)) ||
           (g.activeDispatch && g.activeDispatch.toTeamId === selectedTeam)
       );
+    } else if (selectedBuilding !== 'ALL') {
+      // Smart Auto-Filter: Khi chọn khuôn viên cụ thể và để Đội = Tất cả, chỉ hiện các bảo vệ có ca trực tại khuôn viên đó
+      result = result.filter((g) => guardIdsWithShiftsThisWeek.has(g.id));
     }
+
     if (searchKeyword.trim()) {
       const kw = searchKeyword.toLowerCase().trim();
       result = result.filter(
@@ -366,7 +418,7 @@ export default function GuardScheduleManagementPage() {
       );
     }
     return result;
-  }, [guards, selectedTeam, teams, searchKeyword]);
+  }, [guards, selectedTeam, selectedBuilding, teams, guardIdsWithShiftsThisWeek, searchKeyword]);
 
 
 
@@ -673,11 +725,17 @@ export default function GuardScheduleManagementPage() {
                 className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[150px]"
               >
                 <option value="ALL">-- Tất cả đội bảo vệ --</option>
-                {teams.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.teamName}
-                  </option>
-                ))}
+                {teams.map((t) => {
+                  const buildingShifts = teamShiftCountsMap.get(t.id);
+                  const suffix = selectedBuilding !== 'ALL'
+                    ? (buildingShifts > 0 ? ` — (${buildingShifts} ca) ⭐` : ' — (0 ca)')
+                    : '';
+                  return (
+                    <option key={t.id} value={t.id}>
+                      {t.teamName}{suffix}
+                    </option>
+                  );
+                })}
               </select>
             </div>
           </div>
@@ -917,6 +975,8 @@ export default function GuardScheduleManagementPage() {
           teams={teams}
           allGuards={guards}
           areas={areas}
+          buildings={buildings}
+          shifts={shifts}
           onTeamsUpdated={fetchData}
           isCreateModalOpen={isCreateTeamModalOpen}
           setIsCreateModalOpen={setIsCreateTeamModalOpen}

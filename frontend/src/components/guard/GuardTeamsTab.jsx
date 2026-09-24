@@ -17,7 +17,8 @@ import {
   Sunset,
   Moon,
   Zap,
-  CheckCircle2
+  CheckCircle2,
+  Building2
 } from 'lucide-react';
 import { guardScheduleApi } from '../../api/guardScheduleApi';
 import { getUsers } from '../../services/userService';
@@ -52,6 +53,8 @@ export default function GuardTeamsTab({
   teams: propTeams = [],
   allGuards = [],
   areas = [],
+  buildings = [],
+  shifts = [],
   onTeamsUpdated,
   isCreateModalOpen,
   setIsCreateModalOpen
@@ -835,6 +838,37 @@ export default function GuardTeamsTab({
               (d) => d.toTeamId === team.id && d.status === 'ACTIVE'
             );
 
+            // Xác định vị trí/tòa nhà đã được gán cho đội
+            const teamMemberIds = new Set([
+              ...(team.members || []).map((m) => m.id),
+              ...members.map((m) => m.id)
+            ]);
+            const teamShifts = (shifts || []).filter(
+              (s) => teamMemberIds.has(s.guardId) || teamMemberIds.has(s.guard?.id)
+            );
+            const buildingCodes = Array.from(
+              new Set(teamShifts.map((s) => s.area?.building || s.building).filter(Boolean))
+            );
+
+            let assignedLocation = '';
+            if (buildingCodes.length > 0) {
+              assignedLocation = buildingCodes.map((code) => {
+                const b = (buildings || []).find((item) => item.code === code || item.id === code);
+                if (b?.name) return b.name;
+                const a = (areas || []).find((item) => item.building === code);
+                if (a?.building) return a.building;
+                if (code === 'TOA_ALPHA') return 'Tòa Alpha';
+                if (code === 'TOA_BETA') return 'Tòa Beta';
+                if (code === 'KHU_THE_THAO') return 'Khu Thể Thao';
+                if (code === 'FPT_AROUND') return 'Khuôn viên Ngoài trời';
+                return code;
+              }).join(', ');
+            } else if (team.description && (team.description.includes('TOA_') || team.description.includes('KHU_') || team.description.includes('FPT_'))) {
+              const code = team.description;
+              const b = (buildings || []).find((item) => item.code === code || item.id === code);
+              assignedLocation = b?.name || (code === 'TOA_ALPHA' ? 'Tòa Alpha' : code === 'TOA_BETA' ? 'Tòa Beta' : code === 'KHU_THE_THAO' ? 'Khu Thể Thao' : code === 'FPT_AROUND' ? 'Khuôn viên Ngoài trời' : code);
+            }
+
             return (
               <div
                 key={team.id}
@@ -847,16 +881,32 @@ export default function GuardTeamsTab({
 
                 <div>
                   {/* Card Header */}
-                  <div className="flex items-center justify-between gap-2 mb-2 pt-1">
-                    <div className="flex items-center gap-2.5">
+                  <div className="flex items-center justify-between gap-2 mb-2 pt-1 flex-wrap">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="w-3.5 h-3.5 rounded-full ring-2 ring-white dark:ring-slate-900 shadow-sm flex-shrink-0"
+                          style={{ backgroundColor: team.colorCode || '#2563eb' }}
+                        />
+                        <h4 className="font-bold text-base text-slate-900 dark:text-white">
+                          {team.teamName}
+                        </h4>
+                      </div>
+
+                      {/* Vị trí tòa nhà đã được gán */}
                       <span
-                        className="w-3.5 h-3.5 rounded-full ring-2 ring-white dark:ring-slate-900 shadow-sm flex-shrink-0"
-                        style={{ backgroundColor: team.colorCode || '#2563eb' }}
-                      />
-                      <h4 className="font-bold text-base text-slate-900 dark:text-white">
-                        {team.teamName}
-                      </h4>
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold border ${
+                          assignedLocation
+                            ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800'
+                            : 'bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700 italic'
+                        }`}
+                        title={assignedLocation ? `Vị trí phụ trách: ${assignedLocation}` : 'Đội này chưa được phân công vị trí cụ thể'}
+                      >
+                        <Building2 size={11} className={assignedLocation ? 'text-indigo-500 shrink-0' : 'text-slate-400 shrink-0'} />
+                        <span>{assignedLocation || 'Chưa gán tòa'}</span>
+                      </span>
                     </div>
+
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-blue-50 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
                         {memberCount} chính thức
@@ -1045,7 +1095,7 @@ export default function GuardTeamsTab({
                 }`}
               >
                 <Zap size={14} className="fill-amber-500 text-amber-500" />
-                <span>⚡ Điều Động Tăng Cường (Sự Kiện)</span>
+                <span>Điều Động Tăng Cường (Sự Kiện)</span>
               </button>
             </div>
 
@@ -1405,14 +1455,6 @@ export default function GuardTeamsTab({
               /* TAB 2: TEMPORARY DISPATCH */
               <>
                 <div className="schedule-modal__body space-y-4">
-                  {/* Info Banner */}
-                  <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/80 rounded-xl text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2.5">
-                    <Zap size={16} className="text-amber-600 fill-amber-500 shrink-0 mt-0.5" />
-                    <div className="leading-relaxed">
-                      <strong>Tăng cường theo thời gian:</strong> Nhân sự được chọn sẽ tạm thời thuộc về <strong>{assigningTeam.teamName}</strong> trong khoảng ngày này để nhận cảnh báo sự cố an ninh (Incident Alert) tại tòa nhà và được phân ca sự kiện. Khi qua ngày kết thúc, hệ thống sẽ <strong>tự động hoàn trả</strong> bảo vệ về đội gốc.
-                    </div>
-                  </div>
-
                   {/* Date Range, Shift Type & Reason inputs */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl">
                     <div>
@@ -1535,9 +1577,6 @@ export default function GuardTeamsTab({
                                 <div>
                                   <div className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                                     <span>{guard.fullName}</span>
-                                    <span className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                                      Khả dụng
-                                    </span>
                                   </div>
                                   <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
                                     {guard.userCode || 'NV-BV'} — {guard.email}
@@ -1995,14 +2034,7 @@ export default function GuardTeamsTab({
                       </div>
                     </div>
                   </>
-                ) : (
-                  <div className="p-3 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-xl text-xs text-blue-800 dark:text-blue-300 flex items-center gap-2">
-                    <Users size={16} className="shrink-0 text-blue-600" />
-                    <span>
-                      Để thêm hoặc điều chỉnh danh sách thành viên cho đội này, vui lòng sử dụng nút <strong>"Phân Bổ Quân Số"</strong> ngay trên thẻ của đội.
-                    </span>
-                  </div>
-                )}
+                ) : null}
               </div>
 
               <div className="schedule-modal__footer flex items-center justify-end gap-2">

@@ -326,9 +326,12 @@ public class GuardScheduleService {
         }
 
         int m = guards.size();
-        int nMorning = request.getMorningDemand() != null ? request.getMorningDemand() : 0;
-        int nAfternoon = request.getAfternoonDemand() != null ? request.getAfternoonDemand() : 0;
-        int nNight = request.getNightDemand() != null ? request.getNightDemand() : 0;
+        int nMorning = request.getMorningDemand() != null ? request.getMorningDemand()
+                : (team != null && team.getWeekdayMorningDemand() != null ? team.getWeekdayMorningDemand() : 2);
+        int nAfternoon = request.getAfternoonDemand() != null ? request.getAfternoonDemand()
+                : (team != null && team.getWeekdayAfternoonDemand() != null ? team.getWeekdayAfternoonDemand() : 2);
+        int nNight = request.getNightDemand() != null ? request.getNightDemand()
+                : (team != null && team.getWeekdayNightDemand() != null ? team.getWeekdayNightDemand() : 2);
 
         // Ràng buộc an ninh tối thiểu: 1 ca trong tòa phải có ít nhất 2 người (1 camera + 1 tuần tra)
         int minSecLimit = 2;
@@ -342,10 +345,17 @@ public class GuardScheduleService {
             throw new IllegalArgumentException("Ràng buộc an ninh tòa nhà: Ca Đêm ngày học & làm việc (T2-T7) phải có tối thiểu 2 người (1 trực camera + 1 tuần tra)");
         }
 
-        boolean customSunday = Boolean.TRUE.equals(request.getHasSundayCustom()) || Boolean.TRUE.equals(request.getHasWeekendCustom());
-        Integer suM = request.getSundayMorningDemand() != null ? request.getSundayMorningDemand() : request.getWeekendMorningDemand();
-        Integer suA = request.getSundayAfternoonDemand() != null ? request.getSundayAfternoonDemand() : request.getWeekendAfternoonDemand();
-        Integer suN = request.getSundayNightDemand() != null ? request.getSundayNightDemand() : request.getWeekendNightDemand();
+        boolean customSunday = Boolean.TRUE.equals(request.getHasSundayCustom()) || Boolean.TRUE.equals(request.getHasWeekendCustom())
+                || (team != null && Boolean.TRUE.equals(team.getHasSundayCustom()));
+        Integer suM = request.getSundayMorningDemand() != null ? request.getSundayMorningDemand()
+                : (request.getWeekendMorningDemand() != null ? request.getWeekendMorningDemand()
+                : (team != null && team.getSundayMorningDemand() != null ? team.getSundayMorningDemand() : nMorning));
+        Integer suA = request.getSundayAfternoonDemand() != null ? request.getSundayAfternoonDemand()
+                : (request.getWeekendAfternoonDemand() != null ? request.getWeekendAfternoonDemand()
+                : (team != null && team.getSundayAfternoonDemand() != null ? team.getSundayAfternoonDemand() : nAfternoon));
+        Integer suN = request.getSundayNightDemand() != null ? request.getSundayNightDemand()
+                : (request.getWeekendNightDemand() != null ? request.getWeekendNightDemand()
+                : (team != null && team.getSundayNightDemand() != null ? team.getSundayNightDemand() : nNight));
 
         if (customSunday) {
             if (suM != null && suM > 0 && suM < minSecLimit) {
@@ -357,6 +367,24 @@ public class GuardScheduleService {
             if (suN != null && suN > 0 && suN < minSecLimit) {
                 throw new IllegalArgumentException("Ràng buộc an ninh tòa nhà: Ca Đêm Chủ Nhật phải có tối thiểu 2 người (1 trực camera + 1 tuần tra)");
             }
+        }
+
+        // Xóa các ca SCHEDULED cũ của các bảo vệ tham gia trong khoảng thời gian này để tránh đè chéo/xung đột khi gán lại lịch
+        List<UUID> guardUserIds = guards.stream().map(User::getId).collect(Collectors.toList());
+        List<GuardShift> existingScheduledShifts = shiftRepository.findShifts(
+                request.getStartDate(),
+                effectiveEndDate,
+                null,
+                null,
+                ShiftStatus.SCHEDULED
+        ).stream()
+        .filter(s -> s.getGuard() != null && guardUserIds.contains(s.getGuard().getId()))
+        .collect(Collectors.toList());
+
+        if (!existingScheduledShifts.isEmpty()) {
+            shiftRepository.deleteAll(existingScheduledShifts);
+            log.info("Cleared {} existing SCHEDULED shifts for team [{}] from {} to {}",
+                    existingScheduledShifts.size(), team != null ? team.getTeamName() : "CUSTOM", request.getStartDate(), effectiveEndDate);
         }
 
         // Tìm khu vực mặc định của tòa nhà nếu có truyền building
