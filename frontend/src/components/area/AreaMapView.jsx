@@ -403,46 +403,7 @@ export default function AreaMapView({
 								</div>
 							</div>
 
-							{/* Description Box */}
-							<div
-								className="zone-details__desc-box"
-								style={{ marginTop: "10px" }}
-							>
-								<div
-									style={{
-										fontWeight: 600,
-										color: "var(--theme-text-primary)",
-										marginBottom: "4px",
-									}}
-								>
-									Đặc tả quyền truy cập:
-								</div>
-								<p style={{ margin: "0 0 6px 0" }}>
-									{
-										getLevelConfig(
-											selectedArea.areaLevel ||
-												selectedArea.level?.code ||
-												"PUBLIC",
-										).description
-									}
-								</p>
-								<p
-									style={{
-										margin: 0,
-										fontSize: "11.5px",
-										color: "var(--theme-text-muted)",
-										borderTop: "1px dashed var(--theme-border)",
-										paddingTop: "6px",
-									}}
-								>
-									💡{" "}
-									<em>
-										Lưu ý: Danh sách nhân viên chỉ định cố định áp dụng cho mọi
-										phòng trừ loại{" "}
-										<strong>{AREA_LEVEL_CONFIG.PUBLIC.name} (PUBLIC)</strong>.
-									</em>
-								</p>
-							</div>
+
 
 							{/* Actions */}
 							<div className="zone-detail-actions">

@@ -20,6 +20,7 @@ import {
 	CalendarClock,
 	Sliders,
 	ShieldCheck,
+	Compass,
 } from "lucide-react";
 import { ROLES, ROLE_LABELS } from "../../constants/roles";
 import { useTheme } from "../../context/ThemeContext";
@@ -230,14 +231,31 @@ export default function Sidebar({ user, onLogout }) {
 							{(isFacilityManager || isAdmin) && (
 								<div className="sidebar__section">
 									<NavLink
+										to="/admin/map"
+										className={({ isActive }) =>
+											`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
+										}
+										title={sidebarCollapsed ? "Quản lý bản đồ" : undefined}
+									>
+										<Compass size={18} />
+										<span>Quản lý bản đồ</span>
+									</NavLink>
+
+									<NavLink
 										to="/admin/areas"
 										className={({ isActive }) =>
 											`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
 										}
-										title={sidebarCollapsed ? "Quản lý vùng" : undefined}
+										title={
+											sidebarCollapsed
+												? isAdmin
+													? "Cấu hình vùng"
+													: "Quản lý vùng"
+												: undefined
+										}
 									>
 										<MapPin size={18} />
-										<span>Quản lý vùng</span>
+										<span>{isAdmin ? "Cấu hình vùng" : "Quản lý vùng"}</span>
 									</NavLink>
 
 									{isFacilityManager && (
@@ -298,18 +316,6 @@ export default function Sidebar({ user, onLogout }) {
 
 									{isAdmin && (
 										<>
-											<NavLink
-												to="/fm/access-levels"
-												className={({ isActive }) =>
-													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
-												}
-												title={
-													sidebarCollapsed ? "Phân quyền truy cập" : undefined
-												}
-											>
-												<ShieldCheck size={18} />
-												<span>Phân quyền truy cập</span>
-											</NavLink>
 											<NavLink
 												to="/admin/accounts"
 												className={({ isActive }) =>

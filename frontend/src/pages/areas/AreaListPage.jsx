@@ -23,6 +23,7 @@ import {
 	CheckCircle2,
 	ShieldCheck,
 	Users,
+	Compass,
 	Info,
 } from "lucide-react";
 import AreaAssignedPersonnelModal from "../../components/area/AreaAssignedPersonnelModal";
@@ -101,7 +102,8 @@ export default function AreaListPage() {
 	const isFacilityManager = user?.role === "FACILITY_MANAGER";
 
 	const [searchParams, setSearchParams] = useSearchParams();
-	const viewMode = searchParams.get("view") === "list" ? "list" : "map";
+	const rawView = searchParams.get("view");
+	const viewMode = rawView === "map" ? "map" : "list";
 
 	const handleToggleView = (mode) => {
 		setSearchParams((prev) => {
@@ -703,25 +705,30 @@ export default function AreaListPage() {
 		}
 	};
 
-	const handleOpenEditModal = () => {
-		if (!selectedArea) return;
-		const bCode = selectedArea.building || "FPT_AROUND";
+	const handleOpenEditModal = (targetArea = null) => {
+		const areaToEdit = targetArea || selectedArea;
+		if (!areaToEdit) return;
+		setSelectedAreaId(areaToEdit.id);
+		const bCode = areaToEdit.building || "FPT_AROUND";
 		const bObj = availableBuildings.find((b) => b.code === bCode);
-		const flCode = selectedArea.floor || "G";
+		const flCode = areaToEdit.floor || "G";
 		const flObj = bObj?.floors?.find((f) => f.floorCode === flCode);
 
 		setFormData({
-			code: selectedArea.code,
-			name: selectedArea.name,
-			areaLevel: selectedArea.areaLevel || selectedArea.level?.code || "PUBLIC",
+			id: areaToEdit.id,
+			code: areaToEdit.code,
+			name: areaToEdit.name,
+			areaLevel:
+				areaToEdit.areaLevel ||
+				(typeof areaToEdit.level === "object"
+					? areaToEdit.level?.code
+					: areaToEdit.level) ||
+				"PUBLIC",
 			building: bCode,
 			floor: flCode,
 			floorId:
-				selectedArea.floorEntity?.id ||
-				selectedArea.floorId ||
-				flObj?.id ||
-				null,
-			description: selectedArea.description || "",
+				areaToEdit.floorEntity?.id || areaToEdit.floorId || flObj?.id || null,
+			description: areaToEdit.description || "",
 			reason: "",
 		});
 		setModalError(null);
@@ -732,10 +739,13 @@ export default function AreaListPage() {
 		e.preventDefault();
 		setModalError(null);
 
+		const targetId = formData.id || selectedArea?.id;
+		if (!targetId) return;
+
 		setModalLoading(true);
 		try {
 			const payload = {
-				code: selectedArea.code,
+				code: formData.code,
 				name: formData.name.trim(),
 				areaLevel: formData.areaLevel,
 				building: formData.building ? formData.building.trim() : null,
@@ -744,7 +754,7 @@ export default function AreaListPage() {
 				description: formData.description ? formData.description.trim() : null,
 			};
 
-			const updated = await updateArea(selectedArea.id, payload);
+			const updated = await updateArea(targetId, payload);
 			setEditModalOpen(false);
 			await fetchData(updated.id);
 		} catch (err) {
@@ -755,15 +765,18 @@ export default function AreaListPage() {
 		}
 	};
 
-	const handleOpenDeactivateModal = async () => {
-		if (!selectedArea) return;
+	const handleOpenDeactivateModal = async (targetArea = null) => {
+		const areaToDeactivate = targetArea || selectedArea;
+		if (!areaToDeactivate) return;
+		setSelectedAreaId(areaToDeactivate.id);
+		setFormData((prev) => ({ ...prev, id: areaToDeactivate.id }));
 		setModalError(null);
 		setDependencies(null);
 		setDeactivateModalOpen(true);
 		setModalLoading(true);
 
 		try {
-			const depRes = await getDependencies(selectedArea.id);
+			const depRes = await getDependencies(areaToDeactivate.id);
 			setDependencies(depRes);
 		} catch (err) {
 			console.error("Failed to get area dependencies:", err);
@@ -774,11 +787,12 @@ export default function AreaListPage() {
 	};
 
 	const handleDeactivateSubmit = async () => {
-		if (!selectedArea) return;
+		const targetId = formData.id || selectedArea?.id;
+		if (!targetId) return;
 		setModalLoading(true);
 		setModalError(null);
 		try {
-			await deactivateArea(selectedArea.id);
+			await deactivateArea(targetId);
 			setDeactivateModalOpen(false);
 			setSelectedAreaId(null);
 			await fetchData();
@@ -819,6 +833,72 @@ export default function AreaListPage() {
 					</button>
 				</div>
 			)}
+
+			{/* Role Header Banner: Strict separation between Admin Configure vs FM Manage */}
+			<div
+				style={{
+					display: "flex",
+					justifyContent: "space-between",
+					alignItems: "center",
+					marginBottom: "12px",
+					padding: "10px 16px",
+					background: "var(--theme-bg-surface)",
+					border: "1px solid var(--theme-border)",
+					borderRadius: "10px",
+				}}
+			>
+				<div>
+					<div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+						<MapPinPlus
+							size={18}
+							color="var(--theme-primary)"
+						/>
+						<h2
+							style={{
+								fontSize: "16px",
+								fontWeight: 700,
+								margin: 0,
+								color: "var(--theme-text-primary)",
+							}}
+						>
+							{isAdmin
+								? "Cấu hình Vùng hạn chế"
+								: "Quản lý Vùng an ninh & Quyền truy cập"}
+						</h2>
+					</div>
+					<p
+						style={{
+							margin: "2px 0 0 0",
+							fontSize: "12px",
+							color: "var(--theme-text-muted)",
+						}}
+					>
+						{isAdmin
+							? "Thêm mới phân khu, cấu hình cấp độ bảo mật, liên kết camera và thiết lập hạ tầng an ninh."
+							: "Quản lý danh sách nhân sự được chỉ định, tra cứu phân quyền và vận hành phân khu."}
+					</p>
+				</div>
+
+				<a
+					href="/admin/map"
+					style={{
+						display: "inline-flex",
+						alignItems: "center",
+						gap: "6px",
+						padding: "6px 14px",
+						fontSize: "12.5px",
+						fontWeight: 500,
+						background: "var(--theme-primary-light)",
+						border: "1px solid var(--theme-primary-border)",
+						borderRadius: "6px",
+						color: "var(--theme-primary)",
+						textDecoration: "none",
+					}}
+				>
+					<Compass size={15} />
+					<span>Xem trên Bản đồ An ninh</span>
+				</a>
+			</div>
 
 			{/* ============================================================ */}
 			{/* 1. TOOLBAR: Building, Floor tabs, Spacer, Toggle, Add button */}
@@ -871,19 +951,21 @@ export default function AreaListPage() {
 					<div className="zone-view-toggle">
 						<button
 							type="button"
-							className={`zone-view-toggle__btn ${viewMode === "map" ? "zone-view-toggle__btn--active" : ""}`}
-							onClick={() => handleToggleView("map")}
-						>
-							<MapIcon size={15} />
-							<span>Bản đồ</span>
-						</button>
-						<button
-							type="button"
 							className={`zone-view-toggle__btn ${viewMode === "list" ? "zone-view-toggle__btn--active" : ""}`}
 							onClick={() => handleToggleView("list")}
+							title="Danh sách phân khu an ninh"
 						>
 							<ListIcon size={15} />
 							<span>Danh sách</span>
+						</button>
+						<button
+							type="button"
+							className={`zone-view-toggle__btn ${viewMode === "map" ? "zone-view-toggle__btn--active" : ""}`}
+							onClick={() => handleToggleView("map")}
+							title="Sơ đồ mặt bằng chi tiết các tầng"
+						>
+							<MapIcon size={15} />
+							<span>Sơ đồ tầng</span>
 						</button>
 					</div>
 
@@ -1343,17 +1425,6 @@ export default function AreaListPage() {
 											);
 										})}
 									</div>
-								</div>
-
-								<div className="area-edit-info-box">
-									<Info
-										size={15}
-										style={{
-											flexShrink: 0,
-											color: "var(--theme-primary, #3b82f6)",
-										}}
-									/>
-									<span>Quy tắc do Quản lý cơ sở cấu hình.</span>
 								</div>
 
 								<div className="area-form-row">

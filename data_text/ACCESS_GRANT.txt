@@ -3,6 +3,7 @@ Context:
 - Dịch ra tiếng việt 4 loại level là [Công khai, Bảo mật nội bộ, Bảo mật - liên hệ trước, Bảo mật cao - Tuyệt đối cấm vào]
 - Vẫn giữ AreaAccessLevel gồm 3 level, public mặc định là 1, 2 loại confidential mặc định là 2, highly_confidential là 3. 
 (3 area_access_level để tương ứng với 3 loại user_access_level). Không được nâng lên 4 loại level
+- CHỐT ĐỒNG BỘ: CONFIDENTIAL_CONTACT_REQUIRED có cấp độ mặc định là Level 2 (AreaAccessLevel = 2).
 - "Nhân sự chỉ định cố định" chỉ hợp lệ với CONFIDENTIAL_CONTACT_REQUIRED, HIGHLY_CONFIDENTIAL 
 - Phòng CONFIDENTIAL_CONTACT_REQUIRED cần được request
 - CONFIDENTIAL_CONTACT_REQUIRED means that LV2 users require additional authorization/contact before entering, while LV3 users are considered sufficiently authorized to enter directly.
