@@ -83,13 +83,13 @@ class ShiftListItem extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Icon(shift.typeIcon, color: shift.typeColor, size: 14),
-                        const SizedBox(width: 6),
+                        Icon(shift.typeIcon, color: shift.typeColor, size: 16),
+                        const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            shift.shiftTypeLabel,
+                            shift.shiftTypeName,
                             style: TextStyle(
-                              fontSize: 13,
+                              fontSize: 14,
                               fontWeight: FontWeight.bold,
                               color: AppColors.txtPrimary(context),
                             ),
@@ -97,20 +97,25 @@ class ShiftListItem extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(Icons.location_on_outlined, size: 12, color: AppColors.txtMuted(context)),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            shift.areaName ?? 'Chốt chưa chỉ định',
-                            style: TextStyle(fontSize: 11, color: AppColors.txtSecondary(context)),
-                            overflow: TextOverflow.ellipsis,
+                        if (shift.isOvertime) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                            decoration: BoxDecoration(
+                              color: Colors.amber.withAlpha(40),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: Colors.amber.shade700),
+                            ),
+                            child: const Text(
+                              'OT',
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.amber,
+                              ),
+                            ),
                           ),
-                        ),
+                        ],
                       ],
                     ),
                   ],

@@ -13,6 +13,7 @@ import com.fa26se040.icss.exception.AreaErrorCode;
 import com.fa26se040.icss.exception.AreaException;
 import com.fa26se040.icss.repository.AreaLevelPresetRepository;
 import com.fa26se040.icss.repository.AreaRepository;
+import com.fa26se040.icss.repository.FloorRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -59,6 +60,9 @@ class AreaServiceAccessLevelTest {
 
     @Mock
     private AccessControlAuditService auditService;
+
+    @Mock
+    private FloorRepository floorRepository;
 
     @InjectMocks
     private AreaService areaService;

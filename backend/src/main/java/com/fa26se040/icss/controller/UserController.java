@@ -91,7 +91,7 @@ public class UserController {
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
     public ResponseEntity<UserPageResponse> getUsers(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String accountType,
@@ -113,7 +113,7 @@ public class UserController {
     }
 
     @GetMapping("/{code}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
     public ResponseEntity<UserInfo> getUserByCode(@PathVariable String code) {
         log.info("Received request to get user by code: {}", code);
         UserInfo userInfo = userService.getUserByCode(code);

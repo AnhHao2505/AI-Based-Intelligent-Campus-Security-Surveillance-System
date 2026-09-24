@@ -48,6 +48,7 @@ public class AreaService {
     private final CameraRepository cameraRepository;
     private final UserRepository userRepository;
     private final AreaLevelPresetRepository areaLevelPresetRepository;
+    private final com.fa26se040.icss.repository.FloorRepository floorRepository;
     private final AreaValidator areaValidator;
     private final AreaDependencyChecker dependencyChecker;
     private final AreaGeometryValidator geometryValidator;
@@ -142,14 +143,31 @@ public class AreaService {
                     req.areaLevel());
         }
 
+        com.fa26se040.icss.entity.Floor targetFloor = null;
+        if (req.floorId() != null) {
+            targetFloor = floorRepository.findById(req.floorId()).orElse(null);
+        } else if (req.building() != null && !req.building().trim().isEmpty() && req.floor() != null && !req.floor().trim().isEmpty()) {
+            targetFloor = floorRepository.findByBuildingCodeIgnoreCaseAndFloorCodeIgnoreCase(
+                    req.building().trim(), req.floor().trim()).orElse(null);
+        }
+
+        String buildingVal = targetFloor != null && targetFloor.getBuilding() != null
+                ? targetFloor.getBuilding().getCode()
+                : (req.building() != null ? req.building().trim() : null);
+
+        String floorVal = targetFloor != null
+                ? targetFloor.getFloorCode()
+                : (req.floor() != null ? req.floor().trim() : null);
+
         Area area = Area.builder()
                 .code(code)
                 .name(name)
                 .areaLevel(req.areaLevel())
                 .areaAccessLevel(areaAccessLevel)
                 .explicitAuthorizationRequired(explicitAuthRequired)
-                .building(req.building() != null ? req.building().trim() : null)
-                .floor(req.floor() != null ? req.floor().trim() : null)
+                .floorEntity(targetFloor)
+                .building(buildingVal)
+                .floor(floorVal)
                 .description(req.description())
                 .isActive(true)
                 .build();
@@ -189,10 +207,27 @@ public class AreaService {
 
         resolveActorId(actorEmail);
 
+        com.fa26se040.icss.entity.Floor targetFloor = area.getFloorEntity();
+        if (req.floorId() != null) {
+            targetFloor = floorRepository.findById(req.floorId()).orElse(null);
+        } else if (req.building() != null && !req.building().trim().isEmpty() && req.floor() != null && !req.floor().trim().isEmpty()) {
+            targetFloor = floorRepository.findByBuildingCodeIgnoreCaseAndFloorCodeIgnoreCase(
+                    req.building().trim(), req.floor().trim()).orElse(null);
+        }
+
+        String buildingVal = targetFloor != null && targetFloor.getBuilding() != null
+                ? targetFloor.getBuilding().getCode()
+                : (req.building() != null ? req.building().trim() : area.getBuilding());
+
+        String floorVal = targetFloor != null
+                ? targetFloor.getFloorCode()
+                : (req.floor() != null ? req.floor().trim() : area.getFloor());
+
         area.setName(name);
         area.setAreaLevel(req.areaLevel());
-        area.setBuilding(req.building() != null ? req.building().trim() : null);
-        area.setFloor(req.floor() != null ? req.floor().trim() : null);
+        area.setFloorEntity(targetFloor);
+        area.setBuilding(buildingVal);
+        area.setFloor(floorVal);
         area.setDescription(req.description());
 
         Area savedArea = areaRepository.save(area);

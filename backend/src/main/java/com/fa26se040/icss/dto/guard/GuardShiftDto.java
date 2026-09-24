@@ -33,4 +33,5 @@ public class GuardShiftDto {
     private OffsetDateTime checkInAt;
     private OffsetDateTime checkOutAt;
     private String notes;
+    private Boolean isOvertime;
 }

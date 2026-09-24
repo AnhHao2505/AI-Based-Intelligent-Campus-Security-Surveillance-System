@@ -145,6 +145,10 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     @Query("SELECT COUNT(u) > 0 FROM User u WHERE u.deletedAt IS NULL AND u.id <> :userId AND LOWER(TRIM(u.email)) = :email")
     boolean existsActiveByEmailLowerAndIdNot(@Param("email") String email, @Param("userId") UUID userId);
+
+    List<User> findByRoleAndDeletedAtIsNullAndIsActiveTrue(Role role);
+    List<User> findByTeamIdAndDeletedAtIsNullAndIsActiveTrue(UUID teamId);
+    List<User> findByRoleAndTeamIsNullAndDeletedAtIsNullAndIsActiveTrue(Role role);
 }
 
 

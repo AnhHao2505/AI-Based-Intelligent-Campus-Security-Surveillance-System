@@ -144,7 +144,11 @@ export async function apiFetch(path, options = {}) {
 
   if (response.status === 403) {
     const errorData = await response.json().catch(() => null);
-    const err = new Error(errorData?.message || 'Bạn không có quyền thực hiện thao tác này.');
+    let msg = errorData?.message || 'Bạn không có quyền thực hiện thao tác này.';
+    if (errorData?.code) {
+      msg = `[${errorData.code}] ${msg}`;
+    }
+    const err = new Error(msg);
     err.status = 403;
     err.code = errorData?.code;
     err.data = errorData;
@@ -157,7 +161,26 @@ export async function apiFetch(path, options = {}) {
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => null);
-    const err = new Error(errorData?.message || `Yêu cầu thất bại (HTTP ${response.status})`);
+    let msg = errorData?.message;
+    if (!msg && errorData?.details) {
+      if (typeof errorData.details === 'object') {
+        msg = Object.entries(errorData.details)
+          .map(([field, fieldErr]) => `${field}: ${fieldErr}`)
+          .join(', ');
+      } else {
+        msg = String(errorData.details);
+      }
+    }
+    if (!msg && errorData?.error) {
+      msg = errorData.error;
+    }
+    if (!msg) {
+      msg = `Yêu cầu thất bại (HTTP ${response.status})`;
+    }
+    if (errorData?.code) {
+      msg = `[${errorData.code}] ${msg}`;
+    }
+    const err = new Error(msg);
     err.status = response.status;
     err.code = errorData?.code;
     err.data = errorData;

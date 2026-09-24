@@ -234,8 +234,8 @@ export default function UserAccessLevelPage() {
     setEditPresetModal({
       isOpen: true,
       preset,
-      accessLevel: preset.accessLevel,
-      explicitAuthorizationRequired: preset.explicitAuthorizationRequired,
+      accessLevel: preset.areaAccessLevel ?? preset.accessLevel ?? 1,
+      explicitAuthorizationRequired: Boolean(preset.explicitAuthorizationRequired),
       reason: '',
       isSaving: false,
     });
@@ -252,15 +252,18 @@ export default function UserAccessLevelPage() {
       return;
     }
 
+    const areaLevelKey = preset.areaLevel || preset.areaType;
+    const cfg = getLevelConfig(areaLevelKey);
+
     setEditPresetModal((prev) => ({ ...prev, isSaving: true }));
     try {
-      await updateLevelPreset(preset.areaType, {
-        accessLevel,
+      await updateLevelPreset(areaLevelKey, {
+        areaAccessLevel: accessLevel,
         explicitAuthorizationRequired,
         reason: reason.trim(),
         version: preset.version,
       });
-      toast.success(`Đã cập nhật cấu hình mặc định cho loại ${preset.areaType}`);
+      toast.success(`Đã cập nhật cấu hình mặc định cho loại ${cfg.name}`);
       setEditPresetModal({
         isOpen: false,
         preset: null,
@@ -723,20 +726,21 @@ export default function UserAccessLevelPage() {
                   </thead>
                   <tbody>
                     {presets.map((preset) => {
-                      const cfg = getLevelConfig(preset.areaType);
+                      const typeCode = preset.areaLevel || preset.areaType;
+                      const cfg = getLevelConfig(typeCode);
                       return (
-                        <tr key={preset.id || preset.areaType}>
+                        <tr key={preset.id || typeCode}>
                           <td>
                             <div className="preset-area-type">
                               <span className={`level-badge ${cfg.badgeClass}`}>
                                 {cfg.name}
                               </span>
-                              <span className="preset-area-code">{preset.areaType}</span>
+                              <span className="preset-area-code">{typeCode}</span>
                             </div>
                           </td>
                           <td>
-                            <span className={`access-level-pill level--${preset.accessLevel}`}>
-                              Level {preset.accessLevel}
+                            <span className={`access-level-pill level--${preset.areaAccessLevel ?? preset.accessLevel}`}>
+                              Level {preset.areaAccessLevel ?? preset.accessLevel}
                             </span>
                           </td>
                           <td>
@@ -1093,7 +1097,7 @@ export default function UserAccessLevelPage() {
           setEditPresetModal((prev) => ({ ...prev, isOpen: false }))
         }
         title="Chỉnh sửa cấu hình mặc định"
-        subtitle={`Loại khu vực: ${editPresetModal.preset?.areaType}`}
+        subtitle={`Loại khu vực: ${getLevelConfig(editPresetModal.preset?.areaLevel || editPresetModal.preset?.areaType).name}`}
         size="md"
         footer={
           <div className="modal-actions-wrapper">

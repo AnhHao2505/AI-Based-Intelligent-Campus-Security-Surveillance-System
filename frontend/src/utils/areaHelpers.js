@@ -12,7 +12,7 @@ export const AREA_LEVEL_CONFIG = {
     bgColor: 'rgba(16, 185, 129, 0.08)',
     borderColor: 'rgba(16, 185, 129, 0.35)',
     icon: 'globe',
-    description: 'Khu vực tự do ra vào cho tất cả người dùng trong khuôn viên.'
+    description: 'Khu vực tự do ra vào cho tất cả người dùng trong khuôn viên (ai cũng vào).'
   },
   INTERNAL_CONFIDENTIAL: {
     code: 'INTERNAL_CONFIDENTIAL',
@@ -24,7 +24,7 @@ export const AREA_LEVEL_CONFIG = {
     bgColor: 'rgba(59, 130, 246, 0.08)',
     borderColor: 'rgba(59, 130, 246, 0.35)',
     icon: 'shield',
-    description: 'Khu vực nội bộ campus. Dành cho người dùng đủ điều kiện hoặc có đơn đăng ký / nhân sự chỉ định.'
+    description: 'Khu vực nội bộ campus. Người dùng đủ cấp độ truy cập (level) là được vào.'
   },
   CONFIDENTIAL_CONTACT_REQUIRED: {
     code: 'CONFIDENTIAL_CONTACT_REQUIRED',
@@ -36,19 +36,19 @@ export const AREA_LEVEL_CONFIG = {
     bgColor: 'rgba(245, 158, 11, 0.08)',
     borderColor: 'rgba(245, 158, 11, 0.35)',
     icon: 'alert-triangle',
-    description: 'Khu vực yêu cầu người dùng làm đơn đăng ký / có nhân sự chỉ định hoặc có clearance ra vào trực tiếp.'
+    description: 'Khu vực yêu cầu: cấp độ cao vào tự do, còn lại cần nhân sự chỉ định hoặc đơn đăng ký.'
   },
   HIGHLY_CONFIDENTIAL: {
     code: 'HIGHLY_CONFIDENTIAL',
-    name: 'Bảo mật cao - Tuyệt đối cấm vào',
-    badgeLabel: 'Bảo mật cao',
+    name: 'Tuyệt mật – chỉ người được chỉ định',
+    badgeLabel: 'Tuyệt mật',
     badgeClass: 'level-badge--private',
     cardClass: 'zone-card--private',
     color: '#ef4444',
     bgColor: 'rgba(239, 68, 68, 0.08)',
     borderColor: 'rgba(239, 68, 68, 0.35)',
     icon: 'lock',
-    description: 'Khu vực an ninh đặc biệt nghiêm ngặt. Yêu cầu chỉ định đích danh (nhân sự chỉ định hoặc đơn đăng ký được duyệt).'
+    description: 'Khu vực an ninh đặc biệt nghiêm ngặt. Chỉ người được chỉ định mới được phép vào.'
   }
 };
 
@@ -58,7 +58,7 @@ export const AREA_LEVEL_CONFIG = {
 export function getLevelConfig(level) {
   let key = level;
   if (typeof level === 'object' && level !== null) {
-    key = level.code || level.areaLevel || level.level;
+    key = level.code || level.areaLevel || level.areaType || level.level;
   }
   if (key === 1 || key === '1') key = 'PUBLIC';
   if (key === 2 || key === '2' || key === 'SEMI_PRIVATE') key = 'INTERNAL_CONFIDENTIAL';
@@ -83,7 +83,7 @@ export function getLevelConfig(level) {
 export function getLevelPolygonClass(level) {
   let key = level;
   if (typeof level === 'object' && level !== null) {
-    key = level.code || level.areaLevel || level.level;
+    key = level.code || level.areaLevel || level.areaType || level.level;
   }
   if (key === 'PUBLIC' || key === 1 || key === '1') return 'zone-polygon--public';
   if (key === 'INTERNAL_CONFIDENTIAL' || key === 'SEMI_PRIVATE' || key === 2 || key === '2') return 'zone-polygon--internal';
@@ -110,8 +110,11 @@ export const ERROR_MESSAGES = {
 
 export function getErrorMessage(error) {
   if (!error) return 'Đã có lỗi xảy ra. Vui lòng thử lại.';
+  if (error.message && !error.message.startsWith('Yêu cầu thất bại (HTTP')) {
+    return error.message;
+  }
   if (error.code && ERROR_MESSAGES[error.code]) {
-    return ERROR_MESSAGES[error.code];
+    return `[${error.code}] ${ERROR_MESSAGES[error.code]}`;
   }
   return error.message || 'Đã có lỗi xảy ra. Vui lòng thử lại.';
 }

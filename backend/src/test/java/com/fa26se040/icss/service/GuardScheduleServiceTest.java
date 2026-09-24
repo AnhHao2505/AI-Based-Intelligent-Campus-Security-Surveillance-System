@@ -1,5 +1,7 @@
 package com.fa26se040.icss.service;
 
+import com.fa26se040.icss.dto.guard.BulkClearShiftsRequest;
+import com.fa26se040.icss.dto.guard.BulkClearShiftsResponse;
 import com.fa26se040.icss.dto.guard.GenerateShiftsRequest;
 import com.fa26se040.icss.dto.guard.GenerateShiftsResponse;
 import com.fa26se040.icss.dto.guard.GuardScheduleTemplateCreateRequest;
@@ -49,6 +51,15 @@ class GuardScheduleServiceTest {
 
     @Mock
     private AreaRepository areaRepository;
+
+    @Mock
+    private com.fa26se040.icss.repository.GuardTeamRepository teamRepository;
+
+    @Mock
+    private com.fa26se040.icss.repository.GuardShiftRequestRepository shiftRequestRepository;
+
+    @Mock
+    private com.fa26se040.icss.repository.GuardTeamDispatchRepository dispatchRepository;
 
     @InjectMocks
     private GuardScheduleService guardScheduleService;
@@ -387,5 +398,64 @@ class GuardScheduleServiceTest {
         IllegalStateException ex = assertThrows(IllegalStateException.class,
                 () -> guardScheduleService.checkOut(shiftId, guardUser.getEmail()));
         assertTrue(ex.getMessage().contains("Đã quá thời gian kết thúc ca cho phép"));
+    }
+
+    @Test
+    @DisplayName("Xóa hàng loạt lịch ca trực - Thành công xóa các ca SCHEDULED và bảo vệ ca đang thực hiện / có yêu cầu")
+    void testBulkClearShifts_Success() {
+        LocalDate startDate = LocalDate.of(2026, 9, 21);
+        LocalDate endDate = LocalDate.of(2026, 9, 27);
+
+        GuardShift scheduledShift1 = GuardShift.builder()
+                .id(UUID.randomUUID())
+                .guard(guardUser)
+                .shiftDate(startDate)
+                .shiftType(ShiftType.SHIFT_MORNING)
+                .status(ShiftStatus.SCHEDULED)
+                .build();
+
+        GuardShift scheduledShiftWithRequest = GuardShift.builder()
+                .id(UUID.randomUUID())
+                .guard(guardUser)
+                .shiftDate(startDate.plusDays(1))
+                .shiftType(ShiftType.SHIFT_AFTERNOON)
+                .status(ShiftStatus.SCHEDULED)
+                .build();
+
+        GuardShift checkedInShift = GuardShift.builder()
+                .id(UUID.randomUUID())
+                .guard(guardUser)
+                .shiftDate(startDate.plusDays(2))
+                .shiftType(ShiftType.SHIFT_NIGHT)
+                .status(ShiftStatus.CHECKED_IN)
+                .build();
+
+        when(shiftRepository.findShifts(startDate, endDate, null, null, ShiftStatus.SCHEDULED))
+                .thenReturn(List.of(scheduledShift1, scheduledShiftWithRequest, checkedInShift));
+        when(shiftRequestRepository.existsByShiftId(scheduledShift1.getId())).thenReturn(false);
+        when(shiftRequestRepository.existsByShiftId(scheduledShiftWithRequest.getId())).thenReturn(true);
+
+        BulkClearShiftsRequest request = BulkClearShiftsRequest.builder()
+                .startDate(startDate)
+                .endDate(endDate)
+                .build();
+
+        BulkClearShiftsResponse response = guardScheduleService.bulkClearShifts(request);
+
+        assertNotNull(response);
+        assertEquals(1, response.getClearedCount());
+        assertNotNull(response.getMessage());
+        verify(shiftRepository, times(1)).deleteAll(List.of(scheduledShift1));
+    }
+
+    @Test
+    @DisplayName("Xóa hàng loạt lịch ca trực - Lỗi khi ngày kết thúc trước ngày bắt đầu")
+    void testBulkClearShifts_InvalidDates() {
+        BulkClearShiftsRequest request = BulkClearShiftsRequest.builder()
+                .startDate(LocalDate.of(2026, 9, 28))
+                .endDate(LocalDate.of(2026, 9, 21))
+                .build();
+
+        assertThrows(IllegalArgumentException.class, () -> guardScheduleService.bulkClearShifts(request));
     }
 }

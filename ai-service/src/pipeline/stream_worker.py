@@ -4,7 +4,7 @@ import cv2
 import time
 import logging
 import threading
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 from .video_pipeline import VideoPipeline
 from ..config import settings

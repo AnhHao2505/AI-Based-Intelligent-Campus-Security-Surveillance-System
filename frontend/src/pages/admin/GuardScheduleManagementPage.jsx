@@ -5,8 +5,6 @@ import {
   ChevronRight,
   Plus,
   Wand2,
-  Settings,
-  AlertTriangle,
   Clock,
   Radio,
   MapPin,
@@ -25,12 +23,17 @@ import {
   Building2,
   LayoutGrid,
   Check,
-  AlertCircle
+  AlertCircle,
+  ClipboardList
 } from 'lucide-react';
 import { guardScheduleApi } from '../../api/guardScheduleApi';
 import { getUsers } from '../../services/userService';
 import { getAreas } from '../../services/areaService';
+import { getBuildings } from '../../services/buildingService';
 import { ROLES } from '../../constants/roles';
+import StaffingWizardModal from '../../components/guard/StaffingWizardModal';
+import GuardTeamsTab from '../../components/guard/GuardTeamsTab';
+import ShiftRequestsTab from '../../components/guard/ShiftRequestsTab';
 import '../../styles/GuardSchedulePage.css';
 
 // Shift Type definitions
@@ -72,36 +75,33 @@ const formatLocalDate = (date) => {
 };
 
 export default function GuardScheduleManagementPage() {
+  // Navigation Tabs: 'SCHEDULE' | 'TEAMS' | 'REQUESTS'
+  const [activeTab, setActiveTab] = useState('SCHEDULE');
+
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedBuilding, setSelectedBuilding] = useState('ALL');
   const [searchKeyword, setSearchKeyword] = useState('');
+  const [buildings, setBuildings] = useState([]);
 
   const [guards, setGuards] = useState([]);
   const [areas, setAreas] = useState([]);
   const [shifts, setShifts] = useState([]);
-  const [templates, setTemplates] = useState([]);
+  const [teams, setTeams] = useState([]);
+  const [dispatches, setDispatches] = useState([]);
+  const [selectedTeam, setSelectedTeam] = useState('ALL');
+  const [shiftRequests, setShiftRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   // Modals
-  const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [showShiftModal, setShowShiftModal] = useState(false);
-  const [showTemplateModal, setShowTemplateModal] = useState(false);
-  const [showWarningModal, setShowWarningModal] = useState(false);
+  const [showWizardModal, setShowWizardModal] = useState(false);
   const [editingShift, setEditingShift] = useState(null);
-  const [generateResult, setGenerateResult] = useState(null);
-
-  // New template inline form
-  const [newTemplate, setNewTemplate] = useState({
-    dayOfWeek: 2, // Monday
-    guardId: '',
-    shiftType: 'SHIFT_MORNING',
-    startTime: '06:00',
-    endTime: '14:00',
-    areaId: '',
-    radioChannel: 'Kênh 1 - Phòng Camera',
-    building: 'CO_SO_HCM'
-  });
+  const [isCreateTeamModalOpen, setIsCreateTeamModalOpen] = useState(false);
+  const [showBulkClearModal, setShowBulkClearModal] = useState(false);
+  const [bulkClearScope, setBulkClearScope] = useState('ALL');
+  const [bulkClearSelectedTeamId, setBulkClearSelectedTeamId] = useState('');
+  const [clearingShifts, setClearingShifts] = useState(false);
 
   // Calculate Monday to Sunday of the active week in local time
   const weekDays = useMemo(() => {
@@ -129,8 +129,40 @@ export default function GuardScheduleManagementPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
+
+    // 1. Fetch guard teams & active dispatches for the week
+    let teamList = [];
     try {
-      // 1. Fetch system users and extract active guards
+      const teamsRes = await guardScheduleApi.getTeams();
+      teamList = Array.isArray(teamsRes) ? teamsRes : [];
+      setTeams(teamList);
+    } catch (e) {
+      console.warn('Lỗi tải danh sách đội bảo vệ:', e);
+    }
+
+    let dispatchList = [];
+    try {
+      const dispatchesRes = await guardScheduleApi.getDispatches({
+        startDate: startDateStr,
+        endDate: endDateStr
+      });
+      dispatchList = Array.isArray(dispatchesRes) ? dispatchesRes : [];
+      setDispatches(dispatchList);
+    } catch (e) {
+      console.warn('Lỗi tải danh sách điều động tăng cường:', e);
+    }
+
+    const guardTeamMap = new Map();
+    teamList.forEach((t) => {
+      (t.members || []).forEach((m) => {
+        guardTeamMap.set(m.id, { id: t.id, teamName: t.teamName, colorCode: t.colorCode });
+      });
+    });
+
+    const activeDispatches = dispatchList.filter((d) => d.status === 'ACTIVE');
+
+    // 2. Fetch system users and extract active guards with team information
+    try {
       const usersRes = await getUsers({ accountType: 'SYSTEM', isActive: true, size: 100 });
       const pageObj = usersRes?.users || usersRes;
       const allUsers = Array.isArray(pageObj?.content)
@@ -141,38 +173,61 @@ export default function GuardScheduleManagementPage() {
         ? usersRes
         : [];
 
-      let guardList = allUsers.filter(
-        (u) =>
-          u.isActive !== false &&
-          (u.role === ROLES.GUARD ||
-           u.role === 'GUARD' ||
-           u.role === 'INTERNAL_GUARD' ||
-           u.role === 'OUTSOURCED_GUARD')
-      );
-
-      // Fallback demo guards ONLY if system has no users endpoint response at all (offline demo mode)
-      if (guardList.length === 0 && !pageObj?.content && !Array.isArray(usersRes)) {
-        guardList = [
-          {
-            id: 'fa744a70-3db2-434d-a6c3-6c00a452578c',
-            fullName: 'Nguyễn Văn An (Bảo Vệ)',
-            userCode: 'NV-BV01',
-            email: 'guard.an@fpt.edu.vn',
-            role: 'GUARD'
-          },
-          {
-            id: '84cc1997-bae7-4a88-a20e-519b857cb722',
-            fullName: 'Bảo Vệ Demo',
-            userCode: 'NV-BV02',
-            email: 'guard.demo@fpt.edu.vn',
-            role: 'GUARD'
-          }
-        ];
-      }
+      let guardList = allUsers
+        .filter(
+          (u) =>
+            u.isActive !== false &&
+            (u.role === ROLES.GUARD ||
+             u.role === 'GUARD' ||
+             u.role === 'INTERNAL_GUARD' ||
+             u.role === 'OUTSOURCED_GUARD')
+        )
+        .map((u) => {
+          const teamInfo = guardTeamMap.get(u.id);
+          const activeTeam = teamInfo || (u.teamId && teamList.find((t) => t.id === u.teamId)) || null;
+          const teamId = activeTeam?.id || null;
+          const teamName = activeTeam?.teamName || null;
+          const activeDisp = activeDispatches.find((d) => d.guardId === u.id);
+          return {
+            ...u,
+            teamId,
+            teamName,
+            team: activeTeam ? { id: teamId, teamName, colorCode: activeTeam.colorCode } : null,
+            activeDispatch: activeDisp ? {
+              id: activeDisp.id,
+              toTeamId: activeDisp.toTeamId,
+              toTeamName: activeDisp.toTeamName,
+              fromTeamId: activeDisp.fromTeamId,
+              fromTeamName: activeDisp.fromTeamName,
+              startDate: activeDisp.startDate,
+              endDate: activeDisp.endDate,
+              shiftType: activeDisp.shiftType,
+              reason: activeDisp.reason
+            } : null
+          };
+        });
+      guardList.sort((a, b) => {
+        const codeA = (a.userCode || '').trim();
+        const codeB = (b.userCode || '').trim();
+        if (codeA && codeB) {
+          const cmp = codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
+          if (cmp !== 0) return cmp;
+        } else if (codeA) return -1;
+        else if (codeB) return 1;
+        return (a.fullName || '').localeCompare(b.fullName || '', 'vi', { sensitivity: 'base' });
+      });
       setGuards(guardList);
+    } catch (e) {
+      console.warn('Lỗi tải danh sách nhân viên bảo vệ:', e);
+    }
 
-      // 2. Fetch areas
-      const areasRes = await getAreas({ size: 100 });
+    // 3. Fetch areas & buildings
+    try {
+      const [areasRes, buildingsRes] = await Promise.all([
+        getAreas({ size: 100 }),
+        getBuildings().catch(() => [])
+      ]);
+
       let areaList = Array.isArray(areasRes?.content)
         ? areasRes.content
         : Array.isArray(areasRes?.areas)
@@ -180,37 +235,42 @@ export default function GuardScheduleManagementPage() {
         : Array.isArray(areasRes)
         ? areasRes
         : [];
-
       if (areaList.length === 0) {
         areaList = [
-          { id: 'area-1', name: 'Chốt Cổng Chính & Bãi Xe', building: 'CO_SO_HCM' },
-          { id: 'area-2', name: 'Phòng Điều Khiển Camera & Trực Ban', building: 'CO_SO_HCM' },
-          { id: 'area-3', name: 'Sảnh Chính Tầng Trệt', building: 'CO_SO_HCM' },
-          { id: 'area-4', name: 'Tuần Tra Hành Lang & Các Tầng', building: 'CO_SO_HCM' }
+          { id: 'area-1', name: 'Chốt Cổng Chính & Bãi Xe', building: 'FPT_AROUND' },
+          { id: 'area-2', name: 'Phòng Điều Khiển Camera & Trực Ban', building: 'FPT_AROUND' },
+          { id: 'area-3', name: 'Sảnh Chính Tầng Trệt', building: 'FPT_AROUND' },
+          { id: 'area-4', name: 'Tuần Tra Hành Lang & Các Tầng', building: 'FPT_AROUND' }
         ];
       }
       setAreas(areaList);
+      setBuildings(Array.isArray(buildingsRes) ? buildingsRes : []);
+    } catch (e) {
+      console.warn('Lỗi tải khu vực / tòa nhà:', e);
+    }
 
-      // 3. Fetch shifts for this week
+    // 4. Fetch shifts for this week
+    try {
       const shiftsRes = await guardScheduleApi.getShifts({
         startDate: startDateStr,
         endDate: endDateStr,
-        building: (selectedBuilding === 'ALL' || selectedBuilding === 'CO_SO_HCM') ? undefined : selectedBuilding
+        building: selectedBuilding === 'ALL' ? undefined : selectedBuilding
       });
       const parsedShifts = Array.isArray(shiftsRes) ? shiftsRes : shiftsRes?.content || [];
       setShifts(parsedShifts);
-
-      // 4. Fetch templates
-      const templatesRes = await guardScheduleApi.getTemplates(
-        (selectedBuilding === 'ALL' || selectedBuilding === 'CO_SO_HCM') ? undefined : selectedBuilding
-      );
-      setTemplates(Array.isArray(templatesRes) ? templatesRes : templatesRes?.content || []);
-    } catch (err) {
-      console.error('Lỗi tải dữ liệu lịch trực:', err);
-      setError(err.message || 'Không thể tải dữ liệu lịch trực');
-    } finally {
-      setLoading(false);
+    } catch (e) {
+      console.warn('Lỗi tải ca trực tuần:', e);
     }
+
+    // 5. Fetch shift requests
+    try {
+      const requestsRes = await guardScheduleApi.getShiftRequests();
+      setShiftRequests(Array.isArray(requestsRes) ? requestsRes : []);
+    } catch (e) {
+      console.warn('Lỗi tải yêu cầu ca trực:', e);
+    }
+
+    setLoading(false);
   }, [startDateStr, endDateStr, selectedBuilding]);
 
   useEffect(() => {
@@ -265,45 +325,6 @@ export default function GuardScheduleManagementPage() {
   const todayAfternoonCount = todayShifts.filter((s) => s.shiftType === 'SHIFT_AFTERNOON').length;
   const todayNightCount = todayShifts.filter((s) => s.shiftType === 'SHIFT_NIGHT').length;
 
-  // Security Room Coverage Warnings
-  const missingSecurityRoomWarnings = useMemo(() => {
-    const warnings = [];
-    const shiftTypes = ['SHIFT_MORNING', 'SHIFT_AFTERNOON', 'SHIFT_NIGHT'];
-
-    weekDays.forEach((day) => {
-      const dateStr = formatLocalDate(day);
-      const dayShifts = shifts.filter((s) => s.shiftDate === dateStr);
-
-      shiftTypes.forEach((st) => {
-        const matching = dayShifts.filter((s) => s.shiftType === st);
-        if (matching.length > 0) {
-          const hasSecurityRoom = matching.some((s) => {
-            const name = (s.areaName || '').toLowerCase();
-            return (
-              name.includes('phòng bảo vệ') ||
-              name.includes('security room') ||
-              name.includes('camera') ||
-              name.includes('điều khiển')
-            );
-          });
-
-          if (!hasSecurityRoom) {
-            const label =
-              st === 'SHIFT_MORNING' ? 'Ca Sáng' : st === 'SHIFT_AFTERNOON' ? 'Ca Chiều' : 'Ca Đêm';
-            warnings.push(
-              `Ngày ${day.toLocaleDateString('vi-VN', {
-                day: '2-digit',
-                month: '2-digit'
-              })} - ${label}: Chưa có bảo vệ phân công trực phòng camera an ninh!`
-            );
-          }
-        }
-      });
-    });
-
-    return warnings;
-  }, [shifts, weekDays]);
-
   // Delete shift handler
   const handleDeleteShift = async (id) => {
     if (!window.confirm('Bạn có chắc chắn muốn xóa ca trực này?')) return;
@@ -315,33 +336,88 @@ export default function GuardScheduleManagementPage() {
     }
   };
 
-  // Filtered guards by search
+  const pendingRequestsCount = useMemo(() => {
+    return shiftRequests.filter((r) => r.status === 'PENDING').length;
+  }, [shiftRequests]);
+
+  // Filtered guards by team and search
   const filteredGuards = useMemo(() => {
-    if (!searchKeyword.trim()) return guards;
-    const kw = searchKeyword.toLowerCase().trim();
-    return guards.filter(
-      (g) =>
-        (g.fullName && g.fullName.toLowerCase().includes(kw)) ||
-        (g.userCode && g.userCode.toLowerCase().includes(kw)) ||
-        (g.email && g.email.toLowerCase().includes(kw))
-    );
-  }, [guards, searchKeyword]);
+    let result = guards;
+    if (selectedTeam !== 'ALL') {
+      const foundTeam = (teams || []).find((t) => t.id === selectedTeam);
+      const teamMemberIds = (foundTeam?.members && foundTeam.members.length > 0)
+        ? new Set(foundTeam.members.map((m) => m.id))
+        : null;
+      result = result.filter(
+        (g) =>
+          g.team?.id === selectedTeam ||
+          g.teamId === selectedTeam ||
+          (teamMemberIds && teamMemberIds.has(g.id)) ||
+          (g.activeDispatch && g.activeDispatch.toTeamId === selectedTeam)
+      );
+    }
+    if (searchKeyword.trim()) {
+      const kw = searchKeyword.toLowerCase().trim();
+      result = result.filter(
+        (g) =>
+          (g.fullName && g.fullName.toLowerCase().includes(kw)) ||
+          (g.userCode && g.userCode.toLowerCase().includes(kw)) ||
+          (g.email && g.email.toLowerCase().includes(kw))
+      );
+    }
+    return result;
+  }, [guards, selectedTeam, teams, searchKeyword]);
 
 
 
-  // Create Template Handler
-  const handleCreateTemplate = async (e) => {
-    e.preventDefault();
+  // Open Bulk Clear Modal
+  const handleOpenBulkClear = () => {
+    if (selectedTeam !== 'ALL') {
+      setBulkClearScope('TEAM');
+      setBulkClearSelectedTeamId(selectedTeam);
+    } else {
+      setBulkClearScope('ALL');
+      setBulkClearSelectedTeamId(teams.length > 0 ? teams[0].id : '');
+    }
+    setShowBulkClearModal(true);
+  };
+
+  // Target shifts count for bulk clear preview
+  const bulkClearTargetShiftsCount = useMemo(() => {
+    const scheduledShifts = shifts.filter((s) => s.status === 'SCHEDULED');
+    if (bulkClearScope === 'ALL') {
+      return scheduledShifts.length;
+    }
+    if (bulkClearScope === 'TEAM' && bulkClearSelectedTeamId) {
+      const foundTeam = teams.find((t) => t.id === bulkClearSelectedTeamId);
+      const memberIds = new Set((foundTeam?.members || []).map((m) => m.id));
+      const teamDispatches = dispatches.filter((d) => d.toTeamId === bulkClearSelectedTeamId && d.status === 'ACTIVE');
+      teamDispatches.forEach((d) => memberIds.add(d.guardId));
+
+      return scheduledShifts.filter((s) => memberIds.has(s.guardId) || memberIds.has(s.guard?.id)).length;
+    }
+    return scheduledShifts.length;
+  }, [shifts, bulkClearScope, bulkClearSelectedTeamId, teams, dispatches]);
+
+  // Execute Bulk Clear
+  const handleExecuteBulkClear = async () => {
+    setClearingShifts(true);
     try {
-      await guardScheduleApi.createTemplate({
-        ...newTemplate,
-        building: newTemplate.building === 'ALL' ? undefined : newTemplate.building,
-        areaId: newTemplate.areaId ? newTemplate.areaId : null
+      const targetTeamId = bulkClearScope === 'TEAM' ? bulkClearSelectedTeamId : undefined;
+      const res = await guardScheduleApi.bulkClearShifts({
+        startDate: startDateStr,
+        endDate: endDateStr,
+        teamId: targetTeamId || undefined,
+        building: selectedBuilding === 'ALL' ? undefined : selectedBuilding,
+        onlyScheduled: true
       });
-      fetchData();
-      alert('Đã thêm mẫu ca trực thành công!');
+      await fetchData();
+      setShowBulkClearModal(false);
+      alert(res?.message || `Đã xóa thành công ${res?.clearedCount || 0} ca trực!`);
     } catch (err) {
-      alert(err.message || 'Lỗi khi tạo mẫu ca');
+      alert(err.message || 'Lỗi khi xóa lịch trực');
+    } finally {
+      setClearingShifts(false);
     }
   };
 
@@ -353,55 +429,104 @@ export default function GuardScheduleManagementPage() {
           <h1 className="schedule-header-title">
             <Calendar className="text-blue-600 dark:text-blue-400" /> Quản Lý Lịch Trực Bảo Vệ
           </h1>
+          <p className="schedule-header-subtitle">
+            Phân công ca trực theo đội, điều phối chốt an ninh và phê duyệt yêu cầu đổi/nghỉ ca
+          </p>
         </div>
 
         <div className="schedule-header__actions">
-          <button
-            type="button"
-            onClick={() => setShowTemplateModal(true)}
-            className="schedule-btn-secondary"
-          >
-            <Settings size={16} />
-            <span>Cấu Hình Lịch Mẫu</span>
-          </button>
+          {activeTab === 'SCHEDULE' && (
+            <div className="flex items-center gap-2">
+              {shifts.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleOpenBulkClear}
+                  className="schedule-btn-secondary text-rose-600 hover:text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-900/60 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                  title="Xóa nhanh các ca trực tuần chưa diễn ra (để phân lại khi cần)"
+                >
+                  <Trash2 size={15} className="text-rose-500" />
+                  <span>Xóa Lịch Tuần</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowWizardModal(true)}
+                className="schedule-btn-primary"
+              >
+                <Wand2 size={16} />
+                <span>Phân Lịch Trực Cho Đội</span>
+              </button>
+            </div>
+          )}
 
-          <button
-            type="button"
-            onClick={() => setShowGenerateModal(true)}
-            className="schedule-btn-secondary"
-          >
-            <Wand2 size={16} />
-            <span>Sinh Lịch Tự Động</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setEditingShift(null);
-              setShowShiftModal(true);
-            }}
-            className="schedule-btn-primary"
-          >
-            <Plus size={16} strokeWidth={2.5} />
-            <span>Thêm Ca Trực Lẻ</span>
-          </button>
+          {activeTab === 'TEAMS' && (
+            <button
+              type="button"
+              onClick={() => setIsCreateTeamModalOpen(true)}
+              className="schedule-btn-primary"
+            >
+              <Plus size={16} strokeWidth={2.5} />
+              <span>Thêm Đội Mới</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* 2. Readiness KPI Cards */}
-      <div className="schedule-kpi-grid">
+      {/* 2. Navigation Tabs (Đồng bộ chuẩn ManageAccountPage) */}
+      <nav className="schedule-tabs" aria-label="Phân nhóm quản lý lịch trực và đội bảo vệ">
+        <button
+          type="button"
+          className={`schedule-tab-btn ${activeTab === 'SCHEDULE' ? 'schedule-tab-btn--active' : ''}`}
+          onClick={() => setActiveTab('SCHEDULE')}
+        >
+          <Calendar size={17} />
+          <span>Lịch Trực Tuần</span>
+        </button>
+
+        <button
+          type="button"
+          className={`schedule-tab-btn ${activeTab === 'TEAMS' ? 'schedule-tab-btn--active' : ''}`}
+          onClick={() => setActiveTab('TEAMS')}
+        >
+          <Users size={17} />
+          <span>Cơ Cấu Đội Bảo Vệ</span>
+          <span className="schedule-tab-badge">
+            {teams.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          className={`schedule-tab-btn ${activeTab === 'REQUESTS' ? 'schedule-tab-btn--active' : ''}`}
+          onClick={() => setActiveTab('REQUESTS')}
+        >
+          <ClipboardList size={17} />
+          <span>Yêu Cầu Đổi / Nghỉ Ca</span>
+          {pendingRequestsCount > 0 && (
+            <span className="schedule-tab-badge schedule-tab-badge--warning">
+              {pendingRequestsCount}
+            </span>
+          )}
+        </button>
+      </nav>
+
+      {/* 3. TAB 1: WEEKLY SCHEDULE VIEW */}
+      {activeTab === 'SCHEDULE' && (
+        <div className="space-y-6">
+          {/* Readiness KPI Cards */}
+          <div className="schedule-kpi-grid">
         {/* Card 1: Total Guards */}
         <div className="schedule-kpi-card">
           <div>
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              Quân Số Sẵn Sàng
+              Tổng Quân Số Bảo Vệ
             </span>
             <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">
               {totalGuardsCount} <span className="text-sm font-normal text-slate-500">nhân viên</span>
             </div>
             <div className="flex items-center gap-1.5 mt-2">
-              <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                <span className="live-pulse" /> Sẵn sàng trực
+              <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+                <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" /> Đang hoạt động
               </span>
             </div>
           </div>
@@ -448,49 +573,6 @@ export default function GuardScheduleManagementPage() {
           </div>
           <div className="schedule-kpi-icon-wrap kpi-icon-amber">
             <Clock size={22} />
-          </div>
-        </div>
-
-        {/* Card 4: Security Room Warning Status */}
-        <div
-          id="kpiCardSecurityRoom"
-          className={`schedule-kpi-card ${
-            missingSecurityRoomWarnings.length > 0
-              ? 'cursor-pointer border-amber-300 dark:border-amber-800/80 hover:border-amber-500 hover:shadow-md transition'
-              : ''
-          }`}
-          onClick={() => {
-            if (missingSecurityRoomWarnings.length > 0) setShowWarningModal(true);
-          }}
-          title={missingSecurityRoomWarnings.length > 0 ? 'Nhấn để xem chi tiết cảnh báo' : ''}
-        >
-          <div>
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              Độ Phủ Phòng Camera
-            </span>
-            <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">
-              {missingSecurityRoomWarnings.length === 0 ? (
-                <span className="text-emerald-600 dark:text-emerald-400 text-xl font-bold flex items-center gap-1">
-                  <CheckCircle2 size={20} /> 100% Đạt Chuẩn
-                </span>
-              ) : (
-                <span className="text-amber-600 dark:text-amber-400 text-xl font-bold flex items-center gap-1">
-                  <AlertTriangle size={20} /> {missingSecurityRoomWarnings.length} Cảnh Báo
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
-              {missingSecurityRoomWarnings.length === 0
-                ? 'Đầy đủ bảo vệ trực màn hình giám sát'
-                : 'Nhấn để xem chi tiết ca thiếu quân số'}
-            </p>
-          </div>
-          <div
-            className={`schedule-kpi-icon-wrap ${
-              missingSecurityRoomWarnings.length === 0 ? 'kpi-icon-emerald' : 'kpi-icon-amber'
-            }`}
-          >
-            <Shield size={22} />
           </div>
         </div>
       </div>
@@ -562,19 +644,42 @@ export default function GuardScheduleManagementPage() {
           </div>
         </div>
 
-        {/* Bottom Row: Building Selector & Search Filter */}
+        {/* Bottom Row: Building Selector, Team Selector & Search Filter */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-800/80 w-full">
-          <div className="flex items-center gap-2">
-            <Building2 size={16} className="text-slate-400 shrink-0" />
-            <span className="text-xs font-semibold text-slate-500">Khuôn viên:</span>
-            <select
-              value={selectedBuilding}
-              onChange={(e) => setSelectedBuilding(e.target.value)}
-              className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[180px]"
-            >
-              <option value="ALL">-- Tất cả cơ sở --</option>
-              <option value="CO_SO_HCM">FPT TP.HCM</option>
-            </select>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Building2 size={16} className="text-slate-400 shrink-0" />
+              <span className="text-xs font-semibold text-slate-500">Khuôn viên:</span>
+              <select
+                value={selectedBuilding}
+                onChange={(e) => setSelectedBuilding(e.target.value)}
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[150px]"
+              >
+                <option value="ALL">-- Tất cả cơ sở / tòa nhà --</option>
+                {buildings.map((b) => (
+                  <option key={b.id || b.code} value={b.code}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Users size={16} className="text-slate-400 shrink-0" />
+              <span className="text-xs font-semibold text-slate-500">Đội:</span>
+              <select
+                value={selectedTeam}
+                onChange={(e) => setSelectedTeam(e.target.value)}
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[150px]"
+              >
+                <option value="ALL">-- Tất cả đội bảo vệ --</option>
+                {teams.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.teamName}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="schedule-search-box">
@@ -658,10 +763,40 @@ export default function GuardScheduleManagementPage() {
                         >
                           {guard.fullName || 'Nhân viên bảo vệ'}
                         </div>
-                        <div className="mt-1.5 flex items-center">
+                        <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
                           <span className="inline-flex items-center font-mono font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 px-2 py-0.5 rounded text-[11px] whitespace-nowrap shadow-xs">
                             {guard.userCode || 'NV-BV'}
                           </span>
+                          {(guard.teamName || guard.team?.teamName) ? (
+                            <span
+                              className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold truncate max-w-[130px]"
+                              style={{
+                                backgroundColor: guard.team?.colorCode ? `${guard.team.colorCode}18` : '#eff6ff',
+                                color: guard.team?.colorCode || '#2563eb',
+                                border: `1px solid ${guard.team?.colorCode ? `${guard.team.colorCode}40` : '#bfdbfe'}`
+                              }}
+                              title={`Đội gốc: ${guard.teamName || guard.team?.teamName}`}
+                            >
+                              {guard.teamName || guard.team?.teamName}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 font-medium">
+                              Chưa phân đội
+                            </span>
+                          )}
+                          {guard.activeDispatch && (
+                            <span
+                              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700/60 shadow-xs"
+                              title={`Điều động tăng cường: ${guard.activeDispatch.toTeamName} (${guard.activeDispatch.shiftType ? (guard.activeDispatch.shiftType === 'SHIFT_MORNING' ? 'Ca Sáng (06-14h)' : guard.activeDispatch.shiftType === 'SHIFT_AFTERNOON' ? 'Ca Chiều (14-22h)' : 'Ca Đêm (22-06h)') + ' • ' : ''}${guard.activeDispatch.startDate} ~ ${guard.activeDispatch.endDate})${guard.activeDispatch.reason ? ' - Lý do: ' + guard.activeDispatch.reason : ''}`}
+                            >
+                              ⚡ {guard.activeDispatch.toTeamName}
+                              {guard.activeDispatch.shiftType && (
+                                <span className="font-normal opacity-85">
+                                  ({guard.activeDispatch.shiftType === 'SHIFT_MORNING' ? 'Sáng' : guard.activeDispatch.shiftType === 'SHIFT_AFTERNOON' ? 'Chiều' : 'Đêm'})
+                                </span>
+                              )}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </td>
@@ -716,28 +851,9 @@ export default function GuardScheduleManagementPage() {
                                   <div className="flex items-center gap-1 mt-1 text-[11px] font-semibold opacity-90">
                                     <Clock size={11} />
                                     <span>
-                                      {shift.startTime} — {shift.endTime}
+                                      {(shift.startTime && shift.startTime.length >= 5 ? shift.startTime.substring(0, 5) : shift.startTime)} — {(shift.endTime && shift.endTime.length >= 5 ? shift.endTime.substring(0, 5) : shift.endTime)}
                                     </span>
                                   </div>
-
-                                  {/* Area */}
-                                  {shift.areaName && (
-                                    <div
-                                      className="flex items-center gap-1 mt-1 text-[11px] font-medium truncate"
-                                      title={shift.areaName}
-                                    >
-                                      <MapPin size={11} className="shrink-0" />
-                                      <span className="truncate">{shift.areaName}</span>
-                                    </div>
-                                  )}
-
-                                  {/* Radio */}
-                                  {shift.radioChannel && (
-                                    <div className="flex items-center gap-1 mt-0.5 text-[10px] opacity-80">
-                                      <Radio size={10} />
-                                      <span>{shift.radioChannel}</span>
-                                    </div>
-                                  )}
 
                                   {/* Status badge */}
                                   <div className="mt-1.5 pt-1 border-t border-black/10 flex items-center justify-between text-[10px]">
@@ -746,9 +862,19 @@ export default function GuardScheduleManagementPage() {
                                         <span className="live-pulse" /> Đang nhận ca
                                       </span>
                                     ) : shift.status === 'COMPLETED' ? (
-                                      <span className="opacity-75">Đã hoàn thành</span>
+                                      <span className="opacity-80 font-medium">Đã hoàn thành</span>
+                                    ) : shift.status === 'ABSENT' ? (
+                                      <span className="text-rose-600 dark:text-rose-400 font-bold">Vắng mặt</span>
+                                    ) : shift.status === 'CANCELLED' ? (
+                                      <span className="text-slate-500 font-medium line-through">Đã hủy</span>
                                     ) : (
                                       <span className="opacity-75">Đã lên lịch</span>
+                                    )}
+
+                                    {shift.isOvertime && (
+                                      <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-amber-200 dark:bg-amber-900/70 text-amber-900 dark:text-amber-200">
+                                        OT
+                                      </span>
                                     )}
                                   </div>
                                 </div>
@@ -763,8 +889,7 @@ export default function GuardScheduleManagementPage() {
                                   shiftDate: dateStr,
                                   shiftType: 'SHIFT_MORNING',
                                   startTime: '06:00',
-                                  endTime: '14:00',
-                                  radioChannel: 'Kênh 1 - Phòng Camera'
+                                  endTime: '14:00'
                                 });
                                 setShowShiftModal(true);
                               }}
@@ -783,7 +908,25 @@ export default function GuardScheduleManagementPage() {
             </tbody>
           </table>
         </div>
+      </div>
+      )}
 
+      {/* 4. TAB 2: GUARD TEAMS MANAGEMENT */}
+      {activeTab === 'TEAMS' && (
+        <GuardTeamsTab
+          teams={teams}
+          allGuards={guards}
+          areas={areas}
+          onTeamsUpdated={fetchData}
+          isCreateModalOpen={isCreateTeamModalOpen}
+          setIsCreateModalOpen={setIsCreateTeamModalOpen}
+        />
+      )}
+
+      {/* 5. TAB 3: SHIFT REQUESTS (SWAP & LEAVE) */}
+      {activeTab === 'REQUESTS' && (
+        <ShiftRequestsTab onRequestsUpdated={fetchData} />
+      )}
 
       {/* ========================================================
           MODAL: ADD / EDIT SHIFT
@@ -830,16 +973,28 @@ export default function GuardScheduleManagementPage() {
               onSubmit={async (e) => {
                 e.preventDefault();
                 const form = e.target;
+                const shiftType = form.shiftType.value;
+                let startTime = '06:00';
+                let endTime = '14:00';
+                if (shiftType === 'SHIFT_AFTERNOON') {
+                  startTime = '14:00';
+                  endTime = '22:00';
+                } else if (shiftType === 'SHIFT_NIGHT') {
+                  startTime = '22:00';
+                  endTime = '06:00';
+                }
+
                 const payload = {
                   guardId: form.guardId.value,
                   shiftDate: form.shiftDate.value,
-                  shiftType: form.shiftType.value,
-                  startTime: form.startTime.value,
-                  endTime: form.endTime.value,
-                  areaId: form.areaId.value ? form.areaId.value : null,
-                  radioChannel: form.radioChannel.value,
-                  notes: form.notes.value,
-                  status: form.status ? form.status.value : 'SCHEDULED'
+                  shiftType: shiftType,
+                  startTime: startTime,
+                  endTime: endTime,
+                  areaId: null,
+                  radioChannel: null,
+                  notes: form.notes ? form.notes.value : '',
+                  status: form.status ? form.status.value : (editingShift?.status || 'SCHEDULED'),
+                  isOvertime: form.isOvertime ? form.isOvertime.checked : (editingShift?.isOvertime || false)
                 };
 
                 try {
@@ -899,21 +1054,6 @@ export default function GuardScheduleManagementPage() {
                     <select
                       name="shiftType"
                       defaultValue={editingShift ? editingShift.shiftType : 'SHIFT_MORNING'}
-                      onChange={(e) => {
-                        const type = e.target.value;
-                        const sInput = document.getElementById('startTimeInput');
-                        const eInput = document.getElementById('endTimeInput');
-                        if (type === 'SHIFT_MORNING') {
-                          if (sInput) sInput.value = '06:00';
-                          if (eInput) eInput.value = '14:00';
-                        } else if (type === 'SHIFT_AFTERNOON') {
-                          if (sInput) sInput.value = '14:00';
-                          if (eInput) eInput.value = '22:00';
-                        } else if (type === 'SHIFT_NIGHT') {
-                          if (sInput) sInput.value = '22:00';
-                          if (eInput) eInput.value = '06:00';
-                        }
-                      }}
                       className="schedule-form-select"
                     >
                       <option value="SHIFT_MORNING">Ca Sáng (06:00 - 14:00)</option>
@@ -923,99 +1063,21 @@ export default function GuardScheduleManagementPage() {
                   </div>
                 </div>
 
-                <div className="schedule-form-row">
+                {editingShift && editingShift.id && (
                   <div className="schedule-form-group">
                     <label className="schedule-form-label">
-                      <span>Giờ Bắt Đầu</span>
-                      <span className="required">*</span>
+                      <span>Trạng Thái Điểm Danh</span>
                     </label>
-                    <input
-                      type="time"
-                      id="startTimeInput"
-                      name="startTime"
-                      defaultValue={editingShift ? editingShift.startTime : '06:00'}
-                      required
-                      className="schedule-form-input"
-                    />
-                  </div>
-
-                  <div className="schedule-form-group">
-                    <label className="schedule-form-label">
-                      <span>Giờ Kết Thúc</span>
-                      <span className="required">*</span>
-                    </label>
-                    <input
-                      type="time"
-                      id="endTimeInput"
-                      name="endTime"
-                      defaultValue={editingShift ? editingShift.endTime : '14:00'}
-                      required
-                      className="schedule-form-input"
-                    />
-                  </div>
-                </div>
-
-                <div className="schedule-form-group">
-                  <label className="schedule-form-label">
-                    <span>Chốt Trực Phân Công (Khu Vực)</span>
-                  </label>
-                  <select
-                    name="areaId"
-                    defaultValue={editingShift ? editingShift.areaId : ''}
-                    className="schedule-form-select"
-                  >
-                    <option value="">-- Chưa gán chốt (Tuần tra cơ động) --</option>
-                    {areas.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.name} ({a.building || 'Khuôn viên FPT TP.HCM'})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {editingShift && editingShift.id ? (
-                  <div className="schedule-form-row">
-                    <div className="schedule-form-group">
-                      <label className="schedule-form-label">
-                        <span>Kênh Bộ Đàm</span>
-                      </label>
-                      <input
-                        type="text"
-                        name="radioChannel"
-                        defaultValue={editingShift.radioChannel || 'Kênh 1 - Phòng Camera'}
-                        placeholder="Kênh 1 - Phòng Camera"
-                        className="schedule-form-input"
-                      />
-                    </div>
-
-                    <div className="schedule-form-group">
-                      <label className="schedule-form-label">
-                        <span>Trạng Thái Điểm Danh</span>
-                      </label>
-                      <select
-                        name="status"
-                        defaultValue={editingShift.status}
-                        className="schedule-form-select"
-                      >
-                        <option value="SCHEDULED">SCHEDULED (Lên lịch)</option>
-                        <option value="CHECKED_IN">CHECKED_IN (Đang trực)</option>
-                        <option value="COMPLETED">COMPLETED (Hoàn thành)</option>
-                        <option value="ABSENT">ABSENT (Vắng mặt)</option>
-                      </select>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="schedule-form-group">
-                    <label className="schedule-form-label">
-                      <span>Kênh Bộ Đàm</span>
-                    </label>
-                    <input
-                      type="text"
-                      name="radioChannel"
-                      defaultValue="Kênh 1 - Phòng Camera"
-                      placeholder="Kênh 1 - Phòng Camera"
-                      className="schedule-form-input"
-                    />
+                    <select
+                      name="status"
+                      defaultValue={editingShift.status}
+                      className="schedule-form-select"
+                    >
+                      <option value="SCHEDULED">SCHEDULED (Lên lịch)</option>
+                      <option value="CHECKED_IN">CHECKED_IN (Đang trực)</option>
+                      <option value="COMPLETED">COMPLETED (Hoàn thành)</option>
+                      <option value="ABSENT">ABSENT (Vắng mặt)</option>
+                    </select>
                   </div>
                 )}
 
@@ -1030,6 +1092,18 @@ export default function GuardScheduleManagementPage() {
                     placeholder="Kiểm soát ra vào, trực màn hình an ninh hoặc tuần tra định kỳ..."
                     className="schedule-form-textarea"
                   />
+                </div>
+
+                <div className="schedule-form-group pt-1">
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    <input
+                      type="checkbox"
+                      name="isOvertime"
+                      defaultChecked={editingShift ? !!editingShift.isOvertime : false}
+                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
+                    />
+                    <span>Ca trực tăng ca / Sự kiện ngoài giờ (Overtime)</span>
+                  </label>
                 </div>
               </div>
 
@@ -1057,405 +1131,154 @@ export default function GuardScheduleManagementPage() {
       )}
 
       {/* ========================================================
-          MODAL: GENERATE SHIFTS FROM TEMPLATES
+          MODAL: BULK CLEAR SHIFTS
       ======================================================== */}
-      {showGenerateModal && (
+      {showBulkClearModal && (
         <div
           className="schedule-modal-backdrop"
           onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setShowGenerateModal(false);
-              setGenerateResult(null);
+            if (e.target === e.currentTarget && !clearingShifts) {
+              setShowBulkClearModal(false);
             }
           }}
         >
-          <div className="schedule-modal schedule-modal--sm">
+          <div className="schedule-modal schedule-modal--md max-w-lg">
             <div className="schedule-modal__header">
               <div className="schedule-modal__header-left">
-                <div className="schedule-modal__icon-badge">
-                  <Wand2 size={18} />
+                <div className="schedule-modal__icon-badge schedule-modal__icon-badge--warning bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-950/50 dark:text-rose-400 dark:border-rose-800">
+                  <Trash2 size={18} />
                 </div>
                 <div className="schedule-modal__header-text">
-                  <h3 className="schedule-modal__title">Sinh Lịch Tự Động</h3>
+                  <h3 className="schedule-modal__title text-rose-700 dark:text-rose-400">
+                    Xóa & Đặt Lại Lịch Trực Tuần
+                  </h3>
                   <p className="schedule-modal__subtitle">
-                    Tạo ca trực hàng loạt từ khung lịch mẫu tuần
+                    Thu hồi nhanh các ca trực chưa diễn ra khi phân công nhầm
                   </p>
                 </div>
               </div>
               <button
                 type="button"
                 className="schedule-modal__close-btn"
-                onClick={() => {
-                  setShowGenerateModal(false);
-                  setGenerateResult(null);
-                }}
-                aria-label="Đóng"
+                onClick={() => setShowBulkClearModal(false)}
+                disabled={clearingShifts}
               >
                 <X size={18} />
               </button>
             </div>
 
-            {generateResult ? (
-              <div>
-                <div className="schedule-modal__body">
-                  <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 rounded-xl text-emerald-800 dark:text-emerald-200 text-sm">
-                    <p className="font-bold text-base flex items-center gap-2">
-                      <CheckCircle2 size={18} className="text-emerald-600 dark:text-emerald-400" />
-                      Đã sinh thành công {generateResult.totalGenerated} ca trực mới!
-                    </p>
-                    <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-1">
-                      Các ca trực đã được cập nhật vào bảng lịch tuần của các bảo vệ.
-                    </p>
-                  </div>
-
-                  {generateResult.warnings && generateResult.warnings.length > 0 && (
-                    <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 rounded-xl text-amber-800 dark:text-amber-200 text-xs space-y-1">
-                      <p className="font-bold text-xs flex items-center gap-1.5">
-                        <AlertTriangle size={14} className="text-amber-500" /> Lưu ý phân công:
-                      </p>
-                      {generateResult.warnings.map((w, idx) => (
-                        <p key={idx} className="pl-4">• {w}</p>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="schedule-modal__footer">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowGenerateModal(false);
-                      setGenerateResult(null);
-                      fetchData();
-                    }}
-                    className="schedule-btn-modal schedule-btn-modal--submit w-full"
-                  >
-                    Xong & Xem Lịch Trực
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <form
-                onSubmit={async (e) => {
-                  e.preventDefault();
-                  const form = e.target;
-                  const start = form.startDate.value;
-                  const end = form.endDate.value;
-                  const bld = form.building.value;
-
-                  try {
-                    const res = await guardScheduleApi.generateShifts({
-                      startDate: start,
-                      endDate: end,
-                      building: bld === 'ALL' ? undefined : bld
-                    });
-                    setGenerateResult(res);
-                  } catch (err) {
-                    alert(err.message || 'Lỗi khi sinh ca trực');
-                  }
-                }}
-              >
-                <div className="schedule-modal__body">
-                  <div className="schedule-form-row">
-                    <div className="schedule-form-group">
-                      <label className="schedule-form-label">
-                        <span>Từ Ngày</span>
-                        <span className="required">*</span>
-                      </label>
-                      <input
-                        type="date"
-                        name="startDate"
-                        defaultValue={startDateStr}
-                        required
-                        className="schedule-form-input"
-                      />
-                    </div>
-
-                    <div className="schedule-form-group">
-                      <label className="schedule-form-label">
-                        <span>Đến Ngày</span>
-                        <span className="required">*</span>
-                      </label>
-                      <input
-                        type="date"
-                        name="endDate"
-                        defaultValue={endDateStr}
-                        required
-                        className="schedule-form-input"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="schedule-form-group">
-                    <label className="schedule-form-label">
-                      <span>Cơ Sở / Khuôn Viên Áp Dụng</span>
-                    </label>
-                    <select
-                      name="building"
-                      defaultValue={selectedBuilding}
-                      className="schedule-form-select"
-                    >
-                      <option value="ALL">Toàn bộ khuôn viên</option>
-                      <option value="CO_SO_HCM">FPT TP.HCM</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="schedule-modal__footer">
-                  <button
-                    type="button"
-                    onClick={() => setShowGenerateModal(false)}
-                    className="schedule-btn-modal schedule-btn-modal--cancel"
-                  >
-                    Hủy
-                  </button>
-                  <button
-                    type="submit"
-                    className="schedule-btn-modal schedule-btn-modal--submit"
-                  >
-                    <Wand2 size={14} /> Bắt Đầu Sinh Lịch
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================
-          MODAL: TEMPLATE MANAGEMENT
-      ======================================================== */}
-      {showTemplateModal && (
-        <div
-          className="schedule-modal-backdrop"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setShowTemplateModal(false);
-            }
-          }}
-        >
-          <div className="schedule-modal schedule-modal--lg">
-            <div className="schedule-modal__header">
-              <div className="schedule-modal__header-left">
-                <div className="schedule-modal__icon-badge">
-                  <Settings size={18} />
-                </div>
-                <div className="schedule-modal__header-text">
-                  <h3 className="schedule-modal__title">Cấu Hình Khung Lịch Mẫu Tuần</h3>
-                  <p className="schedule-modal__subtitle">
-                    Khung phân bổ mẫu Thứ 2 – Chủ nhật dùng để tự động tạo ca định kỳ
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="schedule-modal__close-btn"
-                onClick={() => setShowTemplateModal(false)}
-                aria-label="Đóng"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="schedule-modal__body">
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Lịch mẫu quy định khung trực cố định hàng tuần. Khi bấm &quot;Sinh Lịch Tự Động&quot;, hệ thống sẽ căn cứ vào đây để phân bổ ca trực cho các nhân sự an ninh.
-              </p>
-
-              {/* Add new template inline form */}
-              <form
-                onSubmit={handleCreateTemplate}
-                className="schedule-template-create-card"
-              >
-                <div className="schedule-template-card-title">
-                  <Plus size={15} className="text-blue-600 dark:text-blue-400" /> Thêm Khung Mẫu Ca Mới
-                </div>
-
-                <div className="schedule-form-row--3">
-                  <div className="schedule-form-group">
-                    <label className="schedule-form-label">
-                      <span>Thứ</span>
-                    </label>
-                    <select
-                      value={newTemplate.dayOfWeek}
-                      onChange={(e) =>
-                        setNewTemplate({ ...newTemplate, dayOfWeek: parseInt(e.target.value) })
-                      }
-                      className="schedule-form-select"
-                    >
-                      <option value={2}>Thứ 2</option>
-                      <option value={3}>Thứ 3</option>
-                      <option value={4}>Thứ 4</option>
-                      <option value={5}>Thứ 5</option>
-                      <option value={6}>Thứ 6</option>
-                      <option value={7}>Thứ 7</option>
-                      <option value={1}>Chủ nhật</option>
-                    </select>
-                  </div>
-
-                  <div className="schedule-form-group">
-                    <label className="schedule-form-label">
-                      <span>Bảo Vệ</span>
-                      <span className="required">*</span>
-                    </label>
-                    <select
-                      value={newTemplate.guardId}
-                      onChange={(e) => setNewTemplate({ ...newTemplate, guardId: e.target.value })}
-                      required
-                      className="schedule-form-select"
-                    >
-                      <option value="">-- Chọn bảo vệ --</option>
-                      {guards.map((g) => (
-                        <option key={g.id} value={g.id}>
-                          {g.fullName}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="schedule-form-group">
-                    <label className="schedule-form-label">
-                      <span>Ca Trực</span>
-                    </label>
-                    <select
-                      value={newTemplate.shiftType}
-                      onChange={(e) => {
-                        const type = e.target.value;
-                        let s = '06:00';
-                        let en = '14:00';
-                        if (type === 'SHIFT_AFTERNOON') {
-                          s = '14:00';
-                          en = '22:00';
-                        }
-                        if (type === 'SHIFT_NIGHT') {
-                          s = '22:00';
-                          en = '06:00';
-                        }
-                        setNewTemplate({
-                          ...newTemplate,
-                          shiftType: type,
-                          startTime: s,
-                          endTime: en
-                        });
-                      }}
-                      className="schedule-form-select"
-                    >
-                      <option value="SHIFT_MORNING">Ca Sáng (06:00 - 14:00)</option>
-                      <option value="SHIFT_AFTERNOON">Ca Chiều (14:00 - 22:00)</option>
-                      <option value="SHIFT_NIGHT">Ca Đêm (22:00 - 06:00)</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="schedule-form-row">
-                  <div className="schedule-form-group">
-                    <label className="schedule-form-label">
-                      <span>Chốt Gác Phân Công</span>
-                    </label>
-                    <select
-                      value={newTemplate.areaId}
-                      onChange={(e) => setNewTemplate({ ...newTemplate, areaId: e.target.value })}
-                      className="schedule-form-select"
-                    >
-                      <option value="">-- Chưa gán chốt (Cơ động) --</option>
-                      {areas.map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {a.name} ({a.building || 'Khuôn viên FPT TP.HCM'})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="schedule-form-group">
-                    <label className="schedule-form-label">
-                      <span>Kênh Bộ Đàm</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={newTemplate.radioChannel}
-                      onChange={(e) => setNewTemplate({ ...newTemplate, radioChannel: e.target.value })}
-                      placeholder="Kênh 1 - Phòng Camera"
-                      className="schedule-form-input"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end pt-1">
-                  <button
-                    type="submit"
-                    className="schedule-btn-modal schedule-btn-modal--submit"
-                  >
-                    <Plus size={14} /> Lưu Mẫu Ca
-                  </button>
-                </div>
-              </form>
-
-              {/* Template list */}
-              <div className="flex items-center justify-between pt-1">
-                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  Danh Sách Khung Mẫu Đã Lưu ({templates.length})
+            <div className="schedule-modal__body space-y-4">
+              {/* Week time frame info */}
+              <div className="p-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl flex items-center justify-between text-xs">
+                <span className="text-slate-600 dark:text-slate-300">
+                  Tuần áp dụng: <strong>{weekDays[0].toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })} — {weekDays[6].toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong>
+                </span>
+                <span className="font-bold text-slate-800 dark:text-slate-100">
+                  {shifts.length} ca trực
                 </span>
               </div>
 
-              {templates.length === 0 ? (
-                <div className="p-8 text-center border border-dashed rounded-xl text-slate-400 text-xs dark:border-slate-700">
-                  Chưa có lịch mẫu tuần nào được lưu trong hệ thống.
-                </div>
-              ) : (
-                <div className="schedule-template-list">
-                  {templates.map((t) => (
-                    <div
-                      key={t.id}
-                      className="schedule-template-item"
-                    >
-                      <div className="flex flex-col gap-1 min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="schedule-template-day-badge">
-                            {['', 'Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'][t.dayOfWeek]}
-                          </span>
-                          <span className="font-semibold text-sm text-slate-900 dark:text-slate-100">
-                            {t.guardName}
-                          </span>
-                          <span className="schedule-template-time-pill">
-                            <Clock size={12} /> {t.startTime} - {t.endTime}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
-                          <span className="flex items-center gap-1">
-                            <MapPin size={12} /> {t.areaName || 'Chưa gán chốt'}
-                          </span>
-                          <span>•</span>
-                          <span className="flex items-center gap-1">
-                            <Radio size={12} /> {t.radioChannel || '—'}
-                          </span>
-                        </div>
+              {/* Scope Selection */}
+              <div className="space-y-2.5">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Chọn phạm vi muốn xóa:
+                </label>
+
+                <div className="space-y-2">
+                  <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition text-xs ${
+                    bulkClearScope === 'ALL'
+                      ? 'border-rose-300 bg-rose-50/50 dark:border-rose-800 dark:bg-rose-950/30'
+                      : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/40'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="bulkClearScope"
+                      value="ALL"
+                      checked={bulkClearScope === 'ALL'}
+                      onChange={() => setBulkClearScope('ALL')}
+                      className="mt-0.5 text-rose-600 focus:ring-rose-500"
+                    />
+                    <div>
+                      <div className="font-bold text-slate-800 dark:text-slate-100">
+                        Xóa toàn bộ ca trực trong tuần
                       </div>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          if (window.confirm('Xóa mẫu ca này?')) {
-                            await guardScheduleApi.deleteTemplate(t.id);
-                            fetchData();
-                          }
-                        }}
-                        className="schedule-btn-delete"
-                        title="Xóa mẫu"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                        Dọn sạch toàn bộ ca trực của tất cả các đội trong tuần này để phân công lại từ đầu.
+                      </div>
                     </div>
-                  ))}
+                  </label>
+
+                  {teams.length > 0 && (
+                    <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition text-xs ${
+                      bulkClearScope === 'TEAM'
+                        ? 'border-rose-300 bg-rose-50/50 dark:border-rose-800 dark:bg-rose-950/30'
+                        : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/40'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="bulkClearScope"
+                        value="TEAM"
+                        checked={bulkClearScope === 'TEAM'}
+                        onChange={() => setBulkClearScope('TEAM')}
+                        className="mt-0.5 text-rose-600 focus:ring-rose-500"
+                      />
+                      <div className="flex-1">
+                        <div className="font-bold text-slate-800 dark:text-slate-100">
+                          Chỉ xóa ca trực của một đội cụ thể
+                        </div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 mb-2">
+                          Chỉ xóa các ca trực của các thành viên thuộc đội được chỉ định, giữ nguyên các đội khác.
+                        </div>
+
+                        {bulkClearScope === 'TEAM' && (
+                          <select
+                            value={bulkClearSelectedTeamId}
+                            onChange={(e) => setBulkClearSelectedTeamId(e.target.value)}
+                            className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-medium"
+                          >
+                            {teams.map((t) => (
+                              <option key={t.id} value={t.id}>
+                                {t.teamName}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                    </label>
+                  )}
                 </div>
-              )}
+              </div>
+
+              {/* Safe Note Alert */}
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/80 rounded-xl text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2.5">
+                <AlertCircle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                <div className="leading-relaxed text-[11px]">
+                  <strong>Bảo vệ dữ liệu an toàn:</strong> Hệ thống chỉ xóa các ca trực <strong>Chưa diễn ra (SCHEDULED)</strong>. Các ca đã điểm danh trực (<code>CHECKED_IN</code>) hoặc đã hoàn thành (<code>COMPLETED</code>) sẽ được bảo toàn nguyên vẹn.
+                </div>
+              </div>
             </div>
 
-            <div className="schedule-modal__footer">
+            <div className="schedule-modal__footer flex items-center justify-end gap-2">
               <button
                 type="button"
-                onClick={() => setShowTemplateModal(false)}
-                className="schedule-btn-modal schedule-btn-modal--cancel"
+                onClick={() => setShowBulkClearModal(false)}
+                disabled={clearingShifts}
+                className="schedule-btn-secondary"
               >
-                Đóng
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteBulkClear}
+                disabled={clearingShifts || bulkClearTargetShiftsCount === 0}
+                className="px-4 py-2 text-xs font-bold rounded-xl bg-rose-600 hover:bg-rose-700 text-white shadow-sm transition flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Trash2 size={14} />
+                <span>
+                  {clearingShifts
+                    ? 'Đang Xóa...'
+                    : `Xác Nhận Xóa (${bulkClearTargetShiftsCount} Ca Trực)`}
+                </span>
               </button>
             </div>
           </div>
@@ -1463,72 +1286,20 @@ export default function GuardScheduleManagementPage() {
       )}
 
       {/* ========================================================
-          MODAL: SECURITY ROOM WARNING DETAILS
+          MODAL: DEMAND-DRIVEN STAFFING WIZARD
       ======================================================== */}
-      {showWarningModal && (
-        <div
-          className="schedule-modal-backdrop"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setShowWarningModal(false);
-            }
-          }}
-        >
-          <div className="schedule-modal schedule-modal--md">
-            <div className="schedule-modal__header">
-              <div className="schedule-modal__header-left">
-                <div className="schedule-modal__icon-badge schedule-modal__icon-badge--warning">
-                  <AlertTriangle size={18} />
-                </div>
-                <div className="schedule-modal__header-text">
-                  <h3 className="schedule-modal__title text-amber-600 dark:text-amber-400">
-                    Cảnh Báo Quân Số Phòng Camera ({missingSecurityRoomWarnings.length})
-                  </h3>
-                  <p className="schedule-modal__subtitle">
-                    Phát hiện ca trực an ninh chưa có nhân sự trực phòng camera
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="schedule-modal__close-btn"
-                onClick={() => setShowWarningModal(false)}
-                aria-label="Đóng"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="schedule-modal__body">
-              <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 rounded-xl text-amber-800 dark:text-amber-200 text-xs font-medium leading-relaxed">
-                Phát hiện {missingSecurityRoomWarnings.length} ca trực trong tuần chưa có bảo vệ phụ trách phòng camera điều khiển. Vui lòng phân công bổ sung bảo vệ cho các ca này để đảm bảo an ninh khuôn viên 24/7.
-              </div>
-
-              <div className="space-y-2 text-xs">
-                {missingSecurityRoomWarnings.map((warning, idx) => (
-                  <div
-                    key={idx}
-                    className="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 flex items-start gap-2.5 text-slate-700 dark:text-slate-200"
-                  >
-                    <AlertTriangle size={15} className="text-amber-500 shrink-0 mt-0.5" />
-                    <span className="font-medium">{warning}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="schedule-modal__footer">
-              <button
-                type="button"
-                onClick={() => setShowWarningModal(false)}
-                className="schedule-btn-modal schedule-btn-modal--cancel"
-              >
-                Đã hiểu & Đóng
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <StaffingWizardModal
+        isOpen={showWizardModal}
+        onClose={() => setShowWizardModal(false)}
+        guards={guards}
+        teams={teams}
+        areas={areas}
+        buildings={buildings}
+        currentWeekMonday={weekDays[0]}
+        onSuccess={() => {
+          fetchData();
+        }}
+      />
     </div>
   );
 }

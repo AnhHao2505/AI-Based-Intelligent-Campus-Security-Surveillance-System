@@ -8,10 +8,16 @@ import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.AccessControlAction;
 import com.fa26se040.icss.enums.AccessControlTargetType;
 import com.fa26se040.icss.repository.AccessControlAuditLogRepository;
+import com.fa26se040.icss.repository.AccessControlAuditLogSpecification;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +30,7 @@ import java.util.UUID;
 public class AccessControlAuditService {
 
     private final AccessControlAuditLogRepository auditLogRepository;
+    private final ObjectMapper objectMapper;
 
     /**
      * Ghi nhận 1 dòng audit log trong CÙNG transaction của nghiệp vụ (BR-AL-01).
@@ -46,14 +53,17 @@ public class AccessControlAuditService {
             cleanReason = null;
         }
 
+        JsonNode oldJson = oldValue != null ? objectMapper.valueToTree(oldValue) : null;
+        JsonNode newJson = newValue != null ? objectMapper.valueToTree(newValue) : null;
+
         AccessControlAuditLog logEntry = AccessControlAuditLog.builder()
                 .targetType(targetType)
                 .action(action)
                 .targetId(targetId)
                 .area(area)
                 .subjectUser(subjectUser)
-                .oldValue(oldValue)
-                .newValue(newValue)
+                .oldValue(oldJson)
+                .newValue(newJson)
                 .reason(cleanReason)
                 .changedBy(changedBy)
                 .changedAt(OffsetDateTime.now())
@@ -78,15 +88,19 @@ public class AccessControlAuditService {
             OffsetDateTime toDate,
             Pageable pageable
     ) {
-        Page<AccessControlAuditLog> page = auditLogRepository.searchLogs(
+        Pageable effectivePageable = pageable;
+        if (pageable.getSort().isUnsorted()) {
+            effectivePageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by(Sort.Direction.DESC, "changedAt"));
+        }
+        Specification<AccessControlAuditLog> spec = AccessControlAuditLogSpecification.filter(
                 targetType,
                 areaId,
                 subjectUserId,
                 changedBy,
                 fromDate,
-                toDate,
-                pageable
+                toDate
         );
+        Page<AccessControlAuditLog> page = auditLogRepository.findAll(spec, effectivePageable);
         return page.map(this::mapToResponse);
     }
 

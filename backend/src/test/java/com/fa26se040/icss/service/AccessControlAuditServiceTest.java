@@ -45,6 +45,9 @@ class AccessControlAuditServiceTest {
     @Mock
     private AccessControlAuditLogRepository auditLogRepository;
 
+    @org.mockito.Spy
+    private com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
+
     @InjectMocks
     private AccessControlAuditService auditService;
 
@@ -109,8 +112,8 @@ class AccessControlAuditServiceTest {
         assertNull(saved.getArea());
         assertEquals(subjectUser, saved.getSubjectUser());
         assertEquals(actor, saved.getChangedBy());
-        assertEquals(oldVal, saved.getOldValue());
-        assertEquals(newVal, saved.getNewValue());
+        assertEquals(objectMapper.valueToTree(oldVal), saved.getOldValue());
+        assertEquals(objectMapper.valueToTree(newVal), saved.getNewValue());
         assertEquals("Nâng cấp độ cho sinh viên NCKH", saved.getReason());
         assertNotNull(saved.getChangedAt());
     }
@@ -140,8 +143,8 @@ class AccessControlAuditServiceTest {
         assertEquals(AccessControlTargetType.AREA_ACCESS_RULES, saved.getTargetType());
         assertEquals(area, saved.getArea());
         assertNull(saved.getSubjectUser());
-        assertEquals(oldVal, saved.getOldValue());
-        assertEquals(newVal, saved.getNewValue());
+        assertEquals(objectMapper.valueToTree(oldVal), saved.getOldValue());
+        assertEquals(objectMapper.valueToTree(newVal), saved.getNewValue());
         assertEquals("Tăng cường kiểm soát phòng Lab", saved.getReason());
     }
 
@@ -171,7 +174,7 @@ class AccessControlAuditServiceTest {
         assertEquals(AccessControlTargetType.AREA_ASSIGNMENT, saved.getTargetType());
         assertEquals(AccessControlAction.ASSIGN, saved.getAction());
         assertNull(saved.getOldValue());
-        assertEquals(newVal, saved.getNewValue());
+        assertEquals(objectMapper.valueToTree(newVal), saved.getNewValue());
     }
 
     @Test
@@ -198,8 +201,8 @@ class AccessControlAuditServiceTest {
         AccessControlAuditLog saved = captor.getValue();
         assertEquals(AccessControlTargetType.LEVEL_PRESET, saved.getTargetType());
         assertEquals("PUBLIC", saved.getTargetId());
-        assertEquals(oldVal, saved.getOldValue());
-        assertEquals(newVal, saved.getNewValue());
+        assertEquals(objectMapper.valueToTree(oldVal), saved.getOldValue());
+        assertEquals(objectMapper.valueToTree(newVal), saved.getNewValue());
     }
 
     @Test
@@ -221,14 +224,14 @@ class AccessControlAuditServiceTest {
                 .area(area)
                 .subjectUser(subjectUser)
                 .changedBy(actor)
-                .oldValue(new UserAccessLevelAuditSnapshot(1))
-                .newValue(new UserAccessLevelAuditSnapshot(2))
+                .oldValue(objectMapper.valueToTree(new UserAccessLevelAuditSnapshot(1)))
+                .newValue(objectMapper.valueToTree(new UserAccessLevelAuditSnapshot(2)))
                 .reason("Cập nhật cấp độ")
                 .changedAt(OffsetDateTime.now())
                 .build();
 
         Page<AccessControlAuditLog> page = new PageImpl<>(List.of(log), PageRequest.of(0, 10), 1);
-        when(auditLogRepository.searchLogs(any(), any(), any(), any(), any(), any(), any()))
+        when(auditLogRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class), any(org.springframework.data.domain.Pageable.class)))
                 .thenReturn(page);
 
         Page<AccessControlAuditLogResponse> result = auditService.getAuditLogs(

@@ -1129,8 +1129,8 @@
 /* Security Level Selector (3 Buttons) */
 .area-level-selector {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 7px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
 }
 
 .area-level-btn {
@@ -1138,7 +1138,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 9px 6px;
+  padding: 9px 8px;
   text-align: center;
   border-radius: 6px;
   cursor: pointer;
@@ -1146,6 +1146,7 @@
   border: 0.5px solid var(--theme-input-border);
   transition: all 0.15s ease;
   font-family: inherit;
+  min-height: 58px;
 }
 
 .area-level-btn:hover:not(.is-selected) {
@@ -1165,6 +1166,11 @@
   background-color: #22c55e;
 }
 
+.area-level-btn--internal .area-level-btn__dot {
+  background-color: #3b82f6;
+}
+
+.area-level-btn--contact .area-level-btn__dot,
 .area-level-btn--semi .area-level-btn__dot {
   background-color: #fbbf24;
 }
@@ -1183,7 +1189,7 @@
 .area-level-btn__sub {
   font-size: 10px;
   color: var(--theme-text-disabled);
-  margin-top: 2px;
+  margin-top: 3px;
   line-height: 1.2;
 }
 
@@ -1205,19 +1211,41 @@
   color: #15803d;
 }
 
+.area-level-btn--internal.is-selected {
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid #3b82f6;
+}
+.area-level-btn--internal.is-selected .area-level-btn__name {
+  color: #93c5fd;
+}
+[data-theme="light"] .area-level-btn--internal.is-selected .area-level-btn__name {
+  color: #1e40af;
+}
+.area-level-btn--internal.is-selected .area-level-btn__sub {
+  color: rgba(147, 197, 253, 0.85);
+}
+[data-theme="light"] .area-level-btn--internal.is-selected .area-level-btn__sub {
+  color: #1d4ed8;
+}
+
+.area-level-btn--contact.is-selected,
 .area-level-btn--semi.is-selected {
   background: rgba(251, 191, 36, 0.1);
   border: 1px solid #fbbf24;
 }
+.area-level-btn--contact.is-selected .area-level-btn__name,
 .area-level-btn--semi.is-selected .area-level-btn__name {
   color: #fcd34d;
 }
+[data-theme="light"] .area-level-btn--contact.is-selected .area-level-btn__name,
 [data-theme="light"] .area-level-btn--semi.is-selected .area-level-btn__name {
   color: #92400e;
 }
+.area-level-btn--contact.is-selected .area-level-btn__sub,
 .area-level-btn--semi.is-selected .area-level-btn__sub {
   color: rgba(252, 211, 77, 0.8);
 }
+[data-theme="light"] .area-level-btn--contact.is-selected .area-level-btn__sub,
 [data-theme="light"] .area-level-btn--semi.is-selected .area-level-btn__sub {
   color: #b45309;
 }
@@ -1237,6 +1265,26 @@
 }
 [data-theme="light"] .area-level-btn--private.is-selected .area-level-btn__sub {
   color: #b91c1c;
+}
+
+.area-edit-info-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-top: 8px;
+  margin-bottom: 14px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--theme-text-secondary);
+}
+[data-theme="light"] .area-edit-info-box {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1e3a8a;
 }
 
 /* Modal Footer Buttons */

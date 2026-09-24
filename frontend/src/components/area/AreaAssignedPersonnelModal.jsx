@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
 	Users,
 	UserPlus,
@@ -43,7 +43,7 @@ export default function AreaAssignedPersonnelModal({
 	area,
 	isFacilityManager = false,
 }) {
-	const [personnelList, setPersonnelList] = useState([]);
+	const [allPersonnel, setAllPersonnel] = useState([]);
 	const [loading, setLoading] = useState(false);
 	const [statusFilter, setStatusFilter] = useState("ALL");
 
@@ -74,16 +74,15 @@ export default function AreaAssignedPersonnelModal({
 		if (!area?.id) return;
 		setLoading(true);
 		try {
-			const filterParam = statusFilter === "ALL" ? null : statusFilter;
-			const data = await getAssignedPersonnel(area.id, filterParam);
-			setPersonnelList(Array.isArray(data) ? data : []);
+			const data = await getAssignedPersonnel(area.id, null);
+			setAllPersonnel(Array.isArray(data) ? data : []);
 		} catch (err) {
 			console.error("Lỗi khi tải danh sách nhân sự gán:", err);
 			toast.error(err?.message || "Không thể tải danh sách nhân sự gán");
 		} finally {
 			setLoading(false);
 		}
-	}, [area?.id, statusFilter]);
+	}, [area?.id]);
 
 	useEffect(() => {
 		if (isOpen && area?.id) {
@@ -100,6 +99,28 @@ export default function AreaAssignedPersonnelModal({
 			setRevokeItem(null);
 		}
 	}, [isOpen, area?.id, loadData]);
+
+	// annotateUser: user có bản ghi ACTIVE → "Đang được gán"; UPCOMING → "Sắp hiệu lực"; còn lại → null
+	const annotateUser = useCallback(
+		(user) => {
+			if (!user?.id) return null;
+			const userRecords = allPersonnel.filter((p) => p.user?.id === user.id);
+			if (userRecords.some((p) => p.status === "ACTIVE")) {
+				return "Đang được gán";
+			}
+			if (userRecords.some((p) => p.status === "UPCOMING")) {
+				return "Sắp hiệu lực";
+			}
+			return null;
+		},
+		[allPersonnel],
+	);
+
+	// Filter list by status tab
+	const displayedList = useMemo(() => {
+		if (statusFilter === "ALL") return allPersonnel;
+		return allPersonnel.filter((p) => p.status === statusFilter);
+	}, [allPersonnel, statusFilter]);
 
 	if (!area) return null;
 
@@ -250,16 +271,13 @@ export default function AreaAssignedPersonnelModal({
 		}
 	};
 
-	// Active / Upcoming IDs to avoid duplicate selection in add form
-	const activeUserIds = personnelList
-		.filter((p) => p.status === "ACTIVE" || p.status === "UPCOMING")
-		.map((p) => p.user?.id)
-		.filter(Boolean);
+	const selectedUserAnnotation = selectedUser ? annotateUser(selectedUser) : null;
 
 	const mainFooter = (
 		<div className="ap-modal__footer">
 			<span className="ap-modal__count">
-				Tổng số: <strong>{personnelList.length}</strong> bản ghi
+				Hiển thị: <strong>{displayedList.length}</strong> /{" "}
+				<strong>{allPersonnel.length}</strong> bản ghi
 			</span>
 			<Button
 				variant="secondary"
@@ -277,10 +295,10 @@ export default function AreaAssignedPersonnelModal({
 				isOpen={isOpen}
 				onClose={onClose}
 				title="Nhân viên chỉ định"
-				subtitle={`Danh sách nhân sự làm việc tại ${area.name} (${area.code})`}
+				subtitle={`Quản lý danh sách người được đặc cách ra vào: ${area.name} (${area.code})`}
 				icon={Users}
 				iconVariant="brand"
-				size="lg"
+				size="xl"
 				footer={mainFooter}
 			>
 				<div className="ap-modal-content">
@@ -337,9 +355,21 @@ export default function AreaAssignedPersonnelModal({
 										onSelect={(u) => setSelectedUser(u)}
 										selectedUser={selectedUser}
 										onClear={() => setSelectedUser(null)}
-										excludeUserIds={activeUserIds}
+										annotateUser={annotateUser}
 										placeholder="Tìm theo tên hoặc mã người dùng (tối thiểu 2 ký tự)..."
 									/>
+									{selectedUserAnnotation && (
+										<div className="ap-selected-user-hint">
+											<AlertCircle
+												size={14}
+												className="ap-selected-user-hint__icon"
+											/>
+											<span>
+												Người này đã có quyền tại khu vực. Chỉ gán được nếu khung
+												thời gian mới không trùng.
+											</span>
+										</div>
+									)}
 								</div>
 
 								{/* Valid From */}
@@ -442,7 +472,7 @@ export default function AreaAssignedPersonnelModal({
 								/>
 								<span>Đang tải danh sách nhân sự...</span>
 							</div>
-						) : personnelList.length === 0 ? (
+						) : displayedList.length === 0 ? (
 							<div className="ap-table-empty">
 								<Users size={32} />
 								<p className="ap-table-empty__title">
@@ -461,18 +491,22 @@ export default function AreaAssignedPersonnelModal({
 										<th>Mã số</th>
 										<th>Họ và tên</th>
 										<th>Vai trò</th>
-										<th>Hiệu lực từ</th>
-										<th>Hiệu lực đến</th>
+										<th>Hiệu lực</th>
 										<th>Trạng thái</th>
 										<th>Người cấp</th>
 										<th>Ghi chú</th>
 										{isFacilityManager && (
-											<th style={{ textAlign: "center" }}>Thao tác</th>
+											<th
+												className="ap-th--sticky-actions"
+												style={{ textAlign: "center" }}
+											>
+												Thao tác
+											</th>
 										)}
 									</tr>
 								</thead>
 								<tbody>
-									{personnelList.map((item) => {
+									{displayedList.map((item) => {
 										const isRevoked = item.status === "REVOKED";
 
 										return (
@@ -495,19 +529,27 @@ export default function AreaAssignedPersonnelModal({
 															"—"}
 													</span>
 												</td>
-												<td>
-													{formatDisplayDateTime(
-														item.validFrom || item.createdAt,
-													)}
-												</td>
-												<td>
-													{item.validTo ? (
-														formatDisplayDateTime(item.validTo)
-													) : (
-														<span className="ap-text--indefinite">
-															Không thời hạn
+												<td className="ap-cell--validity">
+													<div className="ap-validity-row">
+														<span className="ap-validity-label">Từ:</span>
+														<span className="ap-validity-val">
+															{formatDisplayDateTime(
+																item.validFrom || item.createdAt,
+															)}
 														</span>
-													)}
+													</div>
+													<div className="ap-validity-row">
+														<span className="ap-validity-label">Đến:</span>
+														<span className="ap-validity-val">
+															{item.validTo ? (
+																formatDisplayDateTime(item.validTo)
+															) : (
+																<span className="ap-text--indefinite">
+																	Không thời hạn
+																</span>
+															)}
+														</span>
+													</div>
 												</td>
 												<td>{renderStatusBadge(item.status)}</td>
 												<td
@@ -516,12 +558,16 @@ export default function AreaAssignedPersonnelModal({
 												>
 													{item.createdBy || "—"}
 												</td>
-												<td className="ap-cell--note">
+												<td
+													className="ap-cell--note"
+													title={
+														isRevoked
+															? `Lý do thu hồi: ${item.revokeReason || "—"}`
+															: (item.note || "—")
+													}
+												>
 													{isRevoked ? (
-														<span
-															className="ap-revoke-note"
-															title={item.revokeReason}
-														>
+														<span className="ap-revoke-note">
 															Thu hồi: {item.revokeReason}
 														</span>
 													) : (
@@ -531,7 +577,10 @@ export default function AreaAssignedPersonnelModal({
 
 												{/* Actions for FM */}
 												{isFacilityManager && (
-													<td style={{ textAlign: "center" }}>
+													<td
+														className="ap-cell--sticky-actions"
+														style={{ textAlign: "center" }}
+													>
 														{!isRevoked ? (
 															<div className="ap-actions">
 																<button

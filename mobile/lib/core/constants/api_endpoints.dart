@@ -27,6 +27,9 @@ class ApiEndpoints {
   static String get myShifts => '$baseUrl/api/guard-shifts/my-shifts';
   static String checkIn(String shiftId) => '$baseUrl/api/guard-shifts/$shiftId/check-in';
   static String checkOut(String shiftId) => '$baseUrl/api/guard-shifts/$shiftId/check-out';
+  static String availableSubstitutes(String shiftId) => '$baseUrl/api/guard-shifts/$shiftId/available-substitutes';
+  static String get shiftRequests => '$baseUrl/api/guard-shift-requests';
+  static String get myShiftRequests => '$baseUrl/api/guard-shift-requests/my-requests';
 
   // Incidents endpoints (for future phase)
   static String activeIncidents(String building) => '$baseUrl/api/incidents/active?building=$building';
