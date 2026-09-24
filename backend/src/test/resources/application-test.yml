@@ -9,4 +9,5 @@ spring:
     enabled: true
     clean-disabled: false
     clean-on-validation-error: true
+    out-of-order: true
     locations: classpath:db/migration

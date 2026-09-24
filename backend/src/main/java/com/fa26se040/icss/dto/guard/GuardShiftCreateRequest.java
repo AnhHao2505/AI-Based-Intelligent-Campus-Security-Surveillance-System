@@ -35,4 +35,5 @@ public class GuardShiftCreateRequest {
     private UUID areaId;
     private String radioChannel;
     private String notes;
+    private Boolean isOvertime = false;
 }

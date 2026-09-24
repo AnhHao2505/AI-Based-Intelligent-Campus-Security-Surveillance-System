@@ -17,10 +17,30 @@ import java.util.List;
 public class FloorPlanController {
 
     private final FloorPlanRepository floorPlanRepository;
+    private final com.fa26se040.icss.repository.FloorRepository floorRepository;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
     public ResponseEntity<List<FloorPlanResponse>> getFloorPlans() {
+        List<com.fa26se040.icss.entity.Floor> floors = floorRepository.findAllActiveFloors();
+        if (floors != null && !floors.isEmpty()) {
+            List<FloorPlanResponse> responses = floors.stream()
+                    .filter(f -> f.getImageKey() != null && !f.getImageKey().isBlank())
+                    .map(f -> new FloorPlanResponse(
+                            f.getId(),
+                            f.getBuilding() != null ? f.getBuilding().getCode() : "FPT_AROUND",
+                            f.getFloorCode(),
+                            f.getImageKey(),
+                            f.getOriginalWidth(),
+                            f.getOriginalHeight(),
+                            f.getIsActive()
+                    ))
+                    .toList();
+            if (!responses.isEmpty()) {
+                return ResponseEntity.ok(responses);
+            }
+        }
+
         List<FloorPlanResponse> responses = floorPlanRepository.findByIsActiveTrueOrderByBuildingAscFloorAsc()
                 .stream()
                 .map(fp -> new FloorPlanResponse(

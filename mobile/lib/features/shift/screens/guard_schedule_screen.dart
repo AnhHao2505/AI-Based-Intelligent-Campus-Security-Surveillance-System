@@ -6,6 +6,7 @@ import '../../auth/models/user_model.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/shift_provider.dart';
 import '../widgets/active_shift_card.dart';
+import '../widgets/my_shift_requests_sheet.dart';
 import '../widgets/shift_list_item.dart';
 import '../widgets/weekly_date_bar.dart';
 
@@ -242,6 +243,17 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
                         tooltip: 'Làm mới lịch trực',
                         onPressed: () => shiftProvider.fetchWeeklyShifts(),
                       ),
+                      const SizedBox(width: 2),
+
+                      // Shift requests history button
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.all(6),
+                        constraints: const BoxConstraints(),
+                        icon: Icon(Icons.swap_horiz, color: AppColors.txtSecondary(context), size: 22),
+                        tooltip: 'Lịch sử đổi / xin nghỉ ca',
+                        onPressed: () => MyShiftRequestsSheet.show(context),
+                      ),
                       const SizedBox(width: 4),
 
                       // Profile & Account Icon Menu (Top Right)
@@ -262,6 +274,8 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
                         onSelected: (value) {
                           if (value == 'profile') {
                             _showProfileDialog(context, user);
+                          } else if (value == 'requests') {
+                            MyShiftRequestsSheet.show(context);
                           } else if (value == 'logout') {
                             _confirmLogout(context, authProvider);
                           }
@@ -304,6 +318,19 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
                                 const SizedBox(width: 10),
                                 Text(
                                   'Hồ sơ cá nhân',
+                                  style: TextStyle(fontSize: 13, color: AppColors.txtPrimary(context)),
+                                ),
+                              ],
+                            ),
+                          ),
+                          PopupMenuItem<String>(
+                            value: 'requests',
+                            child: Row(
+                              children: [
+                                Icon(Icons.swap_horiz, size: 19, color: AppColors.txtPrimary(context)),
+                                const SizedBox(width: 10),
+                                Text(
+                                  'Lịch sử đổi / xin nghỉ',
                                   style: TextStyle(fontSize: 13, color: AppColors.txtPrimary(context)),
                                 ),
                               ],
@@ -482,7 +509,7 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
                     ),
                     child: Center(
                       child: Text(
-                        'Admin chưa sinh lịch trực cho tuần này.\nVui lòng liên hệ Trưởng ca / Quản trị viên.',
+                        'Admin chưa tạo lịch trực cho tuần này.',
                         textAlign: TextAlign.center,
                         style: TextStyle(fontSize: 13, color: AppColors.txtMuted(context)),
                       ),

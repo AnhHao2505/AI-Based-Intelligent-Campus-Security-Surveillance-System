@@ -31,7 +31,19 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
+import com.fa26se040.icss.dto.guard.BulkClearShiftsRequest;
+import com.fa26se040.icss.dto.guard.BulkClearShiftsResponse;
+import com.fa26se040.icss.dto.guard.CapacityCalculateRequest;
+import com.fa26se040.icss.dto.guard.CapacityCalculateResponse;
+import com.fa26se040.icss.dto.guard.WizardGenerateShiftsRequest;
+import com.fa26se040.icss.entity.GuardTeam;
+import com.fa26se040.icss.entity.GuardTeamDispatch;
+import com.fa26se040.icss.enums.GuardDispatchStatus;
+import com.fa26se040.icss.repository.GuardShiftRequestRepository;
+import com.fa26se040.icss.repository.GuardTeamDispatchRepository;
+import com.fa26se040.icss.repository.GuardTeamRepository;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -44,6 +56,9 @@ public class GuardScheduleService {
     private final GuardShiftRepository shiftRepository;
     private final UserRepository userRepository;
     private final AreaRepository areaRepository;
+    private final GuardTeamRepository teamRepository;
+    private final GuardShiftRequestRepository shiftRequestRepository;
+    private final GuardTeamDispatchRepository dispatchRepository;
 
     // ==========================================
     // 1. TEMPLATE MANAGEMENT (ADMIN)
@@ -217,6 +232,232 @@ public class GuardScheduleService {
                 .build();
     }
 
+    public CapacityCalculateResponse calculateCapacity(CapacityCalculateRequest request) {
+        int mDemand = request.getMorningDemand() != null ? request.getMorningDemand() : 0;
+        int aDemand = request.getAfternoonDemand() != null ? request.getAfternoonDemand() : 0;
+        int nDemand = request.getNightDemand() != null ? request.getNightDemand() : 0;
+        int weekdayDaily = mDemand + aDemand + nDemand;
+
+        int weekly;
+        boolean customSunday = Boolean.TRUE.equals(request.getHasSundayCustom()) || Boolean.TRUE.equals(request.getHasWeekendCustom());
+        if (customSunday) {
+            int suMorning = request.getSundayMorningDemand() != null ? request.getSundayMorningDemand()
+                    : (request.getWeekendMorningDemand() != null ? request.getWeekendMorningDemand() : mDemand);
+            int suAfternoon = request.getSundayAfternoonDemand() != null ? request.getSundayAfternoonDemand()
+                    : (request.getWeekendAfternoonDemand() != null ? request.getWeekendAfternoonDemand() : aDemand);
+            int suNight = request.getSundayNightDemand() != null ? request.getSundayNightDemand()
+                    : (request.getWeekendNightDemand() != null ? request.getWeekendNightDemand() : nDemand);
+            int sundayDaily = suMorning + suAfternoon + suNight;
+            weekly = (weekdayDaily * 6) + (sundayDaily * 1);
+        } else {
+            weekly = weekdayDaily * 7;
+        }
+
+        int recommended = (int) Math.ceil(weekly / 6.0);
+        if (recommended == 0) recommended = 1;
+
+        double avgShifts = Math.round((weekly / (double) recommended) * 100.0) / 100.0;
+        double restDays = Math.round((7.0 - avgShifts) * 100.0) / 100.0;
+
+        return CapacityCalculateResponse.builder()
+                .dailyTotalShifts(weekdayDaily)
+                .weeklyTotalShifts(weekly)
+                .recommendedHeadcount(recommended)
+                .averageShiftsPerGuard(avgShifts)
+                .restDaysPerGuard(restDays)
+                .build();
+    }
+
+    @Transactional
+    public List<GuardShiftDto> generateShiftsFromWizard(WizardGenerateShiftsRequest request) {
+        LocalDate effectiveEndDate = request.getEndDate() != null ? request.getEndDate() : request.getStartDate().plusDays(6);
+        if (effectiveEndDate.isBefore(request.getStartDate())) {
+            throw new IllegalArgumentException("Ngày kết thúc phải lớn hơn hoặc bằng ngày bắt đầu");
+        }
+
+        List<User> guards = new ArrayList<>();
+        GuardTeam team = null;
+
+        List<UUID> guardIds = request.getMemberGuardIds();
+        if ((guardIds == null || guardIds.isEmpty()) && request.getSelectedGuardIds() != null) {
+            guardIds = request.getSelectedGuardIds();
+        }
+
+        if (request.getTeamId() != null) {
+            team = teamRepository.findById(request.getTeamId())
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy tổ đội được chỉ định"));
+            guards = userRepository.findByTeamIdAndDeletedAtIsNullAndIsActiveTrue(team.getId());
+        } else if (request.getNewTeamName() != null && !request.getNewTeamName().isBlank()) {
+            String trimmedName = request.getNewTeamName().trim();
+            Optional<GuardTeam> existingOpt = teamRepository.findByTeamNameIgnoreCase(trimmedName);
+            if (existingOpt.isPresent()) {
+                team = existingOpt.get();
+                if (Boolean.FALSE.equals(team.getIsActive())) {
+                    team.setIsActive(true);
+                    team = teamRepository.save(team);
+                }
+            } else {
+                team = teamRepository.save(GuardTeam.builder()
+                        .teamName(trimmedName)
+                        .description("Tổ tạo nhanh từ Wizard")
+                        .isActive(true)
+                        .build());
+            }
+            if (guardIds != null && !guardIds.isEmpty()) {
+                guards = userRepository.findAllById(guardIds);
+                if (team != null) {
+                    for (User g : guards) {
+                        g.setTeam(team);
+                    }
+                    userRepository.saveAll(guards);
+                }
+            }
+        } else if (guardIds != null && !guardIds.isEmpty()) {
+            guards = userRepository.findAllById(guardIds);
+        }
+
+        if (guards.isEmpty()) {
+            throw new IllegalArgumentException("Không có bảo vệ nào được chọn để lập lịch trực");
+        }
+
+        int m = guards.size();
+        int nMorning = request.getMorningDemand() != null ? request.getMorningDemand() : 0;
+        int nAfternoon = request.getAfternoonDemand() != null ? request.getAfternoonDemand() : 0;
+        int nNight = request.getNightDemand() != null ? request.getNightDemand() : 0;
+
+        // Ràng buộc an ninh tối thiểu: 1 ca trong tòa phải có ít nhất 2 người (1 camera + 1 tuần tra)
+        int minSecLimit = 2;
+        if (nMorning > 0 && nMorning < minSecLimit) {
+            throw new IllegalArgumentException("Ràng buộc an ninh tòa nhà: Ca Sáng ngày học & làm việc (T2-T7) phải có tối thiểu 2 người (1 trực camera + 1 tuần tra)");
+        }
+        if (nAfternoon > 0 && nAfternoon < minSecLimit) {
+            throw new IllegalArgumentException("Ràng buộc an ninh tòa nhà: Ca Chiều ngày học & làm việc (T2-T7) phải có tối thiểu 2 người (1 trực camera + 1 tuần tra)");
+        }
+        if (nNight > 0 && nNight < minSecLimit) {
+            throw new IllegalArgumentException("Ràng buộc an ninh tòa nhà: Ca Đêm ngày học & làm việc (T2-T7) phải có tối thiểu 2 người (1 trực camera + 1 tuần tra)");
+        }
+
+        boolean customSunday = Boolean.TRUE.equals(request.getHasSundayCustom()) || Boolean.TRUE.equals(request.getHasWeekendCustom());
+        Integer suM = request.getSundayMorningDemand() != null ? request.getSundayMorningDemand() : request.getWeekendMorningDemand();
+        Integer suA = request.getSundayAfternoonDemand() != null ? request.getSundayAfternoonDemand() : request.getWeekendAfternoonDemand();
+        Integer suN = request.getSundayNightDemand() != null ? request.getSundayNightDemand() : request.getWeekendNightDemand();
+
+        if (customSunday) {
+            if (suM != null && suM > 0 && suM < minSecLimit) {
+                throw new IllegalArgumentException("Ràng buộc an ninh tòa nhà: Ca Sáng Chủ Nhật phải có tối thiểu 2 người (1 trực camera + 1 tuần tra)");
+            }
+            if (suA != null && suA > 0 && suA < minSecLimit) {
+                throw new IllegalArgumentException("Ràng buộc an ninh tòa nhà: Ca Chiều Chủ Nhật phải có tối thiểu 2 người (1 trực camera + 1 tuần tra)");
+            }
+            if (suN != null && suN > 0 && suN < minSecLimit) {
+                throw new IllegalArgumentException("Ràng buộc an ninh tòa nhà: Ca Đêm Chủ Nhật phải có tối thiểu 2 người (1 trực camera + 1 tuần tra)");
+            }
+        }
+
+        // Tìm khu vực mặc định của tòa nhà nếu có truyền building
+        Area targetArea = null;
+        if (request.getBuilding() != null && !request.getBuilding().isBlank() && !"ALL".equalsIgnoreCase(request.getBuilding().trim())) {
+            List<Area> buildingAreas = areaRepository.findByBuildingIgnoreCaseAndFloorIgnoreCaseAndDeletedAtIsNull(request.getBuilding().trim(), "G");
+            if (buildingAreas.isEmpty()) {
+                buildingAreas = areaRepository.findByBuildingIgnoreCaseAndFloorIgnoreCaseAndDeletedAtIsNull(request.getBuilding().trim(), "1");
+            }
+            if (!buildingAreas.isEmpty()) {
+                targetArea = buildingAreas.get(0);
+            }
+        }
+
+        List<GuardShift> createdShifts = new ArrayList<>();
+        LocalDate currentDate = request.getStartDate();
+        int dayIndex = 0;
+
+        while (!currentDate.isAfter(effectiveEndDate)) {
+            int dow = mapToDayOfWeekInt(currentDate.getDayOfWeek());
+            boolean isSunday = (currentDate.getDayOfWeek() == java.time.DayOfWeek.SUNDAY);
+
+            int dayMorning = (isSunday && customSunday && suM != null) ? suM : nMorning;
+            int dayAfternoon = (isSunday && customSunday && suA != null) ? suA : nAfternoon;
+            int dayNight = (isSunday && customSunday && suN != null) ? suN : nNight;
+
+            List<ShiftType> daySlots = new ArrayList<>();
+            for (int i = 0; i < dayMorning; i++) daySlots.add(ShiftType.SHIFT_MORNING);
+            for (int i = 0; i < dayAfternoon; i++) daySlots.add(ShiftType.SHIFT_AFTERNOON);
+            for (int i = 0; i < dayNight; i++) daySlots.add(ShiftType.SHIFT_NIGHT);
+
+            for (int guardIdx = 0; guardIdx < m; guardIdx++) {
+                User guard = guards.get(guardIdx);
+
+                int slotIdx = (guardIdx + dayIndex) % m;
+                if (slotIdx < daySlots.size()) {
+                    ShiftType shiftType = daySlots.get(slotIdx);
+                    LocalTime startTime;
+                    LocalTime endTime;
+                    switch (shiftType) {
+                        case SHIFT_MORNING:
+                            startTime = LocalTime.of(6, 0);
+                            endTime = LocalTime.of(14, 0);
+                            break;
+                        case SHIFT_AFTERNOON:
+                            startTime = LocalTime.of(14, 0);
+                            endTime = LocalTime.of(22, 0);
+                            break;
+                        case SHIFT_NIGHT:
+                            startTime = LocalTime.of(22, 0);
+                            endTime = LocalTime.of(6, 0);
+                            break;
+                        default:
+                            continue;
+                    }
+
+                    boolean exists = shiftRepository.existsByGuardIdAndShiftDateAndStartTime(
+                            guard.getId(), currentDate, startTime
+                    );
+
+                    if (!exists) {
+                        GuardShift shift = GuardShift.builder()
+                                .guard(guard)
+                                .shiftDate(currentDate)
+                                .shiftType(shiftType)
+                                .startTime(startTime)
+                                .endTime(endTime)
+                                .area(targetArea)
+                                .status(ShiftStatus.SCHEDULED)
+                                .isOvertime(false)
+                                .notes("Khởi tạo tự động từ Wizard" + (request.getBuilding() != null ? " (" + request.getBuilding() + ")" : ""))
+                                .build();
+                        createdShifts.add(shiftRepository.save(shift));
+
+                        if (Boolean.TRUE.equals(request.getSaveAsTemplate()) && dayIndex < 7) {
+                            boolean tExists = templateRepository.existsByGuardIdAndDayOfWeekAndStartTimeAndIsActiveTrue(
+                                     guard.getId(), dow, startTime
+                            );
+                            if (!tExists) {
+                                GuardScheduleTemplate template = GuardScheduleTemplate.builder()
+                                        .guard(guard)
+                                        .dayOfWeek(dow)
+                                        .shiftType(shiftType)
+                                        .startTime(startTime)
+                                        .endTime(endTime)
+                                        .area(targetArea)
+                                        .isActive(true)
+                                        .notes("Mẫu sinh tự động")
+                                        .build();
+                                templateRepository.save(template);
+                            }
+                        }
+                    }
+                }
+            }
+
+            currentDate = currentDate.plusDays(1);
+            dayIndex++;
+        }
+
+        log.info("Wizard generated {} shifts for {} guards across {} days",
+                createdShifts.size(), m, dayIndex);
+
+        return createdShifts.stream().map(this::mapShiftToDto).collect(Collectors.toList());
+    }
+
     // ==========================================
     // 3. CONCRETE SHIFTS MANAGEMENT (ADMIN)
     // ==========================================
@@ -265,6 +506,7 @@ public class GuardScheduleService {
                 .radioChannel(request.getRadioChannel())
                 .status(ShiftStatus.SCHEDULED)
                 .notes(request.getNotes())
+                .isOvertime(Boolean.TRUE.equals(request.getIsOvertime()))
                 .build();
 
         GuardShift saved = shiftRepository.save(shift);
@@ -295,6 +537,9 @@ public class GuardScheduleService {
         if (request.getStatus() != null) {
             shift.setStatus(request.getStatus());
         }
+        if (request.getIsOvertime() != null) {
+            shift.setIsOvertime(request.getIsOvertime());
+        }
         shift.setNotes(request.getNotes());
 
         GuardShift saved = shiftRepository.save(shift);
@@ -303,7 +548,66 @@ public class GuardScheduleService {
 
     @Transactional
     public void deleteShift(UUID id) {
+        if (shiftRequestRepository.existsByShiftId(id)) {
+            throw new IllegalStateException("Không thể xóa ca trực này do đã có đơn xin đổi ca hoặc xin nghỉ phép liên kết");
+        }
         shiftRepository.deleteById(id);
+    }
+
+    @Transactional
+    public BulkClearShiftsResponse bulkClearShifts(BulkClearShiftsRequest request) {
+        if (request.getStartDate() == null || request.getEndDate() == null) {
+            throw new IllegalArgumentException("Ngày bắt đầu và ngày kết thúc không được để trống");
+        }
+        if (request.getEndDate().isBefore(request.getStartDate())) {
+            throw new IllegalArgumentException("Ngày kết thúc không được trước ngày bắt đầu");
+        }
+
+        ShiftStatus targetStatus = Boolean.FALSE.equals(request.getOnlyScheduled()) ? null : ShiftStatus.SCHEDULED;
+        String buildingParam = (request.getBuilding() == null || request.getBuilding().isBlank() || "ALL".equalsIgnoreCase(request.getBuilding().trim()))
+                ? null : request.getBuilding().trim();
+
+        List<GuardShift> candidateShifts = shiftRepository.findShifts(
+                request.getStartDate(),
+                request.getEndDate(),
+                null,
+                buildingParam,
+                targetStatus
+        );
+
+        if (request.getTeamId() != null) {
+            List<User> teamMembers = userRepository.findByTeamIdAndDeletedAtIsNullAndIsActiveTrue(request.getTeamId());
+            Set<UUID> memberIds = teamMembers.stream().map(User::getId).collect(Collectors.toSet());
+
+            List<GuardTeamDispatch> dispatches = dispatchRepository.findByToTeamIdAndStatus(request.getTeamId(), GuardDispatchStatus.ACTIVE);
+            for (GuardTeamDispatch d : dispatches) {
+                if (d.getGuard() != null) {
+                    memberIds.add(d.getGuard().getId());
+                }
+            }
+
+            candidateShifts = candidateShifts.stream()
+                    .filter(s -> s.getGuard() != null && memberIds.contains(s.getGuard().getId()))
+                    .collect(Collectors.toList());
+        }
+
+        List<GuardShift> shiftsToDelete = candidateShifts.stream()
+                .filter(s -> s.getStatus() == ShiftStatus.SCHEDULED)
+                .filter(s -> !shiftRequestRepository.existsByShiftId(s.getId()))
+                .collect(Collectors.toList());
+
+        int count = shiftsToDelete.size();
+        if (count > 0) {
+            shiftRepository.deleteAll(shiftsToDelete);
+        }
+
+        log.info("Bulk cleared {} scheduled shifts from {} to {} (teamId: {}, building: {})",
+                count, request.getStartDate(), request.getEndDate(), request.getTeamId(), buildingParam);
+
+        return BulkClearShiftsResponse.builder()
+                .clearedCount(count)
+                .message(String.format("Đã xóa thành công %d ca trực chưa diễn ra.", count))
+                .build();
     }
 
     // ==========================================
@@ -503,6 +807,7 @@ public class GuardScheduleService {
                 .checkInAt(s.getCheckInAt())
                 .checkOutAt(s.getCheckOutAt())
                 .notes(s.getNotes())
+                .isOvertime(s.getIsOvertime())
                 .build();
     }
 }

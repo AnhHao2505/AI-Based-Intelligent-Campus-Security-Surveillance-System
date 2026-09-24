@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../models/guard_shift_model.dart';
 import '../providers/shift_provider.dart';
+import 'shift_request_bottom_sheet.dart';
 
 class ActiveShiftCard extends StatelessWidget {
   final GuardShiftModel? shift;
@@ -276,62 +277,89 @@ class ActiveShiftCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header: Date & Status Chip
+          // Header: Shift Indicator / Icon & Status Chip
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
-                child: Row(
-                  children: [
-                    Icon(s.typeIcon, color: s.typeColor, size: 18),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(s.typeIcon, color: s.typeColor, size: 20),
+                  if (hasMultiple) ...[
                     const SizedBox(width: 8),
-                    Flexible(
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfLight(context),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                       child: Text(
-                        formattedDateTitle,
+                        'Ca $shiftIndex/$totalShifts',
                         style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: isToday ? AppColors.primaryLight : AppColors.txtSecondary(context),
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.txtSecondary(context),
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
-                ),
+                ],
               ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: s.statusColor.withAlpha(35),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: s.statusColor.withAlpha(100)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (s.isCheckedIn)
-                      Container(
-                        width: 6,
-                        height: 6,
-                        margin: const EdgeInsets.only(right: 6),
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: AppColors.success,
-                        ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (s.isOvertime) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      margin: const EdgeInsets.only(right: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.withAlpha(40),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: Colors.amber.shade700),
                       ),
-                    Text(
-                      s.statusLabel,
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: s.statusColor,
-                        letterSpacing: 0.5,
+                      child: const Text(
+                        'OT',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.amber,
+                        ),
                       ),
                     ),
                   ],
-                ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: s.statusColor.withAlpha(35),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: s.statusColor.withAlpha(100)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (s.isCheckedIn)
+                          Container(
+                            width: 6,
+                            height: 6,
+                            margin: const EdgeInsets.only(right: 6),
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: AppColors.success,
+                            ),
+                          ),
+                        Text(
+                          s.statusLabel,
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: s.statusColor,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -345,63 +373,6 @@ class ActiveShiftCard extends StatelessWidget {
               fontWeight: FontWeight.bold,
               color: AppColors.txtPrimary(context),
             ),
-          ),
-          const SizedBox(height: 12),
-          Divider(color: AppColors.crdBorder(context), height: 1),
-          const SizedBox(height: 12),
-
-          // Details: Area / Post
-          Row(
-            children: [
-              const Icon(Icons.location_on_outlined, color: AppColors.primaryLight, size: 18),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  s.areaName ?? 'Chốt chưa chỉ định',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.txtPrimary(context),
-                  ),
-                ),
-              ),
-              if (s.building != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfLight(context),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    s.building!,
-                    style: TextStyle(fontSize: 11, color: AppColors.txtSecondary(context)),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 8),
-
-          // Radio Channel
-          Row(
-            children: [
-              const Icon(Icons.radio_outlined, color: AppColors.warning, size: 18),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: AppColors.radioPill,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  s.radioChannel ?? 'Kênh tổng',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.radioText,
-                  ),
-                ),
-              ),
-            ],
           ),
 
           // Notes from Admin (if any)
@@ -474,6 +445,20 @@ class ActiveShiftCard extends StatelessWidget {
                     color: s.isBeforeCheckInWindow ? AppColors.txtMuted(context) : Colors.white,
                   ),
                 ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primaryLight,
+                side: BorderSide(color: AppColors.primary.withAlpha(120)),
+                minimumSize: const Size.fromHeight(40),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: () => ShiftRequestBottomSheet.show(context, s),
+              child: const Text(
+                'Đổi ca / Xin nghỉ',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
               ),
             ),
           ] else if (s.isCheckedIn) ...[

@@ -84,6 +84,10 @@ public class GuardShift {
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 
+    @Column(name = "is_overtime", nullable = false)
+    @Builder.Default
+    private Boolean isOvertime = false;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 

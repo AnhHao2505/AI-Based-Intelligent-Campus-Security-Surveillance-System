@@ -6,6 +6,7 @@ import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.enums.AreaLevel;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.repository.AreaRepository;
+import com.fa26se040.icss.repository.FloorRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -44,6 +45,9 @@ class AreaServiceGeometryTest {
 
     @Mock
     private AreaGeometryValidator geometryValidator;
+
+    @Mock
+    private FloorRepository floorRepository;
 
     @InjectMocks
     private AreaService areaService;

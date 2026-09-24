@@ -20,7 +20,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/guard-schedules")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
 public class GuardScheduleController {
 
     private final GuardScheduleService guardScheduleService;

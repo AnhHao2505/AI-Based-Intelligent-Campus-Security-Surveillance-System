@@ -131,7 +131,7 @@
 
 @media (min-width: 1024px) {
   .schedule-kpi-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -331,6 +331,65 @@
   margin: 0;
 }
 
+/* Schedule Filter Buttons & Groups */
+.schedule-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.schedule-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 14px;
+  height: 38px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border-radius: 8px;
+  border: 1px solid var(--theme-border);
+  background: var(--theme-bg-surface);
+  color: var(--theme-text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.schedule-filter-btn:hover {
+  background: var(--theme-bg-surface-elevated);
+  border-color: var(--theme-border-hover);
+  color: var(--theme-text-primary);
+  transform: translateY(-1px);
+}
+
+.schedule-filter-btn--active {
+  background: var(--theme-primary, #2563eb) !important;
+  border-color: var(--theme-primary, #2563eb) !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
+}
+
+.schedule-filter-btn--active .schedule-filter-badge {
+  background: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+.schedule-filter-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 7px;
+  border-radius: 9999px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  background: #f59e0b;
+  color: #ffffff;
+  transition: all 0.15s ease;
+}
+
 /* Schedule Search Input */
 .schedule-search-box {
   position: relative;
@@ -352,7 +411,7 @@
 
 .schedule-search-input {
   width: 100%;
-  height: 36px;
+  height: 38px;
   padding: 0 32px 0 34px !important;
   background-color: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
@@ -624,6 +683,67 @@
   align-items: center;
   justify-content: center;
   margin-bottom: 1rem;
+}
+
+/* Schedule Unified Empty State (Matching Account / Area list page system) */
+.schedule-empty-state {
+  background: var(--theme-bg-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: 1rem;
+  padding: 3.5rem 1.5rem;
+  text-align: center;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-shadow: var(--theme-card-shadow);
+  gap: 12px;
+  min-height: 280px;
+}
+
+.schedule-empty-state__icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background-color: var(--theme-bg-surface-elevated, #f1f5f9);
+  color: var(--theme-text-muted, #64748b);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+  border: 1px solid var(--theme-border);
+}
+
+.schedule-empty-state__icon--primary {
+  background-color: var(--theme-primary-subtle, rgba(37, 99, 235, 0.1));
+  color: var(--theme-primary, #2563eb);
+  border-color: var(--theme-primary-border, rgba(37, 99, 235, 0.2));
+}
+
+.schedule-empty-state__icon--emerald {
+  background-color: rgba(16, 185, 129, 0.1);
+  color: #059669;
+  border-color: rgba(16, 185, 129, 0.2);
+}
+
+.schedule-empty-state__title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--theme-text-primary);
+  margin: 0;
+}
+
+.schedule-empty-state__desc {
+  font-size: 0.875rem;
+  color: var(--theme-text-muted);
+  max-width: 500px;
+  line-height: 1.6;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.schedule-empty-state__action {
+  margin-top: 6px;
 }
 
 /* ==========================================================================
@@ -1004,5 +1124,134 @@
     max-width: 100%;
   }
 }
+
+/* ==========================================================================
+   Schedule Tabs Navigation (Weekly Schedule, Guard Teams, Shift Requests)
+   Matching ManageAccountPage design language
+   ========================================================================== */
+.schedule-tabs {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  border-bottom: 1px solid var(--theme-border);
+  margin-top: 1rem;
+  margin-bottom: 0.75rem;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
+}
+
+.schedule-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.schedule-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 4px 14px 4px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--theme-text-muted);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  position: relative;
+  margin-bottom: -1px;
+  outline: none !important;
+}
+
+.schedule-tab-btn:focus,
+.schedule-tab-btn:focus-visible {
+  outline: none !important;
+}
+
+.schedule-tab-btn:hover {
+  color: var(--theme-text-primary);
+}
+
+.schedule-tab-btn--active {
+  color: var(--theme-primary, #2563eb) !important;
+  border-bottom-color: var(--theme-primary, #2563eb) !important;
+  font-weight: 600;
+}
+
+.schedule-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background-color: var(--theme-bg-surface-elevated, #f1f5f9);
+  color: var(--theme-text-secondary, #475569);
+  border: 1px solid var(--theme-border, #e2e8f0);
+  transition: all 0.15s ease;
+}
+
+.schedule-tab-btn--active .schedule-tab-badge {
+  background-color: rgba(37, 99, 235, 0.1);
+  color: var(--theme-primary, #2563eb);
+  border-color: rgba(37, 99, 235, 0.25);
+}
+
+.schedule-tab-badge--warning {
+  background-color: #fef3c7 !important;
+  color: #b45309 !important;
+  border-color: #fde68a !important;
+}
+
+/* Modern Team Card & Search Styles */
+.schedule-search-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--theme-bg-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: 0.625rem;
+  padding: 0 1rem;
+  height: 42px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s ease;
+}
+
+.schedule-search-input-wrap:focus-within {
+  border-color: var(--theme-primary, #2563eb);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.team-card-modern {
+  background: var(--theme-bg-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: 1rem;
+  padding: 1.35rem;
+  box-shadow: var(--theme-card-shadow);
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+  overflow: hidden;
+}
+
+.team-card-modern:hover {
+  border-color: var(--theme-border-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.07);
+}
+
+.team-card-stripe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+}
+
+
 
 

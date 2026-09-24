@@ -56,4 +56,12 @@ public interface GuardShiftRepository extends JpaRepository<GuardShift, UUID> {
     List<GuardShift> findByStatusAndShiftDateLessThanEqual(
             ShiftStatus status, LocalDate shiftDate
     );
+
+    List<GuardShift> findByGuardIdAndShiftDateAndStatusNot(UUID guardId, LocalDate shiftDate, ShiftStatus status);
+
+    boolean existsByGuardIdAndShiftDateAndStatusNot(UUID guardId, LocalDate shiftDate, ShiftStatus status);
+
+    List<GuardShift> findByShiftDate(LocalDate shiftDate);
+
+    List<GuardShift> findByShiftDateBetween(LocalDate startDate, LocalDate endDate);
 }

@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../../../core/constants/api_endpoints.dart';
 import '../../../core/network/api_client.dart';
 import '../models/guard_shift_model.dart';
+import '../models/guard_shift_request_model.dart';
 
 class ShiftProvider with ChangeNotifier {
   final ApiClient _apiClient;
@@ -157,5 +158,68 @@ class ShiftProvider with ChangeNotifier {
   void clearError() {
     _errorMessage = null;
     notifyListeners();
+  }
+
+  // Get available substitutes for a shift
+  Future<List<AvailableSubstituteModel>> getAvailableSubstitutes(String shiftId) async {
+    try {
+      final response = await _apiClient.dio.get(ApiEndpoints.availableSubstitutes(shiftId));
+      if (response.data is List) {
+        return (response.data as List)
+            .map((item) => AvailableSubstituteModel.fromJson(item as Map<String, dynamic>))
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  // Create shift swap / leave request
+  Future<String?> createShiftRequest({
+    required String shiftId,
+    required String requestType,
+    String? targetSubstituteGuardId,
+    String? reason,
+  }) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final normalizedType = (requestType == 'SWAP' || requestType == 'SWAP_SHIFT') ? 'SWAP_SHIFT' : 'LEAVE_REQUEST';
+      final payload = {
+        'shiftId': shiftId,
+        'requestType': normalizedType,
+        if (targetSubstituteGuardId != null && targetSubstituteGuardId.isNotEmpty) ...{
+          'substituteGuardId': targetSubstituteGuardId,
+          'targetSubstituteGuardId': targetSubstituteGuardId,
+        },
+        'reason': reason ?? '',
+      };
+      await _apiClient.dio.post(ApiEndpoints.shiftRequests, data: payload);
+      _isLoading = false;
+      notifyListeners();
+      return null;
+    } catch (e) {
+      final err = ApiClient.formatError(e);
+      _isLoading = false;
+      notifyListeners();
+      return err;
+    }
+  }
+
+  // Get guard's own shift requests
+  Future<List<GuardShiftRequestModel>> getMyShiftRequests() async {
+    try {
+      final response = await _apiClient.dio.get(ApiEndpoints.myShiftRequests);
+      if (response.data is List) {
+        return (response.data as List)
+            .map((item) => GuardShiftRequestModel.fromJson(item as Map<String, dynamic>))
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
   }
 }

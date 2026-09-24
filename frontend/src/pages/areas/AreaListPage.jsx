@@ -42,6 +42,7 @@ import {
   getAreaCameras,
   updateAreaCameras,
 } from '../../services/areaService';
+import { getBuildings } from '../../services/buildingService';
 import { fetchAllSimpleCameras } from '../../services/cameraService';
 import {
   AREA_LEVEL_CONFIG,
@@ -97,6 +98,7 @@ export default function AreaListPage() {
   // Data states
   const [areas, setAreas] = useState([]);
   const [floorPlans, setFloorPlans] = useState([]);
+  const [buildingsList, setBuildingsList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState(null);
   const [imageError, setImageError] = useState(false);
@@ -228,6 +230,7 @@ export default function AreaListPage() {
     areaLevel: 'PUBLIC',
     building: 'FPT_AROUND',
     floor: 'G',
+    floorId: null,
     description: '',
     reason: '',
   });
@@ -240,9 +243,10 @@ export default function AreaListPage() {
     setPageError(null);
     setImageError(false);
     try {
-      const [areasRes, plansRes] = await Promise.all([
+      const [areasRes, plansRes, buildingsRes] = await Promise.all([
         getAreas({ size: 100, isActive: true }),
         getFloorPlans().catch(() => []),
+        getBuildings().catch(() => []),
       ]);
 
       const areaList = areasRes?.content || areasRes || [];
@@ -250,6 +254,7 @@ export default function AreaListPage() {
 
       const activePlans = (plansRes || []).filter((fp) => fp.isActive !== false);
       setFloorPlans(activePlans);
+      setBuildingsList(Array.isArray(buildingsRes) ? buildingsRes : []);
 
       if (keepSelectedId) {
         setSelectedAreaId(keepSelectedId);
@@ -339,26 +344,42 @@ export default function AreaListPage() {
 
   // Derived available buildings
   const availableBuildings = useMemo(() => {
+    if (buildingsList.length > 0) {
+      return buildingsList.map((b) => ({
+        code: b.code,
+        name: b.name,
+        floors: b.floors || [],
+      }));
+    }
     const bSet = new Set();
     floorPlans.forEach((fp) => { if (fp.building) bSet.add(fp.building); });
     areas.forEach((a) => { if (a.building) bSet.add(a.building); });
     const list = Array.from(bSet).sort();
-    return list.length > 0 ? list : ['FPT_AROUND'];
-  }, [floorPlans, areas]);
+    return (list.length > 0 ? list : ['FPT_AROUND']).map((code) => ({
+      code,
+      name: code,
+      floors: [],
+    }));
+  }, [buildingsList, floorPlans, areas]);
 
   // Default building initialization
   useEffect(() => {
     if (!selectedBuilding && availableBuildings.length > 0) {
-      if (availableBuildings.includes('FPT_AROUND')) {
-        setSelectedBuilding('FPT_AROUND');
-      } else {
-        setSelectedBuilding(availableBuildings[0]);
-      }
+      const defaultB = availableBuildings.find((b) => b.code === 'FPT_AROUND') || availableBuildings[0];
+      setSelectedBuilding(defaultB.code);
     }
   }, [availableBuildings, selectedBuilding]);
 
   // Derived available floors for current building
   const availableFloors = useMemo(() => {
+    const currentBuildingObj = availableBuildings.find((b) => b.code === selectedBuilding);
+    if (currentBuildingObj && currentBuildingObj.floors && currentBuildingObj.floors.length > 0) {
+      return currentBuildingObj.floors.map((f) => ({
+        code: f.floorCode,
+        name: f.name || `Tầng ${f.floorCode}`,
+        floorId: f.id,
+      }));
+    }
     const fSet = new Set();
     floorPlans
       .filter((fp) => fp.building === selectedBuilding)
@@ -374,15 +395,28 @@ export default function AreaListPage() {
       if (isNumA && !isNumB) return 1;
       if (!isNumA && !isNumB) return a.localeCompare(b);
       return parseInt(a, 10) - parseInt(b, 10);
-    });
-  }, [floorPlans, areas, selectedBuilding]);
+    }).map((fl) => ({
+      code: fl,
+      name: `Tầng ${fl}`,
+      floorId: null,
+    }));
+  }, [availableBuildings, floorPlans, areas, selectedBuilding]);
 
   // Default floor initialization
   useEffect(() => {
-    if (availableFloors.length > 0 && !availableFloors.includes(selectedFloor)) {
-      setSelectedFloor(availableFloors[0]);
+    if (availableFloors.length > 0 && !availableFloors.some((f) => f.code === selectedFloor)) {
+      setSelectedFloor(availableFloors[0].code);
     }
   }, [availableFloors, selectedFloor]);
+
+  // Modal floors for current form building
+  const modalFloors = useMemo(() => {
+    const bObj = availableBuildings.find((b) => b.code === formData.building);
+    if (bObj && bObj.floors && bObj.floors.length > 0) {
+      return bObj.floors;
+    }
+    return [{ floorCode: 'G', name: 'Tầng Trệt' }];
+  }, [availableBuildings, formData.building]);
 
   // Current floor plan matching building & floor
   const selectedPlan = useMemo(() => {
@@ -575,12 +609,19 @@ export default function AreaListPage() {
 
   // Modal Handlers
   const handleOpenCreateModal = () => {
+    const currentB = selectedBuilding || (availableBuildings[0]?.code || 'FPT_AROUND');
+    const bObj = availableBuildings.find((b) => b.code === currentB);
+    const floorsForB = bObj?.floors || [];
+    const currentF = selectedFloor || (floorsForB[0]?.floorCode || 'G');
+    const currentFloorId = floorsForB.find((f) => f.floorCode === currentF)?.id || null;
+
     setFormData({
       code: '',
       name: '',
       areaLevel: 'PUBLIC',
-      building: selectedBuilding || 'FPT_AROUND',
-      floor: selectedFloor || 'G',
+      building: currentB,
+      floor: currentF,
+      floorId: currentFloorId,
       description: '',
       reason: '',
     });
@@ -599,6 +640,7 @@ export default function AreaListPage() {
         areaLevel: formData.areaLevel,
         building: formData.building ? formData.building.trim() : null,
         floor: formData.floor ? formData.floor.trim() : null,
+        floorId: formData.floorId || null,
         description: formData.description ? formData.description.trim() : null,
       };
 
@@ -615,12 +657,18 @@ export default function AreaListPage() {
 
   const handleOpenEditModal = () => {
     if (!selectedArea) return;
+    const bCode = selectedArea.building || 'FPT_AROUND';
+    const bObj = availableBuildings.find((b) => b.code === bCode);
+    const flCode = selectedArea.floor || 'G';
+    const flObj = bObj?.floors?.find((f) => f.floorCode === flCode);
+
     setFormData({
       code: selectedArea.code,
       name: selectedArea.name,
       areaLevel: selectedArea.areaLevel || selectedArea.level?.code || 'PUBLIC',
-      building: selectedArea.building || '',
-      floor: selectedArea.floor || '',
+      building: bCode,
+      floor: flCode,
+      floorId: selectedArea.floorEntity?.id || selectedArea.floorId || flObj?.id || null,
       description: selectedArea.description || '',
       reason: '',
     });
@@ -640,6 +688,7 @@ export default function AreaListPage() {
         areaLevel: formData.areaLevel,
         building: formData.building ? formData.building.trim() : null,
         floor: formData.floor ? formData.floor.trim() : null,
+        floorId: formData.floorId || null,
         description: formData.description ? formData.description.trim() : null,
       };
 
@@ -733,8 +782,8 @@ export default function AreaListPage() {
             title="Chọn toà nhà"
           >
             {availableBuildings.map((b) => (
-              <option key={b} value={b}>
-                {b}
+              <option key={b.code} value={b.code}>
+                {b.name}
               </option>
             ))}
           </select>
@@ -743,15 +792,15 @@ export default function AreaListPage() {
         {/* Floor Tabs */}
         <div className="zone-toolbar__tabs">
           {availableFloors.map((fl) => {
-            const isActive = selectedFloor === fl;
+            const isActive = selectedFloor === fl.code;
             return (
               <button
-                key={fl}
+                key={fl.code}
                 type="button"
                 className={`zone-toolbar__tab ${isActive ? 'zone-toolbar__tab--active' : ''}`}
-                onClick={() => handleSelectFloor(fl)}
+                onClick={() => handleSelectFloor(fl.code)}
               >
-                Tầng {fl}
+                {fl.name}
               </button>
             );
           })}
@@ -974,34 +1023,60 @@ export default function AreaListPage() {
                   </div>
                 </div>
 
-                {/* 3d. Toà nhà và Tầng - xếp cạnh nhau */}
+                {/* 3d. Toà nhà và Tầng - phân cấp chuẩn */}
                 <div className="area-form-row">
                   <div className="area-form-group">
                     <label htmlFor="create-building" className="area-form-label">
-                      Toà nhà
+                      Toà nhà / Phân khu <span className="required">*</span>
                     </label>
-                    <input
+                    <select
                       id="create-building"
-                      type="text"
                       className="area-form-input"
-                      placeholder="VD: FPT_AROUND"
                       value={formData.building}
-                      onChange={(e) => setFormData({ ...formData, building: e.target.value })}
-                    />
+                      onChange={(e) => {
+                        const newB = e.target.value;
+                        const bObj = availableBuildings.find((b) => b.code === newB);
+                        const firstFloor = bObj?.floors?.[0];
+                        setFormData({
+                          ...formData,
+                          building: newB,
+                          floor: firstFloor ? firstFloor.floorCode : 'G',
+                          floorId: firstFloor ? firstFloor.id : null,
+                        });
+                      }}
+                    >
+                      {availableBuildings.map((b) => (
+                        <option key={b.code} value={b.code}>
+                          {b.name} ({b.code})
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   <div className="area-form-group">
                     <label htmlFor="create-floor" className="area-form-label">
-                      Tầng
+                      Tầng & Sơ đồ <span className="required">*</span>
                     </label>
-                    <input
+                    <select
                       id="create-floor"
-                      type="text"
                       className="area-form-input"
-                      placeholder="VD: G hoặc 1"
                       value={formData.floor}
-                      onChange={(e) => setFormData({ ...formData, floor: e.target.value })}
-                    />
+                      onChange={(e) => {
+                        const newF = e.target.value;
+                        const flObj = modalFloors.find((f) => f.floorCode === newF);
+                        setFormData({
+                          ...formData,
+                          floor: newF,
+                          floorId: flObj ? flObj.id : null,
+                        });
+                      }}
+                    >
+                      {modalFloors.map((fl) => (
+                        <option key={fl.floorCode} value={fl.floorCode}>
+                          {fl.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
@@ -1145,28 +1220,56 @@ export default function AreaListPage() {
                 <div className="area-form-row">
                   <div className="area-form-group">
                     <label htmlFor="edit-building" className="area-form-label">
-                      Toà nhà
+                      Toà nhà / Phân khu <span className="required">*</span>
                     </label>
-                    <input
+                    <select
                       id="edit-building"
-                      type="text"
                       className="area-form-input"
                       value={formData.building}
-                      onChange={(e) => setFormData({ ...formData, building: e.target.value })}
-                    />
+                      onChange={(e) => {
+                        const newB = e.target.value;
+                        const bObj = availableBuildings.find((b) => b.code === newB);
+                        const firstFloor = bObj?.floors?.[0];
+                        setFormData({
+                          ...formData,
+                          building: newB,
+                          floor: firstFloor ? firstFloor.floorCode : 'G',
+                          floorId: firstFloor ? firstFloor.id : null,
+                        });
+                      }}
+                    >
+                      {availableBuildings.map((b) => (
+                        <option key={b.code} value={b.code}>
+                          {b.name} ({b.code})
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   <div className="area-form-group">
                     <label htmlFor="edit-floor" className="area-form-label">
-                      Tầng
+                      Tầng & Sơ đồ <span className="required">*</span>
                     </label>
-                    <input
+                    <select
                       id="edit-floor"
-                      type="text"
                       className="area-form-input"
                       value={formData.floor}
-                      onChange={(e) => setFormData({ ...formData, floor: e.target.value })}
-                    />
+                      onChange={(e) => {
+                        const newF = e.target.value;
+                        const flObj = modalFloors.find((f) => f.floorCode === newF);
+                        setFormData({
+                          ...formData,
+                          floor: newF,
+                          floorId: flObj ? flObj.id : null,
+                        });
+                      }}
+                    >
+                      {modalFloors.map((fl) => (
+                        <option key={fl.floorCode} value={fl.floorCode}>
+                          {fl.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 

@@ -46,6 +46,10 @@ public class User {
     @Builder.Default
     private Integer accessLevel = 1;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "team_id")
+    private GuardTeam team;
+
     @Column(name = "created_at")
     private OffsetDateTime createdAt;
 
