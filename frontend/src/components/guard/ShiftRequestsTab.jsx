@@ -262,6 +262,7 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
     setRejectDialog((prev) => ({ ...prev, submitting: true }));
     try {
       await guardScheduleApi.rejectShiftRequest(rejectDialog.request.id, {
+        reviewNotes: rejectDialog.reviewNote,
         reviewNote: rejectDialog.reviewNote
       });
       setRejectDialog({
@@ -413,6 +414,7 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
             const targetStartTime = (req.targetStartTime || req.targetShift?.startTime || '').substring(0, 5);
             const targetEndTime = (req.targetEndTime || req.targetShift?.endTime || '').substring(0, 5);
             const substituteCode = req.substituteGuardCode || req.targetSubstituteGuard?.userCode || '';
+            const reviewNote = req.reviewNotes || req.reviewNote;
 
             return (
               <div
@@ -544,11 +546,20 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
                       </div>
                     )}
 
-                    {/* Review Note */}
-                    {req.reviewNote && (
-                      <div className="text-[11px] text-slate-500 dark:text-slate-400 pt-0.5 flex items-center gap-1.5">
-                        <MessageSquare size={12} className="text-slate-400 flex-shrink-0" />
-                        <span>Ghi chú duyệt: <strong>{req.reviewNote}</strong></span>
+                    {/* Review Note / Rejection Reason */}
+                    {reviewNote && (
+                      <div className={`text-xs p-2 rounded-lg border flex items-start gap-1.5 ${
+                        isRejected
+                          ? 'bg-rose-50/70 dark:bg-rose-950/40 border-rose-200/80 dark:border-rose-800/80 text-rose-800 dark:text-rose-200'
+                          : 'bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+                      }`}>
+                        <MessageSquare size={13} className={`flex-shrink-0 mt-0.5 ${isRejected ? 'text-rose-500' : 'text-slate-400'}`} />
+                        <div>
+                          <span className="font-bold mr-1">
+                            {isRejected ? 'Lý do từ chối của Quản lý:' : 'Ghi chú duyệt:'}
+                          </span>
+                          <span>"{reviewNote}"</span>
+                        </div>
                       </div>
                     )}
                   </div>

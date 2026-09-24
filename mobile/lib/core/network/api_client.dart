@@ -43,8 +43,25 @@ class ApiClient {
     if (error is DioException) {
       if (error.response != null) {
         final data = error.response?.data;
-        if (data is Map && data.containsKey('message')) {
-          return data['message'].toString();
+        if (data is Map) {
+          if (data.containsKey('message') && data['message'] != null && data['message'].toString().isNotEmpty) {
+            return data['message'].toString();
+          }
+          if (data.containsKey('detail') && data['detail'] != null && data['detail'].toString().isNotEmpty) {
+            return data['detail'].toString();
+          }
+          if (data.containsKey('error') && data['error'] != null && data['error'].toString().isNotEmpty) {
+            return data['error'].toString();
+          }
+          if (data.containsKey('errors') && data['errors'] != null) {
+            final errs = data['errors'];
+            if (errs is Map) {
+              return errs.values.join(', ');
+            }
+            if (errs is List && errs.isNotEmpty) {
+              return errs.map((e) => e is Map ? (e['defaultMessage'] ?? e['message'] ?? e.toString()) : e.toString()).join(', ');
+            }
+          }
         }
         if (data is String && data.isNotEmpty) {
           return data;

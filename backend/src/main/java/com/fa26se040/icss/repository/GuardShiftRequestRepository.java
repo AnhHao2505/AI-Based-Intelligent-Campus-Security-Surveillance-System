@@ -18,6 +18,11 @@ public interface GuardShiftRequestRepository extends JpaRepository<GuardShiftReq
 
     List<GuardShiftRequest> findBySubstituteGuardIdOrderByCreatedAtDesc(UUID substituteGuardId);
 
+    @Query("SELECT r FROM GuardShiftRequest r " +
+            "WHERE r.requester.id = :guardId OR r.substituteGuard.id = :guardId " +
+            "ORDER BY r.createdAt DESC")
+    List<GuardShiftRequest> findMyRequests(@Param("guardId") UUID guardId);
+
     boolean existsByShiftIdAndStatus(UUID shiftId, GuardShiftRequestStatus status);
 
     boolean existsByShiftId(UUID shiftId);

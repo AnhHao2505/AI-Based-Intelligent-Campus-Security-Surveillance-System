@@ -97,7 +97,10 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
   }
 
   Future<void> _handleSubmit() async {
-    final reason = _reasonController.text.trim();
+    final inputReason = _reasonController.text.trim();
+    final reason = inputReason.isNotEmpty
+        ? inputReason
+        : (_requestType == 'SWAP' ? 'Đổi ca trực cùng tuần với đồng nghiệp' : '');
 
     if (_requestType == 'SWAP' && (_selectedTargetShiftId == null || _selectedTargetShiftId!.isEmpty)) {
       setState(() {
@@ -106,7 +109,7 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
       return;
     }
 
-    if (_requestType == 'LEAVE' && reason.isEmpty) {
+    if (_requestType == 'LEAVE' && inputReason.isEmpty) {
       setState(() {
         _errorMessage = 'Vui lòng nhập lý do xin nghỉ';
       });

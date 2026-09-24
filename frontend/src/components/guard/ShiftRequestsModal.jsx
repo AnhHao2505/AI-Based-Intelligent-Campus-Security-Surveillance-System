@@ -171,6 +171,7 @@ export default function ShiftRequestsModal({
     setRejectDialog((prev) => ({ ...prev, submitting: true }));
     try {
       await guardScheduleApi.rejectShiftRequest(rejectDialog.requestId, {
+        reviewNotes: rejectDialog.reviewNote,
         reviewNote: rejectDialog.reviewNote
       });
       setRejectDialog({
@@ -354,8 +355,15 @@ export default function ShiftRequestsModal({
                       )}
 
                       {reviewNote && (
-                        <div className="text-xs text-slate-500 dark:text-slate-400">
-                          Ghi chú duyệt: "{reviewNote}"
+                        <div className={`text-xs p-2 rounded-lg border flex items-start gap-1.5 ${
+                          isRejected
+                            ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200'
+                            : 'bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300'
+                        }`}>
+                          <span className="font-bold mr-1">
+                            {isRejected ? 'Lý do từ chối của Quản lý:' : 'Ghi chú duyệt:'}
+                          </span>
+                          <span>"{reviewNote}"</span>
                         </div>
                       )}
                     </div>

@@ -574,7 +574,7 @@ public class GuardScheduleService {
                             .area(targetArea)
                             .status(ShiftStatus.SCHEDULED)
                             .isOvertime(false)
-                            .notes("Khởi tạo tự động từ Wizard" + (request.getBuilding() != null ? " (" + request.getBuilding() + ")" : ""))
+                            .notes(null)
                             .build();
                     createdShifts.add(shiftRepository.save(shift));
 
@@ -591,7 +591,7 @@ public class GuardScheduleService {
                                     .endTime(endTime)
                                     .area(targetArea)
                                     .isActive(true)
-                                    .notes("Mẫu sinh tự động")
+                                    .notes(null)
                                     .build();
                             templateRepository.save(template);
                         }

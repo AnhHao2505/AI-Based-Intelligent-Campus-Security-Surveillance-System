@@ -24,6 +24,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -410,6 +411,17 @@ public class GuardShiftRequestService {
             }
         }
 
+        String finalReason = dto.getReason();
+        if (finalReason == null || finalReason.isBlank()) {
+            if (dto.getRequestType() == GuardShiftRequestType.SWAP_SHIFT) {
+                finalReason = "Đổi ca trực cùng tuần với đồng nghiệp";
+            } else {
+                throw new IllegalArgumentException("Vui lòng nhập lý do xin nghỉ phép");
+            }
+        } else {
+            finalReason = finalReason.trim();
+        }
+
         GuardShiftRequest request = GuardShiftRequest.builder()
                 .requester(requester)
                 .shift(shift)
@@ -420,7 +432,7 @@ public class GuardShiftRequestService {
                 .shiftTypeSnapshot(shift.getShiftType() != null ? shift.getShiftType().name() : null)
                 .startTimeSnapshot(shift.getStartTime())
                 .endTimeSnapshot(shift.getEndTime())
-                .reason(dto.getReason().trim())
+                .reason(finalReason)
                 .status(GuardShiftRequestStatus.PENDING)
                 .build();
 
@@ -433,11 +445,20 @@ public class GuardShiftRequestService {
 
     @Transactional(readOnly = true)
     public List<GuardShiftRequestResponseDto> getMyRequests(String guardEmail) {
-        User requester = userRepository.findByEmail(guardEmail)
+        User user = userRepository.findByEmail(guardEmail)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thông tin tài khoản"));
 
-        return requestRepository.findByRequesterIdOrderByCreatedAtDesc(requester.getId()).stream()
-                .map(this::mapToDto)
+        return requestRepository.findMyRequests(user.getId()).stream()
+                .map(r -> {
+                    GuardShiftRequestResponseDto dto = mapToDto(r);
+                    // Hide requester's private leave reason if current user is only the substitute guard
+                    if (r.getSubstituteGuard() != null && user.getId().equals(r.getSubstituteGuard().getId())
+                            && !user.getId().equals(r.getRequester().getId())
+                            && r.getRequestType() == GuardShiftRequestType.LEAVE_REQUEST) {
+                        dto.setReason(null);
+                    }
+                    return dto;
+                })
                 .collect(Collectors.toList());
     }
 
@@ -482,14 +503,14 @@ public class GuardShiftRequestService {
                 shiftRepository.save(target);
 
                 notifyUser(request.getRequester(), "Đổi ca trực thành công",
-                        String.format("Yêu cầu đổi ca đã được duyệt. Bạn tiếp nhận ca %s ngày %s của %s.",
-                                target.getShiftType(), target.getShiftDate(), substitute.getFullName()),
+                        String.format("Yêu cầu đổi ca đã được duyệt. Bạn tiếp nhận %s ngày %s của %s.",
+                                formatShiftType(target.getShiftType()), target.getShiftDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")), substitute.getFullName()),
                         request.getId());
             }
 
             notifyUser(substitute, "Hoán đổi ca trực",
-                    String.format("Đơn đổi ca đã được phê duyệt. Bạn tiếp nhận ca %s ngày %s của %s.",
-                            shift.getShiftType(), shift.getShiftDate(), request.getRequester().getFullName()),
+                    String.format("Đơn đổi ca đã được phê duyệt. Bạn tiếp nhận %s ngày %s của %s.",
+                            formatShiftType(shift.getShiftType()), shift.getShiftDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")), request.getRequester().getFullName()),
                     request.getId());
 
         } else if (request.getRequestType() == GuardShiftRequestType.LEAVE_REQUEST) {
@@ -529,9 +550,9 @@ public class GuardShiftRequestService {
                 shiftRepository.save(shift);
                 request.setSubstituteGuard(substitute);
 
-                notifyUser(substitute, "Phân công trực thay",
-                        String.format("Bạn được Quản lý phân công trực thay do %s xin nghỉ vào %s ngày %s.",
-                                request.getRequester().getFullName(), shift.getShiftType(), shift.getShiftDate()),
+                notifyUser(substitute, "Phân công trực thay ca trực",
+                        String.format("Bạn được Quản lý phân công trực thay cho %s vào %s ngày %s.",
+                                request.getRequester().getFullName(), formatShiftType(shift.getShiftType()), shift.getShiftDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))),
                         request.getId());
             } else {
                 // No substitute assigned -> Cancel shift
@@ -541,8 +562,8 @@ public class GuardShiftRequestService {
             }
 
             notifyUser(request.getRequester(), "Đơn xin nghỉ đã được duyệt",
-                    String.format("Đơn xin nghỉ ca %s ngày %s của bạn đã được Quản lý phê duyệt.",
-                            shift.getShiftType(), shift.getShiftDate()),
+                    String.format("Đơn xin nghỉ %s ngày %s của bạn đã được Quản lý phê duyệt.",
+                            formatShiftType(shift.getShiftType()), shift.getShiftDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))),
                     request.getId());
         }
 
@@ -582,9 +603,9 @@ public class GuardShiftRequestService {
         log.info("Request [{}] rejected by [{}]", requestId, reviewer.getFullName());
 
         notifyUser(request.getRequester(), "Yêu cầu ca trực bị từ chối",
-                String.format("Đơn %s cho ca %s ngày %s của bạn đã bị từ chối.",
+                String.format("Đơn %s cho %s ngày %s của bạn đã bị từ chối.",
                         request.getRequestType() == GuardShiftRequestType.SWAP_SHIFT ? "đổi ca" : "xin nghỉ",
-                        request.getShift().getShiftType(), request.getShift().getShiftDate()),
+                        formatShiftType(request.getShift().getShiftType()), request.getShift().getShiftDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))),
                 request.getId());
 
         return mapToDto(updated);
@@ -605,6 +626,20 @@ public class GuardShiftRequestService {
             notificationRepository.save(notification);
         } catch (Exception e) {
             log.warn("Failed to create in-app notification for user [{}]: {}", recipient.getId(), e.getMessage());
+        }
+    }
+
+    private String formatShiftType(ShiftType type) {
+        if (type == null) return "Ca trực";
+        switch (type) {
+            case SHIFT_MORNING:
+                return "Ca Sáng (06:00 - 14:00)";
+            case SHIFT_AFTERNOON:
+                return "Ca Chiều (14:00 - 22:00)";
+            case SHIFT_NIGHT:
+                return "Ca Đêm (22:00 - 06:00)";
+            default:
+                return type.name();
         }
     }
 
