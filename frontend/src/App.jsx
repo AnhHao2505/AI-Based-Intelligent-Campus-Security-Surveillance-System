@@ -23,6 +23,7 @@ import SystemConfigPage from "./pages/system/SystemConfigPage";
 import UiKitPage from "./pages/_devPreview/UiKitPage";
 import GuardScheduleManagementPage from "./pages/admin/GuardScheduleManagementPage";
 import UserAccessLevelPage from "./pages/accessControl/UserAccessLevelPage";
+import DemoModeBanner from "./components/common/DemoModeBanner";
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
 
@@ -71,6 +72,7 @@ function App() {
 		<GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
 			<ThemeProvider>
 				<AuthProvider>
+					<DemoModeBanner />
 					<Routes>
 						{/* Public Routes */}
 						<Route

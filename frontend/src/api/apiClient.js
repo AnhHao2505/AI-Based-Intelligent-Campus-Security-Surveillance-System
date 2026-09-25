@@ -1,3 +1,5 @@
+import { DEMO_LOGIN_ENABLED } from '../config/demoConfig';
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
 function getDemoResponse(path) {
@@ -115,6 +117,16 @@ export async function apiFetch(path, options = {}) {
   }
 
   if (token?.startsWith('frontend-demo-')) {
+    if (!DEMO_LOGIN_ENABLED) {
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('user');
+      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
+      const err = new Error('Chế độ demo đã bị tắt. Vui lòng đăng nhập lại.');
+      err.status = 401;
+      throw err;
+    }
     return (options.method || 'GET').toUpperCase() === 'GET'
       ? getDemoResponse(path)
       : null;
