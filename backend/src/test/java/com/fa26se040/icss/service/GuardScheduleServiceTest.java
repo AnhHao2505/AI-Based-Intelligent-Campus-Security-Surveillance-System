@@ -431,6 +431,8 @@ class GuardScheduleServiceTest {
 
         when(shiftRepository.findShifts(startDate, endDate, null, null, ShiftStatus.SCHEDULED))
                 .thenReturn(List.of(scheduledShift1, scheduledShiftWithRequest, checkedInShift));
+        when(shiftRequestRepository.existsByShiftId(scheduledShift1.getId())).thenReturn(false);
+        when(shiftRequestRepository.existsByShiftId(scheduledShiftWithRequest.getId())).thenReturn(true);
 
         BulkClearShiftsRequest request = BulkClearShiftsRequest.builder()
                 .startDate(startDate)
@@ -440,9 +442,9 @@ class GuardScheduleServiceTest {
         BulkClearShiftsResponse response = guardScheduleService.bulkClearShifts(request);
 
         assertNotNull(response);
-        assertEquals(2, response.getClearedCount());
+        assertEquals(1, response.getClearedCount());
         assertNotNull(response.getMessage());
-        verify(shiftRepository, times(1)).deleteAll(List.of(scheduledShift1, scheduledShiftWithRequest));
+        verify(shiftRepository, times(1)).deleteAll(List.of(scheduledShift1));
     }
 
     @Test
