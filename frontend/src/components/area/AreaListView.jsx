@@ -88,7 +88,7 @@ export default function AreaListView({
 								</div>
 
 								<h3 className="zone-card__title">{area.name}</h3>
-								<div className="zone-card__code">{area.code}</div>
+
 
 								<div className="zone-card__footer">
 									<div

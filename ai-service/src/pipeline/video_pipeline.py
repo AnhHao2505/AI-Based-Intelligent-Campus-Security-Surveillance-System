@@ -9,7 +9,7 @@ from ..core.entity import Point, TrackedPerson, SecurityAlertEvent, RoiPolygonCo
 from ..core.human_detector import HumanDetector
 from ..core.face_detector import FaceDetector
 from ..core.face_matcher import FaceMatcher
-from ..core.loitering_engine import LoiteringEngine
+from ..core.frame_analysis_engine import FrameAnalysisEngine
 from ..integration.kafka_producer import SecurityKafkaProducer
 from ..integration.storage_service import StorageService
 from ..utils.visualizer import FrameVisualizer
@@ -22,24 +22,24 @@ class VideoPipeline:
     1. Human Detection & Tracking (YOLOv8 + ByteTrack)
     2. Crop vùng người & Face Detection (YuNet)
     3. Face Recognition Matching (pgvector Cosine Search)
-    4. Loitering & Violation Analysis (ROI Polygon Check + Loitering Timer)
+    4. Violation Analysis (ROI Polygon Check)
     5. Cảnh báo tự động (Kafka Event + MinIO Snapshot Upload)
     6. Visualization & Overlay Rendering
     """
     def __init__(
         self,
-        camera_code: str = "CAM-001",
+        camera_code: str,
         roi_polygon: Optional[List[Point]] = None,
-        loitering_threshold_seconds: int = 10,
-        conf_threshold: float = 0.5,
+        conf_threshold: Optional[float] = None,
         model_yolo_path: Optional[str] = None,
         model_yunet_path: Optional[str] = None,
-        roi_polygons: Optional[List[Any]] = None
+        roi_polygons: Optional[List[Any]] = None,
+        after_hour_start: Optional[str] = None,
+        after_hour_end: Optional[str] = None
     ):
         self.camera_code = camera_code
         self.roi_polygon = roi_polygon or []
         self.roi_polygons: List[RoiPolygonConfig] = []
-        self.loitering_threshold_seconds = loitering_threshold_seconds
 
         if roi_polygons:
             self.set_roi_config(roi_polygons)
@@ -49,21 +49,21 @@ class VideoPipeline:
         # Khởi tạo các module core
         yolo_path = model_yolo_path or settings.MODEL_YOLO_PATH
         yunet_path = model_yunet_path or settings.MODEL_YUNET_PATH
+        detector_conf = conf_threshold if conf_threshold is not None else settings.DEFAULT_DETECTION_CONFIDENCE
+        ah_start = after_hour_start or settings.DEFAULT_AFTER_HOUR_START
+        ah_end = after_hour_end or settings.DEFAULT_AFTER_HOUR_END
 
         logger.info(f"Khởi tạo VideoPipeline cho Camera [{camera_code}]...")
-        self.human_detector = HumanDetector(model_path=yolo_path, conf_threshold=conf_threshold)
+        self.human_detector = HumanDetector(model_path=yolo_path, conf_threshold=detector_conf)
         self.face_detector = FaceDetector(model_path=yunet_path, score_threshold=settings.DEFAULT_FACE_CONFIDENCE)
         self.face_matcher = FaceMatcher()
-        self.loitering_engine = LoiteringEngine(loitering_threshold_seconds=loitering_threshold_seconds)
+        self.analysis_engine = FrameAnalysisEngine(after_hour_start=ah_start, after_hour_end=ah_end)
 
         # Khởi tạo các module tích hợp
         self.kafka_producer = SecurityKafkaProducer()
         self.storage_service = StorageService()
         self.visualizer = FrameVisualizer()
 
-        # Thống kê hiệu năng
-        self.prev_frame_time = time.time()
-        self.current_fps = 0.0
 
     def set_roi_polygon(self, polygon: List[Point]):
         """Cập nhật tọa độ vùng cấm ROI (đơn lẻ, tương thích ngược)"""
@@ -71,7 +71,7 @@ class VideoPipeline:
         self.roi_polygons = [
             RoiPolygonConfig(
                 label="Vùng ROI",
-                alert_rules=["ENTRY_EXIT_TRACKING", "LOITERING"],
+                alert_rules=["ENTRY_EXIT_TRACKING"],
                 vertices=polygon
             )
         ]
@@ -114,11 +114,6 @@ class VideoPipeline:
         if current_time is None:
             current_time = time.time()
 
-        # 1. Tính toán FPS thực tế
-        dt = current_time - self.prev_frame_time
-        self.current_fps = 1.0 / dt if dt > 0 else 30.0
-        self.prev_frame_time = current_time
-
         # 2. Phát hiện & Theo dõi người (Human Detection + ByteTrack)
         detected_tracks = self.human_detector.detect_and_track(frame, persist=True)
 
@@ -133,7 +128,7 @@ class VideoPipeline:
             x2, y2 = min(w, x2), min(h, y2)
 
             if (x2 - x1) > 20 and (y2 - y1) > 20:
-                crop_h = int((y2 - y1) * 0.6)
+                crop_h = int((y2 - y1) * settings.UPPER_BODY_CROP_RATIO)
                 person_upper_crop = frame[y1:y1 + crop_h, x1:x2]
                 
                 if person_upper_crop.size > 0:
@@ -142,23 +137,22 @@ class VideoPipeline:
                         offset_xy=(x1, y1)
                     )
                     if face_result:
-                        # Cắt khuôn mặt chính xác để so khớp đặc trưng với CSDL
                         fx1, fy1, fx2, fy2 = face_result.bbox.to_int_xyxy()
                         fx1, fy1 = max(0, fx1), max(0, fy1)
                         fx2, fy2 = min(w, fx2), min(h, fy2)
                         face_crop = frame[fy1:fy2, fx1:fx2]
                         if face_crop.size > 0:
-                            match = self.face_matcher.match_face(face_crop, threshold=0.55)
+                            match = self.face_matcher.match_face(face_crop, threshold=settings.FACE_MATCH_THRESHOLD)
                             if match:
                                 code, name, score = match
                                 face_result.matched_code = code
                                 face_result.matched_name = name
                                 face_result.is_authorized = True
 
-                        self.loitering_engine.associate_face(track_id, face_result)
+                        self.analysis_engine.associate_face(track_id, face_result)
 
-        # 4. Phân tích Loitering & Xâm nhập vùng cấm
-        active_persons, alerts = self.loitering_engine.process_frame(
+        # 4. Phân tích Xâm nhập vùng cấm
+        active_persons, alerts = self.analysis_engine.process_frame(
             detected_tracks=detected_tracks,
             roi_polygon=self.roi_polygon,
             camera_code=self.camera_code,
@@ -169,7 +163,6 @@ class VideoPipeline:
 
         # 5. Xử lý lưu bằng chứng và gửi cảnh báo tự động
         for alert in alerts:
-            # Tạo frame snapshot có vẽ thông tin cảnh báo
             snapshot_frame = frame.copy()
             if self.roi_polygons:
                 snapshot_frame = self.visualizer.draw_multiple_rois(snapshot_frame, self.roi_polygons)
@@ -177,11 +170,9 @@ class VideoPipeline:
                 snapshot_frame = self.visualizer.draw_roi(snapshot_frame, self.roi_polygon)
             snapshot_frame = self.visualizer.draw_tracked_persons(
                 snapshot_frame,
-                active_persons,
-                self.loitering_threshold_seconds
+                active_persons
             )
             
-            # Upload ảnh chụp vi phạm lên MinIO
             evidence_url = self.storage_service.upload_frame_evidence(
                 snapshot_frame,
                 self.camera_code,
@@ -189,7 +180,6 @@ class VideoPipeline:
             )
             alert.image_url = evidence_url
 
-            # Bắn sự kiện an ninh vào Kafka topic
             self.kafka_producer.send_alert(alert)
 
         # 6. Render các lớp đồ họa lên khung hình hiển thị (Overlay Annotations)
@@ -200,18 +190,7 @@ class VideoPipeline:
             annotated_frame = self.visualizer.draw_roi(annotated_frame, self.roi_polygon)
         annotated_frame = self.visualizer.draw_tracked_persons(
             annotated_frame,
-            active_persons,
-            self.loitering_threshold_seconds
+            active_persons
         )
         
-        # Đếm số người đang lảng vảng trong ROI
-        loiterers_count = sum(1 for p in active_persons if p.is_in_roi and p.loiter_duration >= self.loitering_threshold_seconds)
-        annotated_frame = self.visualizer.draw_dashboard_overlay(
-            annotated_frame,
-            self.camera_code,
-            self.current_fps,
-            len(active_persons),
-            loiterers_count
-        )
-
         return annotated_frame, active_persons, alerts

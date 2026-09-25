@@ -101,10 +101,18 @@ export const ERROR_MESSAGES = {
   ERR_AREA_003: 'Cấp độ an ninh không hợp lệ hoặc đã bị vô hiệu hóa.',
   ERR_AREA_004: 'Mã khu vực chỉ gồm chữ in hoa, số và dấu gạch ngang, dài 3–50 ký tự.',
   ERR_AREA_005: 'Tên khu vực bắt buộc, tối đa 150 ký tự.',
+  ERR_AREA_006: 'Toạ độ bản đồ phải có đủ cả X và Y.',
   ERR_AREA_007: 'Không được thay đổi mã khu vực sau khi tạo.',
   ERR_AREA_008: 'Khi hạ cấp độ an ninh, lý do là bắt buộc (10–255 ký tự).',
   ERR_AREA_009: 'Không thể vô hiệu hóa khu vực do còn camera đang gán.',
   ERR_AREA_010: 'Không thể vô hiệu hóa khu vực do còn quyền truy cập.',
+  ERR_AREA_011: 'Hình đa giác phải có ít nhất 3 đỉnh.',
+  ERR_AREA_012: 'Toạ độ đỉnh đa giác phải nằm trong khoảng [0, 1].',
+  ERR_AREA_013: 'Toạ độ đa giác bị chồng lấn với khu vực khác cùng tầng.',
+  ERR_AREA_014: 'Không thể thay đổi toà nhà hoặc tầng khi khu vực đang có toạ độ đa giác. Vui lòng xoá đa giác trước.',
+  ERR_AREA_015: 'Khu vực phải có thông tin toà nhà và tầng trước khi gán toạ độ đa giác.',
+  ERR_AREA_016: 'Hình đa giác phải có ít nhất 3 đỉnh phân biệt (không trùng nhau).',
+  ERR_AREA_017: 'Khu vực đã ngừng hoạt động hoặc đã bị xoá.',
 };
 
 

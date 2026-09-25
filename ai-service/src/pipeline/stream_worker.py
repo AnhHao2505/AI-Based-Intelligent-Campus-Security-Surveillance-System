@@ -14,19 +14,24 @@ logger = logging.getLogger(__name__)
 class CameraStreamWorker:
     """
     Worker xử lý ngầm luồng video RTSP từ MediaMTX:
-    - Kéo frame liên tục từ rtsp://.../cam01
-    - Phân tích qua VideoPipeline (YOLOv8 + YuNet + Loitering)
+    - Kéo frame liên tục từ RTSP stream theo từng camera
+    - Phân tích qua VideoPipeline (YOLOv8 + YuNet)
     - Gửi Incident Event sang Kafka khi phát hiện vi phạm
     """
     def __init__(
         self,
-        camera_code: str = "CAM-001",
-        rtsp_url: str = "rtsp://localhost:8554/cam01",
+        camera_code: str,
+        rtsp_url: str,
         roi_geometry: Optional[Dict[str, Any]] = None
     ):
-        self.camera_code = camera_code
-        self.rtsp_url = rtsp_url
-        self.pipeline = VideoPipeline(camera_code=camera_code)
+        if not camera_code or not camera_code.strip():
+            raise ValueError("camera_code is required and cannot be empty")
+        if not rtsp_url or not rtsp_url.strip():
+            raise ValueError("rtsp_url is required and cannot be empty")
+
+        self.camera_code = camera_code.strip()
+        self.rtsp_url = rtsp_url.strip()
+        self.pipeline = VideoPipeline(camera_code=self.camera_code)
         if roi_geometry and "polygons" in roi_geometry:
             self.pipeline.set_roi_config(roi_geometry["polygons"])
         
@@ -36,13 +41,15 @@ class CameraStreamWorker:
         self.processed_fps = 0.0
         self.lock = threading.Lock()
 
-    def update_roi(self, polygons: List[Any], loitering_threshold_seconds: Optional[int] = None):
+    def update_roi(self, polygons: List[Any],
+                   after_hour_start: Optional[str] = None, after_hour_end: Optional[str] = None):
         """Cập nhật cấu hình ROI cho worker đang chạy"""
         if self.pipeline:
             self.pipeline.set_roi_config(polygons)
-            if loitering_threshold_seconds:
-                self.pipeline.loitering_threshold_seconds = loitering_threshold_seconds
-                self.pipeline.loitering_engine.loitering_threshold_seconds = loitering_threshold_seconds
+            if after_hour_start:
+                self.pipeline.analysis_engine.after_hour_start = after_hour_start
+            if after_hour_end:
+                self.pipeline.analysis_engine.after_hour_end = after_hour_end
             logger.info(f"Đã cập nhật ROI ({len(polygons)} polygons) cho Stream Worker [{self.camera_code}].")
 
     def start(self):
@@ -68,7 +75,6 @@ class CameraStreamWorker:
         """Vòng lặp đọc frame và phân tích AI"""
         logger.info(f"Bắt đầu kết nối luồng RTSP: {self.rtsp_url}")
         
-        # Ép OpenCV sử dụng giao thức TCP để tránh rớt gói tin H.264 qua Wi-Fi
         os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp"
         cap = cv2.VideoCapture(self.rtsp_url, cv2.CAP_FFMPEG)
         cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
@@ -79,13 +85,11 @@ class CameraStreamWorker:
         while self.is_running:
             ret, frame = cap.read()
             if not ret or frame is None:
-                # Đang chờ nguồn phát từ MediaMTX / Điện thoại
                 time.sleep(1.0)
                 if not cap.isOpened():
                     cap.open(self.rtsp_url)
                 continue
 
-            # Phân tích frame qua VideoPipeline
             try:
                 annotated_frame, tracked_persons, alerts = self.pipeline.process_frame(frame)
                 
@@ -111,5 +115,5 @@ class CameraStreamWorker:
             "rtsp_url": self.rtsp_url,
             "is_running": self.is_running,
             "processed_fps": self.processed_fps,
-            "active_tracks_count": len(self.pipeline.loitering_engine.active_tracks) if self.pipeline else 0
+            "active_tracks_count": len(self.pipeline.analysis_engine.active_tracks) if self.pipeline else 0
         }

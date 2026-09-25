@@ -6,7 +6,6 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import java.time.OffsetDateTime;
 
 @Data
 @Builder
@@ -20,6 +19,4 @@ public class CreateCameraRequest {
     @NotBlank(message = "Camera name is required")
     @Size(max = 100, message = "Camera name cannot exceed 100 characters")
     private String name;
-
-    private OffsetDateTime installedAt;
 }

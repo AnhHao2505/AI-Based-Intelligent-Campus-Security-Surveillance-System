@@ -20,7 +20,7 @@ public class RoiGeometryValidator {
 
     public static final Set<String> ALLOWED_ALERT_RULES = Set.of(
             "ENTRY_EXIT_TRACKING",
-            "LOITERING",
+            "AFTER_HOURS",
             "CROWD_OVERCROWDING"
     );
 
@@ -56,7 +56,7 @@ public class RoiGeometryValidator {
             }
         }
 
-        // Alert Rules validation (ERR_ROI_007) - only 3 rules: ENTRY_EXIT_TRACKING, LOITERING, CROWD_OVERCROWDING
+        // Alert Rules validation (ERR_ROI_007)
         if (polygon.getAlertRules() == null || polygon.getAlertRules().isEmpty()) {
             polygon.setAlertRules(List.of("ENTRY_EXIT_TRACKING"));
         } else {

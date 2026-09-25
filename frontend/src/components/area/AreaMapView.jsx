@@ -196,7 +196,7 @@ export default function AreaMapView({
 											}}
 										>
 											<title>
-												{area.name} ({area.code})
+												{area.name}
 											</title>
 										</polygon>
 									);
@@ -361,7 +361,7 @@ export default function AreaMapView({
 										flexWrap: "wrap",
 									}}
 								>
-									<span className="zone-detail-code">{selectedArea.code}</span>
+									{selectedArea.building && <span className="zone-detail-code">{selectedArea.building}</span>}
 									<span
 										className="zone-card__pill-level"
 										title="Cấp độ người dùng tối thiểu để vào tự do"
@@ -407,21 +407,6 @@ export default function AreaMapView({
 
 							{/* Actions */}
 							<div className="zone-detail-actions">
-								{isFacilityManager &&
-									[
-										"CONFIDENTIAL_CONTACT_REQUIRED",
-										"HIGHLY_CONFIDENTIAL",
-									].includes(
-										selectedArea.areaLevel || selectedArea.level?.code,
-									) && (
-										<button
-											type="button"
-											className="zone-btn-action"
-											onClick={() => onOpenAssignedPersonnelModal(selectedArea)}
-										>
-											Nhân sự chỉ định
-										</button>
-									)}
 								{isAdmin && (
 									<button
 										type="button"

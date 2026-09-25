@@ -33,7 +33,6 @@ class BoundingBox:
 
     @property
     def bottom_center(self) -> Point:
-        """Tâm đáy của Bounding Box - đại diện vị trí chân đứng trên mặt sàn"""
         return Point((self.x1 + self.x2) / 2.0, self.y2)
 
     def to_int_xyxy(self) -> Tuple[int, int, int, int]:
@@ -55,35 +54,27 @@ class TrackedPerson:
     bbox: BoundingBox
     first_seen_time: float = field(default_factory=time.time)
     last_seen_time: float = field(default_factory=time.time)
-    trajectory: List[Point] = field(default_factory=list)
     
     # Trạng thái trong vùng hạn chế (ROI)
     is_in_roi: bool = False
-    roi_entry_time: Optional[float] = None
-    loiter_duration: float = 0.0
     
     # Thông tin khuôn mặt
     face_detected: bool = False
     face_info: Optional[FaceDetectionResult] = None
     
-    # Cờ trạng thái đã bắn thông báo (tránh spam cảnh báo liên tục)
-    alert_loitering_sent: bool = False
+    # Cờ trạng thái đã bắn thông báo
     alert_unauthorized_sent: bool = False
+    alert_after_hours_sent: bool = False
 
     def update_position(self, new_bbox: BoundingBox, current_time: float):
         self.bbox = new_bbox
         self.last_seen_time = current_time
-        bc = new_bbox.bottom_center
-        self.trajectory.append(bc)
-        # Giữ tối đa 50 điểm lịch sử di chuyển
-        if len(self.trajectory) > 50:
-            self.trajectory.pop(0)
 
 @dataclass
 class SecurityAlertEvent:
     event_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     camera_code: str = "CAM-001"
-    event_type: str = "LOITERING_UNIDENTIFIED_PERSON" # LOITERING_UNIDENTIFIED_PERSON | UNAUTHORIZED_ACCESS | STRANGER_DETECTED
+    event_type: str = "UNAUTHORIZED"
     track_id: int = 0
     duration_seconds: float = 0.0
     confidence: float = 1.0
@@ -110,22 +101,19 @@ class SecurityAlertEvent:
 class RoiPolygonConfig:
     label: str = ""
     alert_rules: List[str] = field(default_factory=lambda: ["ENTRY_EXIT_TRACKING"])
-    vertices: List[Point] = field(default_factory=list) # normalized [0.0..1.0] or pixel points
+    vertices: List[Point] = field(default_factory=list)
     target_area_id: Optional[str] = None
 
     def to_pixel_points(self, width: int, height: int) -> List[Point]:
-        """Chuyển đổi các đỉnh tọa độ chuẩn hóa sang tọa độ pixel thực tế của khung hình (width, height)"""
         if width <= 0 or height <= 0:
             return self.vertices
 
         scaled: List[Point] = []
         for p in self.vertices:
-            # Nếu tọa độ nằm trong khoảng [0.0, 1.0], scale theo width/height của frame
             if 0.0 <= p.x <= 1.0 and 0.0 <= p.y <= 1.0:
                 px = max(0.0, min(float(width), p.x * width))
                 py = max(0.0, min(float(height), p.y * height))
                 scaled.append(Point(px, py))
             else:
-                # Đã là pixel tuyệt đối (ví dụ từ test cũ)
                 scaled.append(Point(p.x, p.y))
         return scaled

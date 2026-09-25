@@ -1,20 +1,27 @@
 import time
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from typing import Dict, List, Optional, Tuple, Any, Union
+from ..config import settings
 from .entity import TrackedPerson, BoundingBox, Point, SecurityAlertEvent, FaceDetectionResult, RoiPolygonConfig
 from ..utils.geometry import is_point_in_polygon, scale_polygon_to_frame
 
-class LoiteringEngine:
+class FrameAnalysisEngine:
     """
-    Engine phân tích hành vi lảng vảng (Loitering) và xâm nhập khu vực hạn chế (Restricted Area ROI).
+    Engine phân tích an ninh.
     Kết hợp giữa Human Track ID và Face Detection:
-    - Nếu có nhận diện khuôn mặt: Kiểm tra quyền hợp lệ.
-    - Nếu KHÔNG phát hiện được khuôn mặt (quay lưng, che mặt...): Vẫn duy trì theo dõi bằng Human Track ID
-      và kích hoạt báo động nếu thời gian lưu trú trong ROI vượt quá ngưỡng quy định.
+    - Kiểm tra xâm nhập ngoài giờ hoạt động (AFTER_HOURS).
     - Hỗ trợ đa polygon ROI và tự động chuẩn hóa/scale pixel theo khung hình.
     """
-    def __init__(self, loitering_threshold_seconds: int = 10, max_inactive_seconds: float = 3.0):
-        self.loitering_threshold_seconds = loitering_threshold_seconds
+    def __init__(
+        self,
+        max_inactive_seconds: float = 3.0,
+        after_hour_start: Optional[str] = None,
+        after_hour_end: Optional[str] = None
+    ):
         self.max_inactive_seconds = max_inactive_seconds
+        self.after_hour_start = after_hour_start or settings.DEFAULT_AFTER_HOUR_START
+        self.after_hour_end = after_hour_end or settings.DEFAULT_AFTER_HOUR_END
         self.active_tracks: Dict[int, TrackedPerson] = {}
 
     def process_frame(
@@ -26,23 +33,31 @@ class LoiteringEngine:
         roi_polygons: Optional[List[Any]] = None,
         frame_size: Optional[Tuple[int, int]] = None
     ) -> Tuple[List[TrackedPerson], List[SecurityAlertEvent]]:
-        """
-        Xử lý trạng thái theo dõi và phát hiện vi phạm cho 1 frame.
-        Trả về danh sách TrackedPerson hiện tại và danh sách các sự kiện cảnh báo mới phát sinh (nếu có).
-        """
         if current_time is None:
             current_time = time.time()
+
+        try:
+            tz = ZoneInfo(settings.TIMEZONE)
+            now = datetime.fromtimestamp(current_time, tz).time()
+        except Exception:
+            from datetime import timezone, timedelta
+            now = datetime.fromtimestamp(current_time, timezone(timedelta(hours=7))).time()
+
+        try:
+            start = datetime.strptime(self.after_hour_start, "%H:%M").time()
+            end = datetime.strptime(self.after_hour_end, "%H:%M").time()
+            after_hours = (start <= now < end) if start < end else (now >= start or now < end)
+        except ValueError:
+            after_hours = False
 
         generated_alerts: List[SecurityAlertEvent] = []
         current_frame_track_ids = set()
 
-        # Chuẩn bị danh sách các đa giác pixel đã được scale theo kích thước frame
         active_pixel_polys: List[Tuple[List[Point], List[str], str]] = []
 
         fw = frame_size[0] if frame_size else 0
         fh = frame_size[1] if frame_size else 0
 
-        # Nếu có danh sách đa polygon
         if roi_polygons:
             for poly in roi_polygons:
                 if isinstance(poly, RoiPolygonConfig):
@@ -56,7 +71,7 @@ class LoiteringEngine:
                     lbl = poly.get("label", "")
                 elif isinstance(poly, (list, tuple)):
                     pts = scale_polygon_to_frame(poly, fw, fh) if (fw > 0 and fh > 0) else poly
-                    rules = ["ENTRY_EXIT_TRACKING", "LOITERING"]
+                    rules = ["ENTRY_EXIT_TRACKING"]
                     lbl = ""
                 else:
                     continue
@@ -64,10 +79,9 @@ class LoiteringEngine:
                 if len(pts) >= 3:
                     active_pixel_polys.append((pts, rules, lbl))
 
-        # Nếu truyền roi_polygon đơn lẻ (tương thích ngược)
         elif roi_polygon and len(roi_polygon) >= 3:
             pts = scale_polygon_to_frame(roi_polygon, fw, fh) if (fw > 0 and fh > 0) else roi_polygon
-            active_pixel_polys.append((pts, ["ENTRY_EXIT_TRACKING", "LOITERING"], "Vùng ROI"))
+            active_pixel_polys.append((pts, ["ENTRY_EXIT_TRACKING"], "Vùng ROI"))
 
         for track_id, bbox in detected_tracks:
             if track_id < 0:
@@ -87,7 +101,6 @@ class LoiteringEngine:
                 person = self.active_tracks[track_id]
                 person.update_position(bbox, current_time)
 
-            # Kiểm tra xem chân người (bottom-center) có nằm trong bất kỳ polygon nào không
             in_roi = False
             matched_rules: List[str] = []
             matched_label = ""
@@ -101,35 +114,32 @@ class LoiteringEngine:
                         if not matched_label:
                             matched_label = lbl
             else:
-                # Nếu không thiết lập ROI nào, mặc định toàn bộ frame là ROI
                 in_roi = True
-                matched_rules = ["ENTRY_EXIT_TRACKING", "LOITERING"]
+                matched_rules = ["ENTRY_EXIT_TRACKING"]
 
             person.is_in_roi = in_roi
 
-            if in_roi:
-                if person.roi_entry_time is None:
-                    person.roi_entry_time = current_time
-                    person.loiter_duration = 0.0
-                else:
-                    person.loiter_duration = current_time - person.roi_entry_time
-            else:
-                person.roi_entry_time = None
-                person.loiter_duration = 0.0
-
-            # QUY TẮC PHÁT HIỆN CẢNH BÁO THEO 3 RULE CHUẨN: ENTRY_EXIT_TRACKING, LOITERING, CROWD_OVERCROWDING
             if person.is_in_roi:
                 loc_info = {"label": matched_label} if matched_label else None
 
-                # 1. Ghi nhận ra vào / Xâm nhập không hợp lệ (ENTRY_EXIT_TRACKING)
+                if after_hours and "AFTER_HOURS" in matched_rules and not person.alert_after_hours_sent:
+                    generated_alerts.append(SecurityAlertEvent(
+                        camera_code=camera_code,
+                        event_type="AFTER_HOURS_PRESENCE",
+                        track_id=person.track_id,
+                        confidence=person.bbox.confidence,
+                        details=f"Phát hiện người trong khu vực {matched_label or 'giám sát'} ngoài giờ hoạt động.",
+                        location=loc_info
+                    ))
+                    person.alert_after_hours_sent = True
+
                 if "ENTRY_EXIT_TRACKING" in matched_rules:
                     if person.face_detected and person.face_info and not person.face_info.is_authorized:
                         if not person.alert_unauthorized_sent:
                             alert = SecurityAlertEvent(
                                 camera_code=camera_code,
-                                event_type="UNAUTHORIZED_ACCESS",
+                                event_type="UNAUTHORIZED",
                                 track_id=person.track_id,
-                                duration_seconds=person.loiter_duration,
                                 confidence=person.bbox.confidence,
                                 details=f"Phát hiện đối tượng không được phép {person.face_info.matched_name or 'Chưa rõ'} tại vùng {matched_label or 'giám sát'}.",
                                 location=loc_info
@@ -137,24 +147,6 @@ class LoiteringEngine:
                             generated_alerts.append(alert)
                             person.alert_unauthorized_sent = True
 
-                # 2. Phát hiện lảng vảng (LOITERING)
-                if "LOITERING" in matched_rules:
-                    if not person.face_detected or (person.face_info and not person.face_info.is_authorized):
-                        if person.loiter_duration >= self.loitering_threshold_seconds:
-                            if not person.alert_loitering_sent:
-                                alert = SecurityAlertEvent(
-                                    camera_code=camera_code,
-                                    event_type="LOITERING_UNIDENTIFIED_PERSON",
-                                    track_id=person.track_id,
-                                    duration_seconds=person.loiter_duration,
-                                    confidence=person.bbox.confidence,
-                                    details=f"Phát hiện người không rõ danh tính lảng vảng trong khu vực {matched_label or 'hạn chế'} suốt {int(person.loiter_duration)} giây mà không xác định được khuôn mặt.",
-                                    location=loc_info
-                                )
-                                generated_alerts.append(alert)
-                                person.alert_loitering_sent = True
-
-        # Dọn dẹp các track đã biến mất khỏi khung hình quá max_inactive_seconds
         inactive_ids = []
         for tid, p in self.active_tracks.items():
             if tid not in current_frame_track_ids:
@@ -167,7 +159,6 @@ class LoiteringEngine:
         return list(self.active_tracks.values()), generated_alerts
 
     def associate_face(self, track_id: int, face_result: FaceDetectionResult):
-        """Gán thông tin nhận diện khuôn mặt vào TrackedPerson tương ứng"""
         if track_id in self.active_tracks and face_result is not None:
             self.active_tracks[track_id].face_detected = True
             self.active_tracks[track_id].face_info = face_result

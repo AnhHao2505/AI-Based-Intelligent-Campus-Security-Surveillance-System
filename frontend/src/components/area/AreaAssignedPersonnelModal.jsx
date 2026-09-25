@@ -295,7 +295,7 @@ export default function AreaAssignedPersonnelModal({
 				isOpen={isOpen}
 				onClose={onClose}
 				title="Nhân viên chỉ định"
-				subtitle={`Quản lý danh sách người được đặc cách ra vào: ${area.name} (${area.code})`}
+				subtitle={`Quản lý danh sách người được đặc cách ra vào: ${area.name}`}
 				icon={Users}
 				iconVariant="brand"
 				size="xl"

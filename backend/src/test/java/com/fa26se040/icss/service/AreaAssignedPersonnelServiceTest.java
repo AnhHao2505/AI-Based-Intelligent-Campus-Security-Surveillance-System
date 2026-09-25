@@ -93,7 +93,6 @@ class AreaAssignedPersonnelServiceTest {
 
         lab = Area.builder()
                 .id(UUID.randomUUID())
-                .code("LAB-01")
                 .name("Phòng Lab 01")
                 .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
                 .isActive(true)
@@ -534,7 +533,6 @@ class AreaAssignedPersonnelServiceTest {
     void create_PublicArea_ThrowsException() {
         Area publicArea = Area.builder()
                 .id(UUID.randomUUID())
-                .code("PUB-01")
                 .name("Sảnh công cộng")
                 .areaLevel(AreaLevel.PUBLIC)
                 .isActive(true)
@@ -558,7 +556,6 @@ class AreaAssignedPersonnelServiceTest {
     void create_InternalConfidentialArea_Success() {
         Area internalArea = Area.builder()
                 .id(UUID.randomUUID())
-                .code("INTERNAL-01")
                 .name("Phòng ban nội bộ")
                 .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
                 .isActive(true)
@@ -582,7 +579,6 @@ class AreaAssignedPersonnelServiceTest {
     void create_ConfidentialContactRequiredArea_Success() {
         Area contactArea = Area.builder()
                 .id(UUID.randomUUID())
-                .code("CONTACT-01")
                 .name("Phòng cần xác nhận")
                 .areaLevel(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
                 .isActive(true)

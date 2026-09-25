@@ -15,7 +15,6 @@ import java.util.UUID;
 @Builder
 public class AreaCameraResponse {
     private UUID areaId;
-    private String areaCode;
     private String areaName;
     private List<CameraSimpleResponse> cameras;
 }

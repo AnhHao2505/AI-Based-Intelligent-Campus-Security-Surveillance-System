@@ -123,7 +123,6 @@ class AccessRequestServiceTest {
 
         semiPrivateArea = Area.builder()
                 .id(UUID.randomUUID())
-                .code("LAB-01")
                 .name("Phòng Thí Nghiệm AI")
                 .areaLevel(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
                 .building("Tòa Alpha")
@@ -133,7 +132,6 @@ class AccessRequestServiceTest {
 
         privateArea = Area.builder()
                 .id(UUID.randomUUID())
-                .code("SERVER-01")
                 .name("Phòng Server Trung Tâm")
                 .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
                 .building("Tòa Beta")
@@ -143,7 +141,6 @@ class AccessRequestServiceTest {
 
         publicArea = Area.builder()
                 .id(UUID.randomUUID())
-                .code("HALL-A")
                 .name("Sảnh Chính A")
                 .areaLevel(AreaLevel.PUBLIC)
                 .isActive(true)
@@ -296,7 +293,6 @@ class AccessRequestServiceTest {
     void createIndividualRequest_InternalConfidentialArea_Success() {
         Area internalArea = Area.builder()
                 .id(UUID.randomUUID())
-                .code("INTERNAL-01")
                 .name("Khu vực nội bộ")
                 .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
                 .building("Tòa A")

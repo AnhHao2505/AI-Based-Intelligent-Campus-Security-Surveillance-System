@@ -13,8 +13,7 @@ import {
 
 export const RULE_LABEL_MAP = {
 	ENTRY_EXIT_TRACKING: "Ghi nhận Ra/Vào",
-	LOITERING: "Lảng vảng",
-	CROWD_OVERCROWDING: "Đám đông",
+	AFTER_HOURS: "Có người ngoài giờ",
 };
 
 export function formatRuleBadge(rule) {

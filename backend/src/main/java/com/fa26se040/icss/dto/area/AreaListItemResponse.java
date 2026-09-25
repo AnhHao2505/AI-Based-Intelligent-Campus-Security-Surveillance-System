@@ -5,7 +5,6 @@ import java.util.UUID;
 
 public record AreaListItemResponse(
     UUID id,
-    String code,
     String name,
     AreaLevel areaLevel,
     Integer areaAccessLevel,
@@ -19,7 +18,6 @@ public record AreaListItemResponse(
 ) {
     public AreaListItemResponse(
         UUID id,
-        String code,
         String name,
         AreaLevel areaLevel,
         Integer areaAccessLevel,
@@ -30,6 +28,6 @@ public record AreaListItemResponse(
         AreaGeometry geometry,
         Boolean hasGeometry
     ) {
-        this(id, code, name, areaLevel, areaAccessLevel, explicitAuthorizationRequired, building, floor, isActive, geometry, hasGeometry, false);
+        this(id, name, areaLevel, areaAccessLevel, explicitAuthorizationRequired, building, floor, isActive, geometry, hasGeometry, false);
     }
 }

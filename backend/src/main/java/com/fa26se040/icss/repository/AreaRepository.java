@@ -16,8 +16,6 @@ import java.util.UUID;
 @Repository
 public interface AreaRepository extends JpaRepository<Area, UUID> {
 
-    boolean existsByCodeAndDeletedAtIsNull(String code);
-
     boolean existsByIdAndDeletedAtIsNull(UUID id);
 
     Optional<Area> findByIdAndDeletedAtIsNull(UUID id);
@@ -36,7 +34,6 @@ public interface AreaRepository extends JpaRepository<Area, UUID> {
               AND (:areaLevel IS NULL OR a.areaLevel = :areaLevel)
               AND (CAST(:building AS string) IS NULL OR LOWER(a.building) = LOWER(CAST(:building AS string)))
               AND (CAST(:keyword AS string) IS NULL OR (
-                    LOWER(a.code) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%')) OR
                     LOWER(a.name) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%'))
                   ))
             """,
@@ -48,7 +45,6 @@ public interface AreaRepository extends JpaRepository<Area, UUID> {
               AND (:areaLevel IS NULL OR a.areaLevel = :areaLevel)
               AND (CAST(:building AS string) IS NULL OR LOWER(a.building) = LOWER(CAST(:building AS string)))
               AND (CAST(:keyword AS string) IS NULL OR (
-                    LOWER(a.code) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%')) OR
                     LOWER(a.name) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%'))
                   ))
             """

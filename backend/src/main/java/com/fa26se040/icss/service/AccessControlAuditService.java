@@ -116,7 +116,7 @@ public class AccessControlAuditService {
                 l.getTargetId(),
                 a != null ? a.getId() : null,
                 a != null ? a.getName() : null,
-                a != null ? a.getCode() : null,
+                null,
                 su != null ? su.getId() : null,
                 su != null ? su.getFullName() : null,
                 su != null ? su.getUserCode() : null,

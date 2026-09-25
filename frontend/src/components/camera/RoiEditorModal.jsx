@@ -19,8 +19,7 @@ const MIN_VERTICES = 3;
 
 export const AVAILABLE_ALERT_RULES = [
   { id: "ENTRY_EXIT_TRACKING", label: "Ra / Vào (Entry / Exit Logging)" },
-  { id: "LOITERING", label: "Lảng vảng (Loitering)" },
-  { id: "CROWD_OVERCROWDING", label: "Tụ tập Đám đông (Overcrowd)" },
+  { id: "AFTER_HOURS", label: "Có người ngoài giờ (After-hour)" },
 ];
 
 const ALLOWED_RULE_IDS = new Set(AVAILABLE_ALERT_RULES.map((r) => r.id));

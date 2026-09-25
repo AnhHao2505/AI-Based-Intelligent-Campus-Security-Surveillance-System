@@ -48,9 +48,6 @@ public class Area {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "code", nullable = false, length = 50)
-    private String code;
-
     @Column(name = "name", nullable = false, length = 150)
     private String name;
 
@@ -76,9 +73,6 @@ public class Area {
 
     @Column(name = "floor", length = 20)
     private String floor;
-
-    @Column(name = "description", columnDefinition = "TEXT")
-    private String description;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "geometry", columnDefinition = "jsonb")

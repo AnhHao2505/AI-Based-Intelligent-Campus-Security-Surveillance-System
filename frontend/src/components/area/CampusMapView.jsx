@@ -50,15 +50,26 @@ const OSM_STYLE = {
 	],
 };
 
-// Preset GPS marker locations for campus zones
+// Preset GPS marker locations for campus zones and landmarks
+const LANDMARK_LOCATIONS = [
+	{ matches: ["cổng", "gate"], coords: [106.80922, 10.84175] },
+	{ matches: ["hồ sen", "lotus", "hồ"], coords: [106.80973, 10.84105] },
+	{ matches: ["thư viện", "library", "lib"], coords: [106.81008, 10.84148] },
+	{ matches: ["y tế", "med", "medical"], coords: [106.80952, 10.84165] },
+	{ matches: ["thể thao", "sân bóng", "sport", "gym", "khu_the_thao"], coords: [106.81145, 10.8417] },
+	{ matches: ["alpha", "toa_alpha"], coords: [106.81015, 10.84165] },
+	{ matches: ["beta", "toa_beta"], coords: [106.81065, 10.8410] },
+	{ matches: ["căn tin", "nhà ăn", "canteen"], coords: [106.81090, 10.84130] },
+	{ matches: ["bãi xe", "nhà xe", "parking"], coords: [106.80880, 10.84180] },
+	{ matches: ["lb01"], coords: [106.81030, 10.84180] },
+	{ matches: ["lb02"], coords: [106.81045, 10.84185] },
+	{ matches: ["server", "máy chủ"], coords: [106.81025, 10.84155] },
+];
+
 const DEFAULT_CAMPUS_MARKERS = {
-	"FPTA-G-GATE": [106.80922, 10.84175],
-	"FPTA-G-LOTUS": [106.80973, 10.84105],
 	KHU_THE_THAO: [106.81145, 10.8417],
 	TOA_ALPHA: [106.81015, 10.84165],
 	TOA_BETA: [106.81065, 10.8410],
-	"FPTA-G-LIB": [106.81008, 10.84148],
-	"FPTA-G-MED": [106.80952, 10.84165],
 };
 
 // Calculate approximate centroid of polygon coordinates
@@ -78,7 +89,7 @@ function computePolygonCentroid(coords) {
 	return [sumLng / count, sumLat / count];
 }
 
-function getAreaMarkerCoords(area) {
+function getAreaBaseCoords(area) {
 	if (
 		area.geometry &&
 		Array.isArray(area.geometry.coordinates) &&
@@ -95,12 +106,28 @@ function getAreaMarkerCoords(area) {
 		const ring = area.geometry.vertices.map((v) => [v.x, v.y]);
 		return computePolygonCentroid(ring);
 	}
-	if (DEFAULT_CAMPUS_MARKERS[area.code]) {
-		return DEFAULT_CAMPUS_MARKERS[area.code];
+
+	const nameLower = (area.name || "").toLowerCase().trim();
+	const buildingLower = (area.building || "").toLowerCase().trim();
+
+	// 1. Khớp địa danh theo tên khu vực
+	for (const lm of LANDMARK_LOCATIONS) {
+		if (lm.matches.some((m) => nameLower.includes(m))) {
+			return lm.coords;
+		}
 	}
-	if (DEFAULT_CAMPUS_MARKERS[area.building]) {
+
+	// 2. Khớp địa danh theo toà nhà
+	for (const lm of LANDMARK_LOCATIONS) {
+		if (lm.matches.some((m) => buildingLower.includes(m))) {
+			return lm.coords;
+		}
+	}
+
+	if (area.building && DEFAULT_CAMPUS_MARKERS[area.building]) {
 		return DEFAULT_CAMPUS_MARKERS[area.building];
 	}
+
 	return [CAMPUS_CENTER.longitude, CAMPUS_CENTER.latitude];
 }
 
@@ -118,19 +145,53 @@ export default function CampusMapView({
 		return areas.find((a) => a.id === selectedAreaId) || null;
 	}, [areas, selectedAreaId]);
 
-	// Marker list for all areas
+	// Marker list for all areas, with de-overlapping (radial spread) for coincident coordinates
 	const areaMarkers = useMemo(() => {
-		return areas.map((area) => {
+		const rawMarkers = areas.map((area) => {
 			const levelConfig = getLevelConfig(area.areaLevel || area.level);
-			const coords = getAreaMarkerCoords(area);
+			const baseCoords = getAreaBaseCoords(area);
 			return {
 				id: area.id,
 				name: area.name,
-				code: area.code,
+				building: area.building,
 				color: levelConfig.color || "#3b82f6",
-				coords: coords,
+				baseCoords,
 			};
 		});
+
+		// Nhóm các marker có toạ độ trùng hoặc gần trùng nhau (~1-2m)
+		const groups = {};
+		rawMarkers.forEach((m) => {
+			const key = `${m.baseCoords[0].toFixed(5)},${m.baseCoords[1].toFixed(5)}`;
+			if (!groups[key]) groups[key] = [];
+			groups[key].push(m);
+		});
+
+		// Tự động phân tán các marker cùng toạ độ theo vòng tròn (spiderfier) để không bị overlay đè lên nhau
+		const SPREAD_RADIUS = 0.00018; // ~18-20 mét, cách nhau rõ ràng trên bản đồ
+		const result = [];
+
+		Object.values(groups).forEach((group) => {
+			if (group.length === 1) {
+				result.push({
+					...group[0],
+					coords: group[0].baseCoords,
+				});
+			} else {
+				const n = group.length;
+				group.forEach((m, idx) => {
+					const angle = (2 * Math.PI * idx) / n;
+					const lngOffset = SPREAD_RADIUS * Math.cos(angle);
+					const latOffset = SPREAD_RADIUS * Math.sin(angle) * 0.85;
+					result.push({
+						...m,
+						coords: [m.baseCoords[0] + lngOffset, m.baseCoords[1] + latOffset],
+					});
+				});
+			}
+		});
+
+		return result;
 	}, [areas]);
 
 	// Jump to campus center
@@ -336,7 +397,7 @@ export default function CampusMapView({
 						<div className="campus-detail-content">
 							<div className="campus-detail-header">
 								<h3 className="campus-detail-title">{selectedArea.name}</h3>
-								<span className="zone-detail-code">{selectedArea.code}</span>
+								{selectedArea.building && <span className="zone-detail-code">{selectedArea.building}</span>}
 							</div>
 
 							<div className="campus-detail-meta">

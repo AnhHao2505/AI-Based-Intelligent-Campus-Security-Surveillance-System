@@ -112,7 +112,7 @@ function App() {
 								path="/admin/map"
 								element={
 									<ProtectedRoute
-										allowedRoles={[ROLES.ADMIN, ROLES.FACILITY_MANAGER]}
+										allowedRoles={[ROLES.ADMIN]}
 									>
 										<CampusMapPage />
 									</ProtectedRoute>

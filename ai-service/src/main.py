@@ -18,7 +18,7 @@ storage_service = StorageService()
 app = FastAPI(
     title=settings.APP_NAME,
     version="1.0.0",
-    description="Microservice xử lý AI: Human Detection, Tracking (ByteTrack), Face Detection & Loitering Analysis"
+    description="Microservice xử lý AI: Human Detection, Tracking (ByteTrack), Face Detection & Violation Analysis"
 )
 
 # Cho phép CORS cho frontend và các service khác
@@ -39,7 +39,6 @@ async def startup_event():
     try:
         default_pipeline = VideoPipeline(
             camera_code="CAM-001",
-            loitering_threshold_seconds=settings.DEFAULT_LOITERING_THRESHOLD_SECONDS,
             conf_threshold=settings.DEFAULT_DETECTION_CONFIDENCE
         )
     except Exception as e:
@@ -59,7 +58,7 @@ async def health_check():
     return {
         "status": "UP",
         "models": {
-            "yolo_model": os.path.exists(settings.MODEL_YOLO_PATH) or True, # Ultralytics tải tự động
+            "yolo_model": os.path.exists(settings.MODEL_YOLO_PATH) or True,
             "yunet_model": os.path.exists(settings.MODEL_YUNET_PATH)
         },
         "kafka_connected": default_pipeline.kafka_producer.is_connected if default_pipeline else False,
@@ -68,11 +67,32 @@ async def health_check():
 
 class ROIConfigRequest(BaseModel):
     camera_code: str
-    loitering_threshold_seconds: int = 10
-    roi_polygon: Optional[List[Dict[str, float]]] = None # Legacy: [{"x": 100, "y": 200}, ...]
-    polygons: Optional[List[Dict[str, Any]]] = None # Normalized multi-polygons
+    roi_polygon: Optional[List[Dict[str, float]]] = None
+    polygons: Optional[List[Dict[str, Any]]] = None
     reference_width: Optional[int] = 1920
     reference_height: Optional[int] = 1080
+    after_hour_start: Optional[str] = None
+    after_hour_end: Optional[str] = None
+
+class AfterHourConfigRequest(BaseModel):
+    start: str
+    end: str
+
+@app.post("/api/v1/system-config/after-hour")
+async def update_after_hour_config(req: AfterHourConfigRequest):
+    import datetime
+    try:
+        datetime.time.fromisoformat(req.start)
+        datetime.time.fromisoformat(req.end)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="after-hour times must use HH:mm")
+    if default_pipeline:
+        default_pipeline.analysis_engine.after_hour_start = req.start
+        default_pipeline.analysis_engine.after_hour_end = req.end
+    for worker in active_workers.values():
+        worker.pipeline.analysis_engine.after_hour_start = req.start
+        worker.pipeline.analysis_engine.after_hour_end = req.end
+    return {"success": True, "start": req.start, "end": req.end}
 
 @app.post("/api/v1/cameras/configure")
 async def configure_camera(req: ROIConfigRequest):
@@ -86,32 +106,32 @@ async def configure_camera(req: ROIConfigRequest):
     elif req.roi_polygon:
         polygons_to_set = [{
             "label": "Vùng ROI",
-            "alert_rules": ["ENTRY_EXIT_TRACKING", "LOITERING"],
+            "alert_rules": ["ENTRY_EXIT_TRACKING"],
             "vertices": req.roi_polygon
         }]
 
-    # Cập nhật pipeline mặc định
+    ah_start = req.after_hour_start or settings.DEFAULT_AFTER_HOUR_START
+    ah_end = req.after_hour_end or settings.DEFAULT_AFTER_HOUR_END
+
     default_pipeline.camera_code = req.camera_code
-    default_pipeline.loitering_threshold_seconds = req.loitering_threshold_seconds
+    default_pipeline.analysis_engine.after_hour_start = ah_start
+    default_pipeline.analysis_engine.after_hour_end = ah_end
     default_pipeline.set_roi_config(polygons_to_set)
 
-    # Cập nhật real-time cho Stream Worker đang chạy của camera này nếu có
     worker_updated = False
     if req.camera_code in active_workers:
-        active_workers[req.camera_code].update_roi(polygons_to_set, req.loitering_threshold_seconds)
+        active_workers[req.camera_code].update_roi(polygons_to_set, ah_start, ah_end)
         worker_updated = True
 
     return {
         "success": True,
         "camera_code": req.camera_code,
-        "loitering_threshold_seconds": req.loitering_threshold_seconds,
         "polygons_count": len(polygons_to_set),
         "worker_updated": worker_updated
     }
 
 @app.post("/api/v1/analyze-frame")
 async def analyze_frame(file: UploadFile = File(...)):
-    """API phân tích 1 frame ảnh độc lập"""
     global default_pipeline
     if not default_pipeline:
         raise HTTPException(status_code=500, detail="Pipeline chưa sẵn sàng.")
@@ -132,10 +152,8 @@ async def analyze_frame(file: UploadFile = File(...)):
                 "track_id": p.track_id,
                 "bbox": p.bbox.to_int_xyxy(),
                 "is_in_roi": p.is_in_roi,
-                "loiter_duration_seconds": round(p.loiter_duration, 2),
                 "face_detected": p.face_detected,
                 "face_score": p.face_info.score if p.face_info else None,
-                "alert_loitering_sent": p.alert_loitering_sent,
                 "alert_unauthorized_sent": p.alert_unauthorized_sent
             }
             for p in active_persons
@@ -154,10 +172,6 @@ async def process_face_registration(
     full_name: Optional[str] = Form(None),
     front_image: UploadFile = File(...)
 ):
-    """
-    API nhận diện & trích xuất Vector Embedding 512 chiều từ ảnh khuôn mặt
-    và đếm số lượng khuôn mặt phát hiện được.
-    """
     global default_pipeline
     if not default_pipeline:
         raise HTTPException(status_code=500, detail="AI Service chưa sẵn sàng.")
@@ -173,15 +187,12 @@ async def process_face_registration(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Không thể đọc file ảnh chính diện: {str(e)}")
 
-    # Phát hiện khuôn mặt
     faces = default_pipeline.face_detector.detect_in_image(img)
     face_count = len(faces)
 
     if not faces:
-        # Nếu không tìm thấy mặt với ngưỡng cao, thử trích xuất trực tiếp trên toàn bộ ảnh chân dung
         face_crop = img
     else:
-        # Cắt lấy vùng khuôn mặt có score cao nhất
         faces.sort(key=lambda f: f.score, reverse=True)
         fx1, fy1, fx2, fy2 = faces[0].bbox.to_int_xyxy()
         ih, iw, _ = img.shape
@@ -189,7 +200,6 @@ async def process_face_registration(
         fx2, fy2 = min(iw, fx2), min(ih, fy2)
         face_crop = img[fy1:fy2, fx1:fx2] if (fx2 > fx1 and fy2 > fy1) else img
 
-    # Trích xuất vector 512 chiều
     vector_512 = face_embedder.extract_embedding(face_crop)
 
     return {
@@ -200,33 +210,41 @@ async def process_face_registration(
         "embedding_front": vector_512
     }
 
-# Quản lý các Stream Worker đang chạy
 from .pipeline.stream_worker import CameraStreamWorker
 active_workers: Dict[str, CameraStreamWorker] = {}
 
 class StreamStartRequest(BaseModel):
-    camera_code: str = "CAM-001"
-    rtsp_url: str = "rtsp://localhost:8554/cam01"
+    camera_code: str
+    rtsp_url: str
     roi_geometry: Optional[Dict[str, Any]] = None
 
 @app.post("/api/v1/stream/start")
 async def start_camera_stream(req: StreamStartRequest):
-    """Bắt đầu worker đọc luồng RTSP từ MediaMTX và phân tích AI liên tục"""
-    if req.camera_code in active_workers and active_workers[req.camera_code].is_running:
-        return {"status": "ALREADY_RUNNING", "camera_code": req.camera_code}
+    if not req.camera_code or not req.camera_code.strip():
+        raise HTTPException(status_code=400, detail="Mã camera (camera_code) là bắt buộc.")
+    if not req.rtsp_url or not req.rtsp_url.strip():
+        raise HTTPException(status_code=400, detail="RTSP URL (rtsp_url) là bắt buộc.")
 
-    worker = CameraStreamWorker(
-        camera_code=req.camera_code,
-        rtsp_url=req.rtsp_url,
-        roi_geometry=req.roi_geometry
-    )
-    worker.start()
-    active_workers[req.camera_code] = worker
-    return {"status": "STARTED", "camera_code": req.camera_code, "rtsp_url": req.rtsp_url}
+    camera_code = req.camera_code.strip()
+    rtsp_url = req.rtsp_url.strip()
+
+    if camera_code in active_workers and active_workers[camera_code].is_running:
+        return {"status": "ALREADY_RUNNING", "camera_code": camera_code}
+
+    try:
+        worker = CameraStreamWorker(
+            camera_code=camera_code,
+            rtsp_url=rtsp_url,
+            roi_geometry=req.roi_geometry
+        )
+        worker.start()
+        active_workers[camera_code] = worker
+        return {"status": "STARTED", "camera_code": camera_code, "rtsp_url": rtsp_url}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Không thể khởi động worker camera: {e}")
 
 @app.post("/api/v1/stream/stop")
 async def stop_camera_stream(camera_code: str = Query(..., description="Mã camera cần dừng, ví dụ: CAM-001")):
-    """Dừng worker phân tích AI luồng camera"""
     if camera_code not in active_workers:
         raise HTTPException(status_code=404, detail="Camera worker không tồn tại.")
     
@@ -236,23 +254,17 @@ async def stop_camera_stream(camera_code: str = Query(..., description="Mã came
 
 @app.get("/api/v1/stream/status")
 async def get_stream_status(camera_code: str = Query(..., description="Mã camera cần xem trạng thái, ví dụ: CAM-001")):
-    """Xem trạng thái FPS và đối tượng đang track trên luồng"""
     if camera_code not in active_workers:
         return {"status": "STOPPED", "camera_code": camera_code, "is_running": False}
     
     return active_workers[camera_code].get_status()
 
-
 class SnapshotRequest(BaseModel):
     rtsp_url: str
     timeout_ms: int = 5000
 
-
 @app.post("/api/v1/cameras/snapshot")
 async def capture_rtsp_snapshot(req: SnapshotRequest):
-    """
-    Kết nối RTSP stream, trích xuất 1 frame JPEG, trả về base64.
-    """
     start_time = time.time()
     
     os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp"
@@ -288,6 +300,3 @@ async def capture_rtsp_snapshot(req: SnapshotRequest):
         raise HTTPException(status_code=502, detail=f"Lỗi trích xuất snapshot: {str(e)}")
     finally:
         cap.release()
-
-
-

@@ -6,14 +6,12 @@ import java.util.UUID;
 
 public record AreaResponse(
     UUID id,
-    String code,
     String name,
     AreaLevel areaLevel,
     Integer areaAccessLevel,
     Boolean explicitAuthorizationRequired,
     String building,
     String floor,
-    String description,
     AreaGeometry geometry,
     Boolean isActive,
     OffsetDateTime createdAt,
@@ -22,35 +20,31 @@ public record AreaResponse(
 ) {
     public AreaResponse(
         UUID id,
-        String code,
         String name,
         AreaLevel areaLevel,
         Integer areaAccessLevel,
         Boolean explicitAuthorizationRequired,
         String building,
         String floor,
-        String description,
         AreaGeometry geometry,
         Boolean isActive,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt
     ) {
-        this(id, code, name, areaLevel, areaAccessLevel, explicitAuthorizationRequired, building, floor, description, geometry, isActive, createdAt, updatedAt, false);
+        this(id, name, areaLevel, areaAccessLevel, explicitAuthorizationRequired, building, floor, geometry, isActive, createdAt, updatedAt, false);
     }
 
     public AreaResponse(
         UUID id,
-        String code,
         String name,
         AreaLevel areaLevel,
         String building,
         String floor,
-        String description,
         AreaGeometry geometry,
         Boolean isActive,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt
     ) {
-        this(id, code, name, areaLevel, null, null, building, floor, description, geometry, isActive, createdAt, updatedAt, false);
+        this(id, name, areaLevel, null, null, building, floor, geometry, isActive, createdAt, updatedAt, false);
     }
 }
