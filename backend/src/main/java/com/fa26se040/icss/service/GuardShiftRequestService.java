@@ -493,13 +493,13 @@ public class GuardShiftRequestService {
 
             // 1. Transfer shift Sa to substitute B
             shift.setGuard(substitute);
-            shift.setNotes(buildNotes(shift.getNotes(), "Đổi ca: Chuyển từ " + request.getRequester().getFullName() + " sang " + substitute.getFullName() + " theo đơn #" + request.getId()));
+            shift.setNotes(buildNotes(shift.getNotes(), "Đổi ca: Chuyển từ " + request.getRequester().getFullName() + " sang " + substitute.getFullName()));
             shiftRepository.save(shift);
 
             // 2. Transfer target shift Sb to requester A (2-way mutual swap)
             if (target != null) {
                 target.setGuard(request.getRequester());
-                target.setNotes(buildNotes(target.getNotes(), "Đổi ca: Chuyển từ " + substitute.getFullName() + " sang " + request.getRequester().getFullName() + " theo đơn #" + request.getId()));
+                target.setNotes(buildNotes(target.getNotes(), "Đổi ca: Chuyển từ " + substitute.getFullName() + " sang " + request.getRequester().getFullName()));
                 shiftRepository.save(target);
 
                 notifyUser(request.getRequester(), "Đổi ca trực thành công",
