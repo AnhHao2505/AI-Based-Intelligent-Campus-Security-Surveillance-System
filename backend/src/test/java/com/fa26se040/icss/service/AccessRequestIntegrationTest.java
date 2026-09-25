@@ -25,6 +25,7 @@ import java.util.UUID;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -274,9 +275,11 @@ class AccessRequestIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements", is(2)))
                 .andExpect(jsonPath("$.content[0].id", is(reqGroup.getId().toString())))
+                .andExpect(jsonPath("$.content[0].isRequester", is(false)))
                 .andExpect(jsonPath("$.content[0].requestType", is("GROUP")))
                 .andExpect(jsonPath("$.content[0].areaId", is(area1.getId().toString())))
                 .andExpect(jsonPath("$.content[1].id", is(reqBIndividual.getId().toString())))
+                .andExpect(jsonPath("$.content[1].isRequester", is(true)))
                 .andExpect(jsonPath("$.content[1].requestType", is("INDIVIDUAL")))
                 .andExpect(jsonPath("$.content[1].areaId", is(area2.getId().toString())));
 
@@ -288,6 +291,7 @@ class AccessRequestIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements", is(1)))
                 .andExpect(jsonPath("$.content[0].id", is(reqGroup.getId().toString())))
+                .andExpect(jsonPath("$.content[0].isRequester", is(false)))
                 .andExpect(jsonPath("$.content[0].areaId", is(area1.getId().toString())))
                 .andExpect(jsonPath("$.content[0].requestType", is("GROUP")));
 
@@ -298,6 +302,12 @@ class AccessRequestIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements", is(1)))
                 .andExpect(jsonPath("$.content[0].id", is(reqBIndividual.getId().toString())))
+                .andExpect(jsonPath("$.content[0].isRequester", is(true)))
                 .andExpect(jsonPath("$.content[0].areaId", is(area2.getId().toString())));
+
+        // D. User B (thành viên) gọi API huỷ đơn nhóm của User A -> Bị từ chối quyền (403 Forbidden)
+        mockMvc.perform(patch("/api/access-requests/" + reqGroup.getId() + "/cancel")
+                        .header("Authorization", studentBToken))
+                .andExpect(status().isForbidden());
     }
 }

@@ -260,7 +260,10 @@ public class AccessRequestService {
         }
         Specification<AccessRequest> spec = AccessRequestSpecification.filter(requester.getId(), status, areaId);
         Page<AccessRequest> page = accessRequestRepository.findAll(spec, effectivePageable);
-        return page.map(this::mapToResponse);
+        return page.map(ar -> {
+            boolean isReq = ar.getRequester() != null && requester.getId().equals(ar.getRequester().getId());
+            return mapToResponse(ar, isReq);
+        });
     }
 
     @Transactional(readOnly = true)
@@ -664,6 +667,10 @@ public class AccessRequestService {
     }
 
     private AccessRequestResponse mapToResponse(AccessRequest ar) {
+        return mapToResponse(ar, null);
+    }
+
+    private AccessRequestResponse mapToResponse(AccessRequest ar, Boolean isRequester) {
         List<MemberInfo> memberInfos = List.of();
         if (ar.getMembers() != null && !ar.getMembers().isEmpty()) {
             memberInfos = ar.getMembers().stream()
@@ -698,7 +705,8 @@ public class AccessRequestService {
                 ar.getRejectionReason(),
                 memberInfos,
                 ar.getCreatedAt(),
-                ar.getUpdatedAt()
+                ar.getUpdatedAt(),
+                isRequester
         );
     }
 }

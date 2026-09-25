@@ -1010,6 +1010,42 @@ export default function AccessRequestPage() {
 													>
 														{req.requestType === "GROUP" ? "Nhóm" : "Cá nhân"}
 													</span>
+													{req.isRequester === false && (
+														<div
+															style={{
+																marginTop: "4px",
+																fontSize: "11px",
+																display: "flex",
+																alignItems: "center",
+																flexWrap: "wrap",
+																gap: "4px",
+															}}
+														>
+															<span
+																style={{
+																	display: "inline-block",
+																	padding: "1px 6px",
+																	borderRadius: "4px",
+																	background: "rgba(59, 130, 246, 0.12)",
+																	border: "1px solid rgba(59, 130, 246, 0.25)",
+																	color: "var(--brand-blue, #3b82f6)",
+																	fontWeight: 600,
+																}}
+															>
+																Thành viên nhóm
+															</span>
+															{req.requesterName && (
+																<span
+																	style={{
+																		color: "var(--theme-text-muted, #94a3b8)",
+																	}}
+																	title={`Người tạo đơn: ${req.requesterName}`}
+																>
+																	({req.requesterName})
+																</span>
+															)}
+														</div>
+													)}
 												</td>
 												<td>
 													<div style={{ fontSize: "13px" }}>
@@ -1076,7 +1112,7 @@ export default function AccessRequestPage() {
 															gap: "8px",
 														}}
 													>
-														{req.status === "PENDING" && (
+														{req.status === "PENDING" && req.isRequester !== false && (
 															<button
 																type="button"
 																className="arp-btn arp-btn--danger-ghost arp-btn--sm"
@@ -1354,7 +1390,29 @@ export default function AccessRequestPage() {
 										{selectedDetail.requestType === "GROUP"
 											? "Tập thể / Nhóm"
 											: "Cá nhân"}
+										{selectedDetail.isRequester === false && (
+											<span
+												style={{
+													marginLeft: "8px",
+													display: "inline-block",
+													padding: "1px 6px",
+													borderRadius: "4px",
+													background: "rgba(59, 130, 246, 0.12)",
+													border: "1px solid rgba(59, 130, 246, 0.25)",
+													color: "var(--brand-blue, #3b82f6)",
+													fontSize: "11px",
+													fontWeight: 600,
+												}}
+											>
+												Thành viên nhóm
+											</span>
+										)}
 									</span>
+									{selectedDetail.isRequester === false && selectedDetail.requesterName && (
+										<span style={{ fontSize: "11px", color: "var(--theme-text-muted)" }}>
+											Người tạo đơn: {selectedDetail.requesterName} ({selectedDetail.requesterCode || selectedDetail.requesterEmail})
+										</span>
+									)}
 								</div>
 
 								<div className="arp-detail-item">
