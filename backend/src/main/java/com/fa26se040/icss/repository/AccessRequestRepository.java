@@ -6,6 +6,7 @@ import com.fa26se040.icss.enums.RequestStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -18,7 +19,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public interface AccessRequestRepository extends JpaRepository<AccessRequest, UUID> {
+public interface AccessRequestRepository extends JpaRepository<AccessRequest, UUID>, JpaSpecificationExecutor<AccessRequest> {
 
     @Query("SELECT ar FROM AccessRequest ar " +
            "JOIN FETCH ar.area " +
@@ -30,26 +31,40 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, UU
     @Query(value = "SELECT ar FROM AccessRequest ar " +
                    "JOIN FETCH ar.area " +
                    "WHERE ar.requester.id = :requesterId " +
-                   "AND (:status IS NULL OR ar.status = :status)",
+                   "AND (:status IS NULL OR ar.status = :status) " +
+                   "AND (:areaId IS NULL OR ar.area.id = :areaId)",
            countQuery = "SELECT COUNT(ar) FROM AccessRequest ar " +
                         "WHERE ar.requester.id = :requesterId " +
-                        "AND (:status IS NULL OR ar.status = :status)")
+                        "AND (:status IS NULL OR ar.status = :status) " +
+                        "AND (:areaId IS NULL OR ar.area.id = :areaId)")
     Page<AccessRequest> findMyRequests(
             @Param("requesterId") UUID requesterId,
             @Param("status") RequestStatus status,
+            @Param("areaId") UUID areaId,
             Pageable pageable
     );
+
+    default Page<AccessRequest> findMyRequests(UUID requesterId, RequestStatus status, Pageable pageable) {
+        return findMyRequests(requesterId, status, null, pageable);
+    }
 
     @Query(value = "SELECT ar FROM AccessRequest ar " +
                    "JOIN FETCH ar.area " +
                    "JOIN FETCH ar.requester " +
-                   "WHERE (:status IS NULL OR ar.status = :status)",
+                   "WHERE (:status IS NULL OR ar.status = :status) " +
+                   "AND (:areaId IS NULL OR ar.area.id = :areaId)",
            countQuery = "SELECT COUNT(ar) FROM AccessRequest ar " +
-                        "WHERE (:status IS NULL OR ar.status = :status)")
+                        "WHERE (:status IS NULL OR ar.status = :status) " +
+                        "AND (:areaId IS NULL OR ar.area.id = :areaId)")
     Page<AccessRequest> findAllRequests(
             @Param("status") RequestStatus status,
+            @Param("areaId") UUID areaId,
             Pageable pageable
     );
+
+    default Page<AccessRequest> findAllRequests(RequestStatus status, Pageable pageable) {
+        return findAllRequests(status, null, pageable);
+    }
 
     @Query("SELECT DISTINCT ar FROM AccessRequest ar " +
            "JOIN FETCH ar.requester " +

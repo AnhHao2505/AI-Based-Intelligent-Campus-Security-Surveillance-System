@@ -25,9 +25,24 @@ export default function AccessRequestReviewPage() {
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedAreaId, setSelectedAreaId] = useState('');
+  const [areasList, setAreasList] = useState([]);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [totalElements, setTotalElements] = useState(0);
+
+  // Load available areas for filter dropdown using lightweight AreaSimpleResponse endpoint
+  useEffect(() => {
+    const fetchAreas = async () => {
+      try {
+        const data = await accessRequestService.getAvailableAreas();
+        setAreasList(Array.isArray(data) ? data : data?.content || []);
+      } catch (err) {
+        console.error('Lỗi tải danh sách khu vực:', err);
+      }
+    };
+    fetchAreas();
+  }, []);
 
   // Modals state
   const [detailItem, setDetailItem] = useState(null);
@@ -50,11 +65,12 @@ export default function AccessRequestReviewPage() {
   });
 
   // Load Requests
-  const loadRequests = useCallback(async (targetPage = 0, status = statusFilter) => {
+  const loadRequests = useCallback(async (targetPage = 0, status = statusFilter, areaId = selectedAreaId) => {
     setLoading(true);
     try {
       const res = await accessRequestService.getAllRequests({
         status: status || undefined,
+        areaId: areaId || undefined,
         page: targetPage,
         size: 10
       });
@@ -67,7 +83,7 @@ export default function AccessRequestReviewPage() {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, [statusFilter, selectedAreaId]);
 
   // Load Stats counts
   const loadStats = useCallback(async () => {
@@ -94,9 +110,9 @@ export default function AccessRequestReviewPage() {
   }, []);
 
   useEffect(() => {
-    loadRequests(0, statusFilter);
+    loadRequests(0, statusFilter, selectedAreaId);
     loadStats();
-  }, [loadRequests, loadStats, statusFilter]);
+  }, [loadRequests, loadStats, statusFilter, selectedAreaId]);
 
   // Handle Approve
   const handleConfirmApprove = async () => {
@@ -109,14 +125,14 @@ export default function AccessRequestReviewPage() {
       });
       setActionSuccess('Đã phê duyệt yêu cầu thành công!');
       setApproveItem(null);
-      loadRequests(page, statusFilter);
+      loadRequests(page, statusFilter, selectedAreaId);
       loadStats();
       setTimeout(() => setActionSuccess(null), 3000);
     } catch (err) {
       if (err.status === 409) {
         setApproveItem(null);
         setActionWarning(err.message || 'Yêu cầu này đã được xử lý bởi người khác. Danh sách đã được làm mới.');
-        loadRequests(page, statusFilter);
+        loadRequests(page, statusFilter, selectedAreaId);
         loadStats();
         setTimeout(() => setActionWarning(null), 7000);
       } else {
@@ -145,7 +161,7 @@ export default function AccessRequestReviewPage() {
       setActionSuccess('Đã từ chối yêu cầu truy cập.');
       setRejectItem(null);
       setRejectionReason('');
-      loadRequests(page, statusFilter);
+      loadRequests(page, statusFilter, selectedAreaId);
       loadStats();
       setTimeout(() => setActionSuccess(null), 3000);
     } catch (err) {
@@ -153,7 +169,7 @@ export default function AccessRequestReviewPage() {
         setRejectItem(null);
         setRejectionReason('');
         setActionWarning(err.message || 'Yêu cầu này đã được xử lý bởi người khác. Danh sách đã được làm mới.');
-        loadRequests(page, statusFilter);
+        loadRequests(page, statusFilter, selectedAreaId);
         loadStats();
         setTimeout(() => setActionWarning(null), 7000);
       } else {
@@ -188,14 +204,13 @@ export default function AccessRequestReviewPage() {
     });
   };
 
-  // Client-side search filter
+  // Client-side search filter (lọc khu vực và trạng thái đã xử lý hoàn toàn tại server)
   const filteredRequests = requests.filter(req => {
     if (!searchTerm.trim()) return true;
     const term = searchTerm.toLowerCase();
     return (
       (req.requesterName && req.requesterName.toLowerCase().includes(term)) ||
-      (req.requesterCode && req.requesterCode.toLowerCase().includes(term)) ||
-      (req.areaName && req.areaName.toLowerCase().includes(term))
+      (req.requesterCode && req.requesterCode.toLowerCase().includes(term))
     );
   });
 
@@ -213,7 +228,7 @@ export default function AccessRequestReviewPage() {
         <button
           type="button"
           className="arr-filter-btn"
-          onClick={() => { loadRequests(page, statusFilter); loadStats(); }}
+          onClick={() => { loadRequests(page, statusFilter, selectedAreaId); loadStats(); }}
           title="Làm mới dữ liệu"
         >
           <RefreshCw size={14} className={loading ? 'spin' : ''} />
@@ -314,22 +329,47 @@ export default function AccessRequestReviewPage() {
               key={f.val}
               type="button"
               className={`arr-filter-btn ${statusFilter === f.val ? 'arr-filter-btn--active' : ''}`}
-              onClick={() => setStatusFilter(f.val)}
+              onClick={() => {
+                setStatusFilter(f.val);
+                setPage(0);
+              }}
             >
               {f.label}
             </button>
           ))}
         </div>
 
-        <div className="arr-search-wrap">
-          <Search size={14} className="arr-search-icon" />
-          <input
-            type="text"
-            className="arr-search-input"
-            placeholder="Tìm theo tên, mã số, khu vực..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+        <div className="arr-toolbar-right">
+          <select
+            className="arr-select"
+            value={selectedAreaId}
+            onChange={(e) => {
+              setSelectedAreaId(e.target.value);
+              setPage(0);
+            }}
+          >
+            <option value="">Tất cả khu vực</option>
+            {areasList.map((a) => {
+              const floorPart = a.floor ? (String(a.floor).startsWith('Tầng') ? a.floor : `Tầng ${a.floor}`) : null;
+              const loc = [a.building, floorPart].filter(Boolean).join(' · ');
+              return (
+                <option key={a.id} value={a.id}>
+                  {loc ? `${a.name} (${loc})` : a.name}
+                </option>
+              );
+            })}
+          </select>
+
+          <div className="arr-search-wrap">
+            <Search size={14} className="arr-search-icon" />
+            <input
+              type="text"
+              className="arr-search-input"
+              placeholder="Tìm theo tên, mã số người yêu cầu..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
         </div>
       </div>
 
@@ -468,7 +508,7 @@ export default function AccessRequestReviewPage() {
                 type="button"
                 className="arr-filter-btn"
                 disabled={page <= 0}
-                onClick={() => loadRequests(page - 1, statusFilter)}
+                onClick={() => loadRequests(page - 1, statusFilter, selectedAreaId)}
               >
                 <ChevronLeft size={14} />
                 <span>Trước</span>
@@ -477,7 +517,7 @@ export default function AccessRequestReviewPage() {
                 type="button"
                 className="arr-filter-btn"
                 disabled={page >= totalPages - 1}
-                onClick={() => loadRequests(page + 1, statusFilter)}
+                onClick={() => loadRequests(page + 1, statusFilter, selectedAreaId)}
               >
                 <span>Tiếp</span>
                 <ChevronRight size={14} />

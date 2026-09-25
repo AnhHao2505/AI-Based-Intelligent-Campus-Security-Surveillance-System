@@ -22,6 +22,7 @@ import com.fa26se040.icss.exception.DuplicateResourceException;
 import com.fa26se040.icss.exception.ResourceNotFoundException;
 import com.fa26se040.icss.exception.UnauthorizedException;
 import com.fa26se040.icss.repository.AccessRequestRepository;
+import com.fa26se040.icss.repository.AccessRequestSpecification;
 import com.fa26se040.icss.repository.AreaRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import com.fa26se040.icss.security.MemberLookupRateLimiter;
@@ -29,7 +30,10 @@ import com.fa26se040.icss.util.StringNormalizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -248,16 +252,39 @@ public class AccessRequestService {
     }
 
     @Transactional(readOnly = true)
-    public Page<AccessRequestResponse> getMyRequests(String actorEmail, RequestStatus status, Pageable pageable) {
+    public Page<AccessRequestResponse> getMyRequests(String actorEmail, RequestStatus status, UUID areaId, Pageable pageable) {
         User requester = getRequester(actorEmail);
-        Page<AccessRequest> page = accessRequestRepository.findMyRequests(requester.getId(), status, pageable);
+        Pageable effectivePageable = pageable;
+        if (pageable.getSort().isUnsorted()) {
+            effectivePageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by(Sort.Direction.DESC, "createdAt"));
+        }
+        Specification<AccessRequest> spec = AccessRequestSpecification.filter(requester.getId(), status, areaId);
+        Page<AccessRequest> page = accessRequestRepository.findAll(spec, effectivePageable);
+        return page.map(ar -> {
+            boolean isReq = ar.getRequester() != null && requester.getId().equals(ar.getRequester().getId());
+            return mapToResponse(ar, isReq);
+        });
+    }
+
+    @Transactional(readOnly = true)
+    public Page<AccessRequestResponse> getMyRequests(String actorEmail, RequestStatus status, Pageable pageable) {
+        return getMyRequests(actorEmail, status, null, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<AccessRequestResponse> getAllRequests(RequestStatus status, UUID areaId, Pageable pageable) {
+        Pageable effectivePageable = pageable;
+        if (pageable.getSort().isUnsorted()) {
+            effectivePageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by(Sort.Direction.DESC, "createdAt"));
+        }
+        Specification<AccessRequest> spec = AccessRequestSpecification.filter(null, status, areaId);
+        Page<AccessRequest> page = accessRequestRepository.findAll(spec, effectivePageable);
         return page.map(this::mapToResponse);
     }
 
     @Transactional(readOnly = true)
     public Page<AccessRequestResponse> getAllRequests(RequestStatus status, Pageable pageable) {
-        Page<AccessRequest> page = accessRequestRepository.findAllRequests(status, pageable);
-        return page.map(this::mapToResponse);
+        return getAllRequests(status, null, pageable);
     }
 
     @Transactional(readOnly = true)
@@ -640,6 +667,10 @@ public class AccessRequestService {
     }
 
     private AccessRequestResponse mapToResponse(AccessRequest ar) {
+        return mapToResponse(ar, null);
+    }
+
+    private AccessRequestResponse mapToResponse(AccessRequest ar, Boolean isRequester) {
         List<MemberInfo> memberInfos = List.of();
         if (ar.getMembers() != null && !ar.getMembers().isEmpty()) {
             memberInfos = ar.getMembers().stream()
@@ -674,7 +705,8 @@ public class AccessRequestService {
                 ar.getRejectionReason(),
                 memberInfos,
                 ar.getCreatedAt(),
-                ar.getUpdatedAt()
+                ar.getUpdatedAt(),
+                isRequester
         );
     }
 }

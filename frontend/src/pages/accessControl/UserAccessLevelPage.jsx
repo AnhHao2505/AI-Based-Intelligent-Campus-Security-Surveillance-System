@@ -336,7 +336,7 @@ export default function UserAccessLevelPage() {
     setFilterChangedByUser(null);
   };
 
-  // Load Areas for dropdown filter
+  // Load Areas for dropdown filter (Giới hạn tối đa 100 khu vực theo API /api/areas; chưa có endpoint danh sách rút gọn cho toàn bộ phân loại)
   useEffect(() => {
     const fetchAreas = async () => {
       try {
@@ -829,7 +829,8 @@ export default function UserAccessLevelPage() {
                 >
                   <option value="">Tất cả khu vực</option>
                   {areasList.map((a) => {
-                    const loc = [a.building, a.floor].filter(Boolean).join(' · ');
+                    const floorPart = a.floor ? (String(a.floor).startsWith('Tầng') ? a.floor : `Tầng ${a.floor}`) : null;
+                    const loc = [a.building, floorPart].filter(Boolean).join(' · ');
                     return (
                       <option key={a.id} value={a.id}>
                         {loc ? `${a.name} (${loc})` : a.name}

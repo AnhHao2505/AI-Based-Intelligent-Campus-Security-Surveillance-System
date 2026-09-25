@@ -936,4 +936,98 @@ class AccessRequestServiceTest {
 
         assertTrue(ex.getMessage().contains("2"));
     }
+
+    @Test
+    @DisplayName("DTO AccessRequestResponse có đủ areaId và areaName")
+    void getRequestById_DtoContainsBothAreaIdAndAreaName() {
+        AccessRequest request = AccessRequest.builder()
+                .id(UUID.randomUUID())
+                .area(semiPrivateArea)
+                .requester(requester)
+                .requestType(RequestType.INDIVIDUAL)
+                .purpose("Học tập")
+                .startTime(OffsetDateTime.now().plusDays(1))
+                .endTime(OffsetDateTime.now().plusDays(1).plusHours(2))
+                .status(RequestStatus.PENDING)
+                .createdAt(OffsetDateTime.now())
+                .build();
+
+        when(accessRequestRepository.findByIdWithDetails(request.getId())).thenReturn(Optional.of(request));
+
+        AccessRequestResponse response = accessRequestService.getRequestById(request.getId(), requester.getEmail(), false);
+
+        assertNotNull(response);
+        assertEquals(semiPrivateArea.getId(), response.areaId());
+        assertEquals(semiPrivateArea.getName(), response.areaName());
+    }
+
+    @Test
+    @DisplayName("getMyRequests lọc theo areaId trả đúng bản ghi và DTO có đủ areaId, areaName")
+    void getMyRequests_FilterByAreaId_ReturnsCorrectRecords() {
+        AccessRequest request = AccessRequest.builder()
+                .id(UUID.randomUUID())
+                .area(semiPrivateArea)
+                .requester(requester)
+                .requestType(RequestType.INDIVIDUAL)
+                .purpose("Học nhóm")
+                .startTime(OffsetDateTime.now().plusDays(1))
+                .endTime(OffsetDateTime.now().plusDays(1).plusHours(2))
+                .status(RequestStatus.PENDING)
+                .createdAt(OffsetDateTime.now())
+                .build();
+
+        when(userRepository.findByEmail(requester.getEmail())).thenReturn(Optional.of(requester));
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(0, 10);
+        org.springframework.data.domain.Page<AccessRequest> page = new org.springframework.data.domain.PageImpl<>(List.of(request), pageable, 1);
+        when(accessRequestRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class), any(org.springframework.data.domain.Pageable.class)))
+                .thenReturn(page);
+
+        org.springframework.data.domain.Page<AccessRequestResponse> result = accessRequestService.getMyRequests(
+                requester.getEmail(),
+                RequestStatus.PENDING,
+                semiPrivateArea.getId(),
+                pageable
+        );
+
+        assertNotNull(result);
+        assertEquals(1, result.getTotalElements());
+        AccessRequestResponse dto = result.getContent().get(0);
+        assertEquals(request.getId(), dto.id());
+        assertEquals(semiPrivateArea.getId(), dto.areaId());
+        assertEquals(semiPrivateArea.getName(), dto.areaName());
+    }
+
+    @Test
+    @DisplayName("getAllRequests lọc theo areaId trả đúng bản ghi và DTO có đủ areaId, areaName")
+    void getAllRequests_FilterByAreaId_ReturnsCorrectRecords() {
+        AccessRequest request = AccessRequest.builder()
+                .id(UUID.randomUUID())
+                .area(semiPrivateArea)
+                .requester(requester)
+                .requestType(RequestType.INDIVIDUAL)
+                .purpose("Học nhóm")
+                .startTime(OffsetDateTime.now().plusDays(1))
+                .endTime(OffsetDateTime.now().plusDays(1).plusHours(2))
+                .status(RequestStatus.PENDING)
+                .createdAt(OffsetDateTime.now())
+                .build();
+
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(0, 10);
+        org.springframework.data.domain.Page<AccessRequest> page = new org.springframework.data.domain.PageImpl<>(List.of(request), pageable, 1);
+        when(accessRequestRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class), any(org.springframework.data.domain.Pageable.class)))
+                .thenReturn(page);
+
+        org.springframework.data.domain.Page<AccessRequestResponse> result = accessRequestService.getAllRequests(
+                RequestStatus.PENDING,
+                semiPrivateArea.getId(),
+                pageable
+        );
+
+        assertNotNull(result);
+        assertEquals(1, result.getTotalElements());
+        AccessRequestResponse dto = result.getContent().get(0);
+        assertEquals(request.getId(), dto.id());
+        assertEquals(semiPrivateArea.getId(), dto.areaId());
+        assertEquals(semiPrivateArea.getName(), dto.areaName());
+    }
 }
