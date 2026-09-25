@@ -270,16 +270,16 @@ export default function Sidebar({ user, onLogout }) {
 												<span>Phê duyệt truy cập</span>
 											</NavLink>
 											<NavLink
-												to="/admin/guard-schedules"
+												to="/admin/guard-teams"
 												className={({ isActive }) =>
 													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
 												}
 												title={
-													sidebarCollapsed ? "Lịch trực Bảo vệ" : undefined
+													sidebarCollapsed ? "Quản lý Đội bảo vệ" : undefined
 												}
 											>
 												<CalendarClock size={18} />
-												<span>Lịch trực Bảo vệ</span>
+												<span>Quản lý Đội bảo vệ</span>
 											</NavLink>
 											<NavLink
 												to="/fm/access-levels"

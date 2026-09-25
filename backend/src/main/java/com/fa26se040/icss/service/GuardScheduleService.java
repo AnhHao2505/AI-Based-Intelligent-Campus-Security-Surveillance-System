@@ -401,6 +401,9 @@ public class GuardScheduleService {
             if (buildingAreas.isEmpty()) {
                 buildingAreas = areaRepository.findByBuildingIgnoreCaseAndFloorIgnoreCaseAndDeletedAtIsNull(request.getBuilding().trim(), "1");
             }
+            if (buildingAreas.isEmpty()) {
+                buildingAreas = areaRepository.findByBuildingIgnoreCaseAndDeletedAtIsNull(request.getBuilding().trim());
+            }
             if (!buildingAreas.isEmpty()) {
                 targetArea = buildingAreas.get(0);
             }
@@ -1067,6 +1070,10 @@ public class GuardScheduleService {
     }
 
     private GuardScheduleTemplateDto mapTemplateToDto(GuardScheduleTemplate t) {
+        String templateBuilding = (t.getArea() != null && t.getArea().getBuilding() != null && !t.getArea().getBuilding().isBlank())
+                ? t.getArea().getBuilding()
+                : (t.getGuard() != null && t.getGuard().getTeam() != null ? t.getGuard().getTeam().getDescription() : null);
+
         return GuardScheduleTemplateDto.builder()
                 .id(t.getId())
                 .guardId(t.getGuard().getId())
@@ -1078,7 +1085,7 @@ public class GuardScheduleService {
                 .endTime(t.getEndTime())
                 .areaId(t.getArea() != null ? t.getArea().getId() : null)
                 .areaName(t.getArea() != null ? t.getArea().getName() : null)
-                .building(t.getArea() != null ? t.getArea().getBuilding() : null)
+                .building(templateBuilding)
                 .radioChannel(t.getRadioChannel())
                 .notes(t.getNotes())
                 .isActive(t.getIsActive())
@@ -1086,6 +1093,10 @@ public class GuardScheduleService {
     }
 
     private GuardShiftDto mapShiftToDto(GuardShift s) {
+        String shiftBuilding = (s.getArea() != null && s.getArea().getBuilding() != null && !s.getArea().getBuilding().isBlank())
+                ? s.getArea().getBuilding()
+                : (s.getGuard() != null && s.getGuard().getTeam() != null ? s.getGuard().getTeam().getDescription() : null);
+
         return GuardShiftDto.builder()
                 .id(s.getId())
                 .guardId(s.getGuard().getId())
@@ -1097,7 +1108,7 @@ public class GuardScheduleService {
                 .endTime(s.getEndTime())
                 .areaId(s.getArea() != null ? s.getArea().getId() : null)
                 .areaName(s.getArea() != null ? s.getArea().getName() : null)
-                .building(s.getArea() != null ? s.getArea().getBuilding() : null)
+                .building(shiftBuilding)
                 .radioChannel(s.getRadioChannel())
                 .status(s.getStatus())
                 .checkInAt(s.getCheckInAt())

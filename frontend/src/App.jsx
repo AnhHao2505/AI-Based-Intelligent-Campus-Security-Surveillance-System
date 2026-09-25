@@ -20,7 +20,7 @@ import NotificationsPage from "./pages/notifications/NotificationsPage";
 import ManageAccountPage from "./pages/accounts/ManageAccountPage";
 import SystemConfigPage from "./pages/system/SystemConfigPage";
 import UiKitPage from "./pages/_devPreview/UiKitPage";
-import GuardScheduleManagementPage from "./pages/admin/GuardScheduleManagementPage";
+import GuardTeamManagementPage from "./pages/guardTeams/GuardTeamManagementPage";
 import UserAccessLevelPage from "./pages/accessControl/UserAccessLevelPage";
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
@@ -167,12 +167,16 @@ function App() {
 							/>
 
 							<Route
-								path="/admin/guard-schedules"
+								path="/admin/guard-teams"
 								element={
 									<ProtectedRoute allowedRoles={[ROLES.FACILITY_MANAGER]}>
-										<GuardScheduleManagementPage />
+										<GuardTeamManagementPage />
 									</ProtectedRoute>
 								}
+							/>
+							<Route
+								path="/admin/guard-schedules"
+								element={<Navigate to="/admin/guard-teams" replace />}
 							/>
 
 							<Route

@@ -75,7 +75,7 @@ const formatLocalDate = (date) => {
   return `${year}-${month}-${day}`;
 };
 
-export default function GuardScheduleManagementPage() {
+export default function GuardTeamManagementPage() {
   // Navigation Tabs: 'SCHEDULE' | 'TEAMS' | 'REQUESTS'
   const [activeTab, setActiveTab] = useState('SCHEDULE');
 
@@ -93,6 +93,7 @@ export default function GuardScheduleManagementPage() {
   const [shiftRequests, setShiftRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const hasInitializedTeamRef = useRef(false);
 
   // Modals
   const [showShiftModal, setShowShiftModal] = useState(false);
@@ -137,6 +138,13 @@ export default function GuardScheduleManagementPage() {
       const teamsRes = await guardScheduleApi.getTeams();
       teamList = Array.isArray(teamsRes) ? teamsRes : [];
       setTeams(teamList);
+      if (!hasInitializedTeamRef.current && teamList.length > 0) {
+        hasInitializedTeamRef.current = true;
+        setSelectedTeam(teamList[0].id);
+        if (teamList[0].description && teamList[0].description !== 'CO_SO_HCM') {
+          setSelectedBuilding(teamList[0].description);
+        }
+      }
     } catch (e) {
       console.warn('Lỗi tải danh sách đội bảo vệ:', e);
     }
@@ -275,6 +283,10 @@ export default function GuardScheduleManagementPage() {
   }, [startDateStr, endDateStr, selectedBuilding]);
 
   useEffect(() => {
+    document.title = 'Quản Lý Đội Bảo Vệ — AI Campus Security';
+  }, []);
+
+  useEffect(() => {
     fetchData();
   }, [fetchData]);
 
@@ -318,13 +330,76 @@ export default function GuardScheduleManagementPage() {
     }
   };
 
-  // KPI Calculations
-  const totalGuardsCount = guards.length;
-  const totalShiftsCount = shifts.length;
-  const todayShifts = useMemo(() => shifts.filter((s) => s.shiftDate === todayStr), [shifts, todayStr]);
-  const todayMorningCount = todayShifts.filter((s) => s.shiftType === 'SHIFT_MORNING').length;
-  const todayAfternoonCount = todayShifts.filter((s) => s.shiftType === 'SHIFT_AFTERNOON').length;
-  const todayNightCount = todayShifts.filter((s) => s.shiftType === 'SHIFT_NIGHT').length;
+  // Helper to determine which building a shift belongs to
+  const getShiftBuilding = useCallback((shift) => {
+    if (shift.building) return shift.building;
+    if (shift.area?.building) return shift.area.building;
+    // Fallback: lookup guard's team building
+    const guard = guards.find((g) => g.id === (shift.guardId || shift.guard?.id));
+    const guardTeamId = guard?.team?.id || guard?.teamId;
+    if (guardTeamId) {
+      const team = teams.find((t) => t.id === guardTeamId);
+      if (team?.description) return team.description;
+    }
+    return null;
+  }, [guards, teams]);
+
+  // Shifts filtered for current building view
+  const displayShifts = useMemo(() => {
+    if (selectedBuilding === 'ALL') return shifts;
+    return shifts.filter((s) => {
+      const bld = getShiftBuilding(s);
+      return bld === selectedBuilding;
+    });
+  }, [shifts, selectedBuilding, getShiftBuilding]);
+
+  // Get short friendly building name for badges
+  const getShortBuildingName = useCallback((bldCode) => {
+    if (!bldCode) return null;
+    const b = (buildings || []).find((item) => item.code === bldCode || item.id === bldCode || item.name === bldCode);
+    if (b?.name) {
+      if (b.name.includes(' - ')) {
+        return b.name.split(' - ')[0].trim();
+      }
+      return b.name;
+    }
+    if (bldCode === 'TOA_ALPHA') return 'Tòa Alpha';
+    if (bldCode === 'TOA_BETA') return 'Tòa Beta';
+    if (bldCode === 'KHU_THE_THAO') return 'Khu Thể Thao';
+    if (bldCode === 'FPT_AROUND') return 'Ngoài trời & Sảnh';
+    return bldCode;
+  }, [buildings]);
+
+  // Full building name for tooltip / title
+  const getFullBuildingName = useCallback((bldCode) => {
+    if (!bldCode) return null;
+    const b = (buildings || []).find((item) => item.code === bldCode || item.id === bldCode || item.name === bldCode);
+    if (b?.name) return b.name;
+    if (bldCode === 'TOA_ALPHA') return 'Tòa Alpha - Giảng đường chính';
+    if (bldCode === 'TOA_BETA') return 'Tòa Beta - Phòng Lab & Kỹ thuật';
+    if (bldCode === 'KHU_THE_THAO') return 'Khu Thể Thao & Sân Bóng';
+    if (bldCode === 'FPT_AROUND') return 'Khuôn viên Ngoài trời & Sảnh';
+    return bldCode;
+  }, [buildings]);
+
+  // Determine the assigned building code for a guard
+  const getGuardAssignedBuildingCode = useCallback((guard) => {
+    const guardTeamId = guard.team?.id || guard.teamId;
+    const team = (teams || []).find((t) => t.id === guardTeamId);
+    if (team?.description && team.description !== 'CO_SO_HCM') {
+      return team.description;
+    }
+    if (guard.activeDispatch?.toTeamId) {
+      const dispTeam = (teams || []).find((t) => t.id === guard.activeDispatch.toTeamId);
+      if (dispTeam?.description) return dispTeam.description;
+    }
+    const guardShifts = displayShifts.filter((s) => s.guardId === guard.id || s.guard?.id === guard.id);
+    if (guardShifts.length > 0) {
+      const sWithBld = guardShifts.find((s) => s.building || s.area?.building);
+      if (sWithBld) return sWithBld.building || sWithBld.area?.building;
+    }
+    return null;
+  }, [teams, displayShifts]);
 
   // Delete shift handler
   const handleDeleteShift = async (id) => {
@@ -344,14 +419,14 @@ export default function GuardScheduleManagementPage() {
   // Set of guard IDs having shifts in current view
   const guardIdsWithShiftsThisWeek = useMemo(() => {
     const set = new Set();
-    shifts.forEach((s) => {
+    displayShifts.forEach((s) => {
       if (s.guard?.id) set.add(s.guard.id);
       if (s.guardId) set.add(s.guardId);
     });
     return set;
-  }, [shifts]);
+  }, [displayShifts]);
 
-  // Teams that have active shifts at the currently selected building
+  // Teams that have active shifts or belong to the currently selected building
   const activeTeamsForBuilding = useMemo(() => {
     if (selectedBuilding === 'ALL') return [];
 
@@ -362,7 +437,7 @@ export default function GuardScheduleManagementPage() {
     });
 
     const teamShiftCounts = new Map();
-    shifts.forEach((s) => {
+    displayShifts.forEach((s) => {
       const gid = s.guard?.id || s.guardId;
       const tid = guardTeamMap.get(gid);
       if (tid) {
@@ -373,11 +448,12 @@ export default function GuardScheduleManagementPage() {
     return teams
       .map((t) => ({
         team: t,
-        shiftCount: teamShiftCounts.get(t.id) || 0
+        shiftCount: teamShiftCounts.get(t.id) || 0,
+        isAssignedToBuilding: t.description === selectedBuilding
       }))
-      .filter((item) => item.shiftCount > 0)
+      .filter((item) => item.shiftCount > 0 || item.isAssignedToBuilding)
       .sort((a, b) => b.shiftCount - a.shiftCount);
-  }, [selectedBuilding, shifts, guards, teams]);
+  }, [selectedBuilding, displayShifts, guards, teams]);
 
   // Map of teamId -> shiftCount for dropdown labels
   const teamShiftCountsMap = useMemo(() => {
@@ -389,9 +465,29 @@ export default function GuardScheduleManagementPage() {
     return map;
   }, [selectedBuilding, activeTeamsForBuilding]);
 
-  // Filtered guards by team, building and search
+  // Filtered guards by team, building, search and hideEmptyGuards
   const filteredGuards = useMemo(() => {
     let result = guards;
+
+    // 1. Filter by Building
+    if (selectedBuilding !== 'ALL') {
+      const buildingTeamIds = new Set(
+        teams.filter((t) => t.description === selectedBuilding).map((t) => t.id)
+      );
+
+      result = result.filter((g) => {
+        const guardTeamId = g.team?.id || g.teamId;
+        const belongsToBuildingTeam = guardTeamId && buildingTeamIds.has(guardTeamId);
+        const hasShiftsAtBuilding = guardIdsWithShiftsThisWeek.has(g.id);
+        const dispatchedToBuilding =
+          (g.activeDispatch && buildingTeamIds.has(g.activeDispatch.toTeamId)) ||
+          dispatches.some((d) => d.guardId === g.id && buildingTeamIds.has(d.toTeamId) && d.status === 'ACTIVE');
+
+        return belongsToBuildingTeam || hasShiftsAtBuilding || dispatchedToBuilding;
+      });
+    }
+
+    // 2. Filter by Team
     if (selectedTeam !== 'ALL') {
       const foundTeam = (teams || []).find((t) => t.id === selectedTeam);
       const teamMemberIds = (foundTeam?.members && foundTeam.members.length > 0)
@@ -405,11 +501,9 @@ export default function GuardScheduleManagementPage() {
           (g.activeDispatch && g.activeDispatch.toTeamId === selectedTeam) ||
           dispatches.some((d) => d.guardId === g.id && d.toTeamId === selectedTeam && d.status === 'ACTIVE')
       );
-    } else if (selectedBuilding !== 'ALL') {
-      // Smart Auto-Filter: Khi chọn khuôn viên cụ thể và để Đội = Tất cả, chỉ hiện các bảo vệ có ca trực tại khuôn viên đó
-      result = result.filter((g) => guardIdsWithShiftsThisWeek.has(g.id));
     }
 
+    // 3. Keyword search
     if (searchKeyword.trim()) {
       const kw = searchKeyword.toLowerCase().trim();
       result = result.filter(
@@ -420,7 +514,61 @@ export default function GuardScheduleManagementPage() {
       );
     }
     return result;
-  }, [guards, selectedTeam, selectedBuilding, teams, guardIdsWithShiftsThisWeek, searchKeyword, dispatches]);
+  }, [guards, selectedTeam, selectedBuilding, teams, searchKeyword, dispatches]);
+
+  // Group guards into official members vs dispatched members
+  const { officialMembers, dispatchedMembers } = useMemo(() => {
+    if (selectedTeam === 'ALL') {
+      return { officialMembers: filteredGuards, dispatchedMembers: [] };
+    }
+    const official = [];
+    const dispatched = [];
+    filteredGuards.forEach((g) => {
+      const isDispatched =
+        (g.activeDispatch && g.activeDispatch.toTeamId === selectedTeam && g.teamId !== selectedTeam) ||
+        dispatches.some((d) => d.guardId === g.id && d.toTeamId === selectedTeam && d.status === 'ACTIVE' && g.teamId !== selectedTeam);
+
+      if (isDispatched) {
+        dispatched.push(g);
+      } else {
+        official.push(g);
+      }
+    });
+    return { officialMembers: official, dispatchedMembers: dispatched };
+  }, [filteredGuards, selectedTeam, dispatches]);
+
+  const officialShiftsCount = useMemo(() => {
+    const ids = new Set(officialMembers.map((g) => g.id));
+    return displayShifts.filter((s) => ids.has(s.guardId) || ids.has(s.guard?.id)).length;
+  }, [officialMembers, displayShifts]);
+
+  const dispatchedShiftsCount = useMemo(() => {
+    const ids = new Set(dispatchedMembers.map((g) => g.id));
+    return displayShifts.filter((s) => ids.has(s.guardId) || ids.has(s.guard?.id)).length;
+  }, [dispatchedMembers, displayShifts]);
+
+  // Handle team filter change
+  const handleTeamChange = (teamId) => {
+    setSelectedTeam(teamId);
+    if (teamId !== 'ALL') {
+      const team = teams.find((t) => t.id === teamId);
+      if (team?.description && team.description !== 'CO_SO_HCM') {
+        setSelectedBuilding(team.description);
+      } else {
+        setSelectedBuilding('ALL');
+      }
+    } else {
+      setSelectedBuilding('ALL');
+    }
+  };
+
+  // KPI Calculations
+  const totalGuardsCount = filteredGuards.length;
+  const totalShiftsCount = displayShifts.length;
+  const todayShifts = useMemo(() => displayShifts.filter((s) => s.shiftDate === todayStr), [displayShifts, todayStr]);
+  const todayMorningCount = todayShifts.filter((s) => s.shiftType === 'SHIFT_MORNING').length;
+  const todayAfternoonCount = todayShifts.filter((s) => s.shiftType === 'SHIFT_AFTERNOON').length;
+  const todayNightCount = todayShifts.filter((s) => s.shiftType === 'SHIFT_NIGHT').length;
 
 
 
@@ -438,7 +586,7 @@ export default function GuardScheduleManagementPage() {
 
   // Target shifts count for bulk clear preview
   const bulkClearTargetShiftsCount = useMemo(() => {
-    const scheduledShifts = shifts.filter((s) => s.status === 'SCHEDULED');
+    const scheduledShifts = displayShifts.filter((s) => s.status === 'SCHEDULED');
     if (bulkClearScope === 'ALL') {
       return scheduledShifts.length;
     }
@@ -475,13 +623,223 @@ export default function GuardScheduleManagementPage() {
     }
   };
 
+  // Render an individual guard row in the matrix table
+  // Render an individual guard row in the matrix table
+  const renderGuardRow = (guard) => {
+    const bldCode = getGuardAssignedBuildingCode(guard);
+    const bldShort = getShortBuildingName(bldCode);
+    const bldFull = getFullBuildingName(bldCode);
+
+    return (
+      <tr key={guard.id}>
+        {/* Guard Info Cell */}
+        <td className="matrix-td-info">
+          <div className="flex flex-col justify-center min-w-0 py-0.5">
+            <div
+              className="font-bold text-slate-900 dark:text-slate-100 text-sm leading-snug truncate"
+              title={guard.fullName}
+            >
+              {guard.fullName || 'Nhân viên bảo vệ'}
+            </div>
+            <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+              {/* Mã NV */}
+              <span className="inline-flex items-center font-mono font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 px-2 py-0.5 rounded text-[11px] whitespace-nowrap shadow-xs">
+                {guard.userCode || 'NV-BV'}
+              </span>
+
+              {/* Khi đang xem tất cả các đội (selectedTeam === 'ALL'): hiển thị badge Đội */}
+              {selectedTeam === 'ALL' && (
+                (guard.teamName || guard.team?.teamName) ? (
+                  <span
+                    className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold truncate max-w-[120px]"
+                    style={{
+                      backgroundColor: guard.team?.colorCode ? `${guard.team.colorCode}18` : '#eff6ff',
+                      color: guard.team?.colorCode || '#2563eb',
+                      border: `1px solid ${guard.team?.colorCode ? `${guard.team.colorCode}40` : '#bfdbfe'}`
+                    }}
+                    title={`Đội: ${guard.teamName || guard.team?.teamName}`}
+                  >
+                    {guard.teamName || guard.team?.teamName}
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-slate-400 font-medium">
+                    Chưa phân đội
+                  </span>
+                )
+              )}
+
+              {/* Tòa nhà / Khuôn viên đang được gán */}
+              {bldShort ? (
+                <span
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 shadow-xs"
+                  title={`Cơ sở phụ trách: ${bldFull}`}
+                >
+                  <Building2 size={11} className="text-blue-600 dark:text-blue-400 shrink-0" />
+                  <span className="truncate max-w-[130px]">{bldShort}</span>
+                </span>
+              ) : (
+                <span className="text-[10px] text-slate-400 font-medium italic">
+                  Chưa gán tòa
+                </span>
+              )}
+
+              {/* Badge điều động tăng cường (nếu có) */}
+              {guard.activeDispatch && (
+                <span
+                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700/60 shadow-xs"
+                  title={`Điều động tăng cường: ${guard.activeDispatch.toTeamName} (${guard.activeDispatch.shiftType ? (guard.activeDispatch.shiftType === 'SHIFT_MORNING' ? 'Ca Sáng (06-14h)' : guard.activeDispatch.shiftType === 'SHIFT_AFTERNOON' ? 'Ca Chiều (14-22h)' : 'Ca Đêm (22-06h)') + ' • ' : ''}${guard.activeDispatch.startDate} ~ ${guard.activeDispatch.endDate})${guard.activeDispatch.reason ? ' - Lý do: ' + guard.activeDispatch.reason : ''}`}
+                >
+                  ⚡ {selectedTeam === guard.activeDispatch.toTeamId
+                    ? `Từ ${guard.teamName || guard.team?.teamName || 'đội khác'}`
+                    : guard.activeDispatch.toTeamName}
+                  {guard.activeDispatch.shiftType && (
+                    <span className="font-normal opacity-85">
+                      ({guard.activeDispatch.shiftType === 'SHIFT_MORNING' ? 'Sáng' : guard.activeDispatch.shiftType === 'SHIFT_AFTERNOON' ? 'Chiều' : 'Đêm'})
+                    </span>
+                  )}
+                </span>
+              )}
+            </div>
+          </div>
+        </td>
+
+      {/* 7 Day Slot Cells */}
+      {weekDays.map((d, i) => {
+        const dateStr = formatLocalDate(d);
+        const guardDayShifts = displayShifts.filter(
+          (s) => (s.guardId === guard.id || s.guard?.id === guard.id) && s.shiftDate === dateStr
+        );
+        const isToday = dateStr === todayStr;
+
+        return (
+          <td
+            key={i}
+            className={`matrix-td-slot ${isToday ? 'is-today' : ''}`}
+          >
+            <div className="space-y-2 min-h-[90px]">
+              {guardDayShifts.map((shift) => {
+                const shiftConfig = SHIFT_TYPES[shift.shiftType] || SHIFT_TYPES.SHIFT_MORNING;
+                const Icon = shiftConfig.icon;
+                const isDispatched = shift.notes && shift.notes.includes('⚡');
+
+                return (
+                  <div
+                    key={shift.id}
+                    className={`shift-card ${shiftConfig.cssClass} ${
+                      isDispatched ? 'border-l-[3px] border-l-amber-500 shadow-xs ring-1 ring-amber-400/40' : ''
+                    }`}
+                  >
+                    {/* Header: Shift Title & Actions */}
+                    <div className="flex items-center justify-between font-bold">
+                      <span className="flex items-center gap-1">
+                        <Icon size={13} /> {shiftConfig.label}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => {
+                            setEditingShift(shift);
+                            setShowShiftModal(true);
+                          }}
+                          className="p-1 hover:bg-black/10 rounded transition"
+                          title="Chỉnh sửa ca"
+                        >
+                          <Edit2 size={12} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteShift(shift.id)}
+                          className="p-1 hover:bg-black/10 text-red-600 rounded transition"
+                          title="Xóa ca"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Time */}
+                    <div className="flex items-center gap-1 mt-1 text-[11px] font-semibold opacity-90">
+                      <Clock size={11} />
+                      <span>
+                        {(shift.startTime && shift.startTime.length >= 5 ? shift.startTime.substring(0, 5) : shift.startTime)} — {(shift.endTime && shift.endTime.length >= 5 ? shift.endTime.substring(0, 5) : shift.endTime)}
+                      </span>
+                    </div>
+
+                    {/* Dispatched event note tag */}
+                    {isDispatched && (
+                      <div
+                        className="mt-1 px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-[10px] font-semibold flex items-center gap-1"
+                        title={shift.notes}
+                      >
+                        <Zap size={10} className="fill-amber-500 text-amber-500 shrink-0" />
+                        <span className="truncate">
+                          {shift.notes.replace('⚡ Điều động tăng cường: ', '').replace('⚡ Điều động tăng cường', 'Tăng cường sự kiện')}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Status badge */}
+                    <div className="mt-1.5 pt-1 border-t border-black/10 flex items-center justify-between text-[10px]">
+                      {shift.status === 'CHECKED_IN' ? (
+                        <span className="text-emerald-700 dark:text-emerald-300 font-bold flex items-center gap-1">
+                          <span className="live-pulse" /> Đang nhận ca
+                        </span>
+                      ) : shift.status === 'COMPLETED' ? (
+                        <span className="opacity-80 font-medium">Đã hoàn thành</span>
+                      ) : shift.status === 'ABSENT' ? (
+                        <span className="text-rose-600 dark:text-rose-400 font-bold">Vắng mặt</span>
+                      ) : shift.status === 'CANCELLED' ? (
+                        <span className="text-slate-500 font-medium line-through">Đã hủy</span>
+                      ) : (
+                        <span className="opacity-75">Đã lên lịch</span>
+                      )}
+
+                      {isDispatched ? (
+                        <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-200/90 dark:bg-amber-900/80 text-amber-950 dark:text-amber-200 border border-amber-400/50 flex items-center gap-0.5">
+                          ⚡ Tăng cường
+                        </span>
+                      ) : shift.isOvertime ? (
+                        <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-amber-200 dark:bg-amber-900/70 text-amber-900 dark:text-amber-200">
+                          OT
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Quick Add Shift button - chỉ hiển thị khi ngày này chưa có ca */}
+              {guardDayShifts.length === 0 && (
+                <button
+                  onClick={() => {
+                    setEditingShift({
+                      guardId: guard.id,
+                      shiftDate: dateStr,
+                      shiftType: 'SHIFT_MORNING',
+                      startTime: '06:00',
+                      endTime: '14:00'
+                    });
+                    setShowShiftModal(true);
+                  }}
+                  className="slot-quick-add-btn"
+                  title="Thêm ca trực nhanh cho ngày này"
+                >
+                  <Plus size={13} /> Phân ca
+                </button>
+              )}
+            </div>
+          </td>
+        );
+      })}
+    </tr>
+    );
+  };
+
   return (
     <div className="guard-schedule-page space-y-6">
       {/* 1. Header & Command Bar */}
       <div className="schedule-header">
         <div>
           <h1 className="schedule-header-title">
-            <Calendar className="text-blue-600 dark:text-blue-400" /> Quản Lý Lịch Trực Bảo Vệ
+            <Calendar className="text-blue-600 dark:text-blue-400" /> Quản Lý Đội Bảo Vệ
           </h1>
           <p className="schedule-header-subtitle">
             Phân công ca trực theo đội, điều phối chốt an ninh và phê duyệt yêu cầu đổi/nghỉ ca
@@ -698,40 +1056,22 @@ export default function GuardScheduleManagementPage() {
           </div>
         </div>
 
-        {/* Bottom Row: Building Selector, Team Selector & Search Filter */}
+        {/* Bottom Row: Team Selector, Building Selector & Search Filter */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-800/80 w-full">
           <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2">
-              <Building2 size={16} className="text-slate-400 shrink-0" />
-              <span className="text-xs font-semibold text-slate-500">Khuôn viên:</span>
-              <select
-                value={selectedBuilding}
-                onChange={(e) => setSelectedBuilding(e.target.value)}
-                className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[150px]"
-              >
-                <option value="ALL">-- Tất cả cơ sở / tòa nhà --</option>
-                {buildings.map((b) => (
-                  <option key={b.id || b.code} value={b.code}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
+            {/* Lọc theo Đội */}
             <div className="flex items-center gap-2">
               <Users size={16} className="text-slate-400 shrink-0" />
               <span className="text-xs font-semibold text-slate-500">Đội:</span>
               <select
                 value={selectedTeam}
-                onChange={(e) => setSelectedTeam(e.target.value)}
-                className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[150px]"
+                onChange={(e) => handleTeamChange(e.target.value)}
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[220px]"
               >
                 <option value="ALL">-- Tất cả đội bảo vệ --</option>
                 {teams.map((t) => {
-                  const buildingShifts = teamShiftCountsMap.get(t.id);
-                  const suffix = selectedBuilding !== 'ALL'
-                    ? (buildingShifts > 0 ? ` — (${buildingShifts} ca) ⭐` : ' — (0 ca)')
-                    : '';
+                  const bName = getShortBuildingName(t.description);
+                  const suffix = bName ? ` — (${bName})` : '';
                   return (
                     <option key={t.id} value={t.id}>
                       {t.teamName}{suffix}
@@ -742,25 +1082,27 @@ export default function GuardScheduleManagementPage() {
             </div>
           </div>
 
-          <div className="schedule-search-box">
-            <Search size={14} className="schedule-search-icon" />
-            <input
-              type="text"
-              value={searchKeyword}
-              onChange={(e) => setSearchKeyword(e.target.value)}
-              placeholder="Tìm theo tên, mã NV, chốt..."
-              className="schedule-search-input"
-            />
-            {searchKeyword && (
-              <button
-                type="button"
-                onClick={() => setSearchKeyword('')}
-                className="schedule-search-clear"
-                title="Xóa tìm kiếm"
-              >
-                <X size={13} />
-              </button>
-            )}
+          <div className="flex items-center gap-3">
+            <div className="schedule-search-box">
+              <Search size={14} className="schedule-search-icon" />
+              <input
+                type="text"
+                value={searchKeyword}
+                onChange={(e) => setSearchKeyword(e.target.value)}
+                placeholder="Tìm theo tên, mã NV, chốt..."
+                className="schedule-search-input"
+              />
+              {searchKeyword && (
+                <button
+                  type="button"
+                  onClick={() => setSearchKeyword('')}
+                  className="schedule-search-clear"
+                  title="Xóa tìm kiếm"
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -774,7 +1116,7 @@ export default function GuardScheduleManagementPage() {
                 {weekDays.map((d, i) => {
                   const dayStr = formatLocalDate(d);
                   const isToday = dayStr === todayStr;
-                  const dayShiftsCount = shifts.filter(
+                  const dayShiftsCount = displayShifts.filter(
                     (s) => s.shiftDate === dayStr
                   ).length;
                   return (
@@ -805,188 +1147,52 @@ export default function GuardScheduleManagementPage() {
                         Chưa tìm thấy nhân sự bảo vệ nào
                       </h3>
                       <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mb-4">
-                        Hệ thống chưa có tài khoản bảo vệ phù hợp với từ khóa tìm kiếm hoặc chưa tạo
-                        nhân sự vai trò GUARD.
+                        Hệ thống chưa có tài khoản bảo vệ phù hợp với bộ lọc hoặc từ khóa tìm kiếm.
                       </p>
                     </div>
                   </td>
                 </tr>
-              ) : (
-                filteredGuards.map((guard) => (
-                  <tr key={guard.id}>
-                    {/* Guard Info Cell */}
-                    <td className="matrix-td-info">
-                      <div className="flex flex-col justify-center min-w-0 py-0.5">
-                        <div
-                          className="font-bold text-slate-900 dark:text-slate-100 text-sm leading-snug truncate"
-                          title={guard.fullName}
-                        >
-                          {guard.fullName || 'Nhân viên bảo vệ'}
-                        </div>
-                        <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
-                          <span className="inline-flex items-center font-mono font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 px-2 py-0.5 rounded text-[11px] whitespace-nowrap shadow-xs">
-                            {guard.userCode || 'NV-BV'}
-                          </span>
-                          {(guard.teamName || guard.team?.teamName) ? (
-                            <span
-                              className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold truncate max-w-[130px]"
-                              style={{
-                                backgroundColor: guard.team?.colorCode ? `${guard.team.colorCode}18` : '#eff6ff',
-                                color: guard.team?.colorCode || '#2563eb',
-                                border: `1px solid ${guard.team?.colorCode ? `${guard.team.colorCode}40` : '#bfdbfe'}`
-                              }}
-                              title={`Đội gốc: ${guard.teamName || guard.team?.teamName}`}
-                            >
-                              {guard.teamName || guard.team?.teamName}
+              ) : dispatchedMembers.length > 0 ? (
+                <>
+                  {/* Nhóm 1: Quân số nòng cốt */}
+                  {officialMembers.length > 0 && (
+                    <>
+                      <tr className="bg-slate-50 dark:bg-slate-800/80 border-y border-slate-200 dark:border-slate-700">
+                        <td colSpan={8} className="px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-200">
+                          <div className="flex items-center justify-between">
+                            <span className="flex items-center gap-2">
+                              <Shield size={14} className="text-blue-600 dark:text-blue-400" />
+                              <span>
+                                Quân số nòng cốt {(teams.find((t) => t.id === selectedTeam)?.teamName) || 'Đội'} ({officialMembers.length} bảo vệ • {officialShiftsCount} ca trực)
+                              </span>
                             </span>
-                          ) : (
-                            <span className="text-[10px] text-slate-400 font-medium">
-                              Chưa phân đội
-                            </span>
-                          )}
-                          {guard.activeDispatch && (
-                            <span
-                              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700/60 shadow-xs"
-                              title={`Điều động tăng cường: ${guard.activeDispatch.toTeamName} (${guard.activeDispatch.shiftType ? (guard.activeDispatch.shiftType === 'SHIFT_MORNING' ? 'Ca Sáng (06-14h)' : guard.activeDispatch.shiftType === 'SHIFT_AFTERNOON' ? 'Ca Chiều (14-22h)' : 'Ca Đêm (22-06h)') + ' • ' : ''}${guard.activeDispatch.startDate} ~ ${guard.activeDispatch.endDate})${guard.activeDispatch.reason ? ' - Lý do: ' + guard.activeDispatch.reason : ''}`}
-                            >
-                              ⚡ {guard.activeDispatch.toTeamName}
-                              {guard.activeDispatch.shiftType && (
-                                <span className="font-normal opacity-85">
-                                  ({guard.activeDispatch.shiftType === 'SHIFT_MORNING' ? 'Sáng' : guard.activeDispatch.shiftType === 'SHIFT_AFTERNOON' ? 'Chiều' : 'Đêm'})
-                                </span>
-                              )}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* 7 Day Slot Cells */}
-                    {weekDays.map((d, i) => {
-                      const dateStr = formatLocalDate(d);
-                      const guardDayShifts = shifts.filter(
-                        (s) => s.guardId === guard.id && s.shiftDate === dateStr
-                      );
-                      const isToday = dateStr === todayStr;
-
-                      return (
-                        <td
-                          key={i}
-                          className={`matrix-td-slot ${isToday ? 'is-today' : ''}`}
-                        >
-                          <div className="space-y-2 min-h-[90px]">
-                            {guardDayShifts.map((shift) => {
-                              const shiftConfig = SHIFT_TYPES[shift.shiftType] || SHIFT_TYPES.SHIFT_MORNING;
-                              const Icon = shiftConfig.icon;
-                              const isDispatched = shift.notes && shift.notes.includes('⚡');
-
-                              return (
-                                <div
-                                  key={shift.id}
-                                  className={`shift-card ${shiftConfig.cssClass} ${
-                                    isDispatched ? 'border-l-[3px] border-l-amber-500 shadow-xs ring-1 ring-amber-400/40' : ''
-                                  }`}
-                                >
-                                  {/* Header: Shift Title & Actions */}
-                                  <div className="flex items-center justify-between font-bold">
-                                    <span className="flex items-center gap-1">
-                                      <Icon size={13} /> {shiftConfig.label}
-                                    </span>
-                                    <div className="flex items-center gap-1">
-                                      <button
-                                        onClick={() => {
-                                          setEditingShift(shift);
-                                          setShowShiftModal(true);
-                                        }}
-                                        className="p-1 hover:bg-black/10 rounded transition"
-                                        title="Chỉnh sửa ca"
-                                      >
-                                        <Edit2 size={12} />
-                                      </button>
-                                      <button
-                                        onClick={() => handleDeleteShift(shift.id)}
-                                        className="p-1 hover:bg-black/10 text-red-600 rounded transition"
-                                        title="Xóa ca"
-                                      >
-                                        <Trash2 size={12} />
-                                      </button>
-                                    </div>
-                                  </div>
-
-                                  {/* Time */}
-                                  <div className="flex items-center gap-1 mt-1 text-[11px] font-semibold opacity-90">
-                                    <Clock size={11} />
-                                    <span>
-                                      {(shift.startTime && shift.startTime.length >= 5 ? shift.startTime.substring(0, 5) : shift.startTime)} — {(shift.endTime && shift.endTime.length >= 5 ? shift.endTime.substring(0, 5) : shift.endTime)}
-                                    </span>
-                                  </div>
-
-                                  {/* Dispatched event note tag */}
-                                  {isDispatched && (
-                                    <div
-                                      className="mt-1 px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-[10px] font-semibold flex items-center gap-1"
-                                      title={shift.notes}
-                                    >
-                                      <Zap size={10} className="fill-amber-500 text-amber-500 shrink-0" />
-                                      <span className="truncate">
-                                        {shift.notes.replace('⚡ Điều động tăng cường: ', '').replace('⚡ Điều động tăng cường', 'Tăng cường sự kiện')}
-                                      </span>
-                                    </div>
-                                  )}
-
-                                  {/* Status badge */}
-                                  <div className="mt-1.5 pt-1 border-t border-black/10 flex items-center justify-between text-[10px]">
-                                    {shift.status === 'CHECKED_IN' ? (
-                                      <span className="text-emerald-700 dark:text-emerald-300 font-bold flex items-center gap-1">
-                                        <span className="live-pulse" /> Đang nhận ca
-                                      </span>
-                                    ) : shift.status === 'COMPLETED' ? (
-                                      <span className="opacity-80 font-medium">Đã hoàn thành</span>
-                                    ) : shift.status === 'ABSENT' ? (
-                                      <span className="text-rose-600 dark:text-rose-400 font-bold">Vắng mặt</span>
-                                    ) : shift.status === 'CANCELLED' ? (
-                                      <span className="text-slate-500 font-medium line-through">Đã hủy</span>
-                                    ) : (
-                                      <span className="opacity-75">Đã lên lịch</span>
-                                    )}
-
-                                    {isDispatched ? (
-                                      <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-200/90 dark:bg-amber-900/80 text-amber-950 dark:text-amber-200 border border-amber-400/50 flex items-center gap-0.5">
-                                        ⚡ Tăng cường
-                                      </span>
-                                    ) : shift.isOvertime ? (
-                                      <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-amber-200 dark:bg-amber-900/70 text-amber-900 dark:text-amber-200">
-                                        OT
-                                      </span>
-                                    ) : null}
-                                  </div>
-                                </div>
-                              );
-                            })}
-
-                            {/* Quick Add Shift button */}
-                            <button
-                              onClick={() => {
-                                setEditingShift({
-                                  guardId: guard.id,
-                                  shiftDate: dateStr,
-                                  shiftType: 'SHIFT_MORNING',
-                                  startTime: '06:00',
-                                  endTime: '14:00'
-                                });
-                                setShowShiftModal(true);
-                              }}
-                              className="slot-quick-add-btn"
-                              title="Thêm ca trực nhanh cho ngày này"
-                            >
-                              <Plus size={13} /> Phân ca
-                            </button>
                           </div>
                         </td>
-                      );
-                    })}
+                      </tr>
+                      {officialMembers.map(renderGuardRow)}
+                    </>
+                  )}
+
+                  {/* Nhóm 2: Nhân sự điều động tăng cường sự kiện */}
+                  <tr className="bg-amber-50/90 dark:bg-amber-950/40 border-y border-amber-200 dark:border-amber-800/60">
+                    <td colSpan={8} className="px-4 py-2 text-xs font-bold text-amber-800 dark:text-amber-200">
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-2">
+                          <Zap size={14} className="text-amber-600 fill-amber-500" />
+                          <span>
+                            Nhân sự điều động tăng cường sự kiện ({dispatchedMembers.length} bảo vệ • {dispatchedShiftsCount} ca trực)
+                          </span>
+                        </span>
+                        <span className="text-[11px] font-normal text-amber-700 dark:text-amber-300">
+                          Được điều động từ các đội khác để hỗ trợ theo ca / sự kiện
+                        </span>
+                      </div>
+                    </td>
                   </tr>
-                ))
+                  {dispatchedMembers.map(renderGuardRow)}
+                </>
+              ) : (
+                filteredGuards.map(renderGuardRow)
               )}
             </tbody>
           </table>
@@ -1381,6 +1587,7 @@ export default function GuardScheduleManagementPage() {
         areas={areas}
         buildings={buildings}
         currentWeekMonday={weekDays[0]}
+        defaultTeamId={selectedTeam}
         onSuccess={() => {
           fetchData();
         }}

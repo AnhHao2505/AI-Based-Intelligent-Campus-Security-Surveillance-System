@@ -17,6 +17,7 @@ export default function StaffingWizardModal({
   areas = [],
   buildings = [],
   currentWeekMonday,
+  defaultTeamId,
   onSuccess
 }) {
   const [selectedTeamId, setSelectedTeamId] = useState('');
@@ -117,7 +118,7 @@ export default function StaffingWizardModal({
     return `${y}-${m}-${dt}`;
   }, [nextMondayStr]);
 
-  // Khởi tạo ngày bắt đầu, kết thúc và tự động chọn đội đầu tiên khi mở modal
+  // Khởi tạo ngày bắt đầu, kết thúc và tự động chọn đội (ưu tiên đội đang lọc) khi mở modal
   useEffect(() => {
     if (isOpen) {
       setError(null);
@@ -126,11 +127,14 @@ export default function StaffingWizardModal({
       setEndDate(thisSundayStr);
 
       if (teams && teams.length > 0) {
-        const defaultTeam = teams[0];
-        setSelectedTeamId(defaultTeam.id);
+        const matchingTeam = defaultTeamId && defaultTeamId !== 'ALL'
+          ? teams.find((t) => t.id === defaultTeamId)
+          : null;
+        const targetTeam = matchingTeam || teams[0];
+        setSelectedTeamId(targetTeam.id);
       }
     }
-  }, [isOpen]);
+  }, [isOpen, defaultTeamId, teams, thisMondayStr, thisSundayStr]);
 
   // Đội bảo vệ đang được chọn
   const activeTeam = useMemo(() => {

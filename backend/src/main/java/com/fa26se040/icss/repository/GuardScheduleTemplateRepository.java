@@ -19,8 +19,8 @@ public interface GuardScheduleTemplateRepository extends JpaRepository<GuardSche
 
     List<GuardScheduleTemplate> findByDayOfWeekAndIsActiveTrue(Integer dayOfWeek);
 
-    @Query("SELECT t FROM GuardScheduleTemplate t LEFT JOIN t.area a WHERE t.isActive = true " +
-            "AND (CAST(:building AS string) IS NULL OR a IS NULL OR LOWER(a.building) = LOWER(CAST(:building AS string)))")
+    @Query("SELECT t FROM GuardScheduleTemplate t LEFT JOIN t.area a LEFT JOIN t.guard g LEFT JOIN g.team team WHERE t.isActive = true " +
+            "AND (CAST(:building AS string) IS NULL OR LOWER(COALESCE(a.building, team.description)) = LOWER(CAST(:building AS string)))")
     List<GuardScheduleTemplate> findActiveTemplatesByBuilding(@Param("building") String building);
 
     boolean existsByGuardIdAndDayOfWeekAndStartTimeAndIsActiveTrue(
