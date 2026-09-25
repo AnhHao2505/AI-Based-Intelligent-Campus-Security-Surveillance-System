@@ -18,7 +18,8 @@ import {
   Moon,
   Zap,
   CheckCircle2,
-  Building2
+  Building2,
+  Calendar
 } from 'lucide-react';
 import { guardScheduleApi } from '../../api/guardScheduleApi';
 import { getUsers } from '../../services/userService';
@@ -147,9 +148,10 @@ export default function GuardTeamsTab({
     const d = String(now.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
   }, []);
+  const [dispatchMode, setDispatchMode] = useState('SINGLE'); // 'SINGLE' (sự kiện 1 ca / 1 ngày) | 'RANGE' (dài ngày)
   const [dispatchStartDate, setDispatchStartDate] = useState(todayDateStr);
   const [dispatchEndDate, setDispatchEndDate] = useState(todayDateStr);
-  const [dispatchShiftType, setDispatchShiftType] = useState('ALL');
+  const [dispatchShiftType, setDispatchShiftType] = useState('SHIFT_MORNING');
   const [dispatchReason, setDispatchReason] = useState('');
   const [selectedDispatchGuardIds, setSelectedDispatchGuardIds] = useState([]);
   const [dispatchSearch, setDispatchSearch] = useState('');
@@ -460,9 +462,10 @@ export default function GuardTeamsTab({
           .map((g) => g.id);
     setSelectedGuardIds(currentMemberIds);
     setMemberSearch('');
+    setDispatchMode('SINGLE');
     setDispatchStartDate(todayDateStr);
     setDispatchEndDate(todayDateStr);
-    setDispatchShiftType('ALL');
+    setDispatchShiftType('SHIFT_MORNING');
     setDispatchReason('');
     setSelectedDispatchGuardIds([]);
     setDispatchSearch('');
@@ -541,11 +544,14 @@ export default function GuardTeamsTab({
       alert('Vui lòng chọn ít nhất một nhân viên bảo vệ để điều động tăng cường');
       return;
     }
-    if (!dispatchStartDate || !dispatchEndDate) {
-      alert('Vui lòng chọn ngày bắt đầu và kết thúc điều động');
+    const finalStartDate = dispatchStartDate;
+    const finalEndDate = dispatchMode === 'SINGLE' ? dispatchStartDate : dispatchEndDate;
+
+    if (!finalStartDate || !finalEndDate) {
+      alert('Vui lòng chọn ngày điều động');
       return;
     }
-    if (dispatchEndDate < dispatchStartDate) {
+    if (finalEndDate < finalStartDate) {
       alert('Ngày kết thúc không được trước ngày bắt đầu');
       return;
     }
@@ -555,8 +561,8 @@ export default function GuardTeamsTab({
       await guardScheduleApi.createDispatches({
         guardIds: selectedDispatchGuardIds,
         toTeamId: assigningTeam.id,
-        startDate: dispatchStartDate,
-        endDate: dispatchEndDate,
+        startDate: finalStartDate,
+        endDate: finalEndDate,
         shiftType: dispatchShiftType === 'ALL' ? null : dispatchShiftType,
         reason: dispatchReason.trim()
       });
@@ -566,7 +572,8 @@ export default function GuardTeamsTab({
       alert(`Đã điều động thành công ${selectedDispatchGuardIds.length} bảo vệ tăng cường${shiftLabel} cho ${assigningTeam.teamName}!`);
       setSelectedDispatchGuardIds([]);
       setDispatchReason('');
-      setDispatchShiftType('ALL');
+      setDispatchShiftType('SHIFT_MORNING');
+      setDispatchMode('SINGLE');
       setAssigningTeam(null);
     } catch (err) {
       alert(err.message || 'Lỗi khi tạo đợt điều động tăng cường');
@@ -1467,58 +1474,145 @@ export default function GuardTeamsTab({
               /* TAB 2: TEMPORARY DISPATCH */
               <>
                 <div className="schedule-modal__body space-y-4">
-                  {/* Date Range, Shift Type & Reason inputs */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Từ ngày <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        type="date"
-                        value={dispatchStartDate}
-                        onChange={(e) => setDispatchStartDate(e.target.value)}
-                        className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-medium"
-                      />
+                  {/* Mode switcher: Ca sự kiện trong ngày vs Đợt dài ngày */}
+                  <div className="flex items-center gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg w-fit border border-slate-200 dark:border-slate-700">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDispatchMode('SINGLE');
+                        setDispatchEndDate(dispatchStartDate);
+                        if (dispatchShiftType === 'ALL') setDispatchShiftType('SHIFT_MORNING');
+                      }}
+                      className={`px-3 py-1.5 rounded-md text-xs font-semibold transition flex items-center gap-1.5 ${
+                        dispatchMode === 'SINGLE'
+                          ? 'bg-white dark:bg-slate-700 text-amber-600 dark:text-amber-400 shadow-xs'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      <Zap size={13} className={dispatchMode === 'SINGLE' ? 'fill-amber-500' : ''} />
+                      <span>Ca sự kiện trong ngày (1 ca / 1 ngày)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDispatchMode('RANGE')}
+                      className={`px-3 py-1.5 rounded-md text-xs font-semibold transition flex items-center gap-1.5 ${
+                        dispatchMode === 'RANGE'
+                          ? 'bg-white dark:bg-slate-700 text-amber-600 dark:text-amber-400 shadow-xs'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      <Calendar size={13} />
+                      <span>Đợt tăng cường dài ngày</span>
+                    </button>
+                  </div>
+
+                  {/* Mode 1: Single Event / Shift */}
+                  {dispatchMode === 'SINGLE' ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/70 dark:border-amber-900/50 rounded-xl">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                          Ngày diễn ra sự kiện <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="date"
+                          value={dispatchStartDate}
+                          onChange={(e) => {
+                            setDispatchStartDate(e.target.value);
+                            setDispatchEndDate(e.target.value);
+                          }}
+                          className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-medium"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                          Ca trực cần tăng cường <span className="text-rose-500">*</span>
+                        </label>
+                        <select
+                          value={dispatchShiftType}
+                          onChange={(e) => setDispatchShiftType(e.target.value)}
+                          className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-medium"
+                        >
+                          <option value="SHIFT_MORNING">Ca Sáng (06:00 - 14:00)</option>
+                          <option value="SHIFT_AFTERNOON">Ca Chiều (14:00 - 22:00)</option>
+                          <option value="SHIFT_NIGHT">Ca Đêm (22:00 - 06:00)</option>
+                          <option value="ALL">Cả ngày (Tất cả 3 ca)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                          Tên sự kiện / Mục đích
+                        </label>
+                        <input
+                          type="text"
+                          value={dispatchReason}
+                          onChange={(e) => setDispatchReason(e.target.value)}
+                          placeholder="VD: Hội thao trường, Lễ tốt nghiệp..."
+                          className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100"
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Đến ngày <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        type="date"
-                        value={dispatchEndDate}
-                        min={dispatchStartDate}
-                        onChange={(e) => setDispatchEndDate(e.target.value)}
-                        className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-medium"
-                      />
+                  ) : (
+                    /* Mode 2: Multi-day range */
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                          Từ ngày <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="date"
+                          value={dispatchStartDate}
+                          onChange={(e) => setDispatchStartDate(e.target.value)}
+                          className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-medium"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                          Đến ngày <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="date"
+                          value={dispatchEndDate}
+                          min={dispatchStartDate}
+                          onChange={(e) => setDispatchEndDate(e.target.value)}
+                          className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-medium"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                          Khung ca tăng cường
+                        </label>
+                        <select
+                          value={dispatchShiftType}
+                          onChange={(e) => setDispatchShiftType(e.target.value)}
+                          className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-medium"
+                        >
+                          <option value="ALL">Tất cả các ca (Cả ngày)</option>
+                          <option value="SHIFT_MORNING">Ca Sáng (06:00 - 14:00)</option>
+                          <option value="SHIFT_AFTERNOON">Ca Chiều (14:00 - 22:00)</option>
+                          <option value="SHIFT_NIGHT">Ca Đêm (22:00 - 06:00)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                          Tên sự kiện / Lý do
+                        </label>
+                        <input
+                          type="text"
+                          value={dispatchReason}
+                          onChange={(e) => setDispatchReason(e.target.value)}
+                          placeholder="VD: Tuần lễ quân sự, Hội trại..."
+                          className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100"
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Khung ca tăng cường
-                      </label>
-                      <select
-                        value={dispatchShiftType}
-                        onChange={(e) => setDispatchShiftType(e.target.value)}
-                        className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-medium"
-                      >
-                        <option value="ALL">Tất cả các ca (Cả ngày)</option>
-                        <option value="SHIFT_MORNING">Ca Sáng (06:00 - 14:00)</option>
-                        <option value="SHIFT_AFTERNOON">Ca Chiều (14:00 - 22:00)</option>
-                        <option value="SHIFT_NIGHT">Ca Đêm (22:00 - 06:00)</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Tên sự kiện / Lý do
-                      </label>
-                      <input
-                        type="text"
-                        value={dispatchReason}
-                        onChange={(e) => setDispatchReason(e.target.value)}
-                        placeholder="VD: Lễ Tốt Nghiệp, Hội thao..."
-                        className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100"
-                      />
-                    </div>
+                  )}
+
+                  {/* Informative Auto-generation alert */}
+                  <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-800 dark:text-amber-300">
+                    <Zap size={14} className="fill-amber-500 text-amber-500 shrink-0 mt-0.5" />
+                    <span>
+                      Hệ thống sẽ <strong>tự động tạo ca trực</strong> cho các bảo vệ được chọn và cập nhật trực tiếp lên <strong>Lịch trực tuần</strong> cũng như <strong>App Mobile</strong> của nhân viên. Sau khi kết thúc ca trực, lịch sử chấm công và sự cố vẫn được bảo lưu trọn vẹn để đối soát.
+                    </span>
                   </div>
 
                   {/* Guard search & count */}

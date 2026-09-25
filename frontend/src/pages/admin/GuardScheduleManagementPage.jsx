@@ -24,7 +24,8 @@ import {
   LayoutGrid,
   Check,
   AlertCircle,
-  ClipboardList
+  ClipboardList,
+  Zap
 } from 'lucide-react';
 import { guardScheduleApi } from '../../api/guardScheduleApi';
 import { getUsers } from '../../services/userService';
@@ -401,7 +402,8 @@ export default function GuardScheduleManagementPage() {
           g.team?.id === selectedTeam ||
           g.teamId === selectedTeam ||
           (teamMemberIds && teamMemberIds.has(g.id)) ||
-          (g.activeDispatch && g.activeDispatch.toTeamId === selectedTeam)
+          (g.activeDispatch && g.activeDispatch.toTeamId === selectedTeam) ||
+          dispatches.some((d) => d.guardId === g.id && d.toTeamId === selectedTeam && d.status === 'ACTIVE')
       );
     } else if (selectedBuilding !== 'ALL') {
       // Smart Auto-Filter: Khi chọn khuôn viên cụ thể và để Đội = Tất cả, chỉ hiện các bảo vệ có ca trực tại khuôn viên đó
@@ -418,7 +420,7 @@ export default function GuardScheduleManagementPage() {
       );
     }
     return result;
-  }, [guards, selectedTeam, selectedBuilding, teams, guardIdsWithShiftsThisWeek, searchKeyword]);
+  }, [guards, selectedTeam, selectedBuilding, teams, guardIdsWithShiftsThisWeek, searchKeyword, dispatches]);
 
 
 
@@ -876,9 +878,15 @@ export default function GuardScheduleManagementPage() {
                             {guardDayShifts.map((shift) => {
                               const shiftConfig = SHIFT_TYPES[shift.shiftType] || SHIFT_TYPES.SHIFT_MORNING;
                               const Icon = shiftConfig.icon;
+                              const isDispatched = shift.notes && shift.notes.includes('⚡');
 
                               return (
-                                <div key={shift.id} className={`shift-card ${shiftConfig.cssClass}`}>
+                                <div
+                                  key={shift.id}
+                                  className={`shift-card ${shiftConfig.cssClass} ${
+                                    isDispatched ? 'border-l-[3px] border-l-amber-500 shadow-xs ring-1 ring-amber-400/40' : ''
+                                  }`}
+                                >
                                   {/* Header: Shift Title & Actions */}
                                   <div className="flex items-center justify-between font-bold">
                                     <span className="flex items-center gap-1">
@@ -913,6 +921,19 @@ export default function GuardScheduleManagementPage() {
                                     </span>
                                   </div>
 
+                                  {/* Dispatched event note tag */}
+                                  {isDispatched && (
+                                    <div
+                                      className="mt-1 px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-[10px] font-semibold flex items-center gap-1"
+                                      title={shift.notes}
+                                    >
+                                      <Zap size={10} className="fill-amber-500 text-amber-500 shrink-0" />
+                                      <span className="truncate">
+                                        {shift.notes.replace('⚡ Điều động tăng cường: ', '').replace('⚡ Điều động tăng cường', 'Tăng cường sự kiện')}
+                                      </span>
+                                    </div>
+                                  )}
+
                                   {/* Status badge */}
                                   <div className="mt-1.5 pt-1 border-t border-black/10 flex items-center justify-between text-[10px]">
                                     {shift.status === 'CHECKED_IN' ? (
@@ -929,11 +950,15 @@ export default function GuardScheduleManagementPage() {
                                       <span className="opacity-75">Đã lên lịch</span>
                                     )}
 
-                                    {shift.isOvertime && (
+                                    {isDispatched ? (
+                                      <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-200/90 dark:bg-amber-900/80 text-amber-950 dark:text-amber-200 border border-amber-400/50 flex items-center gap-0.5">
+                                        ⚡ Tăng cường
+                                      </span>
+                                    ) : shift.isOvertime ? (
                                       <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-amber-200 dark:bg-amber-900/70 text-amber-900 dark:text-amber-200">
                                         OT
                                       </span>
-                                    )}
+                                    ) : null}
                                   </div>
                                 </div>
                               );

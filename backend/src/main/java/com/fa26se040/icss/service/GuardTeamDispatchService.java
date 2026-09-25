@@ -30,6 +30,7 @@ public class GuardTeamDispatchService {
     private final GuardTeamRepository teamRepository;
     private final UserRepository userRepository;
     private final com.fa26se040.icss.repository.GuardShiftRepository shiftRepository;
+    private final com.fa26se040.icss.repository.AreaRepository areaRepository;
 
     @Transactional(readOnly = true)
     public List<com.fa26se040.icss.dto.guard.AvailableSubstituteDto> getAvailableGuardsForDispatch(
@@ -211,9 +212,79 @@ public class GuardTeamDispatchService {
                     .build();
 
             createdList.add(dispatchRepository.save(dispatch));
+
+            // Tự động sinh ca trực GuardShift tương ứng cho bảo vệ để hiển thị trên Lịch và Mobile App
+            String buildingCode = toTeam.getDescription();
+            com.fa26se040.icss.entity.Area targetArea = null;
+            if (buildingCode != null && !buildingCode.isBlank()) {
+                targetArea = areaRepository.findAll().stream()
+                        .filter(a -> a.getDeletedAt() == null && buildingCode.equalsIgnoreCase(a.getBuilding()))
+                        .findFirst().orElse(null);
+            }
+            if (targetArea == null) {
+                targetArea = areaRepository.findAll().stream()
+                        .filter(a -> a.getDeletedAt() == null)
+                        .findFirst().orElse(null);
+            }
+
+            List<com.fa26se040.icss.enums.ShiftType> shiftTypesToCreate = new ArrayList<>();
+            if (request.getShiftType() != null) {
+                shiftTypesToCreate.add(request.getShiftType());
+            } else {
+                shiftTypesToCreate.add(com.fa26se040.icss.enums.ShiftType.SHIFT_MORNING);
+            }
+
+            String reasonText = (request.getReason() != null && !request.getReason().isBlank())
+                    ? request.getReason().trim()
+                    : "Sự kiện";
+
+            for (com.fa26se040.icss.enums.ShiftType st : shiftTypesToCreate) {
+                java.time.LocalTime startTime;
+                java.time.LocalTime endTime;
+                switch (st) {
+                    case SHIFT_MORNING -> {
+                        startTime = java.time.LocalTime.of(6, 0);
+                        endTime = java.time.LocalTime.of(14, 0);
+                    }
+                    case SHIFT_AFTERNOON -> {
+                        startTime = java.time.LocalTime.of(14, 0);
+                        endTime = java.time.LocalTime.of(22, 0);
+                    }
+                    case SHIFT_NIGHT -> {
+                        startTime = java.time.LocalTime.of(22, 0);
+                        endTime = java.time.LocalTime.of(6, 0);
+                    }
+                    default -> {
+                        startTime = java.time.LocalTime.of(6, 0);
+                        endTime = java.time.LocalTime.of(14, 0);
+                    }
+                }
+
+                LocalDate shiftDate = request.getStartDate();
+                while (!shiftDate.isAfter(request.getEndDate())) {
+                    boolean exists = shiftRepository.existsByGuardIdAndShiftDateAndStartTime(
+                            guardId, shiftDate, startTime
+                    );
+                    if (!exists) {
+                        com.fa26se040.icss.entity.GuardShift shift = com.fa26se040.icss.entity.GuardShift.builder()
+                                .guard(guard)
+                                .shiftDate(shiftDate)
+                                .shiftType(st)
+                                .startTime(startTime)
+                                .endTime(endTime)
+                                .area(targetArea)
+                                .status(com.fa26se040.icss.enums.ShiftStatus.SCHEDULED)
+                                .isOvertime(true)
+                                .notes("⚡ Điều động tăng cường: " + reasonText)
+                                .build();
+                        shiftRepository.save(shift);
+                    }
+                    shiftDate = shiftDate.plusDays(1);
+                }
+            }
         }
 
-        log.info("Created [{}] temporary guard dispatches to team [{}] ({}) from [{}] to [{}] shift [{}]",
+        log.info("Created [{}] temporary guard dispatches and shifts to team [{}] ({}) from [{}] to [{}] shift [{}]",
                 createdList.size(), toTeam.getTeamName(), toTeam.getId(), request.getStartDate(), request.getEndDate(), request.getShiftType());
 
         return createdList.stream()
@@ -270,6 +341,18 @@ public class GuardTeamDispatchService {
 
         dispatch.setStatus(GuardDispatchStatus.CANCELLED);
         GuardTeamDispatch saved = dispatchRepository.save(dispatch);
+
+        // Xóa các ca trực tăng cường đã tạo nếu còn ở trạng thái SCHEDULED
+        List<com.fa26se040.icss.entity.GuardShift> candidateShifts = shiftRepository.findByGuardIdAndShiftDateBetweenOrderByShiftDateAscStartTimeAsc(
+                dispatch.getGuard().getId(), dispatch.getStartDate(), dispatch.getEndDate()
+        );
+        for (com.fa26se040.icss.entity.GuardShift s : candidateShifts) {
+            if (s.getStatus() == com.fa26se040.icss.enums.ShiftStatus.SCHEDULED
+                    && Boolean.TRUE.equals(s.getIsOvertime())
+                    && s.getNotes() != null && s.getNotes().contains("⚡ Điều động tăng cường")) {
+                shiftRepository.delete(s);
+            }
+        }
 
         log.info("Cancelled temporary dispatch [{}] of guard [{}] from team [{}] to team [{}] by [{}]",
                 dispatchId, dispatch.getGuard().getFullName(),
