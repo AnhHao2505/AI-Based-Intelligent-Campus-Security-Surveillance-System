@@ -828,11 +828,14 @@ export default function UserAccessLevelPage() {
                   onChange={(e) => setFilterAreaId(e.target.value)}
                 >
                   <option value="">Tất cả khu vực</option>
-                  {areasList.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.name} ({a.areaCode})
-                    </option>
-                  ))}
+                  {areasList.map((a) => {
+                    const loc = [a.building, a.floor].filter(Boolean).join(' · ');
+                    return (
+                      <option key={a.id} value={a.id}>
+                        {loc ? `${a.name} (${loc})` : a.name}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 
@@ -944,7 +947,6 @@ export default function UserAccessLevelPage() {
                             {log.areaName ? (
                               <div className="audit-area-cell">
                                 <span className="audit-area-name">{log.areaName}</span>
-                                <span className="audit-area-code">{log.areaCode}</span>
                               </div>
                             ) : (
                               <span className="audit-cell--empty">—</span>

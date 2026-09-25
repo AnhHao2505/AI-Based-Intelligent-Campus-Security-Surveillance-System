@@ -55,7 +55,6 @@ const EPS = 0.0005;
 const round6 = (n) => Math.round(n * 1e6) / 1e6;
 
 const GEOMETRY_ERROR_MESSAGES = {
-	ERR_AREA_001: "Mã khu vực đã tồn tại trong hệ thống.",
 	ERR_AREA_002: "Không tìm thấy khu vực được yêu cầu.",
 	ERR_AREA_003: "Cấp độ an ninh không hợp lệ hoặc đã ngừng sử dụng.",
 	ERR_AREA_004: "Mã khu vực chỉ gồm chữ in hoa, số và dấu gạch ngang, dài 3–50 ký tự.",

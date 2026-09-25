@@ -184,7 +184,7 @@ class AccessRequestServiceTest {
         assertEquals(RequestType.INDIVIDUAL, response.requestType());
         assertEquals(RequestStatus.PENDING, response.status());
         assertEquals("Học nhóm và nghiên cứu", response.purpose());
-        assertEquals(semiPrivateArea.getCode(), response.areaCode());
+        assertEquals(semiPrivateArea.getName(), response.areaName());
         assertEquals(requester.getUserCode(), response.requesterCode());
     }
 
@@ -321,7 +321,7 @@ class AccessRequestServiceTest {
 
         AccessRequestResponse response = accessRequestService.createIndividualRequest(request, requester.getEmail());
         assertNotNull(response);
-        assertEquals(internalArea.getCode(), response.areaCode());
+        assertEquals(internalArea.getName(), response.areaName());
     }
 
     @Test

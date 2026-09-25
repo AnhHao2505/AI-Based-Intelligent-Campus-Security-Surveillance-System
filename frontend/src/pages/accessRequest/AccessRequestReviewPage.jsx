@@ -195,8 +195,7 @@ export default function AccessRequestReviewPage() {
     return (
       (req.requesterName && req.requesterName.toLowerCase().includes(term)) ||
       (req.requesterCode && req.requesterCode.toLowerCase().includes(term)) ||
-      (req.areaName && req.areaName.toLowerCase().includes(term)) ||
-      (req.areaCode && req.areaCode.toLowerCase().includes(term))
+      (req.areaName && req.areaName.toLowerCase().includes(term))
     );
   });
 
@@ -381,7 +380,10 @@ export default function AccessRequestReviewPage() {
                       <div className="arr-area-tag">
                         <span className="arr-area-name">{req.areaName}</span>
                         <span className="arr-area-sub">
-                          [{req.areaCode}] - {req.building || 'Campus'} - {getLevelConfig(req.areaLevel).name}
+                          {([req.building, req.floor ? `Tầng ${req.floor}` : null].filter(Boolean).length > 0)
+                            ? `${[req.building, req.floor ? `Tầng ${req.floor}` : null].filter(Boolean).join(' · ')} - `
+                            : ''}
+                          {getLevelConfig(req.areaLevel).name}
                         </span>
                       </div>
                     </td>
@@ -512,7 +514,12 @@ export default function AccessRequestReviewPage() {
               </p>
 
               <div className="arr-info-box">
-                <div><strong>Khu vực:</strong> [{approveItem.areaCode}] {approveItem.areaName}</div>
+                <div>
+                  <strong>Khu vực:</strong> {approveItem.areaName}
+                  {([approveItem.building, approveItem.floor ? `Tầng ${approveItem.floor}` : null].filter(Boolean).length > 0)
+                    ? ` (${[approveItem.building, approveItem.floor ? `Tầng ${approveItem.floor}` : null].filter(Boolean).join(' · ')})`
+                    : ''}
+                </div>
                 <div><strong>Thời gian:</strong> {formatDateTime(approveItem.startTime)} - {formatDateTime(approveItem.endTime)}</div>
                 <div><strong>Mục đích:</strong> {approveItem.purpose}</div>
               </div>
@@ -649,9 +656,14 @@ export default function AccessRequestReviewPage() {
 
                 <div>
                   <div className="arr-detail-label">KHU VỰC ĐĂNG KÝ</div>
-                  <div style={{ fontWeight: 600 }}>{detailItem.areaName} ({detailItem.areaCode})</div>
+                  <div style={{ fontWeight: 600 }}>
+                    {detailItem.areaName}
+                    {([detailItem.building, detailItem.floor ? `Tầng ${detailItem.floor}` : null].filter(Boolean).length > 0)
+                      ? ` (${[detailItem.building, detailItem.floor ? `Tầng ${detailItem.floor}` : null].filter(Boolean).join(' · ')})`
+                      : ''}
+                  </div>
                   <div className="arr-text-muted" style={{ fontSize: '0.8125rem' }}>
-                    Cấp độ: {getLevelConfig(detailItem.areaLevel).name} | {detailItem.building} - Tầng {detailItem.floor}
+                    Cấp độ: {getLevelConfig(detailItem.areaLevel).name}
                   </div>
                 </div>
 

@@ -12,7 +12,6 @@ public record AccessControlAuditLogResponse(
         String targetId,
         UUID areaId,
         String areaName,
-        String areaCode,
         UUID subjectUserId,
         String subjectUserName,
         String subjectUserCode,

@@ -139,14 +139,12 @@ class AreaControllerAccessLevelTest {
         UUID areaId = UUID.randomUUID();
         AreaResponse resp = new AreaResponse(
                 areaId,
-                "LAB-01",
                 "Phòng Lab",
                 AreaLevel.HIGHLY_CONFIDENTIAL,
                 2,
                 false,
                 "Tòa A",
                 "Tầng 1",
-                "Mô tả",
                 null,
                 true,
                 OffsetDateTime.now(),

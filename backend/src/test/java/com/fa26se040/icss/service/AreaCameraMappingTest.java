@@ -85,7 +85,7 @@ class AreaCameraMappingTest {
 
         assertNotNull(resp);
         assertEquals(testAreaId, resp.getAreaId());
-        assertEquals("AREA-LAB-01", resp.getAreaCode());
+        assertEquals("Phòng Lab AI", resp.getAreaName());
         assertEquals(1, resp.getCameras().size());
         assertEquals("CAM-001", resp.getCameras().get(0).getCameraCode());
     }

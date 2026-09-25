@@ -19,7 +19,7 @@ export default function AccessHistoryPage() {
 
   // TODO: nối API khi backend có bảng lịch sử nhận diện (thuộc MF4)
   // Dự kiến: GET /api/access-history/my?from=&to=&areaId=&page=&size=
-  // Trả về: { content: [{ timestamp, areaName, areaCode, result, note }],
+  // Trả về: { content: [{ timestamp, areaName, building, floor, result, note }],
   //           totalElements, totalPages }
   const fetchHistory = async () => {
     // chưa hiện thực
@@ -152,12 +152,12 @@ export default function AccessHistoryPage() {
                       <td>
                         <div className="ahp-table-area-name">
                           {item.areaName || '—'}
+                          {([item.building, item.floor].filter(Boolean).length > 0) && (
+                            <span style={{ fontWeight: 400, color: 'var(--theme-text-secondary)', marginLeft: '4px' }}>
+                              ({[item.building, item.floor].filter(Boolean).join(' · ')})
+                            </span>
+                          )}
                         </div>
-                        {item.areaCode && (
-                          <div className="ahp-table-area-code">
-                            [{item.areaCode}]
-                          </div>
-                        )}
                       </td>
                       <td>
                         {isValid ? (

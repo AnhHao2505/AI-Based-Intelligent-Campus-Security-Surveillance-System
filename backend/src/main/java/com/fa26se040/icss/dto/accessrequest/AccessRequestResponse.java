@@ -11,7 +11,6 @@ import java.util.UUID;
 public record AccessRequestResponse(
     UUID id,
     UUID areaId,
-    String areaCode,
     String areaName,
     AreaLevel areaLevel,
     String building,

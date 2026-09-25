@@ -96,7 +96,6 @@ export function getLevelPolygonClass(level) {
  * Error Code Mapping sang thông báo thân thiện
  */
 export const ERROR_MESSAGES = {
-  ERR_AREA_001: 'Mã khu vực đã tồn tại trên hệ thống.',
   ERR_AREA_002: 'Không tìm thấy khu vực hoặc khu vực đã bị vô hiệu hóa.',
   ERR_AREA_003: 'Cấp độ an ninh không hợp lệ hoặc đã bị vô hiệu hóa.',
   ERR_AREA_004: 'Mã khu vực chỉ gồm chữ in hoa, số và dấu gạch ngang, dài 3–50 ký tự.',

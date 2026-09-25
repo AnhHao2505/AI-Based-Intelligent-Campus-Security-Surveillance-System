@@ -18,33 +18,6 @@ class AreaValidatorTest {
         areaValidator = new AreaValidator();
     }
 
-    @Test
-    @DisplayName("U1: code = 'server-b01' -> Chuẩn hoá SERVER-B01, hợp lệ")
-    void u1_codeLower_shouldNormalizeToUppercase() {
-        String result = areaValidator.validateAndNormalizeCode("server-b01");
-        assertEquals("SERVER-B01", result);
-    }
-
-    @Test
-    @DisplayName("U2: code = 'AB' -> ERR_AREA_004")
-    void u2_codeTooShort_shouldThrowErrArea004() {
-        AreaException ex = assertThrows(AreaException.class, () -> areaValidator.validateAndNormalizeCode("AB"));
-        assertEquals(AreaErrorCode.ERR_AREA_004, ex.getErrorCode());
-    }
-
-    @Test
-    @DisplayName("U3: code = 'SERVER_B01' -> ERR_AREA_004")
-    void u3_codeWithUnderscore_shouldThrowErrArea004() {
-        AreaException ex = assertThrows(AreaException.class, () -> areaValidator.validateAndNormalizeCode("SERVER_B01"));
-        assertEquals(AreaErrorCode.ERR_AREA_004, ex.getErrorCode());
-    }
-
-    @Test
-    @DisplayName("U4: code = '-SERVER' -> ERR_AREA_004")
-    void u4_codeLeadingHyphen_shouldThrowErrArea004() {
-        AreaException ex = assertThrows(AreaException.class, () -> areaValidator.validateAndNormalizeCode("-SERVER"));
-        assertEquals(AreaErrorCode.ERR_AREA_004, ex.getErrorCode());
-    }
 
     @Test
     @DisplayName("U5: name rỗng -> ERR_AREA_005")

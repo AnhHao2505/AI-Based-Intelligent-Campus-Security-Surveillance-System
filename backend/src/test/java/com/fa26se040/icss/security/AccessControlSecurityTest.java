@@ -278,8 +278,8 @@ class AccessControlSecurityTest extends AbstractIntegrationTest {
         @DisplayName("PATCH /areas/{id}/access-rules: FM được phép -> 200 OK")
         void patchAreaRules_FacilityManager_Returns200() throws Exception {
             when(areaService.updateAccessRules(eq(sampleId), any(), any()))
-                    .thenReturn(new AreaResponse(sampleId, "A01", "Khu vực 1", AreaLevel.PUBLIC, 2, false,
-                            "Tòa A", "Tầng 1", "Mô tả", null, true, OffsetDateTime.now(), OffsetDateTime.now()));
+                    .thenReturn(new AreaResponse(sampleId, "Khu vực 1", AreaLevel.PUBLIC, 2, false,
+                            "Tòa A", "Tầng 1", null, true, OffsetDateTime.now(), OffsetDateTime.now()));
 
             mockMvc.perform(patch("/api/areas/{id}/access-rules", sampleId)
                             .header("Authorization", tokenFor(Role.FACILITY_MANAGER))

@@ -249,7 +249,6 @@ class AccessControlAuditServiceTest {
         AccessControlAuditLogResponse dto = result.getContent().get(0);
         assertEquals(log.getId(), dto.id());
         assertEquals(AccessControlTargetType.USER_ACCESS_LEVEL, dto.targetType());
-        assertEquals("LAB-101", dto.areaCode());
         assertEquals("Phòng Lab Máy Tính", dto.areaName());
         assertEquals("Quản Lý Cơ Sở", dto.changedByName());
         assertEquals("FM-001", dto.changedByUserCode());
