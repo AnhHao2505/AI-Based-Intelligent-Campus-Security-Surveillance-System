@@ -38,6 +38,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fa26se040.icss.AbstractIntegrationTest;
 
+import com.fa26se040.icss.entity.Building;
+import com.fa26se040.icss.entity.Floor;
+import com.fa26se040.icss.repository.BuildingRepository;
+import com.fa26se040.icss.repository.FloorRepository;
+
 class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
@@ -56,6 +61,12 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
     private AreaRepository areaRepository;
 
     @Autowired
+    private BuildingRepository buildingRepository;
+
+    @Autowired
+    private FloorRepository floorRepository;
+
+    @Autowired
     private UserService userService;
 
     @Autowired
@@ -63,6 +74,13 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
 
     @SpyBean
     private AccessControlAuditService auditService;
+
+    private Floor getOrCreateTestFloor() {
+        Building b = buildingRepository.findByCodeIgnoreCase("TOA_ALPHA")
+                .orElseGet(() -> buildingRepository.save(Building.builder().code("TOA_ALPHA").name("Tòa Alpha").build()));
+        return floorRepository.findByBuildingCodeIgnoreCaseAndFloorCodeIgnoreCase("TOA_ALPHA", "1")
+                .orElseGet(() -> floorRepository.save(Floor.builder().building(b).floorCode("1").name("Tầng 1").floorOrder(1).build()));
+    }
 
     @Test
     @Transactional
@@ -180,11 +198,13 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
     @Transactional
     @DisplayName("E.8: Tính toán động cờ differsFromPreset (true khi khác preset, false khi khớp preset)")
     void testDiffersFromPreset_DynamicCalculation() {
+        Floor floor = getOrCreateTestFloor();
         String uniqueCode = "AREA-" + UUID.randomUUID().toString().substring(0, 8);
         Area area = Area.builder()
                 .name("Khu vực test differsFromPreset " + uniqueCode)
-                .building("BUILDING-" + uniqueCode)
-                .floor("FLOOR-" + uniqueCode)
+                .building("TOA_ALPHA")
+                .floor("1")
+                .floorEntity(floor)
                 .areaLevel(AreaLevel.PUBLIC)
                 .areaAccessLevel(1)
                 .explicitAuthorizationRequired(false)
@@ -229,10 +249,12 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
                 .build();
         targetUser = userRepository.save(targetUser);
 
+        Floor floor = getOrCreateTestFloor();
         Area testArea = Area.builder()
                 .name("Area Reason Test " + uniqueSuffix)
-                .building("BUILDING-" + uniqueSuffix)
-                .floor("FLOOR-" + uniqueSuffix)
+                .building("TOA_ALPHA")
+                .floor("1")
+                .floorEntity(floor)
                 .areaLevel(AreaLevel.PUBLIC)
                 .areaAccessLevel(1)
                 .explicitAuthorizationRequired(false)
@@ -315,10 +337,12 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
         fmActor = userRepository.save(fmActor);
         String token = "Bearer " + jwtTokenProvider.generateToken(fmActor);
 
+        Floor floor = getOrCreateTestFloor();
         Area testArea = Area.builder()
                 .name("Area Filter RegTest " + uniqueSuffix)
-                .building("BUILDING-" + uniqueSuffix)
-                .floor("FLOOR-" + uniqueSuffix)
+                .building("TOA_ALPHA")
+                .floor("1")
+                .floorEntity(floor)
                 .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
                 .areaAccessLevel(2)
                 .explicitAuthorizationRequired(false)
@@ -362,10 +386,12 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
                 .build();
         targetUser = userRepository.save(targetUser);
 
+        Floor floor = getOrCreateTestFloor();
         Area testArea = Area.builder()
                 .name("Area AP Commit " + uniqueSuffix)
-                .building("BUILDING-" + uniqueSuffix)
-                .floor("FLOOR-" + uniqueSuffix)
+                .building("TOA_ALPHA")
+                .floor("1")
+                .floorEntity(floor)
                 .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
                 .areaAccessLevel(2)
                 .explicitAuthorizationRequired(false)
@@ -437,10 +463,12 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
                 .build();
         targetUser = userRepository.save(targetUser);
 
+        Floor floor = getOrCreateTestFloor();
         Area testArea = Area.builder()
                 .name("Area AP Update " + uniqueSuffix)
-                .building("BUILDING-" + uniqueSuffix)
-                .floor("FLOOR-" + uniqueSuffix)
+                .building("TOA_ALPHA")
+                .floor("1")
+                .floorEntity(floor)
                 .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
                 .areaAccessLevel(2)
                 .explicitAuthorizationRequired(false)
@@ -503,10 +531,12 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
                 .build();
         targetUser = userRepository.save(targetUser);
 
+        Floor floor = getOrCreateTestFloor();
         Area testArea = Area.builder()
                 .name("Area AP Revoke " + uniqueSuffix)
-                .building("BUILDING-" + uniqueSuffix)
-                .floor("FLOOR-" + uniqueSuffix)
+                .building("TOA_ALPHA")
+                .floor("1")
+                .floorEntity(floor)
                 .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
                 .areaAccessLevel(2)
                 .explicitAuthorizationRequired(false)
@@ -618,10 +648,12 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
         fmActor = userRepository.save(fmActor);
         String token = "Bearer " + jwtTokenProvider.generateToken(fmActor);
 
+        Floor floor = getOrCreateTestFloor();
         Area testArea = Area.builder()
                 .name("Area Rules Commit " + uniqueSuffix)
-                .building("BUILDING-" + uniqueSuffix)
-                .floor("FLOOR-" + uniqueSuffix)
+                .building("TOA_ALPHA")
+                .floor("1")
+                .floorEntity(floor)
                 .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
                 .areaAccessLevel(2)
                 .explicitAuthorizationRequired(false)

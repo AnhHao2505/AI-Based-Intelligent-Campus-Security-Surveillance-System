@@ -6,6 +6,7 @@ import com.fa26se040.icss.dto.area.AreaResponse;
 import com.fa26se040.icss.dto.area.AreaUpdateRequest;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.AreaLevelPreset;
+import com.fa26se040.icss.entity.Floor;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.AreaLevel;
 import com.fa26se040.icss.enums.Role;
@@ -91,6 +92,14 @@ class AreaServiceAccessLevelTest {
                 .role(Role.FACILITY_MANAGER)
                 .isActive(true)
                 .build();
+
+        Floor defaultFloor = Floor.builder()
+                .id(UUID.randomUUID())
+                .floorCode("1")
+                .name("Tầng 1")
+                .build();
+        org.mockito.Mockito.lenient().when(floorRepository.findByBuildingCodeIgnoreCaseAndFloorCodeIgnoreCase(any(), any()))
+                .thenReturn(Optional.of(defaultFloor));
     }
 
     @Test
@@ -113,7 +122,7 @@ class AreaServiceAccessLevelTest {
                 .build();
         when(areaLevelPresetRepository.findById(AreaLevel.PUBLIC)).thenReturn(Optional.of(publicPreset));
 
-        when(areaRepository.save(any(Area.class))).thenAnswer(inv -> {
+        when(areaRepository.saveAndFlush(any(Area.class))).thenAnswer(inv -> {
             Area a = inv.getArgument(0);
             a.setId(UUID.randomUUID());
             return a;
@@ -160,7 +169,7 @@ class AreaServiceAccessLevelTest {
         when(userRepository.findByEmail(adminEmail)).thenReturn(Optional.of(admin));
         when(areaLevelPresetRepository.findById(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)).thenReturn(Optional.empty());
 
-        when(areaRepository.save(any(Area.class))).thenAnswer(inv -> {
+        when(areaRepository.saveAndFlush(any(Area.class))).thenAnswer(inv -> {
             Area a = inv.getArgument(0);
             a.setId(UUID.randomUUID());
             return a;
@@ -197,7 +206,7 @@ class AreaServiceAccessLevelTest {
         when(areaRepository.findByIdAndDeletedAtIsNull(areaId)).thenReturn(Optional.of(existing));
         when(areaValidator.validateAndNormalizeName(updateReq.getName())).thenReturn(updateReq.getName());
         when(userRepository.findByEmail(adminEmail)).thenReturn(Optional.of(admin));
-        when(areaRepository.save(any(Area.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(areaRepository.saveAndFlush(any(Area.class))).thenAnswer(inv -> inv.getArgument(0));
 
         AreaResponse resp = areaService.update(areaId, updateReq, adminEmail);
 

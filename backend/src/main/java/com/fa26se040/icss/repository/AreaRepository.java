@@ -18,6 +18,26 @@ public interface AreaRepository extends JpaRepository<Area, UUID> {
 
     boolean existsByIdAndDeletedAtIsNull(UUID id);
 
+    @Query("SELECT COUNT(a) > 0 FROM Area a " +
+            "WHERE a.floorEntity.id = :floorId " +
+            "AND LOWER(a.name) = LOWER(:name) " +
+            "AND a.deletedAt IS NULL")
+    boolean existsByFloorIdAndNameIgnoreCase(
+            @Param("floorId") UUID floorId,
+            @Param("name") String name
+    );
+
+    @Query("SELECT COUNT(a) > 0 FROM Area a " +
+            "WHERE a.id != :id " +
+            "AND a.floorEntity.id = :floorId " +
+            "AND LOWER(a.name) = LOWER(:name) " +
+            "AND a.deletedAt IS NULL")
+    boolean existsByFloorIdAndNameIgnoreCaseExcludingId(
+            @Param("id") UUID id,
+            @Param("floorId") UUID floorId,
+            @Param("name") String name
+    );
+
     Optional<Area> findByIdAndDeletedAtIsNull(UUID id);
 
     java.util.List<Area> findByBuildingIgnoreCaseAndFloorIgnoreCaseAndDeletedAtIsNull(String building, String floor);

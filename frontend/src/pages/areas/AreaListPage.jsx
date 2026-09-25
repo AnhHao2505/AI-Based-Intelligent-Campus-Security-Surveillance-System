@@ -49,6 +49,8 @@ import {
 	AREA_LEVEL_CONFIG,
 	getLevelPolygonClass,
 	getErrorMessage,
+	normalizeAreaName,
+	validateAreaName,
 } from "../../utils/areaHelpers";
 import "../../styles/AreaListPage.css";
 
@@ -168,6 +170,7 @@ export default function AreaListPage() {
 	const [deactivateModalOpen, setDeactivateModalOpen] = useState(false);
 	const [modalLoading, setModalLoading] = useState(false);
 	const [modalError, setModalError] = useState(null);
+	const [nameError, setNameError] = useState(null);
 	const [dependencies, setDependencies] = useState(null);
 
 	// Camera list modal states
@@ -695,17 +698,23 @@ export default function AreaListPage() {
 			reason: "",
 		});
 		setModalError(null);
+		setNameError(null);
 		setCreateModalOpen(true);
 	};
 
 	const handleCreateSubmit = async (e) => {
 		e.preventDefault();
+		const nameValidationError = validateAreaName(formData.name);
+		if (nameValidationError) {
+			setNameError(nameValidationError);
+			return;
+		}
 		setModalError(null);
 		setModalLoading(true);
 		try {
 			const payload = {
 
-				name: formData.name.trim(),
+				name: normalizeAreaName(formData.name),
 				areaLevel: formData.areaLevel,
 				building: formData.building ? formData.building.trim() : null,
 				floor: formData.floor ? formData.floor.trim() : null,
@@ -749,11 +758,17 @@ export default function AreaListPage() {
 			reason: "",
 		});
 		setModalError(null);
+		setNameError(null);
 		setEditModalOpen(true);
 	};
 
 	const handleEditSubmit = async (e) => {
 		e.preventDefault();
+		const nameValidationError = validateAreaName(formData.name);
+		if (nameValidationError) {
+			setNameError(nameValidationError);
+			return;
+		}
 		setModalError(null);
 
 		const targetId = formData.id || selectedArea?.id;
@@ -763,7 +778,7 @@ export default function AreaListPage() {
 		try {
 			const payload = {
 
-				name: formData.name.trim(),
+				name: normalizeAreaName(formData.name),
 				areaLevel: formData.areaLevel,
 				building: formData.building ? formData.building.trim() : null,
 				floor: formData.floor ? formData.floor.trim() : null,
@@ -1138,13 +1153,16 @@ export default function AreaListPage() {
 										id="create-name"
 										type="text"
 										required
-										className="area-form-input"
+										className={`area-form-input ${nameError ? "area-form-input--error" : ""}`}
 										placeholder="Cổng chính toà nhà"
 										value={formData.name}
-										onChange={(e) =>
-											setFormData({ ...formData, name: e.target.value })
-										}
+										onChange={(e) => {
+											setFormData({ ...formData, name: e.target.value });
+											if (nameError) setNameError(validateAreaName(e.target.value));
+										}}
+										onBlur={(e) => setNameError(validateAreaName(e.target.value))}
 									/>
+									{nameError && <div className="area-form-error">{nameError}</div>}
 								</div>
 
 								{/* 3c. Cấp độ an ninh (bắt buộc) - 3 thẻ chọn */}
@@ -1342,12 +1360,15 @@ export default function AreaListPage() {
 										id="edit-name"
 										type="text"
 										required
-										className="area-form-input"
+										className={`area-form-input ${nameError ? "area-form-input--error" : ""}`}
 										value={formData.name}
-										onChange={(e) =>
-											setFormData({ ...formData, name: e.target.value })
-										}
+										onChange={(e) => {
+											setFormData({ ...formData, name: e.target.value });
+											if (nameError) setNameError(validateAreaName(e.target.value));
+										}}
+										onBlur={(e) => setNameError(validateAreaName(e.target.value))}
 									/>
+									{nameError && <div className="area-form-error">{nameError}</div>}
 								</div>
 
 								<div className="area-form-group">
