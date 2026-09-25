@@ -9,8 +9,12 @@ import com.fa26se040.icss.enums.AreaLevel;
 import com.fa26se040.icss.enums.RequestStatus;
 import com.fa26se040.icss.enums.RequestType;
 import com.fa26se040.icss.enums.Role;
+import com.fa26se040.icss.entity.Building;
+import com.fa26se040.icss.entity.Floor;
 import com.fa26se040.icss.repository.AccessRequestRepository;
 import com.fa26se040.icss.repository.AreaRepository;
+import com.fa26se040.icss.repository.BuildingRepository;
+import com.fa26se040.icss.repository.FloorRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import com.fa26se040.icss.security.JwtTokenProvider;
 import org.junit.jupiter.api.DisplayName;
@@ -46,6 +50,19 @@ class AccessRequestIntegrationTest extends AbstractIntegrationTest {
     @Autowired
     private AccessRequestRepository accessRequestRepository;
 
+    @Autowired
+    private BuildingRepository buildingRepository;
+
+    @Autowired
+    private FloorRepository floorRepository;
+
+    private Floor getOrCreateTestFloor(String floorCode) {
+        Building b = buildingRepository.findByCodeIgnoreCase("TOA_ALPHA")
+                .orElseGet(() -> buildingRepository.save(Building.builder().code("TOA_ALPHA").name("Tòa Alpha").build()));
+        return floorRepository.findByBuildingCodeIgnoreCaseAndFloorCodeIgnoreCase("TOA_ALPHA", floorCode)
+                .orElseGet(() -> floorRepository.save(Floor.builder().building(b).floorCode(floorCode).name("Tầng " + floorCode).floorOrder(1).build()));
+    }
+
     @Test
     @Transactional
     @DisplayName("Integration Test: GET /api/access-requests/my và GET /api/access-requests hoạt động đúng khi areaId null và khi có areaId")
@@ -73,11 +90,15 @@ class AccessRequestIntegrationTest extends AbstractIntegrationTest {
                 .build();
         fm = userRepository.save(fm);
 
+        Floor floor1 = getOrCreateTestFloor("1");
+        Floor floor2 = getOrCreateTestFloor("2");
+
         // 2. Tạo 2 Area
         Area area1 = Area.builder()
                 .name("Area 1 " + uniqueSuffix)
-                .building("ALPHA")
+                .building("TOA_ALPHA")
                 .floor("1")
+                .floorEntity(floor1)
                 .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
                 .areaAccessLevel(2)
                 .explicitAuthorizationRequired(true)
@@ -87,8 +108,9 @@ class AccessRequestIntegrationTest extends AbstractIntegrationTest {
 
         Area area2 = Area.builder()
                 .name("Area 2 " + uniqueSuffix)
-                .building("BETA")
+                .building("TOA_ALPHA")
                 .floor("2")
+                .floorEntity(floor2)
                 .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
                 .areaAccessLevel(2)
                 .explicitAuthorizationRequired(true)
@@ -213,11 +235,15 @@ class AccessRequestIntegrationTest extends AbstractIntegrationTest {
                 .isActive(true)
                 .build());
 
+        Floor floor1 = getOrCreateTestFloor("1");
+        Floor floor2 = getOrCreateTestFloor("2");
+
         // 2. Tạo 2 Khu vực Area 1 và Area 2
         Area area1 = areaRepository.save(Area.builder()
                 .name("Group Area 1 " + uniqueSuffix)
-                .building("ALPHA")
+                .building("TOA_ALPHA")
                 .floor("1")
+                .floorEntity(floor1)
                 .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
                 .areaAccessLevel(2)
                 .explicitAuthorizationRequired(true)
@@ -226,8 +252,9 @@ class AccessRequestIntegrationTest extends AbstractIntegrationTest {
 
         Area area2 = areaRepository.save(Area.builder()
                 .name("Individual Area 2 " + uniqueSuffix)
-                .building("BETA")
+                .building("TOA_ALPHA")
                 .floor("2")
+                .floorEntity(floor2)
                 .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
                 .areaAccessLevel(2)
                 .explicitAuthorizationRequired(true)

@@ -28,6 +28,7 @@ import com.fa26se040.icss.repository.AreaRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -145,13 +146,19 @@ public class AreaService {
                     req.getBuilding().trim(), req.getFloor().trim()).orElse(null);
         }
 
-        String buildingVal = targetFloor != null && targetFloor.getBuilding() != null
+        if (targetFloor == null) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_021);
+        }
+
+        if (areaRepository.existsByFloorIdAndNameIgnoreCase(targetFloor.getId(), name)) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_020);
+        }
+
+        String buildingVal = targetFloor.getBuilding() != null
                 ? targetFloor.getBuilding().getCode()
                 : (req.getBuilding() != null ? req.getBuilding().trim() : null);
 
-        String floorVal = targetFloor != null
-                ? targetFloor.getFloorCode()
-                : (req.getFloor() != null ? req.getFloor().trim() : null);
+        String floorVal = targetFloor.getFloorCode();
 
         Area area = Area.builder()
                 .name(name)
@@ -164,8 +171,17 @@ public class AreaService {
                 .isActive(true)
                 .build();
 
-        Area savedArea = areaRepository.save(area);
-        return mapToAreaResponse(savedArea);
+        try {
+            Area savedArea = areaRepository.saveAndFlush(area);
+            return mapToAreaResponse(savedArea);
+        } catch (DataIntegrityViolationException ex) {
+            log.warn("Data integrity violation on creating area [{}]: {}", name, ex.getMessage());
+            String msg = (ex.getMessage() + " " + (ex.getRootCause() != null ? ex.getRootCause().getMessage() : "")).toLowerCase();
+            if (msg.contains("ux_areas_floor_name_active")) {
+                throw new AreaException(AreaErrorCode.ERR_AREA_020);
+            }
+            throw ex;
+        }
     }
 
     @Transactional
@@ -206,13 +222,19 @@ public class AreaService {
                     req.getBuilding().trim(), req.getFloor().trim()).orElse(null);
         }
 
-        String buildingVal = targetFloor != null && targetFloor.getBuilding() != null
+        if (targetFloor == null) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_021);
+        }
+
+        if (areaRepository.existsByFloorIdAndNameIgnoreCaseExcludingId(id, targetFloor.getId(), name)) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_020);
+        }
+
+        String buildingVal = targetFloor.getBuilding() != null
                 ? targetFloor.getBuilding().getCode()
                 : (req.getBuilding() != null ? req.getBuilding().trim() : area.getBuilding());
 
-        String floorVal = targetFloor != null
-                ? targetFloor.getFloorCode()
-                : (req.getFloor() != null ? req.getFloor().trim() : area.getFloor());
+        String floorVal = targetFloor.getFloorCode();
 
         area.setName(name);
         area.setAreaLevel(req.getAreaLevel());
@@ -220,8 +242,17 @@ public class AreaService {
         area.setBuilding(buildingVal);
         area.setFloor(floorVal);
 
-        Area savedArea = areaRepository.save(area);
-        return mapToAreaResponse(savedArea);
+        try {
+            Area savedArea = areaRepository.saveAndFlush(area);
+            return mapToAreaResponse(savedArea);
+        } catch (DataIntegrityViolationException ex) {
+            log.warn("Data integrity violation on updating area [{}]: {}", name, ex.getMessage());
+            String msg = (ex.getMessage() + " " + (ex.getRootCause() != null ? ex.getRootCause().getMessage() : "")).toLowerCase();
+            if (msg.contains("ux_areas_floor_name_active")) {
+                throw new AreaException(AreaErrorCode.ERR_AREA_020);
+            }
+            throw ex;
+        }
     }
 
     @Transactional
