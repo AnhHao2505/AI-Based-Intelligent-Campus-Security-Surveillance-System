@@ -526,16 +526,16 @@ public class GuardScheduleService {
             if (numRestingToday > 0) {
                 List<GuardScheduleState> restCandidates = new ArrayList<>(guardStates);
                 restCandidates.sort((a, b) -> {
-                    // a. Vừa trực ca đêm hôm qua: Ưu tiên nghỉ ngơi hồi phục thể lực cao nhất
+                    // a. Người có nhiều ca làm việc tích lũy hơn phải được nghỉ trước để cân bằng tải
+                    if (a.totalAssigned != b.totalAssigned) {
+                        return Integer.compare(b.totalAssigned, a.totalAssigned);
+                    }
+
+                    // b. Vừa trực ca đêm hôm qua: Ưu tiên nghỉ ngơi hồi phục thể lực
                     boolean aNightYest = (a.yesterdayShift == ShiftType.SHIFT_NIGHT);
                     boolean bNightYest = (b.yesterdayShift == ShiftType.SHIFT_NIGHT);
                     if (aNightYest != bNightYest) {
                         return aNightYest ? -1 : 1;
-                    }
-
-                    // b. Người có nhiều ca làm việc tích lũy hơn phải được nghỉ trước để cân bằng tải
-                    if (a.totalAssigned != b.totalAssigned) {
-                        return Integer.compare(b.totalAssigned, a.totalAssigned);
                     }
 
                     // c. Ưu tiên nghỉ 2 ngày liền kề (nếu hôm qua đã nghỉ)

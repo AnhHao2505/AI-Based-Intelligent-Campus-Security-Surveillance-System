@@ -168,7 +168,6 @@ class AccessControlControllerTest {
                 UUID.randomUUID().toString(),
                 null,
                 null,
-                null,
                 UUID.randomUUID(),
                 "Nguyễn Văn A",
                 "NV01",

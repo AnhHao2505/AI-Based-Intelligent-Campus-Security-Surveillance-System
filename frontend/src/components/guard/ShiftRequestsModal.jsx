@@ -263,6 +263,7 @@ export default function ShiftRequestsModal({
             <div className="space-y-3">
               {requests.map((req) => {
                 const isPending = req.status === 'PENDING';
+                const isRejected = req.status === 'REJECTED';
                 const isSwap = req.requestType === 'SWAP' || req.requestType === 'SWAP_SHIFT';
                 const shiftDate = req.shiftDate || req.shift?.shiftDate || '';
                 const startTime = (req.startTime || req.shift?.startTime || '').substring(0, 5);

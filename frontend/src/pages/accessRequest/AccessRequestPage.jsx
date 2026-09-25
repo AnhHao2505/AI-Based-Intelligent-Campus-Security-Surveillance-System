@@ -956,11 +956,11 @@ export default function AccessRequestPage() {
 											<tr>
 												<td>
 													<div style={{ fontWeight: 600 }}>{req.areaName}</div>
-													<div className="arp-table-room-code">
-														[{req.areaCode}]{" "}
-														{req.building ? `· ${req.building}` : ""}{" "}
-														{req.floor ? `Tầng ${req.floor}` : ""}
-													</div>
+													{([req.building, req.floor ? `Tầng ${req.floor}` : null].filter(Boolean).length > 0) && (
+														<div className="arp-table-room-code">
+															{[req.building, req.floor ? `Tầng ${req.floor}` : null].filter(Boolean).join(" · ")}
+														</div>
+													)}
 												</td>
 												<td>
 													<span
@@ -1241,7 +1241,9 @@ export default function AccessRequestPage() {
 								<div className="arp-detail-item">
 									<span className="arp-detail-label">Khu vực</span>
 									<span className="arp-detail-val">
-										{selectedDetail.areaName} ({selectedDetail.areaCode})
+										{selectedDetail.areaName}
+										{([selectedDetail.building, selectedDetail.floor ? `Tầng ${selectedDetail.floor}` : null].filter(Boolean).length > 0) &&
+											` (${[selectedDetail.building, selectedDetail.floor ? `Tầng ${selectedDetail.floor}` : null].filter(Boolean).join(" · ")})`}
 									</span>
 									<span
 										style={{
@@ -1249,8 +1251,7 @@ export default function AccessRequestPage() {
 											color: "var(--theme-text-muted)",
 										}}
 									>
-										Cấp độ: {getLevelConfig(selectedDetail.areaLevel).name} |{" "}
-										{selectedDetail.building} - Tầng {selectedDetail.floor}
+										Cấp độ: {getLevelConfig(selectedDetail.areaLevel).name}
 									</span>
 								</div>
 
@@ -1474,8 +1475,9 @@ export default function AccessRequestPage() {
 							}}
 						>
 							<div>
-								<strong>Khu vực:</strong> {cancelItem.areaName} (
-								{cancelItem.areaCode})
+								<strong>Khu vực:</strong> {cancelItem.areaName}
+								{([cancelItem.building, cancelItem.floor ? `Tầng ${cancelItem.floor}` : null].filter(Boolean).length > 0) &&
+									` (${[cancelItem.building, cancelItem.floor ? `Tầng ${cancelItem.floor}` : null].filter(Boolean).join(" · ")})`}
 							</div>
 							<div>
 								<strong>Khung giờ:</strong>{" "}
