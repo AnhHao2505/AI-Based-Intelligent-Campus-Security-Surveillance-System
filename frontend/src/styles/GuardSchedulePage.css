@@ -557,6 +557,11 @@
   position: relative;
   transition: all 0.15s ease;
   font-size: 0.75rem;
+  min-height: 88px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-sizing: border-box;
 }
 
 .shift-card:hover {

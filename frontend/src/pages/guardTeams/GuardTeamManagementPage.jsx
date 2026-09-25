@@ -25,7 +25,10 @@ import {
   Check,
   AlertCircle,
   ClipboardList,
-  Zap
+  Zap,
+  CalendarOff,
+  UserCheck,
+  ArrowRightLeft
 } from 'lucide-react';
 import { guardScheduleApi } from '../../api/guardScheduleApi';
 import { getUsers } from '../../services/userService';
@@ -711,6 +714,52 @@ export default function GuardTeamManagementPage() {
         );
         const isToday = dateStr === todayStr;
 
+        // Check if this guard has an approved Leave request for dateStr
+        const guardLeaveRequest = shiftRequests.find(
+          (r) =>
+            (r.requesterGuardId === guard.id || r.requesterId === guard.id || r.requester?.id === guard.id) &&
+            r.status === 'APPROVED' &&
+            r.shiftDate === dateStr &&
+            (r.requestType === 'LEAVE' || r.requestType === 'LEAVE_REQUEST')
+        );
+
+        // Check if this guard has an approved Swap request for dateStr (where they gave their shift away)
+        const guardSwapAwayRequest = shiftRequests.find(
+          (r) =>
+            (r.requesterGuardId === guard.id || r.requesterId === guard.id || r.requester?.id === guard.id) &&
+            r.status === 'APPROVED' &&
+            r.shiftDate === dateStr &&
+            (r.requestType === 'SWAP' || r.requestType === 'SWAP_SHIFT')
+        );
+
+        // Helper to format time value (handles "06:00:00", "06:00", or array)
+        const formatTimeVal = (val) => {
+          if (!val) return '';
+          if (typeof val === 'string') return val.length >= 5 ? val.substring(0, 5) : val;
+          if (Array.isArray(val) && val.length >= 2) return `${String(val[0]).padStart(2, '0')}:${String(val[1]).padStart(2, '0')}`;
+          return String(val);
+        };
+
+        // Extract shift type and time for approved leave
+        const relatedLeaveShift = guardLeaveRequest?.shiftId
+          ? shifts.find((s) => s.id === guardLeaveRequest.shiftId)
+          : null;
+        const leaveShiftType = guardLeaveRequest?.shiftType || relatedLeaveShift?.shiftType;
+        const leaveShiftConfig = leaveShiftType ? SHIFT_TYPES[leaveShiftType] : null;
+        const leaveStart = formatTimeVal(guardLeaveRequest?.startTime) || formatTimeVal(relatedLeaveShift?.startTime) || formatTimeVal(leaveShiftConfig?.startTime);
+        const leaveEnd = formatTimeVal(guardLeaveRequest?.endTime) || formatTimeVal(relatedLeaveShift?.endTime) || formatTimeVal(leaveShiftConfig?.endTime);
+        const leaveTimeDisplay = leaveStart && leaveEnd ? `${leaveStart} — ${leaveEnd}` : (leaveStart || leaveEnd || leaveShiftConfig?.time || '');
+
+        // Extract shift type and time for approved swap away
+        const relatedSwapShift = guardSwapAwayRequest?.shiftId
+          ? shifts.find((s) => s.id === guardSwapAwayRequest.shiftId)
+          : null;
+        const swapShiftType = guardSwapAwayRequest?.shiftType || relatedSwapShift?.shiftType;
+        const swapShiftConfig = swapShiftType ? SHIFT_TYPES[swapShiftType] : null;
+        const swapStart = formatTimeVal(guardSwapAwayRequest?.startTime) || formatTimeVal(relatedSwapShift?.startTime) || formatTimeVal(swapShiftConfig?.startTime);
+        const swapEnd = formatTimeVal(guardSwapAwayRequest?.endTime) || formatTimeVal(relatedSwapShift?.endTime) || formatTimeVal(swapShiftConfig?.endTime);
+        const swapTimeDisplay = swapStart && swapEnd ? `${swapStart} — ${swapEnd}` : (swapStart || swapEnd || swapShiftConfig?.time || '');
+
         return (
           <td
             key={i}
@@ -721,63 +770,120 @@ export default function GuardTeamManagementPage() {
                 const shiftConfig = SHIFT_TYPES[shift.shiftType] || SHIFT_TYPES.SHIFT_MORNING;
                 const Icon = shiftConfig.icon;
                 const isDispatched = shift.notes && shift.notes.includes('⚡');
+                const isSubstitute = shift.notes && (shift.notes.includes('Trực thay do ') || shift.notes.includes('Trực thay'));
+                const isSwap = shift.notes && (shift.notes.includes('Đổi ca: Chuyển từ ') || shift.notes.includes('Đổi ca'));
+
+                // Parse substitute name from notes: "Trực thay do Dương Văn Long nghỉ phép"
+                let substituteForName = '';
+                if (isSubstitute) {
+                  const match = shift.notes.match(/Trực thay do (.+?) nghỉ phép/);
+                  if (match) {
+                    substituteForName = match[1].trim();
+                  } else {
+                    substituteForName = shift.notes.replace('Trực thay do ', '').replace(' nghỉ phép', '').trim();
+                  }
+                }
+
+                // Parse swap name from notes: "Đổi ca: Chuyển từ Phạm Minh Dũng sang Trần Quốc Bảo"
+                let swapFromName = '';
+                if (isSwap) {
+                  const match = shift.notes.match(/Đổi ca: Chuyển từ (.+?) sang/);
+                  if (match) {
+                    swapFromName = match[1].trim();
+                  }
+                }
 
                 return (
                   <div
                     key={shift.id}
                     className={`shift-card ${shiftConfig.cssClass} ${
-                      isDispatched ? 'border-l-[3px] border-l-amber-500 shadow-xs ring-1 ring-amber-400/40' : ''
+                      isDispatched
+                        ? 'border-l-[3px] border-l-amber-500 shadow-xs ring-1 ring-amber-400/40'
+                        : isSubstitute
+                        ? 'border-l-[3px] border-l-teal-500 shadow-xs ring-1 ring-teal-400/40'
+                        : isSwap
+                        ? 'border-l-[3px] border-l-indigo-500 shadow-xs ring-1 ring-indigo-400/40'
+                        : ''
                     }`}
                   >
-                    {/* Header: Shift Title & Actions */}
-                    <div className="flex items-center justify-between font-bold">
-                      <span className="flex items-center gap-1">
-                        <Icon size={13} /> {shiftConfig.label}
-                      </span>
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => {
-                            setEditingShift(shift);
-                            setShowShiftModal(true);
-                          }}
-                          className="p-1 hover:bg-black/10 rounded transition"
-                          title="Chỉnh sửa ca"
-                        >
-                          <Edit2 size={12} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteShift(shift.id)}
-                          className="p-1 hover:bg-black/10 text-red-600 rounded transition"
-                          title="Xóa ca"
-                        >
-                          <Trash2 size={12} />
-                        </button>
+                    {/* Top & Middle Content */}
+                    <div>
+                      {/* Header: Shift Title & Actions */}
+                      <div className="flex items-center justify-between font-bold">
+                        <span className="flex items-center gap-1">
+                          <Icon size={13} /> {shiftConfig.label}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => {
+                              setEditingShift(shift);
+                              setShowShiftModal(true);
+                            }}
+                            className="p-1 hover:bg-black/10 rounded transition"
+                            title="Chỉnh sửa ca"
+                          >
+                            <Edit2 size={12} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteShift(shift.id)}
+                            className="p-1 hover:bg-black/10 text-red-600 rounded transition"
+                            title="Xóa ca"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
                       </div>
-                    </div>
 
-                    {/* Time */}
-                    <div className="flex items-center gap-1 mt-1 text-[11px] font-semibold opacity-90">
-                      <Clock size={11} />
-                      <span>
-                        {(shift.startTime && shift.startTime.length >= 5 ? shift.startTime.substring(0, 5) : shift.startTime)} — {(shift.endTime && shift.endTime.length >= 5 ? shift.endTime.substring(0, 5) : shift.endTime)}
-                      </span>
-                    </div>
-
-                    {/* Dispatched event note tag */}
-                    {isDispatched && (
-                      <div
-                        className="mt-1 px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-[10px] font-semibold flex items-center gap-1"
-                        title={shift.notes}
-                      >
-                        <Zap size={10} className="fill-amber-500 text-amber-500 shrink-0" />
-                        <span className="truncate">
-                          {shift.notes.replace('⚡ Điều động tăng cường: ', '').replace('⚡ Điều động tăng cường', 'Tăng cường sự kiện')}
+                      {/* Time */}
+                      <div className="flex items-center gap-1 mt-1 text-[11px] font-semibold opacity-90">
+                        <Clock size={11} />
+                        <span>
+                          {(shift.startTime && shift.startTime.length >= 5 ? shift.startTime.substring(0, 5) : shift.startTime)} — {(shift.endTime && shift.endTime.length >= 5 ? shift.endTime.substring(0, 5) : shift.endTime)}
                         </span>
                       </div>
-                    )}
+
+                      {/* Dispatched event note tag */}
+                      {isDispatched && (
+                        <div
+                          className="mt-1 px-1.5 py-0.5 rounded-md bg-amber-500/12 border border-amber-500/25 text-amber-900 dark:text-amber-200 text-[10px] font-medium flex items-center gap-1"
+                          title={shift.notes}
+                        >
+                          <Zap size={10} className="fill-amber-500 text-amber-500 shrink-0" />
+                          <span className="truncate">
+                            {shift.notes.replace('⚡ Điều động tăng cường: ', '').replace('⚡ Điều động tăng cường', 'Tăng cường sự kiện')}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Substitute note tag */}
+                      {isSubstitute && (
+                        <div
+                          className="mt-1 px-1.5 py-0.5 rounded-md bg-teal-500/12 border border-teal-500/25 text-teal-900 dark:text-teal-200 text-[10px] font-medium flex items-center gap-1"
+                          title={shift.notes}
+                        >
+                          <UserCheck size={10} className="text-teal-600 dark:text-teal-400 shrink-0" />
+                          <span className="truncate">
+                            Trực thay: <strong>{substituteForName || 'Đồng nghiệp'}</strong>
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Swap note tag */}
+                      {isSwap && (
+                        <div
+                          className="mt-1 px-1.5 py-0.5 rounded-md bg-indigo-500/12 border border-indigo-500/25 text-indigo-900 dark:text-indigo-200 text-[10px] font-medium flex items-center gap-1"
+                          title={shift.notes}
+                        >
+                          <ArrowRightLeft size={10} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
+                          <span className="truncate">
+                            Đổi từ: <strong>{swapFromName || 'Đồng nghiệp'}</strong>
+                          </span>
+                        </div>
+                      )}
+                    </div>
 
                     {/* Status badge */}
-                    <div className="mt-1.5 pt-1 border-t border-black/10 flex items-center justify-between text-[10px]">
+                    <div className="mt-1.5 pt-1 border-t border-black/10 dark:border-white/10 flex items-center justify-between text-[10px]">
                       {shift.status === 'CHECKED_IN' ? (
                         <span className="text-emerald-700 dark:text-emerald-300 font-bold flex items-center gap-1">
                           <span className="live-pulse" /> Đang nhận ca
@@ -796,6 +902,14 @@ export default function GuardTeamManagementPage() {
                         <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-200/90 dark:bg-amber-900/80 text-amber-950 dark:text-amber-200 border border-amber-400/50 flex items-center gap-0.5">
                           ⚡ Tăng cường
                         </span>
+                      ) : isSubstitute ? (
+                        <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-teal-100 dark:bg-teal-950/80 text-teal-900 dark:text-teal-200 border border-teal-300/70 dark:border-teal-700/60 flex items-center gap-0.5">
+                          Trực thay
+                        </span>
+                      ) : isSwap ? (
+                        <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-indigo-100 dark:bg-indigo-950/80 text-indigo-900 dark:text-indigo-200 border border-indigo-300/70 dark:border-indigo-700/60 flex items-center gap-0.5">
+                          Đổi ca
+                        </span>
                       ) : shift.isOvertime ? (
                         <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-amber-200 dark:bg-amber-900/70 text-amber-900 dark:text-amber-200">
                           OT
@@ -806,24 +920,141 @@ export default function GuardTeamManagementPage() {
                 );
               })}
 
-              {/* Quick Add Shift button - chỉ hiển thị khi ngày này chưa có ca */}
+              {/* Khi ngày này chưa có ca: hiển thị thẻ Nghỉ Phép / Đổi Ca nếu có đơn đã duyệt, hoặc nút Phân ca */}
               {guardDayShifts.length === 0 && (
-                <button
-                  onClick={() => {
-                    setEditingShift({
-                      guardId: guard.id,
-                      shiftDate: dateStr,
-                      shiftType: 'SHIFT_MORNING',
-                      startTime: '06:00',
-                      endTime: '14:00'
-                    });
-                    setShowShiftModal(true);
-                  }}
-                  className="slot-quick-add-btn"
-                  title="Thêm ca trực nhanh cho ngày này"
-                >
-                  <Plus size={13} /> Phân ca
-                </button>
+                <>
+                  {guardLeaveRequest ? (
+                    <div
+                      className={`shift-card ${leaveShiftConfig?.cssClass || 'shift-morning'} border-l-[3px] border-l-rose-500 shadow-xs ring-1 ring-rose-400/30 opacity-95`}
+                      title={
+                        guardLeaveRequest.reason
+                          ? `Nghỉ phép: "${guardLeaveRequest.reason}"${
+                              guardLeaveRequest.substituteGuardName
+                                ? ` - Người trực thay: ${guardLeaveRequest.substituteGuardName}`
+                                : ''
+                            }`
+                          : 'Nghỉ phép đã được duyệt'
+                      }
+                    >
+                      {/* Top & Middle Content */}
+                      <div>
+                        {/* Header: Shift Title & Badge */}
+                        <div className="flex items-center justify-between font-bold">
+                          <span className="flex items-center gap-1 text-rose-700 dark:text-rose-400">
+                            <CalendarOff size={13} className="text-rose-600 dark:text-rose-400 shrink-0" />
+                            <span>{leaveShiftConfig ? leaveShiftConfig.label : 'Ca Sáng'}</span>
+                          </span>
+                          <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300 border border-rose-300/70 dark:border-rose-700/60">
+                            Nghỉ phép
+                          </span>
+                        </div>
+
+                        {/* Time */}
+                        {leaveTimeDisplay && (
+                          <div className="flex items-center gap-1 mt-1 text-[11px] font-semibold opacity-90">
+                            <Clock size={11} className="shrink-0" />
+                            <span>{leaveTimeDisplay}</span>
+                          </div>
+                        )}
+
+                        {/* Substitute Info */}
+                        {guardLeaveRequest.substituteGuardName ? (
+                          <div
+                            className="mt-1 px-1.5 py-0.5 rounded-md bg-teal-500/12 border border-teal-500/25 text-teal-900 dark:text-teal-200 text-[10px] font-medium flex items-center gap-1"
+                            title={`Người trực thay: ${guardLeaveRequest.substituteGuardName}`}
+                          >
+                            <UserCheck size={10} className="text-teal-600 dark:text-teal-400 shrink-0" />
+                            <span className="truncate">
+                              Thay: <strong>{guardLeaveRequest.substituteGuardName}</strong>
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="mt-1 px-1.5 py-0.5 rounded-md bg-slate-500/10 border border-slate-500/20 text-slate-600 dark:text-slate-400 text-[10px] italic">
+                            Hủy ca trực
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Footer */}
+                      <div className="mt-1.5 pt-1 border-t border-black/10 dark:border-white/10 flex items-center justify-between text-[10px]">
+                        <span
+                          className="opacity-75 italic truncate max-w-[85px]"
+                          title={guardLeaveRequest.reason ? `Lý do: "${guardLeaveRequest.reason}"` : 'Đã duyệt nghỉ phép'}
+                        >
+                          {guardLeaveRequest.reason ? `"${guardLeaveRequest.reason}"` : 'Nghỉ phép'}
+                        </span>
+                        <span className="px-1.5 py-0.2 rounded text-[9px] font-semibold bg-slate-200/80 dark:bg-slate-700/60 text-slate-700 dark:text-slate-300">
+                          Đã duyệt
+                        </span>
+                      </div>
+                    </div>
+                  ) : guardSwapAwayRequest ? (
+                    <div
+                      className={`shift-card ${swapShiftConfig?.cssClass || 'shift-morning'} border-l-[3px] border-l-indigo-500 shadow-xs ring-1 ring-indigo-400/30 opacity-95`}
+                      title={`Đã đổi ca cho ${guardSwapAwayRequest.substituteGuardName || 'Đồng nghiệp'}`}
+                    >
+                      {/* Top & Middle Content */}
+                      <div>
+                        {/* Header: Title & Badge */}
+                        <div className="flex items-center justify-between font-bold">
+                          <span className="flex items-center gap-1 text-indigo-700 dark:text-indigo-400">
+                            <ArrowRightLeft size={13} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
+                            <span>{swapShiftConfig ? swapShiftConfig.label : 'Ca Sáng'}</span>
+                          </span>
+                          <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-indigo-100 dark:bg-indigo-950/80 text-indigo-900 dark:text-indigo-200 border border-indigo-300/70 dark:border-indigo-700/60">
+                            Đã đổi ca
+                          </span>
+                        </div>
+
+                        {/* Time */}
+                        {swapTimeDisplay && (
+                          <div className="flex items-center gap-1 mt-1 text-[11px] font-semibold opacity-90">
+                            <Clock size={11} className="shrink-0" />
+                            <span>{swapTimeDisplay}</span>
+                          </div>
+                        )}
+
+                        {/* Substitute Info */}
+                        {guardSwapAwayRequest.substituteGuardName && (
+                          <div
+                            className="mt-1 px-1.5 py-0.5 rounded-md bg-indigo-500/12 border border-indigo-500/25 text-indigo-900 dark:text-indigo-200 text-[10px] font-medium flex items-center gap-1"
+                            title={`Đã chuyển ca cho: ${guardSwapAwayRequest.substituteGuardName}`}
+                          >
+                            <UserCheck size={10} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
+                            <span className="truncate">
+                              Chuyển cho: <strong>{guardSwapAwayRequest.substituteGuardName}</strong>
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Footer */}
+                      <div className="mt-1.5 pt-1 border-t border-black/10 dark:border-white/10 flex items-center justify-between text-[10px]">
+                        <span className="opacity-75">Chuyển ca</span>
+                        <span className="px-1.5 py-0.2 rounded text-[9px] font-semibold bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300">
+                          Đã duyệt
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setEditingShift({
+                          guardId: guard.id,
+                          shiftDate: dateStr,
+                          shiftType: 'SHIFT_MORNING',
+                          startTime: '06:00',
+                          endTime: '14:00'
+                        });
+                        setShowShiftModal(true);
+                      }}
+                      className="slot-quick-add-btn"
+                      title="Thêm ca trực nhanh cho ngày này"
+                    >
+                      <Plus size={13} /> Phân ca
+                    </button>
+                  )}
+                </>
               )}
             </div>
           </td>
