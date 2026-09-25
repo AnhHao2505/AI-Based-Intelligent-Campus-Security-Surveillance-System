@@ -197,6 +197,33 @@
   color: var(--brand-on-gradient);
 }
 
+/* Toolbar Right */
+.arr-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.arr-select {
+  padding: 0.45rem 2rem 0.45rem 0.75rem;
+  font-size: 0.8125rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--theme-input-border);
+  background: var(--theme-bg-input);
+  color: var(--theme-text-primary);
+  outline: none;
+  cursor: pointer;
+  min-width: 220px;
+  font-family: inherit;
+  transition: all 0.15s ease;
+}
+
+.arr-select:focus {
+  border-color: var(--brand-blue);
+  box-shadow: var(--focus-ring);
+}
+
 /* Search Input */
 .arr-search-wrap {
   position: relative;

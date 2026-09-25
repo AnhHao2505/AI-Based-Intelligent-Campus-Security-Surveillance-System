@@ -829,7 +829,8 @@ export default function UserAccessLevelPage() {
                 >
                   <option value="">Tất cả khu vực</option>
                   {areasList.map((a) => {
-                    const loc = [a.building, a.floor].filter(Boolean).join(' · ');
+                    const floorPart = a.floor ? (String(a.floor).startsWith('Tầng') ? a.floor : `Tầng ${a.floor}`) : null;
+                    const loc = [a.building, floorPart].filter(Boolean).join(' · ');
                     return (
                       <option key={a.id} value={a.id}>
                         {loc ? `${a.name} (${loc})` : a.name}

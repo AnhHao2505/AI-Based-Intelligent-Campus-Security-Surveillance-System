@@ -5,6 +5,7 @@ import {
   CircleX,
   RefreshCw
 } from 'lucide-react';
+import { getAreas } from '../../services/areaService';
 import '../../styles/AccessHistoryPage.css';
 
 export default function AccessHistoryPage() {
@@ -16,10 +17,24 @@ export default function AccessHistoryPage() {
   // Filters
   const [timeRange, setTimeRange] = useState('ALL');
   const [selectedAreaId, setSelectedAreaId] = useState('');
+  const [areasList, setAreasList] = useState([]);
+
+  // Load available areas for filter dropdown
+  useEffect(() => {
+    const loadAreas = async () => {
+      try {
+        const res = await getAreas({ size: 100 });
+        setAreasList(res?.content || []);
+      } catch (err) {
+        console.error('Lỗi tải danh sách khu vực:', err);
+      }
+    };
+    loadAreas();
+  }, []);
 
   // TODO: nối API khi backend có bảng lịch sử nhận diện (thuộc MF4)
   // Dự kiến: GET /api/access-history/my?from=&to=&areaId=&page=&size=
-  // Trả về: { content: [{ timestamp, areaName, building, floor, result, note }],
+  // Trả về: { content: [{ timestamp, areaId, areaName, building, floor, result, note }],
   //           totalElements, totalPages }
   const fetchHistory = async () => {
     // chưa hiện thực
@@ -93,6 +108,15 @@ export default function AccessHistoryPage() {
               onChange={(e) => setSelectedAreaId(e.target.value)}
             >
               <option value="">Tất cả khu vực</option>
+              {areasList.map((a) => {
+                const floorPart = a.floor ? (String(a.floor).startsWith('Tầng') ? a.floor : `Tầng ${a.floor}`) : null;
+                const loc = [a.building, floorPart].filter(Boolean).join(' · ');
+                return (
+                  <option key={a.id} value={a.id}>
+                    {loc ? `${a.name} (${loc})` : a.name}
+                  </option>
+                );
+              })}
             </select>
 
             <button
@@ -114,28 +138,38 @@ export default function AccessHistoryPage() {
               <RefreshCw size={24} className="ahp-spin ahp-empty__icon" />
               <div className="ahp-empty__title">Đang tải lịch sử truy cập...</div>
             </div>
-          ) : history.length === 0 ? (
-            /* 2d. TRẠNG THÁI RỖNG */
-            <div className="ahp-empty">
-              <History size={32} strokeWidth={1.5} className="ahp-empty__icon" />
-              <div className="ahp-empty__title">Chưa có lịch sử truy cập</div>
-              <div className="ahp-empty__subtitle">
-                Lịch sử sẽ xuất hiện khi hệ thống nhận diện bạn tại các khu vực được giám sát
-              </div>
-            </div>
-          ) : (
-            /* Bảng 4 cột: Thời gian · Khu vực · Kết quả · Ghi chú */
-            <table className="ahp-table">
-              <thead>
-                <tr>
-                  <th>Thời gian</th>
-                  <th>Khu vực</th>
-                  <th>Kết quả</th>
-                  <th>Ghi chú</th>
-                </tr>
-              </thead>
-              <tbody>
-                {history.map((item, index) => {
+          ) : (() => {
+            const displayedHistory = history.filter((item) => {
+              if (selectedAreaId && item.areaId !== selectedAreaId) return false;
+              return true;
+            });
+
+            if (displayedHistory.length === 0) {
+              return (
+                /* 2d. TRẠNG THÁI RỖNG */
+                <div className="ahp-empty">
+                  <History size={32} strokeWidth={1.5} className="ahp-empty__icon" />
+                  <div className="ahp-empty__title">Chưa có lịch sử truy cập</div>
+                  <div className="ahp-empty__subtitle">
+                    Lịch sử sẽ xuất hiện khi hệ thống nhận diện bạn tại các khu vực được giám sát
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              /* Bảng 4 cột: Thời gian · Khu vực · Kết quả · Ghi chú */
+              <table className="ahp-table">
+                <thead>
+                  <tr>
+                    <th>Thời gian</th>
+                    <th>Khu vực</th>
+                    <th>Kết quả</th>
+                    <th>Ghi chú</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {displayedHistory.map((item, index) => {
                   const isValid =
                     item.result === 'VALID' ||
                     item.result === 'APPROVED' ||
@@ -180,7 +214,8 @@ export default function AccessHistoryPage() {
                 })}
               </tbody>
             </table>
-          )}
+          );
+        })()}
         </div>
       </div>
     </div>

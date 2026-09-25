@@ -53,6 +53,7 @@ export default function AccessRequestPage() {
 	// History State
 	const [historyList, setHistoryList] = useState([]);
 	const [historyStatusFilter, setHistoryStatusFilter] = useState("");
+	const [historyAreaFilter, setHistoryAreaFilter] = useState("");
 	const [loadingHistory, setLoadingHistory] = useState(false);
 	const [historyPage, setHistoryPage] = useState(0);
 	const [historyTotalPages, setHistoryTotalPages] = useState(1);
@@ -184,11 +185,12 @@ export default function AccessRequestPage() {
 
 	// Load my requests
 	const loadMyRequests = useCallback(
-		async (page = 0, status = historyStatusFilter) => {
+		async (page = 0, status = historyStatusFilter, areaId = historyAreaFilter) => {
 			setLoadingHistory(true);
 			try {
 				const res = await accessRequestService.getMyRequests({
 					status: status || undefined,
+					areaId: areaId || undefined,
 					page,
 					size: 10,
 				});
@@ -202,7 +204,7 @@ export default function AccessRequestPage() {
 				setLoadingHistory(false);
 			}
 		},
-		[historyStatusFilter],
+		[historyStatusFilter, historyAreaFilter],
 	);
 
 	useEffect(() => {
@@ -211,12 +213,16 @@ export default function AccessRequestPage() {
 	}, [loadAreas]);
 
 	useEffect(() => {
-		loadMyRequests(0, historyStatusFilter);
-	}, [historyStatusFilter, loadMyRequests]);
+		loadMyRequests(0, historyStatusFilter, historyAreaFilter);
+	}, [historyStatusFilter, historyAreaFilter, loadMyRequests]);
 
 	// Selected area object
 	const areaList = Array.isArray(areas) ? areas : areas?.content || [];
 	const currentArea = areaList.find((a) => a.id === selectedAreaId);
+
+	const displayedHistoryList = historyList.filter(
+		(req) => !historyAreaFilter || req.areaId === historyAreaFilter,
+	);
 
 	// When area changes, if area is HIGHLY_CONFIDENTIAL, force INDIVIDUAL
 	const handleAreaChange = (e) => {
@@ -587,14 +593,14 @@ export default function AccessRequestPage() {
 						>
 							<option value="">-- Chọn khu vực cần đăng ký truy cập --</option>
 							{areas.map((a) => {
-								const lvlConf = getLevelConfig(a.areaLevel);
+								const floorPart = a.floor ? (String(a.floor).startsWith("Tầng") ? a.floor : `Tầng ${a.floor}`) : null;
+								const loc = [a.building, floorPart].filter(Boolean).join(" · ");
 								return (
 									<option
 										key={a.id}
 										value={a.id}
 									>
-										{a.code ? `[${a.code}] ` : ""}{a.name} — {a.building || "Campus"}, Tầng{" "}
-										{a.floor || "1"} ({lvlConf.name})
+										{loc ? `${a.name} (${loc})` : a.name}
 									</option>
 								);
 							})}
@@ -891,10 +897,27 @@ export default function AccessRequestPage() {
 							</button>
 						))}
 
+						<select
+							className="arp-select-filter"
+							value={historyAreaFilter}
+							onChange={(e) => setHistoryAreaFilter(e.target.value)}
+						>
+							<option value="">Tất cả khu vực</option>
+							{areaList.map((a) => {
+								const floorPart = a.floor ? (String(a.floor).startsWith("Tầng") ? a.floor : `Tầng ${a.floor}`) : null;
+								const loc = [a.building, floorPart].filter(Boolean).join(" · ");
+								return (
+									<option key={a.id} value={a.id}>
+										{loc ? `${a.name} (${loc})` : a.name}
+									</option>
+								);
+							})}
+						</select>
+
 						<button
 							type="button"
 							className="arp-refresh-btn"
-							onClick={() => loadMyRequests(historyPage, historyStatusFilter)}
+							onClick={() => loadMyRequests(historyPage, historyStatusFilter, historyAreaFilter)}
 							title="Làm mới danh sách"
 							disabled={loadingHistory}
 						>
@@ -929,7 +952,7 @@ export default function AccessRequestPage() {
 								Đang tải danh sách yêu cầu...
 							</div>
 						</div>
-					) : historyList.length === 0 ? (
+					) : displayedHistoryList.length === 0 ? (
 						<div className="arp-empty">
 							<Inbox
 								size={28}
@@ -951,7 +974,7 @@ export default function AccessRequestPage() {
 									</tr>
 								</thead>
 								<tbody>
-									{historyList.map((req) => (
+									{displayedHistoryList.map((req) => (
 										<React.Fragment key={req.id}>
 											<tr>
 												<td>

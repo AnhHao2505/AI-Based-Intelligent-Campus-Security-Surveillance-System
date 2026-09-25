@@ -248,16 +248,26 @@ public class AccessRequestService {
     }
 
     @Transactional(readOnly = true)
-    public Page<AccessRequestResponse> getMyRequests(String actorEmail, RequestStatus status, Pageable pageable) {
+    public Page<AccessRequestResponse> getMyRequests(String actorEmail, RequestStatus status, UUID areaId, Pageable pageable) {
         User requester = getRequester(actorEmail);
-        Page<AccessRequest> page = accessRequestRepository.findMyRequests(requester.getId(), status, pageable);
+        Page<AccessRequest> page = accessRequestRepository.findMyRequests(requester.getId(), status, areaId, pageable);
+        return page.map(this::mapToResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<AccessRequestResponse> getMyRequests(String actorEmail, RequestStatus status, Pageable pageable) {
+        return getMyRequests(actorEmail, status, null, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<AccessRequestResponse> getAllRequests(RequestStatus status, UUID areaId, Pageable pageable) {
+        Page<AccessRequest> page = accessRequestRepository.findAllRequests(status, areaId, pageable);
         return page.map(this::mapToResponse);
     }
 
     @Transactional(readOnly = true)
     public Page<AccessRequestResponse> getAllRequests(RequestStatus status, Pageable pageable) {
-        Page<AccessRequest> page = accessRequestRepository.findAllRequests(status, pageable);
-        return page.map(this::mapToResponse);
+        return getAllRequests(status, null, pageable);
     }
 
     @Transactional(readOnly = true)

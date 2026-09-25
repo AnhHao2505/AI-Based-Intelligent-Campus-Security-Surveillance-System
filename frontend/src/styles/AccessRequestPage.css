@@ -542,6 +542,24 @@
   font-weight: 600;
 }
 
+.arp-select-filter {
+  padding: 6px 14px;
+  font-size: 12.5px;
+  border-radius: 8px;
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.12));
+  background: var(--theme-bg-input, #0f172a);
+  color: var(--theme-text-primary, #f8fafc);
+  outline: none;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s ease;
+  min-width: 180px;
+}
+
+.arp-select-filter:focus {
+  border-color: var(--brand-blue, #3b82f6);
+}
+
 .arp-refresh-btn {
   width: 32px;
   height: 32px;

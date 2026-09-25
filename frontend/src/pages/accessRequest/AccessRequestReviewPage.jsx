@@ -17,6 +17,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import accessRequestService from '../../services/accessRequestService';
+import { getAreas } from '../../services/areaService';
 import { getLevelConfig } from '../../utils/areaHelpers';
 import '../../styles/AccessRequestReviewPage.css';
 
@@ -25,9 +26,24 @@ export default function AccessRequestReviewPage() {
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedAreaId, setSelectedAreaId] = useState('');
+  const [areasList, setAreasList] = useState([]);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [totalElements, setTotalElements] = useState(0);
+
+  // Load available areas for filter dropdown
+  useEffect(() => {
+    const fetchAreas = async () => {
+      try {
+        const res = await getAreas({ size: 100 });
+        setAreasList(res?.content || []);
+      } catch (err) {
+        console.error('Lỗi tải danh sách khu vực:', err);
+      }
+    };
+    fetchAreas();
+  }, []);
 
   // Modals state
   const [detailItem, setDetailItem] = useState(null);
@@ -50,11 +66,12 @@ export default function AccessRequestReviewPage() {
   });
 
   // Load Requests
-  const loadRequests = useCallback(async (targetPage = 0, status = statusFilter) => {
+  const loadRequests = useCallback(async (targetPage = 0, status = statusFilter, areaId = selectedAreaId) => {
     setLoading(true);
     try {
       const res = await accessRequestService.getAllRequests({
         status: status || undefined,
+        areaId: areaId || undefined,
         page: targetPage,
         size: 10
       });
@@ -67,7 +84,7 @@ export default function AccessRequestReviewPage() {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, [statusFilter, selectedAreaId]);
 
   // Load Stats counts
   const loadStats = useCallback(async () => {
@@ -94,9 +111,9 @@ export default function AccessRequestReviewPage() {
   }, []);
 
   useEffect(() => {
-    loadRequests(0, statusFilter);
+    loadRequests(0, statusFilter, selectedAreaId);
     loadStats();
-  }, [loadRequests, loadStats, statusFilter]);
+  }, [loadRequests, loadStats, statusFilter, selectedAreaId]);
 
   // Handle Approve
   const handleConfirmApprove = async () => {
@@ -190,12 +207,12 @@ export default function AccessRequestReviewPage() {
 
   // Client-side search filter
   const filteredRequests = requests.filter(req => {
+    if (selectedAreaId && req.areaId !== selectedAreaId) return false;
     if (!searchTerm.trim()) return true;
     const term = searchTerm.toLowerCase();
     return (
       (req.requesterName && req.requesterName.toLowerCase().includes(term)) ||
-      (req.requesterCode && req.requesterCode.toLowerCase().includes(term)) ||
-      (req.areaName && req.areaName.toLowerCase().includes(term))
+      (req.requesterCode && req.requesterCode.toLowerCase().includes(term))
     );
   });
 
@@ -321,15 +338,34 @@ export default function AccessRequestReviewPage() {
           ))}
         </div>
 
-        <div className="arr-search-wrap">
-          <Search size={14} className="arr-search-icon" />
-          <input
-            type="text"
-            className="arr-search-input"
-            placeholder="Tìm theo tên, mã số, khu vực..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+        <div className="arr-toolbar-right">
+          <select
+            className="arr-select"
+            value={selectedAreaId}
+            onChange={(e) => setSelectedAreaId(e.target.value)}
+          >
+            <option value="">Tất cả khu vực</option>
+            {areasList.map((a) => {
+              const floorPart = a.floor ? (String(a.floor).startsWith('Tầng') ? a.floor : `Tầng ${a.floor}`) : null;
+              const loc = [a.building, floorPart].filter(Boolean).join(' · ');
+              return (
+                <option key={a.id} value={a.id}>
+                  {loc ? `${a.name} (${loc})` : a.name}
+                </option>
+              );
+            })}
+          </select>
+
+          <div className="arr-search-wrap">
+            <Search size={14} className="arr-search-icon" />
+            <input
+              type="text"
+              className="arr-search-input"
+              placeholder="Tìm theo tên, mã số người yêu cầu..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
         </div>
       </div>
 

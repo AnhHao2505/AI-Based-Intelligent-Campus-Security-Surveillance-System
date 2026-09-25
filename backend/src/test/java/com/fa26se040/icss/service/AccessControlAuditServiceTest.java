@@ -249,6 +249,7 @@ class AccessControlAuditServiceTest {
         AccessControlAuditLogResponse dto = result.getContent().get(0);
         assertEquals(log.getId(), dto.id());
         assertEquals(AccessControlTargetType.USER_ACCESS_LEVEL, dto.targetType());
+        assertEquals(area.getId(), dto.areaId());
         assertEquals("Phòng Lab Máy Tính", dto.areaName());
         assertEquals("Quản Lý Cơ Sở", dto.changedByName());
         assertEquals("FM-001", dto.changedByUserCode());
@@ -257,5 +258,44 @@ class AccessControlAuditServiceTest {
         // Verify absence of email in DTO
         assertFalse(dto.toString().contains("student@fpt.edu.vn"));
         assertFalse(dto.toString().contains("fm@fpt.edu.vn"));
+    }
+
+    @Test
+    @DisplayName("Tra cứu danh sách nhật ký có lọc theo areaId và trả về DTO đủ areaId và areaName")
+    void getAuditLogs_FilterByAreaId_Success() {
+        AccessControlAuditLog log = AccessControlAuditLog.builder()
+                .id(UUID.randomUUID())
+                .targetType(AccessControlTargetType.AREA_ACCESS_RULES)
+                .targetId(area.getId().toString())
+                .action(AccessControlAction.UPDATE)
+                .area(area)
+                .changedBy(actor)
+                .oldValue(objectMapper.valueToTree(new AreaAccessRulesAuditSnapshot(1, false)))
+                .newValue(objectMapper.valueToTree(new AreaAccessRulesAuditSnapshot(2, true)))
+                .reason("Cập nhật mức bảo vệ")
+                .changedAt(OffsetDateTime.now())
+                .build();
+
+        Page<AccessControlAuditLog> page = new PageImpl<>(List.of(log), PageRequest.of(0, 10), 1);
+        when(auditLogRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class), any(org.springframework.data.domain.Pageable.class)))
+                .thenReturn(page);
+
+        Page<AccessControlAuditLogResponse> result = auditService.getAuditLogs(
+                null,
+                area.getId(),
+                null,
+                null,
+                null,
+                null,
+                PageRequest.of(0, 10)
+        );
+
+        assertNotNull(result);
+        assertEquals(1, result.getTotalElements());
+
+        AccessControlAuditLogResponse dto = result.getContent().get(0);
+        assertEquals(log.getId(), dto.id());
+        assertEquals(area.getId(), dto.areaId());
+        assertEquals("Phòng Lab Máy Tính", dto.areaName());
     }
 }

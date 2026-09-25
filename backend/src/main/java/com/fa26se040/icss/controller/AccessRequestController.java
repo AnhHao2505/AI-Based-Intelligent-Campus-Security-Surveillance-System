@@ -87,6 +87,7 @@ public class AccessRequestController {
     @PreAuthorize("hasRole('NORMAL_USER')")
     public ResponseEntity<Page<AccessRequestResponse>> getMyRequests(
             @RequestParam(required = false) RequestStatus status,
+            @RequestParam(required = false) UUID areaId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             Authentication authentication
@@ -94,19 +95,20 @@ public class AccessRequestController {
         String actorEmail = authentication.getName();
         int cappedSize = Math.min(Math.max(1, size), 50);
         Pageable pageable = PageRequest.of(page, cappedSize, Sort.by(Sort.Direction.DESC, "createdAt"));
-        return ResponseEntity.ok(accessRequestService.getMyRequests(actorEmail, status, pageable));
+        return ResponseEntity.ok(accessRequestService.getMyRequests(actorEmail, status, areaId, pageable));
     }
 
     @GetMapping
     @PreAuthorize("hasRole('FACILITY_MANAGER')")
     public ResponseEntity<Page<AccessRequestResponse>> getAllRequests(
             @RequestParam(required = false) RequestStatus status,
+            @RequestParam(required = false) UUID areaId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
         int cappedSize = Math.min(Math.max(1, size), 50);
         Pageable pageable = PageRequest.of(page, cappedSize, Sort.by(Sort.Direction.DESC, "createdAt"));
-        return ResponseEntity.ok(accessRequestService.getAllRequests(status, pageable));
+        return ResponseEntity.ok(accessRequestService.getAllRequests(status, areaId, pageable));
     }
 
     @PostMapping("/resolve-members")

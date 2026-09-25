@@ -30,26 +30,40 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, UU
     @Query(value = "SELECT ar FROM AccessRequest ar " +
                    "JOIN FETCH ar.area " +
                    "WHERE ar.requester.id = :requesterId " +
-                   "AND (:status IS NULL OR ar.status = :status)",
+                   "AND (:status IS NULL OR ar.status = :status) " +
+                   "AND (:areaId IS NULL OR ar.area.id = :areaId)",
            countQuery = "SELECT COUNT(ar) FROM AccessRequest ar " +
                         "WHERE ar.requester.id = :requesterId " +
-                        "AND (:status IS NULL OR ar.status = :status)")
+                        "AND (:status IS NULL OR ar.status = :status) " +
+                        "AND (:areaId IS NULL OR ar.area.id = :areaId)")
     Page<AccessRequest> findMyRequests(
             @Param("requesterId") UUID requesterId,
             @Param("status") RequestStatus status,
+            @Param("areaId") UUID areaId,
             Pageable pageable
     );
+
+    default Page<AccessRequest> findMyRequests(UUID requesterId, RequestStatus status, Pageable pageable) {
+        return findMyRequests(requesterId, status, null, pageable);
+    }
 
     @Query(value = "SELECT ar FROM AccessRequest ar " +
                    "JOIN FETCH ar.area " +
                    "JOIN FETCH ar.requester " +
-                   "WHERE (:status IS NULL OR ar.status = :status)",
+                   "WHERE (:status IS NULL OR ar.status = :status) " +
+                   "AND (:areaId IS NULL OR ar.area.id = :areaId)",
            countQuery = "SELECT COUNT(ar) FROM AccessRequest ar " +
-                        "WHERE (:status IS NULL OR ar.status = :status)")
+                        "WHERE (:status IS NULL OR ar.status = :status) " +
+                        "AND (:areaId IS NULL OR ar.area.id = :areaId)")
     Page<AccessRequest> findAllRequests(
             @Param("status") RequestStatus status,
+            @Param("areaId") UUID areaId,
             Pageable pageable
     );
+
+    default Page<AccessRequest> findAllRequests(RequestStatus status, Pageable pageable) {
+        return findAllRequests(status, null, pageable);
+    }
 
     @Query("SELECT DISTINCT ar FROM AccessRequest ar " +
            "JOIN FETCH ar.requester " +
