@@ -40,6 +40,7 @@ public class CameraService {
     private final AesEncryptionUtil aesEncryptionUtil;
     private final RoiGeometryValidator roiGeometryValidator;
     private final MinioStorageService minioStorageService;
+    private final SystemConfigService systemConfigService;
 
     @Value("${ai.service.url:http://localhost:8000}")
     private String aiServiceUrl;
@@ -67,7 +68,6 @@ public class CameraService {
                 .name(request.getName().trim())
                 .status(CameraStatus.ACTIVE)
                 .operationalStatus(OperationalStatus.OFFLINE)
-                .installedAt(request.getInstalledAt() != null ? request.getInstalledAt() : OffsetDateTime.now())
                 .build();
 
         Camera saved = cameraRepository.save(camera);
@@ -142,7 +142,6 @@ public class CameraService {
                 if (isReady) {
                     newStatus = OperationalStatus.ONLINE;
                 } else if (hasPathInMediaMtx && currentStatus == OperationalStatus.ONLINE) {
-                    // Giữ nguyên trạng thái ONLINE nếu luồng MediaMTX đã được đăng ký và sẵn sàng ở chế độ sourceOnDemand
                     newStatus = OperationalStatus.ONLINE;
                 } else {
                     newStatus = OperationalStatus.OFFLINE;
@@ -175,7 +174,6 @@ public class CameraService {
                 .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_CAM_002));
 
         camera.setName(request.getName());
-        camera.setInstalledAt(request.getInstalledAt());
 
         Camera saved = cameraRepository.save(camera);
         return mapToDetailResponse(saved);
@@ -230,7 +228,6 @@ public class CameraService {
             }
             log.info("MediaMTX startup sync completed: {} active camera stream(s) processed.", syncedCount);
 
-            // Reconcile: xóa bỏ các dynamic path trên MediaMTX của các camera đã chuyển sang DECOMMISSIONED
             List<Camera> decommissionedCameras = cameraRepository.findAll().stream()
                     .filter(c -> c.getStatus() == CameraStatus.DECOMMISSIONED)
                     .toList();
@@ -252,14 +249,12 @@ public class CameraService {
         CameraStreamConfiguration config = cameraStreamConfigurationRepository.findByCameraId(cameraId)
                 .orElse(CameraStreamConfiguration.builder().camera(camera).build());
 
-        // Resolve plaintext password: from request or existing stored encrypted password
         String rawPassword = req.getEffectivePassword();
         String effectivePlainPassword = rawPassword;
         if ((rawPassword == null || rawPassword.isBlank()) && config.getCredentialRef() != null && !config.getCredentialRef().isBlank()) {
             effectivePlainPassword = aesEncryptionUtil.decrypt(config.getCredentialRef());
         }
 
-        // Build in-memory RTSP URL
         String rtspUrl = buildRtspUrlWithCredentials(
                 req.getHost(),
                 req.getPort(),
@@ -268,12 +263,10 @@ public class CameraService {
                 req.getMainStreamPath()
         );
 
-        // [BƯỚC 1: GATEWAY-FIRST - Chống lệch pha DB & MediaMTX]
         if (rtspUrl != null && camera.getStatus() == CameraStatus.ACTIVE) {
             mediaMtxService.syncCameraPathStrict(camera.getCameraCode(), rtspUrl);
         }
 
-        // [BƯỚC 2: AT-REST ENCRYPTION & CSDL]
         if (rawPassword != null && !rawPassword.isBlank()) {
             config.setCredentialRef(aesEncryptionUtil.encrypt(rawPassword));
         }
@@ -315,7 +308,6 @@ public class CameraService {
                 .filter(a -> a.getDeletedAt() == null)
                 .map(a -> new AreaSimpleResponse(
                         a.getId(),
-                        a.getCode(),
                         a.getName(),
                         a.getAreaLevel(),
                         a.getBuilding(),
@@ -332,7 +324,6 @@ public class CameraService {
         RoiGeometry roi = request.getRoiGeometry();
         roiGeometryValidator.validate(roi);
 
-        // Upload reference snapshot to MinIO if provided
         if (request.getSnapshotBase64() != null && !request.getSnapshotBase64().isBlank()) {
             try {
                 String cleanBase64 = request.getSnapshotBase64();
@@ -349,7 +340,6 @@ public class CameraService {
                 log.error("Failed to upload reference snapshot to MinIO for camera {}: {}", camera.getCameraCode(), e.getMessage());
             }
         } else if (camera.getRoiGeometry() != null) {
-            // Retain existing reference snapshot info if no new snapshot is supplied
             roi.setReferenceSnapshotUrl(camera.getRoiGeometry().getReferenceSnapshotUrl());
             roi.setReferenceSnapshotWidth(request.getSnapshotWidth() != null ? request.getSnapshotWidth() : camera.getRoiGeometry().getReferenceSnapshotWidth());
             roi.setReferenceSnapshotHeight(request.getSnapshotHeight() != null ? request.getSnapshotHeight() : camera.getRoiGeometry().getReferenceSnapshotHeight());
@@ -360,7 +350,6 @@ public class CameraService {
         camera.setUpdatedAt(OffsetDateTime.now());
         Camera saved = cameraRepository.save(camera);
 
-        // Synchronize normalized ROI geometry to AI Service in real-time
         syncRoiToAiService(camera.getCameraCode(), saved.getRoiGeometry());
 
         return mapToDetailResponse(saved);
@@ -402,7 +391,8 @@ public class CameraService {
 
             Map<String, Object> body = new HashMap<>();
             body.put("camera_code", cameraCode);
-            body.put("loitering_threshold_seconds", 10);
+            body.put("after_hour_start", systemConfigService.getString(ConfigKey.AI_AFTER_HOUR_START));
+            body.put("after_hour_end", systemConfigService.getString(ConfigKey.AI_AFTER_HOUR_END));
             body.put("reference_width", roi.getReferenceSnapshotWidth() != null ? roi.getReferenceSnapshotWidth() : 1920);
             body.put("reference_height", roi.getReferenceSnapshotHeight() != null ? roi.getReferenceSnapshotHeight() : 1080);
             body.put("polygons", polygonsList);
@@ -459,7 +449,6 @@ public class CameraService {
                         .filter(a -> a.getDeletedAt() == null)
                         .map(a -> new AreaSimpleResponse(
                                 a.getId(),
-                                a.getCode(),
                                 a.getName(),
                                 a.getAreaLevel(),
                                 a.getBuilding(),
@@ -473,7 +462,6 @@ public class CameraService {
                 .name(camera.getName())
                 .status(camera.getStatus())
                 .operationalStatus(camera.getOperationalStatus())
-                .installedAt(camera.getInstalledAt())
                 .createdAt(camera.getCreatedAt())
                 .updatedAt(camera.getUpdatedAt())
                 .streamConfig(camera.getStreamConfiguration() != null ? mapToStreamResponse(camera.getStreamConfiguration()) : null)

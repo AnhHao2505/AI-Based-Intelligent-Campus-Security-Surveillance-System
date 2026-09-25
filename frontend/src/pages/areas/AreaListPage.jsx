@@ -56,21 +56,22 @@ const round6 = (n) => Math.round(n * 1e6) / 1e6;
 
 const GEOMETRY_ERROR_MESSAGES = {
 	ERR_AREA_001: "Mã khu vực đã tồn tại trong hệ thống.",
-	ERR_AREA_002: "Mã khu vực không đúng định dạng cho phép.",
-	ERR_AREA_003: "Không tìm thấy khu vực được yêu cầu.",
-	ERR_AREA_004:
-		"Khu vực này hiện đang có camera hoặc dữ liệu liên kết, không thể xoá.",
-	ERR_AREA_005: "Khu vực này hiện đang bị vô hiệu hoá.",
-	ERR_AREA_006: "Khu vực này hiện đã ở trạng thái hoạt động.",
-	ERR_AREA_007: "Lý do giải trình không được để trống khi hạ cấp an ninh.",
-	ERR_AREA_008: "Dữ liệu toạ độ hình đa giác không hợp lệ.",
-	ERR_AREA_009: "Hình đa giác phải có từ 3 đến 20 đỉnh.",
-	ERR_AREA_010: "Toạ độ các đỉnh phải nằm trong khoảng chuẩn hoá [0.0, 1.0].",
-	ERR_AREA_011: "Các cạnh của hình đa giác không được cắt nhau.",
-	ERR_AREA_012: "Khu vực này đã được vẽ hình trên bản đồ.",
+	ERR_AREA_002: "Không tìm thấy khu vực được yêu cầu.",
+	ERR_AREA_003: "Cấp độ an ninh không hợp lệ hoặc đã ngừng sử dụng.",
+	ERR_AREA_004: "Mã khu vực chỉ gồm chữ in hoa, số và dấu gạch ngang, dài 3–50 ký tự.",
+	ERR_AREA_005: "Tên khu vực bắt buộc, tối đa 150 ký tự.",
+	ERR_AREA_006: "Toạ độ bản đồ phải có đủ cả X và Y.",
+	ERR_AREA_007: "Không được thay đổi mã khu vực sau khi tạo.",
+	ERR_AREA_008: "Lý do giải trình không được để trống khi hạ cấp an ninh.",
+	ERR_AREA_009: "Không thể vô hiệu hóa: còn camera đang gán.",
+	ERR_AREA_010: "Không thể vô hiệu hóa: còn quyền truy cập.",
+	ERR_AREA_011: "Hình đa giác phải có ít nhất 3 đỉnh.",
+	ERR_AREA_012: "Toạ độ các đỉnh phải nằm trong khoảng chuẩn hoá [0.0, 1.0].",
 	ERR_AREA_013: "Hình bị chồng lấn với khu vực khác trên cùng tầng.",
+	ERR_AREA_014: "Không thể thay đổi toà nhà hoặc tầng khi khu vực đang có toạ độ đa giác.",
 	ERR_AREA_015: "Khu vực này chưa có thông tin toà nhà và tầng.",
-	ERR_AREA_016: "Hình phải có ít nhất 3 đỉnh khác nhau.",
+	ERR_AREA_016: "Hình phải có ít nhất 3 đỉnh phân biệt (không trùng nhau).",
+	ERR_AREA_017: "Khu vực đã ngừng hoạt động hoặc đã bị xoá.",
 };
 
 const AREA_LEVEL_CARDS = [
@@ -227,13 +228,12 @@ export default function AreaListPage() {
 
 	// Form states
 	const [formData, setFormData] = useState({
-		code: "",
+
 		name: "",
 		areaLevel: "PUBLIC",
 		building: "FPT_AROUND",
 		floor: "G",
 		floorId: null,
-		description: "",
 		reason: "",
 	});
 
@@ -666,13 +666,12 @@ export default function AreaListPage() {
 			floorsForB.find((f) => f.floorCode === currentF)?.id || null;
 
 		setFormData({
-			code: "",
+
 			name: "",
 			areaLevel: "PUBLIC",
 			building: currentB,
 			floor: currentF,
 			floorId: currentFloorId,
-			description: "",
 			reason: "",
 		});
 		setModalError(null);
@@ -685,13 +684,12 @@ export default function AreaListPage() {
 		setModalLoading(true);
 		try {
 			const payload = {
-				code: formData.code.trim().toUpperCase(),
+
 				name: formData.name.trim(),
 				areaLevel: formData.areaLevel,
 				building: formData.building ? formData.building.trim() : null,
 				floor: formData.floor ? formData.floor.trim() : null,
 				floorId: formData.floorId || null,
-				description: formData.description ? formData.description.trim() : null,
 			};
 
 			const created = await createArea(payload);
@@ -716,7 +714,7 @@ export default function AreaListPage() {
 
 		setFormData({
 			id: areaToEdit.id,
-			code: areaToEdit.code,
+
 			name: areaToEdit.name,
 			areaLevel:
 				areaToEdit.areaLevel ||
@@ -728,7 +726,6 @@ export default function AreaListPage() {
 			floor: flCode,
 			floorId:
 				areaToEdit.floorEntity?.id || areaToEdit.floorId || flObj?.id || null,
-			description: areaToEdit.description || "",
 			reason: "",
 		});
 		setModalError(null);
@@ -745,13 +742,12 @@ export default function AreaListPage() {
 		setModalLoading(true);
 		try {
 			const payload = {
-				code: formData.code,
+
 				name: formData.name.trim(),
 				areaLevel: formData.areaLevel,
 				building: formData.building ? formData.building.trim() : null,
 				floor: formData.floor ? formData.floor.trim() : null,
 				floorId: formData.floorId || null,
-				description: formData.description ? formData.description.trim() : null,
 			};
 
 			const updated = await updateArea(targetId, payload);
@@ -1104,31 +1100,9 @@ export default function AreaListPage() {
 									</div>
 								)}
 
-								{/* 3a. Mã khu vực (bắt buộc) */}
-								<div className="area-form-group">
-									<label
-										htmlFor="create-code"
-										className="area-form-label"
-									>
-										Mã khu vực <span className="required">*</span>
-									</label>
-									<input
-										id="create-code"
-										type="text"
-										required
-										className="area-form-input area-form-input--code"
-										placeholder="FPTA-G-GATE"
-										value={formData.code}
-										onChange={(e) =>
-											setFormData({ ...formData, code: e.target.value })
-										}
-									/>
-									<div className="area-form-hint">
-										Định dạng: [TÒA]-[TẦNG]-[TÊN_VIẾT_TẮT]
-									</div>
-								</div>
 
-								{/* 3b. Tên khu vực (bắt buộc) */}
+
+								{/* 3. Tên khu vực (bắt buộc) */}
 								<div className="area-form-group">
 									<label
 										htmlFor="create-name"
@@ -1266,26 +1240,6 @@ export default function AreaListPage() {
 										</select>
 									</div>
 								</div>
-
-								{/* 3e. Mô tả */}
-								<div className="area-form-group">
-									<label
-										htmlFor="create-desc"
-										className="area-form-label"
-									>
-										Mô tả
-									</label>
-									<textarea
-										id="create-desc"
-										rows={3}
-										className="area-form-input area-form-input--textarea"
-										placeholder="Thông tin chi tiết về phạm vi, chức năng của khu vực..."
-										value={formData.description}
-										onChange={(e) =>
-											setFormData({ ...formData, description: e.target.value })
-										}
-									/>
-								</div>
 							</div>
 
 							{/* 4. Phần chân: 2 nút chia đôi chiều rộng, gap 9px */}
@@ -1329,7 +1283,7 @@ export default function AreaListPage() {
 								<div className="area-modal__header-text">
 									<h3 className="area-modal__title">Chỉnh sửa khu vực</h3>
 									<p className="area-modal__subtitle">
-										Cập nhật thông tin mã: {selectedArea.code}
+										Cập nhật thông tin: {selectedArea.name}
 									</p>
 								</div>
 							</div>
@@ -1352,17 +1306,6 @@ export default function AreaListPage() {
 									</div>
 								)}
 
-								<div className="area-form-group">
-									<label className="area-form-label">
-										Mã khu vực (Không thể sửa)
-									</label>
-									<input
-										type="text"
-										disabled
-										className="area-form-input area-form-input--code"
-										value={selectedArea.code}
-									/>
-								</div>
 
 								<div className="area-form-group">
 									<label
@@ -1498,24 +1441,6 @@ export default function AreaListPage() {
 										</select>
 									</div>
 								</div>
-
-								<div className="area-form-group">
-									<label
-										htmlFor="edit-desc"
-										className="area-form-label"
-									>
-										Mô tả
-									</label>
-									<textarea
-										id="edit-desc"
-										rows={3}
-										className="area-form-input area-form-input--textarea"
-										value={formData.description}
-										onChange={(e) =>
-											setFormData({ ...formData, description: e.target.value })
-										}
-									/>
-								</div>
 							</div>
 
 							<div className="area-modal__footer">
@@ -1582,7 +1507,7 @@ export default function AreaListPage() {
 
 							<p className="area-modal__lead">
 								Bạn có chắc chắn muốn vô hiệu hoá khu vực{" "}
-								<strong>{selectedArea.name}</strong> ({selectedArea.code})?
+								<strong>{selectedArea.name}</strong>?
 							</p>
 
 							{dependencies && (
@@ -1648,7 +1573,7 @@ export default function AreaListPage() {
 										Quản lý Camera — {camerasModalArea.name}
 									</h3>
 									<p className="area-modal__subtitle">
-										Mã khu vực: <strong>{camerasModalArea.code}</strong>
+										Vị trí: <strong>{camerasModalArea.building || "—"} - {camerasModalArea.floor || "—"}</strong>
 									</p>
 								</div>
 							</div>

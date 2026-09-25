@@ -41,11 +41,11 @@ class RoiGeometryValidatorTest {
     }
 
     @Test
-    @DisplayName("Validate: should pass with all 3 allowed alert rules")
+    @DisplayName("Validate: should pass with all allowed alert rules")
     void testValidatePassWithAllowedAlertRules() {
         List<String> rules = List.of(
                 "ENTRY_EXIT_TRACKING",
-                "LOITERING",
+                "AFTER_HOURS",
                 "CROWD_OVERCROWDING"
         );
 
@@ -73,7 +73,7 @@ class RoiGeometryValidatorTest {
                 "UNKNOWN_PERSON",
                 "AFTER_HOURS_ACCESS",
                 "INTRUSION_DETECTION",
-                "UNAUTHORIZED_ACCESS"
+                "LOITERING"
         );
 
         for (String invalidRule : invalidRules) {
@@ -135,7 +135,7 @@ class RoiGeometryValidatorTest {
         RoiGeometry.RoiPolygon polygon = RoiGeometry.RoiPolygon.builder()
                 .label("Area Polygon")
                 .targetAreaId(areaId)
-                .alertRules(List.of("LOITERING"))
+                .alertRules(List.of("ENTRY_EXIT_TRACKING"))
                 .vertices(validVertices)
                 .build();
 
@@ -158,7 +158,7 @@ class RoiGeometryValidatorTest {
 
         RoiGeometry.RoiPolygon polygon = RoiGeometry.RoiPolygon.builder()
                 .label("Out of bounds Polygon")
-                .alertRules(List.of("LOITERING"))
+                .alertRules(List.of("ENTRY_EXIT_TRACKING"))
                 .vertices(invalidVertices)
                 .build();
 

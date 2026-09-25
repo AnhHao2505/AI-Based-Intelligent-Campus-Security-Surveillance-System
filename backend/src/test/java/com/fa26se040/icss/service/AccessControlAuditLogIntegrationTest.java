@@ -182,7 +182,6 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
     void testDiffersFromPreset_DynamicCalculation() {
         String uniqueCode = "AREA-" + UUID.randomUUID().toString().substring(0, 8);
         Area area = Area.builder()
-                .code(uniqueCode)
                 .name("Khu vực test differsFromPreset " + uniqueCode)
                 .building("BUILDING-" + uniqueCode)
                 .floor("FLOOR-" + uniqueCode)
@@ -231,7 +230,6 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
         targetUser = userRepository.save(targetUser);
 
         Area testArea = Area.builder()
-                .code("AREA-" + uniqueSuffix)
                 .name("Area Reason Test " + uniqueSuffix)
                 .building("BUILDING-" + uniqueSuffix)
                 .floor("FLOOR-" + uniqueSuffix)
@@ -318,7 +316,6 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
         String token = "Bearer " + jwtTokenProvider.generateToken(fmActor);
 
         Area testArea = Area.builder()
-                .code("AREA-" + uniqueSuffix)
                 .name("Area Filter RegTest " + uniqueSuffix)
                 .building("BUILDING-" + uniqueSuffix)
                 .floor("FLOOR-" + uniqueSuffix)
@@ -366,7 +363,6 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
         targetUser = userRepository.save(targetUser);
 
         Area testArea = Area.builder()
-                .code("AREA-" + uniqueSuffix)
                 .name("Area AP Commit " + uniqueSuffix)
                 .building("BUILDING-" + uniqueSuffix)
                 .floor("FLOOR-" + uniqueSuffix)
@@ -442,7 +438,6 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
         targetUser = userRepository.save(targetUser);
 
         Area testArea = Area.builder()
-                .code("AREA-" + uniqueSuffix)
                 .name("Area AP Update " + uniqueSuffix)
                 .building("BUILDING-" + uniqueSuffix)
                 .floor("FLOOR-" + uniqueSuffix)
@@ -509,7 +504,6 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
         targetUser = userRepository.save(targetUser);
 
         Area testArea = Area.builder()
-                .code("AREA-" + uniqueSuffix)
                 .name("Area AP Revoke " + uniqueSuffix)
                 .building("BUILDING-" + uniqueSuffix)
                 .floor("FLOOR-" + uniqueSuffix)
@@ -625,7 +619,6 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
         String token = "Bearer " + jwtTokenProvider.generateToken(fmActor);
 
         Area testArea = Area.builder()
-                .code("AREA-" + uniqueSuffix)
                 .name("Area Rules Commit " + uniqueSuffix)
                 .building("BUILDING-" + uniqueSuffix)
                 .floor("FLOOR-" + uniqueSuffix)

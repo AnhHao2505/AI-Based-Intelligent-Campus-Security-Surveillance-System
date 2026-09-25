@@ -593,7 +593,7 @@ export default function AccessRequestPage() {
 										key={a.id}
 										value={a.id}
 									>
-										[{a.code}] {a.name} — {a.building || "Campus"}, Tầng{" "}
+										{a.code ? `[${a.code}] ` : ""}{a.name} — {a.building || "Campus"}, Tầng{" "}
 										{a.floor || "1"} ({lvlConf.name})
 									</option>
 								);

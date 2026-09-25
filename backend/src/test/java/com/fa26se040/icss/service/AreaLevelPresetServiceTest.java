@@ -212,7 +212,6 @@ class AreaLevelPresetServiceTest {
     void updatePreset_DoesNotAffectExistingAreas() {
         Area existingArea = Area.builder()
                 .id(UUID.randomUUID())
-                .code("HALL-01")
                 .name("Sảnh chính")
                 .areaLevel(AreaLevel.PUBLIC)
                 .areaAccessLevel(1)

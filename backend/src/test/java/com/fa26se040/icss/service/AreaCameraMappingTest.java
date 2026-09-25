@@ -57,7 +57,6 @@ class AreaCameraMappingTest {
         testAreaId = UUID.randomUUID();
         testArea = Area.builder()
                 .id(testAreaId)
-                .code("AREA-LAB-01")
                 .name("Phòng Lab AI")
                 .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
                 .building("Tòa Alpha")

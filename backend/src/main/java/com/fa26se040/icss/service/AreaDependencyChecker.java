@@ -12,7 +12,7 @@ import java.util.UUID;
 @Component
 public class AreaDependencyChecker {
 
-    public AreaDependencyResponse check(UUID areaId, String areaCode) {
+    public AreaDependencyResponse check(UUID areaId) {
         List<Blocker> blockers = new ArrayList<>();
         List<String> warnings = new ArrayList<>();
 
@@ -29,7 +29,7 @@ public class AreaDependencyChecker {
         boolean canDeactivate = blockers.isEmpty();
         String note = "Chưa có module nào tham chiếu tới khu vực. Kiểm tra sẽ được bổ sung ở M07, M08.";
 
-        return new AreaDependencyResponse(areaId, areaCode, canDeactivate, blockers, warnings, note);
+        return new AreaDependencyResponse(areaId, canDeactivate, blockers, warnings, note);
     }
 
     private int countAssignedCameras(UUID areaId) {

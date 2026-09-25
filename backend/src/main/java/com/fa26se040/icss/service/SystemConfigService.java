@@ -20,9 +20,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -35,6 +41,10 @@ public class SystemConfigService {
     private final SystemConfigurationRepository systemConfigurationRepository;
     private final SystemConfigurationChangeLogRepository changeLogRepository;
     private final UserRepository userRepository;
+    private final RestTemplate aiRestTemplate = new RestTemplate();
+
+    @Value("${ai.service.url:http://localhost:8000}")
+    private String aiServiceUrl;
 
     private volatile Map<String, String> cache = new ConcurrentHashMap<>();
 
@@ -73,6 +83,11 @@ public class SystemConfigService {
                     raw, configKey.getKey(), configKey.getDefaultValue());
             return Integer.parseInt(configKey.getDefaultValue());
         }
+    }
+
+    public String getString(ConfigKey configKey) {
+        String value = cache.get(configKey.getKey());
+        return value == null || value.isBlank() ? configKey.getDefaultValue() : value.trim();
     }
 
     public boolean getBoolean(ConfigKey configKey) {
@@ -150,16 +165,36 @@ public class SystemConfigService {
                 @Override
                 public void afterCommit() {
                     cache.put(key, value);
+                    if ("AI_AFTER_HOUR_START".equals(key) || "AI_AFTER_HOUR_END".equals(key)) {
+                        syncAfterHourToAi();
+                    }
                 }
             });
         } else {
             cache.put(key, value);
+            if ("AI_AFTER_HOUR_START".equals(key) || "AI_AFTER_HOUR_END".equals(key)) {
+                syncAfterHourToAi();
+            }
         }
 
         log.info("Cập nhật SystemConfiguration thành công: key={}, old={}, new={}, actor={}",
                 key, oldValue, value, actorEmail);
 
         return mapToResponse(saved);
+    }
+
+    private void syncAfterHourToAi() {
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            Map<String, String> body = Map.of(
+                    "start", getString(ConfigKey.AI_AFTER_HOUR_START),
+                    "end", getString(ConfigKey.AI_AFTER_HOUR_END));
+            aiRestTemplate.postForObject(aiServiceUrl + "/api/v1/system-config/after-hour",
+                    new HttpEntity<>(body, headers), Map.class);
+        } catch (Exception e) {
+            log.warn("Could not sync after-hour configuration to AI service: {}", e.getMessage());
+        }
     }
 
     @Transactional(readOnly = true)
@@ -207,6 +242,13 @@ public class SystemConfigService {
             case "STRING" -> {
                 if (value.length() > 255) {
                     throw new IllegalArgumentException("Độ dài giá trị cấu hình không được vượt quá 255 ký tự");
+                }
+                if ("AI_AFTER_HOUR_START".equals(config.getConfigKey()) || "AI_AFTER_HOUR_END".equals(config.getConfigKey())) {
+                    try {
+                        LocalTime.parse(value);
+                    } catch (RuntimeException e) {
+                        throw new IllegalArgumentException("Giờ after-hour phải theo định dạng HH:mm");
+                    }
                 }
             }
             default -> log.warn("Unknown dataType [{}] for config [{}]", dataType, config.getConfigKey());

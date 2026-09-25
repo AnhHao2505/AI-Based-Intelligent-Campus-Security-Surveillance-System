@@ -208,7 +208,6 @@ class CameraServiceTest {
     void testGetCameraAreas() {
         Area area = Area.builder()
                 .id(UUID.randomUUID())
-                .code("AREA-01")
                 .name("Sảnh Chính")
                 .areaLevel(AreaLevel.PUBLIC)
                 .building("Tòa A")
@@ -221,7 +220,6 @@ class CameraServiceTest {
         List<AreaSimpleResponse> areas = cameraService.getCameraAreas(testCameraId);
 
         assertEquals(1, areas.size());
-        assertEquals("AREA-01", areas.get(0).code());
         assertEquals("Sảnh Chính", areas.get(0).name());
     }
 
@@ -230,7 +228,6 @@ class CameraServiceTest {
     void testGetCameraDetailIncludesAssignedAreas() {
         Area area = Area.builder()
                 .id(UUID.randomUUID())
-                .code("AREA-02")
                 .name("Phòng Server")
                 .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
                 .building("Tòa B")
@@ -246,6 +243,6 @@ class CameraServiceTest {
         assertEquals("CAM-001", detail.getCameraCode());
         assertNotNull(detail.getAssignedAreas());
         assertEquals(1, detail.getAssignedAreas().size());
-        assertEquals("AREA-02", detail.getAssignedAreas().get(0).code());
+        assertEquals("Phòng Server", detail.getAssignedAreas().get(0).name());
     }
 }

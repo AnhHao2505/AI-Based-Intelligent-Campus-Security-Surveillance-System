@@ -15,13 +15,20 @@ class FaceMatcher:
     Module so khớp đặc trưng khuôn mặt (Face Recognition) trực tiếp với PostgreSQL pgvector.
     Có bộ đệm In-Memory Cache để tìm kiếm siêu tốc (Sub-millisecond).
     """
-    def __init__(self, db_host="localhost", db_port=5432, db_user="sep", db_pass="123456", db_name="campus_security"):
+    def __init__(
+        self,
+        db_host: Optional[str] = None,
+        db_port: Optional[int] = None,
+        db_user: Optional[str] = None,
+        db_pass: Optional[str] = None,
+        db_name: Optional[str] = None
+    ):
         self.db_params = {
-            "host": db_host,
-            "port": db_port,
-            "user": db_user,
-            "password": db_pass,
-            "dbname": db_name
+            "host": db_host or settings.DB_HOST,
+            "port": db_port or settings.DB_PORT,
+            "user": db_user or settings.POSTGRES_USER,
+            "password": db_pass or settings.POSTGRES_PASSWORD,
+            "dbname": db_name or settings.POSTGRES_DB
         }
         self.embedder = FaceEmbedder(embedding_dim=512)
         self.cached_faces: List[Dict] = []
@@ -66,13 +73,16 @@ class FaceMatcher:
         except Exception as e:
             logger.warning(f"⚠️ [FaceMatcher] Không thể kết nối Database để nạp face cache: {e}")
 
-    def match_face(self, face_crop: np.ndarray, threshold: float = 0.60) -> Optional[Tuple[str, str, float]]:
+    def match_face(self, face_crop: np.ndarray, threshold: Optional[float] = None) -> Optional[Tuple[str, str, float]]:
         """
         So khớp khuôn mặt cắt ra từ camera với Database:
         Trả về: (Mã SV/CB, Họ và Tên, Độ tương đồng Cosine Score) nếu score >= threshold.
         """
         if face_crop is None or face_crop.size == 0:
             return None
+
+        if threshold is None:
+            threshold = settings.FACE_MATCH_THRESHOLD
 
         # Trích xuất vector 512 chiều từ ảnh mặt camera
         vec_list = self.embedder.extract_embedding(face_crop)

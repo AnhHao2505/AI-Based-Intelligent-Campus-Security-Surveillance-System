@@ -22,7 +22,6 @@ public class CameraDetailResponse {
     private String name;
     private CameraStatus status;
     private OperationalStatus operationalStatus;
-    private OffsetDateTime installedAt;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
     private CameraStreamConfigResponse streamConfig;

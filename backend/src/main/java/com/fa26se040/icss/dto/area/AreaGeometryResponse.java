@@ -5,7 +5,6 @@ import java.util.UUID;
 
 public record AreaGeometryResponse(
     UUID id,
-    String code,
     String name,
     AreaLevel areaLevel,
     Boolean isActive,

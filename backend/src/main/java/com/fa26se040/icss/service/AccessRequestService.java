@@ -654,7 +654,7 @@ public class AccessRequestService {
         return new AccessRequestResponse(
                 ar.getId(),
                 ar.getArea() != null ? ar.getArea().getId() : null,
-                ar.getArea() != null ? ar.getArea().getCode() : null,
+                null,
                 ar.getArea() != null ? ar.getArea().getName() : null,
                 ar.getArea() != null ? ar.getArea().getAreaLevel() : null,
                 ar.getArea() != null ? ar.getArea().getBuilding() : null,

@@ -2,6 +2,7 @@ import os
 import cv2
 import numpy as np
 from typing import Optional, List, Tuple
+from ..config import settings
 from .entity import BoundingBox, FaceDetectionResult
 
 class FaceDetector:
@@ -9,10 +10,15 @@ class FaceDetector:
     Module phát hiện khuôn mặt sử dụng mô hình ONNX YuNet của OpenCV.
     Hỗ trợ nhận diện khuôn mặt cả trên toàn khung hình và crop từ BBox của người.
     """
-    def __init__(self, model_path: str, score_threshold: float = 0.6, nms_threshold: float = 0.3):
-        self.model_path = model_path
-        self.score_threshold = score_threshold
-        self.nms_threshold = nms_threshold
+    def __init__(
+        self,
+        model_path: Optional[str] = None,
+        score_threshold: Optional[float] = None,
+        nms_threshold: Optional[float] = None
+    ):
+        self.model_path = model_path or settings.MODEL_YUNET_PATH
+        self.score_threshold = score_threshold if score_threshold is not None else settings.DEFAULT_FACE_CONFIDENCE
+        self.nms_threshold = nms_threshold if nms_threshold is not None else settings.DEFAULT_FACE_NMS_THRESHOLD
         self.detector = None
         self._init_detector()
 

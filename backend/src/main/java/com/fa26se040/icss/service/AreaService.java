@@ -81,7 +81,6 @@ public class AreaService {
         return areas.stream()
                 .map(a -> new AreaSimpleResponse(
                         a.getId(),
-                        a.getCode(),
                         a.getName(),
                         a.getAreaLevel(),
                         a.getBuilding(),
@@ -109,21 +108,16 @@ public class AreaService {
 
     @Transactional(readOnly = true)
     public AreaDependencyResponse getDependencies(UUID id) {
-        Area area = areaRepository.findByIdAndDeletedAtIsNull(id)
+        areaRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
-        return dependencyChecker.check(id, area.getCode());
+        return dependencyChecker.check(id);
     }
 
     @Transactional
     public AreaResponse create(AreaCreateRequest req, String actorEmail) {
-        String code = areaValidator.validateAndNormalizeCode(req.code());
-        String name = areaValidator.validateAndNormalizeName(req.name());
+        String name = areaValidator.validateAndNormalizeName(req.getName());
 
-        if (areaRepository.existsByCodeAndDeletedAtIsNull(code)) {
-            throw new AreaException(AreaErrorCode.ERR_AREA_001);
-        }
-
-        if (req.areaLevel() == null) {
+        if (req.getAreaLevel() == null) {
             throw new AreaException(AreaErrorCode.ERR_AREA_003);
         }
 
@@ -133,42 +127,40 @@ public class AreaService {
         int areaAccessLevel = 3;
         boolean explicitAuthRequired = true;
 
-        Optional<AreaLevelPreset> presetOpt = areaLevelPresetRepository.findById(req.areaLevel());
+        Optional<AreaLevelPreset> presetOpt = areaLevelPresetRepository.findById(req.getAreaLevel());
         if (presetOpt.isPresent()) {
             AreaLevelPreset preset = presetOpt.get();
             areaAccessLevel = preset.getAreaAccessLevel();
             explicitAuthRequired = preset.getExplicitAuthorizationRequired();
         } else {
             log.warn("Không tìm thấy preset cho area_level = {}, áp dụng fallback fail-closed (level 3, explicit_authorization_required = true)",
-                    req.areaLevel());
+                    req.getAreaLevel());
         }
 
         com.fa26se040.icss.entity.Floor targetFloor = null;
-        if (req.floorId() != null) {
-            targetFloor = floorRepository.findById(req.floorId()).orElse(null);
-        } else if (req.building() != null && !req.building().trim().isEmpty() && req.floor() != null && !req.floor().trim().isEmpty()) {
+        if (req.getFloorId() != null) {
+            targetFloor = floorRepository.findById(req.getFloorId()).orElse(null);
+        } else if (req.getBuilding() != null && !req.getBuilding().trim().isEmpty() && req.getFloor() != null && !req.getFloor().trim().isEmpty()) {
             targetFloor = floorRepository.findByBuildingCodeIgnoreCaseAndFloorCodeIgnoreCase(
-                    req.building().trim(), req.floor().trim()).orElse(null);
+                    req.getBuilding().trim(), req.getFloor().trim()).orElse(null);
         }
 
         String buildingVal = targetFloor != null && targetFloor.getBuilding() != null
                 ? targetFloor.getBuilding().getCode()
-                : (req.building() != null ? req.building().trim() : null);
+                : (req.getBuilding() != null ? req.getBuilding().trim() : null);
 
         String floorVal = targetFloor != null
                 ? targetFloor.getFloorCode()
-                : (req.floor() != null ? req.floor().trim() : null);
+                : (req.getFloor() != null ? req.getFloor().trim() : null);
 
         Area area = Area.builder()
-                .code(code)
                 .name(name)
-                .areaLevel(req.areaLevel())
+                .areaLevel(req.getAreaLevel())
                 .areaAccessLevel(areaAccessLevel)
                 .explicitAuthorizationRequired(explicitAuthRequired)
                 .floorEntity(targetFloor)
                 .building(buildingVal)
                 .floor(floorVal)
-                .description(req.description())
                 .isActive(true)
                 .build();
 
@@ -183,12 +175,12 @@ public class AreaService {
 
         // BR-41: Block changing building or floor when the Area already has geometry
         if (area.getGeometry() != null) {
-            String newBuilding = req.building() != null ? req.building().trim() : null;
+            String newBuilding = req.getBuilding() != null ? req.getBuilding().trim() : null;
             String currentBuilding = area.getBuilding() != null ? area.getBuilding().trim() : null;
             boolean buildingChanged = (newBuilding == null && currentBuilding != null)
                     || (newBuilding != null && !newBuilding.equalsIgnoreCase(currentBuilding));
 
-            String newFloor = req.floor() != null ? req.floor().trim() : null;
+            String newFloor = req.getFloor() != null ? req.getFloor().trim() : null;
             String currentFloor = area.getFloor() != null ? area.getFloor().trim() : null;
             boolean floorChanged = (newFloor == null && currentFloor != null)
                     || (newFloor != null && !newFloor.equalsIgnoreCase(currentFloor));
@@ -198,37 +190,35 @@ public class AreaService {
             }
         }
 
-        areaValidator.validateCodeUpdate(req.code(), area.getCode());
-        String name = areaValidator.validateAndNormalizeName(req.name());
+        String name = areaValidator.validateAndNormalizeName(req.getName());
 
-        if (req.areaLevel() == null) {
+        if (req.getAreaLevel() == null) {
             throw new AreaException(AreaErrorCode.ERR_AREA_003);
         }
 
         resolveActorId(actorEmail);
 
         com.fa26se040.icss.entity.Floor targetFloor = area.getFloorEntity();
-        if (req.floorId() != null) {
-            targetFloor = floorRepository.findById(req.floorId()).orElse(null);
-        } else if (req.building() != null && !req.building().trim().isEmpty() && req.floor() != null && !req.floor().trim().isEmpty()) {
+        if (req.getFloorId() != null) {
+            targetFloor = floorRepository.findById(req.getFloorId()).orElse(null);
+        } else if (req.getBuilding() != null && !req.getBuilding().trim().isEmpty() && req.getFloor() != null && !req.getFloor().trim().isEmpty()) {
             targetFloor = floorRepository.findByBuildingCodeIgnoreCaseAndFloorCodeIgnoreCase(
-                    req.building().trim(), req.floor().trim()).orElse(null);
+                    req.getBuilding().trim(), req.getFloor().trim()).orElse(null);
         }
 
         String buildingVal = targetFloor != null && targetFloor.getBuilding() != null
                 ? targetFloor.getBuilding().getCode()
-                : (req.building() != null ? req.building().trim() : area.getBuilding());
+                : (req.getBuilding() != null ? req.getBuilding().trim() : area.getBuilding());
 
         String floorVal = targetFloor != null
                 ? targetFloor.getFloorCode()
-                : (req.floor() != null ? req.floor().trim() : area.getFloor());
+                : (req.getFloor() != null ? req.getFloor().trim() : area.getFloor());
 
         area.setName(name);
-        area.setAreaLevel(req.areaLevel());
+        area.setAreaLevel(req.getAreaLevel());
         area.setFloorEntity(targetFloor);
         area.setBuilding(buildingVal);
         area.setFloor(floorVal);
-        area.setDescription(req.description());
 
         Area savedArea = areaRepository.save(area);
         return mapToAreaResponse(savedArea);
@@ -256,7 +246,6 @@ public class AreaService {
         Area savedArea = areaRepository.save(area);
         return new AreaGeometryResponse(
                 savedArea.getId(),
-                savedArea.getCode(),
                 savedArea.getName(),
                 savedArea.getAreaLevel(),
                 savedArea.getIsActive(),
@@ -285,7 +274,6 @@ public class AreaService {
         return areas.stream()
                 .map(a -> new AreaGeometryResponse(
                         a.getId(),
-                        a.getCode(),
                         a.getName(),
                         a.getAreaLevel(),
                         a.getIsActive(),
@@ -299,7 +287,7 @@ public class AreaService {
         Area area = areaRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
 
-        AreaDependencyResponse dep = dependencyChecker.check(id, area.getCode());
+        AreaDependencyResponse dep = dependencyChecker.check(id);
         if (!dep.canDeactivate()) {
             AreaDependencyResponse.Blocker firstBlocker = dep.blockers().get(0);
             throw new AreaException(firstBlocker.errorCode(), firstBlocker.count());
@@ -330,7 +318,6 @@ public class AreaService {
 
         return AreaCameraResponse.builder()
                 .areaId(area.getId())
-                .areaCode(area.getCode())
                 .areaName(area.getName())
                 .cameras(cameraResponses)
                 .build();
@@ -436,14 +423,12 @@ public class AreaService {
     private AreaResponse mapToAreaResponse(Area area, boolean differsFromPreset) {
         return new AreaResponse(
                 area.getId(),
-                area.getCode(),
                 area.getName(),
                 area.getAreaLevel(),
                 area.getAreaAccessLevel(),
                 area.getExplicitAuthorizationRequired(),
                 area.getBuilding(),
                 area.getFloor(),
-                area.getDescription(),
                 area.getGeometry(),
                 area.getIsActive(),
                 area.getCreatedAt(),
@@ -452,14 +437,9 @@ public class AreaService {
         );
     }
 
-    private AreaListItemResponse mapToAreaListItemResponse(Area area) {
-        return mapToAreaListItemResponse(area, false);
-    }
-
     private AreaListItemResponse mapToAreaListItemResponse(Area area, boolean differsFromPreset) {
         return new AreaListItemResponse(
                 area.getId(),
-                area.getCode(),
                 area.getName(),
                 area.getAreaLevel(),
                 area.getAreaAccessLevel(),

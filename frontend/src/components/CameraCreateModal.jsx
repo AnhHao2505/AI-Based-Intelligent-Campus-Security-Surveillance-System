@@ -8,7 +8,6 @@ export default function CameraCreateModal({ isOpen, onClose, onSuccess }) {
 	const [error, setError] = useState(null);
 	const [formData, setFormData] = useState({
 		name: "",
-		installedAt: "",
 	});
 
 	if (!isOpen) return null;
@@ -23,12 +22,8 @@ export default function CameraCreateModal({ isOpen, onClose, onSuccess }) {
 		setLoading(true);
 		setError(null);
 
-		// Prepare payload matching CreateCameraRequest (Spec 2.1)
 		const payload = {
 			name: formData.name.trim(),
-			installedAt: formData.installedAt
-				? new Date(formData.installedAt).toISOString()
-				: undefined,
 		};
 
 		try {
@@ -78,18 +73,6 @@ export default function CameraCreateModal({ isOpen, onClose, onSuccess }) {
 								onChange={handleChange}
 								placeholder="Ví dụ: Camera cổng chính A"
 								required
-								disabled={loading}
-							/>
-						</div>
-
-						<div className="form-group col-span-2">
-							<label htmlFor="installedAt">Thời điểm lắp đặt</label>
-							<input
-								type="datetime-local"
-								id="installedAt"
-								name="installedAt"
-								value={formData.installedAt}
-								onChange={handleChange}
 								disabled={loading}
 							/>
 						</div>

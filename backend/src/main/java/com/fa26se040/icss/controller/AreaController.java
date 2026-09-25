@@ -59,15 +59,22 @@ public class AreaController {
             @RequestParam(required = false, defaultValue = "true") Boolean isActive,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(defaultValue = "code,asc") String sort
+            @RequestParam(defaultValue = "name,asc") String sort
     ) {
         int cappedSize = Math.min(Math.max(1, size), 100);
-        Sort sortOrder = Sort.by(Sort.Direction.ASC, "code");
+        String sortProperty = "name";
+        Sort.Direction direction = Sort.Direction.ASC;
         if (sort != null && sort.contains(",")) {
             String[] parts = sort.split(",");
-            Sort.Direction direction = parts[1].equalsIgnoreCase("desc") ? Sort.Direction.DESC : Sort.Direction.ASC;
-            sortOrder = Sort.by(direction, parts[0]);
+            String prop = parts[0].trim();
+            if (!prop.equalsIgnoreCase("code") && !prop.isEmpty()) {
+                sortProperty = prop;
+            }
+            if (parts.length > 1 && parts[1].equalsIgnoreCase("desc")) {
+                direction = Sort.Direction.DESC;
+            }
         }
+        Sort sortOrder = Sort.by(direction, sortProperty);
         Pageable pageable = PageRequest.of(page, cappedSize, sortOrder);
         Page<AreaListItemResponse> result = areaService.getAreas(keyword, areaLevel, building, isActive, pageable);
         return ResponseEntity.ok(result);

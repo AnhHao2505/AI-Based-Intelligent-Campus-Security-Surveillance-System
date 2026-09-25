@@ -6,7 +6,6 @@ import java.util.UUID;
 
 public record AreaDependencyResponse(
     UUID areaId,
-    String areaCode,
     Boolean canDeactivate,
     List<Blocker> blockers,
     List<String> warnings,

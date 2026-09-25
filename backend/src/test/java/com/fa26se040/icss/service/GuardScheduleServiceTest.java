@@ -80,14 +80,12 @@ class GuardScheduleServiceTest {
 
         securityRoomArea = Area.builder()
                 .id(UUID.randomUUID())
-                .code("ALPHA-SR")
                 .name("Phòng bảo vệ Tòa Alpha")
                 .building("TOA_ALPHA")
                 .build();
 
         gateArea = Area.builder()
                 .id(UUID.randomUUID())
-                .code("ALPHA-GATE")
                 .name("Sảnh cổng chính")
                 .building("TOA_ALPHA")
                 .build();

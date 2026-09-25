@@ -75,7 +75,6 @@ class AccessControlAuditServiceTest {
 
         area = Area.builder()
                 .id(UUID.randomUUID())
-                .code("LAB-101")
                 .name("Phòng Lab Máy Tính")
                 .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
                 .build();

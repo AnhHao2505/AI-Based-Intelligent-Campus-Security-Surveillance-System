@@ -55,6 +55,12 @@ const EVENT_SEVERITY_CONFIG = {
 		badgeClass: "severity-high",
 		color: "#f59e0b",
 	},
+	AFTER_HOURS_PRESENCE: {
+		weight: 3,
+		label: "Có người ngoài giờ",
+		badgeClass: "severity-critical",
+		color: "#ef4444",
+	},
 	CROWD_OVERCROWDING: {
 		weight: 1,
 		label: "Tụ tập đám đông",
@@ -309,7 +315,7 @@ export function SecuritySurveillancePage() {
 				incident.area_name ||
 				incident.cameraName ||
 				"Khu vực camera",
-			eventType: incident.event_type || incident.eventType || "LOITERING",
+			eventType: incident.event_type || incident.eventType || "UNAUTHORIZED_ACCESS",
 			message:
 				incident.details ||
 				incident.resolutionNotes ||
@@ -452,7 +458,7 @@ export function SecuritySurveillancePage() {
 					name: "Hành Lang Chính Tầng 1",
 					code: "cam-001",
 				},
-				type: "LOITERING",
+				type: "AFTER_HOURS_PRESENCE",
 				details:
 					"Cảnh báo: Đối tượng che mặt lảng vảng ngoài hành lang hơn 20s.",
 				duration: "21.0s",

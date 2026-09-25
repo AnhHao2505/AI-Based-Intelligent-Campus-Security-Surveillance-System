@@ -49,9 +49,6 @@ public class Camera {
     @Column(name = "operational_status", nullable = false, length = 50)
     private OperationalStatus operationalStatus;
 
-    @Column(name = "installed_at")
-    private OffsetDateTime installedAt;
-
     @Column(name = "created_at")
     private OffsetDateTime createdAt;
 

@@ -353,8 +353,11 @@ export default function SystemConfigPage() {
 															) : (
 																<div className="syscfg-input-wrapper">
 																	<Input
-																		type={
-																			cfg.dataType === "INTEGER" ||
+								type={
+									cfg.unit === "HH:mm"
+										? "time"
+										:
+									cfg.dataType === "INTEGER" ||
 																			cfg.dataType === "DECIMAL"
 																				? "number"
 																				: "text"

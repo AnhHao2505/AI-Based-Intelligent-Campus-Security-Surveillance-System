@@ -61,7 +61,6 @@ class AreaServiceGeometryTest {
         areaId = UUID.randomUUID();
         area = Area.builder()
                 .id(areaId)
-                .code("ZONE-01")
                 .name("Zone 1")
                 .areaLevel(AreaLevel.PUBLIC)
                 .building("FPT_AROUND")
