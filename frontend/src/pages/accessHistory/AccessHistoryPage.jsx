@@ -1,25 +1,18 @@
 import { useState, useEffect } from 'react';
 import {
   History,
-  CircleCheck,
-  CircleX,
   RefreshCw
 } from 'lucide-react';
 import { getAreas } from '../../services/areaService';
 import '../../styles/AccessHistoryPage.css';
 
 export default function AccessHistoryPage() {
-  // 2e. Cấu trúc chờ nối API
-  const [history, setHistory] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-
-  // Filters
+  // Bộ lọc đang ở chế độ disabled vì chức năng lịch sử ra vào (MF4) đang phát triển
   const [timeRange, setTimeRange] = useState('ALL');
   const [selectedAreaId, setSelectedAreaId] = useState('');
   const [areasList, setAreasList] = useState([]);
 
-  // Load available areas for filter dropdown
+  // Load available areas for filter dropdown (giới hạn tối đa 100 khu vực theo API /api/areas)
   useEffect(() => {
     const loadAreas = async () => {
       try {
@@ -32,18 +25,6 @@ export default function AccessHistoryPage() {
     loadAreas();
   }, []);
 
-  // TODO: nối API khi backend có bảng lịch sử nhận diện (thuộc MF4)
-  // Dự kiến: GET /api/access-history/my?from=&to=&areaId=&page=&size=
-  // Trả về: { content: [{ timestamp, areaId, areaName, building, floor, result, note }],
-  //           totalElements, totalPages }
-  const fetchHistory = async () => {
-    // chưa hiện thực
-  };
-
-  useEffect(() => {
-    fetchHistory();
-  }, [timeRange, selectedAreaId]);
-
   const timeFilterOptions = [
     { label: 'Hôm nay', val: 'TODAY' },
     { label: '7 ngày', val: '7D' },
@@ -51,27 +32,9 @@ export default function AccessHistoryPage() {
     { label: 'Tất cả', val: 'ALL' }
   ];
 
-  const formatTimestamp = (ts) => {
-    if (!ts) return '—';
-    try {
-      const d = new Date(ts);
-      if (isNaN(d.getTime())) return ts;
-      return d.toLocaleString('vi-VN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-      });
-    } catch {
-      return ts;
-    }
-  };
-
   return (
     <div className="ahp-container">
-      {/* 2b. Thẻ duy nhất: Lịch sử truy cập */}
+      {/* Thẻ duy nhất: Lịch sử truy cập */}
       <div className="ahp-card">
         {/* Đầu thẻ */}
         <div className="ahp-card__header">
@@ -87,7 +50,7 @@ export default function AccessHistoryPage() {
             </div>
           </div>
 
-          {/* Bên phải đầu thẻ: bộ lọc khoảng thời gian & dropdown chọn khu vực */}
+          {/* Bên phải đầu thẻ: bộ lọc khoảng thời gian & dropdown chọn khu vực (disabled do chưa có API) */}
           <div className="ahp-filter-group">
             <div className="ahp-filter-tabs">
               {timeFilterOptions.map((opt) => (
@@ -96,6 +59,8 @@ export default function AccessHistoryPage() {
                   type="button"
                   className={`ahp-filter-btn ${timeRange === opt.val ? 'ahp-filter-btn--active' : ''}`}
                   onClick={() => setTimeRange(opt.val)}
+                  disabled
+                  title="Chức năng đang phát triển"
                 >
                   {opt.label}
                 </button>
@@ -106,6 +71,8 @@ export default function AccessHistoryPage() {
               className="ahp-select"
               value={selectedAreaId}
               onChange={(e) => setSelectedAreaId(e.target.value)}
+              disabled
+              title="Chức năng đang phát triển"
             >
               <option value="">Tất cả khu vực</option>
               {areasList.map((a) => {
@@ -122,100 +89,25 @@ export default function AccessHistoryPage() {
             <button
               type="button"
               className="ahp-refresh-btn"
-              onClick={fetchHistory}
-              disabled={loading}
-              title="Làm mới"
+              disabled
+              title="Chức năng đang phát triển"
             >
-              <RefreshCw size={13} className={loading ? 'ahp-spin' : ''} />
+              <RefreshCw size={13} />
             </button>
           </div>
         </div>
 
-        {/* 2c. Bảng dữ liệu / 2d. Trạng thái rỗng */}
+        {/* Thông báo tính năng đang phát triển */}
         <div className="ahp-table-container">
-          {loading ? (
-            <div className="ahp-empty">
-              <RefreshCw size={24} className="ahp-spin ahp-empty__icon" />
-              <div className="ahp-empty__title">Đang tải lịch sử truy cập...</div>
+          <div className="ahp-empty" style={{ padding: '60px 20px' }}>
+            <History size={40} strokeWidth={1.5} className="ahp-empty__icon" style={{ opacity: 0.5, marginBottom: '16px' }} />
+            <div className="ahp-empty__title" style={{ fontSize: '1.125rem', fontWeight: 600 }}>
+              Chức năng lịch sử ra vào đang phát triển
             </div>
-          ) : (() => {
-            const displayedHistory = history.filter((item) => {
-              if (selectedAreaId && item.areaId !== selectedAreaId) return false;
-              return true;
-            });
-
-            if (displayedHistory.length === 0) {
-              return (
-                /* 2d. TRẠNG THÁI RỖNG */
-                <div className="ahp-empty">
-                  <History size={32} strokeWidth={1.5} className="ahp-empty__icon" />
-                  <div className="ahp-empty__title">Chưa có lịch sử truy cập</div>
-                  <div className="ahp-empty__subtitle">
-                    Lịch sử sẽ xuất hiện khi hệ thống nhận diện bạn tại các khu vực được giám sát
-                  </div>
-                </div>
-              );
-            }
-
-            return (
-              /* Bảng 4 cột: Thời gian · Khu vực · Kết quả · Ghi chú */
-              <table className="ahp-table">
-                <thead>
-                  <tr>
-                    <th>Thời gian</th>
-                    <th>Khu vực</th>
-                    <th>Kết quả</th>
-                    <th>Ghi chú</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {displayedHistory.map((item, index) => {
-                  const isValid =
-                    item.result === 'VALID' ||
-                    item.result === 'APPROVED' ||
-                    item.result === 'Hợp lệ';
-
-                  return (
-                    <tr
-                      key={item.id || index}
-                      className={!isValid ? 'ahp-row--unauthorized' : ''}
-                    >
-                      <td className="ahp-table-time">
-                        {formatTimestamp(item.timestamp)}
-                      </td>
-                      <td>
-                        <div className="ahp-table-area-name">
-                          {item.areaName || '—'}
-                          {([item.building, item.floor].filter(Boolean).length > 0) && (
-                            <span style={{ fontWeight: 400, color: 'var(--theme-text-secondary)', marginLeft: '4px' }}>
-                              ({[item.building, item.floor].filter(Boolean).join(' · ')})
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td>
-                        {isValid ? (
-                          <span className="ahp-result-badge ahp-result-badge--valid">
-                            <CircleCheck size={12} />
-                            <span>Hợp lệ</span>
-                          </span>
-                        ) : (
-                          <span className="ahp-result-badge ahp-result-badge--unauthorized">
-                            <CircleX size={12} />
-                            <span>Không có quyền</span>
-                          </span>
-                        )}
-                      </td>
-                      <td style={{ color: 'var(--theme-text-secondary)', fontSize: '12px' }}>
-                        {item.note || '—'}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          );
-        })()}
+            <div className="ahp-empty__subtitle" style={{ maxWidth: '480px', margin: '8px auto 0', lineHeight: 1.5 }}>
+              Hệ thống đang hoàn thiện phân hệ nhận diện và lịch sử ra vào (MF4). Vui lòng quay lại sau.
+            </div>
+          </div>
         </div>
       </div>
     </div>

@@ -17,7 +17,6 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import accessRequestService from '../../services/accessRequestService';
-import { getAreas } from '../../services/areaService';
 import { getLevelConfig } from '../../utils/areaHelpers';
 import '../../styles/AccessRequestReviewPage.css';
 
@@ -32,12 +31,12 @@ export default function AccessRequestReviewPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalElements, setTotalElements] = useState(0);
 
-  // Load available areas for filter dropdown
+  // Load available areas for filter dropdown using lightweight AreaSimpleResponse endpoint
   useEffect(() => {
     const fetchAreas = async () => {
       try {
-        const res = await getAreas({ size: 100 });
-        setAreasList(res?.content || []);
+        const data = await accessRequestService.getAvailableAreas();
+        setAreasList(Array.isArray(data) ? data : data?.content || []);
       } catch (err) {
         console.error('Lỗi tải danh sách khu vực:', err);
       }
@@ -126,14 +125,14 @@ export default function AccessRequestReviewPage() {
       });
       setActionSuccess('Đã phê duyệt yêu cầu thành công!');
       setApproveItem(null);
-      loadRequests(page, statusFilter);
+      loadRequests(page, statusFilter, selectedAreaId);
       loadStats();
       setTimeout(() => setActionSuccess(null), 3000);
     } catch (err) {
       if (err.status === 409) {
         setApproveItem(null);
         setActionWarning(err.message || 'Yêu cầu này đã được xử lý bởi người khác. Danh sách đã được làm mới.');
-        loadRequests(page, statusFilter);
+        loadRequests(page, statusFilter, selectedAreaId);
         loadStats();
         setTimeout(() => setActionWarning(null), 7000);
       } else {
@@ -162,7 +161,7 @@ export default function AccessRequestReviewPage() {
       setActionSuccess('Đã từ chối yêu cầu truy cập.');
       setRejectItem(null);
       setRejectionReason('');
-      loadRequests(page, statusFilter);
+      loadRequests(page, statusFilter, selectedAreaId);
       loadStats();
       setTimeout(() => setActionSuccess(null), 3000);
     } catch (err) {
@@ -170,7 +169,7 @@ export default function AccessRequestReviewPage() {
         setRejectItem(null);
         setRejectionReason('');
         setActionWarning(err.message || 'Yêu cầu này đã được xử lý bởi người khác. Danh sách đã được làm mới.');
-        loadRequests(page, statusFilter);
+        loadRequests(page, statusFilter, selectedAreaId);
         loadStats();
         setTimeout(() => setActionWarning(null), 7000);
       } else {
@@ -205,9 +204,8 @@ export default function AccessRequestReviewPage() {
     });
   };
 
-  // Client-side search filter
+  // Client-side search filter (lọc khu vực và trạng thái đã xử lý hoàn toàn tại server)
   const filteredRequests = requests.filter(req => {
-    if (selectedAreaId && req.areaId !== selectedAreaId) return false;
     if (!searchTerm.trim()) return true;
     const term = searchTerm.toLowerCase();
     return (
@@ -230,7 +228,7 @@ export default function AccessRequestReviewPage() {
         <button
           type="button"
           className="arr-filter-btn"
-          onClick={() => { loadRequests(page, statusFilter); loadStats(); }}
+          onClick={() => { loadRequests(page, statusFilter, selectedAreaId); loadStats(); }}
           title="Làm mới dữ liệu"
         >
           <RefreshCw size={14} className={loading ? 'spin' : ''} />
@@ -331,7 +329,10 @@ export default function AccessRequestReviewPage() {
               key={f.val}
               type="button"
               className={`arr-filter-btn ${statusFilter === f.val ? 'arr-filter-btn--active' : ''}`}
-              onClick={() => setStatusFilter(f.val)}
+              onClick={() => {
+                setStatusFilter(f.val);
+                setPage(0);
+              }}
             >
               {f.label}
             </button>
@@ -342,7 +343,10 @@ export default function AccessRequestReviewPage() {
           <select
             className="arr-select"
             value={selectedAreaId}
-            onChange={(e) => setSelectedAreaId(e.target.value)}
+            onChange={(e) => {
+              setSelectedAreaId(e.target.value);
+              setPage(0);
+            }}
           >
             <option value="">Tất cả khu vực</option>
             {areasList.map((a) => {
@@ -504,7 +508,7 @@ export default function AccessRequestReviewPage() {
                 type="button"
                 className="arr-filter-btn"
                 disabled={page <= 0}
-                onClick={() => loadRequests(page - 1, statusFilter)}
+                onClick={() => loadRequests(page - 1, statusFilter, selectedAreaId)}
               >
                 <ChevronLeft size={14} />
                 <span>Trước</span>
@@ -513,7 +517,7 @@ export default function AccessRequestReviewPage() {
                 type="button"
                 className="arr-filter-btn"
                 disabled={page >= totalPages - 1}
-                onClick={() => loadRequests(page + 1, statusFilter)}
+                onClick={() => loadRequests(page + 1, statusFilter, selectedAreaId)}
               >
                 <span>Tiếp</span>
                 <ChevronRight size={14} />

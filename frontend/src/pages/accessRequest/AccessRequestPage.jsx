@@ -220,10 +220,6 @@ export default function AccessRequestPage() {
 	const areaList = Array.isArray(areas) ? areas : areas?.content || [];
 	const currentArea = areaList.find((a) => a.id === selectedAreaId);
 
-	const displayedHistoryList = historyList.filter(
-		(req) => !historyAreaFilter || req.areaId === historyAreaFilter,
-	);
-
 	// When area changes, if area is HIGHLY_CONFIDENTIAL, force INDIVIDUAL
 	const handleAreaChange = (e) => {
 		const areaId = e.target.value;
@@ -459,7 +455,7 @@ export default function AccessRequestPage() {
 			initDefaultTimes();
 
 			// Refresh history list and smooth scroll down
-			loadMyRequests(0, historyStatusFilter);
+			loadMyRequests(0, historyStatusFilter, historyAreaFilter);
 			setTimeout(() => {
 				historyCardRef.current?.scrollIntoView({ behavior: "smooth" });
 			}, 500);
@@ -479,7 +475,7 @@ export default function AccessRequestPage() {
 			await accessRequestService.cancelRequest(cancelItem.id);
 			setCancelItem(null);
 			setFormSuccess("Huỷ yêu cầu truy cập thành công!");
-			loadMyRequests(historyPage, historyStatusFilter);
+			loadMyRequests(historyPage, historyStatusFilter, historyAreaFilter);
 			setTimeout(() => setFormSuccess(null), 4000);
 		} catch (err) {
 			if (err.status === 409) {
@@ -487,7 +483,7 @@ export default function AccessRequestPage() {
 				setHistoryWarning(
 					err.message || "Yêu cầu này vừa được xử lý, không thể huỷ.",
 				);
-				loadMyRequests(historyPage, historyStatusFilter);
+				loadMyRequests(historyPage, historyStatusFilter, historyAreaFilter);
 				setTimeout(() => setHistoryWarning(null), 7000);
 			} else {
 				setCancelError(err.message || "Không thể huỷ yêu cầu truy cập.");
@@ -743,6 +739,19 @@ export default function AccessRequestPage() {
 								/>
 							</div>
 						</div>
+						{timeSummary?.text && (
+							<div
+								style={{
+									fontSize: "12px",
+									marginTop: "6px",
+									color: timeSummary.isError
+										? "var(--theme-danger, #ef4444)"
+										: "var(--theme-text-secondary, #94a3b8)",
+								}}
+							>
+								{timeSummary.text}
+							</div>
+						)}
 					</div>
 
 					{/* TRƯỜNG 4: Danh sách thành viên (nếu chọn GROUP) */}
@@ -891,7 +900,10 @@ export default function AccessRequestPage() {
 								key={f.val}
 								type="button"
 								className={`arp-filter-btn ${historyStatusFilter === f.val ? "arp-filter-btn--active" : ""}`}
-								onClick={() => setHistoryStatusFilter(f.val)}
+								onClick={() => {
+									setHistoryStatusFilter(f.val);
+									setHistoryPage(0);
+								}}
 							>
 								{f.label}
 							</button>
@@ -900,7 +912,10 @@ export default function AccessRequestPage() {
 						<select
 							className="arp-select-filter"
 							value={historyAreaFilter}
-							onChange={(e) => setHistoryAreaFilter(e.target.value)}
+							onChange={(e) => {
+								setHistoryAreaFilter(e.target.value);
+								setHistoryPage(0);
+							}}
 						>
 							<option value="">Tất cả khu vực</option>
 							{areaList.map((a) => {
@@ -952,7 +967,7 @@ export default function AccessRequestPage() {
 								Đang tải danh sách yêu cầu...
 							</div>
 						</div>
-					) : displayedHistoryList.length === 0 ? (
+					) : historyList.length === 0 ? (
 						<div className="arp-empty">
 							<Inbox
 								size={28}
@@ -974,7 +989,7 @@ export default function AccessRequestPage() {
 									</tr>
 								</thead>
 								<tbody>
-									{displayedHistoryList.map((req) => (
+									{historyList.map((req) => (
 										<React.Fragment key={req.id}>
 											<tr>
 												<td>
@@ -1089,6 +1104,7 @@ export default function AccessRequestPage() {
 																		loadMyRequests(
 																			historyPage,
 																			historyStatusFilter,
+																			historyAreaFilter,
 																		);
 																		setTimeout(
 																			() => setFormSuccess(null),
@@ -1167,7 +1183,7 @@ export default function AccessRequestPage() {
 								type="button"
 								className="arp-page-btn"
 								onClick={() =>
-									loadMyRequests(historyPage - 1, historyStatusFilter)
+									loadMyRequests(historyPage - 1, historyStatusFilter, historyAreaFilter)
 								}
 								disabled={historyPage === 0 || loadingHistory}
 								title="Trang trước"
@@ -1188,7 +1204,7 @@ export default function AccessRequestPage() {
 												key={p}
 												type="button"
 												className={`arp-page-btn ${p === historyPage ? "arp-page-btn--active" : ""}`}
-												onClick={() => loadMyRequests(p, historyStatusFilter)}
+												onClick={() => loadMyRequests(p, historyStatusFilter, historyAreaFilter)}
 												disabled={loadingHistory}
 											>
 												{p + 1}
@@ -1212,7 +1228,7 @@ export default function AccessRequestPage() {
 								type="button"
 								className="arp-page-btn"
 								onClick={() =>
-									loadMyRequests(historyPage + 1, historyStatusFilter)
+									loadMyRequests(historyPage + 1, historyStatusFilter, historyAreaFilter)
 								}
 								disabled={
 									historyPage >= historyTotalPages - 1 || loadingHistory

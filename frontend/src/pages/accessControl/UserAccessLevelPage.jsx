@@ -336,7 +336,7 @@ export default function UserAccessLevelPage() {
     setFilterChangedByUser(null);
   };
 
-  // Load Areas for dropdown filter
+  // Load Areas for dropdown filter (Giới hạn tối đa 100 khu vực theo API /api/areas; chưa có endpoint danh sách rút gọn cho toàn bộ phân loại)
   useEffect(() => {
     const fetchAreas = async () => {
       try {

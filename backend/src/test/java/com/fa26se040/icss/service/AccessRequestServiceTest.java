@@ -979,7 +979,7 @@ class AccessRequestServiceTest {
         when(userRepository.findByEmail(requester.getEmail())).thenReturn(Optional.of(requester));
         org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(0, 10);
         org.springframework.data.domain.Page<AccessRequest> page = new org.springframework.data.domain.PageImpl<>(List.of(request), pageable, 1);
-        when(accessRequestRepository.findMyRequests(requester.getId(), RequestStatus.PENDING, semiPrivateArea.getId(), pageable))
+        when(accessRequestRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class), any(org.springframework.data.domain.Pageable.class)))
                 .thenReturn(page);
 
         org.springframework.data.domain.Page<AccessRequestResponse> result = accessRequestService.getMyRequests(
@@ -1014,7 +1014,7 @@ class AccessRequestServiceTest {
 
         org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(0, 10);
         org.springframework.data.domain.Page<AccessRequest> page = new org.springframework.data.domain.PageImpl<>(List.of(request), pageable, 1);
-        when(accessRequestRepository.findAllRequests(RequestStatus.PENDING, semiPrivateArea.getId(), pageable))
+        when(accessRequestRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class), any(org.springframework.data.domain.Pageable.class)))
                 .thenReturn(page);
 
         org.springframework.data.domain.Page<AccessRequestResponse> result = accessRequestService.getAllRequests(
