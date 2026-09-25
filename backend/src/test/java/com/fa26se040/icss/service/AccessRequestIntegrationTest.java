@@ -2,6 +2,7 @@ package com.fa26se040.icss.service;
 
 import com.fa26se040.icss.AbstractIntegrationTest;
 import com.fa26se040.icss.entity.AccessRequest;
+import com.fa26se040.icss.entity.AccessRequestMember;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.AreaLevel;
@@ -22,7 +23,6 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -185,5 +185,119 @@ class AccessRequestIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.content[0].id", is(req1.getId().toString())))
                 .andExpect(jsonPath("$.content[0].areaId", is(area1.getId().toString())))
                 .andExpect(jsonPath("$.content[0].status", is("PENDING")));
+    }
+
+    @Test
+    @Transactional
+    @DisplayName("Integration Test: User B là thành viên đơn nhóm (không phải người tạo) -> GET /my của B phải thấy đơn đó, có và không có areaId, thứ tự mới nhất trước")
+    void testMyRequests_UserIsMemberOfGroupRequest_ReturnsRequestInOrder() throws Exception {
+        String uniqueSuffix = UUID.randomUUID().toString().substring(0, 8);
+
+        // 1. Tạo User A (người tạo đơn) và User B (thành viên)
+        User studentA = userRepository.save(User.builder()
+                .userCode("STU-A-" + uniqueSuffix)
+                .fullName("Student A " + uniqueSuffix)
+                .email("student-a-" + uniqueSuffix + "@fpt.edu.vn")
+                .role(Role.NORMAL_USER)
+                .accessLevel(1)
+                .isActive(true)
+                .build());
+
+        User studentB = userRepository.save(User.builder()
+                .userCode("STU-B-" + uniqueSuffix)
+                .fullName("Student B " + uniqueSuffix)
+                .email("student-b-" + uniqueSuffix + "@fpt.edu.vn")
+                .role(Role.NORMAL_USER)
+                .accessLevel(1)
+                .isActive(true)
+                .build());
+
+        // 2. Tạo 2 Khu vực Area 1 và Area 2
+        Area area1 = areaRepository.save(Area.builder()
+                .name("Group Area 1 " + uniqueSuffix)
+                .building("ALPHA")
+                .floor("1")
+                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
+                .areaAccessLevel(2)
+                .explicitAuthorizationRequired(true)
+                .isActive(true)
+                .build());
+
+        Area area2 = areaRepository.save(Area.builder()
+                .name("Individual Area 2 " + uniqueSuffix)
+                .building("BETA")
+                .floor("2")
+                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
+                .areaAccessLevel(2)
+                .explicitAuthorizationRequired(true)
+                .isActive(true)
+                .build());
+
+        // 3. Tạo đơn cá nhân cũ hơn cho User B (createdAt = now - 1h)
+        AccessRequest reqBIndividual = accessRequestRepository.save(AccessRequest.builder()
+                .area(area2)
+                .requester(studentB)
+                .requestType(RequestType.INDIVIDUAL)
+                .purpose("Học cá nhân tại Area 2")
+                .startTime(OffsetDateTime.now().plusDays(1))
+                .endTime(OffsetDateTime.now().plusDays(1).plusHours(2))
+                .status(RequestStatus.APPROVED)
+                .createdAt(OffsetDateTime.now().minusHours(1))
+                .build());
+
+        // 4. Tạo đơn nhóm mới hơn do User A tạo, User B là THÀNH VIÊN (createdAt = now + 10m)
+        AccessRequest reqGroup = AccessRequest.builder()
+                .area(area1)
+                .requester(studentA)
+                .requestType(RequestType.GROUP)
+                .purpose("Học nhóm tại Area 1")
+                .startTime(OffsetDateTime.now().plusDays(2))
+                .endTime(OffsetDateTime.now().plusDays(2).plusHours(3))
+                .status(RequestStatus.PENDING)
+                .createdAt(OffsetDateTime.now().plusMinutes(10))
+                .build();
+
+        AccessRequestMember arm = AccessRequestMember.builder()
+                .accessRequest(reqGroup)
+                .user(studentB)
+                .build();
+        reqGroup.getMembers().add(arm);
+        reqGroup = accessRequestRepository.save(reqGroup);
+
+        String studentBToken = "Bearer " + jwtTokenProvider.generateToken(studentB);
+
+        // A. GET /api/access-requests/my KHÔNG có areaId:
+        // User B phải thấy cả đơn nhóm (với tư cách member) và đơn cá nhân (với tư cách requester).
+        // Thứ tự mới nhất trước: content[0] là reqGroup, content[1] là reqBIndividual.
+        mockMvc.perform(get("/api/access-requests/my")
+                        .header("Authorization", studentBToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements", is(2)))
+                .andExpect(jsonPath("$.content[0].id", is(reqGroup.getId().toString())))
+                .andExpect(jsonPath("$.content[0].requestType", is("GROUP")))
+                .andExpect(jsonPath("$.content[0].areaId", is(area1.getId().toString())))
+                .andExpect(jsonPath("$.content[1].id", is(reqBIndividual.getId().toString())))
+                .andExpect(jsonPath("$.content[1].requestType", is("INDIVIDUAL")))
+                .andExpect(jsonPath("$.content[1].areaId", is(area2.getId().toString())));
+
+        // B. GET /api/access-requests/my CÓ areaId = area1.id (khu vực của đơn nhóm):
+        // User B phải thấy đơn nhóm mà mình là thành viên
+        mockMvc.perform(get("/api/access-requests/my")
+                        .header("Authorization", studentBToken)
+                        .param("areaId", area1.getId().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements", is(1)))
+                .andExpect(jsonPath("$.content[0].id", is(reqGroup.getId().toString())))
+                .andExpect(jsonPath("$.content[0].areaId", is(area1.getId().toString())))
+                .andExpect(jsonPath("$.content[0].requestType", is("GROUP")));
+
+        // C. GET /api/access-requests/my CÓ areaId = area2.id (khu vực của đơn cá nhân):
+        mockMvc.perform(get("/api/access-requests/my")
+                        .header("Authorization", studentBToken)
+                        .param("areaId", area2.getId().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements", is(1)))
+                .andExpect(jsonPath("$.content[0].id", is(reqBIndividual.getId().toString())))
+                .andExpect(jsonPath("$.content[0].areaId", is(area2.getId().toString())));
     }
 }
