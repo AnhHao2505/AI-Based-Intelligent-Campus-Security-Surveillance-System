@@ -14,5 +14,7 @@ public class AvailableSubstituteDto {
     private String userCode;
     private String fullName;
     private String email;
+    private UUID teamId;
     private String teamName;
+    private Boolean isSameTeam;
 }

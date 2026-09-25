@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../models/guard_shift_request_model.dart';
 import '../providers/shift_provider.dart';
 
@@ -48,6 +49,9 @@ class _MyShiftRequestsSheetState extends State<MyShiftRequestsSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final currentUser = context.watch<AuthProvider>().user;
+    final currentUserId = currentUser?.id;
+
     return Container(
       constraints: BoxConstraints(
         maxHeight: MediaQuery.of(context).size.height * 0.75,
@@ -76,17 +80,22 @@ class _MyShiftRequestsSheetState extends State<MyShiftRequestsSheet> {
 
           // Header
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Lịch Sử Đổi / Xin Nghỉ Ca',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.txtPrimary(context),
+              Expanded(
+                child: Text(
+                  'Lịch Sử Đổi / Trực Thay',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.txtPrimary(context),
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               IconButton(
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
                 onPressed: () => Navigator.pop(context),
                 icon: const Icon(Icons.close, size: 20),
                 color: AppColors.txtMuted(context),
@@ -102,7 +111,7 @@ class _MyShiftRequestsSheetState extends State<MyShiftRequestsSheet> {
                 : _requests.isEmpty
                     ? Center(
                         child: Text(
-                          'Bạn chưa có yêu cầu đổi ca hoặc xin nghỉ nào',
+                          'Bạn chưa có yêu cầu đổi ca hoặc trực thay nào',
                           style: TextStyle(fontSize: 13, color: AppColors.txtMuted(context)),
                         ),
                       )
@@ -116,6 +125,10 @@ class _MyShiftRequestsSheetState extends State<MyShiftRequestsSheet> {
                             final isApproved = req.isApproved;
                             final isRejected = req.isRejected;
 
+                            final isSubstitute = currentUserId != null &&
+                                req.targetSubstituteGuardId == currentUserId &&
+                                req.requesterGuardId != currentUserId;
+
                             final statusBg = isApproved
                                 ? AppColors.success.withAlpha(25)
                                 : isRejected
@@ -128,27 +141,52 @@ class _MyShiftRequestsSheetState extends State<MyShiftRequestsSheet> {
                                     ? AppColors.danger
                                     : AppColors.warning;
 
+                            String badgeTitle;
+                            Color badgeColor;
+
+                            if (isSubstitute) {
+                              if (req.isLeave) {
+                                badgeTitle = '[Phân công trực thay]';
+                                badgeColor = Colors.teal;
+                              } else {
+                                badgeTitle = '[Đổi ca từ đồng nghiệp]';
+                                badgeColor = AppColors.primary;
+                              }
+                            } else {
+                              badgeTitle = req.typeLabel;
+                              badgeColor = AppColors.primaryLight;
+                            }
+
                             return Container(
                               padding: const EdgeInsets.all(14),
                               decoration: BoxDecoration(
-                                color: AppColors.surfLight(context),
+                                color: isSubstitute
+                                    ? Colors.teal.withAlpha(15)
+                                    : AppColors.surfLight(context),
                                 borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: AppColors.crdBorder(context)),
+                                border: Border.all(
+                                  color: isSubstitute
+                                      ? Colors.teal.withAlpha(80)
+                                      : AppColors.crdBorder(context),
+                                ),
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
-                                      Text(
-                                        req.typeLabel,
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
-                                          color: AppColors.primaryLight,
+                                      Expanded(
+                                        child: Text(
+                                          badgeTitle,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                            color: badgeColor,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
                                         ),
                                       ),
+                                      const SizedBox(width: 8),
                                       Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                         decoration: BoxDecoration(
@@ -168,25 +206,81 @@ class _MyShiftRequestsSheetState extends State<MyShiftRequestsSheet> {
                                   ),
                                   const SizedBox(height: 6),
 
-                                  if (req.shiftDate != null)
-                                    Text(
-                                      'Ca trực: ${req.shiftDate} (${req.shiftStartTime?.substring(0, 5)} - ${req.shiftEndTime?.substring(0, 5)})',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: AppColors.txtPrimary(context),
+                                  if (isSubstitute) ...[
+                                    if (req.isLeave) ...[
+                                      Text(
+                                        'Trực thay cho: ${req.requesterGuardName ?? "Đồng nghiệp"}',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                          color: AppColors.txtPrimary(context),
+                                        ),
                                       ),
-                                    ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Ca tiếp nhận: ${req.formattedShiftDate} (${req.shiftStartTime?.substring(0, 5)} - ${req.shiftEndTime?.substring(0, 5)})',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.txtSecondary(context),
+                                        ),
+                                      ),
+                                    ] else ...[
+                                      Text(
+                                        'Đề xuất bởi: ${req.requesterGuardName ?? "Đồng nghiệp"}',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                          color: AppColors.txtPrimary(context),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Ca tiếp nhận: ${req.formattedShiftDate} (${req.shiftStartTime?.substring(0, 5)} - ${req.shiftEndTime?.substring(0, 5)})',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.primary,
+                                        ),
+                                      ),
+                                    ],
+                                  ] else ...[
+                                    if (req.shiftDate != null)
+                                      Text(
+                                        'Ca trực: ${req.formattedShiftDate} (${req.shiftStartTime?.substring(0, 5)} - ${req.shiftEndTime?.substring(0, 5)})',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.txtPrimary(context),
+                                        ),
+                                      ),
 
-                                  if (req.isSwap && req.targetSubstituteGuardName != null) ...[
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Người trực thay: ${req.targetSubstituteGuardName}',
-                                      style: TextStyle(fontSize: 12, color: AppColors.txtSecondary(context)),
-                                    ),
+                                    if (req.isSwap && req.targetSubstituteGuardName != null) ...[
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Đổi với: ${req.targetSubstituteGuardName}${req.formattedTargetShiftDate.isNotEmpty ? " (Ca gốc: ${req.formattedTargetShiftDate})" : ""}',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.primary,
+                                        ),
+                                      ),
+                                    ],
+
+                                    if (req.isLeave && req.targetSubstituteGuardName != null) ...[
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Người trực thay: ${req.targetSubstituteGuardName}',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.teal,
+                                        ),
+                                      ),
+                                    ],
                                   ],
 
-                                  if (req.reason.isNotEmpty) ...[
+                                  if (!isSubstitute && req.reason.isNotEmpty) ...[
                                     const SizedBox(height: 4),
                                     Text(
                                       'Lý do: "${req.reason}"',
@@ -198,7 +292,7 @@ class _MyShiftRequestsSheetState extends State<MyShiftRequestsSheet> {
                                     ),
                                   ],
 
-                                  if (req.reviewNote != null && req.reviewNote!.isNotEmpty) ...[
+                                  if (!isSubstitute && req.reviewNote != null && req.reviewNote!.isNotEmpty) ...[
                                     const SizedBox(height: 6),
                                     Text(
                                       'Phản hồi từ quản lý: "${req.reviewNote}"',

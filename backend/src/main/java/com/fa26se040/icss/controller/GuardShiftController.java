@@ -113,6 +113,16 @@ public class GuardShiftController {
         return ResponseEntity.ok(guardShiftRequestService.getAvailableSubstitutes(id, requesterEmail));
     }
 
+    @GetMapping("/{id}/available-swap-shifts")
+    @PreAuthorize("hasAnyRole('GUARD', 'ADMIN', 'FACILITY_MANAGER')")
+    public ResponseEntity<List<com.fa26se040.icss.dto.guard.AvailableSwapShiftDto>> getAvailableSwapShifts(
+            @PathVariable UUID id,
+            Authentication authentication
+    ) {
+        String requesterEmail = authentication.getName();
+        return ResponseEntity.ok(guardShiftRequestService.getAvailableSwapShifts(id, requesterEmail));
+    }
+
     // ==========================================
     // GUARD SELF-SERVICE ENDPOINTS
     // ==========================================

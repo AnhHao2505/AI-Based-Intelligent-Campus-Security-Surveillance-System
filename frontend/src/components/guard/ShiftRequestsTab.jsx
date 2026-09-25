@@ -20,11 +20,78 @@ import {
 import { guardScheduleApi } from '../../api/guardScheduleApi';
 
 const STATUS_FILTERS = [
-  { key: 'PENDING', label: 'Chờ Duyệt', icon: Clock },
-  { key: 'APPROVED', label: 'Đã Duyệt', icon: CheckCircle2 },
-  { key: 'REJECTED', label: 'Từ Chối', icon: XCircle },
-  { key: 'ALL', label: 'Tất Cả', icon: Filter }
+  {
+    key: 'PENDING',
+    label: 'Chờ Duyệt',
+    icon: Clock,
+    activeClass: 'bg-amber-500 hover:bg-amber-600 text-white border-amber-600 shadow-sm',
+    inactiveClass: 'bg-amber-50/70 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 text-amber-700 dark:text-amber-300 border-amber-200/80 dark:border-amber-800/80',
+    iconClass: 'text-amber-500'
+  },
+  {
+    key: 'APPROVED',
+    label: 'Đã Duyệt',
+    icon: CheckCircle2,
+    activeClass: 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-700 shadow-sm',
+    inactiveClass: 'bg-emerald-50/70 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border-emerald-200/80 dark:border-emerald-800/80',
+    iconClass: 'text-emerald-500'
+  },
+  {
+    key: 'REJECTED',
+    label: 'Từ Chối',
+    icon: XCircle,
+    activeClass: 'bg-rose-600 hover:bg-rose-700 text-white border-rose-700 shadow-sm',
+    inactiveClass: 'bg-rose-50/70 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 border-rose-200/80 dark:border-rose-800/80',
+    iconClass: 'text-rose-500'
+  },
+  {
+    key: 'ALL',
+    label: 'Tất Cả',
+    icon: Filter,
+    activeClass: 'bg-blue-600 hover:bg-blue-700 text-white border-blue-700 shadow-sm',
+    inactiveClass: 'bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200/80 dark:border-slate-700/80',
+    iconClass: 'text-blue-500'
+  }
 ];
+
+const formatDateVN = (dateStr) => {
+  if (!dateStr) return '';
+  const match = String(dateStr).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    const [, y, m, d] = match;
+    return `${d}-${m}-${y}`;
+  }
+  try {
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) {
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      return `${day}-${month}-${year}`;
+    }
+  } catch (e) {
+    // ignore
+  }
+  return dateStr;
+};
+
+const formatDateTimeVN = (dateStr) => {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) {
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      const hours = String(d.getHours()).padStart(2, '0');
+      const mins = String(d.getMinutes()).padStart(2, '0');
+      return `${hours}:${mins} ${day}-${month}-${year}`;
+    }
+  } catch (e) {
+    // ignore
+  }
+  return formatDateVN(dateStr);
+};
 
 export default function ShiftRequestsTab({ onRequestsUpdated }) {
   const [requests, setRequests] = useState([]);
@@ -195,6 +262,7 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
     setRejectDialog((prev) => ({ ...prev, submitting: true }));
     try {
       await guardScheduleApi.rejectShiftRequest(rejectDialog.request.id, {
+        reviewNotes: rejectDialog.reviewNote,
         reviewNote: rejectDialog.reviewNote
       });
       setRejectDialog({
@@ -220,7 +288,7 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
       {/* 1. Header Toolbar & Filters */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         {/* Status Filter Buttons */}
-        <div className="schedule-filter-group">
+        <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
           {STATUS_FILTERS.map((f) => {
             const Icon = f.icon;
             const isActive = statusFilter === f.key;
@@ -229,12 +297,18 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
                 key={f.key}
                 type="button"
                 onClick={() => setStatusFilter(f.key)}
-                className={`schedule-filter-btn ${isActive ? 'schedule-filter-btn--active' : ''}`}
+                className={`px-5 py-2.5 sm:py-3 rounded-xl text-sm font-bold border transition-all flex items-center gap-2 cursor-pointer shadow-xs ${
+                  isActive ? f.activeClass : f.inactiveClass
+                }`}
               >
-                {Icon && <Icon size={15} />}
+                {Icon && <Icon size={18} className={isActive ? 'text-white' : f.iconClass} />}
                 <span>{f.label}</span>
                 {f.key === 'PENDING' && pendingCount > 0 && (
-                  <span className="schedule-filter-badge">
+                  <span
+                    className={`ml-1 px-2 py-0.5 rounded-full text-xs font-bold ${
+                      isActive ? 'bg-white/30 text-white' : 'bg-amber-500 text-white shadow-xs'
+                    }`}
+                  >
                     {pendingCount}
                   </span>
                 )}
@@ -244,15 +318,15 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
         </div>
 
         {/* Search & Refresh */}
-        <div className="flex items-center gap-2">
-          <div className="schedule-search-box flex-1 sm:w-72">
-            <Search size={15} className="schedule-search-icon" />
+        <div className="flex items-center gap-2.5">
+          <div className="schedule-search-box flex-1 sm:w-80 h-[44px]">
+            <Search size={17} className="schedule-search-icon" />
             <input
               type="text"
               value={searchKeyword}
               onChange={(e) => setSearchKeyword(e.target.value)}
               placeholder="Tìm theo người gửi, lý do..."
-              className="schedule-search-input"
+              className="schedule-search-input text-sm"
             />
             {searchKeyword && (
               <button
@@ -261,7 +335,7 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
                 className="schedule-search-clear"
                 title="Xóa tìm kiếm"
               >
-                <X size={14} />
+                <X size={15} />
               </button>
             )}
           </div>
@@ -270,10 +344,10 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
             type="button"
             onClick={fetchRequests}
             disabled={loading}
-            className="schedule-btn-secondary p-2 h-[38px] flex items-center justify-center"
+            className="schedule-btn-secondary p-2.5 h-[44px] min-w-[44px] flex items-center justify-center rounded-xl"
             title="Làm mới danh sách"
           >
-            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+            <RefreshCw size={17} className={loading ? 'animate-spin' : ''} />
           </button>
         </div>
       </div>
@@ -289,7 +363,7 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
       {/* 2. Requests List */}
       {loading && requests.length === 0 ? (
         <div className="text-center py-16 text-slate-500 text-xs">
-          Đang tải danh sách yêu cầu đổi/nghỉ ca...
+          Đang tải danh sách yêu cầu ca trực...
         </div>
       ) : filteredRequests.length === 0 ? (
         <div className="schedule-empty-state">
@@ -306,7 +380,7 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3.5">
           {filteredRequests.map((req) => {
             const isPending = req.status === 'PENDING';
             const isApproved = req.status === 'APPROVED';
@@ -314,7 +388,8 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
             const isSwap =
               req.requestType === 'SWAP' || req.requestType === 'SWAP_SHIFT';
 
-            const shiftDate = req.shiftDate || req.shift?.shiftDate || '';
+            const rawDate = req.shiftDate || req.shift?.shiftDate || '';
+            const displayDate = formatDateVN(rawDate);
             const startTime = (
               req.startTime ||
               req.shift?.startTime ||
@@ -334,87 +409,157 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
               req.targetSubstituteGuard?.fullName ||
               '';
 
+            const isEmergency = req.isEmergency === true;
+            const targetDate = req.targetShiftDate || req.targetShift?.shiftDate || '';
+            const targetStartTime = (req.targetStartTime || req.targetShift?.startTime || '').substring(0, 5);
+            const targetEndTime = (req.targetEndTime || req.targetShift?.endTime || '').substring(0, 5);
+            const substituteCode = req.substituteGuardCode || req.targetSubstituteGuard?.userCode || '';
+            const reviewNote = req.reviewNotes || req.reviewNote;
+
             return (
               <div
                 key={req.id}
-                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 sm:p-5 shadow-sm hover:shadow transition flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
+                className="bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700/80 rounded-2xl p-4 sm:p-5 shadow-xs hover:shadow-md transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
               >
                 {/* Left: Request info */}
-                <div className="flex items-start gap-3.5 flex-1">
+                <div className="flex items-start gap-3.5 flex-1 min-w-0">
                   <div
-                    className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                    className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-xs ${
                       isSwap
-                        ? 'bg-blue-50 dark:bg-blue-950/70 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800'
-                        : 'bg-amber-50 dark:bg-amber-950/70 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800'
+                        ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200/70 dark:border-blue-800/70'
+                        : isEmergency
+                        ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200/70 dark:border-rose-800/70'
+                        : 'bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border border-amber-200/70 dark:border-amber-800/70'
                     }`}
                   >
-                    {isSwap ? <ArrowRightLeft size={18} /> : <UserX size={18} />}
+                    {isSwap ? <ArrowRightLeft size={19} /> : <UserX size={19} />}
                   </div>
 
-                  <div className="space-y-1">
+                  <div className="space-y-1.5 flex-1 min-w-0">
+                    {/* Header: Name, Code, Type, Status */}
                     <div className="flex items-center flex-wrap gap-2">
-                      <span className="font-bold text-sm text-slate-900 dark:text-white">
+                      <span className="font-bold text-sm text-slate-900 dark:text-white tracking-tight">
                         {requesterName}
                       </span>
-                      <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
-                        ({requesterCode})
+                      <span className="text-[11px] font-mono font-medium px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700/70 text-slate-600 dark:text-slate-300">
+                        {requesterCode}
                       </span>
                       <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
                           isSwap
-                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300'
-                            : 'bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300'
+                            ? 'bg-blue-50 text-blue-700 border border-blue-200/80 dark:bg-blue-950/70 dark:text-blue-300 dark:border-blue-800'
+                            : isEmergency
+                            ? 'bg-rose-50 text-rose-700 border border-rose-200/80 dark:bg-rose-950/70 dark:text-rose-300 dark:border-rose-800'
+                            : 'bg-amber-50 text-amber-700 border border-amber-200/80 dark:bg-amber-950/70 dark:text-amber-300 dark:border-amber-800'
                         }`}
                       >
-                        {isSwap ? 'Xin Đổi Ca' : 'Xin Nghỉ Trực'}
+                        {isSwap
+                          ? 'Đổi Ca'
+                          : isEmergency
+                          ? 'Nghỉ Đột Xuất'
+                          : 'Nghỉ Phép Thường'}
                       </span>
                       <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold flex items-center gap-1.5 ${
                           isPending
-                            ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                            ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30'
                             : isApproved
-                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                            : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
+                            ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30'
+                            : 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-500/30'
                         }`}
                       >
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            isPending
+                              ? 'bg-amber-500 animate-pulse'
+                              : isApproved
+                              ? 'bg-emerald-500'
+                              : 'bg-rose-500'
+                          }`}
+                        />
                         {isPending
                           ? 'Chờ Duyệt'
                           : isApproved
                           ? 'Đã Duyệt'
                           : 'Đã Từ Chối'}
                       </span>
-                    </div>
 
-                    {/* Shift Details */}
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600 dark:text-slate-300 pt-1">
-                      <span className="flex items-center gap-1">
-                        <Calendar size={13} className="text-slate-400" />
-                        <strong>Ngày trực:</strong> {shiftDate}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Clock size={13} className="text-slate-400" />
-                        <strong>Giờ trực:</strong> {startTime} — {endTime}
-                      </span>
-                      {isSwap && substituteName && (
-                        <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
-                          <UserCheck size={13} />
-                          <strong>Trực thay:</strong> {substituteName}
+                      {req.createdAt && (
+                        <span className="text-[11px] text-slate-400 dark:text-slate-500 ml-auto hidden sm:inline">
+                          {formatDateTimeVN(req.createdAt)}
                         </span>
                       )}
                     </div>
 
+                    {/* Shift Details: 2-way swap vs Leave */}
+                    {isSwap ? (
+                      <div className="flex flex-wrap items-center gap-2 pt-0.5 text-xs">
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50/80 dark:bg-blue-950/50 border border-blue-200/70 dark:border-blue-800/60 text-blue-900 dark:text-blue-200">
+                          <Calendar size={13} className="text-blue-600 flex-shrink-0" />
+                          <span>Ca trực:</span>
+                          <strong className="font-semibold">{displayDate} ({startTime} — {endTime})</strong>
+                        </div>
+
+                        <ArrowRightLeft size={14} className="text-blue-500 flex-shrink-0" />
+
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50/80 dark:bg-indigo-950/50 border border-indigo-200/70 dark:border-indigo-800/60 text-indigo-900 dark:text-indigo-200">
+                          <UserCheck size={13} className="text-indigo-600 flex-shrink-0" />
+                          <span>Đổi với <strong>{substituteName || 'Người nhận đổi'}</strong>{targetDate ? ':' : ''}</span>
+                          {targetDate ? (
+                            <strong className="font-semibold">
+                              {formatDateVN(targetDate)} ({targetStartTime} — {targetEndTime})
+                            </strong>
+                          ) : (
+                            <span className="text-slate-400 italic text-[11px]">(Đơn cũ)</span>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap items-center gap-2 pt-0.5 text-xs text-slate-600 dark:text-slate-300">
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-slate-900/50 border border-slate-200/70 dark:border-slate-700/60">
+                          <Calendar size={13} className="text-blue-500 flex-shrink-0" />
+                          <span className="text-slate-500 dark:text-slate-400">Ca xin nghỉ:</span>
+                          <strong className="font-semibold text-slate-800 dark:text-slate-200">{displayDate}</strong>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-slate-900/50 border border-slate-200/70 dark:border-slate-700/60">
+                          <Clock size={13} className="text-amber-500 flex-shrink-0" />
+                          <span className="text-slate-500 dark:text-slate-400">Giờ trực:</span>
+                          <strong className="font-semibold text-slate-800 dark:text-slate-200">{startTime} — {endTime}</strong>
+                        </div>
+
+                        {substituteName && (
+                          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50/80 dark:bg-emerald-950/50 border border-emerald-200/70 dark:border-emerald-800/60 text-emerald-800 dark:text-emerald-300">
+                            <UserCheck size={13} className="text-emerald-600 flex-shrink-0" />
+                            <span>Đã gán trực thay:</span>
+                            <strong className="font-bold">{substituteName}</strong>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* Reason */}
                     {req.reason && (
-                      <div className="text-xs text-slate-500 dark:text-slate-400 italic pt-0.5">
+                      <div className="text-xs text-slate-600 dark:text-slate-300 italic pt-0.5 px-3 py-1.5 rounded-lg bg-slate-50/80 dark:bg-slate-900/40 border-l-2 border-slate-300 dark:border-slate-600">
+                        <span className="not-italic font-medium text-slate-400 dark:text-slate-500 mr-1">Lý do:</span>
                         "{req.reason}"
                       </div>
                     )}
 
-                    {/* Review Note */}
-                    {req.reviewNote && (
-                      <div className="text-[11px] text-slate-500 dark:text-slate-400 pt-0.5 flex items-center gap-1">
-                        <MessageSquare size={12} />
-                        <span>Ghi chú xét duyệt: {req.reviewNote}</span>
+                    {/* Review Note / Rejection Reason */}
+                    {reviewNote && (
+                      <div className={`text-xs p-2 rounded-lg border flex items-start gap-1.5 ${
+                        isRejected
+                          ? 'bg-rose-50/70 dark:bg-rose-950/40 border-rose-200/80 dark:border-rose-800/80 text-rose-800 dark:text-rose-200'
+                          : 'bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+                      }`}>
+                        <MessageSquare size={13} className={`flex-shrink-0 mt-0.5 ${isRejected ? 'text-rose-500' : 'text-slate-400'}`} />
+                        <div>
+                          <span className="font-bold mr-1">
+                            {isRejected ? 'Lý do từ chối của Quản lý:' : 'Ghi chú duyệt:'}
+                          </span>
+                          <span>"{reviewNote}"</span>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -422,11 +567,11 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
 
                 {/* Right: Actions */}
                 {isPending && (
-                  <div className="flex items-center gap-2 self-end md:self-center w-full md:w-auto justify-end border-t md:border-t-0 pt-2 md:pt-0">
+                  <div className="flex items-center gap-2 self-end md:self-center w-full md:w-auto justify-end border-t md:border-t-0 pt-2.5 md:pt-0">
                     <button
                       type="button"
                       onClick={() => handleOpenReject(req)}
-                      className="px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-700 dark:text-rose-300 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/50 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-800 transition flex items-center gap-1"
+                      className="px-3.5 py-2 rounded-xl text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 border border-rose-200/80 dark:border-rose-800/80 transition flex items-center gap-1.5 shadow-xs cursor-pointer"
                     >
                       <X size={14} />
                       <span>Từ Chối</span>
@@ -436,7 +581,7 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
                       <button
                         type="button"
                         onClick={() => handleApproveSwap(req)}
-                        className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition flex items-center gap-1"
+                        className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 shadow-sm hover:shadow transition flex items-center gap-1.5 cursor-pointer"
                       >
                         <Check size={14} />
                         <span>Duyệt Đổi Ca</span>
@@ -445,7 +590,7 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
                       <button
                         type="button"
                         onClick={() => handleOpenApproveLeave(req)}
-                        className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition flex items-center gap-1"
+                        className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 shadow-sm hover:shadow transition flex items-center gap-1.5 cursor-pointer"
                       >
                         <Check size={14} />
                         <span>Duyệt Nghỉ Trực</span>
@@ -503,8 +648,8 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
                   </div>
                   <div>
                     <strong>Ngày trực:</strong>{' '}
-                    {leaveModal.request?.shiftDate ||
-                      leaveModal.request?.shift?.shiftDate}
+                    {formatDateVN(leaveModal.request?.shiftDate ||
+                      leaveModal.request?.shift?.shiftDate)}
                   </div>
                   <div>
                     <strong>Lý do:</strong>{' '}
@@ -537,7 +682,7 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
                       <option value="">-- Chọn bảo vệ trực thay --</option>
                       {leaveModal.substitutes.map((s) => (
                         <option key={s.id} value={s.id}>
-                          {s.fullName} ({s.userCode})
+                          {s.fullName} ({s.userCode || 'NV-BV'}) — {s.isSameTeam ? `[Cùng đội] ${s.teamName}` : s.teamName}
                         </option>
                       ))}
                       <option value="CANCEL_SHIFT">
@@ -546,7 +691,7 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
                     </select>
                   )}
                   <p className="text-[11px] text-slate-400 mt-1">
-                    Hệ thống tự động lọc ra các bảo vệ đang không có ca trùng giờ vào ngày này.
+                    Hệ thống tự động lọc các bảo vệ đang nghỉ trong ngày và đảm bảo nhịp sinh học nghỉ ngơi (ưu tiên cùng đội).
                   </p>
                 </div>
               </div>

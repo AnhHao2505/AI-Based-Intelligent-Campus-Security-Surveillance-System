@@ -55,6 +55,8 @@ export const guardScheduleApi = {
 
   getAvailableSubstitutes: (shiftId) => apiGet(`/api/guard-shifts/${shiftId}/available-substitutes`),
 
+  getAvailableSwapShifts: (shiftId) => apiGet(`/api/guard-shifts/${shiftId}/available-swap-shifts`),
+
   // Shift Requests
   getShiftRequests: (params = {}) => {
     const query = new URLSearchParams();

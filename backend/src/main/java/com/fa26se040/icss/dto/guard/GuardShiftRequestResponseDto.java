@@ -24,7 +24,7 @@ public class GuardShiftRequestResponseDto {
     private String requesterCode;
     private String requesterTeamName;
 
-    // Shift info
+    // Shift info (Shift A)
     private UUID shiftId;
     private LocalDate shiftDate;
     private ShiftType shiftType;
@@ -34,10 +34,19 @@ public class GuardShiftRequestResponseDto {
 
     // Request details
     private GuardShiftRequestType requestType;
+    private Boolean isEmergency;
     private UUID substituteGuardId;
     private String substituteGuardName;
     private String substituteGuardCode;
     private UUID targetShiftId;
+
+    // Target Shift Info (Shift B - for 2-way swap)
+    private LocalDate targetShiftDate;
+    private ShiftType targetShiftType;
+    private LocalTime targetStartTime;
+    private LocalTime targetEndTime;
+    private String targetAreaName;
+
     private String reason;
     private GuardShiftRequestStatus status;
 

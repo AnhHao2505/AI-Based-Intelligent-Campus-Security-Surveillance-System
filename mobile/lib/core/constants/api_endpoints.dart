@@ -6,6 +6,7 @@ class ApiEndpoints {
   static const List<String> candidateBaseUrls = [
     'http://127.0.0.1:8080',
     'http://localhost:8080',
+    'http://192.168.1.6:8080',
     'http://192.168.1.7:8080',
     'http://10.0.2.2:8080',
   ];
@@ -28,6 +29,7 @@ class ApiEndpoints {
   static String checkIn(String shiftId) => '$baseUrl/api/guard-shifts/$shiftId/check-in';
   static String checkOut(String shiftId) => '$baseUrl/api/guard-shifts/$shiftId/check-out';
   static String availableSubstitutes(String shiftId) => '$baseUrl/api/guard-shifts/$shiftId/available-substitutes';
+  static String availableSwapShifts(String shiftId) => '$baseUrl/api/guard-shifts/$shiftId/available-swap-shifts';
   static String get shiftRequests => '$baseUrl/api/guard-shift-requests';
   static String get myShiftRequests => '$baseUrl/api/guard-shift-requests/my-requests';
 

@@ -26,6 +26,5 @@ public class GuardShiftRequestCreateDto {
 
     private UUID targetShiftId;
 
-    @NotBlank(message = "Lý do không được để trống")
     private String reason;
 }

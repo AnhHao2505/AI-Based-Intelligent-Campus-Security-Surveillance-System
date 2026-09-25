@@ -26,8 +26,7 @@ spring:
   flyway:
     enabled: true
     baseline-on-migrate: true
-    validate-on-migrate: false
-    out-of-order: true
+    validate-on-migrate: true
     locations: classpath:db/migration
 
   mail:
@@ -104,4 +103,4 @@ icss:
   scheduler:
     expire-overdue-cron: ${EXPIRE_OVERDUE_CRON:0 */15 * * * *}
     notification-expiring-soon-cron: ${NOTIFICATION_EXPIRING_SOON_CRON:0 */10 * * * *}
-    notification-pending-overdue-cron: ${NOTIFICATION_PENDING_OVERDUE_CRON:0 0 * * * *}
+    notification-pending-overdue-cron: ${NOTIFICATION_PENDING_OVERDUE_CRON:0 0 * * * *}

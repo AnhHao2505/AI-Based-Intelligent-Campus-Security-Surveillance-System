@@ -24,6 +24,14 @@ export default function StaffingWizardModal({
   const [endDate, setEndDate] = useState('');
   const [building, setBuilding] = useState('');
 
+  const [weekdayMorningDemand, setWeekdayMorningDemand] = useState(2);
+  const [weekdayAfternoonDemand, setWeekdayAfternoonDemand] = useState(2);
+  const [weekdayNightDemand, setWeekdayNightDemand] = useState(2);
+  const [sundayMorningDemand, setSundayMorningDemand] = useState(2);
+  const [sundayAfternoonDemand, setSundayAfternoonDemand] = useState(2);
+  const [sundayNightDemand, setSundayNightDemand] = useState(2);
+  const [hasSundayCustom, setHasSundayCustom] = useState(true);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
@@ -122,12 +130,37 @@ export default function StaffingWizardModal({
         setSelectedTeamId(defaultTeam.id);
       }
     }
-  }, [isOpen, thisMondayStr, thisSundayStr, teams]);
+  }, [isOpen]);
 
   // Đội bảo vệ đang được chọn
   const activeTeam = useMemo(() => {
     return (teams || []).find((t) => t.id === selectedTeamId) || null;
   }, [teams, selectedTeamId]);
+
+  // Cập nhật cấu hình nhu cầu ca trực và tòa nhà mặc định khi đổi đội
+  useEffect(() => {
+    if (activeTeam) {
+      setWeekdayMorningDemand(activeTeam.weekdayMorningDemand ?? 2);
+      setWeekdayAfternoonDemand(activeTeam.weekdayAfternoonDemand ?? 2);
+      setWeekdayNightDemand(activeTeam.weekdayNightDemand ?? 2);
+      setSundayMorningDemand(activeTeam.sundayMorningDemand ?? 2);
+      setSundayAfternoonDemand(activeTeam.sundayAfternoonDemand ?? 2);
+      setSundayNightDemand(activeTeam.sundayNightDemand ?? 2);
+      setHasSundayCustom(activeTeam.hasSundayCustom ?? true);
+
+      if (activeTeam.description) {
+        const desc = activeTeam.description;
+        const matchingBuilding = (buildings || []).find(
+          (b) => b.code === desc || b.id === desc || b.name === desc
+        );
+        if (matchingBuilding) {
+          setBuilding(matchingBuilding.code || matchingBuilding.id);
+        } else if (['TOA_ALPHA', 'TOA_BETA', 'KHU_THE_THAO', 'FPT_AROUND'].includes(desc)) {
+          setBuilding(desc);
+        }
+      }
+    }
+  }, [activeTeam, buildings]);
 
   // Danh sách thành viên của đội đang chọn
   const activeTeamMembers = useMemo(() => {
@@ -200,17 +233,17 @@ export default function StaffingWizardModal({
         teamId: selectedTeamId,
         startDate: startDate,
         endDate: endDate,
-        morningDemand: 3,
-        afternoonDemand: 4,
-        nightDemand: 2,
-        hasSundayCustom: true,
-        hasWeekendCustom: true,
-        sundayMorningDemand: 2,
-        weekendMorningDemand: 2,
-        sundayAfternoonDemand: 2,
-        weekendAfternoonDemand: 2,
-        sundayNightDemand: 2,
-        weekendNightDemand: 2,
+        morningDemand: weekdayMorningDemand,
+        afternoonDemand: weekdayAfternoonDemand,
+        nightDemand: weekdayNightDemand,
+        hasSundayCustom: hasSundayCustom,
+        hasWeekendCustom: hasSundayCustom,
+        sundayMorningDemand: sundayMorningDemand,
+        weekendMorningDemand: sundayMorningDemand,
+        sundayAfternoonDemand: sundayAfternoonDemand,
+        weekendAfternoonDemand: sundayAfternoonDemand,
+        sundayNightDemand: sundayNightDemand,
+        weekendNightDemand: sundayNightDemand,
         selectedGuardIds: selectedMemberIds,
         memberGuardIds: selectedMemberIds,
         building: building || 'FPT_AROUND',
@@ -218,6 +251,30 @@ export default function StaffingWizardModal({
       };
 
       const res = await guardScheduleApi.generateShiftsFromWizard(payload);
+
+      // Cập nhật tòa nhà phụ trách vào thông tin Đội để hiển thị vị trí ở tab Quản lý Đội
+      if (selectedTeamId && building) {
+        try {
+          const targetTeam = teams.find((t) => t.id === selectedTeamId);
+          if (targetTeam) {
+            await guardScheduleApi.updateTeam(selectedTeamId, {
+              teamName: targetTeam.teamName,
+              description: building,
+              colorCode: targetTeam.colorCode || '#2563eb',
+              weekdayMorningDemand: targetTeam.weekdayMorningDemand ?? 2,
+              weekdayAfternoonDemand: targetTeam.weekdayAfternoonDemand ?? 2,
+              weekdayNightDemand: targetTeam.weekdayNightDemand ?? 2,
+              sundayMorningDemand: targetTeam.sundayMorningDemand ?? 2,
+              sundayAfternoonDemand: targetTeam.sundayAfternoonDemand ?? 2,
+              sundayNightDemand: targetTeam.sundayNightDemand ?? 2,
+              hasSundayCustom: true
+            });
+          }
+        } catch (updateErr) {
+          console.warn('Lỗi khi cập nhật tòa nhà vào Đội:', updateErr);
+        }
+      }
+
       setResult(res);
       if (onSuccess) {
         onSuccess();
@@ -336,6 +393,27 @@ export default function StaffingWizardModal({
                       <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
                         {teamMemberCount} thành viên
                       </span>
+                    </div>
+
+                    <div className="mt-2.5 pt-2.5 border-t border-slate-200/80 dark:border-slate-700/80 text-[11px] text-slate-600 dark:text-slate-300 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-slate-700 dark:text-slate-200">
+                          Nhu cầu T2 – T7:
+                        </span>
+                        <span className="font-medium text-slate-800 dark:text-slate-100">
+                          {weekdayMorningDemand} Sáng • {weekdayAfternoonDemand} Chiều • {weekdayNightDemand} Đêm (<strong>{weekdayMorningDemand + weekdayAfternoonDemand + weekdayNightDemand} ca/ngày</strong>)
+                        </span>
+                      </div>
+                      {hasSundayCustom && (
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-slate-700 dark:text-slate-200">
+                            Nhu cầu Chủ Nhật:
+                          </span>
+                          <span className="font-medium text-slate-800 dark:text-slate-100">
+                            {sundayMorningDemand} Sáng • {sundayAfternoonDemand} Chiều • {sundayNightDemand} Đêm (<strong>{sundayMorningDemand + sundayAfternoonDemand + sundayNightDemand} ca/ngày</strong>)
+                          </span>
+                        </div>
+                      )}
                     </div>
 
                     {teamMemberCount === 0 && (
