@@ -6,5 +6,9 @@ public enum AccessControlAction {
     REVOKE,
     UPDATE,
     ENABLE_EVENT_MODE,
-    DISABLE_EVENT_MODE
+    DISABLE_EVENT_MODE,
+    EXTEND_EVENT_MODE,
+    CREATE,
+    DEACTIVATE,
+    REACTIVATE
 }

@@ -42,6 +42,8 @@ const TARGET_TYPE_OPTIONS = [
   { value: 'AREA_ACCESS_RULES', label: 'Quy tắc truy cập khu vực' },
   { value: 'AREA_ASSIGNMENT', label: 'Phân công nhân sự khu vực' },
   { value: 'LEVEL_PRESET', label: 'Mặc định theo loại khu vực' },
+  { value: 'AREA_EVENT_MODE', label: 'Chế độ sự kiện' },
+  { value: 'REASON_CATALOG', label: 'Danh mục lý do' },
 ];
 
 export default function UserAccessLevelPage() {
@@ -375,6 +377,12 @@ export default function UserAccessLevelPage() {
     } else if (targetType === 'LEVEL_PRESET') {
       label = 'Mặc định loại';
       badgeClass = 'audit-type--preset';
+    } else if (targetType === 'AREA_EVENT_MODE') {
+      label = 'Chế độ sự kiện';
+      badgeClass = 'audit-type--event';
+    } else if (targetType === 'REASON_CATALOG') {
+      label = 'Danh mục lý do';
+      badgeClass = 'audit-type--catalog';
     }
 
     let actionLabel = action;
@@ -382,6 +390,12 @@ export default function UserAccessLevelPage() {
     else if (action === 'ASSIGN') actionLabel = 'Gán mới';
     else if (action === 'UPDATE_VALIDITY') actionLabel = 'Gia hạn';
     else if (action === 'REVOKE') actionLabel = 'Thu hồi';
+    else if (action === 'ENABLE_EVENT_MODE') actionLabel = 'Bật chế độ sự kiện';
+    else if (action === 'DISABLE_EVENT_MODE') actionLabel = 'Tắt chế độ sự kiện';
+    else if (action === 'EXTEND_EVENT_MODE') actionLabel = 'Gia hạn chế độ sự kiện';
+    else if (action === 'CREATE') actionLabel = 'Tạo mới';
+    else if (action === 'DEACTIVATE') actionLabel = 'Ngừng dùng';
+    else if (action === 'REACTIVATE') actionLabel = 'Dùng lại';
 
     return (
       <div className="audit-target-col">
@@ -393,6 +407,72 @@ export default function UserAccessLevelPage() {
 
   const renderAuditChange = (log) => {
     const { targetType, action, oldValue, newValue } = log;
+
+    // Check ACTION first: Sự kiện (để dòng log cũ trên dev mang AREA_ACCESS_RULES + ENABLE/DISABLE_EVENT_MODE vẫn hiện đúng)
+    if (action === 'ENABLE_EVENT_MODE' || action === 'DISABLE_EVENT_MODE' || action === 'EXTEND_EVENT_MODE') {
+      const oldTime = oldValue?.openUntil ? formatDisplayDateTime(oldValue.openUntil) : '—';
+      const newTime = newValue?.openUntil ? formatDisplayDateTime(newValue.openUntil) : '—';
+      const label = newValue?.reasonLabel || oldValue?.reasonLabel;
+      const note = newValue?.note || newValue?.reason || oldValue?.note || oldValue?.reason;
+      let reasonDisplay = '—';
+      if (label && note) {
+        reasonDisplay = `${label} – ${note}`;
+      } else if (label) {
+        reasonDisplay = label;
+      } else if (note) {
+        reasonDisplay = note;
+      }
+
+      return (
+        <div className="audit-detail-rules">
+          <div className="audit-detail-row">
+            <span className="audit-row-label">Mở đến:</span>
+            <span>{oldTime}</span>
+            <span className="audit-arrow">→</span>
+            <strong className="audit-val--new">{newTime}</strong>
+          </div>
+          <div className="audit-detail-row">
+            <span className="audit-row-label">Lý do:</span>
+            <span>{reasonDisplay}</span>
+          </div>
+        </div>
+      );
+    }
+
+    // Danh mục lý do
+    if (targetType === 'REASON_CATALOG') {
+      const code = newValue?.code || oldValue?.code || '—';
+      const oldLabel = oldValue?.label;
+      const newLabel = newValue?.label;
+      const isActive = newValue?.isActive !== undefined ? newValue.isActive : oldValue?.isActive;
+      const statusText = isActive ? 'Đang dùng' : 'Ngừng dùng';
+
+      return (
+        <div className="audit-detail-rules">
+          <div className="audit-detail-row">
+            <span className="audit-row-label">Mã:</span>
+            <strong className="audit-val--new">{code}</strong>
+          </div>
+          <div className="audit-detail-row">
+            <span className="audit-row-label">Nhãn:</span>
+            {oldLabel && newLabel && oldLabel !== newLabel ? (
+              <>
+                <span>{oldLabel}</span>
+                <span className="audit-arrow">→</span>
+                <strong className="audit-val--new">{newLabel}</strong>
+              </>
+            ) : (
+              <strong className="audit-val--new">{newLabel || oldLabel || '—'}</strong>
+            )}
+          </div>
+          <div className="audit-detail-row">
+            <span className="audit-row-label">Trạng thái:</span>
+            <strong className="audit-val--new">{statusText}</strong>
+          </div>
+        </div>
+      );
+    }
+
     if (targetType === 'USER_ACCESS_LEVEL') {
       return (
         <div className="audit-detail-pill">

@@ -4,5 +4,12 @@ import java.time.OffsetDateTime;
 
 public record AreaEventModeAuditSnapshot(
         Boolean openToMembers,
-        OffsetDateTime openUntil
-) implements AccessControlAuditSnapshot {}
+        OffsetDateTime openUntil,
+        String reasonCode,
+        String reasonLabel,
+        String note
+) implements AccessControlAuditSnapshot {
+    public AreaEventModeAuditSnapshot(Boolean openToMembers, OffsetDateTime openUntil) {
+        this(openToMembers, openUntil, null, null, null);
+    }
+}
