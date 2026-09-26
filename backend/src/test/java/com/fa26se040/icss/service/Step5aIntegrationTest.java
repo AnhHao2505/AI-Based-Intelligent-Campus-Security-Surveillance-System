@@ -44,7 +44,21 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import com.fa26se040.icss.dto.accesscontrol.snapshot.AreaEventModeAuditSnapshot;
+import com.fa26se040.icss.dto.accesscontrol.snapshot.ReasonCatalogAuditSnapshot;
+import com.fa26se040.icss.dto.reasoncatalog.ReasonCatalogCreateRequest;
+import com.fa26se040.icss.dto.reasoncatalog.ReasonCatalogUpdateRequest;
+import com.fa26se040.icss.entity.AreaEventSession;
+import com.fa26se040.icss.entity.Notification;
+import com.fa26se040.icss.entity.ReasonCatalog;
+import com.fa26se040.icss.enums.AccessControlTargetType;
+import com.fa26se040.icss.enums.NotificationType;
+import com.fa26se040.icss.repository.AreaEventSessionRepository;
+import com.fa26se040.icss.repository.NotificationRepository;
+import com.fa26se040.icss.repository.ReasonCatalogRepository;
+import com.fa26se040.icss.service.ReasonCatalogService;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 public class Step5aIntegrationTest extends AbstractIntegrationTest {
@@ -87,6 +101,18 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private AreaEventSessionRepository sessionRepository;
+
+    @Autowired
+    private ReasonCatalogRepository reasonCatalogRepository;
+
+    @Autowired
+    private ReasonCatalogService reasonCatalogService;
+
+    @Autowired
+    private NotificationRepository notificationRepository;
 
     private Building testBuilding;
     private Floor testFloor;
@@ -210,6 +236,11 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
                 .floor(testFloor.getFloorCode())
                 .isActive(true)
                 .build());
+
+        systemConfigService.update(ConfigKey.EVENT_MODE_MAX_HOURS.name(), "12", adminUser.getEmail());
+        systemConfigService.update(ConfigKey.EVENT_MODE_WINDOW_DAYS.name(), "7", adminUser.getEmail());
+        systemConfigService.update(ConfigKey.EVENT_MODE_BUDGET_HOURS.name(), "48", adminUser.getEmail());
+        notificationRepository.deleteAll();
     }
 
     @Test
@@ -384,7 +415,7 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
         long auditCountBefore = auditLogRepository.count();
 
         // FM bật cho INTERNAL (có lý do, openUntil tương lai) -> OK + 1 dòng audit
-        AreaEventModeUpdateRequest validReq = new AreaEventModeUpdateRequest(true, futureUntil, "Mở sự kiện Workshop");
+        AreaEventModeUpdateRequest validReq = new AreaEventModeUpdateRequest(true, futureUntil, "SEMINAR", "Mở sự kiện Workshop chuyên môn cho sinh viên");
         var respInternal = areaService.updateEventMode(internalArea.getId(), validReq, fmUser.getEmail());
         assertTrue(respInternal.openToMembers());
         assertTrue(respInternal.eventActive());
@@ -414,15 +445,15 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
                         .content(objectMapper.writeValueAsString(validReq)))
                 .andExpect(status().isForbidden());
 
-        // Thiếu reason -> 400 (ERR_AREA_024)
-        AreaEventModeUpdateRequest noReasonReq = new AreaEventModeUpdateRequest(true, futureUntil, "   ");
+        // Thiếu reasonCode hoặc note -> 400 (ERR_AREA_024)
+        AreaEventModeUpdateRequest noReasonReq = new AreaEventModeUpdateRequest(true, futureUntil, null, "   ");
         AreaException exNoReason = assertThrows(AreaException.class, () ->
                 areaService.updateEventMode(internalArea.getId(), noReasonReq, fmUser.getEmail())
         );
         assertEquals(AreaErrorCode.ERR_AREA_024, exNoReason.getErrorCode());
 
         // openUntil quá khứ -> 400 (ERR_AREA_023)
-        AreaEventModeUpdateRequest pastUntilReq = new AreaEventModeUpdateRequest(true, OffsetDateTime.now().minusHours(1), "Lý do hợp lệ");
+        AreaEventModeUpdateRequest pastUntilReq = new AreaEventModeUpdateRequest(true, OffsetDateTime.now().minusHours(1), "SEMINAR", "Lý do hợp lệ trên mười ký tự");
         AreaException exPast = assertThrows(AreaException.class, () ->
                 areaService.updateEventMode(internalArea.getId(), pastUntilReq, fmUser.getEmail())
         );
@@ -440,7 +471,7 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
         OffsetDateTime futureUntil = OffsetDateTime.now().plusHours(2);
 
         // Bật sự kiện cho INTERNAL
-        areaService.updateEventMode(internalArea.getId(), new AreaEventModeUpdateRequest(true, futureUntil, "Mở ngày hội kỹ thuật"), fmUser.getEmail());
+        areaService.updateEventMode(internalArea.getId(), new AreaEventModeUpdateRequest(true, futureUntil, "SEMINAR", "Mở ngày hội kỹ thuật cho sinh viên"), fmUser.getEmail());
 
         // L1 vào INTERNAL trong thời gian sự kiện -> allow OPEN_EVENT
         OffsetDateTime now = OffsetDateTime.now();
@@ -455,9 +486,378 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
         assertEquals(AccessSource.NONE, decisionExpired.source());
 
         // Sau khi tắt -> deny ngay tại thời điểm now
-        areaService.updateEventMode(internalArea.getId(), new AreaEventModeUpdateRequest(false, null, "Kết thúc sự kiện sớm"), fmUser.getEmail());
+        areaService.updateEventMode(internalArea.getId(), new AreaEventModeUpdateRequest(false, null, "ENDED_EARLY", "Kết thúc sự kiện sớm hơn dự kiến"), fmUser.getEmail());
         AccessDecision decisionDisabled = accessDecisionService.checkEntry(userL1.getId(), internalArea.getId(), now);
         assertFalse(decisionDisabled.allowed());
         assertEquals(AccessSource.NONE, decisionDisabled.source());
+    }
+
+    @Test
+    @DisplayName("T1: Bật hợp lệ -> audit targetType AREA_EVENT_MODE, snapshot có reasonCode + reasonLabel + note; 1 phiên mới")
+    void testT1_EnableValidEventMode() {
+        OffsetDateTime futureUntil = OffsetDateTime.now().plusHours(3);
+        long auditBefore = auditLogRepository.count();
+        long sessionBefore = sessionRepository.count();
+
+        AreaEventModeUpdateRequest req = new AreaEventModeUpdateRequest(
+                true, futureUntil, "SEMINAR", "Hội thảo nghiên cứu an ninh thông tin"
+        );
+        var resp = areaService.updateEventMode(contactArea.getId(), req, fmUser.getEmail());
+        assertTrue(resp.openToMembers());
+        assertTrue(resp.eventActive());
+
+        assertEquals(auditBefore + 1, auditLogRepository.count());
+        AccessControlAuditLog log = auditLogRepository.findAll().get((int) auditBefore);
+        assertEquals(AccessControlTargetType.AREA_EVENT_MODE, log.getTargetType());
+        assertEquals(AccessControlAction.ENABLE_EVENT_MODE, log.getAction());
+        assertEquals(contactArea.getId().toString(), log.getTargetId());
+        assertEquals("Hội thảo nghiên cứu an ninh thông tin", log.getReason());
+
+        AreaEventModeAuditSnapshot newSnap = objectMapper.convertValue(log.getNewValue(), AreaEventModeAuditSnapshot.class);
+        assertTrue(newSnap.openToMembers());
+        assertEquals("SEMINAR", newSnap.reasonCode());
+        assertEquals("Hội thảo/sự kiện chuyên môn", newSnap.reasonLabel());
+        assertEquals("Hội thảo nghiên cứu an ninh thông tin", newSnap.note());
+
+        assertEquals(sessionBefore + 1, sessionRepository.count());
+        var openSessionOpt = sessionRepository.findByAreaIdAndActualEndIsNull(contactArea.getId());
+        assertTrue(openSessionOpt.isPresent());
+        assertEquals(futureUntil.toEpochSecond(), openSessionOpt.get().getPlannedEnd().toEpochSecond());
+    }
+
+    @Test
+    @DisplayName("T2: reasonCode sai action_type / đã ngừng dùng / không tồn tại -> 400; note 9 ký tự -> 400; note 501 -> 400")
+    void testT2_ReasonCodeAndNoteValidations() {
+        OffsetDateTime futureUntil = OffsetDateTime.now().plusHours(3);
+
+        // 1. reasonCode sai action_type (ENDED_EARLY là của EVENT_DISABLE, dùng khi bật) -> ERR_AREA_026
+        AreaException exWrongAction = assertThrows(AreaException.class, () ->
+                areaService.updateEventMode(internalArea.getId(),
+                        new AreaEventModeUpdateRequest(true, futureUntil, "ENDED_EARLY", "Ghi chu hop le tren 10 ky tu"),
+                        fmUser.getEmail())
+        );
+        assertEquals(AreaErrorCode.ERR_AREA_026, exWrongAction.getErrorCode());
+
+        // 2. reasonCode đã ngừng dùng -> ERR_AREA_025
+        String tempDeactivatedCode = "TEMP_" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        ReasonCatalog customReason = reasonCatalogRepository.save(ReasonCatalog.builder()
+                .actionType("EVENT_ENABLE")
+                .code(tempDeactivatedCode)
+                .label("Tam ngung dung")
+                .isActive(false)
+                .isOther(false)
+                .sortOrder(99)
+                .build());
+        AreaException exDeactivated = assertThrows(AreaException.class, () ->
+                areaService.updateEventMode(internalArea.getId(),
+                        new AreaEventModeUpdateRequest(true, futureUntil, tempDeactivatedCode, "Ghi chu hop le tren 10 ky tu"),
+                        fmUser.getEmail())
+        );
+        assertEquals(AreaErrorCode.ERR_AREA_025, exDeactivated.getErrorCode());
+
+        // 3. reasonCode không tồn tại -> ERR_AREA_025
+        AreaException exNotExist = assertThrows(AreaException.class, () ->
+                areaService.updateEventMode(internalArea.getId(),
+                        new AreaEventModeUpdateRequest(true, futureUntil, "NON_EXISTENT_CODE", "Ghi chu hop le tren 10 ky tu"),
+                        fmUser.getEmail())
+        );
+        assertEquals(AreaErrorCode.ERR_AREA_025, exNotExist.getErrorCode());
+
+        // 4. note 9 ký tự -> ERR_AREA_024
+        AreaException exNote9 = assertThrows(AreaException.class, () ->
+                areaService.updateEventMode(internalArea.getId(),
+                        new AreaEventModeUpdateRequest(true, futureUntil, "SEMINAR", "123456789"),
+                        fmUser.getEmail())
+        );
+        assertEquals(AreaErrorCode.ERR_AREA_024, exNote9.getErrorCode());
+
+        // 5. note 501 ký tự -> ERR_AREA_024
+        String note501 = "a".repeat(501);
+        AreaException exNote501 = assertThrows(AreaException.class, () ->
+                areaService.updateEventMode(internalArea.getId(),
+                        new AreaEventModeUpdateRequest(true, futureUntil, "SEMINAR", note501),
+                        fmUser.getEmail())
+        );
+        assertEquals(AreaErrorCode.ERR_AREA_024, exNote501.getErrorCode());
+    }
+
+    @Test
+    @DisplayName("T3: openUntil = now + MAX_HOURS + 1 phút -> 400")
+    void testT3_MaxHoursValidation() {
+        // Cấu hình mặc định EVENT_MODE_MAX_HOURS = 12
+        OffsetDateTime overMaxTime = OffsetDateTime.now().plusHours(12).plusMinutes(1);
+
+        AreaException exOver = assertThrows(AreaException.class, () ->
+                areaService.updateEventMode(internalArea.getId(),
+                        new AreaEventModeUpdateRequest(true, overMaxTime, "SEMINAR", "Ghi chu vuot qua so gio toi da"),
+                        fmUser.getEmail())
+        );
+        assertEquals(AreaErrorCode.ERR_AREA_027, exOver.getErrorCode());
+    }
+
+    @Test
+    @DisplayName("T4: Ngân sách: với BUDGET=48, WINDOW=7: chuỗi phiên tổng 40h trong 7 ngày -> bật thêm 10h bị chặn, 8h cho qua")
+    void testT4_BudgetSlidingWindowValidation() {
+        OffsetDateTime now = OffsetDateTime.now();
+        // Dọn các phiên cũ của contactArea
+        sessionRepository.deleteAll(sessionRepository.findAll().stream()
+                .filter(s -> s.getArea().getId().equals(contactArea.getId()))
+                .toList());
+
+        // Tạo 2 phiên đã kết thúc trong vòng 7 ngày: mỗi phiên 20h -> tổng 40h
+        sessionRepository.save(AreaEventSession.builder()
+                .area(contactArea)
+                .startedAt(now.minusDays(4))
+                .plannedEnd(now.minusDays(4).plusHours(20))
+                .actualEnd(now.minusDays(4).plusHours(20))
+                .startedBy(fmUser)
+                .endedBy(fmUser)
+                .build());
+
+        sessionRepository.save(AreaEventSession.builder()
+                .area(contactArea)
+                .startedAt(now.minusDays(2))
+                .plannedEnd(now.minusDays(2).plusHours(20))
+                .actualEnd(now.minusDays(2).plusHours(20))
+                .startedBy(fmUser)
+                .endedBy(fmUser)
+                .build());
+
+        // Bật thêm 10h (tổng sẽ là 40 + 10 = 50h > 48h) -> bị chặn
+        AreaException exBudget = assertThrows(AreaException.class, () ->
+                areaService.updateEventMode(contactArea.getId(),
+                        new AreaEventModeUpdateRequest(true, now.plusHours(10), "SEMINAR", "Thu mo them 10 gio vuot ngan sach"),
+                        fmUser.getEmail())
+        );
+        assertEquals(AreaErrorCode.ERR_AREA_028, exBudget.getErrorCode());
+        // Thông điệp nêu số giờ đã dùng và số giờ còn lại
+        assertTrue(exBudget.getMessage().contains("40.0") || exBudget.getMessage().contains("40"));
+        assertTrue(exBudget.getMessage().contains("8.0") || exBudget.getMessage().contains("8"));
+
+        // Bật thêm 8h (tổng 40 + 8 = 48h <= 48h) -> cho qua thành công
+        var successResp = areaService.updateEventMode(contactArea.getId(),
+                new AreaEventModeUpdateRequest(true, now.plusHours(8), "SEMINAR", "Mo them 8 gio vua van ngan sach"),
+                fmUser.getEmail());
+        assertTrue(successResp.openToMembers());
+    }
+
+    @Test
+    @DisplayName("T5: Gia hạn: phiên cũ actual_end = now, phiên mới tạo, audit EXTEND_EVENT_MODE; gia hạn thiếu reasonCode -> 400")
+    void testT5_ExtendEventMode() {
+        OffsetDateTime now = OffsetDateTime.now();
+        // Bật sự kiện đến now + 3h
+        areaService.updateEventMode(internalArea.getId(),
+                new AreaEventModeUpdateRequest(true, now.plusHours(3), "SEMINAR", "Bat su kien ban dau de gia han"),
+                fmUser.getEmail());
+
+        var initialSessionOpt = sessionRepository.findByAreaIdAndActualEndIsNull(internalArea.getId());
+        assertTrue(initialSessionOpt.isPresent());
+        AreaEventSession oldSession = initialSessionOpt.get();
+
+        long auditBefore = auditLogRepository.count();
+
+        // 1. Gia hạn thiếu reasonCode -> 400 (ERR_AREA_024)
+        AreaException exNoReason = assertThrows(AreaException.class, () ->
+                areaService.updateEventMode(internalArea.getId(),
+                        new AreaEventModeUpdateRequest(true, now.plusHours(6), null, "Gia han them gio vi su kien keo dai"),
+                        fmUser.getEmail())
+        );
+        assertEquals(AreaErrorCode.ERR_AREA_024, exNoReason.getErrorCode());
+
+        // 2. Gia hạn hợp lệ
+        OffsetDateTime newEnd = now.plusHours(6);
+        var extendResp = areaService.updateEventMode(internalArea.getId(),
+                new AreaEventModeUpdateRequest(true, newEnd, "EVENT_PROLONGED", "Gia han su kien vi chuong trinh keo dai"),
+                fmUser.getEmail());
+        assertTrue(extendResp.openToMembers());
+
+        // Audit EXTEND_EVENT_MODE
+        assertEquals(auditBefore + 1, auditLogRepository.count());
+        AccessControlAuditLog extendLog = auditLogRepository.findAll().get((int) auditBefore);
+        assertEquals(AccessControlAction.EXTEND_EVENT_MODE, extendLog.getAction());
+        assertEquals(AccessControlTargetType.AREA_EVENT_MODE, extendLog.getTargetType());
+
+        // Phiên cũ đã đóng (actualEnd != null)
+        AreaEventSession reloadedOld = sessionRepository.findById(oldSession.getId()).orElseThrow();
+        assertNotNull(reloadedOld.getActualEnd());
+
+        // Phiên mới được tạo
+        var currentActiveOpt = sessionRepository.findByAreaIdAndActualEndIsNull(internalArea.getId());
+        assertTrue(currentActiveOpt.isPresent());
+        AreaEventSession newSession = currentActiveOpt.get();
+        assertFalse(newSession.getId().equals(oldSession.getId()));
+        assertEquals(newEnd.toEpochSecond(), newSession.getPlannedEnd().toEpochSecond());
+    }
+
+    @Test
+    @DisplayName("T6: Tắt -> actual_end = now; phiên quá hạn tự đóng khi có thao tác kế tiếp")
+    void testT6_DisableAndAutoCloseExpiredSession() {
+        OffsetDateTime now = OffsetDateTime.now();
+        // Bật sự kiện
+        areaService.updateEventMode(internalArea.getId(),
+                new AreaEventModeUpdateRequest(true, now.plusHours(2), "SEMINAR", "Bat su kien de test tat"),
+                fmUser.getEmail());
+
+        var activeSessionOpt = sessionRepository.findByAreaIdAndActualEndIsNull(internalArea.getId());
+        assertTrue(activeSessionOpt.isPresent());
+        AreaEventSession activeSession = activeSessionOpt.get();
+
+        // Tắt sự kiện
+        areaService.updateEventMode(internalArea.getId(),
+                new AreaEventModeUpdateRequest(false, null, "ENDED_EARLY", "Ket thuc su kien theo lich trinh"),
+                fmUser.getEmail());
+
+        AreaEventSession closedSession = sessionRepository.findById(activeSession.getId()).orElseThrow();
+        assertNotNull(closedSession.getActualEnd());
+        assertEquals(fmUser.getId(), closedSession.getEndedBy().getId());
+
+        // Kiểm tra tự đóng phiên quá hạn khi có thao tác kế tiếp:
+        // Tạo 1 phiên quá hạn nhân tạo với actualEnd = null và plannedEnd trong quá khứ
+        AreaEventSession expiredSession = sessionRepository.save(AreaEventSession.builder()
+                .area(internalArea)
+                .startedAt(now.minusHours(5))
+                .plannedEnd(now.minusHours(1))
+                .actualEnd(null)
+                .startedBy(fmUser)
+                .build());
+
+        // Thực hiện thao tác kế tiếp (bật sự kiện mới)
+        areaService.updateEventMode(internalArea.getId(),
+                new AreaEventModeUpdateRequest(true, now.plusHours(2), "SEMINAR", "Thao tac ke tiep de kich hoat auto close"),
+                fmUser.getEmail());
+
+        // expiredSession phải được tự đóng với actual_end = planned_end
+        AreaEventSession reloadedExpired = sessionRepository.findById(expiredSession.getId()).orElseThrow();
+        assertNotNull(reloadedExpired.getActualEnd());
+        assertEquals(expiredSession.getPlannedEnd().toEpochSecond(), reloadedExpired.getActualEnd().toEpochSecond());
+    }
+
+    @Test
+    @DisplayName("T7: Danh mục: ADMIN tạo/sửa nhãn/ngừng dùng/dùng lại -> mỗi thao tác 1 audit REASON_CATALOG; FM gọi -> 403; ngừng dùng mục is_other -> 400; sửa nhãn xong, log cũ vẫn giữ nhãn cũ trong snapshot")
+    void testT7_ReasonCatalogLifecycleAndAudit() throws Exception {
+        String adminToken = jwtTokenProvider.generateToken(adminUser);
+        String fmToken = jwtTokenProvider.generateToken(fmUser);
+
+        // 1. FM gọi API tạo danh mục -> 403 Forbidden
+        mockMvc.perform(post("/api/reason-catalogs")
+                        .header("Authorization", "Bearer " + fmToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new ReasonCatalogCreateRequest("EVENT_ENABLE", "FM_TRY", "Thu tao", 1))))
+                .andExpect(status().isForbidden());
+
+        // 2. ADMIN tạo danh mục -> 1 audit CREATE
+        String exhibCode = "EXHIB_" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        long auditBefore = auditLogRepository.count();
+        var createResp = reasonCatalogService.create(
+                new ReasonCatalogCreateRequest("EVENT_ENABLE", exhibCode, "Triển lãm công nghệ", 10),
+                adminUser.getEmail()
+        );
+        assertEquals(auditBefore + 1, auditLogRepository.count());
+        AccessControlAuditLog createLog = auditLogRepository.findAll().get((int) auditBefore);
+        assertEquals(AccessControlTargetType.REASON_CATALOG, createLog.getTargetType());
+        assertEquals(AccessControlAction.CREATE, createLog.getAction());
+
+        ReasonCatalogAuditSnapshot createSnap = objectMapper.convertValue(createLog.getNewValue(), ReasonCatalogAuditSnapshot.class);
+        assertEquals(exhibCode, createSnap.code());
+        assertEquals("Triển lãm công nghệ", createSnap.label());
+
+        // 3. ADMIN sửa nhãn -> 1 audit UPDATE, snapshot cũ giữ "Triển lãm công nghệ"
+        var updateResp = reasonCatalogService.update(
+                createResp.id(),
+                new ReasonCatalogUpdateRequest("Triển lãm khoa học công nghệ", 11),
+                adminUser.getEmail()
+        );
+        assertEquals(auditBefore + 2, auditLogRepository.count());
+        AccessControlAuditLog updateLog = auditLogRepository.findAll().get((int) auditBefore + 1);
+        assertEquals(AccessControlAction.UPDATE, updateLog.getAction());
+        ReasonCatalogAuditSnapshot updateOldSnap = objectMapper.convertValue(updateLog.getOldValue(), ReasonCatalogAuditSnapshot.class);
+        ReasonCatalogAuditSnapshot updateNewSnap = objectMapper.convertValue(updateLog.getNewValue(), ReasonCatalogAuditSnapshot.class);
+        assertEquals("Triển lãm công nghệ", updateOldSnap.label());
+        assertEquals("Triển lãm khoa học công nghệ", updateNewSnap.label());
+
+        // Log cũ tạo ban đầu vẫn giữ snapshot gốc
+        AccessControlAuditLog origLog = auditLogRepository.findById(createLog.getId()).orElseThrow();
+        ReasonCatalogAuditSnapshot origSnap = objectMapper.convertValue(origLog.getNewValue(), ReasonCatalogAuditSnapshot.class);
+        assertEquals("Triển lãm công nghệ", origSnap.label());
+
+        // 4. ADMIN ngừng dùng -> 1 audit DEACTIVATE
+        reasonCatalogService.deactivate(createResp.id(), adminUser.getEmail());
+        assertEquals(auditBefore + 3, auditLogRepository.count());
+        AccessControlAuditLog deactLog = auditLogRepository.findAll().get((int) auditBefore + 2);
+        assertEquals(AccessControlAction.DEACTIVATE, deactLog.getAction());
+
+        // 5. ADMIN dùng lại -> 1 audit REACTIVATE
+        reasonCatalogService.reactivate(createResp.id(), adminUser.getEmail());
+        assertEquals(auditBefore + 4, auditLogRepository.count());
+        AccessControlAuditLog reactLog = auditLogRepository.findAll().get((int) auditBefore + 3);
+        assertEquals(AccessControlAction.REACTIVATE, reactLog.getAction());
+
+        // 6. Ngừng dùng mục is_other (OTHER của EVENT_ENABLE) -> 400 (ERR_AREA_029)
+        ReasonCatalog otherReason = reasonCatalogRepository.findByActionTypeAndIsOtherTrue("EVENT_ENABLE").orElseThrow();
+        AreaException exDeactOther = assertThrows(AreaException.class, () ->
+                reasonCatalogService.deactivate(otherReason.getId(), adminUser.getEmail())
+        );
+        assertEquals(AreaErrorCode.ERR_AREA_029, exDeactOther.getErrorCode());
+    }
+
+    @Test
+    @DisplayName("T8: EV2: đang có sự kiện đến now+10h, hạ MAX_HOURS còn 2 -> sự kiện KHÔNG đổi; mọi FM nhận 1 thông báo EVENT_MODE_LIMIT_CHANGED; hạ config khi không có sự kiện vi phạm -> không thông báo")
+    void testT8_LimitChangedNotifications() {
+        OffsetDateTime now = OffsetDateTime.now();
+        List<Area> lingering = areaRepository.findByOpenToMembersTrueAndOpenUntilAfterAndDeletedAtIsNull(now);
+        for (Area a : lingering) {
+            a.setOpenToMembers(false);
+            a.setOpenUntil(null);
+            areaRepository.save(a);
+        }
+        notificationRepository.deleteAll();
+
+        // 1. Tạo sự kiện đến now + 10h cho internalArea
+        areaService.updateEventMode(internalArea.getId(),
+                new AreaEventModeUpdateRequest(true, now.plusHours(10), "SEMINAR", "Su kien 10 gio truoc khi doi cau hinh"),
+                fmUser.getEmail());
+
+        long notifBefore = notificationRepository.count();
+
+        // 2. Hạ MAX_HOURS còn 2
+        systemConfigService.update(ConfigKey.EVENT_MODE_MAX_HOURS.name(), "2", adminUser.getEmail());
+
+        // Sự kiện KHÔNG đổi, phiên không bị đóng
+        Area reloadedArea = areaRepository.findById(internalArea.getId()).orElseThrow();
+        assertTrue(reloadedArea.getOpenToMembers());
+        assertNotNull(reloadedArea.getOpenUntil());
+        assertTrue(reloadedArea.getOpenUntil().isAfter(now.plusHours(9)));
+
+        // Mọi FM nhận thông báo EVENT_MODE_LIMIT_CHANGED
+        List<Notification> newNotifs = notificationRepository.findAll().stream()
+                .filter(n -> n.getType() == NotificationType.EVENT_MODE_LIMIT_CHANGED)
+                .toList();
+        assertFalse(newNotifs.isEmpty());
+        assertTrue(newNotifs.stream().anyMatch(n -> n.getRecipient().getId().equals(fmUser.getId())));
+        assertTrue(newNotifs.stream().anyMatch(n -> n.getMessage().contains(internalArea.getName())));
+
+        // Khôi phục lại MAX_HOURS = 12
+        systemConfigService.update(ConfigKey.EVENT_MODE_MAX_HOURS.name(), "12", adminUser.getEmail());
+
+        // 3. Tắt sự kiện để không còn sự kiện nào vi phạm
+        areaService.updateEventMode(internalArea.getId(),
+                new AreaEventModeUpdateRequest(false, null, "ENDED_EARLY", "Tat su kien de test khong thong bao"),
+                fmUser.getEmail());
+
+        List<Area> stillOpen = areaRepository.findByOpenToMembersTrueAndOpenUntilAfterAndDeletedAtIsNull(now);
+        for (Area a : stillOpen) {
+            a.setOpenToMembers(false);
+            a.setOpenUntil(null);
+            areaRepository.save(a);
+        }
+
+        long notifCountAfterDisable = notificationRepository.count();
+
+        // Hạ MAX_HOURS lần nữa khi không có sự kiện vi phạm -> KHÔNG tạo thêm thông báo
+        systemConfigService.update(ConfigKey.EVENT_MODE_MAX_HOURS.name(), "2", adminUser.getEmail());
+        assertEquals(notifCountAfterDisable, notificationRepository.count());
+
+        // Khôi phục lại cấu hình gốc
+        systemConfigService.update(ConfigKey.EVENT_MODE_MAX_HOURS.name(), "12", adminUser.getEmail());
     }
 }
