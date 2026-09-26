@@ -21,6 +21,7 @@ import {
   testConnection,
   updateRoiGeometry,
 } from "../../services/cameraService";
+import { getAreas } from "../../services/areaService";
 import RoiEditorModal from "../../components/camera/RoiEditorModal";
 import CameraGeneralTab from "../../components/camera/CameraGeneralTab";
 import CameraStreamTab from "../../components/camera/CameraStreamTab";
@@ -57,8 +58,10 @@ export default function CameraDetailPage() {
   const [activeSnapshotForModal, setActiveSnapshotForModal] = useState(null);
 
   const [camera, setCamera] = useState(null);
+  const [availableAreas, setAvailableAreas] = useState([]);
   const [generalForm, setGeneralForm] = useState({
     name: "",
+    areaId: "",
   });
 
   const [streamForm, setStreamForm] = useState({
@@ -69,6 +72,15 @@ export default function CameraDetailPage() {
     mainStreamPath: "",
   });
 
+  useEffect(() => {
+    getAreas({ size: 200, isActive: true })
+      .then((res) => {
+        const list = res?.content || res?.areas || (Array.isArray(res) ? res : []);
+        setAvailableAreas(list);
+      })
+      .catch((err) => console.error("Failed to load areas:", err));
+  }, []);
+
   const loadCameraDetails = async () => {
     setLoading(true);
     setError(null);
@@ -78,6 +90,7 @@ export default function CameraDetailPage() {
 
       setGeneralForm({
         name: data.name || "",
+        areaId: data.assignedArea?.id || (data.assignedAreas?.[0]?.id || ""),
       });
 
       if (data.streamConfig) {
@@ -306,6 +319,7 @@ export default function CameraDetailPage() {
     try {
       const payload = {
         name: generalForm.name,
+        areaId: generalForm.areaId ? generalForm.areaId : null,
       };
       const updated = await updateCamera(id, payload);
       setCamera(updated);
@@ -520,6 +534,7 @@ export default function CameraDetailPage() {
                 camera={camera}
                 generalForm={generalForm}
                 setGeneralForm={setGeneralForm}
+                availableAreas={availableAreas}
                 saving={saving}
                 onSubmit={handleGeneralSubmit}
               />

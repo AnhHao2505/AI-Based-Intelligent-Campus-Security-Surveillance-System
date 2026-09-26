@@ -3,6 +3,8 @@ package com.fa26se040.icss.service;
 import com.fa26se040.icss.dto.area.AreaDependencyResponse;
 import com.fa26se040.icss.dto.area.AreaDependencyResponse.Blocker;
 import com.fa26se040.icss.exception.AreaErrorCode;
+import com.fa26se040.icss.repository.CameraRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -10,7 +12,10 @@ import java.util.List;
 import java.util.UUID;
 
 @Component
+@RequiredArgsConstructor
 public class AreaDependencyChecker {
+
+    private final CameraRepository cameraRepository;
 
     public AreaDependencyResponse check(UUID areaId) {
         List<Blocker> blockers = new ArrayList<>();
@@ -27,14 +32,15 @@ public class AreaDependencyChecker {
         }
 
         boolean canDeactivate = blockers.isEmpty();
-        String note = "Chưa có module nào tham chiếu tới khu vực. Kiểm tra sẽ được bổ sung ở M07, M08.";
+        String note = (cameras > 0 || permissions > 0)
+                ? "Có tài nguyên phụ thuộc đang liên kết với khu vực này."
+                : "Không có tài nguyên phụ thuộc nào đang liên kết với khu vực này.";
 
         return new AreaDependencyResponse(areaId, canDeactivate, blockers, warnings, note);
     }
 
     private int countAssignedCameras(UUID areaId) {
-        // TODO M07 — đếm cameras đang gán vào khu vực
-        return 0;
+        return cameraRepository.countByAreaIdAndDeletedAtIsNull(areaId);
     }
 
     private int countActiveAccessPermissions(UUID areaId) {

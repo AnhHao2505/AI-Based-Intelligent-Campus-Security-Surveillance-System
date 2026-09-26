@@ -9,9 +9,10 @@ import {
   Power,
   PowerOff,
   Eye,
-  Loader2
+  Loader2,
+  Trash2
 } from 'lucide-react';
-import { fetchCameras, decommissionCamera, reactivateCamera } from '../../services/cameraService';
+import { fetchCameras, decommissionCamera, reactivateCamera, deleteCamera } from '../../services/cameraService';
 import CameraCreateModal from '../../components/CameraCreateModal';
 import '../../styles/CameraListPage.css';
 
@@ -50,6 +51,7 @@ export default function CameraListPage() {
       const data = await fetchCameras({
         page,
         size: 10,
+        sort: 'cameraCode,asc',
         search,
         status: statusFilter || undefined,
         operationalStatus: opStatusFilter || undefined,
@@ -87,6 +89,23 @@ export default function CameraListPage() {
       await loadCameras();
     } catch (err) {
       alert(err.message || 'Thao tác thất bại.');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleDeleteCamera = async (camera) => {
+    const confirmed = window.confirm(
+      `Bạn có chắc chắn muốn xóa camera ${camera.cameraCode} - ${camera.name}?\n\nCamera sẽ bị xóa khỏi danh sách giám sát và hủy luồng kết nối.`
+    );
+    if (!confirmed) return;
+
+    setActionLoadingId(camera.id);
+    try {
+      await deleteCamera(camera.id);
+      await loadCameras();
+    } catch (err) {
+      alert(err.message || 'Xóa camera thất bại.');
     } finally {
       setActionLoadingId(null);
     }
@@ -152,7 +171,6 @@ export default function CameraListPage() {
               <option value="">-- Trạng thái kết nối --</option>
               <option value="ONLINE">Online</option>
               <option value="OFFLINE">Offline</option>
-              <option value="ERROR">Lỗi</option>
             </select>
 
             <button type="submit" className="btn-search">
@@ -184,6 +202,7 @@ export default function CameraListPage() {
                 <tr>
                   <th>Mã Camera</th>
                   <th>Tên thiết bị</th>
+                  <th>Khu vực</th>
                   <th>Trạng thái thiết bị</th>
                   <th>Trạng thái kết nối</th>
                   <th className="text-right">Hành động</th>
@@ -193,6 +212,9 @@ export default function CameraListPage() {
                 {cameras.map((cam) => {
                   const isDecommissioned = cam.status === 'DECOMMISSIONED';
                   const opStatus = cam.operationalStatus;
+                  const areaName = cam.areaName || cam.assignedArea?.name || (cam.assignedAreas && cam.assignedAreas.length > 0 ? cam.assignedAreas[0]?.name : null);
+                  const areaBuilding = cam.building || cam.assignedArea?.building || (cam.assignedAreas && cam.assignedAreas.length > 0 ? cam.assignedAreas[0]?.building : null);
+                  const areaFloor = cam.floor || cam.assignedArea?.floor || (cam.assignedAreas && cam.assignedAreas.length > 0 ? cam.assignedAreas[0]?.floor : null);
 
                   return (
                     <tr key={cam.id}>
@@ -201,6 +223,26 @@ export default function CameraListPage() {
                         <div className="camera-name-cell">
                           <span className="camera-name">{cam.name}</span>
                         </div>
+                      </td>
+                      <td>
+                        {areaName ? (
+                          <span
+                            className="location-tag"
+                            style={{
+                              fontSize: "0.8rem",
+                              padding: "0.2rem 0.55rem",
+                              borderRadius: "6px",
+                              display: "inline-block",
+                            }}
+                          >
+                            {areaName}
+                            {areaBuilding ? ` (${areaBuilding}${areaFloor ? ` - ${areaFloor}` : ""})` : ""}
+                          </span>
+                        ) : (
+                          <span style={{ color: "var(--theme-text-muted)", fontSize: "0.85rem" }}>
+                            —
+                          </span>
+                        )}
                       </td>
                       <td>
                         <span className={`status-badge badge-${cam.status ? cam.status.toLowerCase() : ''}`}>
@@ -236,6 +278,15 @@ export default function CameraListPage() {
                             <PowerOff size={16} />
                           )}
                           <span>{isDecommissioned ? 'Bật' : 'Tắt'}</span>
+                        </button>
+                        <button
+                          className="btn-action btn-delete"
+                          onClick={() => handleDeleteCamera(cam)}
+                          disabled={actionLoadingId === cam.id}
+                          title="Xóa camera"
+                        >
+                          <Trash2 size={16} />
+                          <span>Xóa</span>
                         </button>
                       </td>
                     </tr>

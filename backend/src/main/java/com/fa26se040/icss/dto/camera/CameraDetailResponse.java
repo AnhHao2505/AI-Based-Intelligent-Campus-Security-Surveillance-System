@@ -26,5 +26,13 @@ public class CameraDetailResponse {
     private OffsetDateTime updatedAt;
     private CameraStreamConfigResponse streamConfig;
     private RoiGeometry roiGeometry;
+    private AreaSimpleResponse assignedArea;
     private List<AreaSimpleResponse> assignedAreas;
+
+    public List<AreaSimpleResponse> getAssignedAreas() {
+        if (assignedAreas != null && !assignedAreas.isEmpty()) {
+            return assignedAreas;
+        }
+        return assignedArea != null ? List.of(assignedArea) : List.of();
+    }
 }

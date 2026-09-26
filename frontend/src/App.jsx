@@ -20,7 +20,6 @@ import AccessHistoryPage from "./pages/accessHistory/AccessHistoryPage";
 import NotificationsPage from "./pages/notifications/NotificationsPage";
 import ManageAccountPage from "./pages/accounts/ManageAccountPage";
 import SystemConfigPage from "./pages/system/SystemConfigPage";
-import UiKitPage from "./pages/_devPreview/UiKitPage";
 import GuardScheduleManagementPage from "./pages/admin/GuardScheduleManagementPage";
 import UserAccessLevelPage from "./pages/accessControl/UserAccessLevelPage";
 import DemoModeBanner from "./components/common/DemoModeBanner";
@@ -87,10 +86,6 @@ function App() {
 						<Route
 							path="/unauthorized"
 							element={<UnauthorizedPage />}
-						/>
-						<Route
-							path="/dev/ui-kit"
-							element={<UiKitPage />}
 						/>
 
 						{/* Authenticated Management Routes using shared AppLayout */}

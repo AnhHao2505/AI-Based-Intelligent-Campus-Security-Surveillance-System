@@ -11,6 +11,7 @@ import com.fa26se040.icss.entity.Camera;
 import com.fa26se040.icss.enums.CameraStatus;
 import com.fa26se040.icss.enums.OperationalStatus;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -21,7 +22,8 @@ public interface CameraRepository extends JpaRepository<Camera, UUID> {
     Optional<Camera> findTopByCameraCodeStartingWithOrderByCameraCodeDesc(String prefix);
 
     @Query("SELECT c FROM Camera c WHERE " +
-           "(LOWER(c.cameraCode) LIKE :search OR LOWER(c.name) LIKE :search) " +
+           "c.deletedAt IS NULL " +
+           "AND (LOWER(c.cameraCode) LIKE :search OR LOWER(c.name) LIKE :search) " +
            "AND (:status IS NULL OR c.status = :status) " +
            "AND (:opStatus IS NULL OR c.operationalStatus = :opStatus)")
     Page<Camera> findFiltered(@Param("search") String search,
@@ -31,4 +33,10 @@ public interface CameraRepository extends JpaRepository<Camera, UUID> {
 
     @Query(value = "SELECT nextval('camera_code_seq')", nativeQuery = true)
     Long getNextCameraCodeSequence();
+
+    List<Camera> findByAreaIdAndDeletedAtIsNull(UUID areaId);
+
+    int countByAreaIdAndDeletedAtIsNull(UUID areaId);
+
+    List<Camera> findByAreaIsNullAndDeletedAtIsNullAndStatus(CameraStatus status);
 }

@@ -1,5 +1,6 @@
 package com.fa26se040.icss.controller;
 
+import com.fa26se040.icss.dto.common.ApiResponse;
 import com.fa26se040.icss.dto.floorplan.FloorPlanResponse;
 import com.fa26se040.icss.repository.FloorPlanRepository;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +22,7 @@ public class FloorPlanController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
-    public ResponseEntity<List<FloorPlanResponse>> getFloorPlans() {
+    public ResponseEntity<ApiResponse<List<FloorPlanResponse>>> getFloorPlans() {
         List<com.fa26se040.icss.entity.Floor> floors = floorRepository.findAllActiveFloors();
         if (floors != null && !floors.isEmpty()) {
             List<FloorPlanResponse> responses = floors.stream()
@@ -37,7 +38,7 @@ public class FloorPlanController {
                     ))
                     .toList();
             if (!responses.isEmpty()) {
-                return ResponseEntity.ok(responses);
+                return ResponseEntity.ok(ApiResponse.success(responses, "Lấy danh sách sơ đồ mặt bằng thành công"));
             }
         }
 
@@ -53,6 +54,6 @@ public class FloorPlanController {
                         fp.getIsActive()
                 ))
                 .toList();
-        return ResponseEntity.ok(responses);
+        return ResponseEntity.ok(ApiResponse.success(responses, "Lấy danh sách sơ đồ mặt bằng thành công"));
     }
 }

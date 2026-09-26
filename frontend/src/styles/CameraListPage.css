@@ -307,6 +307,18 @@
   color: var(--theme-text-primary);
 }
 
+.location-tag {
+  background: var(--theme-bg-desc, rgba(140, 160, 185, 0.1));
+  border: 1px solid var(--theme-border);
+  color: var(--theme-text-secondary);
+  font-size: 0.8rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 6px;
+  font-weight: 500;
+  display: inline-block;
+  white-space: nowrap;
+}
+
 /* Badges */
 .status-badge {
   display: inline-flex;
@@ -360,6 +372,7 @@
   0% {
     box-shadow: 0 0 4px rgba(245, 158, 11, 0.2);
   }
+
   100% {
     box-shadow: 0 0 12px rgba(245, 158, 11, 0.45);
   }
@@ -427,6 +440,19 @@
   transform: translateY(-1px);
 }
 
+.btn-delete {
+  background: var(--theme-danger-bg, rgba(239, 68, 68, 0.1));
+  border-color: var(--theme-danger-border, rgba(239, 68, 68, 0.2));
+  color: var(--theme-danger-text, #ef4444);
+}
+
+.btn-delete:hover:not(:disabled) {
+  background: var(--theme-danger, #ef4444);
+  color: #ffffff;
+  border-color: var(--theme-danger, #ef4444);
+  transform: translateY(-1px);
+}
+
 .btn-action:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -483,11 +509,13 @@
   .camera-list-page {
     padding: 1.25rem;
   }
-  .actions-cell span, .btn-add-camera span {
+
+  .actions-cell span,
+  .btn-add-camera span {
     display: none;
   }
+
   .btn-action {
     padding: 0.45rem;
   }
 }
-

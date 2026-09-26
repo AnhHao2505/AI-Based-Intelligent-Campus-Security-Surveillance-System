@@ -6,11 +6,11 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
-import java.time.LocalDateTime;
+import com.fa26se040.icss.dto.common.ApiResponse;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -18,133 +18,129 @@ import java.util.Map;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(MaxRecordsExceededException.class)
-    public ResponseEntity<Map<String, Object>> handleMaxRecordsExceeded(MaxRecordsExceededException ex) {
+    public ResponseEntity<ApiResponse<Object>> handleMaxRecordsExceeded(MaxRecordsExceededException ex) {
         return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
-    public ResponseEntity<Map<String, Object>> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException ex) {
-        Map<String, Object> body = new HashMap<>();
-        body.put("timestamp", LocalDateTime.now().toString());
-        body.put("status", HttpStatus.PAYLOAD_TOO_LARGE.value());
-        body.put("error", HttpStatus.PAYLOAD_TOO_LARGE.getReasonPhrase());
-        body.put("code", "PAYLOAD_TOO_LARGE");
-        body.put("message", "File nạp vào vượt quá dung lượng tối đa cho phép (500MB).");
+    public ResponseEntity<ApiResponse<Object>> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException ex) {
+        ApiResponse<Object> body = ApiResponse.error(
+                HttpStatus.PAYLOAD_TOO_LARGE.value(),
+                "PAYLOAD_TOO_LARGE",
+                "File nạp vào vượt quá dung lượng tối đa cho phép (500MB)."
+        );
         return new ResponseEntity<>(body, HttpStatus.PAYLOAD_TOO_LARGE);
     }
 
     @ExceptionHandler(UnauthorizedException.class)
-    public ResponseEntity<Map<String, Object>> handleUnauthorized(UnauthorizedException ex) {
+    public ResponseEntity<ApiResponse<Object>> handleUnauthorized(UnauthorizedException ex) {
         return buildResponse(HttpStatus.UNAUTHORIZED, ex.getMessage());
     }
 
     @ExceptionHandler(AreaException.class)
-    public ResponseEntity<Map<String, Object>> handleAreaException(AreaException ex) {
+    public ResponseEntity<ApiResponse<Object>> handleAreaException(AreaException ex) {
         String message = ex.getErrorCode().getMessageTemplate();
         if (ex.getArgs() != null && ex.getArgs().length > 0 && message.contains("{n}")) {
             message = message.replace("{n}", String.valueOf(ex.getArgs()[0]));
         }
-
-        Map<String, Object> body = new HashMap<>();
-        body.put("timestamp", LocalDateTime.now().toString());
-        body.put("status", ex.getErrorCode().getHttpStatus().value());
-        body.put("error", ex.getErrorCode().getHttpStatus().getReasonPhrase());
-        body.put("code", ex.getErrorCode().getCode());
-        body.put("message", message);
-        return new ResponseEntity<>(body, ex.getErrorCode().getHttpStatus());
+        HttpStatus status = ex.getErrorCode().getHttpStatus();
+        ApiResponse<Object> body = ApiResponse.error(
+                status.value(),
+                ex.getErrorCode().getCode(),
+                message
+        );
+        return new ResponseEntity<>(body, status);
     }
 
     @ExceptionHandler(CameraException.class)
-    public ResponseEntity<Map<String, Object>> handleCameraException(CameraException ex) {
+    public ResponseEntity<ApiResponse<Object>> handleCameraException(CameraException ex) {
         String message = ex.getErrorCode().getMessageTemplate();
         if (ex.getArgs() != null && ex.getArgs().length > 0 && message.contains("{n}")) {
             message = message.replace("{n}", String.valueOf(ex.getArgs()[0]));
         }
-
-        Map<String, Object> body = new HashMap<>();
-        body.put("timestamp", LocalDateTime.now().toString());
-        body.put("status", ex.getErrorCode().getHttpStatus().value());
-        body.put("error", ex.getErrorCode().getHttpStatus().getReasonPhrase());
-        body.put("code", ex.getErrorCode().getCode());
-        body.put("message", message);
-        return new ResponseEntity<>(body, ex.getErrorCode().getHttpStatus());
+        HttpStatus status = ex.getErrorCode().getHttpStatus();
+        ApiResponse<Object> body = ApiResponse.error(
+                status.value(),
+                ex.getErrorCode().getCode(),
+                message
+        );
+        return new ResponseEntity<>(body, status);
     }
 
     @ExceptionHandler(AssignedPersonnelException.class)
-    public ResponseEntity<Map<String, Object>> handleAssignedPersonnelException(AssignedPersonnelException ex) {
-        Map<String, Object> body = new HashMap<>();
-        body.put("timestamp", LocalDateTime.now().toString());
-        body.put("status", ex.getErrorCode().getHttpStatus().value());
-        body.put("error", ex.getErrorCode().getHttpStatus().getReasonPhrase());
-        body.put("code", ex.getErrorCode().getCode());
-        body.put("message", ex.getErrorCode().getMessageTemplate());
-        return new ResponseEntity<>(body, ex.getErrorCode().getHttpStatus());
+    public ResponseEntity<ApiResponse<Object>> handleAssignedPersonnelException(AssignedPersonnelException ex) {
+        HttpStatus status = ex.getErrorCode().getHttpStatus();
+        ApiResponse<Object> body = ApiResponse.error(
+                status.value(),
+                ex.getErrorCode().getCode(),
+                ex.getErrorCode().getMessageTemplate()
+        );
+        return new ResponseEntity<>(body, status);
     }
 
     @ExceptionHandler(AccessControlException.class)
-    public ResponseEntity<Map<String, Object>> handleAccessControlException(AccessControlException ex) {
-        Map<String, Object> body = new HashMap<>();
-        body.put("timestamp", LocalDateTime.now().toString());
-        body.put("status", ex.getErrorCode().getHttpStatus().value());
-        body.put("error", ex.getErrorCode().getHttpStatus().getReasonPhrase());
-        body.put("code", ex.getErrorCode().getCode());
-        body.put("message", ex.getMessage() != null ? ex.getMessage() : ex.getErrorCode().getMessageTemplate());
-        return new ResponseEntity<>(body, ex.getErrorCode().getHttpStatus());
+    public ResponseEntity<ApiResponse<Object>> handleAccessControlException(AccessControlException ex) {
+        HttpStatus status = ex.getErrorCode().getHttpStatus();
+        ApiResponse<Object> body = ApiResponse.error(
+                status.value(),
+                ex.getErrorCode().getCode(),
+                ex.getMessage() != null ? ex.getMessage() : ex.getErrorCode().getMessageTemplate()
+        );
+        return new ResponseEntity<>(body, status);
     }
 
     @ExceptionHandler(org.springframework.orm.ObjectOptimisticLockingFailureException.class)
-    public ResponseEntity<Map<String, Object>> handleOptimisticLockingFailure(org.springframework.orm.ObjectOptimisticLockingFailureException ex) {
-        Map<String, Object> body = new HashMap<>();
-        body.put("timestamp", LocalDateTime.now().toString());
-        body.put("status", HttpStatus.CONFLICT.value());
-        body.put("error", HttpStatus.CONFLICT.getReasonPhrase());
-        body.put("code", AccessControlErrorCode.ERR_AC_003.getCode());
-        body.put("message", AccessControlErrorCode.ERR_AC_003.getMessageTemplate());
+    public ResponseEntity<ApiResponse<Object>> handleOptimisticLockingFailure(org.springframework.orm.ObjectOptimisticLockingFailureException ex) {
+        ApiResponse<Object> body = ApiResponse.error(
+                HttpStatus.CONFLICT.value(),
+                AccessControlErrorCode.ERR_AC_003.getCode(),
+                AccessControlErrorCode.ERR_AC_003.getMessageTemplate()
+        );
         return new ResponseEntity<>(body, HttpStatus.CONFLICT);
     }
 
     @ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<Map<String, Object>> handleAccessDenied(AccessDeniedException ex) {
+    public ResponseEntity<ApiResponse<Object>> handleAccessDenied(AccessDeniedException ex) {
         return buildResponse(HttpStatus.FORBIDDEN, "Access denied: " + ex.getMessage());
     }
 
     @ExceptionHandler(ResourceNotFoundException.class)
-    public ResponseEntity<Map<String, Object>> handleResourceNotFound(ResourceNotFoundException ex) {
+    public ResponseEntity<ApiResponse<Object>> handleResourceNotFound(ResourceNotFoundException ex) {
         return buildResponse(HttpStatus.NOT_FOUND, ex.getMessage());
     }
 
     @ExceptionHandler(DuplicateResourceException.class)
-    public ResponseEntity<Map<String, Object>> handleDuplicateResource(DuplicateResourceException ex) {
+    public ResponseEntity<ApiResponse<Object>> handleDuplicateResource(DuplicateResourceException ex) {
         return buildResponse(HttpStatus.CONFLICT, ex.getMessage());
     }
 
     @ExceptionHandler(ConcurrentReviewException.class)
-    public ResponseEntity<Map<String, Object>> handleConcurrentReview(ConcurrentReviewException ex) {
+    public ResponseEntity<ApiResponse<Object>> handleConcurrentReview(ConcurrentReviewException ex) {
         return buildResponse(HttpStatus.CONFLICT, ex.getMessage());
     }
 
     @ExceptionHandler(RateLimitExceededException.class)
-    public ResponseEntity<Map<String, Object>> handleRateLimitExceeded(RateLimitExceededException ex) {
+    public ResponseEntity<ApiResponse<Object>> handleRateLimitExceeded(RateLimitExceededException ex) {
         return buildResponse(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage());
     }
 
     @ExceptionHandler(FaceDetectionException.class)
-    public ResponseEntity<Map<String, Object>> handleFaceDetection(FaceDetectionException ex) {
+    public ResponseEntity<ApiResponse<Object>> handleFaceDetection(FaceDetectionException ex) {
         return buildResponse(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
     }
 
     @ExceptionHandler(AiServiceUnavailableException.class)
-    public ResponseEntity<Map<String, Object>> handleAiServiceUnavailable(AiServiceUnavailableException ex) {
+    public ResponseEntity<ApiResponse<Object>> handleAiServiceUnavailable(AiServiceUnavailableException ex) {
         return buildResponse(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
     }
 
     @ExceptionHandler(InvalidRoleAssignmentException.class)
-    public ResponseEntity<Map<String, Object>> handleInvalidRoleAssignment(InvalidRoleAssignmentException ex) {
+    public ResponseEntity<ApiResponse<Object>> handleInvalidRoleAssignment(InvalidRoleAssignmentException ex) {
         return buildResponse(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
     }
 
     @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
-    public ResponseEntity<Map<String, Object>> handleDataIntegrityViolation(org.springframework.dao.DataIntegrityViolationException ex) {
+    public ResponseEntity<ApiResponse<Object>> handleDataIntegrityViolation(org.springframework.dao.DataIntegrityViolationException ex) {
         String msg = (ex.getMessage() + " " + (ex.getRootCause() != null ? ex.getRootCause().getMessage() : "")).toLowerCase();
         if (msg.contains("ux_areas_floor_name_active")) {
             return handleAreaException(new AreaException(AreaErrorCode.ERR_AREA_020));
@@ -153,12 +149,12 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler({IllegalArgumentException.class, IllegalStateException.class})
-    public ResponseEntity<Map<String, Object>> handleBadRequest(RuntimeException ex) {
+    public ResponseEntity<ApiResponse<Object>> handleBadRequest(RuntimeException ex) {
         return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
-    public ResponseEntity<Map<String, Object>> handleMethodArgumentTypeMismatch(MethodArgumentTypeMismatchException ex) {
+    public ResponseEntity<ApiResponse<Object>> handleMethodArgumentTypeMismatch(MethodArgumentTypeMismatchException ex) {
         String name = ex.getName();
         Object value = ex.getValue();
         String message = String.format("Giá trị '%s' không hợp lệ cho tham số '%s'", value, name);
@@ -166,31 +162,33 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException ex) {
+    public ResponseEntity<ApiResponse<Object>> handleValidation(MethodArgumentNotValidException ex) {
         Map<String, String> errors = new HashMap<>();
         ex.getBindingResult().getFieldErrors().forEach(error -> 
             errors.put(error.getField(), error.getDefaultMessage())
         );
         
-        Map<String, Object> body = new HashMap<>();
-        body.put("timestamp", LocalDateTime.now().toString());
-        body.put("status", HttpStatus.BAD_REQUEST.value());
-        body.put("error", "Validation Error");
-        body.put("details", errors);
+        ApiResponse<Object> body = ApiResponse.error(
+                HttpStatus.BAD_REQUEST.value(),
+                "VALIDATION_ERROR",
+                "Dữ liệu đầu vào không hợp lệ",
+                errors
+        );
         return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<Map<String, Object>> handleGeneral(Exception ex) {
+    public ResponseEntity<ApiResponse<Object>> handleGeneral(Exception ex) {
         return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred: " + ex.getMessage());
     }
 
-    private ResponseEntity<Map<String, Object>> buildResponse(HttpStatus status, String message) {
-        Map<String, Object> body = new HashMap<>();
-        body.put("timestamp", LocalDateTime.now().toString());
-        body.put("status", status.value());
-        body.put("error", status.getReasonPhrase());
-        body.put("message", message);
+    private ResponseEntity<ApiResponse<Object>> buildResponse(HttpStatus status, String message) {
+        ApiResponse<Object> body = ApiResponse.error(
+                status.value(),
+                status.getReasonPhrase(),
+                message
+        );
         return new ResponseEntity<>(body, status);
     }
 }
+

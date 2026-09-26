@@ -35,8 +35,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -337,7 +340,8 @@ public class AreaService {
         Area area = areaRepository.findByIdAndDeletedAtIsNull(areaId)
                 .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
 
-        List<CameraSimpleResponse> cameraResponses = area.getCameras().stream()
+        List<Camera> cameras = cameraRepository.findByAreaIdAndDeletedAtIsNull(areaId);
+        List<CameraSimpleResponse> cameraResponses = cameras.stream()
                 .map(c -> CameraSimpleResponse.builder()
                         .id(c.getId())
                         .cameraCode(c.getCameraCode())
@@ -359,6 +363,11 @@ public class AreaService {
         Area area = areaRepository.findByIdAndDeletedAtIsNull(areaId)
                 .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
 
+        // BR-CAM-02: Khu vực phải đang hoạt động
+        if (!Boolean.TRUE.equals(area.getIsActive())) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_017);
+        }
+
         List<Camera> camerasToAssign;
         if (cameraIds == null || cameraIds.isEmpty()) {
             camerasToAssign = List.of();
@@ -367,6 +376,7 @@ public class AreaService {
             if (camerasToAssign.size() != cameraIds.size()) {
                 throw new CameraException(CameraErrorCode.ERR_CAM_002);
             }
+            // BR-CAM-03: Không thể gán camera DECOMMISSIONED
             boolean hasDecommissioned = camerasToAssign.stream()
                     .anyMatch(c -> c.getStatus() != CameraStatus.ACTIVE);
             if (hasDecommissioned) {
@@ -374,11 +384,30 @@ public class AreaService {
             }
         }
 
-        area.getCameras().clear();
-        area.getCameras().addAll(camerasToAssign);
-        Area savedArea = areaRepository.save(area);
+        // BR-CAM-04: Lấy danh sách camera hiện đang gán cho khu vực này
+        List<Camera> currentlyAssigned = cameraRepository.findByAreaIdAndDeletedAtIsNull(areaId);
+        Set<UUID> newCameraIdSet = (cameraIds != null) ? new HashSet<>(cameraIds) : Set.of();
 
-        return getCamerasForArea(savedArea.getId());
+        List<Camera> toUpdate = new ArrayList<>();
+        // 1. Unassign camera cũ không còn trong danh sách mới
+        for (Camera currentCam : currentlyAssigned) {
+            if (!newCameraIdSet.contains(currentCam.getId())) {
+                currentCam.setArea(null);
+                toUpdate.add(currentCam);
+            }
+        }
+
+        // 2. Gán camera mới (tự động chuyển khu vực nếu trước đó thuộc khu vực khác)
+        for (Camera cam : camerasToAssign) {
+            cam.setArea(area);
+            toUpdate.add(cam);
+        }
+
+        if (!toUpdate.isEmpty()) {
+            cameraRepository.saveAll(toUpdate);
+        }
+
+        return getCamerasForArea(area.getId());
     }
 
     private UUID resolveActorId(String email) {

@@ -3,6 +3,7 @@ package com.fa26se040.icss.controller;
 import com.fa26se040.icss.dto.accesscontrol.AccessControlAuditLogResponse;
 import com.fa26se040.icss.dto.accesscontrol.LevelPresetResponse;
 import com.fa26se040.icss.dto.accesscontrol.LevelPresetUpdateRequest;
+import com.fa26se040.icss.dto.common.ApiResponse;
 import com.fa26se040.icss.enums.AccessControlTargetType;
 import com.fa26se040.icss.enums.AreaLevel;
 import com.fa26se040.icss.service.AccessControlAuditService;
@@ -38,8 +39,8 @@ public class AccessControlController {
 
     @GetMapping("/level-presets")
     @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
-    public ResponseEntity<List<LevelPresetResponse>> getLevelPresets() {
-        return ResponseEntity.ok(areaLevelPresetService.getAllPresets());
+    public ResponseEntity<ApiResponse<List<LevelPresetResponse>>> getLevelPresets() {
+        return ResponseEntity.ok(ApiResponse.success(areaLevelPresetService.getAllPresets(), "Lấy danh sách cấu hình cấp độ truy cập thành công"));
     }
 
     @org.springframework.web.bind.annotation.RequestMapping(
@@ -47,18 +48,19 @@ public class AccessControlController {
             method = {org.springframework.web.bind.annotation.RequestMethod.PUT, org.springframework.web.bind.annotation.RequestMethod.PATCH}
     )
     @PreAuthorize("hasRole('FACILITY_MANAGER')")
-    public ResponseEntity<LevelPresetResponse> updateLevelPreset(
+    public ResponseEntity<ApiResponse<LevelPresetResponse>> updateLevelPreset(
             @PathVariable AreaLevel areaLevel,
             @Valid @RequestBody LevelPresetUpdateRequest request,
             Authentication authentication
     ) {
         String actorEmail = authentication != null ? authentication.getName() : null;
-        return ResponseEntity.ok(areaLevelPresetService.updatePreset(areaLevel, request, actorEmail));
+        LevelPresetResponse response = areaLevelPresetService.updatePreset(areaLevel, request, actorEmail);
+        return ResponseEntity.ok(ApiResponse.success(response, "Cập nhật cấu hình cấp độ truy cập thành công"));
     }
 
     @GetMapping("/audit-logs")
     @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
-    public ResponseEntity<Page<AccessControlAuditLogResponse>> getAuditLogs(
+    public ResponseEntity<ApiResponse<Page<AccessControlAuditLogResponse>>> getAuditLogs(
             @RequestParam(required = false) AccessControlTargetType targetType,
             @RequestParam(required = false) UUID areaId,
             @RequestParam(required = false) UUID subjectUserId,
@@ -67,7 +69,7 @@ public class AccessControlController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime to,
             @PageableDefault(size = 10, sort = "changedAt", direction = Sort.Direction.DESC) Pageable pageable
     ) {
-        return ResponseEntity.ok(auditService.getAuditLogs(
+        Page<AccessControlAuditLogResponse> logs = auditService.getAuditLogs(
                 targetType,
                 areaId,
                 subjectUserId,
@@ -75,6 +77,7 @@ public class AccessControlController {
                 from,
                 to,
                 pageable
-        ));
+        );
+        return ResponseEntity.ok(ApiResponse.success(logs, "Lấy nhật ký kiểm toán phân quyền thành công"));
     }
 }

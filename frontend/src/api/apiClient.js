@@ -199,7 +199,18 @@ export async function apiFetch(path, options = {}) {
     throw err;
   }
 
-  return await response.json();
+  const json = await response.json();
+  if (json && typeof json === 'object' && 'httpCode' in json && 'message' in json) {
+    if (json.data !== undefined && json.data !== null) {
+      if (typeof json.data === 'object' && !Array.isArray(json.data)) {
+        json.data._message = json.message;
+        json.data._httpCode = json.httpCode;
+      }
+      return json.data;
+    }
+    return { message: json.message, httpCode: json.httpCode, success: true };
+  }
+  return json;
 }
 
 export function apiGet(path, options = {}) {

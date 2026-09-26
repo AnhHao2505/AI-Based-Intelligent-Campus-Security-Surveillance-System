@@ -8,6 +8,7 @@ import com.fa26se040.icss.dto.accessrequest.GroupAccessRequestCreateRequest;
 import com.fa26se040.icss.dto.accessrequest.IndividualAccessRequestCreateRequest;
 import com.fa26se040.icss.dto.accessrequest.MemberLookupResult;
 import com.fa26se040.icss.dto.accessrequest.ResolveMembersRequest;
+import com.fa26se040.icss.dto.common.ApiResponse;
 import com.fa26se040.icss.enums.RequestStatus;
 import com.fa26se040.icss.service.AccessRequestService;
 import com.fa26se040.icss.service.AreaService;
@@ -43,49 +44,49 @@ public class AccessRequestController {
 
     @GetMapping("/available-areas")
     @PreAuthorize("hasAnyRole('NORMAL_USER', 'FACILITY_MANAGER', 'ADMIN')")
-    public ResponseEntity<List<AreaSimpleResponse>> getAvailableAreas() {
-        return ResponseEntity.ok(areaService.getAvailableAreasForRequest());
+    public ResponseEntity<ApiResponse<List<AreaSimpleResponse>>> getAvailableAreas() {
+        return ResponseEntity.ok(ApiResponse.success(areaService.getAvailableAreasForRequest(), "Lấy danh sách khu vực khả dụng thành công"));
     }
 
     @PostMapping("/individual")
     @PreAuthorize("hasRole('NORMAL_USER')")
-    public ResponseEntity<AccessRequestResponse> createIndividualRequest(
+    public ResponseEntity<ApiResponse<AccessRequestResponse>> createIndividualRequest(
             @Valid @RequestBody IndividualAccessRequestCreateRequest request,
             Authentication authentication
     ) {
         String actorEmail = authentication.getName();
         AccessRequestResponse response = accessRequestService.createIndividualRequest(request, actorEmail);
         URI location = URI.create("/api/access-requests/" + response.id());
-        return ResponseEntity.created(location).body(response);
+        return ResponseEntity.created(location).body(ApiResponse.created(response, "Tạo yêu cầu truy cập cá nhân thành công"));
     }
 
     @PostMapping("/group")
     @PreAuthorize("hasRole('NORMAL_USER')")
-    public ResponseEntity<AccessRequestResponse> createGroupRequest(
+    public ResponseEntity<ApiResponse<AccessRequestResponse>> createGroupRequest(
             @Valid @RequestBody GroupAccessRequestCreateRequest request,
             Authentication authentication
     ) {
         String actorEmail = authentication.getName();
         AccessRequestResponse response = accessRequestService.createGroupRequest(request, actorEmail);
         URI location = URI.create("/api/access-requests/" + response.id());
-        return ResponseEntity.created(location).body(response);
+        return ResponseEntity.created(location).body(ApiResponse.created(response, "Tạo yêu cầu truy cập nhóm thành công"));
     }
 
     @PostMapping
     @PreAuthorize("hasRole('NORMAL_USER')")
-    public ResponseEntity<AccessRequestResponse> createRequest(
+    public ResponseEntity<ApiResponse<AccessRequestResponse>> createRequest(
             @Valid @RequestBody AccessRequestCreateRequest request,
             Authentication authentication
     ) {
         String actorEmail = authentication.getName();
         AccessRequestResponse response = accessRequestService.createRequest(request, actorEmail);
         URI location = URI.create("/api/access-requests/" + response.id());
-        return ResponseEntity.created(location).body(response);
+        return ResponseEntity.created(location).body(ApiResponse.created(response, "Tạo yêu cầu truy cập thành công"));
     }
 
     @GetMapping("/my")
     @PreAuthorize("hasRole('NORMAL_USER')")
-    public ResponseEntity<Page<AccessRequestResponse>> getMyRequests(
+    public ResponseEntity<ApiResponse<Page<AccessRequestResponse>>> getMyRequests(
             @RequestParam(required = false) RequestStatus status,
             @RequestParam(required = false) UUID areaId,
             @RequestParam(defaultValue = "0") int page,
@@ -95,12 +96,13 @@ public class AccessRequestController {
         String actorEmail = authentication.getName();
         int cappedSize = Math.min(Math.max(1, size), 50);
         Pageable pageable = PageRequest.of(page, cappedSize, Sort.by(Sort.Direction.DESC, "createdAt"));
-        return ResponseEntity.ok(accessRequestService.getMyRequests(actorEmail, status, areaId, pageable));
+        Page<AccessRequestResponse> result = accessRequestService.getMyRequests(actorEmail, status, areaId, pageable);
+        return ResponseEntity.ok(ApiResponse.success(result, "Lấy danh sách yêu cầu truy cập của tôi thành công"));
     }
 
     @GetMapping
     @PreAuthorize("hasRole('FACILITY_MANAGER')")
-    public ResponseEntity<Page<AccessRequestResponse>> getAllRequests(
+    public ResponseEntity<ApiResponse<Page<AccessRequestResponse>>> getAllRequests(
             @RequestParam(required = false) RequestStatus status,
             @RequestParam(required = false) UUID areaId,
             @RequestParam(defaultValue = "0") int page,
@@ -108,59 +110,65 @@ public class AccessRequestController {
     ) {
         int cappedSize = Math.min(Math.max(1, size), 50);
         Pageable pageable = PageRequest.of(page, cappedSize, Sort.by(Sort.Direction.DESC, "createdAt"));
-        return ResponseEntity.ok(accessRequestService.getAllRequests(status, areaId, pageable));
+        Page<AccessRequestResponse> result = accessRequestService.getAllRequests(status, areaId, pageable);
+        return ResponseEntity.ok(ApiResponse.success(result, "Lấy danh sách tất cả yêu cầu truy cập thành công"));
     }
 
     @PostMapping("/resolve-members")
     @PreAuthorize("hasAnyRole('NORMAL_USER','FACILITY_MANAGER','ADMIN')")
-    public ResponseEntity<List<MemberLookupResult>> resolveMembers(
+    public ResponseEntity<ApiResponse<List<MemberLookupResult>>> resolveMembers(
             @Valid @RequestBody ResolveMembersRequest request,
             Authentication authentication
     ) {
         String actorEmail = authentication.getName();
-        return ResponseEntity.ok(accessRequestService.resolveMembers(request, actorEmail));
+        List<MemberLookupResult> result = accessRequestService.resolveMembers(request, actorEmail);
+        return ResponseEntity.ok(ApiResponse.success(result, "Tra cứu thành viên thành công"));
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<AccessRequestResponse> getRequestById(
+    public ResponseEntity<ApiResponse<AccessRequestResponse>> getRequestById(
             @PathVariable UUID id,
             Authentication authentication
     ) {
         String actorEmail = authentication.getName();
         boolean isStaff = authentication.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_FACILITY_MANAGER"));
-        return ResponseEntity.ok(accessRequestService.getRequestById(id, actorEmail, isStaff));
+        AccessRequestResponse result = accessRequestService.getRequestById(id, actorEmail, isStaff);
+        return ResponseEntity.ok(ApiResponse.success(result, "Lấy chi tiết yêu cầu truy cập thành công"));
     }
 
     @PatchMapping("/{id}/review")
     @PreAuthorize("hasRole('FACILITY_MANAGER')")
-    public ResponseEntity<AccessRequestResponse> reviewRequest(
+    public ResponseEntity<ApiResponse<AccessRequestResponse>> reviewRequest(
             @PathVariable UUID id,
             @Valid @RequestBody AccessRequestReviewRequest reviewRequest,
             Authentication authentication
     ) {
         String actorEmail = authentication.getName();
-        return ResponseEntity.ok(accessRequestService.reviewRequest(id, reviewRequest, actorEmail));
+        AccessRequestResponse result = accessRequestService.reviewRequest(id, reviewRequest, actorEmail);
+        return ResponseEntity.ok(ApiResponse.success(result, "Phê duyệt/từ chối yêu cầu truy cập thành công"));
     }
 
     @PatchMapping("/{id}/cancel")
     @PreAuthorize("hasRole('NORMAL_USER')")
-    public ResponseEntity<AccessRequestResponse> cancelRequest(
+    public ResponseEntity<ApiResponse<AccessRequestResponse>> cancelRequest(
             @PathVariable UUID id,
             Authentication authentication
     ) {
         String actorEmail = authentication.getName();
-        return ResponseEntity.ok(accessRequestService.cancelRequest(id, actorEmail));
+        AccessRequestResponse result = accessRequestService.cancelRequest(id, actorEmail);
+        return ResponseEntity.ok(ApiResponse.success(result, "Hủy yêu cầu truy cập thành công"));
     }
 
     @PatchMapping("/{id}/finish")
     @PreAuthorize("hasRole('FACILITY_MANAGER')")
-    public ResponseEntity<AccessRequestResponse> finishRequest(
+    public ResponseEntity<ApiResponse<AccessRequestResponse>> finishRequest(
             @PathVariable UUID id,
             Authentication authentication
     ) {
         String actorEmail = authentication.getName();
-        return ResponseEntity.ok(accessRequestService.finishRequest(id, actorEmail));
+        AccessRequestResponse result = accessRequestService.finishRequest(id, actorEmail);
+        return ResponseEntity.ok(ApiResponse.success(result, "Hoàn tất yêu cầu truy cập thành công"));
     }
 }

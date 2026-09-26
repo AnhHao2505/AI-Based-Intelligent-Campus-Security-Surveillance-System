@@ -18,7 +18,9 @@ public enum CameraErrorCode {
     ERR_ROI_004("ERR_ROI_004", HttpStatus.BAD_REQUEST, "Polygon ROI phải có ít nhất 3 đỉnh phân biệt"),
     ERR_ROI_005("ERR_ROI_005", HttpStatus.BAD_REQUEST, "Nhãn polygon ROI không được vượt quá 100 ký tự"),
     ERR_ROI_006("ERR_ROI_006", HttpStatus.BAD_REQUEST, "Khu vực liên kết (target_area_id) không tồn tại"),
-    ERR_ROI_007("ERR_ROI_007", HttpStatus.BAD_REQUEST, "Loại cảnh báo (alert_rules) không hợp lệ"),
+    ERR_ROI_007("ERR_ROI_007", HttpStatus.BAD_REQUEST, "Hướng ranh giới (direction) không hợp lệ, phải là AB_IS_IN hoặc AB_IS_OUT"),
+    ERR_ROI_008("ERR_ROI_008", HttpStatus.BAD_REQUEST, "Đường ranh ra/vào phải gồm 2 điểm phân biệt"),
+    ERR_ROI_009("ERR_ROI_009", HttpStatus.BAD_REQUEST, "Số lượng đường ranh ra/vào không được vượt quá 5"),
     ERR_SNAPSHOT_001("ERR_SNAPSHOT_001", HttpStatus.BAD_GATEWAY, "Không thể kết nối RTSP stream để chụp snapshot (AI-service)");
 
     private final String code;

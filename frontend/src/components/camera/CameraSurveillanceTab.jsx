@@ -9,16 +9,11 @@ import {
 	CheckCircle2,
 	Layers,
 	AlertTriangle,
+	ShieldAlert,
+	ArrowRight,
+	LogIn,
+	LogOut,
 } from "lucide-react";
-
-export const RULE_LABEL_MAP = {
-	ENTRY_EXIT_TRACKING: "Ghi nhận Ra/Vào",
-	AFTER_HOURS: "Có người ngoài giờ",
-};
-
-export function formatRuleBadge(rule) {
-	return RULE_LABEL_MAP[rule] || rule;
-}
 
 export function formatImageUrl(url) {
 	if (!url) return "";
@@ -39,6 +34,30 @@ export function computePolygonCentroid(vertices) {
 	return {
 		x: sumX / vertices.length,
 		y: sumY / vertices.length,
+	};
+}
+
+export function computeLineOrientation(
+	pointA,
+	pointB,
+	direction,
+	width,
+	height,
+) {
+	const ax = (Number(pointA?.x) || 0) * width;
+	const ay = (Number(pointA?.y) || 0) * height;
+	const bx = (Number(pointB?.x) || 0) * width;
+	const by = (Number(pointB?.y) || 0) * height;
+	const mx = (ax + bx) / 2;
+	const my = (ay + by) / 2;
+
+	return {
+		ax,
+		ay,
+		bx,
+		by,
+		midX: mx,
+		midY: my,
 	};
 }
 
@@ -70,15 +89,152 @@ export default function CameraSurveillanceTab({
 	const refCapturedAt =
 		camera?.roiGeometry?.reference_captured_at ||
 		camera?.roiGeometry?.referenceCapturedAt;
+
 	const roiPolygons = camera?.roiGeometry?.polygons || [];
+	const roiEntryLines =
+		camera?.roiGeometry?.entry_lines || camera?.roiGeometry?.entryLines || [];
+
+	const totalRoiCount = roiPolygons.length + roiEntryLines.length;
+
+	// Render SVG Shapes helper
+	const renderRoiSvgElements = (width, height, isDrift = false) => (
+		<svg
+			viewBox={`0 0 ${width} ${height}`}
+			preserveAspectRatio="none"
+			className="roi-preview-svg"
+		>
+			<defs>
+				<marker
+					id={`arrow-in-${isDrift ? "drift" : "ref"}`}
+					viewBox="0 0 10 10"
+					refX="6"
+					refY="5"
+					markerWidth="6"
+					markerHeight="6"
+					orient="auto-start-reverse"
+				>
+					<path
+						d="M 0 1 L 10 5 L 0 9 z"
+						fill="#10b981"
+					/>
+				</marker>
+				<marker
+					id={`arrow-out-${isDrift ? "drift" : "ref"}`}
+					viewBox="0 0 10 10"
+					refX="6"
+					refY="5"
+					markerWidth="6"
+					markerHeight="6"
+					orient="auto-start-reverse"
+				>
+					<path
+						d="M 0 1 L 10 5 L 0 9 z"
+						fill="#38bdf8"
+					/>
+				</marker>
+			</defs>
+
+			{/* 1. Polygons */}
+			{roiPolygons.map((poly, idx) => {
+				const pts = (poly.vertices || [])
+					.map(
+						(v) =>
+							`${(Number(v.x) || 0) * width},${(Number(v.y) || 0) * height}`,
+					)
+					.join(" ");
+				const centroid = computePolygonCentroid(poly.vertices);
+				return (
+					<g key={`poly-${idx}`}>
+						<polygon
+							points={pts}
+							className={`roi-preview-poly ${
+								isDrift ? "roi-preview-poly--drift" : "roi-preview-poly--ref"
+							}`}
+						>
+							<title>{poly.label || `Vùng ${idx + 1}`}</title>
+						</polygon>
+						{poly.vertices && poly.vertices.length >= 3 && (
+							<text
+								x={centroid.x * width}
+								y={centroid.y * height}
+								className="roi-poly-label-svg"
+							>
+								{idx + 1}. {poly.label || `Vùng ${idx + 1}`}
+							</text>
+						)}
+					</g>
+				);
+			})}
+
+			{/* 2. Entry Lines */}
+			{roiEntryLines.map((line, idx) => {
+				const orient = computeLineOrientation(
+					line.point_a || line.pointA,
+					line.point_b || line.pointB,
+					line.direction || "AB_IS_IN",
+					width,
+					height,
+				);
+				if (!orient) return null;
+
+				return (
+					<g key={`line-${idx}`}>
+						{/* Main line */}
+						<line
+							x1={orient.ax}
+							y1={orient.ay}
+							x2={orient.bx}
+							y2={orient.by}
+							stroke="#06b6d4"
+							strokeWidth={3}
+							strokeLinecap="round"
+						/>
+
+						{/* Point A */}
+						<circle
+							cx={orient.ax}
+							cy={orient.ay}
+							r={6}
+							fill="#06b6d4"
+							stroke="#ffffff"
+							strokeWidth={1.5}
+						/>
+
+						{/* Point B */}
+						<circle
+							cx={orient.bx}
+							cy={orient.by}
+							r={6}
+							fill="#0891b2"
+							stroke="#ffffff"
+							strokeWidth={1.5}
+						/>
+
+						{/* Text label in the middle */}
+						<text
+							x={orient.midX}
+							y={orient.midY - 8}
+							fill="#ffffff"
+							fontSize={12}
+							fontWeight={700}
+							textAnchor="middle"
+							filter="drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8))"
+						>
+							{line.label || `Ranh ${idx + 1}`}
+						</text>
+					</g>
+				);
+			})}
+		</svg>
+	);
 
 	return (
 		<div className="roi-config-section">
 			<div className="roi-section-header">
 				<div className="roi-section-info">
 					<p>
-						Quản lý các vùng phát hiện xâm nhập (ROI) và cấu hình quy tắc phát
-						hiện sự kiện AI.
+						Quản lý vùng giám sát an ninh (Tự động phát hiện Người lạ,
+						Người không có thẩm quyền truy cập, Ngoài giờ) và đường ranh Ra/Vào (ghi nhận Access Log).
 					</p>
 				</div>
 
@@ -136,10 +292,10 @@ export default function CameraSurveillanceTab({
 								className="btn-open-editor"
 								onClick={onEditCurrentRoi}
 								disabled={connecting || capturingSnapshot || refreshingLive}
-								title="Chỉnh sửa các polygon ROI trên ảnh tham chiếu hiện tại"
+								title="Chỉnh sửa các polygon ROI và đường ranh trên ảnh tham chiếu hiện tại"
 							>
 								<Scan size={16} />
-								<span>Sửa vùng ROI</span>
+								<span>Edit vùng ROI</span>
 							</button>
 
 							<button
@@ -180,7 +336,7 @@ export default function CameraSurveillanceTab({
 					<div className="drift-warning-content">
 						<h5>Kiểm Tra Sai Lệch Khung Hình Camera</h5>
 						<p>
-							Đối chiếu trực quan giữa <strong>Ảnh tham chiếu gốc </strong> và{" "}
+							Đối chiếu trực quan giữa <strong>Ảnh tham chiếu gốc</strong> và{" "}
 							<strong>Khung hình thực tế hiện tại</strong>. Giúp nhận biết
 							camera có bị rung lắc, xoay góc hoặc dịch chuyển vị trí thực địa
 							so với khi lắp đặt.
@@ -218,42 +374,8 @@ export default function CameraSurveillanceTab({
 									alt="Reference Snapshot"
 									className="roi-preview-img"
 								/>
-								{roiPolygons.length > 0 && (
-									<svg
-										viewBox={`0 0 ${refWidth} ${refHeight}`}
-										preserveAspectRatio="none"
-										className="roi-preview-svg"
-									>
-										{roiPolygons.map((poly, idx) => {
-											const pts = (poly.vertices || [])
-												.map(
-													(v) =>
-														`${(Number(v.x) || 0) * refWidth},${(Number(v.y) || 0) * refHeight}`,
-												)
-												.join(" ");
-											const centroid = computePolygonCentroid(poly.vertices);
-											return (
-												<g key={idx}>
-													<polygon
-														points={pts}
-														className="roi-preview-poly roi-preview-poly--ref"
-													>
-														<title>{poly.label || `Vùng ${idx + 1}`}</title>
-													</polygon>
-													{poly.vertices && poly.vertices.length >= 3 && (
-														<text
-															x={centroid.x * refWidth}
-															y={centroid.y * refHeight}
-															className="roi-poly-label-svg"
-														>
-															{idx + 1}. {poly.label || `Vùng ${idx + 1}`}
-														</text>
-													)}
-												</g>
-											);
-										})}
-									</svg>
-								)}
+								{totalRoiCount > 0 &&
+									renderRoiSvgElements(refWidth, refHeight, false)}
 							</div>
 						</div>
 
@@ -261,7 +383,9 @@ export default function CameraSurveillanceTab({
 							<span className="roi-meta-badge">
 								Độ phân giải: {refWidth}x{refHeight}
 							</span>
-							<span>{roiPolygons.length} vùng ROI đã lưu</span>
+							<span>
+								{roiPolygons.length} vùng • {roiEntryLines.length} đường ranh
+							</span>
 						</div>
 					</div>
 
@@ -281,44 +405,12 @@ export default function CameraSurveillanceTab({
 									alt="Live Snapshot"
 									className="roi-preview-img"
 								/>
-								{roiPolygons.length > 0 && (
-									<svg
-										viewBox={`0 0 ${liveSnapshot.width || 1920} ${liveSnapshot.height || 1080}`}
-										preserveAspectRatio="none"
-										className="roi-preview-svg"
-									>
-										{roiPolygons.map((poly, idx) => {
-											const sw = liveSnapshot.width || 1920;
-											const sh = liveSnapshot.height || 1080;
-											const pts = (poly.vertices || [])
-												.map(
-													(v) =>
-														`${(Number(v.x) || 0) * sw},${(Number(v.y) || 0) * sh}`,
-												)
-												.join(" ");
-											const centroid = computePolygonCentroid(poly.vertices);
-											return (
-												<g key={idx}>
-													<polygon
-														points={pts}
-														className="roi-preview-poly roi-preview-poly--drift"
-													>
-														<title>{poly.label || `Vùng ${idx + 1}`}</title>
-													</polygon>
-													{poly.vertices && poly.vertices.length >= 3 && (
-														<text
-															x={centroid.x * sw}
-															y={centroid.y * sh}
-															className="roi-poly-label-svg"
-														>
-															{idx + 1}. {poly.label || `Vùng ${idx + 1}`}
-														</text>
-													)}
-												</g>
-											);
-										})}
-									</svg>
-								)}
+								{totalRoiCount > 0 &&
+									renderRoiSvgElements(
+										liveSnapshot.width || 1920,
+										liveSnapshot.height || 1080,
+										true,
+									)}
 							</div>
 						</div>
 
@@ -348,42 +440,8 @@ export default function CameraSurveillanceTab({
 										alt="Current Reference Snapshot"
 										className="roi-preview-img"
 									/>
-									{roiPolygons.length > 0 && (
-										<svg
-											viewBox={`0 0 ${refWidth} ${refHeight}`}
-											preserveAspectRatio="none"
-											className="roi-preview-svg"
-										>
-											{roiPolygons.map((poly, idx) => {
-												const pts = (poly.vertices || [])
-													.map(
-														(v) =>
-															`${(Number(v.x) || 0) * refWidth},${(Number(v.y) || 0) * refHeight}`,
-													)
-													.join(" ");
-												const centroid = computePolygonCentroid(poly.vertices);
-												return (
-													<g key={idx}>
-														<polygon
-															points={pts}
-															className="roi-preview-poly"
-														>
-															<title>{poly.label || `Vùng ${idx + 1}`}</title>
-														</polygon>
-														{poly.vertices && poly.vertices.length >= 3 && (
-															<text
-																x={centroid.x * refWidth}
-																y={centroid.y * refHeight}
-																className="roi-poly-label-svg"
-															>
-																{idx + 1}. {poly.label || `Vùng ${idx + 1}`}
-															</text>
-														)}
-													</g>
-												);
-											})}
-										</svg>
-									)}
+									{totalRoiCount > 0 &&
+										renderRoiSvgElements(refWidth, refHeight, false)}
 								</div>
 							</div>
 							<div className="roi-preview-meta">
@@ -417,80 +475,11 @@ export default function CameraSurveillanceTab({
 							<p>
 								Camera này chưa có ảnh tham chiếu và vùng ROI. Bấm nút{" "}
 								<strong>"Chụp ảnh mới"</strong> để trích xuất khung hình từ
-								camera và bắt đầu khoanh vùng giám sát an ninh.
+								camera và bắt đầu khoanh vùng giám sát an ninh hoặc đặt đường
+								ranh ra/vào.
 							</p>
 						</div>
 					)}
-				</div>
-			)}
-
-			{/* Existing ROI Polygons Summary */}
-			{roiPolygons.length > 0 && (
-				<div className="roi-summary-section">
-					<h5
-						style={{
-							fontSize: "0.875rem",
-							fontWeight: 700,
-							marginBottom: "0.5rem",
-							color: "var(--theme-text-primary)",
-						}}
-					>
-						Vùng giám sát hiện hành ({roiPolygons.length} vùng)
-					</h5>
-					<div className="roi-summary-list">
-						{roiPolygons.map((poly, idx) => {
-							const targetId = poly.target_area_id || poly.targetAreaId;
-							const targetArea = targetId
-								? (camera?.assignedAreas || []).find((a) => a.id === targetId)
-								: null;
-							return (
-								<div
-									key={idx}
-									className="roi-summary-card"
-								>
-									<div className="roi-summary-card-header">
-										<div className="roi-summary-title">
-											<span className="roi-summary-index">{idx + 1}</span>
-											<span>{poly.label || `Vùng ${idx + 1}`}</span>
-										</div>
-										<span
-											style={{
-												fontSize: "0.75rem",
-												color: "var(--theme-text-muted)",
-											}}
-										>
-											{poly.vertices ? poly.vertices.length : 0} đỉnh
-										</span>
-									</div>
-									<div className="roi-rules-tags">
-										{targetArea && (
-											<span
-												className="roi-badge-rule"
-												style={{
-													backgroundColor: "rgba(56, 189, 248, 0.15)",
-													color: "#38bdf8",
-													borderColor: "rgba(56, 189, 248, 0.3)",
-												}}
-											>
-												📍 {targetArea.name || targetArea.code}
-											</span>
-										)}
-										{(
-											poly.alert_rules ||
-											poly.alertRules || ["ENTRY_EXIT_TRACKING"]
-										).map((rule, rIdx) => (
-											<span
-												key={rIdx}
-												className="roi-badge-rule"
-											>
-												{formatRuleBadge(rule)}
-											</span>
-										))}
-									</div>
-								</div>
-							);
-						})}
-					</div>
 				</div>
 			)}
 		</div>

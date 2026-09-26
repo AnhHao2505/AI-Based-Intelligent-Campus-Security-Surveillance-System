@@ -140,3 +140,73 @@ class FrameVisualizer:
             cv2.putText(frame, label, (x1 + 3, label_y - 2), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1)
 
         return frame
+
+    @staticmethod
+    def draw_entry_line(
+        frame: np.ndarray,
+        entry_line: Any,
+        color=(255, 255, 0),
+        thickness=2
+    ) -> np.ndarray:
+        if not entry_line:
+            return frame
+
+        h, w = frame.shape[:2]
+        pa = None
+        pb = None
+        label = ""
+        direction = "AB_IS_IN"
+
+        if hasattr(entry_line, "point_a") and hasattr(entry_line, "point_b"):
+            pa = entry_line.point_a
+            pb = entry_line.point_b
+            label = getattr(entry_line, "label", "")
+            direction = getattr(entry_line, "direction", "AB_IS_IN")
+        elif isinstance(entry_line, dict):
+            pa_dict = entry_line.get("point_a", {})
+            pb_dict = entry_line.get("point_b", {})
+            pa = Point(float(pa_dict.get("x", 0.0)), float(pa_dict.get("y", 0.0)))
+            pb = Point(float(pb_dict.get("x", 0.0)), float(pb_dict.get("y", 0.0)))
+            label = entry_line.get("label", "")
+            direction = entry_line.get("direction", "AB_IS_IN")
+
+        if not pa or not pb:
+            return frame
+
+        ax = int(pa.x * w) if 0.0 <= pa.x <= 1.0 else int(pa.x)
+        ay = int(pa.y * h) if 0.0 <= pa.y <= 1.0 else int(pa.y)
+        bx = int(pb.x * w) if 0.0 <= pb.x <= 1.0 else int(pb.x)
+        by = int(pb.y * h) if 0.0 <= pb.y <= 1.0 else int(pb.y)
+
+        cv2.line(frame, (ax, ay), (bx, by), color, thickness)
+        cv2.circle(frame, (ax, ay), 5, (0, 200, 255), -1)
+        cv2.circle(frame, (bx, by), 5, (0, 100, 255), -1)
+
+        mx, my = (ax + bx) // 2, (ay + by) // 2
+        dx, dy = bx - ax, by - ay
+        length = float(np.hypot(dx, dy))
+        if length > 5:
+            nx, ny = dy / length, -dx / length
+            if direction == "AB_IS_OUT":
+                nx, ny = -nx, -ny
+            arrow_len = 25
+            ex, ey = int(mx + nx * arrow_len), int(my + ny * arrow_len)
+            cv2.arrowedLine(frame, (mx, my), (ex, ey), (0, 255, 255), 2, tipLength=0.35)
+
+        lbl_text = f"{label} [IN]" if label else "[IN]"
+        cv2.putText(frame, lbl_text, (mx + 5, my - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+        return frame
+
+    @staticmethod
+    def draw_all_rois(
+        frame: np.ndarray,
+        polygons: Optional[List[Any]] = None,
+        entry_lines: Optional[List[Any]] = None,
+        thickness=2
+    ) -> np.ndarray:
+        if polygons:
+            frame = FrameVisualizer.draw_multiple_rois(frame, polygons, thickness=thickness)
+        if entry_lines:
+            for line in entry_lines:
+                frame = FrameVisualizer.draw_entry_line(frame, line, thickness=thickness)
+        return frame

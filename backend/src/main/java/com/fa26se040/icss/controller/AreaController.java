@@ -1,16 +1,8 @@
 package com.fa26se040.icss.controller;
 
 import com.fa26se040.icss.dto.accessrequest.AreaSimpleResponse;
-import com.fa26se040.icss.dto.area.AreaAccessRulesUpdateRequest;
-import com.fa26se040.icss.dto.area.AreaCameraResponse;
-import com.fa26se040.icss.dto.area.AreaCameraUpdateRequest;
-import com.fa26se040.icss.dto.area.AreaCreateRequest;
-import com.fa26se040.icss.dto.area.AreaDependencyResponse;
-import com.fa26se040.icss.dto.area.AreaGeometry;
-import com.fa26se040.icss.dto.area.AreaGeometryResponse;
-import com.fa26se040.icss.dto.area.AreaListItemResponse;
-import com.fa26se040.icss.dto.area.AreaResponse;
-import com.fa26se040.icss.dto.area.AreaUpdateRequest;
+import com.fa26se040.icss.dto.area.*;
+import com.fa26se040.icss.dto.common.ApiResponse;
 import com.fa26se040.icss.enums.AreaLevel;
 import com.fa26se040.icss.service.AreaService;
 import jakarta.validation.Valid;
@@ -22,16 +14,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
 import java.util.List;
@@ -46,13 +29,13 @@ public class AreaController {
 
     @GetMapping("/available-for-request")
     @PreAuthorize("hasAnyRole('NORMAL_USER', 'FACILITY_MANAGER', 'ADMIN')")
-    public ResponseEntity<List<AreaSimpleResponse>> getAvailableAreasForRequest() {
-        return ResponseEntity.ok(areaService.getAvailableAreasForRequest());
+    public ResponseEntity<ApiResponse<List<AreaSimpleResponse>>> getAvailableAreasForRequest() {
+        return ResponseEntity.ok(ApiResponse.success(areaService.getAvailableAreasForRequest(), "Lấy danh sách khu vực khả dụng thành công"));
     }
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
-    public ResponseEntity<Page<AreaListItemResponse>> getAreas(
+    public ResponseEntity<ApiResponse<Page<AreaListItemResponse>>> getAreas(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) AreaLevel areaLevel,
             @RequestParam(required = false) String building,
@@ -77,110 +60,111 @@ public class AreaController {
         Sort sortOrder = Sort.by(direction, sortProperty);
         Pageable pageable = PageRequest.of(page, cappedSize, sortOrder);
         Page<AreaListItemResponse> result = areaService.getAreas(keyword, areaLevel, building, isActive, pageable);
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(ApiResponse.success(result, "Lấy danh sách khu vực thành công"));
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
-    public ResponseEntity<AreaResponse> getAreaById(@PathVariable UUID id) {
-        return ResponseEntity.ok(areaService.getAreaById(id));
+    public ResponseEntity<ApiResponse<AreaResponse>> getAreaById(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.success(areaService.getAreaById(id), "Lấy chi tiết khu vực thành công"));
     }
 
     @GetMapping("/{id}/dependencies")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<AreaDependencyResponse> getDependencies(@PathVariable UUID id) {
-        return ResponseEntity.ok(areaService.getDependencies(id));
+    public ResponseEntity<ApiResponse<AreaDependencyResponse>> getDependencies(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.success(areaService.getDependencies(id), "Kiểm tra ràng buộc khu vực thành công"));
     }
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<AreaResponse> create(
+    public ResponseEntity<ApiResponse<AreaResponse>> create(
             @Valid @RequestBody AreaCreateRequest request,
             Authentication authentication
     ) {
         String actorEmail = authentication.getName();
         AreaResponse response = areaService.create(request, actorEmail);
         URI location = URI.create("/api/areas/" + response.id());
-        return ResponseEntity.created(location).body(response);
+        return ResponseEntity.created(location).body(ApiResponse.created(response, "Tạo mới khu vực thành công"));
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<AreaResponse> update(
+    public ResponseEntity<ApiResponse<AreaResponse>> update(
             @PathVariable UUID id,
             @Valid @RequestBody AreaUpdateRequest request,
             Authentication authentication
     ) {
         String actorEmail = authentication.getName();
         AreaResponse response = areaService.update(id, request, actorEmail);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(ApiResponse.success(response, "Cập nhật khu vực thành công"));
     }
 
     @GetMapping("/geometries")
     @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
-    public ResponseEntity<List<AreaGeometryResponse>> getGeometries(
+    public ResponseEntity<ApiResponse<List<AreaGeometryResponse>>> getGeometries(
             @RequestParam String building,
             @RequestParam String floor
     ) {
-        return ResponseEntity.ok(areaService.getGeometriesByBuildingAndFloor(building, floor));
+        return ResponseEntity.ok(ApiResponse.success(areaService.getGeometriesByBuildingAndFloor(building, floor), "Lấy danh sách hình học khu vực thành công"));
     }
 
     @PatchMapping("/{id}/geometry")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<AreaGeometryResponse> saveGeometry(
+    public ResponseEntity<ApiResponse<AreaGeometryResponse>> saveGeometry(
             @PathVariable UUID id,
             @RequestBody AreaGeometry geometry,
             Authentication authentication
     ) {
         String actorEmail = authentication.getName();
-        return ResponseEntity.ok(areaService.saveGeometry(id, geometry, actorEmail));
+        return ResponseEntity.ok(ApiResponse.success(areaService.saveGeometry(id, geometry, actorEmail), "Lưu hình học khu vực thành công"));
     }
 
     @DeleteMapping("/{id}/geometry")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Void> deleteGeometry(
+    public ResponseEntity<ApiResponse<Void>> deleteGeometry(
             @PathVariable UUID id,
             Authentication authentication
     ) {
         String actorEmail = authentication.getName();
         areaService.deleteGeometry(id, actorEmail);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(ApiResponse.success("Xóa hình học khu vực thành công"));
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Void> deactivate(
+    public ResponseEntity<ApiResponse<Void>> deactivate(
             @PathVariable UUID id,
             Authentication authentication
     ) {
         String actorEmail = authentication.getName();
         areaService.deactivate(id, actorEmail);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(ApiResponse.success("Vô hiệu hóa khu vực thành công"));
     }
 
     @GetMapping("/{id}/cameras")
     @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER', 'GUARD')")
-    public ResponseEntity<AreaCameraResponse> getCameras(@PathVariable UUID id) {
-        return ResponseEntity.ok(areaService.getCamerasForArea(id));
+    public ResponseEntity<ApiResponse<AreaCameraResponse>> getCameras(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.success(areaService.getCamerasForArea(id), "Lấy danh sách camera của khu vực thành công"));
     }
 
     @PutMapping("/{id}/cameras")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<AreaCameraResponse> updateCameras(
+    public ResponseEntity<ApiResponse<AreaCameraResponse>> updateCameras(
             @PathVariable UUID id,
             @RequestBody AreaCameraUpdateRequest request
     ) {
-        return ResponseEntity.ok(areaService.updateCamerasForArea(id, request.getCameraIds()));
+        return ResponseEntity.ok(ApiResponse.success(areaService.updateCamerasForArea(id, request.getCameraIds()), "Cập nhật danh sách camera cho khu vực thành công"));
     }
 
     @PatchMapping("/{id}/access-rules")
     @PreAuthorize("hasRole('FACILITY_MANAGER')")
-    public ResponseEntity<AreaResponse> updateAccessRules(
+    public ResponseEntity<ApiResponse<AreaResponse>> updateAccessRules(
             @PathVariable UUID id,
             @Valid @RequestBody AreaAccessRulesUpdateRequest request,
             Authentication authentication
     ) {
         String actorEmail = authentication != null ? authentication.getName() : null;
-        return ResponseEntity.ok(areaService.updateAccessRules(id, request, actorEmail));
+        return ResponseEntity.ok(ApiResponse.success(areaService.updateAccessRules(id, request, actorEmail), "Cập nhật quy tắc truy cập thành công"));
     }
 }
+

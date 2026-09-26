@@ -12,6 +12,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -91,12 +92,7 @@ public class Area {
     @Column(name = "deleted_at")
     private OffsetDateTime deletedAt;
 
-    @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(
-        name = "area_cameras",
-        joinColumns = @JoinColumn(name = "area_id"),
-        inverseJoinColumns = @JoinColumn(name = "camera_id")
-    )
+    @OneToMany(mappedBy = "area", fetch = FetchType.LAZY)
     @Builder.Default
     private Set<Camera> cameras = new HashSet<>();
 

@@ -1,5 +1,6 @@
 package com.fa26se040.icss.controller;
 
+import com.fa26se040.icss.dto.common.ApiResponse;
 import com.fa26se040.icss.dto.guard.GenerateShiftsRequest;
 import com.fa26se040.icss.dto.guard.GenerateShiftsResponse;
 import com.fa26se040.icss.dto.guard.GuardScheduleTemplateCreateRequest;
@@ -26,44 +27,44 @@ public class GuardScheduleController {
     private final GuardScheduleService guardScheduleService;
 
     @GetMapping("/templates")
-    public ResponseEntity<List<GuardScheduleTemplateDto>> getTemplates(
+    public ResponseEntity<ApiResponse<List<GuardScheduleTemplateDto>>> getTemplates(
             @RequestParam(required = false) String building
     ) {
         log.info("Admin fetching guard schedule templates, building: {}", building);
-        return ResponseEntity.ok(guardScheduleService.getTemplates(building));
+        return ResponseEntity.ok(ApiResponse.success(guardScheduleService.getTemplates(building), "Lấy danh sách mẫu ca trực thành công"));
     }
 
     @PostMapping("/templates")
-    public ResponseEntity<GuardScheduleTemplateDto> createTemplate(
+    public ResponseEntity<ApiResponse<GuardScheduleTemplateDto>> createTemplate(
             @Valid @RequestBody GuardScheduleTemplateCreateRequest request
     ) {
         log.info("Admin creating guard schedule template for guard [{}]", request.getGuardId());
         GuardScheduleTemplateDto created = guardScheduleService.createTemplate(request);
-        return new ResponseEntity<>(created, HttpStatus.CREATED);
+        return new ResponseEntity<>(ApiResponse.created(created, "Tạo mẫu ca trực thành công"), HttpStatus.CREATED);
     }
 
     @PutMapping("/templates/{id}")
-    public ResponseEntity<GuardScheduleTemplateDto> updateTemplate(
+    public ResponseEntity<ApiResponse<GuardScheduleTemplateDto>> updateTemplate(
             @PathVariable UUID id,
             @Valid @RequestBody GuardScheduleTemplateCreateRequest request
     ) {
         log.info("Admin updating guard schedule template [{}]", id);
-        return ResponseEntity.ok(guardScheduleService.updateTemplate(id, request));
+        return ResponseEntity.ok(ApiResponse.success(guardScheduleService.updateTemplate(id, request), "Cập nhật mẫu ca trực thành công"));
     }
 
     @DeleteMapping("/templates/{id}")
-    public ResponseEntity<Void> deleteTemplate(@PathVariable UUID id) {
+    public ResponseEntity<ApiResponse<Void>> deleteTemplate(@PathVariable UUID id) {
         log.info("Admin deleting guard schedule template [{}]", id);
         guardScheduleService.deleteTemplate(id);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(ApiResponse.success("Xóa mẫu ca trực thành công"));
     }
 
     @PostMapping("/generate")
-    public ResponseEntity<GenerateShiftsResponse> generateShifts(
+    public ResponseEntity<ApiResponse<GenerateShiftsResponse>> generateShifts(
             @Valid @RequestBody GenerateShiftsRequest request
     ) {
         log.info("Admin generating shifts from [{}] to [{}] for building [{}]",
                 request.getStartDate(), request.getEndDate(), request.getBuilding());
-        return ResponseEntity.ok(guardScheduleService.generateShifts(request));
+        return ResponseEntity.ok(ApiResponse.success(guardScheduleService.generateShifts(request), "Tạo ca trực từ mẫu thành công"));
     }
 }

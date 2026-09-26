@@ -6,6 +6,8 @@ import com.fa26se040.icss.entity.Camera;
 import com.fa26se040.icss.enums.AreaLevel;
 import com.fa26se040.icss.enums.CameraStatus;
 import com.fa26se040.icss.enums.OperationalStatus;
+import com.fa26se040.icss.exception.AreaErrorCode;
+import com.fa26se040.icss.exception.AreaException;
 import com.fa26se040.icss.exception.CameraErrorCode;
 import com.fa26se040.icss.exception.CameraException;
 import com.fa26se040.icss.repository.AreaRepository;
@@ -19,7 +21,13 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -61,12 +69,13 @@ class AreaCameraMappingTest {
                 .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
                 .building("Tòa Alpha")
                 .floor("Tầng 2")
+                .isActive(true)
                 .cameras(new HashSet<>())
                 .build();
     }
 
     @Test
-    @DisplayName("UpdateCamerasForArea: should assign active cameras successfully")
+    @DisplayName("UpdateCamerasForArea: should assign active cameras successfully (1:N)")
     void testUpdateCamerasForAreaSuccess() {
         UUID camId1 = UUID.randomUUID();
         Camera cam1 = Camera.builder()
@@ -79,7 +88,9 @@ class AreaCameraMappingTest {
 
         when(areaRepository.findByIdAndDeletedAtIsNull(testAreaId)).thenReturn(Optional.of(testArea));
         when(cameraRepository.findAllById(List.of(camId1))).thenReturn(List.of(cam1));
-        when(areaRepository.save(any(Area.class))).thenAnswer(i -> i.getArgument(0));
+        when(cameraRepository.findByAreaIdAndDeletedAtIsNull(testAreaId))
+                .thenReturn(Collections.emptyList()) // initially none
+                .thenReturn(List.of(cam1)); // after assignment
 
         AreaCameraResponse resp = areaService.updateCamerasForArea(testAreaId, List.of(camId1));
 
@@ -88,6 +99,21 @@ class AreaCameraMappingTest {
         assertEquals("Phòng Lab AI", resp.getAreaName());
         assertEquals(1, resp.getCameras().size());
         assertEquals("CAM-001", resp.getCameras().get(0).getCameraCode());
+        assertEquals(testArea, cam1.getArea());
+        verify(cameraRepository).saveAll(any());
+    }
+
+    @Test
+    @DisplayName("UpdateCamerasForArea: should throw ERR_AREA_017 if area is inactive (BR-CAM-02)")
+    void testUpdateCamerasForAreaInactiveArea() {
+        testArea.setIsActive(false);
+        when(areaRepository.findByIdAndDeletedAtIsNull(testAreaId)).thenReturn(Optional.of(testArea));
+
+        AreaException ex = assertThrows(AreaException.class,
+                () -> areaService.updateCamerasForArea(testAreaId, List.of(UUID.randomUUID())));
+
+        assertEquals(AreaErrorCode.ERR_AREA_017, ex.getErrorCode());
+        verify(cameraRepository, never()).saveAll(any());
     }
 
     @Test
@@ -97,7 +123,6 @@ class AreaCameraMappingTest {
         UUID camId2 = UUID.randomUUID();
 
         when(areaRepository.findByIdAndDeletedAtIsNull(testAreaId)).thenReturn(Optional.of(testArea));
-        // Only one camera found out of two
         when(cameraRepository.findAllById(List.of(camId1, camId2))).thenReturn(List.of(
                 Camera.builder().id(camId1).status(CameraStatus.ACTIVE).build()
         ));
@@ -106,11 +131,11 @@ class AreaCameraMappingTest {
                 () -> areaService.updateCamerasForArea(testAreaId, List.of(camId1, camId2)));
 
         assertEquals(CameraErrorCode.ERR_CAM_002, ex.getErrorCode());
-        verify(areaRepository, never()).save(any());
+        verify(cameraRepository, never()).saveAll(any());
     }
 
     @Test
-    @DisplayName("UpdateCamerasForArea: should throw ERR_MAP_002 if attempting to assign DECOMMISSIONED camera")
+    @DisplayName("UpdateCamerasForArea: should throw ERR_MAP_002 if attempting to assign DECOMMISSIONED camera (BR-CAM-03)")
     void testUpdateCamerasForAreaDecommissionedCamera() {
         UUID camId1 = UUID.randomUUID();
         Camera decommCam = Camera.builder()
@@ -127,20 +152,28 @@ class AreaCameraMappingTest {
                 () -> areaService.updateCamerasForArea(testAreaId, List.of(camId1)));
 
         assertEquals(CameraErrorCode.ERR_MAP_002, ex.getErrorCode());
-        verify(areaRepository, never()).save(any());
+        verify(cameraRepository, never()).saveAll(any());
     }
 
     @Test
-    @DisplayName("UpdateCamerasForArea: empty list should clear all assigned cameras")
+    @DisplayName("UpdateCamerasForArea: empty list should clear all assigned cameras (BR-CAM-04)")
     void testUpdateCamerasForAreaClearCameras() {
-        testArea.getCameras().add(Camera.builder().id(UUID.randomUUID()).status(CameraStatus.ACTIVE).build());
+        Camera existingCam = Camera.builder()
+                .id(UUID.randomUUID())
+                .status(CameraStatus.ACTIVE)
+                .area(testArea)
+                .build();
 
         when(areaRepository.findByIdAndDeletedAtIsNull(testAreaId)).thenReturn(Optional.of(testArea));
-        when(areaRepository.save(any(Area.class))).thenAnswer(i -> i.getArgument(0));
+        when(cameraRepository.findByAreaIdAndDeletedAtIsNull(testAreaId))
+                .thenReturn(List.of(existingCam)) // currently assigned
+                .thenReturn(Collections.emptyList()); // after unassignment
 
         AreaCameraResponse resp = areaService.updateCamerasForArea(testAreaId, Collections.emptyList());
 
         assertNotNull(resp);
         assertTrue(resp.getCameras().isEmpty());
+        assertNull(existingCam.getArea()); // Unassigned
+        verify(cameraRepository).saveAll(List.of(existingCam));
     }
 }
