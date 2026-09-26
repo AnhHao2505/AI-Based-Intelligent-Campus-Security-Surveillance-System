@@ -45,6 +45,8 @@ public interface AreaRepository extends JpaRepository<Area, UUID> {
     @Query("SELECT a FROM Area a WHERE a.deletedAt IS NULL AND a.areaLevel IN :levels ORDER BY a.building ASC, a.floor ASC, a.name ASC")
     java.util.List<Area> findAvailableForRequest(@Param("levels") Collection<AreaLevel> levels);
 
+    java.util.List<Area> findByOpenToMembersTrueAndOpenUntilAfterAndDeletedAtIsNull(java.time.OffsetDateTime now);
+
     @Query(
         value = """
             SELECT a FROM Area a

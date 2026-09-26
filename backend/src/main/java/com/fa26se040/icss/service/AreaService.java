@@ -56,6 +56,9 @@ public class AreaService {
     private final AreaDependencyChecker dependencyChecker;
     private final AreaGeometryValidator geometryValidator;
     private final AccessControlAuditService auditService;
+    private final com.fa26se040.icss.repository.ReasonCatalogRepository reasonCatalogRepository;
+    private final com.fa26se040.icss.repository.AreaEventSessionRepository eventSessionRepository;
+    private final SystemConfigService systemConfigService;
 
     private java.util.Map<AreaLevel, AreaLevelPreset> loadPresetMap() {
         return areaLevelPresetRepository.findAll().stream()
@@ -449,11 +452,85 @@ public class AreaService {
         return mapToAreaResponse(savedArea, computeDiffersFromPreset(savedArea, presetMap));
     }
 
+    public int getEventModeMaxHours() {
+        int val = systemConfigService.getInt(com.fa26se040.icss.enums.ConfigKey.EVENT_MODE_MAX_HOURS);
+        if (val < 1 || val > 72) {
+            log.warn("Config EVENT_MODE_MAX_HOURS value [{}] out of range [1-72]. Using default: 12", val);
+            return 12;
+        }
+        return val;
+    }
+
+    public int getEventModeWindowDays() {
+        int val = systemConfigService.getInt(com.fa26se040.icss.enums.ConfigKey.EVENT_MODE_WINDOW_DAYS);
+        if (val < 1 || val > 30) {
+            log.warn("Config EVENT_MODE_WINDOW_DAYS value [{}] out of range [1-30]. Using default: 7", val);
+            return 7;
+        }
+        return val;
+    }
+
+    public int getEventModeBudgetHours() {
+        int val = systemConfigService.getInt(com.fa26se040.icss.enums.ConfigKey.EVENT_MODE_BUDGET_HOURS);
+        if (val < 1 || val > 720) {
+            log.warn("Config EVENT_MODE_BUDGET_HOURS value [{}] out of range [1-720]. Using default: 48", val);
+            return 48;
+        }
+        return val;
+    }
+
+    public double calculateUsedHoursInWindow(UUID areaId, OffsetDateTime windowStart, OffsetDateTime windowEnd) {
+        List<com.fa26se040.icss.entity.AreaEventSession> sessions = eventSessionRepository.findSessionsInWindow(areaId, windowStart, windowEnd);
+        double used = 0.0;
+        for (com.fa26se040.icss.entity.AreaEventSession s : sessions) {
+            OffsetDateTime sStart = s.getStartedAt();
+            OffsetDateTime sEnd = s.getActualEnd() != null ? s.getActualEnd() : s.getPlannedEnd();
+            if (sEnd != null && sEnd.isAfter(sStart)) {
+                OffsetDateTime overlapStart = sStart.isAfter(windowStart) ? sStart : windowStart;
+                OffsetDateTime overlapEnd = sEnd.isBefore(windowEnd) ? sEnd : windowEnd;
+                if (overlapEnd.isAfter(overlapStart)) {
+                    long minutes = java.time.Duration.between(overlapStart, overlapEnd).toMinutes();
+                    used += minutes / 60.0;
+                }
+            }
+        }
+        return used;
+    }
+
+    public java.util.List<Area> findAreasViolatingNewEventLimits(int newMaxHours, int newWindowDays, int newBudgetHours) {
+        OffsetDateTime now = OffsetDateTime.now();
+        List<Area> activeAreas = areaRepository.findByOpenToMembersTrueAndOpenUntilAfterAndDeletedAtIsNull(now);
+        List<Area> violating = new java.util.ArrayList<>();
+
+        for (Area area : activeAreas) {
+            OffsetDateTime openUntil = area.getOpenUntil();
+            if (openUntil == null || !openUntil.isAfter(now)) {
+                continue;
+            }
+
+            if (openUntil.isAfter(now.plusHours(newMaxHours))) {
+                violating.add(area);
+                continue;
+            }
+
+            OffsetDateTime windowStart = openUntil.minusDays(newWindowDays);
+            OffsetDateTime windowEnd = openUntil;
+            double used = calculateUsedHoursInWindow(area.getId(), windowStart, windowEnd);
+            double requested = java.time.Duration.between(now, openUntil).toMinutes() / 60.0;
+
+            if (used + requested > newBudgetHours + 1e-4) {
+                violating.add(area);
+            }
+        }
+        return violating;
+    }
+
     @Transactional
     public AreaResponse updateEventMode(UUID id, AreaEventModeUpdateRequest req, String actorEmail) {
-        log.info("Updating event mode for area {}: enabled={}, openUntil={}", id, req != null ? req.enabled() : null, req != null ? req.openUntil() : null);
+        log.info("Updating event mode for area {}: enabled={}, openUntil={}, reasonCode={}",
+                id, req != null ? req.enabled() : null, req != null ? req.openUntil() : null, req != null ? req.reasonCode() : null);
 
-        if (req == null || req.reason() == null || req.reason().trim().isEmpty()) {
+        if (req == null) {
             throw new AreaException(AreaErrorCode.ERR_AREA_024);
         }
 
@@ -472,14 +549,28 @@ public class AreaService {
         boolean targetEnabled = Boolean.TRUE.equals(req.enabled());
         OffsetDateTime targetOpenUntil = targetEnabled ? req.openUntil() : null;
 
-        if (targetEnabled) {
-            if (targetOpenUntil == null || !targetOpenUntil.isAfter(OffsetDateTime.now())) {
-                throw new AreaException(AreaErrorCode.ERR_AREA_023);
-            }
-        }
-
         boolean oldEnabled = Boolean.TRUE.equals(area.getOpenToMembers());
         OffsetDateTime oldOpenUntil = area.getOpenUntil();
+        OffsetDateTime now = OffsetDateTime.now();
+
+        if (targetEnabled && (targetOpenUntil == null || !targetOpenUntil.isAfter(now))) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_023);
+        }
+
+        String rawNote = req.note();
+        if (rawNote == null || rawNote.trim().isEmpty()) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_024);
+        }
+        String trimmedNote = rawNote.trim();
+        if (trimmedNote.length() < 10 || trimmedNote.length() > 500) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_024);
+        }
+
+        String rawReasonCode = req.reasonCode();
+        if (rawReasonCode == null || rawReasonCode.trim().isEmpty()) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_024);
+        }
+        String normReasonCode = rawReasonCode.trim().toUpperCase();
 
         boolean unchanged;
         if (targetEnabled) {
@@ -492,41 +583,117 @@ public class AreaService {
         java.util.Map<AreaLevel, AreaLevelPreset> presetMap = loadPresetMap();
 
         if (unchanged) {
-            log.info("Area {} event mode unchanged, skipping audit log", id);
+            log.info("Area {} event mode unchanged, skipping audit log and DB update", id);
             return mapToAreaResponse(area, computeDiffersFromPreset(area, presetMap));
+        }
+
+        String expectedActionType;
+        com.fa26se040.icss.enums.AccessControlAction action;
+        if (!oldEnabled && targetEnabled) {
+            expectedActionType = "EVENT_ENABLE";
+            action = com.fa26se040.icss.enums.AccessControlAction.ENABLE_EVENT_MODE;
+        } else if (oldEnabled && !targetEnabled) {
+            expectedActionType = "EVENT_DISABLE";
+            action = com.fa26se040.icss.enums.AccessControlAction.DISABLE_EVENT_MODE;
+        } else {
+            expectedActionType = "EVENT_EXTEND";
+            action = com.fa26se040.icss.enums.AccessControlAction.EXTEND_EVENT_MODE;
+        }
+
+        com.fa26se040.icss.entity.ReasonCatalog reasonItem = reasonCatalogRepository.findByCode(normReasonCode)
+                .orElse(null);
+        if (reasonItem == null || !Boolean.TRUE.equals(reasonItem.getIsActive())) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_025);
+        }
+        if (!expectedActionType.equalsIgnoreCase(reasonItem.getActionType())) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_026);
+        }
+        String reasonLabel = reasonItem.getLabel();
+
+        List<com.fa26se040.icss.entity.AreaEventSession> expiredSessions =
+                eventSessionRepository.findByAreaIdAndActualEndIsNullAndPlannedEndLessThanEqual(id, now);
+        for (com.fa26se040.icss.entity.AreaEventSession exp : expiredSessions) {
+            exp.setActualEnd(exp.getPlannedEnd());
+            eventSessionRepository.save(exp);
+        }
+
+        User actor = userRepository.findByEmail(actorEmail)
+                .orElseThrow(() -> new UnauthorizedException("Phiên đăng nhập không hợp lệ"));
+
+        if (targetEnabled) {
+            int maxHours = getEventModeMaxHours();
+            int windowDays = getEventModeWindowDays();
+            int budgetHours = getEventModeBudgetHours();
+
+            if (targetOpenUntil.isAfter(now.plusHours(maxHours))) {
+                throw new AreaException(AreaErrorCode.ERR_AREA_027,
+                        "Thời gian mở sự kiện vượt quá giới hạn tối đa cho một phiên (" + maxHours + " giờ)");
+            }
+
+            if (expectedActionType.equals("EVENT_EXTEND")) {
+                com.fa26se040.icss.entity.AreaEventSession currentSession =
+                        eventSessionRepository.findByAreaIdAndActualEndIsNull(id).orElse(null);
+                if (currentSession != null) {
+                    currentSession.setActualEnd(now);
+                    currentSession.setEndedBy(actor);
+                    eventSessionRepository.save(currentSession);
+                }
+            }
+
+            OffsetDateTime windowStart = targetOpenUntil.minusDays(windowDays);
+            OffsetDateTime windowEnd = targetOpenUntil;
+            double usedHours = calculateUsedHoursInWindow(id, windowStart, windowEnd);
+            double requestedHours = java.time.Duration.between(now, targetOpenUntil).toMinutes() / 60.0;
+
+            if (usedHours + requestedHours > budgetHours + 1e-4) {
+                double remainingHours = Math.max(0.0, budgetHours - usedHours);
+                String msg = String.format(java.util.Locale.US,
+                        "Vượt quá ngân sách thời gian mở sự kiện của khu vực. Đã dùng: %.1f giờ trong %d ngày gần nhất, còn lại: %.1f giờ, yêu cầu: %.1f giờ (ngân sách: %d giờ / %d ngày).",
+                        usedHours, windowDays, remainingHours, requestedHours, budgetHours, windowDays);
+                throw new AreaException(AreaErrorCode.ERR_AREA_028, msg);
+            }
+
+            com.fa26se040.icss.entity.AreaEventSession newSession = com.fa26se040.icss.entity.AreaEventSession.builder()
+                    .area(area)
+                    .startedAt(now)
+                    .plannedEnd(targetOpenUntil)
+                    .actualEnd(null)
+                    .startedBy(actor)
+                    .createdAt(now)
+                    .build();
+            eventSessionRepository.save(newSession);
+        } else {
+            com.fa26se040.icss.entity.AreaEventSession currentSession =
+                    eventSessionRepository.findByAreaIdAndActualEndIsNull(id).orElse(null);
+            if (currentSession != null) {
+                currentSession.setActualEnd(now);
+                currentSession.setEndedBy(actor);
+                eventSessionRepository.save(currentSession);
+            }
         }
 
         area.setOpenToMembers(targetEnabled);
         area.setOpenUntil(targetOpenUntil);
-        area.setUpdatedAt(OffsetDateTime.now());
+        area.setUpdatedAt(now);
 
         Area savedArea = areaRepository.save(area);
 
-        if (actorEmail != null) {
-            User actor = userRepository.findByEmail(actorEmail)
-                    .orElseThrow(() -> new UnauthorizedException("Phiên đăng nhập không hợp lệ"));
+        com.fa26se040.icss.dto.accesscontrol.snapshot.AreaEventModeAuditSnapshot oldSnapshot =
+                new com.fa26se040.icss.dto.accesscontrol.snapshot.AreaEventModeAuditSnapshot(oldEnabled, oldOpenUntil, null, null, null);
+        com.fa26se040.icss.dto.accesscontrol.snapshot.AreaEventModeAuditSnapshot newSnapshot =
+                new com.fa26se040.icss.dto.accesscontrol.snapshot.AreaEventModeAuditSnapshot(targetEnabled, targetOpenUntil, normReasonCode, reasonLabel, trimmedNote);
 
-            AreaEventModeAuditSnapshot oldSnapshot =
-                    new AreaEventModeAuditSnapshot(oldEnabled, oldOpenUntil);
-            AreaEventModeAuditSnapshot newSnapshot =
-                    new AreaEventModeAuditSnapshot(targetEnabled, targetOpenUntil);
-
-            com.fa26se040.icss.enums.AccessControlAction action = targetEnabled
-                    ? com.fa26se040.icss.enums.AccessControlAction.ENABLE_EVENT_MODE
-                    : com.fa26se040.icss.enums.AccessControlAction.DISABLE_EVENT_MODE;
-
-            auditService.record(
-                    com.fa26se040.icss.enums.AccessControlTargetType.AREA_ACCESS_RULES,
-                    action,
-                    savedArea.getId().toString(),
-                    savedArea,
-                    null,
-                    oldSnapshot,
-                    newSnapshot,
-                    req.reason().trim(),
-                    actor
-            );
-        }
+        auditService.record(
+                com.fa26se040.icss.enums.AccessControlTargetType.AREA_EVENT_MODE,
+                action,
+                savedArea.getId().toString(),
+                savedArea,
+                null,
+                oldSnapshot,
+                newSnapshot,
+                trimmedNote,
+                actor
+        );
 
         return mapToAreaResponse(savedArea, computeDiffersFromPreset(savedArea, presetMap));
     }

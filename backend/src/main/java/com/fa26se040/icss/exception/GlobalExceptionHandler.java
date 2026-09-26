@@ -40,7 +40,9 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(AreaException.class)
     public ResponseEntity<Map<String, Object>> handleAreaException(AreaException ex) {
-        String message = ex.getErrorCode().getMessageTemplate();
+        String message = (ex.getMessage() != null && !ex.getMessage().isBlank())
+                ? ex.getMessage()
+                : ex.getErrorCode().getMessageTemplate();
         if (ex.getArgs() != null && ex.getArgs().length > 0 && message.contains("{n}")) {
             message = message.replace("{n}", String.valueOf(ex.getArgs()[0]));
         }

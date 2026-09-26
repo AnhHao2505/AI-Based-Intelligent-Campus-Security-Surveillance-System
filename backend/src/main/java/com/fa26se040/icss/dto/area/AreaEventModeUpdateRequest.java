@@ -5,5 +5,10 @@ import java.time.OffsetDateTime;
 public record AreaEventModeUpdateRequest(
         Boolean enabled,
         OffsetDateTime openUntil,
-        String reason
-) {}
+        String reasonCode,
+        String note
+) {
+    public AreaEventModeUpdateRequest(Boolean enabled, OffsetDateTime openUntil, String reason) {
+        this(enabled, openUntil, null, reason);
+    }
+}
