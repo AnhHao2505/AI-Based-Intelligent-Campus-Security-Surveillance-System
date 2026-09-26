@@ -109,8 +109,8 @@ class AreaAssignedPersonnelControllerTest {
         mockMvc.perform(get("/api/areas/{areaId}/assigned-personnel", areaId)
                         .param("status", "ACTIVE"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value(recordId.toString()))
-                .andExpect(jsonPath("$[0].status").value("ACTIVE"));
+                .andExpect(jsonPath("$.data[0].id").value(recordId.toString()))
+                .andExpect(jsonPath("$.data[0].status").value("ACTIVE"));
     }
 
     @Test
@@ -131,7 +131,7 @@ class AreaAssignedPersonnelControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.id").value(recordId.toString()));
+                .andExpect(jsonPath("$.data.id").value(recordId.toString()));
     }
 
     @Test
@@ -166,7 +166,7 @@ class AreaAssignedPersonnelControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(recordId.toString()));
+                .andExpect(jsonPath("$.data.id").value(recordId.toString()));
     }
 
     @Test

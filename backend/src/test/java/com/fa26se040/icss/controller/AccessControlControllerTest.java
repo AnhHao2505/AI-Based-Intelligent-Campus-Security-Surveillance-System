@@ -72,9 +72,9 @@ class AccessControlControllerTest {
 
         mockMvc.perform(get("/api/access-control/level-presets"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(2))
-                .andExpect(jsonPath("$[0].areaLevel").value("PUBLIC"))
-                .andExpect(jsonPath("$[1].areaLevel").value("HIGHLY_CONFIDENTIAL"));
+                .andExpect(jsonPath("$.data.length()").value(2))
+                .andExpect(jsonPath("$.data[0].areaLevel").value("PUBLIC"))
+                .andExpect(jsonPath("$.data[1].areaLevel").value("HIGHLY_CONFIDENTIAL"));
     }
 
     @Test
@@ -89,8 +89,8 @@ class AccessControlControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.areaAccessLevel").value(2))
-                .andExpect(jsonPath("$.explicitAuthorizationRequired").value(true));
+                .andExpect(jsonPath("$.data.areaAccessLevel").value(2))
+                .andExpect(jsonPath("$.data.explicitAuthorizationRequired").value(true));
     }
 
     @Test
@@ -185,7 +185,7 @@ class AccessControlControllerTest {
         mockMvc.perform(get("/api/access-control/audit-logs")
                         .param("targetType", "USER_ACCESS_LEVEL"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content.length()").value(1))
-                .andExpect(jsonPath("$.content[0].targetType").value("USER_ACCESS_LEVEL"));
+                .andExpect(jsonPath("$.data.content.length()").value(1))
+                .andExpect(jsonPath("$.data.content[0].targetType").value("USER_ACCESS_LEVEL"));
     }
 }

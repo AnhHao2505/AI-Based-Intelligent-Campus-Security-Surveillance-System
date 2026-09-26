@@ -158,7 +158,7 @@ class AreaControllerAccessLevelTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.areaAccessLevel").value(2))
-                .andExpect(jsonPath("$.explicitAuthorizationRequired").value(false));
+                .andExpect(jsonPath("$.data.areaAccessLevel").value(2))
+                .andExpect(jsonPath("$.data.explicitAuthorizationRequired").value(false));
     }
 }
