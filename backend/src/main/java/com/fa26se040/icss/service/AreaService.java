@@ -18,6 +18,8 @@ import com.fa26se040.icss.exception.CameraErrorCode;
 import com.fa26se040.icss.exception.CameraException;
 import com.fa26se040.icss.exception.UnauthorizedException;
 import com.fa26se040.icss.dto.area.AreaAccessRulesUpdateRequest;
+import com.fa26se040.icss.dto.area.AreaEventModeUpdateRequest;
+import com.fa26se040.icss.dto.accesscontrol.snapshot.AreaEventModeAuditSnapshot;
 import com.fa26se040.icss.dto.area.AreaCameraResponse;
 import com.fa26se040.icss.dto.camera.CameraSimpleResponse;
 import com.fa26se040.icss.entity.AreaLevelPreset;
@@ -447,11 +449,96 @@ public class AreaService {
         return mapToAreaResponse(savedArea, computeDiffersFromPreset(savedArea, presetMap));
     }
 
+    @Transactional
+    public AreaResponse updateEventMode(UUID id, AreaEventModeUpdateRequest req, String actorEmail) {
+        log.info("Updating event mode for area {}: enabled={}, openUntil={}", id, req != null ? req.enabled() : null, req != null ? req.openUntil() : null);
+
+        if (req == null || req.reason() == null || req.reason().trim().isEmpty()) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_024);
+        }
+
+        Area area = areaRepository.findById(id)
+                .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
+
+        if (!Boolean.TRUE.equals(area.getIsActive()) || area.getDeletedAt() != null) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_017);
+        }
+
+        if (area.getAreaLevel() != AreaLevel.INTERNAL_CONFIDENTIAL
+                && area.getAreaLevel() != AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_022);
+        }
+
+        boolean targetEnabled = Boolean.TRUE.equals(req.enabled());
+        OffsetDateTime targetOpenUntil = targetEnabled ? req.openUntil() : null;
+
+        if (targetEnabled) {
+            if (targetOpenUntil == null || !targetOpenUntil.isAfter(OffsetDateTime.now())) {
+                throw new AreaException(AreaErrorCode.ERR_AREA_023);
+            }
+        }
+
+        boolean oldEnabled = Boolean.TRUE.equals(area.getOpenToMembers());
+        OffsetDateTime oldOpenUntil = area.getOpenUntil();
+
+        boolean unchanged;
+        if (targetEnabled) {
+            unchanged = oldEnabled && targetOpenUntil != null && targetOpenUntil.equals(oldOpenUntil);
+        } else {
+            unchanged = !oldEnabled && oldOpenUntil == null;
+        }
+
+        java.util.Map<AreaLevel, AreaLevelPreset> presetMap = loadPresetMap();
+
+        if (unchanged) {
+            log.info("Area {} event mode unchanged, skipping audit log", id);
+            return mapToAreaResponse(area, computeDiffersFromPreset(area, presetMap));
+        }
+
+        area.setOpenToMembers(targetEnabled);
+        area.setOpenUntil(targetOpenUntil);
+        area.setUpdatedAt(OffsetDateTime.now());
+
+        Area savedArea = areaRepository.save(area);
+
+        if (actorEmail != null) {
+            User actor = userRepository.findByEmail(actorEmail)
+                    .orElseThrow(() -> new UnauthorizedException("Phiên đăng nhập không hợp lệ"));
+
+            AreaEventModeAuditSnapshot oldSnapshot =
+                    new AreaEventModeAuditSnapshot(oldEnabled, oldOpenUntil);
+            AreaEventModeAuditSnapshot newSnapshot =
+                    new AreaEventModeAuditSnapshot(targetEnabled, targetOpenUntil);
+
+            com.fa26se040.icss.enums.AccessControlAction action = targetEnabled
+                    ? com.fa26se040.icss.enums.AccessControlAction.ENABLE_EVENT_MODE
+                    : com.fa26se040.icss.enums.AccessControlAction.DISABLE_EVENT_MODE;
+
+            auditService.record(
+                    com.fa26se040.icss.enums.AccessControlTargetType.AREA_ACCESS_RULES,
+                    action,
+                    savedArea.getId().toString(),
+                    savedArea,
+                    null,
+                    oldSnapshot,
+                    newSnapshot,
+                    req.reason().trim(),
+                    actor
+            );
+        }
+
+        return mapToAreaResponse(savedArea, computeDiffersFromPreset(savedArea, presetMap));
+    }
+
     private AreaResponse mapToAreaResponse(Area area) {
         return mapToAreaResponse(area, false);
     }
 
     private AreaResponse mapToAreaResponse(Area area, boolean differsFromPreset) {
+        boolean openToMembers = Boolean.TRUE.equals(area.getOpenToMembers());
+        OffsetDateTime openUntil = area.getOpenUntil();
+        boolean eventActive = openToMembers && openUntil != null && OffsetDateTime.now().isBefore(openUntil);
+
         return new AreaResponse(
                 area.getId(),
                 area.getName(),
@@ -464,11 +551,18 @@ public class AreaService {
                 area.getIsActive(),
                 area.getCreatedAt(),
                 area.getUpdatedAt(),
-                differsFromPreset
+                differsFromPreset,
+                openToMembers,
+                openUntil,
+                eventActive
         );
     }
 
     private AreaListItemResponse mapToAreaListItemResponse(Area area, boolean differsFromPreset) {
+        boolean openToMembers = Boolean.TRUE.equals(area.getOpenToMembers());
+        OffsetDateTime openUntil = area.getOpenUntil();
+        boolean eventActive = openToMembers && openUntil != null && OffsetDateTime.now().isBefore(openUntil);
+
         return new AreaListItemResponse(
                 area.getId(),
                 area.getName(),
@@ -480,7 +574,10 @@ public class AreaService {
                 area.getIsActive(),
                 area.getGeometry(),
                 area.getGeometry() != null,
-                differsFromPreset
+                differsFromPreset,
+                openToMembers,
+                openUntil,
+                eventActive
         );
     }
 }

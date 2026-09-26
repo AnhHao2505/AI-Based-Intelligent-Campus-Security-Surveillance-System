@@ -11,6 +11,23 @@ import {
 } from "lucide-react";
 import { getLevelConfig, AREA_LEVEL_CONFIG } from "../../utils/areaHelpers";
 
+const formatEventUntil = (openUntil) => {
+	if (!openUntil) return "";
+	const d = new Date(openUntil);
+	const timeStr = d.toLocaleTimeString("vi-VN", {
+		hour: "2-digit",
+		minute: "2-digit",
+	});
+	const today = new Date();
+	const isToday =
+		d.getDate() === today.getDate() &&
+		d.getMonth() === today.getMonth() &&
+		d.getFullYear() === today.getFullYear();
+	return isToday
+		? timeStr
+		: `${timeStr} (${d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" })})`;
+};
+
 export default function AreaListView({
 	floorAreas,
 	selectedFloor,
@@ -103,6 +120,25 @@ export default function AreaListView({
 												}}
 											>
 												Khác mặc định
+											</span>
+										)}
+										{area.eventActive && area.openUntil && (
+											<span
+												className="zone-card__pill-event"
+												title={`Chế độ sự kiện đang mở đến ${formatEventUntil(area.openUntil)}`}
+												style={{
+													display: "inline-flex",
+													alignItems: "center",
+													padding: "2px 8px",
+													borderRadius: "12px",
+													fontSize: "11px",
+													fontWeight: 600,
+													background: "rgba(147, 51, 234, 0.12)",
+													color: "#9333ea",
+													border: "1px solid rgba(147, 51, 234, 0.3)",
+												}}
+											>
+												Đang mở sự kiện đến {formatEventUntil(area.openUntil)}
 											</span>
 										)}
 									</div>

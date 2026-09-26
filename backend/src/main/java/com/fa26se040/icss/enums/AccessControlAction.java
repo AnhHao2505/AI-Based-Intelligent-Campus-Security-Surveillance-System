@@ -4,5 +4,7 @@ public enum AccessControlAction {
     ASSIGN,
     UPDATE_VALIDITY,
     REVOKE,
-    UPDATE
+    UPDATE,
+    ENABLE_EVENT_MODE,
+    DISABLE_EVENT_MODE
 }

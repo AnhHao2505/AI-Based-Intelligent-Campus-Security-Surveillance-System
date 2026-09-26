@@ -2,6 +2,7 @@ package com.fa26se040.icss.controller;
 
 import com.fa26se040.icss.dto.accessrequest.AreaSimpleResponse;
 import com.fa26se040.icss.dto.area.AreaAccessRulesUpdateRequest;
+import com.fa26se040.icss.dto.area.AreaEventModeUpdateRequest;
 import com.fa26se040.icss.dto.area.AreaCameraResponse;
 import com.fa26se040.icss.dto.area.AreaCameraUpdateRequest;
 import com.fa26se040.icss.dto.area.AreaCreateRequest;
@@ -182,5 +183,16 @@ public class AreaController {
     ) {
         String actorEmail = authentication != null ? authentication.getName() : null;
         return ResponseEntity.ok(areaService.updateAccessRules(id, request, actorEmail));
+    }
+
+    @PatchMapping("/{id}/event-mode")
+    @PreAuthorize("hasRole('FACILITY_MANAGER')")
+    public ResponseEntity<AreaResponse> updateEventMode(
+            @PathVariable UUID id,
+            @RequestBody AreaEventModeUpdateRequest request,
+            Authentication authentication
+    ) {
+        String actorEmail = authentication != null ? authentication.getName() : null;
+        return ResponseEntity.ok(areaService.updateEventMode(id, request, actorEmail));
     }
 }

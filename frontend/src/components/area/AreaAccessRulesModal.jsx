@@ -10,7 +10,7 @@ import {
 import { toast } from "sonner";
 import Modal from "../ui/Modal";
 import Button from "../ui/Button";
-import { updateAreaAccessRules } from "../../services/areaService";
+import { updateAreaAccessRules, updateAreaEventMode } from "../../services/areaService";
 import "./AreaAccessRulesModal.css";
 
 const ACCESS_LEVEL_OPTIONS = [
@@ -43,14 +43,30 @@ export default function AreaAccessRulesModal({
 }) {
 	const [accessLevel, setAccessLevel] = useState(1);
 	const [explicitAuth, setExplicitAuth] = useState(false);
+	const [eventModeEnabled, setEventModeEnabled] = useState(false);
+	const [openUntil, setOpenUntil] = useState("");
 	const [reason, setReason] = useState("");
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState(null);
+
+	const areaLevelKey = area?.areaLevel || area?.level?.code;
+	const isEventModeApplicable =
+		areaLevelKey === "INTERNAL_CONFIDENTIAL" ||
+		areaLevelKey === "CONFIDENTIAL_CONTACT_REQUIRED";
 
 	useEffect(() => {
 		if (area) {
 			setAccessLevel(area.areaAccessLevel ?? 1);
 			setExplicitAuth(Boolean(area.explicitAuthorizationRequired));
+			setEventModeEnabled(Boolean(area.openToMembers));
+			if (area.openUntil) {
+				const d = new Date(area.openUntil);
+				const pad = (n) => String(n).padStart(2, "0");
+				const localIso = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+				setOpenUntil(localIso);
+			} else {
+				setOpenUntil("");
+			}
 			setReason("");
 			setError(null);
 		}
@@ -66,7 +82,6 @@ export default function AreaAccessRulesModal({
 	const loc = [area.building, floorPart].filter(Boolean).join(" · ");
 	const areaDisplay = loc ? `${area.name} (${loc})` : area.name;
 
-	const areaLevelKey = area.areaLevel || area.level?.code;
 	const preset = levelPresets?.[areaLevelKey];
 
 	const handleSubmit = async (e) => {
@@ -75,7 +90,7 @@ export default function AreaAccessRulesModal({
 
 		const trimmedReason = reason.trim();
 		if (!trimmedReason) {
-			setError("Lý do cập nhật quy tắc là bắt buộc.");
+			setError("Lý do cập nhật là bắt buộc.");
 			return;
 		}
 		if (trimmedReason.length > 500) {
@@ -83,18 +98,64 @@ export default function AreaAccessRulesModal({
 			return;
 		}
 
+		const rulesChanged =
+			Number(accessLevel) !== (area.areaAccessLevel ?? 1) ||
+			Boolean(explicitAuth) !== Boolean(area.explicitAuthorizationRequired);
+
+		let initialOpenUntilLocal = "";
+		if (area.openUntil) {
+			const d = new Date(area.openUntil);
+			const pad = (n) => String(n).padStart(2, "0");
+			initialOpenUntilLocal = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+		}
+
+		const eventModeChanged =
+			isEventModeApplicable &&
+			(Boolean(eventModeEnabled) !== Boolean(area.openToMembers) ||
+				(Boolean(eventModeEnabled) && openUntil !== initialOpenUntilLocal));
+
+		if (!rulesChanged && !eventModeChanged) {
+			toast.info("Không có thay đổi nào cần lưu.");
+			onClose();
+			return;
+		}
+
+		if (eventModeChanged && eventModeEnabled) {
+			if (!openUntil) {
+				setError("Thời điểm kết thúc sự kiện là bắt buộc khi bật chế độ sự kiện.");
+				return;
+			}
+			const selectedTime = new Date(openUntil).getTime();
+			if (selectedTime <= Date.now()) {
+				setError("Thời điểm kết thúc sự kiện phải ở trong tương lai.");
+				return;
+			}
+		}
+
 		setSaving(true);
 
 		try {
-			const payload = {
-				areaAccessLevel: Number(accessLevel),
-				explicitAuthorizationRequired: Boolean(explicitAuth),
-				reason: trimmedReason,
-			};
+			let latestUpdated = null;
+			if (rulesChanged) {
+				const payload = {
+					areaAccessLevel: Number(accessLevel),
+					explicitAuthorizationRequired: Boolean(explicitAuth),
+					reason: trimmedReason,
+				};
+				latestUpdated = await updateAreaAccessRules(area.id, payload);
+			}
 
-			const updated = await updateAreaAccessRules(area.id, payload);
-			toast.success(`Đã cập nhật quy tắc truy cập của khu vực ${area.name}`);
-			onSuccess?.(updated);
+			if (eventModeChanged) {
+				const eventPayload = {
+					enabled: Boolean(eventModeEnabled),
+					openUntil: eventModeEnabled ? new Date(openUntil).toISOString() : null,
+					reason: trimmedReason,
+				};
+				latestUpdated = await updateAreaEventMode(area.id, eventPayload);
+			}
+
+			toast.success(`Đã cập nhật quy tắc khu vực ${area.name}`);
+			onSuccess?.(latestUpdated || area);
 			onClose();
 		} catch (err) {
 			console.error("Lỗi khi cập nhật quy tắc truy cập khu vực:", err);
@@ -249,6 +310,103 @@ export default function AreaAccessRulesModal({
 							</p>
 						</div>
 					</label>
+				</div>
+
+				{/* Section 2b: Chế độ sự kiện (Event Mode / open_to_members) */}
+				<div className="access-rules-group">
+					<label className="access-rules-label">
+						Chế độ sự kiện
+					</label>
+					{!isEventModeApplicable ? (
+						<div
+							style={{
+								padding: "10px 14px",
+								borderRadius: "8px",
+								background: "rgba(100, 116, 139, 0.08)",
+								border: "1px solid rgba(100, 116, 139, 0.2)",
+								fontSize: "12.5px",
+								color: "var(--theme-text-muted, #64748b)",
+							}}
+						>
+							Chế độ sự kiện chỉ áp dụng cho khu vực <strong>Bảo mật nội bộ</strong> hoặc <strong>Bảo mật - liên hệ trước</strong> (không áp dụng cho khu vực Công khai và Tuyệt mật).
+						</div>
+					) : (
+						<div
+							style={{
+								padding: "12px 14px",
+								borderRadius: "10px",
+								background: "var(--theme-bg-surface, #ffffff)",
+								border: "1px solid var(--theme-border, rgba(255, 255, 255, 0.1))",
+								display: "flex",
+								flexDirection: "column",
+								gap: "12px",
+							}}
+						>
+							<label
+								style={{
+									display: "flex",
+									alignItems: "center",
+									justifyContent: "space-between",
+									cursor: "pointer",
+									userSelect: "none",
+								}}
+							>
+								<div>
+									<div style={{ fontWeight: 600, fontSize: "13.5px", color: "var(--theme-text-primary, #0f172a)" }}>
+										Mở cửa cho thành viên trong thời gian sự kiện
+									</div>
+									<div style={{ fontSize: "12px", color: "var(--theme-text-muted, #64748b)", marginTop: "2px" }}>
+										Khi bật, tất cả thành viên hợp lệ được phép vào khu vực cho đến thời điểm kết thúc mà không cần đơn truy cập riêng.
+									</div>
+								</div>
+								<input
+									type="checkbox"
+									id="event-mode-toggle"
+									checked={eventModeEnabled}
+									onChange={(e) => setEventModeEnabled(e.target.checked)}
+									style={{ width: "18px", height: "18px", cursor: "pointer", accentColor: "var(--brand-blue, #3b82f6)" }}
+								/>
+							</label>
+
+							{eventModeEnabled && (
+								<div style={{ borderTop: "1px dashed var(--theme-border, #cbd5e1)", paddingTop: "10px" }}>
+									<label
+										htmlFor="event-mode-open-until"
+										style={{
+											display: "block",
+											marginBottom: "6px",
+											fontSize: "12.5px",
+											fontWeight: 600,
+											color: "var(--theme-text-primary, #0f172a)",
+										}}
+									>
+										Thời điểm kết thúc sự kiện <span style={{ color: "var(--theme-danger, #ef4444)" }}>*</span>
+									</label>
+									<input
+										type="datetime-local"
+										id="event-mode-open-until"
+										value={openUntil}
+										onChange={(e) => setOpenUntil(e.target.value)}
+										min={new Date().toISOString().slice(0, 16)}
+										required
+										style={{
+											width: "100%",
+											padding: "8px 12px",
+											borderRadius: "8px",
+											border: "1px solid var(--theme-border, #cbd5e1)",
+											background: "var(--theme-card-bg, #ffffff)",
+											color: "var(--theme-text-primary, #0f172a)",
+											fontSize: "13.5px",
+											boxSizing: "border-box",
+										}}
+									/>
+									<p style={{ fontSize: "11.5px", color: "var(--theme-text-muted, #64748b)", margin: "4px 0 0 0" }}>
+										Sau thời điểm này, chế độ sự kiện sẽ tự động hết hiệu lực mà không cần can thiệp thủ công.
+									</p>
+								</div>
+							)}
+						</div>
+					)}
 				</div>
 
 				{/* Section 3: Lý do cập nhật (Bắt buộc) */}

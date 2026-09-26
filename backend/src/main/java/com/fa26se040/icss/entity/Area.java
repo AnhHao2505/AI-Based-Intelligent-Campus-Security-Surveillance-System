@@ -64,6 +64,13 @@ public class Area {
     @Builder.Default
     private Boolean explicitAuthorizationRequired = true;
 
+    @Column(name = "open_to_members", nullable = false)
+    @Builder.Default
+    private Boolean openToMembers = false;
+
+    @Column(name = "open_until")
+    private OffsetDateTime openUntil;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "floor_id")
     private Floor floorEntity;
