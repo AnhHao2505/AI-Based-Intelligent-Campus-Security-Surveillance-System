@@ -23,6 +23,7 @@ import SystemConfigPage from "./pages/system/SystemConfigPage";
 import ReasonCatalogPage from "./pages/system/ReasonCatalogPage";
 import UserAccessLevelPage from "./pages/accessControl/UserAccessLevelPage";
 import DemoModeBanner from "./components/common/DemoModeBanner";
+import GuardScheduleManagementPage from "./pages/admin/GuardScheduleManagementPage";
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
 
