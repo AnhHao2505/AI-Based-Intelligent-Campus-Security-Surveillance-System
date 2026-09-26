@@ -483,7 +483,8 @@ public class AreaService {
 
         boolean unchanged;
         if (targetEnabled) {
-            unchanged = oldEnabled && targetOpenUntil != null && targetOpenUntil.equals(oldOpenUntil);
+            unchanged = oldEnabled && targetOpenUntil != null && oldOpenUntil != null
+                    && Math.abs(java.time.Duration.between(targetOpenUntil, oldOpenUntil).toMillis()) < 1000;
         } else {
             unchanged = !oldEnabled && oldOpenUntil == null;
         }
