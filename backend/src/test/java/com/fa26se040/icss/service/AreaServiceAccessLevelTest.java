@@ -203,7 +203,7 @@ class AreaServiceAccessLevelTest {
                 "Tầng 1"
         );
 
-        when(areaRepository.findByIdAndDeletedAtIsNull(areaId)).thenReturn(Optional.of(existing));
+        when(areaRepository.findByIdWithLock(areaId)).thenReturn(Optional.of(existing));
         when(areaValidator.validateAndNormalizeName(updateReq.getName())).thenReturn(updateReq.getName());
         when(userRepository.findByEmail(adminEmail)).thenReturn(Optional.of(admin));
         when(areaRepository.saveAndFlush(any(Area.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -229,7 +229,7 @@ class AreaServiceAccessLevelTest {
                 .isActive(true)
                 .build();
 
-        when(areaRepository.findById(areaId)).thenReturn(Optional.of(existing));
+        when(areaRepository.findByIdWithLock(areaId)).thenReturn(Optional.of(existing));
         when(userRepository.findByEmail(fmEmail)).thenReturn(Optional.of(fm));
         when(areaRepository.save(any(Area.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -254,7 +254,7 @@ class AreaServiceAccessLevelTest {
                 .isActive(true)
                 .build();
 
-        when(areaRepository.findById(areaId)).thenReturn(Optional.of(existing));
+        when(areaRepository.findByIdWithLock(areaId)).thenReturn(Optional.of(existing));
         when(userRepository.findByEmail(fmEmail)).thenReturn(Optional.of(fm));
         when(areaRepository.save(any(Area.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -311,7 +311,7 @@ class AreaServiceAccessLevelTest {
                 .isActive(true)
                 .build();
 
-        when(areaRepository.findById(areaId)).thenReturn(Optional.of(existing));
+        when(areaRepository.findByIdWithLock(areaId)).thenReturn(Optional.of(existing));
 
         AreaAccessRulesUpdateRequest req = new AreaAccessRulesUpdateRequest(2, false, "Không đổi gì cả");
         AreaResponse resp = areaService.updateAccessRules(areaId, req, fmEmail);
@@ -334,7 +334,7 @@ class AreaServiceAccessLevelTest {
                 .isActive(false)
                 .build();
 
-        when(areaRepository.findById(areaId)).thenReturn(Optional.of(inactiveArea));
+        when(areaRepository.findByIdWithLock(areaId)).thenReturn(Optional.of(inactiveArea));
 
         AreaAccessRulesUpdateRequest req = new AreaAccessRulesUpdateRequest(2, false, "Cập nhật");
         AreaException ex = assertThrows(AreaException.class, () -> areaService.updateAccessRules(areaId, req, adminEmail));
@@ -347,7 +347,7 @@ class AreaServiceAccessLevelTest {
                 .isActive(true)
                 .deletedAt(OffsetDateTime.now())
                 .build();
-        when(areaRepository.findById(areaId)).thenReturn(Optional.of(deletedArea));
+        when(areaRepository.findByIdWithLock(areaId)).thenReturn(Optional.of(deletedArea));
         AreaException exDel = assertThrows(AreaException.class, () -> areaService.updateAccessRules(areaId, req, adminEmail));
         assertEquals(AreaErrorCode.ERR_AREA_017, exDel.getErrorCode());
     }

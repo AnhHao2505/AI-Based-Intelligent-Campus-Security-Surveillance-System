@@ -195,7 +195,8 @@ public class AreaService {
 
     @Transactional
     public AreaResponse update(UUID id, AreaUpdateRequest req, String actorEmail) {
-        Area area = areaRepository.findByIdAndDeletedAtIsNull(id)
+        Area area = areaRepository.findByIdWithLock(id)
+                .filter(a -> a.getDeletedAt() == null)
                 .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
 
         // BR-41: Block changing building or floor when the Area already has geometry
@@ -266,7 +267,8 @@ public class AreaService {
 
     @Transactional
     public AreaGeometryResponse saveGeometry(UUID id, AreaGeometry geometry, String actorEmail) {
-        Area area = areaRepository.findByIdAndDeletedAtIsNull(id)
+        Area area = areaRepository.findByIdWithLock(id)
+                .filter(a -> a.getDeletedAt() == null)
                 .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
 
         List<Area> existingOnFloor = areaRepository.findByBuildingIgnoreCaseAndFloorIgnoreCaseAndDeletedAtIsNull(
@@ -295,7 +297,8 @@ public class AreaService {
 
     @Transactional
     public void deleteGeometry(UUID id, String actorEmail) {
-        Area area = areaRepository.findByIdAndDeletedAtIsNull(id)
+        Area area = areaRepository.findByIdWithLock(id)
+                .filter(a -> a.getDeletedAt() == null)
                 .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
 
         if (area.getGeometry() == null) {
@@ -324,7 +327,8 @@ public class AreaService {
 
     @Transactional
     public void deactivate(UUID id, String actorEmail) {
-        Area area = areaRepository.findByIdAndDeletedAtIsNull(id)
+        Area area = areaRepository.findByIdWithLock(id)
+                .filter(a -> a.getDeletedAt() == null)
                 .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
 
         AreaDependencyResponse dep = dependencyChecker.check(id);
@@ -429,7 +433,7 @@ public class AreaService {
 
     @Transactional
     public AreaResponse updateAccessRules(UUID id, AreaAccessRulesUpdateRequest req, String actorEmail) {
-        Area area = areaRepository.findById(id)
+        Area area = areaRepository.findByIdWithLock(id)
                 .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
 
         if (!Boolean.TRUE.equals(area.getIsActive()) || area.getDeletedAt() != null) {

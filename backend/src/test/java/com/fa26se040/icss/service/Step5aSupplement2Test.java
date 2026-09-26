@@ -2,7 +2,9 @@ package com.fa26se040.icss.service;
 
 import com.fa26se040.icss.AbstractIntegrationTest;
 import com.fa26se040.icss.dto.accessdecision.AccessDecision;
+import com.fa26se040.icss.dto.area.AreaAccessRulesUpdateRequest;
 import com.fa26se040.icss.dto.area.AreaEventModeUpdateRequest;
+import com.fa26se040.icss.dto.area.AreaGeometry;
 import com.fa26se040.icss.dto.area.AreaResponse;
 import com.fa26se040.icss.dto.area.AreaUpdateRequest;
 import com.fa26se040.icss.entity.AccessControlAuditLog;
@@ -329,7 +331,12 @@ public class Step5aSupplement2Test extends AbstractIntegrationTest {
 
         // Audit ENABLE_EVENT_MODE được ghi
         assertEquals(auditBefore + 1, auditLogRepository.count());
-        AccessControlAuditLog log = auditLogRepository.findAll().get((int) auditBefore);
+        List<AccessControlAuditLog> logs = auditLogRepository.findAll().stream()
+                .filter(l -> l.getTargetId().equals(internalArea.getId().toString()) && l.getTargetType() == AccessControlTargetType.AREA_EVENT_MODE)
+                .sorted(java.util.Comparator.comparing(AccessControlAuditLog::getChangedAt))
+                .toList();
+        assertFalse(logs.isEmpty());
+        AccessControlAuditLog log = logs.get(logs.size() - 1);
         assertEquals(AccessControlAction.ENABLE_EVENT_MODE, log.getAction());
 
         assertEventModeInvariant(internalArea.getId(), now);
@@ -665,8 +672,10 @@ public class Step5aSupplement2Test extends AbstractIntegrationTest {
                         .floorId(testFloor.getId())
                         .build();
 
+                OffsetDateTime targetOpenUntil = now.plusHours(2);
                 CountDownLatch startLatch = new CountDownLatch(1);
                 CountDownLatch doneLatch = new CountDownLatch(2);
+                List<Throwable> exceptions = java.util.Collections.synchronizedList(new ArrayList<>());
 
                 // Luồng 1: BẬT sự kiện
                 Runnable eventTask = () -> {
@@ -674,10 +683,11 @@ public class Step5aSupplement2Test extends AbstractIntegrationTest {
                         startLatch.await();
                         areaService.updateEventMode(
                                 internalArea.getId(),
-                                new AreaEventModeUpdateRequest(true, now.plusHours(2), "SEMINAR", "Bat su kien dong thoi voi update area"),
+                                new AreaEventModeUpdateRequest(true, targetOpenUntil, "SEMINAR", "Bat su kien dong thoi voi update area"),
                                 fmUser.getEmail()
                         );
-                    } catch (Exception ignored) {
+                    } catch (Throwable ex) {
+                        exceptions.add(ex);
                     } finally {
                         doneLatch.countDown();
                     }
@@ -692,7 +702,8 @@ public class Step5aSupplement2Test extends AbstractIntegrationTest {
                                 adminReq,
                                 adminUser.getEmail()
                         );
-                    } catch (Exception ignored) {
+                    } catch (Throwable ex) {
+                        exceptions.add(ex);
                     } finally {
                         doneLatch.countDown();
                     }
@@ -701,11 +712,207 @@ public class Step5aSupplement2Test extends AbstractIntegrationTest {
                 executor.submit(eventTask);
                 executor.submit(adminTask);
                 startLatch.countDown();
-                assertTrue(doneLatch.await(5, TimeUnit.SECONDS));
+                assertTrue(doneLatch.await(10, TimeUnit.SECONDS));
+
+                if (!exceptions.isEmpty()) {
+                    for (Throwable ex : exceptions) {
+                        ex.printStackTrace();
+                    }
+                }
+                assertTrue(exceptions.isEmpty(), "Lần lặp " + i + ": không được có exception nào: " + exceptions);
 
                 Area finalArea = areaRepository.findById(internalArea.getId()).orElseThrow();
-                assertEquals(newName, finalArea.getName(), "Tên mới của khu vực phải được lưu");
-                // Cả hai thao tác đồng thời đều kết thúc an toàn, không có deadlock hoặc ngoại lệ không mong muốn
+                assertEquals(newName, finalArea.getName(), "Lần lặp " + i + ": tên mới của khu vực phải được lưu");
+                assertTrue(finalArea.isEventActive(now), "Lần lặp " + i + ": khu vực phải đang mở sự kiện");
+                assertNotNull(finalArea.getOpenUntil(), "Lần lặp " + i + ": openUntil không được null");
+                assertEquals(targetOpenUntil.toEpochSecond(), finalArea.getOpenUntil().toEpochSecond(), "Lần lặp " + i + ": openUntil phải đúng giá trị luồng BẬT gửi");
+                assertEventModeInvariant(internalArea.getId(), now);
+            }
+        } finally {
+            executor.shutdown();
+        }
+    }
+
+    @Test
+    @DisplayName("T15e: Đồng thời 1 luồng BẬT sự kiện + 1 luồng FM updateAccessRules -> cả hai thay đổi đều còn + bất biến")
+    void testT15e_ConcurrentEnableAndAccessRulesUpdate() throws Exception {
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+
+        try {
+            for (int i = 0; i < 20; i++) {
+                OffsetDateTime now = OffsetDateTime.now();
+                internalArea.setOpenToMembers(false);
+                internalArea.setOpenUntil(null);
+                boolean initialExplicit = (i % 2 == 0);
+                boolean targetExplicit = !initialExplicit;
+                internalArea.setExplicitAuthorizationRequired(initialExplicit);
+                areaRepository.save(internalArea);
+
+                sessionRepository.deleteAll(sessionRepository.findAll().stream()
+                        .filter(s -> s.getArea().getId().equals(internalArea.getId()))
+                        .toList());
+
+                OffsetDateTime targetOpenUntil = now.plusHours(2);
+                CountDownLatch startLatch = new CountDownLatch(1);
+                CountDownLatch doneLatch = new CountDownLatch(2);
+                List<Throwable> exceptions = java.util.Collections.synchronizedList(new ArrayList<>());
+
+                // Luồng 1: BẬT sự kiện
+                Runnable eventTask = () -> {
+                    try {
+                        startLatch.await();
+                        areaService.updateEventMode(
+                                internalArea.getId(),
+                                new AreaEventModeUpdateRequest(true, targetOpenUntil, "SEMINAR", "Bat su kien dong thoi voi update rules"),
+                                fmUser.getEmail()
+                        );
+                    } catch (Throwable ex) {
+                        exceptions.add(ex);
+                    } finally {
+                        doneLatch.countDown();
+                    }
+                };
+
+                // Luồng 2: FM sửa access rules (đổi explicitAuthorizationRequired)
+                Runnable rulesTask = () -> {
+                    try {
+                        startLatch.await();
+                        areaService.updateAccessRules(
+                                internalArea.getId(),
+                                new AreaAccessRulesUpdateRequest(internalArea.getAreaAccessLevel(), targetExplicit, "Doi explicit authorization"),
+                                fmUser.getEmail()
+                        );
+                    } catch (Throwable ex) {
+                        exceptions.add(ex);
+                    } finally {
+                        doneLatch.countDown();
+                    }
+                };
+
+                executor.submit(eventTask);
+                executor.submit(rulesTask);
+                startLatch.countDown();
+                assertTrue(doneLatch.await(10, TimeUnit.SECONDS));
+
+                if (!exceptions.isEmpty()) {
+                    for (Throwable ex : exceptions) {
+                        ex.printStackTrace();
+                    }
+                }
+                assertTrue(exceptions.isEmpty(), "Lần lặp " + i + ": không được có exception nào: " + exceptions);
+
+                Area finalArea = areaRepository.findById(internalArea.getId()).orElseThrow();
+                assertEquals(targetExplicit, finalArea.getExplicitAuthorizationRequired(), "Lần lặp " + i + ": explicitAuthorizationRequired phải là " + targetExplicit);
+                assertTrue(finalArea.isEventActive(now), "Lần lặp " + i + ": khu vực phải đang mở sự kiện");
+                assertNotNull(finalArea.getOpenUntil(), "Lần lặp " + i + ": openUntil không được null");
+                assertEquals(targetOpenUntil.toEpochSecond(), finalArea.getOpenUntil().toEpochSecond(), "Lần lặp " + i + ": openUntil phải đúng giá trị luồng BẬT gửi");
+                assertEventModeInvariant(internalArea.getId(), now);
+            }
+        } finally {
+            executor.shutdown();
+        }
+    }
+
+    @Test
+    @DisplayName("T15f: Đồng thời 1 luồng TẮT sự kiện (đang mở) + 1 luồng saveGeometry -> geometry mới còn, sự kiện đã tắt, bất biến đúng")
+    void testT15f_ConcurrentDisableAndGeometrySave() throws Exception {
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+
+        // Đảm bảo không có khu vực nào khác trên cùng tầng có geometry gây xung đột
+        List<Area> others = areaRepository.findByBuildingIgnoreCaseAndFloorIgnoreCaseAndDeletedAtIsNull(
+                internalArea.getBuilding(), internalArea.getFloor());
+        for (Area other : others) {
+            if (other.getGeometry() != null) {
+                other.setGeometry(null);
+                areaRepository.save(other);
+            }
+        }
+
+        try {
+            for (int i = 0; i < 20; i++) {
+                OffsetDateTime now = OffsetDateTime.now();
+                internalArea.setOpenToMembers(true);
+                internalArea.setOpenUntil(now.plusHours(2));
+                internalArea.setGeometry(null);
+                areaRepository.save(internalArea);
+
+                sessionRepository.deleteAll(sessionRepository.findAll().stream()
+                        .filter(s -> s.getArea().getId().equals(internalArea.getId()))
+                        .toList());
+
+                sessionRepository.save(AreaEventSession.builder()
+                        .area(internalArea)
+                        .startedAt(now.minusHours(1))
+                        .plannedEnd(now.plusHours(2))
+                        .actualEnd(null)
+                        .startedBy(fmUser)
+                        .build());
+
+                AreaGeometry testGeometry = AreaGeometry.builder()
+                        .type("polygon")
+                        .version(1)
+                        .vertices(List.of(
+                                new AreaGeometry.Vertex(new java.math.BigDecimal("0.1"), new java.math.BigDecimal("0.1")),
+                                new AreaGeometry.Vertex(new java.math.BigDecimal("0.5"), new java.math.BigDecimal("0.1")),
+                                new AreaGeometry.Vertex(new java.math.BigDecimal("0.3"), new java.math.BigDecimal("0.5"))
+                        ))
+                        .build();
+
+                CountDownLatch startLatch = new CountDownLatch(1);
+                CountDownLatch doneLatch = new CountDownLatch(2);
+                List<Throwable> exceptions = java.util.Collections.synchronizedList(new ArrayList<>());
+
+                // Luồng 1: TẮT sự kiện
+                Runnable eventTask = () -> {
+                    try {
+                        startLatch.await();
+                        areaService.updateEventMode(
+                                internalArea.getId(),
+                                new AreaEventModeUpdateRequest(false, null, "ENDED_EARLY", "Tat su kien dong thoi voi save geometry"),
+                                fmUser.getEmail()
+                        );
+                    } catch (Throwable ex) {
+                        exceptions.add(ex);
+                    } finally {
+                        doneLatch.countDown();
+                    }
+                };
+
+                // Luồng 2: ADMIN lưu geometry
+                Runnable geomTask = () -> {
+                    try {
+                        startLatch.await();
+                        areaService.saveGeometry(
+                                internalArea.getId(),
+                                testGeometry,
+                                adminUser.getEmail()
+                        );
+                    } catch (Throwable ex) {
+                        exceptions.add(ex);
+                    } finally {
+                        doneLatch.countDown();
+                    }
+                };
+
+                executor.submit(eventTask);
+                executor.submit(geomTask);
+                startLatch.countDown();
+                assertTrue(doneLatch.await(10, TimeUnit.SECONDS));
+
+                if (!exceptions.isEmpty()) {
+                    for (Throwable ex : exceptions) {
+                        ex.printStackTrace();
+                    }
+                }
+                assertTrue(exceptions.isEmpty(), "Lần lặp " + i + ": không được có exception nào: " + exceptions);
+
+                Area finalArea = areaRepository.findById(internalArea.getId()).orElseThrow();
+                assertNotNull(finalArea.getGeometry(), "Lần lặp " + i + ": geometry mới phải còn");
+                assertEquals(3, finalArea.getGeometry().getVertices().size(), "Lần lặp " + i + ": geometry phải có 3 vertices");
+                assertFalse(finalArea.isEventActive(now), "Lần lặp " + i + ": khu vực phải đã tắt sự kiện");
+                assertFalse(finalArea.getOpenToMembers(), "Lần lặp " + i + ": openToMembers phải false");
+                assertNull(finalArea.getOpenUntil(), "Lần lặp " + i + ": openUntil phải null");
+                assertEventModeInvariant(internalArea.getId(), now);
             }
         } finally {
             executor.shutdown();
