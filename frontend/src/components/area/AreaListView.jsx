@@ -7,7 +7,7 @@ import {
 	ShieldCheck,
 	Users,
 	Pencil,
-	Trash2,
+	Ban,
 } from "lucide-react";
 import { getLevelConfig, AREA_LEVEL_CONFIG } from "../../utils/areaHelpers";
 
@@ -239,7 +239,7 @@ export default function AreaListView({
 													}}
 													title="Vô hiệu hoá"
 												>
-													<Trash2 size={13} />
+													<Ban size={13} />
 												</button>
 											</>
 										)}

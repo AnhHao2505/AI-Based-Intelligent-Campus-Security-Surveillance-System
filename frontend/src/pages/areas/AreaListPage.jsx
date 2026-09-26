@@ -1168,7 +1168,7 @@ export default function AreaListPage() {
 								{/* 3c. Cấp độ an ninh (bắt buộc) - 3 thẻ chọn */}
 								<div className="area-form-group">
 									<label className="area-form-label">
-										Cấp độ an ninh <span className="required">*</span>
+										Loại khu vực <span className="required">*</span>
 									</label>
 									<div className="area-level-selector">
 										{AREA_LEVEL_CARDS.map((card) => {
@@ -1373,7 +1373,7 @@ export default function AreaListPage() {
 
 								<div className="area-form-group">
 									<label className="area-form-label">
-										Cấp độ an ninh <span className="required">*</span>
+										Loại khu vực <span className="required">*</span>
 									</label>
 									<div className="area-level-selector">
 										{AREA_LEVEL_CARDS.map((card) => {

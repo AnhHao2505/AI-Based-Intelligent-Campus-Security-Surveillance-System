@@ -16,19 +16,19 @@ import "./AreaAccessRulesModal.css";
 const ACCESS_LEVEL_OPTIONS = [
 	{
 		level: 1,
-		title: "1 — Mọi người",
+		title: "Cấp 1 — Mọi người",
 		desc: "Sinh viên, giảng viên, nhân viên, cộng tác viên và quản trị viên.",
 		icon: Users,
 	},
 	{
 		level: 2,
-		title: "2 — Nhân viên vận hành",
+		title: "Cấp 2 — Nhân viên vận hành",
 		desc: "Bảo vệ, nhân sự hỗ trợ vận hành và quản lý cơ sở vật chất.",
 		icon: Shield,
 	},
 	{
 		level: 3,
-		title: "3 — Quản lý cấp cao",
+		title: "Cấp 3 — Quản lý cấp cao",
 		desc: "Khu vực nhạy cảm, phòng máy chủ, phòng ban lãnh đạo và vị trí có ràng buộc an ninh cao.",
 		icon: Lock,
 	},
@@ -234,7 +234,7 @@ export default function AreaAccessRulesModal({
 						/>
 						<div>
 							<strong>Giá trị mặc định của phân loại ({areaLevelKey}):</strong>{" "}
-							Level {preset.areaAccessLevel} · Yêu cầu chỉ định:{" "}
+							Cấp {preset.areaAccessLevel} · Yêu cầu chỉ định:{" "}
 							{preset.explicitAuthorizationRequired ? "Có" : "Không"}
 						</div>
 					</div>
@@ -301,7 +301,7 @@ export default function AreaAccessRulesModal({
 						</div>
 						<div className="access-rules-checkbox-info">
 							<span className="access-rules-checkbox-title">
-								Yêu cầu phê duyệt trước khi truy cập
+								Cấp độ không tự cho vào – cần được chỉ định hoặc có đơn được duyệt
 							</span>
 							<p className="access-rules-checkbox-desc">
 								Khi bật, chỉ người được phân quyền hoặc có đơn phê duyệt hợp lệ

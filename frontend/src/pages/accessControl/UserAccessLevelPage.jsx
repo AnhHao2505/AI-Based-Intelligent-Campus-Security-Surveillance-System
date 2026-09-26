@@ -221,7 +221,7 @@ export default function UserAccessLevelPage() {
     setLoadingPresets(true);
     try {
       const data = await getLevelPresets();
-      setPresets(data || []);
+      setPresets(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Lỗi tải danh sách cấu hình mặc định:', err);
       toast.error(err?.message || 'Không thể tải cấu hình mặc định');
