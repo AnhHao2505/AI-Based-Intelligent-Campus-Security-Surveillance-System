@@ -21,6 +21,7 @@ import {
 	Sliders,
 	ShieldCheck,
 	Compass,
+	Tag,
 } from "lucide-react";
 import { ROLES, ROLE_LABELS } from "../../constants/roles";
 import { useTheme } from "../../context/ThemeContext";
@@ -340,6 +341,18 @@ export default function Sidebar({ user, onLogout }) {
 												>
 													<Sliders size={18} />
 													<span>Cấu hình hệ thống</span>
+												</NavLink>
+												<NavLink
+													to="/admin/reason-catalogs"
+													className={({ isActive }) =>
+														`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
+													}
+													title={
+														sidebarCollapsed ? "Danh mục lý do" : undefined
+													}
+												>
+													<Tag size={18} />
+													<span>Danh mục lý do</span>
 												</NavLink>
 											</div>
 										</>

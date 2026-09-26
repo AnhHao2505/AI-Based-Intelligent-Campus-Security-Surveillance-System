@@ -20,6 +20,7 @@ import AccessHistoryPage from "./pages/accessHistory/AccessHistoryPage";
 import NotificationsPage from "./pages/notifications/NotificationsPage";
 import ManageAccountPage from "./pages/accounts/ManageAccountPage";
 import SystemConfigPage from "./pages/system/SystemConfigPage";
+import ReasonCatalogPage from "./pages/system/ReasonCatalogPage";
 import UiKitPage from "./pages/_devPreview/UiKitPage";
 import GuardScheduleManagementPage from "./pages/admin/GuardScheduleManagementPage";
 import UserAccessLevelPage from "./pages/accessControl/UserAccessLevelPage";
@@ -262,6 +263,14 @@ function App() {
 								element={
 									<ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
 										<SystemConfigPage />
+									</ProtectedRoute>
+								}
+							/>
+							<Route
+								path="/admin/reason-catalogs"
+								element={
+									<ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+										<ReasonCatalogPage />
 									</ProtectedRoute>
 								}
 							/>
