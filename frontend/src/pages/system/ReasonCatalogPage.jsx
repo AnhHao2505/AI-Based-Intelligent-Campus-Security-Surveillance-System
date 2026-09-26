@@ -23,7 +23,7 @@ import "../../styles/SystemConfigPage.css";
 const ACTION_TYPES = [
 	{ value: "EVENT_ENABLE", label: "Bật chế độ sự kiện" },
 	{ value: "EVENT_DISABLE", label: "Tắt chế độ sự kiện" },
-	{ value: "EVENT_EXTEND", label: "Gia hạn chế độ sự kiện" },
+	{ value: "EVENT_EXTEND", label: "Điều chỉnh giờ kết thúc" },
 ];
 
 export default function ReasonCatalogPage() {
@@ -181,7 +181,7 @@ export default function ReasonCatalogPage() {
 					<div>
 						<h1 className="syscfg-header__title">Danh mục lý do chế độ sự kiện</h1>
 						<p className="syscfg-header__subtitle">
-							Quản lý các lý do chuẩn hóa cho thao tác Bật, Tắt và Gia hạn sự kiện khu vực.
+							Quản lý các lý do chuẩn hóa cho thao tác Bật, Tắt và Điều chỉnh giờ kết thúc sự kiện khu vực.
 							Mọi thay đổi đều được ghi vết kiểm toán.
 						</p>
 					</div>

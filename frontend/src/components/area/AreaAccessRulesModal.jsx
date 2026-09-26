@@ -12,6 +12,7 @@ import Modal from "../ui/Modal";
 import Button from "../ui/Button";
 import { updateAreaAccessRules, updateAreaEventMode } from "../../services/areaService";
 import { getActiveReasons } from "../../services/reasonCatalogService";
+import { formatDisplayDateTime } from "../../utils/areaHelpers";
 import "./AreaAccessRulesModal.css";
 
 const ACCESS_LEVEL_OPTIONS = [
@@ -61,6 +62,8 @@ export default function AreaAccessRulesModal({
 		areaLevelKey === "INTERNAL_CONFIDENTIAL" ||
 		areaLevelKey === "CONFIDENTIAL_CONTACT_REQUIRED";
 
+	const isEventExpired = Boolean(area?.openToMembers) && !Boolean(area?.eventActive);
+
 	let initialOpenUntilLocal = "";
 	if (area?.openUntil) {
 		const d = new Date(area.openUntil);
@@ -72,17 +75,17 @@ export default function AreaAccessRulesModal({
 		Number(accessLevel) !== (area?.areaAccessLevel ?? 1) ||
 		Boolean(explicitAuth) !== Boolean(area?.explicitAuthorizationRequired);
 
-	const isEventOpenChanged = Boolean(eventModeEnabled) !== Boolean(area?.openToMembers);
+	const isEventOpenChanged = Boolean(eventModeEnabled) !== Boolean(area?.eventActive);
 	const isTimeChanged = Boolean(eventModeEnabled) && openUntil !== initialOpenUntilLocal;
 	const eventModeChanged = isEventModeApplicable && (isEventOpenChanged || isTimeChanged);
 
 	let currentEventAction = null;
 	if (eventModeChanged) {
-		if (!area?.openToMembers && eventModeEnabled) {
+		if (!area?.eventActive && eventModeEnabled) {
 			currentEventAction = "EVENT_ENABLE";
-		} else if (area?.openToMembers && !eventModeEnabled) {
+		} else if (area?.eventActive && !eventModeEnabled) {
 			currentEventAction = "EVENT_DISABLE";
-		} else if (area?.openToMembers && eventModeEnabled && isTimeChanged) {
+		} else if (area?.eventActive && eventModeEnabled && isTimeChanged) {
 			currentEventAction = "EVENT_EXTEND";
 		}
 	}
@@ -91,7 +94,7 @@ export default function AreaAccessRulesModal({
 		if (area) {
 			setAccessLevel(area.areaAccessLevel ?? 1);
 			setExplicitAuth(Boolean(area.explicitAuthorizationRequired));
-			setEventModeEnabled(Boolean(area.openToMembers));
+			setEventModeEnabled(Boolean(area.eventActive));
 			if (area.openUntil) {
 				const d = new Date(area.openUntil);
 				const pad = (n) => String(n).padStart(2, "0");
@@ -235,6 +238,11 @@ export default function AreaAccessRulesModal({
 				"Không thể cập nhật quy tắc truy cập. Vui lòng thử lại.";
 			setError(msg);
 			toast.error(msg);
+			const status = err?.status || err?.response?.status;
+			if (status === 409 || err?.code === "ERR_AREA_030") {
+				onSuccess?.(area);
+				onClose();
+			}
 		} finally {
 			setSaving(false);
 		}
@@ -413,6 +421,29 @@ export default function AreaAccessRulesModal({
 								gap: "12px",
 							}}
 						>
+							{isEventExpired && (
+								<div
+									style={{
+										padding: "8px 12px",
+										borderRadius: "8px",
+										background: "rgba(239, 68, 68, 0.08)",
+										border: "1px solid rgba(239, 68, 68, 0.2)",
+										fontSize: "12.5px",
+										display: "flex",
+										alignItems: "center",
+										gap: "8px",
+										color: "var(--theme-danger, #ef4444)",
+									}}
+								>
+									<AlertCircle size={15} style={{ flexShrink: 0 }} />
+									<span>
+										Sự kiện đã kết thúc lúc{" "}
+										{area.openUntil ? formatDisplayDateTime(area.openUntil) : "—"}{" "}
+										(coi như đang tắt).
+									</span>
+								</div>
+							)}
+
 							<label
 								style={{
 									display: "flex",
@@ -503,7 +534,7 @@ export default function AreaAccessRulesModal({
 										<span style={{ fontSize: "12.5px", fontWeight: 600, color: "var(--theme-text-primary, #0f172a)" }}>
 											{currentEventAction === "EVENT_ENABLE" && "Bật chế độ sự kiện"}
 											{currentEventAction === "EVENT_DISABLE" && "Tắt chế độ sự kiện"}
-											{currentEventAction === "EVENT_EXTEND" && "Gia hạn chế độ sự kiện"}
+											{currentEventAction === "EVENT_EXTEND" && "Điều chỉnh giờ kết thúc"}
 										</span>
 									</div>
 
@@ -578,7 +609,7 @@ export default function AreaAccessRulesModal({
 											rows={2}
 											value={eventNote}
 											onChange={(e) => setEventNote(e.target.value)}
-											placeholder="Nhập ghi chú chi tiết cho sự kiện (10–500 ký tự)..."
+											placeholder="Nêu tên sự kiện hoặc đơn vị tổ chức (10–500 ký tự)"
 											maxLength={500}
 											style={{
 												width: "100%",

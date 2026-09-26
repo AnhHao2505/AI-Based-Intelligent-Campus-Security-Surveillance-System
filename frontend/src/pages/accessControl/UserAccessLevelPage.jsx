@@ -392,7 +392,7 @@ export default function UserAccessLevelPage() {
     else if (action === 'REVOKE') actionLabel = 'Thu hồi';
     else if (action === 'ENABLE_EVENT_MODE') actionLabel = 'Bật chế độ sự kiện';
     else if (action === 'DISABLE_EVENT_MODE') actionLabel = 'Tắt chế độ sự kiện';
-    else if (action === 'EXTEND_EVENT_MODE') actionLabel = 'Gia hạn chế độ sự kiện';
+    else if (action === 'EXTEND_EVENT_MODE') actionLabel = 'Điều chỉnh giờ kết thúc';
     else if (action === 'CREATE') actionLabel = 'Tạo mới';
     else if (action === 'DEACTIVATE') actionLabel = 'Ngừng dùng';
     else if (action === 'REACTIVATE') actionLabel = 'Dùng lại';
