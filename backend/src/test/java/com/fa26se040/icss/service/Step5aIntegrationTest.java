@@ -453,15 +453,16 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
         assertEquals(AreaErrorCode.ERR_AREA_024, exNoReason.getErrorCode());
 
         // openUntil quá khứ -> 400 (ERR_AREA_023)
-        AreaEventModeUpdateRequest pastUntilReq = new AreaEventModeUpdateRequest(true, OffsetDateTime.now().minusHours(1), "SEMINAR", "Lý do hợp lệ trên mười ký tự");
+        AreaEventModeUpdateRequest pastUntilReq = new AreaEventModeUpdateRequest(true, OffsetDateTime.now().minusHours(1), "EVENT_PROLONGED", "Lý do hợp lệ trên mười ký tự");
         AreaException exPast = assertThrows(AreaException.class, () ->
                 areaService.updateEventMode(internalArea.getId(), pastUntilReq, fmUser.getEmail())
         );
         assertEquals(AreaErrorCode.ERR_AREA_023, exPast.getErrorCode());
 
-        // Bật lại y hệt -> không thêm audit log
+        // Bật lại y hệt (gửi EVENT_EXTEND với cùng openUntil) -> no-op không thêm audit log (BR-EV-08)
         long auditCountAfterAll = auditLogRepository.count();
-        areaService.updateEventMode(internalArea.getId(), validReq, fmUser.getEmail());
+        AreaEventModeUpdateRequest noOpReq = new AreaEventModeUpdateRequest(true, futureUntil, "EVENT_PROLONGED", "Gia hạn giữ nguyên giờ không đổi");
+        areaService.updateEventMode(internalArea.getId(), noOpReq, fmUser.getEmail());
         assertEquals(auditCountAfterAll, auditLogRepository.count());
     }
 
@@ -530,13 +531,13 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
     void testT2_ReasonCodeAndNoteValidations() {
         OffsetDateTime futureUntil = OffsetDateTime.now().plusHours(3);
 
-        // 1. reasonCode sai action_type (ENDED_EARLY là của EVENT_DISABLE, dùng khi bật) -> ERR_AREA_026
+        // 1. reasonCode sai action_type (ENDED_EARLY là của EVENT_DISABLE, dùng khi bật) -> ERR_AREA_030 (409 M1)
         AreaException exWrongAction = assertThrows(AreaException.class, () ->
                 areaService.updateEventMode(internalArea.getId(),
                         new AreaEventModeUpdateRequest(true, futureUntil, "ENDED_EARLY", "Ghi chu hop le tren 10 ky tu"),
                         fmUser.getEmail())
         );
-        assertEquals(AreaErrorCode.ERR_AREA_026, exWrongAction.getErrorCode());
+        assertEquals(AreaErrorCode.ERR_AREA_030, exWrongAction.getErrorCode());
 
         // 2. reasonCode đã ngừng dùng -> ERR_AREA_025
         String tempDeactivatedCode = "TEMP_" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();

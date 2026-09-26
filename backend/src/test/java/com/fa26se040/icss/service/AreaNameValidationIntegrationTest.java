@@ -205,12 +205,13 @@ class AreaNameValidationIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isCreated())
                 .andReturn();
 
-        String areaId1 = objectMapper.readTree(res1.getResponse().getContentAsString()).get("id").asText();
+        com.fasterxml.jackson.databind.JsonNode node1 = objectMapper.readTree(res1.getResponse().getContentAsString());
+        String areaId1 = (node1.has("data") ? node1.get("data") : node1).get("id").asText();
 
         // Xoá mềm khu vực 1
         mockMvc.perform(delete("/api/areas/" + areaId1)
                         .header("Authorization", adminToken))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk());
 
         // Tạo lại khu vực mới cùng tên cùng tầng
         AreaCreateRequest req2 = AreaCreateRequest.builder()
@@ -259,7 +260,8 @@ class AreaNameValidationIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isCreated())
                 .andReturn();
 
-        String areaBId = objectMapper.readTree(resB.getResponse().getContentAsString()).get("id").asText();
+        com.fasterxml.jackson.databind.JsonNode nodeB = objectMapper.readTree(resB.getResponse().getContentAsString());
+        String areaBId = (nodeB.has("data") ? nodeB.get("data") : nodeB).get("id").asText();
 
         // Sửa khu vực B: đổi sang Tầng 1 VÀ đổi tên thành "Phòng Nghiên Cứu <suffix>" -> Đã có ở tầng 1!
         AreaUpdateRequest updateReq = AreaUpdateRequest.builder()
@@ -295,7 +297,8 @@ class AreaNameValidationIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isCreated())
                 .andReturn();
 
-        String areaId = objectMapper.readTree(res.getResponse().getContentAsString()).get("id").asText();
+        com.fasterxml.jackson.databind.JsonNode nodeRes = objectMapper.readTree(res.getResponse().getContentAsString());
+        String areaId = (nodeRes.has("data") ? nodeRes.get("data") : nodeRes).get("id").asText();
 
         // Sửa: đổi cấp độ, giữ nguyên tên
         AreaUpdateRequest updateReq = AreaUpdateRequest.builder()
@@ -309,7 +312,7 @@ class AreaNameValidationIntegrationTest extends AbstractIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(updateReq)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.areaLevel", is("INTERNAL_CONFIDENTIAL")));
+                .andExpect(jsonPath("$.data.areaLevel", is("INTERNAL_CONFIDENTIAL")));
     }
 
     @Test
@@ -334,8 +337,10 @@ class AreaNameValidationIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isCreated())
                 .andReturn();
 
-        String areaId = objectMapper.readTree(result.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8)).get("id").asText();
-        String responseName = objectMapper.readTree(result.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8)).get("name").asText();
+        com.fasterxml.jackson.databind.JsonNode nodeResult = objectMapper.readTree(result.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8));
+        com.fasterxml.jackson.databind.JsonNode dataNode = nodeResult.has("data") ? nodeResult.get("data") : nodeResult;
+        String areaId = dataNode.get("id").asText();
+        String responseName = dataNode.get("name").asText();
 
         assertEquals(originalNfc, responseName);
         assertTrue(Normalizer.isNormalized(responseName, Normalizer.Form.NFC), "Tên trả về từ API phải ở chuẩn NFC");

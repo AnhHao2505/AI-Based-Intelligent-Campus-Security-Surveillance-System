@@ -63,6 +63,7 @@ public class AreaService {
     private final com.fa26se040.icss.repository.AreaEventSessionRepository eventSessionRepository;
     private final SystemConfigService systemConfigService;
     private final org.springframework.beans.factory.ObjectProvider<InAppNotificationService> inAppNotificationServiceProvider;
+    private final org.springframework.beans.factory.ObjectProvider<AreaService> selfProvider;
 
     private java.util.Map<AreaLevel, AreaLevelPreset> loadPresetMap() {
         return areaLevelPresetRepository.findAll().stream()
@@ -693,29 +694,42 @@ public class AreaService {
         );
     }
 
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    public void cleanupExpiredSessionsAndLingeringFlags(UUID areaId, OffsetDateTime now) {
+        List<com.fa26se040.icss.entity.AreaEventSession> expiredSessions =
+                eventSessionRepository.findByAreaIdAndActualEndIsNullAndPlannedEndLessThanEqual(areaId, now);
+        for (com.fa26se040.icss.entity.AreaEventSession exp : expiredSessions) {
+            exp.setActualEnd(exp.getPlannedEnd());
+            exp.setEndedBy(null);
+            eventSessionRepository.save(exp);
+        }
+        areaRepository.findById(areaId).ifPresent(area -> {
+            if (Boolean.TRUE.equals(area.getOpenToMembers()) && !area.isEventActive(now)) {
+                area.setOpenToMembers(false);
+                area.setOpenUntil(null);
+                areaRepository.save(area);
+            }
+        });
+    }
+
     @Transactional
     public AreaResponse updateEventMode(UUID id, AreaEventModeUpdateRequest req, String actorEmail) {
         log.info("Updating event mode for area {}: enabled={}, openUntil={}, reasonCode={}",
                 id, req != null ? req.enabled() : null, req != null ? req.openUntil() : null, req != null ? req.reasonCode() : null);
 
-        // 1. Khoá area (B2). Không tồn tại -> lỗi hiện có (ERR_AREA_002)
-        Area area = areaRepository.findByIdWithLock(id)
-                .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
-
         OffsetDateTime now = OffsetDateTime.now();
 
-        // 2. Dọn dữ liệu sót (BR-EV-06): đóng mọi phiên actual_end IS NULL ∧ planned_end <= now với actual_end = planned_end, ended_by = NULL
-        List<com.fa26se040.icss.entity.AreaEventSession> expiredSessions =
-                eventSessionRepository.findByAreaIdAndActualEndIsNullAndPlannedEndLessThanEqual(id, now);
-        for (com.fa26se040.icss.entity.AreaEventSession exp : expiredSessions) {
-            exp.setActualEnd(exp.getPlannedEnd());
-            eventSessionRepository.save(exp);
+        // 1. Dọn dữ liệu sót (BR-EV-06): đóng mọi phiên actual_end IS NULL ∧ planned_end <= now với actual_end = planned_end, ended_by = NULL
+        AreaService self = selfProvider.getIfAvailable();
+        if (self != null) {
+            self.cleanupExpiredSessionsAndLingeringFlags(id, now);
+        } else {
+            cleanupExpiredSessionsAndLingeringFlags(id, now);
         }
-        if (Boolean.TRUE.equals(area.getOpenToMembers()) && !area.isEventActive(now)) {
-            area.setOpenToMembers(false);
-            area.setOpenUntil(null);
-            area = areaRepository.save(area);
-        }
+
+        // 2. Khoá area (B2). Không tồn tại -> lỗi hiện có (ERR_AREA_002)
+        Area area = areaRepository.findByIdWithLock(id)
+                .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
 
         // 3. Validate đầu vào:
         if (req == null) {

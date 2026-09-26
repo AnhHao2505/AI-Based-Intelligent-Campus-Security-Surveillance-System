@@ -320,7 +320,7 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(get("/api/access-control/audit-logs")
                         .header("Authorization", token))
                 .andExpect(status().isOk())
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.content").isArray());
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.content").isArray());
     }
 
     @Test
@@ -359,7 +359,7 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
                         .param("from", "2026-01-01T00:00:00Z")
                         .param("to", "2026-12-31T23:59:59Z"))
                 .andExpect(status().isOk())
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.content").isArray());
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.content").isArray());
     }
 
     @Test
@@ -413,7 +413,7 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
 
         com.fasterxml.jackson.databind.JsonNode rootNode = new com.fasterxml.jackson.databind.ObjectMapper()
                 .readTree(result.getResponse().getContentAsString());
-        UUID apId = UUID.fromString(rootNode.get("id").asText());
+        UUID apId = UUID.fromString((rootNode.has("data") ? rootNode.get("data") : rootNode).get("id").asText());
 
         // 1. Kiểm tra trực tiếp trên bảng nghiệp vụ area_assigned_personnel
         Object noteObj = entityManager.createNativeQuery(
@@ -483,8 +483,9 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
                         .content(String.format("{\"userId\": \"%s\", \"reason\": \"Gán để sửa\"}", targetUser.getId())))
                 .andExpect(status().isCreated())
                 .andReturn();
-        UUID apId = UUID.fromString(new com.fasterxml.jackson.databind.ObjectMapper()
-                .readTree(createRes.getResponse().getContentAsString()).get("id").asText());
+        com.fasterxml.jackson.databind.JsonNode createNode1 = new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(createRes.getResponse().getContentAsString());
+        UUID apId = UUID.fromString((createNode1.has("data") ? createNode1.get("data") : createNode1).get("id").asText());
 
         // Sửa hạn
         String updateJson = "{\"validTo\": \"2027-10-01T12:00:00Z\", \"reason\": \"Gia hạn công tác\"}";
@@ -551,8 +552,9 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
                         .content(String.format("{\"userId\": \"%s\", \"reason\": \"Gán để thu hồi\"}", targetUser.getId())))
                 .andExpect(status().isCreated())
                 .andReturn();
-        UUID apId = UUID.fromString(new com.fasterxml.jackson.databind.ObjectMapper()
-                .readTree(createRes.getResponse().getContentAsString()).get("id").asText());
+        com.fasterxml.jackson.databind.JsonNode createNode2 = new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(createRes.getResponse().getContentAsString());
+        UUID apId = UUID.fromString((createNode2.has("data") ? createNode2.get("data") : createNode2).get("id").asText());
 
         // Thu hồi
         String revokeJson = "{\"reason\": \"Chuyển công tác khác phòng\"}";
@@ -787,9 +789,9 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
                         .param("targetType", "USER_ACCESS_LEVEL")
                         .param("subjectUserId", targetUser.getId().toString()))
                 .andExpect(status().isOk())
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.content[0].newValue").isMap())
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.content[0].newValue.accessLevel").value(2))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.content[0].oldValue").isMap())
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.content[0].oldValue.accessLevel").value(1));
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.content[0].newValue").isMap())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.content[0].newValue.accessLevel").value(2))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.content[0].oldValue").isMap())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.content[0].oldValue.accessLevel").value(1));
     }
 }

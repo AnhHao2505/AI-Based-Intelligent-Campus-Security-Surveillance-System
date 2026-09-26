@@ -155,19 +155,19 @@ class AccessRequestIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(get("/api/access-requests/my")
                         .header("Authorization", studentToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalElements", greaterThanOrEqualTo(2)))
-                .andExpect(jsonPath("$.content[0].areaId").exists())
-                .andExpect(jsonPath("$.content[0].areaName").exists());
+                .andExpect(jsonPath("$.data.totalElements", greaterThanOrEqualTo(2)))
+                .andExpect(jsonPath("$.data.content[0].areaId").exists())
+                .andExpect(jsonPath("$.data.content[0].areaName").exists());
 
         // Case 2: Truyền areaId = area1.id -> Chỉ trả về bản ghi của area1
         mockMvc.perform(get("/api/access-requests/my")
                         .header("Authorization", studentToken)
                         .param("areaId", area1.getId().toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalElements", is(1)))
-                .andExpect(jsonPath("$.content[0].id", is(req1.getId().toString())))
-                .andExpect(jsonPath("$.content[0].areaId", is(area1.getId().toString())))
-                .andExpect(jsonPath("$.content[0].areaName", is(area1.getName())));
+                .andExpect(jsonPath("$.data.totalElements", is(1)))
+                .andExpect(jsonPath("$.data.content[0].id", is(req1.getId().toString())))
+                .andExpect(jsonPath("$.data.content[0].areaId", is(area1.getId().toString())))
+                .andExpect(jsonPath("$.data.content[0].areaName", is(area1.getName())));
 
         // Case 3: Truyền areaId = area2.id và status = APPROVED -> Chỉ trả về req2
         mockMvc.perform(get("/api/access-requests/my")
@@ -175,10 +175,10 @@ class AccessRequestIntegrationTest extends AbstractIntegrationTest {
                         .param("areaId", area2.getId().toString())
                         .param("status", "APPROVED"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalElements", is(1)))
-                .andExpect(jsonPath("$.content[0].id", is(req2.getId().toString())))
-                .andExpect(jsonPath("$.content[0].areaId", is(area2.getId().toString())))
-                .andExpect(jsonPath("$.content[0].status", is("APPROVED")));
+                .andExpect(jsonPath("$.data.totalElements", is(1)))
+                .andExpect(jsonPath("$.data.content[0].id", is(req2.getId().toString())))
+                .andExpect(jsonPath("$.data.content[0].areaId", is(area2.getId().toString())))
+                .andExpect(jsonPath("$.data.content[0].status", is("APPROVED")));
 
         // ========================================================
         // B. Kiểm tra GET /api/access-requests (FM)
@@ -187,17 +187,17 @@ class AccessRequestIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(get("/api/access-requests")
                         .header("Authorization", fmToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalElements", greaterThanOrEqualTo(2)))
-                .andExpect(jsonPath("$.content[0].areaId").exists())
-                .andExpect(jsonPath("$.content[0].areaName").exists());
+                .andExpect(jsonPath("$.data.totalElements", greaterThanOrEqualTo(2)))
+                .andExpect(jsonPath("$.data.content[0].areaId").exists())
+                .andExpect(jsonPath("$.data.content[0].areaName").exists());
 
         // Case 5: FM gọi lọc theo areaId = area2.id -> Trả về bản ghi của area2
         mockMvc.perform(get("/api/access-requests")
                         .header("Authorization", fmToken)
                         .param("areaId", area2.getId().toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content[0].areaId", is(area2.getId().toString())))
-                .andExpect(jsonPath("$.content[0].areaName", is(area2.getName())));
+                .andExpect(jsonPath("$.data.content[0].areaId", is(area2.getId().toString())))
+                .andExpect(jsonPath("$.data.content[0].areaName", is(area2.getName())));
 
         // Case 6: FM gọi lọc theo areaId = area1.id và status = PENDING -> Trả về req1
         mockMvc.perform(get("/api/access-requests")
@@ -205,9 +205,9 @@ class AccessRequestIntegrationTest extends AbstractIntegrationTest {
                         .param("areaId", area1.getId().toString())
                         .param("status", "PENDING"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content[0].id", is(req1.getId().toString())))
-                .andExpect(jsonPath("$.content[0].areaId", is(area1.getId().toString())))
-                .andExpect(jsonPath("$.content[0].status", is("PENDING")));
+                .andExpect(jsonPath("$.data.content[0].id", is(req1.getId().toString())))
+                .andExpect(jsonPath("$.data.content[0].areaId", is(area1.getId().toString())))
+                .andExpect(jsonPath("$.data.content[0].status", is("PENDING")));
     }
 
     @Test
@@ -300,15 +300,15 @@ class AccessRequestIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(get("/api/access-requests/my")
                         .header("Authorization", studentBToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalElements", is(2)))
-                .andExpect(jsonPath("$.content[0].id", is(reqGroup.getId().toString())))
-                .andExpect(jsonPath("$.content[0].isRequester", is(false)))
-                .andExpect(jsonPath("$.content[0].requestType", is("GROUP")))
-                .andExpect(jsonPath("$.content[0].areaId", is(area1.getId().toString())))
-                .andExpect(jsonPath("$.content[1].id", is(reqBIndividual.getId().toString())))
-                .andExpect(jsonPath("$.content[1].isRequester", is(true)))
-                .andExpect(jsonPath("$.content[1].requestType", is("INDIVIDUAL")))
-                .andExpect(jsonPath("$.content[1].areaId", is(area2.getId().toString())));
+                .andExpect(jsonPath("$.data.totalElements", is(2)))
+                .andExpect(jsonPath("$.data.content[0].id", is(reqGroup.getId().toString())))
+                .andExpect(jsonPath("$.data.content[0].isRequester", is(false)))
+                .andExpect(jsonPath("$.data.content[0].requestType", is("GROUP")))
+                .andExpect(jsonPath("$.data.content[0].areaId", is(area1.getId().toString())))
+                .andExpect(jsonPath("$.data.content[1].id", is(reqBIndividual.getId().toString())))
+                .andExpect(jsonPath("$.data.content[1].isRequester", is(true)))
+                .andExpect(jsonPath("$.data.content[1].requestType", is("INDIVIDUAL")))
+                .andExpect(jsonPath("$.data.content[1].areaId", is(area2.getId().toString())));
 
         // B. GET /api/access-requests/my CÓ areaId = area1.id (khu vực của đơn nhóm):
         // User B phải thấy đơn nhóm mà mình là thành viên
@@ -316,21 +316,21 @@ class AccessRequestIntegrationTest extends AbstractIntegrationTest {
                         .header("Authorization", studentBToken)
                         .param("areaId", area1.getId().toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalElements", is(1)))
-                .andExpect(jsonPath("$.content[0].id", is(reqGroup.getId().toString())))
-                .andExpect(jsonPath("$.content[0].isRequester", is(false)))
-                .andExpect(jsonPath("$.content[0].areaId", is(area1.getId().toString())))
-                .andExpect(jsonPath("$.content[0].requestType", is("GROUP")));
+                .andExpect(jsonPath("$.data.totalElements", is(1)))
+                .andExpect(jsonPath("$.data.content[0].id", is(reqGroup.getId().toString())))
+                .andExpect(jsonPath("$.data.content[0].isRequester", is(false)))
+                .andExpect(jsonPath("$.data.content[0].areaId", is(area1.getId().toString())))
+                .andExpect(jsonPath("$.data.content[0].requestType", is("GROUP")));
 
         // C. GET /api/access-requests/my CÓ areaId = area2.id (khu vực của đơn cá nhân):
         mockMvc.perform(get("/api/access-requests/my")
                         .header("Authorization", studentBToken)
                         .param("areaId", area2.getId().toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalElements", is(1)))
-                .andExpect(jsonPath("$.content[0].id", is(reqBIndividual.getId().toString())))
-                .andExpect(jsonPath("$.content[0].isRequester", is(true)))
-                .andExpect(jsonPath("$.content[0].areaId", is(area2.getId().toString())));
+                .andExpect(jsonPath("$.data.totalElements", is(1)))
+                .andExpect(jsonPath("$.data.content[0].id", is(reqBIndividual.getId().toString())))
+                .andExpect(jsonPath("$.data.content[0].isRequester", is(true)))
+                .andExpect(jsonPath("$.data.content[0].areaId", is(area2.getId().toString())));
 
         // D. User B (thành viên) gọi API huỷ đơn nhóm của User A -> Bị từ chối quyền (403 Forbidden)
         mockMvc.perform(patch("/api/access-requests/" + reqGroup.getId() + "/cancel")
