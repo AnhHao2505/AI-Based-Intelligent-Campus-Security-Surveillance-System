@@ -63,7 +63,6 @@ public class AreaService {
     private final com.fa26se040.icss.repository.AreaEventSessionRepository eventSessionRepository;
     private final SystemConfigService systemConfigService;
     private final org.springframework.beans.factory.ObjectProvider<InAppNotificationService> inAppNotificationServiceProvider;
-    private final org.springframework.beans.factory.ObjectProvider<AreaService> selfProvider;
 
     private java.util.Map<AreaLevel, AreaLevelPreset> loadPresetMap() {
         return areaLevelPresetRepository.findAll().stream()
@@ -595,12 +594,8 @@ public class AreaService {
         OffsetDateTime now = OffsetDateTime.now();
         OffsetDateTime reminderThreshold = now.plusMinutes(reminderMinutes);
 
-        List<com.fa26se040.icss.entity.AreaEventSession> activeSessions = eventSessionRepository.findAll().stream()
-                .filter(s -> s.getActualEnd() == null
-                        && s.getPlannedEnd().isAfter(now)
-                        && !s.getPlannedEnd().isAfter(reminderThreshold)
-                        && s.getExpiryRemindedAt() == null)
-                .toList();
+        List<com.fa26se040.icss.entity.AreaEventSession> activeSessions =
+                eventSessionRepository.findSessionsNearingExpiry(now, reminderThreshold);
 
         if (activeSessions.isEmpty()) {
             return 0;
@@ -611,6 +606,11 @@ public class AreaService {
 
         int count = 0;
         for (com.fa26se040.icss.entity.AreaEventSession session : activeSessions) {
+            Area area = areaRepository.findById(session.getArea().getId()).orElse(session.getArea());
+            if (area == null || !area.isEventActive(now)) {
+                continue;
+            }
+
             session.setExpiryRemindedAt(now);
             eventSessionRepository.save(session);
             count++;
@@ -625,14 +625,14 @@ public class AreaService {
                 }
 
                 if (!recipients.isEmpty()) {
-                    String areaName = session.getArea() != null ? session.getArea().getName() : "Khu vực";
+                    String areaName = area.getName();
                     String plannedStr = dtf.format(session.getPlannedEnd());
                     notifService.createForUsers(
                             recipients,
                             com.fa26se040.icss.enums.NotificationType.EVENT_MODE_EXPIRING,
                             "Chế độ sự kiện sắp hết hạn",
-                            String.format("Chế độ sự kiện tại khu vực %s sẽ kết thúc lúc %s. Vui lòng kiểm tra hoặc gia hạn nếu cần.", areaName, plannedStr),
-                            session.getArea() != null ? session.getArea().getId() : null,
+                            String.format("Chế độ sự kiện tại khu vực %s sẽ kết thúc lúc %s. Vui lòng kiểm tra hoặc điều chỉnh giờ kết thúc nếu cần.", areaName, plannedStr),
+                            area.getId(),
                             "AREA"
                     );
                 }
@@ -694,42 +694,32 @@ public class AreaService {
         );
     }
 
-    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
-    public void cleanupExpiredSessionsAndLingeringFlags(UUID areaId, OffsetDateTime now) {
-        List<com.fa26se040.icss.entity.AreaEventSession> expiredSessions =
-                eventSessionRepository.findByAreaIdAndActualEndIsNullAndPlannedEndLessThanEqual(areaId, now);
-        for (com.fa26se040.icss.entity.AreaEventSession exp : expiredSessions) {
-            exp.setActualEnd(exp.getPlannedEnd());
-            exp.setEndedBy(null);
-            eventSessionRepository.save(exp);
-        }
-        areaRepository.findById(areaId).ifPresent(area -> {
-            if (Boolean.TRUE.equals(area.getOpenToMembers()) && !area.isEventActive(now)) {
-                area.setOpenToMembers(false);
-                area.setOpenUntil(null);
-                areaRepository.save(area);
-            }
-        });
-    }
-
     @Transactional
     public AreaResponse updateEventMode(UUID id, AreaEventModeUpdateRequest req, String actorEmail) {
         log.info("Updating event mode for area {}: enabled={}, openUntil={}, reasonCode={}",
                 id, req != null ? req.enabled() : null, req != null ? req.openUntil() : null, req != null ? req.reasonCode() : null);
 
-        OffsetDateTime now = OffsetDateTime.now();
-
-        // 1. Dọn dữ liệu sót (BR-EV-06): đóng mọi phiên actual_end IS NULL ∧ planned_end <= now với actual_end = planned_end, ended_by = NULL
-        AreaService self = selfProvider.getIfAvailable();
-        if (self != null) {
-            self.cleanupExpiredSessionsAndLingeringFlags(id, now);
-        } else {
-            cleanupExpiredSessionsAndLingeringFlags(id, now);
-        }
-
-        // 2. Khoá area (B2). Không tồn tại -> lỗi hiện có (ERR_AREA_002)
+        // 1. Khoá area (B2). Không tồn tại -> lỗi hiện có (ERR_AREA_002)
         Area area = areaRepository.findByIdWithLock(id)
                 .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
+
+        // 2. now = OffsetDateTime.now() lấy SAU khi đã có khoá (R4)
+        OffsetDateTime now = OffsetDateTime.now();
+
+        // 3. Dọn trong cùng transaction, trên CHÍNH entity area đã khoá (không findById lại):
+        // đóng các phiên actual_end IS NULL ∧ planned_end <= now với actual_end = planned_end, ended_by = NULL
+        List<com.fa26se040.icss.entity.AreaEventSession> expiredSessions =
+                eventSessionRepository.findByAreaIdAndActualEndIsNullAndPlannedEndLessThanEqual(id, now);
+        for (com.fa26se040.icss.entity.AreaEventSession exp : expiredSessions) {
+            exp.setActualEnd(exp.getPlannedEnd());
+            exp.setEndedBy(null);
+            eventSessionRepository.save(exp);
+        }
+        // nếu area.openToMembers = true ∧ !area.isEventActive(now) → openToMembers = false, openUntil = NULL. Không audit, không thông báo.
+        if (Boolean.TRUE.equals(area.getOpenToMembers()) && !area.isEventActive(now)) {
+            area.setOpenToMembers(false);
+            area.setOpenUntil(null);
+        }
 
         // 3. Validate đầu vào:
         if (req == null) {

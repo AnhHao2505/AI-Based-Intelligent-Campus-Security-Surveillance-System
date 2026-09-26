@@ -10,7 +10,7 @@ import {
 import { toast } from "sonner";
 import Modal from "../ui/Modal";
 import Button from "../ui/Button";
-import { updateAreaAccessRules, updateAreaEventMode } from "../../services/areaService";
+import { getAreaById, updateAreaAccessRules, updateAreaEventMode } from "../../services/areaService";
 import { getActiveReasons } from "../../services/reasonCatalogService";
 import { formatDisplayDateTime } from "../../utils/areaHelpers";
 import "./AreaAccessRulesModal.css";
@@ -240,8 +240,15 @@ export default function AreaAccessRulesModal({
 			toast.error(msg);
 			const status = err?.status || err?.response?.status;
 			if (status === 409 || err?.code === "ERR_AREA_030") {
-				onSuccess?.(area);
-				onClose();
+				try {
+					const reloaded = await getAreaById(area.id);
+					const freshData = reloaded?.data || reloaded;
+					onSuccess?.(freshData);
+					onClose();
+				} catch (fetchErr) {
+					console.error("Lỗi khi tải lại dữ liệu khu vực sau 409:", fetchErr);
+					setError("Xung đột trạng thái: " + msg + " (Không thể tự động tải lại dữ liệu mới, vui lòng đóng và mở lại).");
+				}
 			}
 		} finally {
 			setSaving(false);

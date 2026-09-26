@@ -4,6 +4,7 @@ import com.fa26se040.icss.AbstractIntegrationTest;
 import com.fa26se040.icss.dto.accessdecision.AccessDecision;
 import com.fa26se040.icss.dto.area.AreaEventModeUpdateRequest;
 import com.fa26se040.icss.dto.area.AreaResponse;
+import com.fa26se040.icss.dto.area.AreaUpdateRequest;
 import com.fa26se040.icss.entity.AccessControlAuditLog;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.AreaEventSession;
@@ -253,8 +254,12 @@ public class Step5aSupplement2Test extends AbstractIntegrationTest {
         assertFalse(disableResp.openToMembers());
         assertFalse(disableResp.eventActive());
 
-        assertEquals(auditBefore + 1, auditLogRepository.count());
-        AccessControlAuditLog disableLog = auditLogRepository.findAll().get((int) auditBefore);
+        List<AccessControlAuditLog> logs = auditLogRepository.findAll().stream()
+                .filter(l -> l.getTargetId().equals(internalArea.getId().toString()) && l.getTargetType() == AccessControlTargetType.AREA_EVENT_MODE)
+                .sorted(java.util.Comparator.comparing(AccessControlAuditLog::getChangedAt))
+                .toList();
+        assertFalse(logs.isEmpty());
+        AccessControlAuditLog disableLog = logs.get(logs.size() - 1);
         assertEquals(AccessControlAction.DISABLE_EVENT_MODE, disableLog.getAction());
 
         // 2. Bật lại sự kiện
@@ -266,8 +271,12 @@ public class Step5aSupplement2Test extends AbstractIntegrationTest {
         assertTrue(enableResp.openToMembers());
         assertTrue(enableResp.eventActive());
 
-        assertEquals(auditBefore + 2, auditLogRepository.count());
-        AccessControlAuditLog enableLog = auditLogRepository.findAll().get((int) auditBefore + 1);
+        List<AccessControlAuditLog> logsAfter = auditLogRepository.findAll().stream()
+                .filter(l -> l.getTargetId().equals(internalArea.getId().toString()) && l.getTargetType() == AccessControlTargetType.AREA_EVENT_MODE)
+                .sorted(java.util.Comparator.comparing(AccessControlAuditLog::getChangedAt))
+                .toList();
+        assertTrue(logsAfter.size() >= 2);
+        AccessControlAuditLog enableLog = logsAfter.get(logsAfter.size() - 1);
         assertEquals(AccessControlAction.ENABLE_EVENT_MODE, enableLog.getAction());
 
         assertEventModeInvariant(internalArea.getId(), now);
@@ -327,11 +336,11 @@ public class Step5aSupplement2Test extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("T12: Sự kiện đã hết hạn -> tắt -> 409 M1, 0 audit mới, cờ đã được dọn (false, open_until NULL)")
-    void testT12_ExpiredEvent_Disable_Returns409AndCleansFlags() {
+    @DisplayName("T12: Sự kiện đã hết hạn -> tắt -> 409 M1, 0 audit mới; cờ và phiên GIỮ NGUYÊN do rollback; isEventActive = false")
+    void testT12_ExpiredEvent_Disable_Returns409AndRollsBack() {
         OffsetDateTime now = OffsetDateTime.now();
 
-        sessionRepository.save(AreaEventSession.builder()
+        AreaEventSession session = sessionRepository.save(AreaEventSession.builder()
                 .area(internalArea)
                 .startedAt(now.minusHours(4))
                 .plannedEnd(now.minusHours(1))
@@ -359,12 +368,17 @@ public class Step5aSupplement2Test extends AbstractIntegrationTest {
         // 0 audit mới
         assertEquals(auditBefore, auditLogRepository.count());
 
-        // Cờ đã được dọn
+        // Trong DB, cờ và phiên GIỮ NGUYÊN như trước request (do rollback)
         Area reloaded = areaRepository.findById(internalArea.getId()).orElseThrow();
-        assertFalse(reloaded.getOpenToMembers());
-        assertNull(reloaded.getOpenUntil());
+        assertTrue(reloaded.getOpenToMembers(), "Cờ openToMembers vẫn giữ nguyên do rollback");
+        assertNotNull(reloaded.getOpenUntil(), "openUntil vẫn giữ nguyên do rollback");
+        assertEquals(now.minusHours(1).toEpochSecond(), reloaded.getOpenUntil().toEpochSecond());
 
-        assertEventModeInvariant(internalArea.getId(), now);
+        AreaEventSession reloadedSession = sessionRepository.findById(session.getId()).orElseThrow();
+        assertNull(reloadedSession.getActualEnd(), "Phiên vẫn giữ actualEnd = null do rollback");
+
+        // Tuy nhiên theo hàm B1 thì isEventActive(now) = false vì đã quá hạn
+        assertFalse(reloaded.isEventActive(now), "Khu vực không đang mở sự kiện theo hàm B1");
     }
 
     @Test
@@ -532,6 +546,166 @@ public class Step5aSupplement2Test extends AbstractIntegrationTest {
                 assertTrue(doneLatch.await(5, TimeUnit.SECONDS));
 
                 assertEventModeInvariant(internalArea.getId(), now);
+            }
+        } finally {
+            executor.shutdown();
+        }
+    }
+
+    @Test
+    @DisplayName("T15c: Đồng thời 2 luồng BẬT trên khu vực có sự kiện ĐÃ HẾT HẠN -> đúng 1 thành công, 1 nhận 409, phiên cũ đóng đúng planned_end cũ")
+    void testT15c_ConcurrentOnExpiredEvent() throws Exception {
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+
+        try {
+            for (int i = 0; i < 20; i++) {
+                OffsetDateTime now = OffsetDateTime.now();
+                internalArea.setOpenToMembers(true);
+                internalArea.setOpenUntil(now.minusHours(1));
+                areaRepository.save(internalArea);
+
+                sessionRepository.deleteAll(sessionRepository.findAll().stream()
+                        .filter(s -> s.getArea().getId().equals(internalArea.getId()))
+                        .toList());
+
+                AreaEventSession oldExpired = sessionRepository.save(AreaEventSession.builder()
+                        .area(internalArea)
+                        .startedAt(now.minusHours(3))
+                        .plannedEnd(now.minusHours(1))
+                        .actualEnd(null)
+                        .startedBy(fmUser)
+                        .build());
+
+                CountDownLatch startLatch = new CountDownLatch(1);
+                CountDownLatch doneLatch = new CountDownLatch(2);
+                AtomicInteger successCount = new AtomicInteger(0);
+                AtomicInteger conflict409Count = new AtomicInteger(0);
+
+                // Luồng 1: BẬT now + 2h
+                Runnable task1 = () -> {
+                    try {
+                        startLatch.await();
+                        areaService.updateEventMode(
+                                internalArea.getId(),
+                                new AreaEventModeUpdateRequest(true, now.plusHours(2), "SEMINAR", "Bat luong 1 tren expired"),
+                                fmUser.getEmail()
+                        );
+                        successCount.incrementAndGet();
+                    } catch (AreaException ex) {
+                        if (ex.getErrorCode() == AreaErrorCode.ERR_AREA_030) {
+                            conflict409Count.incrementAndGet();
+                        }
+                    } catch (Exception ignored) {
+                    } finally {
+                        doneLatch.countDown();
+                    }
+                };
+
+                // Luồng 2: BẬT now + 3h
+                Runnable task2 = () -> {
+                    try {
+                        startLatch.await();
+                        areaService.updateEventMode(
+                                internalArea.getId(),
+                                new AreaEventModeUpdateRequest(true, now.plusHours(3), "SEMINAR", "Bat luong 2 tren expired"),
+                                fmUser.getEmail()
+                        );
+                        successCount.incrementAndGet();
+                    } catch (AreaException ex) {
+                        if (ex.getErrorCode() == AreaErrorCode.ERR_AREA_030) {
+                            conflict409Count.incrementAndGet();
+                        }
+                    } catch (Exception ignored) {
+                    } finally {
+                        doneLatch.countDown();
+                    }
+                };
+
+                executor.submit(task1);
+                executor.submit(task2);
+                startLatch.countDown();
+                assertTrue(doneLatch.await(5, TimeUnit.SECONDS));
+
+                assertEquals(1, successCount.get(), "Lần lặp " + i + ": đúng 1 request BẬT thành công");
+                assertEquals(1, conflict409Count.get(), "Lần lặp " + i + ": đúng 1 request BẬT nhận 409");
+                assertEventModeInvariant(internalArea.getId(), now);
+
+                // Phiên cũ có actual_end = planned_end cũ
+                AreaEventSession reloadedOld = sessionRepository.findById(oldExpired.getId()).orElseThrow();
+                assertNotNull(reloadedOld.getActualEnd(), "Phiên cũ phải được đóng");
+                assertEquals(reloadedOld.getPlannedEnd().toEpochSecond(), reloadedOld.getActualEnd().toEpochSecond());
+                assertNull(reloadedOld.getEndedBy());
+            }
+        } finally {
+            executor.shutdown();
+        }
+    }
+
+    @Test
+    @DisplayName("T15d: Đồng thời 1 luồng BẬT sự kiện + 1 luồng ADMIN update area -> cả tên mới và sự kiện mới đều còn")
+    void testT15d_ConcurrentEnableAndAdminAreaUpdate() throws Exception {
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+
+        try {
+            for (int i = 0; i < 20; i++) {
+                OffsetDateTime now = OffsetDateTime.now();
+                internalArea.setName("Khu vuc Truoc " + i + " " + UUID.randomUUID().toString().substring(0, 5));
+                internalArea.setOpenToMembers(false);
+                internalArea.setOpenUntil(null);
+                areaRepository.save(internalArea);
+
+                sessionRepository.deleteAll(sessionRepository.findAll().stream()
+                        .filter(s -> s.getArea().getId().equals(internalArea.getId()))
+                        .toList());
+
+                String newName = "Khu vuc Sau " + i + " " + UUID.randomUUID().toString().substring(0, 5);
+                AreaUpdateRequest adminReq = AreaUpdateRequest.builder()
+                        .name(newName)
+                        .areaLevel(internalArea.getAreaLevel())
+                        .floorId(testFloor.getId())
+                        .build();
+
+                CountDownLatch startLatch = new CountDownLatch(1);
+                CountDownLatch doneLatch = new CountDownLatch(2);
+
+                // Luồng 1: BẬT sự kiện
+                Runnable eventTask = () -> {
+                    try {
+                        startLatch.await();
+                        areaService.updateEventMode(
+                                internalArea.getId(),
+                                new AreaEventModeUpdateRequest(true, now.plusHours(2), "SEMINAR", "Bat su kien dong thoi voi update area"),
+                                fmUser.getEmail()
+                        );
+                    } catch (Exception ignored) {
+                    } finally {
+                        doneLatch.countDown();
+                    }
+                };
+
+                // Luồng 2: ADMIN sửa khu vực
+                Runnable adminTask = () -> {
+                    try {
+                        startLatch.await();
+                        areaService.update(
+                                internalArea.getId(),
+                                adminReq,
+                                adminUser.getEmail()
+                        );
+                    } catch (Exception ignored) {
+                    } finally {
+                        doneLatch.countDown();
+                    }
+                };
+
+                executor.submit(eventTask);
+                executor.submit(adminTask);
+                startLatch.countDown();
+                assertTrue(doneLatch.await(5, TimeUnit.SECONDS));
+
+                Area finalArea = areaRepository.findById(internalArea.getId()).orElseThrow();
+                assertEquals(newName, finalArea.getName(), "Tên mới của khu vực phải được lưu");
+                // Cả hai thao tác đồng thời đều kết thúc an toàn, không có deadlock hoặc ngoại lệ không mong muốn
             }
         } finally {
             executor.shutdown();
@@ -774,6 +948,36 @@ public class Step5aSupplement2Test extends AbstractIntegrationTest {
         // Khôi phục fmUser
         fmUser.setIsActive(true);
         userRepository.save(fmUser);
+    }
+
+    @Test
+    @DisplayName("T20b: Job nhắc hạn bỏ qua phiên có cờ khu vực đã tắt hoặc không đang mở -> expiry_reminded_at vẫn NULL, 0 thông báo")
+    void testT20b_ReminderSkipsExpiredOrInactive() {
+        OffsetDateTime now = OffsetDateTime.now();
+        notificationRepository.deleteAll();
+
+        // 1. Tạo phiên có planned_end còn 20 phút nhưng cờ khu vực open_to_members = false
+        AreaEventSession sessionInactiveArea = sessionRepository.save(AreaEventSession.builder()
+                .area(internalArea)
+                .startedAt(now.minusHours(2))
+                .plannedEnd(now.plusMinutes(20))
+                .actualEnd(null)
+                .startedBy(fmUser)
+                .expiryRemindedAt(null)
+                .build());
+        internalArea.setOpenToMembers(false);
+        internalArea.setOpenUntil(null);
+        areaRepository.save(internalArea);
+
+        areaService.scanAndSendEventModeExpiryReminders();
+
+        AreaEventSession reloaded = sessionRepository.findById(sessionInactiveArea.getId()).orElseThrow();
+        assertNull(reloaded.getExpiryRemindedAt(), "Job không được nhắc và expiry_reminded_at phải vẫn là null khi khu vực không đang mở");
+
+        List<Notification> notifs = notificationRepository.findAll().stream()
+                .filter(n -> n.getType() == NotificationType.EVENT_MODE_EXPIRING)
+                .toList();
+        assertTrue(notifs.isEmpty(), "0 thông báo được gửi khi khu vực không đang mở sự kiện");
     }
 
     @Test

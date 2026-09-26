@@ -22,6 +22,18 @@ public interface AreaEventSessionRepository extends JpaRepository<AreaEventSessi
 
     @Query("""
         SELECT s FROM AreaEventSession s
+        WHERE s.actualEnd IS NULL
+          AND s.plannedEnd > :now
+          AND s.plannedEnd <= :threshold
+          AND s.expiryRemindedAt IS NULL
+        """)
+    List<AreaEventSession> findSessionsNearingExpiry(
+            @Param("now") OffsetDateTime now,
+            @Param("threshold") OffsetDateTime threshold
+    );
+
+    @Query("""
+        SELECT s FROM AreaEventSession s
         WHERE s.area.id = :areaId
           AND s.startedAt < :windowEnd
           AND (
