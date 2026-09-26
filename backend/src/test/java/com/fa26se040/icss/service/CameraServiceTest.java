@@ -13,6 +13,7 @@ import com.fa26se040.icss.enums.CameraStatus;
 import com.fa26se040.icss.enums.OperationalStatus;
 import com.fa26se040.icss.exception.CameraErrorCode;
 import com.fa26se040.icss.exception.CameraException;
+import com.fa26se040.icss.repository.AreaRepository;
 import com.fa26se040.icss.repository.CameraHealthLogRepository;
 import com.fa26se040.icss.repository.CameraRepository;
 import com.fa26se040.icss.repository.CameraStreamConfigurationRepository;
@@ -56,6 +57,15 @@ class CameraServiceTest {
     @Mock
     private MinioStorageService minioStorageService;
 
+    @Mock
+    private RoiGeometryValidator roiGeometryValidator;
+
+    @Mock
+    private SystemConfigService systemConfigService;
+
+    @Mock
+    private AreaRepository areaRepository;
+
     @InjectMocks
     private CameraService cameraService;
 
@@ -71,7 +81,7 @@ class CameraServiceTest {
                 .name("Camera Cổng Chính")
                 .status(CameraStatus.ACTIVE)
                 .operationalStatus(OperationalStatus.ONLINE)
-                .areas(new HashSet<>())
+                .area(null)
                 .build();
     }
 
@@ -213,7 +223,7 @@ class CameraServiceTest {
                 .building("Tòa A")
                 .floor("Tầng 1")
                 .build();
-        testCamera.getAreas().add(area);
+        testCamera.setArea(area);
 
         when(cameraRepository.findById(testCameraId)).thenReturn(Optional.of(testCamera));
 
@@ -233,7 +243,7 @@ class CameraServiceTest {
                 .building("Tòa B")
                 .floor("Tầng 3")
                 .build();
-        testCamera.getAreas().add(area);
+        testCamera.setArea(area);
 
         when(cameraRepository.findById(testCameraId)).thenReturn(Optional.of(testCamera));
 

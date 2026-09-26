@@ -3,7 +3,6 @@ package com.fa26se040.icss.service;
 import com.fa26se040.icss.dto.camera.RoiGeometry;
 import com.fa26se040.icss.exception.CameraErrorCode;
 import com.fa26se040.icss.exception.CameraException;
-import com.fa26se040.icss.repository.AreaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -16,26 +15,42 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class RoiGeometryValidator {
 
-    private final AreaRepository areaRepository;
-
-    public static final Set<String> ALLOWED_ALERT_RULES = Set.of(
-            "ENTRY_EXIT_TRACKING",
-            "AFTER_HOURS",
-            "CROWD_OVERCROWDING"
+    public static final Set<String> ALLOWED_DIRECTIONS = Set.of(
+            "AB_IS_IN",
+            "AB_IS_OUT"
     );
 
     public void validate(RoiGeometry geometry) {
-        if (geometry == null || geometry.getPolygons() == null) {
+        if (geometry == null) {
             throw new CameraException(CameraErrorCode.ERR_ROI_001);
         }
 
         List<RoiGeometry.RoiPolygon> polygons = geometry.getPolygons();
-        if (polygons.isEmpty() || polygons.size() > 10) {
+        List<RoiGeometry.EntryLine> entryLines = geometry.getEntryLines();
+
+        boolean hasPolygons = polygons != null && !polygons.isEmpty();
+        boolean hasLines = entryLines != null && !entryLines.isEmpty();
+
+        if (!hasPolygons && !hasLines) {
             throw new CameraException(CameraErrorCode.ERR_ROI_001);
         }
 
-        for (RoiGeometry.RoiPolygon polygon : polygons) {
-            validatePolygon(polygon);
+        if (hasPolygons) {
+            if (polygons.size() > 10) {
+                throw new CameraException(CameraErrorCode.ERR_ROI_001);
+            }
+            for (RoiGeometry.RoiPolygon polygon : polygons) {
+                validatePolygon(polygon);
+            }
+        }
+
+        if (hasLines) {
+            if (entryLines.size() > 5) {
+                throw new CameraException(CameraErrorCode.ERR_ROI_009);
+            }
+            for (RoiGeometry.EntryLine line : entryLines) {
+                validateEntryLine(line);
+            }
         }
     }
 
@@ -44,57 +59,19 @@ public class RoiGeometryValidator {
             throw new CameraException(CameraErrorCode.ERR_ROI_002);
         }
 
-        // V5 — Label length <= 100
         if (polygon.getLabel() != null && polygon.getLabel().length() > 100) {
             throw new CameraException(CameraErrorCode.ERR_ROI_005);
         }
 
-        // Target Area validation (ERR_ROI_006)
-        if (polygon.getTargetAreaId() != null) {
-            if (!areaRepository.existsByIdAndDeletedAtIsNull(polygon.getTargetAreaId())) {
-                throw new CameraException(CameraErrorCode.ERR_ROI_006);
-            }
-        }
-
-        // Alert Rules validation (ERR_ROI_007)
-        if (polygon.getAlertRules() == null || polygon.getAlertRules().isEmpty()) {
-            polygon.setAlertRules(List.of("ENTRY_EXIT_TRACKING"));
-        } else {
-            List<String> cleanRules = new ArrayList<>();
-            for (String rawRule : polygon.getAlertRules()) {
-                if (rawRule == null || rawRule.isBlank()) continue;
-                String rule = rawRule.trim().toUpperCase();
-                if (!ALLOWED_ALERT_RULES.contains(rule)) {
-                    throw new CameraException(CameraErrorCode.ERR_ROI_007);
-                }
-                if (!cleanRules.contains(rule)) {
-                    cleanRules.add(rule);
-                }
-            }
-            if (cleanRules.isEmpty()) {
-                cleanRules.add("ENTRY_EXIT_TRACKING");
-            }
-            polygon.setAlertRules(cleanRules);
-        }
-
-        // V2 — At least 3 vertices
         List<RoiGeometry.RoiPolygon.Vertex> vertices = polygon.getVertices();
         if (vertices == null || vertices.size() < 3) {
             throw new CameraException(CameraErrorCode.ERR_ROI_002);
         }
 
-        // V3 — Every coordinate in [0.0, 1.0]
         for (RoiGeometry.RoiPolygon.Vertex v : vertices) {
-            if (v == null || v.getX() == null || v.getY() == null) {
-                throw new CameraException(CameraErrorCode.ERR_ROI_003);
-            }
-            if (v.getX().compareTo(BigDecimal.ZERO) < 0 || v.getX().compareTo(BigDecimal.ONE) > 0
-                    || v.getY().compareTo(BigDecimal.ZERO) < 0 || v.getY().compareTo(BigDecimal.ONE) > 0) {
-                throw new CameraException(CameraErrorCode.ERR_ROI_003);
-            }
+            validateCoordinate(v.getX(), v.getY());
         }
 
-        // V4 — At least 3 distinct vertices
         List<RoiGeometry.RoiPolygon.Vertex> distinctVertices = new ArrayList<>();
         for (RoiGeometry.RoiPolygon.Vertex v : vertices) {
             boolean exists = distinctVertices.stream().anyMatch(existing ->
@@ -107,6 +84,46 @@ public class RoiGeometryValidator {
 
         if (distinctVertices.size() < 3) {
             throw new CameraException(CameraErrorCode.ERR_ROI_004);
+        }
+    }
+
+    private void validateEntryLine(RoiGeometry.EntryLine line) {
+        if (line == null || line.getPointA() == null || line.getPointB() == null) {
+            throw new CameraException(CameraErrorCode.ERR_ROI_008);
+        }
+
+        if (line.getLabel() != null && line.getLabel().length() > 100) {
+            throw new CameraException(CameraErrorCode.ERR_ROI_005);
+        }
+
+        validateCoordinate(line.getPointA().getX(), line.getPointA().getY());
+        validateCoordinate(line.getPointB().getX(), line.getPointB().getY());
+
+        double dx = line.getPointB().getX().doubleValue() - line.getPointA().getX().doubleValue();
+        double dy = line.getPointB().getY().doubleValue() - line.getPointA().getY().doubleValue();
+        double dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 0.001) {
+            throw new CameraException(CameraErrorCode.ERR_ROI_008);
+        }
+
+        if (line.getDirection() == null || line.getDirection().isBlank()) {
+            line.setDirection("AB_IS_IN");
+        } else {
+            String dir = line.getDirection().trim().toUpperCase();
+            if (!ALLOWED_DIRECTIONS.contains(dir)) {
+                throw new CameraException(CameraErrorCode.ERR_ROI_007);
+            }
+            line.setDirection(dir);
+        }
+    }
+
+    private void validateCoordinate(BigDecimal x, BigDecimal y) {
+        if (x == null || y == null) {
+            throw new CameraException(CameraErrorCode.ERR_ROI_003);
+        }
+        if (x.compareTo(BigDecimal.ZERO) < 0 || x.compareTo(BigDecimal.ONE) > 0
+                || y.compareTo(BigDecimal.ZERO) < 0 || y.compareTo(BigDecimal.ONE) > 0) {
+            throw new CameraException(CameraErrorCode.ERR_ROI_003);
         }
     }
 }

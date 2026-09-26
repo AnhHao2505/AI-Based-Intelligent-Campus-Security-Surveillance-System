@@ -24,7 +24,7 @@ import java.util.UUID;
 @Table(name = "cameras")
 @Getter
 @Setter
-@ToString(exclude = {"streamConfiguration", "healthLogs", "areas"})
+@ToString(exclude = {"streamConfiguration", "healthLogs", "area"})
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -68,9 +68,9 @@ public class Camera {
     @OneToMany(mappedBy = "camera", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<CameraHealthLog> healthLogs;
 
-    @ManyToMany(mappedBy = "cameras", fetch = FetchType.LAZY)
-    @Builder.Default
-    private Set<Area> areas = new HashSet<>();
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "area_id")
+    private Area area;
 
     @PrePersist
     protected void onCreate() {

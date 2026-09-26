@@ -69,6 +69,7 @@ class ROIConfigRequest(BaseModel):
     camera_code: str
     roi_polygon: Optional[List[Dict[str, float]]] = None
     polygons: Optional[List[Dict[str, Any]]] = None
+    entry_lines: Optional[List[Dict[str, Any]]] = None
     reference_width: Optional[int] = 1920
     reference_height: Optional[int] = 1080
     after_hour_start: Optional[str] = None
@@ -110,23 +111,30 @@ async def configure_camera(req: ROIConfigRequest):
             "vertices": req.roi_polygon
         }]
 
+    lines_to_set = req.entry_lines or []
     ah_start = req.after_hour_start or settings.DEFAULT_AFTER_HOUR_START
     ah_end = req.after_hour_end or settings.DEFAULT_AFTER_HOUR_END
 
     default_pipeline.camera_code = req.camera_code
     default_pipeline.analysis_engine.after_hour_start = ah_start
     default_pipeline.analysis_engine.after_hour_end = ah_end
-    default_pipeline.set_roi_config(polygons_to_set)
+    default_pipeline.set_roi_config(polygons=polygons_to_set, entry_lines=lines_to_set)
 
     worker_updated = False
     if req.camera_code in active_workers:
-        active_workers[req.camera_code].update_roi(polygons_to_set, ah_start, ah_end)
+        active_workers[req.camera_code].update_roi(
+            polygons=polygons_to_set,
+            entry_lines=lines_to_set,
+            after_hour_start=ah_start,
+            after_hour_end=ah_end
+        )
         worker_updated = True
 
     return {
         "success": True,
         "camera_code": req.camera_code,
         "polygons_count": len(polygons_to_set),
+        "lines_count": len(lines_to_set),
         "worker_updated": worker_updated
     }
 

@@ -1,11 +1,12 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { MapPin, Save, Loader2 } from "lucide-react";
+import { MapPin, Save, Loader2, ExternalLink } from "lucide-react";
 
 export default function CameraGeneralTab({
 	camera,
 	generalForm,
 	setGeneralForm,
+	availableAreas = [],
 	saving,
 	onSubmit,
 }) {
@@ -42,110 +43,79 @@ export default function CameraGeneralTab({
 							size={15}
 							className="text-blue"
 						/>
-						<span>Khu vực đang phụ trách</span>
+						<span>Khu vực phụ trách (Mỗi camera thuộc tối đa 1 khu vực)</span>
 					</label>
 
 					<div
 						style={{
-							padding: "0.75rem 1rem",
-							background: "var(--theme-bg-desc)",
-							borderRadius: "8px",
-							border: "1px solid var(--theme-border)",
 							display: "flex",
-							flexWrap: "wrap",
-							gap: "0.5rem",
-							minHeight: "42px",
+							gap: "0.75rem",
 							alignItems: "center",
+							flexWrap: "wrap",
 						}}
 					>
-						{camera?.assignedAreas && camera.assignedAreas.length > 0 ? (
-							<div
-								style={{
-									display: "flex",
-									flexWrap: "wrap",
-									alignItems: "center",
-									gap: "0.5rem",
-									width: "100%",
-								}}
-							>
-								{camera.assignedAreas.map((area) => (
-									<span
-										key={area.id}
-										className="location-tag"
-										style={{
-											fontSize: "0.85rem",
-											padding: "0.3rem 0.75rem",
-										}}
-									>
-										<strong>{area.name}</strong>
-										{area.building
-											? ` (${area.building}${area.floor ? ` - Tầng ${area.floor}` : ""})`
-											: ""}
-									</span>
-								))}
-								<button
-									type="button"
-									onClick={() => navigate("/admin/areas")}
-									style={{
-										marginLeft: "auto",
-										background: "transparent",
-										border: "1px solid var(--theme-border)",
-										color: "#38bdf8",
-										borderRadius: "6px",
-										padding: "0.35rem 0.75rem",
-										fontSize: "0.8rem",
-										cursor: "pointer",
-										display: "inline-flex",
-										alignItems: "center",
-										gap: "0.35rem",
-									}}
+						<select
+							value={generalForm.areaId || ""}
+							onChange={(e) =>
+								setGeneralForm({ ...generalForm, areaId: e.target.value })
+							}
+							style={{
+								flex: "1 1 300px",
+								padding: "0.6rem 0.85rem",
+								borderRadius: "8px",
+								border: "1px solid var(--theme-border)",
+								background: "var(--theme-bg-input, var(--theme-bg-surface))",
+								color: "var(--theme-text-primary)",
+								fontSize: "0.875rem",
+							}}
+						>
+							<option value="">-- Chưa gán khu vực (Camera tự do) --</option>
+							{availableAreas.map((area) => (
+								<option
+									key={area.id}
+									value={area.id}
 								>
-									<MapPin size={13} />
-									<span>Danh sách khu vực ➔</span>
-								</button>
-							</div>
-						) : (
-							<div
-								style={{
-									display: "flex",
-									alignItems: "center",
-									justifyContent: "space-between",
-									width: "100%",
-									flexWrap: "wrap",
-									gap: "0.5rem",
-								}}
-							>
-								<span
-									style={{
-										color: "var(--theme-text-muted)",
-										fontSize: "0.875rem",
-									}}
-								>
-									Camera này chưa được gán vào khu vực nào.
-								</span>
-								<button
-									type="button"
-									onClick={() => navigate("/admin/areas")}
-									style={{
-										background: "rgba(56, 189, 248, 0.12)",
-										border: "1px solid rgba(56, 189, 248, 0.3)",
-										color: "#38bdf8",
-										borderRadius: "6px",
-										padding: "0.4rem 0.8rem",
-										fontSize: "0.825rem",
-										fontWeight: 600,
-										cursor: "pointer",
-										display: "inline-flex",
-										alignItems: "center",
-										gap: "0.4rem",
-									}}
-								>
-									<MapPin size={14} />
-									<span>Gán camera vào khu vực ➔</span>
-								</button>
-							</div>
-						)}
+									{area.name}{" "}
+									{area.building
+										? `(${area.building}${area.floor ? ` - Tầng ${area.floor}` : ""})`
+										: ""}
+								</option>
+							))}
+						</select>
+
+						<button
+							type="button"
+							onClick={() => navigate("/admin/areas")}
+							style={{
+								background: "transparent",
+								border: "1px solid var(--theme-border)",
+								color: "#38bdf8",
+								borderRadius: "8px",
+								padding: "0.6rem 1rem",
+								fontSize: "0.85rem",
+								cursor: "pointer",
+								display: "inline-flex",
+								alignItems: "center",
+								gap: "0.4rem",
+								whiteSpace: "nowrap",
+							}}
+						>
+							<ExternalLink size={14} />
+							<span>Quản lý khu vực</span>
+						</button>
 					</div>
+
+					<p
+						style={{
+							fontSize: "0.8rem",
+							color: "var(--theme-text-muted)",
+							marginTop: "0.4rem",
+						}}
+					>
+						💡 Theo thiết kế mới, mỗi camera chỉ thuộc về 1 khu vực duy nhất.
+						Các vùng ROI đa giác sẽ tự động giám sát 3 sự cố an ninh (Người lạ,
+						Xâm nhập, Ngoài giờ) theo quy định của khu vực này.
+					</p>
 				</div>
 			</div>
 

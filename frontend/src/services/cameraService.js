@@ -26,17 +26,29 @@ async function request(url, options = {}) {
   }
 
   if (res.status === 204) return null;
-  return res.json();
+  const json = await res.json();
+  if (json && typeof json === 'object' && 'httpCode' in json && 'message' in json) {
+    if (json.data !== undefined && json.data !== null) {
+      if (typeof json.data === 'object' && !Array.isArray(json.data)) {
+        json.data._message = json.message;
+        json.data._httpCode = json.httpCode;
+      }
+      return json.data;
+    }
+    return { message: json.message, httpCode: json.httpCode, success: true };
+  }
+  return json;
 }
 
 /**
  * Lấy danh sách camera kèm phân trang và tìm kiếm/lọc
  */
-export function fetchCameras({ page = 0, size = 10, search = '', status = '', operationalStatus = '' }) {
+export function fetchCameras({ page = 0, size = 10, sort = 'cameraCode,asc', search = '', status = '', operationalStatus = '' }) {
   const params = new URLSearchParams({
     page: page.toString(),
     size: size.toString(),
   });
+  if (sort) params.append('sort', sort);
   if (search) params.append('search', search);
   if (status) params.append('status', status);
   if (operationalStatus) params.append('operationalStatus', operationalStatus);
@@ -72,7 +84,7 @@ export function updateCamera(id, data) {
 }
 
 /**
- * Tắt camera (soft-delete)
+ * Dừng hoạt động camera (decommission)
  */
 export function decommissionCamera(id) {
   return request(`/api/cameras/${id}/decommission`, {
@@ -86,6 +98,15 @@ export function decommissionCamera(id) {
 export function reactivateCamera(id) {
   return request(`/api/cameras/${id}/reactivate`, {
     method: 'PATCH',
+  });
+}
+
+/**
+ * Xóa mềm camera khỏi hệ thống
+ */
+export function deleteCamera(id) {
+  return request(`/api/cameras/${id}`, {
+    method: 'DELETE',
   });
 }
 

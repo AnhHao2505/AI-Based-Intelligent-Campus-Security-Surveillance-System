@@ -38,6 +38,21 @@ def normalize_polygon(polygon_pts: List[Tuple[float, float]], frame_width: int, 
             result.append(Point(float(x), float(y)))
     return result
 
+def scale_point_to_frame(pt: Any, frame_width: int, frame_height: int) -> Point:
+    """Co giãn 1 điểm chuẩn hóa về pixel khung hình"""
+    if isinstance(pt, Point):
+        x, y = pt.x, pt.y
+    elif isinstance(pt, dict):
+        x, y = float(pt.get("x", 0.0)), float(pt.get("y", 0.0))
+    elif isinstance(pt, (tuple, list)) and len(pt) >= 2:
+        x, y = float(pt[0]), float(pt[1])
+    else:
+        return Point(0.0, 0.0)
+
+    if 0.0 <= x <= 1.0 and 0.0 <= y <= 1.0 and frame_width > 1 and frame_height > 1:
+        return Point(x * frame_width, y * frame_height)
+    return Point(x, y)
+
 def scale_polygon_to_frame(points: List[Any], frame_width: int, frame_height: int) -> List[Point]:
     """
     Chuẩn hóa và co giãn danh sách đỉnh đa giác (Point, Dict, Tuple)
@@ -48,24 +63,27 @@ def scale_polygon_to_frame(points: List[Any], frame_width: int, frame_height: in
 
     result: List[Point] = []
     for pt in points:
-        if isinstance(pt, Point):
-            x, y = pt.x, pt.y
-        elif isinstance(pt, dict):
-            x = float(pt.get("x", 0.0))
-            y = float(pt.get("y", 0.0))
-        elif isinstance(pt, (tuple, list)) and len(pt) >= 2:
-            x, y = float(pt[0]), float(pt[1])
-        else:
-            continue
-
-        if 0.0 <= x <= 1.0 and 0.0 <= y <= 1.0 and frame_width > 1 and frame_height > 1:
-            px = max(0.0, min(float(frame_width), x * frame_width))
-            py = max(0.0, min(float(frame_height), y * frame_height))
-            result.append(Point(px, py))
-        else:
-            result.append(Point(float(x), float(y)))
+        result.append(scale_point_to_frame(pt, frame_width, frame_height))
 
     return result
+
+def cross_product_2d(a: Point, b: Point, p: Point) -> float:
+    """
+    Tính tích có hướng vector AB x AP trong mặt phẳng 2D.
+    > 0: P nằm bên trái vector AB
+    < 0: P nằm bên phải vector AB
+    = 0: P thẳng hàng với AB
+    """
+    return (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x)
+
+def _ccw(a: Point, b: Point, c: Point) -> bool:
+    return (c.y - a.y) * (b.x - a.x) > (b.y - a.y) * (c.x - a.x)
+
+def segments_intersect(p1: Point, p2: Point, p3: Point, p4: Point) -> bool:
+    """
+    Kiểm tra 2 đoạn thẳng p1-p2 và p3-p4 có giao nhau hay không.
+    """
+    return (_ccw(p1, p3, p4) != _ccw(p2, p3, p4)) and (_ccw(p1, p2, p3) != _ccw(p1, p2, p4))
 
 def normalize_to_unit(x: float, y: float, ref_width: int, ref_height: int) -> Tuple[float, float]:
     """Chuyển đổi tọa độ pixel về khoảng [0.0, 1.0] dựa trên kích thước tham chiếu"""

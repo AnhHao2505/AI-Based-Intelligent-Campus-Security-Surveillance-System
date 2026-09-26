@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple, Dict, Any
+from typing import List, Tuple, Optional, Dict, Any
 import time
 import uuid
 
@@ -7,9 +7,6 @@ import uuid
 class Point:
     x: float
     y: float
-
-    def to_tuple(self) -> Tuple[float, float]:
-        return (self.x, self.y)
 
 @dataclass
 class BoundingBox:
@@ -21,11 +18,11 @@ class BoundingBox:
 
     @property
     def width(self) -> float:
-        return max(0.0, self.x2 - self.x1)
+        return self.x2 - self.x1
 
     @property
     def height(self) -> float:
-        return max(0.0, self.y2 - self.y1)
+        return self.y2 - self.y1
 
     @property
     def center(self) -> Point:
@@ -33,10 +30,8 @@ class BoundingBox:
 
     @property
     def bottom_center(self) -> Point:
+        """Điểm chân người - dùng chuẩn xác nhất khi tính toán nằm trong Polygon/đường ranh ROI"""
         return Point((self.x1 + self.x2) / 2.0, self.y2)
-
-    def to_int_xyxy(self) -> Tuple[int, int, int, int]:
-        return (int(self.x1), int(self.y1), int(self.x2), int(self.y2))
 
 @dataclass
 class FaceDetectionResult:
@@ -54,6 +49,7 @@ class TrackedPerson:
     bbox: BoundingBox
     first_seen_time: float = field(default_factory=time.time)
     last_seen_time: float = field(default_factory=time.time)
+    prev_bottom_center: Optional[Point] = None
     
     # Trạng thái trong vùng hạn chế (ROI)
     is_in_roi: bool = False
@@ -67,6 +63,7 @@ class TrackedPerson:
     alert_after_hours_sent: bool = False
 
     def update_position(self, new_bbox: BoundingBox, current_time: float):
+        self.prev_bottom_center = self.bbox.bottom_center
         self.bbox = new_bbox
         self.last_seen_time = current_time
 
@@ -74,8 +71,8 @@ class TrackedPerson:
 class SecurityAlertEvent:
     event_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     camera_code: str = "CAM-001"
-    event_type: str = "UNAUTHORIZED"
-    track_id: int = 0
+    event_type: str = "UNKNOWN"  # AFTER_HOURS_PRESENCE, UNAUTHORIZED_ACCESS, UNKNOWN_PERSON
+    track_id: int = -1
     duration_seconds: float = 0.0
     confidence: float = 1.0
     image_url: Optional[str] = None
@@ -98,6 +95,26 @@ class SecurityAlertEvent:
         }
 
 @dataclass
+class AccessCrossEvent:
+    """Sự kiện qua đường ranh ra/vào (chỉ ghi log, không sinh sự cố an ninh)"""
+    event_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    camera_code: str = "CAM-001"
+    line_label: str = ""
+    direction: str = "ENTER"  # ENTER hoặc EXIT
+    track_id: int = -1
+    crossed_at: str = field(default_factory=lambda: time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "event_id": self.event_id,
+            "camera_code": self.camera_code,
+            "line_label": self.line_label,
+            "direction": self.direction,
+            "track_id": self.track_id,
+            "crossed_at": self.crossed_at
+        }
+
+@dataclass
 class RoiPolygonConfig:
     label: str = ""
     alert_rules: List[str] = field(default_factory=lambda: ["ENTRY_EXIT_TRACKING"])
@@ -117,3 +134,19 @@ class RoiPolygonConfig:
             else:
                 scaled.append(Point(p.x, p.y))
         return scaled
+
+@dataclass
+class EntryLineConfig:
+    label: str = ""
+    point_a: Point = field(default_factory=lambda: Point(0.0, 0.0))
+    point_b: Point = field(default_factory=lambda: Point(0.0, 0.0))
+    direction: str = "AB_IS_IN"  # AB_IS_IN hoặc AB_IS_OUT
+
+    def to_pixel_points(self, width: int, height: int) -> Tuple[Point, Point]:
+        if width <= 0 or height <= 0:
+            return self.point_a, self.point_b
+        pa_x = self.point_a.x * width if 0.0 <= self.point_a.x <= 1.0 else self.point_a.x
+        pa_y = self.point_a.y * height if 0.0 <= self.point_a.y <= 1.0 else self.point_a.y
+        pb_x = self.point_b.x * width if 0.0 <= self.point_b.x <= 1.0 else self.point_b.x
+        pb_y = self.point_b.y * height if 0.0 <= self.point_b.y <= 1.0 else self.point_b.y
+        return Point(pa_x, pa_y), Point(pb_x, pb_y)

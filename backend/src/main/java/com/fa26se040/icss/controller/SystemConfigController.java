@@ -1,5 +1,6 @@
 package com.fa26se040.icss.controller;
 
+import com.fa26se040.icss.dto.common.ApiResponse;
 import com.fa26se040.icss.dto.systemconfig.SystemConfigChangeLogResponse;
 import com.fa26se040.icss.dto.systemconfig.SystemConfigResponse;
 import com.fa26se040.icss.dto.systemconfig.SystemConfigUpdateRequest;
@@ -32,36 +33,34 @@ public class SystemConfigController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
-    public ResponseEntity<List<SystemConfigResponse>> getAll() {
-        return ResponseEntity.ok(systemConfigService.getAll());
+    public ResponseEntity<ApiResponse<List<SystemConfigResponse>>> getAll() {
+        return ResponseEntity.ok(ApiResponse.success(systemConfigService.getAll(), "Lấy danh sách cấu hình hệ thống thành công"));
     }
 
     @PatchMapping("/{configKey}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<SystemConfigResponse> update(
+    public ResponseEntity<ApiResponse<SystemConfigResponse>> update(
             @PathVariable String configKey,
             @Valid @RequestBody SystemConfigUpdateRequest request,
             Authentication authentication
     ) {
-        return ResponseEntity.ok(systemConfigService.update(configKey, request.configValue(), authentication.getName()));
+        SystemConfigResponse response = systemConfigService.update(configKey, request.configValue(), authentication.getName());
+        return ResponseEntity.ok(ApiResponse.success(response, "Cập nhật cấu hình hệ thống thành công"));
     }
 
     @GetMapping("/{configKey}/history")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Page<SystemConfigChangeLogResponse>> getHistory(
+    public ResponseEntity<ApiResponse<Page<SystemConfigChangeLogResponse>>> getHistory(
             @PathVariable String configKey,
             @PageableDefault(size = 10) Pageable pageable
     ) {
-        return ResponseEntity.ok(systemConfigService.getHistory(configKey, pageable));
+        return ResponseEntity.ok(ApiResponse.success(systemConfigService.getHistory(configKey, pageable), "Lấy lịch sử thay đổi cấu hình thành công"));
     }
 
     @PostMapping("/reload")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Map<String, Object>> reloadCache() {
+    public ResponseEntity<ApiResponse<Map<String, Object>>> reloadCache() {
         int loadedKeys = systemConfigService.reloadCache();
-        return ResponseEntity.ok(Map.of(
-                "message", "Nạp lại bộ nhớ đệm cấu hình thành công",
-                "loadedKeys", loadedKeys
-        ));
+        return ResponseEntity.ok(ApiResponse.success(Map.of("loadedKeys", loadedKeys), "Nạp lại bộ nhớ đệm cấu hình thành công"));
     }
 }

@@ -3,28 +3,21 @@ package com.fa26se040.icss.service;
 import com.fa26se040.icss.dto.camera.RoiGeometry;
 import com.fa26se040.icss.exception.CameraErrorCode;
 import com.fa26se040.icss.exception.CameraException;
-import com.fa26se040.icss.repository.AreaRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
-import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class RoiGeometryValidatorTest {
-
-    @Mock
-    private AreaRepository areaRepository;
 
     @InjectMocks
     private RoiGeometryValidator validator;
@@ -41,81 +34,49 @@ class RoiGeometryValidatorTest {
     }
 
     @Test
-    @DisplayName("Validate: should pass with all allowed alert rules")
-    void testValidatePassWithAllowedAlertRules() {
-        List<String> rules = List.of(
-                "ENTRY_EXIT_TRACKING",
-                "AFTER_HOURS",
-                "CROWD_OVERCROWDING"
-        );
-
-        for (String rule : rules) {
-            RoiGeometry.RoiPolygon polygon = RoiGeometry.RoiPolygon.builder()
-                    .label("Test Polygon " + rule)
-                    .alertRules(new ArrayList<>(List.of(rule)))
-                    .vertices(validVertices)
-                    .build();
-
-            RoiGeometry geometry = RoiGeometry.builder()
-                    .polygons(List.of(polygon))
-                    .build();
-
-            assertDoesNotThrow(() -> validator.validate(geometry));
-            assertTrue(polygon.getAlertRules().contains(rule));
-        }
-    }
-
-    @Test
-    @DisplayName("Validate: should throw ERR_ROI_007 when using removed or invalid alert rules")
-    void testValidateRejectsNonAllowedRules() {
-        List<String> invalidRules = List.of(
-                "UNAUTHORIZED_ENTRY",
-                "UNKNOWN_PERSON",
-                "AFTER_HOURS_ACCESS",
-                "INTRUSION_DETECTION",
-                "LOITERING"
-        );
-
-        for (String invalidRule : invalidRules) {
-            RoiGeometry.RoiPolygon polygon = RoiGeometry.RoiPolygon.builder()
-                    .label("Invalid Rule Polygon")
-                    .alertRules(List.of(invalidRule))
-                    .vertices(validVertices)
-                    .build();
-
-            RoiGeometry geometry = RoiGeometry.builder()
-                    .polygons(List.of(polygon))
-                    .build();
-
-            CameraException ex = assertThrows(CameraException.class, () -> validator.validate(geometry));
-            assertEquals(CameraErrorCode.ERR_ROI_007, ex.getErrorCode());
-        }
-    }
-
-    @Test
-    @DisplayName("Validate: should default to ENTRY_EXIT_TRACKING if alertRules is null or empty")
-    void testValidateDefaultAlertRuleWhenEmpty() {
+    @DisplayName("Validate: should pass with valid polygon and entry line")
+    void testValidatePassWithValidPolygonAndLine() {
         RoiGeometry.RoiPolygon polygon = RoiGeometry.RoiPolygon.builder()
-                .label("Empty Rules Polygon")
-                .alertRules(null)
+                .label("Khu vực A")
                 .vertices(validVertices)
+                .build();
+
+        RoiGeometry.EntryLine line = RoiGeometry.EntryLine.builder()
+                .label("Cổng vào")
+                .pointA(RoiGeometry.RoiPolygon.Vertex.builder().x(new BigDecimal("0.2")).y(new BigDecimal("0.5")).build())
+                .pointB(RoiGeometry.RoiPolygon.Vertex.builder().x(new BigDecimal("0.8")).y(new BigDecimal("0.5")).build())
+                .direction("AB_IS_IN")
                 .build();
 
         RoiGeometry geometry = RoiGeometry.builder()
                 .polygons(List.of(polygon))
+                .entryLines(List.of(line))
                 .build();
 
         assertDoesNotThrow(() -> validator.validate(geometry));
-        assertEquals(List.of("ENTRY_EXIT_TRACKING"), polygon.getAlertRules());
     }
 
     @Test
-    @DisplayName("Validate: should throw ERR_ROI_007 when alert rule is completely invalid")
-    void testValidateThrowsOnInvalidRule() {
+    @DisplayName("Validate: should throw ERR_ROI_001 if both polygons and lines are empty")
+    void testValidateEmptyGeometryThrows() {
+        RoiGeometry geometry = RoiGeometry.builder()
+                .polygons(List.of())
+                .entryLines(List.of())
+                .build();
+
+        CameraException ex = assertThrows(CameraException.class, () -> validator.validate(geometry));
+        assertEquals(CameraErrorCode.ERR_ROI_001, ex.getErrorCode());
+    }
+
+    @Test
+    @DisplayName("Validate: should throw ERR_ROI_002 if polygon has less than 3 vertices")
+    void testValidatePolygonLessThan3Vertices() {
         RoiGeometry.RoiPolygon polygon = RoiGeometry.RoiPolygon.builder()
-                .label("Invalid Rule Polygon")
-                .alertRules(List.of("COMPLETELY_UNKNOWN_RULE_XYZ"))
-                .vertices(validVertices)
+                .label("Đoạn thẳng")
+                .vertices(List.of(
+                        RoiGeometry.RoiPolygon.Vertex.builder().x(new BigDecimal("0.1")).y(new BigDecimal("0.1")).build(),
+                        RoiGeometry.RoiPolygon.Vertex.builder().x(new BigDecimal("0.5")).y(new BigDecimal("0.1")).build()
+                ))
                 .build();
 
         RoiGeometry geometry = RoiGeometry.builder()
@@ -123,20 +84,19 @@ class RoiGeometryValidatorTest {
                 .build();
 
         CameraException ex = assertThrows(CameraException.class, () -> validator.validate(geometry));
-        assertEquals(CameraErrorCode.ERR_ROI_007, ex.getErrorCode());
+        assertEquals(CameraErrorCode.ERR_ROI_002, ex.getErrorCode());
     }
 
     @Test
-    @DisplayName("Validate: should throw ERR_ROI_006 when target area does not exist")
-    void testValidateThrowsWhenTargetAreaNotFound() {
-        UUID areaId = UUID.randomUUID();
-        when(areaRepository.existsByIdAndDeletedAtIsNull(areaId)).thenReturn(false);
-
+    @DisplayName("Validate: should throw ERR_ROI_004 if polygon has duplicate vertices resulting in < 3 distinct")
+    void testValidatePolygonDuplicateVertices() {
         RoiGeometry.RoiPolygon polygon = RoiGeometry.RoiPolygon.builder()
-                .label("Area Polygon")
-                .targetAreaId(areaId)
-                .alertRules(List.of("ENTRY_EXIT_TRACKING"))
-                .vertices(validVertices)
+                .label("Trùng đỉnh")
+                .vertices(List.of(
+                        RoiGeometry.RoiPolygon.Vertex.builder().x(new BigDecimal("0.1")).y(new BigDecimal("0.1")).build(),
+                        RoiGeometry.RoiPolygon.Vertex.builder().x(new BigDecimal("0.1")).y(new BigDecimal("0.1")).build(),
+                        RoiGeometry.RoiPolygon.Vertex.builder().x(new BigDecimal("0.5")).y(new BigDecimal("0.5")).build()
+                ))
                 .build();
 
         RoiGeometry geometry = RoiGeometry.builder()
@@ -144,7 +104,7 @@ class RoiGeometryValidatorTest {
                 .build();
 
         CameraException ex = assertThrows(CameraException.class, () -> validator.validate(geometry));
-        assertEquals(CameraErrorCode.ERR_ROI_006, ex.getErrorCode());
+        assertEquals(CameraErrorCode.ERR_ROI_004, ex.getErrorCode());
     }
 
     @Test
@@ -158,7 +118,6 @@ class RoiGeometryValidatorTest {
 
         RoiGeometry.RoiPolygon polygon = RoiGeometry.RoiPolygon.builder()
                 .label("Out of bounds Polygon")
-                .alertRules(List.of("ENTRY_EXIT_TRACKING"))
                 .vertices(invalidVertices)
                 .build();
 
@@ -168,5 +127,62 @@ class RoiGeometryValidatorTest {
 
         CameraException ex = assertThrows(CameraException.class, () -> validator.validate(geometry));
         assertEquals(CameraErrorCode.ERR_ROI_003, ex.getErrorCode());
+    }
+
+    @Test
+    @DisplayName("Validate: should throw ERR_ROI_008 when entry line points are identical")
+    void testValidateEntryLineIdenticalPoints() {
+        RoiGeometry.EntryLine line = RoiGeometry.EntryLine.builder()
+                .label("Đường ranh lỗi")
+                .pointA(RoiGeometry.RoiPolygon.Vertex.builder().x(new BigDecimal("0.5")).y(new BigDecimal("0.5")).build())
+                .pointB(RoiGeometry.RoiPolygon.Vertex.builder().x(new BigDecimal("0.5")).y(new BigDecimal("0.5")).build())
+                .direction("AB_IS_IN")
+                .build();
+
+        RoiGeometry geometry = RoiGeometry.builder()
+                .entryLines(List.of(line))
+                .build();
+
+        CameraException ex = assertThrows(CameraException.class, () -> validator.validate(geometry));
+        assertEquals(CameraErrorCode.ERR_ROI_008, ex.getErrorCode());
+    }
+
+    @Test
+    @DisplayName("Validate: should throw ERR_ROI_007 when entry line direction is invalid")
+    void testValidateEntryLineInvalidDirection() {
+        RoiGeometry.EntryLine line = RoiGeometry.EntryLine.builder()
+                .label("Đường ranh")
+                .pointA(RoiGeometry.RoiPolygon.Vertex.builder().x(new BigDecimal("0.2")).y(new BigDecimal("0.2")).build())
+                .pointB(RoiGeometry.RoiPolygon.Vertex.builder().x(new BigDecimal("0.8")).y(new BigDecimal("0.8")).build())
+                .direction("INVALID_DIRECTION")
+                .build();
+
+        RoiGeometry geometry = RoiGeometry.builder()
+                .entryLines(List.of(line))
+                .build();
+
+        CameraException ex = assertThrows(CameraException.class, () -> validator.validate(geometry));
+        assertEquals(CameraErrorCode.ERR_ROI_007, ex.getErrorCode());
+    }
+
+    @Test
+    @DisplayName("Validate: should throw ERR_ROI_009 when entry lines exceed 5")
+    void testValidateExceedMaxEntryLines() {
+        List<RoiGeometry.EntryLine> lines = new ArrayList<>();
+        for (int i = 0; i < 6; i++) {
+            lines.add(RoiGeometry.EntryLine.builder()
+                    .label("Line " + i)
+                    .pointA(RoiGeometry.RoiPolygon.Vertex.builder().x(new BigDecimal("0.1")).y(new BigDecimal("0." + i)).build())
+                    .pointB(RoiGeometry.RoiPolygon.Vertex.builder().x(new BigDecimal("0.9")).y(new BigDecimal("0." + i)).build())
+                    .direction("AB_IS_IN")
+                    .build());
+        }
+
+        RoiGeometry geometry = RoiGeometry.builder()
+                .entryLines(lines)
+                .build();
+
+        CameraException ex = assertThrows(CameraException.class, () -> validator.validate(geometry));
+        assertEquals(CameraErrorCode.ERR_ROI_009, ex.getErrorCode());
     }
 }

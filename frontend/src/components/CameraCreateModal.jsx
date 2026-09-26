@@ -1,14 +1,30 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, Loader } from "lucide-react";
 import { createCamera } from "../services/cameraService";
+import { getAreas } from "../services/areaService";
 import "../styles/CameraCreateModal.css";
 
 export default function CameraCreateModal({ isOpen, onClose, onSuccess }) {
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState(null);
+	const [availableAreas, setAvailableAreas] = useState([]);
 	const [formData, setFormData] = useState({
 		name: "",
+		areaId: "",
 	});
+
+	useEffect(() => {
+		if (isOpen) {
+			setFormData({ name: "", areaId: "" });
+			setError(null);
+			getAreas({ size: 200, isActive: true })
+				.then((res) => {
+					const list = res?.content || res?.areas || (Array.isArray(res) ? res : []);
+					setAvailableAreas(list);
+				})
+				.catch((err) => console.error("Failed to load areas:", err));
+		}
+	}, [isOpen]);
 
 	if (!isOpen) return null;
 
@@ -24,6 +40,7 @@ export default function CameraCreateModal({ isOpen, onClose, onSuccess }) {
 
 		const payload = {
 			name: formData.name.trim(),
+			areaId: formData.areaId ? formData.areaId : null,
 		};
 
 		try {
@@ -75,6 +92,51 @@ export default function CameraCreateModal({ isOpen, onClose, onSuccess }) {
 								required
 								disabled={loading}
 							/>
+						</div>
+
+						<div className="form-group col-span-2">
+							<label htmlFor="areaId">
+								Khu vực phân công (Tùy chọn)
+							</label>
+							<select
+								id="areaId"
+								name="areaId"
+								value={formData.areaId}
+								onChange={handleChange}
+								disabled={loading}
+								style={{
+									width: "100%",
+									padding: "0.6rem 0.85rem",
+									borderRadius: "8px",
+									border: "1px solid var(--theme-border)",
+									background: "var(--theme-bg-input, var(--theme-bg-surface))",
+									color: "var(--theme-text-primary)",
+									fontSize: "0.875rem",
+								}}
+							>
+								<option value="">-- Chưa gán khu vực (Camera tự do) --</option>
+								{availableAreas.map((area) => (
+									<option
+										key={area.id}
+										value={area.id}
+									>
+										{area.name}{" "}
+										{area.building
+											? `(${area.building}${area.floor ? ` - Tầng ${area.floor}` : ""})`
+											: ""}
+									</option>
+								))}
+							</select>
+							<span
+								style={{
+									fontSize: "0.775rem",
+									color: "var(--theme-text-muted)",
+									marginTop: "0.25rem",
+									display: "block",
+								}}
+							>
+								Mỗi camera chỉ thuộc tối đa 1 khu vực. Bạn có thể thay đổi sau.
+							</span>
 						</div>
 					</div>
 

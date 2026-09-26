@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 
 import com.fa26se040.icss.dto.accessrequest.AreaSimpleResponse;
 import com.fa26se040.icss.dto.camera.*;
+import com.fa26se040.icss.dto.common.ApiResponse;
 import com.fa26se040.icss.enums.CameraStatus;
 import com.fa26se040.icss.enums.OperationalStatus;
 import com.fa26se040.icss.service.CameraService;
@@ -32,112 +33,121 @@ public class CameraController {
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<CameraDetailResponse> create(@Valid @RequestBody CreateCameraRequest req) {
+    public ResponseEntity<ApiResponse<CameraDetailResponse>> create(@Valid @RequestBody CreateCameraRequest req) {
         log.info("REST request to create camera: {}", req.getName());
         CameraDetailResponse response = cameraService.createCamera(req);
-        return new ResponseEntity<>(response, HttpStatus.CREATED);
+        return new ResponseEntity<>(ApiResponse.created(response, "Thêm camera mới thành công"), HttpStatus.CREATED);
     }
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER', 'GUARD')")
-    public ResponseEntity<Page<CameraListResponse>> list(
+    public ResponseEntity<ApiResponse<Page<CameraListResponse>>> list(
             @RequestParam(required = false) String search,
             @RequestParam(required = false) CameraStatus status,
             @RequestParam(required = false) OperationalStatus operationalStatus,
             @RequestParam(required = false, defaultValue = "false") Boolean forceSync,
-            @PageableDefault(size = 10) Pageable pageable) {
+            @PageableDefault(size = 10, sort = "cameraCode", direction = org.springframework.data.domain.Sort.Direction.ASC) Pageable pageable) {
         log.info("REST request to list cameras with filters, forceSync: {}", forceSync);
         Page<CameraListResponse> list = cameraService.listCameras(search, status, operationalStatus, forceSync, pageable);
-        return ResponseEntity.ok(list);
+        return ResponseEntity.ok(ApiResponse.success(list, "Lấy danh sách camera thành công"));
     }
 
     @GetMapping("/all-simple")
     @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER', 'GUARD')")
-    public ResponseEntity<List<CameraSimpleResponse>> getAllSimple() {
+    public ResponseEntity<ApiResponse<List<CameraSimpleResponse>>> getAllSimple() {
         log.info("REST request to get simple active camera list");
-        return ResponseEntity.ok(cameraService.getAllActiveSimple());
+        return ResponseEntity.ok(ApiResponse.success(cameraService.getAllActiveSimple(), "Lấy danh sách camera hoạt động thành công"));
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
-    public ResponseEntity<CameraDetailResponse> getDetail(@PathVariable UUID id) {
+    public ResponseEntity<ApiResponse<CameraDetailResponse>> getDetail(@PathVariable UUID id) {
         log.info("REST request to get camera detail for id: {}", id);
         CameraDetailResponse detail = cameraService.getCameraDetail(id);
-        return ResponseEntity.ok(detail);
+        return ResponseEntity.ok(ApiResponse.success(detail, "Lấy thông tin chi tiết camera thành công"));
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<CameraDetailResponse> update(@PathVariable UUID id, @Valid @RequestBody UpdateCameraRequest req) {
+    public ResponseEntity<ApiResponse<CameraDetailResponse>> update(@PathVariable UUID id, @Valid @RequestBody UpdateCameraRequest req) {
         log.info("REST request to update camera: {}", id);
         CameraDetailResponse updated = cameraService.updateCamera(id, req);
-        return ResponseEntity.ok(updated);
+        return ResponseEntity.ok(ApiResponse.success(updated, "Cập nhật thông tin camera thành công"));
     }
 
     @PatchMapping("/{id}/decommission")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<CameraDetailResponse> decommission(@PathVariable UUID id) {
+    public ResponseEntity<ApiResponse<Void>> decommission(@PathVariable UUID id) {
         log.info("REST request to decommission camera: {}", id);
-        CameraDetailResponse response = cameraService.decommissionCamera(id);
-        return ResponseEntity.ok(response);
+        cameraService.decommissionCamera(id);
+        return ResponseEntity.ok(ApiResponse.success("Đã dừng hoạt động camera thành công"));
     }
 
     @PatchMapping("/{id}/reactivate")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<CameraDetailResponse> reactivate(@PathVariable UUID id) {
+    public ResponseEntity<ApiResponse<Void>> reactivate(@PathVariable UUID id) {
         log.info("REST request to reactivate camera: {}", id);
-        CameraDetailResponse response = cameraService.reactivateCamera(id);
-        return ResponseEntity.ok(response);
+        cameraService.reactivateCamera(id);
+        return ResponseEntity.ok(ApiResponse.success("Đã kích hoạt lại camera thành công"));
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Void>> deleteCamera(@PathVariable UUID id) {
+        log.info("REST request to soft delete camera: {}", id);
+        cameraService.deleteCamera(id);
+        return ResponseEntity.ok(ApiResponse.success("Đã xóa camera thành công"));
     }
 
     @PutMapping("/{id}/stream-config")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<CameraStreamConfigResponse> upsertStream(@PathVariable UUID id, @Valid @RequestBody CameraStreamConfigRequest req) {
+    public ResponseEntity<ApiResponse<CameraStreamConfigResponse>> upsertStream(@PathVariable UUID id, @Valid @RequestBody CameraStreamConfigRequest req) {
         log.info("REST request to upsert camera stream configuration: {}", id);
         CameraStreamConfigResponse config = cameraService.upsertStreamConfig(id, req);
-        return ResponseEntity.ok(config);
+        return ResponseEntity.ok(ApiResponse.success(config, "Cập nhật cấu hình stream thành công"));
     }
 
     @GetMapping("/{id}/health-logs")
     @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
-    public ResponseEntity<Page<CameraHealthLogResponse>> healthLogs(
+    public ResponseEntity<ApiResponse<Page<CameraHealthLogResponse>>> healthLogs(
             @PathVariable UUID id,
             @PageableDefault(size = 10) Pageable pageable) {
         log.info("REST request to get health logs for camera: {}", id);
         Page<CameraHealthLogResponse> logs = cameraService.getHealthLogs(id, pageable);
-        return ResponseEntity.ok(logs);
+        return ResponseEntity.ok(ApiResponse.success(logs, "Lấy nhật ký hoạt động camera thành công"));
     }
 
     @GetMapping("/{id}/areas")
     @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER', 'GUARD')")
-    public ResponseEntity<List<AreaSimpleResponse>> getAreas(@PathVariable UUID id) {
+    public ResponseEntity<ApiResponse<List<AreaSimpleResponse>>> getAreas(@PathVariable UUID id) {
         log.info("REST request to get areas assigned to camera: {}", id);
-        return ResponseEntity.ok(cameraService.getCameraAreas(id));
+        return ResponseEntity.ok(ApiResponse.success(cameraService.getCameraAreas(id), "Lấy danh sách khu vực của camera thành công"));
     }
 
     @PostMapping("/{id}/connect")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ConnectStreamResponse> connectStream(@PathVariable UUID id) {
+    public ResponseEntity<ApiResponse<ConnectStreamResponse>> connectStream(@PathVariable UUID id) {
         log.info("REST request to connect RTSP stream for camera: {}", id);
         ConnectStreamResponse response = cameraSnapshotService.connectAndCapture(id);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(ApiResponse.success(response, "Kết nối luồng stream camera thành công"));
     }
 
     @PostMapping("/{id}/test-connection")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<TestConnectionResponse> testConnection(@PathVariable UUID id) {
+    public ResponseEntity<ApiResponse<TestConnectionResponse>> testConnection(@PathVariable UUID id) {
         log.info("REST request to test RTSP stream connection for camera: {}", id);
         TestConnectionResponse response = cameraSnapshotService.testConnection(id);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(ApiResponse.success(response, "Kiểm tra kết nối camera hoàn tất"));
     }
 
     @PutMapping("/{id}/roi")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<CameraDetailResponse> updateRoi(
+    public ResponseEntity<ApiResponse<CameraDetailResponse>> updateRoi(
             @PathVariable UUID id,
             @Valid @RequestBody RoiUpdateRequest request) {
         log.info("REST request to update ROI geometry for camera: {}", id);
         CameraDetailResponse response = cameraService.updateRoiGeometry(id, request);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(ApiResponse.success(response, "Cập nhật cấu hình vùng giám sát ROI thành công"));
     }
 }
+
