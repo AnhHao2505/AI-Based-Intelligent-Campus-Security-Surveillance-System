@@ -27,12 +27,14 @@ public enum AreaErrorCode {
     ERR_AREA_021("ERR_AREA_021", HttpStatus.BAD_REQUEST, "Thông tin tầng không hợp lệ hoặc không tìm thấy tầng tương ứng"),
     ERR_AREA_022("ERR_AREA_022", HttpStatus.BAD_REQUEST, "Chế độ sự kiện chỉ áp dụng cho khu vực Nội bộ (INTERNAL_CONFIDENTIAL) hoặc Yêu cầu liên hệ (CONFIDENTIAL_CONTACT_REQUIRED)"),
     ERR_AREA_023("ERR_AREA_023", HttpStatus.BAD_REQUEST, "Thời điểm kết thúc sự kiện phải ở trong tương lai"),
-    ERR_AREA_024("ERR_AREA_024", HttpStatus.BAD_REQUEST, "Lý do hoặc ghi chú sự kiện không hợp lệ (ghi chú từ 10 đến 500 ký tự)"),
+    ERR_AREA_024("ERR_AREA_024", HttpStatus.BAD_REQUEST, "Ghi chú bắt buộc 10–500 ký tự, nêu tên sự kiện hoặc đơn vị tổ chức"),
     ERR_AREA_025("ERR_AREA_025", HttpStatus.BAD_REQUEST, "Mã lý do không tồn tại hoặc đã ngừng sử dụng"),
     ERR_AREA_026("ERR_AREA_026", HttpStatus.BAD_REQUEST, "Mã lý do không phù hợp với loại thao tác sự kiện"),
     ERR_AREA_027("ERR_AREA_027", HttpStatus.BAD_REQUEST, "Thời gian mở sự kiện vượt quá giới hạn tối đa cho một phiên ({maxHours} giờ)"),
     ERR_AREA_028("ERR_AREA_028", HttpStatus.BAD_REQUEST, "Vượt quá ngân sách thời gian mở sự kiện của khu vực"),
-    ERR_AREA_029("ERR_AREA_029", HttpStatus.BAD_REQUEST, "Không thể ngừng sử dụng mục lý do mặc định 'Khác'");
+    ERR_AREA_029("ERR_AREA_029", HttpStatus.BAD_REQUEST, "Không thể ngừng sử dụng mục lý do mặc định 'Khác'"),
+    ERR_AREA_030("ERR_AREA_030", HttpStatus.CONFLICT, "Trạng thái sự kiện đã thay đổi: {status}. Vui lòng tải lại trang."),
+    ERR_AREA_031("ERR_AREA_031", HttpStatus.BAD_REQUEST, "Thời lượng mở sự kiện tối thiểu là {minMinutes} phút.");
 
     private final String code;
     private final HttpStatus httpStatus;

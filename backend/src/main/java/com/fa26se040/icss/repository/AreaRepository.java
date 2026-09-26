@@ -40,6 +40,10 @@ public interface AreaRepository extends JpaRepository<Area, UUID> {
 
     Optional<Area> findByIdAndDeletedAtIsNull(UUID id);
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT a FROM Area a WHERE a.id = :id")
+    Optional<Area> findByIdWithLock(@Param("id") UUID id);
+
     java.util.List<Area> findByBuildingIgnoreCaseAndFloorIgnoreCaseAndDeletedAtIsNull(String building, String floor);
 
     @Query("SELECT a FROM Area a WHERE a.deletedAt IS NULL AND a.areaLevel IN :levels ORDER BY a.building ASC, a.floor ASC, a.name ASC")

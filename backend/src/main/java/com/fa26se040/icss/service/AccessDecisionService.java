@@ -101,10 +101,7 @@ public class AccessDecisionService {
         // 4b. Chế độ sự kiện (Event Mode / open_to_members)
         boolean isInternalOrContact = area.getAreaLevel() == AreaLevel.INTERNAL_CONFIDENTIAL
                 || area.getAreaLevel() == AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED;
-        if (Boolean.TRUE.equals(area.getOpenToMembers())
-                && area.getOpenUntil() != null
-                && at.isBefore(area.getOpenUntil())
-                && isInternalOrContact) {
+        if (area.isEventActive(at) && isInternalOrContact) {
             return AccessDecision.allowed(
                     AccessSource.OPEN_EVENT,
                     null,

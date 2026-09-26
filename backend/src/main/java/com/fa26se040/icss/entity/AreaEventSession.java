@@ -40,6 +40,9 @@ public class AreaEventSession {
     @JoinColumn(name = "ended_by")
     private User endedBy;
 
+    @Column(name = "expiry_reminded_at")
+    private OffsetDateTime expiryRemindedAt;
+
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 

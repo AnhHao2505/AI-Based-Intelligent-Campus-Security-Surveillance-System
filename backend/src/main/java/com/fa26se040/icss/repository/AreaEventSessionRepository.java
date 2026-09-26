@@ -16,6 +16,8 @@ public interface AreaEventSessionRepository extends JpaRepository<AreaEventSessi
 
     Optional<AreaEventSession> findByAreaIdAndActualEndIsNull(UUID areaId);
 
+    Optional<AreaEventSession> findTopByAreaIdOrderByStartedAtDesc(UUID areaId);
+
     List<AreaEventSession> findByAreaIdAndActualEndIsNullAndPlannedEndLessThanEqual(UUID areaId, OffsetDateTime now);
 
     @Query("""

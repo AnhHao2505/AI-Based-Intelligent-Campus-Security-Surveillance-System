@@ -130,6 +130,11 @@ public class Area {
         return id != null && Objects.equals(id, area.id);
     }
 
+    public boolean isEventActive(OffsetDateTime at) {
+        if (at == null) return false;
+        return Boolean.TRUE.equals(openToMembers) && openUntil != null && at.isBefore(openUntil);
+    }
+
     @Override
     public int hashCode() {
         return getClass().hashCode();

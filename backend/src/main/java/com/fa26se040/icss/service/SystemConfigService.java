@@ -270,6 +270,18 @@ public class SystemConfigService {
                 if (config.getMaxValue() != null && intVal > config.getMaxValue().intValue()) {
                     throw new IllegalArgumentException("Giá trị không được lớn hơn " + config.getMaxValue().intValue());
                 }
+                if ("EVENT_MODE_MIN_MINUTES".equals(config.getConfigKey())) {
+                    int maxHours = getInt(ConfigKey.EVENT_MODE_MAX_HOURS);
+                    if (intVal > maxHours * 60) {
+                        throw new IllegalArgumentException("Thời lượng tối thiểu (EVENT_MODE_MIN_MINUTES) không được lớn hơn thời lượng tối đa (EVENT_MODE_MAX_HOURS * 60 phút)");
+                    }
+                }
+                if ("EVENT_MODE_MAX_HOURS".equals(config.getConfigKey())) {
+                    int minMinutes = getInt(ConfigKey.EVENT_MODE_MIN_MINUTES);
+                    if (intVal * 60 < minMinutes) {
+                        throw new IllegalArgumentException("Thời lượng tối đa (EVENT_MODE_MAX_HOURS * 60 phút) không được nhỏ hơn thời lượng tối thiểu (EVENT_MODE_MIN_MINUTES)");
+                    }
+                }
             }
             case "DECIMAL" -> {
                 BigDecimal decVal;
