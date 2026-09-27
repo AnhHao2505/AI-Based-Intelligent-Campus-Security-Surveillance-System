@@ -14,5 +14,8 @@ public enum NotificationType {
     EVENT_MODE_EXPIRING,
     EVENT_MODE_SCHEDULED,
     EVENT_MODE_SCHEDULE_STARTING,
-    EVENT_MODE_SCHEDULE_FAILED
+    EVENT_MODE_SCHEDULE_FAILED,
+    // Step 5b (BR-TC-10, BR-TC-16) — khung A1, CHECK constraint sẽ bổ sung ở migration V56
+    AREA_TYPE_CHANGED,
+    REQUEST_SYSTEM_CANCELLED
 }

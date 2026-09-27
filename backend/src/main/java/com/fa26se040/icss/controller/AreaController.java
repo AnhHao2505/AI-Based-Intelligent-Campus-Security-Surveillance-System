@@ -11,6 +11,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -85,6 +86,20 @@ public class AreaController {
         AreaResponse response = areaService.create(request, actorEmail);
         URI location = URI.create("/api/areas/" + response.id());
         return ResponseEntity.created(location).body(ApiResponse.created(response, "Tạo mới khu vực thành công"));
+    }
+
+    /**
+     * Step 5b (BR-TC-03): xem trước tác động khi đổi loại khu vực (chỉ đọc).
+     * Khung A1 — chưa hiện thực, luôn trả 501.
+     */
+    @GetMapping("/{id}/type-change-preview")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Void>> previewTypeChange(
+            @PathVariable UUID id,
+            @RequestParam AreaLevel newAreaLevel
+    ) {
+        return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED)
+                .body(ApiResponse.error(HttpStatus.NOT_IMPLEMENTED.value(), "NOT_IMPLEMENTED", "Chưa hiện thực (Step 5b)"));
     }
 
     @PutMapping("/{id}")

@@ -17,9 +17,15 @@ public record AreaAccessRulesUpdateRequest(
 
         @NotBlank(message = "Lý do không được để trống")
         @Size(min = 10, max = 500, message = "Lý do phải có từ 10 đến 500 ký tự")
-        String reason
+        String reason,
+        // Step 5b (BR-TC-13): version của khu vực mà client đang xem
+        Long version
 ) {
+    public AreaAccessRulesUpdateRequest(Integer areaAccessLevel, Boolean explicitAuthorizationRequired, String reason) {
+        this(areaAccessLevel, explicitAuthorizationRequired, reason, null);
+    }
+
     public AreaAccessRulesUpdateRequest(Integer areaAccessLevel, Boolean explicitAuthorizationRequired) {
-        this(areaAccessLevel, explicitAuthorizationRequired, null);
+        this(areaAccessLevel, explicitAuthorizationRequired, null, null);
     }
 }

@@ -24,8 +24,36 @@ public record AreaResponse(
     String eventStartedByName,
     OffsetDateTime eventLastAdjustedAt,
     String eventLastAdjustedByName,
-    Integer upcomingScheduleCount
+    Integer upcomingScheduleCount,
+    // Step 5b (BR-TC-13): version của khu vực (optimistic concurrency)
+    Long version
 ) {
+    /** Chữ ký canonical trước Step 5b: version = null (chưa hiện thực). */
+    public AreaResponse(
+        UUID id,
+        String name,
+        AreaLevel areaLevel,
+        Integer areaAccessLevel,
+        Boolean explicitAuthorizationRequired,
+        String building,
+        String floor,
+        AreaGeometry geometry,
+        Boolean isActive,
+        OffsetDateTime createdAt,
+        OffsetDateTime updatedAt,
+        Boolean differsFromPreset,
+        Boolean openToMembers,
+        OffsetDateTime openUntil,
+        Boolean eventActive,
+        OffsetDateTime eventStartedAt,
+        String eventStartedByName,
+        OffsetDateTime eventLastAdjustedAt,
+        String eventLastAdjustedByName,
+        Integer upcomingScheduleCount
+    ) {
+        this(id, name, areaLevel, areaAccessLevel, explicitAuthorizationRequired, building, floor, geometry, isActive, createdAt, updatedAt, differsFromPreset, openToMembers, openUntil, eventActive, eventStartedAt, eventStartedByName, eventLastAdjustedAt, eventLastAdjustedByName, upcomingScheduleCount, null);
+    }
+
     public AreaResponse(
         UUID id,
         String name,
