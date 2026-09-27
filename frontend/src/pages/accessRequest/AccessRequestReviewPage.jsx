@@ -147,7 +147,11 @@ export default function AccessRequestReviewPage() {
   const handleConfirmReject = async () => {
     if (!rejectItem) return;
     if (!rejectionReason.trim()) {
-      setActionError('Vui lòng nhập lý do từ chối yêu cầu');
+      setActionError('Vui lòng nhập lý do từ chối yêu cầu (từ 10 đến 500 ký tự)');
+      return;
+    }
+    if (rejectionReason.trim().length < 10) {
+      setActionError('Lý do từ chối phải có ít nhất 10 ký tự (hiện có ' + rejectionReason.trim().length + ' ký tự)');
       return;
     }
 
@@ -628,7 +632,7 @@ export default function AccessRequestReviewPage() {
                   required
                 />
                 <div className="arr-char-count">
-                  {rejectionReason.length}/500 ký tự
+                  {rejectionReason.length}/500 ký tự (tối thiểu 10 ký tự)
                 </div>
               </div>
             </div>
@@ -646,7 +650,7 @@ export default function AccessRequestReviewPage() {
                 type="button"
                 className="arr-filter-btn arr-btn--reject-modal"
                 onClick={handleConfirmReject}
-                disabled={actionLoading || !rejectionReason.trim()}
+                disabled={actionLoading || rejectionReason.trim().length < 10}
               >
                 <X size={16} />
                 <span>{actionLoading ? 'Đang xử lý...' : 'Xác nhận Từ chối'}</span>

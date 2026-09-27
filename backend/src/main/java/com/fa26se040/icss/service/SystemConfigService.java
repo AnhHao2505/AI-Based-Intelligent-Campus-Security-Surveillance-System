@@ -126,6 +126,11 @@ public class SystemConfigService {
 
     @Transactional
     public SystemConfigResponse update(String key, String rawValue, String actorEmail) {
+        return update(key, rawValue, null, actorEmail);
+    }
+
+    @Transactional
+    public SystemConfigResponse update(String key, String rawValue, String reason, String actorEmail) {
         if (rawValue == null || rawValue.trim().isEmpty()) {
             throw new IllegalArgumentException("Giá trị cấu hình không được để trống");
         }
@@ -158,6 +163,7 @@ public class SystemConfigService {
                 .newValue(value)
                 .changedBy(actor)
                 .changedAt(now)
+                .reason(reason)
                 .build();
         changeLogRepository.save(logEntry);
 
@@ -356,7 +362,8 @@ public class SystemConfigService {
                 changeLog.getNewValue(),
                 changeLog.getChangedAt(),
                 changedByEmail,
-                changedByName
+                changedByName,
+                changeLog.getReason()
         );
     }
 }

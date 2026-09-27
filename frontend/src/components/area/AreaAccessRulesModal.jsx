@@ -167,8 +167,12 @@ export default function AreaAccessRulesModal({
 				setError("Lý do cập nhật quy tắc khu vực là bắt buộc.");
 				return;
 			}
+			if (trimmedRuleReason.length < 10) {
+				setError("Lý do phải có từ 10 đến 500 ký tự.");
+				return;
+			}
 			if (trimmedRuleReason.length > 500) {
-				setError("Lý do cập nhật quy tắc khu vực không được vượt quá 500 ký tự.");
+				setError("Lý do phải có từ 10 đến 500 ký tự.");
 				return;
 			}
 		}
@@ -269,6 +273,7 @@ export default function AreaAccessRulesModal({
 				variant="primary"
 				onClick={handleSubmit}
 				loading={saving}
+				disabled={saving || (rulesChanged && reason.trim().length < 10)}
 				icon={ShieldCheck}
 				type="button"
 			>
@@ -708,8 +713,8 @@ export default function AreaAccessRulesModal({
 								marginTop: "4px",
 							}}
 						>
-							<span>Bắt buộc theo quy định kiểm toán truy cập</span>
-							<span>{reason.length}/500</span>
+							<span>Tối thiểu 10 ký tự, tối đa 500 ký tự</span>
+							<span>{reason.length}/500 ký tự</span>
 						</div>
 					</div>
 				)}

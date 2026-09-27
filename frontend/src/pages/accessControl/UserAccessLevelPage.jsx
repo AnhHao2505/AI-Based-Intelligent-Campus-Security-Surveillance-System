@@ -183,11 +183,16 @@ export default function UserAccessLevelPage() {
 
   const handleConfirmSaveUserLevel = async () => {
     const { user, newLevel, reason } = confirmUserModal;
-    if (!reason || !reason.trim()) {
+    const trimmedReason = reason?.trim();
+    if (!trimmedReason) {
       toast.error('Vui lòng nhập lý do điều chỉnh cấp độ truy cập');
       return;
     }
-    if (reason.length > 500) {
+    if (trimmedReason.length < 10) {
+      toast.error('Lý do phải có từ 10 đến 500 ký tự');
+      return;
+    }
+    if (trimmedReason.length > 500) {
       toast.error('Lý do không được vượt quá 500 ký tự');
       return;
     }
@@ -245,11 +250,16 @@ export default function UserAccessLevelPage() {
 
   const handleSavePreset = async () => {
     const { preset, accessLevel, explicitAuthorizationRequired, reason } = editPresetModal;
-    if (!reason || !reason.trim()) {
+    const trimmedReason = reason?.trim();
+    if (!trimmedReason) {
       toast.error('Vui lòng nhập lý do thay đổi cấu hình mặc định');
       return;
     }
-    if (reason.length > 500) {
+    if (trimmedReason.length < 10) {
+      toast.error('Lý do phải có từ 10 đến 500 ký tự');
+      return;
+    }
+    if (trimmedReason.length > 500) {
       toast.error('Lý do không được vượt quá 500 ký tự');
       return;
     }
@@ -1126,6 +1136,7 @@ export default function UserAccessLevelPage() {
               variant="primary"
               onClick={handleConfirmSaveUserLevel}
               loading={confirmUserModal.isSaving}
+              disabled={confirmUserModal.isSaving || confirmUserModal.reason.trim().length < 10}
             >
               Xác nhận cập nhật
             </Button>
@@ -1164,7 +1175,7 @@ export default function UserAccessLevelPage() {
               }
             />
             <div className="char-count">
-              {confirmUserModal.reason.length} / 500 ký tự
+              {confirmUserModal.reason.length} / 500 ký tự (tối thiểu 10 ký tự)
             </div>
           </div>
         </div>
@@ -1195,6 +1206,7 @@ export default function UserAccessLevelPage() {
               variant="primary"
               onClick={handleSavePreset}
               loading={editPresetModal.isSaving}
+              disabled={editPresetModal.isSaving || editPresetModal.reason.trim().length < 10}
             >
               Lưu cấu hình
             </Button>
@@ -1260,7 +1272,7 @@ export default function UserAccessLevelPage() {
               }
             />
             <div className="char-count">
-              {editPresetModal.reason.length} / 500 ký tự
+              {editPresetModal.reason.length} / 500 ký tự (tối thiểu 10 ký tự)
             </div>
           </div>
         </div>

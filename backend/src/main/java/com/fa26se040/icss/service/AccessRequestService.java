@@ -349,6 +349,10 @@ public class AccessRequestService {
             if (reviewRequest.rejectionReason() == null || reviewRequest.rejectionReason().trim().isEmpty()) {
                 throw new IllegalArgumentException("Vui lòng cung cấp lý do từ chối yêu cầu");
             }
+            int len = reviewRequest.rejectionReason().trim().length();
+            if (len < 10 || len > 500) {
+                throw new IllegalArgumentException("Lý do từ chối phải có từ 10 đến 500 ký tự");
+            }
         }
 
         // BR-RQ-02: Kiểm tra lại cấp độ truy cập và cấu hình nhóm khi FM phê duyệt (APPROVED)

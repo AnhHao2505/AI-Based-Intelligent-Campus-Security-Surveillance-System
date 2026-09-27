@@ -10,5 +10,10 @@ public record SystemConfigChangeLogResponse(
     String newValue,
     OffsetDateTime changedAt,
     String changedByEmail,
-    String changedByName
-) {}
+    String changedByName,
+    String reason
+) {
+    public SystemConfigChangeLogResponse(UUID id, String configKey, String oldValue, String newValue, OffsetDateTime changedAt, String changedByEmail, String changedByName) {
+        this(id, configKey, oldValue, newValue, changedAt, changedByEmail, changedByName, null);
+    }
+}
