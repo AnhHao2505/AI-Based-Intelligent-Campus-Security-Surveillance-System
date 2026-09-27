@@ -795,7 +795,9 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
                 areaService.update(internalArea.getId(), updateReq, adminUser.getEmail())
         );
         assertEquals(AreaErrorCode.ERR_AREA_042, exUpdate.getErrorCode());
-        assertTrue(exUpdate.getMessage().contains("lịch sự kiện chưa diễn ra, huỷ lịch trước"));
+        assertTrue(exUpdate.getMessage().contains("Khu vực còn 1 lịch sự kiện chưa diễn ra:"));
+        assertTrue(exUpdate.getMessage().contains(fmUser.getFullName()));
+        assertTrue(exUpdate.getMessage().contains("Liên hệ quản lý cơ sở vật chất để huỷ lịch trước."));
 
         // 3. Huỷ lịch
         areaService.cancelSchedule(internalArea.getId(), sched.id(),
@@ -891,4 +893,57 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         assertNotNull(notif, "FM phải nhận thông báo EVENT_MODE_LIMIT_CHANGED");
         assertTrue(notif.getMessage().contains("Lịch vi phạm"), "Thông báo phải liệt kê lịch vi phạm");
     }
+    @Test
+    @DisplayName("DF-U2: Thông điệp ERR_AREA_042 liệt kê chi tiết từng lịch theo giờ và người đặt, rút gọn khi > 5 lịch")
+    void testDF_U2_ErrorMessageFormatsMultipleSchedulesProperly() {
+        OffsetDateTime now = OffsetDateTime.now();
+        java.time.ZoneId zone = java.time.ZoneId.of("Asia/Ho_Chi_Minh");
+        java.time.format.DateTimeFormatter dtfDateHour = java.time.format.DateTimeFormatter.ofPattern("dd/MM HH:mm").withZone(zone);
+        java.time.format.DateTimeFormatter dtfTime = java.time.format.DateTimeFormatter.ofPattern("HH:mm").withZone(zone);
+
+        // Tạo 2 lịch sự kiện
+        OffsetDateTime s1Start = now.plusDays(1).withHour(8).withMinute(0).withSecond(0).withNano(0);
+        OffsetDateTime s1End = s1Start.plusHours(4); // 08:00–12:00
+        OffsetDateTime s2Start = now.plusDays(3).withHour(13).withMinute(0).withSecond(0).withNano(0);
+        OffsetDateTime s2End = s2Start.plusHours(4); // 13:00–17:00
+
+        eventScheduleRepository.save(AreaEventSchedule.builder()
+                .area(internalArea)
+                .startAt(s1Start)
+                .endAt(s1End)
+                .status(AreaEventScheduleStatus.SCHEDULED)
+                .reasonCode(REASON_ENABLE)
+                .reasonLabel("Hội thảo 1")
+                .note("Test message list 1")
+                .createdBy(fmUser)
+                .createdAt(now.minusHours(1))
+                .build());
+
+        eventScheduleRepository.save(AreaEventSchedule.builder()
+                .area(internalArea)
+                .startAt(s2Start)
+                .endAt(s2End)
+                .status(AreaEventScheduleStatus.SCHEDULED)
+                .reasonCode(REASON_ENABLE)
+                .reasonLabel("Hội thảo 2")
+                .note("Test message list 2")
+                .createdBy(fmUser)
+                .createdAt(now.minusHours(1))
+                .build());
+
+        AreaException ex = assertThrows(AreaException.class, () ->
+                areaService.deactivate(internalArea.getId(), fmUser.getEmail())
+        );
+
+        String msg = ex.getMessage();
+        System.out.println("DF-U2 ERR_AREA_042 message: " + msg);
+
+        assertTrue(msg.startsWith("Khu vực còn 2 lịch sự kiện chưa diễn ra:"));
+        String expectedTime1 = dtfDateHour.format(s1Start) + "–" + dtfTime.format(s1End);
+        String expectedTime2 = dtfDateHour.format(s2Start) + "–" + dtfTime.format(s2End);
+        assertTrue(msg.contains(expectedTime1 + " (" + fmUser.getFullName() + ")"), "Phải chứa lịch 1 đúng giờ và tên: " + msg);
+        assertTrue(msg.contains(expectedTime2 + " (" + fmUser.getFullName() + ")"), "Phải chứa lịch 2 đúng giờ và tên: " + msg);
+        assertTrue(msg.endsWith("Liên hệ quản lý cơ sở vật chất để huỷ lịch trước."));
+    }
+
 }

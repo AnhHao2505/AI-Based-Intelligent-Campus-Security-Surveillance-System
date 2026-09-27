@@ -248,12 +248,11 @@ public class AreaService {
         boolean willBeInternalOrContact = req.getAreaLevel() == AreaLevel.INTERNAL_CONFIDENTIAL
                 || req.getAreaLevel() == AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED;
         if (wasInternalOrContact && !willBeInternalOrContact) {
-            long scheduledCount = (eventScheduleRepository != null && id != null)
-                    ? eventScheduleRepository.countByAreaIdAndStatus(id, com.fa26se040.icss.enums.AreaEventScheduleStatus.SCHEDULED)
-                    : 0;
-            if (scheduledCount > 0) {
-                throw new AreaException(AreaErrorCode.ERR_AREA_042,
-                        "Khu vực còn " + scheduledCount + " lịch sự kiện chưa diễn ra, huỷ lịch trước");
+            List<com.fa26se040.icss.entity.AreaEventSchedule> pendingSchedules = (eventScheduleRepository != null && id != null)
+                    ? eventScheduleRepository.findByAreaIdAndStatusOrderByStartAtAsc(id, com.fa26se040.icss.enums.AreaEventScheduleStatus.SCHEDULED)
+                    : Collections.emptyList();
+            if (!pendingSchedules.isEmpty()) {
+                throw new AreaException(AreaErrorCode.ERR_AREA_042, buildPendingSchedulesErrorMessage(pendingSchedules));
             }
         }
 
@@ -400,18 +399,49 @@ public class AreaService {
                 .toList();
     }
 
+    private String buildPendingSchedulesErrorMessage(List<com.fa26se040.icss.entity.AreaEventSchedule> schedules) {
+        java.time.ZoneId zone = java.time.ZoneId.of("Asia/Ho_Chi_Minh");
+        java.time.format.DateTimeFormatter dtfDateHour = java.time.format.DateTimeFormatter.ofPattern("dd/MM HH:mm").withZone(zone);
+        java.time.format.DateTimeFormatter dtfTime = java.time.format.DateTimeFormatter.ofPattern("HH:mm").withZone(zone);
+
+        int count = schedules.size();
+        int displayLimit = Math.min(count, 5);
+        StringBuilder sb = new StringBuilder();
+        sb.append("Khu vực còn ").append(count).append(" lịch sự kiện chưa diễn ra: ");
+
+        for (int i = 0; i < displayLimit; i++) {
+            com.fa26se040.icss.entity.AreaEventSchedule s = schedules.get(i);
+            String creatorName = s.getCreatedBy() != null ? s.getCreatedBy().getFullName() : "Không xác định";
+            sb.append(dtfDateHour.format(s.getStartAt()))
+              .append("–")
+              .append(dtfTime.format(s.getEndAt()))
+              .append(" (")
+              .append(creatorName)
+              .append(")");
+            if (i < displayLimit - 1) {
+                sb.append(", ");
+            }
+        }
+
+        if (count > 5) {
+            sb.append(", và ").append(count - 5).append(" lịch khác");
+        }
+
+        sb.append(". Liên hệ quản lý cơ sở vật chất để huỷ lịch trước.");
+        return sb.toString();
+    }
+
     @Transactional
     public void deactivate(UUID id, String actorEmail) {
         Area area = areaRepository.findByIdWithLock(id)
                 .filter(a -> a.getDeletedAt() == null)
                 .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
 
-        long scheduledCount = (eventScheduleRepository != null && id != null)
-                ? eventScheduleRepository.countByAreaIdAndStatus(id, com.fa26se040.icss.enums.AreaEventScheduleStatus.SCHEDULED)
-                : 0;
-        if (scheduledCount > 0) {
-            throw new AreaException(AreaErrorCode.ERR_AREA_042,
-                    "Khu vực còn " + scheduledCount + " lịch sự kiện chưa diễn ra, huỷ lịch trước");
+        List<com.fa26se040.icss.entity.AreaEventSchedule> pendingSchedules = (eventScheduleRepository != null && id != null)
+                ? eventScheduleRepository.findByAreaIdAndStatusOrderByStartAtAsc(id, com.fa26se040.icss.enums.AreaEventScheduleStatus.SCHEDULED)
+                : Collections.emptyList();
+        if (!pendingSchedules.isEmpty()) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_042, buildPendingSchedulesErrorMessage(pendingSchedules));
         }
 
         AreaDependencyResponse dep = dependencyChecker.check(id);
@@ -998,14 +1028,12 @@ public class AreaService {
             int minMinutes = getEventModeMinMinutes();
             long reqMinutes = java.time.Duration.between(now, targetOpenUntil).toMinutes();
             if (reqMinutes < minMinutes) {
-                throw new AreaException(AreaErrorCode.ERR_AREA_031,
-                        "Thời lượng mở sự kiện tối thiểu là " + minMinutes + " phút.");
+                throw new AreaException(AreaErrorCode.ERR_AREA_031, minMinutes);
             }
 
             int maxHours = getEventModeMaxHours();
             if (targetOpenUntil.isAfter(now.plusHours(maxHours))) {
-                throw new AreaException(AreaErrorCode.ERR_AREA_027,
-                        "Thời gian mở sự kiện vượt quá giới hạn tối đa cho một phiên (" + maxHours + " giờ)");
+                throw new AreaException(AreaErrorCode.ERR_AREA_027, maxHours);
             }
 
             // Kiểm tra chồng lấn với lịch SCHEDULED (BR-ES-15)
