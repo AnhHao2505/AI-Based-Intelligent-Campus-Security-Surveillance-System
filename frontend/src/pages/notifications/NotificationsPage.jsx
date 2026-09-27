@@ -11,7 +11,10 @@ import {
   Users,
   Inbox,
   XCircle,
-  AlarmClock
+  AlarmClock,
+  CalendarCheck,
+  CalendarClock,
+  CalendarX
 } from 'lucide-react';
 import { notificationService } from '../../services/notificationService';
 import { useAuth } from '../../context/AuthContext';
@@ -152,6 +155,24 @@ export default function NotificationsPage() {
         return (
           <div className="notif-icon-box notif-icon-box--overdue" title="Tồn đọng quá 24 giờ">
             <AlarmClock size={16} />
+          </div>
+        );
+      case 'EVENT_MODE_SCHEDULED':
+        return (
+          <div className="notif-icon-box notif-icon-box--schedule" title="Đã đặt lịch sự kiện">
+            <CalendarCheck size={16} />
+          </div>
+        );
+      case 'EVENT_MODE_SCHEDULE_STARTING':
+        return (
+          <div className="notif-icon-box notif-icon-box--expiring" title="Lịch sự kiện sắp bắt đầu">
+            <CalendarClock size={16} />
+          </div>
+        );
+      case 'EVENT_MODE_SCHEDULE_FAILED':
+        return (
+          <div className="notif-icon-box notif-icon-box--denied" title="Lịch sự kiện thất bại">
+            <CalendarX size={16} />
           </div>
         );
       default:

@@ -186,6 +186,11 @@
   color: var(--theme-warning-text);
 }
 
+.notif-icon-box--schedule {
+  background: var(--theme-info-bg);
+  color: var(--theme-info-text);
+}
+
 .notif-icon-box--default {
   background: var(--brand-subtle);
   color: var(--brand-text);

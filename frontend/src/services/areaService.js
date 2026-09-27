@@ -166,3 +166,46 @@ export async function revokeAssignedPersonnel(areaId, id, data) {
 export async function updateAreaEventMode(areaId, data) {
 	return apiPatch(`/api/areas/${areaId}/event-mode`, data);
 }
+
+/**
+ * Lấy danh sách lịch chế độ sự kiện của khu vực, sắp startAt tăng dần (FACILITY_MANAGER, ADMIN)
+ * GET /api/areas/{areaId}/event-schedules?status=
+ * @param {string} areaId
+ * @param {string} [status] SCHEDULED | STARTED | CANCELLED | FAILED — bỏ trống để lấy tất cả
+ */
+export async function getEventSchedules(areaId, status) {
+	const query = status ? `?status=${encodeURIComponent(status)}` : "";
+	return apiGet(`/api/areas/${areaId}/event-schedules${query}`);
+}
+
+/**
+ * Đặt lịch bật chế độ sự kiện trong tương lai (chỉ FACILITY_MANAGER)
+ * POST /api/areas/{areaId}/event-schedules
+ * @param {string} areaId
+ * @param {Object} data { startAt, endAt, reasonCode, note }
+ */
+export async function createEventSchedule(areaId, data) {
+	return apiPost(`/api/areas/${areaId}/event-schedules`, data);
+}
+
+/**
+ * Sửa lịch chế độ sự kiện đang SCHEDULED (chỉ FACILITY_MANAGER)
+ * PATCH /api/areas/{areaId}/event-schedules/{scheduleId}
+ * @param {string} areaId
+ * @param {string} scheduleId
+ * @param {Object} data { startAt, endAt, reasonCode, note }
+ */
+export async function updateEventSchedule(areaId, scheduleId, data) {
+	return apiPatch(`/api/areas/${areaId}/event-schedules/${scheduleId}`, data);
+}
+
+/**
+ * Huỷ lịch chế độ sự kiện đang SCHEDULED (chỉ FACILITY_MANAGER)
+ * POST /api/areas/{areaId}/event-schedules/{scheduleId}/cancel
+ * @param {string} areaId
+ * @param {string} scheduleId
+ * @param {Object} data { reasonCode, note }
+ */
+export async function cancelEventSchedule(areaId, scheduleId, data) {
+	return apiPost(`/api/areas/${areaId}/event-schedules/${scheduleId}/cancel`, data);
+}

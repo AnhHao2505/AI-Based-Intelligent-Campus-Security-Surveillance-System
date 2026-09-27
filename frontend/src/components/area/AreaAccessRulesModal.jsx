@@ -10,6 +10,7 @@ import {
 import { toast } from "sonner";
 import Modal from "../ui/Modal";
 import Button from "../ui/Button";
+import EventScheduleSection from "./EventScheduleSection";
 import { getAreaById, updateAreaAccessRules, updateAreaEventMode } from "../../services/areaService";
 import { getActiveReasons } from "../../services/reasonCatalogService";
 import { formatDisplayDateTime } from "../../utils/areaHelpers";
@@ -664,6 +665,9 @@ export default function AreaAccessRulesModal({
 									</div>
 								</div>
 							)}
+
+							{/* Lịch sự kiện (U3b) — thao tác độc lập với nút Lưu thay đổi */}
+							<EventScheduleSection area={area} onAreaUpdated={onSuccess} />
 						</div>
 					)}
 				</div>

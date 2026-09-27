@@ -141,6 +141,14 @@ export default function AreaListView({
 												Đang mở sự kiện đến {formatEventUntil(area.openUntil)}
 											</span>
 										)}
+										{area.upcomingScheduleCount > 0 && (
+											<span
+												className="zone-card__pill-schedule"
+												title="Số lịch sự kiện đã đặt, chưa bắt đầu"
+											>
+												{area.upcomingScheduleCount} lịch sự kiện
+											</span>
+										)}
 									</div>
 								</div>
 

@@ -34,6 +34,8 @@ import './UserAccessLevelPage.css';
 
 const SYSTEM_ACTOR_LABELS = {
   EXPIRE_OVERDUE_REQUESTS_JOB: 'Tự động hết hạn đơn quá giờ',
+  EVENT_MODE_EXPIRY: 'Tự động kết thúc sự kiện hết hạn',
+  EVENT_SCHEDULE_ACTIVATION: 'Tự động kích hoạt lịch sự kiện',
 };
 
 const renderSystemActor = (source) => {
@@ -69,6 +71,7 @@ const TARGET_TYPE_OPTIONS = [
   { value: 'AREA_ASSIGNMENT', label: 'Phân công nhân sự khu vực' },
   { value: 'LEVEL_PRESET', label: 'Mặc định theo loại khu vực' },
   { value: 'AREA_EVENT_MODE', label: 'Chế độ sự kiện' },
+  { value: 'AREA_EVENT_SCHEDULE', label: 'Lịch sự kiện' },
   { value: 'REASON_CATALOG', label: 'Danh mục lý do' },
   { value: 'AREA', label: 'Khu vực' },
   { value: 'AREA_GEOMETRY', label: 'Tọa độ khu vực' },
@@ -447,6 +450,9 @@ export default function UserAccessLevelPage() {
     } else if (targetType === 'AREA_EVENT_MODE') {
       label = 'Chế độ sự kiện';
       badgeClass = 'audit-type--event';
+    } else if (targetType === 'AREA_EVENT_SCHEDULE') {
+      label = 'Lịch sự kiện';
+      badgeClass = 'audit-type--event';
     } else if (targetType === 'REASON_CATALOG') {
       label = 'Danh mục lý do';
       badgeClass = 'audit-type--catalog';
@@ -493,6 +499,14 @@ export default function UserAccessLevelPage() {
     else if (action === 'FINISH') actionLabel = 'Kết thúc';
     else if (action === 'EXPIRE') actionLabel = 'Hết hạn';
     else if (action === 'AUTO_EXPIRE') actionLabel = 'Tự động hết hạn';
+    else if (action === 'EXPIRE_EVENT_MODE') actionLabel = 'Sự kiện hết hạn';
+
+    if (targetType === 'AREA_EVENT_SCHEDULE') {
+      if (action === 'CREATE') actionLabel = 'Đặt lịch';
+      else if (action === 'UPDATE') actionLabel = 'Sửa lịch';
+      else if (action === 'CANCEL') actionLabel = 'Huỷ lịch';
+      else if (action === 'FAIL') actionLabel = 'Lịch thất bại';
+    }
 
     return (
       <div className="audit-target-col">
@@ -504,6 +518,83 @@ export default function UserAccessLevelPage() {
 
   const renderAuditChange = (log) => {
     const { targetType, action, oldValue, newValue } = log;
+
+    // Phiên sự kiện hết hạn do hệ thống đóng (BR-ES-14/19): snapshot có plannedEnd
+    if (action === 'EXPIRE_EVENT_MODE') {
+      const plannedEnd = newValue?.plannedEnd || oldValue?.plannedEnd;
+      return (
+        <div className="audit-detail-rules">
+          <div className="audit-detail-row">
+            <span className="audit-row-label">Kết thúc dự kiến:</span>
+            <strong className="audit-val--new">{plannedEnd ? formatDisplayDateTime(plannedEnd) : '—'}</strong>
+          </div>
+        </div>
+      );
+    }
+
+    // Lịch sự kiện (U3b)
+    if (targetType === 'AREA_EVENT_SCHEDULE') {
+      const snap = newValue || oldValue || {};
+      const formatRange = (v) =>
+        v?.startAt || v?.endAt
+          ? `${v?.startAt ? formatDisplayDateTime(v.startAt) : '—'} → ${v?.endAt ? formatDisplayDateTime(v.endAt) : '—'}`
+          : '—';
+      const oldRange = formatRange(oldValue);
+      const newRange = formatRange(newValue);
+      const joinReason = (label, note) => (label && note ? `${label} – ${note}` : label || note || '—');
+      const reasonDisplay = action === 'CANCEL'
+        ? joinReason(snap.cancelReasonLabel || snap.reasonLabel, snap.cancelNote || snap.note)
+        : joinReason(snap.reasonLabel, snap.note);
+      const statusLabels = {
+        SCHEDULED: 'Đã lên lịch',
+        STARTED: 'Đã bắt đầu',
+        CANCELLED: 'Đã huỷ',
+        FAILED: 'Thất bại',
+      };
+      const oldStatus = oldValue?.status;
+      const newStatus = newValue?.status;
+
+      return (
+        <div className="audit-detail-rules">
+          <div className="audit-detail-row">
+            <span className="audit-row-label">Thời gian:</span>
+            {oldValue && newValue && oldRange !== newRange ? (
+              <>
+                <span>{oldRange}</span>
+                <span className="audit-arrow">→</span>
+                <strong className="audit-val--new">{newRange}</strong>
+              </>
+            ) : (
+              <strong className="audit-val--new">{newValue ? newRange : oldRange}</strong>
+            )}
+          </div>
+          {(oldStatus || newStatus) && (
+            <div className="audit-detail-row">
+              <span className="audit-row-label">Trạng thái:</span>
+              {oldStatus && newStatus && oldStatus !== newStatus ? (
+                <>
+                  <span>{statusLabels[oldStatus] || oldStatus}</span>
+                  <span className="audit-arrow">→</span>
+                  <strong className="audit-val--new">{statusLabels[newStatus] || newStatus}</strong>
+                </>
+              ) : (
+                <strong className="audit-val--new">{statusLabels[newStatus || oldStatus] || newStatus || oldStatus}</strong>
+              )}
+            </div>
+          )}
+          <div className="audit-detail-row">
+            <span className="audit-row-label">Lý do:</span>
+            <span>{reasonDisplay}</span>
+          </div>
+          {action === 'FAIL' && snap.failReason && (
+            <div className="audit-detail-row">
+              <span className="audit-row-label">Nguyên nhân:</span>
+              <span>{snap.failReason}</span>
+            </div>
+          )}
+        </div>
+      );
+    }
 
     // Check ACTION first: Sự kiện (để dòng log cũ trên dev mang AREA_ACCESS_RULES + ENABLE/DISABLE_EVENT_MODE vẫn hiện đúng)
     if (action === 'ENABLE_EVENT_MODE' || action === 'DISABLE_EVENT_MODE' || action === 'EXTEND_EVENT_MODE') {
