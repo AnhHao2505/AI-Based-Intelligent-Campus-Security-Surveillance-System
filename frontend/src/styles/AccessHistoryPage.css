@@ -44,38 +44,6 @@
   gap: 12px;
 }
 
-.ahp-card__header-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.ahp-card__icon-box {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  background: var(--brand-subtle);
-  color: var(--brand-text);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.ahp-card__title {
-  font-size: 15px;
-  font-weight: 500;
-  color: var(--theme-text-primary);
-  margin: 0;
-  line-height: 1.3;
-}
-
-.ahp-card__subtitle {
-  font-size: 11px;
-  color: var(--theme-text-muted);
-  margin: 2px 0 0 0;
-}
-
 /* Filters Header Right */
 .ahp-filter-group {
   display: flex;

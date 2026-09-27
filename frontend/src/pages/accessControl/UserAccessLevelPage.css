@@ -14,26 +14,6 @@
   box-sizing: border-box;
 }
 
-.access-level-page__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.access-level-page__title {
-  margin: 0;
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--theme-text-primary);
-  letter-spacing: -0.01em;
-}
-
-.access-level-page__subtitle {
-  margin: 4px 0 0 0;
-  font-size: 13px;
-  color: var(--theme-text-muted);
-}
-
 /* Tabs Navigation */
 .access-level-tabs {
   display: flex;
@@ -841,7 +821,6 @@
   background: rgba(14, 165, 233, 0.12);
   color: #0284c7;
 }
-
 
 /* UI-1 A4: container đã có gap, PageHeader không cần lề dưới */
 .access-level-page > .ui-page-header {
