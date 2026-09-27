@@ -17,6 +17,10 @@ import com.fa26se040.icss.enums.NotificationType;
 import com.fa26se040.icss.enums.RequestStatus;
 import com.fa26se040.icss.enums.RequestType;
 import com.fa26se040.icss.enums.Role;
+import com.fa26se040.icss.context.AuditContext;
+import com.fa26se040.icss.dto.accesscontrol.snapshot.AccessRequestSnapshot;
+import com.fa26se040.icss.enums.AuditAction;
+import com.fa26se040.icss.enums.AuditTargetType;
 import com.fa26se040.icss.exception.ConcurrentReviewException;
 import com.fa26se040.icss.exception.DuplicateResourceException;
 import com.fa26se040.icss.exception.ResourceNotFoundException;
@@ -68,6 +72,7 @@ public class AccessRequestService {
     private final InAppNotificationService inAppNotificationService;
     private final SystemConfigService systemConfigService;
     private final MemberLookupRateLimiter memberLookupRateLimiter;
+    private final AuditService auditService;
 
     @Transactional
     public AccessRequestResponse createIndividualRequest(IndividualAccessRequestCreateRequest request, String actorEmail) {
@@ -95,6 +100,18 @@ public class AccessRequestService {
 
         AccessRequest saved = accessRequestRepository.save(accessRequest);
         log.info("Individual access request created with id: {}", saved.getId());
+
+        auditService.record(
+                AuditTargetType.ACCESS_REQUEST,
+                AuditAction.CREATE,
+                saved.getId().toString(),
+                saved.getArea(),
+                saved.getRequester(),
+                null,
+                AccessRequestSnapshot.from(saved),
+                null,
+                requester
+        );
 
         // Bắn thông báo NEW_REQUEST_PENDING cho tất cả FACILITY_MANAGER
         try {
@@ -156,6 +173,18 @@ public class AccessRequestService {
 
         AccessRequest saved = accessRequestRepository.save(accessRequest);
         log.info("Group access request created with id: {} and {} members", saved.getId(), memberUsers.size());
+
+        auditService.record(
+                AuditTargetType.ACCESS_REQUEST,
+                AuditAction.CREATE,
+                saved.getId().toString(),
+                saved.getArea(),
+                saved.getRequester(),
+                null,
+                AccessRequestSnapshot.from(saved),
+                null,
+                requester
+        );
 
         // Bắn thông báo ADDED_TO_GROUP cho members và NEW_REQUEST_PENDING cho FMs
         try {
@@ -320,6 +349,10 @@ public class AccessRequestService {
             if (reviewRequest.rejectionReason() == null || reviewRequest.rejectionReason().trim().isEmpty()) {
                 throw new IllegalArgumentException("Vui lòng cung cấp lý do từ chối yêu cầu");
             }
+            int len = reviewRequest.rejectionReason().trim().length();
+            if (len < 10 || len > 500) {
+                throw new IllegalArgumentException("Lý do từ chối phải có từ 10 đến 500 ký tự");
+            }
         }
 
         // BR-RQ-02: Kiểm tra lại cấp độ truy cập và cấu hình nhóm khi FM phê duyệt (APPROVED)
@@ -367,6 +400,10 @@ public class AccessRequestService {
                 ? reviewRequest.rejectionReason().trim()
                 : null;
 
+        AccessRequest beforeReq = accessRequestRepository.findByIdWithDetails(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu truy cập với mã: " + id));
+        AccessRequestSnapshot beforeSnapshot = AccessRequestSnapshot.from(beforeReq);
+
         // 3. Conditional UPDATE nguyên tử tại database (single source of truth)
         int updatedCount = accessRequestRepository.reviewIfPending(
                 id,
@@ -387,6 +424,23 @@ public class AccessRequestService {
             AccessRequest updated = accessRequestRepository.findByIdWithDetails(id)
                     .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu truy cập với mã: " + id));
             log.info("Access request {} reviewed: {}", updated.getId(), updated.getStatus());
+
+            AccessRequestSnapshot afterSnapshot = AccessRequestSnapshot.from(updated);
+            AuditAction auditAction = reviewRequest.status() == RequestStatus.APPROVED
+                    ? AuditAction.APPROVE
+                    : AuditAction.REJECT;
+
+            auditService.record(
+                    AuditTargetType.ACCESS_REQUEST,
+                    auditAction,
+                    updated.getId().toString(),
+                    updated.getArea(),
+                    updated.getRequester(),
+                    beforeSnapshot,
+                    afterSnapshot,
+                    rejectionReason,
+                    reviewer
+            );
 
             try {
                 List<User> recipients = new ArrayList<>();
@@ -458,6 +512,8 @@ public class AccessRequestService {
             throw new AccessDeniedException("Bạn không có quyền huỷ yêu cầu truy cập này");
         }
 
+        AccessRequestSnapshot beforeSnapshot = AccessRequestSnapshot.from(accessRequest);
+
         // 2. Conditional UPDATE nguyên tử (XOÁ HOÀN TOÀN pre-check status != PENDING)
         OffsetDateTime now = OffsetDateTime.now();
         int updatedCount = accessRequestRepository.cancelIfPending(
@@ -475,6 +531,18 @@ public class AccessRequestService {
             AccessRequest updated = accessRequestRepository.findByIdWithDetails(id)
                     .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu truy cập với mã: " + id));
             log.info("Access request {} cancelled by requester", updated.getId());
+
+            auditService.record(
+                    AuditTargetType.ACCESS_REQUEST,
+                    AuditAction.CANCEL,
+                    updated.getId().toString(),
+                    updated.getArea(),
+                    updated.getRequester(),
+                    beforeSnapshot,
+                    AccessRequestSnapshot.from(updated),
+                    null,
+                    accessRequest.getRequester()
+            );
 
             try {
                 if (updated.getRequestType() == RequestType.GROUP && updated.getMembers() != null && !updated.getMembers().isEmpty()) {
@@ -518,44 +586,97 @@ public class AccessRequestService {
     @Scheduled(cron = "${icss.scheduler.expire-overdue-cron:0 */15 * * * *}")
     @Transactional
     public int expireOverdueRequests() {
-        OffsetDateTime now = OffsetDateTime.now();
+        return AuditContext.runAsSystem("EXPIRE_OVERDUE_REQUESTS_JOB", () -> {
+            OffsetDateTime now = OffsetDateTime.now();
 
-        // 1. Lấy danh sách các request PENDING sắp bị expire TRƯỚC KHI bulk update để biết gửi thông báo cho ai
-        List<AccessRequest> pendingOverdueRequests = List.of();
-        try {
-            pendingOverdueRequests = accessRequestRepository.findPendingOverdueRequests(RequestStatus.PENDING, now);
-        } catch (Exception e) {
-            log.error("Failed to fetch pending overdue requests before expiring", e);
-        }
-
-        // 2. Thực hiện bulk update chuyển sang EXPIRED
-        int count = accessRequestRepository.expireOverdueRequests(
-                RequestStatus.PENDING,
-                RequestStatus.EXPIRED,
-                now
-        );
-        if (count > 0) {
-            log.info("Expired {} overdue pending access requests at {}", count, now);
-        }
-
-        // 3. Gửi thông báo ACCESS_DENIED cho requester của từng request bị expire
-        if (!pendingOverdueRequests.isEmpty()) {
-            for (AccessRequest req : pendingOverdueRequests) {
-                try {
-                    if (req.getRequester() != null) {
-                        String areaName = req.getArea() != null ? req.getArea().getName() : "khu vực";
-                        String timeRange = InAppNotificationService.formatTimeRange(req.getStartTime(), req.getEndTime());
-                        String title = "Yêu cầu truy cập đã hết hạn";
-                        String message = "Yêu cầu vào " + areaName + " (" + timeRange + ") đã hết hạn do không được xử lý trước giờ bắt đầu.";
-                        inAppNotificationService.createForUser(req.getRequester(), NotificationType.ACCESS_DENIED, title, message, req.getId());
-                    }
-                } catch (Exception e) {
-                    log.error("Failed to send ACCESS_DENIED notification for expired request {}", req.getId(), e);
-                }
+            // 1. Khoá (PESSIMISTIC_WRITE) đúng các đơn sẽ bị expire. Lỗi ở bước này phải ném ra để
+            //    cả transaction rollback: không được expire đơn nào khi chưa ghi được audit (LA4).
+            List<AccessRequest> overdueRequests = accessRequestRepository
+                    .findPendingOverdueRequestsForUpdate(RequestStatus.PENDING, now);
+            if (overdueRequests == null || overdueRequests.isEmpty()) {
+                return 0;
             }
-        }
 
-        return count;
+            // 2. Chỉ update theo danh sách id đã khoá -> tập bị EXPIRED trùng khớp tập được ghi audit
+            List<UUID> ids = overdueRequests.stream().map(AccessRequest::getId).toList();
+            int count = accessRequestRepository.expireOverdueRequestsByIds(
+                    ids,
+                    RequestStatus.PENDING,
+                    RequestStatus.EXPIRED,
+                    now
+            );
+            if (count != ids.size()) {
+                log.error("Expire overdue requests mismatch: locked {} but updated {} — rolling back", ids.size(), count);
+                throw new IllegalStateException("Số đơn cập nhật (" + count + ") khác số đơn đã khoá (" + ids.size() + ")");
+            }
+            log.info("Expired {} overdue pending access requests at {}", count, now);
+
+            // 3. Ghi audit cho đúng các đơn đã expire (cùng transaction; lỗi -> rollback toàn bộ)
+            for (AccessRequest req : overdueRequests) {
+                AccessRequestSnapshot beforeSnapshot = AccessRequestSnapshot.from(req);
+                AccessRequestSnapshot afterSnapshot = new AccessRequestSnapshot(
+                        req.getId(),
+                        req.getRequestType() != null ? req.getRequestType().name() : null,
+                        RequestStatus.EXPIRED.name(),
+                        req.getArea() != null ? req.getArea().getId() : null,
+                        req.getRequester() != null ? req.getRequester().getId() : null,
+                        req.getStartTime(),
+                        req.getEndTime(),
+                        req.getPurpose(),
+                        req.getRejectionReason()
+                );
+
+                auditService.record(
+                        AuditTargetType.ACCESS_REQUEST,
+                        AuditAction.EXPIRE,
+                        req.getId().toString(),
+                        req.getArea(),
+                        req.getRequester(),
+                        beforeSnapshot,
+                        afterSnapshot,
+                        "Hết hạn tự động do quá giờ bắt đầu"
+                );
+            }
+
+            // 4. Thông báo chỉ gửi SAU KHI commit thành công -> không báo "đã hết hạn" cho đơn bị rollback
+            List<ExpiredNotice> notices = overdueRequests.stream()
+                    .filter(req -> req.getRequester() != null)
+                    .map(req -> new ExpiredNotice(
+                            req.getRequester(),
+                            req.getId(),
+                            req.getArea() != null ? req.getArea().getName() : "khu vực",
+                            InAppNotificationService.formatTimeRange(req.getStartTime(), req.getEndTime())))
+                    .toList();
+            runAfterCommit(() -> notices.forEach(this::sendExpiredNotice));
+
+            return count;
+        });
+    }
+
+    private record ExpiredNotice(User requester, UUID requestId, String areaName, String timeRange) {}
+
+    private void sendExpiredNotice(ExpiredNotice n) {
+        try {
+            String title = "Yêu cầu truy cập đã hết hạn";
+            String message = "Yêu cầu vào " + n.areaName() + " (" + n.timeRange() + ") đã hết hạn do không được xử lý trước giờ bắt đầu.";
+            inAppNotificationService.createForUser(n.requester(), NotificationType.ACCESS_DENIED, title, message, n.requestId());
+        } catch (Exception e) {
+            log.error("Failed to send ACCESS_DENIED notification for expired request {}", n.requestId(), e);
+        }
+    }
+
+    private void runAfterCommit(Runnable action) {
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            action.run();
+                        }
+                    });
+        } else {
+            action.run();
+        }
     }
 
     private User getRequester(String actorEmail) {
@@ -589,11 +710,25 @@ public class AccessRequestService {
             throw new AccessDeniedException("Bạn không có quyền chuyển yêu cầu truy cập này sang Hoàn thành.");
         }
 
+        AccessRequestSnapshot beforeSnapshot = AccessRequestSnapshot.from(accessRequest);
+
         accessRequest.setStatus(RequestStatus.FINISHED);
         accessRequest.setUpdatedAt(OffsetDateTime.now());
 
         AccessRequest updated = accessRequestRepository.save(accessRequest);
         log.info("Access request {} marked as FINISHED", updated.getId());
+
+        auditService.record(
+                AuditTargetType.ACCESS_REQUEST,
+                AuditAction.FINISH,
+                updated.getId().toString(),
+                updated.getArea(),
+                updated.getRequester(),
+                beforeSnapshot,
+                AccessRequestSnapshot.from(updated),
+                null,
+                actor
+        );
 
         return mapToResponse(updated);
     }

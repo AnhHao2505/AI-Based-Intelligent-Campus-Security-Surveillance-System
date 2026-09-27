@@ -68,6 +68,9 @@ class AccessDecisionServiceTest {
     @Mock
     private AccessRequestRepository accessRequestRepository;
 
+    @Mock
+    private com.fa26se040.icss.repository.AreaEventScheduleRepository areaEventScheduleRepository;
+
     @InjectMocks
     private AccessDecisionService accessDecisionService;
 

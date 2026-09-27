@@ -82,7 +82,7 @@ public class UserService {
     private final UserBulkImportHelper userBulkImportHelper;
     private final NotificationService notificationService;
     private final UserAccessLevelHelper userAccessLevelHelper;
-    private final AccessControlAuditService auditService;
+    private final AuditService auditService;
     private final UserBulkImportService userBulkImportService;
 
     @Transactional
@@ -577,10 +577,10 @@ public class UserService {
                     new com.fa26se040.icss.dto.accesscontrol.snapshot.UserAccessLevelAuditSnapshot(saved.getAccessLevel());
 
             auditService.record(
-                    com.fa26se040.icss.enums.AccessControlTargetType.USER_ACCESS_LEVEL,
-                    com.fa26se040.icss.enums.AccessControlAction.UPDATE,
+                    com.fa26se040.icss.enums.AuditTargetType.USER_ACCESS_LEVEL,
+                    com.fa26se040.icss.enums.AuditAction.UPDATE,
                     saved.getId().toString(),
-                    null,
+                    (com.fa26se040.icss.entity.Area) null,
                     saved,
                     oldSnapshot,
                     newSnapshot,

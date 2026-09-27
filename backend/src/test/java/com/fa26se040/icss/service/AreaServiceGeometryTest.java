@@ -49,6 +49,9 @@ class AreaServiceGeometryTest {
     @Mock
     private FloorRepository floorRepository;
 
+    @Mock
+    private AuditService auditService;
+
     @InjectMocks
     private AreaService areaService;
 

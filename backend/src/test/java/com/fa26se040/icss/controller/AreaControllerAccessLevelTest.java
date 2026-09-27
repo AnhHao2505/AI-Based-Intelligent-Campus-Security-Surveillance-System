@@ -125,7 +125,7 @@ class AreaControllerAccessLevelTest {
         when(areaService.updateAccessRules(eq(areaId), any(), any()))
                 .thenThrow(new AreaException(AreaErrorCode.ERR_AREA_017));
 
-        String body = objectMapper.writeValueAsString(new AreaAccessRulesUpdateRequest(2, false, "Lý do"));
+        String body = objectMapper.writeValueAsString(new AreaAccessRulesUpdateRequest(2, false, "Điều chỉnh theo quy định mới"));
         mockMvc.perform(patch("/api/areas/{id}/access-rules", areaId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))

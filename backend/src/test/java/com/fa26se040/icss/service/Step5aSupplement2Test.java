@@ -7,7 +7,7 @@ import com.fa26se040.icss.dto.area.AreaEventModeUpdateRequest;
 import com.fa26se040.icss.dto.area.AreaGeometry;
 import com.fa26se040.icss.dto.area.AreaResponse;
 import com.fa26se040.icss.dto.area.AreaUpdateRequest;
-import com.fa26se040.icss.entity.AccessControlAuditLog;
+import com.fa26se040.icss.entity.AuditLog;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.AreaEventSession;
 import com.fa26se040.icss.entity.Building;
@@ -15,8 +15,8 @@ import com.fa26se040.icss.entity.Floor;
 import com.fa26se040.icss.entity.Notification;
 import com.fa26se040.icss.entity.ReasonCatalog;
 import com.fa26se040.icss.entity.User;
-import com.fa26se040.icss.enums.AccessControlAction;
-import com.fa26se040.icss.enums.AccessControlTargetType;
+import com.fa26se040.icss.enums.AuditAction;
+import com.fa26se040.icss.enums.AuditTargetType;
 import com.fa26se040.icss.enums.AccessSource;
 import com.fa26se040.icss.enums.AreaLevel;
 import com.fa26se040.icss.enums.ConfigKey;
@@ -24,7 +24,7 @@ import com.fa26se040.icss.enums.NotificationType;
 import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.exception.AreaErrorCode;
 import com.fa26se040.icss.exception.AreaException;
-import com.fa26se040.icss.repository.AccessControlAuditLogRepository;
+import com.fa26se040.icss.repository.AuditLogRepository;
 import com.fa26se040.icss.repository.AreaEventSessionRepository;
 import com.fa26se040.icss.repository.AreaRepository;
 import com.fa26se040.icss.repository.BuildingRepository;
@@ -77,7 +77,7 @@ public class Step5aSupplement2Test extends AbstractIntegrationTest {
     private FloorRepository floorRepository;
 
     @Autowired
-    private AccessControlAuditLogRepository auditLogRepository;
+    private AuditLogRepository auditLogRepository;
 
     @Autowired
     private AreaEventSessionRepository sessionRepository;
@@ -256,13 +256,13 @@ public class Step5aSupplement2Test extends AbstractIntegrationTest {
         assertFalse(disableResp.openToMembers());
         assertFalse(disableResp.eventActive());
 
-        List<AccessControlAuditLog> logs = auditLogRepository.findAll().stream()
-                .filter(l -> l.getTargetId().equals(internalArea.getId().toString()) && l.getTargetType() == AccessControlTargetType.AREA_EVENT_MODE)
-                .sorted(java.util.Comparator.comparing(AccessControlAuditLog::getChangedAt))
+        List<AuditLog> logs = auditLogRepository.findAll().stream()
+                .filter(l -> l.getTargetId().equals(internalArea.getId().toString()) && l.getTargetType() == AuditTargetType.AREA_EVENT_MODE)
+                .sorted(java.util.Comparator.comparing(AuditLog::getChangedAt))
                 .toList();
         assertFalse(logs.isEmpty());
-        AccessControlAuditLog disableLog = logs.get(logs.size() - 1);
-        assertEquals(AccessControlAction.DISABLE_EVENT_MODE, disableLog.getAction());
+        AuditLog disableLog = logs.get(logs.size() - 1);
+        assertEquals(AuditAction.DISABLE_EVENT_MODE, disableLog.getAction());
 
         // 2. Bật lại sự kiện
         AreaResponse enableResp = areaService.updateEventMode(
@@ -273,13 +273,13 @@ public class Step5aSupplement2Test extends AbstractIntegrationTest {
         assertTrue(enableResp.openToMembers());
         assertTrue(enableResp.eventActive());
 
-        List<AccessControlAuditLog> logsAfter = auditLogRepository.findAll().stream()
-                .filter(l -> l.getTargetId().equals(internalArea.getId().toString()) && l.getTargetType() == AccessControlTargetType.AREA_EVENT_MODE)
-                .sorted(java.util.Comparator.comparing(AccessControlAuditLog::getChangedAt))
+        List<AuditLog> logsAfter = auditLogRepository.findAll().stream()
+                .filter(l -> l.getTargetId().equals(internalArea.getId().toString()) && l.getTargetType() == AuditTargetType.AREA_EVENT_MODE)
+                .sorted(java.util.Comparator.comparing(AuditLog::getChangedAt))
                 .toList();
         assertTrue(logsAfter.size() >= 2);
-        AccessControlAuditLog enableLog = logsAfter.get(logsAfter.size() - 1);
-        assertEquals(AccessControlAction.ENABLE_EVENT_MODE, enableLog.getAction());
+        AuditLog enableLog = logsAfter.get(logsAfter.size() - 1);
+        assertEquals(AuditAction.ENABLE_EVENT_MODE, enableLog.getAction());
 
         assertEventModeInvariant(internalArea.getId(), now);
     }
@@ -329,15 +329,19 @@ public class Step5aSupplement2Test extends AbstractIntegrationTest {
         assertEquals(reloadedOld.getPlannedEnd().toEpochSecond(), reloadedOld.getActualEnd().toEpochSecond());
         assertNull(reloadedOld.getEndedBy());
 
-        // Audit ENABLE_EVENT_MODE được ghi
-        assertEquals(auditBefore + 1, auditLogRepository.count());
-        List<AccessControlAuditLog> logs = auditLogRepository.findAll().stream()
-                .filter(l -> l.getTargetId().equals(internalArea.getId().toString()) && l.getTargetType() == AccessControlTargetType.AREA_EVENT_MODE)
-                .sorted(java.util.Comparator.comparing(AccessControlAuditLog::getChangedAt))
+        // Audit EXPIRE_EVENT_MODE (tự đóng phiên cũ) + ENABLE_EVENT_MODE (bật mới) được ghi (BR-ES-19)
+        assertEquals(auditBefore + 2, auditLogRepository.count());
+        List<AuditLog> logs = auditLogRepository.findAll().stream()
+                .filter(l -> l.getTargetId().equals(internalArea.getId().toString()) && l.getTargetType() == AuditTargetType.AREA_EVENT_MODE)
+                .sorted(java.util.Comparator.comparing(AuditLog::getChangedAt))
                 .toList();
-        assertFalse(logs.isEmpty());
-        AccessControlAuditLog log = logs.get(logs.size() - 1);
-        assertEquals(AccessControlAction.ENABLE_EVENT_MODE, log.getAction());
+        assertTrue(logs.size() >= 2);
+        AuditLog expireLog = logs.get(logs.size() - 2);
+        assertEquals(AuditAction.EXPIRE_EVENT_MODE, expireLog.getAction());
+        assertEquals("SYSTEM", expireLog.getActorType());
+
+        AuditLog enableLog = logs.get(logs.size() - 1);
+        assertEquals(AuditAction.ENABLE_EVENT_MODE, enableLog.getAction());
 
         assertEventModeInvariant(internalArea.getId(), now);
     }
@@ -1375,5 +1379,135 @@ public class Step5aSupplement2Test extends AbstractIntegrationTest {
         assertNull(detail.eventStartedByName());
         assertNull(detail.eventLastAdjustedAt());
         assertNull(detail.eventLastAdjustedByName());
+    }
+
+    // ======================================================================
+    // FIX-K8a2: câu báo ERR_AREA_030 phải nêu giờ kết thúc THỰC TẾ của phiên gần nhất
+    // (COALESCE(actual_end, planned_end)), không phải planned_end.
+    // ======================================================================
+
+    private static final java.time.format.DateTimeFormatter K8A2_DTF =
+            java.time.format.DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy").withZone(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
+
+    @Test
+    @DisplayName("T-K8a2-a1: Bật tới T+60' rồi tắt tay; gửi lý do lệch loại -> 409 ERR_AREA_030 nêu giờ tắt thực tế, không nêu planned_end")
+    void testTK8a2_a1_ManualDisableThenMismatchedReason_MessageUsesActualEnd() {
+        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime planned = now.plusMinutes(60);
+
+        areaService.updateEventMode(internalArea.getId(),
+                new AreaEventModeUpdateRequest(true, planned, "SEMINAR", "Bat su kien T-K8a2-a1"), fmUser.getEmail());
+        areaService.updateEventMode(internalArea.getId(),
+                new AreaEventModeUpdateRequest(false, null, "ENDED_EARLY", "Tat tay ngay T-K8a2-a1"), fmUser.getEmail());
+
+        AreaEventSession last = sessionRepository.findTopByAreaIdOrderByStartedAtDesc(internalArea.getId()).orElseThrow();
+        assertNotNull(last.getActualEnd(), "Phiên đã tắt tay phải có actual_end");
+        String actualEndText = K8A2_DTF.format(last.getActualEnd());
+        String plannedEndText = K8A2_DTF.format(last.getPlannedEnd());
+        assertNotEquals(actualEndText, plannedEndText, "Tiền điều kiện: giờ tắt thực tế khác planned_end");
+
+        // Như K8a: bật lại với mã của nhóm tắt (ENDED_EARLY)
+        AreaException ex = assertThrows(AreaException.class, () ->
+                areaService.updateEventMode(internalArea.getId(),
+                        new AreaEventModeUpdateRequest(true, now.plusMinutes(90), "ENDED_EARLY", "Gui ly do lech loai T-K8a2-a1"),
+                        fmUser.getEmail()));
+        assertEquals(AreaErrorCode.ERR_AREA_030, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("đã kết thúc lúc " + actualEndText),
+                "Phải nêu giờ tắt thực tế " + actualEndText + " — message: " + ex.getMessage());
+        assertFalse(ex.getMessage().contains(plannedEndText),
+                "Không được nêu planned_end " + plannedEndText + " — message: " + ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("T-K8a2-a2: Bật tới T+60' rồi tắt tay; tắt lần nữa (BR-EV-10) -> 409 ERR_AREA_030 nêu giờ tắt thực tế")
+    void testTK8a2_a2_ManualDisableThenDisableAgain_MessageUsesActualEnd() {
+        OffsetDateTime now = OffsetDateTime.now();
+
+        areaService.updateEventMode(internalArea.getId(),
+                new AreaEventModeUpdateRequest(true, now.plusMinutes(60), "SEMINAR", "Bat su kien T-K8a2-a2"), fmUser.getEmail());
+        areaService.updateEventMode(internalArea.getId(),
+                new AreaEventModeUpdateRequest(false, null, "ENDED_EARLY", "Tat tay ngay T-K8a2-a2"), fmUser.getEmail());
+
+        AreaEventSession last = sessionRepository.findTopByAreaIdOrderByStartedAtDesc(internalArea.getId()).orElseThrow();
+        String actualEndText = K8A2_DTF.format(last.getActualEnd());
+        String plannedEndText = K8A2_DTF.format(last.getPlannedEnd());
+
+        AreaException ex = assertThrows(AreaException.class, () ->
+                areaService.updateEventMode(internalArea.getId(),
+                        new AreaEventModeUpdateRequest(false, null, "ENDED_EARLY", "Tat lan nua T-K8a2-a2"),
+                        fmUser.getEmail()));
+        assertEquals(AreaErrorCode.ERR_AREA_030, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("đã kết thúc lúc " + actualEndText),
+                "Phải nêu giờ tắt thực tế " + actualEndText + " — message: " + ex.getMessage());
+        assertFalse(ex.getMessage().contains(plannedEndText),
+                "Không được nêu planned_end " + plannedEndText + " — message: " + ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("T-K8a2-b1: Phiên đã đóng với actual_end = planned_end -> 409 ERR_AREA_030 nêu planned_end")
+    void testTK8a2_b1_ClosedAtPlannedEnd_MessageUsesPlannedEnd() {
+        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime planned = now.minusHours(1);
+        sessionRepository.save(AreaEventSession.builder()
+                .area(internalArea)
+                .startedAt(now.minusHours(3))
+                .plannedEnd(planned)
+                .actualEnd(planned)
+                .startedBy(fmUser)
+                .build());
+        internalArea.setOpenToMembers(false);
+        internalArea.setOpenUntil(null);
+        areaRepository.save(internalArea);
+
+        AreaException ex = assertThrows(AreaException.class, () ->
+                areaService.updateEventMode(internalArea.getId(),
+                        new AreaEventModeUpdateRequest(false, null, "ENDED_EARLY", "Tat khi phien da het han T-K8a2-b1"),
+                        fmUser.getEmail()));
+        assertEquals(AreaErrorCode.ERR_AREA_030, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("đã kết thúc lúc " + K8A2_DTF.format(planned)),
+                "Phải nêu planned_end " + K8A2_DTF.format(planned) + " — message: " + ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("T-K8a2-b2: Phiên chưa đóng nhưng đã quá planned_end -> 409 ERR_AREA_030 nêu planned_end")
+    void testTK8a2_b2_UnclosedPastPlannedEnd_MessageUsesPlannedEnd() {
+        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime planned = now.minusHours(1);
+        sessionRepository.save(AreaEventSession.builder()
+                .area(internalArea)
+                .startedAt(now.minusHours(3))
+                .plannedEnd(planned)
+                .actualEnd(null)
+                .startedBy(fmUser)
+                .build());
+        internalArea.setOpenToMembers(true);
+        internalArea.setOpenUntil(planned);
+        areaRepository.save(internalArea);
+
+        AreaException ex = assertThrows(AreaException.class, () ->
+                areaService.updateEventMode(internalArea.getId(),
+                        new AreaEventModeUpdateRequest(false, null, "ENDED_EARLY", "Tat khi phien qua han T-K8a2-b2"),
+                        fmUser.getEmail()));
+        assertEquals(AreaErrorCode.ERR_AREA_030, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("đã kết thúc lúc " + K8A2_DTF.format(planned)),
+                "Phải nêu planned_end " + K8A2_DTF.format(planned) + " — message: " + ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("T-K8a2-c: Đang mở + lý do lệch loại -> 409 ERR_AREA_030 vẫn 'đang mở đến <openUntil>' (không đổi hành vi)")
+    void testTK8a2_c_ActiveEvent_MessageStillShowsOpenUntil() {
+        OffsetDateTime now = OffsetDateTime.now();
+        areaService.updateEventMode(internalArea.getId(),
+                new AreaEventModeUpdateRequest(true, now.plusHours(2), "SEMINAR", "Bat su kien T-K8a2-c"), fmUser.getEmail());
+        Area reloaded = areaRepository.findById(internalArea.getId()).orElseThrow();
+        String openUntilText = K8A2_DTF.format(reloaded.getOpenUntil());
+
+        AreaException ex = assertThrows(AreaException.class, () ->
+                areaService.updateEventMode(internalArea.getId(),
+                        new AreaEventModeUpdateRequest(true, now.plusHours(4), "SEMINAR", "Gui EVENT_ENABLE khi dang mo T-K8a2-c"),
+                        fmUser.getEmail()));
+        assertEquals(AreaErrorCode.ERR_AREA_030, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("đang mở đến " + openUntilText),
+                "Phải giữ 'đang mở đến " + openUntilText + "' — message: " + ex.getMessage());
     }
 }

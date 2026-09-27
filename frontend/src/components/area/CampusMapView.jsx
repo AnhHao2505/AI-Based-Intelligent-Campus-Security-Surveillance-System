@@ -11,7 +11,7 @@ import {
 	PanelRightClose,
 	PanelRightOpen,
 } from "lucide-react";
-import { getLevelConfig, AREA_LEVEL_CONFIG } from "../../utils/areaHelpers";
+import { getLevelConfig, getAccessLevelConfig, AREA_LEVEL_CONFIG } from "../../utils/areaHelpers";
 import "../../styles/CampusMapView.css";
 
 // FPT University HCMC Campus default center (Saigon Hi-Tech Park, District 9)
@@ -49,6 +49,11 @@ const OSM_STYLE = {
 		},
 	],
 };
+
+// Mức zoom từ đó hiện đủ nhãn khu vực. Toạ độ các khu vực trong cùng toà nhà rất sát nhau:
+// ở 17.5 (mức bay tới một khu vực) nhãn vẫn đè nhau, nên chỉ hiện đủ khi gần mức tối đa (18.8);
+// dưới ngưỡng này nhãn hiện khi hover hoặc khu vực đang được chọn.
+const LABEL_MIN_ZOOM = 18.5;
 
 // Preset GPS marker locations for campus zones and landmarks
 const LANDMARK_LOCATIONS = [
@@ -139,6 +144,9 @@ export default function CampusMapView({
 }) {
 	const mapRef = useRef(null);
 	const [railCollapsed, setRailCollapsed] = useState(false);
+	// UI-B B4: dưới mức zoom này các khu vực quá sát nhau -> chỉ hiện chấm, nhãn hiện khi hover/được chọn
+	const [mapZoom, setMapZoom] = useState(CAMPUS_CENTER.zoom);
+	const compactLabels = mapZoom < LABEL_MIN_ZOOM;
 
 	// Selected area object
 	const selectedArea = useMemo(() => {
@@ -262,10 +270,11 @@ export default function CampusMapView({
 				</div>
 
 				{/* Map Viewport */}
-				<div className="campus-map-viewport">
+				<div className={`campus-map-viewport ${compactLabels ? "campus-map-viewport--compact" : ""}`}>
 					<Map
 						ref={mapRef}
 						initialViewState={CAMPUS_CENTER}
+						onZoomEnd={(e) => setMapZoom(e.viewState.zoom)}
 						mapStyle={OSM_STYLE}
 						style={{ width: "100%", height: "100%" }}
 						minZoom={12}
@@ -296,6 +305,8 @@ export default function CampusMapView({
 									<div
 										className={`campus-zone-pin ${isSelected ? "campus-zone-pin--selected" : ""}`}
 										style={{ borderColor: item.color }}
+										title={item.name}
+										aria-label={item.name}
 									>
 										<span
 											className="campus-zone-pin__dot"
@@ -338,7 +349,7 @@ export default function CampusMapView({
 				<div className="campus-rail-card campus-rail-card--list">
 					<div className="campus-rail-header">
 						<span className="campus-rail-title">
-							Khu vực Khuôn viên ({areas.length})
+							Khu vực khuôn viên ({areas.length})
 						</span>
 					</div>
 
@@ -371,11 +382,8 @@ export default function CampusMapView({
 										</div>
 
 										<div className="campus-rail-item__right">
-											<span
-												className="zone-card__pill-level"
-												style={{ fontSize: "10px", padding: "1px 5px" }}
-											>
-												Level {area.areaAccessLevel ?? 1}
+											<span className={getAccessLevelConfig(area.areaAccessLevel).className}>
+												{getAccessLevelConfig(area.areaAccessLevel).label}
 											</span>
 										</div>
 									</div>
@@ -386,7 +394,7 @@ export default function CampusMapView({
 				</div>
 
 				{/* Card 2: Selected Area Detail */}
-				<div className="campus-rail-card campus-rail-card--detail">
+				<div className={`campus-rail-card campus-rail-card--detail ${!selectedArea ? "campus-rail-card--detail-empty" : ""}`}>
 					{!selectedArea ? (
 						<div className="campus-detail-empty">
 							<p>
@@ -417,7 +425,7 @@ export default function CampusMapView({
 										Cấp truy cập tối thiểu
 									</span>
 									<span className="campus-detail-meta-val">
-										Level {selectedArea.areaAccessLevel ?? 1}
+										{getAccessLevelConfig(selectedArea.areaAccessLevel).label}
 									</span>
 								</div>
 

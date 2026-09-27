@@ -22,8 +22,32 @@ public record AreaListItemResponse(
     OffsetDateTime eventStartedAt,
     String eventStartedByName,
     OffsetDateTime eventLastAdjustedAt,
-    String eventLastAdjustedByName
+    String eventLastAdjustedByName,
+    Integer upcomingScheduleCount
 ) {
+    public AreaListItemResponse(
+        UUID id,
+        String name,
+        AreaLevel areaLevel,
+        Integer areaAccessLevel,
+        Boolean explicitAuthorizationRequired,
+        String building,
+        String floor,
+        Boolean isActive,
+        AreaGeometry geometry,
+        Boolean hasGeometry,
+        Boolean differsFromPreset,
+        Boolean openToMembers,
+        OffsetDateTime openUntil,
+        Boolean eventActive,
+        OffsetDateTime eventStartedAt,
+        String eventStartedByName,
+        OffsetDateTime eventLastAdjustedAt,
+        String eventLastAdjustedByName
+    ) {
+        this(id, name, areaLevel, areaAccessLevel, explicitAuthorizationRequired, building, floor, isActive, geometry, hasGeometry, differsFromPreset, openToMembers, openUntil, eventActive, eventStartedAt, eventStartedByName, eventLastAdjustedAt, eventLastAdjustedByName, 0);
+    }
+
     public AreaListItemResponse(
         UUID id,
         String name,
@@ -40,7 +64,7 @@ public record AreaListItemResponse(
         OffsetDateTime openUntil,
         Boolean eventActive
     ) {
-        this(id, name, areaLevel, areaAccessLevel, explicitAuthorizationRequired, building, floor, isActive, geometry, hasGeometry, differsFromPreset, openToMembers, openUntil, eventActive, null, null, null, null);
+        this(id, name, areaLevel, areaAccessLevel, explicitAuthorizationRequired, building, floor, isActive, geometry, hasGeometry, differsFromPreset, openToMembers, openUntil, eventActive, null, null, null, null, 0);
     }
 
     public AreaListItemResponse(

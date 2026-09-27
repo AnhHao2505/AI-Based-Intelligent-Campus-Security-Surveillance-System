@@ -131,6 +131,19 @@ export default function AreaAssignedPersonnelModal({
 			toast.error("Vui lòng chọn người dùng cần gán");
 			return;
 		}
+		const trimmedAddReason = addReasonInput.trim();
+		if (!trimmedAddReason) {
+			toast.error("Vui lòng nhập lý do gán nhân sự");
+			return;
+		}
+		if (trimmedAddReason.length < 10) {
+			toast.error("Lý do phải có từ 10 đến 500 ký tự");
+			return;
+		}
+		if (trimmedAddReason.length > 500) {
+			toast.error("Lý do không được vượt quá 500 ký tự");
+			return;
+		}
 
 		setSubmittingAdd(true);
 		try {
@@ -144,7 +157,7 @@ export default function AreaAssignedPersonnelModal({
 						? null
 						: formatToOffsetDateTime(validToInput),
 				note: noteInput.trim() || null,
-				reason: addReasonInput.trim() || undefined,
+				reason: trimmedAddReason,
 			};
 
 			await assignPersonnel(area.id, payload);
@@ -195,6 +208,19 @@ export default function AreaAssignedPersonnelModal({
 	const handleSaveValidTo = async (e) => {
 		e?.preventDefault();
 		if (!editItem) return;
+		const trimmedEditReason = editReasonInput.trim();
+		if (!trimmedEditReason) {
+			toast.error("Vui lòng nhập lý do điều chỉnh thời hạn");
+			return;
+		}
+		if (trimmedEditReason.length < 10) {
+			toast.error("Lý do phải có từ 10 đến 500 ký tự");
+			return;
+		}
+		if (trimmedEditReason.length > 500) {
+			toast.error("Lý do không được vượt quá 500 ký tự");
+			return;
+		}
 
 		setSubmittingEdit(true);
 		try {
@@ -203,7 +229,7 @@ export default function AreaAssignedPersonnelModal({
 					editIsIndefinite || !editValidToInput
 						? null
 						: formatToOffsetDateTime(editValidToInput),
-				reason: editReasonInput.trim() || undefined,
+				reason: trimmedEditReason,
 			};
 
 			await updateAssignedPersonnel(area.id, editItem.id, payload);
@@ -232,15 +258,24 @@ export default function AreaAssignedPersonnelModal({
 	const handleConfirmRevoke = async (e) => {
 		e?.preventDefault();
 		if (!revokeItem) return;
-		if (!revokeReason.trim()) {
+		const trimmedRevokeReason = revokeReason.trim();
+		if (!trimmedRevokeReason) {
 			toast.error("Lý do thu hồi là bắt buộc");
+			return;
+		}
+		if (trimmedRevokeReason.length < 10) {
+			toast.error("Lý do phải có từ 10 đến 500 ký tự");
+			return;
+		}
+		if (trimmedRevokeReason.length > 500) {
+			toast.error("Lý do không được vượt quá 500 ký tự");
 			return;
 		}
 
 		setSubmittingRevoke(true);
 		try {
 			await revokeAssignedPersonnel(area.id, revokeItem.id, {
-				reason: revokeReason.trim(),
+				reason: trimmedRevokeReason,
 			});
 			toast.success(`Đã thu hồi quyền ra vào của ${revokeItem.user?.fullName}`);
 			setRevokeItem(null);
@@ -425,17 +460,24 @@ export default function AreaAssignedPersonnelModal({
 									/>
 								</div>
 
-								{/* Reason (Optional) */}
+								{/* Reason (Mandatory 10-500 chars) */}
 								<div className="ap-form-group ap-form-group--full">
-									<label className="ap-form-label">Lý do gán (tuỳ chọn)</label>
+									<label className="ap-form-label">
+										Lý do gán <span className="ap-form-required">*</span>
+									</label>
 									<input
 										type="text"
 										className="ap-form-input"
-										placeholder="Nhập lý do phân quyền chỉ định (tối đa 500 ký tự)..."
+										placeholder="Nhập lý do phân quyền chỉ định (tối thiểu 10 ký tự, tối đa 500 ký tự)..."
 										value={addReasonInput}
 										onChange={(e) => setAddReasonInput(e.target.value)}
 										maxLength={500}
+										required
 									/>
+									<div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "var(--theme-text-muted, #64748b)", marginTop: "4px" }}>
+										<span>Tối thiểu 10 ký tự, tối đa 500 ký tự</span>
+										<span>{addReasonInput.length}/500 ký tự</span>
+									</div>
 								</div>
 							</div>
 
@@ -454,7 +496,7 @@ export default function AreaAssignedPersonnelModal({
 									variant="primary"
 									size="sm"
 									loading={submittingAdd}
-									disabled={!selectedUser}
+									disabled={!selectedUser || addReasonInput.trim().length < 10}
 								>
 									Xác nhận gán
 								</Button>
@@ -675,15 +717,22 @@ export default function AreaAssignedPersonnelModal({
 						</div>
 
 						<div className="ap-form-group" style={{ marginTop: "12px" }}>
-							<label className="ap-form-label">Lý do điều chỉnh (tuỳ chọn)</label>
+							<label className="ap-form-label">
+								Lý do điều chỉnh <span className="ap-form-required">*</span>
+							</label>
 							<input
 								type="text"
 								className="ap-form-input"
-								placeholder="Ví dụ: Gia hạn theo yêu cầu trưởng bộ môn (tối đa 500 ký tự)..."
+								placeholder="Ví dụ: Gia hạn theo yêu cầu trưởng bộ môn (tối thiểu 10 ký tự, tối đa 500 ký tự)..."
 								value={editReasonInput}
 								onChange={(e) => setEditReasonInput(e.target.value)}
 								maxLength={500}
+								required
 							/>
+							<div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "var(--theme-text-muted, #64748b)", marginTop: "4px" }}>
+								<span>Tối thiểu 10 ký tự, tối đa 500 ký tự</span>
+								<span>{editReasonInput.length}/500 ký tự</span>
+							</div>
 						</div>
 					</div>
 				</Modal>
@@ -712,7 +761,7 @@ export default function AreaAssignedPersonnelModal({
 								variant="danger"
 								onClick={handleConfirmRevoke}
 								loading={submittingRevoke}
-								disabled={!revokeReason.trim()}
+								disabled={revokeReason.trim().length < 10}
 							>
 								Xác nhận thu hồi
 							</Button>
@@ -742,12 +791,16 @@ export default function AreaAssignedPersonnelModal({
 							<textarea
 								className="ap-form-textarea"
 								rows={3}
-								placeholder="Nhập lý do thu hồi (bắt buộc, ví dụ: Chuyển công tác, hết nhiệm kỳ)..."
+								placeholder="Nhập lý do thu hồi (tối thiểu 10 ký tự, tối đa 500 ký tự)..."
 								value={revokeReason}
 								onChange={(e) => setRevokeReason(e.target.value)}
 								maxLength={500}
 								required
 							/>
+							<div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "var(--theme-text-muted, #64748b)", marginTop: "4px" }}>
+								<span>Tối thiểu 10 ký tự, tối đa 500 ký tự</span>
+								<span>{revokeReason.length}/500 ký tự</span>
+							</div>
 						</div>
 					</div>
 				</Modal>

@@ -78,6 +78,45 @@ export function getLevelConfig(level) {
 }
 
 /**
+ * Cấp truy cập người dùng / khu vực (1–3): MỘT nhãn và MỘT bộ màu cho mọi trang.
+ * Màu định nghĩa ở styles/components.css (.access-level-badge--N) qua token theme.css.
+ */
+export const ACCESS_LEVEL_CONFIG = {
+  1: { level: 1, label: 'Cấp 1', className: 'access-level-badge access-level-badge--1' },
+  2: { level: 2, label: 'Cấp 2', className: 'access-level-badge access-level-badge--2' },
+  3: { level: 3, label: 'Cấp 3', className: 'access-level-badge access-level-badge--3' },
+};
+
+/**
+ * Lấy nhãn + class hiển thị cho cấp truy cập (mặc định Cấp 1 khi thiếu dữ liệu)
+ */
+export function getAccessLevelConfig(level) {
+  const n = Number(level);
+  return ACCESS_LEVEL_CONFIG[n] || ACCESS_LEVEL_CONFIG[1];
+}
+
+/**
+ * Hiển thị trạng thái lịch chế độ sự kiện (chỉ trình bày, không đổi dữ liệu).
+ * STARTED được tách theo giờ kết thúc: đã qua endAt -> "Đã diễn ra", còn trong khung -> "Đang diễn ra".
+ * variant dùng cho components/ui/Badge.
+ */
+const SCHEDULE_STATUS_VIEW = {
+  SCHEDULED: { label: 'Đã lên lịch', variant: 'brand' },
+  CANCELLED: { label: 'Đã huỷ', variant: 'neutral' },
+  FAILED: { label: 'Thất bại', variant: 'danger' },
+};
+
+export function getScheduleStatusView(status, endAt, now = Date.now()) {
+  if (status === 'STARTED') {
+    const end = endAt ? new Date(endAt).getTime() : NaN;
+    return !isNaN(end) && end < now
+      ? { label: 'Đã diễn ra', variant: 'neutral' }
+      : { label: 'Đang diễn ra', variant: 'success' };
+  }
+  return SCHEDULE_STATUS_VIEW[status] || { label: status || '—', variant: 'neutral' };
+}
+
+/**
  * Lấy class CSS polygon tương ứng cho từng Cấp độ An ninh khu vực
  */
 export function getLevelPolygonClass(level) {
@@ -161,7 +200,7 @@ export function getErrorMessage(error) {
     return error.message;
   }
   if (error.code && ERROR_MESSAGES[error.code]) {
-    return `[${error.code}] ${ERROR_MESSAGES[error.code]}`;
+    return ERROR_MESSAGES[error.code];
   }
   return error.message || 'Đã có lỗi xảy ra. Vui lòng thử lại.';
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
 	ShieldCheck,
 	AlertCircle,
@@ -10,9 +10,10 @@ import {
 import { toast } from "sonner";
 import Modal from "../ui/Modal";
 import Button from "../ui/Button";
+import EventScheduleSection from "./EventScheduleSection";
 import { getAreaById, updateAreaAccessRules, updateAreaEventMode } from "../../services/areaService";
 import { getActiveReasons } from "../../services/reasonCatalogService";
-import { formatDisplayDateTime } from "../../utils/areaHelpers";
+import { formatDisplayDateTime, getLevelConfig } from "../../utils/areaHelpers";
 import "./AreaAccessRulesModal.css";
 
 const ACCESS_LEVEL_OPTIONS = [
@@ -56,6 +57,20 @@ export default function AreaAccessRulesModal({
 	const [eventReasonCode, setEventReasonCode] = useState("");
 	const [eventNote, setEventNote] = useState("");
 	const [loadingReasons, setLoadingReasons] = useState(false);
+
+	// Thao tác lịch không cập nhật `area` ngay (sẽ reset form quy tắc đang sửa);
+	// chỉ tải lại khu vực (badge số lịch) sau khi đóng modal.
+	const schedulesChangedRef = useRef(false);
+	const handleClose = () => {
+		const changedAreaId = schedulesChangedRef.current ? area?.id : null;
+		schedulesChangedRef.current = false;
+		onClose();
+		if (changedAreaId) {
+			getAreaById(changedAreaId)
+				.then((fresh) => onSuccess?.(fresh?.data || fresh))
+				.catch((err) => console.error("Lỗi khi tải lại khu vực sau thao tác lịch:", err));
+		}
+	};
 
 	const areaLevelKey = area?.areaLevel || area?.level?.code;
 	const isEventModeApplicable =
@@ -147,7 +162,7 @@ export default function AreaAccessRulesModal({
 			: `Tầng ${area.floor}`
 		: null;
 	const loc = [area.building, floorPart].filter(Boolean).join(" · ");
-	const areaDisplay = loc ? `${area.name} (${loc})` : area.name;
+	const areaDisplay = [area.name, loc].filter(Boolean).join(" · ");
 
 	const preset = levelPresets?.[areaLevelKey];
 
@@ -157,7 +172,7 @@ export default function AreaAccessRulesModal({
 
 		if (!rulesChanged && !eventModeChanged) {
 			toast.info("Không có thay đổi nào cần lưu.");
-			onClose();
+			handleClose();
 			return;
 		}
 
@@ -167,8 +182,12 @@ export default function AreaAccessRulesModal({
 				setError("Lý do cập nhật quy tắc khu vực là bắt buộc.");
 				return;
 			}
+			if (trimmedRuleReason.length < 10) {
+				setError("Lý do phải có từ 10 đến 500 ký tự.");
+				return;
+			}
 			if (trimmedRuleReason.length > 500) {
-				setError("Lý do cập nhật quy tắc khu vực không được vượt quá 500 ký tự.");
+				setError("Lý do phải có từ 10 đến 500 ký tự.");
 				return;
 			}
 		}
@@ -229,6 +248,7 @@ export default function AreaAccessRulesModal({
 			}
 
 			toast.success(`Đã cập nhật quy tắc khu vực ${area.name}`);
+			schedulesChangedRef.current = false;
 			onSuccess?.(latestUpdated || area);
 			onClose();
 		} catch (err) {
@@ -243,6 +263,7 @@ export default function AreaAccessRulesModal({
 				try {
 					const reloaded = await getAreaById(area.id);
 					const freshData = reloaded?.data || reloaded;
+					schedulesChangedRef.current = false;
 					onSuccess?.(freshData);
 					onClose();
 				} catch (fetchErr) {
@@ -259,7 +280,7 @@ export default function AreaAccessRulesModal({
 		<div className="access-rules-modal__footer">
 			<Button
 				variant="secondary"
-				onClick={onClose}
+				onClick={handleClose}
 				disabled={saving}
 				type="button"
 			>
@@ -269,6 +290,7 @@ export default function AreaAccessRulesModal({
 				variant="primary"
 				onClick={handleSubmit}
 				loading={saving}
+				disabled={saving || (rulesChanged && reason.trim().length < 10)}
 				icon={ShieldCheck}
 				type="button"
 			>
@@ -280,9 +302,9 @@ export default function AreaAccessRulesModal({
 	return (
 		<Modal
 			isOpen={isOpen}
-			onClose={onClose}
+			onClose={handleClose}
 			title="Quy tắc truy cập khu vực"
-			subtitle={`Cấu hình mức độ truy cập tự do và điều kiện cấp phép cụ thể cho: ${areaDisplay}`}
+			subtitle={areaDisplay}
 			icon={ShieldCheck}
 			iconVariant="brand"
 			size="md"
@@ -319,7 +341,7 @@ export default function AreaAccessRulesModal({
 							style={{ color: "var(--brand-blue, #3b82f6)", flexShrink: 0 }}
 						/>
 						<div>
-							<strong>Giá trị mặc định của phân loại ({areaLevelKey}):</strong>{" "}
+							<strong>Giá trị mặc định của loại {getLevelConfig(areaLevelKey).name}:</strong>{" "}
 							Cấp {preset.areaAccessLevel} · Yêu cầu chỉ định:{" "}
 							{preset.explicitAuthorizationRequired ? "Có" : "Không"}
 						</div>
@@ -433,16 +455,16 @@ export default function AreaAccessRulesModal({
 									style={{
 										padding: "8px 12px",
 										borderRadius: "8px",
-										background: "rgba(239, 68, 68, 0.08)",
-										border: "1px solid rgba(239, 68, 68, 0.2)",
+										background: "var(--theme-info-bg)",
+										border: "1px solid var(--theme-info-border)",
 										fontSize: "12.5px",
 										display: "flex",
 										alignItems: "center",
 										gap: "8px",
-										color: "var(--theme-danger, #ef4444)",
+										color: "var(--theme-info-text)",
 									}}
 								>
-									<AlertCircle size={15} style={{ flexShrink: 0 }} />
+									<Info size={15} style={{ flexShrink: 0 }} />
 									<span>
 										Sự kiện đã kết thúc lúc{" "}
 										{area.openUntil ? formatDisplayDateTime(area.openUntil) : "—"}{" "}
@@ -659,6 +681,14 @@ export default function AreaAccessRulesModal({
 									</div>
 								</div>
 							)}
+
+							{/* Lịch sự kiện (U3b) — thao tác độc lập với nút Lưu thay đổi */}
+							<EventScheduleSection
+								area={area}
+								onSchedulesChanged={() => {
+									schedulesChangedRef.current = true;
+								}}
+							/>
 						</div>
 					)}
 				</div>
@@ -708,8 +738,8 @@ export default function AreaAccessRulesModal({
 								marginTop: "4px",
 							}}
 						>
-							<span>Bắt buộc theo quy định kiểm toán truy cập</span>
-							<span>{reason.length}/500</span>
+							<span>Tối thiểu 10 ký tự, tối đa 500 ký tự</span>
+							<span>{reason.length}/500 ký tự</span>
 						</div>
 					</div>
 				)}

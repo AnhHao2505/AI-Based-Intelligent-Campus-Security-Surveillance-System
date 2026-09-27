@@ -19,8 +19,10 @@
   position: relative;
 }
 
+/* Focus ring nhìn thấy được khi dùng bàn phím (light + dark) */
 .ui-btn:focus-visible {
-  box-shadow: 0 0 0 3px var(--brand-subtle);
+  outline: 2px solid var(--focus-ring-color);
+  outline-offset: 2px;
 }
 
 /* Sizes */
@@ -42,21 +44,21 @@
 
 /* Variant: Primary */
 .ui-btn--primary {
-  background: var(--brand-gradient);
-  color: var(--brand-on-gradient);
-  border: 1px solid transparent;
-  box-shadow: 0 2px 8px var(--brand-glow);
+  background: var(--action-primary-bg);
+  color: var(--action-primary-text);
+  border: 1px solid var(--action-primary-bg);
+  box-shadow: 0 1px 2px var(--brand-glow);
 }
 
 .ui-btn--primary:hover:not(:disabled) {
-  filter: brightness(1.08);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px var(--brand-glow);
+  background: var(--action-primary-bg-hover);
+  border-color: var(--action-primary-bg-hover);
+  box-shadow: 0 4px 10px var(--brand-glow);
 }
 
 .ui-btn--primary:active:not(:disabled) {
-  transform: translateY(0);
-  filter: brightness(0.98);
+  background: var(--action-primary-bg-hover);
+  box-shadow: none;
 }
 
 /* Variant: Secondary */
@@ -113,13 +115,27 @@
   background: var(--theme-bg-page);
 }
 
-/* Disabled & Loading States */
-.ui-btn:disabled,
-.ui-btn--loading {
-  opacity: 0.55;
+/* Disabled: nền + chữ xám, không làm mờ (vẫn đọc được, khác hẳn nút thường) */
+.ui-btn:disabled:not(.ui-btn--loading) {
+  background: var(--action-disabled-bg);
+  color: var(--action-disabled-text);
+  border-color: var(--action-disabled-border);
   cursor: not-allowed;
   transform: none !important;
   box-shadow: none !important;
+  filter: none !important;
+}
+
+.ui-btn--ghost:disabled:not(.ui-btn--loading) {
+  background: transparent;
+  border-color: transparent;
+}
+
+/* Loading: giữ màu nút, chỉ chặn thao tác */
+.ui-btn--loading {
+  cursor: progress;
+  opacity: 0.85;
+  transform: none !important;
   filter: none !important;
 }
 

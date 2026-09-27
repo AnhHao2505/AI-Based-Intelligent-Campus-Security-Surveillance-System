@@ -44,7 +44,7 @@ public class SystemConfigController {
             @Valid @RequestBody SystemConfigUpdateRequest request,
             Authentication authentication
     ) {
-        SystemConfigResponse response = systemConfigService.update(configKey, request.configValue(), authentication.getName());
+        SystemConfigResponse response = systemConfigService.update(configKey, request.configValue(), request.reason(), authentication.getName());
         return ResponseEntity.ok(ApiResponse.success(response, "Cập nhật cấu hình hệ thống thành công"));
     }
 

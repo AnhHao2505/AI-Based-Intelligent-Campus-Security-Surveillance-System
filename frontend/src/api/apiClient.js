@@ -2,6 +2,19 @@ import { DEMO_LOGIN_ENABLED } from '../config/demoConfig';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
+// Không hiện mã lỗi (ERR_XXX, reason phrase HTTP) trong câu cho người dùng.
+// Mã nghiệp vụ giữ ở err.code và gán vào err.name để console.error vẫn in "ERR_XXX: <message>".
+function tagBusinessCode(err, code) {
+  if (code && /^[A-Z][A-Z0-9_]*$/.test(code)) err.name = code;
+  return err;
+}
+
+// Lỗi hệ thống (5xx): câu thân thiện, giữ mã tra cứu nếu backend có trả
+function toSystemErrorMessage(rawMessage) {
+  const match = typeof rawMessage === 'string' ? rawMessage.match(/Mã tra cứu:\s*([\w-]+)/) : null;
+  return match ? `Đã có lỗi xảy ra. Mã tra cứu: ${match[1]}` : 'Đã có lỗi xảy ra. Vui lòng thử lại.';
+}
+
 function getDemoResponse(path) {
   if (path.includes('/auth/me')) return JSON.parse(localStorage.getItem('user') || 'null');
   if (path.includes('/notifications/unread-count')) return { count: 2 };
@@ -156,11 +169,8 @@ export async function apiFetch(path, options = {}) {
 
   if (response.status === 403) {
     const errorData = await response.json().catch(() => null);
-    let msg = errorData?.message || 'Bạn không có quyền thực hiện thao tác này.';
-    if (errorData?.code) {
-      msg = `[${errorData.code}] ${msg}`;
-    }
-    const err = new Error(msg);
+    const msg = errorData?.message || 'Bạn không có quyền thực hiện thao tác này.';
+    const err = tagBusinessCode(new Error(msg), errorData?.code);
     err.status = 403;
     err.code = errorData?.code;
     err.data = errorData;
@@ -189,10 +199,10 @@ export async function apiFetch(path, options = {}) {
     if (!msg) {
       msg = `Yêu cầu thất bại (HTTP ${response.status})`;
     }
-    if (errorData?.code) {
-      msg = `[${errorData.code}] ${msg}`;
+    if (response.status >= 500) {
+      msg = toSystemErrorMessage(errorData?.message);
     }
-    const err = new Error(msg);
+    const err = tagBusinessCode(new Error(msg), errorData?.code);
     err.status = response.status;
     err.code = errorData?.code;
     err.data = errorData;

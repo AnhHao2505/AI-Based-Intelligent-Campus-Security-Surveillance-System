@@ -12,10 +12,14 @@ public record AccessRequestReviewRequest(
     @Size(max = 500, message = "Lý do từ chối tối đa 500 ký tự")
     String rejectionReason
 ) {
-    @AssertTrue(message = "Lý do từ chối không được để trống khi từ chối yêu cầu")
+    @AssertTrue(message = "Lý do từ chối phải có từ 10 đến 500 ký tự khi từ chối yêu cầu")
     public boolean isRejectionReasonValid() {
         if (status == RequestStatus.REJECTED) {
-            return rejectionReason != null && !rejectionReason.trim().isEmpty();
+            if (rejectionReason == null || rejectionReason.trim().isEmpty()) {
+                return false;
+            }
+            int len = rejectionReason.trim().length();
+            return len >= 10 && len <= 500;
         }
         return true;
     }

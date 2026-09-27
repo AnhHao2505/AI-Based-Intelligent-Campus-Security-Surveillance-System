@@ -1,5 +1,9 @@
 package com.fa26se040.icss.service;
 
+import static org.mockito.ArgumentMatchers.argThat;
+
+import static org.mockito.ArgumentMatchers.anyCollection;
+
 import com.fa26se040.icss.dto.accessrequest.AccessRequestResponse;
 import com.fa26se040.icss.dto.accessrequest.AccessRequestReviewRequest;
 import com.fa26se040.icss.dto.accessrequest.GroupAccessRequestCreateRequest;
@@ -71,6 +75,9 @@ class AccessRequestServiceTest {
 
     @Mock
     private MemberLookupRateLimiter memberLookupRateLimiter;
+
+    @Mock
+    private AuditService auditService;
 
     @InjectMocks
     private AccessRequestService accessRequestService;
@@ -841,13 +848,23 @@ class AccessRequestServiceTest {
     @Test
     @DisplayName("Quét các yêu cầu quá hạn chuyển sang EXPIRED thành công")
     void expireOverdueRequests_Success() {
-        when(accessRequestRepository.expireOverdueRequests(eq(RequestStatus.PENDING), eq(RequestStatus.EXPIRED), any(OffsetDateTime.class)))
+        AccessRequest r1 = AccessRequest.builder().id(UUID.randomUUID()).status(RequestStatus.PENDING)
+                .startTime(OffsetDateTime.now().minusHours(2)).endTime(OffsetDateTime.now().minusHours(1)).build();
+        AccessRequest r2 = AccessRequest.builder().id(UUID.randomUUID()).status(RequestStatus.PENDING)
+                .startTime(OffsetDateTime.now().minusHours(3)).endTime(OffsetDateTime.now().minusHours(2)).build();
+        AccessRequest r3 = AccessRequest.builder().id(UUID.randomUUID()).status(RequestStatus.PENDING)
+                .startTime(OffsetDateTime.now().minusHours(4)).endTime(OffsetDateTime.now().minusHours(3)).build();
+        when(accessRequestRepository.findPendingOverdueRequestsForUpdate(eq(RequestStatus.PENDING), any(OffsetDateTime.class)))
+                .thenReturn(List.of(r1, r2, r3));
+        when(accessRequestRepository.expireOverdueRequestsByIds(anyCollection(), eq(RequestStatus.PENDING), eq(RequestStatus.EXPIRED), any(OffsetDateTime.class)))
                 .thenReturn(3);
 
         int expiredCount = accessRequestService.expireOverdueRequests();
 
         assertEquals(3, expiredCount);
-        verify(accessRequestRepository).expireOverdueRequests(eq(RequestStatus.PENDING), eq(RequestStatus.EXPIRED), any(OffsetDateTime.class));
+        verify(accessRequestRepository).expireOverdueRequestsByIds(
+                argThat(ids -> ids.size() == 3 && ids.containsAll(List.of(r1.getId(), r2.getId(), r3.getId()))),
+                eq(RequestStatus.PENDING), eq(RequestStatus.EXPIRED), any(OffsetDateTime.class));
     }
 
     @Test

@@ -177,5 +177,51 @@ public class AreaController {
         String actorEmail = authentication != null ? authentication.getName() : null;
         return ResponseEntity.ok(ApiResponse.success(areaService.updateEventMode(id, request, actorEmail), "Cập nhật chế độ sự kiện thành công"));
     }
+
+    @PostMapping("/{id}/event-schedules")
+    @PreAuthorize("hasRole('FACILITY_MANAGER')")
+    public ResponseEntity<ApiResponse<EventScheduleResponse>> createEventSchedule(
+            @PathVariable UUID id,
+            @RequestBody EventScheduleRequest request,
+            Authentication authentication
+    ) {
+        String actorEmail = authentication != null ? authentication.getName() : null;
+        EventScheduleResponse response = areaService.createSchedule(id, request, actorEmail);
+        URI location = URI.create("/api/areas/" + id + "/event-schedules/" + response.id());
+        return ResponseEntity.created(location).body(ApiResponse.success(response, "Đặt lịch sự kiện thành công"));
+    }
+
+    @PatchMapping("/{id}/event-schedules/{scheduleId}")
+    @PreAuthorize("hasRole('FACILITY_MANAGER')")
+    public ResponseEntity<ApiResponse<EventScheduleResponse>> updateEventSchedule(
+            @PathVariable UUID id,
+            @PathVariable UUID scheduleId,
+            @RequestBody EventScheduleRequest request,
+            Authentication authentication
+    ) {
+        String actorEmail = authentication != null ? authentication.getName() : null;
+        return ResponseEntity.ok(ApiResponse.success(areaService.updateSchedule(id, scheduleId, request, actorEmail), "Cập nhật lịch sự kiện thành công"));
+    }
+
+    @PostMapping("/{id}/event-schedules/{scheduleId}/cancel")
+    @PreAuthorize("hasRole('FACILITY_MANAGER')")
+    public ResponseEntity<ApiResponse<EventScheduleResponse>> cancelEventSchedule(
+            @PathVariable UUID id,
+            @PathVariable UUID scheduleId,
+            @RequestBody EventScheduleCancelRequest request,
+            Authentication authentication
+    ) {
+        String actorEmail = authentication != null ? authentication.getName() : null;
+        return ResponseEntity.ok(ApiResponse.success(areaService.cancelSchedule(id, scheduleId, request, actorEmail), "Huỷ lịch sự kiện thành công"));
+    }
+
+    @GetMapping("/{id}/event-schedules")
+    @PreAuthorize("hasAnyRole('FACILITY_MANAGER', 'ADMIN')")
+    public ResponseEntity<ApiResponse<List<EventScheduleResponse>>> getEventSchedules(
+            @PathVariable UUID id,
+            @RequestParam(required = false) String status
+    ) {
+        return ResponseEntity.ok(ApiResponse.success(areaService.getSchedules(id, status), "Lấy danh sách lịch sự kiện thành công"));
+    }
 }
 

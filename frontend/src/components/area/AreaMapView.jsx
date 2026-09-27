@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import {
 	getLevelConfig,
+	getAccessLevelConfig,
 	getLevelPolygonClass as getLevelPolygonClassHelper,
 	AREA_LEVEL_CONFIG,
 } from "../../utils/areaHelpers";
@@ -155,7 +156,7 @@ export default function AreaMapView({
 								className="zone-canvas-empty__switch-btn"
 								onClick={() => onToggleView("list")}
 							>
-								Chuyển sang chế độ Danh sách
+								Chuyển sang chế độ danh sách
 							</button>
 						</div>
 					) : (
@@ -308,11 +309,10 @@ export default function AreaMapView({
 											/>
 											<span className="zone-rail-item__name">{area.name}</span>
 											<span
-												className="zone-card__pill-level"
+												className={getAccessLevelConfig(area.areaAccessLevel).className}
 												title="Cấp độ người dùng tối thiểu để vào tự do"
-												style={{ fontSize: "10px", padding: "1px 5px" }}
 											>
-												Level {area.areaAccessLevel ?? 1}
+												{getAccessLevelConfig(area.areaAccessLevel).label}
 											</span>
 											{area.differsFromPreset && (
 												<span
@@ -382,25 +382,15 @@ export default function AreaMapView({
 								>
 									{selectedArea.building && <span className="zone-detail-code">{selectedArea.building}</span>}
 									<span
-										className="zone-card__pill-level"
+										className={getAccessLevelConfig(selectedArea.areaAccessLevel).className}
 										title="Cấp độ người dùng tối thiểu để vào tự do"
 									>
-										Level {selectedArea.areaAccessLevel ?? 1}
+										{getAccessLevelConfig(selectedArea.areaAccessLevel).label}
 									</span>
 									{selectedArea.differsFromPreset && (
 										<span
+											className="zone-card__pill-differs"
 											title="Quy tắc truy cập của khu vực này khác với giá trị mặc định của loại khu vực"
-											style={{
-												display: "inline-flex",
-												alignItems: "center",
-												padding: "2px 8px",
-												borderRadius: "12px",
-												fontSize: "11px",
-												fontWeight: 600,
-												background: "rgba(234, 88, 12, 0.12)",
-												color: "var(--theme-warning, #ea580c)",
-												border: "1px solid rgba(234, 88, 12, 0.3)",
-											}}
 										>
 											Khác mặc định
 										</span>

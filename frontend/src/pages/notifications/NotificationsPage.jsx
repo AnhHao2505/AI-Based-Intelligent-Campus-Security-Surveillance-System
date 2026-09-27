@@ -11,12 +11,19 @@ import {
   Users,
   Inbox,
   XCircle,
-  AlarmClock
+  AlarmClock,
+  CalendarCheck,
+  CalendarClock,
+  CalendarX,
+  Hourglass,
+  SlidersHorizontal
 } from 'lucide-react';
 import { notificationService } from '../../services/notificationService';
 import { useAuth } from '../../context/AuthContext';
 import Pagination from '../../components/ui/Pagination';
 import '../../styles/NotificationsPage.css';
+import PageHeader from '../../components/ui/PageHeader';
+import '../../components/ui/Button.css';
 
 export default function NotificationsPage() {
   const { user } = useAuth();
@@ -154,6 +161,36 @@ export default function NotificationsPage() {
             <AlarmClock size={16} />
           </div>
         );
+      case 'EVENT_MODE_EXPIRING':
+        return (
+          <div className="notif-icon-box notif-icon-box--expiring" title="Chế độ sự kiện sắp hết hạn">
+            <Hourglass size={16} />
+          </div>
+        );
+      case 'EVENT_MODE_LIMIT_CHANGED':
+        return (
+          <div className="notif-icon-box notif-icon-box--schedule" title="Giới hạn chế độ sự kiện đã thay đổi">
+            <SlidersHorizontal size={16} />
+          </div>
+        );
+      case 'EVENT_MODE_SCHEDULED':
+        return (
+          <div className="notif-icon-box notif-icon-box--schedule" title="Đã đặt lịch sự kiện">
+            <CalendarCheck size={16} />
+          </div>
+        );
+      case 'EVENT_MODE_SCHEDULE_STARTING':
+        return (
+          <div className="notif-icon-box notif-icon-box--expiring" title="Lịch sự kiện sắp bắt đầu">
+            <CalendarClock size={16} />
+          </div>
+        );
+      case 'EVENT_MODE_SCHEDULE_FAILED':
+        return (
+          <div className="notif-icon-box notif-icon-box--denied" title="Lịch sự kiện thất bại">
+            <CalendarX size={16} />
+          </div>
+        );
       default:
         return (
           <div className="notif-icon-box notif-icon-box--default">
@@ -167,30 +204,21 @@ export default function NotificationsPage() {
 
   return (
     <div className="notif-container">
-      <div className="notif-card">
-        {/* Header */}
-        <div className="notif-card__header">
-          <div className="notif-card__header-left">
-            <div className="notif-card__icon-box">
-              <Bell size={16} />
-            </div>
-            <div>
-              <h2 className="notif-card__title">Thông báo</h2>
-              <p className="notif-card__subtitle">
-                Cập nhật về yêu cầu truy cập và quyền của bạn
-              </p>
-            </div>
-          </div>
-
+      <PageHeader
+        title="Thông báo"
+        description="Cập nhật về yêu cầu truy cập và quyền của bạn."
+        actions={
           <button
             type="button"
-            className="notif-mark-all-btn"
+            className="ui-btn ui-btn--secondary ui-btn--md"
             disabled={!hasUnread || loading}
             onClick={handleMarkAllAsRead}
           >
             Đánh dấu đã đọc tất cả
           </button>
-        </div>
+        }
+      />
+      <div className="notif-card">
 
         {/* List / Empty State */}
         {loading && notifications.length === 0 ? (

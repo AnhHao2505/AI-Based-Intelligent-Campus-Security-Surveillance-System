@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import {
-	Sliders,
 	Save,
 	RotateCcw,
 	History,
@@ -18,7 +17,7 @@ import {
 	updateSystemConfig,
 	getSystemConfigHistory,
 } from "../../services/systemConfigService";
-import { Button, Input, Card, Modal, Badge } from "../../components/ui";
+import { Button, Input, Card, Modal, Badge, PageHeader } from "../../components/ui";
 import "../../styles/SystemConfigPage.css";
 
 export default function SystemConfigPage() {
@@ -38,6 +37,11 @@ export default function SystemConfigPage() {
 	const [historyConfigName, setHistoryConfigName] = useState("");
 	const [historyLogs, setHistoryLogs] = useState([]);
 	const [historyLoading, setHistoryLoading] = useState(false);
+
+	// Confirm reason modal state
+	const [confirmModalConfig, setConfirmModalConfig] = useState(null);
+	const [confirmReason, setConfirmReason] = useState("");
+	const [confirmError, setConfirmError] = useState(null);
 
 	useEffect(() => {
 		fetchConfigs();
@@ -93,18 +97,40 @@ export default function SystemConfigPage() {
 		}));
 	};
 
-	const handleSave = async (config) => {
-		const key = config.configKey;
+	const handleOpenSaveModal = (config) => {
+		setConfirmModalConfig(config);
+		setConfirmReason("");
+		setConfirmError(null);
+	};
+
+	const handleConfirmSave = async () => {
+		if (!confirmModalConfig) return;
+		const key = confirmModalConfig.configKey;
 		const value = editedValues[key];
+		const trimmedReason = confirmReason.trim();
+
+		if (!trimmedReason) {
+			setConfirmError("Vui lòng nhập lý do thay đổi cấu hình");
+			return;
+		}
+		if (trimmedReason.length < 10) {
+			setConfirmError("Lý do phải có từ 10 đến 500 ký tự");
+			return;
+		}
+		if (trimmedReason.length > 500) {
+			setConfirmError("Lý do không được vượt quá 500 ký tự");
+			return;
+		}
 
 		setSavingKey(key);
+		setConfirmError(null);
 		setErrorMsg(null);
 		setSuccessMsg(null);
 
 		try {
-			const updated = await updateSystemConfig(key, value);
+			const updated = await updateSystemConfig(key, value, trimmedReason);
 			setSuccessMsg(
-				`Cập nhật cấu hình "${config.description || key}" thành công!`,
+				`Cập nhật cấu hình "${confirmModalConfig.description || key}" thành công!`,
 			);
 
 			setConfigs((prev) =>
@@ -114,12 +140,14 @@ export default function SystemConfigPage() {
 				...prev,
 				[key]: updated.configValue,
 			}));
+			setConfirmModalConfig(null);
 		} catch (err) {
 			console.error("Lỗi khi cập nhật cấu hình:", err);
-			setErrorMsg(
+			const msg =
 				err.message ||
-					"Cập nhật cấu hình thất bại. Vui lòng kiểm tra lại giá trị.",
-			);
+				"Cập nhật cấu hình thất bại. Vui lòng kiểm tra lại giá trị.";
+			setConfirmError(msg);
+			setErrorMsg(msg);
 		} finally {
 			setSavingKey(null);
 		}
@@ -223,20 +251,10 @@ export default function SystemConfigPage() {
 	return (
 		<div className="syscfg-container">
 			{/* Header */}
-			<header className="syscfg-header">
-				<div className="syscfg-header__title-group">
-					<div className="syscfg-header__icon-box">
-						<Sliders size={22} />
-					</div>
-					<div>
-						<h1 className="syscfg-header__title">Cấu hình hệ thống</h1>
-						<p className="syscfg-header__subtitle">
-							Quản lý các tham số nghiệp vụ toàn trường. Mọi thay đổi sẽ có hiệu
-							lực ngay lập tức mà không cần khởi động lại hệ thống.
-						</p>
-					</div>
-				</div>
-			</header>
+			<PageHeader
+				title="Cấu hình hệ thống"
+				description="Quản lý các tham số nghiệp vụ toàn trường. Mọi thay đổi sẽ có hiệu lực ngay lập tức mà không cần khởi động lại hệ thống."
+			/>
 
 			{/* Notifications / Alerts */}
 			{successMsg && (
@@ -410,7 +428,7 @@ export default function SystemConfigPage() {
 																	disabled={
 																		!isModified || isSaving || !cfg.editable
 																	}
-																	onClick={() => handleSave(cfg)}
+																	onClick={() => handleOpenSaveModal(cfg)}
 																>
 																	Lưu
 																</Button>
@@ -492,10 +510,11 @@ export default function SystemConfigPage() {
 						<table className="syscfg-history-table">
 							<thead>
 								<tr>
-									<th>Thời gian</th>
+									<th className="ui-col-time">Thời gian</th>
 									<th>Người thực hiện</th>
 									<th>Giá trị cũ</th>
 									<th>Giá trị mới</th>
+									<th>Lý do</th>
 								</tr>
 							</thead>
 							<tbody>
@@ -524,6 +543,11 @@ export default function SystemConfigPage() {
 												{log.newValue}
 											</span>
 										</td>
+										<td>
+											<span style={{ fontSize: "12.5px", color: "var(--theme-text-primary, #0f172a)" }}>
+												{log.reason || "—"}
+											</span>
+										</td>
 									</tr>
 								))}
 							</tbody>
@@ -531,6 +555,95 @@ export default function SystemConfigPage() {
 					</div>
 				)}
 			</Modal>
+
+			{/* Modal Nhập lý do khi cập nhật cấu hình */}
+			{confirmModalConfig && (
+				<Modal
+					isOpen={Boolean(confirmModalConfig)}
+					onClose={() => setConfirmModalConfig(null)}
+					title="Xác nhận cập nhật cấu hình"
+					subtitle={confirmModalConfig.description || confirmModalConfig.configKey}
+					size="md"
+					footer={
+						<div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+							<Button
+								variant="secondary"
+								onClick={() => setConfirmModalConfig(null)}
+								disabled={savingKey != null}
+							>
+								Huỷ
+							</Button>
+							<Button
+								variant="primary"
+								onClick={handleConfirmSave}
+								loading={savingKey === confirmModalConfig.configKey}
+								disabled={confirmReason.trim().length < 10}
+							>
+								Xác nhận lưu
+							</Button>
+						</div>
+					}
+				>
+					<div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+						{confirmError && (
+							<div className="syscfg-alert syscfg-alert--error">
+								<AlertCircle size={18} className="syscfg-alert__icon" />
+								<span className="syscfg-alert__text">{confirmError}</span>
+							</div>
+						)}
+						<div
+							style={{
+								background: "var(--theme-bg, #f8fafc)",
+								padding: "12px",
+								borderRadius: "8px",
+								fontSize: "13.5px",
+								border: "1px solid var(--theme-border, #e2e8f0)",
+							}}
+						>
+							<div><strong>Tham số:</strong> {confirmModalConfig.configKey}</div>
+							<div style={{ marginTop: "4px" }}>
+								<strong>Giá trị hiện tại:</strong> {confirmModalConfig.configValue}
+							</div>
+							<div style={{ marginTop: "4px" }}>
+								<strong>Giá trị mới:</strong> {editedValues[confirmModalConfig.configKey]}
+							</div>
+						</div>
+						<div>
+							<label style={{ display: "block", marginBottom: "6px", fontWeight: 600, fontSize: "13.5px" }}>
+								Lý do thay đổi cấu hình <span style={{ color: "#ef4444" }}>*</span>
+							</label>
+							<textarea
+								rows={3}
+								style={{
+									width: "100%",
+									padding: "8px 12px",
+									borderRadius: "8px",
+									border: "1px solid var(--theme-border, #cbd5e1)",
+									fontSize: "13.5px",
+									boxSizing: "border-box",
+									resize: "vertical",
+								}}
+								placeholder="Nhập lý do thay đổi cấu hình (tối thiểu 10 ký tự, tối đa 500 ký tự)..."
+								value={confirmReason}
+								onChange={(e) => setConfirmReason(e.target.value)}
+								maxLength={500}
+							/>
+							<div
+								style={{
+									display: "flex",
+									justifyContent: "space-between",
+									fontSize: "12px",
+									color: "#64748b",
+									marginTop: "4px",
+								}}
+							>
+								<span>Tối thiểu 10 ký tự, tối đa 500 ký tự</span>
+								<span>{confirmReason.length}/500 ký tự</span>
+							</div>
+						</div>
+					</div>
+				</Modal>
+			)}
 		</div>
 	);
 }

@@ -18,8 +18,8 @@ export async function getSystemConfigs() {
  * @param {string} configValue - Giá trị mới dạng chuỗi
  * @returns {Promise<Object>} Bản ghi cấu hình sau khi cập nhật
  */
-export async function updateSystemConfig(configKey, configValue) {
-  return apiPatch(`/api/system-configurations/${encodeURIComponent(configKey)}`, { configValue });
+export async function updateSystemConfig(configKey, configValue, reason) {
+  return apiPatch(`/api/system-configurations/${encodeURIComponent(configKey)}`, { configValue, reason });
 }
 
 /**

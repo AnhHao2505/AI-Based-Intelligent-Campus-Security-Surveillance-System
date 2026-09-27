@@ -63,7 +63,7 @@ class UserServiceAccessLevelTest {
     private UserAccessLevelHelper userAccessLevelHelper;
 
     @Mock
-    private AccessControlAuditService auditService;
+    private com.fa26se040.icss.service.AuditService auditService;
 
     @InjectMocks
     private UserService userService;
@@ -216,18 +216,18 @@ class UserServiceAccessLevelTest {
 
         userService.updateAccessLevel(targetUserId, 3, "Nâng quyền nhân viên", actorEmail);
 
-        org.mockito.ArgumentCaptor<com.fa26se040.icss.enums.AccessControlTargetType> targetTypeCaptor =
-                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.enums.AccessControlTargetType.class);
-        org.mockito.ArgumentCaptor<com.fa26se040.icss.enums.AccessControlAction> actionCaptor =
-                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.enums.AccessControlAction.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.enums.AuditTargetType> targetTypeCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.enums.AuditTargetType.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.enums.AuditAction> actionCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.enums.AuditAction.class);
         org.mockito.ArgumentCaptor<String> targetIdCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
         org.mockito.ArgumentCaptor<com.fa26se040.icss.entity.Area> areaCaptor =
                 org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.entity.Area.class);
         org.mockito.ArgumentCaptor<User> userCaptor = org.mockito.ArgumentCaptor.forClass(User.class);
-        org.mockito.ArgumentCaptor<com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot> oldSnapshotCaptor =
-                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot.class);
-        org.mockito.ArgumentCaptor<com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot> newSnapshotCaptor =
-                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.dto.accesscontrol.snapshot.AuditSnapshot> oldSnapshotCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.dto.accesscontrol.snapshot.AuditSnapshot.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.dto.accesscontrol.snapshot.AuditSnapshot> newSnapshotCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.dto.accesscontrol.snapshot.AuditSnapshot.class);
         org.mockito.ArgumentCaptor<String> reasonCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
         org.mockito.ArgumentCaptor<User> actorCaptor = org.mockito.ArgumentCaptor.forClass(User.class);
 
@@ -243,8 +243,8 @@ class UserServiceAccessLevelTest {
                 actorCaptor.capture()
         );
 
-        assertEquals(com.fa26se040.icss.enums.AccessControlTargetType.USER_ACCESS_LEVEL, targetTypeCaptor.getValue());
-        assertEquals(com.fa26se040.icss.enums.AccessControlAction.UPDATE, actionCaptor.getValue());
+        assertEquals(com.fa26se040.icss.enums.AuditTargetType.USER_ACCESS_LEVEL, targetTypeCaptor.getValue());
+        assertEquals(com.fa26se040.icss.enums.AuditAction.UPDATE, actionCaptor.getValue());
         assertEquals(targetUserId.toString(), targetIdCaptor.getValue());
         org.junit.jupiter.api.Assertions.assertNull(areaCaptor.getValue());
         assertEquals(targetUser, userCaptor.getValue());
@@ -280,7 +280,7 @@ class UserServiceAccessLevelTest {
         assertEquals(1, resp.accessLevel());
 
         verify(userRepository, org.mockito.Mockito.never()).save(any(User.class));
-        verify(auditService, org.mockito.Mockito.never()).record(any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(auditService, org.mockito.Mockito.never()).record(any(), any(), any(), any(), any(), any(), any(), any(), any(User.class));
     }
 
     @Test

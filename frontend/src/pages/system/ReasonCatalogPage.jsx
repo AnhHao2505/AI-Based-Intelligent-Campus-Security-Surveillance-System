@@ -17,7 +17,7 @@ import {
 	deactivateReasonCatalog,
 	reactivateReasonCatalog,
 } from "../../services/reasonCatalogService";
-import { Button, Input, Modal, Badge } from "../../components/ui";
+import { Button, Input, Modal, Badge, PageHeader } from "../../components/ui";
 import "../../styles/SystemConfigPage.css";
 
 const ACTION_TYPES = [
@@ -173,27 +173,19 @@ export default function ReasonCatalogPage() {
 	return (
 		<div className="syscfg-container">
 			{/* Header */}
-			<header className="syscfg-header">
-				<div className="syscfg-header__title-group">
-					<div className="syscfg-header__icon-box">
-						<Tag size={22} />
-					</div>
-					<div>
-						<h1 className="syscfg-header__title">Danh mục lý do chế độ sự kiện</h1>
-						<p className="syscfg-header__subtitle">
-							Quản lý các lý do chuẩn hóa cho thao tác Bật, Tắt và Điều chỉnh giờ kết thúc sự kiện khu vực.
-							Mọi thay đổi đều được ghi vết kiểm toán.
-						</p>
-					</div>
-				</div>
-				<Button
-					variant="primary"
-					icon={Plus}
-					onClick={handleOpenCreate}
-				>
-					Thêm lý do
-				</Button>
-			</header>
+			<PageHeader
+				title="Danh mục lý do chế độ sự kiện"
+				description="Quản lý các lý do chuẩn hóa cho thao tác bật, tắt và điều chỉnh giờ kết thúc sự kiện khu vực. Mọi thay đổi đều được ghi vết kiểm toán."
+				actions={
+					<Button
+						variant="primary"
+						icon={Plus}
+						onClick={handleOpenCreate}
+					>
+						Thêm lý do
+					</Button>
+				}
+			/>
 
 			{/* Alerts */}
 			{successMsg && (
@@ -252,9 +244,9 @@ export default function ReasonCatalogPage() {
 
 			{/* Table */}
 			<div className="syscfg-card" style={{ padding: 0, overflow: "hidden" }}>
-				<table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+				<table className="reason-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
 					<thead>
-						<tr style={{ background: "rgba(0,0,0,0.03)", borderBottom: "1px solid var(--theme-border, #e2e8f0)", textAlign: "left" }}>
+						<tr style={{ background: "var(--theme-bg-surface-elevated)", borderBottom: "1px solid var(--theme-border)", textAlign: "left" }}>
 							<th style={{ padding: "12px 16px" }}>Loại thao tác</th>
 							<th style={{ padding: "12px 16px" }}>Mã lý do</th>
 							<th style={{ padding: "12px 16px" }}>Nhãn hiển thị</th>
@@ -281,7 +273,7 @@ export default function ReasonCatalogPage() {
 							reasons.map((item) => (
 								<tr key={item.id} style={{ borderBottom: "1px solid var(--theme-border, #f1f5f9)" }}>
 									<td style={{ padding: "12px 16px" }}>
-										<span style={{ fontWeight: 600, color: "var(--brand-blue, #2563eb)" }}>
+										<span style={{ fontWeight: 600, color: "var(--theme-text-primary)" }}>
 											{getActionLabel(item.actionType)}
 										</span>
 									</td>
@@ -292,16 +284,16 @@ export default function ReasonCatalogPage() {
 									<td style={{ padding: "12px 16px" }}>{item.sortOrder}</td>
 									<td style={{ padding: "12px 16px" }}>
 										{item.isOther ? (
-											<Badge variant="warning">Mục Khác</Badge>
+											<Badge variant="warning">Mục khác</Badge>
 										) : (
-											<Badge variant="default">Chuẩn</Badge>
+											<Badge variant="neutral">Chuẩn</Badge>
 										)}
 									</td>
 									<td style={{ padding: "12px 16px" }}>
 										{item.isActive ? (
 											<Badge variant="success">Đang dùng</Badge>
 										) : (
-											<Badge variant="secondary">Ngừng dùng</Badge>
+											<Badge variant="neutral">Ngừng dùng</Badge>
 										)}
 									</td>
 									<td style={{ padding: "12px 16px", textAlign: "right" }}>

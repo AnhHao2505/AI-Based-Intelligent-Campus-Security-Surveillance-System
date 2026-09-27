@@ -126,6 +126,11 @@ public class SystemConfigService {
 
     @Transactional
     public SystemConfigResponse update(String key, String rawValue, String actorEmail) {
+        return update(key, rawValue, null, actorEmail);
+    }
+
+    @Transactional
+    public SystemConfigResponse update(String key, String rawValue, String reason, String actorEmail) {
         if (rawValue == null || rawValue.trim().isEmpty()) {
             throw new IllegalArgumentException("Giá trị cấu hình không được để trống");
         }
@@ -158,6 +163,7 @@ public class SystemConfigService {
                 .newValue(value)
                 .changedBy(actor)
                 .changedAt(now)
+                .reason(reason)
                 .build();
         changeLogRepository.save(logEntry);
 
@@ -214,12 +220,26 @@ public class SystemConfigService {
         }
 
         java.time.format.DateTimeFormatter dtf = java.time.format.DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy").withZone(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
-        StringBuilder sb = new StringBuilder("Giới hạn chế độ sự kiện đã thay đổi. Các khu vực đang mở sự kiện vượt giới hạn mới: ");
+        StringBuilder sb = new StringBuilder("Giới hạn chế độ sự kiện đã thay đổi. Các khu vực vượt giới hạn mới: ");
         for (int i = 0; i < violating.size(); i++) {
             com.fa26se040.icss.entity.Area a = violating.get(i);
             if (i > 0) sb.append("; ");
             sb.append(a.getName());
-            if (a.getOpenUntil() != null) {
+            boolean hasDetail = false;
+            if (a.isEventActive(java.time.OffsetDateTime.now()) && a.getOpenUntil() != null) {
+                sb.append(" (kết thúc: ").append(dtf.format(a.getOpenUntil())).append(")");
+                hasDetail = true;
+            }
+            List<com.fa26se040.icss.entity.AreaEventSchedule> vScheds = areaService.getViolatingSchedules(a.getId(), maxHours, windowDays, budgetHours);
+            if (!vScheds.isEmpty()) {
+                sb.append(" [Lịch vi phạm: ");
+                for (int j = 0; j < vScheds.size(); j++) {
+                    if (j > 0) sb.append(", ");
+                    com.fa26se040.icss.entity.AreaEventSchedule sc = vScheds.get(j);
+                    sb.append(dtf.format(sc.getStartAt())).append(" - ").append(dtf.format(sc.getEndAt()));
+                }
+                sb.append("]");
+            } else if (!hasDetail && a.getOpenUntil() != null) {
                 sb.append(" (kết thúc: ").append(dtf.format(a.getOpenUntil())).append(")");
             }
         }
@@ -356,7 +376,8 @@ public class SystemConfigService {
                 changeLog.getNewValue(),
                 changeLog.getChangedAt(),
                 changedByEmail,
-                changedByName
+                changedByName,
+                changeLog.getReason()
         );
     }
 }

@@ -13,7 +13,7 @@ public interface ReasonCatalogRepository extends JpaRepository<ReasonCatalog, UU
 
     Optional<ReasonCatalog> findByActionTypeAndCode(String actionType, String code);
 
-    Optional<ReasonCatalog> findByCode(String code);
+    boolean existsByCode(String code);
 
     boolean existsByActionTypeAndCode(String actionType, String code);
 
