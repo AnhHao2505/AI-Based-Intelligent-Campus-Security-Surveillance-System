@@ -29,6 +29,15 @@ public interface AreaEventSessionRepository extends JpaRepository<AreaEventSessi
     List<AreaEventSession> findByAreaIdAndActualEndIsNullAndPlannedEndLessThanEqual(UUID areaId, OffsetDateTime now);
 
     @Query("""
+        SELECT DISTINCT s.area.id FROM AreaEventSession s
+        WHERE s.actualEnd IS NULL
+          AND s.plannedEnd <= :now
+        """)
+    List<UUID> findDistinctAreaIdsWithExpiredActiveSessions(@Param("now") OffsetDateTime now);
+
+    List<AreaEventSession> findByAreaId(UUID areaId);
+
+    @Query("""
         SELECT s FROM AreaEventSession s
         WHERE s.actualEnd IS NULL
           AND s.plannedEnd > :now
