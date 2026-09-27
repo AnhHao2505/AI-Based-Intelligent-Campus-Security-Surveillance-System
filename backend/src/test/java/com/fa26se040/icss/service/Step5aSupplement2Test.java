@@ -1281,4 +1281,99 @@ public class Step5aSupplement2Test extends AbstractIntegrationTest {
         assertNotEquals(AccessSource.OPEN_EVENT, decision.source());
         assertFalse(decision.allowed());
     }
+
+    // ===== T23: Hiển thị thời điểm bắt đầu sự kiện (chỉ hiển thị, không đổi BR) =====
+
+    private com.fa26se040.icss.dto.area.AreaResponse enableEvent(Area area, OffsetDateTime until, String note) {
+        return areaService.updateEventMode(area.getId(),
+                new AreaEventModeUpdateRequest(true, until, "SEMINAR", note), fmUser.getEmail());
+    }
+
+    private com.fa26se040.icss.dto.area.AreaResponse adjustEvent(Area area, OffsetDateTime until, String note) {
+        return areaService.updateEventMode(area.getId(),
+                new AreaEventModeUpdateRequest(true, until, "EVENT_PROLONGED", note), fmUser.getEmail());
+    }
+
+    @Test
+    @DisplayName("T23a: Bật -> eventStartedAt = started_at phiên, eventStartedByName = FM, eventLastAdjustedAt null")
+    void testT23a_EnableShowsStartTime() {
+        OffsetDateTime now = OffsetDateTime.now();
+        com.fa26se040.icss.dto.area.AreaResponse resp = enableEvent(internalArea, now.plusHours(2), "Kiem thu T23a bat su kien");
+
+        AreaEventSession session = sessionRepository.findByAreaIdAndActualEndIsNull(internalArea.getId()).orElseThrow();
+        assertNotNull(resp.eventStartedAt());
+        assertEquals(session.getStartedAt().toEpochSecond(), resp.eventStartedAt().toEpochSecond());
+        assertEquals(fmUser.getFullName(), resp.eventStartedByName());
+        assertNull(resp.eventLastAdjustedAt());
+        assertNull(resp.eventLastAdjustedByName());
+
+        com.fa26se040.icss.dto.area.AreaResponse detail = areaService.getAreaById(internalArea.getId());
+        assertEquals(resp.eventStartedAt().toEpochSecond(), detail.eventStartedAt().toEpochSecond());
+        assertEventModeInvariant(internalArea.getId(), OffsetDateTime.now());
+    }
+
+    @Test
+    @DisplayName("T23b: Bật rồi điều chỉnh 2 lần -> eventStartedAt giữ mốc bật ban đầu, eventLastAdjustedAt = lần điều chỉnh thứ 2")
+    void testT23b_AdjustKeepsOriginalStart() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now();
+        com.fa26se040.icss.dto.area.AreaResponse first = enableEvent(internalArea, now.plusHours(2), "Kiem thu T23b bat su kien");
+        OffsetDateTime originalStart = first.eventStartedAt();
+        assertNotNull(originalStart);
+
+        Thread.sleep(1100);
+        adjustEvent(internalArea, OffsetDateTime.now().plusHours(3), "Kiem thu T23b dieu chinh 1");
+        Thread.sleep(1100);
+        com.fa26se040.icss.dto.area.AreaResponse last = adjustEvent(internalArea, OffsetDateTime.now().plusHours(4), "Kiem thu T23b dieu chinh 2");
+
+        AreaEventSession current = sessionRepository.findByAreaIdAndActualEndIsNull(internalArea.getId()).orElseThrow();
+        assertEquals(originalStart.toEpochSecond(), last.eventStartedAt().toEpochSecond(), "Giờ bắt đầu không đổi khi điều chỉnh");
+        assertNotNull(last.eventLastAdjustedAt());
+        assertEquals(current.getStartedAt().toEpochSecond(), last.eventLastAdjustedAt().toEpochSecond());
+        assertTrue(last.eventLastAdjustedAt().isAfter(originalStart));
+        assertEquals(fmUser.getFullName(), last.eventLastAdjustedByName());
+        assertEventModeInvariant(internalArea.getId(), OffsetDateTime.now());
+    }
+
+    @Test
+    @DisplayName("T23c: Tắt rồi bật lại -> chuỗi mới: eventStartedAt = mốc bật lại, eventLastAdjustedAt null")
+    void testT23c_DisableThenEnableStartsNewChain() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now();
+        com.fa26se040.icss.dto.area.AreaResponse first = enableEvent(internalArea, now.plusHours(2), "Kiem thu T23c bat lan 1");
+        Thread.sleep(1100);
+        adjustEvent(internalArea, OffsetDateTime.now().plusHours(3), "Kiem thu T23c dieu chinh");
+        com.fa26se040.icss.dto.area.AreaResponse off = areaService.updateEventMode(internalArea.getId(),
+                new AreaEventModeUpdateRequest(false, null, "ENDED_EARLY", "Kiem thu T23c tat su kien"), fmUser.getEmail());
+        assertNull(off.eventStartedAt());
+        assertNull(off.eventLastAdjustedAt());
+
+        com.fa26se040.icss.dto.area.AreaResponse again = enableEvent(internalArea, OffsetDateTime.now().plusHours(2), "Kiem thu T23c bat lai");
+        AreaEventSession current = sessionRepository.findByAreaIdAndActualEndIsNull(internalArea.getId()).orElseThrow();
+        assertEquals(current.getStartedAt().toEpochSecond(), again.eventStartedAt().toEpochSecond());
+        assertTrue(again.eventStartedAt().isAfter(first.eventStartedAt()));
+        assertNull(again.eventLastAdjustedAt());
+        assertEventModeInvariant(internalArea.getId(), OffsetDateTime.now());
+    }
+
+    @Test
+    @DisplayName("T23d: Sự kiện đã hết hạn (cờ còn true) -> 4 field thời điểm đều null")
+    void testT23d_ExpiredEventHasNoStartTime() {
+        OffsetDateTime now = OffsetDateTime.now();
+        sessionRepository.save(AreaEventSession.builder()
+                .area(internalArea)
+                .startedAt(now.minusHours(4))
+                .plannedEnd(now.minusHours(1))
+                .actualEnd(null)
+                .startedBy(fmUser)
+                .build());
+        internalArea.setOpenToMembers(true);
+        internalArea.setOpenUntil(now.minusHours(1));
+        areaRepository.save(internalArea);
+
+        com.fa26se040.icss.dto.area.AreaResponse detail = areaService.getAreaById(internalArea.getId());
+        assertFalse(detail.eventActive());
+        assertNull(detail.eventStartedAt());
+        assertNull(detail.eventStartedByName());
+        assertNull(detail.eventLastAdjustedAt());
+        assertNull(detail.eventLastAdjustedByName());
+    }
 }

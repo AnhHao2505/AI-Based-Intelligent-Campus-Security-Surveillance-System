@@ -18,6 +18,14 @@ public interface AreaEventSessionRepository extends JpaRepository<AreaEventSessi
 
     Optional<AreaEventSession> findTopByAreaIdOrderByStartedAtDesc(UUID areaId);
 
+    @Query("""
+        SELECT s FROM AreaEventSession s
+        LEFT JOIN FETCH s.startedBy
+        WHERE s.area.id = :areaId
+        ORDER BY s.startedAt DESC
+        """)
+    List<AreaEventSession> findByAreaIdWithStarterOrderByStartedAtDesc(@Param("areaId") UUID areaId);
+
     List<AreaEventSession> findByAreaIdAndActualEndIsNullAndPlannedEndLessThanEqual(UUID areaId, OffsetDateTime now);
 
     @Query("""

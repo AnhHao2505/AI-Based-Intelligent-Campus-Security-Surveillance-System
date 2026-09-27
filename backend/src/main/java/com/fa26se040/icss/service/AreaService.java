@@ -826,7 +826,7 @@ public class AreaService {
             long reqMinutes = java.time.Duration.between(now, targetOpenUntil).toMinutes();
             if (reqMinutes < minMinutes) {
                 throw new AreaException(AreaErrorCode.ERR_AREA_031,
-                        "Thời lượng mở sự kiện tối thiểu là " + minMinutes + " phút.", minMinutes);
+                        "Thời lượng mở sự kiện tối thiểu là " + minMinutes + " phút.");
             }
 
             int maxHours = getEventModeMaxHours();
@@ -916,9 +916,11 @@ public class AreaService {
     }
 
     private AreaResponse mapToAreaResponse(Area area, boolean differsFromPreset) {
+        OffsetDateTime now = OffsetDateTime.now();
         boolean openToMembers = Boolean.TRUE.equals(area.getOpenToMembers());
         OffsetDateTime openUntil = area.getOpenUntil();
-        boolean eventActive = area.isEventActive(OffsetDateTime.now());
+        boolean eventActive = area.isEventActive(now);
+        EventTimeline timeline = computeEventTimeline(area, now);
 
         return new AreaResponse(
                 area.getId(),
@@ -935,14 +937,20 @@ public class AreaService {
                 differsFromPreset,
                 openToMembers,
                 openUntil,
-                eventActive
+                eventActive,
+                timeline.startedAt(),
+                timeline.startedByName(),
+                timeline.lastAdjustedAt(),
+                timeline.lastAdjustedByName()
         );
     }
 
     private AreaListItemResponse mapToAreaListItemResponse(Area area, boolean differsFromPreset) {
+        OffsetDateTime now = OffsetDateTime.now();
         boolean openToMembers = Boolean.TRUE.equals(area.getOpenToMembers());
         OffsetDateTime openUntil = area.getOpenUntil();
-        boolean eventActive = area.isEventActive(OffsetDateTime.now());
+        boolean eventActive = area.isEventActive(now);
+        EventTimeline timeline = computeEventTimeline(area, now);
 
         return new AreaListItemResponse(
                 area.getId(),
@@ -958,7 +966,59 @@ public class AreaService {
                 differsFromPreset,
                 openToMembers,
                 openUntil,
-                eventActive
+                eventActive,
+                timeline.startedAt(),
+                timeline.startedByName(),
+                timeline.lastAdjustedAt(),
+                timeline.lastAdjustedByName()
         );
+    }
+
+    /**
+     * Mốc thời gian của sự kiện đang mở, CHỈ để hiển thị.
+     * Chuỗi phiên = phiên đang mở + các phiên liền trước nối tiếp (actual_end của phiên trước = started_at
+     * của phiên sau, bằng nhau tuyệt đối — do thao tác ĐIỀU CHỈNH tạo ra trong cùng một request).
+     * startedAt = started_at của phiên đầu chuỗi; lastAdjustedAt = started_at của phiên đang mở nếu chuỗi có >= 2 phiên.
+     * Khu vực không đang mở sự kiện (BR-EV-04) hoặc không có phiên đang mở -> mọi field null.
+     */
+    private record EventTimeline(OffsetDateTime startedAt, String startedByName,
+                                 OffsetDateTime lastAdjustedAt, String lastAdjustedByName) {
+        private static final EventTimeline EMPTY = new EventTimeline(null, null, null, null);
+    }
+
+    private EventTimeline computeEventTimeline(Area area, OffsetDateTime now) {
+        if (area == null || area.getId() == null || !area.isEventActive(now)) {
+            return EventTimeline.EMPTY;
+        }
+        List<com.fa26se040.icss.entity.AreaEventSession> sessions =
+                eventSessionRepository.findByAreaIdWithStarterOrderByStartedAtDesc(area.getId());
+        if (sessions == null || sessions.isEmpty()) {
+            return EventTimeline.EMPTY;
+        }
+        com.fa26se040.icss.entity.AreaEventSession current = sessions.get(0);
+        if (current.getActualEnd() != null || current.getPlannedEnd() == null || !current.getPlannedEnd().isAfter(now)) {
+            return EventTimeline.EMPTY;
+        }
+        com.fa26se040.icss.entity.AreaEventSession head = current;
+        int chainLength = 1;
+        for (int i = 1; i < sessions.size(); i++) {
+            com.fa26se040.icss.entity.AreaEventSession prev = sessions.get(i);
+            // ĐIỀU CHỈNH đóng phiên cũ và mở phiên mới bằng CÙNG một mốc now -> bằng nhau tuyệt đối (tới micro giây).
+            // Tắt rồi bật lại là 2 request khác nhau -> hai mốc khác nhau -> không bị coi là cùng chuỗi.
+            if (prev.getActualEnd() != null
+                    && prev.getActualEnd().truncatedTo(java.time.temporal.ChronoUnit.MICROS)
+                        .isEqual(head.getStartedAt().truncatedTo(java.time.temporal.ChronoUnit.MICROS))) {
+                head = prev;
+                chainLength++;
+            } else {
+                break;
+            }
+        }
+        String headName = head.getStartedBy() != null ? head.getStartedBy().getFullName() : null;
+        if (chainLength == 1) {
+            return new EventTimeline(head.getStartedAt(), headName, null, null);
+        }
+        String currentName = current.getStartedBy() != null ? current.getStartedBy().getFullName() : null;
+        return new EventTimeline(head.getStartedAt(), headName, current.getStartedAt(), currentName);
     }
 }

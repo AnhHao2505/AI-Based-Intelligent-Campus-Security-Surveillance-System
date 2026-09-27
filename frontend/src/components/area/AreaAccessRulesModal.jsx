@@ -479,6 +479,31 @@ export default function AreaAccessRulesModal({
 
 							{eventModeEnabled && (
 								<div style={{ borderTop: "1px dashed var(--theme-border, #cbd5e1)", paddingTop: "10px" }}>
+									{area?.eventActive && area?.eventStartedAt && (
+										<div
+											style={{
+												marginBottom: "10px",
+												fontSize: "12.5px",
+												lineHeight: 1.6,
+												color: "var(--theme-text-secondary, #475569)",
+											}}
+										>
+											<div>
+												<strong style={{ color: "var(--theme-text-primary, #0f172a)" }}>Bắt đầu lúc:</strong>{" "}
+												{formatDisplayDateTime(area.eventStartedAt)}
+												{area.eventStartedByName ? ` — bởi ${area.eventStartedByName}` : ""}
+											</div>
+											{area.eventLastAdjustedAt && (
+												<div>
+													<strong style={{ color: "var(--theme-text-primary, #0f172a)" }}>
+														Điều chỉnh giờ kết thúc lần cuối:
+													</strong>{" "}
+													{formatDisplayDateTime(area.eventLastAdjustedAt)}
+													{area.eventLastAdjustedByName ? ` — bởi ${area.eventLastAdjustedByName}` : ""}
+												</div>
+											)}
+										</div>
+									)}
 									<label
 										htmlFor="event-mode-open-until"
 										style={{

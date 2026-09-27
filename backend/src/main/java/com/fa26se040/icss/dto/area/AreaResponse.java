@@ -19,8 +19,32 @@ public record AreaResponse(
     Boolean differsFromPreset,
     Boolean openToMembers,
     OffsetDateTime openUntil,
-    Boolean eventActive
+    Boolean eventActive,
+    OffsetDateTime eventStartedAt,
+    String eventStartedByName,
+    OffsetDateTime eventLastAdjustedAt,
+    String eventLastAdjustedByName
 ) {
+    public AreaResponse(
+        UUID id,
+        String name,
+        AreaLevel areaLevel,
+        Integer areaAccessLevel,
+        Boolean explicitAuthorizationRequired,
+        String building,
+        String floor,
+        AreaGeometry geometry,
+        Boolean isActive,
+        OffsetDateTime createdAt,
+        OffsetDateTime updatedAt,
+        Boolean differsFromPreset,
+        Boolean openToMembers,
+        OffsetDateTime openUntil,
+        Boolean eventActive
+    ) {
+        this(id, name, areaLevel, areaAccessLevel, explicitAuthorizationRequired, building, floor, geometry, isActive, createdAt, updatedAt, differsFromPreset, openToMembers, openUntil, eventActive, null, null, null, null);
+    }
+
     public AreaResponse(
         UUID id,
         String name,
