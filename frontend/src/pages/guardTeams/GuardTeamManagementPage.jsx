@@ -751,15 +751,7 @@ export default function GuardTeamManagementPage() {
                 return (
                   <div
                     key={shift.id}
-                    className={`shift-card ${shiftConfig.cssClass} ${
-                      isDispatched
-                        ? 'border-l-[3px] border-l-amber-500 shadow-xs ring-1 ring-amber-400/40'
-                        : isSubstitute
-                        ? 'border-l-[3px] border-l-teal-500 shadow-xs ring-1 ring-teal-400/40'
-                        : isSwap
-                        ? 'border-l-[3px] border-l-indigo-500 shadow-xs ring-1 ring-indigo-400/40'
-                        : ''
-                    }`}
+                    className={`shift-card ${shiftConfig.cssClass}`}
                   >
                     {/* Top & Middle Content */}
                     <div>
@@ -800,10 +792,10 @@ export default function GuardTeamManagementPage() {
                       {/* Dispatched event note tag */}
                       {isDispatched && (
                         <div
-                          className="mt-1 px-1.5 py-0.5 rounded-md bg-amber-500/12 border border-amber-500/25 text-amber-900 dark:text-amber-200 text-[10px] font-medium flex items-center gap-1"
+                          className="mt-1 px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/10 text-[10.5px] font-medium flex items-center gap-1 opacity-90"
                           title={shift.notes}
                         >
-                          <Zap size={10} className="fill-amber-500 text-amber-500 shrink-0" />
+                          <Zap size={11} className="shrink-0 opacity-80" />
                           <span className="truncate">
                             {shift.notes.replace('⚡ Điều động tăng cường: ', '').replace('⚡ Điều động tăng cường', 'Tăng cường sự kiện')}
                           </span>
@@ -813,12 +805,12 @@ export default function GuardTeamManagementPage() {
                       {/* Substitute note tag */}
                       {isSubstitute && (
                         <div
-                          className="mt-1 px-1.5 py-0.5 rounded-md bg-teal-500/12 border border-teal-500/25 text-teal-900 dark:text-teal-200 text-[10px] font-medium flex items-center gap-1"
+                          className="mt-1 px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/10 text-[10.5px] font-medium flex items-center gap-1 opacity-90"
                           title={shift.notes}
                         >
-                          <UserCheck size={10} className="text-teal-600 dark:text-teal-400 shrink-0" />
+                          <UserCheck size={11} className="shrink-0 opacity-80" />
                           <span className="truncate">
-                            Trực thay: <strong>{substituteForName || 'Đồng nghiệp'}</strong>
+                            Trực thay: <strong className="font-semibold">{substituteForName || 'Đồng nghiệp'}</strong>
                           </span>
                         </div>
                       )}
@@ -826,12 +818,12 @@ export default function GuardTeamManagementPage() {
                       {/* Swap note tag */}
                       {isSwap && (
                         <div
-                          className="mt-1 px-1.5 py-0.5 rounded-md bg-indigo-500/12 border border-indigo-500/25 text-indigo-900 dark:text-indigo-200 text-[10px] font-medium flex items-center gap-1"
+                          className="mt-1 px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/10 text-[10.5px] font-medium flex items-center gap-1 opacity-90"
                           title={shift.notes}
                         >
-                          <ArrowRightLeft size={10} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
+                          <ArrowRightLeft size={11} className="shrink-0 opacity-80" />
                           <span className="truncate">
-                            Đổi từ: <strong>{swapFromName || 'Đồng nghiệp'}</strong>
+                            Đổi từ: <strong className="font-semibold">{swapFromName || 'Đồng nghiệp'}</strong>
                           </span>
                         </div>
                       )}
@@ -853,23 +845,11 @@ export default function GuardTeamManagementPage() {
                         <span className="opacity-75">Đã lên lịch</span>
                       )}
 
-                      {isDispatched ? (
-                        <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-200/90 dark:bg-amber-900/80 text-amber-950 dark:text-amber-200 border border-amber-400/50 flex items-center gap-0.5">
-                          ⚡ Tăng cường
-                        </span>
-                      ) : isSubstitute ? (
-                        <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-teal-100 dark:bg-teal-950/80 text-teal-900 dark:text-teal-200 border border-teal-300/70 dark:border-teal-700/60 flex items-center gap-0.5">
-                          Trực thay
-                        </span>
-                      ) : isSwap ? (
-                        <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-indigo-100 dark:bg-indigo-950/80 text-indigo-900 dark:text-indigo-200 border border-indigo-300/70 dark:border-indigo-700/60 flex items-center gap-0.5">
-                          Đổi ca
-                        </span>
-                      ) : shift.isOvertime ? (
+                      {shift.isOvertime && (
                         <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-amber-200 dark:bg-amber-900/70 text-amber-900 dark:text-amber-200">
                           OT
                         </span>
-                      ) : null}
+                      )}
                     </div>
                   </div>
                 );
