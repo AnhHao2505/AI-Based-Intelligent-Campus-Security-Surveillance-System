@@ -14,7 +14,9 @@ import {
   AlarmClock,
   CalendarCheck,
   CalendarClock,
-  CalendarX
+  CalendarX,
+  Hourglass,
+  SlidersHorizontal
 } from 'lucide-react';
 import { notificationService } from '../../services/notificationService';
 import { useAuth } from '../../context/AuthContext';
@@ -157,6 +159,18 @@ export default function NotificationsPage() {
         return (
           <div className="notif-icon-box notif-icon-box--overdue" title="Tồn đọng quá 24 giờ">
             <AlarmClock size={16} />
+          </div>
+        );
+      case 'EVENT_MODE_EXPIRING':
+        return (
+          <div className="notif-icon-box notif-icon-box--expiring" title="Chế độ sự kiện sắp hết hạn">
+            <Hourglass size={16} />
+          </div>
+        );
+      case 'EVENT_MODE_LIMIT_CHANGED':
+        return (
+          <div className="notif-icon-box notif-icon-box--schedule" title="Giới hạn chế độ sự kiện đã thay đổi">
+            <SlidersHorizontal size={16} />
           </div>
         );
       case 'EVENT_MODE_SCHEDULED':
