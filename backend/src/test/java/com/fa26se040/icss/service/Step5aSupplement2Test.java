@@ -329,15 +329,19 @@ public class Step5aSupplement2Test extends AbstractIntegrationTest {
         assertEquals(reloadedOld.getPlannedEnd().toEpochSecond(), reloadedOld.getActualEnd().toEpochSecond());
         assertNull(reloadedOld.getEndedBy());
 
-        // Audit ENABLE_EVENT_MODE được ghi
-        assertEquals(auditBefore + 1, auditLogRepository.count());
+        // Audit EXPIRE_EVENT_MODE (tự đóng phiên cũ) + ENABLE_EVENT_MODE (bật mới) được ghi (BR-ES-19)
+        assertEquals(auditBefore + 2, auditLogRepository.count());
         List<AuditLog> logs = auditLogRepository.findAll().stream()
                 .filter(l -> l.getTargetId().equals(internalArea.getId().toString()) && l.getTargetType() == AuditTargetType.AREA_EVENT_MODE)
                 .sorted(java.util.Comparator.comparing(AuditLog::getChangedAt))
                 .toList();
-        assertFalse(logs.isEmpty());
-        AuditLog log = logs.get(logs.size() - 1);
-        assertEquals(AuditAction.ENABLE_EVENT_MODE, log.getAction());
+        assertTrue(logs.size() >= 2);
+        AuditLog expireLog = logs.get(logs.size() - 2);
+        assertEquals(AuditAction.EXPIRE_EVENT_MODE, expireLog.getAction());
+        assertEquals("SYSTEM", expireLog.getActorType());
+
+        AuditLog enableLog = logs.get(logs.size() - 1);
+        assertEquals(AuditAction.ENABLE_EVENT_MODE, enableLog.getAction());
 
         assertEventModeInvariant(internalArea.getId(), now);
     }

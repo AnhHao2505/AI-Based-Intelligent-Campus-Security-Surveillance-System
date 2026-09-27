@@ -109,6 +109,9 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
     private ReasonCatalogRepository reasonCatalogRepository;
 
     @Autowired
+    private com.fa26se040.icss.repository.AreaEventScheduleRepository eventScheduleRepository;
+
+    @Autowired
     private ReasonCatalogService reasonCatalogService;
 
     @Autowired
@@ -850,6 +853,13 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
             a.setOpenToMembers(false);
             a.setOpenUntil(null);
             areaRepository.save(a);
+        }
+        List<com.fa26se040.icss.entity.AreaEventSchedule> scheduledList = eventScheduleRepository.findAll().stream()
+                .filter(s -> s.getStatus() == com.fa26se040.icss.enums.AreaEventScheduleStatus.SCHEDULED)
+                .toList();
+        for (var s : scheduledList) {
+            s.setStatus(com.fa26se040.icss.enums.AreaEventScheduleStatus.CANCELLED);
+            eventScheduleRepository.save(s);
         }
 
         long notifCountAfterDisable = notificationRepository.count();
