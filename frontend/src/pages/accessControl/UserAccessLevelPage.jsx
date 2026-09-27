@@ -1312,7 +1312,7 @@ export default function UserAccessLevelPage() {
                   <table className="access-level-table">
                     <thead>
                       <tr>
-                        <th>Thời gian</th>
+                        <th className="ui-col-time">Thời gian</th>
                         <th>Thao tác & Đối tượng</th>
                         <th>Khu vực</th>
                         <th>Người bị tác động</th>

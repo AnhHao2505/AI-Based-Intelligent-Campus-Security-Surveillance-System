@@ -322,10 +322,7 @@
 .arr-table th {
   background: var(--theme-bg-page);
   padding: 0.875rem 1rem;
-  font-weight: 600;
-  color: var(--theme-text-muted);
   border-bottom: 1px solid var(--theme-border);
-  white-space: nowrap;
 }
 
 .arr-table td {

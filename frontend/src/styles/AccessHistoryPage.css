@@ -174,15 +174,9 @@
 }
 
 .ahp-table th {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--theme-text-muted);
   background: var(--theme-bg-surface-elevated);
   padding: 10px 12px;
   border-bottom: 0.5px solid var(--theme-border);
-  font-weight: 600;
-  white-space: nowrap;
 }
 
 .ahp-table td {

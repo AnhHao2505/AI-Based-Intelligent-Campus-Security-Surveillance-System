@@ -510,7 +510,7 @@ export default function SystemConfigPage() {
 						<table className="syscfg-history-table">
 							<thead>
 								<tr>
-									<th>Thời gian</th>
+									<th className="ui-col-time">Thời gian</th>
 									<th>Người thực hiện</th>
 									<th>Giá trị cũ</th>
 									<th>Giá trị mới</th>

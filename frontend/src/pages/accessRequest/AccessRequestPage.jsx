@@ -987,9 +987,9 @@ export default function AccessRequestPage() {
 									<tr>
 										<th>Khu vực</th>
 										<th>Hình thức</th>
-										<th>Thời gian truy cập</th>
+										<th className="ui-col-time-range">Thời gian truy cập</th>
 										<th>Trạng thái</th>
-										<th>Ngày tạo</th>
+										<th className="ui-col-time">Ngày tạo</th>
 										<th style={{ textAlign: "right" }}>Thao tác</th>
 									</tr>
 								</thead>

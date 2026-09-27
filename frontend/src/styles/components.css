@@ -100,3 +100,45 @@
     --page-padding-y: 16px;
   }
 }
+
+/* --------------------------------------------------------------------------
+   Bảng (A5): MỘT kiểu header cho mọi bảng — chữ hoa 11px (theo UI kit ui-table)
+   Padding/nền do từng bảng tự quyết; chữ header chỉ định nghĩa ở đây.
+   -------------------------------------------------------------------------- */
+.ui-table__th,
+.ahp-table th,
+.arr-table th,
+.arp-table th,
+.account-table th,
+.syscfg-history-table th,
+.access-level-table thead th,
+.reason-table th {
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--theme-text-muted);
+  white-space: nowrap;
+}
+
+/* Cột thời gian: đủ rộng để "HH:mm dd/MM/yyyy" nằm trên một dòng */
+.ui-col-time {
+  min-width: 132px;
+}
+
+/* Cột khoảng thời gian: tối đa 2 dòng ("từ" / "đến") */
+.ui-col-time-range {
+  min-width: 180px;
+}
+
+/* Pill / badge trạng thái không xuống dòng */
+.ui-badge,
+.arr-badge,
+.arp-badge,
+.audit-badge,
+.account-badge,
+.access-level-role-pill,
+.preset-explicit-badge {
+  white-space: nowrap;
+}

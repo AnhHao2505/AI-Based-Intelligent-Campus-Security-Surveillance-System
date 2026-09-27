@@ -395,10 +395,10 @@ export default function AccessRequestReviewPage() {
                 <tr>
                   <th>Người yêu cầu</th>
                   <th>Khu vực đăng ký</th>
-                  <th>Thời gian truy cập</th>
+                  <th className="ui-col-time-range">Thời gian truy cập</th>
                   <th>Hình thức</th>
                   <th>Trạng thái</th>
-                  <th>Ngày gửi</th>
+                  <th className="ui-col-time">Ngày gửi</th>
                   <th style={{ textAlign: 'center' }}>Thao tác</th>
                 </tr>
               </thead>

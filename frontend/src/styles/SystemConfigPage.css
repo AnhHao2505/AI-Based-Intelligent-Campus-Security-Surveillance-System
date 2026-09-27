@@ -448,8 +448,6 @@
 .syscfg-history-table th {
   background: var(--theme-bg-input);
   padding: 10px 14px;
-  font-weight: 600;
-  color: var(--theme-text-secondary);
   border-bottom: 1px solid var(--theme-border);
 }
 
