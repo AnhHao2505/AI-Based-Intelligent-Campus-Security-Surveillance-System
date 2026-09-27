@@ -5,7 +5,6 @@ import Button from "../ui/Button";
 import Badge from "../ui/Badge";
 import { useAuth } from "../../context/AuthContext";
 import {
-	getAreaById,
 	getEventSchedules,
 	createEventSchedule,
 	updateEventSchedule,
@@ -48,7 +47,7 @@ const EMPTY_FORM = { startAt: "", endAt: "", reasonCode: "", note: "" };
  * FACILITY_MANAGER được đặt / sửa / huỷ lịch; vai trò khác chỉ xem.
  * Mọi giới hạn nghiệp vụ (số lịch, thời lượng, đặt trước, ngân sách, chồng giờ) do backend quyết.
  */
-export default function EventScheduleSection({ area, onAreaUpdated }) {
+export default function EventScheduleSection({ area, onSchedulesChanged }) {
 	const { user } = useAuth();
 	const canManage = user?.role === "FACILITY_MANAGER";
 	const areaId = area?.id;
@@ -150,14 +149,6 @@ export default function EventScheduleSection({ area, onAreaUpdated }) {
 		setFormError(null);
 	};
 
-	const refreshArea = async () => {
-		try {
-			const fresh = await getAreaById(areaId);
-			onAreaUpdated?.(fresh?.data || fresh);
-		} catch (err) {
-			console.error("Lỗi khi tải lại khu vực sau thao tác lịch:", err);
-		}
-	};
 
 	const validate = () => {
 		if (mode !== "cancel") {
@@ -205,7 +196,8 @@ export default function EventScheduleSection({ area, onAreaUpdated }) {
 			}
 			closeForm();
 			await loadSchedules();
-			await refreshArea();
+			// Không cập nhật khu vực ở đây: modal cha tải lại khi đóng, để không reset form quy tắc đang sửa
+			onSchedulesChanged?.();
 		} catch (err) {
 			console.error("Lỗi thao tác lịch sự kiện:", err);
 			const errMsg = err?.message || "Không thể thực hiện thao tác với lịch sự kiện.";

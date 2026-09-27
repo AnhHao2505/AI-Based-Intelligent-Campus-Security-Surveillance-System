@@ -155,8 +155,7 @@
   margin: 0;
   font-size: 12px;
   line-height: 1.45;
-  color: var(--theme-warning, #f59e0b);
-  font-style: italic;
+  color: var(--theme-text-secondary);
 }
 
 /* Callout Note */
