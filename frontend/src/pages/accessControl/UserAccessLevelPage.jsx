@@ -25,7 +25,7 @@ import {
   getAuditLogs,
 } from '../../services/accessControlService';
 import { ROLES, ROLE_LABELS } from '../../constants/roles';
-import { getLevelConfig, getAccessLevelConfig, getScheduleStatusView, formatDisplayDateTime } from '../../utils/areaHelpers';
+import { getLevelConfig, getAccessLevelConfig, formatDisplayDateTime } from '../../utils/areaHelpers';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import PageHeader from '../../components/ui/PageHeader';
@@ -546,7 +546,13 @@ export default function UserAccessLevelPage() {
       const reasonDisplay = action === 'CANCEL'
         ? joinReason(snap.cancelReasonLabel || snap.reasonLabel, snap.cancelNote || snap.note)
         : joinReason(snap.reasonLabel, snap.note);
-      const statusLabel = (v) => getScheduleStatusView(v?.status, v?.endAt).label;
+      // Nhật ký là lịch sử: hiển thị đúng status đã ghi, không đổi nhãn theo giờ xem
+      const statusLabels = {
+        SCHEDULED: 'Đã lên lịch',
+        STARTED: 'Đã bắt đầu',
+        CANCELLED: 'Đã huỷ',
+        FAILED: 'Thất bại',
+      };
       const oldStatus = oldValue?.status;
       const newStatus = newValue?.status;
 
@@ -569,12 +575,12 @@ export default function UserAccessLevelPage() {
               <span className="audit-row-label">Trạng thái:</span>
               {oldStatus && newStatus && oldStatus !== newStatus ? (
                 <>
-                  <span>{statusLabel(oldValue)}</span>
+                  <span>{statusLabels[oldStatus] || oldStatus}</span>
                   <span className="audit-arrow">→</span>
-                  <strong className="audit-val--new">{statusLabel(newValue)}</strong>
+                  <strong className="audit-val--new">{statusLabels[newStatus] || newStatus}</strong>
                 </>
               ) : (
-                <strong className="audit-val--new">{statusLabel(newStatus ? newValue : oldValue)}</strong>
+                <strong className="audit-val--new">{statusLabels[newStatus || oldStatus] || newStatus || oldStatus}</strong>
               )}
             </div>
           )}
