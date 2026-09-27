@@ -1380,4 +1380,134 @@ public class Step5aSupplement2Test extends AbstractIntegrationTest {
         assertNull(detail.eventLastAdjustedAt());
         assertNull(detail.eventLastAdjustedByName());
     }
+
+    // ======================================================================
+    // FIX-K8a2: câu báo ERR_AREA_030 phải nêu giờ kết thúc THỰC TẾ của phiên gần nhất
+    // (COALESCE(actual_end, planned_end)), không phải planned_end.
+    // ======================================================================
+
+    private static final java.time.format.DateTimeFormatter K8A2_DTF =
+            java.time.format.DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy").withZone(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
+
+    @Test
+    @DisplayName("T-K8a2-a1: Bật tới T+60' rồi tắt tay; gửi lý do lệch loại -> 409 ERR_AREA_030 nêu giờ tắt thực tế, không nêu planned_end")
+    void testTK8a2_a1_ManualDisableThenMismatchedReason_MessageUsesActualEnd() {
+        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime planned = now.plusMinutes(60);
+
+        areaService.updateEventMode(internalArea.getId(),
+                new AreaEventModeUpdateRequest(true, planned, "SEMINAR", "Bat su kien T-K8a2-a1"), fmUser.getEmail());
+        areaService.updateEventMode(internalArea.getId(),
+                new AreaEventModeUpdateRequest(false, null, "ENDED_EARLY", "Tat tay ngay T-K8a2-a1"), fmUser.getEmail());
+
+        AreaEventSession last = sessionRepository.findTopByAreaIdOrderByStartedAtDesc(internalArea.getId()).orElseThrow();
+        assertNotNull(last.getActualEnd(), "Phiên đã tắt tay phải có actual_end");
+        String actualEndText = K8A2_DTF.format(last.getActualEnd());
+        String plannedEndText = K8A2_DTF.format(last.getPlannedEnd());
+        assertNotEquals(actualEndText, plannedEndText, "Tiền điều kiện: giờ tắt thực tế khác planned_end");
+
+        // Như K8a: bật lại với mã của nhóm tắt (ENDED_EARLY)
+        AreaException ex = assertThrows(AreaException.class, () ->
+                areaService.updateEventMode(internalArea.getId(),
+                        new AreaEventModeUpdateRequest(true, now.plusMinutes(90), "ENDED_EARLY", "Gui ly do lech loai T-K8a2-a1"),
+                        fmUser.getEmail()));
+        assertEquals(AreaErrorCode.ERR_AREA_030, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("đã kết thúc lúc " + actualEndText),
+                "Phải nêu giờ tắt thực tế " + actualEndText + " — message: " + ex.getMessage());
+        assertFalse(ex.getMessage().contains(plannedEndText),
+                "Không được nêu planned_end " + plannedEndText + " — message: " + ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("T-K8a2-a2: Bật tới T+60' rồi tắt tay; tắt lần nữa (BR-EV-10) -> 409 ERR_AREA_030 nêu giờ tắt thực tế")
+    void testTK8a2_a2_ManualDisableThenDisableAgain_MessageUsesActualEnd() {
+        OffsetDateTime now = OffsetDateTime.now();
+
+        areaService.updateEventMode(internalArea.getId(),
+                new AreaEventModeUpdateRequest(true, now.plusMinutes(60), "SEMINAR", "Bat su kien T-K8a2-a2"), fmUser.getEmail());
+        areaService.updateEventMode(internalArea.getId(),
+                new AreaEventModeUpdateRequest(false, null, "ENDED_EARLY", "Tat tay ngay T-K8a2-a2"), fmUser.getEmail());
+
+        AreaEventSession last = sessionRepository.findTopByAreaIdOrderByStartedAtDesc(internalArea.getId()).orElseThrow();
+        String actualEndText = K8A2_DTF.format(last.getActualEnd());
+        String plannedEndText = K8A2_DTF.format(last.getPlannedEnd());
+
+        AreaException ex = assertThrows(AreaException.class, () ->
+                areaService.updateEventMode(internalArea.getId(),
+                        new AreaEventModeUpdateRequest(false, null, "ENDED_EARLY", "Tat lan nua T-K8a2-a2"),
+                        fmUser.getEmail()));
+        assertEquals(AreaErrorCode.ERR_AREA_030, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("đã kết thúc lúc " + actualEndText),
+                "Phải nêu giờ tắt thực tế " + actualEndText + " — message: " + ex.getMessage());
+        assertFalse(ex.getMessage().contains(plannedEndText),
+                "Không được nêu planned_end " + plannedEndText + " — message: " + ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("T-K8a2-b1: Phiên đã đóng với actual_end = planned_end -> 409 ERR_AREA_030 nêu planned_end")
+    void testTK8a2_b1_ClosedAtPlannedEnd_MessageUsesPlannedEnd() {
+        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime planned = now.minusHours(1);
+        sessionRepository.save(AreaEventSession.builder()
+                .area(internalArea)
+                .startedAt(now.minusHours(3))
+                .plannedEnd(planned)
+                .actualEnd(planned)
+                .startedBy(fmUser)
+                .build());
+        internalArea.setOpenToMembers(false);
+        internalArea.setOpenUntil(null);
+        areaRepository.save(internalArea);
+
+        AreaException ex = assertThrows(AreaException.class, () ->
+                areaService.updateEventMode(internalArea.getId(),
+                        new AreaEventModeUpdateRequest(false, null, "ENDED_EARLY", "Tat khi phien da het han T-K8a2-b1"),
+                        fmUser.getEmail()));
+        assertEquals(AreaErrorCode.ERR_AREA_030, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("đã kết thúc lúc " + K8A2_DTF.format(planned)),
+                "Phải nêu planned_end " + K8A2_DTF.format(planned) + " — message: " + ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("T-K8a2-b2: Phiên chưa đóng nhưng đã quá planned_end -> 409 ERR_AREA_030 nêu planned_end")
+    void testTK8a2_b2_UnclosedPastPlannedEnd_MessageUsesPlannedEnd() {
+        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime planned = now.minusHours(1);
+        sessionRepository.save(AreaEventSession.builder()
+                .area(internalArea)
+                .startedAt(now.minusHours(3))
+                .plannedEnd(planned)
+                .actualEnd(null)
+                .startedBy(fmUser)
+                .build());
+        internalArea.setOpenToMembers(true);
+        internalArea.setOpenUntil(planned);
+        areaRepository.save(internalArea);
+
+        AreaException ex = assertThrows(AreaException.class, () ->
+                areaService.updateEventMode(internalArea.getId(),
+                        new AreaEventModeUpdateRequest(false, null, "ENDED_EARLY", "Tat khi phien qua han T-K8a2-b2"),
+                        fmUser.getEmail()));
+        assertEquals(AreaErrorCode.ERR_AREA_030, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("đã kết thúc lúc " + K8A2_DTF.format(planned)),
+                "Phải nêu planned_end " + K8A2_DTF.format(planned) + " — message: " + ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("T-K8a2-c: Đang mở + lý do lệch loại -> 409 ERR_AREA_030 vẫn 'đang mở đến <openUntil>' (không đổi hành vi)")
+    void testTK8a2_c_ActiveEvent_MessageStillShowsOpenUntil() {
+        OffsetDateTime now = OffsetDateTime.now();
+        areaService.updateEventMode(internalArea.getId(),
+                new AreaEventModeUpdateRequest(true, now.plusHours(2), "SEMINAR", "Bat su kien T-K8a2-c"), fmUser.getEmail());
+        Area reloaded = areaRepository.findById(internalArea.getId()).orElseThrow();
+        String openUntilText = K8A2_DTF.format(reloaded.getOpenUntil());
+
+        AreaException ex = assertThrows(AreaException.class, () ->
+                areaService.updateEventMode(internalArea.getId(),
+                        new AreaEventModeUpdateRequest(true, now.plusHours(4), "SEMINAR", "Gui EVENT_ENABLE khi dang mo T-K8a2-c"),
+                        fmUser.getEmail()));
+        assertEquals(AreaErrorCode.ERR_AREA_030, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("đang mở đến " + openUntilText),
+                "Phải giữ 'đang mở đến " + openUntilText + "' — message: " + ex.getMessage());
+    }
 }

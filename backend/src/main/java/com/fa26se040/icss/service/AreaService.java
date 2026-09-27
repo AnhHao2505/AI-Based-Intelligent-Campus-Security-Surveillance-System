@@ -857,14 +857,24 @@ public class AreaService {
         return count;
     }
 
-    private String buildEventModeStatusChangedMessage(Area area, OffsetDateTime lastPlannedEnd) {
+    /**
+     * Giờ kết thúc của phiên sự kiện gần nhất: COALESCE(actual_end, planned_end).
+     * Phiên tắt tay dùng giờ tắt thực tế; phiên hết hạn tự nhiên có actual_end = planned_end.
+     */
+    private OffsetDateTime lastEventSessionEnd(UUID areaId, OffsetDateTime fallback) {
+        return eventSessionRepository.findTopByAreaIdOrderByStartedAtDesc(areaId)
+                .map(s -> s.getActualEnd() != null ? s.getActualEnd() : s.getPlannedEnd())
+                .orElse(fallback);
+    }
+
+    private String buildEventModeStatusChangedMessage(Area area, OffsetDateTime lastEnd) {
         java.time.format.DateTimeFormatter dtf = java.time.format.DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy").withZone(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
         OffsetDateTime now = OffsetDateTime.now();
         if (area != null && area.isEventActive(now)) {
             return "Trạng thái sự kiện đã thay đổi: đang mở đến " + dtf.format(area.getOpenUntil()) + ". Vui lòng tải lại trang.";
         }
-        if (lastPlannedEnd != null) {
-            return "Trạng thái sự kiện đã thay đổi: đã kết thúc lúc " + dtf.format(lastPlannedEnd) + ". Vui lòng tải lại trang.";
+        if (lastEnd != null) {
+            return "Trạng thái sự kiện đã thay đổi: đã kết thúc lúc " + dtf.format(lastEnd) + ". Vui lòng tải lại trang.";
         }
         if (area != null && area.getOpenUntil() != null) {
             return "Trạng thái sự kiện đã thay đổi: đã kết thúc lúc " + dtf.format(area.getOpenUntil()) + ". Vui lòng tải lại trang.";
@@ -991,10 +1001,8 @@ public class AreaService {
             action = com.fa26se040.icss.enums.AuditAction.DISABLE_EVENT_MODE;
         } else {
             // 6. (BR-EV-10) !activeNow ∧ !enabled -> 409 mã M1 (ERR_AREA_030), KHÔNG audit
-            OffsetDateTime lastPlannedEnd = eventSessionRepository.findTopByAreaIdOrderByStartedAtDesc(id)
-                    .map(com.fa26se040.icss.entity.AreaEventSession::getPlannedEnd)
-                    .orElse(oldOpenUntil);
-            String statusMsg = buildEventModeStatusChangedMessage(area, lastPlannedEnd);
+            OffsetDateTime lastEnd = lastEventSessionEnd(id, oldOpenUntil);
+            String statusMsg = buildEventModeStatusChangedMessage(area, lastEnd);
             throw new AreaException(AreaErrorCode.ERR_AREA_030, statusMsg);
         }
 
@@ -1004,10 +1012,8 @@ public class AreaService {
                 .orElse(null);
         if (reasonItem == null) {
             if (reasonCatalogRepository.existsByCode(normReasonCode)) {
-                OffsetDateTime lastPlannedEnd = eventSessionRepository.findTopByAreaIdOrderByStartedAtDesc(id)
-                        .map(com.fa26se040.icss.entity.AreaEventSession::getPlannedEnd)
-                        .orElse(oldOpenUntil);
-                String statusMsg = buildEventModeStatusChangedMessage(area, lastPlannedEnd);
+                OffsetDateTime lastEnd = lastEventSessionEnd(id, oldOpenUntil);
+                String statusMsg = buildEventModeStatusChangedMessage(area, lastEnd);
                 throw new AreaException(AreaErrorCode.ERR_AREA_030, statusMsg);
             }
             throw new AreaException(AreaErrorCode.ERR_AREA_025);
