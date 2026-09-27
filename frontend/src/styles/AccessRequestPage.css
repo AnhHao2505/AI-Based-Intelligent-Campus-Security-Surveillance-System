@@ -432,8 +432,8 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-  color: #ffffff;
+  background: var(--action-primary-bg);
+  color: var(--action-primary-text);
   font-weight: 600;
   padding: 10px 22px;
   border-radius: 8px;
@@ -441,20 +441,28 @@
   cursor: pointer;
   font-size: 13.5px;
   font-family: inherit;
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+  box-shadow: 0 1px 2px var(--brand-glow);
   transition: all 0.2s ease;
 }
 
 .arp-btn-submit:hover:not(:disabled) {
-  opacity: 0.94;
-  transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.45);
+  background: var(--action-primary-bg-hover);
+  box-shadow: 0 4px 10px var(--brand-glow);
+}
+
+.arp-btn-submit:focus-visible {
+  outline: 2px solid var(--focus-ring-color);
+  outline-offset: 2px;
 }
 
 .arp-btn-submit:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  background: var(--action-disabled-bg);
+  color: var(--action-disabled-text);
   box-shadow: none;
+  filter: none;
+  transform: none;
+  opacity: 1;
+  cursor: not-allowed;
 }
 
 .arp-link-btn {

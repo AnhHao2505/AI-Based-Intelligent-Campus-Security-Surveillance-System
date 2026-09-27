@@ -102,18 +102,65 @@
   --brand-cyan: #7ed3f2;        /* cyan sáng - dùng cho chữ, icon, nhấn mạnh */
   --brand-blue: #3ba8d9;        /* xanh đậm - dùng cho nền nút, viền */
   --brand-violet: #7c5cd6;      /* tím - chỉ dùng ở cuối gradient */
-  --brand-gradient: linear-gradient(135deg, #7ed3f2 0%, #3ba8d9 55%, #7c5cd6 100%);
-  --brand-glow: rgba(59, 168, 217, 0.35);
+  /* Gradient nhận diện: CHỈ dùng cho logo / avatar / trang trí */
+  --brand-identity-gradient: linear-gradient(135deg, #7ed3f2 0%, #3ba8d9 55%, #7c5cd6 100%);
+  /* UI-1 (A1): --brand-gradient là nền của mọi nút chính -> xanh đặc */
+  --brand-gradient: var(--action-primary-bg);
+  --brand-glow: rgba(37, 99, 235, 0.25);
   --brand-subtle: rgba(59, 168, 217, 0.12);
   --brand-subtle-border: rgba(59, 168, 217, 0.25);
 
   /* Brand Text Variations (Contrast-safe) */
   --brand-text: #0e7490;        /* cyan đậm, đọc rõ trên nền trắng */
   --brand-text-strong: #155e75; /* đậm hơn cho chữ quan trọng */
-  --brand-on-gradient: #ffffff; /* chữ trên nền gradient ở light mode */
+  --brand-on-gradient: var(--action-primary-text); /* chữ trên nền nút chính */
 
   /* Focus Ring Token (WCAG Focus Visible Safe for Light & Dark) */
   --focus-ring: 0 0 0 2px var(--brand-glow);
+
+  /* ---- UI-1: Hành động chính (nút xanh đặc, WCAG >= 4.5:1) ----
+     Chữ #ffffff / nền #2563eb = 5.17:1; hover #1d4ed8 = 6.70:1.
+     Disabled: chữ #475569 / nền #e2e8f0 = 6.15:1 (đọc được nhưng khác hẳn nút thường). */
+  --action-primary-bg: #2563eb;
+  --action-primary-bg-hover: #1d4ed8;
+  --action-primary-text: #ffffff;
+  --action-disabled-bg: #e2e8f0;
+  --action-disabled-text: #475569;
+  --action-disabled-border: #cbd5e1;
+  --focus-ring-color: #1d4ed8;
+
+  /* ---- UI-1: Badge loại khu vực (4 loại) ---- */
+  --area-type-public-text: #166534;
+  --area-type-public-bg: #dcfce7;
+  --area-type-public-border: #86efac;
+  --area-type-internal-text: #1e40af;
+  --area-type-internal-bg: #dbeafe;
+  --area-type-internal-border: #93c5fd;
+  --area-type-contact-text: #92400e;
+  --area-type-contact-bg: #fef3c7;
+  --area-type-contact-border: #fcd34d;
+  --area-type-private-text: #991b1b;
+  --area-type-private-bg: #fee2e2;
+  --area-type-private-border: #fca5a5;
+
+  /* ---- UI-1: Cấp truy cập 1/2/3 — MỘT thang màu tím (thứ bậc, không trùng màu loại khu vực) ---- */
+  --access-level-1-text: #5b21b6;
+  --access-level-1-bg: #f5f3ff;
+  --access-level-1-border: #ddd6fe;
+  --access-level-2-text: #4c1d95;
+  --access-level-2-bg: #ede9fe;
+  --access-level-2-border: #c4b5fd;
+  --access-level-3-text: #ffffff;
+  --access-level-3-bg: #6d28d9;
+  --access-level-3-border: #6d28d9;
+
+  /* ---- UI-1: Khuôn trang dùng chung ---- */
+  --page-max-width: 1440px;
+  --page-padding-y: 24px;
+  --page-padding-x: 32px;
+
+  /* Thẻ/ô nhập dùng trong component cũ (token từng bị thiếu) */
+  --theme-card-bg: var(--theme-bg-surface);
 }
 
 [data-theme="dark"] {
@@ -199,15 +246,55 @@
   --brand-cyan: #7ed3f2;        /* cyan sáng - dùng cho chữ, icon, nhấn mạnh */
   --brand-blue: #3ba8d9;        /* xanh đậm - dùng cho nền nút, viền */
   --brand-violet: #7c5cd6;      /* tím - chỉ dùng ở cuối gradient */
-  --brand-gradient: linear-gradient(135deg, #7ed3f2 0%, #3ba8d9 55%, #7c5cd6 100%);
-  --brand-glow: rgba(59, 168, 217, 0.35);
+  /* Gradient nhận diện: CHỈ dùng cho logo / avatar / trang trí */
+  --brand-identity-gradient: linear-gradient(135deg, #7ed3f2 0%, #3ba8d9 55%, #7c5cd6 100%);
+  /* UI-1 (A1): --brand-gradient là nền của mọi nút chính -> xanh đặc */
+  --brand-gradient: var(--action-primary-bg);
+  --brand-glow: rgba(37, 99, 235, 0.25);
   --brand-subtle: rgba(59, 168, 217, 0.12);
   --brand-subtle-border: rgba(59, 168, 217, 0.25);
 
   /* Brand Text Variations (Contrast-safe) */
   --brand-text: #7ed3f2;
   --brand-text-strong: #a5e3f7;
-  --brand-on-gradient: #0d1117;
+  --brand-on-gradient: var(--action-primary-text);
+
+  /* ---- UI-1: Hành động chính (dark) — cùng màu nút, chữ trắng 5.17:1 ----
+     Disabled: chữ #94a3b8 / nền #1e293b = 5.71:1 */
+  --action-primary-bg: #2563eb;
+  --action-primary-bg-hover: #1d4ed8;
+  --action-primary-text: #ffffff;
+  --action-disabled-bg: #1e293b;
+  --action-disabled-text: #94a3b8;
+  --action-disabled-border: #334155;
+  --focus-ring-color: #93c5fd;
+
+  /* ---- UI-1: Badge loại khu vực (dark) ---- */
+  --area-type-public-text: #86efac;
+  --area-type-public-bg: rgba(34, 197, 94, 0.14);
+  --area-type-public-border: rgba(34, 197, 94, 0.35);
+  --area-type-internal-text: #93c5fd;
+  --area-type-internal-bg: rgba(59, 130, 246, 0.16);
+  --area-type-internal-border: rgba(59, 130, 246, 0.4);
+  --area-type-contact-text: #fcd34d;
+  --area-type-contact-bg: rgba(245, 158, 11, 0.14);
+  --area-type-contact-border: rgba(245, 158, 11, 0.4);
+  --area-type-private-text: #fca5a5;
+  --area-type-private-bg: rgba(248, 113, 113, 0.14);
+  --area-type-private-border: rgba(248, 113, 113, 0.4);
+
+  /* ---- UI-1: Cấp truy cập (dark) ---- */
+  --access-level-1-text: #c4b5fd;
+  --access-level-1-bg: rgba(139, 92, 246, 0.14);
+  --access-level-1-border: rgba(139, 92, 246, 0.35);
+  --access-level-2-text: #ddd6fe;
+  --access-level-2-bg: rgba(139, 92, 246, 0.28);
+  --access-level-2-border: rgba(139, 92, 246, 0.5);
+  --access-level-3-text: #ffffff;
+  --access-level-3-bg: #7c3aed;
+  --access-level-3-border: #7c3aed;
+
+  --theme-card-bg: var(--theme-bg-surface);
 }
 
 /* ==========================================================================
