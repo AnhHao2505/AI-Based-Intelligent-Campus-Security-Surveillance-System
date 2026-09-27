@@ -174,10 +174,12 @@ public class Step5bAreaTypeChangeTest extends Step5bTestSupport {
     @Test
     @DisplayName("TC-04a (BR-TC-04): đổi loại áp lại preset của loại mới (cấp + cờ cần đơn)")
     void tc04a_BR_TC_04_changeType_appliesTargetPreset() throws Exception {
-        // Khu vực INTERNAL đã tuỳ chỉnh lệch preset (3/true) -> đổi sang CONTACT phải về đúng preset CONTACT
-        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 3, true);
+        // Khu vực INTERNAL tuỳ chỉnh lệch hẳn preset CONTACT hiện tại -> đổi sang CONTACT phải về đúng preset CONTACT.
+        // Không giả định giá trị preset: AccessControlAuditLogIntegrationTest đảo preset CONTACT mỗi lần chạy.
         AreaLevelPreset target = presetRepository.findById(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED).orElseThrow();
-        assertNotEquals(Integer.valueOf(3), target.getAreaAccessLevel(),"Tiền đề: preset CONTACT phải khác cấp hiện tại của khu vực");
+        int customLevel = target.getAreaAccessLevel() == 3 ? 1 : 3;
+        boolean customFlag = !target.getExplicitAuthorizationRequired();
+        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, customLevel, customFlag);
 
         MvcResult r = changeType(admin, area, AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED, TYPE_CHANGE_REASON, apiVersion(area));
         assertEquals(200, status(r), describe(r));
