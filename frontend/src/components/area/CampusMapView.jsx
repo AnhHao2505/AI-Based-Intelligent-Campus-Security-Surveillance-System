@@ -50,6 +50,9 @@ const OSM_STYLE = {
 	],
 };
 
+// Mức zoom (bằng mức bay tới một khu vực) từ đó hiện đủ nhãn khu vực trên bản đồ
+const LABEL_MIN_ZOOM = 17.5;
+
 // Preset GPS marker locations for campus zones and landmarks
 const LANDMARK_LOCATIONS = [
 	{ matches: ["cổng", "gate"], coords: [106.80922, 10.84175] },
@@ -139,6 +142,9 @@ export default function CampusMapView({
 }) {
 	const mapRef = useRef(null);
 	const [railCollapsed, setRailCollapsed] = useState(false);
+	// UI-B B4: dưới mức zoom này các khu vực quá sát nhau -> chỉ hiện chấm, nhãn hiện khi hover/được chọn
+	const [mapZoom, setMapZoom] = useState(CAMPUS_CENTER.zoom);
+	const compactLabels = mapZoom < LABEL_MIN_ZOOM;
 
 	// Selected area object
 	const selectedArea = useMemo(() => {
@@ -262,10 +268,11 @@ export default function CampusMapView({
 				</div>
 
 				{/* Map Viewport */}
-				<div className="campus-map-viewport">
+				<div className={`campus-map-viewport ${compactLabels ? "campus-map-viewport--compact" : ""}`}>
 					<Map
 						ref={mapRef}
 						initialViewState={CAMPUS_CENTER}
+						onZoomEnd={(e) => setMapZoom(e.viewState.zoom)}
 						mapStyle={OSM_STYLE}
 						style={{ width: "100%", height: "100%" }}
 						minZoom={12}
@@ -296,6 +303,8 @@ export default function CampusMapView({
 									<div
 										className={`campus-zone-pin ${isSelected ? "campus-zone-pin--selected" : ""}`}
 										style={{ borderColor: item.color }}
+										title={item.name}
+										aria-label={item.name}
 									>
 										<span
 											className="campus-zone-pin__dot"
@@ -383,7 +392,7 @@ export default function CampusMapView({
 				</div>
 
 				{/* Card 2: Selected Area Detail */}
-				<div className="campus-rail-card campus-rail-card--detail">
+				<div className={`campus-rail-card campus-rail-card--detail ${!selectedArea ? "campus-rail-card--detail-empty" : ""}`}>
 					{!selectedArea ? (
 						<div className="campus-detail-empty">
 							<p>
