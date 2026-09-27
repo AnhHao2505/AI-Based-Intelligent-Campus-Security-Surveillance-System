@@ -72,6 +72,9 @@ class AccessRequestServiceTest {
     @Mock
     private MemberLookupRateLimiter memberLookupRateLimiter;
 
+    @Mock
+    private AuditService auditService;
+
     @InjectMocks
     private AccessRequestService accessRequestService;
 

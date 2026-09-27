@@ -3,10 +3,12 @@ package com.fa26se040.icss.repository;
 import com.fa26se040.icss.entity.AccessRequest;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.RequestStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -116,10 +118,28 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, UU
             @Param("threshold") OffsetDateTime threshold
     );
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT ar FROM AccessRequest ar " +
+           "WHERE ar.status = :status AND ar.startTime < :now")
+    List<AccessRequest> findPendingOverdueRequestsForUpdate(
+            @Param("status") RequestStatus status,
+            @Param("now") OffsetDateTime now
+    );
+
     @Modifying
     @Query("UPDATE AccessRequest ar SET ar.status = :newStatus, ar.updatedAt = :now " +
            "WHERE ar.status = :currentStatus AND ar.startTime < :now")
     int expireOverdueRequests(
+            @Param("currentStatus") RequestStatus currentStatus,
+            @Param("newStatus") RequestStatus newStatus,
+            @Param("now") OffsetDateTime now
+    );
+
+    @Modifying
+    @Query("UPDATE AccessRequest ar SET ar.status = :newStatus, ar.updatedAt = :now " +
+           "WHERE ar.id IN :ids AND ar.status = :currentStatus")
+    int expireOverdueRequestsByIds(
+            @Param("ids") Collection<UUID> ids,
             @Param("currentStatus") RequestStatus currentStatus,
             @Param("newStatus") RequestStatus newStatus,
             @Param("now") OffsetDateTime now

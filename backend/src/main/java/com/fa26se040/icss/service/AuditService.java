@@ -63,6 +63,20 @@ public class AuditService {
                 changedBy != null ? AuditActor.user(changedBy) : null);
     }
 
+    @Transactional
+    public <T extends AuditSnapshot> AuditLog record(
+            AuditTargetType targetType,
+            AuditAction action,
+            String targetId,
+            Area area,
+            User subjectUser,
+            T oldSnapshot,
+            T newSnapshot,
+            String reason
+    ) {
+        return record(targetType, action, targetId, area, subjectUser, oldSnapshot, newSnapshot, reason, (AuditActor) null);
+    }
+
     /**
      * Helper ghi theo UUID nếu không có entity Area/User.
      */

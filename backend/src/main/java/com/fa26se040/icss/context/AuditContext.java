@@ -40,13 +40,13 @@ public final class AuditContext {
         CURRENT_ACTOR.remove();
     }
 
-    public static void runAsSystem(String source, Runnable task) {
+    public static <T> T runAsSystem(String source, java.util.function.Supplier<T> task) {
         UUID prevCorrelationId = getCorrelationId();
         AuditActor prevActor = getCurrentActor();
         try {
             setCorrelationId(UUID.randomUUID());
             setCurrentActor(AuditActor.system(source));
-            task.run();
+            return task.get();
         } finally {
             if (prevCorrelationId != null) {
                 setCorrelationId(prevCorrelationId);
@@ -59,5 +59,12 @@ public final class AuditContext {
                 clearCurrentActor();
             }
         }
+    }
+
+    public static void runAsSystem(String source, Runnable task) {
+        runAsSystem(source, () -> {
+            task.run();
+            return null;
+        });
     }
 }

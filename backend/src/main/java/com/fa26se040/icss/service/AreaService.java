@@ -19,7 +19,12 @@ import com.fa26se040.icss.exception.CameraException;
 import com.fa26se040.icss.exception.UnauthorizedException;
 import com.fa26se040.icss.dto.area.AreaAccessRulesUpdateRequest;
 import com.fa26se040.icss.dto.area.AreaEventModeUpdateRequest;
-import com.fa26se040.icss.dto.accesscontrol.snapshot.AreaEventModeAuditSnapshot;
+import com.fa26se040.icss.dto.accesscontrol.snapshot.AreaAccessRulesAuditSnapshot;
+import com.fa26se040.icss.dto.accesscontrol.snapshot.AreaCamerasSnapshot;
+import com.fa26se040.icss.dto.accesscontrol.snapshot.AreaGeometrySnapshot;
+import com.fa26se040.icss.dto.accesscontrol.snapshot.AreaSnapshot;
+import com.fa26se040.icss.enums.AuditAction;
+import com.fa26se040.icss.enums.AuditTargetType;
 import com.fa26se040.icss.dto.area.AreaCameraResponse;
 import com.fa26se040.icss.dto.camera.CameraSimpleResponse;
 import com.fa26se040.icss.entity.AreaLevelPreset;
@@ -182,6 +187,18 @@ public class AreaService {
 
         try {
             Area savedArea = areaRepository.saveAndFlush(area);
+            User actor = actorEmail != null ? userRepository.findByEmail(actorEmail).orElse(null) : null;
+            auditService.record(
+                    AuditTargetType.AREA,
+                    AuditAction.CREATE,
+                    savedArea.getId().toString(),
+                    savedArea,
+                    null,
+                    null,
+                    AreaSnapshot.from(savedArea),
+                    null,
+                    actor
+            );
             return mapToAreaResponse(savedArea);
         } catch (DataIntegrityViolationException ex) {
             log.warn("Data integrity violation on creating area [{}]: {}", name, ex.getMessage());
@@ -198,6 +215,8 @@ public class AreaService {
         Area area = areaRepository.findByIdWithLock(id)
                 .filter(a -> a.getDeletedAt() == null)
                 .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
+
+        AreaSnapshot beforeSnapshot = AreaSnapshot.from(area);
 
         // BR-41: Block changing building or floor when the Area already has geometry
         if (area.getGeometry() != null) {
@@ -254,6 +273,18 @@ public class AreaService {
 
         try {
             Area savedArea = areaRepository.saveAndFlush(area);
+            User actor = actorEmail != null ? userRepository.findByEmail(actorEmail).orElse(null) : null;
+            auditService.record(
+                    AuditTargetType.AREA,
+                    AuditAction.UPDATE,
+                    savedArea.getId().toString(),
+                    savedArea,
+                    null,
+                    beforeSnapshot,
+                    AreaSnapshot.from(savedArea),
+                    null,
+                    actor
+            );
             return mapToAreaResponse(savedArea);
         } catch (DataIntegrityViolationException ex) {
             log.warn("Data integrity violation on updating area [{}]: {}", name, ex.getMessage());
@@ -283,9 +314,23 @@ public class AreaService {
 
         resolveActorId(actorEmail);
 
+        AreaGeometrySnapshot beforeSnapshot = AreaGeometrySnapshot.from(area.getGeometry());
+
         area.setGeometry(geometry);
 
         Area savedArea = areaRepository.save(area);
+        User actor = actorEmail != null ? userRepository.findByEmail(actorEmail).orElse(null) : null;
+        auditService.record(
+                AuditTargetType.AREA,
+                AuditAction.UPDATE_GEOMETRY,
+                savedArea.getId().toString(),
+                savedArea,
+                null,
+                beforeSnapshot,
+                AreaGeometrySnapshot.from(savedArea.getGeometry()),
+                null,
+                actor
+        );
         return new AreaGeometryResponse(
                 savedArea.getId(),
                 savedArea.getName(),
@@ -306,9 +351,23 @@ public class AreaService {
         }
 
         resolveActorId(actorEmail);
+        AreaGeometrySnapshot beforeSnapshot = AreaGeometrySnapshot.from(area.getGeometry());
 
         area.setGeometry(null);
-        areaRepository.save(area);
+        Area savedArea = areaRepository.save(area);
+
+        User actor = actorEmail != null ? userRepository.findByEmail(actorEmail).orElse(null) : null;
+        auditService.record(
+                AuditTargetType.AREA,
+                AuditAction.DELETE_GEOMETRY,
+                savedArea.getId().toString(),
+                savedArea,
+                null,
+                beforeSnapshot,
+                null,
+                null,
+                actor
+        );
     }
 
     @Transactional(readOnly = true)
@@ -338,11 +397,25 @@ public class AreaService {
         }
 
         resolveActorId(actorEmail);
+        AreaSnapshot beforeSnapshot = AreaSnapshot.from(area);
 
         area.setIsActive(false);
         area.setDeletedAt(OffsetDateTime.now());
 
-        areaRepository.save(area);
+        Area savedArea = areaRepository.save(area);
+
+        User actor = actorEmail != null ? userRepository.findByEmail(actorEmail).orElse(null) : null;
+        auditService.record(
+                AuditTargetType.AREA,
+                AuditAction.DEACTIVATE,
+                savedArea.getId().toString(),
+                savedArea,
+                null,
+                beforeSnapshot,
+                AreaSnapshot.from(savedArea),
+                null,
+                actor
+        );
     }
 
     @Transactional(readOnly = true)
@@ -397,6 +470,7 @@ public class AreaService {
         // BR-CAM-04: Lấy danh sách camera hiện đang gán cho khu vực này
         List<Camera> currentlyAssigned = cameraRepository.findByAreaIdAndDeletedAtIsNull(areaId);
         Set<UUID> newCameraIdSet = (cameraIds != null) ? new HashSet<>(cameraIds) : Set.of();
+        AreaCamerasSnapshot beforeSnapshot = AreaCamerasSnapshot.from(currentlyAssigned.stream().map(Camera::getId).toList());
 
         List<Camera> toUpdate = new ArrayList<>();
         // 1. Unassign camera cũ không còn trong danh sách mới
@@ -416,6 +490,18 @@ public class AreaService {
         if (!toUpdate.isEmpty()) {
             cameraRepository.saveAll(toUpdate);
         }
+
+        AreaCamerasSnapshot afterSnapshot = AreaCamerasSnapshot.from(cameraIds != null ? cameraIds : List.of());
+        auditService.record(
+                AuditTargetType.AREA,
+                AuditAction.UPDATE_CAMERAS,
+                area.getId().toString(),
+                area,
+                null,
+                beforeSnapshot,
+                afterSnapshot,
+                null
+        );
 
         return getCamerasForArea(area.getId());
     }
