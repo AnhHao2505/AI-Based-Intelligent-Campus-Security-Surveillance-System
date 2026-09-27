@@ -517,6 +517,20 @@ export default function UserAccessLevelPage() {
     );
   };
 
+  // Nhãn lý do theo danh mục (nếu snapshot có) — hiển thị ở cột Lý do, không lặp trong cột Nội dung
+  const getAuditReasonText = (log) => {
+    const { targetType, action, oldValue, newValue } = log;
+    let label = null;
+    if (targetType === 'AREA_EVENT_SCHEDULE') {
+      const snap = newValue || oldValue || {};
+      label = action === 'CANCEL' ? snap.cancelReasonLabel || snap.reasonLabel : snap.reasonLabel;
+    } else if (['ENABLE_EVENT_MODE', 'DISABLE_EVENT_MODE', 'EXTEND_EVENT_MODE'].includes(action)) {
+      label = newValue?.reasonLabel || oldValue?.reasonLabel;
+    }
+    if (label && log.reason && log.reason !== label) return `${label} – ${log.reason}`;
+    return log.reason || label || null;
+  };
+
   const renderAuditChange = (log) => {
     const { targetType, action, oldValue, newValue } = log;
 
@@ -542,10 +556,6 @@ export default function UserAccessLevelPage() {
           : '—';
       const oldRange = formatRange(oldValue);
       const newRange = formatRange(newValue);
-      const joinReason = (label, note) => (label && note ? `${label} – ${note}` : label || note || '—');
-      const reasonDisplay = action === 'CANCEL'
-        ? joinReason(snap.cancelReasonLabel || snap.reasonLabel, snap.cancelNote || snap.note)
-        : joinReason(snap.reasonLabel, snap.note);
       // Nhật ký là lịch sử: hiển thị đúng status đã ghi, không đổi nhãn theo giờ xem
       const statusLabels = {
         SCHEDULED: 'Đã lên lịch',
@@ -584,10 +594,6 @@ export default function UserAccessLevelPage() {
               )}
             </div>
           )}
-          <div className="audit-detail-row">
-            <span className="audit-row-label">Lý do:</span>
-            <span>{reasonDisplay}</span>
-          </div>
           {action === 'FAIL' && snap.failReason && (
             <div className="audit-detail-row">
               <span className="audit-row-label">Nguyên nhân:</span>
@@ -602,16 +608,6 @@ export default function UserAccessLevelPage() {
     if (action === 'ENABLE_EVENT_MODE' || action === 'DISABLE_EVENT_MODE' || action === 'EXTEND_EVENT_MODE') {
       const oldTime = oldValue?.openUntil ? formatDisplayDateTime(oldValue.openUntil) : '—';
       const newTime = newValue?.openUntil ? formatDisplayDateTime(newValue.openUntil) : '—';
-      const label = newValue?.reasonLabel || oldValue?.reasonLabel;
-      const note = newValue?.note || newValue?.reason || oldValue?.note || oldValue?.reason;
-      let reasonDisplay = '—';
-      if (label && note) {
-        reasonDisplay = `${label} – ${note}`;
-      } else if (label) {
-        reasonDisplay = label;
-      } else if (note) {
-        reasonDisplay = note;
-      }
 
       return (
         <div className="audit-detail-rules">
@@ -620,10 +616,6 @@ export default function UserAccessLevelPage() {
             <span>{oldTime}</span>
             <span className="audit-arrow">→</span>
             <strong className="audit-val--new">{newTime}</strong>
-          </div>
-          <div className="audit-detail-row">
-            <span className="audit-row-label">Lý do:</span>
-            <span>{reasonDisplay}</span>
           </div>
         </div>
       );
@@ -1123,12 +1115,12 @@ export default function UserAccessLevelPage() {
                               <span className="access-level-readonly-hint">Chỉ xem</span>
                             ) : (
                               <Button
-                                variant="outline"
+                                variant="secondary"
                                 size="sm"
+                                icon={Edit3}
                                 onClick={() => openEditPresetModal(preset)}
                               >
-                                <Edit3 size={14} />
-                                <span>Chỉnh sửa</span>
+                                Chỉnh sửa
                               </Button>
                             )}
                           </td>
@@ -1274,20 +1266,20 @@ export default function UserAccessLevelPage() {
 
             <div className="audit-filters-actions">
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
+                icon={RotateCcw}
                 onClick={handleResetFilters}
               >
-                <RotateCcw size={14} />
-                <span>Đặt lại</span>
+                Đặt lại
               </Button>
               <Button
                 variant="primary"
                 size="sm"
+                icon={Search}
                 onClick={() => loadAuditLogs(0)}
               >
-                <Search size={14} />
-                <span>Áp dụng lọc</span>
+                Áp dụng lọc
               </Button>
             </div>
           </div>
@@ -1371,9 +1363,9 @@ export default function UserAccessLevelPage() {
                             {renderAuditChange(log)}
                           </td>
                           <td className="audit-cell--reason">
-                            {log.reason ? (
-                              <span className="audit-reason-text" title={log.reason}>
-                                {log.reason}
+                            {getAuditReasonText(log) ? (
+                              <span className="audit-reason-text" title={getAuditReasonText(log)}>
+                                {getAuditReasonText(log)}
                               </span>
                             ) : (
                               <span className="audit-cell--empty">—</span>
@@ -1408,7 +1400,7 @@ export default function UserAccessLevelPage() {
                     </span>
                     <div className="audit-pagination__buttons">
                       <Button
-                        variant="outline"
+                        variant="secondary"
                         size="sm"
                         disabled={currentPage === 0 || loadingLogs}
                         onClick={() => loadAuditLogs(currentPage - 1)}
@@ -1416,7 +1408,7 @@ export default function UserAccessLevelPage() {
                         Trang trước
                       </Button>
                       <Button
-                        variant="outline"
+                        variant="secondary"
                         size="sm"
                         disabled={currentPage >= totalPages - 1 || loadingLogs}
                         onClick={() => loadAuditLogs(currentPage + 1)}
@@ -1447,7 +1439,7 @@ export default function UserAccessLevelPage() {
         footer={
           <div className="modal-actions-wrapper">
             <Button
-              variant="outline"
+              variant="secondary"
               onClick={() => setConfirmUserModal((prev) => ({ ...prev, isOpen: false }))}
               disabled={confirmUserModal.isSaving}
             >
@@ -1517,7 +1509,7 @@ export default function UserAccessLevelPage() {
         footer={
           <div className="modal-actions-wrapper">
             <Button
-              variant="outline"
+              variant="secondary"
               onClick={() => setEditPresetModal((prev) => ({ ...prev, isOpen: false }))}
               disabled={editPresetModal.isSaving}
             >
