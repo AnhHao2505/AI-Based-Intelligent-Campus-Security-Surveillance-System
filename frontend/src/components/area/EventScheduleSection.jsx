@@ -12,15 +12,8 @@ import {
 	cancelEventSchedule,
 } from "../../services/areaService";
 import { getActiveReasons } from "../../services/reasonCatalogService";
-import { formatDisplayDateTime } from "../../utils/areaHelpers";
+import { formatDisplayDateTime, getScheduleStatusView } from "../../utils/areaHelpers";
 import "./EventScheduleSection.css";
-
-const STATUS_CONFIG = {
-	SCHEDULED: { label: "Đã lên lịch", variant: "brand" },
-	STARTED: { label: "Đã bắt đầu", variant: "success" },
-	CANCELLED: { label: "Đã huỷ", variant: "neutral" },
-	FAILED: { label: "Thất bại", variant: "danger" },
-};
 
 // Loại hành động trong danh mục lý do cho từng thao tác với lịch
 const REASON_ACTION = {
@@ -338,7 +331,7 @@ export default function EventScheduleSection({ area, onAreaUpdated }) {
 	};
 
 	const renderScheduleItem = (s) => {
-		const status = STATUS_CONFIG[s.status] || { label: s.status, variant: "neutral" };
+		const status = getScheduleStatusView(s.status, s.endAt);
 		const isEditing = target?.id === s.id && (mode === "edit" || mode === "cancel");
 		return (
 			<li key={s.id} className="evs-item">

@@ -96,6 +96,27 @@ export function getAccessLevelConfig(level) {
 }
 
 /**
+ * Hiển thị trạng thái lịch chế độ sự kiện (chỉ trình bày, không đổi dữ liệu).
+ * STARTED được tách theo giờ kết thúc: đã qua endAt -> "Đã diễn ra", còn trong khung -> "Đang diễn ra".
+ * variant dùng cho components/ui/Badge.
+ */
+const SCHEDULE_STATUS_VIEW = {
+  SCHEDULED: { label: 'Đã lên lịch', variant: 'brand' },
+  CANCELLED: { label: 'Đã huỷ', variant: 'neutral' },
+  FAILED: { label: 'Thất bại', variant: 'danger' },
+};
+
+export function getScheduleStatusView(status, endAt, now = Date.now()) {
+  if (status === 'STARTED') {
+    const end = endAt ? new Date(endAt).getTime() : NaN;
+    return !isNaN(end) && end < now
+      ? { label: 'Đã diễn ra', variant: 'neutral' }
+      : { label: 'Đang diễn ra', variant: 'success' };
+  }
+  return SCHEDULE_STATUS_VIEW[status] || { label: status || '—', variant: 'neutral' };
+}
+
+/**
  * Lấy class CSS polygon tương ứng cho từng Cấp độ An ninh khu vực
  */
 export function getLevelPolygonClass(level) {
