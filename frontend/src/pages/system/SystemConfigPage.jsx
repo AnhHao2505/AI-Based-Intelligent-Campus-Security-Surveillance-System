@@ -35,6 +35,7 @@ export default function SystemConfigPage() {
 	// History modal state
 	const [historyModalOpen, setHistoryModalOpen] = useState(false);
 	const [historyConfigKey, setHistoryConfigKey] = useState("");
+	const [historyConfigName, setHistoryConfigName] = useState("");
 	const [historyLogs, setHistoryLogs] = useState([]);
 	const [historyLoading, setHistoryLoading] = useState(false);
 
