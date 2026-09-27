@@ -50,8 +50,10 @@ const OSM_STYLE = {
 	],
 };
 
-// Mức zoom (bằng mức bay tới một khu vực) từ đó hiện đủ nhãn khu vực trên bản đồ
-const LABEL_MIN_ZOOM = 17.5;
+// Mức zoom từ đó hiện đủ nhãn khu vực. Toạ độ các khu vực trong cùng toà nhà rất sát nhau:
+// ở 17.5 (mức bay tới một khu vực) nhãn vẫn đè nhau, nên chỉ hiện đủ khi gần mức tối đa (18.8);
+// dưới ngưỡng này nhãn hiện khi hover hoặc khu vực đang được chọn.
+const LABEL_MIN_ZOOM = 18.5;
 
 // Preset GPS marker locations for campus zones and landmarks
 const LANDMARK_LOCATIONS = [
