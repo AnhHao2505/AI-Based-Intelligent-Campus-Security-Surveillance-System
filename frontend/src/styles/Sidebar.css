@@ -248,8 +248,9 @@
   height: 16px;
   padding: 0 4px;
   border-radius: 999px;
-  background: var(--brand-blue);
-  color: var(--theme-on-brand);
+  /* UI-B B10: chữ #ffffff / nền #2563eb = 5.17:1 (trước: nền #3ba8d9 = 2.70:1) */
+  background: var(--action-primary-bg);
+  color: var(--action-primary-text);
   font-size: 10px;
   font-weight: 700;
   display: inline-flex;
