@@ -366,7 +366,7 @@ export default function AreaListView({
 							style={{ display: "inline", margin: "0 2px" }}
 						/>
 						) hiển thị trên thẻ của mọi phòng trừ loại{" "}
-						<strong>{AREA_LEVEL_CONFIG.PUBLIC.name} (PUBLIC)</strong> để cấp quyền ra vào cho nhân
+						<strong>{AREA_LEVEL_CONFIG.PUBLIC.name}</strong> để cấp quyền ra vào cho nhân
 						sự.
 					</span>
 				</div>

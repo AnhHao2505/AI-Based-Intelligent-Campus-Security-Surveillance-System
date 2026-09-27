@@ -156,7 +156,7 @@ export default function AreaMapView({
 								className="zone-canvas-empty__switch-btn"
 								onClick={() => onToggleView("list")}
 							>
-								Chuyển sang chế độ Danh sách
+								Chuyển sang chế độ danh sách
 							</button>
 						</div>
 					) : (

@@ -535,7 +535,7 @@ export default function AccessRequestReviewPage() {
         <div className="arr-modal-overlay" onClick={() => !actionLoading && setApproveItem(null)}>
           <div className="arr-modal arr-modal--sm" onClick={e => e.stopPropagation()}>
             <div className="arr-modal__header">
-              <h2 className="arr-modal__title">Xác nhận Phê duyệt</h2>
+              <h2 className="arr-modal__title">Xác nhận phê duyệt</h2>
               <button
                 type="button"
                 className="arr-modal__close"
@@ -584,7 +584,7 @@ export default function AccessRequestReviewPage() {
                 disabled={actionLoading}
               >
                 <Check size={16} />
-                <span>{actionLoading ? 'Đang duyệt...' : 'Xác nhận Duyệt'}</span>
+                <span>{actionLoading ? 'Đang duyệt...' : 'Xác nhận duyệt'}</span>
               </button>
             </div>
           </div>
@@ -596,7 +596,7 @@ export default function AccessRequestReviewPage() {
         <div className="arr-modal-overlay" onClick={() => !actionLoading && setRejectItem(null)}>
           <div className="arr-modal" onClick={e => e.stopPropagation()}>
             <div className="arr-modal__header">
-              <h2 className="arr-modal__title">Từ chối Yêu cầu Truy cập</h2>
+              <h2 className="arr-modal__title">Từ chối yêu cầu truy cập</h2>
               <button
                 type="button"
                 className="arr-modal__close"
@@ -652,7 +652,7 @@ export default function AccessRequestReviewPage() {
                 disabled={actionLoading || rejectionReason.trim().length < 10}
               >
                 <X size={16} />
-                <span>{actionLoading ? 'Đang xử lý...' : 'Xác nhận Từ chối'}</span>
+                <span>{actionLoading ? 'Đang xử lý...' : 'Xác nhận từ chối'}</span>
               </button>
             </div>
           </div>
@@ -664,7 +664,7 @@ export default function AccessRequestReviewPage() {
         <div className="arr-modal-overlay" onClick={() => setDetailItem(null)}>
           <div className="arr-modal" onClick={e => e.stopPropagation()}>
             <div className="arr-modal__header">
-              <h2 className="arr-modal__title">Chi tiết Yêu cầu Truy cập</h2>
+              <h2 className="arr-modal__title">Chi tiết yêu cầu truy cập</h2>
               <button
                 type="button"
                 className="arr-modal__close"

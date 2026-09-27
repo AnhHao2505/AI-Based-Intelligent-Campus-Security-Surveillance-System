@@ -642,7 +642,7 @@ export default function AccessRequestPage() {
 											<div>
 												{isHighlyConf
 													? `Khu vực ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name}. Chỉ áp dụng hình thức đăng ký truy cập Cá nhân (Individual).`
-													: "Khu vực yêu cầu xác nhận. Nhân sự Level 2 cần làm đơn đăng ký (Cá nhân hoặc Nhóm) hoặc có tên trong danh sách chỉ định."}
+													: "Khu vực yêu cầu xác nhận. Nhân sự cấp 2 cần làm đơn đăng ký (cá nhân hoặc nhóm) hoặc có tên trong danh sách chỉ định."}
 											</div>
 										</div>
 									</div>
@@ -1300,7 +1300,7 @@ export default function AccessRequestPage() {
 								</div>
 								<div>
 									<h2 className="arp-modal__title">
-										Chi tiết Yêu cầu Truy cập
+										Chi tiết yêu cầu truy cập
 									</h2>
 									<div className="arp-modal__subtitle">
 										Mã yêu cầu: #{selectedDetail.id?.substring(0, 8)}

@@ -284,7 +284,7 @@ export default function ReasonCatalogPage() {
 									<td style={{ padding: "12px 16px" }}>{item.sortOrder}</td>
 									<td style={{ padding: "12px 16px" }}>
 										{item.isOther ? (
-											<Badge variant="warning">Mục Khác</Badge>
+											<Badge variant="warning">Mục khác</Badge>
 										) : (
 											<Badge variant="default">Chuẩn</Badge>
 										)}

@@ -52,17 +52,17 @@ const ACCESS_LEVELS = [
 
 const MODULE_OPTIONS_ADMIN = [
   { value: '', label: 'Tất cả phân hệ' },
-  { value: 'AREA', label: 'Khu vực (AREA)' },
-  { value: 'ACCESS_CONTROL', label: 'Phân quyền (ACCESS_CONTROL)' },
-  { value: 'ACCESS_REQUEST', label: 'Yêu cầu truy cập (ACCESS_REQUEST)' },
-  { value: 'SYSTEM', label: 'Hệ thống (SYSTEM)' },
+  { value: 'AREA', label: 'Khu vực' },
+  { value: 'ACCESS_CONTROL', label: 'Phân quyền' },
+  { value: 'ACCESS_REQUEST', label: 'Yêu cầu truy cập' },
+  { value: 'SYSTEM', label: 'Hệ thống' },
 ];
 
 const MODULE_OPTIONS_FM = [
   { value: '', label: 'Tất cả phân hệ' },
-  { value: 'AREA', label: 'Khu vực (AREA)' },
-  { value: 'ACCESS_CONTROL', label: 'Phân quyền (ACCESS_CONTROL)' },
-  { value: 'ACCESS_REQUEST', label: 'Yêu cầu truy cập (ACCESS_REQUEST)' },
+  { value: 'AREA', label: 'Khu vực' },
+  { value: 'ACCESS_CONTROL', label: 'Phân quyền' },
+  { value: 'ACCESS_REQUEST', label: 'Yêu cầu truy cập' },
 ];
 
 const TARGET_TYPE_OPTIONS = [
@@ -863,8 +863,8 @@ export default function UserAccessLevelPage() {
             <div className="access-level-callout__content">
               <div className="access-level-callout__title">Quy tắc phân cấp độ truy cập:</div>
               <div className="access-level-callout__text">
-                Người dùng có <strong>Cấp độ truy cập (User Access Level)</strong> lớn hơn hoặc bằng{' '}
-                <strong>Cấp độ khu vực (Area Access Level)</strong> sẽ được <strong>vào tự do</strong> tại các khu vực không bật cờ <em>"Chỉ định đích danh"</em>.
+                Người dùng có <strong>cấp độ truy cập của người dùng</strong> lớn hơn hoặc bằng{' '}
+                <strong>cấp độ của khu vực</strong> sẽ được <strong>vào tự do</strong> tại các khu vực không bật cờ <em>"Chỉ định đích danh"</em>.
               </div>
               <div className="access-level-callout__tiers">
                 <span className="tier-tag tier-tag--1">
@@ -1191,7 +1191,7 @@ export default function UserAccessLevelPage() {
 
               {/* Target Type Filter */}
               <div className="audit-filter-item">
-                <label className="audit-filter-label">Loại thao tác</label>
+                <label className="audit-filter-label">Loại đối tượng</label>
                 <select
                   className="audit-filter-select"
                   value={filterTargetType}
@@ -1555,9 +1555,9 @@ export default function UserAccessLevelPage() {
                 }))
               }
             >
-              <option value={1}>Cấp 1 — Mọi người dùng (Level 1)</option>
-              <option value={2}>Cấp 2 — Nhân viên (Level 2)</option>
-              <option value={3}>Cấp 3 — Cấp cao (Level 3)</option>
+              <option value={1}>Cấp 1 — Mọi người dùng</option>
+              <option value={2}>Cấp 2 — Nhân viên</option>
+              <option value={3}>Cấp 3 — Cấp cao</option>
             </select>
           </div>
 

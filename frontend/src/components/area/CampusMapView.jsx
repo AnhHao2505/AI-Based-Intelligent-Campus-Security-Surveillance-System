@@ -338,7 +338,7 @@ export default function CampusMapView({
 				<div className="campus-rail-card campus-rail-card--list">
 					<div className="campus-rail-header">
 						<span className="campus-rail-title">
-							Khu vực Khuôn viên ({areas.length})
+							Khu vực khuôn viên ({areas.length})
 						</span>
 					</div>
 
