@@ -18,5 +18,7 @@ public enum AuditAction {
     REJECT,
     CANCEL,
     FINISH,
-    EXPIRE
+    EXPIRE,
+    FAIL,
+    EXPIRE_EVENT_MODE
 }

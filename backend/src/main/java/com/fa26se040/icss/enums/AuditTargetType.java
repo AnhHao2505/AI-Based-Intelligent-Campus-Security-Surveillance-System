@@ -8,5 +8,6 @@ public enum AuditTargetType {
     AREA_ACCESS_RULES,
     LEVEL_PRESET,
     ACCESS_REQUEST,
-    REASON_CATALOG
+    REASON_CATALOG,
+    AREA_EVENT_SCHEDULE
 }

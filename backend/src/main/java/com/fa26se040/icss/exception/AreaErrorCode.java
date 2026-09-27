@@ -34,7 +34,19 @@ public enum AreaErrorCode {
     ERR_AREA_028("ERR_AREA_028", HttpStatus.BAD_REQUEST, "Vượt quá ngân sách thời gian mở sự kiện của khu vực"),
     ERR_AREA_029("ERR_AREA_029", HttpStatus.BAD_REQUEST, "Không thể ngừng sử dụng mục lý do mặc định 'Khác'"),
     ERR_AREA_030("ERR_AREA_030", HttpStatus.CONFLICT, "Trạng thái sự kiện đã thay đổi: {status}. Vui lòng tải lại trang."),
-    ERR_AREA_031("ERR_AREA_031", HttpStatus.BAD_REQUEST, "Thời lượng mở sự kiện tối thiểu là {minMinutes} phút.");
+    ERR_AREA_031("ERR_AREA_031", HttpStatus.BAD_REQUEST, "Thời lượng mở sự kiện tối thiểu là {minMinutes} phút."),
+    ERR_AREA_032("ERR_AREA_032", HttpStatus.BAD_REQUEST, "Thời điểm bắt đầu lịch sự kiện phải ở trong tương lai"),
+    ERR_AREA_033("ERR_AREA_033", HttpStatus.BAD_REQUEST, "Thời điểm bắt đầu vượt quá thời gian đặt trước tối đa ({maxLeadDays} ngày)"),
+    ERR_AREA_034("ERR_AREA_034", HttpStatus.BAD_REQUEST, "Thời điểm kết thúc lịch sự kiện phải sau thời điểm bắt đầu"),
+    ERR_AREA_035("ERR_AREA_035", HttpStatus.BAD_REQUEST, "Thời lượng lịch sự kiện tối thiểu là {minMinutes} phút"),
+    ERR_AREA_036("ERR_AREA_036", HttpStatus.BAD_REQUEST, "Thời lượng lịch sự kiện vượt quá giới hạn tối đa cho một phiên ({maxHours} giờ)"),
+    ERR_AREA_037("ERR_AREA_037", HttpStatus.CONFLICT, "Thời gian lịch sự kiện bị trùng hoặc chồng lấn với lịch sự kiện khác đã đặt"),
+    ERR_AREA_038("ERR_AREA_038", HttpStatus.CONFLICT, "Thời gian lịch sự kiện bị trùng hoặc chồng lấn với phiên sự kiện đang hoạt động"),
+    ERR_AREA_039("ERR_AREA_039", HttpStatus.BAD_REQUEST, "Số lượng lịch sự kiện chờ diễn ra của khu vực đã đạt tối đa ({maxSchedules})"),
+    ERR_AREA_040("ERR_AREA_040", HttpStatus.CONFLICT, "Chỉ có thể sửa hoặc huỷ lịch sự kiện ở trạng thái chờ diễn ra (SCHEDULED)"),
+    ERR_AREA_041("ERR_AREA_041", HttpStatus.CONFLICT, "Thời gian mở sự kiện bị trùng hoặc chồng lấn với lịch sự kiện đã đặt trước"),
+    ERR_AREA_042("ERR_AREA_042", HttpStatus.CONFLICT, "Khu vực còn {count} lịch sự kiện chưa diễn ra, huỷ lịch trước"),
+    ERR_AREA_043("ERR_AREA_043", HttpStatus.NOT_FOUND, "Không tìm thấy lịch sự kiện");
 
     private final String code;
     private final HttpStatus httpStatus;
