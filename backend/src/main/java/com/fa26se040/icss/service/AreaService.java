@@ -58,7 +58,7 @@ public class AreaService {
     private final AreaValidator areaValidator;
     private final AreaDependencyChecker dependencyChecker;
     private final AreaGeometryValidator geometryValidator;
-    private final AccessControlAuditService auditService;
+    private final AuditService auditService;
     private final com.fa26se040.icss.repository.ReasonCatalogRepository reasonCatalogRepository;
     private final com.fa26se040.icss.repository.AreaEventSessionRepository eventSessionRepository;
     private final SystemConfigService systemConfigService;
@@ -471,8 +471,8 @@ public class AreaService {
                     );
 
             auditService.record(
-                    com.fa26se040.icss.enums.AccessControlTargetType.AREA_ACCESS_RULES,
-                    com.fa26se040.icss.enums.AccessControlAction.UPDATE,
+                    com.fa26se040.icss.enums.AuditTargetType.AREA_ACCESS_RULES,
+                    com.fa26se040.icss.enums.AuditAction.UPDATE,
                     savedArea.getId().toString(),
                     savedArea,
                     null,
@@ -660,7 +660,7 @@ public class AreaService {
         return "Trạng thái sự kiện đã thay đổi: đang tắt. Vui lòng tải lại trang.";
     }
 
-    private void sendGuardEventModeChangedNotification(Area area, com.fa26se040.icss.enums.AccessControlAction action, User actor, OffsetDateTime openUntil) {
+    private void sendGuardEventModeChangedNotification(Area area, com.fa26se040.icss.enums.AuditAction action, User actor, OffsetDateTime openUntil) {
         InAppNotificationService notifService = inAppNotificationServiceProvider.getIfAvailable();
         if (notifService == null) {
             return;
@@ -672,9 +672,9 @@ public class AreaService {
 
         java.time.format.DateTimeFormatter dtf = java.time.format.DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy").withZone(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
         String actionText;
-        if (action == com.fa26se040.icss.enums.AccessControlAction.ENABLE_EVENT_MODE) {
+        if (action == com.fa26se040.icss.enums.AuditAction.ENABLE_EVENT_MODE) {
             actionText = "Bật";
-        } else if (action == com.fa26se040.icss.enums.AccessControlAction.EXTEND_EVENT_MODE) {
+        } else if (action == com.fa26se040.icss.enums.AuditAction.EXTEND_EVENT_MODE) {
             actionText = "Điều chỉnh giờ kết thúc";
         } else {
             actionText = "Tắt";
@@ -757,16 +757,16 @@ public class AreaService {
 
         // 5. Xác định thao tác (BR-EV-08):
         String expectedActionType;
-        com.fa26se040.icss.enums.AccessControlAction action;
+        com.fa26se040.icss.enums.AuditAction action;
         if (!activeNow && targetEnabled) {
             expectedActionType = "EVENT_ENABLE";
-            action = com.fa26se040.icss.enums.AccessControlAction.ENABLE_EVENT_MODE;
+            action = com.fa26se040.icss.enums.AuditAction.ENABLE_EVENT_MODE;
         } else if (activeNow && targetEnabled) {
             expectedActionType = "EVENT_EXTEND";
-            action = com.fa26se040.icss.enums.AccessControlAction.EXTEND_EVENT_MODE;
+            action = com.fa26se040.icss.enums.AuditAction.EXTEND_EVENT_MODE;
         } else if (activeNow && !targetEnabled) {
             expectedActionType = "EVENT_DISABLE";
-            action = com.fa26se040.icss.enums.AccessControlAction.DISABLE_EVENT_MODE;
+            action = com.fa26se040.icss.enums.AuditAction.DISABLE_EVENT_MODE;
         } else {
             // 6. (BR-EV-10) !activeNow ∧ !enabled -> 409 mã M1 (ERR_AREA_030), KHÔNG audit
             OffsetDateTime lastPlannedEnd = eventSessionRepository.findTopByAreaIdOrderByStartedAtDesc(id)
@@ -895,7 +895,7 @@ public class AreaService {
                 new com.fa26se040.icss.dto.accesscontrol.snapshot.AreaEventModeAuditSnapshot(savedArea.getOpenToMembers(), savedArea.getOpenUntil(), normReasonCode, reasonLabel, trimmedNote);
 
         auditService.record(
-                com.fa26se040.icss.enums.AccessControlTargetType.AREA_EVENT_MODE,
+                com.fa26se040.icss.enums.AuditTargetType.AREA_EVENT_MODE,
                 action,
                 savedArea.getId().toString(),
                 savedArea,

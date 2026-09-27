@@ -1,0 +1,22 @@
+package com.fa26se040.icss.enums;
+
+public enum AuditAction {
+    CREATE,
+    UPDATE,
+    UPDATE_GEOMETRY,
+    DELETE_GEOMETRY,
+    DEACTIVATE,
+    REACTIVATE,
+    UPDATE_CAMERAS,
+    ENABLE_EVENT_MODE,
+    DISABLE_EVENT_MODE,
+    EXTEND_EVENT_MODE,
+    ASSIGN,
+    UPDATE_VALIDITY,
+    REVOKE,
+    APPROVE,
+    REJECT,
+    CANCEL,
+    FINISH,
+    EXPIRE
+}

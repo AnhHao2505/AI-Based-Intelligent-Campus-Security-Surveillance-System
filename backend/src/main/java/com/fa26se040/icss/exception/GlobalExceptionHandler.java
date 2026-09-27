@@ -10,10 +10,13 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import com.fa26se040.icss.dto.common.ApiResponse;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -182,9 +185,21 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
     }
 
+    @ExceptionHandler(AuditWriteException.class)
+    public ResponseEntity<ApiResponse<Object>> handleAuditWriteException(AuditWriteException ex) {
+        ApiResponse<Object> body = ApiResponse.error(
+                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                ex.getCode(),
+                ex.getMessage()
+        );
+        return new ResponseEntity<>(body, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Object>> handleGeneral(Exception ex) {
-        return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred: " + ex.getMessage());
+        String errorId = UUID.randomUUID().toString().substring(0, 8);
+        log.error("Unhandled exception [errorId={}]: ", errorId, ex);
+        return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "Lỗi hệ thống. Mã tra cứu: " + errorId);
     }
 
     private ResponseEntity<ApiResponse<Object>> buildResponse(HttpStatus status, String message) {

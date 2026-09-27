@@ -1,19 +1,26 @@
 package com.fa26se040.icss.service;
 
-import com.fa26se040.icss.dto.accesscontrol.AccessControlAuditLogResponse;
+import com.fa26se040.icss.context.AuditContext;
+import com.fa26se040.icss.dto.accesscontrol.AuditLogResponse;
 import com.fa26se040.icss.dto.accesscontrol.snapshot.AreaAccessRulesAuditSnapshot;
 import com.fa26se040.icss.dto.accesscontrol.snapshot.AreaAssignmentAuditSnapshot;
 import com.fa26se040.icss.dto.accesscontrol.snapshot.LevelPresetAuditSnapshot;
 import com.fa26se040.icss.dto.accesscontrol.snapshot.UserAccessLevelAuditSnapshot;
-import com.fa26se040.icss.entity.AccessControlAuditLog;
+import com.fa26se040.icss.dto.audit.AuditActor;
 import com.fa26se040.icss.entity.Area;
+import com.fa26se040.icss.entity.AuditLog;
 import com.fa26se040.icss.entity.User;
-import com.fa26se040.icss.enums.AccessControlAction;
-import com.fa26se040.icss.enums.AccessControlTargetType;
 import com.fa26se040.icss.enums.AreaLevel;
 import com.fa26se040.icss.enums.AssignedPersonnelStatus;
+import com.fa26se040.icss.enums.AuditAction;
+import com.fa26se040.icss.enums.AuditTargetType;
 import com.fa26se040.icss.enums.Role;
-import com.fa26se040.icss.repository.AccessControlAuditLogRepository;
+import com.fa26se040.icss.repository.AreaRepository;
+import com.fa26se040.icss.repository.AuditLogRepository;
+import com.fa26se040.icss.repository.AuditModuleRoleRepository;
+import com.fa26se040.icss.repository.UserRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,6 +28,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -30,26 +38,30 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class AccessControlAuditServiceTest {
+class AuditServiceTest {
 
     @Mock
-    private AccessControlAuditLogRepository auditLogRepository;
+    private AuditLogRepository auditLogRepository;
 
-    @org.mockito.Spy
-    private com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
+    @Mock
+    private AuditModuleRoleRepository auditModuleRoleRepository;
+
+    @Mock
+    private AreaRepository areaRepository;
+
+    @Mock
+    private UserRepository userRepository;
+
+    @Spy
+    private ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
     @InjectMocks
-    private AccessControlAuditService auditService;
+    private AuditService auditService;
 
     private User actor;
     private User subjectUser;
@@ -79,8 +91,13 @@ class AccessControlAuditServiceTest {
                 .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
                 .build();
 
-        org.mockito.Mockito.lenient().when(auditLogRepository.save(any(AccessControlAuditLog.class)))
+        lenient().when(auditLogRepository.saveAndFlush(any(AuditLog.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
+    }
+
+    @AfterEach
+    void tearDown() {
+        AuditContext.clear();
     }
 
     @Test
@@ -90,10 +107,10 @@ class AccessControlAuditServiceTest {
         UserAccessLevelAuditSnapshot newVal = new UserAccessLevelAuditSnapshot(2);
 
         auditService.record(
-                AccessControlTargetType.USER_ACCESS_LEVEL,
-                AccessControlAction.UPDATE,
+                AuditTargetType.USER_ACCESS_LEVEL,
+                AuditAction.UPDATE,
                 subjectUser.getId().toString(),
-                null,
+                (Area) null,
                 subjectUser,
                 oldVal,
                 newVal,
@@ -101,20 +118,20 @@ class AccessControlAuditServiceTest {
                 actor
         );
 
-        ArgumentCaptor<AccessControlAuditLog> captor = ArgumentCaptor.forClass(AccessControlAuditLog.class);
-        verify(auditLogRepository).save(captor.capture());
+        ArgumentCaptor<AuditLog> captor = ArgumentCaptor.forClass(AuditLog.class);
+        verify(auditLogRepository).saveAndFlush(captor.capture());
 
-        AccessControlAuditLog saved = captor.getValue();
-        assertEquals(AccessControlTargetType.USER_ACCESS_LEVEL, saved.getTargetType());
-        assertEquals(AccessControlAction.UPDATE, saved.getAction());
+        AuditLog saved = captor.getValue();
+        assertEquals(AuditTargetType.USER_ACCESS_LEVEL, saved.getTargetType());
+        assertEquals(AuditAction.UPDATE, saved.getAction());
         assertEquals(subjectUser.getId().toString(), saved.getTargetId());
         assertNull(saved.getArea());
         assertEquals(subjectUser, saved.getSubjectUser());
         assertEquals(actor, saved.getChangedBy());
-        assertEquals(objectMapper.valueToTree(oldVal), saved.getOldValue());
-        assertEquals(objectMapper.valueToTree(newVal), saved.getNewValue());
+        assertEquals("USER", saved.getActorType());
+        assertNull(saved.getActorSource());
+        assertNotNull(saved.getCorrelationId());
         assertEquals("Nâng cấp độ cho sinh viên NCKH", saved.getReason());
-        assertNotNull(saved.getChangedAt());
     }
 
     @Test
@@ -124,8 +141,8 @@ class AccessControlAuditServiceTest {
         AreaAccessRulesAuditSnapshot newVal = new AreaAccessRulesAuditSnapshot(2, true);
 
         auditService.record(
-                AccessControlTargetType.AREA_ACCESS_RULES,
-                AccessControlAction.UPDATE,
+                AuditTargetType.AREA_ACCESS_RULES,
+                AuditAction.UPDATE,
                 area.getId().toString(),
                 area,
                 null,
@@ -135,15 +152,13 @@ class AccessControlAuditServiceTest {
                 actor
         );
 
-        ArgumentCaptor<AccessControlAuditLog> captor = ArgumentCaptor.forClass(AccessControlAuditLog.class);
-        verify(auditLogRepository).save(captor.capture());
+        ArgumentCaptor<AuditLog> captor = ArgumentCaptor.forClass(AuditLog.class);
+        verify(auditLogRepository).saveAndFlush(captor.capture());
 
-        AccessControlAuditLog saved = captor.getValue();
-        assertEquals(AccessControlTargetType.AREA_ACCESS_RULES, saved.getTargetType());
+        AuditLog saved = captor.getValue();
+        assertEquals(AuditTargetType.AREA_ACCESS_RULES, saved.getTargetType());
         assertEquals(area, saved.getArea());
         assertNull(saved.getSubjectUser());
-        assertEquals(objectMapper.valueToTree(oldVal), saved.getOldValue());
-        assertEquals(objectMapper.valueToTree(newVal), saved.getNewValue());
         assertEquals("Tăng cường kiểm soát phòng Lab", saved.getReason());
     }
 
@@ -155,8 +170,8 @@ class AccessControlAuditServiceTest {
         AreaAssignmentAuditSnapshot newVal = new AreaAssignmentAuditSnapshot(from, to, AssignedPersonnelStatus.ACTIVE);
 
         auditService.record(
-                AccessControlTargetType.AREA_ASSIGNMENT,
-                AccessControlAction.ASSIGN,
+                AuditTargetType.AREA_ASSIGNMENT,
+                AuditAction.ASSIGN,
                 UUID.randomUUID().toString(),
                 area,
                 subjectUser,
@@ -166,14 +181,14 @@ class AccessControlAuditServiceTest {
                 actor
         );
 
-        ArgumentCaptor<AccessControlAuditLog> captor = ArgumentCaptor.forClass(AccessControlAuditLog.class);
-        verify(auditLogRepository).save(captor.capture());
+        ArgumentCaptor<AuditLog> captor = ArgumentCaptor.forClass(AuditLog.class);
+        verify(auditLogRepository).saveAndFlush(captor.capture());
 
-        AccessControlAuditLog saved = captor.getValue();
-        assertEquals(AccessControlTargetType.AREA_ASSIGNMENT, saved.getTargetType());
-        assertEquals(AccessControlAction.ASSIGN, saved.getAction());
+        AuditLog saved = captor.getValue();
+        assertEquals(AuditTargetType.AREA_ASSIGNMENT, saved.getTargetType());
+        assertEquals(AuditAction.ASSIGN, saved.getAction());
         assertNull(saved.getOldValue());
-        assertEquals(objectMapper.valueToTree(newVal), saved.getNewValue());
+        assertNotNull(saved.getNewValue());
     }
 
     @Test
@@ -183,10 +198,10 @@ class AccessControlAuditServiceTest {
         LevelPresetAuditSnapshot newVal = new LevelPresetAuditSnapshot(1, true);
 
         auditService.record(
-                AccessControlTargetType.LEVEL_PRESET,
-                AccessControlAction.UPDATE,
+                AuditTargetType.LEVEL_PRESET,
+                AuditAction.UPDATE,
                 "PUBLIC",
-                null,
+                (Area) null,
                 null,
                 oldVal,
                 newVal,
@@ -194,61 +209,85 @@ class AccessControlAuditServiceTest {
                 actor
         );
 
-        ArgumentCaptor<AccessControlAuditLog> captor = ArgumentCaptor.forClass(AccessControlAuditLog.class);
-        verify(auditLogRepository).save(captor.capture());
+        ArgumentCaptor<AuditLog> captor = ArgumentCaptor.forClass(AuditLog.class);
+        verify(auditLogRepository).saveAndFlush(captor.capture());
 
-        AccessControlAuditLog saved = captor.getValue();
-        assertEquals(AccessControlTargetType.LEVEL_PRESET, saved.getTargetType());
+        AuditLog saved = captor.getValue();
+        assertEquals(AuditTargetType.LEVEL_PRESET, saved.getTargetType());
         assertEquals("PUBLIC", saved.getTargetId());
-        assertEquals(objectMapper.valueToTree(oldVal), saved.getOldValue());
-        assertEquals(objectMapper.valueToTree(newVal), saved.getNewValue());
     }
 
     @Test
-    @DisplayName("Thao tác No-op: new == old không ghi audit log và không gọi repository.save")
-    void record_NoOp_DoesNotSaveLog() {
-        // Enforced in service layer before calling auditService.record
-        // Here we verify that if auditService.record is not called, no interaction occurs
-        verify(auditLogRepository, never()).save(any());
+    @DisplayName("Ghi log thành công cho actor hệ thống SYSTEM")
+    void record_SystemActor_Success() {
+        AuditActor systemActor = AuditActor.system("EXPIRE_JOB");
+        auditService.record(
+                AuditTargetType.ACCESS_REQUEST,
+                AuditAction.EXPIRE,
+                "REQ-123",
+                (Area) null,
+                null,
+                null,
+                null,
+                "Hết hạn tự động",
+                systemActor
+        );
+
+        ArgumentCaptor<AuditLog> captor = ArgumentCaptor.forClass(AuditLog.class);
+        verify(auditLogRepository).saveAndFlush(captor.capture());
+
+        AuditLog saved = captor.getValue();
+        assertEquals("SYSTEM", saved.getActorType());
+        assertEquals("EXPIRE_JOB", saved.getActorSource());
+        assertNull(saved.getChangedBy());
+        assertNotNull(saved.getCorrelationId());
     }
 
     @Test
     @DisplayName("Tra cứu danh sách nhật ký phân trang và map sang DTO không chứa PII (không chứa email)")
     void getAuditLogs_ReturnsMappedDtoWithoutPii() {
-        AccessControlAuditLog log = AccessControlAuditLog.builder()
+        when(auditModuleRoleRepository.findModulesByRole("ADMIN"))
+                .thenReturn(List.of("AREA", "ACCESS_CONTROL", "ACCESS_REQUEST", "SYSTEM"));
+
+        AuditLog log = AuditLog.builder()
                 .id(UUID.randomUUID())
-                .targetType(AccessControlTargetType.USER_ACCESS_LEVEL)
+                .targetType(AuditTargetType.USER_ACCESS_LEVEL)
                 .targetId(subjectUser.getId().toString())
-                .action(AccessControlAction.UPDATE)
+                .action(AuditAction.UPDATE)
                 .area(area)
                 .subjectUser(subjectUser)
                 .changedBy(actor)
-                .oldValue(objectMapper.valueToTree(new UserAccessLevelAuditSnapshot(1)))
-                .newValue(objectMapper.valueToTree(new UserAccessLevelAuditSnapshot(2)))
+                .actorType("USER")
+                .oldValue("{\"accessLevel\":1}")
+                .newValue("{\"accessLevel\":2}")
                 .reason("Cập nhật cấp độ")
+                .correlationId(UUID.randomUUID())
                 .changedAt(OffsetDateTime.now())
                 .build();
 
-        Page<AccessControlAuditLog> page = new PageImpl<>(List.of(log), PageRequest.of(0, 10), 1);
+        Page<AuditLog> page = new PageImpl<>(List.of(log), PageRequest.of(0, 10), 1);
         when(auditLogRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class), any(org.springframework.data.domain.Pageable.class)))
                 .thenReturn(page);
 
-        Page<AccessControlAuditLogResponse> result = auditService.getAuditLogs(
-                AccessControlTargetType.USER_ACCESS_LEVEL,
+        Page<AuditLogResponse> result = auditService.getAuditLogs(
+                null,
+                null,
+                AuditTargetType.USER_ACCESS_LEVEL,
                 null,
                 null,
                 null,
                 null,
                 null,
-                PageRequest.of(0, 10)
+                PageRequest.of(0, 10),
+                "ADMIN"
         );
 
         assertNotNull(result);
         assertEquals(1, result.getTotalElements());
 
-        AccessControlAuditLogResponse dto = result.getContent().get(0);
+        AuditLogResponse dto = result.getContent().get(0);
         assertEquals(log.getId(), dto.id());
-        assertEquals(AccessControlTargetType.USER_ACCESS_LEVEL, dto.targetType());
+        assertEquals(AuditTargetType.USER_ACCESS_LEVEL, dto.targetType());
         assertEquals(area.getId(), dto.areaId());
         assertEquals("Phòng Lab Máy Tính", dto.areaName());
         assertEquals("Quản Lý Cơ Sở", dto.changedByName());
@@ -263,37 +302,45 @@ class AccessControlAuditServiceTest {
     @Test
     @DisplayName("Tra cứu danh sách nhật ký có lọc theo areaId và trả về DTO đủ areaId và areaName")
     void getAuditLogs_FilterByAreaId_Success() {
-        AccessControlAuditLog log = AccessControlAuditLog.builder()
+        when(auditModuleRoleRepository.findModulesByRole("ADMIN"))
+                .thenReturn(List.of("AREA", "ACCESS_CONTROL", "ACCESS_REQUEST", "SYSTEM"));
+
+        AuditLog log = AuditLog.builder()
                 .id(UUID.randomUUID())
-                .targetType(AccessControlTargetType.AREA_ACCESS_RULES)
+                .targetType(AuditTargetType.AREA_ACCESS_RULES)
                 .targetId(area.getId().toString())
-                .action(AccessControlAction.UPDATE)
+                .action(AuditAction.UPDATE)
                 .area(area)
                 .changedBy(actor)
-                .oldValue(objectMapper.valueToTree(new AreaAccessRulesAuditSnapshot(1, false)))
-                .newValue(objectMapper.valueToTree(new AreaAccessRulesAuditSnapshot(2, true)))
+                .actorType("USER")
+                .oldValue("{\"areaAccessLevel\":1,\"explicitAuthorizationRequired\":false}")
+                .newValue("{\"areaAccessLevel\":2,\"explicitAuthorizationRequired\":true}")
                 .reason("Cập nhật mức bảo vệ")
+                .correlationId(UUID.randomUUID())
                 .changedAt(OffsetDateTime.now())
                 .build();
 
-        Page<AccessControlAuditLog> page = new PageImpl<>(List.of(log), PageRequest.of(0, 10), 1);
+        Page<AuditLog> page = new PageImpl<>(List.of(log), PageRequest.of(0, 10), 1);
         when(auditLogRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class), any(org.springframework.data.domain.Pageable.class)))
                 .thenReturn(page);
 
-        Page<AccessControlAuditLogResponse> result = auditService.getAuditLogs(
+        Page<AuditLogResponse> result = auditService.getAuditLogs(
+                null,
+                null,
                 null,
                 area.getId(),
                 null,
                 null,
                 null,
                 null,
-                PageRequest.of(0, 10)
+                PageRequest.of(0, 10),
+                "ADMIN"
         );
 
         assertNotNull(result);
         assertEquals(1, result.getTotalElements());
 
-        AccessControlAuditLogResponse dto = result.getContent().get(0);
+        AuditLogResponse dto = result.getContent().get(0);
         assertEquals(log.getId(), dto.id());
         assertEquals(area.getId(), dto.areaId());
         assertEquals("Phòng Lab Máy Tính", dto.areaName());

@@ -6,7 +6,7 @@ import com.fa26se040.icss.dto.user.UserSearchResponse;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.AreaLevel;
 import com.fa26se040.icss.enums.Role;
-import com.fa26se040.icss.service.AccessControlAuditService;
+import com.fa26se040.icss.service.AuditService;
 import com.fa26se040.icss.service.AreaLevelPresetService;
 import com.fa26se040.icss.service.AreaService;
 import com.fa26se040.icss.service.UserService;
@@ -51,7 +51,7 @@ class AccessControlSecurityTest extends AbstractIntegrationTest {
     private AreaLevelPresetService presetService;
 
     @MockBean
-    private AccessControlAuditService auditService;
+    private AuditService auditService;
 
     @MockBean
     private UserService userService;
@@ -178,7 +178,7 @@ class AccessControlSecurityTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("BR-AL-08: GET /audit-logs: ADMIN được phép -> 200 OK")
         void getAuditLogs_Admin_Returns200() throws Exception {
-            when(auditService.getAuditLogs(any(), any(), any(), any(), any(), any(), any()))
+            when(auditService.getAuditLogs(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
                     .thenReturn(new PageImpl<>(List.of()));
             mockMvc.perform(get("/api/access-control/audit-logs")
                             .header("Authorization", tokenFor(Role.ADMIN)))
@@ -188,7 +188,7 @@ class AccessControlSecurityTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("BR-AL-08: GET /audit-logs: FM được phép -> 200 OK")
         void getAuditLogs_FacilityManager_Returns200() throws Exception {
-            when(auditService.getAuditLogs(any(), any(), any(), any(), any(), any(), any()))
+            when(auditService.getAuditLogs(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
                     .thenReturn(new PageImpl<>(List.of()));
             mockMvc.perform(get("/api/access-control/audit-logs")
                             .header("Authorization", tokenFor(Role.FACILITY_MANAGER)))

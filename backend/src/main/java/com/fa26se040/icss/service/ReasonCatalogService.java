@@ -6,8 +6,8 @@ import com.fa26se040.icss.dto.reasoncatalog.ReasonCatalogResponse;
 import com.fa26se040.icss.dto.reasoncatalog.ReasonCatalogUpdateRequest;
 import com.fa26se040.icss.entity.ReasonCatalog;
 import com.fa26se040.icss.entity.User;
-import com.fa26se040.icss.enums.AccessControlAction;
-import com.fa26se040.icss.enums.AccessControlTargetType;
+import com.fa26se040.icss.enums.AuditAction;
+import com.fa26se040.icss.enums.AuditTargetType;
 import com.fa26se040.icss.exception.AreaErrorCode;
 import com.fa26se040.icss.exception.AreaException;
 import com.fa26se040.icss.exception.ResourceNotFoundException;
@@ -29,7 +29,7 @@ import java.util.UUID;
 public class ReasonCatalogService {
 
     private final ReasonCatalogRepository reasonCatalogRepository;
-    private final AccessControlAuditService auditService;
+    private final AuditService auditService;
     private final UserRepository userRepository;
 
     @Transactional(readOnly = true)
@@ -104,8 +104,8 @@ public class ReasonCatalogService {
         );
 
         auditService.record(
-                AccessControlTargetType.REASON_CATALOG,
-                AccessControlAction.CREATE,
+                AuditTargetType.REASON_CATALOG,
+                AuditAction.CREATE,
                 saved.getId().toString(),
                 null,
                 null,
@@ -160,8 +160,8 @@ public class ReasonCatalogService {
         );
 
         auditService.record(
-                AccessControlTargetType.REASON_CATALOG,
-                AccessControlAction.UPDATE,
+                AuditTargetType.REASON_CATALOG,
+                AuditAction.UPDATE,
                 saved.getId().toString(),
                 null,
                 null,
@@ -213,8 +213,8 @@ public class ReasonCatalogService {
         );
 
         auditService.record(
-                AccessControlTargetType.REASON_CATALOG,
-                AccessControlAction.DEACTIVATE,
+                AuditTargetType.REASON_CATALOG,
+                AuditAction.DEACTIVATE,
                 saved.getId().toString(),
                 null,
                 null,
@@ -262,8 +262,8 @@ public class ReasonCatalogService {
         );
 
         auditService.record(
-                AccessControlTargetType.REASON_CATALOG,
-                AccessControlAction.REACTIVATE,
+                AuditTargetType.REASON_CATALOG,
+                AuditAction.REACTIVATE,
                 saved.getId().toString(),
                 null,
                 null,

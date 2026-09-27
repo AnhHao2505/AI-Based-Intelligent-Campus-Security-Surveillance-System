@@ -7,7 +7,7 @@ import com.fa26se040.icss.dto.area.AreaEventModeUpdateRequest;
 import com.fa26se040.icss.dto.area.AreaGeometry;
 import com.fa26se040.icss.dto.area.AreaResponse;
 import com.fa26se040.icss.dto.area.AreaUpdateRequest;
-import com.fa26se040.icss.entity.AccessControlAuditLog;
+import com.fa26se040.icss.entity.AuditLog;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.AreaEventSession;
 import com.fa26se040.icss.entity.Building;
@@ -15,8 +15,8 @@ import com.fa26se040.icss.entity.Floor;
 import com.fa26se040.icss.entity.Notification;
 import com.fa26se040.icss.entity.ReasonCatalog;
 import com.fa26se040.icss.entity.User;
-import com.fa26se040.icss.enums.AccessControlAction;
-import com.fa26se040.icss.enums.AccessControlTargetType;
+import com.fa26se040.icss.enums.AuditAction;
+import com.fa26se040.icss.enums.AuditTargetType;
 import com.fa26se040.icss.enums.AccessSource;
 import com.fa26se040.icss.enums.AreaLevel;
 import com.fa26se040.icss.enums.ConfigKey;
@@ -24,7 +24,7 @@ import com.fa26se040.icss.enums.NotificationType;
 import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.exception.AreaErrorCode;
 import com.fa26se040.icss.exception.AreaException;
-import com.fa26se040.icss.repository.AccessControlAuditLogRepository;
+import com.fa26se040.icss.repository.AuditLogRepository;
 import com.fa26se040.icss.repository.AreaEventSessionRepository;
 import com.fa26se040.icss.repository.AreaRepository;
 import com.fa26se040.icss.repository.BuildingRepository;
@@ -77,7 +77,7 @@ public class Step5aSupplement2Test extends AbstractIntegrationTest {
     private FloorRepository floorRepository;
 
     @Autowired
-    private AccessControlAuditLogRepository auditLogRepository;
+    private AuditLogRepository auditLogRepository;
 
     @Autowired
     private AreaEventSessionRepository sessionRepository;
@@ -256,13 +256,13 @@ public class Step5aSupplement2Test extends AbstractIntegrationTest {
         assertFalse(disableResp.openToMembers());
         assertFalse(disableResp.eventActive());
 
-        List<AccessControlAuditLog> logs = auditLogRepository.findAll().stream()
-                .filter(l -> l.getTargetId().equals(internalArea.getId().toString()) && l.getTargetType() == AccessControlTargetType.AREA_EVENT_MODE)
-                .sorted(java.util.Comparator.comparing(AccessControlAuditLog::getChangedAt))
+        List<AuditLog> logs = auditLogRepository.findAll().stream()
+                .filter(l -> l.getTargetId().equals(internalArea.getId().toString()) && l.getTargetType() == AuditTargetType.AREA_EVENT_MODE)
+                .sorted(java.util.Comparator.comparing(AuditLog::getChangedAt))
                 .toList();
         assertFalse(logs.isEmpty());
-        AccessControlAuditLog disableLog = logs.get(logs.size() - 1);
-        assertEquals(AccessControlAction.DISABLE_EVENT_MODE, disableLog.getAction());
+        AuditLog disableLog = logs.get(logs.size() - 1);
+        assertEquals(AuditAction.DISABLE_EVENT_MODE, disableLog.getAction());
 
         // 2. Bật lại sự kiện
         AreaResponse enableResp = areaService.updateEventMode(
@@ -273,13 +273,13 @@ public class Step5aSupplement2Test extends AbstractIntegrationTest {
         assertTrue(enableResp.openToMembers());
         assertTrue(enableResp.eventActive());
 
-        List<AccessControlAuditLog> logsAfter = auditLogRepository.findAll().stream()
-                .filter(l -> l.getTargetId().equals(internalArea.getId().toString()) && l.getTargetType() == AccessControlTargetType.AREA_EVENT_MODE)
-                .sorted(java.util.Comparator.comparing(AccessControlAuditLog::getChangedAt))
+        List<AuditLog> logsAfter = auditLogRepository.findAll().stream()
+                .filter(l -> l.getTargetId().equals(internalArea.getId().toString()) && l.getTargetType() == AuditTargetType.AREA_EVENT_MODE)
+                .sorted(java.util.Comparator.comparing(AuditLog::getChangedAt))
                 .toList();
         assertTrue(logsAfter.size() >= 2);
-        AccessControlAuditLog enableLog = logsAfter.get(logsAfter.size() - 1);
-        assertEquals(AccessControlAction.ENABLE_EVENT_MODE, enableLog.getAction());
+        AuditLog enableLog = logsAfter.get(logsAfter.size() - 1);
+        assertEquals(AuditAction.ENABLE_EVENT_MODE, enableLog.getAction());
 
         assertEventModeInvariant(internalArea.getId(), now);
     }
@@ -331,13 +331,13 @@ public class Step5aSupplement2Test extends AbstractIntegrationTest {
 
         // Audit ENABLE_EVENT_MODE được ghi
         assertEquals(auditBefore + 1, auditLogRepository.count());
-        List<AccessControlAuditLog> logs = auditLogRepository.findAll().stream()
-                .filter(l -> l.getTargetId().equals(internalArea.getId().toString()) && l.getTargetType() == AccessControlTargetType.AREA_EVENT_MODE)
-                .sorted(java.util.Comparator.comparing(AccessControlAuditLog::getChangedAt))
+        List<AuditLog> logs = auditLogRepository.findAll().stream()
+                .filter(l -> l.getTargetId().equals(internalArea.getId().toString()) && l.getTargetType() == AuditTargetType.AREA_EVENT_MODE)
+                .sorted(java.util.Comparator.comparing(AuditLog::getChangedAt))
                 .toList();
         assertFalse(logs.isEmpty());
-        AccessControlAuditLog log = logs.get(logs.size() - 1);
-        assertEquals(AccessControlAction.ENABLE_EVENT_MODE, log.getAction());
+        AuditLog log = logs.get(logs.size() - 1);
+        assertEquals(AuditAction.ENABLE_EVENT_MODE, log.getAction());
 
         assertEventModeInvariant(internalArea.getId(), now);
     }

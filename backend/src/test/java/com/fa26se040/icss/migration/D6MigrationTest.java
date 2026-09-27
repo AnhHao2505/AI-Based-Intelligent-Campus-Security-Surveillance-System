@@ -35,9 +35,9 @@ public class D6MigrationTest {
         );
         assertEquals(0, unmappedRows, "Mọi dòng cũ trong audit_logs phải có module qua join với audit_event_types");
 
-        // Old rows have actor_type = USER
+        // Old rows (correlation_id IS NULL) have actor_type = USER
         Integer nonUserRows = jdbcTemplate.queryForObject(
-                "SELECT count(*) FROM audit_logs WHERE actor_type <> 'USER' OR actor_type IS NULL",
+                "SELECT count(*) FROM audit_logs WHERE correlation_id IS NULL AND (actor_type <> 'USER' OR actor_type IS NULL)",
                 Integer.class
         );
         assertEquals(0, nonUserRows, "Mọi dòng cũ trong audit_logs phải có actor_type = 'USER'");

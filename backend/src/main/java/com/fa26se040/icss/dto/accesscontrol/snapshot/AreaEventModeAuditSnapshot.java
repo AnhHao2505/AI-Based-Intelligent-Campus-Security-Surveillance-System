@@ -8,7 +8,7 @@ public record AreaEventModeAuditSnapshot(
         String reasonCode,
         String reasonLabel,
         String note
-) implements AccessControlAuditSnapshot {
+) implements AuditSnapshot {
     public AreaEventModeAuditSnapshot(Boolean openToMembers, OffsetDateTime openUntil) {
         this(openToMembers, openUntil, null, null, null);
     }

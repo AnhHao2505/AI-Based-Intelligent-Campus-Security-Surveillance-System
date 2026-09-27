@@ -7,4 +7,4 @@ public record AreaAssignmentAuditSnapshot(
         OffsetDateTime validFrom,
         OffsetDateTime validTo,
         AssignedPersonnelStatus status
-) implements AccessControlAuditSnapshot {}
+) implements AuditSnapshot {}

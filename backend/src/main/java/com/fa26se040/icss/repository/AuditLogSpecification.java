@@ -1,22 +1,25 @@
 package com.fa26se040.icss.repository;
 
-import com.fa26se040.icss.entity.AccessControlAuditLog;
-import com.fa26se040.icss.enums.AccessControlTargetType;
+import com.fa26se040.icss.entity.AuditLog;
+import com.fa26se040.icss.enums.AuditTargetType;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
-import java.util.List;
+import java.util.Collection;
 import java.util.UUID;
 
-public final class AccessControlAuditLogSpecification {
+public final class AuditLogSpecification {
 
-    private AccessControlAuditLogSpecification() {}
+    private AuditLogSpecification() {}
 
-    public static Specification<AccessControlAuditLog> filter(
-            AccessControlTargetType targetType,
+    public static Specification<AuditLog> filter(
+            String module,
+            Collection<String> allowedModules,
+            UUID correlationId,
+            AuditTargetType targetType,
             UUID areaId,
             UUID subjectUserId,
             UUID changedBy,
@@ -24,15 +27,21 @@ public final class AccessControlAuditLogSpecification {
             OffsetDateTime toDate
     ) {
         return (root, query, cb) -> {
-            Class<?> resultType = query.getResultType();
-            if (resultType != null && !Long.class.equals(resultType) && !long.class.equals(resultType)) {
-                root.fetch("changedBy", JoinType.LEFT);
-                root.fetch("subjectUser", JoinType.LEFT);
-                root.fetch("area", JoinType.LEFT);
+            var predicates = new ArrayList<Predicate>();
+
+            var eventTypeJoin = root.join("eventType", JoinType.LEFT);
+
+            if (module != null && !module.isBlank()) {
+                predicates.add(cb.equal(eventTypeJoin.get("module"), module));
+            } else if (allowedModules != null && !allowedModules.isEmpty()) {
+                predicates.add(eventTypeJoin.get("module").in(allowedModules));
+            } else if (allowedModules != null) {
+                predicates.add(cb.disjunction());
             }
 
-            List<Predicate> predicates = new ArrayList<>();
-
+            if (correlationId != null) {
+                predicates.add(cb.equal(root.get("correlationId"), correlationId));
+            }
             if (targetType != null) {
                 predicates.add(cb.equal(root.get("targetType"), targetType));
             }

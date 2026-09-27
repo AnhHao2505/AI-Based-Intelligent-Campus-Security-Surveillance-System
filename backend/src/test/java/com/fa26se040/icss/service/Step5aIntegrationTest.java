@@ -6,13 +6,13 @@ import com.fa26se040.icss.dto.accessrequest.AccessRequestReviewRequest;
 import com.fa26se040.icss.dto.accessrequest.GroupAccessRequestCreateRequest;
 import com.fa26se040.icss.dto.accessrequest.IndividualAccessRequestCreateRequest;
 import com.fa26se040.icss.dto.area.AreaEventModeUpdateRequest;
-import com.fa26se040.icss.entity.AccessControlAuditLog;
+import com.fa26se040.icss.entity.AuditLog;
 import com.fa26se040.icss.entity.AccessRequest;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.Building;
 import com.fa26se040.icss.entity.Floor;
 import com.fa26se040.icss.entity.User;
-import com.fa26se040.icss.enums.AccessControlAction;
+import com.fa26se040.icss.enums.AuditAction;
 import com.fa26se040.icss.enums.AccessSource;
 import com.fa26se040.icss.enums.AreaLevel;
 import com.fa26se040.icss.enums.ConfigKey;
@@ -20,7 +20,7 @@ import com.fa26se040.icss.enums.RequestStatus;
 import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.exception.AreaErrorCode;
 import com.fa26se040.icss.exception.AreaException;
-import com.fa26se040.icss.repository.AccessControlAuditLogRepository;
+import com.fa26se040.icss.repository.AuditLogRepository;
 import com.fa26se040.icss.repository.AccessRequestRepository;
 import com.fa26se040.icss.repository.AreaRepository;
 import com.fa26se040.icss.repository.BuildingRepository;
@@ -51,7 +51,7 @@ import com.fa26se040.icss.dto.reasoncatalog.ReasonCatalogUpdateRequest;
 import com.fa26se040.icss.entity.AreaEventSession;
 import com.fa26se040.icss.entity.Notification;
 import com.fa26se040.icss.entity.ReasonCatalog;
-import com.fa26se040.icss.enums.AccessControlTargetType;
+import com.fa26se040.icss.enums.AuditTargetType;
 import com.fa26se040.icss.enums.NotificationType;
 import com.fa26se040.icss.repository.AreaEventSessionRepository;
 import com.fa26se040.icss.repository.NotificationRepository;
@@ -85,7 +85,7 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
     private AccessRequestRepository accessRequestRepository;
 
     @Autowired
-    private AccessControlAuditLogRepository auditLogRepository;
+    private AuditLogRepository auditLogRepository;
 
     @Autowired
     private AccessDecisionService accessDecisionService;
@@ -421,8 +421,8 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
         assertTrue(respInternal.eventActive());
         assertEquals(auditCountBefore + 1, auditLogRepository.count());
 
-        AccessControlAuditLog log = auditLogRepository.findAll().get((int) auditCountBefore);
-        assertEquals(AccessControlAction.ENABLE_EVENT_MODE, log.getAction());
+        AuditLog log = auditLogRepository.findAll().get((int) auditCountBefore);
+        assertEquals(AuditAction.ENABLE_EVENT_MODE, log.getAction());
         assertEquals(internalArea.getId().toString(), log.getTargetId());
 
         // Bật cho HIGHLY -> 400 (ERR_AREA_022)
@@ -508,9 +508,9 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
         assertTrue(resp.eventActive());
 
         assertEquals(auditBefore + 1, auditLogRepository.count());
-        AccessControlAuditLog log = auditLogRepository.findAll().get((int) auditBefore);
-        assertEquals(AccessControlTargetType.AREA_EVENT_MODE, log.getTargetType());
-        assertEquals(AccessControlAction.ENABLE_EVENT_MODE, log.getAction());
+        AuditLog log = auditLogRepository.findAll().get((int) auditBefore);
+        assertEquals(AuditTargetType.AREA_EVENT_MODE, log.getTargetType());
+        assertEquals(AuditAction.ENABLE_EVENT_MODE, log.getAction());
         assertEquals(contactArea.getId().toString(), log.getTargetId());
         assertEquals("Hội thảo nghiên cứu an ninh thông tin", log.getReason());
 
@@ -674,9 +674,9 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
 
         // Audit EXTEND_EVENT_MODE
         assertEquals(auditBefore + 1, auditLogRepository.count());
-        AccessControlAuditLog extendLog = auditLogRepository.findAll().get((int) auditBefore);
-        assertEquals(AccessControlAction.EXTEND_EVENT_MODE, extendLog.getAction());
-        assertEquals(AccessControlTargetType.AREA_EVENT_MODE, extendLog.getTargetType());
+        AuditLog extendLog = auditLogRepository.findAll().get((int) auditBefore);
+        assertEquals(AuditAction.EXTEND_EVENT_MODE, extendLog.getAction());
+        assertEquals(AuditTargetType.AREA_EVENT_MODE, extendLog.getTargetType());
 
         // Phiên cũ đã đóng (actualEnd != null)
         AreaEventSession reloadedOld = sessionRepository.findById(oldSession.getId()).orElseThrow();
@@ -754,9 +754,9 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
                 adminUser.getEmail()
         );
         assertEquals(auditBefore + 1, auditLogRepository.count());
-        AccessControlAuditLog createLog = auditLogRepository.findAll().get((int) auditBefore);
-        assertEquals(AccessControlTargetType.REASON_CATALOG, createLog.getTargetType());
-        assertEquals(AccessControlAction.CREATE, createLog.getAction());
+        AuditLog createLog = auditLogRepository.findAll().get((int) auditBefore);
+        assertEquals(AuditTargetType.REASON_CATALOG, createLog.getTargetType());
+        assertEquals(AuditAction.CREATE, createLog.getAction());
 
         ReasonCatalogAuditSnapshot createSnap = objectMapper.convertValue(createLog.getNewValue(), ReasonCatalogAuditSnapshot.class);
         assertEquals(exhibCode, createSnap.code());
@@ -769,29 +769,29 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
                 adminUser.getEmail()
         );
         assertEquals(auditBefore + 2, auditLogRepository.count());
-        AccessControlAuditLog updateLog = auditLogRepository.findAll().get((int) auditBefore + 1);
-        assertEquals(AccessControlAction.UPDATE, updateLog.getAction());
+        AuditLog updateLog = auditLogRepository.findAll().get((int) auditBefore + 1);
+        assertEquals(AuditAction.UPDATE, updateLog.getAction());
         ReasonCatalogAuditSnapshot updateOldSnap = objectMapper.convertValue(updateLog.getOldValue(), ReasonCatalogAuditSnapshot.class);
         ReasonCatalogAuditSnapshot updateNewSnap = objectMapper.convertValue(updateLog.getNewValue(), ReasonCatalogAuditSnapshot.class);
         assertEquals("Triển lãm công nghệ", updateOldSnap.label());
         assertEquals("Triển lãm khoa học công nghệ", updateNewSnap.label());
 
         // Log cũ tạo ban đầu vẫn giữ snapshot gốc
-        AccessControlAuditLog origLog = auditLogRepository.findById(createLog.getId()).orElseThrow();
+        AuditLog origLog = auditLogRepository.findById(createLog.getId()).orElseThrow();
         ReasonCatalogAuditSnapshot origSnap = objectMapper.convertValue(origLog.getNewValue(), ReasonCatalogAuditSnapshot.class);
         assertEquals("Triển lãm công nghệ", origSnap.label());
 
         // 4. ADMIN ngừng dùng -> 1 audit DEACTIVATE
         reasonCatalogService.deactivate(createResp.id(), adminUser.getEmail());
         assertEquals(auditBefore + 3, auditLogRepository.count());
-        AccessControlAuditLog deactLog = auditLogRepository.findAll().get((int) auditBefore + 2);
-        assertEquals(AccessControlAction.DEACTIVATE, deactLog.getAction());
+        AuditLog deactLog = auditLogRepository.findAll().get((int) auditBefore + 2);
+        assertEquals(AuditAction.DEACTIVATE, deactLog.getAction());
 
         // 5. ADMIN dùng lại -> 1 audit REACTIVATE
         reasonCatalogService.reactivate(createResp.id(), adminUser.getEmail());
         assertEquals(auditBefore + 4, auditLogRepository.count());
-        AccessControlAuditLog reactLog = auditLogRepository.findAll().get((int) auditBefore + 3);
-        assertEquals(AccessControlAction.REACTIVATE, reactLog.getAction());
+        AuditLog reactLog = auditLogRepository.findAll().get((int) auditBefore + 3);
+        assertEquals(AuditAction.REACTIVATE, reactLog.getAction());
 
         // 6. Ngừng dùng mục is_other (OTHER của EVENT_ENABLE) -> 400 (ERR_AREA_029)
         ReasonCatalog otherReason = reasonCatalogRepository.findByActionTypeAndIsOtherTrue("EVENT_ENABLE").orElseThrow();

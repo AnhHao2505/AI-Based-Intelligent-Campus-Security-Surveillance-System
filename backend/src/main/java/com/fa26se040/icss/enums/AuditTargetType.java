@@ -1,10 +1,12 @@
 package com.fa26se040.icss.enums;
 
-public enum AccessControlTargetType {
+public enum AuditTargetType {
+    AREA,
+    AREA_EVENT_MODE,
     AREA_ASSIGNMENT,
     USER_ACCESS_LEVEL,
     AREA_ACCESS_RULES,
     LEVEL_PRESET,
-    AREA_EVENT_MODE,
+    ACCESS_REQUEST,
     REASON_CATALOG
 }

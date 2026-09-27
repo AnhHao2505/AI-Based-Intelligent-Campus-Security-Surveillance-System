@@ -7,4 +7,4 @@ public record ReasonCatalogAuditSnapshot(
         Boolean isOther,
         Boolean isActive,
         Integer sortOrder
-) implements AccessControlAuditSnapshot {}
+) implements AuditSnapshot {}
