@@ -31,6 +31,16 @@ import Modal from '../../components/ui/Modal';
 import UserSearchCombobox from '../../components/user/UserSearchCombobox';
 import './UserAccessLevelPage.css';
 
+
+const SYSTEM_ACTOR_LABELS = {
+  EXPIRE_OVERDUE_REQUESTS_JOB: 'Tự động hết hạn đơn quá giờ',
+};
+
+const renderSystemActor = (source) => {
+  if (!source) return 'Hệ thống';
+  return SYSTEM_ACTOR_LABELS[source] ? `Hệ thống – ${SYSTEM_ACTOR_LABELS[source]}` : `Hệ thống – ${source}`;
+};
+
 const ACCESS_LEVELS = [
   { level: 1, name: 'Cấp 1 — Mọi người dùng' },
   { level: 2, name: 'Cấp 2 — Nhân viên' },
@@ -349,8 +359,9 @@ export default function UserAccessLevelPage() {
         setCurrentPage(page);
       } catch (err) {
         console.error('Lỗi tải nhật ký thay đổi:', err);
-        if (err?.code === 'ERR_AUDIT_001' || err?.response?.data?.code === 'ERR_AUDIT_001') {
-          toast.error('Bạn không có quyền truy cập nhật ký kiểm toán của phân hệ này');
+        const httpStatus = err?.status ?? err?.response?.status;
+        if (httpStatus === 403) {
+          toast.error('Bạn không có quyền xem nhật ký của phân hệ này');
         } else {
           toast.error(err?.message || 'Không thể tải nhật ký phân quyền');
         }
@@ -1255,7 +1266,7 @@ export default function UserAccessLevelPage() {
                             {log.actorType === 'SYSTEM' || !log.changedByName ? (
                               <div className="audit-user-cell">
                                 <span className="audit-user-name audit-system-actor">
-                                  {log.actorSource ? `Hệ thống – ${log.actorSource}` : 'Hệ thống'}
+                                  {renderSystemActor(log.actorSource)}
                                 </span>
                               </div>
                             ) : (
