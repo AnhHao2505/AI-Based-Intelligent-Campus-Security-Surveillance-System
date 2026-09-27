@@ -776,3 +776,95 @@
 .checkbox-label input[type="checkbox"] {
   margin-top: 3px;
 }
+
+/* ==========================================================================
+   Audit Log Enhancements (V55)
+   ========================================================================== */
+.audit-system-actor {
+  color: #6366f1;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.audit-correlation-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--theme-text-primary);
+}
+
+.audit-correlation-banner__content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.audit-correlation-banner__id {
+  font-family: monospace;
+  font-weight: 600;
+  background: rgba(99, 102, 241, 0.15);
+  color: #6366f1;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.audit-correlation-clear-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  color: #6366f1;
+  border-radius: 5px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+}
+
+.audit-correlation-clear-btn:hover {
+  background: #6366f1;
+  color: #ffffff;
+}
+
+.audit-btn-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: 1px solid transparent;
+  color: var(--brand-text, #3b82f6);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 5px;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.audit-btn-link:hover {
+  background: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.2);
+}
+
+.audit-type--system {
+  background: rgba(107, 114, 128, 0.15);
+  color: #6b7280;
+}
+
+.audit-type--request {
+  background: rgba(14, 165, 233, 0.12);
+  color: #0284c7;
+}
+

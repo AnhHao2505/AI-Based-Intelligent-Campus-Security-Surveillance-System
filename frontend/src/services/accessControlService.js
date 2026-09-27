@@ -24,6 +24,8 @@ export async function updateLevelPreset(areaLevel, data) {
  */
 export async function getAuditLogs(params = {}) {
   const query = new URLSearchParams();
+  if (params.module) query.append('module', params.module);
+  if (params.correlationId) query.append('correlationId', params.correlationId);
   if (params.targetType) query.append('targetType', params.targetType);
   if (params.areaId) query.append('areaId', params.areaId);
   if (params.subjectUserId) query.append('subjectUserId', params.subjectUserId);
