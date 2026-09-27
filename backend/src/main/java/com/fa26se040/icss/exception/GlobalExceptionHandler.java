@@ -45,9 +45,6 @@ public class GlobalExceptionHandler {
         String message = (ex.getMessage() != null && !ex.getMessage().isBlank())
                 ? ex.getMessage()
                 : ex.getErrorCode().getMessageTemplate();
-        if (ex.getArgs() != null && ex.getArgs().length > 0 && message.contains("{n}")) {
-            message = message.replace("{n}", String.valueOf(ex.getArgs()[0]));
-        }
         HttpStatus status = ex.getErrorCode().getHttpStatus();
         ApiResponse<Object> body = ApiResponse.error(
                 status.value(),
@@ -193,6 +190,19 @@ public class GlobalExceptionHandler {
                 ex.getMessage()
         );
         return new ResponseEntity<>(body, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    @ExceptionHandler({
+            org.springframework.web.servlet.resource.NoResourceFoundException.class,
+            org.springframework.web.servlet.NoHandlerFoundException.class
+    })
+    public ResponseEntity<ApiResponse<Object>> handleNotFound(Exception ex) {
+        ApiResponse<Object> body = ApiResponse.error(
+                HttpStatus.NOT_FOUND.value(),
+                "NOT_FOUND",
+                "Không tìm thấy đường dẫn yêu cầu"
+        );
+        return new ResponseEntity<>(body, HttpStatus.NOT_FOUND);
     }
 
     @ExceptionHandler(Exception.class)
