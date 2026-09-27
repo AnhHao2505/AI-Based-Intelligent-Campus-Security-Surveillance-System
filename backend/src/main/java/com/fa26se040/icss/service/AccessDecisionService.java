@@ -36,6 +36,7 @@ public class AccessDecisionService {
     private final AreaRepository areaRepository;
     private final AreaAssignedPersonnelRepository assignedPersonnelRepository;
     private final AccessRequestRepository accessRequestRepository;
+    private final com.fa26se040.icss.repository.AreaEventScheduleRepository areaEventScheduleRepository;
 
     /**
      * Xét user có được vào area tại thời điểm at hay không. Thứ tự kiểm:
@@ -106,6 +107,17 @@ public class AccessDecisionService {
                     AccessSource.OPEN_EVENT,
                     null,
                     "Khu vực đang mở chế độ sự kiện cho thành viên"
+            );
+        }
+
+        // 4c. Lịch sự kiện đã đặt trước (BR-ES-10, A3)
+        if (isInternalOrContact && areaEventScheduleRepository != null
+                && areaEventScheduleRepository.existsByAreaIdAndStatusAndStartAtLessThanEqualAndEndAtGreaterThan(
+                areaId, com.fa26se040.icss.enums.AreaEventScheduleStatus.SCHEDULED, at, at)) {
+            return AccessDecision.allowed(
+                    AccessSource.OPEN_EVENT,
+                    null,
+                    "Khu vực trong khung lịch sự kiện"
             );
         }
 
