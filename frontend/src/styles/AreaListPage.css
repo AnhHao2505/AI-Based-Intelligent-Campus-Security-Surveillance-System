@@ -422,6 +422,8 @@
 .area-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  /* UI-B B3: mọi hàng cao bằng nhau -> các thẻ cùng chiều cao */
+  grid-auto-rows: 1fr;
   gap: 10px;
   width: 100%;
 }
@@ -567,9 +569,24 @@
   border-radius: 4px;
   font-size: 10px;
   font-weight: 600;
-  background: rgba(239, 68, 68, 0.12);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  color: #fca5a5;
+  /* UI-B B3: 7.60:1 (light) / 8.39:1 (dark) */
+  background: var(--theme-danger-bg);
+  border: 1px solid var(--theme-danger-border);
+  color: var(--theme-danger-text);
+}
+
+/* Pill "Khác mặc định": 6.84:1 (light) / 10.13:1 (dark) */
+.zone-card__pill-differs {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--theme-warning-bg);
+  border: 1px solid var(--theme-warning-border);
+  color: var(--theme-warning-text);
 }
 
 .zone-pill-explicit {
