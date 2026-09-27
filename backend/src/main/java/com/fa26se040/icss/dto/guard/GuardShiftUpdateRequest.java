@@ -34,7 +34,6 @@ public class GuardShiftUpdateRequest {
     private LocalTime endTime;
 
     private UUID areaId;
-    private String radioChannel;
     private ShiftStatus status;
     private String notes;
     private Boolean isOvertime;

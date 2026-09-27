@@ -2,20 +2,14 @@ package com.fa26se040.icss.service;
 
 import com.fa26se040.icss.dto.guard.BulkClearShiftsRequest;
 import com.fa26se040.icss.dto.guard.BulkClearShiftsResponse;
-import com.fa26se040.icss.dto.guard.GenerateShiftsRequest;
-import com.fa26se040.icss.dto.guard.GenerateShiftsResponse;
-import com.fa26se040.icss.dto.guard.GuardScheduleTemplateCreateRequest;
-import com.fa26se040.icss.dto.guard.GuardScheduleTemplateDto;
 import com.fa26se040.icss.dto.guard.GuardShiftDto;
 import com.fa26se040.icss.entity.Area;
-import com.fa26se040.icss.entity.GuardScheduleTemplate;
 import com.fa26se040.icss.entity.GuardShift;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.enums.ShiftStatus;
 import com.fa26se040.icss.enums.ShiftType;
 import com.fa26se040.icss.repository.AreaRepository;
-import com.fa26se040.icss.repository.GuardScheduleTemplateRepository;
 import com.fa26se040.icss.repository.GuardShiftRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,9 +34,6 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class GuardScheduleServiceTest {
-
-    @Mock
-    private GuardScheduleTemplateRepository templateRepository;
 
     @Mock
     private GuardShiftRepository shiftRepository;
@@ -94,102 +85,6 @@ class GuardScheduleServiceTest {
                 .build();
     }
 
-    @Test
-    @DisplayName("Tạo lịch mẫu thành công cho nhân viên GUARD")
-    void testCreateTemplate_Success() {
-        GuardScheduleTemplateCreateRequest request = GuardScheduleTemplateCreateRequest.builder()
-                .guardId(guardUser.getId())
-                .dayOfWeek(2) // Thứ Hai
-                .shiftType(ShiftType.SHIFT_MORNING)
-                .startTime(LocalTime.of(6, 0))
-                .endTime(LocalTime.of(14, 0))
-                .areaId(securityRoomArea.getId())
-                .radioChannel("Kênh 2")
-                .notes("Trực phòng camera")
-                .build();
-
-        when(userRepository.findById(guardUser.getId())).thenReturn(Optional.of(guardUser));
-        when(areaRepository.findById(securityRoomArea.getId())).thenReturn(Optional.of(securityRoomArea));
-        when(templateRepository.existsByGuardIdAndDayOfWeekAndStartTimeAndIsActiveTrue(any(), any(), any()))
-                .thenReturn(false);
-
-        GuardScheduleTemplate savedTemplate = GuardScheduleTemplate.builder()
-                .id(UUID.randomUUID())
-                .guard(guardUser)
-                .dayOfWeek(2)
-                .shiftType(ShiftType.SHIFT_MORNING)
-                .startTime(LocalTime.of(6, 0))
-                .endTime(LocalTime.of(14, 0))
-                .area(securityRoomArea)
-                .radioChannel("Kênh 2")
-                .notes("Trực phòng camera")
-                .isActive(true)
-                .build();
-
-        when(templateRepository.save(any())).thenReturn(savedTemplate);
-
-        GuardScheduleTemplateDto result = guardScheduleService.createTemplate(request);
-
-        assertNotNull(result);
-        assertEquals("Nguyễn Văn An", result.getGuardName());
-        assertEquals(ShiftType.SHIFT_MORNING, result.getShiftType());
-        assertEquals("Phòng bảo vệ Tòa Alpha", result.getAreaName());
-    }
-
-    @Test
-    @DisplayName("Tạo lịch mẫu thất bại khi trùng khung giờ của bảo vệ")
-    void testCreateTemplate_Fail_DuplicateSlot() {
-        GuardScheduleTemplateCreateRequest request = GuardScheduleTemplateCreateRequest.builder()
-                .guardId(guardUser.getId())
-                .dayOfWeek(2)
-                .shiftType(ShiftType.SHIFT_MORNING)
-                .startTime(LocalTime.of(6, 0))
-                .endTime(LocalTime.of(14, 0))
-                .build();
-
-        when(userRepository.findById(guardUser.getId())).thenReturn(Optional.of(guardUser));
-        when(templateRepository.existsByGuardIdAndDayOfWeekAndStartTimeAndIsActiveTrue(any(), any(), any()))
-                .thenReturn(true);
-
-        assertThrows(IllegalArgumentException.class, () -> guardScheduleService.createTemplate(request));
-    }
-
-    @Test
-    @DisplayName("Sinh lịch thực tế từ template phát hiện cảnh báo nếu thiếu người trực phòng bảo vệ")
-    void testGenerateShifts_WarningWhenNoSecurityRoom() {
-        // Template chỉ phân công chốt Sảnh cổng chính, không có Phòng bảo vệ
-        GuardScheduleTemplate gateTemplate = GuardScheduleTemplate.builder()
-                .id(UUID.randomUUID())
-                .guard(guardUser)
-                .dayOfWeek(2) // Thứ Hai
-                .shiftType(ShiftType.SHIFT_MORNING)
-                .startTime(LocalTime.of(6, 0))
-                .endTime(LocalTime.of(14, 0))
-                .area(gateArea)
-                .radioChannel("Kênh 2")
-                .isActive(true)
-                .build();
-
-        when(templateRepository.findActiveTemplatesByBuilding("TOA_ALPHA"))
-                .thenReturn(List.of(gateTemplate));
-        when(shiftRepository.existsByGuardIdAndShiftDateAndStartTime(any(), any(), any()))
-                .thenReturn(false);
-
-        // 2026-09-21 là Thứ Hai (DayOfWeek = MONDAY)
-        LocalDate monday = LocalDate.of(2026, 9, 21);
-        GenerateShiftsRequest req = GenerateShiftsRequest.builder()
-                .startDate(monday)
-                .endDate(monday)
-                .building("TOA_ALPHA")
-                .build();
-
-        GenerateShiftsResponse response = guardScheduleService.generateShifts(req);
-
-        assertEquals(1, response.getTotalGenerated());
-        assertFalse(response.getWarnings().isEmpty());
-        assertTrue(response.getWarnings().get(0).contains("Phòng bảo vệ/Camera"));
-        verify(shiftRepository, times(1)).save(any());
-    }
 
     @Test
     @DisplayName("Bảo vệ điểm danh Check-in thành công trong khung giờ cho phép")
@@ -382,14 +277,16 @@ class GuardScheduleServiceTest {
     @DisplayName("Bảo vệ check-out thất bại khi quá 5 phút sau giờ kết thúc ca")
     void testCheckOut_Fail_TooLate() {
         UUID shiftId = UUID.randomUUID();
-        LocalTime nowTime = LocalTime.now();
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime shiftEnd = now.minusMinutes(10);
+        LocalDateTime shiftStart = shiftEnd.minusHours(8);
         GuardShift shift = GuardShift.builder()
                 .id(shiftId)
                 .guard(guardUser)
-                .shiftDate(LocalDate.now())
+                .shiftDate(shiftStart.toLocalDate())
                 .shiftType(ShiftType.SHIFT_MORNING)
-                .startTime(nowTime.minusHours(9))
-                .endTime(nowTime.minusMinutes(10))
+                .startTime(shiftStart.toLocalTime())
+                .endTime(shiftEnd.toLocalTime())
                 .status(ShiftStatus.CHECKED_IN)
                 .build();
 

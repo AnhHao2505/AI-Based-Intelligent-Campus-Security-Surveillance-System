@@ -38,7 +38,6 @@ void main() {
         'endTime': '14:00:00',
         'areaName': 'Phòng Giám Sát Camera',
         'building': 'Tòa Alpha',
-        'radioChannel': 'Kênh 2 (Bộ đàm)',
         'status': 'SCHEDULED',
         'notes': 'Trực camera an ninh 24/7',
       };
@@ -52,7 +51,6 @@ void main() {
       expect(shift.shiftTimeRange, '06:00 - 14:00');
       expect(shift.shiftTypeLabel, contains('Ca Sáng (06:00 - 14:00)'));
       expect(shift.areaName, 'Phòng Giám Sát Camera');
-      expect(shift.radioChannel, 'Kênh 2 (Bộ đàm)');
       expect(shift.statusLabel, 'CHƯA NHẬN CA');
       expect(shift.isScheduled, isTrue);
       expect(shift.isCheckedIn, isFalse);

@@ -250,8 +250,7 @@ export default function StaffingWizardModal({
         weekendNightDemand: sundayNightDemand,
         selectedGuardIds: selectedMemberIds,
         memberGuardIds: selectedMemberIds,
-        building: building || 'FPT_AROUND',
-        saveAsTemplate: false
+        building: building || 'FPT_AROUND'
       };
 
       const res = await guardScheduleApi.generateShiftsFromWizard(payload);
