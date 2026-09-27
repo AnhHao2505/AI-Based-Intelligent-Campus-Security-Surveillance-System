@@ -106,12 +106,18 @@ public class GuardTeamDispatchService {
                 }
             }
 
+            UUID candidateTeamId = candidate.getTeam() != null ? candidate.getTeam().getId() : null;
+            String candidateTeamName = candidate.getTeam() != null ? candidate.getTeam().getTeamName() : null;
+            boolean sameTeam = toTeamId != null && candidateTeamId != null && toTeamId.equals(candidateTeamId);
+
             result.add(com.fa26se040.icss.dto.guard.AvailableSubstituteDto.builder()
                     .id(candidate.getId())
                     .userCode(candidate.getUserCode())
                     .fullName(candidate.getFullName())
                     .email(candidate.getEmail())
-                    .teamName(candidate.getTeam() != null ? candidate.getTeam().getTeamName() : "Chưa phân đội")
+                    .teamId(candidateTeamId)
+                    .teamName(candidateTeamName)
+                    .isSameTeam(sameTeam)
                     .build());
         }
 

@@ -653,7 +653,7 @@ export default function GuardTeamsTab({
     setDispatchSearch('');
   };
 
-  // Chọn nhanh bảo vệ vào đội khi phân bổ quân số (ưu tiên thành viên hiện tại -> chưa phân đội -> bảo vệ khác)
+  // Chọn nhanh bảo vệ vào đội khi phân bổ quân số (ưu tiên thành viên hiện tại -> chưa phân đội)
   const handleQuickSelectForAssign = () => {
     const targetCount = safeGuardsRecommended || minGuardsRecommended || 12;
     if (!assigningTeam) return;
@@ -666,15 +666,8 @@ export default function GuardTeamsTab({
     const unassignedGuards = linkedGuards.filter(
       (g) => !g.team?.id && !g.teamId && !currentTeamGuards.some((m) => m.id === g.id)
     );
-    // 3. Bảo vệ thuộc đội khác (nếu cần bổ sung thêm)
-    const otherTeamGuards = linkedGuards.filter(
-      (g) =>
-        (g.team?.id || g.teamId) &&
-        g.team?.id !== assigningTeam.id &&
-        g.teamId !== assigningTeam.id
-    );
 
-    const combined = [...currentTeamGuards, ...unassignedGuards, ...otherTeamGuards];
+    const combined = [...currentTeamGuards, ...unassignedGuards];
     const chosen = combined.slice(0, targetCount).map((g) => g.id);
     setSelectedGuardIds(chosen);
   };
@@ -778,9 +771,24 @@ export default function GuardTeamsTab({
     }
   };
 
-  // Filter guards in assignment modal (ưu tiên đã chọn, thuộc đội/chưa phân đội lên đầu, trong cùng nhóm xếp theo mã bảo vệ)
+  // Filter guards in assignment modal (chỉ hiển thị thành viên của đội này và bảo vệ chưa phân đội; ẩn bảo vệ thuộc đội khác)
   const filteredGuardsForAssignment = useMemo(() => {
-    let list = linkedGuards;
+    if (!assigningTeam) return [];
+
+    // Chỉ giữ lại:
+    // 1. Thành viên thuộc đội hiện tại (hoặc đang được tick chọn trong đội này)
+    // 2. Bảo vệ chưa phân đội (không thuộc bất kỳ đội nào)
+    // -> Loại bỏ hoàn toàn những bảo vệ đã thuộc đội khác
+    let list = linkedGuards.filter((g) => {
+      const guardTeamId = g.teamId || g.team?.id;
+      // Thuộc đội hiện tại hoặc đang được chọn trong đội này
+      if (guardTeamId === assigningTeam.id || selectedGuardIds.includes(g.id)) return true;
+      // Chưa phân đội
+      if (!guardTeamId) return true;
+      // Đã có đội khác -> Ẩn
+      return false;
+    });
+
     if (memberSearch.trim()) {
       const kw = memberSearch.toLowerCase().trim();
       list = list.filter(
@@ -796,14 +804,7 @@ export default function GuardTeamsTab({
       const bChecked = selectedGuardIds.includes(b.id) ? 0 : 1;
       if (aChecked !== bChecked) return aChecked - bChecked;
 
-      // 2. Thuộc đội hiện tại hoặc chưa phân đội lên trước người thuộc đội khác
-      const aCurrentTeamId = a.teamId || a.team?.id;
-      const bCurrentTeamId = b.teamId || b.team?.id;
-      const aOther = aCurrentTeamId && assigningTeam?.id && aCurrentTeamId !== assigningTeam.id ? 1 : 0;
-      const bOther = bCurrentTeamId && assigningTeam?.id && bCurrentTeamId !== assigningTeam.id ? 1 : 0;
-      if (aOther !== bOther) return aOther - bOther;
-
-      // 3. Trong cùng nhóm: Xếp theo mã bảo vệ
+      // 2. Xếp theo mã bảo vệ
       return compareUserCodes(a, b);
     });
   }, [linkedGuards, memberSearch, selectedGuardIds, assigningTeam]);
@@ -865,6 +866,21 @@ export default function GuardTeamsTab({
       );
     }
 
+    const getDispatchPriority = (g) => {
+      const gTeamName = g.teamName || g.team?.teamName;
+      const gTeamId = g.teamId || g.team?.id;
+      const isUnassigned = !gTeamId && (!gTeamName || gTeamName === 'Chưa phân đội' || gTeamName === 'Chưa có đội');
+      if (isUnassigned) return 1;
+
+      const isSame =
+        g.isSameTeam === true ||
+        (gTeamId && assigningTeam?.id && gTeamId === assigningTeam.id) ||
+        (gTeamName && assigningTeam?.teamName && gTeamName.trim().toLowerCase() === assigningTeam.teamName.trim().toLowerCase());
+      if (isSame) return 0;
+
+      return 2;
+    };
+
     return [...list].sort((a, b) => {
       // 1. Đã tick chọn lên đầu
       const aChecked = selectedDispatchGuardIds.includes(a.id) ? 0 : 1;
@@ -872,14 +888,8 @@ export default function GuardTeamsTab({
       if (aChecked !== bChecked) return aChecked - bChecked;
 
       // 2. Thứ tự ưu tiên nhóm: Cùng đội (0) > Chưa phân đội (1) > Đội khác (2)
-      const aTeamName = a.teamName || a.team?.teamName;
-      const bTeamName = b.teamName || b.team?.teamName;
-      const aPriority = (aTeamName && assigningTeam?.teamName && aTeamName === assigningTeam.teamName)
-        ? 0
-        : (!aTeamName ? 1 : 2);
-      const bPriority = (bTeamName && assigningTeam?.teamName && bTeamName === assigningTeam.teamName)
-        ? 0
-        : (!bTeamName ? 1 : 2);
+      const aPriority = getDispatchPriority(a);
+      const bPriority = getDispatchPriority(b);
       if (aPriority !== bPriority) return aPriority - bPriority;
 
       // 3. Trong cùng nhóm: Xếp theo mã bảo vệ
@@ -1471,8 +1481,8 @@ export default function GuardTeamsTab({
                           const isChecked = selectedGuardIds.includes(guard.id);
                           const guardCurrentTeam = guard.teamName || guard.team?.teamName;
                           const guardCurrentTeamId = guard.teamId || guard.team?.id;
-                          const isOtherTeam =
-                            guardCurrentTeamId && guardCurrentTeamId !== assigningTeam.id;
+                          const isCurrentTeamMember =
+                            guardCurrentTeamId === assigningTeam?.id || selectedGuardIds.includes(guard.id);
 
                           return (
                             <label
@@ -1512,19 +1522,13 @@ export default function GuardTeamsTab({
                               </div>
 
                               <div className="shrink-0 ml-3">
-                                {guardCurrentTeam ? (
-                                  <span
-                                    className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold border ${
-                                      isOtherTeam
-                                        ? 'bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
-                                        : 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800'
-                                    }`}
-                                  >
-                                    {guardCurrentTeam}
+                                {isCurrentTeamMember ? (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                                    {guardCurrentTeam || assigningTeam?.teamName || 'Thành viên đội'}
                                   </span>
                                 ) : (
-                                  <span className="text-[10px] text-slate-400 dark:text-slate-500 italic">
-                                    Chưa có đội
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                                    Chưa phân đội
                                   </span>
                                 )}
                               </div>
@@ -1744,8 +1748,14 @@ export default function GuardTeamsTab({
                       ) : (
                         filteredGuardsForDispatch.map((guard) => {
                           const isChecked = selectedDispatchGuardIds.includes(guard.id);
-                          const currentTeamName = guard.teamName || guard.team?.teamName;
-                          const isSameTeam = currentTeamName && assigningTeam?.teamName && currentTeamName === assigningTeam.teamName;
+                          const guardTeamName = guard.teamName || guard.team?.teamName;
+                          const guardTeamId = guard.teamId || guard.team?.id;
+                          const isUnassigned = !guardTeamId && (!guardTeamName || guardTeamName === 'Chưa phân đội' || guardTeamName === 'Chưa có đội');
+                          const isSameTeam = !isUnassigned && (
+                            guard.isSameTeam === true ||
+                            (guardTeamId && assigningTeam?.id && guardTeamId === assigningTeam.id) ||
+                            (guardTeamName && assigningTeam?.teamName && guardTeamName.trim().toLowerCase() === assigningTeam.teamName.trim().toLowerCase())
+                          );
 
                           return (
                             <label
@@ -1788,10 +1798,16 @@ export default function GuardTeamsTab({
                                 className={`px-2 py-0.5 rounded text-[10px] font-semibold border shrink-0 ml-3 ${
                                   isSameTeam
                                     ? 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800'
+                                    : isUnassigned
+                                    ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
                                     : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
                                 }`}
                               >
-                                {currentTeamName ? (isSameTeam ? `${currentTeamName} (Cùng đội)` : `Đội: ${currentTeamName}`) : 'Chưa phân đội'}
+                                {isSameTeam
+                                  ? `${guardTeamName || assigningTeam?.teamName} (Cùng đội)`
+                                  : isUnassigned
+                                  ? 'Chưa phân đội'
+                                  : `Đội: ${guardTeamName}`}
                               </span>
                             </label>
                           );
