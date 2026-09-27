@@ -589,29 +589,29 @@ public class AccessRequestService {
         return AuditContext.runAsSystem("EXPIRE_OVERDUE_REQUESTS_JOB", () -> {
             OffsetDateTime now = OffsetDateTime.now();
 
-            // 1. SELECT ... FOR UPDATE trước khi update batch để lấy chính xác danh sách request bị expire
-            List<AccessRequest> overdueRequests = List.of();
-            try {
-                overdueRequests = accessRequestRepository.findPendingOverdueRequestsForUpdate(RequestStatus.PENDING, now);
-                if (overdueRequests == null) {
-                    overdueRequests = List.of();
-                }
-            } catch (Exception e) {
-                log.error("Failed to fetch pending overdue requests before expiring", e);
+            // 1. Khoá (PESSIMISTIC_WRITE) đúng các đơn sẽ bị expire. Lỗi ở bước này phải ném ra để
+            //    cả transaction rollback: không được expire đơn nào khi chưa ghi được audit (LA4).
+            List<AccessRequest> overdueRequests = accessRequestRepository
+                    .findPendingOverdueRequestsForUpdate(RequestStatus.PENDING, now);
+            if (overdueRequests == null || overdueRequests.isEmpty()) {
+                return 0;
             }
 
-            // 2. Batch update sang EXPIRED
-            int count = accessRequestRepository.expireOverdueRequests(
+            // 2. Chỉ update theo danh sách id đã khoá -> tập bị EXPIRED trùng khớp tập được ghi audit
+            List<UUID> ids = overdueRequests.stream().map(AccessRequest::getId).toList();
+            int count = accessRequestRepository.expireOverdueRequestsByIds(
+                    ids,
                     RequestStatus.PENDING,
                     RequestStatus.EXPIRED,
                     now
             );
-
-            if (count > 0) {
-                log.info("Expired {} overdue pending access requests at {}", count, now);
+            if (count != ids.size()) {
+                log.error("Expire overdue requests mismatch: locked {} but updated {} — rolling back", ids.size(), count);
+                throw new IllegalStateException("Số đơn cập nhật (" + count + ") khác số đơn đã khoá (" + ids.size() + ")");
             }
+            log.info("Expired {} overdue pending access requests at {}", count, now);
 
-            // 3. Log audit log cho mỗi request đã expire thực tế và gửi thông báo
+            // 3. Ghi audit cho đúng các đơn đã expire (cùng transaction; lỗi -> rollback toàn bộ)
             for (AccessRequest req : overdueRequests) {
                 AccessRequestSnapshot beforeSnapshot = AccessRequestSnapshot.from(req);
                 AccessRequestSnapshot afterSnapshot = new AccessRequestSnapshot(
@@ -636,22 +636,47 @@ public class AccessRequestService {
                         afterSnapshot,
                         "Hết hạn tự động do quá giờ bắt đầu"
                 );
-
-                try {
-                    if (req.getRequester() != null) {
-                        String areaName = req.getArea() != null ? req.getArea().getName() : "khu vực";
-                        String timeRange = InAppNotificationService.formatTimeRange(req.getStartTime(), req.getEndTime());
-                        String title = "Yêu cầu truy cập đã hết hạn";
-                        String message = "Yêu cầu vào " + areaName + " (" + timeRange + ") đã hết hạn do không được xử lý trước giờ bắt đầu.";
-                        inAppNotificationService.createForUser(req.getRequester(), NotificationType.ACCESS_DENIED, title, message, req.getId());
-                    }
-                } catch (Exception e) {
-                    log.error("Failed to send ACCESS_DENIED notification for expired request {}", req.getId(), e);
-                }
             }
+
+            // 4. Thông báo chỉ gửi SAU KHI commit thành công -> không báo "đã hết hạn" cho đơn bị rollback
+            List<ExpiredNotice> notices = overdueRequests.stream()
+                    .filter(req -> req.getRequester() != null)
+                    .map(req -> new ExpiredNotice(
+                            req.getRequester(),
+                            req.getId(),
+                            req.getArea() != null ? req.getArea().getName() : "khu vực",
+                            InAppNotificationService.formatTimeRange(req.getStartTime(), req.getEndTime())))
+                    .toList();
+            runAfterCommit(() -> notices.forEach(this::sendExpiredNotice));
 
             return count;
         });
+    }
+
+    private record ExpiredNotice(User requester, UUID requestId, String areaName, String timeRange) {}
+
+    private void sendExpiredNotice(ExpiredNotice n) {
+        try {
+            String title = "Yêu cầu truy cập đã hết hạn";
+            String message = "Yêu cầu vào " + n.areaName() + " (" + n.timeRange() + ") đã hết hạn do không được xử lý trước giờ bắt đầu.";
+            inAppNotificationService.createForUser(n.requester(), NotificationType.ACCESS_DENIED, title, message, n.requestId());
+        } catch (Exception e) {
+            log.error("Failed to send ACCESS_DENIED notification for expired request {}", n.requestId(), e);
+        }
+    }
+
+    private void runAfterCommit(Runnable action) {
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            action.run();
+                        }
+                    });
+        } else {
+            action.run();
+        }
     }
 
     private User getRequester(String actorEmail) {

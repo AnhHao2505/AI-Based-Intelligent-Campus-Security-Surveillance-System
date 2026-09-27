@@ -126,16 +126,7 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, UU
             @Param("now") OffsetDateTime now
     );
 
-    @Modifying
-    @Query("UPDATE AccessRequest ar SET ar.status = :newStatus, ar.updatedAt = :now " +
-           "WHERE ar.status = :currentStatus AND ar.startTime < :now")
-    int expireOverdueRequests(
-            @Param("currentStatus") RequestStatus currentStatus,
-            @Param("newStatus") RequestStatus newStatus,
-            @Param("now") OffsetDateTime now
-    );
-
-    @Modifying
+    @Modifying(clearAutomatically = false, flushAutomatically = true)
     @Query("UPDATE AccessRequest ar SET ar.status = :newStatus, ar.updatedAt = :now " +
            "WHERE ar.id IN :ids AND ar.status = :currentStatus")
     int expireOverdueRequestsByIds(

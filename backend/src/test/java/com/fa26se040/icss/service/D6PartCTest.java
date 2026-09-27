@@ -63,6 +63,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -616,7 +617,7 @@ class D6PartCTest {
 
         when(accessRequestRepository.findPendingOverdueRequestsForUpdate(eq(RequestStatus.PENDING), any()))
                 .thenReturn(List.of(req1, req2));
-        when(accessRequestRepository.expireOverdueRequests(eq(RequestStatus.PENDING), eq(RequestStatus.EXPIRED), any()))
+        when(accessRequestRepository.expireOverdueRequestsByIds(anyCollection(), eq(RequestStatus.PENDING), eq(RequestStatus.EXPIRED), any()))
                 .thenReturn(2);
 
         // Capture correlation_id and actor inside record
@@ -650,6 +651,39 @@ class D6PartCTest {
         assertEquals("SYSTEM", capturedActors.get(0).getActorType());
         assertEquals("EXPIRE_OVERDUE_REQUESTS_JOB", capturedActors.get(0).getActorSource());
         assertNull(capturedActors.get(0).getUser());
+    }
+
+    @Test
+    @DisplayName("D6-15: Bước khoá đơn quá hạn lỗi -> ném lỗi, không update, không ghi audit")
+    void testD6_15_ExpireJob_LockQueryFails_NoUpdateNoAudit() {
+        when(accessRequestRepository.findPendingOverdueRequestsForUpdate(eq(RequestStatus.PENDING), any()))
+                .thenThrow(new org.springframework.dao.CannotAcquireLockException("lock timeout"));
+
+        org.junit.jupiter.api.Assertions.assertThrows(
+                org.springframework.dao.CannotAcquireLockException.class,
+                () -> accessRequestService.expireOverdueRequests());
+
+        verify(accessRequestRepository, never()).expireOverdueRequestsByIds(anyCollection(), any(), any(), any());
+        verify(auditService, never()).record(any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("D6-16: Số đơn update khác số đơn đã khoá -> ném lỗi (rollback), không ghi audit")
+    void testD6_16_ExpireJob_CountMismatch_Throws() {
+        AccessRequest req1 = AccessRequest.builder()
+                .id(UUID.randomUUID()).area(testArea).requester(studentUser).status(RequestStatus.PENDING)
+                .startTime(OffsetDateTime.now().minusHours(2)).endTime(OffsetDateTime.now().minusHours(1)).build();
+        AccessRequest req2 = AccessRequest.builder()
+                .id(UUID.randomUUID()).area(testArea).requester(studentUser).status(RequestStatus.PENDING)
+                .startTime(OffsetDateTime.now().minusHours(3)).endTime(OffsetDateTime.now().minusHours(2)).build();
+        when(accessRequestRepository.findPendingOverdueRequestsForUpdate(eq(RequestStatus.PENDING), any()))
+                .thenReturn(List.of(req1, req2));
+        when(accessRequestRepository.expireOverdueRequestsByIds(anyCollection(), eq(RequestStatus.PENDING), eq(RequestStatus.EXPIRED), any()))
+                .thenReturn(1);
+
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
+                () -> accessRequestService.expireOverdueRequests());
+        verify(auditService, never()).record(any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
