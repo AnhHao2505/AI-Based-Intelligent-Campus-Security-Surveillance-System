@@ -244,8 +244,9 @@ public class AuditService {
         try {
             return objectMapper.writeValueAsString(obj);
         } catch (JsonProcessingException e) {
+            // Không được ghi snapshot rỗng thay cho dữ liệu thật: lỗi -> thao tác rollback (LA4)
             log.error("Audit log serialize error for object of type {}: {}", obj.getClass().getName(), e.getMessage());
-            return "{}";
+            throw new AuditWriteException("Không ghi được nhật ký hệ thống, thao tác chưa được thực hiện. Vui lòng thử lại.", e);
         }
     }
 

@@ -495,7 +495,7 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     @DisplayName("T1: Bật hợp lệ -> audit targetType AREA_EVENT_MODE, snapshot có reasonCode + reasonLabel + note; 1 phiên mới")
-    void testT1_EnableValidEventMode() {
+    void testT1_EnableValidEventMode() throws Exception {
         OffsetDateTime futureUntil = OffsetDateTime.now().plusHours(3);
         long auditBefore = auditLogRepository.count();
         long sessionBefore = sessionRepository.count();
@@ -514,7 +514,7 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
         assertEquals(contactArea.getId().toString(), log.getTargetId());
         assertEquals("Hội thảo nghiên cứu an ninh thông tin", log.getReason());
 
-        AreaEventModeAuditSnapshot newSnap = objectMapper.convertValue(log.getNewValue(), AreaEventModeAuditSnapshot.class);
+        AreaEventModeAuditSnapshot newSnap = objectMapper.readValue(log.getNewValue(), AreaEventModeAuditSnapshot.class);
         assertTrue(newSnap.openToMembers());
         assertEquals("SEMINAR", newSnap.reasonCode());
         assertEquals("Hội thảo/sự kiện chuyên môn", newSnap.reasonLabel());
@@ -758,7 +758,7 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
         assertEquals(AuditTargetType.REASON_CATALOG, createLog.getTargetType());
         assertEquals(AuditAction.CREATE, createLog.getAction());
 
-        ReasonCatalogAuditSnapshot createSnap = objectMapper.convertValue(createLog.getNewValue(), ReasonCatalogAuditSnapshot.class);
+        ReasonCatalogAuditSnapshot createSnap = objectMapper.readValue(createLog.getNewValue(), ReasonCatalogAuditSnapshot.class);
         assertEquals(exhibCode, createSnap.code());
         assertEquals("Triển lãm công nghệ", createSnap.label());
 
@@ -771,14 +771,14 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
         assertEquals(auditBefore + 2, auditLogRepository.count());
         AuditLog updateLog = auditLogRepository.findAll().get((int) auditBefore + 1);
         assertEquals(AuditAction.UPDATE, updateLog.getAction());
-        ReasonCatalogAuditSnapshot updateOldSnap = objectMapper.convertValue(updateLog.getOldValue(), ReasonCatalogAuditSnapshot.class);
-        ReasonCatalogAuditSnapshot updateNewSnap = objectMapper.convertValue(updateLog.getNewValue(), ReasonCatalogAuditSnapshot.class);
+        ReasonCatalogAuditSnapshot updateOldSnap = objectMapper.readValue(updateLog.getOldValue(), ReasonCatalogAuditSnapshot.class);
+        ReasonCatalogAuditSnapshot updateNewSnap = objectMapper.readValue(updateLog.getNewValue(), ReasonCatalogAuditSnapshot.class);
         assertEquals("Triển lãm công nghệ", updateOldSnap.label());
         assertEquals("Triển lãm khoa học công nghệ", updateNewSnap.label());
 
         // Log cũ tạo ban đầu vẫn giữ snapshot gốc
         AuditLog origLog = auditLogRepository.findById(createLog.getId()).orElseThrow();
-        ReasonCatalogAuditSnapshot origSnap = objectMapper.convertValue(origLog.getNewValue(), ReasonCatalogAuditSnapshot.class);
+        ReasonCatalogAuditSnapshot origSnap = objectMapper.readValue(origLog.getNewValue(), ReasonCatalogAuditSnapshot.class);
         assertEquals("Triển lãm công nghệ", origSnap.label());
 
         // 4. ADMIN ngừng dùng -> 1 audit DEACTIVATE

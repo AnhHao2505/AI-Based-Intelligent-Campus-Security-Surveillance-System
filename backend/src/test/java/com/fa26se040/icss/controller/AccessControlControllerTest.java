@@ -148,7 +148,7 @@ class AccessControlControllerTest {
     @Test
     @DisplayName("PATCH /api/access-control/level-presets/{areaType} với version xung đột -> 409 Conflict")
     void updateLevelPreset_VersionConflict_Returns409() throws Exception {
-        LevelPresetUpdateRequest req = new LevelPresetUpdateRequest(2, true, "Lý do", 0L);
+        LevelPresetUpdateRequest req = new LevelPresetUpdateRequest(2, true, "Điều chỉnh theo quy định mới", 0L);
         when(presetService.updatePreset(eq(AreaLevel.PUBLIC), any(), any()))
                 .thenThrow(new AccessControlException(AccessControlErrorCode.ERR_AC_003));
 
