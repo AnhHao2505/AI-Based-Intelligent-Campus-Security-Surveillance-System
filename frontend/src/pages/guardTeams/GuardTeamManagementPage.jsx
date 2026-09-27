@@ -26,9 +26,9 @@ import {
   AlertCircle,
   ClipboardList,
   Zap,
-  CalendarOff,
   UserCheck,
-  ArrowRightLeft
+  ArrowRightLeft,
+  FileSpreadsheet
 } from 'lucide-react';
 import { guardScheduleApi } from '../../api/guardScheduleApi';
 import { getUsers } from '../../services/userService';
@@ -36,6 +36,7 @@ import { getAreas } from '../../services/areaService';
 import { getBuildings } from '../../services/buildingService';
 import { ROLES } from '../../constants/roles';
 import StaffingWizardModal from '../../components/guard/StaffingWizardModal';
+import ExportTimesheetModal from '../../components/guard/ExportTimesheetModal';
 import GuardTeamsTab from '../../components/guard/GuardTeamsTab';
 import ShiftRequestsTab from '../../components/guard/ShiftRequestsTab';
 import '../../styles/GuardSchedulePage.css';
@@ -107,6 +108,7 @@ export default function GuardTeamManagementPage() {
   const [bulkClearScope, setBulkClearScope] = useState('ALL');
   const [bulkClearSelectedTeamId, setBulkClearSelectedTeamId] = useState('');
   const [clearingShifts, setClearingShifts] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
 
   // Calculate Monday to Sunday of the active week in local time
   const weekDays = useMemo(() => {
@@ -286,10 +288,6 @@ export default function GuardTeamManagementPage() {
   }, [startDateStr, endDateStr, selectedBuilding]);
 
   useEffect(() => {
-    document.title = 'Quản Lý Đội Bảo Vệ — AI Campus Security';
-  }, []);
-
-  useEffect(() => {
     fetchData();
   }, [fetchData]);
 
@@ -347,10 +345,11 @@ export default function GuardTeamManagementPage() {
     return null;
   }, [guards, teams]);
 
-  // Shifts filtered for current building view
+  // Shifts filtered for current building view (loại bỏ các ca đã hủy / đã nghỉ)
   const displayShifts = useMemo(() => {
-    if (selectedBuilding === 'ALL') return shifts;
-    return shifts.filter((s) => {
+    const activeShifts = (shifts || []).filter((s) => s.status !== 'CANCELLED');
+    if (selectedBuilding === 'ALL') return activeShifts;
+    return activeShifts.filter((s) => {
       const bld = getShiftBuilding(s);
       return bld === selectedBuilding;
     });
@@ -714,51 +713,7 @@ export default function GuardTeamManagementPage() {
         );
         const isToday = dateStr === todayStr;
 
-        // Check if this guard has an approved Leave request for dateStr
-        const guardLeaveRequest = shiftRequests.find(
-          (r) =>
-            (r.requesterGuardId === guard.id || r.requesterId === guard.id || r.requester?.id === guard.id) &&
-            r.status === 'APPROVED' &&
-            r.shiftDate === dateStr &&
-            (r.requestType === 'LEAVE' || r.requestType === 'LEAVE_REQUEST')
-        );
 
-        // Check if this guard has an approved Swap request for dateStr (where they gave their shift away)
-        const guardSwapAwayRequest = shiftRequests.find(
-          (r) =>
-            (r.requesterGuardId === guard.id || r.requesterId === guard.id || r.requester?.id === guard.id) &&
-            r.status === 'APPROVED' &&
-            r.shiftDate === dateStr &&
-            (r.requestType === 'SWAP' || r.requestType === 'SWAP_SHIFT')
-        );
-
-        // Helper to format time value (handles "06:00:00", "06:00", or array)
-        const formatTimeVal = (val) => {
-          if (!val) return '';
-          if (typeof val === 'string') return val.length >= 5 ? val.substring(0, 5) : val;
-          if (Array.isArray(val) && val.length >= 2) return `${String(val[0]).padStart(2, '0')}:${String(val[1]).padStart(2, '0')}`;
-          return String(val);
-        };
-
-        // Extract shift type and time for approved leave
-        const relatedLeaveShift = guardLeaveRequest?.shiftId
-          ? shifts.find((s) => s.id === guardLeaveRequest.shiftId)
-          : null;
-        const leaveShiftType = guardLeaveRequest?.shiftType || relatedLeaveShift?.shiftType;
-        const leaveShiftConfig = leaveShiftType ? SHIFT_TYPES[leaveShiftType] : null;
-        const leaveStart = formatTimeVal(guardLeaveRequest?.startTime) || formatTimeVal(relatedLeaveShift?.startTime) || formatTimeVal(leaveShiftConfig?.startTime);
-        const leaveEnd = formatTimeVal(guardLeaveRequest?.endTime) || formatTimeVal(relatedLeaveShift?.endTime) || formatTimeVal(leaveShiftConfig?.endTime);
-        const leaveTimeDisplay = leaveStart && leaveEnd ? `${leaveStart} — ${leaveEnd}` : (leaveStart || leaveEnd || leaveShiftConfig?.time || '');
-
-        // Extract shift type and time for approved swap away
-        const relatedSwapShift = guardSwapAwayRequest?.shiftId
-          ? shifts.find((s) => s.id === guardSwapAwayRequest.shiftId)
-          : null;
-        const swapShiftType = guardSwapAwayRequest?.shiftType || relatedSwapShift?.shiftType;
-        const swapShiftConfig = swapShiftType ? SHIFT_TYPES[swapShiftType] : null;
-        const swapStart = formatTimeVal(guardSwapAwayRequest?.startTime) || formatTimeVal(relatedSwapShift?.startTime) || formatTimeVal(swapShiftConfig?.startTime);
-        const swapEnd = formatTimeVal(guardSwapAwayRequest?.endTime) || formatTimeVal(relatedSwapShift?.endTime) || formatTimeVal(swapShiftConfig?.endTime);
-        const swapTimeDisplay = swapStart && swapEnd ? `${swapStart} — ${swapEnd}` : (swapStart || swapEnd || swapShiftConfig?.time || '');
 
         return (
           <td
@@ -920,141 +875,24 @@ export default function GuardTeamManagementPage() {
                 );
               })}
 
-              {/* Khi ngày này chưa có ca: hiển thị thẻ Nghỉ Phép / Đổi Ca nếu có đơn đã duyệt, hoặc nút Phân ca */}
+              {/* Khi ngày này chưa có ca: hiển thị nút Phân ca nhanh khi hover */}
               {guardDayShifts.length === 0 && (
-                <>
-                  {guardLeaveRequest ? (
-                    <div
-                      className={`shift-card ${leaveShiftConfig?.cssClass || 'shift-morning'} border-l-[3px] border-l-rose-500 shadow-xs ring-1 ring-rose-400/30 opacity-95`}
-                      title={
-                        guardLeaveRequest.reason
-                          ? `Nghỉ phép: "${guardLeaveRequest.reason}"${
-                              guardLeaveRequest.substituteGuardName
-                                ? ` - Người trực thay: ${guardLeaveRequest.substituteGuardName}`
-                                : ''
-                            }`
-                          : 'Nghỉ phép đã được duyệt'
-                      }
-                    >
-                      {/* Top & Middle Content */}
-                      <div>
-                        {/* Header: Shift Title & Badge */}
-                        <div className="flex items-center justify-between font-bold">
-                          <span className="flex items-center gap-1 text-rose-700 dark:text-rose-400">
-                            <CalendarOff size={13} className="text-rose-600 dark:text-rose-400 shrink-0" />
-                            <span>{leaveShiftConfig ? leaveShiftConfig.label : 'Ca Sáng'}</span>
-                          </span>
-                          <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300 border border-rose-300/70 dark:border-rose-700/60">
-                            Nghỉ phép
-                          </span>
-                        </div>
-
-                        {/* Time */}
-                        {leaveTimeDisplay && (
-                          <div className="flex items-center gap-1 mt-1 text-[11px] font-semibold opacity-90">
-                            <Clock size={11} className="shrink-0" />
-                            <span>{leaveTimeDisplay}</span>
-                          </div>
-                        )}
-
-                        {/* Substitute Info */}
-                        {guardLeaveRequest.substituteGuardName ? (
-                          <div
-                            className="mt-1 px-1.5 py-0.5 rounded-md bg-teal-500/12 border border-teal-500/25 text-teal-900 dark:text-teal-200 text-[10px] font-medium flex items-center gap-1"
-                            title={`Người trực thay: ${guardLeaveRequest.substituteGuardName}`}
-                          >
-                            <UserCheck size={10} className="text-teal-600 dark:text-teal-400 shrink-0" />
-                            <span className="truncate">
-                              Thay: <strong>{guardLeaveRequest.substituteGuardName}</strong>
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="mt-1 px-1.5 py-0.5 rounded-md bg-slate-500/10 border border-slate-500/20 text-slate-600 dark:text-slate-400 text-[10px] italic">
-                            Hủy ca trực
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Footer */}
-                      <div className="mt-1.5 pt-1 border-t border-black/10 dark:border-white/10 flex items-center justify-between text-[10px]">
-                        <span
-                          className="opacity-75 italic truncate max-w-[85px]"
-                          title={guardLeaveRequest.reason ? `Lý do: "${guardLeaveRequest.reason}"` : 'Đã duyệt nghỉ phép'}
-                        >
-                          {guardLeaveRequest.reason ? `"${guardLeaveRequest.reason}"` : 'Nghỉ phép'}
-                        </span>
-                        <span className="px-1.5 py-0.2 rounded text-[9px] font-semibold bg-slate-200/80 dark:bg-slate-700/60 text-slate-700 dark:text-slate-300">
-                          Đã duyệt
-                        </span>
-                      </div>
-                    </div>
-                  ) : guardSwapAwayRequest ? (
-                    <div
-                      className={`shift-card ${swapShiftConfig?.cssClass || 'shift-morning'} border-l-[3px] border-l-indigo-500 shadow-xs ring-1 ring-indigo-400/30 opacity-95`}
-                      title={`Đã đổi ca cho ${guardSwapAwayRequest.substituteGuardName || 'Đồng nghiệp'}`}
-                    >
-                      {/* Top & Middle Content */}
-                      <div>
-                        {/* Header: Title & Badge */}
-                        <div className="flex items-center justify-between font-bold">
-                          <span className="flex items-center gap-1 text-indigo-700 dark:text-indigo-400">
-                            <ArrowRightLeft size={13} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
-                            <span>{swapShiftConfig ? swapShiftConfig.label : 'Ca Sáng'}</span>
-                          </span>
-                          <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-indigo-100 dark:bg-indigo-950/80 text-indigo-900 dark:text-indigo-200 border border-indigo-300/70 dark:border-indigo-700/60">
-                            Đã đổi ca
-                          </span>
-                        </div>
-
-                        {/* Time */}
-                        {swapTimeDisplay && (
-                          <div className="flex items-center gap-1 mt-1 text-[11px] font-semibold opacity-90">
-                            <Clock size={11} className="shrink-0" />
-                            <span>{swapTimeDisplay}</span>
-                          </div>
-                        )}
-
-                        {/* Substitute Info */}
-                        {guardSwapAwayRequest.substituteGuardName && (
-                          <div
-                            className="mt-1 px-1.5 py-0.5 rounded-md bg-indigo-500/12 border border-indigo-500/25 text-indigo-900 dark:text-indigo-200 text-[10px] font-medium flex items-center gap-1"
-                            title={`Đã chuyển ca cho: ${guardSwapAwayRequest.substituteGuardName}`}
-                          >
-                            <UserCheck size={10} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
-                            <span className="truncate">
-                              Chuyển cho: <strong>{guardSwapAwayRequest.substituteGuardName}</strong>
-                            </span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Footer */}
-                      <div className="mt-1.5 pt-1 border-t border-black/10 dark:border-white/10 flex items-center justify-between text-[10px]">
-                        <span className="opacity-75">Chuyển ca</span>
-                        <span className="px-1.5 py-0.2 rounded text-[9px] font-semibold bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300">
-                          Đã duyệt
-                        </span>
-                      </div>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => {
-                        setEditingShift({
-                          guardId: guard.id,
-                          shiftDate: dateStr,
-                          shiftType: 'SHIFT_MORNING',
-                          startTime: '06:00',
-                          endTime: '14:00'
-                        });
-                        setShowShiftModal(true);
-                      }}
-                      className="slot-quick-add-btn"
-                      title="Thêm ca trực nhanh cho ngày này"
-                    >
-                      <Plus size={13} /> Phân ca
-                    </button>
-                  )}
-                </>
+                <button
+                  onClick={() => {
+                    setEditingShift({
+                      guardId: guard.id,
+                      shiftDate: dateStr,
+                      shiftType: 'SHIFT_MORNING',
+                      startTime: '06:00',
+                      endTime: '14:00'
+                    });
+                    setShowShiftModal(true);
+                  }}
+                  className="slot-quick-add-btn"
+                  title="Thêm ca trực nhanh cho ngày này"
+                >
+                  <Plus size={13} /> Phân ca
+                </button>
               )}
             </div>
           </td>
@@ -1080,6 +918,15 @@ export default function GuardTeamManagementPage() {
         <div className="schedule-header__actions">
           {activeTab === 'SCHEDULE' && (
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowExportModal(true)}
+                className="schedule-btn-secondary text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800/80 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                title="Xuất bảng tổng hợp chấm công và tính lương ra file Excel"
+              >
+                <FileSpreadsheet size={16} className="text-emerald-600 dark:text-emerald-400" />
+                <span>Xuất Excel Chấm Công</span>
+              </button>
               {shifts.length > 0 && (
                 <button
                   type="button"
@@ -1513,7 +1360,6 @@ export default function GuardTeamManagementPage() {
                   startTime: startTime,
                   endTime: endTime,
                   areaId: null,
-                  radioChannel: null,
                   notes: form.notes ? form.notes.value : '',
                   status: form.status ? form.status.value : (editingShift?.status || 'SCHEDULED'),
                   isOvertime: form.isOvertime ? form.isOvertime.checked : (editingShift?.isOvertime || false)
@@ -1822,6 +1668,16 @@ export default function GuardTeamManagementPage() {
         onSuccess={() => {
           fetchData();
         }}
+      />
+
+      {/* ========================================================
+          MODAL: EXPORT PAYROLL TIMESHEET EXCEL
+      ======================================================== */}
+      <ExportTimesheetModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        teams={teams}
+        currentDate={currentDate}
       />
     </div>
   );

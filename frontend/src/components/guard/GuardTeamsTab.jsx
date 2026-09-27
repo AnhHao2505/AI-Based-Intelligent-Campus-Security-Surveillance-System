@@ -1607,13 +1607,6 @@ export default function GuardTeamsTab({
                     </div>
                   )}
 
-                  {/* Informative Auto-generation alert */}
-                  <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-800 dark:text-amber-300">
-                    <Zap size={14} className="fill-amber-500 text-amber-500 shrink-0 mt-0.5" />
-                    <span>
-                      Hệ thống sẽ <strong>tự động tạo ca trực</strong> cho các bảo vệ được chọn và cập nhật trực tiếp lên <strong>Lịch trực tuần</strong> cũng như <strong>App Mobile</strong> của nhân viên. Sau khi kết thúc ca trực, lịch sử chấm công và sự cố vẫn được bảo lưu trọn vẹn để đối soát.
-                    </span>
-                  </div>
 
                   {/* Guard search & count */}
                   <div className="space-y-2">
