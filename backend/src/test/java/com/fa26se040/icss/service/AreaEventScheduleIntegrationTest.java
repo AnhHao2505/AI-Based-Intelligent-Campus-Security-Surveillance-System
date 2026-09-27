@@ -1149,5 +1149,64 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         assertEquals(AreaErrorCode.ERR_AREA_025, exNotExist.getErrorCode());
     }
 
-    /* RS-05 is committed in R2 */
+    @Test
+    @DisplayName("RS-05: Đặt lịch lý do A (EVENT_ENABLE), sửa lịch lý do B (EVENT_EXTEND) -> schedule giữ A; audit UPDATE có B; kích hoạt -> audit ENABLE có A")
+    void testRS05_ScheduleUpdatePreservesOriginalReasonAndAudit() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime sStart = now.plusMinutes(5);
+        OffsetDateTime sEnd = sStart.plusHours(2);
+        OffsetDateTime sEndExtended = sEnd.plusHours(1);
+
+        // Đặt lịch với lý do A (SEMINAR)
+        EventScheduleResponse created = areaService.createSchedule(
+                internalArea.getId(),
+                new EventScheduleRequest(sStart, sEnd, "SEMINAR", "Hoi thao chuyen mon ly do A"),
+                fmUser.getEmail()
+        );
+        assertEquals("SEMINAR", created.reasonCode());
+
+        // Sửa lịch với lý do B (EVENT_PROLONGED)
+        EventScheduleResponse updated = areaService.updateSchedule(
+                internalArea.getId(),
+                created.id(),
+                new EventScheduleRequest(sStart, sEndExtended, "EVENT_PROLONGED", "Sua doi gio su kien ly do B"),
+                fmUser.getEmail()
+        );
+        // Schedule vẫn giữ lý do A
+        assertEquals("SEMINAR", updated.reasonCode(), "Schedule phải giữ nguyên reasonCode A");
+        assertEquals("Hoi thao chuyen mon ly do A", updated.note(), "Schedule phải giữ nguyên note A");
+
+        AreaEventSchedule scheduleInDb = eventScheduleRepository.findById(created.id()).orElseThrow();
+        assertEquals("SEMINAR", scheduleInDb.getReasonCode(), "DB schedule phải giữ nguyên reasonCode A");
+        assertEquals("Hoi thao chuyen mon ly do A", scheduleInDb.getNote(), "DB schedule phải giữ nguyên note A");
+
+        // Audit UPDATE phải có lý do B
+        List<AuditLog> updateLogs = auditLogRepository.findAll().stream()
+                .filter(l -> l.getTargetType() == AuditTargetType.AREA_EVENT_SCHEDULE)
+                .filter(l -> l.getTargetId().equals(created.id().toString()))
+                .filter(l -> l.getAction() == AuditAction.UPDATE)
+                .toList();
+        assertFalse(updateLogs.isEmpty(), "Phải có audit log UPDATE lịch");
+        AuditLog updateLog = updateLogs.get(updateLogs.size() - 1);
+        AreaEventScheduleAuditSnapshot updateSnap = objectMapper.readValue(updateLog.getNewValue(), AreaEventScheduleAuditSnapshot.class);
+        assertEquals("EVENT_PROLONGED", updateSnap.reasonCode(), "Snapshot UPDATE phải có lý do B");
+        assertEquals("Sua doi gio su kien ly do B", updateSnap.note(), "Snapshot UPDATE phải có note B");
+
+        // Kích hoạt lịch -> Audit ENABLE_EVENT_MODE phải có lý do gốc A
+        areaService.processScheduledEventActivations(sStart.plusMinutes(1));
+
+        AreaEventSchedule reloaded = eventScheduleRepository.findById(created.id()).orElseThrow();
+        assertEquals(AreaEventScheduleStatus.STARTED, reloaded.getStatus());
+
+        List<AuditLog> enableLogs = auditLogRepository.findAll().stream()
+                .filter(l -> l.getTargetType() == AuditTargetType.AREA_EVENT_MODE)
+                .filter(l -> l.getTargetId().equals(internalArea.getId().toString()))
+                .filter(l -> l.getAction() == AuditAction.ENABLE_EVENT_MODE)
+                .toList();
+        assertFalse(enableLogs.isEmpty(), "Phải có audit log ENABLE_EVENT_MODE");
+        AuditLog enableLog = enableLogs.get(enableLogs.size() - 1);
+        AreaEventModeAuditSnapshot enableSnap = objectMapper.readValue(enableLog.getNewValue(), AreaEventModeAuditSnapshot.class);
+        assertEquals("SEMINAR", enableSnap.reasonCode(), "Audit kích hoạt phải có lý do gốc A");
+        assertEquals("Hội thảo/sự kiện chuyên môn", enableSnap.reasonLabel(), "Audit kích hoạt phải có nhãn gốc A");
+    }
 }

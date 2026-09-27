@@ -1680,9 +1680,7 @@ public class AreaService {
 
         schedule.setStartAt(req.startAt());
         schedule.setEndAt(req.endAt());
-        schedule.setReasonCode(normReasonCode);
-        schedule.setReasonLabel(reasonLabel);
-        schedule.setNote(trimmedNote);
+        // KHÔNG gán reasonCode/reasonLabel/note của request vào schedule để giữ lý do gốc lúc đặt (R2)
         schedule.setUpdatedBy(actor);
         schedule.setUpdatedAt(now);
         com.fa26se040.icss.entity.AreaEventSchedule saved = eventScheduleRepository.save(schedule);
@@ -1693,9 +1691,9 @@ public class AreaService {
                         saved.getStartAt(),
                         saved.getEndAt(),
                         saved.getStatus().name(),
-                        saved.getReasonCode(),
-                        saved.getReasonLabel(),
-                        saved.getNote()
+                        normReasonCode,
+                        reasonLabel,
+                        trimmedNote
                 );
 
         auditService.record(
