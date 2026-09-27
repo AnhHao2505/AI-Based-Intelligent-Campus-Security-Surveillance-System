@@ -273,7 +273,7 @@ export default function ReasonCatalogPage() {
 							reasons.map((item) => (
 								<tr key={item.id} style={{ borderBottom: "1px solid var(--theme-border, #f1f5f9)" }}>
 									<td style={{ padding: "12px 16px" }}>
-										<span style={{ fontWeight: 600, color: "var(--brand-blue, #2563eb)" }}>
+										<span style={{ fontWeight: 600, color: "var(--theme-text-primary)" }}>
 											{getActionLabel(item.actionType)}
 										</span>
 									</td>
@@ -286,14 +286,14 @@ export default function ReasonCatalogPage() {
 										{item.isOther ? (
 											<Badge variant="warning">Mục khác</Badge>
 										) : (
-											<Badge variant="default">Chuẩn</Badge>
+											<Badge variant="neutral">Chuẩn</Badge>
 										)}
 									</td>
 									<td style={{ padding: "12px 16px" }}>
 										{item.isActive ? (
 											<Badge variant="success">Đang dùng</Badge>
 										) : (
-											<Badge variant="secondary">Ngừng dùng</Badge>
+											<Badge variant="neutral">Ngừng dùng</Badge>
 										)}
 									</td>
 									<td style={{ padding: "12px 16px", textAlign: "right" }}>
