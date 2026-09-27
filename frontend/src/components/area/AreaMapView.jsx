@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import {
 	getLevelConfig,
+	getAccessLevelConfig,
 	getLevelPolygonClass as getLevelPolygonClassHelper,
 	AREA_LEVEL_CONFIG,
 } from "../../utils/areaHelpers";
@@ -308,11 +309,10 @@ export default function AreaMapView({
 											/>
 											<span className="zone-rail-item__name">{area.name}</span>
 											<span
-												className="zone-card__pill-level"
+												className={getAccessLevelConfig(area.areaAccessLevel).className}
 												title="Cấp độ người dùng tối thiểu để vào tự do"
-												style={{ fontSize: "10px", padding: "1px 5px" }}
 											>
-												Level {area.areaAccessLevel ?? 1}
+												{getAccessLevelConfig(area.areaAccessLevel).label}
 											</span>
 											{area.differsFromPreset && (
 												<span
@@ -382,10 +382,10 @@ export default function AreaMapView({
 								>
 									{selectedArea.building && <span className="zone-detail-code">{selectedArea.building}</span>}
 									<span
-										className="zone-card__pill-level"
+										className={getAccessLevelConfig(selectedArea.areaAccessLevel).className}
 										title="Cấp độ người dùng tối thiểu để vào tự do"
 									>
-										Level {selectedArea.areaAccessLevel ?? 1}
+										{getAccessLevelConfig(selectedArea.areaAccessLevel).label}
 									</span>
 									{selectedArea.differsFromPreset && (
 										<span

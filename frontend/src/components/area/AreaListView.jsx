@@ -9,7 +9,7 @@ import {
 	Pencil,
 	Ban,
 } from "lucide-react";
-import { getLevelConfig, AREA_LEVEL_CONFIG } from "../../utils/areaHelpers";
+import { getLevelConfig, getAccessLevelConfig, AREA_LEVEL_CONFIG } from "../../utils/areaHelpers";
 
 const formatEventUntil = (openUntil) => {
 	if (!openUntil) return "";
@@ -90,10 +90,10 @@ export default function AreaListView({
 											{levelConfig.badgeLabel}
 										</span>
 										<span
-											className="zone-card__pill-level"
+											className={getAccessLevelConfig(area.areaAccessLevel).className}
 											title="Cấp độ người dùng tối thiểu để vào tự do"
 										>
-											Level {area.areaAccessLevel ?? 1}
+											{getAccessLevelConfig(area.areaAccessLevel).label}
 										</span>
 										{area.explicitAuthorizationRequired && (
 											<span
@@ -294,7 +294,7 @@ export default function AreaListView({
 
 						const hasLevel = preset && preset.areaAccessLevel != null;
 						const levelLabel = hasLevel
-							? `Level ${preset.areaAccessLevel}${preset.explicitAuthorizationRequired ? " · Chỉ định" : "+"}`
+							? `${getAccessLevelConfig(preset.areaAccessLevel).label}${preset.explicitAuthorizationRequired ? " · Chỉ định" : "+"}`
 							: null;
 
 						let explicitTag = null;

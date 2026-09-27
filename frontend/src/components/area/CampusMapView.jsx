@@ -11,7 +11,7 @@ import {
 	PanelRightClose,
 	PanelRightOpen,
 } from "lucide-react";
-import { getLevelConfig, AREA_LEVEL_CONFIG } from "../../utils/areaHelpers";
+import { getLevelConfig, getAccessLevelConfig, AREA_LEVEL_CONFIG } from "../../utils/areaHelpers";
 import "../../styles/CampusMapView.css";
 
 // FPT University HCMC Campus default center (Saigon Hi-Tech Park, District 9)
@@ -371,11 +371,8 @@ export default function CampusMapView({
 										</div>
 
 										<div className="campus-rail-item__right">
-											<span
-												className="zone-card__pill-level"
-												style={{ fontSize: "10px", padding: "1px 5px" }}
-											>
-												Level {area.areaAccessLevel ?? 1}
+											<span className={getAccessLevelConfig(area.areaAccessLevel).className}>
+												{getAccessLevelConfig(area.areaAccessLevel).label}
 											</span>
 										</div>
 									</div>
@@ -417,7 +414,7 @@ export default function CampusMapView({
 										Cấp truy cập tối thiểu
 									</span>
 									<span className="campus-detail-meta-val">
-										Level {selectedArea.areaAccessLevel ?? 1}
+										{getAccessLevelConfig(selectedArea.areaAccessLevel).label}
 									</span>
 								</div>
 

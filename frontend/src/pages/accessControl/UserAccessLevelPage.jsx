@@ -25,7 +25,7 @@ import {
   getAuditLogs,
 } from '../../services/accessControlService';
 import { ROLES, ROLE_LABELS } from '../../constants/roles';
-import { getLevelConfig, formatDisplayDateTime } from '../../utils/areaHelpers';
+import { getLevelConfig, getAccessLevelConfig, formatDisplayDateTime } from '../../utils/areaHelpers';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import UserSearchCombobox from '../../components/user/UserSearchCombobox';
@@ -977,8 +977,8 @@ export default function UserAccessLevelPage() {
                             </span>
                           </td>
                           <td>
-                            <span className={`access-level-pill level--${currentLevel}`}>
-                              Level {currentLevel}
+                            <span className={getAccessLevelConfig(currentLevel).className}>
+                              {getAccessLevelConfig(currentLevel).label}
                             </span>
                           </td>
                           <td>
@@ -1087,14 +1087,14 @@ export default function UserAccessLevelPage() {
                           <td>
                             <div className="preset-area-type">
                               <span className={`level-badge ${cfg.badgeClass}`}>
-                                {cfg.name}
+                                {cfg.badgeLabel}
                               </span>
-                              <span className="preset-area-code">{typeCode}</span>
+                              <span className="preset-area-desc">{cfg.description}</span>
                             </div>
                           </td>
                           <td>
-                            <span className={`access-level-pill level--${preset.areaAccessLevel ?? preset.accessLevel}`}>
-                              Level {preset.areaAccessLevel ?? preset.accessLevel}
+                            <span className={getAccessLevelConfig(preset.areaAccessLevel ?? preset.accessLevel).className}>
+                              {getAccessLevelConfig(preset.areaAccessLevel ?? preset.accessLevel).label}
                             </span>
                           </td>
                           <td>
@@ -1470,15 +1470,15 @@ export default function UserAccessLevelPage() {
           <div className="change-summary-box">
             <div className="change-summary-item">
               <span className="change-summary-label">Cấp hiện tại:</span>
-              <span className={`access-level-pill level--${confirmUserModal.user?.accessLevel ?? 1}`}>
-                Level {confirmUserModal.user?.accessLevel ?? 1}
+              <span className={getAccessLevelConfig(confirmUserModal.user?.accessLevel).className}>
+                {getAccessLevelConfig(confirmUserModal.user?.accessLevel).label}
               </span>
             </div>
             <span className="audit-arrow">→</span>
             <div className="change-summary-item">
               <span className="change-summary-label">Cấp mới:</span>
-              <span className={`access-level-pill level--${confirmUserModal.newLevel}`}>
-                Level {confirmUserModal.newLevel}
+              <span className={getAccessLevelConfig(confirmUserModal.newLevel).className}>
+                {getAccessLevelConfig(confirmUserModal.newLevel).label}
               </span>
             </div>
           </div>

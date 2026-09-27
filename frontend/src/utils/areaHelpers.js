@@ -78,6 +78,24 @@ export function getLevelConfig(level) {
 }
 
 /**
+ * Cấp truy cập người dùng / khu vực (1–3): MỘT nhãn và MỘT bộ màu cho mọi trang.
+ * Màu định nghĩa ở styles/components.css (.access-level-badge--N) qua token theme.css.
+ */
+export const ACCESS_LEVEL_CONFIG = {
+  1: { level: 1, label: 'Cấp 1', className: 'access-level-badge access-level-badge--1' },
+  2: { level: 2, label: 'Cấp 2', className: 'access-level-badge access-level-badge--2' },
+  3: { level: 3, label: 'Cấp 3', className: 'access-level-badge access-level-badge--3' },
+};
+
+/**
+ * Lấy nhãn + class hiển thị cho cấp truy cập (mặc định Cấp 1 khi thiếu dữ liệu)
+ */
+export function getAccessLevelConfig(level) {
+  const n = Number(level);
+  return ACCESS_LEVEL_CONFIG[n] || ACCESS_LEVEL_CONFIG[1];
+}
+
+/**
  * Lấy class CSS polygon tương ứng cho từng Cấp độ An ninh khu vực
  */
 export function getLevelPolygonClass(level) {

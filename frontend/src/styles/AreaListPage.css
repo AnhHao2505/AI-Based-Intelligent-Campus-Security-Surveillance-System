@@ -538,45 +538,7 @@
   font-size: 11px;
 }
 
-/* Security Level Badges */
-.level-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.level-badge--public {
-  background: rgba(34, 197, 94, 0.12);
-  border: 1px solid rgba(34, 197, 94, 0.25);
-  color: #86efac;
-}
-
-.level-badge--internal,
-.level-badge--internal_confidential {
-  background: rgba(59, 130, 246, 0.12);
-  border: 1px solid rgba(59, 130, 246, 0.25);
-  color: #93c5fd;
-}
-
-.level-badge--contact,
-.level-badge--confidential_contact_required {
-  background: rgba(245, 158, 11, 0.12);
-  border: 1px solid rgba(245, 158, 11, 0.25);
-  color: #fde047;
-}
-
-.level-badge--private,
-.level-badge--highly_confidential {
-  background: rgba(248, 113, 113, 0.12);
-  border: 1px solid rgba(248, 113, 113, 0.25);
-  color: #fca5a5;
-}
+/* Security Level Badges: chuyển sang styles/components.css (.level-badge) */
 
 /* Access Level & Explicit Authorization Badges */
 .zone-card__badges {
@@ -584,18 +546,6 @@
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
-}
-
-.zone-card__pill-level {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: 600;
-  background: var(--brand-subtle);
-  border: 1px solid var(--brand-subtle-border);
-  color: var(--brand-text);
 }
 
 .zone-card__pill-schedule {
