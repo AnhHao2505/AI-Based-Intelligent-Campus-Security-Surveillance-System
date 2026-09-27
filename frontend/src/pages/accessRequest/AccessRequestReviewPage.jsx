@@ -17,7 +17,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import accessRequestService from '../../services/accessRequestService';
-import { getLevelConfig } from '../../utils/areaHelpers';
+import { getLevelConfig, AREA_LEVEL_CONFIG } from '../../utils/areaHelpers';
 import '../../styles/AccessRequestReviewPage.css';
 import PageHeader from '../../components/ui/PageHeader';
 import '../../components/ui/Button.css';
@@ -225,7 +225,7 @@ export default function AccessRequestReviewPage() {
       {/* Header */}
       <PageHeader
         title="Phê duyệt yêu cầu truy cập khu vực"
-        description="Xét duyệt và quản lý các yêu cầu đăng ký ra vào khu vực cần cấp phép trong campus."
+        description={`Xét duyệt yêu cầu ra vào các khu vực ${AREA_LEVEL_CONFIG.INTERNAL_CONFIDENTIAL.badgeLabel}, ${AREA_LEVEL_CONFIG.CONFIDENTIAL_CONTACT_REQUIRED.badgeLabel} và ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.badgeLabel}.`}
         actions={
           <button
             type="button"
@@ -399,7 +399,7 @@ export default function AccessRequestReviewPage() {
                   <th>Hình thức</th>
                   <th>Trạng thái</th>
                   <th className="ui-col-time">Ngày gửi</th>
-                  <th style={{ textAlign: 'center' }}>Thao tác</th>
+                  <th className="arr-col-actions">Thao tác</th>
                 </tr>
               </thead>
               <tbody>
@@ -463,8 +463,8 @@ export default function AccessRequestReviewPage() {
                     </td>
 
                     {/* Actions */}
-                    <td>
-                      <div className="arr-actions" style={{ justifyContent: 'center' }}>
+                    <td className="arr-col-actions">
+                      <div className="arr-actions">
                         {req.status === 'PENDING' && (
                           <>
                             <button

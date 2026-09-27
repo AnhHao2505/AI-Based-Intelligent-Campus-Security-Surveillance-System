@@ -50,21 +50,10 @@
 /* Stats Cards */
 .arr-stats-grid {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  /* UI-B B5: tự xuống hàng theo bề rộng, không ép 6 cột hẹp làm nhãn bị gãy dòng */
+  grid-template-columns: repeat(auto-fit, minmax(176px, 1fr));
   gap: 1rem;
   margin-bottom: 1.5rem;
-}
-
-@media (max-width: 1400px) {
-  .arr-stats-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-
-@media (max-width: 768px) {
-  .arr-stats-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
 }
 
 @media (max-width: 480px) {
@@ -133,12 +122,16 @@
 .arr-stat-card__content {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .arr-stat-card__label {
   font-size: 0.8125rem;
   color: var(--theme-text-muted);
   font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .arr-stat-card__value {
@@ -713,4 +706,15 @@
 .arr-pagination__btns {
   display: flex;
   gap: 0.5rem;
+}
+
+/* UI-B B5: cột thao tác canh phải, rộng cố định -> nút "Xem chi tiết" luôn cùng vị trí */
+.arr-col-actions {
+  width: 132px;
+  min-width: 132px;
+  text-align: right;
+}
+
+.arr-col-actions .arr-actions {
+  justify-content: flex-end;
 }
