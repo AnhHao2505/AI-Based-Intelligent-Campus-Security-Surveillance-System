@@ -89,3 +89,14 @@
   border-color: var(--access-level-3-border);
   color: var(--access-level-3-text);
 }
+
+/* --------------------------------------------------------------------------
+   Khuôn trang (A4): mọi trang dùng cùng độ rộng tối đa và lề qua token
+   --page-max-width / --page-padding-* (theme.css)
+   -------------------------------------------------------------------------- */
+@media (max-width: 768px) {
+  :root {
+    --page-padding-x: 16px;
+    --page-padding-y: 16px;
+  }
+}

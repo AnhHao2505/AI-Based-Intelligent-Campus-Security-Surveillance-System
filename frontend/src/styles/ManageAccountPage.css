@@ -4,7 +4,6 @@
    ========================================================================== */
 
 .account-page {
-  padding: 24px 32px;
   background-color: var(--theme-bg-page);
   min-height: calc(100vh - 64px);
   color: var(--theme-text-primary);
@@ -12,6 +11,12 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
+  /* UI-1 A4: khuôn trang dùng chung */
+  width: 100%;
+  max-width: var(--page-max-width);
+  margin: 0 auto;
+  padding: var(--page-padding-y) var(--page-padding-x);
+  box-sizing: border-box;
 }
 
 /* --------------------------------------------------------------------------
@@ -1395,10 +1400,6 @@
    Responsive Adaptations
    -------------------------------------------------------------------------- */
 @media (max-width: 768px) {
-  .account-page {
-    padding: 16px;
-  }
-
   .account-header {
     flex-direction: column;
     align-items: stretch;
@@ -1580,3 +1581,8 @@
   white-space: nowrap;
 }
 
+
+/* UI-1 A4: container đã có gap, PageHeader không cần lề dưới */
+.account-page > .ui-page-header {
+  margin-bottom: 0;
+}

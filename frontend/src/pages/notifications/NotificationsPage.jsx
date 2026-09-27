@@ -20,6 +20,8 @@ import { notificationService } from '../../services/notificationService';
 import { useAuth } from '../../context/AuthContext';
 import Pagination from '../../components/ui/Pagination';
 import '../../styles/NotificationsPage.css';
+import PageHeader from '../../components/ui/PageHeader';
+import '../../components/ui/Button.css';
 
 export default function NotificationsPage() {
   const { user } = useAuth();
@@ -188,30 +190,21 @@ export default function NotificationsPage() {
 
   return (
     <div className="notif-container">
-      <div className="notif-card">
-        {/* Header */}
-        <div className="notif-card__header">
-          <div className="notif-card__header-left">
-            <div className="notif-card__icon-box">
-              <Bell size={16} />
-            </div>
-            <div>
-              <h2 className="notif-card__title">Thông báo</h2>
-              <p className="notif-card__subtitle">
-                Cập nhật về yêu cầu truy cập và quyền của bạn
-              </p>
-            </div>
-          </div>
-
+      <PageHeader
+        title="Thông báo"
+        description="Cập nhật về yêu cầu truy cập và quyền của bạn."
+        actions={
           <button
             type="button"
-            className="notif-mark-all-btn"
+            className="ui-btn ui-btn--secondary ui-btn--md"
             disabled={!hasUnread || loading}
             onClick={handleMarkAllAsRead}
           >
             Đánh dấu đã đọc tất cả
           </button>
-        </div>
+        }
+      />
+      <div className="notif-card">
 
         {/* List / Empty State */}
         {loading && notifications.length === 0 ? (

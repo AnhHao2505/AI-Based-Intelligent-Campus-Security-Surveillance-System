@@ -5,12 +5,15 @@
    ============================================================================== */
 
 .syscfg-container {
-  padding: 24px;
-  max-width: 1200px;
-  margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: 24px;
+  /* UI-1 A4: khuôn trang dùng chung */
+  width: 100%;
+  max-width: var(--page-max-width);
+  margin: 0 auto;
+  padding: var(--page-padding-y) var(--page-padding-x);
+  box-sizing: border-box;
 }
 
 /* Header */
@@ -494,4 +497,9 @@
 .syscfg-val-badge--new {
   background: var(--theme-success-bg);
   color: var(--theme-success-text);
+}
+
+/* UI-1 A4: container đã có gap, PageHeader không cần lề dưới */
+.syscfg-container > .ui-page-header {
+  margin-bottom: 0;
 }

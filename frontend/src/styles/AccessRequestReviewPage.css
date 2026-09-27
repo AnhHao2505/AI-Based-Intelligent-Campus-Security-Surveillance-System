@@ -4,10 +4,13 @@
    ========================================================================== */
 
 .arr-container {
-  padding: 1.5rem 2rem;
-  max-width: 1360px;
-  margin: 0 auto;
   animation: arrFadeIn 0.25s ease-out;
+  /* UI-1 A4: khuôn trang dùng chung */
+  width: 100%;
+  max-width: var(--page-max-width);
+  margin: 0 auto;
+  padding: var(--page-padding-y) var(--page-padding-x);
+  box-sizing: border-box;
 }
 
 @keyframes arrFadeIn {

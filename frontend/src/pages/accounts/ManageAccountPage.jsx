@@ -39,6 +39,7 @@ import {
 import { ROLES, ROLE_LABELS } from '../../constants/roles';
 import { useAuth } from '../../context/AuthContext';
 import '../../styles/ManageAccountPage.css';
+import PageHeader from '../../components/ui/PageHeader';
 
 const DEFAULT_PAGE_SIZE = 10;
 
@@ -532,82 +533,83 @@ export default function ManageAccountPage() {
       )}
 
       {/* Page Header */}
-      <header className="account-header">
-        <div className="account-header__info">
-          <h1 className="account-header__title">Quản lý tài khoản</h1>
-          <p className="account-header__subtitle">
-            {activeTab === 'NORMAL'
-              ? `${totalElements.toLocaleString('vi-VN')} người dùng thường trong hệ thống`
-              : `${totalElements.toLocaleString('vi-VN')} tài khoản hệ thống trong hệ thống`}
-          </p>
-        </div>
+      <PageHeader
+        title="Quản lý tài khoản"
+        description={
+          activeTab === 'NORMAL'
+            ? `${totalElements.toLocaleString('vi-VN')} người dùng thường trong hệ thống`
+            : `${totalElements.toLocaleString('vi-VN')} tài khoản hệ thống`
+        }
+        actions={
+          <>
+            {activeTab === 'NORMAL' && (
+              <div className="account-toolbar__actions">
+                <button
+                  type="button"
+                  id="btn-manage-batches-normal"
+                  className="account-toolbar__secondary-btn"
+                  onClick={handleOpenBatchesModal}
+                  title="Xem lịch sử và quản lý gỡ/khôi phục các lô nạp"
+                >
+                  <Layers size={18} />
+                  <span>Quản lý lô nạp</span>
+                </button>
+                <button
+                  type="button"
+                  id="btn-bulk-import-normal"
+                  className="account-toolbar__secondary-btn"
+                  onClick={handleOpenBulkImport}
+                >
+                  <Upload size={18} />
+                  <span>Nạp người dùng (.zip)</span>
+                </button>
+                <button
+                  type="button"
+                  id="btn-create-normal-account"
+                  className="account-header__create-btn"
+                  onClick={handleOpenCreate}
+                >
+                  <UserPlus size={18} />
+                  <span>Tạo tài khoản</span>
+                </button>
+              </div>
+            )}
 
-        {activeTab === 'NORMAL' && (
-          <div className="account-toolbar__actions">
-            <button
-              type="button"
-              id="btn-manage-batches-normal"
-              className="account-toolbar__secondary-btn"
-              onClick={handleOpenBatchesModal}
-              title="Xem lịch sử và quản lý gỡ/khôi phục các lô nạp"
-            >
-              <Layers size={18} />
-              <span>Quản lý lô nạp</span>
-            </button>
-            <button
-              type="button"
-              id="btn-bulk-import-normal"
-              className="account-toolbar__secondary-btn"
-              onClick={handleOpenBulkImport}
-            >
-              <Upload size={18} />
-              <span>Nạp người dùng (.zip)</span>
-            </button>
-            <button
-              type="button"
-              id="btn-create-normal-account"
-              className="account-header__create-btn"
-              onClick={handleOpenCreate}
-            >
-              <UserPlus size={18} />
-              <span>+ Tạo tài khoản</span>
-            </button>
-          </div>
-        )}
-
-        {activeTab === 'SYSTEM' && (
-          <div className="account-toolbar__actions">
-            <button
-              type="button"
-              id="btn-manage-batches-staff"
-              className="account-toolbar__secondary-btn"
-              onClick={handleOpenBatchesModal}
-              title="Xem lịch sử và quản lý gỡ/khôi phục các lô nạp"
-            >
-              <Layers size={18} />
-              <span>Quản lý lô nạp</span>
-            </button>
-            <button
-              type="button"
-              id="btn-bulk-import-staff"
-              className="account-toolbar__secondary-btn"
-              onClick={handleOpenBulkImport}
-            >
-              <Upload size={18} />
-              <span>Nạp cán bộ / bảo vệ (.zip)</span>
-            </button>
-            <button
-              type="button"
-              id="btn-create-account"
-              className="account-header__create-btn"
-              onClick={handleOpenCreate}
-            >
-              <UserPlus size={18} />
-              <span>+ Tạo tài khoản cán bộ</span>
-            </button>
-          </div>
-        )}
-      </header>
+            {activeTab === 'SYSTEM' && (
+              <div className="account-toolbar__actions">
+                <button
+                  type="button"
+                  id="btn-manage-batches-staff"
+                  className="account-toolbar__secondary-btn"
+                  onClick={handleOpenBatchesModal}
+                  title="Xem lịch sử và quản lý gỡ/khôi phục các lô nạp"
+                >
+                  <Layers size={18} />
+                  <span>Quản lý lô nạp</span>
+                </button>
+                <button
+                  type="button"
+                  id="btn-bulk-import-staff"
+                  className="account-toolbar__secondary-btn"
+                  onClick={handleOpenBulkImport}
+                >
+                  <Upload size={18} />
+                  <span>Nạp cán bộ / bảo vệ (.zip)</span>
+                </button>
+                <button
+                  type="button"
+                  id="btn-create-account"
+                  className="account-header__create-btn"
+                  onClick={handleOpenCreate}
+                >
+                  <UserPlus size={18} />
+                  <span>Tạo tài khoản cán bộ</span>
+                </button>
+              </div>
+            )}
+          </>
+        }
+      />
 
       {/* Tab Navigation (Người dùng thường / Tài khoản hệ thống) */}
       <nav className="account-tabs" aria-label="Phân nhóm tài khoản">

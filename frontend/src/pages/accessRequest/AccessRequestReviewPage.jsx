@@ -19,6 +19,8 @@ import {
 import accessRequestService from '../../services/accessRequestService';
 import { getLevelConfig } from '../../utils/areaHelpers';
 import '../../styles/AccessRequestReviewPage.css';
+import PageHeader from '../../components/ui/PageHeader';
+import '../../components/ui/Button.css';
 
 export default function AccessRequestReviewPage() {
   const [requests, setRequests] = useState([]);
@@ -221,24 +223,21 @@ export default function AccessRequestReviewPage() {
   return (
     <div className="arr-container">
       {/* Header */}
-      <div className="arr-header">
-        <div>
-          <h1 className="arr-header__title">Phê duyệt Yêu cầu Truy cập Khu vực</h1>
-          <p className="arr-header__subtitle">
-            Xét duyệt và quản lý các yêu cầu đăng ký ra vào khu vực bán riêng tư và riêng tư trong campus.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          className="arr-filter-btn"
-          onClick={() => { loadRequests(page, statusFilter, selectedAreaId); loadStats(); }}
-          title="Làm mới dữ liệu"
-        >
-          <RefreshCw size={14} className={loading ? 'spin' : ''} />
-          <span>Làm mới</span>
-        </button>
-      </div>
+      <PageHeader
+        title="Phê duyệt yêu cầu truy cập khu vực"
+        description="Xét duyệt và quản lý các yêu cầu đăng ký ra vào khu vực cần cấp phép trong campus."
+        actions={
+          <button
+            type="button"
+            className="ui-btn ui-btn--secondary ui-btn--md"
+            onClick={() => { loadRequests(page, statusFilter, selectedAreaId); loadStats(); }}
+            title="Làm mới dữ liệu"
+          >
+            <RefreshCw size={16} className={loading ? 'spin' : ''} />
+            <span>Làm mới</span>
+          </button>
+        }
+      />
 
       {/* Notifications */}
       {actionSuccess && (

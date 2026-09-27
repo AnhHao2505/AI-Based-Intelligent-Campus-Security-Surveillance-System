@@ -23,6 +23,7 @@ import accessRequestService from "../../services/accessRequestService";
 import { getLevelConfig, AREA_LEVEL_CONFIG } from "../../utils/areaHelpers";
 import { useAuth } from "../../context/AuthContext";
 import "../../styles/AccessRequestPage.css";
+import PageHeader from "../../components/ui/PageHeader";
 
 export default function AccessRequestPage() {
 	const { user } = useAuth();
@@ -531,6 +532,10 @@ export default function AccessRequestPage() {
 
 	return (
 		<div className="arp-container">
+			<PageHeader
+				title="Yêu cầu truy cập"
+				description="Gửi yêu cầu ra vào khu vực cần cấp phép và theo dõi trạng thái các yêu cầu của bạn."
+			/>
 			{/* THẺ 1: YÊU CẦU TRUY CẬP MỚI */}
 			<div className="arp-card">
 				{/* 2a. Đầu thẻ */}

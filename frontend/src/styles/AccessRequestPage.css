@@ -4,10 +4,13 @@
    ========================================================================== */
 
 .arp-container {
-  max-width: 1060px;
-  margin: 0 auto;
-  padding: 24px;
   animation: arpFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  /* UI-1 A4: khuôn trang dùng chung */
+  width: 100%;
+  max-width: var(--page-max-width);
+  margin: 0 auto;
+  padding: var(--page-padding-y) var(--page-padding-x);
+  box-sizing: border-box;
 }
 
 @keyframes arpFadeIn {

@@ -31,6 +31,8 @@ import AreaAccessRulesModal from "../../components/area/AreaAccessRulesModal";
 import AreaAssignedPersonnelModal from "../../components/area/AreaAssignedPersonnelModal";
 import AreaMapView from "../../components/area/AreaMapView";
 import AreaListView from "../../components/area/AreaListView";
+import PageHeader from "../../components/ui/PageHeader";
+import "../../components/ui/Button.css";
 import { getLevelPresets } from "../../services/accessControlService";
 import {
 	getAreas,
@@ -806,71 +808,20 @@ export default function AreaListPage() {
 				</div>
 			)}
 
-			{/* Role Header Banner: Strict separation between Admin Configure vs FM Manage */}
-			<div
-				style={{
-					display: "flex",
-					justifyContent: "space-between",
-					alignItems: "center",
-					marginBottom: "12px",
-					padding: "10px 16px",
-					background: "var(--theme-bg-surface)",
-					border: "1px solid var(--theme-border)",
-					borderRadius: "10px",
-				}}
-			>
-				<div>
-					<div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-						<MapPinPlus
-							size={18}
-							color="var(--theme-primary)"
-						/>
-						<h2
-							style={{
-								fontSize: "16px",
-								fontWeight: 700,
-								margin: 0,
-								color: "var(--theme-text-primary)",
-							}}
-						>
-							{isAdmin
-								? "Cấu hình Vùng hạn chế"
-								: "Quản lý Vùng an ninh & Quyền truy cập"}
-						</h2>
-					</div>
-					<p
-						style={{
-							margin: "2px 0 0 0",
-							fontSize: "12px",
-							color: "var(--theme-text-muted)",
-						}}
-					>
-						{isAdmin
-							? "Thêm mới phân khu, cấu hình cấp độ bảo mật, liên kết camera và thiết lập hạ tầng an ninh."
-							: "Quản lý danh sách nhân sự được chỉ định, tra cứu phân quyền và vận hành phân khu."}
-					</p>
-				</div>
-
-				<a
-					href="/admin/map"
-					style={{
-						display: "inline-flex",
-						alignItems: "center",
-						gap: "6px",
-						padding: "6px 14px",
-						fontSize: "12.5px",
-						fontWeight: 500,
-						background: "var(--theme-primary-light)",
-						border: "1px solid var(--theme-primary-border)",
-						borderRadius: "6px",
-						color: "var(--theme-primary)",
-						textDecoration: "none",
-					}}
-				>
-					<Compass size={15} />
-					<span>Xem trên Bản đồ An ninh</span>
-				</a>
-			</div>
+			<PageHeader
+				title={isAdmin ? "Cấu hình vùng hạn chế" : "Quản lý vùng an ninh và quyền truy cập"}
+				description={
+					isAdmin
+						? "Thêm mới phân khu, cấu hình cấp độ bảo mật, liên kết camera và thiết lập hạ tầng an ninh."
+						: "Quản lý danh sách nhân sự được chỉ định, tra cứu phân quyền và vận hành phân khu."
+				}
+				actions={
+					<a href="/admin/map" className="ui-btn ui-btn--secondary ui-btn--md">
+						<Compass size={16} />
+						<span>Xem trên bản đồ an ninh</span>
+					</a>
+				}
+			/>
 
 			{/* ============================================================ */}
 			{/* 1. TOOLBAR: Building, Floor tabs, Spacer, Toggle, Add button */}

@@ -3,13 +3,15 @@
    ========================================================================== */
 
 .access-level-page {
-  padding: 24px;
   display: flex;
   flex-direction: column;
   gap: 20px;
-  max-width: 1280px;
-  margin: 0 auto;
+  /* UI-1 A4: khuôn trang dùng chung */
   width: 100%;
+  max-width: var(--page-max-width);
+  margin: 0 auto;
+  padding: var(--page-padding-y) var(--page-padding-x);
+  box-sizing: border-box;
 }
 
 .access-level-page__header {
@@ -845,3 +847,8 @@
   color: #0284c7;
 }
 
+
+/* UI-1 A4: container đã có gap, PageHeader không cần lề dưới */
+.access-level-page > .ui-page-header {
+  margin-bottom: 0;
+}

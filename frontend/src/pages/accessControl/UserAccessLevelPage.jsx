@@ -28,6 +28,7 @@ import { ROLES, ROLE_LABELS } from '../../constants/roles';
 import { getLevelConfig, getAccessLevelConfig, formatDisplayDateTime } from '../../utils/areaHelpers';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
+import PageHeader from '../../components/ui/PageHeader';
 import UserSearchCombobox from '../../components/user/UserSearchCombobox';
 import './UserAccessLevelPage.css';
 
@@ -816,14 +817,10 @@ export default function UserAccessLevelPage() {
   return (
     <div className="access-level-page">
       {/* Header */}
-      <div className="access-level-page__header">
-        <div>
-          <h1 className="access-level-page__title">Phân quyền truy cập</h1>
-          <p className="access-level-page__subtitle">
-            Quản lý cấp độ truy cập người dùng, thiết lập mặc định theo loại khu vực và tra cứu nhật ký thay đổi
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Phân quyền truy cập"
+        description="Quản lý cấp độ truy cập người dùng, thiết lập mặc định theo loại khu vực và tra cứu nhật ký thay đổi."
+      />
 
       {/* Tabs navigation */}
       <div className="access-level-tabs">

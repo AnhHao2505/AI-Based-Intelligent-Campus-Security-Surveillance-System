@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { getAreas } from '../../services/areaService';
 import '../../styles/AccessHistoryPage.css';
+import PageHeader from '../../components/ui/PageHeader';
 
 export default function AccessHistoryPage() {
   // Bộ lọc đang ở chế độ disabled vì chức năng lịch sử ra vào (MF4) đang phát triển
@@ -34,21 +35,14 @@ export default function AccessHistoryPage() {
 
   return (
     <div className="ahp-container">
+      <PageHeader
+        title="Lịch sử truy cập"
+        description="Các lần bạn được camera nhận diện tại các khu vực giám sát."
+      />
       {/* Thẻ duy nhất: Lịch sử truy cập */}
       <div className="ahp-card">
-        {/* Đầu thẻ */}
-        <div className="ahp-card__header">
-          <div className="ahp-card__header-left">
-            <div className="ahp-card__icon-box">
-              <History size={16} />
-            </div>
-            <div>
-              <h2 className="ahp-card__title">Lịch sử truy cập</h2>
-              <p className="ahp-card__subtitle">
-                Các lần bạn được camera nhận diện tại các khu vực giám sát
-              </p>
-            </div>
-          </div>
+        {/* Đầu thẻ: bộ lọc */}
+        <div className="ahp-card__header ahp-card__header--toolbar">
 
           {/* Bên phải đầu thẻ: bộ lọc khoảng thời gian & dropdown chọn khu vực (disabled do chưa có API) */}
           <div className="ahp-filter-group">

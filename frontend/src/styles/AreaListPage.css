@@ -1449,12 +1449,15 @@
    ========================================================================== */
 
 .zone-page {
-  padding: 24px 32px;
-  max-width: 1440px;
-  margin: 0 auto;
   background-color: var(--theme-bg-page);
   min-height: calc(100vh - 64px);
   color: var(--theme-text-primary);
+  box-sizing: border-box;
+  /* UI-1 A4: khuôn trang dùng chung */
+  width: 100%;
+  max-width: var(--page-max-width);
+  margin: 0 auto;
+  padding: var(--page-padding-y) var(--page-padding-x);
   box-sizing: border-box;
 }
 

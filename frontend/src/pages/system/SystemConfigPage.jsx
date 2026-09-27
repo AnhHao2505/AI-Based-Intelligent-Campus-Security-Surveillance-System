@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import {
-	Sliders,
 	Save,
 	RotateCcw,
 	History,
@@ -18,7 +17,7 @@ import {
 	updateSystemConfig,
 	getSystemConfigHistory,
 } from "../../services/systemConfigService";
-import { Button, Input, Card, Modal, Badge } from "../../components/ui";
+import { Button, Input, Card, Modal, Badge, PageHeader } from "../../components/ui";
 import "../../styles/SystemConfigPage.css";
 
 export default function SystemConfigPage() {
@@ -252,20 +251,10 @@ export default function SystemConfigPage() {
 	return (
 		<div className="syscfg-container">
 			{/* Header */}
-			<header className="syscfg-header">
-				<div className="syscfg-header__title-group">
-					<div className="syscfg-header__icon-box">
-						<Sliders size={22} />
-					</div>
-					<div>
-						<h1 className="syscfg-header__title">Cấu hình hệ thống</h1>
-						<p className="syscfg-header__subtitle">
-							Quản lý các tham số nghiệp vụ toàn trường. Mọi thay đổi sẽ có hiệu
-							lực ngay lập tức mà không cần khởi động lại hệ thống.
-						</p>
-					</div>
-				</div>
-			</header>
+			<PageHeader
+				title="Cấu hình hệ thống"
+				description="Quản lý các tham số nghiệp vụ toàn trường. Mọi thay đổi sẽ có hiệu lực ngay lập tức mà không cần khởi động lại hệ thống."
+			/>
 
 			{/* Notifications / Alerts */}
 			{successMsg && (

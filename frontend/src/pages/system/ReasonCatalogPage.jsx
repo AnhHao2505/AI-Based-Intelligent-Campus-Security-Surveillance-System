@@ -17,7 +17,7 @@ import {
 	deactivateReasonCatalog,
 	reactivateReasonCatalog,
 } from "../../services/reasonCatalogService";
-import { Button, Input, Modal, Badge } from "../../components/ui";
+import { Button, Input, Modal, Badge, PageHeader } from "../../components/ui";
 import "../../styles/SystemConfigPage.css";
 
 const ACTION_TYPES = [
@@ -173,27 +173,19 @@ export default function ReasonCatalogPage() {
 	return (
 		<div className="syscfg-container">
 			{/* Header */}
-			<header className="syscfg-header">
-				<div className="syscfg-header__title-group">
-					<div className="syscfg-header__icon-box">
-						<Tag size={22} />
-					</div>
-					<div>
-						<h1 className="syscfg-header__title">Danh mục lý do chế độ sự kiện</h1>
-						<p className="syscfg-header__subtitle">
-							Quản lý các lý do chuẩn hóa cho thao tác Bật, Tắt và Điều chỉnh giờ kết thúc sự kiện khu vực.
-							Mọi thay đổi đều được ghi vết kiểm toán.
-						</p>
-					</div>
-				</div>
-				<Button
-					variant="primary"
-					icon={Plus}
-					onClick={handleOpenCreate}
-				>
-					Thêm lý do
-				</Button>
-			</header>
+			<PageHeader
+				title="Danh mục lý do chế độ sự kiện"
+				description="Quản lý các lý do chuẩn hóa cho thao tác bật, tắt và điều chỉnh giờ kết thúc sự kiện khu vực. Mọi thay đổi đều được ghi vết kiểm toán."
+				actions={
+					<Button
+						variant="primary"
+						icon={Plus}
+						onClick={handleOpenCreate}
+					>
+						Thêm lý do
+					</Button>
+				}
+			/>
 
 			{/* Alerts */}
 			{successMsg && (
