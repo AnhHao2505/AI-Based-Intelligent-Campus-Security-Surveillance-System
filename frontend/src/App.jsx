@@ -219,7 +219,8 @@ function App() {
 									<ProtectedRoute
 										allowedRoles={[
 											ROLES.NORMAL_USER,
-											ROLES.FACILITY_MANAGER
+											ROLES.FACILITY_MANAGER,
+											ROLES.GUARD
 										]}
 									>
 										<NotificationsPage />
