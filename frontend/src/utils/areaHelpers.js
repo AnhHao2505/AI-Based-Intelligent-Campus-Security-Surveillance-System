@@ -200,7 +200,7 @@ export function getErrorMessage(error) {
     return error.message;
   }
   if (error.code && ERROR_MESSAGES[error.code]) {
-    return `[${error.code}] ${ERROR_MESSAGES[error.code]}`;
+    return ERROR_MESSAGES[error.code];
   }
   return error.message || 'Đã có lỗi xảy ra. Vui lòng thử lại.';
 }
