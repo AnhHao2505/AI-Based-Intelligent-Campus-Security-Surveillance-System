@@ -248,11 +248,12 @@ public class AreaService {
         boolean willBeInternalOrContact = req.getAreaLevel() == AreaLevel.INTERNAL_CONFIDENTIAL
                 || req.getAreaLevel() == AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED;
         if (wasInternalOrContact && !willBeInternalOrContact) {
-            List<com.fa26se040.icss.entity.AreaEventSchedule> pendingSchedules = (eventScheduleRepository != null && id != null)
-                    ? eventScheduleRepository.findByAreaIdAndStatusOrderByStartAtAsc(id, com.fa26se040.icss.enums.AreaEventScheduleStatus.SCHEDULED)
-                    : Collections.emptyList();
-            if (!pendingSchedules.isEmpty()) {
-                throw new AreaException(AreaErrorCode.ERR_AREA_042, buildPendingSchedulesErrorMessage(pendingSchedules));
+            if (eventScheduleRepository != null && id != null) {
+                List<com.fa26se040.icss.entity.AreaEventSchedule> pending = eventScheduleRepository
+                        .findByAreaIdAndStatusOrderByStartAtAsc(id, com.fa26se040.icss.enums.AreaEventScheduleStatus.SCHEDULED);
+                if (!pending.isEmpty()) {
+                    throw new AreaException(AreaErrorCode.ERR_AREA_042, buildPendingSchedulesErrorMessage(pending));
+                }
             }
         }
 
@@ -399,49 +400,18 @@ public class AreaService {
                 .toList();
     }
 
-    private String buildPendingSchedulesErrorMessage(List<com.fa26se040.icss.entity.AreaEventSchedule> schedules) {
-        java.time.ZoneId zone = java.time.ZoneId.of("Asia/Ho_Chi_Minh");
-        java.time.format.DateTimeFormatter dtfDateHour = java.time.format.DateTimeFormatter.ofPattern("dd/MM HH:mm").withZone(zone);
-        java.time.format.DateTimeFormatter dtfTime = java.time.format.DateTimeFormatter.ofPattern("HH:mm").withZone(zone);
-
-        int count = schedules.size();
-        int displayLimit = Math.min(count, 5);
-        StringBuilder sb = new StringBuilder();
-        sb.append("Khu vực còn ").append(count).append(" lịch sự kiện chưa diễn ra: ");
-
-        for (int i = 0; i < displayLimit; i++) {
-            com.fa26se040.icss.entity.AreaEventSchedule s = schedules.get(i);
-            String creatorName = s.getCreatedBy() != null ? s.getCreatedBy().getFullName() : "Không xác định";
-            sb.append(dtfDateHour.format(s.getStartAt()))
-              .append("–")
-              .append(dtfTime.format(s.getEndAt()))
-              .append(" (")
-              .append(creatorName)
-              .append(")");
-            if (i < displayLimit - 1) {
-                sb.append(", ");
-            }
-        }
-
-        if (count > 5) {
-            sb.append(", và ").append(count - 5).append(" lịch khác");
-        }
-
-        sb.append(". Liên hệ quản lý cơ sở vật chất để huỷ lịch trước.");
-        return sb.toString();
-    }
-
     @Transactional
     public void deactivate(UUID id, String actorEmail) {
         Area area = areaRepository.findByIdWithLock(id)
                 .filter(a -> a.getDeletedAt() == null)
                 .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
 
-        List<com.fa26se040.icss.entity.AreaEventSchedule> pendingSchedules = (eventScheduleRepository != null && id != null)
-                ? eventScheduleRepository.findByAreaIdAndStatusOrderByStartAtAsc(id, com.fa26se040.icss.enums.AreaEventScheduleStatus.SCHEDULED)
-                : Collections.emptyList();
-        if (!pendingSchedules.isEmpty()) {
-            throw new AreaException(AreaErrorCode.ERR_AREA_042, buildPendingSchedulesErrorMessage(pendingSchedules));
+        if (eventScheduleRepository != null && id != null) {
+            List<com.fa26se040.icss.entity.AreaEventSchedule> pending = eventScheduleRepository
+                    .findByAreaIdAndStatusOrderByStartAtAsc(id, com.fa26se040.icss.enums.AreaEventScheduleStatus.SCHEDULED);
+            if (!pending.isEmpty()) {
+                throw new AreaException(AreaErrorCode.ERR_AREA_042, buildPendingSchedulesErrorMessage(pending));
+            }
         }
 
         AreaDependencyResponse dep = dependencyChecker.check(id);
@@ -470,6 +440,33 @@ public class AreaService {
                 null,
                 actor
         );
+    }
+
+    private String buildPendingSchedulesErrorMessage(List<com.fa26se040.icss.entity.AreaEventSchedule> schedules) {
+        java.time.ZoneId zone = java.time.ZoneId.of("Asia/Ho_Chi_Minh");
+        java.time.format.DateTimeFormatter dtfDateHour = java.time.format.DateTimeFormatter.ofPattern("dd/MM HH:mm").withZone(zone);
+        java.time.format.DateTimeFormatter dtfTime = java.time.format.DateTimeFormatter.ofPattern("HH:mm").withZone(zone);
+
+        List<String> items = new ArrayList<>();
+        int limit = Math.min(schedules.size(), 5);
+        for (int i = 0; i < limit; i++) {
+            com.fa26se040.icss.entity.AreaEventSchedule s = schedules.get(i);
+            String timeStr;
+            if (s.getStartAt().atZoneSameInstant(zone).toLocalDate().equals(s.getEndAt().atZoneSameInstant(zone).toLocalDate())) {
+                timeStr = dtfDateHour.format(s.getStartAt()) + "–" + dtfTime.format(s.getEndAt());
+            } else {
+                timeStr = dtfDateHour.format(s.getStartAt()) + "–" + dtfDateHour.format(s.getEndAt());
+            }
+            String creatorName = (s.getCreatedBy() != null && s.getCreatedBy().getFullName() != null)
+                    ? s.getCreatedBy().getFullName() : "Facility Manager";
+            items.add(timeStr + " (" + creatorName + ")");
+        }
+        String listStr = String.join(", ", items);
+        if (schedules.size() > 5) {
+            listStr += ", và " + (schedules.size() - 5) + " lịch khác";
+        }
+        return String.format("Khu vực còn %d lịch sự kiện chưa diễn ra: %s. Liên hệ quản lý cơ sở vật chất để huỷ lịch trước.",
+                schedules.size(), listStr);
     }
 
     @Transactional(readOnly = true)
@@ -875,42 +872,69 @@ public class AreaService {
         return "Trạng thái sự kiện đã thay đổi: đang tắt. Vui lòng tải lại trang.";
     }
 
+    private void executeAfterCommitOrImmediately(Runnable action) {
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            action.run();
+                        }
+                    }
+            );
+        } else {
+            action.run();
+        }
+    }
+
     private void sendGuardEventModeChangedNotification(Area area, com.fa26se040.icss.enums.AuditAction action, User actor, OffsetDateTime openUntil) {
-        InAppNotificationService notifService = inAppNotificationServiceProvider.getIfAvailable();
-        if (notifService == null) {
-            return;
-        }
-        List<User> activeGuards = userRepository.findActiveUsersByRole(com.fa26se040.icss.enums.Role.GUARD);
-        if (activeGuards.isEmpty()) {
-            return;
-        }
+        sendGuardEventModeChangedNotification(area, action, actor, openUntil, false);
+    }
 
-        java.time.format.DateTimeFormatter dtf = java.time.format.DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy").withZone(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
-        String actionText;
-        if (action == com.fa26se040.icss.enums.AuditAction.ENABLE_EVENT_MODE) {
-            actionText = "Bật";
-        } else if (action == com.fa26se040.icss.enums.AuditAction.EXTEND_EVENT_MODE) {
-            actionText = "Điều chỉnh giờ kết thúc";
+    private void sendGuardEventModeChangedNotification(Area area, com.fa26se040.icss.enums.AuditAction action, User actor, OffsetDateTime openUntil, boolean afterCommit) {
+        Runnable sendTask = () -> {
+            InAppNotificationService notifService = inAppNotificationServiceProvider.getIfAvailable();
+            if (notifService == null) {
+                return;
+            }
+            List<User> activeGuards = userRepository.findActiveUsersByRole(com.fa26se040.icss.enums.Role.GUARD);
+            if (activeGuards.isEmpty()) {
+                return;
+            }
+
+            java.time.format.DateTimeFormatter dtf = java.time.format.DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy").withZone(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
+            String actionText;
+            if (action == com.fa26se040.icss.enums.AuditAction.ENABLE_EVENT_MODE) {
+                actionText = "Bật";
+            } else if (action == com.fa26se040.icss.enums.AuditAction.EXTEND_EVENT_MODE) {
+                actionText = "Điều chỉnh giờ kết thúc";
+            } else {
+                actionText = "Tắt";
+            }
+
+            String actorName = (actor != null && actor.getFullName() != null) ? actor.getFullName() : "Facility Manager";
+            String message;
+            if (openUntil != null) {
+                message = String.format("Khu vực %s: %s chế độ sự kiện đến %s bởi %s.", area.getName(), actionText, dtf.format(openUntil), actorName);
+            } else {
+                message = String.format("Khu vực %s: %s chế độ sự kiện bởi %s.", area.getName(), actionText, actorName);
+            }
+
+            notifService.createForUsers(
+                    activeGuards,
+                    com.fa26se040.icss.enums.NotificationType.EVENT_MODE_CHANGED,
+                    "Chế độ sự kiện khu vực thay đổi",
+                    message,
+                    area.getId(),
+                    "AREA"
+            );
+        };
+
+        if (afterCommit) {
+            executeAfterCommitOrImmediately(sendTask);
         } else {
-            actionText = "Tắt";
+            sendTask.run();
         }
-
-        String actorName = (actor != null && actor.getFullName() != null) ? actor.getFullName() : "Facility Manager";
-        String message;
-        if (openUntil != null) {
-            message = String.format("Khu vực %s: %s chế độ sự kiện đến %s bởi %s.", area.getName(), actionText, dtf.format(openUntil), actorName);
-        } else {
-            message = String.format("Khu vực %s: %s chế độ sự kiện bởi %s.", area.getName(), actionText, actorName);
-        }
-
-        notifService.createForUsers(
-                activeGuards,
-                com.fa26se040.icss.enums.NotificationType.EVENT_MODE_CHANGED,
-                "Chế độ sự kiện khu vực thay đổi",
-                message,
-                area.getId(),
-                "AREA"
-        );
     }
 
     @Transactional
@@ -1312,102 +1336,107 @@ public class AreaService {
         return 0.0;
     }
 
-    private void cleanupExpiredSessions(Area area, OffsetDateTime now) {
-        List<com.fa26se040.icss.entity.AreaEventSession> expiredSessions =
-                eventSessionRepository.findByAreaIdAndActualEndIsNullAndPlannedEndLessThanEqual(area.getId(), now);
-        for (com.fa26se040.icss.entity.AreaEventSession exp : expiredSessions) {
-            exp.setActualEnd(exp.getPlannedEnd());
-            exp.setEndedBy(null);
-            eventSessionRepository.save(exp);
+    public void cleanupExpiredSessions(Area area, OffsetDateTime now) {
+        if (area == null || area.getId() == null) {
+            return;
+        }
+        com.fa26se040.icss.context.AuditContext.runAsSystem("EVENT_MODE_EXPIRY", () -> {
+            List<com.fa26se040.icss.entity.AreaEventSession> expiredSessions =
+                    eventSessionRepository.findByAreaIdAndActualEndIsNullAndPlannedEndLessThanEqual(area.getId(), now);
+            for (com.fa26se040.icss.entity.AreaEventSession exp : expiredSessions) {
+                exp.setActualEnd(exp.getPlannedEnd());
+                exp.setEndedBy(null);
+                eventSessionRepository.save(exp);
 
-            auditService.record(
-                    com.fa26se040.icss.enums.AuditTargetType.AREA_EVENT_MODE,
-                    com.fa26se040.icss.enums.AuditAction.EXPIRE_EVENT_MODE,
-                    area.getId().toString(),
-                    area,
-                    null,
-                    new com.fa26se040.icss.dto.accesscontrol.snapshot.AreaEventModeAuditSnapshot(true, exp.getPlannedEnd()),
-                    new com.fa26se040.icss.dto.accesscontrol.snapshot.AreaEventModeAuditSnapshot(false, null, null, null, null, exp.getId(), exp.getPlannedEnd(), null),
-                    "Chế độ sự kiện tự động hết hạn",
-                    com.fa26se040.icss.dto.audit.AuditActor.system("EVENT_MODE_EXPIRY")
-            );
-        }
-        if (Boolean.TRUE.equals(area.getOpenToMembers()) && !area.isEventActive(now)) {
-            area.setOpenToMembers(false);
-            area.setOpenUntil(null);
-        }
+                auditService.record(
+                        com.fa26se040.icss.enums.AuditTargetType.AREA_EVENT_MODE,
+                        com.fa26se040.icss.enums.AuditAction.EXPIRE_EVENT_MODE,
+                        area.getId().toString(),
+                        area,
+                        null,
+                        new com.fa26se040.icss.dto.accesscontrol.snapshot.AreaEventModeAuditSnapshot(true, exp.getPlannedEnd()),
+                        new com.fa26se040.icss.dto.accesscontrol.snapshot.AreaEventModeAuditSnapshot(false, null, null, null, null, exp.getId(), exp.getPlannedEnd(), null),
+                        "Chế độ sự kiện tự động hết hạn",
+                        com.fa26se040.icss.dto.audit.AuditActor.system("EVENT_MODE_EXPIRY")
+                );
+            }
+            if (Boolean.TRUE.equals(area.getOpenToMembers()) && !area.isEventActive(now)) {
+                area.setOpenToMembers(false);
+                area.setOpenUntil(null);
+                areaRepository.save(area);
+            }
+        });
     }
 
     private void sendGuardScheduleNotification(Area area, com.fa26se040.icss.enums.AuditAction action, com.fa26se040.icss.entity.AreaEventSchedule schedule) {
-        org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
-                new org.springframework.transaction.support.TransactionSynchronization() {
-                    @Override
-                    public void afterCommit() {
-                        InAppNotificationService notifService = inAppNotificationServiceProvider.getIfAvailable();
-                        if (notifService == null) {
-                            return;
-                        }
-                        List<User> activeGuards = userRepository.findActiveUsersByRole(com.fa26se040.icss.enums.Role.GUARD);
-                        if (activeGuards.isEmpty()) {
-                            return;
-                        }
-                        java.time.format.DateTimeFormatter dtf = java.time.format.DateTimeFormatter
-                                .ofPattern("HH:mm dd/MM/yyyy").withZone(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
-                        String actionText;
-                        if (action == com.fa26se040.icss.enums.AuditAction.CREATE) {
-                            actionText = "Đặt";
-                        } else if (action == com.fa26se040.icss.enums.AuditAction.UPDATE) {
-                            actionText = "Điều chỉnh";
-                        } else {
-                            actionText = "Huỷ";
-                        }
-                        String actorName = schedule.getCreatedBy() != null ? schedule.getCreatedBy().getFullName() : "Facility Manager";
-                        String msg = String.format("Khu vực %s: %s lịch sự kiện từ %s đến %s bởi %s.",
-                                area.getName(), actionText, dtf.format(schedule.getStartAt()), dtf.format(schedule.getEndAt()), actorName);
-                        notifService.createForUsers(
-                                activeGuards,
-                                com.fa26se040.icss.enums.NotificationType.EVENT_MODE_SCHEDULED,
-                                "Lịch chế độ sự kiện khu vực",
-                                msg,
-                                area.getId(),
-                                "AREA"
-                        );
-                    }
-                }
-        );
+        executeAfterCommitOrImmediately(() -> {
+            InAppNotificationService notifService = inAppNotificationServiceProvider.getIfAvailable();
+            if (notifService == null) {
+                return;
+            }
+            List<User> activeGuards = userRepository.findActiveUsersByRole(com.fa26se040.icss.enums.Role.GUARD);
+            if (activeGuards.isEmpty()) {
+                return;
+            }
+            java.time.format.DateTimeFormatter dtf = java.time.format.DateTimeFormatter
+                    .ofPattern("HH:mm dd/MM/yyyy").withZone(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
+            String actionText;
+            if (action == com.fa26se040.icss.enums.AuditAction.CREATE) {
+                actionText = "Đặt";
+            } else if (action == com.fa26se040.icss.enums.AuditAction.UPDATE) {
+                actionText = "Điều chỉnh";
+            } else {
+                actionText = "Huỷ";
+            }
+            String actorName = schedule.getCreatedBy() != null ? schedule.getCreatedBy().getFullName() : "Facility Manager";
+            String msg = String.format("Khu vực %s: %s lịch sự kiện từ %s đến %s bởi %s.",
+                    area.getName(), actionText, dtf.format(schedule.getStartAt()), dtf.format(schedule.getEndAt()), actorName);
+            notifService.createForUsers(
+                    activeGuards,
+                    com.fa26se040.icss.enums.NotificationType.EVENT_MODE_SCHEDULED,
+                    "Lịch chế độ sự kiện khu vực",
+                    msg,
+                    area.getId(),
+                    "AREA"
+            );
+        });
     }
 
     private void sendFmScheduleFailedNotification(Area area, com.fa26se040.icss.entity.AreaEventSchedule schedule, String failReason) {
-        InAppNotificationService notifService = inAppNotificationServiceProvider.getIfAvailable();
-        if (notifService == null || schedule.getCreatedBy() == null) {
-            return;
-        }
-        notifService.createForUsers(
-                List.of(schedule.getCreatedBy()),
-                com.fa26se040.icss.enums.NotificationType.EVENT_MODE_SCHEDULE_FAILED,
-                "Kích hoạt lịch sự kiện thất bại",
-                String.format("Lịch sự kiện tại khu vực %s không thể kích hoạt do: %s.", area.getName(), failReason),
-                area.getId(),
-                "AREA"
-        );
+        executeAfterCommitOrImmediately(() -> {
+            InAppNotificationService notifService = inAppNotificationServiceProvider.getIfAvailable();
+            if (notifService == null || schedule.getCreatedBy() == null) {
+                return;
+            }
+            notifService.createForUsers(
+                    List.of(schedule.getCreatedBy()),
+                    com.fa26se040.icss.enums.NotificationType.EVENT_MODE_SCHEDULE_FAILED,
+                    "Kích hoạt lịch sự kiện thất bại",
+                    String.format("Lịch sự kiện tại khu vực %s không thể kích hoạt do: %s.", area.getName(), failReason),
+                    area.getId(),
+                    "AREA"
+            );
+        });
     }
 
     private void sendFmScheduleStartingNotification(com.fa26se040.icss.entity.AreaEventSchedule schedule) {
-        InAppNotificationService notifService = inAppNotificationServiceProvider.getIfAvailable();
-        if (notifService == null || schedule.getCreatedBy() == null) {
-            return;
-        }
-        java.time.format.DateTimeFormatter dtf = java.time.format.DateTimeFormatter
-                .ofPattern("HH:mm dd/MM/yyyy").withZone(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
-        notifService.createForUsers(
-                List.of(schedule.getCreatedBy()),
-                com.fa26se040.icss.enums.NotificationType.EVENT_MODE_SCHEDULE_STARTING,
-                "Lịch chế độ sự kiện sắp diễn ra",
-                String.format("Lịch sự kiện tại khu vực %s sẽ bắt đầu lúc %s. Vui lòng kiểm tra chuẩn bị.",
-                        schedule.getArea().getName(), dtf.format(schedule.getStartAt())),
-                schedule.getArea().getId(),
-                "AREA"
-        );
+        executeAfterCommitOrImmediately(() -> {
+            InAppNotificationService notifService = inAppNotificationServiceProvider.getIfAvailable();
+            if (notifService == null || schedule.getCreatedBy() == null) {
+                return;
+            }
+            java.time.format.DateTimeFormatter dtf = java.time.format.DateTimeFormatter
+                    .ofPattern("HH:mm dd/MM/yyyy").withZone(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
+            notifService.createForUsers(
+                    List.of(schedule.getCreatedBy()),
+                    com.fa26se040.icss.enums.NotificationType.EVENT_MODE_SCHEDULE_STARTING,
+                    "Lịch chế độ sự kiện sắp diễn ra",
+                    String.format("Lịch sự kiện tại khu vực %s sẽ bắt đầu lúc %s. Vui lòng kiểm tra chuẩn bị.",
+                            schedule.getArea().getName(), dtf.format(schedule.getStartAt())),
+                    schedule.getArea().getId(),
+                    "AREA"
+            );
+        });
     }
 
     @Transactional
@@ -1834,36 +1863,11 @@ public class AreaService {
 
     @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     public void expireEventSessionForAreaInTx(UUID areaId, OffsetDateTime now) {
-        com.fa26se040.icss.context.AuditContext.runAsSystem("EVENT_MODE_EXPIRY", () -> {
-            Area area = areaRepository.findByIdWithLock(areaId).orElse(null);
-            if (area == null) {
-                return;
-            }
-            List<com.fa26se040.icss.entity.AreaEventSession> expiredSessions =
-                    eventSessionRepository.findByAreaIdAndActualEndIsNullAndPlannedEndLessThanEqual(areaId, now);
-            for (com.fa26se040.icss.entity.AreaEventSession exp : expiredSessions) {
-                exp.setActualEnd(exp.getPlannedEnd());
-                exp.setEndedBy(null);
-                eventSessionRepository.save(exp);
-
-                auditService.record(
-                        com.fa26se040.icss.enums.AuditTargetType.AREA_EVENT_MODE,
-                        com.fa26se040.icss.enums.AuditAction.EXPIRE_EVENT_MODE,
-                        area.getId().toString(),
-                        area,
-                        null,
-                        new com.fa26se040.icss.dto.accesscontrol.snapshot.AreaEventModeAuditSnapshot(true, exp.getPlannedEnd()),
-                        new com.fa26se040.icss.dto.accesscontrol.snapshot.AreaEventModeAuditSnapshot(false, null, null, null, null, exp.getId(), exp.getPlannedEnd(), null),
-                        "Chế độ sự kiện tự động hết hạn",
-                        com.fa26se040.icss.dto.audit.AuditActor.system("EVENT_MODE_EXPIRY")
-                );
-            }
-            if (Boolean.TRUE.equals(area.getOpenToMembers()) && !area.isEventActive(now)) {
-                area.setOpenToMembers(false);
-                area.setOpenUntil(null);
-                areaRepository.save(area);
-            }
-        });
+        Area area = areaRepository.findByIdWithLock(areaId).orElse(null);
+        if (area == null) {
+            return;
+        }
+        cleanupExpiredSessions(area, now);
     }
 
     public void processScheduledEventActivations(OffsetDateTime now) {
@@ -1892,6 +1896,9 @@ public class AreaService {
             if (area == null) {
                 return;
             }
+
+            // Đóng các phiên hết hạn của khu vực trước khi tạo phiên mới (DF-U4)
+            cleanupExpiredSessions(area, now);
 
             boolean isMissed = !schedule.getEndAt().isAfter(now);
             boolean isAreaActive = Boolean.TRUE.equals(area.getIsActive()) && area.getDeletedAt() == null;
@@ -1981,7 +1988,7 @@ public class AreaService {
                         com.fa26se040.icss.dto.audit.AuditActor.system("EVENT_SCHEDULE_ACTIVATION")
                 );
 
-                sendGuardEventModeChangedNotification(area, com.fa26se040.icss.enums.AuditAction.ENABLE_EVENT_MODE, schedule.getCreatedBy(), schedule.getEndAt());
+                sendGuardEventModeChangedNotification(area, com.fa26se040.icss.enums.AuditAction.ENABLE_EVENT_MODE, schedule.getCreatedBy(), schedule.getEndAt(), true);
             }
         });
     }

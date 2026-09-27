@@ -781,7 +781,9 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
                 areaService.deactivate(internalArea.getId(), fmUser.getEmail())
         );
         assertEquals(AreaErrorCode.ERR_AREA_042, exDeact.getErrorCode());
-        assertTrue(exDeact.getMessage().contains("lịch sự kiện chưa diễn ra, huỷ lịch trước"));
+        assertTrue(exDeact.getMessage().contains("Khu vực còn 1 lịch sự kiện chưa diễn ra:"));
+        assertTrue(exDeact.getMessage().contains(fmUser.getFullName()));
+        assertTrue(exDeact.getMessage().contains("Liên hệ quản lý cơ sở vật chất để huỷ lịch trước."));
 
         // 2. Đổi sang HIGHLY_CONFIDENTIAL -> ERR_AREA_042 (409)
         AreaUpdateRequest updateReq = new AreaUpdateRequest(
@@ -893,6 +895,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         assertNotNull(notif, "FM phải nhận thông báo EVENT_MODE_LIMIT_CHANGED");
         assertTrue(notif.getMessage().contains("Lịch vi phạm"), "Thông báo phải liệt kê lịch vi phạm");
     }
+
     @Test
     @DisplayName("DF-U2: Thông điệp ERR_AREA_042 liệt kê chi tiết từng lịch theo giờ và người đặt, rút gọn khi > 5 lịch")
     void testDF_U2_ErrorMessageFormatsMultipleSchedulesProperly() {
@@ -946,4 +949,73 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         assertTrue(msg.endsWith("Liên hệ quản lý cơ sở vật chất để huỷ lịch trước."));
     }
 
+    @Test
+    @DisplayName("DF-U4: Kích hoạt tự đóng phiên hết hạn trước - phiên tay kết thúc đúng lúc lịch bắt đầu")
+    void testDF_U4_ActivationAutoClosesExpiredSessionFirst() {
+        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime oldSessionStart = now.minusHours(2);
+        OffsetDateTime scheduleStart = now.minusMinutes(10);
+        OffsetDateTime oldSessionPlannedEnd = scheduleStart;
+        OffsetDateTime scheduleEnd = now.plusHours(2);
+
+        // Tạo phiên tay đã hết hạn nhưng chưa đóng (actual_end = null)
+        AreaEventSession oldSession = sessionRepository.save(AreaEventSession.builder()
+                .area(internalArea)
+                .startedAt(oldSessionStart)
+                .plannedEnd(oldSessionPlannedEnd)
+                .actualEnd(null)
+                .startedBy(fmUser)
+                .createdAt(oldSessionStart)
+                .build());
+
+        internalArea.setOpenToMembers(true);
+        internalArea.setOpenUntil(oldSessionPlannedEnd);
+        areaRepository.save(internalArea);
+
+        // Tạo lịch sự kiện SCHEDULED
+        AreaEventSchedule schedule = eventScheduleRepository.save(AreaEventSchedule.builder()
+                .area(internalArea)
+                .startAt(scheduleStart)
+                .endAt(scheduleEnd)
+                .status(AreaEventScheduleStatus.SCHEDULED)
+                .reasonCode(REASON_ENABLE)
+                .reasonLabel("Hội thảo kích hoạt")
+                .note("Test kich hoat tu dong phien cu")
+                .createdBy(fmUser)
+                .createdAt(now.minusHours(1))
+                .build());
+
+        // Chạy RIÊNG bước kích hoạt: processScheduledEventActivations(now)
+        areaService.processScheduledEventActivations(now);
+
+        // 1. Phiên cũ phải được đóng (actual_end = plannedEnd)
+        AreaEventSession reloadedOld = sessionRepository.findById(oldSession.getId()).orElseThrow();
+        assertNotNull(reloadedOld.getActualEnd(), "Phiên cũ phải có actual_end được set");
+        assertEquals(oldSessionPlannedEnd.toEpochSecond(), reloadedOld.getActualEnd().toEpochSecond());
+
+        // 2. Lịch sự kiện chuyển sang STARTED và gắn session mới
+        AreaEventSchedule reloadedSchedule = eventScheduleRepository.findById(schedule.getId()).orElseThrow();
+        assertEquals(AreaEventScheduleStatus.STARTED, reloadedSchedule.getStatus());
+        assertNotNull(reloadedSchedule.getSession());
+        assertNotEquals(oldSession.getId(), reloadedSchedule.getSession().getId());
+
+        // 3. Khu vực mở tới scheduleEnd
+        Area reloadedArea = areaRepository.findById(internalArea.getId()).orElseThrow();
+        assertTrue(reloadedArea.getOpenToMembers());
+        assertEquals(scheduleEnd.toEpochSecond(), reloadedArea.getOpenUntil().toEpochSecond());
+
+        // 4. Kiểm tra audit log: phải có EXPIRE_EVENT_MODE từ SYSTEM và ENABLE_EVENT_MODE từ SYSTEM
+        List<AuditLog> newLogs = auditLogRepository.findAll().stream()
+                .filter(l -> l.getTargetType() == AuditTargetType.AREA_EVENT_MODE)
+                .filter(l -> l.getTargetId().equals(internalArea.getId().toString()))
+                .filter(l -> l.getAction() == AuditAction.EXPIRE_EVENT_MODE || l.getAction() == AuditAction.ENABLE_EVENT_MODE)
+                .toList();
+
+        boolean hasExpire = newLogs.stream().anyMatch(l -> l.getAction() == AuditAction.EXPIRE_EVENT_MODE
+                && "SYSTEM".equals(l.getActorType()));
+        boolean hasEnable = newLogs.stream().anyMatch(l -> l.getAction() == AuditAction.ENABLE_EVENT_MODE
+                && "SYSTEM".equals(l.getActorType()));
+        assertTrue(hasExpire, "Phải có 1 audit log EXPIRE_EVENT_MODE từ SYSTEM");
+        assertTrue(hasEnable, "Phải có 1 audit log ENABLE_EVENT_MODE từ SYSTEM");
+    }
 }
