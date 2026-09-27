@@ -768,7 +768,7 @@ export default function ManageAccountPage() {
                           onClick={handleOpenCreate}
                         >
                           <UserPlus size={14} />
-                          <span>+ Thêm tài khoản cán bộ</span>
+                          <span>Thêm tài khoản cán bộ</span>
                         </button>
                       )}
                     </div>
