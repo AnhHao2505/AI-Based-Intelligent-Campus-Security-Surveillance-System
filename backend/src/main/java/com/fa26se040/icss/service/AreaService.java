@@ -970,11 +970,6 @@ public class AreaService {
             throw new AreaException(AreaErrorCode.ERR_AREA_024);
         }
         String normReasonCode = rawReasonCode.trim().toUpperCase();
-        com.fa26se040.icss.entity.ReasonCatalog reasonItem = reasonCatalogRepository.findByCode(normReasonCode).orElse(null);
-        if (reasonItem == null || !Boolean.TRUE.equals(reasonItem.getIsActive())) {
-            throw new AreaException(AreaErrorCode.ERR_AREA_025);
-        }
-        String reasonLabel = reasonItem.getLabel();
 
         // 4. activeNow = hàm B1 trên trạng thái sau bước 2
         boolean activeNow = area.isEventActive(now);
@@ -1003,19 +998,24 @@ public class AreaService {
             throw new AreaException(AreaErrorCode.ERR_AREA_030, statusMsg);
         }
 
-        // 7. (BR-EV-09) reason.actionType
-        if (!"EVENT_ENABLE".equalsIgnoreCase(reasonItem.getActionType())
-                && !"EVENT_EXTEND".equalsIgnoreCase(reasonItem.getActionType())
-                && !"EVENT_DISABLE".equalsIgnoreCase(reasonItem.getActionType())) {
-            throw new AreaException(AreaErrorCode.ERR_AREA_026);
+        // 7. Tra lý do theo (expectedActionType, normReasonCode) (R1)
+        com.fa26se040.icss.entity.ReasonCatalog reasonItem = reasonCatalogRepository
+                .findByActionTypeAndCode(expectedActionType, normReasonCode)
+                .orElse(null);
+        if (reasonItem == null) {
+            if (reasonCatalogRepository.existsByCode(normReasonCode)) {
+                OffsetDateTime lastPlannedEnd = eventSessionRepository.findTopByAreaIdOrderByStartedAtDesc(id)
+                        .map(com.fa26se040.icss.entity.AreaEventSession::getPlannedEnd)
+                        .orElse(oldOpenUntil);
+                String statusMsg = buildEventModeStatusChangedMessage(area, lastPlannedEnd);
+                throw new AreaException(AreaErrorCode.ERR_AREA_030, statusMsg);
+            }
+            throw new AreaException(AreaErrorCode.ERR_AREA_025);
         }
-        if (!expectedActionType.equalsIgnoreCase(reasonItem.getActionType())) {
-            OffsetDateTime lastPlannedEnd = eventSessionRepository.findTopByAreaIdOrderByStartedAtDesc(id)
-                    .map(com.fa26se040.icss.entity.AreaEventSession::getPlannedEnd)
-                    .orElse(oldOpenUntil);
-            String statusMsg = buildEventModeStatusChangedMessage(area, lastPlannedEnd);
-            throw new AreaException(AreaErrorCode.ERR_AREA_030, statusMsg);
+        if (!Boolean.TRUE.equals(reasonItem.getIsActive())) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_025);
         }
+        String reasonLabel = reasonItem.getLabel();
 
         java.util.Map<AreaLevel, AreaLevelPreset> presetMap = loadPresetMap();
 
@@ -1492,12 +1492,17 @@ public class AreaService {
             throw new AreaException(AreaErrorCode.ERR_AREA_024);
         }
         String normReasonCode = rawReasonCode.trim().toUpperCase();
-        com.fa26se040.icss.entity.ReasonCatalog reasonItem = reasonCatalogRepository.findByCode(normReasonCode).orElse(null);
-        if (reasonItem == null || !Boolean.TRUE.equals(reasonItem.getIsActive())) {
+        com.fa26se040.icss.entity.ReasonCatalog reasonItem = reasonCatalogRepository
+                .findByActionTypeAndCode("EVENT_ENABLE", normReasonCode)
+                .orElse(null);
+        if (reasonItem == null) {
+            if (reasonCatalogRepository.existsByCode(normReasonCode)) {
+                throw new AreaException(AreaErrorCode.ERR_AREA_026);
+            }
             throw new AreaException(AreaErrorCode.ERR_AREA_025);
         }
-        if (!"EVENT_ENABLE".equalsIgnoreCase(reasonItem.getActionType())) {
-            throw new AreaException(AreaErrorCode.ERR_AREA_026);
+        if (!Boolean.TRUE.equals(reasonItem.getIsActive())) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_025);
         }
         String reasonLabel = reasonItem.getLabel();
 
@@ -1627,12 +1632,17 @@ public class AreaService {
             throw new AreaException(AreaErrorCode.ERR_AREA_024);
         }
         String normReasonCode = rawReasonCode.trim().toUpperCase();
-        com.fa26se040.icss.entity.ReasonCatalog reasonItem = reasonCatalogRepository.findByCode(normReasonCode).orElse(null);
-        if (reasonItem == null || !Boolean.TRUE.equals(reasonItem.getIsActive())) {
+        com.fa26se040.icss.entity.ReasonCatalog reasonItem = reasonCatalogRepository
+                .findByActionTypeAndCode("EVENT_EXTEND", normReasonCode)
+                .orElse(null);
+        if (reasonItem == null) {
+            if (reasonCatalogRepository.existsByCode(normReasonCode)) {
+                throw new AreaException(AreaErrorCode.ERR_AREA_026);
+            }
             throw new AreaException(AreaErrorCode.ERR_AREA_025);
         }
-        if (!"EVENT_EXTEND".equalsIgnoreCase(reasonItem.getActionType())) {
-            throw new AreaException(AreaErrorCode.ERR_AREA_026);
+        if (!Boolean.TRUE.equals(reasonItem.getIsActive())) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_025);
         }
         String reasonLabel = reasonItem.getLabel();
 
@@ -1743,12 +1753,17 @@ public class AreaService {
             throw new AreaException(AreaErrorCode.ERR_AREA_024);
         }
         String normReasonCode = rawReasonCode.trim().toUpperCase();
-        com.fa26se040.icss.entity.ReasonCatalog reasonItem = reasonCatalogRepository.findByCode(normReasonCode).orElse(null);
-        if (reasonItem == null || !Boolean.TRUE.equals(reasonItem.getIsActive())) {
+        com.fa26se040.icss.entity.ReasonCatalog reasonItem = reasonCatalogRepository
+                .findByActionTypeAndCode("EVENT_DISABLE", normReasonCode)
+                .orElse(null);
+        if (reasonItem == null) {
+            if (reasonCatalogRepository.existsByCode(normReasonCode)) {
+                throw new AreaException(AreaErrorCode.ERR_AREA_026);
+            }
             throw new AreaException(AreaErrorCode.ERR_AREA_025);
         }
-        if (!"EVENT_DISABLE".equalsIgnoreCase(reasonItem.getActionType())) {
-            throw new AreaException(AreaErrorCode.ERR_AREA_026);
+        if (!Boolean.TRUE.equals(reasonItem.getIsActive())) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_025);
         }
         String reasonLabel = reasonItem.getLabel();
 

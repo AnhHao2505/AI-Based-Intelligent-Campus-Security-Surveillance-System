@@ -2,6 +2,8 @@ package com.fa26se040.icss.service;
 
 import com.fa26se040.icss.AbstractIntegrationTest;
 import com.fa26se040.icss.dto.accessdecision.AccessDecision;
+import com.fa26se040.icss.dto.accesscontrol.snapshot.AreaEventModeAuditSnapshot;
+import com.fa26se040.icss.dto.accesscontrol.snapshot.AreaEventScheduleAuditSnapshot;
 import com.fa26se040.icss.dto.area.*;
 import com.fa26se040.icss.entity.*;
 import com.fa26se040.icss.enums.*;
@@ -1018,4 +1020,134 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         assertTrue(hasExpire, "Phải có 1 audit log EXPIRE_EVENT_MODE từ SYSTEM");
         assertTrue(hasEnable, "Phải có 1 audit log ENABLE_EVENT_MODE từ SYSTEM");
     }
+
+    @Test
+    @DisplayName("RS-01: Bật sự kiện tay với EVENT_ENABLE/OTHER + ghi chú >= 10 -> 200; audit lưu nhãn Khác")
+    void testRS01_EnableEventModeWithOtherReason() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime futureUntil = now.plusHours(2);
+
+        AreaResponse resp = areaService.updateEventMode(
+                internalArea.getId(),
+                new AreaEventModeUpdateRequest(true, futureUntil, "OTHER", "Lý do khác trên 10 ký tự"),
+                fmUser.getEmail()
+        );
+        assertNotNull(resp);
+        assertTrue(resp.openToMembers());
+
+        // Audit lưu nhãn "Khác"
+        List<AuditLog> logs = auditLogRepository.findAll().stream()
+                .filter(l -> l.getTargetType() == AuditTargetType.AREA_EVENT_MODE)
+                .filter(l -> l.getTargetId().equals(internalArea.getId().toString()))
+                .filter(l -> l.getAction() == AuditAction.ENABLE_EVENT_MODE)
+                .toList();
+        assertFalse(logs.isEmpty());
+        AuditLog lastLog = logs.get(logs.size() - 1);
+        AreaEventModeAuditSnapshot snap = objectMapper.readValue(lastLog.getNewValue(), AreaEventModeAuditSnapshot.class);
+        assertEquals("Khác", snap.reasonLabel());
+        assertEquals("OTHER", snap.reasonCode());
+    }
+
+    @Test
+    @DisplayName("RS-02: Điều chỉnh tay EVENT_EXTEND/OTHER -> 200; tắt tay EVENT_DISABLE/OTHER -> 200")
+    void testRS02_ExtendAndDisableEventModeWithOtherReason() {
+        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime until1 = now.plusHours(2);
+        OffsetDateTime until2 = now.plusHours(3);
+
+        // Bật trước
+        areaService.updateEventMode(
+                internalArea.getId(),
+                new AreaEventModeUpdateRequest(true, until1, "SEMINAR", "Ghi chu bat su kien tren 10 ky tu"),
+                fmUser.getEmail()
+        );
+
+        // Điều chỉnh tay với EVENT_EXTEND/OTHER -> 200
+        AreaResponse respExtend = areaService.updateEventMode(
+                internalArea.getId(),
+                new AreaEventModeUpdateRequest(true, until2, "OTHER", "Gia han voi ly do khac tren 10 ky tu"),
+                fmUser.getEmail()
+        );
+        assertNotNull(respExtend);
+        assertTrue(respExtend.openToMembers());
+
+        // Tắt tay với EVENT_DISABLE/OTHER -> 200
+        AreaResponse respDisable = areaService.updateEventMode(
+                internalArea.getId(),
+                new AreaEventModeUpdateRequest(false, null, "OTHER", "Tat su kien voi ly do khac tren 10 ky tu"),
+                fmUser.getEmail()
+        );
+        assertNotNull(respDisable);
+        assertFalse(respDisable.openToMembers());
+    }
+
+    @Test
+    @DisplayName("RS-03: Đặt lịch EVENT_ENABLE/OTHER, sửa lịch EVENT_EXTEND/OTHER, huỷ lịch EVENT_DISABLE/OTHER -> đều thành công")
+    void testRS03_ScheduleCrudWithOtherReason() {
+        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime sStart = now.plusDays(1).withHour(8).withMinute(0).withSecond(0).withNano(0);
+        OffsetDateTime sEnd = sStart.plusHours(2);
+
+        // Đặt lịch EVENT_ENABLE/OTHER -> thành công
+        EventScheduleResponse created = areaService.createSchedule(
+                internalArea.getId(),
+                new EventScheduleRequest(sStart, sEnd, "OTHER", "Dat lich voi ly do khac tren 10 ky tu"),
+                fmUser.getEmail()
+        );
+        assertNotNull(created);
+        assertEquals("OTHER", created.reasonCode());
+        assertEquals("Khác", created.reasonLabel());
+
+        // Sửa lịch EVENT_EXTEND/OTHER -> thành công
+        OffsetDateTime newEnd = sEnd.plusHours(1);
+        EventScheduleResponse updated = areaService.updateSchedule(
+                internalArea.getId(),
+                created.id(),
+                new EventScheduleRequest(sStart, newEnd, "OTHER", "Sua lich voi ly do khac tren 10 ky tu"),
+                fmUser.getEmail()
+        );
+        assertNotNull(updated);
+
+        // Huỷ lịch EVENT_DISABLE/OTHER -> thành công
+        EventScheduleResponse cancelled = areaService.cancelSchedule(
+                internalArea.getId(),
+                created.id(),
+                new EventScheduleCancelRequest("OTHER", "Huy lich voi ly do khac tren 10 ky tu"),
+                fmUser.getEmail()
+        );
+        assertNotNull(cancelled);
+        assertEquals("CANCELLED", cancelled.status());
+        assertEquals("OTHER", cancelled.cancelReasonCode());
+        assertEquals("Khác", cancelled.cancelReasonLabel());
+    }
+
+    @Test
+    @DisplayName("RS-04: Đặt lịch với mã chỉ có ở loại EVENT_DISABLE (vd MISTAKE) -> ERR_AREA_026 (400); mã không tồn tại -> ERR_AREA_025")
+    void testRS04_ScheduleWithWrongOrNonExistentReason() {
+        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime sStart = now.plusDays(2).withHour(9).withMinute(0).withSecond(0).withNano(0);
+        OffsetDateTime sEnd = sStart.plusHours(2);
+
+        // Đặt lịch với mã MISTAKE (chỉ có ở EVENT_DISABLE) -> ERR_AREA_026 (400)
+        AreaException exWrongAction = assertThrows(AreaException.class, () ->
+                areaService.createSchedule(
+                        internalArea.getId(),
+                        new EventScheduleRequest(sStart, sEnd, "MISTAKE", "Dat lich dung sai loai ly do"),
+                        fmUser.getEmail()
+                )
+        );
+        assertEquals(AreaErrorCode.ERR_AREA_026, exWrongAction.getErrorCode());
+
+        // Đặt lịch với mã không tồn tại -> ERR_AREA_025
+        AreaException exNotExist = assertThrows(AreaException.class, () ->
+                areaService.createSchedule(
+                        internalArea.getId(),
+                        new EventScheduleRequest(sStart, sEnd, "UNKNOWN_CODE_XYZ", "Dat lich ma khong ton tai"),
+                        fmUser.getEmail()
+                )
+        );
+        assertEquals(AreaErrorCode.ERR_AREA_025, exNotExist.getErrorCode());
+    }
+
+    /* RS-05 is committed in R2 */
 }

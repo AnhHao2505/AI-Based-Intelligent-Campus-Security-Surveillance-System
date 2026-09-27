@@ -757,7 +757,9 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
                 adminUser.getEmail()
         );
         assertEquals(auditBefore + 1, auditLogRepository.count());
-        AuditLog createLog = auditLogRepository.findAll().get((int) auditBefore);
+        AuditLog createLog = auditLogRepository.findAll().stream()
+                .filter(l -> l.getTargetType() == AuditTargetType.REASON_CATALOG && createResp.id().toString().equals(l.getTargetId()) && l.getAction() == AuditAction.CREATE)
+                .findFirst().orElseThrow();
         assertEquals(AuditTargetType.REASON_CATALOG, createLog.getTargetType());
         assertEquals(AuditAction.CREATE, createLog.getAction());
 
@@ -772,7 +774,9 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
                 adminUser.getEmail()
         );
         assertEquals(auditBefore + 2, auditLogRepository.count());
-        AuditLog updateLog = auditLogRepository.findAll().get((int) auditBefore + 1);
+        AuditLog updateLog = auditLogRepository.findAll().stream()
+                .filter(l -> l.getTargetType() == AuditTargetType.REASON_CATALOG && createResp.id().toString().equals(l.getTargetId()) && l.getAction() == AuditAction.UPDATE)
+                .findFirst().orElseThrow();
         assertEquals(AuditAction.UPDATE, updateLog.getAction());
         ReasonCatalogAuditSnapshot updateOldSnap = objectMapper.readValue(updateLog.getOldValue(), ReasonCatalogAuditSnapshot.class);
         ReasonCatalogAuditSnapshot updateNewSnap = objectMapper.readValue(updateLog.getNewValue(), ReasonCatalogAuditSnapshot.class);
@@ -787,13 +791,17 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
         // 4. ADMIN ngừng dùng -> 1 audit DEACTIVATE
         reasonCatalogService.deactivate(createResp.id(), adminUser.getEmail());
         assertEquals(auditBefore + 3, auditLogRepository.count());
-        AuditLog deactLog = auditLogRepository.findAll().get((int) auditBefore + 2);
+        AuditLog deactLog = auditLogRepository.findAll().stream()
+                .filter(l -> l.getTargetType() == AuditTargetType.REASON_CATALOG && createResp.id().toString().equals(l.getTargetId()) && l.getAction() == AuditAction.DEACTIVATE)
+                .findFirst().orElseThrow();
         assertEquals(AuditAction.DEACTIVATE, deactLog.getAction());
 
         // 5. ADMIN dùng lại -> 1 audit REACTIVATE
         reasonCatalogService.reactivate(createResp.id(), adminUser.getEmail());
         assertEquals(auditBefore + 4, auditLogRepository.count());
-        AuditLog reactLog = auditLogRepository.findAll().get((int) auditBefore + 3);
+        AuditLog reactLog = auditLogRepository.findAll().stream()
+                .filter(l -> l.getTargetType() == AuditTargetType.REASON_CATALOG && createResp.id().toString().equals(l.getTargetId()) && l.getAction() == AuditAction.REACTIVATE)
+                .findFirst().orElseThrow();
         assertEquals(AuditAction.REACTIVATE, reactLog.getAction());
 
         // 6. Ngừng dùng mục is_other (OTHER của EVENT_ENABLE) -> 400 (ERR_AREA_029)
