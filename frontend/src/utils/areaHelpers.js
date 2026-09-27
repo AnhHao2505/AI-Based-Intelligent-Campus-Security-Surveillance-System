@@ -36,11 +36,11 @@ export const AREA_LEVEL_CONFIG = {
     bgColor: 'rgba(245, 158, 11, 0.08)',
     borderColor: 'rgba(245, 158, 11, 0.35)',
     icon: 'alert-triangle',
-    description: 'Khu vực yêu cầu: cấp độ cao vào tự do, còn lại cần nhân sự chỉ định hoặc đơn đăng ký.'
+    description: 'Mọi cấp đều cần được chỉ định hoặc có đơn được duyệt'
   },
   HIGHLY_CONFIDENTIAL: {
     code: 'HIGHLY_CONFIDENTIAL',
-    name: 'Tuyệt mật – chỉ người được chỉ định',
+    name: 'Tuyệt mật – người được chỉ định hoặc có đơn cá nhân được duyệt',
     badgeLabel: 'Tuyệt mật',
     badgeClass: 'level-badge--private',
     cardClass: 'zone-card--private',
@@ -48,7 +48,7 @@ export const AREA_LEVEL_CONFIG = {
     bgColor: 'rgba(239, 68, 68, 0.08)',
     borderColor: 'rgba(239, 68, 68, 0.35)',
     icon: 'lock',
-    description: 'Khu vực an ninh đặc biệt nghiêm ngặt. Chỉ người được chỉ định mới được phép vào.'
+    description: 'Tuyệt mật – người được chỉ định hoặc có đơn cá nhân được duyệt'
   }
 };
 

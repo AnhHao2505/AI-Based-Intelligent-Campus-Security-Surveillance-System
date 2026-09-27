@@ -4,5 +4,7 @@ public sealed interface AccessControlAuditSnapshot permits
         AreaAssignmentAuditSnapshot,
         UserAccessLevelAuditSnapshot,
         AreaAccessRulesAuditSnapshot,
-        LevelPresetAuditSnapshot {
+        LevelPresetAuditSnapshot,
+        AreaEventModeAuditSnapshot,
+        ReasonCatalogAuditSnapshot {
 }

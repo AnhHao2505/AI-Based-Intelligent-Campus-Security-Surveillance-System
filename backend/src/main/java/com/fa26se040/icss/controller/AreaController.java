@@ -166,5 +166,16 @@ public class AreaController {
         String actorEmail = authentication != null ? authentication.getName() : null;
         return ResponseEntity.ok(ApiResponse.success(areaService.updateAccessRules(id, request, actorEmail), "Cập nhật quy tắc truy cập thành công"));
     }
+
+    @PatchMapping("/{id}/event-mode")
+    @PreAuthorize("hasRole('FACILITY_MANAGER')")
+    public ResponseEntity<ApiResponse<AreaResponse>> updateEventMode(
+            @PathVariable UUID id,
+            @RequestBody AreaEventModeUpdateRequest request,
+            Authentication authentication
+    ) {
+        String actorEmail = authentication != null ? authentication.getName() : null;
+        return ResponseEntity.ok(ApiResponse.success(areaService.updateEventMode(id, request, actorEmail), "Cập nhật chế độ sự kiện thành công"));
+    }
 }
 

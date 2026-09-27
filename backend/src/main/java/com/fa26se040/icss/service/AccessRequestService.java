@@ -77,6 +77,7 @@ public class AccessRequestService {
         Area area = getArea(request.areaId());
 
         validateCommonRules(area, request.startTime(), request.endTime());
+        validateAccessLevels(area, List.of(requester));
 
         // Validate overlap for requester only
         validateNoOverlap(area.getId(), request.startTime(), request.endTime(), List.of(requester));
@@ -131,6 +132,7 @@ public class AccessRequestService {
         List<User> allParticipants = new ArrayList<>();
         allParticipants.add(requester);
         allParticipants.addAll(memberUsers);
+        validateAccessLevels(area, allParticipants);
         validateNoOverlap(area.getId(), request.startTime(), request.endTime(), allParticipants);
 
         AccessRequest accessRequest = AccessRequest.builder()
@@ -317,6 +319,42 @@ public class AccessRequestService {
         if (reviewRequest.status() == RequestStatus.REJECTED) {
             if (reviewRequest.rejectionReason() == null || reviewRequest.rejectionReason().trim().isEmpty()) {
                 throw new IllegalArgumentException("Vui lòng cung cấp lý do từ chối yêu cầu");
+            }
+        }
+
+        // BR-RQ-02: Kiểm tra lại cấp độ truy cập và cấu hình nhóm khi FM phê duyệt (APPROVED)
+        if (reviewRequest.status() == RequestStatus.APPROVED) {
+            AccessRequest pendingReq = accessRequestRepository.findByIdWithDetails(id)
+                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu truy cập với mã: " + id));
+
+            if (pendingReq.getStatus() == RequestStatus.PENDING) {
+                Area currentArea = areaRepository.findById(pendingReq.getArea().getId())
+                        .orElse(pendingReq.getArea());
+
+                boolean groupAllowedInPrivate = systemConfigService.getBoolean(ConfigKey.ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE);
+                if (pendingReq.getRequestType() == RequestType.GROUP
+                        && currentArea.getAreaLevel() == AreaLevel.HIGHLY_CONFIDENTIAL
+                        && !groupAllowedInPrivate) {
+                    throw new IllegalArgumentException("Khu vực bảo mật cao (HIGHLY_CONFIDENTIAL) không cho phép duyệt đơn truy cập nhóm (GROUP)");
+                }
+
+                List<User> participants = new ArrayList<>();
+                if (pendingReq.getRequester() != null) {
+                    User freshRequester = userRepository.findById(pendingReq.getRequester().getId())
+                            .orElse(pendingReq.getRequester());
+                    participants.add(freshRequester);
+                }
+                if (pendingReq.getMembers() != null) {
+                    for (AccessRequestMember m : pendingReq.getMembers()) {
+                        if (m.getUser() != null) {
+                            User freshMember = userRepository.findById(m.getUser().getId())
+                                    .orElse(m.getUser());
+                            participants.add(freshMember);
+                        }
+                    }
+                }
+
+                validateAccessLevels(currentArea, participants);
             }
         }
 
@@ -583,6 +621,26 @@ public class AccessRequestService {
         long durationMinutes = Duration.between(startTime, endTime).toMinutes();
         if (durationMinutes > (long) maxDurationHours * 60) {
             throw new IllegalArgumentException("Thời lượng truy cập tối đa không quá " + maxDurationHours + " giờ");
+        }
+    }
+
+    private void validateAccessLevels(Area area, List<User> participants) {
+        if (area.getAreaAccessLevel() == null || participants == null || participants.isEmpty()) {
+            return;
+        }
+        int requiredLevel = area.getAreaAccessLevel();
+        List<String> unqualified = new ArrayList<>();
+        for (User user : participants) {
+            int userLevel = user.getAccessLevel() != null ? user.getAccessLevel() : 1;
+            if (userLevel < requiredLevel) {
+                unqualified.add(user.getFullName() + " (" + user.getUserCode() + ")");
+            }
+        }
+        if (!unqualified.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Người dùng không đủ cấp độ truy cập vào khu vực (yêu cầu Level " + requiredLevel + "): "
+                            + String.join(", ", unqualified)
+            );
         }
     }
 

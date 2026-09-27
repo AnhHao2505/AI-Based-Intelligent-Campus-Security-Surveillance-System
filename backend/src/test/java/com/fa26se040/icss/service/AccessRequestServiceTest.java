@@ -90,6 +90,7 @@ class AccessRequestServiceTest {
                 .email("student.tuan@fpt.edu.vn")
                 .userCode("SV-001")
                 .fullName("Nguyễn Văn Tuấn")
+                .accessLevel(3)
                 .role(Role.NORMAL_USER)
                 .isActive(true)
                 .build();
@@ -108,6 +109,7 @@ class AccessRequestServiceTest {
                 .email("student.an@fpt.edu.vn")
                 .userCode("SV-002")
                 .fullName("Lê Văn An")
+                .accessLevel(3)
                 .role(Role.NORMAL_USER)
                 .isActive(true)
                 .build();
@@ -117,6 +119,7 @@ class AccessRequestServiceTest {
                 .email("student.hoa@fpt.edu.vn")
                 .userCode("SV-003")
                 .fullName("Phạm Thị Hoa")
+                .accessLevel(3)
                 .role(Role.NORMAL_USER)
                 .isActive(true)
                 .build();
@@ -598,8 +601,8 @@ class AccessRequestServiceTest {
     void reviewRequest_ReviewIfPendingZero_EntityNotFound_ThrowsResourceNotFoundException() {
         UUID requestId = UUID.randomUUID();
 
-        when(userRepository.findByEmail(reviewer.getEmail())).thenReturn(Optional.of(reviewer));
-        when(accessRequestRepository.reviewIfPending(
+        org.mockito.Mockito.lenient().when(userRepository.findByEmail(reviewer.getEmail())).thenReturn(Optional.of(reviewer));
+        org.mockito.Mockito.lenient().when(accessRequestRepository.reviewIfPending(
                 eq(requestId),
                 eq(RequestStatus.APPROVED),
                 eq(reviewer),

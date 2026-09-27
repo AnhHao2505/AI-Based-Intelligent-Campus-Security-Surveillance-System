@@ -20,9 +20,10 @@ import AccessHistoryPage from "./pages/accessHistory/AccessHistoryPage";
 import NotificationsPage from "./pages/notifications/NotificationsPage";
 import ManageAccountPage from "./pages/accounts/ManageAccountPage";
 import SystemConfigPage from "./pages/system/SystemConfigPage";
-import GuardScheduleManagementPage from "./pages/admin/GuardScheduleManagementPage";
+import ReasonCatalogPage from "./pages/system/ReasonCatalogPage";
 import UserAccessLevelPage from "./pages/accessControl/UserAccessLevelPage";
 import DemoModeBanner from "./components/common/DemoModeBanner";
+import GuardScheduleManagementPage from "./pages/admin/GuardScheduleManagementPage";
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
 
@@ -218,7 +219,8 @@ function App() {
 									<ProtectedRoute
 										allowedRoles={[
 											ROLES.NORMAL_USER,
-											ROLES.FACILITY_MANAGER
+											ROLES.FACILITY_MANAGER,
+											ROLES.GUARD
 										]}
 									>
 										<NotificationsPage />
@@ -257,6 +259,14 @@ function App() {
 								element={
 									<ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
 										<SystemConfigPage />
+									</ProtectedRoute>
+								}
+							/>
+							<Route
+								path="/admin/reason-catalogs"
+								element={
+									<ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+										<ReasonCatalogPage />
 									</ProtectedRoute>
 								}
 							/>

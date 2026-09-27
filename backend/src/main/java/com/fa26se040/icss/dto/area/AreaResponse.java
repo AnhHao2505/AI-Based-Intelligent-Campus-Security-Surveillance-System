@@ -16,8 +16,52 @@ public record AreaResponse(
     Boolean isActive,
     OffsetDateTime createdAt,
     OffsetDateTime updatedAt,
-    Boolean differsFromPreset
+    Boolean differsFromPreset,
+    Boolean openToMembers,
+    OffsetDateTime openUntil,
+    Boolean eventActive,
+    OffsetDateTime eventStartedAt,
+    String eventStartedByName,
+    OffsetDateTime eventLastAdjustedAt,
+    String eventLastAdjustedByName
 ) {
+    public AreaResponse(
+        UUID id,
+        String name,
+        AreaLevel areaLevel,
+        Integer areaAccessLevel,
+        Boolean explicitAuthorizationRequired,
+        String building,
+        String floor,
+        AreaGeometry geometry,
+        Boolean isActive,
+        OffsetDateTime createdAt,
+        OffsetDateTime updatedAt,
+        Boolean differsFromPreset,
+        Boolean openToMembers,
+        OffsetDateTime openUntil,
+        Boolean eventActive
+    ) {
+        this(id, name, areaLevel, areaAccessLevel, explicitAuthorizationRequired, building, floor, geometry, isActive, createdAt, updatedAt, differsFromPreset, openToMembers, openUntil, eventActive, null, null, null, null);
+    }
+
+    public AreaResponse(
+        UUID id,
+        String name,
+        AreaLevel areaLevel,
+        Integer areaAccessLevel,
+        Boolean explicitAuthorizationRequired,
+        String building,
+        String floor,
+        AreaGeometry geometry,
+        Boolean isActive,
+        OffsetDateTime createdAt,
+        OffsetDateTime updatedAt,
+        Boolean differsFromPreset
+    ) {
+        this(id, name, areaLevel, areaAccessLevel, explicitAuthorizationRequired, building, floor, geometry, isActive, createdAt, updatedAt, differsFromPreset, false, null, false);
+    }
+
     public AreaResponse(
         UUID id,
         String name,
@@ -31,7 +75,7 @@ public record AreaResponse(
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt
     ) {
-        this(id, name, areaLevel, areaAccessLevel, explicitAuthorizationRequired, building, floor, geometry, isActive, createdAt, updatedAt, false);
+        this(id, name, areaLevel, areaAccessLevel, explicitAuthorizationRequired, building, floor, geometry, isActive, createdAt, updatedAt, false, false, null, false);
     }
 
     public AreaResponse(
@@ -45,6 +89,6 @@ public record AreaResponse(
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt
     ) {
-        this(id, name, areaLevel, null, null, building, floor, geometry, isActive, createdAt, updatedAt, false);
+        this(id, name, areaLevel, null, null, building, floor, geometry, isActive, createdAt, updatedAt, false, false, null, false);
     }
 }

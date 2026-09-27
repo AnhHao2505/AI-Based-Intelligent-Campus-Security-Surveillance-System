@@ -39,7 +39,9 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(AreaException.class)
     public ResponseEntity<ApiResponse<Object>> handleAreaException(AreaException ex) {
-        String message = ex.getErrorCode().getMessageTemplate();
+        String message = (ex.getMessage() != null && !ex.getMessage().isBlank())
+                ? ex.getMessage()
+                : ex.getErrorCode().getMessageTemplate();
         if (ex.getArgs() != null && ex.getArgs().length > 0 && message.contains("{n}")) {
             message = message.replace("{n}", String.valueOf(ex.getArgs()[0]));
         }
@@ -144,6 +146,9 @@ public class GlobalExceptionHandler {
         String msg = (ex.getMessage() + " " + (ex.getRootCause() != null ? ex.getRootCause().getMessage() : "")).toLowerCase();
         if (msg.contains("ux_areas_floor_name_active")) {
             return handleAreaException(new AreaException(AreaErrorCode.ERR_AREA_020));
+        }
+        if (msg.contains("ux_area_event_sessions_active")) {
+            return handleAreaException(new AreaException(AreaErrorCode.ERR_AREA_030, "Trạng thái sự kiện đã thay đổi do có thao tác đồng thời. Vui lòng tải lại trang."));
         }
         return buildResponse(HttpStatus.CONFLICT, "Dữ liệu bị trùng lặp hoặc vi phạm ràng buộc toàn vẹn");
     }

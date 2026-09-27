@@ -14,6 +14,12 @@ public class AreaException extends RuntimeException {
         this.args = args;
     }
 
+    public AreaException(AreaErrorCode errorCode, String customMessage) {
+        super(customMessage != null ? customMessage : errorCode.getMessageTemplate());
+        this.errorCode = errorCode;
+        this.args = new Object[]{customMessage};
+    }
+
     private static String formatMessage(AreaErrorCode errorCode, Object[] args) {
         if (args != null && args.length > 0 && errorCode.getMessageTemplate().contains("{n}")) {
             return errorCode.getMessageTemplate().replace("{n}", String.valueOf(args[0]));

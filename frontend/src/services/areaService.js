@@ -156,3 +156,13 @@ export async function updateAssignedPersonnel(areaId, id, data) {
 export async function revokeAssignedPersonnel(areaId, id, data) {
 	return apiPatch(`/api/areas/${areaId}/assigned-personnel/${id}/revoke`, data);
 }
+
+/**
+ * Bật/tắt chế độ sự kiện khu vực (chỉ FACILITY_MANAGER)
+ * PATCH /api/areas/{areaId}/event-mode
+ * @param {string} areaId
+ * @param {Object} data { enabled, openUntil, reason }
+ */
+export async function updateAreaEventMode(areaId, data) {
+	return apiPatch(`/api/areas/${areaId}/event-mode`, data);
+}
