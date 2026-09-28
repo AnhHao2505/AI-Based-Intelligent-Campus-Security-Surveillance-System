@@ -5,6 +5,7 @@ import com.fa26se040.icss.entity.*;
 import com.fa26se040.icss.enums.*;
 import com.fa26se040.icss.repository.*;
 import com.fa26se040.icss.security.JwtTokenProvider;
+import com.fa26se040.icss.service.GuestFaceEmbeddingClient;
 import com.fa26se040.icss.service.GuestPhotoStorageService;
 import com.fa26se040.icss.service.SystemConfigService;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -57,6 +58,7 @@ public abstract class GuestTestSupport extends AbstractIntegrationTest {
     @Autowired protected TransactionTemplate transactionTemplate;
 
     @MockBean protected GuestPhotoStorageService photoStorage;
+    @MockBean protected GuestFaceEmbeddingClient faceClient;
 
     protected String suffix;
     protected Building building;
@@ -77,7 +79,7 @@ public abstract class GuestTestSupport extends AbstractIntegrationTest {
 
     @BeforeEach
     void setUpGuestBase() {
-        Mockito.reset(photoStorage);
+        Mockito.reset(photoStorage, faceClient);
         suffix = UUID.randomUUID().toString().substring(0, 8);
         building = buildingRepository.findByCodeIgnoreCase("TEST_BLD_GA")
                 .orElseGet(() -> buildingRepository.save(Building.builder()
