@@ -14,11 +14,11 @@ import { getActiveReasons } from "../../services/reasonCatalogService";
 import { formatDisplayDateTime, getScheduleStatusView } from "../../utils/areaHelpers";
 import "./EventScheduleSection.css";
 
-// Loại hành động trong danh mục lý do cho từng thao tác với lịch
+// Nhóm lý do riêng cho từng thao tác với lịch (Step 5b, BR-ES-L1/L2)
 const REASON_ACTION = {
-	create: "EVENT_ENABLE",
-	edit: "EVENT_EXTEND",
-	cancel: "EVENT_DISABLE",
+	create: "EVENT_SCHEDULE_CREATE",
+	edit: "EVENT_SCHEDULE_UPDATE",
+	cancel: "EVENT_SCHEDULE_CANCEL",
 };
 
 const pad = (n) => String(n).padStart(2, "0");
@@ -323,7 +323,7 @@ export default function EventScheduleSection({ area, onSchedulesChanged }) {
 	};
 
 	const renderScheduleItem = (s) => {
-		const status = getScheduleStatusView(s.status, s.endAt);
+		const status = getScheduleStatusView(s.status);
 		const isEditing = target?.id === s.id && (mode === "edit" || mode === "cancel");
 		return (
 			<li key={s.id} className="evs-item">

@@ -560,6 +560,8 @@ export default function UserAccessLevelPage() {
       const statusLabels = {
         SCHEDULED: 'Đã lên lịch',
         STARTED: 'Đã bắt đầu',
+        COMPLETED: 'Đã kết thúc',
+        ENDED_EARLY: 'Kết thúc sớm',
         CANCELLED: 'Đã huỷ',
         FAILED: 'Thất bại',
       };

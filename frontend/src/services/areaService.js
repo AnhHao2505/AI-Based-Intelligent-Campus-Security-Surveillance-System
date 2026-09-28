@@ -53,6 +53,8 @@ export async function createArea(data) {
 /**
  * Cập nhật thông tin khu vực (ADMIN)
  * PUT /api/areas/{id}
+ * @param {Object} data { name, areaLevel, building, floor, floorId, centerLatitude, centerLongitude, reason, version }
+ *   reason bắt buộc 10–500 ký tự khi đổi loại khu vực
  */
 export async function updateArea(id, data) {
 	return apiPut(`/api/areas/${id}`, data);
@@ -86,18 +88,25 @@ export async function getAreaGeometries(building, floor) {
 
 /**
  * Lưu polygon cho một Area (ADMIN)
- * PATCH /api/areas/{id}/geometry
+ * PATCH /api/areas/{id}/geometry?version=
+ * @param {string} areaId
+ * @param {Array} vertices
+ * @param {number} [version] version khu vực đang xem (bắt buộc từ Step 5b; thiếu -> 400 ERR_AREA_044)
  */
-export async function saveAreaGeometry(areaId, vertices) {
-	return apiPatch(`/api/areas/${areaId}/geometry`, { vertices });
+export async function saveAreaGeometry(areaId, vertices, version) {
+	const query = version !== undefined && version !== null ? `?version=${encodeURIComponent(version)}` : "";
+	return apiPatch(`/api/areas/${areaId}/geometry${query}`, { vertices });
 }
 
 /**
  * Xóa polygon của một Area (ADMIN)
- * DELETE /api/areas/{id}/geometry
+ * DELETE /api/areas/{id}/geometry?version=
+ * @param {string} areaId
+ * @param {number} [version] version khu vực đang xem (bắt buộc từ Step 5b)
  */
-export async function deleteAreaGeometry(areaId) {
-	return apiDelete(`/api/areas/${areaId}/geometry`);
+export async function deleteAreaGeometry(areaId, version) {
+	const query = version !== undefined && version !== null ? `?version=${encodeURIComponent(version)}` : "";
+	return apiDelete(`/api/areas/${areaId}/geometry${query}`);
 }
 
 /**
@@ -119,6 +128,7 @@ export async function updateAreaCameras(areaId, cameraIds) {
 /**
  * Cập nhật quy tắc truy cập khu vực (FACILITY_MANAGER)
  * PATCH /api/areas/{id}/access-rules
+ * @param {Object} data { areaAccessLevel, explicitAuthorizationRequired, reason, version }
  */
 export async function updateAreaAccessRules(areaId, data) {
 	return apiPatch(`/api/areas/${areaId}/access-rules`, data);
@@ -158,10 +168,10 @@ export async function revokeAssignedPersonnel(areaId, id, data) {
 }
 
 /**
- * Bật/tắt chế độ sự kiện khu vực (chỉ FACILITY_MANAGER)
+ * Bật / điều chỉnh / tắt chế độ sự kiện khu vực (chỉ FACILITY_MANAGER)
  * PATCH /api/areas/{areaId}/event-mode
  * @param {string} areaId
- * @param {Object} data { enabled, openUntil, reason }
+ * @param {Object} data { action: "ENABLE" | "ADJUST" | "DISABLE", openUntil, reasonCode, note, version } — KHÔNG gửi enabled
  */
 export async function updateAreaEventMode(areaId, data) {
 	return apiPatch(`/api/areas/${areaId}/event-mode`, data);
@@ -171,7 +181,7 @@ export async function updateAreaEventMode(areaId, data) {
  * Lấy danh sách lịch chế độ sự kiện của khu vực, sắp startAt tăng dần (FACILITY_MANAGER, ADMIN)
  * GET /api/areas/{areaId}/event-schedules?status=
  * @param {string} areaId
- * @param {string} [status] SCHEDULED | STARTED | CANCELLED | FAILED — bỏ trống để lấy tất cả
+ * @param {string} [status] SCHEDULED | STARTED | COMPLETED | ENDED_EARLY | CANCELLED | FAILED — bỏ trống để lấy tất cả
  */
 export async function getEventSchedules(areaId, status) {
 	const query = status ? `?status=${encodeURIComponent(status)}` : "";

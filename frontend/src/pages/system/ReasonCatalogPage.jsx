@@ -24,6 +24,10 @@ const ACTION_TYPES = [
 	{ value: "EVENT_ENABLE", label: "Bật chế độ sự kiện" },
 	{ value: "EVENT_DISABLE", label: "Tắt chế độ sự kiện" },
 	{ value: "EVENT_EXTEND", label: "Điều chỉnh giờ kết thúc" },
+	// Step 5b (BR-ES-L1): nhóm lý do riêng cho lịch sự kiện
+	{ value: "EVENT_SCHEDULE_CREATE", label: "Đặt lịch sự kiện" },
+	{ value: "EVENT_SCHEDULE_UPDATE", label: "Sửa lịch sự kiện" },
+	{ value: "EVENT_SCHEDULE_CANCEL", label: "Huỷ lịch sự kiện" },
 ];
 
 export default function ReasonCatalogPage() {

@@ -37,6 +37,13 @@ const ACCESS_LEVEL_OPTIONS = [
 	},
 ];
 
+// Step 5b (BR-EV-A1): ý định gửi lên server thay cho trường enabled cũ
+const EVENT_ACTION_TO_API = {
+	EVENT_ENABLE: "ENABLE",
+	EVENT_EXTEND: "ADJUST",
+	EVENT_DISABLE: "DISABLE",
+};
+
 export default function AreaAccessRulesModal({
 	isOpen,
 	onClose,
@@ -58,8 +65,30 @@ export default function AreaAccessRulesModal({
 	const [eventNote, setEventNote] = useState("");
 	const [loadingReasons, setLoadingReasons] = useState(false);
 
+	// Step 5b (BR-TC-13): version khu vực gửi kèm mọi lần lưu; cập nhật theo response và sau thao tác lịch
+	const [areaVersion, setAreaVersion] = useState(null);
+
+	// Mở modal: tải lại khu vực để form và version là dữ liệu mới nhất (không dùng bản có thể đã cũ của danh sách)
+	useEffect(() => {
+		if (!isOpen || !area?.id) return;
+		let alive = true;
+		getAreaById(area.id)
+			.then((res) => {
+				if (!alive) return;
+				const fresh = res?.data || res;
+				if (fresh?.id) {
+					setAreaVersion(fresh.version ?? null);
+					onSuccess?.(fresh);
+				}
+			})
+			.catch((err) => console.error("Lỗi khi tải khu vực lúc mở modal quy tắc:", err));
+		return () => {
+			alive = false;
+		};
+	}, [isOpen, area?.id, onSuccess]);
+
 	// Thao tác lịch không cập nhật `area` ngay (sẽ reset form quy tắc đang sửa);
-	// chỉ tải lại khu vực (badge số lịch) sau khi đóng modal.
+	// chỉ lấy version mới, còn tải lại khu vực (badge số lịch) sau khi đóng modal.
 	const schedulesChangedRef = useRef(false);
 	const handleClose = () => {
 		const changedAreaId = schedulesChangedRef.current ? area?.id : null;
@@ -107,6 +136,7 @@ export default function AreaAccessRulesModal({
 
 	useEffect(() => {
 		if (area) {
+			setAreaVersion(area.version ?? null);
 			setAccessLevel(area.areaAccessLevel ?? 1);
 			setExplicitAuth(Boolean(area.explicitAuthorizationRequired));
 			setEventModeEnabled(Boolean(area.eventActive));
@@ -228,23 +258,31 @@ export default function AreaAccessRulesModal({
 
 		try {
 			let latestUpdated = null;
+			let version = areaVersion;
 			if (rulesChanged) {
 				const payload = {
 					areaAccessLevel: Number(accessLevel),
 					explicitAuthorizationRequired: Boolean(explicitAuth),
 					reason: trimmedRuleReason,
+					version,
 				};
 				latestUpdated = await updateAreaAccessRules(area.id, payload);
+				// Lần lưu sau dùng version trong response (lưu quy tắc đã làm version tăng)
+				version = latestUpdated?.version ?? version;
+				setAreaVersion(version);
 			}
 
 			if (eventModeChanged) {
+				const action = EVENT_ACTION_TO_API[currentEventAction];
 				const eventPayload = {
-					enabled: Boolean(eventModeEnabled),
-					openUntil: eventModeEnabled ? new Date(openUntil).toISOString() : null,
+					action,
+					openUntil: action !== "DISABLE" ? new Date(openUntil).toISOString() : null,
 					reasonCode: eventReasonCode,
 					note: trimmedEventNote,
+					version,
 				};
 				latestUpdated = await updateAreaEventMode(area.id, eventPayload);
+				setAreaVersion(latestUpdated?.version ?? version);
 			}
 
 			toast.success(`Đã cập nhật quy tắc khu vực ${area.name}`);
@@ -253,6 +291,23 @@ export default function AreaAccessRulesModal({
 			onClose();
 		} catch (err) {
 			console.error("Lỗi khi cập nhật quy tắc truy cập khu vực:", err);
+			if (err?.code === "ERR_AREA_045") {
+				// Người khác vừa cập nhật khu vực: tải lại dữ liệu mới nhất, giữ modal mở để FM xem lại rồi lưu lại
+				const staleMsg = "Khu vực đã được người khác cập nhật. Đã tải lại dữ liệu mới nhất, vui lòng kiểm tra và lưu lại.";
+				setError(staleMsg);
+				toast.error(staleMsg);
+				try {
+					const reloaded = await getAreaById(area.id);
+					const freshData = reloaded?.data || reloaded;
+					if (freshData?.id) {
+						onSuccess?.(freshData);
+						setAreaVersion(freshData.version ?? null);
+					}
+				} catch (fetchErr) {
+					console.error("Lỗi khi tải lại khu vực sau 409 ERR_AREA_045:", fetchErr);
+				}
+				return;
+			}
 			const msg =
 				err?.message ||
 				"Không thể cập nhật quy tắc truy cập. Vui lòng thử lại.";
@@ -687,6 +742,13 @@ export default function AreaAccessRulesModal({
 								area={area}
 								onSchedulesChanged={() => {
 									schedulesChangedRef.current = true;
+									// Thao tác lịch có thể làm version tăng (dọn phiên hết hạn): chỉ lấy version mới, không reset form
+									getAreaById(area.id)
+										.then((res) => {
+											const fresh = res?.data || res;
+											if (fresh?.id) setAreaVersion(fresh.version ?? null);
+										})
+										.catch((err) => console.error("Lỗi khi tải version khu vực sau thao tác lịch:", err));
 								}}
 							/>
 						</div>
