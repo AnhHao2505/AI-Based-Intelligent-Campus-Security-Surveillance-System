@@ -247,7 +247,9 @@ public class AreaService {
                 ? accessRequestRepository.findNotEndedByAreaWithParticipants(
                         area.getId(), List.of(com.fa26se040.icss.enums.RequestStatus.PENDING, com.fa26se040.icss.enums.RequestStatus.APPROVED), now)
                 : List.of();
-        boolean groupAllowedInPrivate = systemConfigService.getBoolean(com.fa26se040.icss.enums.ConfigKey.ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE);
+        // Chỉ đọc cấu hình khi thật sự có đơn cần đánh giá
+        boolean groupAllowedInPrivate = !requests.isEmpty()
+                && systemConfigService.getBoolean(com.fa26se040.icss.enums.ConfigKey.ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE);
         for (com.fa26se040.icss.entity.AccessRequest r : requests) {
             boolean approved = r.getStatus() == com.fa26se040.icss.enums.RequestStatus.APPROVED;
             if (newLevel == AreaLevel.PUBLIC) {
@@ -417,7 +419,8 @@ public class AreaService {
         }
 
         executeAfterCommitOrImmediately(() -> {
-            InAppNotificationService notifService = inAppNotificationServiceProvider.getIfAvailable();
+            InAppNotificationService notifService = inAppNotificationServiceProvider != null
+                    ? inAppNotificationServiceProvider.getIfAvailable() : null;
             if (notifService == null) {
                 return;
             }
@@ -721,13 +724,6 @@ public class AreaService {
         }
     }
 
-    /** @deprecated Step 5b: bắt buộc version (BR-TC-13). Chỉ giữ để test cũ biên dịch; gọi luôn nhận 400 ERR_AREA_044. */
-    @Deprecated(forRemoval = true)
-    @Transactional
-    public AreaGeometryResponse saveGeometry(UUID id, AreaGeometry geometry, String actorEmail) {
-        return saveGeometry(id, geometry, null, actorEmail);
-    }
-
     @Transactional
     public AreaGeometryResponse saveGeometry(UUID id, AreaGeometry geometry, Long version, String actorEmail) {
         // Hợp lệ dữ liệu trước khi khoá: version (BR-TC-13) + hình dạng polygon
@@ -777,13 +773,6 @@ public class AreaService {
                 savedArea.getIsActive(),
                 savedArea.getGeometry()
         );
-    }
-
-    /** @deprecated Step 5b: bắt buộc version (BR-TC-13). Chỉ giữ để test cũ biên dịch; gọi luôn nhận 400 ERR_AREA_044. */
-    @Deprecated(forRemoval = true)
-    @Transactional
-    public void deleteGeometry(UUID id, String actorEmail) {
-        deleteGeometry(id, null, actorEmail);
     }
 
     @Transactional

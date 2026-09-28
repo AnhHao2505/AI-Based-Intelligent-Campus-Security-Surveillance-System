@@ -19,17 +19,4 @@ public record AreaEventModeUpdateRequest(
         EventModeAction action,
         Long version
 ) {
-    /**
-     * @deprecated hợp đồng cũ (enabled). Chỉ giữ để test cũ trước Step 5b biên dịch; service luôn trả 400 ERR_AREA_046.
-     */
-    @Deprecated(forRemoval = true)
-    public AreaEventModeUpdateRequest(Boolean enabled, OffsetDateTime openUntil, String reasonCode, String note) {
-        this(com.fasterxml.jackson.databind.node.BooleanNode.valueOf(Boolean.TRUE.equals(enabled)), openUntil, reasonCode, note, null, null);
-    }
-
-    /** @deprecated xem constructor 4 tham số. */
-    @Deprecated(forRemoval = true)
-    public AreaEventModeUpdateRequest(Boolean enabled, OffsetDateTime openUntil, String reason) {
-        this(enabled, openUntil, null, reason);
-    }
 }
