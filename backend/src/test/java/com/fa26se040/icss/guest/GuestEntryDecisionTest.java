@@ -153,11 +153,11 @@ public class GuestEntryDecisionTest extends GuestTestSupport {
     void eventModeNotApplied() {
         OffsetDateTime t = OffsetDateTime.now();
         Area eventArea = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
-        openEvent(eventArea, t.minusMinutes(30), t.plusHours(3));
+        openEvent(eventArea, t.minusMinutes(30), t.plusMinutes(30));
         Guest g = activeGuest(internalArea);
         assertDenied(decisionService.checkGuestEntry(g.getId(), eventArea.getId(), t), GuestEntryDenyReason.AREA_NOT_IN_VISIT);
 
-        GuestVisit future = newVisit(hostL2, GuestVisitStatus.APPROVED, t.plusHours(1), t.plusHours(2), List.of(eventArea), "Khách tới sau");
+        GuestVisit future = newVisit(hostL2, GuestVisitStatus.APPROVED, t.plusMinutes(10), t.plusHours(2), List.of(eventArea), "Khách tới sau");
         assertDenied(decisionService.checkGuestEntry(guestsOf(future.getId()).get(0).getId(), eventArea.getId(), t), GuestEntryDenyReason.OUTSIDE_WINDOW);
     }
 }

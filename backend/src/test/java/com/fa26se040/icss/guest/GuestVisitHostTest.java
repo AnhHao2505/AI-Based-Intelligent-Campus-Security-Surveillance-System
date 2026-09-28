@@ -235,9 +235,11 @@ public class GuestVisitHostTest extends GuestTestSupport {
         newApprovedRequest(viaRequest, hostL2, s.minusHours(1), e.plusHours(1));
         assertRejected(create(hostL2, createBody(s, e, List.of(viaRequest), g)), 403, "ERR_GUEST_014");
 
+        // sự kiện phủ trọn khung lượt khách nhưng vẫn không tính là quyền của host (trong giới hạn 12h của chế độ sự kiện)
+        OffsetDateTime now = OffsetDateTime.now();
         Area eventArea = newArea(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED, 2, true);
-        openEvent(eventArea, OffsetDateTime.now().minusMinutes(5), OffsetDateTime.now().plusDays(3));
-        assertRejected(create(hostL2, createBody(s, e, List.of(eventArea), g)), 403, "ERR_GUEST_014");
+        openEvent(eventArea, now.minusMinutes(5), now.plusHours(1));
+        assertRejected(create(hostL2, createBody(now.plusMinutes(10), now.plusMinutes(40), List.of(eventArea), g)), 403, "ERR_GUEST_014");
 
         Area level3 = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 3, false);
         assertRejected(create(hostL2, createBody(s, e, List.of(level3), g)), 403, "ERR_GUEST_014");

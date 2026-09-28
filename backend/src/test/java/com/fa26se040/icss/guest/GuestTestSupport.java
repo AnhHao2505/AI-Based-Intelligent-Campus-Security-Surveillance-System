@@ -10,6 +10,8 @@ import com.fa26se040.icss.service.GuestPhotoStorageService;
 import com.fa26se040.icss.service.SystemConfigService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -56,6 +58,7 @@ public abstract class GuestTestSupport extends AbstractIntegrationTest {
     @Autowired protected GuestRepository guestRepository;
     @Autowired protected GuestFaceEmbeddingRepository embeddingRepository;
     @Autowired protected TransactionTemplate transactionTemplate;
+    @Autowired protected jakarta.persistence.EntityManager entityManager;
 
     @MockBean protected GuestPhotoStorageService photoStorage;
     @MockBean protected GuestFaceEmbeddingClient faceClient;
@@ -117,6 +120,29 @@ public abstract class GuestTestSupport extends AbstractIntegrationTest {
     }
 
     protected User newUser(String tag, Role role, int accessLevel, boolean active) {
+        User u = saveUser(tag, role, accessLevel, active);
+        createdUsers.add(u.getId());
+        return u;
+    }
+
+    private final List<UUID> createdUsers = new ArrayList<>();
+
+    /**
+     * Vô hiệu hoá user fixture sau mỗi test: thông báo "mọi FM / ADMIN đang hoạt động" của các module khác không phải
+     * gửi thêm cho user test đã xong (DB test không rollback, số user đang hoạt động tăng dần qua các lượt chạy).
+     */
+    @AfterEach
+    void deactivateFixtureUsers() {
+        transactionTemplate.executeWithoutResult(tx -> {
+            for (User u : userRepository.findAllById(createdUsers)) {
+                u.setIsActive(false);
+                userRepository.save(u);
+            }
+        });
+        createdUsers.clear();
+    }
+
+    private User saveUser(String tag, Role role, int accessLevel, boolean active) {
         return userRepository.save(User.builder()
                 .email("tga." + tag + "." + suffix + "@fpt.edu.vn")
                 .userCode("TGA-" + tag.toUpperCase() + "-" + suffix)
@@ -160,6 +186,10 @@ public abstract class GuestTestSupport extends AbstractIntegrationTest {
                 .build());
     }
 
+    /**
+     * Mở sự kiện trực tiếp qua JPA. Giữ trong giới hạn chế độ sự kiện (≤ EVENT_MODE_MAX_HOURS) và luôn đóng ở @AfterEach:
+     * sự kiện mở vượt giới hạn làm SystemConfigService phát EVENT_MODE_LIMIT_CHANGED cho mọi FM ở các test khác.
+     */
     protected void openEvent(Area area, OffsetDateTime startedAt, OffsetDateTime until) {
         Area a = reload(area);
         a.setOpenToMembers(true);
@@ -167,6 +197,45 @@ public abstract class GuestTestSupport extends AbstractIntegrationTest {
         areaRepository.save(a);
         sessionRepository.save(AreaEventSession.builder()
                 .area(a).startedAt(startedAt).plannedEnd(until).actualEnd(null).startedBy(fm).createdAt(startedAt).build());
+        openedEventAreas.add(a.getId());
+    }
+
+    private final List<UUID> openedEventAreas = new ArrayList<>();
+
+    @AfterEach
+    void closeOpenedEvents() {
+        for (UUID areaId : openedEventAreas) {
+            closeEvents(areaId);
+        }
+        openedEventAreas.clear();
+    }
+
+    /** Đóng các sự kiện còn mở của fixture khách từ lượt chạy trước (chỉ khu vực thuộc tòa TEST_BLD_GA). */
+    @BeforeAll
+    void closeLeftoverGuestFixtureEvents() {
+        List<UUID> areaIds = transactionTemplate.execute(tx -> entityManager.createQuery(
+                        "SELECT DISTINCT s.area.id FROM AreaEventSession s WHERE s.actualEnd IS NULL AND s.area.building = 'TEST_BLD_GA'", UUID.class)
+                .getResultList());
+        if (areaIds != null) {
+            areaIds.forEach(this::closeEvents);
+        }
+    }
+
+    private void closeEvents(UUID areaId) {
+        transactionTemplate.executeWithoutResult(tx -> {
+            OffsetDateTime now = OffsetDateTime.now();
+            for (AreaEventSession s : sessionRepository.findByAreaId(areaId)) {
+                if (s.getActualEnd() == null) {
+                    s.setActualEnd(now.isBefore(s.getStartedAt()) ? s.getStartedAt() : now);
+                    sessionRepository.save(s);
+                }
+            }
+            areaRepository.findById(areaId).ifPresent(a -> {
+                a.setOpenToMembers(false);
+                a.setOpenUntil(null);
+                areaRepository.save(a);
+            });
+        });
     }
 
     /** Mốc tương lai tròn giây: ngày mai + 2 ngày, 09:00 theo giờ hiện tại + offset phút. */
