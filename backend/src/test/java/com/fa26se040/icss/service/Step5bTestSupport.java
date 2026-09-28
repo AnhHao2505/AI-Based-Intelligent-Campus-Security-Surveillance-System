@@ -184,6 +184,8 @@ public abstract class Step5bTestSupport extends AbstractIntegrationTest {
                 .floorEntity(floor)
                 .building(building.getCode())
                 .floor(floor.getFloorCode())
+                .centerLatitude(CENTER_LAT)
+                .centerLongitude(CENTER_LNG)
                 .isActive(true)
                 .openToMembers(false)
                 .build());
@@ -369,14 +371,19 @@ public abstract class Step5bTestSupport extends AbstractIntegrationTest {
     }
 
     protected Map<String, Object> putBody(Area area, String name, AreaLevel level, String reason, Long version) {
+        return putBody(area, name, level, reason, version, CENTER_LAT, CENTER_LNG);
+    }
+
+    protected Map<String, Object> putBody(Area area, String name, AreaLevel level, String reason, Long version,
+                                          double lat, double lng) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("name", name);
         body.put("areaLevel", level.name());
         body.put("building", area.getBuilding());
         body.put("floor", area.getFloor());
         body.put("floorId", floor.getId());
-        body.put("centerLatitude", CENTER_LAT);
-        body.put("centerLongitude", CENTER_LNG);
+        body.put("centerLatitude", lat);
+        body.put("centerLongitude", lng);
         if (reason != null) body.put("reason", reason);
         if (version != null) body.put("version", version);
         return body;

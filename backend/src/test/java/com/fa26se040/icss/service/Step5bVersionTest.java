@@ -434,6 +434,44 @@ public class Step5bVersionTest extends Step5bTestSupport {
         assertIncrementedBy1(v0, area);
     }
 
+    @Test
+    @DisplayName("TC-17b (BR-TC-13): PUT dữ liệu y hệt -> 200, version không đổi")
+    void tc17b_BR_TC_13_putIdenticalData_versionUnchanged() throws Exception {
+        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        Long v0 = apiVersion(area);
+
+        MvcResult r = putArea(admin, area, area.getName(), AreaLevel.INTERNAL_CONFIDENTIAL, null, v0);
+
+        assertEquals(200, status(r), describe(r));
+        assertNotNull(v0, "AreaResponse phải trả version (BR-TC-13)");
+        assertEquals(v0, apiVersion(area), "Lưu không đổi dữ liệu không được tăng version");
+        assertEquals(v0, dbVersion(area));
+    }
+
+    @Test
+    @DisplayName("TC-17c (BR-TC-13, audit toạ độ): chỉ đổi toạ độ -> version +1, audit UPDATE có toạ độ trước/sau")
+    void tc17c_BR_TC_13_coordinatesOnly_incrementsVersion_auditHasCoordinates() throws Exception {
+        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        Long v0 = apiVersion(area);
+
+        MvcResult r = send(put("/api/areas/{id}", area.getId()), admin,
+                putBody(area, area.getName(), AreaLevel.INTERNAL_CONFIDENTIAL, null, v0, 10.8425, 106.8111)).andReturn();
+
+        assertEquals(200, status(r), describe(r));
+        Area after = reload(area);
+        assertEquals(10.8425, after.getCenterLatitude());
+        assertEquals(106.8111, after.getCenterLongitude());
+        assertIncrementedBy1(v0, area);
+        List<AuditLog> updates = auditsWithAction(area, "UPDATE");
+        assertEquals(1, updates.size());
+        JsonNode oldV = objectMapper.readTree(updates.get(0).getOldValue());
+        JsonNode newV = objectMapper.readTree(updates.get(0).getNewValue());
+        assertEquals(CENTER_LAT, oldV.path("centerLatitude").asDouble(), 1e-9, "Snapshot trước phải có vĩ độ cũ: " + oldV);
+        assertEquals(CENTER_LNG, oldV.path("centerLongitude").asDouble(), 1e-9, "Snapshot trước phải có kinh độ cũ: " + oldV);
+        assertEquals(10.8425, newV.path("centerLatitude").asDouble(), 1e-9, "Snapshot sau phải có vĩ độ mới: " + newV);
+        assertEquals(106.8111, newV.path("centerLongitude").asDouble(), 1e-9, "Snapshot sau phải có kinh độ mới: " + newV);
+    }
+
     // ================================================================== TC-18
 
     @Test

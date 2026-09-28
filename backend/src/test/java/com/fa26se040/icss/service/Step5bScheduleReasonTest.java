@@ -65,6 +65,16 @@ public class Step5bScheduleReasonTest extends Step5bTestSupport {
             assertTrue(items.stream().anyMatch(i -> i.path("isOther").asBoolean(false) && "OTHER".equals(i.path("code").asText())),
                     "Nhóm " + group + " phải có mục OTHER");
         }
+        // Seed đã chốt (BR-ES-L1, bản 28/09)
+        Map<String, Set<String>> seeds = Map.of(
+                GROUP_CREATE, Set.of("PLANNED_EVENT", "SEMINAR", "VISIT", "OTHER"),
+                GROUP_UPDATE, Set.of("ORGANIZER_CHANGED", "INPUT_ERROR", "OTHER"),
+                GROUP_CANCEL, Set.of("EVENT_CANCELLED", "BOOKED_BY_MISTAKE", "SECURITY_REASON", "OTHER"));
+        for (Map.Entry<String, Set<String>> e : seeds.entrySet()) {
+            Set<String> codes = new HashSet<>();
+            byGroup.getOrDefault(e.getKey(), List.of()).forEach(i -> codes.add(i.path("code").asText()));
+            assertTrue(codes.containsAll(e.getValue()), "Seed nhóm " + e.getKey() + ": " + codes);
+        }
     }
 
     @Test

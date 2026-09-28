@@ -97,6 +97,46 @@ public class Step5bEventActionTest extends Step5bTestSupport {
         assertNothingHappened(area, before, false);
     }
 
+    @Test
+    @DisplayName("EV-A1b (BR-EV-A1): JSON sai cú pháp / sai kiểu (openUntil, version) -> 400, không 500, không đổi gì")
+    void evA1b_BR_EV_A1_malformedOrWrongTypeJson_badRequest() throws Exception {
+        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        long before = eventAudits(area);
+        Long v = apiVersion(area);
+
+        MvcResult broken = mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .patch("/api/areas/{id}/event-mode", area.getId())
+                        .header("Authorization", bearer(fm))
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"action\": \"ENABLE\", \"note\": "))
+                .andReturn();
+        assertEquals(400, status(broken), "JSON sai cú pháp: " + describe(broken));
+
+        Map<String, Object> badDate = eventBody("ENABLE", null, "SEMINAR", EVENT_NOTE, v);
+        badDate.put("openUntil", "ngày mai");
+        MvcResult r1 = patchEventMode(fm, area, badDate);
+        assertEquals(400, status(r1), "openUntil sai kiểu: " + describe(r1));
+
+        Map<String, Object> badVersion = eventBody("ENABLE", OffsetDateTime.now().plusHours(2), "SEMINAR", EVENT_NOTE, null);
+        badVersion.put("version", "abc");
+        MvcResult r2 = patchEventMode(fm, area, badVersion);
+        assertEquals(400, status(r2), "version sai kiểu: " + describe(r2));
+
+        assertNothingHappened(area, before, false);
+    }
+
+    @Test
+    @DisplayName("EV-A5 (BR-EV-A5): khu vực chưa từng mở sự kiện -> 030 \"đang tắt\" (dạng thứ 4)")
+    void evA5_BR_EV_A5_message_neverOpened_off() throws Exception {
+        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+
+        MvcResult r = patchEventMode(fm, area, eventBody("DISABLE", null, "ENDED_EARLY", EVENT_NOTE, apiVersion(area)));
+
+        assertEquals(409, status(r), describe(r));
+        assertEquals("ERR_AREA_030", errorCode(r));
+        assertEquals("Trạng thái sự kiện đã thay đổi: đang tắt. Vui lòng tải lại trang.", message(r));
+    }
+
     // ================================================================== EV-A2
 
     @Test
@@ -241,7 +281,7 @@ public class Step5bEventActionTest extends Step5bTestSupport {
 
         assertEquals(409, status(r), describe(r));
         assertEquals("ERR_AREA_030", errorCode(r));
-        assertTrue(message(r).contains("đang mở đến " + VN_TIME.format(until)), message(r));
+        assertEquals("Trạng thái sự kiện đã thay đổi: đang mở đến " + VN_TIME.format(until) + ". Vui lòng tải lại trang.", message(r));
     }
 
     @Test
@@ -259,7 +299,7 @@ public class Step5bEventActionTest extends Step5bTestSupport {
 
         assertEquals(409, status(r), describe(r));
         assertEquals("ERR_AREA_030", errorCode(r));
-        assertTrue(message(r).contains(VN_TIME.format(actualEnd)), "Phải nêu giờ tắt thực tế " + VN_TIME.format(actualEnd) + ": " + message(r));
+        assertEquals("Trạng thái sự kiện đã thay đổi: đã tắt lúc " + VN_TIME.format(actualEnd) + ". Vui lòng tải lại trang.", message(r));
     }
 
     @Test
@@ -276,7 +316,7 @@ public class Step5bEventActionTest extends Step5bTestSupport {
 
         assertEquals(409, status(r), describe(r));
         assertEquals("ERR_AREA_030", errorCode(r));
-        assertTrue(message(r).contains(VN_TIME.format(plannedEnd)), "Phải nêu giờ hết hạn " + VN_TIME.format(plannedEnd) + ": " + message(r));
+        assertEquals("Trạng thái sự kiện đã thay đổi: đã hết hạn lúc " + VN_TIME.format(plannedEnd) + ". Vui lòng tải lại trang.", message(r));
     }
 
     // ================================================================== EV-A6
@@ -286,14 +326,15 @@ public class Step5bEventActionTest extends Step5bTestSupport {
     void evA6_BR_EV_A6_adjustAfterOpenUntil_conflictExpired() throws Exception {
         OffsetDateTime now = OffsetDateTime.now();
         Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
-        openEvent(area, now.minusHours(2), now.minusMinutes(5));
+        AreaEventSession expired = openEvent(area, now.minusHours(2), now.minusMinutes(5));
 
         MvcResult r = patchEventMode(fm, area,
                 eventBody("ADJUST", now.plusHours(1), "EVENT_PROLONGED", EVENT_NOTE, apiVersion(area)));
 
         assertEquals(409, status(r), describe(r));
         assertEquals("ERR_AREA_030", errorCode(r));
-        assertTrue(message(r).contains("đã hết hạn"), message(r));
+        assertEquals("Trạng thái sự kiện đã thay đổi: đã hết hạn lúc " + VN_TIME.format(expired.getPlannedEnd())
+                + ". Vui lòng tải lại trang.", message(r));
         assertEquals(0, auditsWithAction(area, "EXTEND_EVENT_MODE").size());
     }
 

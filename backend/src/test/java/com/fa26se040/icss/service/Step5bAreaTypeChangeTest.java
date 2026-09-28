@@ -72,6 +72,7 @@ public class Step5bAreaTypeChangeTest extends Step5bTestSupport {
         MvcResult r = changeType(admin, area, AreaLevel.HIGHLY_CONFIDENTIAL, null, v0);
 
         assertEquals(400, status(r), describe(r));
+        assertEquals("ERR_AREA_050", errorCode(r));
         assertEquals(AreaLevel.INTERNAL_CONFIDENTIAL, reload(area).getAreaLevel());
         assertEquals(auditBefore, auditCountForArea(area));
         assertEquals(0, notificationsOf(fm, NotificationType.AREA_TYPE_CHANGED).size());
@@ -87,6 +88,7 @@ public class Step5bAreaTypeChangeTest extends Step5bTestSupport {
         MvcResult r = changeType(admin, area, AreaLevel.HIGHLY_CONFIDENTIAL, "abcde", v0);
 
         assertEquals(400, status(r), describe(r));
+        assertEquals("ERR_AREA_050", errorCode(r));
         assertEquals(AreaLevel.INTERNAL_CONFIDENTIAL, reload(area).getAreaLevel());
         assertEquals(auditBefore, auditCountForArea(area));
         assertEquals(0, notificationsOf(fm, NotificationType.AREA_TYPE_CHANGED).size());
@@ -234,6 +236,7 @@ public class Step5bAreaTypeChangeTest extends Step5bTestSupport {
         MvcResult r = changeType(admin, area, AreaLevel.HIGHLY_CONFIDENTIAL, TYPE_CHANGE_REASON, apiVersion(area));
 
         assertEquals(409, status(r), describe(r));
+        assertEquals("ERR_AREA_048", errorCode(r));
         Area after = reload(area);
         assertEquals(AreaLevel.INTERNAL_CONFIDENTIAL, after.getAreaLevel());
         assertEquals(2, after.getAreaAccessLevel());
@@ -254,6 +257,7 @@ public class Step5bAreaTypeChangeTest extends Step5bTestSupport {
         MvcResult r = changeType(admin, area, AreaLevel.PUBLIC, TYPE_CHANGE_REASON, apiVersion(area));
 
         assertEquals(409, status(r), describe(r));
+        assertEquals("ERR_AREA_048", errorCode(r));
         Area after = reload(area);
         assertEquals(AreaLevel.INTERNAL_CONFIDENTIAL, after.getAreaLevel());
         assertTrue(after.isEventActive(OffsetDateTime.now()), "Sự kiện vẫn phải đang mở");
@@ -323,6 +327,7 @@ public class Step5bAreaTypeChangeTest extends Step5bTestSupport {
         MvcResult r = changeType(admin, area, AreaLevel.PUBLIC, TYPE_CHANGE_REASON, apiVersion(area));
 
         assertEquals(409, status(r), describe(r));
+        assertEquals("ERR_AREA_049", errorCode(r));
         assertTrue(message(r).contains("3"), "Thông điệp phải nêu số AP còn hiệu lực (3): " + message(r));
         assertEquals(AreaLevel.INTERNAL_CONFIDENTIAL, reload(area).getAreaLevel());
         assertEquals(auditBefore, auditCountForArea(area));
@@ -371,6 +376,8 @@ public class Step5bAreaTypeChangeTest extends Step5bTestSupport {
                     .filter(a -> "SYSTEM".equals(a.getActorType()) && AREA_TYPE_CHANGE_SOURCE.equals(a.getActorSource()))
                     .toList();
             assertEquals(1, sys.size(), "Đơn " + cancelled.getId() + " phải có 1 audit actor SYSTEM AREA_TYPE_CHANGE");
+            assertEquals(AuditTargetType.ACCESS_REQUEST, sys.get(0).getTargetType());
+            assertEquals("CANCEL", sys.get(0).getAction().name(), "Dùng action huỷ đơn hiện có");
             assertEquals(correlationId, sys.get(0).getCorrelationId(), "Audit huỷ đơn phải cùng correlation với thao tác ADMIN");
         }
         assertTrue(auditsForTarget(r3.getId().toString()).isEmpty(), "Đơn không bị huỷ thì không có audit");
@@ -425,7 +432,8 @@ public class Step5bAreaTypeChangeTest extends Step5bTestSupport {
                     .filter(n -> area.getId().equals(n.getReferenceId()))
                     .toList();
             assertEquals(1, list.size(), "FM " + activeFm.getEmail() + " phải nhận đúng 1 thông báo AREA_TYPE_CHANGED");
-            assertTrue(list.get(0).getMessage().contains(TYPE_CHANGE_REASON), "Thông báo phải nêu lý do: " + list.get(0).getMessage());
+            assertEquals("Khu vực " + area.getName() + ": Bảo mật nội bộ → Liên hệ trước. Lý do: " + TYPE_CHANGE_REASON
+                    + ". Số đơn bị huỷ: 0.", list.get(0).getMessage());
         }
         assertTrue(notificationsOf(fmInactive, NotificationType.AREA_TYPE_CHANGED).isEmpty(), "FM bị vô hiệu hoá không nhận");
         assertTrue(notificationsOf(guard, NotificationType.AREA_TYPE_CHANGED).isEmpty(), "Chỉ FM nhận AREA_TYPE_CHANGED");
@@ -441,7 +449,7 @@ public class Step5bAreaTypeChangeTest extends Step5bTestSupport {
         openEvent(area, now.minusMinutes(10), now.plusHours(2));
         AccessRequest approved = newRequest(area, userL2, RequestType.INDIVIDUAL, RequestStatus.APPROVED,
                 now.plusHours(3), now.plusHours(4));
-        assertBlockedWithoutSideEffects(area, AreaLevel.HIGHLY_CONFIDENTIAL, approved);
+        assertBlockedWithoutSideEffects(area, AreaLevel.HIGHLY_CONFIDENTIAL, approved, "ERR_AREA_048");
     }
 
     @Test
@@ -452,7 +460,7 @@ public class Step5bAreaTypeChangeTest extends Step5bTestSupport {
         newSchedule(area, now.plusDays(1), now.plusDays(1).plusHours(2), "SEMINAR", "Hội thảo/sự kiện chuyên môn");
         AccessRequest approved = newRequest(area, userL2, RequestType.INDIVIDUAL, RequestStatus.APPROVED,
                 now.plusHours(3), now.plusHours(4));
-        assertBlockedWithoutSideEffects(area, AreaLevel.HIGHLY_CONFIDENTIAL, approved);
+        assertBlockedWithoutSideEffects(area, AreaLevel.HIGHLY_CONFIDENTIAL, approved, "ERR_AREA_042");
     }
 
     @Test
@@ -463,10 +471,10 @@ public class Step5bAreaTypeChangeTest extends Step5bTestSupport {
         newActiveAp(area, userL3);
         AccessRequest pending = newRequest(area, userL2, RequestType.INDIVIDUAL, RequestStatus.PENDING,
                 now.plusHours(3), now.plusHours(4));
-        assertBlockedWithoutSideEffects(area, AreaLevel.PUBLIC, pending);
+        assertBlockedWithoutSideEffects(area, AreaLevel.PUBLIC, pending, "ERR_AREA_049");
     }
 
-    private void assertBlockedWithoutSideEffects(Area area, AreaLevel target, AccessRequest request) throws Exception {
+    private void assertBlockedWithoutSideEffects(Area area, AreaLevel target, AccessRequest request, String expectedCode) throws Exception {
         RequestStatus requestBefore = requestStatus(request);
         Long v0 = apiVersion(area);
         long auditBefore = auditCountForArea(area);
@@ -474,6 +482,7 @@ public class Step5bAreaTypeChangeTest extends Step5bTestSupport {
         MvcResult r = changeType(admin, area, target, TYPE_CHANGE_REASON, v0);
 
         assertEquals(409, status(r), describe(r));
+        assertEquals(expectedCode, errorCode(r));
         assertEquals(AreaLevel.INTERNAL_CONFIDENTIAL, reload(area).getAreaLevel());
         assertEquals(requestBefore, requestStatus(request), "Bị chặn thì đơn không đổi");
         assertEquals(auditBefore, auditCountForArea(area), "Bị chặn thì không ghi audit");
@@ -481,6 +490,153 @@ public class Step5bAreaTypeChangeTest extends Step5bTestSupport {
         assertEquals(0, countNotifications(fm, fm2, userL2), "Bị chặn thì không có thông báo");
         assertNotNull(v0, "AreaResponse phải trả version (BR-TC-13)");
         assertEquals(v0, apiVersion(area), "Bị chặn thì version không đổi");
+    }
+
+    // ------------------------------------------------------------------ TC-03b (B1)
+
+    private MvcResult preview(Area area, AreaLevel target) throws Exception {
+        return send(get("/api/areas/{id}/type-change-preview", area.getId())
+                .param("newAreaLevel", target.name()), admin, null).andReturn();
+    }
+
+    private Set<String> ids(JsonNode items) {
+        Set<String> out = new HashSet<>();
+        for (JsonNode n : items) {
+            out.add(n.path("id").asText());
+        }
+        return out;
+    }
+
+    @Test
+    @DisplayName("TC-03b (BR-TC-03): xem trước và thực thi cùng kết luận (lý do chặn, danh sách đơn bị huỷ)")
+    void tc03b_BR_TC_03_previewAndPutReachSameConclusion() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now();
+        // Bị chặn: preview nêu ERR_AREA_048, PUT trả đúng mã đó
+        Area blocked = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        openEvent(blocked, now.minusMinutes(10), now.plusHours(2));
+        MvcResult p1 = preview(blocked, AreaLevel.HIGHLY_CONFIDENTIAL);
+        assertEquals(200, status(p1), describe(p1));
+        JsonNode reasons = json(p1).path("data").path("blockingReasons");
+        assertEquals(1, reasons.size(), reasons.toString());
+        assertEquals("ERR_AREA_048", reasons.get(0).path("code").asText());
+        assertFalse(reasons.get(0).path("message").asText("").isBlank(), "Lý do chặn phải có câu thông báo");
+        MvcResult put1 = changeType(admin, blocked, AreaLevel.HIGHLY_CONFIDENTIAL, TYPE_CHANGE_REASON, apiVersion(blocked));
+        assertEquals(409, status(put1), describe(put1));
+        assertEquals("ERR_AREA_048", errorCode(put1));
+
+        // Không bị chặn: danh sách đơn APPROVED sẽ huỷ ở preview = đúng các đơn PUT huỷ
+        Area open = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        AccessRequest low = newRequest(open, userL2, RequestType.INDIVIDUAL, RequestStatus.APPROVED,
+                now.plusHours(1), now.plusHours(2));
+        AccessRequest ok = newRequest(open, userL3, RequestType.INDIVIDUAL, RequestStatus.APPROVED,
+                now.plusHours(3), now.plusHours(4));
+        MvcResult p2 = preview(open, AreaLevel.HIGHLY_CONFIDENTIAL);
+        assertEquals(200, status(p2), describe(p2));
+        assertEquals(0, json(p2).path("data").path("blockingReasons").size());
+        assertEquals(Set.of(low.getId().toString()), ids(json(p2).path("data").path("approvedRequestsToCancel")));
+        MvcResult put2 = changeType(admin, open, AreaLevel.HIGHLY_CONFIDENTIAL, TYPE_CHANGE_REASON, apiVersion(open));
+        assertEquals(200, status(put2), describe(put2));
+        assertEquals(RequestStatus.CANCELLED, requestStatus(low));
+        assertEquals(RequestStatus.APPROVED, requestStatus(ok));
+    }
+
+    @Test
+    @DisplayName("TC-03b (BR-TC-03): dữ liệu đổi giữa preview và PUT -> PUT đánh giá lại theo dữ liệu mới")
+    void tc03b_BR_TC_03_dataChangedAfterPreview_putFollowsNewData() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now();
+        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        MvcResult p = preview(area, AreaLevel.HIGHLY_CONFIDENTIAL);
+        assertEquals(200, status(p), describe(p));
+        assertEquals(0, json(p).path("data").path("blockingReasons").size(), "Tiền đề: lúc preview chưa bị chặn");
+        Long seen = apiVersion(area);
+
+        // Sau preview: FM mở sự kiện (dữ liệu test qua JPA) và có thêm 1 đơn APPROVED cấp thấp
+        openEvent(area, now.minusMinutes(5), now.plusHours(1));
+        AccessRequest late = newRequest(area, userL2, RequestType.INDIVIDUAL, RequestStatus.APPROVED,
+                now.plusHours(2), now.plusHours(3));
+
+        MvcResult put = changeType(admin, area, AreaLevel.HIGHLY_CONFIDENTIAL, TYPE_CHANGE_REASON, seen);
+        assertEquals(409, status(put), describe(put));
+        assertEquals("ERR_AREA_048", errorCode(put), "PUT phải đánh giá lại sau khi khoá, không dùng kết quả preview");
+        assertEquals(AreaLevel.INTERNAL_CONFIDENTIAL, reload(area).getAreaLevel());
+        assertEquals(RequestStatus.APPROVED, requestStatus(late));
+    }
+
+    @Test
+    @DisplayName("TC-03 (BR-TC-03, BR-TC-14): xem trước sang PUBLIC liệt kê đơn PENDING sẽ huỷ (id, người gửi, khung giờ) và lý do chặn có mã + câu")
+    void tc03b_BR_TC_03_previewPublic_listsPendingToCancel() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now();
+        Area area = newArea(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED, 2, true);
+        newActiveAp(area, userL3);
+        OffsetDateTime start = now.plusHours(2).withNano(0);
+        AccessRequest pending = newRequest(area, userL2, RequestType.INDIVIDUAL, RequestStatus.PENDING, start, start.plusHours(1));
+
+        MvcResult p = preview(area, AreaLevel.PUBLIC);
+        assertEquals(200, status(p), describe(p));
+        JsonNode d = json(p).path("data");
+        JsonNode items = d.path("pendingRequestsToCancel");
+        assertEquals(1, items.size(), items.toString());
+        JsonNode item = items.get(0);
+        assertEquals(pending.getId().toString(), item.path("id").asText());
+        assertEquals(userL2.getFullName(), item.path("requesterName").asText());
+        assertEquals(start.toInstant(), OffsetDateTime.parse(item.path("startTime").asText()).toInstant());
+        assertEquals(start.plusHours(1).toInstant(), OffsetDateTime.parse(item.path("endTime").asText()).toInstant());
+        JsonNode reasons = d.path("blockingReasons");
+        assertEquals(1, reasons.size(), reasons.toString());
+        assertEquals("ERR_AREA_049", reasons.get(0).path("code").asText());
+        assertTrue(reasons.get(0).path("message").asText("").contains("1"), "Câu chặn phải nêu số AP: " + reasons);
+    }
+
+    // ------------------------------------------------------------------ TC-12c (B1)
+
+    @Test
+    @DisplayName("TC-12c (BR-TC-12): không đổi loại + reason 5 ký tự -> 400 ERR_AREA_050, không đổi gì")
+    void tc12c_BR_TC_12_renameWithShortReason_badRequest() throws Exception {
+        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        long auditBefore = auditCountForArea(area);
+
+        MvcResult r = putArea(admin, area, area.getName() + " moi", AreaLevel.INTERNAL_CONFIDENTIAL, "abcde", apiVersion(area));
+
+        assertEquals(400, status(r), describe(r));
+        assertEquals("ERR_AREA_050", errorCode(r));
+        assertEquals(area.getName(), reload(area).getName());
+        assertEquals(auditBefore, auditCountForArea(area));
+    }
+
+    @Test
+    @DisplayName("TC-12c (BR-TC-12): không đổi loại + reason hợp lệ -> 200, reason ghi vào audit AREA/UPDATE")
+    void tc12c_BR_TC_12_renameWithValidReason_recordedInUpdateAudit() throws Exception {
+        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        String reason = "Đổi tên theo biển hiệu mới của khoa";
+
+        MvcResult r = putArea(admin, area, area.getName() + " moi", AreaLevel.INTERNAL_CONFIDENTIAL, reason, apiVersion(area));
+
+        assertEquals(200, status(r), describe(r));
+        List<AuditLog> updates = auditsWithAction(area, "UPDATE");
+        assertEquals(1, updates.size());
+        assertEquals(reason, updates.get(0).getReason());
+        assertEquals(0, auditsWithAction(area, "CHANGE_TYPE").size());
+    }
+
+    // ------------------------------------------------------------------ TC-16b (B1)
+
+    @Test
+    @DisplayName("TC-16b (BR-TC-16): người gửi cũng là thành viên -> đúng 1 thông báo REQUEST_SYSTEM_CANCELLED / đơn")
+    void tc16b_BR_TC_16_requesterAlsoMember_singleNotification() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now();
+        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        AccessRequest group = newRequest(area, userL2, RequestType.GROUP, RequestStatus.APPROVED,
+                now.plusHours(1), now.plusHours(2), userL2, userL3);
+
+        MvcResult r = changeType(admin, area, AreaLevel.HIGHLY_CONFIDENTIAL, TYPE_CHANGE_REASON, apiVersion(area));
+        assertEquals(200, status(r), describe(r));
+
+        assertEquals(RequestStatus.CANCELLED, requestStatus(group));
+        for (User u : List.of(userL2, userL3)) {
+            long n = notificationsOf(u, NotificationType.REQUEST_SYSTEM_CANCELLED).stream()
+                    .filter(x -> group.getId().equals(x.getReferenceId())).count();
+            assertEquals(1, n, u.getEmail() + " phải nhận đúng 1 thông báo cho đơn " + group.getId());
+        }
     }
 
     // ------------------------------------------------------------------ TC-12
