@@ -214,26 +214,6 @@ class CameraServiceTest {
     }
 
     @Test
-    @DisplayName("GetCameraAreas: should return assigned areas correctly")
-    void testGetCameraAreas() {
-        Area area = Area.builder()
-                .id(UUID.randomUUID())
-                .name("Sảnh Chính")
-                .areaLevel(AreaLevel.PUBLIC)
-                .building("Tòa A")
-                .floor("Tầng 1")
-                .build();
-        testCamera.setArea(area);
-
-        when(cameraRepository.findById(testCameraId)).thenReturn(Optional.of(testCamera));
-
-        List<AreaSimpleResponse> areas = cameraService.getCameraAreas(testCameraId);
-
-        assertEquals(1, areas.size());
-        assertEquals("Sảnh Chính", areas.get(0).name());
-    }
-
-    @Test
     @DisplayName("GetCameraDetail: should include assignedAreas in detail response")
     void testGetCameraDetailIncludesAssignedAreas() {
         Area area = Area.builder()

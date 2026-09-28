@@ -23,7 +23,11 @@ import {
 } from "lucide-react";
 import WebRtcPlayer from "../../components/video/WebRtcPlayer";
 import { fetchCameras } from "../../services/cameraService";
-import { triggerTestAlert, triggerBatchTestAlerts, getActiveIncidents } from "../../services/incidentService";
+import {
+	triggerTestAlert,
+	triggerBatchTestAlerts,
+	getActiveIncidents,
+} from "../../services/incidentService";
 import "../../styles/GuardDashboardPage.css";
 
 // Trọng số phân cấp mức độ nghiêm trọng của sự kiện an ninh (Chuẩn hóa 3 loại sự cố chính)
@@ -322,7 +326,8 @@ export function SecuritySurveillancePage() {
 				incident.area_name ||
 				incident.cameraName ||
 				"Khu vực camera",
-			eventType: incident.event_type || incident.eventType || "UNAUTHORIZED_ACCESS",
+			eventType:
+				incident.event_type || incident.eventType || "UNAUTHORIZED_ACCESS",
 			message:
 				incident.details ||
 				incident.resolutionNotes ||
@@ -338,7 +343,11 @@ export function SecuritySurveillancePage() {
 		};
 
 		setActiveAlerts((prev) => {
-			if (prev.some((a) => a.id === incidentId || String(a.id) === String(incidentId))) {
+			if (
+				prev.some(
+					(a) => a.id === incidentId || String(a.id) === String(incidentId),
+				)
+			) {
 				return prev;
 			}
 			return [newAlert, ...prev];
@@ -384,11 +393,11 @@ export function SecuritySurveillancePage() {
 									a.id === update.incidentId ||
 									String(a.id) === String(update.incidentId)
 										? {
-											...a,
-											status: update.status || a.status,
-											claimedByName: update.claimedByName || a.claimedByName,
-											claimedById: update.claimedById || a.claimedById,
-										}
+												...a,
+												status: update.status || a.status,
+												claimedByName: update.claimedByName || a.claimedByName,
+												claimedById: update.claimedById || a.claimedById,
+											}
 										: a,
 								),
 							);
@@ -434,7 +443,8 @@ export function SecuritySurveillancePage() {
 								"CAM-001"
 							).toUpperCase(),
 							camCodeClean,
-							cameraName: incident.areaName || incident.cameraName || "Khu vực camera",
+							cameraName:
+								incident.areaName || incident.cameraName || "Khu vực camera",
 							eventType: incident.eventType || "UNAUTHORIZED_ACCESS",
 							message:
 								incident.details ||
@@ -447,7 +457,9 @@ export function SecuritySurveillancePage() {
 							timestamp: incident.detectedAt
 								? new Date(incident.detectedAt).toLocaleTimeString("vi-VN")
 								: new Date().toLocaleTimeString("vi-VN"),
-							rawTime: incident.detectedAt ? new Date(incident.detectedAt).getTime() : Date.now(),
+							rawTime: incident.detectedAt
+								? new Date(incident.detectedAt).getTime()
+								: Date.now(),
 							status: incident.status || "NEW",
 							claimedByName: incident.claimedByName || incident.claimed_by_name,
 						};
@@ -509,7 +521,10 @@ export function SecuritySurveillancePage() {
 		try {
 			await triggerTestAlert(eventPayload);
 		} catch (err) {
-			console.warn("Backend test-alert failed, falling back to local simulation:", err);
+			console.warn(
+				"Backend test-alert failed, falling back to local simulation:",
+				err,
+			);
 			processNewIncident({
 				id: Date.now(),
 				camera_code: targetCam.cameraCode || targetCam.code.toUpperCase(),
@@ -561,7 +576,9 @@ export function SecuritySurveillancePage() {
 		const now = Date.now();
 		const batchEvents = targets.map((item, index) => ({
 			event_id: `EVT-${now}-${index}`,
-			camera_code: item.cam.cameraCode ? item.cam.cameraCode.toUpperCase() : "CAM-001",
+			camera_code: item.cam.cameraCode
+				? item.cam.cameraCode.toUpperCase()
+				: "CAM-001",
 			event_type: item.type,
 			details: item.details,
 			image_url: null,
@@ -570,14 +587,22 @@ export function SecuritySurveillancePage() {
 		try {
 			await triggerBatchTestAlerts(batchEvents);
 		} catch (err) {
-			console.warn("Backend batch test-alert failed, falling back to local simulation:", err);
+			console.warn(
+				"Backend batch test-alert failed, falling back to local simulation:",
+				err,
+			);
 			playAlertSound();
 			const timestamp = new Date().toLocaleTimeString("vi-VN");
 			const generatedAlerts = targets.map((item, index) => {
-				const cleanCode = item.cam.code || (item.cam.cameraCode && item.cam.cameraCode.toLowerCase()) || "cam-001";
+				const cleanCode =
+					item.cam.code ||
+					(item.cam.cameraCode && item.cam.cameraCode.toLowerCase()) ||
+					"cam-001";
 				return {
 					id: now + index,
-					cameraCode: item.cam.cameraCode ? item.cam.cameraCode.toUpperCase() : "CAM-001",
+					cameraCode: item.cam.cameraCode
+						? item.cam.cameraCode.toUpperCase()
+						: "CAM-001",
 					camCodeClean: cleanCode,
 					cameraName: item.cam.name,
 					eventType: item.type,
@@ -592,7 +617,10 @@ export function SecuritySurveillancePage() {
 			setActiveAlerts((prev) => [...generatedAlerts, ...prev]);
 
 			const highestPriorityCam =
-				targets[0].cam.code || (targets[0].cam.cameraCode && targets[0].cam.cameraCode.toLowerCase()) || "cam-003";
+				targets[0].cam.code ||
+				(targets[0].cam.cameraCode &&
+					targets[0].cam.cameraCode.toLowerCase()) ||
+				"cam-003";
 			setSelectedCamera(highestPriorityCam);
 			flashCameraAlert(highestPriorityCam);
 		}
@@ -620,7 +648,9 @@ export function SecuritySurveillancePage() {
 	).length;
 	const filteredAlerts =
 		alertFilter === "PENDING"
-			? activeAlerts.filter((a) => !a.socAcknowledged && isAlertPending(a.status))
+			? activeAlerts.filter(
+					(a) => !a.socAcknowledged && isAlertPending(a.status),
+				)
 			: activeAlerts;
 
 	return (
@@ -940,7 +970,9 @@ export function SecuritySurveillancePage() {
 								Cần xử lý {pendingAlertCount}
 							</button>
 
-							{activeAlerts.some((a) => a.socAcknowledged || !isAlertPending(a.status)) && (
+							{activeAlerts.some(
+								(a) => a.socAcknowledged || !isAlertPending(a.status),
+							) && (
 								<button
 									type="button"
 									className="soc-btn-clear"
@@ -1006,45 +1038,62 @@ export function SecuritySurveillancePage() {
 														<ArrowRight size={11} />
 													</button>
 
-													<div className="soc-incident-workflow" aria-label="Trạng thái và thao tác phòng trực SOC">
-														<span className="soc-incident-workflow__heading">Phòng trực SOC</span>
+													<div
+														className="soc-incident-workflow"
+														aria-label="Trạng thái và thao tác phòng trực SOC"
+													>
+														<span className="soc-incident-workflow__heading">
+															Phòng trực
+														</span>
 														{/* Trạng thái & Thao tác nghiệp vụ phòng trực SOC */}
-								{!isPending ? (
-														<span className="soc-resolved-label" title="Sự cố đã được bảo vệ giải quyết tại hiện trường">
-															<CheckCircle2 size={12} /> Hiện trường đã đóng
-														</span>
-								) : status === "CLAIMED" ? (
-														<div className="soc-action-group">
-															<span className="soc-claimed-label" title={`Bảo vệ ${alert.claimedByName || ''} đang đến hiện trường`}>
-																<ShieldAlert size={12} /> {alert.claimedByName ? `${alert.claimedByName} đang đến` : "Đang xử lý"}
+														{!isPending ? (
+															<span
+																className="soc-resolved-label"
+																title="Sự cố đã được bảo vệ giải quyết tại hiện trường"
+															>
+																<CheckCircle2 size={12} /> Hiện trường đã đóng
 															</span>
-															{!alert.socAcknowledged && (
-																<button
-																	type="button"
-																	className="btn-soc-ack"
-																	onClick={() => handleAcknowledge(alert.id)}
-																	title="Xác nhận đã theo dõi qua Camera & Tắt còi tại phòng SOC"
+														) : status === "CLAIMED" ? (
+															<div className="soc-action-group">
+																<span
+																	className="soc-claimed-label"
+																	title={`Bảo vệ ${alert.claimedByName || ""} đang đến hiện trường`}
 																>
-																	<BellOff size={11} />
-																	<span>Tắt còi</span>
-																</button>
-															)}
-														</div>
-													) : alert.socAcknowledged ? (
-														<span className="soc-ack-badge" title="Phòng SOC đã ghi nhận và đang quan sát qua camera">
-															<Eye size={12} /> SOC đã xem
-														</span>
-													) : (
-														<button
-															type="button"
-															className="btn-soc-ack"
-															onClick={() => handleAcknowledge(alert.id)}
-															title="Xác nhận đã xem & Tắt chuông báo động tại phòng trực SOC"
-														>
-															<BellOff size={12} />
-															<span>Đã xem (Tắt còi)</span>
-														</button>
-													)}
+																	<ShieldAlert size={12} />{" "}
+																	{alert.claimedByName
+																		? `${alert.claimedByName} đang đến`
+																		: "Đang xử lý"}
+																</span>
+																{!alert.socAcknowledged && (
+																	<button
+																		type="button"
+																		className="btn-soc-ack"
+																		onClick={() => handleAcknowledge(alert.id)}
+																		title="Xác nhận đã theo dõi qua Camera & Tắt còi tại phòng SOC"
+																	>
+																		<BellOff size={11} />
+																		<span>Tắt còi</span>
+																	</button>
+																)}
+															</div>
+														) : alert.socAcknowledged ? (
+															<span
+																className="soc-ack-badge"
+																title="Phòng SOC đã ghi nhận và đang quan sát qua camera"
+															>
+																<Eye size={12} /> Đã xem
+															</span>
+														) : (
+															<button
+																type="button"
+																className="btn-soc-ack"
+																onClick={() => handleAcknowledge(alert.id)}
+																title="Xác nhận đã xem"
+															>
+																<BellOff size={12} />
+																<span>Xác nhận đã xem</span>
+															</button>
+														)}
 													</div>
 												</div>
 											</div>

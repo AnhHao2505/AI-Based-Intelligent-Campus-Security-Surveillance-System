@@ -339,26 +339,7 @@ public class CameraService {
         Page<CameraHealthLog> logs = cameraHealthLogRepository.findByCameraIdOrderByCheckedAtDesc(cameraId, pageable);
         return logs.map(this::mapToHealthLogResponse);
     }
-
-    @Transactional(readOnly = true)
-    public List<AreaSimpleResponse> getCameraAreas(UUID cameraId) {
-        log.info("Fetching areas for camera id: {}", cameraId);
-        Camera camera = cameraRepository.findById(cameraId)
-                .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_CAM_002));
-
-        Area area = camera.getArea();
-        if (area == null || area.getDeletedAt() != null) {
-            return List.of();
-        }
-        return List.of(new AreaSimpleResponse(
-                area.getId(),
-                area.getName(),
-                area.getAreaLevel(),
-                area.getBuilding(),
-                area.getFloor()
-        ));
-    }
-
+    
     public CameraDetailResponse updateRoiGeometry(UUID cameraId, RoiUpdateRequest request) {
         log.info("Updating ROI geometry for camera id: {}", cameraId);
         Camera camera = cameraRepository.findById(cameraId)
