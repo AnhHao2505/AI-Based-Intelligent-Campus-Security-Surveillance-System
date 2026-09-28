@@ -178,6 +178,8 @@ class D6PartCTest {
                 .name("Room 101")
                 .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
                 .floorId(testFloor.getId())
+                .centerLatitude(10.8418)
+                .centerLongitude(106.8100)
                 .build();
 
         when(areaValidator.validateAndNormalizeName("Room 101")).thenReturn("Room 101");
@@ -211,6 +213,9 @@ class D6PartCTest {
                 .name("Room 101 Updated")
                 .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
                 .floorId(testFloor.getId())
+                .centerLatitude(10.8418)
+                .centerLongitude(106.8100)
+                .version(0L)
                 .build();
 
         when(areaRepository.findByIdWithLock(testArea.getId())).thenReturn(Optional.of(testArea));
@@ -249,7 +254,7 @@ class D6PartCTest {
                 .vertices(List.of(new AreaGeometry.Vertex(new BigDecimal("0.1"), new BigDecimal("0.2"))))
                 .build();
 
-        areaService.saveGeometry(testArea.getId(), geom, "fm@fpt.edu.vn");
+        areaService.saveGeometry(testArea.getId(), geom, 0L, "fm@fpt.edu.vn");
 
         verify(auditService).record(
                 eq(AuditTargetType.AREA),
@@ -271,7 +276,7 @@ class D6PartCTest {
         when(areaRepository.findByIdWithLock(testArea.getId())).thenReturn(Optional.of(testArea));
         when(areaRepository.save(any(Area.class))).thenReturn(testArea);
 
-        areaService.deleteGeometry(testArea.getId(), "fm@fpt.edu.vn");
+        areaService.deleteGeometry(testArea.getId(), 0L, "fm@fpt.edu.vn");
 
         verify(auditService).record(
                 eq(AuditTargetType.AREA),

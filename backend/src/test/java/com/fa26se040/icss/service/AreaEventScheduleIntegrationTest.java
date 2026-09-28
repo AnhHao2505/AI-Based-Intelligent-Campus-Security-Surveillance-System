@@ -205,6 +205,10 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         ensureReasonCatalog("EVENT_ENABLE", REASON_ENABLE, "Hội thảo lên lịch", 1);
         ensureReasonCatalog("EVENT_EXTEND", REASON_EXTEND, "Gia hạn lịch", 1);
         ensureReasonCatalog("EVENT_DISABLE", REASON_DISABLE, "Huỷ lịch sự kiện", 1);
+        // Step 5b (BR-ES-L2): tạo / sửa / huỷ lịch chỉ nhận lý do của nhóm lịch -> cùng mã test ở nhóm lịch tương ứng
+        ensureReasonCatalog("EVENT_SCHEDULE_CREATE", REASON_ENABLE, "Hội thảo lên lịch", 1);
+        ensureReasonCatalog("EVENT_SCHEDULE_UPDATE", REASON_EXTEND, "Gia hạn lịch", 1);
+        ensureReasonCatalog("EVENT_SCHEDULE_CANCEL", REASON_DISABLE, "Huỷ lịch sự kiện", 1);
 
         // Reset configs to defaults
         systemConfigService.update(ConfigKey.EVENT_MODE_MIN_MINUTES.name(), "30", adminUser.getEmail());
@@ -236,6 +240,18 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
                 .filter(n -> n.getRecipient() != null && n.getRecipient().getId().equals(userId))
                 .sorted(java.util.Comparator.comparing(Notification::getCreatedAt).reversed())
                 .toList();
+    }
+
+    /** Step 5b (BR-EV-A1, BR-TC-13): yêu cầu chế độ sự kiện theo hợp đồng mới — action tường minh + version hiện tại của khu vực. */
+    private AreaEventModeUpdateRequest eventReq(UUID areaId, EventModeAction action, OffsetDateTime openUntil,
+                                                String reasonCode, String note) {
+        return AreaEventModeUpdateRequest.builder()
+                .action(action)
+                .openUntil(openUntil)
+                .reasonCode(reasonCode)
+                .note(note)
+                .version(areaService.getAreaById(areaId).version())
+                .build();
     }
 
     @Test
@@ -437,7 +453,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         // 1. Lịch giữ chỗ làm bật tay 5 giờ bị từ chối do tổng = 13h > 10h -> ERR_AREA_028
         AreaException exManual = assertThrows(AreaException.class, () ->
                 areaService.updateEventMode(internalArea.getId(),
-                        new AreaEventModeUpdateRequest(true, now.plusHours(5), REASON_ENABLE, "Bat tay 5h bi vuot ngan sach"),
+                        eventReq(internalArea.getId(), EventModeAction.ENABLE, now.plusHours(5), REASON_ENABLE, "Bat tay 5h bi vuot ngan sach"),
                         fmUser.getEmail())
         );
         assertEquals(AreaErrorCode.ERR_AREA_028, exManual.getErrorCode());
@@ -458,13 +474,13 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
 
         // Giờ bật tay 5h thành công!
         AreaResponse enableRes = areaService.updateEventMode(internalArea.getId(),
-                new AreaEventModeUpdateRequest(true, now.plusHours(5), REASON_ENABLE, "Bat tay thanh cong sau khi huy lich"),
+                eventReq(internalArea.getId(), EventModeAction.ENABLE, now.plusHours(5), REASON_ENABLE, "Bat tay thanh cong sau khi huy lich"),
                 fmUser.getEmail());
         assertTrue(enableRes.openToMembers());
 
         // Dọn dẹp
         areaService.updateEventMode(internalArea.getId(),
-                new AreaEventModeUpdateRequest(false, null, REASON_DISABLE, "Tat lai che do su kien"),
+                eventReq(internalArea.getId(), EventModeAction.DISABLE, null, REASON_DISABLE, "Tat lai che do su kien"),
                 fmUser.getEmail());
     }
 
@@ -483,7 +499,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         // Bật tay đến now + 4h (open_until > schedStart và now < schedEnd) -> 409 ERR_AREA_041
         AreaException exManual = assertThrows(AreaException.class, () ->
                 areaService.updateEventMode(internalArea.getId(),
-                        new AreaEventModeUpdateRequest(true, now.plusHours(4), REASON_ENABLE, "Bat tay bi de len lich"),
+                        eventReq(internalArea.getId(), EventModeAction.ENABLE, now.plusHours(4), REASON_ENABLE, "Bat tay bi de len lich"),
                         fmUser.getEmail())
         );
         assertEquals(AreaErrorCode.ERR_AREA_041, exManual.getErrorCode());
@@ -788,13 +804,17 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         assertTrue(exDeact.getMessage().contains("Liên hệ quản lý cơ sở vật chất để huỷ lịch trước."));
 
         // 2. Đổi sang HIGHLY_CONFIDENTIAL -> ERR_AREA_042 (409)
-        AreaUpdateRequest updateReq = new AreaUpdateRequest(
-                internalArea.getName(),
-                AreaLevel.HIGHLY_CONFIDENTIAL,
-                testBuilding.getCode(),
-                testFloor.getFloorCode(),
-                testFloor.getId()
-        );
+        AreaUpdateRequest updateReq = AreaUpdateRequest.builder()
+                .name(internalArea.getName())
+                .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
+                .building(testBuilding.getCode())
+                .floor(testFloor.getFloorCode())
+                .floorId(testFloor.getId())
+                .centerLatitude(10.8418)
+                .centerLongitude(106.8100)
+                .reason("Đổi sang Tuyệt mật để kiểm tra chặn khi còn lịch")
+                .version(areaService.getAreaById(internalArea.getId()).version())
+                .build();
         AreaException exUpdate = assertThrows(AreaException.class, () ->
                 areaService.update(internalArea.getId(), updateReq, adminUser.getEmail())
         );
@@ -818,6 +838,8 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         reloaded.setDeletedAt(null);
         areaRepository.save(reloaded);
 
+        // Vô hiệu hoá đã làm version tăng (BR-TC-13) -> gửi version hiện tại
+        updateReq.setVersion(areaService.getAreaById(internalArea.getId()).version());
         AreaResponse updateRes = areaService.update(internalArea.getId(), updateReq, adminUser.getEmail());
         assertEquals(AreaLevel.HIGHLY_CONFIDENTIAL, updateRes.areaLevel());
     }
@@ -1029,7 +1051,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
 
         AreaResponse resp = areaService.updateEventMode(
                 internalArea.getId(),
-                new AreaEventModeUpdateRequest(true, futureUntil, "OTHER", "Lý do khác trên 10 ký tự"),
+                eventReq(internalArea.getId(), EventModeAction.ENABLE, futureUntil, "OTHER", "Lý do khác trên 10 ký tự"),
                 fmUser.getEmail()
         );
         assertNotNull(resp);
@@ -1058,14 +1080,14 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         // Bật trước
         areaService.updateEventMode(
                 internalArea.getId(),
-                new AreaEventModeUpdateRequest(true, until1, "SEMINAR", "Ghi chu bat su kien tren 10 ky tu"),
+                eventReq(internalArea.getId(), EventModeAction.ENABLE, until1, "SEMINAR", "Ghi chu bat su kien tren 10 ky tu"),
                 fmUser.getEmail()
         );
 
         // Điều chỉnh tay với EVENT_EXTEND/OTHER -> 200
         AreaResponse respExtend = areaService.updateEventMode(
                 internalArea.getId(),
-                new AreaEventModeUpdateRequest(true, until2, "OTHER", "Gia han voi ly do khac tren 10 ky tu"),
+                eventReq(internalArea.getId(), EventModeAction.ADJUST, until2, "OTHER", "Gia han voi ly do khac tren 10 ky tu"),
                 fmUser.getEmail()
         );
         assertNotNull(respExtend);
@@ -1074,7 +1096,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         // Tắt tay với EVENT_DISABLE/OTHER -> 200
         AreaResponse respDisable = areaService.updateEventMode(
                 internalArea.getId(),
-                new AreaEventModeUpdateRequest(false, null, "OTHER", "Tat su kien voi ly do khac tren 10 ky tu"),
+                eventReq(internalArea.getId(), EventModeAction.DISABLE, null, "OTHER", "Tat su kien voi ly do khac tren 10 ky tu"),
                 fmUser.getEmail()
         );
         assertNotNull(respDisable);
@@ -1150,7 +1172,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("RS-05: Đặt lịch lý do A (EVENT_ENABLE), sửa lịch lý do B (EVENT_EXTEND) -> schedule giữ A; audit UPDATE có B; kích hoạt -> audit ENABLE có A")
+    @DisplayName("RS-05: Đặt lịch lý do A (EVENT_SCHEDULE_CREATE), sửa lịch lý do B (EVENT_SCHEDULE_UPDATE) -> schedule giữ A; audit UPDATE có B; kích hoạt -> audit ENABLE có A")
     void testRS05_ScheduleUpdatePreservesOriginalReasonAndAudit() throws Exception {
         OffsetDateTime now = OffsetDateTime.now();
         OffsetDateTime sStart = now.plusMinutes(5);
@@ -1169,7 +1191,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         EventScheduleResponse updated = areaService.updateSchedule(
                 internalArea.getId(),
                 created.id(),
-                new EventScheduleRequest(sStart, sEndExtended, "EVENT_PROLONGED", "Sua doi gio su kien ly do B"),
+                new EventScheduleRequest(sStart, sEndExtended, "ORGANIZER_CHANGED", "Sua doi gio su kien ly do B"),
                 fmUser.getEmail()
         );
         // Schedule vẫn giữ lý do A
@@ -1189,7 +1211,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         assertFalse(updateLogs.isEmpty(), "Phải có audit log UPDATE lịch");
         AuditLog updateLog = updateLogs.get(updateLogs.size() - 1);
         AreaEventScheduleAuditSnapshot updateSnap = objectMapper.readValue(updateLog.getNewValue(), AreaEventScheduleAuditSnapshot.class);
-        assertEquals("EVENT_PROLONGED", updateSnap.reasonCode(), "Snapshot UPDATE phải có lý do B");
+        assertEquals("ORGANIZER_CHANGED", updateSnap.reasonCode(), "Snapshot UPDATE phải có lý do B");
         assertEquals("Sua doi gio su kien ly do B", updateSnap.note(), "Snapshot UPDATE phải có note B");
 
         // Kích hoạt lịch -> Audit ENABLE_EVENT_MODE phải có lý do gốc A
@@ -1207,6 +1229,6 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         AuditLog enableLog = enableLogs.get(enableLogs.size() - 1);
         AreaEventModeAuditSnapshot enableSnap = objectMapper.readValue(enableLog.getNewValue(), AreaEventModeAuditSnapshot.class);
         assertEquals("SEMINAR", enableSnap.reasonCode(), "Audit kích hoạt phải có lý do gốc A");
-        assertEquals("Hội thảo/sự kiện chuyên môn", enableSnap.reasonLabel(), "Audit kích hoạt phải có nhãn gốc A");
+        assertEquals("Hội thảo / seminar", enableSnap.reasonLabel(), "Audit kích hoạt phải có nhãn gốc A");
     }
 }

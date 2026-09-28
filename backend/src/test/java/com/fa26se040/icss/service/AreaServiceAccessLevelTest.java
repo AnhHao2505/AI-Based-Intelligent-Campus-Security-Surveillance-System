@@ -105,12 +105,14 @@ class AreaServiceAccessLevelTest {
     @Test
     @DisplayName("Tạo area luôn lấy access rules từ preset (PUBLIC: 1, false; PRIVATE: 3, true)")
     void createArea_AlwaysTakesAccessRulesFromPreset() {
-        AreaCreateRequest reqPublic = new AreaCreateRequest(
-                "Sảnh Chính",
-                AreaLevel.PUBLIC,
-                "Tòa A",
-                "Tầng 1"
-        );
+        AreaCreateRequest reqPublic = AreaCreateRequest.builder()
+                .name("Sảnh Chính")
+                .areaLevel(AreaLevel.PUBLIC)
+                .building("Tòa A")
+                .floor("Tầng 1")
+                .centerLatitude(10.8418)
+                .centerLongitude(106.8100)
+                .build();
 
         when(areaValidator.validateAndNormalizeName(reqPublic.getName())).thenReturn(reqPublic.getName());
         when(userRepository.findByEmail(adminEmail)).thenReturn(Optional.of(admin));
@@ -134,12 +136,14 @@ class AreaServiceAccessLevelTest {
         assertFalse(respPublic.explicitAuthorizationRequired());
 
         // Test tạo khu vực HIGHLY_CONFIDENTIAL
-        AreaCreateRequest reqPrivate = new AreaCreateRequest(
-                "Phòng Máy Chủ",
-                AreaLevel.HIGHLY_CONFIDENTIAL,
-                "Tòa A",
-                "Tầng 2"
-        );
+        AreaCreateRequest reqPrivate = AreaCreateRequest.builder()
+                .name("Phòng Máy Chủ")
+                .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
+                .building("Tòa A")
+                .floor("Tầng 2")
+                .centerLatitude(10.8418)
+                .centerLongitude(106.8100)
+                .build();
         when(areaValidator.validateAndNormalizeName(reqPrivate.getName())).thenReturn(reqPrivate.getName());
 
         AreaLevelPreset privatePreset = AreaLevelPreset.builder()
@@ -158,12 +162,14 @@ class AreaServiceAccessLevelTest {
     @Test
     @DisplayName("Tạo area khi thiếu preset -> fail-closed (accessLevel = 3, explicitAuthorizationRequired = true)")
     void createArea_WhenPresetMissing_FailsClosedWithLevel3AndExplicitAuthTrue() {
-        AreaCreateRequest reqMissing = new AreaCreateRequest(
-                "Phòng Mới",
-                AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED,
-                "Tòa B",
-                "Tầng 1"
-        );
+        AreaCreateRequest reqMissing = AreaCreateRequest.builder()
+                .name("Phòng Mới")
+                .areaLevel(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
+                .building("Tòa B")
+                .floor("Tầng 1")
+                .centerLatitude(10.8418)
+                .centerLongitude(106.8100)
+                .build();
 
         when(areaValidator.validateAndNormalizeName(reqMissing.getName())).thenReturn(reqMissing.getName());
         when(userRepository.findByEmail(adminEmail)).thenReturn(Optional.of(admin));
@@ -182,8 +188,8 @@ class AreaServiceAccessLevelTest {
     }
 
     @Test
-    @DisplayName("Cập nhật area_level khi update -> KHÔNG tự động thay đổi access-rules")
-    void updateArea_AreaLevelChange_DoesNotTouchAccessRules() {
+    @DisplayName("Đổi area_level khi update -> áp preset của loại mới; thiếu preset -> 3/true (BR-TC-04, Step 5b)")
+    void updateArea_AreaLevelChange_AppliesTargetPresetFailClosed() {
         UUID areaId = UUID.randomUUID();
         Area existing = Area.builder()
                 .id(areaId)
@@ -196,12 +202,16 @@ class AreaServiceAccessLevelTest {
                 .isActive(true)
                 .build();
 
-        AreaUpdateRequest updateReq = new AreaUpdateRequest(
-                "Phòng Học 101 Đổi Cấp",
-                AreaLevel.HIGHLY_CONFIDENTIAL,
-                "Tòa A",
-                "Tầng 1"
-        );
+        AreaUpdateRequest updateReq = AreaUpdateRequest.builder()
+                .name("Phòng Học 101 Đổi Cấp")
+                .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
+                .building("Tòa A")
+                .floor("Tầng 1")
+                .centerLatitude(10.8418)
+                .centerLongitude(106.8100)
+                .reason("Đổi sang Tuyệt mật theo yêu cầu an ninh")
+                .version(0L)
+                .build();
 
         when(areaRepository.findByIdWithLock(areaId)).thenReturn(Optional.of(existing));
         when(areaValidator.validateAndNormalizeName(updateReq.getName())).thenReturn(updateReq.getName());
@@ -212,8 +222,9 @@ class AreaServiceAccessLevelTest {
 
         assertNotNull(resp);
         assertEquals(AreaLevel.HIGHLY_CONFIDENTIAL, resp.areaLevel());
-        assertEquals(2, resp.areaAccessLevel(), "areaAccessLevel phải giữ nguyên không tự đổi");
-        assertTrue(resp.explicitAuthorizationRequired(), "explicitAuthorizationRequired phải giữ nguyên");
+        // Mock không có preset HIGHLY_CONFIDENTIAL -> fail-closed 3/true
+        assertEquals(3, resp.areaAccessLevel(), "Đổi loại phải áp preset loại mới (thiếu preset -> 3)");
+        assertTrue(resp.explicitAuthorizationRequired(), "Đổi loại phải áp preset loại mới (thiếu preset -> true)");
     }
 
     @Test
@@ -233,7 +244,7 @@ class AreaServiceAccessLevelTest {
         when(userRepository.findByEmail(fmEmail)).thenReturn(Optional.of(fm));
         when(areaRepository.save(any(Area.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        AreaAccessRulesUpdateRequest req = new AreaAccessRulesUpdateRequest(1, true, "Cập nhật quyền vào phòng");
+        AreaAccessRulesUpdateRequest req = new AreaAccessRulesUpdateRequest(1, true, "Cập nhật quyền vào phòng", 0L);
         AreaResponse resp = areaService.updateAccessRules(areaId, req, fmEmail);
 
         assertNotNull(resp);
@@ -258,7 +269,7 @@ class AreaServiceAccessLevelTest {
         when(userRepository.findByEmail(fmEmail)).thenReturn(Optional.of(fm));
         when(areaRepository.save(any(Area.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        AreaAccessRulesUpdateRequest req = new AreaAccessRulesUpdateRequest(1, true, "Cập nhật quyền vào phòng");
+        AreaAccessRulesUpdateRequest req = new AreaAccessRulesUpdateRequest(1, true, "Cập nhật quyền vào phòng", 0L);
         areaService.updateAccessRules(areaId, req, fmEmail);
 
         org.mockito.ArgumentCaptor<com.fa26se040.icss.enums.AuditTargetType> targetTypeCaptor =
@@ -313,7 +324,7 @@ class AreaServiceAccessLevelTest {
 
         when(areaRepository.findByIdWithLock(areaId)).thenReturn(Optional.of(existing));
 
-        AreaAccessRulesUpdateRequest req = new AreaAccessRulesUpdateRequest(2, false, "Không đổi gì cả");
+        AreaAccessRulesUpdateRequest req = new AreaAccessRulesUpdateRequest(2, false, "Không đổi gì cả", 0L);
         AreaResponse resp = areaService.updateAccessRules(areaId, req, fmEmail);
 
         assertNotNull(resp);
@@ -336,7 +347,7 @@ class AreaServiceAccessLevelTest {
 
         when(areaRepository.findByIdWithLock(areaId)).thenReturn(Optional.of(inactiveArea));
 
-        AreaAccessRulesUpdateRequest req = new AreaAccessRulesUpdateRequest(2, false, "Cập nhật");
+        AreaAccessRulesUpdateRequest req = new AreaAccessRulesUpdateRequest(2, false, "Cập nhật", 0L);
         AreaException ex = assertThrows(AreaException.class, () -> areaService.updateAccessRules(areaId, req, adminEmail));
         assertEquals(AreaErrorCode.ERR_AREA_017, ex.getErrorCode());
 

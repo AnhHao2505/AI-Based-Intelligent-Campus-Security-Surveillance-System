@@ -16,7 +16,8 @@ import {
   CalendarClock,
   CalendarX,
   Hourglass,
-  SlidersHorizontal
+  SlidersHorizontal,
+  ArrowLeftRight
 } from 'lucide-react';
 import { notificationService } from '../../services/notificationService';
 import { useAuth } from '../../context/AuthContext';
@@ -189,6 +190,19 @@ export default function NotificationsPage() {
         return (
           <div className="notif-icon-box notif-icon-box--denied" title="Lịch sự kiện thất bại">
             <CalendarX size={16} />
+          </div>
+        );
+      // Step 5b: thông báo đổi loại khu vực (FM) và đơn bị hệ thống huỷ (người gửi + thành viên)
+      case 'AREA_TYPE_CHANGED':
+        return (
+          <div className="notif-icon-box notif-icon-box--schedule" title="Khu vực đổi loại">
+            <ArrowLeftRight size={16} />
+          </div>
+        );
+      case 'REQUEST_SYSTEM_CANCELLED':
+        return (
+          <div className="notif-icon-box notif-icon-box--cancelled" title="Đơn bị hệ thống huỷ">
+            <XCircle size={16} />
           </div>
         );
       default:

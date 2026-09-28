@@ -1,5 +1,6 @@
 package com.fa26se040.icss.entity;
 
+import com.fa26se040.icss.enums.CancelSource;
 import com.fa26se040.icss.enums.RequestStatus;
 import com.fa26se040.icss.enums.RequestType;
 import jakarta.persistence.CascadeType;
@@ -78,6 +79,18 @@ public class AccessRequest {
 
     @Column(name = "rejection_reason", columnDefinition = "TEXT")
     private String rejectionReason;
+
+    // Step 5b (BR-TC-15): nguồn huỷ đơn. NULL ở đơn CANCELLED trước V56 = không rõ nguồn.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "cancelled_by")
+    private User cancelledBy;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "cancel_source", length = 10)
+    private CancelSource cancelSource;
+
+    @Column(name = "cancel_reason", columnDefinition = "TEXT")
+    private String cancelReason;
 
     @OneToMany(mappedBy = "accessRequest", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @Builder.Default

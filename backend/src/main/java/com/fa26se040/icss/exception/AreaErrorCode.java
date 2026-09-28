@@ -46,7 +46,15 @@ public enum AreaErrorCode {
     ERR_AREA_040("ERR_AREA_040", HttpStatus.CONFLICT, "Chỉ có thể sửa hoặc huỷ lịch sự kiện ở trạng thái chờ diễn ra (SCHEDULED)"),
     ERR_AREA_041("ERR_AREA_041", HttpStatus.CONFLICT, "Thời gian mở sự kiện bị trùng hoặc chồng lấn với lịch sự kiện đã đặt trước"),
     ERR_AREA_042("ERR_AREA_042", HttpStatus.CONFLICT, "Khu vực còn {count} lịch sự kiện chưa diễn ra, huỷ lịch trước"),
-    ERR_AREA_043("ERR_AREA_043", HttpStatus.NOT_FOUND, "Không tìm thấy lịch sự kiện");
+    ERR_AREA_043("ERR_AREA_043", HttpStatus.NOT_FOUND, "Không tìm thấy lịch sự kiện"),
+    // Step 5b — đổi loại khu vực, version khu vực, ý định chế độ sự kiện
+    ERR_AREA_044("ERR_AREA_044", HttpStatus.BAD_REQUEST, "Thiếu version của khu vực, vui lòng tải lại trang"),
+    ERR_AREA_045("ERR_AREA_045", HttpStatus.CONFLICT, "Khu vực đã được người khác cập nhật, vui lòng tải lại"),
+    ERR_AREA_046("ERR_AREA_046", HttpStatus.BAD_REQUEST, "Trường enabled không còn được hỗ trợ, hãy gửi action (ENABLE, ADJUST, DISABLE)"),
+    ERR_AREA_047("ERR_AREA_047", HttpStatus.BAD_REQUEST, "Thiếu action của thao tác chế độ sự kiện (ENABLE, ADJUST, DISABLE)"),
+    ERR_AREA_048("ERR_AREA_048", HttpStatus.CONFLICT, "Khu vực đang mở chế độ sự kiện, không thể đổi sang loại {newType}. Tắt sự kiện trước khi đổi loại"),
+    ERR_AREA_049("ERR_AREA_049", HttpStatus.CONFLICT, "Khu vực còn {count} quyền gán nhân sự còn hiệu lực, thu hồi trước khi chuyển sang Công khai"),
+    ERR_AREA_050("ERR_AREA_050", HttpStatus.BAD_REQUEST, "Lý do phải có từ 10 đến 500 ký tự");
 
     private final String code;
     private final HttpStatus httpStatus;

@@ -166,6 +166,60 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, UU
     );
 
     /**
+     * Step 5b (BR-TC-15): ghi nguồn huỷ sau khi cancelIfPending đã thành công (chỉ chạm đơn đã CANCELLED).
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE AccessRequest r " +
+           "SET r.cancelSource = :source, " +
+           "    r.cancelledBy = :cancelledBy, " +
+           "    r.cancelReason = :reason " +
+           "WHERE r.id = :id AND r.status = :cancelledStatus")
+    int recordCancellation(
+            @Param("id") UUID id,
+            @Param("source") com.fa26se040.icss.enums.CancelSource source,
+            @Param("cancelledBy") User cancelledBy,
+            @Param("reason") String reason,
+            @Param("cancelledStatus") RequestStatus cancelledStatus
+    );
+
+    /**
+     * Step 5b (BR-TC-08, BR-TC-14): hệ thống huỷ đơn khi đổi loại khu vực — conditional UPDATE nguyên tử.
+     * Không clear persistence context: transaction đổi loại còn giữ entity Area đã khoá.
+     */
+    @Modifying(clearAutomatically = false, flushAutomatically = true)
+    @Query("UPDATE AccessRequest r " +
+           "SET r.status = :cancelledStatus, " +
+           "    r.updatedAt = :now, " +
+           "    r.cancelSource = :source, " +
+           "    r.cancelledBy = NULL, " +
+           "    r.cancelReason = :reason " +
+           "WHERE r.id = :id AND r.status = :expectedStatus")
+    int cancelBySystemIfStatus(
+            @Param("id") UUID id,
+            @Param("expectedStatus") RequestStatus expectedStatus,
+            @Param("cancelledStatus") RequestStatus cancelledStatus,
+            @Param("source") com.fa26se040.icss.enums.CancelSource source,
+            @Param("reason") String reason,
+            @Param("now") OffsetDateTime now
+    );
+
+    /**
+     * Step 5b (BR-TC-03, BR-TC-08): đơn còn hiệu lực của khu vực (status trong :statuses, chưa kết thúc),
+     * kèm người gửi và thành viên để đánh giá quy tắc của loại mới.
+     */
+    @Query("SELECT DISTINCT r FROM AccessRequest r " +
+           "JOIN FETCH r.requester " +
+           "LEFT JOIN FETCH r.members m " +
+           "LEFT JOIN FETCH m.user " +
+           "WHERE r.area.id = :areaId AND r.status IN :statuses AND r.endTime > :now " +
+           "ORDER BY r.startTime ASC")
+    List<AccessRequest> findNotEndedByAreaWithParticipants(
+            @Param("areaId") UUID areaId,
+            @Param("statuses") Collection<RequestStatus> statuses,
+            @Param("now") OffsetDateTime now
+    );
+
+    /**
      * Chỉ đọc, dùng cho AccessDecisionService#checkEntry: đơn có status = :status tại :areaId,
      * startTime <= :at < endTime, và user là requester hoặc là member của đơn nhóm.
      */

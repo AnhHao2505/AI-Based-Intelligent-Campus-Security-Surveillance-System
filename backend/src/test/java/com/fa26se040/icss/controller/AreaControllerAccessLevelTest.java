@@ -137,19 +137,22 @@ class AreaControllerAccessLevelTest {
     @DisplayName("PATCH /api/areas/{id}/access-rules hợp lệ -> 200 OK")
     void updateAccessRules_Valid_Returns200() throws Exception {
         UUID areaId = UUID.randomUUID();
-        AreaResponse resp = new AreaResponse(
-                areaId,
-                "Phòng Lab",
-                AreaLevel.HIGHLY_CONFIDENTIAL,
-                2,
-                false,
-                "Tòa A",
-                "Tầng 1",
-                null,
-                true,
-                OffsetDateTime.now(),
-                OffsetDateTime.now()
-        );
+        AreaResponse resp = AreaResponse.builder()
+                .id(areaId)
+                .name("Phòng Lab")
+                .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
+                .areaAccessLevel(2)
+                .explicitAuthorizationRequired(false)
+                .building("Tòa A")
+                .floor("Tầng 1")
+                .isActive(true)
+                .createdAt(OffsetDateTime.now())
+                .updatedAt(OffsetDateTime.now())
+                .differsFromPreset(false)
+                .openToMembers(false)
+                .eventActive(false)
+                .upcomingScheduleCount(0)
+                .build();
 
         when(areaService.updateAccessRules(eq(areaId), any(), any())).thenReturn(resp);
 

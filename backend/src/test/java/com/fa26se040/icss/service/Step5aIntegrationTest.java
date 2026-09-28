@@ -13,6 +13,7 @@ import com.fa26se040.icss.entity.Building;
 import com.fa26se040.icss.entity.Floor;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.AuditAction;
+import com.fa26se040.icss.enums.EventModeAction;
 import com.fa26se040.icss.enums.AccessSource;
 import com.fa26se040.icss.enums.AreaLevel;
 import com.fa26se040.icss.enums.ConfigKey;
@@ -245,6 +246,18 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
         notificationRepository.deleteAll();
     }
 
+    /** Step 5b (BR-EV-A1, BR-TC-13): yêu cầu chế độ sự kiện theo hợp đồng mới — action tường minh + version hiện tại của khu vực. */
+    private AreaEventModeUpdateRequest eventReq(java.util.UUID areaId, EventModeAction action, OffsetDateTime openUntil,
+                                                String reasonCode, String note) {
+        return AreaEventModeUpdateRequest.builder()
+                .action(action)
+                .openUntil(openUntil)
+                .reasonCode(reasonCode)
+                .note(note)
+                .version(areaService.getAreaById(areaId).version())
+                .build();
+    }
+
     @Test
     @DisplayName("D1: Ma trận checkEntry 4 loại × 3 cấp user (không AP, không đơn, không sự kiện)")
     void testD1_CheckEntryMatrix() {
@@ -417,25 +430,30 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
         long auditCountBefore = auditLogRepository.count();
 
         // FM bật cho INTERNAL (có lý do, openUntil tương lai) -> OK + 1 dòng audit
-        AreaEventModeUpdateRequest validReq = new AreaEventModeUpdateRequest(true, futureUntil, "SEMINAR", "Mở sự kiện Workshop chuyên môn cho sinh viên");
+        AreaEventModeUpdateRequest validReq = eventReq(internalArea.getId(), EventModeAction.ENABLE, futureUntil, "SEMINAR", "Mở sự kiện Workshop chuyên môn cho sinh viên");
         var respInternal = areaService.updateEventMode(internalArea.getId(), validReq, fmUser.getEmail());
         assertTrue(respInternal.openToMembers());
         assertTrue(respInternal.eventActive());
         assertEquals(auditCountBefore + 1, auditLogRepository.count());
 
-        AuditLog log = auditLogRepository.findAll().get((int) auditCountBefore);
+        // findAll() không ORDER BY -> thứ tự heap; sắp theo changedAt để lấy đúng dòng vừa ghi
+        AuditLog log = auditLogRepository.findAll(org.springframework.data.domain.Sort.by("changedAt")).get((int) auditCountBefore);
         assertEquals(AuditAction.ENABLE_EVENT_MODE, log.getAction());
         assertEquals(internalArea.getId().toString(), log.getTargetId());
 
         // Bật cho HIGHLY -> 400 (ERR_AREA_022)
         AreaException exHighly = assertThrows(AreaException.class, () ->
-                areaService.updateEventMode(highlyArea.getId(), validReq, fmUser.getEmail())
+                areaService.updateEventMode(highlyArea.getId(),
+                        eventReq(highlyArea.getId(), EventModeAction.ENABLE, futureUntil, "SEMINAR", "Mở sự kiện Workshop chuyên môn cho sinh viên"),
+                        fmUser.getEmail())
         );
         assertEquals(AreaErrorCode.ERR_AREA_022, exHighly.getErrorCode());
 
         // Bật cho PUBLIC -> 400 (ERR_AREA_022)
         AreaException exPublic = assertThrows(AreaException.class, () ->
-                areaService.updateEventMode(publicArea.getId(), validReq, fmUser.getEmail())
+                areaService.updateEventMode(publicArea.getId(),
+                        eventReq(publicArea.getId(), EventModeAction.ENABLE, futureUntil, "SEMINAR", "Mở sự kiện Workshop chuyên môn cho sinh viên"),
+                        fmUser.getEmail())
         );
         assertEquals(AreaErrorCode.ERR_AREA_022, exPublic.getErrorCode());
 
@@ -448,14 +466,14 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isForbidden());
 
         // Thiếu reasonCode hoặc note -> 400 (ERR_AREA_024)
-        AreaEventModeUpdateRequest noReasonReq = new AreaEventModeUpdateRequest(true, futureUntil, null, "   ");
+        AreaEventModeUpdateRequest noReasonReq = eventReq(internalArea.getId(), EventModeAction.ADJUST, futureUntil, null, "   ");
         AreaException exNoReason = assertThrows(AreaException.class, () ->
                 areaService.updateEventMode(internalArea.getId(), noReasonReq, fmUser.getEmail())
         );
         assertEquals(AreaErrorCode.ERR_AREA_024, exNoReason.getErrorCode());
 
         // openUntil quá khứ -> 400 (ERR_AREA_023)
-        AreaEventModeUpdateRequest pastUntilReq = new AreaEventModeUpdateRequest(true, OffsetDateTime.now().minusHours(1), "EVENT_PROLONGED", "Lý do hợp lệ trên mười ký tự");
+        AreaEventModeUpdateRequest pastUntilReq = eventReq(internalArea.getId(), EventModeAction.ADJUST, OffsetDateTime.now().minusHours(1), "EVENT_PROLONGED", "Lý do hợp lệ trên mười ký tự");
         AreaException exPast = assertThrows(AreaException.class, () ->
                 areaService.updateEventMode(internalArea.getId(), pastUntilReq, fmUser.getEmail())
         );
@@ -463,7 +481,7 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
 
         // Bật lại y hệt (gửi EVENT_EXTEND với cùng openUntil) -> no-op không thêm audit log (BR-EV-08)
         long auditCountAfterAll = auditLogRepository.count();
-        AreaEventModeUpdateRequest noOpReq = new AreaEventModeUpdateRequest(true, futureUntil, "EVENT_PROLONGED", "Gia hạn giữ nguyên giờ không đổi");
+        AreaEventModeUpdateRequest noOpReq = eventReq(internalArea.getId(), EventModeAction.ADJUST, futureUntil, "EVENT_PROLONGED", "Gia hạn giữ nguyên giờ không đổi");
         areaService.updateEventMode(internalArea.getId(), noOpReq, fmUser.getEmail());
         assertEquals(auditCountAfterAll, auditLogRepository.count());
     }
@@ -474,7 +492,7 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
         OffsetDateTime futureUntil = OffsetDateTime.now().plusHours(2);
 
         // Bật sự kiện cho INTERNAL
-        areaService.updateEventMode(internalArea.getId(), new AreaEventModeUpdateRequest(true, futureUntil, "SEMINAR", "Mở ngày hội kỹ thuật cho sinh viên"), fmUser.getEmail());
+        areaService.updateEventMode(internalArea.getId(), eventReq(internalArea.getId(), EventModeAction.ENABLE, futureUntil, "SEMINAR", "Mở ngày hội kỹ thuật cho sinh viên"), fmUser.getEmail());
 
         // L1 vào INTERNAL trong thời gian sự kiện -> allow OPEN_EVENT
         OffsetDateTime now = OffsetDateTime.now();
@@ -489,7 +507,7 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
         assertEquals(AccessSource.NONE, decisionExpired.source());
 
         // Sau khi tắt -> deny ngay tại thời điểm now
-        areaService.updateEventMode(internalArea.getId(), new AreaEventModeUpdateRequest(false, null, "ENDED_EARLY", "Kết thúc sự kiện sớm hơn dự kiến"), fmUser.getEmail());
+        areaService.updateEventMode(internalArea.getId(), eventReq(internalArea.getId(), EventModeAction.DISABLE, null, "ENDED_EARLY", "Kết thúc sự kiện sớm hơn dự kiến"), fmUser.getEmail());
         AccessDecision decisionDisabled = accessDecisionService.checkEntry(userL1.getId(), internalArea.getId(), now);
         assertFalse(decisionDisabled.allowed());
         assertEquals(AccessSource.NONE, decisionDisabled.source());
@@ -502,15 +520,14 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
         long auditBefore = auditLogRepository.count();
         long sessionBefore = sessionRepository.count();
 
-        AreaEventModeUpdateRequest req = new AreaEventModeUpdateRequest(
-                true, futureUntil, "SEMINAR", "Hội thảo nghiên cứu an ninh thông tin"
-        );
+        AreaEventModeUpdateRequest req = eventReq(contactArea.getId(), EventModeAction.ENABLE, futureUntil, "SEMINAR", "Hội thảo nghiên cứu an ninh thông tin");
         var resp = areaService.updateEventMode(contactArea.getId(), req, fmUser.getEmail());
         assertTrue(resp.openToMembers());
         assertTrue(resp.eventActive());
 
         assertEquals(auditBefore + 1, auditLogRepository.count());
-        AuditLog log = auditLogRepository.findAll().get((int) auditBefore);
+        // findAll() không ORDER BY -> thứ tự heap; sắp theo changedAt để lấy đúng dòng vừa ghi
+        AuditLog log = auditLogRepository.findAll(org.springframework.data.domain.Sort.by("changedAt")).get((int) auditBefore);
         assertEquals(AuditTargetType.AREA_EVENT_MODE, log.getTargetType());
         assertEquals(AuditAction.ENABLE_EVENT_MODE, log.getAction());
         assertEquals(contactArea.getId().toString(), log.getTargetId());
@@ -533,13 +550,13 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
     void testT2_ReasonCodeAndNoteValidations() {
         OffsetDateTime futureUntil = OffsetDateTime.now().plusHours(3);
 
-        // 1. reasonCode sai action_type (ENDED_EARLY là của EVENT_DISABLE, dùng khi bật) -> ERR_AREA_030 (409 M1)
+        // 1. reasonCode sai action_type (ENDED_EARLY là của EVENT_DISABLE, dùng khi bật) -> ERR_AREA_026 (400, BR-EV-A2 Step 5b)
         AreaException exWrongAction = assertThrows(AreaException.class, () ->
                 areaService.updateEventMode(internalArea.getId(),
-                        new AreaEventModeUpdateRequest(true, futureUntil, "ENDED_EARLY", "Ghi chu hop le tren 10 ky tu"),
+                        eventReq(internalArea.getId(), EventModeAction.ENABLE, futureUntil, "ENDED_EARLY", "Ghi chu hop le tren 10 ky tu"),
                         fmUser.getEmail())
         );
-        assertEquals(AreaErrorCode.ERR_AREA_030, exWrongAction.getErrorCode());
+        assertEquals(AreaErrorCode.ERR_AREA_026, exWrongAction.getErrorCode());
 
         // 2. reasonCode đã ngừng dùng -> ERR_AREA_025
         String tempDeactivatedCode = "TEMP_" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
@@ -553,7 +570,7 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
                 .build());
         AreaException exDeactivated = assertThrows(AreaException.class, () ->
                 areaService.updateEventMode(internalArea.getId(),
-                        new AreaEventModeUpdateRequest(true, futureUntil, tempDeactivatedCode, "Ghi chu hop le tren 10 ky tu"),
+                        eventReq(internalArea.getId(), EventModeAction.ENABLE, futureUntil, tempDeactivatedCode, "Ghi chu hop le tren 10 ky tu"),
                         fmUser.getEmail())
         );
         assertEquals(AreaErrorCode.ERR_AREA_025, exDeactivated.getErrorCode());
@@ -561,7 +578,7 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
         // 3. reasonCode không tồn tại -> ERR_AREA_025
         AreaException exNotExist = assertThrows(AreaException.class, () ->
                 areaService.updateEventMode(internalArea.getId(),
-                        new AreaEventModeUpdateRequest(true, futureUntil, "NON_EXISTENT_CODE", "Ghi chu hop le tren 10 ky tu"),
+                        eventReq(internalArea.getId(), EventModeAction.ENABLE, futureUntil, "NON_EXISTENT_CODE", "Ghi chu hop le tren 10 ky tu"),
                         fmUser.getEmail())
         );
         assertEquals(AreaErrorCode.ERR_AREA_025, exNotExist.getErrorCode());
@@ -569,7 +586,7 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
         // 4. note 9 ký tự -> ERR_AREA_024
         AreaException exNote9 = assertThrows(AreaException.class, () ->
                 areaService.updateEventMode(internalArea.getId(),
-                        new AreaEventModeUpdateRequest(true, futureUntil, "SEMINAR", "123456789"),
+                        eventReq(internalArea.getId(), EventModeAction.ENABLE, futureUntil, "SEMINAR", "123456789"),
                         fmUser.getEmail())
         );
         assertEquals(AreaErrorCode.ERR_AREA_024, exNote9.getErrorCode());
@@ -578,7 +595,7 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
         String note501 = "a".repeat(501);
         AreaException exNote501 = assertThrows(AreaException.class, () ->
                 areaService.updateEventMode(internalArea.getId(),
-                        new AreaEventModeUpdateRequest(true, futureUntil, "SEMINAR", note501),
+                        eventReq(internalArea.getId(), EventModeAction.ENABLE, futureUntil, "SEMINAR", note501),
                         fmUser.getEmail())
         );
         assertEquals(AreaErrorCode.ERR_AREA_024, exNote501.getErrorCode());
@@ -592,7 +609,7 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
 
         AreaException exOver = assertThrows(AreaException.class, () ->
                 areaService.updateEventMode(internalArea.getId(),
-                        new AreaEventModeUpdateRequest(true, overMaxTime, "SEMINAR", "Ghi chu vuot qua so gio toi da"),
+                        eventReq(internalArea.getId(), EventModeAction.ENABLE, overMaxTime, "SEMINAR", "Ghi chu vuot qua so gio toi da"),
                         fmUser.getEmail())
         );
         assertEquals(AreaErrorCode.ERR_AREA_027, exOver.getErrorCode());
@@ -629,7 +646,7 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
         // Bật thêm 10h (tổng sẽ là 40 + 10 = 50h > 48h) -> bị chặn
         AreaException exBudget = assertThrows(AreaException.class, () ->
                 areaService.updateEventMode(contactArea.getId(),
-                        new AreaEventModeUpdateRequest(true, now.plusHours(10), "SEMINAR", "Thu mo them 10 gio vuot ngan sach"),
+                        eventReq(contactArea.getId(), EventModeAction.ENABLE, now.plusHours(10), "SEMINAR", "Thu mo them 10 gio vuot ngan sach"),
                         fmUser.getEmail())
         );
         assertEquals(AreaErrorCode.ERR_AREA_028, exBudget.getErrorCode());
@@ -639,7 +656,7 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
 
         // Bật thêm 8h (tổng 40 + 8 = 48h <= 48h) -> cho qua thành công
         var successResp = areaService.updateEventMode(contactArea.getId(),
-                new AreaEventModeUpdateRequest(true, now.plusHours(8), "SEMINAR", "Mo them 8 gio vua van ngan sach"),
+                eventReq(contactArea.getId(), EventModeAction.ENABLE, now.plusHours(8), "SEMINAR", "Mo them 8 gio vua van ngan sach"),
                 fmUser.getEmail());
         assertTrue(successResp.openToMembers());
     }
@@ -650,7 +667,7 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
         OffsetDateTime now = OffsetDateTime.now();
         // Bật sự kiện đến now + 3h
         areaService.updateEventMode(internalArea.getId(),
-                new AreaEventModeUpdateRequest(true, now.plusHours(3), "SEMINAR", "Bat su kien ban dau de gia han"),
+                eventReq(internalArea.getId(), EventModeAction.ENABLE, now.plusHours(3), "SEMINAR", "Bat su kien ban dau de gia han"),
                 fmUser.getEmail());
 
         var initialSessionOpt = sessionRepository.findByAreaIdAndActualEndIsNull(internalArea.getId());
@@ -662,7 +679,7 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
         // 1. Gia hạn thiếu reasonCode -> 400 (ERR_AREA_024)
         AreaException exNoReason = assertThrows(AreaException.class, () ->
                 areaService.updateEventMode(internalArea.getId(),
-                        new AreaEventModeUpdateRequest(true, now.plusHours(6), null, "Gia han them gio vi su kien keo dai"),
+                        eventReq(internalArea.getId(), EventModeAction.ADJUST, now.plusHours(6), null, "Gia han them gio vi su kien keo dai"),
                         fmUser.getEmail())
         );
         assertEquals(AreaErrorCode.ERR_AREA_024, exNoReason.getErrorCode());
@@ -670,13 +687,14 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
         // 2. Gia hạn hợp lệ
         OffsetDateTime newEnd = now.plusHours(6);
         var extendResp = areaService.updateEventMode(internalArea.getId(),
-                new AreaEventModeUpdateRequest(true, newEnd, "EVENT_PROLONGED", "Gia han su kien vi chuong trinh keo dai"),
+                eventReq(internalArea.getId(), EventModeAction.ADJUST, newEnd, "EVENT_PROLONGED", "Gia han su kien vi chuong trinh keo dai"),
                 fmUser.getEmail());
         assertTrue(extendResp.openToMembers());
 
         // Audit EXTEND_EVENT_MODE
         assertEquals(auditBefore + 1, auditLogRepository.count());
-        AuditLog extendLog = auditLogRepository.findAll().get((int) auditBefore);
+        // findAll() không ORDER BY -> thứ tự heap; sắp theo changedAt để lấy đúng dòng vừa ghi
+        AuditLog extendLog = auditLogRepository.findAll(org.springframework.data.domain.Sort.by("changedAt")).get((int) auditBefore);
         assertEquals(AuditAction.EXTEND_EVENT_MODE, extendLog.getAction());
         assertEquals(AuditTargetType.AREA_EVENT_MODE, extendLog.getTargetType());
 
@@ -698,7 +716,7 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
         OffsetDateTime now = OffsetDateTime.now();
         // Bật sự kiện
         areaService.updateEventMode(internalArea.getId(),
-                new AreaEventModeUpdateRequest(true, now.plusHours(2), "SEMINAR", "Bat su kien de test tat"),
+                eventReq(internalArea.getId(), EventModeAction.ENABLE, now.plusHours(2), "SEMINAR", "Bat su kien de test tat"),
                 fmUser.getEmail());
 
         var activeSessionOpt = sessionRepository.findByAreaIdAndActualEndIsNull(internalArea.getId());
@@ -707,7 +725,7 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
 
         // Tắt sự kiện
         areaService.updateEventMode(internalArea.getId(),
-                new AreaEventModeUpdateRequest(false, null, "ENDED_EARLY", "Ket thuc su kien theo lich trinh"),
+                eventReq(internalArea.getId(), EventModeAction.DISABLE, null, "ENDED_EARLY", "Ket thuc su kien theo lich trinh"),
                 fmUser.getEmail());
 
         AreaEventSession closedSession = sessionRepository.findById(activeSession.getId()).orElseThrow();
@@ -726,7 +744,7 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
 
         // Thực hiện thao tác kế tiếp (bật sự kiện mới)
         areaService.updateEventMode(internalArea.getId(),
-                new AreaEventModeUpdateRequest(true, now.plusHours(2), "SEMINAR", "Thao tac ke tiep de kich hoat auto close"),
+                eventReq(internalArea.getId(), EventModeAction.ENABLE, now.plusHours(2), "SEMINAR", "Thao tac ke tiep de kich hoat auto close"),
                 fmUser.getEmail());
 
         // expiredSession phải được tự đóng với actual_end = planned_end
@@ -825,7 +843,7 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
 
         // 1. Tạo sự kiện đến now + 10h cho internalArea
         areaService.updateEventMode(internalArea.getId(),
-                new AreaEventModeUpdateRequest(true, now.plusHours(10), "SEMINAR", "Su kien 10 gio truoc khi doi cau hinh"),
+                eventReq(internalArea.getId(), EventModeAction.ENABLE, now.plusHours(10), "SEMINAR", "Su kien 10 gio truoc khi doi cau hinh"),
                 fmUser.getEmail());
 
         long notifBefore = notificationRepository.count();
@@ -852,7 +870,7 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
 
         // 3. Tắt sự kiện để không còn sự kiện nào vi phạm
         areaService.updateEventMode(internalArea.getId(),
-                new AreaEventModeUpdateRequest(false, null, "ENDED_EARLY", "Tat su kien de test khong thong bao"),
+                eventReq(internalArea.getId(), EventModeAction.DISABLE, null, "ENDED_EARLY", "Tat su kien de test khong thong bao"),
                 fmUser.getEmail());
 
         List<Area> stillOpen = areaRepository.findByOpenToMembersTrueAndOpenUntilAfterAndDeletedAtIsNull(now);

@@ -97,22 +97,20 @@ export function getAccessLevelConfig(level) {
 
 /**
  * Hiển thị trạng thái lịch chế độ sự kiện (chỉ trình bày, không đổi dữ liệu).
- * STARTED được tách theo giờ kết thúc: đã qua endAt -> "Đã diễn ra", còn trong khung -> "Đang diễn ra".
+ * Step 5b (BR-ES-S3): nhãn theo trạng thái ĐÃ LƯU, không tính theo giờ xem.
+ * STARTED -> COMPLETED (phiên đóng do hết giờ) | ENDED_EARLY (FM tắt sớm) do backend chuyển.
  * variant dùng cho components/ui/Badge.
  */
 const SCHEDULE_STATUS_VIEW = {
   SCHEDULED: { label: 'Đã lên lịch', variant: 'brand' },
+  STARTED: { label: 'Đang diễn ra', variant: 'success' },
+  COMPLETED: { label: 'Đã kết thúc', variant: 'neutral' },
+  ENDED_EARLY: { label: 'Kết thúc sớm', variant: 'warning' },
   CANCELLED: { label: 'Đã huỷ', variant: 'neutral' },
   FAILED: { label: 'Thất bại', variant: 'danger' },
 };
 
-export function getScheduleStatusView(status, endAt, now = Date.now()) {
-  if (status === 'STARTED') {
-    const end = endAt ? new Date(endAt).getTime() : NaN;
-    return !isNaN(end) && end < now
-      ? { label: 'Đã diễn ra', variant: 'neutral' }
-      : { label: 'Đang diễn ra', variant: 'success' };
-  }
+export function getScheduleStatusView(status) {
   return SCHEDULE_STATUS_VIEW[status] || { label: status || '—', variant: 'neutral' };
 }
 

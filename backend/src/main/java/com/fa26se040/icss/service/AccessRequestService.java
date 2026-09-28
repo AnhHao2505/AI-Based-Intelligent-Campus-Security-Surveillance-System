@@ -528,6 +528,9 @@ public class AccessRequestService {
             // [RÀNG BUỘC NOTIFICATION / SIDE-EFFECTS]:
             // Mọi tác vụ phát sinh (gửi thông báo, email, Kafka event, v.v.)
             // CHỈ ĐƯỢC THỰC HIỆN TẠI ĐÂY. Tuyệt đối không thực hiện ở nhánh 409.
+            // Step 5b (BR-TC-15): người dùng tự huỷ -> cancel_source USER, cancelled_by = người huỷ
+            accessRequestRepository.recordCancellation(
+                    id, com.fa26se040.icss.enums.CancelSource.USER, accessRequest.getRequester(), null, RequestStatus.CANCELLED);
             AccessRequest updated = accessRequestRepository.findByIdWithDetails(id)
                     .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu truy cập với mã: " + id));
             log.info("Access request {} cancelled by requester", updated.getId());
@@ -899,7 +902,10 @@ public class AccessRequestService {
                 memberInfos,
                 ar.getCreatedAt(),
                 ar.getUpdatedAt(),
-                isRequester
+                isRequester,
+                ar.getCancelSource(),
+                ar.getCancelReason(),
+                ar.getCancelledBy() != null ? ar.getCancelledBy().getId() : null
         );
     }
 }

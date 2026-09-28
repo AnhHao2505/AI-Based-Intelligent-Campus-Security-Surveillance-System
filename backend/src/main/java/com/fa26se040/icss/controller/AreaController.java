@@ -98,6 +98,19 @@ public class AreaController {
         return ResponseEntity.created(location).body(ApiResponse.created(response, "Tạo mới khu vực thành công"));
     }
 
+    /**
+     * Step 5b (BR-TC-03): xem trước tác động khi đổi loại khu vực (chỉ đọc).
+     * Cùng hàm đánh giá với PUT; PUT đánh giá lại sau khi khoá.
+     */
+    @GetMapping("/{id}/type-change-preview")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<AreaTypeChangePreviewResponse>> previewTypeChange(
+            @PathVariable UUID id,
+            @RequestParam AreaLevel newAreaLevel
+    ) {
+        return ResponseEntity.ok(ApiResponse.success(areaService.previewTypeChange(id, newAreaLevel), "Xem trước đổi loại khu vực thành công"));
+    }
+
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<AreaResponse>> update(
@@ -124,20 +137,23 @@ public class AreaController {
     public ResponseEntity<ApiResponse<AreaGeometryResponse>> saveGeometry(
             @PathVariable UUID id,
             @RequestBody AreaGeometry geometry,
+            // Step 5b (BR-TC-13): version khu vực gửi qua query vì AreaGeometry.version là phiên bản định dạng hình học
+            @RequestParam(required = false) Long version,
             Authentication authentication
     ) {
         String actorEmail = authentication.getName();
-        return ResponseEntity.ok(ApiResponse.success(areaService.saveGeometry(id, geometry, actorEmail), "Lưu hình học khu vực thành công"));
+        return ResponseEntity.ok(ApiResponse.success(areaService.saveGeometry(id, geometry, version, actorEmail), "Lưu hình học khu vực thành công"));
     }
 
     @DeleteMapping("/{id}/geometry")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> deleteGeometry(
             @PathVariable UUID id,
+            @RequestParam(required = false) Long version,
             Authentication authentication
     ) {
         String actorEmail = authentication.getName();
-        areaService.deleteGeometry(id, actorEmail);
+        areaService.deleteGeometry(id, version, actorEmail);
         return ResponseEntity.ok(ApiResponse.success("Xóa hình học khu vực thành công"));
     }
 

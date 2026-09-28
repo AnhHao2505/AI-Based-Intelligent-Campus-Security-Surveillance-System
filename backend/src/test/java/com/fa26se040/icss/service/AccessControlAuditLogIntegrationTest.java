@@ -662,7 +662,8 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
                 .build();
         testArea = areaRepository.save(testArea);
 
-        String updateJson = "{\"areaAccessLevel\": 3, \"explicitAuthorizationRequired\": true, \"reason\": \"Thắt chặt an ninh phòng Server\"}";
+        String updateJson = "{\"areaAccessLevel\": 3, \"explicitAuthorizationRequired\": true, \"reason\": \"Thắt chặt an ninh phòng Server\", \"version\": "
+                + testArea.getVersion() + "}";
         mockMvc.perform(patch("/api/areas/{id}/access-rules", testArea.getId())
                         .header("Authorization", token)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -724,31 +725,49 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
                 targetLevel, targetExplicit, reason, currentVersion
         );
 
-        mockMvc.perform(put("/api/access-control/level-presets/{areaLevel}", AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
-                        .header("Authorization", token)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(updateJson))
-                .andExpect(status().isOk());
+        try {
+            mockMvc.perform(put("/api/access-control/level-presets/{areaLevel}", AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
+                            .header("Authorization", token)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(updateJson))
+                    .andExpect(status().isOk());
 
-        // 1. Kiểm tra trực tiếp bảng area_level_presets
-        Object[] presetData = (Object[]) entityManager.createNativeQuery(
-                "SELECT area_access_level, explicit_authorization_required, version FROM area_level_presets WHERE area_level = 'CONFIDENTIAL_CONTACT_REQUIRED'"
-        ).getSingleResult();
-        assertEquals(targetLevel, ((Number) presetData[0]).intValue());
-        assertEquals(targetExplicit, presetData[1]);
-        assertEquals(currentVersion + 1, ((Number) presetData[2]).longValue());
+            // 1. Kiểm tra trực tiếp bảng area_level_presets
+            Object[] presetData = (Object[]) entityManager.createNativeQuery(
+                    "SELECT area_access_level, explicit_authorization_required, version FROM area_level_presets WHERE area_level = 'CONFIDENTIAL_CONTACT_REQUIRED'"
+            ).getSingleResult();
+            assertEquals(targetLevel, ((Number) presetData[0]).intValue());
+            assertEquals(targetExplicit, presetData[1]);
+            assertEquals(currentVersion + 1, ((Number) presetData[2]).longValue());
 
-        // 2. Kiểm tra log có target_id = 'CONFIDENTIAL_CONTACT_REQUIRED'
-        Number count = (Number) entityManager.createNativeQuery(
-                "SELECT COUNT(*) FROM audit_logs WHERE target_id = 'CONFIDENTIAL_CONTACT_REQUIRED' AND target_type = 'LEVEL_PRESET' AND reason = :reason"
-        ).setParameter("reason", reason).getSingleResult();
-        assertEquals(1, count.intValue());
+            // 2. Kiểm tra log có target_id = 'CONFIDENTIAL_CONTACT_REQUIRED'
+            Number count = (Number) entityManager.createNativeQuery(
+                    "SELECT COUNT(*) FROM audit_logs WHERE target_id = 'CONFIDENTIAL_CONTACT_REQUIRED' AND target_type = 'LEVEL_PRESET' AND reason = :reason"
+            ).setParameter("reason", reason).getSingleResult();
+            assertEquals(1, count.intValue());
 
-        // 3. Kiểm tra jsonb
-        String explicitInJson = (String) entityManager.createNativeQuery(
-                "SELECT new_value ->> 'explicitAuthorizationRequired' FROM audit_logs WHERE target_id = 'CONFIDENTIAL_CONTACT_REQUIRED' AND target_type = 'LEVEL_PRESET' AND reason = :reason"
-        ).setParameter("reason", reason).getSingleResult();
-        assertEquals(String.valueOf(targetExplicit), explicitInJson);
+            // 3. Kiểm tra jsonb
+            String explicitInJson = (String) entityManager.createNativeQuery(
+                    "SELECT new_value ->> 'explicitAuthorizationRequired' FROM audit_logs WHERE target_id = 'CONFIDENTIAL_CONTACT_REQUIRED' AND target_type = 'LEVEL_PRESET' AND reason = :reason"
+            ).setParameter("reason", reason).getSingleResult();
+            assertEquals(String.valueOf(targetExplicit), explicitInJson);
+        } finally {
+            // Dọn dữ liệu test: trả preset CONTACT về giá trị trước test (test khác, vd. Step5b TC-04, đọc preset này)
+            Object[] after = (Object[]) entityManager.createNativeQuery(
+                    "SELECT area_access_level, explicit_authorization_required, version FROM area_level_presets WHERE area_level = 'CONFIDENTIAL_CONTACT_REQUIRED'"
+            ).getSingleResult();
+            if (((Number) after[0]).intValue() != currentLevel || !Boolean.valueOf(currentExplicit).equals(after[1])) {
+                String restoreJson = String.format(
+                        "{\"areaAccessLevel\": %d, \"explicitAuthorizationRequired\": %b, \"reason\": \"%s\", \"version\": %d}",
+                        currentLevel, currentExplicit, "Khôi phục preset sau test " + uniqueSuffix, ((Number) after[2]).longValue()
+                );
+                mockMvc.perform(put("/api/access-control/level-presets/{areaLevel}", AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
+                                .header("Authorization", token)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(restoreJson))
+                        .andExpect(status().isOk());
+            }
+        }
     }
 
     @Test

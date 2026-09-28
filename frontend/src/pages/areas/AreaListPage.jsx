@@ -560,7 +560,8 @@ export default function AreaListPage() {
 		setSavingGeometry(true);
 		setDrawError(null);
 		try {
-			await saveAreaGeometry(drawingAreaId, draftVertices);
+			const drawingArea = areas.find((a) => a.id === drawingAreaId);
+			await saveAreaGeometry(drawingAreaId, draftVertices, drawingArea?.version);
 			const targetId = drawingAreaId;
 			cancelDrawing();
 			await fetchData(targetId);
@@ -579,7 +580,8 @@ export default function AreaListPage() {
 		if (deletingGeometryId !== null) return;
 		setDeletingGeometryId(areaId);
 		try {
-			await deleteAreaGeometry(areaId);
+			const targetArea = areas.find((a) => a.id === areaId);
+			await deleteAreaGeometry(areaId, targetArea?.version);
 			setConfirmDeleteId(null);
 			await fetchData(areaId);
 		} catch (err) {
@@ -740,6 +742,9 @@ export default function AreaListPage() {
 			centerLatitude: areaToEdit.centerLatitude ?? "",
 			centerLongitude: areaToEdit.centerLongitude ?? "",
 			reason: "",
+			// Step 5b: loại lúc mở để biết có đổi loại không (bắt lý do), version gửi kèm PUT (BR-TC-13)
+			originalAreaLevel: areaToEdit.areaLevel || null,
+			version: areaToEdit.version ?? null,
 		});
 		setModalError(null);
 		setNameError(null);
@@ -766,6 +771,15 @@ export default function AreaListPage() {
 		const targetId = formData.id || selectedArea?.id;
 		if (!targetId) return;
 
+		// Step 5b (BR-TC-02): đổi loại bắt buộc lý do 10–500 ký tự
+		const isTypeChange =
+			Boolean(formData.originalAreaLevel) && formData.areaLevel !== formData.originalAreaLevel;
+		const trimmedReason = (formData.reason || "").trim();
+		if (isTypeChange && (trimmedReason.length < 10 || trimmedReason.length > 500)) {
+			setModalError("Đổi loại khu vực bắt buộc nhập lý do từ 10 đến 500 ký tự.");
+			return;
+		}
+
 		setModalLoading(true);
 		try {
 			const payload = {
@@ -776,6 +790,8 @@ export default function AreaListPage() {
 				floorId: formData.floorId || null,
 				centerLatitude: coordinates.centerLatitude,
 				centerLongitude: coordinates.centerLongitude,
+				version: formData.version,
+				...(isTypeChange ? { reason: trimmedReason } : {}),
 			};
 
 			const updated = await updateArea(targetId, payload);
@@ -783,7 +799,13 @@ export default function AreaListPage() {
 			await fetchData(updated.id);
 		} catch (err) {
 			console.error("Update area failed:", err);
-			setModalError(getErrorMessage(err));
+			if (err?.code === "ERR_AREA_045") {
+				// Người khác vừa cập nhật khu vực: tải lại danh sách để lần mở sau có dữ liệu + version mới
+				setModalError("Khu vực đã được người khác cập nhật. Vui lòng đóng và mở lại để xem dữ liệu mới nhất.");
+				await fetchData(targetId);
+			} else {
+				setModalError(getErrorMessage(err));
+			}
 		} finally {
 			setModalLoading(false);
 		}
@@ -1403,6 +1425,28 @@ export default function AreaListPage() {
 										})}
 									</div>
 								</div>
+
+								{/* Step 5b (BR-TC-02): đổi loại -> bắt buộc lý do 10–500 ký tự, ghi vào audit CHANGE_TYPE */}
+								{formData.originalAreaLevel && formData.areaLevel !== formData.originalAreaLevel && (
+									<div className="area-form-group">
+										<label htmlFor="edit-type-change-reason" className="area-form-label">
+											Lý do đổi loại khu vực <span className="required">*</span>
+										</label>
+										<textarea
+											id="edit-type-change-reason"
+											className="area-form-input area-form-input--textarea"
+											rows={3}
+											maxLength={500}
+											value={formData.reason || ""}
+											onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
+											placeholder="Nêu lý do đổi loại (10–500 ký tự)"
+										/>
+										<span className="area-form-hint">
+											{(formData.reason || "").trim().length}/500 ký tự. Đổi loại sẽ áp cấp truy cập theo mặc định của loại mới
+											và có thể huỷ các đơn truy cập không còn phù hợp.
+										</span>
+									</div>
+								)}
 
 								<div className="area-form-row">
 									<div className="area-form-group">

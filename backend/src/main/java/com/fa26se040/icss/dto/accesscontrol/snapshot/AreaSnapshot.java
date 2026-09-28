@@ -13,7 +13,10 @@ public record AreaSnapshot(
         Boolean explicitAuthorizationRequired,
         String building,
         String floor,
-        Boolean isActive
+        Boolean isActive,
+        // Chốt P2 (Step 5b): toạ độ tâm có trong snapshot để audit UPDATE thấy đổi toạ độ
+        Double centerLatitude,
+        Double centerLongitude
 ) implements AuditSnapshot {
 
     public static AreaSnapshot from(Area area) {
@@ -28,7 +31,9 @@ public record AreaSnapshot(
                 area.getExplicitAuthorizationRequired(),
                 area.getBuilding(),
                 area.getFloor(),
-                area.getIsActive()
+                area.getIsActive(),
+                area.getCenterLatitude(),
+                area.getCenterLongitude()
         );
     }
 }
