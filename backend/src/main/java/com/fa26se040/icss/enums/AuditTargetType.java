@@ -9,5 +9,8 @@ public enum AuditTargetType {
     LEVEL_PRESET,
     ACCESS_REQUEST,
     REASON_CATALOG,
-    AREA_EVENT_SCHEDULE
+    AREA_EVENT_SCHEDULE,
+    // Khách G-A (BR-GV-30, V60)
+    GUEST_VISIT,
+    GUEST
 }

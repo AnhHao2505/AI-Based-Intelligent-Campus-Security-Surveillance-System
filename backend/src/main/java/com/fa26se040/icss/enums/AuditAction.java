@@ -22,5 +22,11 @@ public enum AuditAction {
     FAIL,
     EXPIRE_EVENT_MODE,
     // Step 5b (BR-TC-02): ADMIN đổi loại khu vực
-    CHANGE_TYPE
+    CHANGE_TYPE,
+    // Khách G-A (BR-GV-30, V60)
+    COMPLETE,
+    ATTACH_PHOTO,
+    VIEW_PHOTO,
+    DELETE_BIOMETRIC,
+    ANONYMIZE
 }
