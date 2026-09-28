@@ -11,3 +11,14 @@ spring:
     clean-on-validation-error: true
     out-of-order: true
     locations: classpath:db/migration
+
+# Tắt mọi tick chạy theo lịch trong test: test gọi thẳng method job với now truyền vào.
+# Tick thật chạy nền trên DB test dùng chung gây flaky (thông báo lạ gửi tới user của test đang chạy).
+# GuardTeamDispatchService có cron viết cứng (0 0 0 * * ?), không tắt được bằng cấu hình.
+icss:
+  scheduler:
+    event-mode-tick-cron: "-"
+    expire-overdue-cron: "-"
+    notification-expiring-soon-cron: "-"
+    notification-pending-overdue-cron: "-"
+    rate-limiter-cleanup-cron: "-"
