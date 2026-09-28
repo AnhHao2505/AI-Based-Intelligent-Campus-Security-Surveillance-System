@@ -266,7 +266,8 @@ export default function CampusMapPage() {
 		setSavingGeometry(true);
 		setDrawError(null);
 		try {
-			await saveAreaGeometry(drawingAreaId, draftVertices);
+			const drawingArea = areas.find((a) => a.id === drawingAreaId);
+			await saveAreaGeometry(drawingAreaId, draftVertices, drawingArea?.version);
 			const targetId = drawingAreaId;
 			cancelDrawing();
 			await fetchData(targetId);
@@ -281,7 +282,8 @@ export default function CampusMapPage() {
 		if (deletingGeometryId !== null) return;
 		setDeletingGeometryId(areaId);
 		try {
-			await deleteAreaGeometry(areaId);
+			const targetArea = areas.find((a) => a.id === areaId);
+			await deleteAreaGeometry(areaId, targetArea?.version);
 			setConfirmDeleteId(null);
 			await fetchData(areaId);
 		} catch (err) {
