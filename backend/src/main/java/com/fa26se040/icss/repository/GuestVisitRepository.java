@@ -29,7 +29,7 @@ public interface GuestVisitRepository extends JpaRepository<GuestVisit, UUID> {
 
     Page<GuestVisit> findByHostIdOrderByCreatedAtDesc(UUID hostId, Pageable pageable);
 
-    Page<GuestVisit> findByStatusOrderByStartTimeAsc(GuestVisitStatus status, Pageable pageable);
+    Page<GuestVisit> findByStatusOrderByCreatedAtDesc(GuestVisitStatus status, Pageable pageable);
 
     Page<GuestVisit> findAllByOrderByCreatedAtDesc(Pageable pageable);
 

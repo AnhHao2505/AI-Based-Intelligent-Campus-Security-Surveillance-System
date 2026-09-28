@@ -235,6 +235,144 @@ public class GuestVisitService {
         return toResponse(visit);
     }
 
+    // ================================================================== FM (BR-GV-10..13)
+
+    @Transactional(readOnly = true)
+    public Page<GuestVisitResponse> list(GuestVisitStatus status, Pageable pageable) {
+        Page<GuestVisit> page = status != null
+                ? guestVisitRepository.findByStatusOrderByCreatedAtDesc(status, pageable)
+                : guestVisitRepository.findAllByOrderByCreatedAtDesc(pageable);
+        return page.map(this::toResponse);
+    }
+
+    @Transactional
+    public GuestVisitResponse review(UUID id, GuestVisitReviewRequest req, String actorEmail) {
+        User reviewer = currentUser(actorEmail);
+        if (req == null || req.version() == null) {
+            throw new GuestException(GuestErrorCode.ERR_GUEST_015);
+        }
+        GuestVisitStatus decision;
+        if ("APPROVED".equals(req.decision())) {
+            decision = GuestVisitStatus.APPROVED;
+        } else if ("REJECTED".equals(req.decision())) {
+            decision = GuestVisitStatus.REJECTED;
+        } else {
+            throw new GuestException(GuestErrorCode.ERR_GUEST_024);
+        }
+        String reason = decision == GuestVisitStatus.REJECTED ? requiredReason(req.reason()) : optionalReason(req.reason());
+
+        GuestVisit visit = lockVisit(id);
+        if (visit.getHost().getId().equals(reviewer.getId())) {
+            throw new GuestException(GuestErrorCode.ERR_GUEST_022);
+        }
+        checkVersion(visit, req.version());
+        if (visit.getStatus() != GuestVisitStatus.PENDING) {
+            throw new GuestException(GuestErrorCode.ERR_GUEST_017, visit.getStatus(), decision == GuestVisitStatus.APPROVED ? "duyệt" : "từ chối");
+        }
+        OffsetDateTime now = OffsetDateTime.now();
+        // BR-GV-12: tới giờ bắt đầu thì không duyệt được nữa (job sẽ chuyển EXPIRED)
+        if (!now.isBefore(visit.getStartTime())) {
+            throw new GuestException(GuestErrorCode.ERR_GUEST_023);
+        }
+        // BR-GV-11: duyệt thì kiểm lại 01, 04, 05 (trừ start > now), 06
+        if (decision == GuestVisitStatus.APPROVED) {
+            String violation = recheckForApproval(visit, now);
+            if (violation != null) {
+                throw new GuestException(GuestErrorCode.ERR_GUEST_021, violation);
+            }
+        }
+
+        GuestVisitAuditSnapshot before = snapshot(visit);
+        visit.setStatus(decision);
+        visit.setReviewedBy(reviewer);
+        visit.setReviewedAt(now);
+        visit.setReviewReason(reason);
+        bumpVersion(visit);
+        guestVisitRepository.save(visit);
+        auditService.record(AuditTargetType.GUEST_VISIT, decision == GuestVisitStatus.APPROVED ? AuditAction.APPROVE : AuditAction.REJECT,
+                visit.getId().toString(), null, null, before, snapshot(visit), reason, AuditActor.user(reviewer));
+
+        User host = visit.getHost();
+        String range = InAppNotificationService.formatTimeRange(visit.getStartTime(), visit.getEndTime());
+        if (decision == GuestVisitStatus.APPROVED) {
+            notifyAfterCommit(visit.getId(), NotificationType.GUEST_VISIT_APPROVED, "Lượt khách đã được duyệt",
+                    "Lượt khách vào " + areaNames(visit) + " (" + range + ") đã được duyệt.", () -> List.of(host));
+            notifyAfterCommit(visit.getId(), NotificationType.GUEST_PHOTO_REQUIRED, "Cần gắn ảnh khách",
+                    "Lượt khách của " + host.getFullName() + " vào " + areaNames(visit) + " (" + range + ") đã được duyệt, "
+                            + visit.getGuests().size() + " khách cần gắn ảnh sau khi đồng ý tại quầy.",
+                    () -> userRepository.findActiveUsersByRole(Role.ADMIN));
+        } else {
+            notifyAfterCommit(visit.getId(), NotificationType.GUEST_VISIT_REJECTED, "Lượt khách bị từ chối",
+                    "Lượt khách vào " + areaNames(visit) + " (" + range + ") bị từ chối. Lý do: " + reason + ".", () -> List.of(host));
+        }
+        return toResponse(visit);
+    }
+
+    @Transactional
+    public GuestVisitResponse revoke(UUID id, GuestVisitRevokeRequest req, String actorEmail) {
+        User fmUser = currentUser(actorEmail);
+        if (req == null || req.version() == null) {
+            throw new GuestException(GuestErrorCode.ERR_GUEST_015);
+        }
+        String reason = requiredReason(req.reason());
+
+        GuestVisit visit = lockVisit(id);
+        if (visit.getHost().getId().equals(fmUser.getId())) {
+            throw new GuestException(GuestErrorCode.ERR_GUEST_022);
+        }
+        checkVersion(visit, req.version());
+        if (visit.getStatus() != GuestVisitStatus.APPROVED) {
+            throw new GuestException(GuestErrorCode.ERR_GUEST_017, visit.getStatus(), "thu hồi");
+        }
+        OffsetDateTime now = OffsetDateTime.now();
+        if (!now.isBefore(visit.getEndTime())) {
+            throw new GuestException(GuestErrorCode.ERR_GUEST_018, "thu hồi");
+        }
+
+        GuestVisitAuditSnapshot before = snapshot(visit);
+        visit.setStatus(GuestVisitStatus.REVOKED);
+        visit.setRevokedBy(fmUser);
+        visit.setRevokedAt(now);
+        visit.setRevokeReason(reason);
+        bumpVersion(visit);
+        guestVisitRepository.save(visit);
+        AuditActor actor = AuditActor.user(fmUser);
+        auditService.record(AuditTargetType.GUEST_VISIT, AuditAction.REVOKE, visit.getId().toString(), null, null,
+                before, snapshot(visit), reason, actor);
+        // BR-GV-13, 27: thu hồi -> xoá sinh trắc ngay
+        deleteAllBiometrics(visit, now, actor, "Lượt khách bị thu hồi");
+        User host = visit.getHost();
+        notifyAfterCommit(visit.getId(), NotificationType.GUEST_VISIT_REVOKED, "Lượt khách bị thu hồi",
+                "Lượt khách vào " + areaNames(visit) + " (" + InAppNotificationService.formatTimeRange(visit.getStartTime(), visit.getEndTime())
+                        + ") đã bị thu hồi. Lý do: " + reason + ".", () -> List.of(host));
+        return toResponse(visit);
+    }
+
+    /** BR-GV-11: trả câu mô tả vế đầu tiên không còn thoả, hoặc null. */
+    String recheckForApproval(GuestVisit visit, OffsetDateTime now) {
+        User host = visit.getHost();
+        if (!rules.hostEligible(host)) {
+            return "người mời không còn đủ điều kiện (tài khoản đang hoạt động, cấp truy cập từ " + rules.hostMinLevel() + " trở lên)";
+        }
+        try {
+            validateWindow(visit.getStartTime(), visit.getEndTime(), now, false);
+        } catch (GuestException ex) {
+            return ex.getMessage();
+        }
+        for (Area area : visit.getAreas()) {
+            if (!rules.areaActive(area)) {
+                return "khu vực " + area.getName() + " đã ngừng hoạt động";
+            }
+            if (!rules.areaTypeAllowed(area)) {
+                return "khu vực " + area.getName() + " không còn thuộc loại nhận khách";
+            }
+            if (!rules.hostCoversArea(host, area, visit.getStartTime(), visit.getEndTime())) {
+                return "người mời không còn quyền vào khu vực " + area.getName() + " trong suốt khung giờ";
+            }
+        }
+        return null;
+    }
+
     // ================================================================== dùng chung
 
     User currentUser(String email) {

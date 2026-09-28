@@ -4,6 +4,9 @@ import com.fa26se040.icss.dto.common.ApiResponse;
 import com.fa26se040.icss.dto.guest.GuestVisitCancelRequest;
 import com.fa26se040.icss.dto.guest.GuestVisitCreateRequest;
 import com.fa26se040.icss.dto.guest.GuestVisitResponse;
+import com.fa26se040.icss.dto.guest.GuestVisitReviewRequest;
+import com.fa26se040.icss.dto.guest.GuestVisitRevokeRequest;
+import com.fa26se040.icss.enums.GuestVisitStatus;
 import com.fa26se040.icss.exception.GuestErrorCode;
 import com.fa26se040.icss.exception.GuestException;
 import com.fa26se040.icss.service.GuestVisitService;
@@ -68,6 +71,33 @@ public class GuestVisitController {
                                                                   @RequestBody(required = false) GuestVisitCancelRequest body,
                                                                   Authentication authentication) {
         return ResponseEntity.ok(ApiResponse.success(guestVisitService.cancel(id, body, authentication.getName()), "Đã huỷ lượt khách"));
+    }
+
+    @GetMapping
+    @PreAuthorize("hasAnyRole('FACILITY_MANAGER', 'ADMIN')")
+    public ResponseEntity<ApiResponse<Page<GuestVisitResponse>>> list(
+            @RequestParam(required = false) GuestVisitStatus status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Page<GuestVisitResponse> data = guestVisitService.list(status,
+                PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100)));
+        return ResponseEntity.ok(ApiResponse.success(data, "Danh sách lượt khách"));
+    }
+
+    @PatchMapping("/{id}/review")
+    @PreAuthorize("hasRole('FACILITY_MANAGER')")
+    public ResponseEntity<ApiResponse<GuestVisitResponse>> review(@PathVariable UUID id,
+                                                                  @RequestBody(required = false) GuestVisitReviewRequest body,
+                                                                  Authentication authentication) {
+        return ResponseEntity.ok(ApiResponse.success(guestVisitService.review(id, body, authentication.getName()), "Đã xử lý lượt khách"));
+    }
+
+    @PatchMapping("/{id}/revoke")
+    @PreAuthorize("hasRole('FACILITY_MANAGER')")
+    public ResponseEntity<ApiResponse<GuestVisitResponse>> revoke(@PathVariable UUID id,
+                                                                  @RequestBody(required = false) GuestVisitRevokeRequest body,
+                                                                  Authentication authentication) {
+        return ResponseEntity.ok(ApiResponse.success(guestVisitService.revoke(id, body, authentication.getName()), "Đã thu hồi lượt khách"));
     }
 
     private <T> T readStrict(JsonNode body, Class<T> type) {
