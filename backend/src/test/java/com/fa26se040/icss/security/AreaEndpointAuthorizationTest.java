@@ -12,6 +12,11 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import java.util.UUID;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.Set;
+import java.util.EnumSet;
+import java.util.Arrays;
+import java.util.function.Supplier;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -57,24 +62,38 @@ public class AreaEndpointAuthorizationTest extends AbstractIntegrationTest {
         return "Bearer " + jwtTokenProvider.generateToken(user);
     }
 
-    private void assertAdminOnly(MockHttpServletRequestBuilder builder) throws Exception {
-        // 401 khi không có token
-        mockMvc.perform(builder).andExpect(status().isUnauthorized());
-
-        // 403 khi dùng role không phải ADMIN
-        mockMvc.perform(builder.header("Authorization", fmToken)).andExpect(status().isForbidden());
-        mockMvc.perform(builder.header("Authorization", userToken)).andExpect(status().isForbidden());
-        mockMvc.perform(builder.header("Authorization", guardToken)).andExpect(status().isForbidden());
+    private String token(Role role) {
+        return switch (role) {
+            case ADMIN -> adminToken;
+            case FACILITY_MANAGER -> fmToken;
+            case NORMAL_USER -> userToken;
+            case GUARD -> guardToken;
+        };
     }
 
-    private void assertFmOnly(MockHttpServletRequestBuilder builder) throws Exception {
-        // 401 khi không có token
-        mockMvc.perform(builder).andExpect(status().isUnauthorized());
+    /**
+     * Không token -> 401; mỗi role KHÔNG nằm trong allowed -> 403. Mỗi lần gọi dựng request MỚI:
+     * dùng lại một builder thì header Authorization bị cộng dồn và filter chỉ đọc header đầu tiên.
+     */
+    private void assertOnly(Supplier<MockHttpServletRequestBuilder> request, Role... allowed) throws Exception {
+        mockMvc.perform(request.get()).andExpect(status().isUnauthorized());
+        Set<Role> ok = EnumSet.noneOf(Role.class);
+        ok.addAll(Arrays.asList(allowed));
+        for (Role role : Role.values()) {
+            if (!ok.contains(role)) {
+                mockMvc.perform(request.get().header("Authorization", token(role)))
+                        .andExpect(result -> assertEquals(403, result.getResponse().getStatus(),
+                                role + " phải bị 403 ở " + result.getRequest().getMethod() + " " + result.getRequest().getRequestURI()));
+            }
+        }
+    }
 
-        // 403 khi dùng role không phải FACILITY_MANAGER
-        mockMvc.perform(builder.header("Authorization", adminToken)).andExpect(status().isForbidden());
-        mockMvc.perform(builder.header("Authorization", userToken)).andExpect(status().isForbidden());
-        mockMvc.perform(builder.header("Authorization", guardToken)).andExpect(status().isForbidden());
+    private void assertAdminOnly(Supplier<MockHttpServletRequestBuilder> request) throws Exception {
+        assertOnly(request, Role.ADMIN);
+    }
+
+    private void assertFmOnly(Supplier<MockHttpServletRequestBuilder> request) throws Exception {
+        assertOnly(request, Role.FACILITY_MANAGER);
     }
 
     // =========================================================================
@@ -84,7 +103,7 @@ public class AreaEndpointAuthorizationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("T3 [ADMIN ONLY]: POST /api/areas -> 401 không token, 403 cho FM/USER/GUARD")
     void postArea_adminOnly() throws Exception {
-        assertAdminOnly(post("/api/areas")
+        assertAdminOnly(() -> post("/api/areas")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {
@@ -101,20 +120,20 @@ public class AreaEndpointAuthorizationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("T3 [ADMIN ONLY]: GET /api/areas/{id}/dependencies -> 401 không token, 403 cho FM/USER/GUARD")
     void getDependencies_adminOnly() throws Exception {
-        assertAdminOnly(get("/api/areas/{id}/dependencies", randomAreaId));
+        assertAdminOnly(() -> get("/api/areas/{id}/dependencies", randomAreaId));
     }
 
     @Test
     @DisplayName("T3 [ADMIN ONLY]: GET /api/areas/{id}/type-change-preview -> 401 không token, 403 cho FM/USER/GUARD")
     void previewTypeChange_adminOnly() throws Exception {
-        assertAdminOnly(get("/api/areas/{id}/type-change-preview", randomAreaId)
+        assertAdminOnly(() -> get("/api/areas/{id}/type-change-preview", randomAreaId)
                 .param("newAreaLevel", "HIGHLY_CONFIDENTIAL"));
     }
 
     @Test
     @DisplayName("T3 [ADMIN ONLY]: PUT /api/areas/{id} -> 401 không token, 403 cho FM/USER/GUARD")
     void putArea_adminOnly() throws Exception {
-        assertAdminOnly(put("/api/areas/{id}", randomAreaId)
+        assertAdminOnly(() -> put("/api/areas/{id}", randomAreaId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {
@@ -132,7 +151,7 @@ public class AreaEndpointAuthorizationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("T3 [ADMIN ONLY]: PATCH /api/areas/{id}/geometry -> 401 không token, 403 cho FM/USER/GUARD")
     void saveGeometry_adminOnly() throws Exception {
-        assertAdminOnly(patch("/api/areas/{id}/geometry", randomAreaId)
+        assertAdminOnly(() -> patch("/api/areas/{id}/geometry", randomAreaId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{}"));
     }
@@ -140,19 +159,19 @@ public class AreaEndpointAuthorizationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("T3 [ADMIN ONLY]: DELETE /api/areas/{id}/geometry -> 401 không token, 403 cho FM/USER/GUARD")
     void deleteGeometry_adminOnly() throws Exception {
-        assertAdminOnly(delete("/api/areas/{id}/geometry", randomAreaId));
+        assertAdminOnly(() -> delete("/api/areas/{id}/geometry", randomAreaId));
     }
 
     @Test
     @DisplayName("T3 [ADMIN ONLY]: DELETE /api/areas/{id} -> 401 không token, 403 cho FM/USER/GUARD")
     void deactivateArea_adminOnly() throws Exception {
-        assertAdminOnly(delete("/api/areas/{id}", randomAreaId));
+        assertAdminOnly(() -> delete("/api/areas/{id}", randomAreaId));
     }
 
     @Test
     @DisplayName("T3 [ADMIN ONLY]: PUT /api/areas/{id}/cameras -> 401 không token, 403 cho FM/USER/GUARD")
     void updateCameras_adminOnly() throws Exception {
-        assertAdminOnly(put("/api/areas/{id}/cameras", randomAreaId)
+        assertAdminOnly(() -> put("/api/areas/{id}/cameras", randomAreaId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{}"));
     }
@@ -164,7 +183,7 @@ public class AreaEndpointAuthorizationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("T3 [FM ONLY]: PATCH /api/areas/{id}/access-rules -> 401 không token, 403 cho ADMIN/USER/GUARD")
     void updateAccessRules_fmOnly() throws Exception {
-        assertFmOnly(patch("/api/areas/{id}/access-rules", randomAreaId)
+        assertFmOnly(() -> patch("/api/areas/{id}/access-rules", randomAreaId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {
@@ -179,7 +198,7 @@ public class AreaEndpointAuthorizationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("T3 [FM ONLY]: PATCH /api/areas/{id}/event-mode -> 401 không token, 403 cho ADMIN/USER/GUARD")
     void updateEventMode_fmOnly() throws Exception {
-        assertFmOnly(patch("/api/areas/{id}/event-mode", randomAreaId)
+        assertFmOnly(() -> patch("/api/areas/{id}/event-mode", randomAreaId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{}"));
     }
@@ -187,7 +206,7 @@ public class AreaEndpointAuthorizationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("T3 [FM ONLY]: POST /api/areas/{id}/event-schedules -> 401 không token, 403 cho ADMIN/USER/GUARD")
     void createEventSchedule_fmOnly() throws Exception {
-        assertFmOnly(post("/api/areas/{id}/event-schedules", randomAreaId)
+        assertFmOnly(() -> post("/api/areas/{id}/event-schedules", randomAreaId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{}"));
     }
@@ -195,7 +214,7 @@ public class AreaEndpointAuthorizationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("T3 [FM ONLY]: PATCH /api/areas/{id}/event-schedules/{sid} -> 401 không token, 403 cho ADMIN/USER/GUARD")
     void updateEventSchedule_fmOnly() throws Exception {
-        assertFmOnly(patch("/api/areas/{id}/event-schedules/{sid}", randomAreaId, randomScheduleId)
+        assertFmOnly(() -> patch("/api/areas/{id}/event-schedules/{sid}", randomAreaId, randomScheduleId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{}"));
     }
@@ -203,7 +222,7 @@ public class AreaEndpointAuthorizationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("T3 [FM ONLY]: POST /api/areas/{id}/event-schedules/{sid}/cancel -> 401 không token, 403 cho ADMIN/USER/GUARD")
     void cancelEventSchedule_fmOnly() throws Exception {
-        assertFmOnly(post("/api/areas/{id}/event-schedules/{sid}/cancel", randomAreaId, randomScheduleId)
+        assertFmOnly(() -> post("/api/areas/{id}/event-schedules/{sid}/cancel", randomAreaId, randomScheduleId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{}"));
     }
@@ -211,7 +230,7 @@ public class AreaEndpointAuthorizationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("T3 [FM ONLY]: POST /api/areas/{areaId}/assigned-personnel -> 401 không token, 403 cho ADMIN/USER/GUARD")
     void createAssignedPersonnel_fmOnly() throws Exception {
-        assertFmOnly(post("/api/areas/{areaId}/assigned-personnel", randomAreaId)
+        assertFmOnly(() -> post("/api/areas/{areaId}/assigned-personnel", randomAreaId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(String.format("""
                         {
@@ -224,7 +243,7 @@ public class AreaEndpointAuthorizationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("T3 [FM ONLY]: PATCH /api/areas/{areaId}/assigned-personnel/{id} -> 401 không token, 403 cho ADMIN/USER/GUARD")
     void updateAssignedPersonnel_fmOnly() throws Exception {
-        assertFmOnly(patch("/api/areas/{areaId}/assigned-personnel/{id}", randomAreaId, randomApId)
+        assertFmOnly(() -> patch("/api/areas/{areaId}/assigned-personnel/{id}", randomAreaId, randomApId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {
@@ -237,12 +256,37 @@ public class AreaEndpointAuthorizationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("T3 [FM ONLY]: PATCH /api/areas/{areaId}/assigned-personnel/{id}/revoke -> 401 không token, 403 cho ADMIN/USER/GUARD")
     void revokeAssignedPersonnel_fmOnly() throws Exception {
-        assertFmOnly(patch("/api/areas/{areaId}/assigned-personnel/{id}/revoke", randomAreaId, randomApId)
+        assertFmOnly(() -> patch("/api/areas/{areaId}/assigned-personnel/{id}/revoke", randomAreaId, randomApId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {
                             "reason": "Thu hồi quyền gán nhân sự khu vực"
                         }
                         """));
+    }
+
+    // ========================================================================= endpoint đọc có giới hạn role
+
+    @Test
+    @DisplayName("GET /api/areas, /{id}, /geometries: chỉ ADMIN + FM")
+    void readAreas_adminAndFm() throws Exception {
+        assertOnly(() -> get("/api/areas"), Role.ADMIN, Role.FACILITY_MANAGER);
+        assertOnly(() -> get("/api/areas/{id}", randomAreaId), Role.ADMIN, Role.FACILITY_MANAGER);
+        assertOnly(() -> get("/api/areas/geometries").param("building", "X").param("floor", "1"), Role.ADMIN, Role.FACILITY_MANAGER);
+    }
+
+    @Test
+    @DisplayName("GET /{id}/event-schedules, /{areaId}/assigned-personnel: chỉ FM + ADMIN")
+    void readSchedulesAndPersonnel_fmAndAdmin() throws Exception {
+        assertOnly(() -> get("/api/areas/{id}/event-schedules", randomAreaId), Role.ADMIN, Role.FACILITY_MANAGER);
+        assertOnly(() -> get("/api/areas/{areaId}/assigned-personnel", randomAreaId), Role.ADMIN, Role.FACILITY_MANAGER);
+    }
+
+    @Test
+    @DisplayName("GET /map-pins, /{id}/cameras: ADMIN + FM + GUARD; /available-for-request: NORMAL_USER + FM + ADMIN")
+    void readPinsCamerasAvailable() throws Exception {
+        assertOnly(() -> get("/api/areas/map-pins"), Role.ADMIN, Role.FACILITY_MANAGER, Role.GUARD);
+        assertOnly(() -> get("/api/areas/{id}/cameras", randomAreaId), Role.ADMIN, Role.FACILITY_MANAGER, Role.GUARD);
+        assertOnly(() -> get("/api/areas/available-for-request"), Role.ADMIN, Role.FACILITY_MANAGER, Role.NORMAL_USER);
     }
 }
