@@ -182,6 +182,8 @@ public abstract class GuestTestSupport extends AbstractIntegrationTest {
                     .host(host).purpose(PURPOSE).startTime(start).endTime(end).status(status)
                     .reviewedBy(status == GuestVisitStatus.PENDING ? null : fm)
                     .reviewedAt(status == GuestVisitStatus.PENDING ? null : OffsetDateTime.now().minusMinutes(5))
+                    .closedAt(status == GuestVisitStatus.EXPIRED || status == GuestVisitStatus.COMPLETED ? end : null)
+                    .cancelledAt(status == GuestVisitStatus.CANCELLED ? OffsetDateTime.now() : null)
                     .build();
             v.getAreas().addAll(areas);
             for (String n : guestNames) {
