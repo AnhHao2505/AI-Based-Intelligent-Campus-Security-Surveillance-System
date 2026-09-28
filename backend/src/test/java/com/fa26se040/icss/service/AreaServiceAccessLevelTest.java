@@ -105,12 +105,14 @@ class AreaServiceAccessLevelTest {
     @Test
     @DisplayName("Tạo area luôn lấy access rules từ preset (PUBLIC: 1, false; PRIVATE: 3, true)")
     void createArea_AlwaysTakesAccessRulesFromPreset() {
-        AreaCreateRequest reqPublic = new AreaCreateRequest(
-                "Sảnh Chính",
-                AreaLevel.PUBLIC,
-                "Tòa A",
-                "Tầng 1"
-        );
+        AreaCreateRequest reqPublic = AreaCreateRequest.builder()
+                .name("Sảnh Chính")
+                .areaLevel(AreaLevel.PUBLIC)
+                .building("Tòa A")
+                .floor("Tầng 1")
+                .centerLatitude(10.8418)
+                .centerLongitude(106.8100)
+                .build();
 
         when(areaValidator.validateAndNormalizeName(reqPublic.getName())).thenReturn(reqPublic.getName());
         when(userRepository.findByEmail(adminEmail)).thenReturn(Optional.of(admin));
@@ -134,12 +136,14 @@ class AreaServiceAccessLevelTest {
         assertFalse(respPublic.explicitAuthorizationRequired());
 
         // Test tạo khu vực HIGHLY_CONFIDENTIAL
-        AreaCreateRequest reqPrivate = new AreaCreateRequest(
-                "Phòng Máy Chủ",
-                AreaLevel.HIGHLY_CONFIDENTIAL,
-                "Tòa A",
-                "Tầng 2"
-        );
+        AreaCreateRequest reqPrivate = AreaCreateRequest.builder()
+                .name("Phòng Máy Chủ")
+                .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
+                .building("Tòa A")
+                .floor("Tầng 2")
+                .centerLatitude(10.8418)
+                .centerLongitude(106.8100)
+                .build();
         when(areaValidator.validateAndNormalizeName(reqPrivate.getName())).thenReturn(reqPrivate.getName());
 
         AreaLevelPreset privatePreset = AreaLevelPreset.builder()
@@ -158,12 +162,14 @@ class AreaServiceAccessLevelTest {
     @Test
     @DisplayName("Tạo area khi thiếu preset -> fail-closed (accessLevel = 3, explicitAuthorizationRequired = true)")
     void createArea_WhenPresetMissing_FailsClosedWithLevel3AndExplicitAuthTrue() {
-        AreaCreateRequest reqMissing = new AreaCreateRequest(
-                "Phòng Mới",
-                AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED,
-                "Tòa B",
-                "Tầng 1"
-        );
+        AreaCreateRequest reqMissing = AreaCreateRequest.builder()
+                .name("Phòng Mới")
+                .areaLevel(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
+                .building("Tòa B")
+                .floor("Tầng 1")
+                .centerLatitude(10.8418)
+                .centerLongitude(106.8100)
+                .build();
 
         when(areaValidator.validateAndNormalizeName(reqMissing.getName())).thenReturn(reqMissing.getName());
         when(userRepository.findByEmail(adminEmail)).thenReturn(Optional.of(admin));
@@ -196,12 +202,14 @@ class AreaServiceAccessLevelTest {
                 .isActive(true)
                 .build();
 
-        AreaUpdateRequest updateReq = new AreaUpdateRequest(
-                "Phòng Học 101 Đổi Cấp",
-                AreaLevel.HIGHLY_CONFIDENTIAL,
-                "Tòa A",
-                "Tầng 1"
-        );
+        AreaUpdateRequest updateReq = AreaUpdateRequest.builder()
+                .name("Phòng Học 101 Đổi Cấp")
+                .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
+                .building("Tòa A")
+                .floor("Tầng 1")
+                .centerLatitude(10.8418)
+                .centerLongitude(106.8100)
+                .build();
 
         when(areaRepository.findByIdWithLock(areaId)).thenReturn(Optional.of(existing));
         when(areaValidator.validateAndNormalizeName(updateReq.getName())).thenReturn(updateReq.getName());

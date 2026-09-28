@@ -1178,30 +1178,30 @@ public class AreaService {
                 ? (int) eventScheduleRepository.countByAreaIdAndStatus(area.getId(), com.fa26se040.icss.enums.AreaEventScheduleStatus.SCHEDULED)
                 : 0;
 
-        return new AreaResponse(
-                area.getId(),
-                area.getName(),
-                area.getAreaLevel(),
-                area.getAreaAccessLevel(),
-                area.getExplicitAuthorizationRequired(),
-                area.getBuilding(),
-                area.getFloor(),
-                area.getGeometry(),
-                area.getCenterLatitude(),
-                area.getCenterLongitude(),
-                area.getIsActive(),
-                area.getCreatedAt(),
-                area.getUpdatedAt(),
-                differsFromPreset,
-                openToMembers,
-                openUntil,
-                eventActive,
-                timeline.startedAt(),
-                timeline.startedByName(),
-                timeline.lastAdjustedAt(),
-                timeline.lastAdjustedByName(),
-                upcomingScheduleCount
-        );
+        return AreaResponse.builder()
+                .id(area.getId())
+                .name(area.getName())
+                .areaLevel(area.getAreaLevel())
+                .areaAccessLevel(area.getAreaAccessLevel())
+                .explicitAuthorizationRequired(area.getExplicitAuthorizationRequired())
+                .building(area.getBuilding())
+                .floor(area.getFloor())
+                .geometry(area.getGeometry())
+                .centerLatitude(area.getCenterLatitude())
+                .centerLongitude(area.getCenterLongitude())
+                .isActive(area.getIsActive())
+                .createdAt(area.getCreatedAt())
+                .updatedAt(area.getUpdatedAt())
+                .differsFromPreset(differsFromPreset)
+                .openToMembers(openToMembers)
+                .openUntil(openUntil)
+                .eventActive(eventActive)
+                .eventStartedAt(timeline.startedAt())
+                .eventStartedByName(timeline.startedByName())
+                .eventLastAdjustedAt(timeline.lastAdjustedAt())
+                .eventLastAdjustedByName(timeline.lastAdjustedByName())
+                .upcomingScheduleCount(upcomingScheduleCount)
+                .build();
     }
 
     private AreaListItemResponse mapToAreaListItemResponse(Area area, boolean differsFromPreset) {
@@ -1214,29 +1214,29 @@ public class AreaService {
                 ? (int) eventScheduleRepository.countByAreaIdAndStatus(area.getId(), com.fa26se040.icss.enums.AreaEventScheduleStatus.SCHEDULED)
                 : 0;
 
-        return new AreaListItemResponse(
-                area.getId(),
-                area.getName(),
-                area.getAreaLevel(),
-                area.getAreaAccessLevel(),
-                area.getExplicitAuthorizationRequired(),
-                area.getBuilding(),
-                area.getFloor(),
-                area.getIsActive(),
-                area.getGeometry(),
-                area.getGeometry() != null,
-                differsFromPreset,
-                area.getCenterLatitude(),
-                area.getCenterLongitude(),
-                openToMembers,
-                openUntil,
-                eventActive,
-                timeline.startedAt(),
-                timeline.startedByName(),
-                timeline.lastAdjustedAt(),
-                timeline.lastAdjustedByName(),
-                upcomingScheduleCount
-        );
+        return AreaListItemResponse.builder()
+                .id(area.getId())
+                .name(area.getName())
+                .areaLevel(area.getAreaLevel())
+                .areaAccessLevel(area.getAreaAccessLevel())
+                .explicitAuthorizationRequired(area.getExplicitAuthorizationRequired())
+                .building(area.getBuilding())
+                .floor(area.getFloor())
+                .isActive(area.getIsActive())
+                .geometry(area.getGeometry())
+                .hasGeometry(area.getGeometry() != null)
+                .differsFromPreset(differsFromPreset)
+                .centerLatitude(area.getCenterLatitude())
+                .centerLongitude(area.getCenterLongitude())
+                .openToMembers(openToMembers)
+                .openUntil(openUntil)
+                .eventActive(eventActive)
+                .eventStartedAt(timeline.startedAt())
+                .eventStartedByName(timeline.startedByName())
+                .eventLastAdjustedAt(timeline.lastAdjustedAt())
+                .eventLastAdjustedByName(timeline.lastAdjustedByName())
+                .upcomingScheduleCount(upcomingScheduleCount)
+                .build();
     }
 
     /**

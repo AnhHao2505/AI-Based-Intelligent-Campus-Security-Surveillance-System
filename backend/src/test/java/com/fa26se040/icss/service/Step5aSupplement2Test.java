@@ -674,6 +674,8 @@ public class Step5aSupplement2Test extends AbstractIntegrationTest {
                         .name(newName)
                         .areaLevel(internalArea.getAreaLevel())
                         .floorId(testFloor.getId())
+                        .centerLatitude(10.8418)
+                        .centerLongitude(106.8100)
                         .build();
 
                 OffsetDateTime targetOpenUntil = now.plusHours(2);

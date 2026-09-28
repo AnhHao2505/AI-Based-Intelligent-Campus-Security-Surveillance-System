@@ -49,6 +49,9 @@ public abstract class Step5bTestSupport extends AbstractIntegrationTest {
     protected static final String TYPE_CHANGE_REASON = "Điều chỉnh loại khu vực theo quyết định an ninh";
     protected static final String ACCESS_RULES_REASON = "Điều chỉnh quy tắc truy cập theo yêu cầu khoa";
     protected static final String EVENT_NOTE = "Hội thảo khoa CNTT tổ chức tại khu vực";
+    /** Toạ độ hợp lệ gửi kèm mọi POST/PUT area (V59 bắt buộc), để 400 nếu có là do đúng BR đang kiểm. */
+    protected static final double CENTER_LAT = 10.8418;
+    protected static final double CENTER_LNG = 106.8100;
     protected static final DateTimeFormatter VN_TIME =
             DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy").withZone(ZoneId.of("Asia/Ho_Chi_Minh"));
 
@@ -372,6 +375,8 @@ public abstract class Step5bTestSupport extends AbstractIntegrationTest {
         body.put("building", area.getBuilding());
         body.put("floor", area.getFloor());
         body.put("floorId", floor.getId());
+        body.put("centerLatitude", CENTER_LAT);
+        body.put("centerLongitude", CENTER_LNG);
         if (reason != null) body.put("reason", reason);
         if (version != null) body.put("version", version);
         return body;

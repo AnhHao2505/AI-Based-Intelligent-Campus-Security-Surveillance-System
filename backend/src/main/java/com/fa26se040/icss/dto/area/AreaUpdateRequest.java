@@ -46,12 +46,4 @@ public class AreaUpdateRequest {
 
     // Step 5b (BR-TC-13): version của khu vực mà client đang xem
     private Long version;
-
-    public AreaUpdateRequest(String name, AreaLevel areaLevel, String building, String floor) {
-        this(name, areaLevel, building, floor, null, null, null, null, null);
-    }
-
-    public AreaUpdateRequest(String name, AreaLevel areaLevel, String building, String floor, UUID floorId) {
-        this(name, areaLevel, building, floor, floorId, null, null, null, null);
-    }
 }

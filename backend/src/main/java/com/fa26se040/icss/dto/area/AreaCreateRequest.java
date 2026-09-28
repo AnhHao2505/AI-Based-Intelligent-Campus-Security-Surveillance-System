@@ -40,8 +40,4 @@ public class AreaCreateRequest {
     @jakarta.validation.constraints.DecimalMin(value = "-180.0", message = "Kinh độ phải từ -180 đến 180")
     @jakarta.validation.constraints.DecimalMax(value = "180.0", message = "Kinh độ phải từ -180 đến 180")
     private Double centerLongitude;
-
-    public AreaCreateRequest(String name, AreaLevel areaLevel, String building, String floor) {
-        this(name, areaLevel, building, floor, null, null, null);
-    }
 }

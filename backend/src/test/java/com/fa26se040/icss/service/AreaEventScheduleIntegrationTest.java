@@ -788,13 +788,15 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         assertTrue(exDeact.getMessage().contains("Liên hệ quản lý cơ sở vật chất để huỷ lịch trước."));
 
         // 2. Đổi sang HIGHLY_CONFIDENTIAL -> ERR_AREA_042 (409)
-        AreaUpdateRequest updateReq = new AreaUpdateRequest(
-                internalArea.getName(),
-                AreaLevel.HIGHLY_CONFIDENTIAL,
-                testBuilding.getCode(),
-                testFloor.getFloorCode(),
-                testFloor.getId()
-        );
+        AreaUpdateRequest updateReq = AreaUpdateRequest.builder()
+                .name(internalArea.getName())
+                .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
+                .building(testBuilding.getCode())
+                .floor(testFloor.getFloorCode())
+                .floorId(testFloor.getId())
+                .centerLatitude(10.8418)
+                .centerLongitude(106.8100)
+                .build();
         AreaException exUpdate = assertThrows(AreaException.class, () ->
                 areaService.update(internalArea.getId(), updateReq, adminUser.getEmail())
         );

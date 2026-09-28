@@ -334,6 +334,8 @@ public class Step5bVersionTest extends Step5bTestSupport {
                                     .building(area.getBuilding())
                                     .floor(area.getFloor())
                                     .floorId(floor.getId())
+                                    .centerLatitude(CENTER_LAT)
+                                    .centerLongitude(CENTER_LNG)
                                     .version(version)
                                     .build(), admin.getEmail());
                             success.incrementAndGet();

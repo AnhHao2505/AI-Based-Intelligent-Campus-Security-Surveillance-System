@@ -178,6 +178,8 @@ class D6PartCTest {
                 .name("Room 101")
                 .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
                 .floorId(testFloor.getId())
+                .centerLatitude(10.8418)
+                .centerLongitude(106.8100)
                 .build();
 
         when(areaValidator.validateAndNormalizeName("Room 101")).thenReturn("Room 101");
@@ -211,6 +213,8 @@ class D6PartCTest {
                 .name("Room 101 Updated")
                 .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
                 .floorId(testFloor.getId())
+                .centerLatitude(10.8418)
+                .centerLongitude(106.8100)
                 .build();
 
         when(areaRepository.findByIdWithLock(testArea.getId())).thenReturn(Optional.of(testArea));
