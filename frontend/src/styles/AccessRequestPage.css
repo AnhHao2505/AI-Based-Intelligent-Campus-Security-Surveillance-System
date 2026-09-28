@@ -973,3 +973,20 @@
   display: flex;
   justify-content: flex-end;
 }
+
+/* BR-TC-15 (Step 5b): đơn bị hệ thống huỷ hiện nguồn + lý do; người dùng tự huỷ giữ như cũ */
+.arp-cancel-system {
+  margin-top: 4px;
+  max-width: 260px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--theme-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.arp-cancel-system--detail {
+  max-width: none;
+  white-space: normal;
+}

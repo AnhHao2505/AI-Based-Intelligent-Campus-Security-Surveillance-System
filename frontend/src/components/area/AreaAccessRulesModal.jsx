@@ -67,11 +67,14 @@ export default function AreaAccessRulesModal({
 
 	// Step 5b (BR-TC-13): version khu vực gửi kèm mọi lần lưu; cập nhật theo response và sau thao tác lịch
 	const [areaVersion, setAreaVersion] = useState(null);
+	// Q6: khoá ô nhập + nút lưu cho tới khi tải xong khu vực mới nhất (tránh gõ rồi bị form tải lại ghi đè)
+	const [loadingArea, setLoadingArea] = useState(false);
 
 	// Mở modal: tải lại khu vực để form và version là dữ liệu mới nhất (không dùng bản có thể đã cũ của danh sách)
 	useEffect(() => {
 		if (!isOpen || !area?.id) return;
 		let alive = true;
+		setLoadingArea(true);
 		getAreaById(area.id)
 			.then((res) => {
 				if (!alive) return;
@@ -81,9 +84,13 @@ export default function AreaAccessRulesModal({
 					onSuccess?.(fresh);
 				}
 			})
-			.catch((err) => console.error("Lỗi khi tải khu vực lúc mở modal quy tắc:", err));
+			.catch((err) => console.error("Lỗi khi tải khu vực lúc mở modal quy tắc:", err))
+			.finally(() => {
+				if (alive) setLoadingArea(false);
+			});
 		return () => {
 			alive = false;
+			setLoadingArea(false);
 		};
 	}, [isOpen, area?.id, onSuccess]);
 
@@ -198,6 +205,7 @@ export default function AreaAccessRulesModal({
 
 	const handleSubmit = async (e) => {
 		e?.preventDefault();
+		if (loadingArea) return;
 		setError(null);
 
 		if (!rulesChanged && !eventModeChanged) {
@@ -345,7 +353,7 @@ export default function AreaAccessRulesModal({
 				variant="primary"
 				onClick={handleSubmit}
 				loading={saving}
-				disabled={saving || (rulesChanged && reason.trim().length < 10)}
+				disabled={saving || loadingArea || (rulesChanged && reason.trim().length < 10)}
 				icon={ShieldCheck}
 				type="button"
 			>
@@ -369,6 +377,12 @@ export default function AreaAccessRulesModal({
 				onSubmit={handleSubmit}
 				className="access-rules-form"
 			>
+				{loadingArea && (
+					<div className="access-rules-loading" role="status">
+						Đang tải dữ liệu mới nhất của khu vực…
+					</div>
+				)}
+				<fieldset className="access-rules-fieldset" disabled={loadingArea}>
 				{error && (
 					<div className="access-rules-alert access-rules-alert--error">
 						<AlertCircle size={16} />
@@ -805,6 +819,7 @@ export default function AreaAccessRulesModal({
 						</div>
 					</div>
 				)}
+				</fieldset>
 			</form>
 		</Modal>
 	);

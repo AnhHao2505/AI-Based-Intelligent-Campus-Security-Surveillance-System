@@ -455,6 +455,11 @@ export default function AccessRequestReviewPage() {
                         {req.status === 'CANCELLED' && 'Đã huỷ'}
                         {req.status === 'EXPIRED' && 'Hết hạn'}
                       </span>
+                      {req.status === 'CANCELLED' && req.cancelSource === 'SYSTEM' && (
+                        <div className="arr-cancel-system" title={req.cancelReason || ''}>
+                          Huỷ bởi hệ thống: {req.cancelReason}
+                        </div>
+                      )}
                     </td>
 
                     {/* Created At */}
@@ -694,6 +699,11 @@ export default function AccessRequestReviewPage() {
                       {detailItem.status === 'CANCELLED' && 'Đã huỷ'}
                       {detailItem.status === 'EXPIRED' && 'Hết hạn'}
                     </span>
+                    {detailItem.status === 'CANCELLED' && detailItem.cancelSource === 'SYSTEM' && (
+                      <div className="arr-cancel-system arr-cancel-system--detail">
+                        Huỷ bởi hệ thống: {detailItem.cancelReason}
+                      </div>
+                    )}
                   </div>
                 </div>
 

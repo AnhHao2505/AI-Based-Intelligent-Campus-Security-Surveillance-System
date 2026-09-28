@@ -1098,6 +1098,11 @@ export default function AccessRequestPage() {
 															</>
 														)}
 													</span>
+													{req.status === "CANCELLED" && req.cancelSource === "SYSTEM" && (
+														<div className="arp-cancel-system" title={req.cancelReason || ""}>
+															Huỷ bởi hệ thống: {req.cancelReason}
+														</div>
+													)}
 												</td>
 												<td
 													style={{
@@ -1372,6 +1377,11 @@ export default function AccessRequestPage() {
 												</>
 											)}
 										</span>
+										{selectedDetail.status === "CANCELLED" && selectedDetail.cancelSource === "SYSTEM" && (
+											<div className="arp-cancel-system arp-cancel-system--detail">
+												Huỷ bởi hệ thống: {selectedDetail.cancelReason}
+											</div>
+										)}
 									</div>
 								</div>
 
