@@ -671,6 +671,7 @@ public class AreaService {
             area.setAreaAccessLevel(evaluation.newAccessLevel());
             area.setExplicitAuthorizationRequired(evaluation.newExplicitAuthorizationRequired());
         }
+        boolean changed = !AreaRowState.of(area).values().equals(before.values());
         bumpVersionIfChanged(area, before);
 
         // Mọi audit của thao tác (CHANGE_TYPE + huỷ đơn của hệ thống) dùng chung một correlation
@@ -681,33 +682,35 @@ public class AreaService {
         try {
             Area savedArea = areaRepository.saveAndFlush(area);
             User actor = actorEmail != null ? userRepository.findByEmail(actorEmail).orElse(null) : null;
-            if (typeChange) {
-                auditService.record(
-                        AuditTargetType.AREA,
-                        AuditAction.CHANGE_TYPE,
-                        savedArea.getId().toString(),
-                        savedArea,
-                        null,
-                        beforeSnapshot,
-                        AreaSnapshot.from(savedArea),
-                        reason,
-                        actor
-                );
-                List<com.fa26se040.icss.entity.AccessRequest> cancelled =
-                        cancelRequestsBySystem(savedArea, evaluation.allToCancel(), now);
-                notifyAfterTypeChange(savedArea, evaluation.currentLevel(), evaluation.newLevel(), reason, cancelled);
-            } else {
-                auditService.record(
-                        AuditTargetType.AREA,
-                        AuditAction.UPDATE,
-                        savedArea.getId().toString(),
-                        savedArea,
-                        null,
-                        beforeSnapshot,
-                        AreaSnapshot.from(savedArea),
-                        reason,
-                        actor
-                );
+            if (changed) {
+                if (typeChange) {
+                    auditService.record(
+                            AuditTargetType.AREA,
+                            AuditAction.CHANGE_TYPE,
+                            savedArea.getId().toString(),
+                            savedArea,
+                            null,
+                            beforeSnapshot,
+                            AreaSnapshot.from(savedArea),
+                            reason,
+                            actor
+                    );
+                    List<com.fa26se040.icss.entity.AccessRequest> cancelled =
+                            cancelRequestsBySystem(savedArea, evaluation.allToCancel(), now);
+                    notifyAfterTypeChange(savedArea, evaluation.currentLevel(), evaluation.newLevel(), reason, cancelled);
+                } else {
+                    auditService.record(
+                            AuditTargetType.AREA,
+                            AuditAction.UPDATE,
+                            savedArea.getId().toString(),
+                            savedArea,
+                            null,
+                            beforeSnapshot,
+                            AreaSnapshot.from(savedArea),
+                            reason,
+                            actor
+                    );
+                }
             }
             return mapToAreaResponse(savedArea);
         } catch (DataIntegrityViolationException ex) {
@@ -751,21 +754,24 @@ public class AreaService {
         AreaGeometrySnapshot beforeSnapshot = AreaGeometrySnapshot.from(area.getGeometry());
 
         area.setGeometry(geometry);
+        boolean changed = !AreaRowState.of(area).values().equals(before.values());
         bumpVersionIfChanged(area, before);
 
         Area savedArea = areaRepository.save(area);
         User actor = actorEmail != null ? userRepository.findByEmail(actorEmail).orElse(null) : null;
-        auditService.record(
-                AuditTargetType.AREA,
-                AuditAction.UPDATE_GEOMETRY,
-                savedArea.getId().toString(),
-                savedArea,
-                null,
-                beforeSnapshot,
-                AreaGeometrySnapshot.from(savedArea.getGeometry()),
-                null,
-                actor
-        );
+        if (changed) {
+            auditService.record(
+                    AuditTargetType.AREA,
+                    AuditAction.UPDATE_GEOMETRY,
+                    savedArea.getId().toString(),
+                    savedArea,
+                    null,
+                    beforeSnapshot,
+                    AreaGeometrySnapshot.from(savedArea.getGeometry()),
+                    null,
+                    actor
+            );
+        }
         return new AreaGeometryResponse(
                 savedArea.getId(),
                 savedArea.getName(),
