@@ -555,3 +555,30 @@
   color: var(--theme-text-muted);
   font-size: 13px;
 }
+
+/* --------------------------------------------------------------------------
+   UI-B B4: chống chồng nhãn + panel chi tiết gọn khi chưa chọn khu vực
+   -------------------------------------------------------------------------- */
+.campus-map-viewport--compact .campus-zone-pin:not(.campus-zone-pin--selected):not(:hover) {
+  padding: 4px;
+  gap: 0;
+}
+
+.campus-map-viewport--compact .campus-zone-pin:not(.campus-zone-pin--selected):not(:hover) .campus-zone-pin__label {
+  display: none;
+}
+
+.campus-map-viewport--compact .campus-zone-pin:hover {
+  z-index: 2;
+  position: relative;
+}
+
+.campus-rail-card--detail-empty {
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
+.campus-rail-card--detail-empty .campus-detail-empty {
+  height: auto;
+  padding: 16px;
+}

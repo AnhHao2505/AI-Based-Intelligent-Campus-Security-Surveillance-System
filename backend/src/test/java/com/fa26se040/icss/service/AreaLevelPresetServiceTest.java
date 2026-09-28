@@ -45,7 +45,7 @@ class AreaLevelPresetServiceTest {
     private UserRepository userRepository;
 
     @Mock
-    private AccessControlAuditService auditService;
+    private com.fa26se040.icss.service.AuditService auditService;
 
     @InjectMocks
     private AreaLevelPresetService presetService;
@@ -125,17 +125,17 @@ class AreaLevelPresetServiceTest {
         LevelPresetUpdateRequest req = new LevelPresetUpdateRequest(2, true, "Tăng cường bảo vệ sảnh", 0L);
         presetService.updatePreset(AreaLevel.PUBLIC, req, "fm@fpt.edu.vn");
 
-        org.mockito.ArgumentCaptor<com.fa26se040.icss.enums.AccessControlTargetType> targetTypeCaptor =
-                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.enums.AccessControlTargetType.class);
-        org.mockito.ArgumentCaptor<com.fa26se040.icss.enums.AccessControlAction> actionCaptor =
-                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.enums.AccessControlAction.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.enums.AuditTargetType> targetTypeCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.enums.AuditTargetType.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.enums.AuditAction> actionCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.enums.AuditAction.class);
         org.mockito.ArgumentCaptor<String> targetIdCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
         org.mockito.ArgumentCaptor<Area> areaCaptor = org.mockito.ArgumentCaptor.forClass(Area.class);
         org.mockito.ArgumentCaptor<User> userCaptor = org.mockito.ArgumentCaptor.forClass(User.class);
-        org.mockito.ArgumentCaptor<com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot> oldSnapshotCaptor =
-                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot.class);
-        org.mockito.ArgumentCaptor<com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot> newSnapshotCaptor =
-                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.dto.accesscontrol.snapshot.AuditSnapshot> oldSnapshotCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.dto.accesscontrol.snapshot.AuditSnapshot.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.dto.accesscontrol.snapshot.AuditSnapshot> newSnapshotCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.dto.accesscontrol.snapshot.AuditSnapshot.class);
         org.mockito.ArgumentCaptor<String> reasonCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
         org.mockito.ArgumentCaptor<User> actorCaptor = org.mockito.ArgumentCaptor.forClass(User.class);
 
@@ -151,8 +151,8 @@ class AreaLevelPresetServiceTest {
                 actorCaptor.capture()
         );
 
-        assertEquals(com.fa26se040.icss.enums.AccessControlTargetType.LEVEL_PRESET, targetTypeCaptor.getValue());
-        assertEquals(com.fa26se040.icss.enums.AccessControlAction.UPDATE, actionCaptor.getValue());
+        assertEquals(com.fa26se040.icss.enums.AuditTargetType.LEVEL_PRESET, targetTypeCaptor.getValue());
+        assertEquals(com.fa26se040.icss.enums.AuditAction.UPDATE, actionCaptor.getValue());
         assertEquals("PUBLIC", targetIdCaptor.getValue());
         org.junit.jupiter.api.Assertions.assertNull(areaCaptor.getValue());
         org.junit.jupiter.api.Assertions.assertNull(userCaptor.getValue());
@@ -186,7 +186,7 @@ class AreaLevelPresetServiceTest {
 
         assertEquals(AccessControlErrorCode.ERR_AC_003, ex.getErrorCode());
         verify(presetRepository, never()).save(any());
-        verify(auditService, never()).record(any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(auditService, never()).record(any(), any(), any(), any(), any(), any(), any(), any(), any(User.class));
     }
 
     @Test
@@ -204,7 +204,7 @@ class AreaLevelPresetServiceTest {
         assertFalse(resp.explicitAuthorizationRequired());
 
         verify(presetRepository, never()).save(any());
-        verify(auditService, never()).record(any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(auditService, never()).record(any(), any(), any(), any(), any(), any(), any(), any(), any(User.class));
     }
 
     @Test

@@ -50,6 +50,9 @@ public class SystemConfigurationChangeLog {
     @Column(name = "changed_at", nullable = false)
     private OffsetDateTime changedAt;
 
+    @Column(name = "reason", length = 500)
+    private String reason;
+
     @PrePersist
     protected void onCreate() {
         if (changedAt == null) {

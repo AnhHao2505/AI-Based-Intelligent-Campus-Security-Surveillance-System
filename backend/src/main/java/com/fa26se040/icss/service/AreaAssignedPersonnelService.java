@@ -40,7 +40,7 @@ public class AreaAssignedPersonnelService {
     private final AreaAssignedPersonnelRepository assignedPersonnelRepository;
     private final AreaRepository areaRepository;
     private final UserRepository userRepository;
-    private final AccessControlAuditService auditService;
+    private final AuditService auditService;
 
     @Transactional(readOnly = true)
     public List<AssignedPersonnelResponse> getByArea(UUID areaId, AssignedPersonnelStatus status) {
@@ -108,8 +108,8 @@ public class AreaAssignedPersonnelService {
                         computeStatus(saved, now)
                 );
         auditService.record(
-                com.fa26se040.icss.enums.AccessControlTargetType.AREA_ASSIGNMENT,
-                com.fa26se040.icss.enums.AccessControlAction.ASSIGN,
+                com.fa26se040.icss.enums.AuditTargetType.AREA_ASSIGNMENT,
+                com.fa26se040.icss.enums.AuditAction.ASSIGN,
                 saved.getId().toString(),
                 area,
                 user,
@@ -170,8 +170,8 @@ public class AreaAssignedPersonnelService {
                         computeStatus(saved, now)
                 );
         auditService.record(
-                com.fa26se040.icss.enums.AccessControlTargetType.AREA_ASSIGNMENT,
-                com.fa26se040.icss.enums.AccessControlAction.UPDATE_VALIDITY,
+                com.fa26se040.icss.enums.AuditTargetType.AREA_ASSIGNMENT,
+                com.fa26se040.icss.enums.AuditAction.UPDATE_VALIDITY,
                 saved.getId().toString(),
                 saved.getArea(),
                 saved.getUser(),
@@ -226,8 +226,8 @@ public class AreaAssignedPersonnelService {
                         AssignedPersonnelStatus.REVOKED
                 );
         auditService.record(
-                com.fa26se040.icss.enums.AccessControlTargetType.AREA_ASSIGNMENT,
-                com.fa26se040.icss.enums.AccessControlAction.REVOKE,
+                com.fa26se040.icss.enums.AuditTargetType.AREA_ASSIGNMENT,
+                com.fa26se040.icss.enums.AuditAction.REVOKE,
                 saved.getId().toString(),
                 saved.getArea(),
                 saved.getUser(),

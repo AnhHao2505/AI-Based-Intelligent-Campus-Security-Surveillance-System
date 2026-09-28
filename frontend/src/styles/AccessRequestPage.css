@@ -4,10 +4,13 @@
    ========================================================================== */
 
 .arp-container {
-  max-width: 1060px;
-  margin: 0 auto;
-  padding: 24px;
   animation: arpFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  /* UI-1 A4: khuôn trang dùng chung */
+  width: 100%;
+  max-width: var(--page-max-width);
+  margin: 0 auto;
+  padding: var(--page-padding-y) var(--page-padding-x);
+  box-sizing: border-box;
 }
 
 @keyframes arpFadeIn {
@@ -432,8 +435,8 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-  color: #ffffff;
+  background: var(--action-primary-bg);
+  color: var(--action-primary-text);
   font-weight: 600;
   padding: 10px 22px;
   border-radius: 8px;
@@ -441,20 +444,28 @@
   cursor: pointer;
   font-size: 13.5px;
   font-family: inherit;
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+  box-shadow: 0 1px 2px var(--brand-glow);
   transition: all 0.2s ease;
 }
 
 .arp-btn-submit:hover:not(:disabled) {
-  opacity: 0.94;
-  transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.45);
+  background: var(--action-primary-bg-hover);
+  box-shadow: 0 4px 10px var(--brand-glow);
+}
+
+.arp-btn-submit:focus-visible {
+  outline: 2px solid var(--focus-ring-color);
+  outline-offset: 2px;
 }
 
 .arp-btn-submit:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  background: var(--action-disabled-bg);
+  color: var(--action-disabled-text);
   box-shadow: none;
+  filter: none;
+  transform: none;
+  opacity: 1;
+  cursor: not-allowed;
 }
 
 .arp-link-btn {
@@ -604,15 +615,9 @@
 }
 
 .arp-table th {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--theme-text-muted, #94a3b8);
   background: var(--theme-bg-surface-elevated, rgba(15, 23, 42, 0.5));
   padding: 12px 16px;
   border-bottom: 1px solid var(--theme-border, rgba(255, 255, 255, 0.08));
-  font-weight: 600;
-  white-space: nowrap;
 }
 
 .arp-table td {

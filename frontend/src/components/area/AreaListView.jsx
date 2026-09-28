@@ -7,9 +7,26 @@ import {
 	ShieldCheck,
 	Users,
 	Pencil,
-	Trash2,
+	Ban,
 } from "lucide-react";
-import { getLevelConfig, AREA_LEVEL_CONFIG } from "../../utils/areaHelpers";
+import { getLevelConfig, getAccessLevelConfig, AREA_LEVEL_CONFIG } from "../../utils/areaHelpers";
+
+const formatEventUntil = (openUntil) => {
+	if (!openUntil) return "";
+	const d = new Date(openUntil);
+	const timeStr = d.toLocaleTimeString("vi-VN", {
+		hour: "2-digit",
+		minute: "2-digit",
+	});
+	const today = new Date();
+	const isToday =
+		d.getDate() === today.getDate() &&
+		d.getMonth() === today.getMonth() &&
+		d.getFullYear() === today.getFullYear();
+	return isToday
+		? timeStr
+		: `${timeStr} (${d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" })})`;
+};
 
 export default function AreaListView({
 	floorAreas,
@@ -73,10 +90,10 @@ export default function AreaListView({
 											{levelConfig.badgeLabel}
 										</span>
 										<span
-											className="zone-card__pill-level"
+											className={getAccessLevelConfig(area.areaAccessLevel).className}
 											title="Cấp độ người dùng tối thiểu để vào tự do"
 										>
-											Level {area.areaAccessLevel ?? 1}
+											{getAccessLevelConfig(area.areaAccessLevel).label}
 										</span>
 										{area.explicitAuthorizationRequired && (
 											<span
@@ -90,6 +107,14 @@ export default function AreaListView({
 											<span
 												className="zone-card__pill-differs"
 												title="Quy tắc truy cập của khu vực này khác với giá trị mặc định của loại khu vực"
+											>
+												Khác mặc định
+											</span>
+										)}
+										{area.eventActive && area.openUntil && (
+											<span
+												className="zone-card__pill-event"
+												title={`Chế độ sự kiện đang mở đến ${formatEventUntil(area.openUntil)}`}
 												style={{
 													display: "inline-flex",
 													alignItems: "center",
@@ -97,12 +122,20 @@ export default function AreaListView({
 													borderRadius: "12px",
 													fontSize: "11px",
 													fontWeight: 600,
-													background: "rgba(234, 88, 12, 0.12)",
-													color: "var(--theme-warning, #ea580c)",
-													border: "1px solid rgba(234, 88, 12, 0.3)",
+													background: "rgba(147, 51, 234, 0.12)",
+													color: "#9333ea",
+													border: "1px solid rgba(147, 51, 234, 0.3)",
 												}}
 											>
-												Khác mặc định
+												Đang mở sự kiện đến {formatEventUntil(area.openUntil)}
+											</span>
+										)}
+										{area.upcomingScheduleCount > 0 && (
+											<span
+												className="zone-card__pill-schedule"
+												title="Số lịch sự kiện đã đặt, chưa bắt đầu"
+											>
+												{area.upcomingScheduleCount} lịch sự kiện
 											</span>
 										)}
 									</div>
@@ -147,6 +180,7 @@ export default function AreaListView({
 												onOpenCamerasModal(area);
 											}}
 											title="Xem danh sách Camera"
+											aria-label="Xem danh sách Camera"
 										>
 											<Cctv size={13} />
 										</button>
@@ -160,6 +194,7 @@ export default function AreaListView({
 													onOpenAccessRulesModal(area);
 												}}
 												title="Cấu hình quy tắc truy cập"
+												aria-label="Cấu hình quy tắc truy cập"
 											>
 												<ShieldCheck size={13} />
 											</button>
@@ -174,6 +209,7 @@ export default function AreaListView({
 													onOpenAssignedPersonnelModal(area);
 												}}
 												title="Danh sách nhân viên chỉ định"
+												aria-label="Danh sách nhân viên chỉ định"
 											>
 												<Users size={13} />
 											</button>
@@ -190,6 +226,7 @@ export default function AreaListView({
 														onOpenEditModal(area);
 													}}
 													title="Sửa khu vực"
+													aria-label="Sửa khu vực"
 												>
 													<Pencil size={13} />
 												</button>
@@ -202,8 +239,9 @@ export default function AreaListView({
 														onOpenDeactivateModal(area);
 													}}
 													title="Vô hiệu hoá"
+													aria-label="Vô hiệu hoá"
 												>
-													<Trash2 size={13} />
+													<Ban size={13} />
 												</button>
 											</>
 										)}
@@ -250,7 +288,7 @@ export default function AreaListView({
 
 						const hasLevel = preset && preset.areaAccessLevel != null;
 						const levelLabel = hasLevel
-							? `Level ${preset.areaAccessLevel}${preset.explicitAuthorizationRequired ? " · Chỉ định" : "+"}`
+							? `${getAccessLevelConfig(preset.areaAccessLevel).label}${preset.explicitAuthorizationRequired ? " · Chỉ định" : "+"}`
 							: null;
 
 						let explicitTag = null;
@@ -322,7 +360,7 @@ export default function AreaListView({
 							style={{ display: "inline", margin: "0 2px" }}
 						/>
 						) hiển thị trên thẻ của mọi phòng trừ loại{" "}
-						<strong>{AREA_LEVEL_CONFIG.PUBLIC.name} (PUBLIC)</strong> để cấp quyền ra vào cho nhân
+						<strong>{AREA_LEVEL_CONFIG.PUBLIC.name}</strong> để cấp quyền ra vào cho nhân
 						sự.
 					</span>
 				</div>

@@ -65,6 +65,13 @@ public class Area {
     @Builder.Default
     private Boolean explicitAuthorizationRequired = true;
 
+    @Column(name = "open_to_members", nullable = false)
+    @Builder.Default
+    private Boolean openToMembers = false;
+
+    @Column(name = "open_until")
+    private OffsetDateTime openUntil;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "floor_id")
     private Floor floorEntity;
@@ -127,6 +134,11 @@ public class Area {
         if (o == null || getClass() != o.getClass()) return false;
         Area area = (Area) o;
         return id != null && Objects.equals(id, area.id);
+    }
+
+    public boolean isEventActive(OffsetDateTime at) {
+        if (at == null) return false;
+        return Boolean.TRUE.equals(openToMembers) && openUntil != null && at.isBefore(openUntil);
     }
 
     @Override

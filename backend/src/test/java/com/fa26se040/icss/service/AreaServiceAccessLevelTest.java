@@ -60,7 +60,7 @@ class AreaServiceAccessLevelTest {
     private AreaGeometryValidator geometryValidator;
 
     @Mock
-    private AccessControlAuditService auditService;
+    private com.fa26se040.icss.service.AuditService auditService;
 
     @Mock
     private FloorRepository floorRepository;
@@ -203,7 +203,7 @@ class AreaServiceAccessLevelTest {
                 "Tầng 1"
         );
 
-        when(areaRepository.findByIdAndDeletedAtIsNull(areaId)).thenReturn(Optional.of(existing));
+        when(areaRepository.findByIdWithLock(areaId)).thenReturn(Optional.of(existing));
         when(areaValidator.validateAndNormalizeName(updateReq.getName())).thenReturn(updateReq.getName());
         when(userRepository.findByEmail(adminEmail)).thenReturn(Optional.of(admin));
         when(areaRepository.saveAndFlush(any(Area.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -229,7 +229,7 @@ class AreaServiceAccessLevelTest {
                 .isActive(true)
                 .build();
 
-        when(areaRepository.findById(areaId)).thenReturn(Optional.of(existing));
+        when(areaRepository.findByIdWithLock(areaId)).thenReturn(Optional.of(existing));
         when(userRepository.findByEmail(fmEmail)).thenReturn(Optional.of(fm));
         when(areaRepository.save(any(Area.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -254,24 +254,24 @@ class AreaServiceAccessLevelTest {
                 .isActive(true)
                 .build();
 
-        when(areaRepository.findById(areaId)).thenReturn(Optional.of(existing));
+        when(areaRepository.findByIdWithLock(areaId)).thenReturn(Optional.of(existing));
         when(userRepository.findByEmail(fmEmail)).thenReturn(Optional.of(fm));
         when(areaRepository.save(any(Area.class))).thenAnswer(inv -> inv.getArgument(0));
 
         AreaAccessRulesUpdateRequest req = new AreaAccessRulesUpdateRequest(1, true, "Cập nhật quyền vào phòng");
         areaService.updateAccessRules(areaId, req, fmEmail);
 
-        org.mockito.ArgumentCaptor<com.fa26se040.icss.enums.AccessControlTargetType> targetTypeCaptor =
-                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.enums.AccessControlTargetType.class);
-        org.mockito.ArgumentCaptor<com.fa26se040.icss.enums.AccessControlAction> actionCaptor =
-                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.enums.AccessControlAction.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.enums.AuditTargetType> targetTypeCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.enums.AuditTargetType.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.enums.AuditAction> actionCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.enums.AuditAction.class);
         org.mockito.ArgumentCaptor<String> targetIdCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
         org.mockito.ArgumentCaptor<Area> areaCaptor = org.mockito.ArgumentCaptor.forClass(Area.class);
         org.mockito.ArgumentCaptor<User> userCaptor = org.mockito.ArgumentCaptor.forClass(User.class);
-        org.mockito.ArgumentCaptor<com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot> oldSnapshotCaptor =
-                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot.class);
-        org.mockito.ArgumentCaptor<com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot> newSnapshotCaptor =
-                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.dto.accesscontrol.snapshot.AuditSnapshot> oldSnapshotCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.dto.accesscontrol.snapshot.AuditSnapshot.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.dto.accesscontrol.snapshot.AuditSnapshot> newSnapshotCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.dto.accesscontrol.snapshot.AuditSnapshot.class);
         org.mockito.ArgumentCaptor<String> reasonCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
         org.mockito.ArgumentCaptor<User> actorCaptor = org.mockito.ArgumentCaptor.forClass(User.class);
 
@@ -287,8 +287,8 @@ class AreaServiceAccessLevelTest {
                 actorCaptor.capture()
         );
 
-        assertEquals(com.fa26se040.icss.enums.AccessControlTargetType.AREA_ACCESS_RULES, targetTypeCaptor.getValue());
-        assertEquals(com.fa26se040.icss.enums.AccessControlAction.UPDATE, actionCaptor.getValue());
+        assertEquals(com.fa26se040.icss.enums.AuditTargetType.AREA_ACCESS_RULES, targetTypeCaptor.getValue());
+        assertEquals(com.fa26se040.icss.enums.AuditAction.UPDATE, actionCaptor.getValue());
         assertEquals(areaId.toString(), targetIdCaptor.getValue());
         assertEquals(existing, areaCaptor.getValue());
         org.junit.jupiter.api.Assertions.assertNull(userCaptor.getValue());
@@ -311,7 +311,7 @@ class AreaServiceAccessLevelTest {
                 .isActive(true)
                 .build();
 
-        when(areaRepository.findById(areaId)).thenReturn(Optional.of(existing));
+        when(areaRepository.findByIdWithLock(areaId)).thenReturn(Optional.of(existing));
 
         AreaAccessRulesUpdateRequest req = new AreaAccessRulesUpdateRequest(2, false, "Không đổi gì cả");
         AreaResponse resp = areaService.updateAccessRules(areaId, req, fmEmail);
@@ -321,7 +321,7 @@ class AreaServiceAccessLevelTest {
         assertFalse(resp.explicitAuthorizationRequired());
 
         verify(areaRepository, org.mockito.Mockito.never()).save(any(Area.class));
-        verify(auditService, org.mockito.Mockito.never()).record(any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(auditService, org.mockito.Mockito.never()).record(any(), any(), any(), any(), any(), any(), any(), any(), any(User.class));
     }
 
     @Test
@@ -334,7 +334,7 @@ class AreaServiceAccessLevelTest {
                 .isActive(false)
                 .build();
 
-        when(areaRepository.findById(areaId)).thenReturn(Optional.of(inactiveArea));
+        when(areaRepository.findByIdWithLock(areaId)).thenReturn(Optional.of(inactiveArea));
 
         AreaAccessRulesUpdateRequest req = new AreaAccessRulesUpdateRequest(2, false, "Cập nhật");
         AreaException ex = assertThrows(AreaException.class, () -> areaService.updateAccessRules(areaId, req, adminEmail));
@@ -347,7 +347,7 @@ class AreaServiceAccessLevelTest {
                 .isActive(true)
                 .deletedAt(OffsetDateTime.now())
                 .build();
-        when(areaRepository.findById(areaId)).thenReturn(Optional.of(deletedArea));
+        when(areaRepository.findByIdWithLock(areaId)).thenReturn(Optional.of(deletedArea));
         AreaException exDel = assertThrows(AreaException.class, () -> areaService.updateAccessRules(areaId, req, adminEmail));
         assertEquals(AreaErrorCode.ERR_AREA_017, exDel.getErrorCode());
     }

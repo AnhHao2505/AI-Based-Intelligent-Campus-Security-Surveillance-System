@@ -1,7 +1,7 @@
 package com.fa26se040.icss.entity;
 
-import com.fa26se040.icss.enums.AccessControlAction;
-import com.fa26se040.icss.enums.AccessControlTargetType;
+import com.fa26se040.icss.enums.AuditAction;
+import com.fa26se040.icss.enums.AuditTargetType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -11,6 +11,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinColumns;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
@@ -19,7 +20,6 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import com.fasterxml.jackson.databind.JsonNode;
 import org.hibernate.annotations.Immutable;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -29,14 +29,14 @@ import java.util.Objects;
 import java.util.UUID;
 
 @Entity
-@Table(name = "access_control_audit_logs")
+@Table(name = "audit_logs")
 @Immutable
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class AccessControlAuditLog {
+public class AuditLog {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -44,41 +44,57 @@ public class AccessControlAuditLog {
     private UUID id;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "target_type", length = 30, nullable = false, updatable = false)
-    private AccessControlTargetType targetType;
+    @Column(name = "target_type", length = 30, nullable = false)
+    private AuditTargetType targetType;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "action", length = 30, nullable = false, updatable = false)
-    private AccessControlAction action;
+    @Column(name = "action", length = 30, nullable = false)
+    private AuditAction action;
 
-    @Column(name = "target_id", length = 100, nullable = false, updatable = false)
+    @Column(name = "target_id", length = 100, nullable = false)
     private String targetId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "area_id", updatable = false)
+    @JoinColumn(name = "area_id")
     private Area area;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "subject_user_id", updatable = false)
+    @JoinColumn(name = "subject_user_id")
     private User subjectUser;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "old_value", columnDefinition = "jsonb", updatable = false)
-    private JsonNode oldValue;
+    @Column(name = "old_value", columnDefinition = "jsonb")
+    private String oldValue;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "new_value", columnDefinition = "jsonb", updatable = false)
-    private JsonNode newValue;
+    @Column(name = "new_value", columnDefinition = "jsonb")
+    private String newValue;
 
-    @Column(name = "reason", length = 500, updatable = false)
+    @Column(name = "reason", length = 500)
     private String reason;
 
+    @Column(name = "actor_type", length = 10, nullable = false)
+    private String actorType; // "USER" or "SYSTEM"
+
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "changed_by", nullable = false, updatable = false)
+    @JoinColumn(name = "changed_by")
     private User changedBy;
 
-    @Column(name = "changed_at", nullable = false, updatable = false)
+    @Column(name = "actor_source", length = 100)
+    private String actorSource;
+
+    @Column(name = "correlation_id", nullable = false)
+    private UUID correlationId;
+
+    @Column(name = "changed_at", nullable = false)
     private OffsetDateTime changedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumns({
+            @JoinColumn(name = "target_type", referencedColumnName = "target_type", insertable = false, updatable = false),
+            @JoinColumn(name = "action", referencedColumnName = "action", insertable = false, updatable = false)
+    })
+    private AuditEventType eventType;
 
     @PrePersist
     protected void onCreate() {
@@ -91,7 +107,7 @@ public class AccessControlAuditLog {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        AccessControlAuditLog that = (AccessControlAuditLog) o;
+        AuditLog that = (AuditLog) o;
         return Objects.equals(id, that.id);
     }
 

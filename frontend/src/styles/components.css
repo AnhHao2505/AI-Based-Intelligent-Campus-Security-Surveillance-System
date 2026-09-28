@@ -1,0 +1,144 @@
+/* ==========================================================================
+   components.css — Thành phần hiển thị dùng chung toàn app (UI-1)
+   Chỉ dùng token trong theme.css; đúng cả light và dark.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Badge loại khu vực (A2) — lớp lấy từ AREA_LEVEL_CONFIG[...].badgeClass
+   Tương phản chữ/nền >= 6.3:1 ở cả hai mode (xem bảng đo trong báo cáo UI-1)
+   -------------------------------------------------------------------------- */
+.level-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.level-badge--public {
+  background: var(--area-type-public-bg);
+  border-color: var(--area-type-public-border);
+  color: var(--area-type-public-text);
+}
+
+.level-badge--internal,
+.level-badge--internal_confidential {
+  background: var(--area-type-internal-bg);
+  border-color: var(--area-type-internal-border);
+  color: var(--area-type-internal-text);
+}
+
+.level-badge--contact,
+.level-badge--confidential_contact_required {
+  background: var(--area-type-contact-bg);
+  border-color: var(--area-type-contact-border);
+  color: var(--area-type-contact-text);
+}
+
+.level-badge--private,
+.level-badge--highly_confidential {
+  background: var(--area-type-private-bg);
+  border-color: var(--area-type-private-border);
+  color: var(--area-type-private-text);
+}
+
+.level-badge--unknown {
+  background: var(--theme-bg-surface-elevated);
+  border-color: var(--theme-border);
+  color: var(--theme-text-secondary);
+}
+
+/* --------------------------------------------------------------------------
+   Badge cấp truy cập 1/2/3 (A3) — lớp lấy từ getAccessLevelConfig(level).className
+   Một thang màu tím duy nhất cho mọi trang
+   -------------------------------------------------------------------------- */
+.access-level-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.access-level-badge--1 {
+  background: var(--access-level-1-bg);
+  border-color: var(--access-level-1-border);
+  color: var(--access-level-1-text);
+}
+
+.access-level-badge--2 {
+  background: var(--access-level-2-bg);
+  border-color: var(--access-level-2-border);
+  color: var(--access-level-2-text);
+}
+
+.access-level-badge--3 {
+  background: var(--access-level-3-bg);
+  border-color: var(--access-level-3-border);
+  color: var(--access-level-3-text);
+}
+
+/* --------------------------------------------------------------------------
+   Khuôn trang (A4): mọi trang dùng cùng độ rộng tối đa và lề qua token
+   --page-max-width / --page-padding-* (theme.css)
+   -------------------------------------------------------------------------- */
+@media (max-width: 768px) {
+  :root {
+    --page-padding-x: 16px;
+    --page-padding-y: 16px;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Bảng (A5): MỘT kiểu header cho mọi bảng — chữ hoa 11px (theo UI kit ui-table)
+   Padding/nền do từng bảng tự quyết; chữ header chỉ định nghĩa ở đây.
+   -------------------------------------------------------------------------- */
+.ui-table__th,
+.ahp-table th,
+.arr-table th,
+.arp-table th,
+.account-table th,
+.syscfg-history-table th,
+.access-level-table thead th,
+.reason-table th {
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--theme-text-muted);
+  white-space: nowrap;
+}
+
+/* Cột thời gian: đủ rộng để "HH:mm dd/MM/yyyy" nằm trên một dòng */
+.ui-col-time {
+  min-width: 132px;
+}
+
+/* Cột khoảng thời gian: tối đa 2 dòng ("từ" / "đến") */
+.ui-col-time-range {
+  min-width: 180px;
+}
+
+/* Pill / badge trạng thái không xuống dòng */
+.ui-badge,
+.arr-badge,
+.arp-badge,
+.audit-badge,
+.account-badge,
+.access-level-role-pill,
+.preset-explicit-badge {
+  white-space: nowrap;
+}

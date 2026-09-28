@@ -49,6 +49,9 @@ class AreaServiceGeometryTest {
     @Mock
     private FloorRepository floorRepository;
 
+    @Mock
+    private AuditService auditService;
+
     @InjectMocks
     private AreaService areaService;
 
@@ -87,7 +90,7 @@ class AreaServiceGeometryTest {
                 ))
                 .build();
 
-        when(areaRepository.findByIdAndDeletedAtIsNull(areaId)).thenReturn(Optional.of(area));
+        when(areaRepository.findByIdWithLock(areaId)).thenReturn(Optional.of(area));
         when(areaRepository.findByBuildingIgnoreCaseAndFloorIgnoreCaseAndDeletedAtIsNull("FPT_AROUND", "G"))
                 .thenReturn(Collections.emptyList());
         when(userRepository.findByEmail("admin@campus.com")).thenReturn(Optional.of(user));

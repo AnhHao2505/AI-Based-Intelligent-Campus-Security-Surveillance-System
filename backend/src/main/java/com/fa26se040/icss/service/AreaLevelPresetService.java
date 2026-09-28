@@ -5,9 +5,9 @@ import com.fa26se040.icss.dto.accesscontrol.LevelPresetUpdateRequest;
 import com.fa26se040.icss.dto.accesscontrol.snapshot.LevelPresetAuditSnapshot;
 import com.fa26se040.icss.entity.AreaLevelPreset;
 import com.fa26se040.icss.entity.User;
-import com.fa26se040.icss.enums.AccessControlAction;
-import com.fa26se040.icss.enums.AccessControlTargetType;
 import com.fa26se040.icss.enums.AreaLevel;
+import com.fa26se040.icss.enums.AuditAction;
+import com.fa26se040.icss.enums.AuditTargetType;
 import com.fa26se040.icss.exception.AccessControlErrorCode;
 import com.fa26se040.icss.exception.AccessControlException;
 import com.fa26se040.icss.exception.UnauthorizedException;
@@ -29,7 +29,7 @@ import java.util.Objects;
 public class AreaLevelPresetService {
 
     private final AreaLevelPresetRepository areaLevelPresetRepository;
-    private final AccessControlAuditService auditService;
+    private final AuditService auditService;
     private final UserRepository userRepository;
 
     @Transactional(readOnly = true)
@@ -79,8 +79,8 @@ public class AreaLevelPresetService {
 
         // BR-AL-01: Ghi log trong cùng transaction
         auditService.record(
-                AccessControlTargetType.LEVEL_PRESET,
-                AccessControlAction.UPDATE,
+                AuditTargetType.LEVEL_PRESET,
+                AuditAction.UPDATE,
                 areaLevel.name(),
                 null,
                 null,

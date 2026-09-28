@@ -3,6 +3,7 @@ import { Search, Loader2, X } from 'lucide-react';
 import { searchUsers } from '../../services/userService';
 import { ROLE_LABELS } from '../../constants/roles';
 import './UserSearchCombobox.css';
+import { getAccessLevelConfig } from '../../utils/areaHelpers';
 
 export default function UserSearchCombobox({
   onSelect,
@@ -110,8 +111,8 @@ export default function UserSearchCombobox({
             <span className={`user-combobox__role-pill role--${selectedUser.role}`}>
               {ROLE_LABELS[selectedUser.role] || selectedUser.role}
             </span>
-            <span className="user-combobox__level-pill">
-              Level {selectedUser.accessLevel ?? 1}
+            <span className={getAccessLevelConfig(selectedUser.accessLevel).className}>
+              {getAccessLevelConfig(selectedUser.accessLevel).label}
             </span>
           </div>
           {!disabled && onClear && (
@@ -203,8 +204,8 @@ export default function UserSearchCombobox({
                       <span className={`user-combobox__role-pill role--${u.role}`}>
                         {ROLE_LABELS[u.role] || u.role}
                       </span>
-                      <span className="user-combobox__level-pill">
-                        Level {u.accessLevel ?? 1}
+                      <span className={getAccessLevelConfig(u.accessLevel).className}>
+                        {getAccessLevelConfig(u.accessLevel).label}
                       </span>
                     </div>
                   </li>

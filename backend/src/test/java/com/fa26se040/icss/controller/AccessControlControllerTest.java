@@ -1,14 +1,15 @@
 package com.fa26se040.icss.controller;
 
-import com.fa26se040.icss.dto.accesscontrol.AccessControlAuditLogResponse;
+import com.fa26se040.icss.dto.accesscontrol.AuditLogResponse;
 import com.fa26se040.icss.dto.accesscontrol.LevelPresetResponse;
 import com.fa26se040.icss.dto.accesscontrol.LevelPresetUpdateRequest;
-import com.fa26se040.icss.enums.AccessControlTargetType;
+import com.fa26se040.icss.enums.AuditAction;
+import com.fa26se040.icss.enums.AuditTargetType;
 import com.fa26se040.icss.enums.AreaLevel;
 import com.fa26se040.icss.exception.AccessControlErrorCode;
 import com.fa26se040.icss.exception.AccessControlException;
 import com.fa26se040.icss.exception.GlobalExceptionHandler;
-import com.fa26se040.icss.service.AccessControlAuditService;
+import com.fa26se040.icss.service.AuditService;
 import com.fa26se040.icss.service.AreaLevelPresetService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,7 +46,7 @@ class AccessControlControllerTest {
     private AreaLevelPresetService presetService;
 
     @Mock
-    private AccessControlAuditService auditService;
+    private AuditService auditService;
 
     @InjectMocks
     private AccessControlController controller;
@@ -72,9 +73,9 @@ class AccessControlControllerTest {
 
         mockMvc.perform(get("/api/access-control/level-presets"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(2))
-                .andExpect(jsonPath("$[0].areaLevel").value("PUBLIC"))
-                .andExpect(jsonPath("$[1].areaLevel").value("HIGHLY_CONFIDENTIAL"));
+                .andExpect(jsonPath("$.data.length()").value(2))
+                .andExpect(jsonPath("$.data[0].areaLevel").value("PUBLIC"))
+                .andExpect(jsonPath("$.data[1].areaLevel").value("HIGHLY_CONFIDENTIAL"));
     }
 
     @Test
@@ -89,8 +90,8 @@ class AccessControlControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.areaAccessLevel").value(2))
-                .andExpect(jsonPath("$.explicitAuthorizationRequired").value(true));
+                .andExpect(jsonPath("$.data.areaAccessLevel").value(2))
+                .andExpect(jsonPath("$.data.explicitAuthorizationRequired").value(true));
     }
 
     @Test
@@ -147,7 +148,7 @@ class AccessControlControllerTest {
     @Test
     @DisplayName("PATCH /api/access-control/level-presets/{areaType} với version xung đột -> 409 Conflict")
     void updateLevelPreset_VersionConflict_Returns409() throws Exception {
-        LevelPresetUpdateRequest req = new LevelPresetUpdateRequest(2, true, "Lý do", 0L);
+        LevelPresetUpdateRequest req = new LevelPresetUpdateRequest(2, true, "Điều chỉnh theo quy định mới", 0L);
         when(presetService.updatePreset(eq(AreaLevel.PUBLIC), any(), any()))
                 .thenThrow(new AccessControlException(AccessControlErrorCode.ERR_AC_003));
 
@@ -161,10 +162,11 @@ class AccessControlControllerTest {
     @Test
     @DisplayName("GET /api/access-control/audit-logs -> 200 OK với danh sách phân trang")
     void getAuditLogs_Returns200() throws Exception {
-        AccessControlAuditLogResponse logResp = new AccessControlAuditLogResponse(
+        AuditLogResponse logResp = new AuditLogResponse(
                 UUID.randomUUID(),
-                AccessControlTargetType.USER_ACCESS_LEVEL,
-                com.fa26se040.icss.enums.AccessControlAction.UPDATE,
+                AuditTargetType.USER_ACCESS_LEVEL,
+                AuditAction.UPDATE,
+                "ACCESS_CONTROL",
                 UUID.randomUUID().toString(),
                 null,
                 null,
@@ -174,18 +176,21 @@ class AccessControlControllerTest {
                 null,
                 null,
                 "Lý do",
+                "USER",
                 UUID.randomUUID(),
                 "FM",
                 "FM01",
+                null,
+                UUID.randomUUID(),
                 OffsetDateTime.now()
         );
-        Page<AccessControlAuditLogResponse> page = new PageImpl<>(List.of(logResp), PageRequest.of(0, 10), 1);
-        when(auditService.getAuditLogs(eq(AccessControlTargetType.USER_ACCESS_LEVEL), any(), any(), any(), any(), any(), any())).thenReturn(page);
+        Page<AuditLogResponse> page = new PageImpl<>(List.of(logResp), PageRequest.of(0, 10), 1);
+        when(auditService.getAuditLogs(any(), any(), eq(AuditTargetType.USER_ACCESS_LEVEL), any(), any(), any(), any(), any(), any(), any())).thenReturn(page);
 
         mockMvc.perform(get("/api/access-control/audit-logs")
                         .param("targetType", "USER_ACCESS_LEVEL"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content.length()").value(1))
-                .andExpect(jsonPath("$.content[0].targetType").value("USER_ACCESS_LEVEL"));
+                .andExpect(jsonPath("$.data.content.length()").value(1))
+                .andExpect(jsonPath("$.data.content[0].targetType").value("USER_ACCESS_LEVEL"));
     }
 }

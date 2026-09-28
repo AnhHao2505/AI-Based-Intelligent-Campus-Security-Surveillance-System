@@ -73,7 +73,7 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
     private AreaService areaService;
 
     @SpyBean
-    private AccessControlAuditService auditService;
+    private AuditService auditService;
 
     private Floor getOrCreateTestFloor() {
         Building b = buildingRepository.findByCodeIgnoreCase("TOA_ALPHA")
@@ -84,7 +84,7 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     @Transactional
-    @DisplayName("E.3: Trigger trg_access_control_audit_logs_append_only chặn UPDATE trên bảng audit log")
+    @DisplayName("E.3: Trigger trg_audit_logs_append_only chặn UPDATE trên bảng audit log")
     void testAppendOnlyTrigger_BlocksUpdate() {
         String uniqueSuffix = UUID.randomUUID().toString().substring(0, 8);
         User actor = User.builder()
@@ -97,15 +97,16 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
         actor = userRepository.save(actor);
 
         UUID logId = UUID.randomUUID();
+        UUID correlationId = UUID.randomUUID();
         entityManager.createNativeQuery(
-                "INSERT INTO access_control_audit_logs (id, target_type, target_id, action, changed_by, reason, changed_at) " +
-                        "VALUES (:id, 'LEVEL_PRESET', 'PUBLIC', 'UPDATE', :changedBy, 'Initial reason', NOW())"
-        ).setParameter("id", logId).setParameter("changedBy", actor.getId()).executeUpdate();
+                "INSERT INTO audit_logs (id, target_type, target_id, action, changed_by, reason, changed_at, actor_type, correlation_id) " +
+                        "VALUES (:id, 'LEVEL_PRESET', 'PUBLIC', 'UPDATE', :changedBy, 'Initial reason', NOW(), 'USER', :correlationId)"
+        ).setParameter("id", logId).setParameter("changedBy", actor.getId()).setParameter("correlationId", correlationId).executeUpdate();
         entityManager.flush();
 
         PersistenceException ex = assertThrows(PersistenceException.class, () -> {
             entityManager.createNativeQuery(
-                    "UPDATE access_control_audit_logs SET reason = 'Tampered reason' WHERE id = :id"
+                    "UPDATE audit_logs SET reason = 'Tampered reason' WHERE id = :id"
             ).setParameter("id", logId).executeUpdate();
             entityManager.flush();
         });
@@ -116,7 +117,7 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     @Transactional
-    @DisplayName("E.3: Trigger trg_access_control_audit_logs_append_only chặn DELETE trên bảng audit log")
+    @DisplayName("E.3: Trigger trg_audit_logs_append_only chặn DELETE trên bảng audit log")
     void testAppendOnlyTrigger_BlocksDelete() {
         String uniqueSuffix = UUID.randomUUID().toString().substring(0, 8);
         User actor = User.builder()
@@ -129,15 +130,16 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
         actor = userRepository.save(actor);
 
         UUID logId = UUID.randomUUID();
+        UUID correlationId = UUID.randomUUID();
         entityManager.createNativeQuery(
-                "INSERT INTO access_control_audit_logs (id, target_type, target_id, action, changed_by, reason, changed_at) " +
-                        "VALUES (:id, 'LEVEL_PRESET', 'PUBLIC', 'UPDATE', :changedBy, 'Initial reason', NOW())"
-        ).setParameter("id", logId).setParameter("changedBy", actor.getId()).executeUpdate();
+                "INSERT INTO audit_logs (id, target_type, target_id, action, changed_by, reason, changed_at, actor_type, correlation_id) " +
+                        "VALUES (:id, 'LEVEL_PRESET', 'PUBLIC', 'UPDATE', :changedBy, 'Initial reason', NOW(), 'USER', :correlationId)"
+        ).setParameter("id", logId).setParameter("changedBy", actor.getId()).setParameter("correlationId", correlationId).executeUpdate();
         entityManager.flush();
 
         PersistenceException ex = assertThrows(PersistenceException.class, () -> {
             entityManager.createNativeQuery(
-                    "DELETE FROM access_control_audit_logs WHERE id = :id"
+                    "DELETE FROM audit_logs WHERE id = :id"
             ).setParameter("id", logId).executeUpdate();
             entityManager.flush();
         });
@@ -175,7 +177,7 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
         try {
             // Giả lập lỗi khi ghi audit log
             doThrow(new RuntimeException("Simulated audit log write failure"))
-                    .when(auditService).record(any(), any(), any(), any(), any(), any(), any(), any(), any());
+                    .when(auditService).record(any(com.fa26se040.icss.enums.AuditTargetType.class), any(com.fa26se040.icss.enums.AuditAction.class), any(), org.mockito.ArgumentMatchers.nullable(Area.class), any(User.class), any(), any(), any(), any(User.class));
 
             assertThrows(RuntimeException.class, () -> {
                 userService.updateAccessLevel(targetId, 3, "Lý do cập nhật", fmEmail);
@@ -296,9 +298,9 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
         assertEquals(1, refreshedArea.getAreaAccessLevel(), "Area access level trong DB phải giữ nguyên là 1");
         assertFalse(refreshedArea.getExplicitAuthorizationRequired(), "explicitAuthorizationRequired phải giữ nguyên là false");
 
-        // Kiểm tra trên PostgreSQL thật: không có bản ghi nào được ghi vào access_control_audit_logs bởi actor này
+        // Kiểm tra trên PostgreSQL thật: không có bản ghi nào được ghi vào audit_logs bởi actor này
         Number auditCount = (Number) entityManager.createNativeQuery(
-                "SELECT COUNT(*) FROM access_control_audit_logs WHERE changed_by = :actorId"
+                "SELECT COUNT(*) FROM audit_logs WHERE changed_by = :actorId"
         ).setParameter("actorId", fmActor.getId()).getSingleResult();
         assertEquals(0, auditCount.intValue(), "Không có bản ghi audit log nào được ghi vào DB khi request bị từ chối");
     }
@@ -320,7 +322,7 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(get("/api/access-control/audit-logs")
                         .header("Authorization", token))
                 .andExpect(status().isOk())
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.content").isArray());
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.content").isArray());
     }
 
     @Test
@@ -359,7 +361,7 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
                         .param("from", "2026-01-01T00:00:00Z")
                         .param("to", "2026-12-31T23:59:59Z"))
                 .andExpect(status().isOk())
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.content").isArray());
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.content").isArray());
     }
 
     @Test
@@ -413,7 +415,7 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
 
         com.fasterxml.jackson.databind.JsonNode rootNode = new com.fasterxml.jackson.databind.ObjectMapper()
                 .readTree(result.getResponse().getContentAsString());
-        UUID apId = UUID.fromString(rootNode.get("id").asText());
+        UUID apId = UUID.fromString((rootNode.has("data") ? rootNode.get("data") : rootNode).get("id").asText());
 
         // 1. Kiểm tra trực tiếp trên bảng nghiệp vụ area_assigned_personnel
         Object noteObj = entityManager.createNativeQuery(
@@ -421,20 +423,20 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
         ).setParameter("id", apId).getSingleResult();
         assertEquals("Trực phòng ban", noteObj);
 
-        // 2. Kiểm tra trực tiếp trên bảng access_control_audit_logs (1 dòng mới)
+        // 2. Kiểm tra trực tiếp trên bảng audit_logs (1 dòng mới)
         Number count = (Number) entityManager.createNativeQuery(
-                "SELECT COUNT(*) FROM access_control_audit_logs WHERE target_id = :targetId AND action = 'ASSIGN'"
+                "SELECT COUNT(*) FROM audit_logs WHERE target_id = :targetId AND action = 'ASSIGN'"
         ).setParameter("targetId", apId.toString()).getSingleResult();
         assertEquals(1, count.intValue());
 
         // 3. Kiểm tra SQL trực tiếp trên cột jsonb: old_value IS NULL, new_value->>'status' = 'ACTIVE'
         Object oldValObj = entityManager.createNativeQuery(
-                "SELECT old_value FROM access_control_audit_logs WHERE target_id = :targetId AND action = 'ASSIGN'"
+                "SELECT old_value FROM audit_logs WHERE target_id = :targetId AND action = 'ASSIGN'"
         ).setParameter("targetId", apId.toString()).getSingleResult();
         assertNull(oldValObj, "Gán mới thì old_value trong DB phải là NULL");
 
         String statusInJson = (String) entityManager.createNativeQuery(
-                "SELECT new_value ->> 'status' FROM access_control_audit_logs WHERE target_id = :targetId AND action = 'ASSIGN'"
+                "SELECT new_value ->> 'status' FROM audit_logs WHERE target_id = :targetId AND action = 'ASSIGN'"
         ).setParameter("targetId", apId.toString()).getSingleResult();
         assertEquals("ACTIVE", statusInJson);
     }
@@ -483,8 +485,9 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
                         .content(String.format("{\"userId\": \"%s\", \"reason\": \"Gán để sửa\"}", targetUser.getId())))
                 .andExpect(status().isCreated())
                 .andReturn();
-        UUID apId = UUID.fromString(new com.fasterxml.jackson.databind.ObjectMapper()
-                .readTree(createRes.getResponse().getContentAsString()).get("id").asText());
+        com.fasterxml.jackson.databind.JsonNode createNode1 = new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(createRes.getResponse().getContentAsString());
+        UUID apId = UUID.fromString((createNode1.has("data") ? createNode1.get("data") : createNode1).get("id").asText());
 
         // Sửa hạn
         String updateJson = "{\"validTo\": \"2027-10-01T12:00:00Z\", \"reason\": \"Gia hạn công tác\"}";
@@ -496,12 +499,12 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
 
         // Kiểm tra log có action = UPDATE_VALIDITY
         Number count = (Number) entityManager.createNativeQuery(
-                "SELECT COUNT(*) FROM access_control_audit_logs WHERE target_id = :targetId AND action = 'UPDATE_VALIDITY'"
+                "SELECT COUNT(*) FROM audit_logs WHERE target_id = :targetId AND action = 'UPDATE_VALIDITY'"
         ).setParameter("targetId", apId.toString()).getSingleResult();
         assertEquals(1, count.intValue());
 
         String validToInJson = (String) entityManager.createNativeQuery(
-                "SELECT new_value ->> 'validTo' FROM access_control_audit_logs WHERE target_id = :targetId AND action = 'UPDATE_VALIDITY'"
+                "SELECT new_value ->> 'validTo' FROM audit_logs WHERE target_id = :targetId AND action = 'UPDATE_VALIDITY'"
         ).setParameter("targetId", apId.toString()).getSingleResult();
         assertNotNull(validToInJson);
         assertTrue(validToInJson.contains("2027-10-01"));
@@ -551,8 +554,9 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
                         .content(String.format("{\"userId\": \"%s\", \"reason\": \"Gán để thu hồi\"}", targetUser.getId())))
                 .andExpect(status().isCreated())
                 .andReturn();
-        UUID apId = UUID.fromString(new com.fasterxml.jackson.databind.ObjectMapper()
-                .readTree(createRes.getResponse().getContentAsString()).get("id").asText());
+        com.fasterxml.jackson.databind.JsonNode createNode2 = new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(createRes.getResponse().getContentAsString());
+        UUID apId = UUID.fromString((createNode2.has("data") ? createNode2.get("data") : createNode2).get("id").asText());
 
         // Thu hồi
         String revokeJson = "{\"reason\": \"Chuyển công tác khác phòng\"}";
@@ -570,12 +574,12 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
 
         // 2. Kiểm tra log có action = REVOKE
         Number count = (Number) entityManager.createNativeQuery(
-                "SELECT COUNT(*) FROM access_control_audit_logs WHERE target_id = :targetId AND action = 'REVOKE'"
+                "SELECT COUNT(*) FROM audit_logs WHERE target_id = :targetId AND action = 'REVOKE'"
         ).setParameter("targetId", apId.toString()).getSingleResult();
         assertEquals(1, count.intValue());
 
         String statusInJson = (String) entityManager.createNativeQuery(
-                "SELECT new_value ->> 'status' FROM access_control_audit_logs WHERE target_id = :targetId AND action = 'REVOKE'"
+                "SELECT new_value ->> 'status' FROM audit_logs WHERE target_id = :targetId AND action = 'REVOKE'"
         ).setParameter("targetId", apId.toString()).getSingleResult();
         assertEquals("REVOKED", statusInJson);
     }
@@ -619,16 +623,16 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
 
         // 2. Kiểm tra log
         Number count = (Number) entityManager.createNativeQuery(
-                "SELECT COUNT(*) FROM access_control_audit_logs WHERE target_id = :targetId AND target_type = 'USER_ACCESS_LEVEL'"
+                "SELECT COUNT(*) FROM audit_logs WHERE target_id = :targetId AND target_type = 'USER_ACCESS_LEVEL'"
         ).setParameter("targetId", targetUser.getId().toString()).getSingleResult();
         assertEquals(1, count.intValue());
 
         // 3. Kiểm tra jsonb: old = 1, new = 3
         String oldLvl = (String) entityManager.createNativeQuery(
-                "SELECT old_value ->> 'accessLevel' FROM access_control_audit_logs WHERE target_id = :targetId AND target_type = 'USER_ACCESS_LEVEL'"
+                "SELECT old_value ->> 'accessLevel' FROM audit_logs WHERE target_id = :targetId AND target_type = 'USER_ACCESS_LEVEL'"
         ).setParameter("targetId", targetUser.getId().toString()).getSingleResult();
         String newLvl = (String) entityManager.createNativeQuery(
-                "SELECT new_value ->> 'accessLevel' FROM access_control_audit_logs WHERE target_id = :targetId AND target_type = 'USER_ACCESS_LEVEL'"
+                "SELECT new_value ->> 'accessLevel' FROM audit_logs WHERE target_id = :targetId AND target_type = 'USER_ACCESS_LEVEL'"
         ).setParameter("targetId", targetUser.getId().toString()).getSingleResult();
         assertEquals("1", oldLvl);
         assertEquals("3", newLvl);
@@ -677,16 +681,16 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
 
         // 2. Kiểm tra log
         Number count = (Number) entityManager.createNativeQuery(
-                "SELECT COUNT(*) FROM access_control_audit_logs WHERE target_id = :targetId AND target_type = 'AREA_ACCESS_RULES'"
+                "SELECT COUNT(*) FROM audit_logs WHERE target_id = :targetId AND target_type = 'AREA_ACCESS_RULES'"
         ).setParameter("targetId", testArea.getId().toString()).getSingleResult();
         assertEquals(1, count.intValue());
 
         // 3. Kiểm tra jsonb
         String newLevel = (String) entityManager.createNativeQuery(
-                "SELECT new_value ->> 'areaAccessLevel' FROM access_control_audit_logs WHERE target_id = :targetId AND target_type = 'AREA_ACCESS_RULES'"
+                "SELECT new_value ->> 'areaAccessLevel' FROM audit_logs WHERE target_id = :targetId AND target_type = 'AREA_ACCESS_RULES'"
         ).setParameter("targetId", testArea.getId().toString()).getSingleResult();
         String newExplicit = (String) entityManager.createNativeQuery(
-                "SELECT new_value ->> 'explicitAuthorizationRequired' FROM access_control_audit_logs WHERE target_id = :targetId AND target_type = 'AREA_ACCESS_RULES'"
+                "SELECT new_value ->> 'explicitAuthorizationRequired' FROM audit_logs WHERE target_id = :targetId AND target_type = 'AREA_ACCESS_RULES'"
         ).setParameter("targetId", testArea.getId().toString()).getSingleResult();
         assertEquals("3", newLevel);
         assertEquals("true", newExplicit);
@@ -739,13 +743,13 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
 
         // 2. Kiểm tra log có target_id = 'CONFIDENTIAL_CONTACT_REQUIRED'
         Number count = (Number) entityManager.createNativeQuery(
-                "SELECT COUNT(*) FROM access_control_audit_logs WHERE target_id = 'CONFIDENTIAL_CONTACT_REQUIRED' AND target_type = 'LEVEL_PRESET' AND reason = :reason"
+                "SELECT COUNT(*) FROM audit_logs WHERE target_id = 'CONFIDENTIAL_CONTACT_REQUIRED' AND target_type = 'LEVEL_PRESET' AND reason = :reason"
         ).setParameter("reason", reason).getSingleResult();
         assertEquals(1, count.intValue());
 
         // 3. Kiểm tra jsonb
         String explicitInJson = (String) entityManager.createNativeQuery(
-                "SELECT new_value ->> 'explicitAuthorizationRequired' FROM access_control_audit_logs WHERE target_id = 'CONFIDENTIAL_CONTACT_REQUIRED' AND target_type = 'LEVEL_PRESET' AND reason = :reason"
+                "SELECT new_value ->> 'explicitAuthorizationRequired' FROM audit_logs WHERE target_id = 'CONFIDENTIAL_CONTACT_REQUIRED' AND target_type = 'LEVEL_PRESET' AND reason = :reason"
         ).setParameter("reason", reason).getSingleResult();
         assertEquals(String.valueOf(targetExplicit), explicitInJson);
     }
@@ -787,9 +791,9 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
                         .param("targetType", "USER_ACCESS_LEVEL")
                         .param("subjectUserId", targetUser.getId().toString()))
                 .andExpect(status().isOk())
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.content[0].newValue").isMap())
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.content[0].newValue.accessLevel").value(2))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.content[0].oldValue").isMap())
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.content[0].oldValue.accessLevel").value(1));
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.content[0].newValue").isMap())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.content[0].newValue.accessLevel").value(2))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.content[0].oldValue").isMap())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.content[0].oldValue.accessLevel").value(1));
     }
 }

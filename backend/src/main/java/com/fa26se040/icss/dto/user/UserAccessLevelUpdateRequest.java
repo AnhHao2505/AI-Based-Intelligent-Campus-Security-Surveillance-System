@@ -12,8 +12,8 @@ public record UserAccessLevelUpdateRequest(
         @Max(value = 3, message = "Cấp độ truy cập phải từ 1 đến 3")
         Integer accessLevel,
 
-        @NotBlank(message = "Lý do cập nhật không được để trống")
-        @Size(max = 500, message = "Lý do cập nhật tối đa 500 ký tự")
+        @NotBlank(message = "Lý do không được để trống")
+        @Size(min = 10, max = 500, message = "Lý do phải có từ 10 đến 500 ký tự")
         String reason
 ) {
     public UserAccessLevelUpdateRequest(Integer accessLevel) {

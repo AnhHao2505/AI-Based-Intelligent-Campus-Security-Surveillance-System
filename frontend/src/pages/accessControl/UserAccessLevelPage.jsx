@@ -13,6 +13,7 @@ import {
   Edit3,
   Calendar,
   Filter,
+  Link,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../../context/AuthContext';
@@ -24,11 +25,24 @@ import {
   getAuditLogs,
 } from '../../services/accessControlService';
 import { ROLES, ROLE_LABELS } from '../../constants/roles';
-import { getLevelConfig, formatDisplayDateTime } from '../../utils/areaHelpers';
+import { getLevelConfig, getAccessLevelConfig, formatDisplayDateTime } from '../../utils/areaHelpers';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
+import PageHeader from '../../components/ui/PageHeader';
 import UserSearchCombobox from '../../components/user/UserSearchCombobox';
 import './UserAccessLevelPage.css';
+
+
+const SYSTEM_ACTOR_LABELS = {
+  EXPIRE_OVERDUE_REQUESTS_JOB: 'Tự động hết hạn đơn quá giờ',
+  EVENT_MODE_EXPIRY: 'Tự động kết thúc sự kiện hết hạn',
+  EVENT_SCHEDULE_ACTIVATION: 'Tự động kích hoạt lịch sự kiện',
+};
+
+const renderSystemActor = (source) => {
+  if (!source) return 'Hệ thống';
+  return SYSTEM_ACTOR_LABELS[source] ? `Hệ thống – ${SYSTEM_ACTOR_LABELS[source]}` : `Hệ thống – ${source}`;
+};
 
 const ACCESS_LEVELS = [
   { level: 1, name: 'Cấp 1 — Mọi người dùng' },
@@ -36,12 +50,36 @@ const ACCESS_LEVELS = [
   { level: 3, name: 'Cấp 3 — Cấp cao' },
 ];
 
+const MODULE_OPTIONS_ADMIN = [
+  { value: '', label: 'Tất cả phân hệ' },
+  { value: 'AREA', label: 'Khu vực' },
+  { value: 'ACCESS_CONTROL', label: 'Phân quyền' },
+  { value: 'ACCESS_REQUEST', label: 'Yêu cầu truy cập' },
+  { value: 'SYSTEM', label: 'Hệ thống' },
+];
+
+const MODULE_OPTIONS_FM = [
+  { value: '', label: 'Tất cả phân hệ' },
+  { value: 'AREA', label: 'Khu vực' },
+  { value: 'ACCESS_CONTROL', label: 'Phân quyền' },
+  { value: 'ACCESS_REQUEST', label: 'Yêu cầu truy cập' },
+];
+
 const TARGET_TYPE_OPTIONS = [
-  { value: '', label: 'Tất cả loại thao tác' },
+  { value: '', label: 'Tất cả loại đối tượng' },
   { value: 'USER_ACCESS_LEVEL', label: 'Cấp truy cập người dùng' },
   { value: 'AREA_ACCESS_RULES', label: 'Quy tắc truy cập khu vực' },
   { value: 'AREA_ASSIGNMENT', label: 'Phân công nhân sự khu vực' },
   { value: 'LEVEL_PRESET', label: 'Mặc định theo loại khu vực' },
+  { value: 'AREA_EVENT_MODE', label: 'Chế độ sự kiện' },
+  { value: 'AREA_EVENT_SCHEDULE', label: 'Lịch sự kiện' },
+  { value: 'REASON_CATALOG', label: 'Danh mục lý do' },
+  { value: 'AREA', label: 'Khu vực' },
+  { value: 'AREA_GEOMETRY', label: 'Tọa độ khu vực' },
+  { value: 'AREA_CAMERAS', label: 'Camera khu vực' },
+  { value: 'ACCESS_REQUEST', label: 'Yêu cầu truy cập' },
+  { value: 'SYSTEM_CONFIG', label: 'Cấu hình hệ thống' },
+  { value: 'SYSTEM', label: 'Hệ thống' },
 ];
 
 export default function UserAccessLevelPage() {
@@ -95,6 +133,8 @@ export default function UserAccessLevelPage() {
   const pageSize = 15;
 
   // Filter State
+  const [filterModule, setFilterModule] = useState('');
+  const [filterCorrelationId, setFilterCorrelationId] = useState('');
   const [filterTargetType, setFilterTargetType] = useState('');
   const [filterAreaId, setFilterAreaId] = useState('');
   const [filterFrom, setFilterFrom] = useState('');
@@ -181,11 +221,16 @@ export default function UserAccessLevelPage() {
 
   const handleConfirmSaveUserLevel = async () => {
     const { user, newLevel, reason } = confirmUserModal;
-    if (!reason || !reason.trim()) {
+    const trimmedReason = reason?.trim();
+    if (!trimmedReason) {
       toast.error('Vui lòng nhập lý do điều chỉnh cấp độ truy cập');
       return;
     }
-    if (reason.length > 500) {
+    if (trimmedReason.length < 10) {
+      toast.error('Lý do phải có từ 10 đến 500 ký tự');
+      return;
+    }
+    if (trimmedReason.length > 500) {
       toast.error('Lý do không được vượt quá 500 ký tự');
       return;
     }
@@ -221,7 +266,7 @@ export default function UserAccessLevelPage() {
     setLoadingPresets(true);
     try {
       const data = await getLevelPresets();
-      setPresets(data || []);
+      setPresets(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Lỗi tải danh sách cấu hình mặc định:', err);
       toast.error(err?.message || 'Không thể tải cấu hình mặc định');
@@ -243,11 +288,16 @@ export default function UserAccessLevelPage() {
 
   const handleSavePreset = async () => {
     const { preset, accessLevel, explicitAuthorizationRequired, reason } = editPresetModal;
-    if (!reason || !reason.trim()) {
+    const trimmedReason = reason?.trim();
+    if (!trimmedReason) {
       toast.error('Vui lòng nhập lý do thay đổi cấu hình mặc định');
       return;
     }
-    if (reason.length > 500) {
+    if (trimmedReason.length < 10) {
+      toast.error('Lý do phải có từ 10 đến 500 ký tự');
+      return;
+    }
+    if (trimmedReason.length > 500) {
       toast.error('Lý do không được vượt quá 500 ký tự');
       return;
     }
@@ -289,13 +339,16 @@ export default function UserAccessLevelPage() {
   // TAB 3 HANDLERS
   // ==========================================
   const loadAuditLogs = useCallback(
-    async (page = 0) => {
+    async (page = 0, overrideCorrelationId = undefined) => {
       setLoadingLogs(true);
       try {
+        const corrId = overrideCorrelationId !== undefined ? overrideCorrelationId : filterCorrelationId;
         const params = {
           page,
           size: pageSize,
         };
+        if (filterModule) params.module = filterModule;
+        if (corrId) params.correlationId = corrId;
         if (filterTargetType) params.targetType = filterTargetType;
         if (filterAreaId) params.areaId = filterAreaId;
         if (filterSubjectUser?.id) params.subjectUserId = filterSubjectUser.id;
@@ -310,13 +363,20 @@ export default function UserAccessLevelPage() {
         setCurrentPage(page);
       } catch (err) {
         console.error('Lỗi tải nhật ký thay đổi:', err);
-        toast.error(err?.message || 'Không thể tải nhật ký phân quyền');
+        const httpStatus = err?.status ?? err?.response?.status;
+        if (httpStatus === 403) {
+          toast.error('Bạn không có quyền xem nhật ký của phân hệ này');
+        } else {
+          toast.error(err?.message || 'Không thể tải nhật ký phân quyền');
+        }
         setLogs([]);
       } finally {
         setLoadingLogs(false);
       }
     },
     [
+      filterModule,
+      filterCorrelationId,
       filterTargetType,
       filterAreaId,
       filterSubjectUser,
@@ -327,7 +387,20 @@ export default function UserAccessLevelPage() {
     ]
   );
 
+  const handleFilterByCorrelation = (correlationId) => {
+    if (!correlationId) return;
+    setFilterCorrelationId(correlationId);
+    loadAuditLogs(0, correlationId);
+  };
+
+  const handleClearCorrelationFilter = () => {
+    setFilterCorrelationId('');
+    loadAuditLogs(0, '');
+  };
+
   const handleResetFilters = () => {
+    setFilterModule('');
+    setFilterCorrelationId('');
     setFilterTargetType('');
     setFilterAreaId('');
     setFilterFrom('');
@@ -375,6 +448,33 @@ export default function UserAccessLevelPage() {
     } else if (targetType === 'LEVEL_PRESET') {
       label = 'Mặc định loại';
       badgeClass = 'audit-type--preset';
+    } else if (targetType === 'AREA_EVENT_MODE') {
+      label = 'Chế độ sự kiện';
+      badgeClass = 'audit-type--event';
+    } else if (targetType === 'AREA_EVENT_SCHEDULE') {
+      label = 'Lịch sự kiện';
+      badgeClass = 'audit-type--event';
+    } else if (targetType === 'REASON_CATALOG') {
+      label = 'Danh mục lý do';
+      badgeClass = 'audit-type--catalog';
+    } else if (targetType === 'AREA') {
+      label = 'Khu vực';
+      badgeClass = 'audit-type--area';
+    } else if (targetType === 'AREA_GEOMETRY') {
+      label = 'Tọa độ khu vực';
+      badgeClass = 'audit-type--area';
+    } else if (targetType === 'AREA_CAMERAS') {
+      label = 'Camera khu vực';
+      badgeClass = 'audit-type--area';
+    } else if (targetType === 'ACCESS_REQUEST') {
+      label = 'Yêu cầu truy cập';
+      badgeClass = 'audit-type--request';
+    } else if (targetType === 'SYSTEM_CONFIG') {
+      label = 'Cấu hình hệ thống';
+      badgeClass = 'audit-type--system';
+    } else if (targetType === 'SYSTEM') {
+      label = 'Hệ thống';
+      badgeClass = 'audit-type--system';
     }
 
     let actionLabel = action;
@@ -382,6 +482,32 @@ export default function UserAccessLevelPage() {
     else if (action === 'ASSIGN') actionLabel = 'Gán mới';
     else if (action === 'UPDATE_VALIDITY') actionLabel = 'Gia hạn';
     else if (action === 'REVOKE') actionLabel = 'Thu hồi';
+    else if (action === 'ENABLE_EVENT_MODE') actionLabel = 'Bật chế độ sự kiện';
+    else if (action === 'DISABLE_EVENT_MODE') actionLabel = 'Tắt chế độ sự kiện';
+    else if (action === 'EXTEND_EVENT_MODE') actionLabel = 'Điều chỉnh giờ kết thúc';
+    else if (action === 'CREATE') actionLabel = 'Tạo mới';
+    else if (action === 'DEACTIVATE') actionLabel = 'Ngừng dùng';
+    else if (action === 'REACTIVATE') actionLabel = 'Dùng lại';
+    else if (action === 'UPDATE_RULES') actionLabel = 'Cập nhật quy tắc';
+    else if (action === 'UPDATE_PRESET') actionLabel = 'Cập nhật mặc định';
+    else if (action === 'UPDATE_GEOMETRY') actionLabel = 'Cập nhật tọa độ';
+    else if (action === 'DELETE_GEOMETRY') actionLabel = 'Xóa tọa độ';
+    else if (action === 'UPDATE_CAMERAS') actionLabel = 'Cập nhật camera';
+    else if (action === 'SUBMIT') actionLabel = 'Gửi yêu cầu';
+    else if (action === 'APPROVE') actionLabel = 'Phê duyệt';
+    else if (action === 'REJECT') actionLabel = 'Từ chối';
+    else if (action === 'CANCEL') actionLabel = 'Hủy bỏ';
+    else if (action === 'FINISH') actionLabel = 'Kết thúc';
+    else if (action === 'EXPIRE') actionLabel = 'Hết hạn';
+    else if (action === 'AUTO_EXPIRE') actionLabel = 'Tự động hết hạn';
+    else if (action === 'EXPIRE_EVENT_MODE') actionLabel = 'Sự kiện hết hạn';
+
+    if (targetType === 'AREA_EVENT_SCHEDULE') {
+      if (action === 'CREATE') actionLabel = 'Đặt lịch';
+      else if (action === 'UPDATE') actionLabel = 'Sửa lịch';
+      else if (action === 'CANCEL') actionLabel = 'Huỷ lịch';
+      else if (action === 'FAIL') actionLabel = 'Lịch thất bại';
+    }
 
     return (
       <div className="audit-target-col">
@@ -391,8 +517,144 @@ export default function UserAccessLevelPage() {
     );
   };
 
+  // Nhãn lý do theo danh mục (nếu snapshot có) — hiển thị ở cột Lý do, không lặp trong cột Nội dung
+  const getAuditReasonText = (log) => {
+    const { targetType, action, oldValue, newValue } = log;
+    let label = null;
+    if (targetType === 'AREA_EVENT_SCHEDULE') {
+      const snap = newValue || oldValue || {};
+      label = action === 'CANCEL' ? snap.cancelReasonLabel || snap.reasonLabel : snap.reasonLabel;
+    } else if (['ENABLE_EVENT_MODE', 'DISABLE_EVENT_MODE', 'EXTEND_EVENT_MODE'].includes(action)) {
+      label = newValue?.reasonLabel || oldValue?.reasonLabel;
+    }
+    if (label && log.reason && log.reason !== label) return `${label} – ${log.reason}`;
+    return log.reason || label || null;
+  };
+
   const renderAuditChange = (log) => {
     const { targetType, action, oldValue, newValue } = log;
+
+    // Phiên sự kiện hết hạn do hệ thống đóng (BR-ES-14/19): snapshot có plannedEnd
+    if (action === 'EXPIRE_EVENT_MODE') {
+      const plannedEnd = newValue?.plannedEnd || oldValue?.plannedEnd;
+      return (
+        <div className="audit-detail-rules">
+          <div className="audit-detail-row">
+            <span className="audit-row-label">Kết thúc dự kiến:</span>
+            <strong className="audit-val--new">{plannedEnd ? formatDisplayDateTime(plannedEnd) : '—'}</strong>
+          </div>
+        </div>
+      );
+    }
+
+    // Lịch sự kiện (U3b)
+    if (targetType === 'AREA_EVENT_SCHEDULE') {
+      const snap = newValue || oldValue || {};
+      const formatRange = (v) =>
+        v?.startAt || v?.endAt
+          ? `${v?.startAt ? formatDisplayDateTime(v.startAt) : '—'} → ${v?.endAt ? formatDisplayDateTime(v.endAt) : '—'}`
+          : '—';
+      const oldRange = formatRange(oldValue);
+      const newRange = formatRange(newValue);
+      // Nhật ký là lịch sử: hiển thị đúng status đã ghi, không đổi nhãn theo giờ xem
+      const statusLabels = {
+        SCHEDULED: 'Đã lên lịch',
+        STARTED: 'Đã bắt đầu',
+        CANCELLED: 'Đã huỷ',
+        FAILED: 'Thất bại',
+      };
+      const oldStatus = oldValue?.status;
+      const newStatus = newValue?.status;
+
+      return (
+        <div className="audit-detail-rules">
+          <div className="audit-detail-row">
+            <span className="audit-row-label">Thời gian:</span>
+            {oldValue && newValue && oldRange !== newRange ? (
+              <>
+                <span>{oldRange}</span>
+                <span className="audit-arrow">→</span>
+                <strong className="audit-val--new">{newRange}</strong>
+              </>
+            ) : (
+              <strong className="audit-val--new">{newValue ? newRange : oldRange}</strong>
+            )}
+          </div>
+          {(oldStatus || newStatus) && (
+            <div className="audit-detail-row">
+              <span className="audit-row-label">Trạng thái:</span>
+              {oldStatus && newStatus && oldStatus !== newStatus ? (
+                <>
+                  <span>{statusLabels[oldStatus] || oldStatus}</span>
+                  <span className="audit-arrow">→</span>
+                  <strong className="audit-val--new">{statusLabels[newStatus] || newStatus}</strong>
+                </>
+              ) : (
+                <strong className="audit-val--new">{statusLabels[newStatus || oldStatus] || newStatus || oldStatus}</strong>
+              )}
+            </div>
+          )}
+          {action === 'FAIL' && snap.failReason && (
+            <div className="audit-detail-row">
+              <span className="audit-row-label">Nguyên nhân:</span>
+              <span>{snap.failReason}</span>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Check ACTION first: Sự kiện (để dòng log cũ trên dev mang AREA_ACCESS_RULES + ENABLE/DISABLE_EVENT_MODE vẫn hiện đúng)
+    if (action === 'ENABLE_EVENT_MODE' || action === 'DISABLE_EVENT_MODE' || action === 'EXTEND_EVENT_MODE') {
+      const oldTime = oldValue?.openUntil ? formatDisplayDateTime(oldValue.openUntil) : '—';
+      const newTime = newValue?.openUntil ? formatDisplayDateTime(newValue.openUntil) : '—';
+
+      return (
+        <div className="audit-detail-rules">
+          <div className="audit-detail-row">
+            <span className="audit-row-label">Mở đến:</span>
+            <span>{oldTime}</span>
+            <span className="audit-arrow">→</span>
+            <strong className="audit-val--new">{newTime}</strong>
+          </div>
+        </div>
+      );
+    }
+
+    // Danh mục lý do
+    if (targetType === 'REASON_CATALOG') {
+      const code = newValue?.code || oldValue?.code || '—';
+      const oldLabel = oldValue?.label;
+      const newLabel = newValue?.label;
+      const isActive = newValue?.isActive !== undefined ? newValue.isActive : oldValue?.isActive;
+      const statusText = isActive ? 'Đang dùng' : 'Ngừng dùng';
+
+      return (
+        <div className="audit-detail-rules">
+          <div className="audit-detail-row">
+            <span className="audit-row-label">Mã:</span>
+            <strong className="audit-val--new">{code}</strong>
+          </div>
+          <div className="audit-detail-row">
+            <span className="audit-row-label">Nhãn:</span>
+            {oldLabel && newLabel && oldLabel !== newLabel ? (
+              <>
+                <span>{oldLabel}</span>
+                <span className="audit-arrow">→</span>
+                <strong className="audit-val--new">{newLabel}</strong>
+              </>
+            ) : (
+              <strong className="audit-val--new">{newLabel || oldLabel || '—'}</strong>
+            )}
+          </div>
+          <div className="audit-detail-row">
+            <span className="audit-row-label">Trạng thái:</span>
+            <strong className="audit-val--new">{statusText}</strong>
+          </div>
+        </div>
+      );
+    }
+
     if (targetType === 'USER_ACCESS_LEVEL') {
       return (
         <div className="audit-detail-pill">
@@ -456,20 +718,102 @@ export default function UserAccessLevelPage() {
         );
       }
     }
+    if (targetType === 'AREA') {
+      if (action === 'CREATE') {
+        return (
+          <div className="audit-detail-rules">
+            <div className="audit-detail-row">
+              <span className="audit-row-label">Tên:</span>
+              <strong className="audit-val--new">{newValue?.name || '—'}</strong>
+            </div>
+            {newValue?.code && (
+              <div className="audit-detail-row">
+                <span className="audit-row-label">Mã:</span>
+                <span>{newValue.code}</span>
+              </div>
+            )}
+          </div>
+        );
+      }
+      if (action === 'UPDATE') {
+        return (
+          <div className="audit-detail-rules">
+            <div className="audit-detail-row">
+              <span className="audit-row-label">Tên:</span>
+              <span>{oldValue?.name || '—'}</span>
+              <span className="audit-arrow">→</span>
+              <strong className="audit-val--new">{newValue?.name || '—'}</strong>
+            </div>
+          </div>
+        );
+      }
+      if (action === 'DEACTIVATE') {
+        return <span className="audit-badge audit-badge--danger">Ngừng hoạt động khu vực</span>;
+      }
+    }
+    if (targetType === 'AREA_GEOMETRY') {
+      return <span>{action === 'DELETE_GEOMETRY' ? 'Đã xóa tọa độ ranh giới' : 'Đã cập nhật tọa độ ranh giới'}</span>;
+    }
+    if (targetType === 'AREA_CAMERAS') {
+      return <span>Đã cập nhật cấu hình camera khu vực</span>;
+    }
+    if (targetType === 'ACCESS_REQUEST') {
+      if (action === 'SUBMIT') {
+        return (
+          <div className="audit-detail-rules">
+            <div className="audit-detail-row">
+              <span className="audit-row-label">Khu vực:</span>
+              <strong className="audit-val--new">{newValue?.targetAreaName || '—'}</strong>
+            </div>
+            <div className="audit-detail-row">
+              <span className="audit-row-label">Loại:</span>
+              <span>{newValue?.requestType === 'GROUP' ? 'Nhóm người' : 'Cá nhân'}</span>
+            </div>
+          </div>
+        );
+      }
+      if (action === 'APPROVE') {
+        return <span className="audit-val--new" style={{ color: '#10b981' }}>Đã phê duyệt yêu cầu</span>;
+      }
+      if (action === 'REJECT') {
+        return <span className="audit-val--new" style={{ color: '#ef4444' }}>Đã từ chối yêu cầu</span>;
+      }
+      if (action === 'CANCEL') {
+        return <span>Đã hủy yêu cầu</span>;
+      }
+      if (action === 'FINISH') {
+        return <span>Đã hoàn thành phiên truy cập</span>;
+      }
+      if (action === 'EXPIRE' || action === 'AUTO_EXPIRE') {
+        return <span style={{ color: '#f59e0b' }}>Yêu cầu đã tự động hết hạn</span>;
+      }
+    }
+    if (targetType === 'SYSTEM_CONFIG') {
+      return (
+        <div className="audit-detail-rules">
+          <div className="audit-detail-row">
+            <span className="audit-row-label">Khóa:</span>
+            <strong className="audit-val--new">{newValue?.configKey || oldValue?.configKey || '—'}</strong>
+          </div>
+          <div className="audit-detail-row">
+            <span className="audit-row-label">Giá trị:</span>
+            <span>{oldValue?.configValue ?? '—'}</span>
+            <span className="audit-arrow">→</span>
+            <strong className="audit-val--new">{newValue?.configValue ?? '—'}</strong>
+          </div>
+        </div>
+      );
+    }
     return '—';
   };
 
   return (
     <div className="access-level-page">
       {/* Header */}
-      <div className="access-level-page__header">
-        <div>
-          <h1 className="access-level-page__title">Phân quyền truy cập</h1>
-          <p className="access-level-page__subtitle">
-            Quản lý cấp độ truy cập người dùng, thiết lập mặc định theo loại khu vực và tra cứu nhật ký thay đổi
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Phân quyền truy cập"
+        description="Quản lý cấp độ truy cập người dùng, thiết lập mặc định theo loại khu vực và tra cứu nhật ký thay đổi."
+      />
 
       {/* Tabs navigation */}
       <div className="access-level-tabs">
@@ -512,8 +856,8 @@ export default function UserAccessLevelPage() {
             <div className="access-level-callout__content">
               <div className="access-level-callout__title">Quy tắc phân cấp độ truy cập:</div>
               <div className="access-level-callout__text">
-                Người dùng có <strong>Cấp độ truy cập (User Access Level)</strong> lớn hơn hoặc bằng{' '}
-                <strong>Cấp độ khu vực (Area Access Level)</strong> sẽ được <strong>vào tự do</strong> tại các khu vực không bật cờ <em>"Chỉ định đích danh"</em>.
+                Người dùng có <strong>cấp độ truy cập của người dùng</strong> lớn hơn hoặc bằng{' '}
+                <strong>cấp độ của khu vực</strong> sẽ được <strong>vào tự do</strong> tại các khu vực không bật cờ <em>"Chỉ định đích danh"</em>.
               </div>
               <div className="access-level-callout__tiers">
                 <span className="tier-tag tier-tag--1">
@@ -623,8 +967,8 @@ export default function UserAccessLevelPage() {
                             </span>
                           </td>
                           <td>
-                            <span className={`access-level-pill level--${currentLevel}`}>
-                              Level {currentLevel}
+                            <span className={getAccessLevelConfig(currentLevel).className}>
+                              {getAccessLevelConfig(currentLevel).label}
                             </span>
                           </td>
                           <td>
@@ -733,14 +1077,14 @@ export default function UserAccessLevelPage() {
                           <td>
                             <div className="preset-area-type">
                               <span className={`level-badge ${cfg.badgeClass}`}>
-                                {cfg.name}
+                                {cfg.badgeLabel}
                               </span>
-                              <span className="preset-area-code">{typeCode}</span>
+                              <span className="preset-area-desc">{cfg.description}</span>
                             </div>
                           </td>
                           <td>
-                            <span className={`access-level-pill level--${preset.areaAccessLevel ?? preset.accessLevel}`}>
-                              Level {preset.areaAccessLevel ?? preset.accessLevel}
+                            <span className={getAccessLevelConfig(preset.areaAccessLevel ?? preset.accessLevel).className}>
+                              {getAccessLevelConfig(preset.areaAccessLevel ?? preset.accessLevel).label}
                             </span>
                           </td>
                           <td>
@@ -771,12 +1115,12 @@ export default function UserAccessLevelPage() {
                               <span className="access-level-readonly-hint">Chỉ xem</span>
                             ) : (
                               <Button
-                                variant="outline"
+                                variant="secondary"
                                 size="sm"
+                                icon={Edit3}
                                 onClick={() => openEditPresetModal(preset)}
                               >
-                                <Edit3 size={14} />
-                                <span>Chỉnh sửa</span>
+                                Chỉnh sửa
                               </Button>
                             )}
                           </td>
@@ -796,6 +1140,25 @@ export default function UserAccessLevelPage() {
       {/* ========================================================================= */}
       {activeTab === 'audit_logs' && (
         <div className="tab-pane">
+          {/* Correlation Filter Banner */}
+          {filterCorrelationId && (
+            <div className="audit-correlation-banner">
+              <div className="audit-correlation-banner__content">
+                <Link size={15} />
+                <span>Đang lọc theo mã thao tác (Correlation ID):</span>
+                <span className="audit-correlation-banner__id">{filterCorrelationId}</span>
+              </div>
+              <button
+                type="button"
+                className="audit-correlation-clear-btn"
+                onClick={handleClearCorrelationFilter}
+              >
+                <X size={13} />
+                <span>Xóa lọc</span>
+              </button>
+            </div>
+          )}
+
           {/* Audit Filters Toolbar */}
           <div className="audit-filters-card">
             <div className="audit-filters-header">
@@ -803,9 +1166,25 @@ export default function UserAccessLevelPage() {
               <span>Bộ lọc nhật ký</span>
             </div>
             <div className="audit-filters-grid">
+              {/* Module Filter (Restricted by Role) */}
+              <div className="audit-filter-item">
+                <label className="audit-filter-label">Phân hệ</label>
+                <select
+                  className="audit-filter-select"
+                  value={filterModule}
+                  onChange={(e) => setFilterModule(e.target.value)}
+                >
+                  {(isAdmin ? MODULE_OPTIONS_ADMIN : MODULE_OPTIONS_FM).map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               {/* Target Type Filter */}
               <div className="audit-filter-item">
-                <label className="audit-filter-label">Loại thao tác</label>
+                <label className="audit-filter-label">Loại đối tượng</label>
                 <select
                   className="audit-filter-select"
                   value={filterTargetType}
@@ -887,20 +1266,20 @@ export default function UserAccessLevelPage() {
 
             <div className="audit-filters-actions">
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
+                icon={RotateCcw}
                 onClick={handleResetFilters}
               >
-                <RotateCcw size={14} />
-                <span>Đặt lại</span>
+                Đặt lại
               </Button>
               <Button
                 variant="primary"
                 size="sm"
+                icon={Search}
                 onClick={() => loadAuditLogs(0)}
               >
-                <Search size={14} />
-                <span>Áp dụng lọc</span>
+                Áp dụng lọc
               </Button>
             </div>
           </div>
@@ -926,13 +1305,14 @@ export default function UserAccessLevelPage() {
                   <table className="access-level-table">
                     <thead>
                       <tr>
-                        <th>Thời gian</th>
+                        <th className="ui-col-time">Thời gian</th>
                         <th>Thao tác & Đối tượng</th>
                         <th>Khu vực</th>
                         <th>Người bị tác động</th>
                         <th>Người thực hiện</th>
                         <th>Nội dung thay đổi</th>
                         <th>Lý do</th>
+                        <th>Liên kết</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -964,21 +1344,44 @@ export default function UserAccessLevelPage() {
                             )}
                           </td>
                           <td>
-                            <div className="audit-user-cell">
-                              <span className="audit-user-name">{log.changedByName || 'Hệ thống'}</span>
-                              {log.changedByUserCode && (
-                                <span className="audit-user-code">{log.changedByUserCode}</span>
-                              )}
-                            </div>
+                            {log.actorType === 'SYSTEM' || !log.changedByName ? (
+                              <div className="audit-user-cell">
+                                <span className="audit-user-name audit-system-actor">
+                                  {renderSystemActor(log.actorSource)}
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="audit-user-cell">
+                                <span className="audit-user-name">{log.changedByName}</span>
+                                {log.changedByUserCode && (
+                                  <span className="audit-user-code">{log.changedByUserCode}</span>
+                                )}
+                              </div>
+                            )}
                           </td>
                           <td>
                             {renderAuditChange(log)}
                           </td>
                           <td className="audit-cell--reason">
-                            {log.reason ? (
-                              <span className="audit-reason-text" title={log.reason}>
-                                {log.reason}
+                            {getAuditReasonText(log) ? (
+                              <span className="audit-reason-text" title={getAuditReasonText(log)}>
+                                {getAuditReasonText(log)}
                               </span>
+                            ) : (
+                              <span className="audit-cell--empty">—</span>
+                            )}
+                          </td>
+                          <td>
+                            {log.correlationId ? (
+                              <button
+                                type="button"
+                                className="audit-btn-link"
+                                title={`Xem các bản ghi cùng thao tác (${log.correlationId})`}
+                                onClick={() => handleFilterByCorrelation(log.correlationId)}
+                              >
+                                <Link size={13} />
+                                <span>Cùng thao tác</span>
+                              </button>
                             ) : (
                               <span className="audit-cell--empty">—</span>
                             )}
@@ -997,7 +1400,7 @@ export default function UserAccessLevelPage() {
                     </span>
                     <div className="audit-pagination__buttons">
                       <Button
-                        variant="outline"
+                        variant="secondary"
                         size="sm"
                         disabled={currentPage === 0 || loadingLogs}
                         onClick={() => loadAuditLogs(currentPage - 1)}
@@ -1005,7 +1408,7 @@ export default function UserAccessLevelPage() {
                         Trang trước
                       </Button>
                       <Button
-                        variant="outline"
+                        variant="secondary"
                         size="sm"
                         disabled={currentPage >= totalPages - 1 || loadingLogs}
                         onClick={() => loadAuditLogs(currentPage + 1)}
@@ -1036,7 +1439,7 @@ export default function UserAccessLevelPage() {
         footer={
           <div className="modal-actions-wrapper">
             <Button
-              variant="outline"
+              variant="secondary"
               onClick={() => setConfirmUserModal((prev) => ({ ...prev, isOpen: false }))}
               disabled={confirmUserModal.isSaving}
             >
@@ -1046,6 +1449,7 @@ export default function UserAccessLevelPage() {
               variant="primary"
               onClick={handleConfirmSaveUserLevel}
               loading={confirmUserModal.isSaving}
+              disabled={confirmUserModal.isSaving || confirmUserModal.reason.trim().length < 10}
             >
               Xác nhận cập nhật
             </Button>
@@ -1056,15 +1460,15 @@ export default function UserAccessLevelPage() {
           <div className="change-summary-box">
             <div className="change-summary-item">
               <span className="change-summary-label">Cấp hiện tại:</span>
-              <span className={`access-level-pill level--${confirmUserModal.user?.accessLevel ?? 1}`}>
-                Level {confirmUserModal.user?.accessLevel ?? 1}
+              <span className={getAccessLevelConfig(confirmUserModal.user?.accessLevel).className}>
+                {getAccessLevelConfig(confirmUserModal.user?.accessLevel).label}
               </span>
             </div>
             <span className="audit-arrow">→</span>
             <div className="change-summary-item">
               <span className="change-summary-label">Cấp mới:</span>
-              <span className={`access-level-pill level--${confirmUserModal.newLevel}`}>
-                Level {confirmUserModal.newLevel}
+              <span className={getAccessLevelConfig(confirmUserModal.newLevel).className}>
+                {getAccessLevelConfig(confirmUserModal.newLevel).label}
               </span>
             </div>
           </div>
@@ -1084,7 +1488,7 @@ export default function UserAccessLevelPage() {
               }
             />
             <div className="char-count">
-              {confirmUserModal.reason.length} / 500 ký tự
+              {confirmUserModal.reason.length} / 500 ký tự (tối thiểu 10 ký tự)
             </div>
           </div>
         </div>
@@ -1105,7 +1509,7 @@ export default function UserAccessLevelPage() {
         footer={
           <div className="modal-actions-wrapper">
             <Button
-              variant="outline"
+              variant="secondary"
               onClick={() => setEditPresetModal((prev) => ({ ...prev, isOpen: false }))}
               disabled={editPresetModal.isSaving}
             >
@@ -1115,6 +1519,7 @@ export default function UserAccessLevelPage() {
               variant="primary"
               onClick={handleSavePreset}
               loading={editPresetModal.isSaving}
+              disabled={editPresetModal.isSaving || editPresetModal.reason.trim().length < 10}
             >
               Lưu cấu hình
             </Button>
@@ -1143,9 +1548,9 @@ export default function UserAccessLevelPage() {
                 }))
               }
             >
-              <option value={1}>Cấp 1 — Mọi người dùng (Level 1)</option>
-              <option value={2}>Cấp 2 — Nhân viên (Level 2)</option>
-              <option value={3}>Cấp 3 — Cấp cao (Level 3)</option>
+              <option value={1}>Cấp 1 — Mọi người dùng</option>
+              <option value={2}>Cấp 2 — Nhân viên</option>
+              <option value={3}>Cấp 3 — Cấp cao</option>
             </select>
           </div>
 
@@ -1180,7 +1585,7 @@ export default function UserAccessLevelPage() {
               }
             />
             <div className="char-count">
-              {editPresetModal.reason.length} / 500 ký tự
+              {editPresetModal.reason.length} / 500 ký tự (tối thiểu 10 ký tự)
             </div>
           </div>
         </div>

@@ -103,7 +103,7 @@
   align-items: center;
   justify-content: center;
   border-radius: 20px;
-  background: var(--brand-gradient);
+  background: var(--brand-identity-gradient);
   color: #fff;
   box-shadow: 0 0 28px var(--brand-glow);
   animation: iconPulse 3s ease-in-out infinite;
@@ -370,16 +370,27 @@
 }
 
 .login-card__submit-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(59, 168, 217, 0.5);
+  background: var(--action-primary-bg-hover);
+  box-shadow: 0 4px 10px var(--brand-glow);
 }
 
 .login-card__submit-btn:active:not(:disabled) {
   transform: translateY(0);
 }
 
+/* disabled + focus: dùng chung token hành động chính */
+.login-card__submit-btn:focus-visible {
+  outline: 2px solid var(--focus-ring-color);
+  outline-offset: 2px;
+}
+
 .login-card__submit-btn:disabled {
-  opacity: 0.6;
+  background: var(--action-disabled-bg);
+  color: var(--action-disabled-text);
+  box-shadow: none;
+  filter: none;
+  transform: none;
+  opacity: 1;
   cursor: not-allowed;
 }
 

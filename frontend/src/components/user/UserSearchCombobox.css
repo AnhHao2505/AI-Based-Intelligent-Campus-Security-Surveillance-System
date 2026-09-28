@@ -145,18 +145,6 @@
   color: #34d399;
 }
 
-.user-combobox__level-pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: 600;
-  background: var(--brand-subtle);
-  border: 1px solid var(--brand-subtle-border);
-  color: var(--brand-text);
-}
-
 /* Dropdown Menu */
 .user-combobox__dropdown {
   position: absolute;

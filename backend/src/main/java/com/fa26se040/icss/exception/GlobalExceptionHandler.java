@@ -10,10 +10,13 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import com.fa26se040.icss.dto.common.ApiResponse;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -39,10 +42,9 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(AreaException.class)
     public ResponseEntity<ApiResponse<Object>> handleAreaException(AreaException ex) {
-        String message = ex.getErrorCode().getMessageTemplate();
-        if (ex.getArgs() != null && ex.getArgs().length > 0 && message.contains("{n}")) {
-            message = message.replace("{n}", String.valueOf(ex.getArgs()[0]));
-        }
+        String message = (ex.getMessage() != null && !ex.getMessage().isBlank())
+                ? ex.getMessage()
+                : ex.getErrorCode().getMessageTemplate();
         HttpStatus status = ex.getErrorCode().getHttpStatus();
         ApiResponse<Object> body = ApiResponse.error(
                 status.value(),
@@ -145,6 +147,9 @@ public class GlobalExceptionHandler {
         if (msg.contains("ux_areas_floor_name_active")) {
             return handleAreaException(new AreaException(AreaErrorCode.ERR_AREA_020));
         }
+        if (msg.contains("ux_area_event_sessions_active")) {
+            return handleAreaException(new AreaException(AreaErrorCode.ERR_AREA_030, "Trạng thái sự kiện đã thay đổi do có thao tác đồng thời. Vui lòng tải lại trang."));
+        }
         return buildResponse(HttpStatus.CONFLICT, "Dữ liệu bị trùng lặp hoặc vi phạm ràng buộc toàn vẹn");
     }
 
@@ -177,9 +182,34 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
     }
 
+    @ExceptionHandler(AuditWriteException.class)
+    public ResponseEntity<ApiResponse<Object>> handleAuditWriteException(AuditWriteException ex) {
+        ApiResponse<Object> body = ApiResponse.error(
+                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                ex.getCode(),
+                ex.getMessage()
+        );
+        return new ResponseEntity<>(body, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    @ExceptionHandler({
+            org.springframework.web.servlet.resource.NoResourceFoundException.class,
+            org.springframework.web.servlet.NoHandlerFoundException.class
+    })
+    public ResponseEntity<ApiResponse<Object>> handleNotFound(Exception ex) {
+        ApiResponse<Object> body = ApiResponse.error(
+                HttpStatus.NOT_FOUND.value(),
+                "NOT_FOUND",
+                "Không tìm thấy đường dẫn yêu cầu"
+        );
+        return new ResponseEntity<>(body, HttpStatus.NOT_FOUND);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Object>> handleGeneral(Exception ex) {
-        return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred: " + ex.getMessage());
+        String errorId = UUID.randomUUID().toString().substring(0, 8);
+        log.error("Unhandled exception [errorId={}]: ", errorId, ex);
+        return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "Lỗi hệ thống. Mã tra cứu: " + errorId);
     }
 
     private ResponseEntity<ApiResponse<Object>> buildResponse(HttpStatus status, String message) {

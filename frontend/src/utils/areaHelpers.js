@@ -36,11 +36,11 @@ export const AREA_LEVEL_CONFIG = {
     bgColor: 'rgba(245, 158, 11, 0.08)',
     borderColor: 'rgba(245, 158, 11, 0.35)',
     icon: 'alert-triangle',
-    description: 'Khu vực yêu cầu: cấp độ cao vào tự do, còn lại cần nhân sự chỉ định hoặc đơn đăng ký.'
+    description: 'Mọi cấp đều cần được chỉ định hoặc có đơn được duyệt'
   },
   HIGHLY_CONFIDENTIAL: {
     code: 'HIGHLY_CONFIDENTIAL',
-    name: 'Tuyệt mật – chỉ người được chỉ định',
+    name: 'Tuyệt mật – người được chỉ định hoặc có đơn cá nhân được duyệt',
     badgeLabel: 'Tuyệt mật',
     badgeClass: 'level-badge--private',
     cardClass: 'zone-card--private',
@@ -48,7 +48,7 @@ export const AREA_LEVEL_CONFIG = {
     bgColor: 'rgba(239, 68, 68, 0.08)',
     borderColor: 'rgba(239, 68, 68, 0.35)',
     icon: 'lock',
-    description: 'Khu vực an ninh đặc biệt nghiêm ngặt. Chỉ người được chỉ định mới được phép vào.'
+    description: 'Tuyệt mật – người được chỉ định hoặc có đơn cá nhân được duyệt'
   }
 };
 
@@ -75,6 +75,45 @@ export function getLevelConfig(level) {
     borderColor: 'rgba(99, 102, 241, 0.3)',
     icon: 'shield'
   };
+}
+
+/**
+ * Cấp truy cập người dùng / khu vực (1–3): MỘT nhãn và MỘT bộ màu cho mọi trang.
+ * Màu định nghĩa ở styles/components.css (.access-level-badge--N) qua token theme.css.
+ */
+export const ACCESS_LEVEL_CONFIG = {
+  1: { level: 1, label: 'Cấp 1', className: 'access-level-badge access-level-badge--1' },
+  2: { level: 2, label: 'Cấp 2', className: 'access-level-badge access-level-badge--2' },
+  3: { level: 3, label: 'Cấp 3', className: 'access-level-badge access-level-badge--3' },
+};
+
+/**
+ * Lấy nhãn + class hiển thị cho cấp truy cập (mặc định Cấp 1 khi thiếu dữ liệu)
+ */
+export function getAccessLevelConfig(level) {
+  const n = Number(level);
+  return ACCESS_LEVEL_CONFIG[n] || ACCESS_LEVEL_CONFIG[1];
+}
+
+/**
+ * Hiển thị trạng thái lịch chế độ sự kiện (chỉ trình bày, không đổi dữ liệu).
+ * STARTED được tách theo giờ kết thúc: đã qua endAt -> "Đã diễn ra", còn trong khung -> "Đang diễn ra".
+ * variant dùng cho components/ui/Badge.
+ */
+const SCHEDULE_STATUS_VIEW = {
+  SCHEDULED: { label: 'Đã lên lịch', variant: 'brand' },
+  CANCELLED: { label: 'Đã huỷ', variant: 'neutral' },
+  FAILED: { label: 'Thất bại', variant: 'danger' },
+};
+
+export function getScheduleStatusView(status, endAt, now = Date.now()) {
+  if (status === 'STARTED') {
+    const end = endAt ? new Date(endAt).getTime() : NaN;
+    return !isNaN(end) && end < now
+      ? { label: 'Đã diễn ra', variant: 'neutral' }
+      : { label: 'Đang diễn ra', variant: 'success' };
+  }
+  return SCHEDULE_STATUS_VIEW[status] || { label: status || '—', variant: 'neutral' };
 }
 
 /**
@@ -161,7 +200,7 @@ export function getErrorMessage(error) {
     return error.message;
   }
   if (error.code && ERROR_MESSAGES[error.code]) {
-    return `[${error.code}] ${ERROR_MESSAGES[error.code]}`;
+    return ERROR_MESSAGES[error.code];
   }
   return error.message || 'Đã có lỗi xảy ra. Vui lòng thử lại.';
 }

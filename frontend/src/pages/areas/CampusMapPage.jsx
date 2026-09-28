@@ -21,6 +21,8 @@ import {
 } from "lucide-react";
 import CampusMapView from "../../components/area/CampusMapView";
 import AreaMapView from "../../components/area/AreaMapView";
+import PageHeader from "../../components/ui/PageHeader";
+import "../../components/ui/Button.css";
 import {
 	getAreas,
 	getFloorPlans,
@@ -362,70 +364,24 @@ export default function CampusMapPage() {
 				</div>
 			)}
 
-			{/* Role Banner: Explicit separation of Admin vs FM */}
-			<div
-				style={{
-					display: "flex",
-					justifyContent: "space-between",
-					alignItems: "center",
-					marginBottom: "12px",
-					padding: "10px 16px",
-					background: "var(--theme-bg-surface)",
-					border: "1px solid var(--theme-border)",
-					borderRadius: "10px",
-				}}
-			>
-				<div>
-					<div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-						<Compass
-							size={18}
-							color="var(--theme-primary)"
-						/>
-						<h2
-							style={{
-								fontSize: "16px",
-								fontWeight: 700,
-								margin: 0,
-								color: "var(--theme-text-primary)",
-							}}
-						>
-							Quản lý Bản đồ An ninh
-						</h2>
-					</div>
-					<p
-						style={{
-							margin: "2px 0 0 0",
-							fontSize: "12px",
-							color: "var(--theme-text-muted)",
-						}}
+			<PageHeader
+				title="Quản lý bản đồ an ninh"
+				description={
+					isAdmin
+						? "Cấu hình toạ độ khuôn viên ngoài trời và vẽ đa giác sơ đồ mặt bằng các tầng."
+						: "Theo dõi vị trí các phân khu an ninh và nhân sự được chỉ định."
+				}
+				actions={
+					<button
+						type="button"
+						className="ui-btn ui-btn--secondary ui-btn--md"
+						onClick={() => navigate("/admin/areas")}
 					>
-						{isAdmin
-							? "Cấu hình toạ độ khuôn viên ngoài trời và vẽ đa giác sơ đồ mặt bằng các tầng."
-							: "Theo dõi vị trí các phân khu an ninh và nhân sự được chỉ định."}
-					</p>
-				</div>
-
-				<button
-					type="button"
-					onClick={() => navigate("/admin/areas")}
-					style={{
-						display: "inline-flex",
-						alignItems: "center",
-						gap: "6px",
-						padding: "6px 12px",
-						fontSize: "12.5px",
-						fontWeight: 500,
-						background: "transparent",
-						border: "1px solid var(--theme-border)",
-						borderRadius: "6px",
-						color: "var(--theme-text-primary)",
-						cursor: "pointer",
-					}}
-				>
-					<ListIcon size={14} />
-					<span>Sang Quản lý Vùng</span>
-				</button>
-			</div>
+						<ListIcon size={16} />
+						<span>Sang quản lý vùng</span>
+					</button>
+				}
+			/>
 
 			{/* Map Sub-Toolbar: Switch between Outdoor GPS and Indoor Floor Plan */}
 			<div className="zone-toolbar">

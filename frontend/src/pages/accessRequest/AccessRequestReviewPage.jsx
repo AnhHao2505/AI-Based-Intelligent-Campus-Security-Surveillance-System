@@ -17,8 +17,10 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import accessRequestService from '../../services/accessRequestService';
-import { getLevelConfig } from '../../utils/areaHelpers';
+import { getLevelConfig, AREA_LEVEL_CONFIG } from '../../utils/areaHelpers';
 import '../../styles/AccessRequestReviewPage.css';
+import PageHeader from '../../components/ui/PageHeader';
+import '../../components/ui/Button.css';
 
 export default function AccessRequestReviewPage() {
   const [requests, setRequests] = useState([]);
@@ -147,7 +149,11 @@ export default function AccessRequestReviewPage() {
   const handleConfirmReject = async () => {
     if (!rejectItem) return;
     if (!rejectionReason.trim()) {
-      setActionError('Vui lòng nhập lý do từ chối yêu cầu');
+      setActionError('Vui lòng nhập lý do từ chối yêu cầu (từ 10 đến 500 ký tự)');
+      return;
+    }
+    if (rejectionReason.trim().length < 10) {
+      setActionError('Lý do từ chối phải có ít nhất 10 ký tự (hiện có ' + rejectionReason.trim().length + ' ký tự)');
       return;
     }
 
@@ -217,24 +223,21 @@ export default function AccessRequestReviewPage() {
   return (
     <div className="arr-container">
       {/* Header */}
-      <div className="arr-header">
-        <div>
-          <h1 className="arr-header__title">Phê duyệt Yêu cầu Truy cập Khu vực</h1>
-          <p className="arr-header__subtitle">
-            Xét duyệt và quản lý các yêu cầu đăng ký ra vào khu vực bán riêng tư và riêng tư trong campus.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          className="arr-filter-btn"
-          onClick={() => { loadRequests(page, statusFilter, selectedAreaId); loadStats(); }}
-          title="Làm mới dữ liệu"
-        >
-          <RefreshCw size={14} className={loading ? 'spin' : ''} />
-          <span>Làm mới</span>
-        </button>
-      </div>
+      <PageHeader
+        title="Phê duyệt yêu cầu truy cập khu vực"
+        description={`Xét duyệt yêu cầu ra vào các khu vực ${AREA_LEVEL_CONFIG.INTERNAL_CONFIDENTIAL.badgeLabel}, ${AREA_LEVEL_CONFIG.CONFIDENTIAL_CONTACT_REQUIRED.badgeLabel} và ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.badgeLabel}.`}
+        actions={
+          <button
+            type="button"
+            className="ui-btn ui-btn--secondary ui-btn--md"
+            onClick={() => { loadRequests(page, statusFilter, selectedAreaId); loadStats(); }}
+            title="Làm mới dữ liệu"
+          >
+            <RefreshCw size={16} className={loading ? 'spin' : ''} />
+            <span>Làm mới</span>
+          </button>
+        }
+      />
 
       {/* Notifications */}
       {actionSuccess && (
@@ -392,11 +395,11 @@ export default function AccessRequestReviewPage() {
                 <tr>
                   <th>Người yêu cầu</th>
                   <th>Khu vực đăng ký</th>
-                  <th>Thời gian truy cập</th>
+                  <th className="ui-col-time-range">Thời gian truy cập</th>
                   <th>Hình thức</th>
                   <th>Trạng thái</th>
-                  <th>Ngày gửi</th>
-                  <th style={{ textAlign: 'center' }}>Thao tác</th>
+                  <th className="ui-col-time">Ngày gửi</th>
+                  <th className="arr-col-actions">Thao tác</th>
                 </tr>
               </thead>
               <tbody>
@@ -460,8 +463,8 @@ export default function AccessRequestReviewPage() {
                     </td>
 
                     {/* Actions */}
-                    <td>
-                      <div className="arr-actions" style={{ justifyContent: 'center' }}>
+                    <td className="arr-col-actions">
+                      <div className="arr-actions">
                         {req.status === 'PENDING' && (
                           <>
                             <button
@@ -532,7 +535,7 @@ export default function AccessRequestReviewPage() {
         <div className="arr-modal-overlay" onClick={() => !actionLoading && setApproveItem(null)}>
           <div className="arr-modal arr-modal--sm" onClick={e => e.stopPropagation()}>
             <div className="arr-modal__header">
-              <h2 className="arr-modal__title">Xác nhận Phê duyệt</h2>
+              <h2 className="arr-modal__title">Xác nhận phê duyệt</h2>
               <button
                 type="button"
                 className="arr-modal__close"
@@ -581,7 +584,7 @@ export default function AccessRequestReviewPage() {
                 disabled={actionLoading}
               >
                 <Check size={16} />
-                <span>{actionLoading ? 'Đang duyệt...' : 'Xác nhận Duyệt'}</span>
+                <span>{actionLoading ? 'Đang duyệt...' : 'Xác nhận duyệt'}</span>
               </button>
             </div>
           </div>
@@ -593,7 +596,7 @@ export default function AccessRequestReviewPage() {
         <div className="arr-modal-overlay" onClick={() => !actionLoading && setRejectItem(null)}>
           <div className="arr-modal" onClick={e => e.stopPropagation()}>
             <div className="arr-modal__header">
-              <h2 className="arr-modal__title">Từ chối Yêu cầu Truy cập</h2>
+              <h2 className="arr-modal__title">Từ chối yêu cầu truy cập</h2>
               <button
                 type="button"
                 className="arr-modal__close"
@@ -628,7 +631,7 @@ export default function AccessRequestReviewPage() {
                   required
                 />
                 <div className="arr-char-count">
-                  {rejectionReason.length}/500 ký tự
+                  {rejectionReason.length}/500 ký tự (tối thiểu 10 ký tự)
                 </div>
               </div>
             </div>
@@ -646,10 +649,10 @@ export default function AccessRequestReviewPage() {
                 type="button"
                 className="arr-filter-btn arr-btn--reject-modal"
                 onClick={handleConfirmReject}
-                disabled={actionLoading || !rejectionReason.trim()}
+                disabled={actionLoading || rejectionReason.trim().length < 10}
               >
                 <X size={16} />
-                <span>{actionLoading ? 'Đang xử lý...' : 'Xác nhận Từ chối'}</span>
+                <span>{actionLoading ? 'Đang xử lý...' : 'Xác nhận từ chối'}</span>
               </button>
             </div>
           </div>
@@ -661,7 +664,7 @@ export default function AccessRequestReviewPage() {
         <div className="arr-modal-overlay" onClick={() => setDetailItem(null)}>
           <div className="arr-modal" onClick={e => e.stopPropagation()}>
             <div className="arr-modal__header">
-              <h2 className="arr-modal__title">Chi tiết Yêu cầu Truy cập</h2>
+              <h2 className="arr-modal__title">Chi tiết yêu cầu truy cập</h2>
               <button
                 type="button"
                 className="arr-modal__close"

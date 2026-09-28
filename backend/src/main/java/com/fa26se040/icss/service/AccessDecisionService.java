@@ -6,6 +6,7 @@ import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.AreaAssignedPersonnel;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.AccessSource;
+import com.fa26se040.icss.enums.AreaLevel;
 import com.fa26se040.icss.enums.RequestStatus;
 import com.fa26se040.icss.repository.AccessRequestRepository;
 import com.fa26se040.icss.repository.AreaAssignedPersonnelRepository;
@@ -35,6 +36,7 @@ public class AccessDecisionService {
     private final AreaRepository areaRepository;
     private final AreaAssignedPersonnelRepository assignedPersonnelRepository;
     private final AccessRequestRepository accessRequestRepository;
+    private final com.fa26se040.icss.repository.AreaEventScheduleRepository areaEventScheduleRepository;
 
     /**
      * Xét user có được vào area tại thời điểm at hay không. Thứ tự kiểm:
@@ -94,6 +96,28 @@ public class AccessDecisionService {
                     AccessSource.ACCESS_LEVEL,
                     null,
                     "Cấp độ truy cập của người dùng phù hợp với khu vực"
+            );
+        }
+
+        // 4b. Chế độ sự kiện (Event Mode / open_to_members)
+        boolean isInternalOrContact = area.getAreaLevel() == AreaLevel.INTERNAL_CONFIDENTIAL
+                || area.getAreaLevel() == AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED;
+        if (area.isEventActive(at) && isInternalOrContact) {
+            return AccessDecision.allowed(
+                    AccessSource.OPEN_EVENT,
+                    null,
+                    "Khu vực đang mở chế độ sự kiện cho thành viên"
+            );
+        }
+
+        // 4c. Lịch sự kiện đã đặt trước (BR-ES-10, A3)
+        if (isInternalOrContact && areaEventScheduleRepository != null
+                && areaEventScheduleRepository.existsByAreaIdAndStatusAndStartAtLessThanEqualAndEndAtGreaterThan(
+                areaId, com.fa26se040.icss.enums.AreaEventScheduleStatus.SCHEDULED, at, at)) {
+            return AccessDecision.allowed(
+                    AccessSource.OPEN_EVENT,
+                    null,
+                    "Khu vực trong khung lịch sự kiện"
             );
         }
 

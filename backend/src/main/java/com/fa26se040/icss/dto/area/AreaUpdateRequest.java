@@ -42,4 +42,8 @@ public class AreaUpdateRequest {
     public AreaUpdateRequest(String name, AreaLevel areaLevel, String building, String floor) {
         this(name, areaLevel, building, floor, null, null, null);
     }
+
+    public AreaUpdateRequest(String name, AreaLevel areaLevel, String building, String floor, UUID floorId) {
+        this(name, areaLevel, building, floor, floorId, null, null);
+    }
 }
