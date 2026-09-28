@@ -31,7 +31,17 @@ public class AreaCreateRequest {
 
     private UUID floorId;
 
+    @NotNull(message = "Vĩ độ không được để trống")
+    @jakarta.validation.constraints.DecimalMin(value = "-90.0", message = "Vĩ độ phải từ -90 đến 90")
+    @jakarta.validation.constraints.DecimalMax(value = "90.0", message = "Vĩ độ phải từ -90 đến 90")
+    private Double centerLatitude;
+
+    @NotNull(message = "Kinh độ không được để trống")
+    @jakarta.validation.constraints.DecimalMin(value = "-180.0", message = "Kinh độ phải từ -180 đến 180")
+    @jakarta.validation.constraints.DecimalMax(value = "180.0", message = "Kinh độ phải từ -180 đến 180")
+    private Double centerLongitude;
+
     public AreaCreateRequest(String name, AreaLevel areaLevel, String building, String floor) {
-        this(name, areaLevel, building, floor, null);
+        this(name, areaLevel, building, floor, null, null, null);
     }
 }

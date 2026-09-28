@@ -79,4 +79,36 @@ public interface AreaRepository extends JpaRepository<Area, UUID> {
 
     @Query("SELECT a FROM Area a JOIN a.cameras c WHERE c.cameraCode = :cameraCode AND a.deletedAt IS NULL")
     java.util.List<Area> findAreasByCameraCode(@Param("cameraCode") String cameraCode);
+
+    @Query("""
+        SELECT a FROM Area a
+        WHERE a.deletedAt IS NULL
+          AND a.isActive = true
+          AND a.centerLatitude IS NOT NULL
+          AND a.centerLongitude IS NOT NULL
+        ORDER BY a.name ASC
+    """)
+    java.util.List<Area> findAllAreaMapPins();
+
+    @Query("""
+        SELECT a FROM Area a
+        WHERE a.deletedAt IS NULL
+          AND a.isActive = true
+          AND a.centerLatitude IS NOT NULL
+          AND a.centerLongitude IS NOT NULL
+          AND LOWER(a.building) = LOWER(:building)
+        ORDER BY a.name ASC
+    """)
+    java.util.List<Area> findAreaMapPinsByBuilding(@Param("building") String building);
+
+    @Query("""
+        SELECT a FROM Area a
+        WHERE a.deletedAt IS NULL
+          AND a.isActive = true
+          AND a.centerLatitude IS NOT NULL
+          AND a.centerLongitude IS NOT NULL
+          AND (CAST(:building AS string) IS NULL OR LOWER(a.building) = LOWER(CAST(:building AS string)))
+        ORDER BY a.name ASC
+    """)
+    java.util.List<Area> findAreaMapPins(@Param("building") String building);
 }

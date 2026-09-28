@@ -14,8 +14,25 @@ public record AreaListItemResponse(
     Boolean isActive,
     AreaGeometry geometry,
     Boolean hasGeometry,
-    Boolean differsFromPreset
+    Boolean differsFromPreset,
+    Double centerLatitude,
+    Double centerLongitude
 ) {
+    public AreaListItemResponse(
+        UUID id,
+        String name,
+        AreaLevel areaLevel,
+        Integer areaAccessLevel,
+        Boolean explicitAuthorizationRequired,
+        String building,
+        String floor,
+        Boolean isActive,
+        AreaGeometry geometry,
+        Boolean hasGeometry,
+        Boolean differsFromPreset
+    ) {
+        this(id, name, areaLevel, areaAccessLevel, explicitAuthorizationRequired, building, floor, isActive, geometry, hasGeometry, differsFromPreset, null, null);
+    }
     public AreaListItemResponse(
         UUID id,
         String name,

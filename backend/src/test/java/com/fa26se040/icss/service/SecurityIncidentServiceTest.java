@@ -183,4 +183,91 @@ class SecurityIncidentServiceTest {
         assertEquals(IncidentOutcome.DISMISSED, incident.getOutcome());
         assertEquals(IncidentResolutionCategory.FALSE_ALARM, incident.getResolutionCategory());
     }
+
+    @Test
+    @DisplayName("Nhiều bảo vệ cùng bấm tiếp nhận 1 sự cố tại cùng thời điểm (Concurrent Race Condition)")
+    void testClaimIncident_ConcurrentRaceCondition_OnlyOneGuardSucceeds() throws Exception {
+        User guard2 = User.builder()
+                .id(UUID.randomUUID())
+                .fullName("Nguyễn Văn Hai")
+                .email("guard.hai@fpt.edu.vn")
+                .role(Role.GUARD)
+                .build();
+
+        lenient().when(userRepository.findByEmail(guardUser.getEmail())).thenReturn(Optional.of(guardUser));
+        lenient().when(userRepository.findByEmail(guard2.getEmail())).thenReturn(Optional.of(guard2));
+
+        when(incidentRepository.findById(incident.getId()))
+                .thenReturn(Optional.of(incident));
+
+        when(incidentRepository.saveAndFlush(any())).thenAnswer(inv -> {
+            SecurityIncident inc = inv.getArgument(0);
+            return inc;
+        });
+
+        java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newFixedThreadPool(2);
+        java.util.concurrent.CountDownLatch readyLatch = new java.util.concurrent.CountDownLatch(2);
+        java.util.concurrent.CountDownLatch startLatch = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.atomic.AtomicInteger successCount = new java.util.concurrent.atomic.AtomicInteger(0);
+        java.util.concurrent.atomic.AtomicInteger conflictCount = new java.util.concurrent.atomic.AtomicInteger(0);
+
+        java.util.concurrent.Future<?> f1 = executor.submit(() -> {
+            readyLatch.countDown();
+            try {
+                startLatch.await();
+                incidentService.claimIncident(incident.getId(), guardUser.getEmail());
+                successCount.incrementAndGet();
+            } catch (IllegalStateException e) {
+                conflictCount.incrementAndGet();
+            } catch (Exception ignored) {}
+        });
+
+        java.util.concurrent.Future<?> f2 = executor.submit(() -> {
+            readyLatch.countDown();
+            try {
+                startLatch.await();
+                incidentService.claimIncident(incident.getId(), guard2.getEmail());
+                successCount.incrementAndGet();
+            } catch (IllegalStateException e) {
+                conflictCount.incrementAndGet();
+            } catch (Exception ignored) {}
+        });
+
+        readyLatch.await();
+        startLatch.countDown(); // Bắn 2 luồng đồng thời
+        f1.get();
+        f2.get();
+        executor.shutdown();
+
+        assertEquals(1, successCount.get(), "Chỉ duy nhất 1 bảo vệ được phép tiếp nhận thành công");
+        assertEquals(1, conflictCount.get(), "Bảo vệ thứ hai phải nhận lỗi Conflict vì sự cố đã có người nhận");
+        assertEquals(IncidentStatus.CLAIMED, incident.getStatus());
+        assertNotNull(incident.getClaimedBy());
+    }
+
+    @Test
+    @DisplayName("OptimisticLockingFailureException khi 2 transaction ghi đè đồng thời -> Báo lỗi người tiếp nhận trước")
+    void testClaimIncident_OptimisticLockingConflict() {
+        when(userRepository.findByEmail(guardUser.getEmail())).thenReturn(Optional.of(guardUser));
+
+        User firstWinner = User.builder().id(UUID.randomUUID()).fullName("Bảo vệ Đi Trước").build();
+        SecurityIncident freshInDb = SecurityIncident.builder()
+                .id(incident.getId())
+                .status(IncidentStatus.CLAIMED)
+                .claimedBy(firstWinner)
+                .build();
+
+        when(incidentRepository.findById(incident.getId()))
+                .thenReturn(Optional.of(incident))
+                .thenReturn(Optional.of(freshInDb));
+
+        when(incidentRepository.saveAndFlush(any()))
+                .thenThrow(new org.springframework.dao.OptimisticLockingFailureException("Row was updated by another transaction"));
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, () -> {
+            incidentService.claimIncident(incident.getId(), guardUser.getEmail());
+        });
+
+        assertTrue(ex.getMessage().contains("Bảo vệ Đi Trước"), "Thông điệp lỗi phải chỉ rõ ai vừa tiếp nhận trước");
+    }
 }

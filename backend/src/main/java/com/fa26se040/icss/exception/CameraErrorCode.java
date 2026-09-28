@@ -8,6 +8,7 @@ public enum CameraErrorCode {
     ERR_CAM_001("ERR_CAM_001", HttpStatus.BAD_REQUEST, "Tên camera để trống hoặc không hợp lệ"),
     ERR_CAM_002("ERR_CAM_002", HttpStatus.NOT_FOUND, "Không tìm thấy camera"),
     ERR_CAM_003("ERR_CAM_003", HttpStatus.CONFLICT, "Mã camera đã tồn tại trên hệ thống"),
+    ERR_CAM_004("ERR_CAM_004", HttpStatus.BAD_REQUEST, "Camera phải được gán vào một khu vực"),
     ERR_STREAM_001("ERR_STREAM_001", HttpStatus.BAD_REQUEST, "Thông số cấu hình luồng RTSP không hợp lệ"),
     ERR_STREAM_002("ERR_STREAM_002", HttpStatus.BAD_GATEWAY, "Lỗi kết nối tới MediaMTX Control API"),
     ERR_MAP_001("ERR_MAP_001", HttpStatus.NOT_FOUND, "Không tìm thấy khu vực"),

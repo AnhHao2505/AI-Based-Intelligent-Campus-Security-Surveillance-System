@@ -6,6 +6,7 @@ import com.fa26se040.icss.dto.area.AreaDependencyResponse;
 import com.fa26se040.icss.dto.area.AreaGeometry;
 import com.fa26se040.icss.dto.area.AreaGeometryResponse;
 import com.fa26se040.icss.dto.area.AreaListItemResponse;
+import com.fa26se040.icss.dto.area.AreaMapPinResponse;
 import com.fa26se040.icss.dto.area.AreaResponse;
 import com.fa26se040.icss.dto.area.AreaUpdateRequest;
 import com.fa26se040.icss.entity.Area;
@@ -171,6 +172,8 @@ public class AreaService {
                 .floorEntity(targetFloor)
                 .building(buildingVal)
                 .floor(floorVal)
+                .centerLatitude(req.getCenterLatitude())
+                .centerLongitude(req.getCenterLongitude())
                 .isActive(true)
                 .build();
 
@@ -244,6 +247,8 @@ public class AreaService {
         area.setFloorEntity(targetFloor);
         area.setBuilding(buildingVal);
         area.setFloor(floorVal);
+        area.setCenterLatitude(req.getCenterLatitude());
+        area.setCenterLongitude(req.getCenterLongitude());
 
         try {
             Area savedArea = areaRepository.saveAndFlush(area);
@@ -476,6 +481,27 @@ public class AreaService {
         return mapToAreaResponse(savedArea, computeDiffersFromPreset(savedArea, presetMap));
     }
 
+    @Transactional(readOnly = true)
+    public List<AreaMapPinResponse> getMapPins(String building) {
+        String cleanBuilding = (building != null && !building.trim().isEmpty()) ? building.trim() : null;
+        List<Area> areas = (cleanBuilding != null)
+                ? areaRepository.findAreaMapPinsByBuilding(cleanBuilding)
+                : areaRepository.findAllAreaMapPins();
+        return areas.stream()
+                .map(a -> AreaMapPinResponse.builder()
+                        .id(a.getId())
+                        .name(a.getName())
+                        .areaLevel(a.getAreaLevel())
+                        .areaAccessLevel(a.getAreaAccessLevel())
+                        .building(a.getBuilding())
+                        .floor(a.getFloor())
+                        .centerLatitude(a.getCenterLatitude())
+                        .centerLongitude(a.getCenterLongitude())
+                        .isActive(a.getIsActive())
+                        .build())
+                .toList();
+    }
+
     private AreaResponse mapToAreaResponse(Area area) {
         return mapToAreaResponse(area, false);
     }
@@ -490,6 +516,8 @@ public class AreaService {
                 area.getBuilding(),
                 area.getFloor(),
                 area.getGeometry(),
+                area.getCenterLatitude(),
+                area.getCenterLongitude(),
                 area.getIsActive(),
                 area.getCreatedAt(),
                 area.getUpdatedAt(),
@@ -509,7 +537,9 @@ public class AreaService {
                 area.getIsActive(),
                 area.getGeometry(),
                 area.getGeometry() != null,
-                differsFromPreset
+                differsFromPreset,
+                area.getCenterLatitude(),
+                area.getCenterLongitude()
         );
     }
 }

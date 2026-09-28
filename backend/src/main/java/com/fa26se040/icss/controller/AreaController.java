@@ -33,6 +33,17 @@ public class AreaController {
         return ResponseEntity.ok(ApiResponse.success(areaService.getAvailableAreasForRequest(), "Lấy danh sách khu vực khả dụng thành công"));
     }
 
+    @GetMapping("/map-pins")
+    @PreAuthorize("hasAnyRole('GUARD', 'ADMIN', 'FACILITY_MANAGER')")
+    public ResponseEntity<ApiResponse<List<AreaMapPinResponse>>> getMapPins(
+            @RequestParam(required = false) String building
+    ) {
+        return ResponseEntity.ok(ApiResponse.success(
+                areaService.getMapPins(building),
+                "Lấy danh sách điểm ghim khu vực trên bản đồ thành công"
+        ));
+    }
+
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
     public ResponseEntity<ApiResponse<Page<AreaListItemResponse>>> getAreas(

@@ -117,13 +117,6 @@ public class CameraController {
         return ResponseEntity.ok(ApiResponse.success(logs, "Lấy nhật ký hoạt động camera thành công"));
     }
 
-    @GetMapping("/{id}/areas")
-    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER', 'GUARD')")
-    public ResponseEntity<ApiResponse<List<AreaSimpleResponse>>> getAreas(@PathVariable UUID id) {
-        log.info("REST request to get areas assigned to camera: {}", id);
-        return ResponseEntity.ok(ApiResponse.success(cameraService.getCameraAreas(id), "Lấy danh sách khu vực của camera thành công"));
-    }
-
     @PostMapping("/{id}/connect")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<ConnectStreamResponse>> connectStream(@PathVariable UUID id) {

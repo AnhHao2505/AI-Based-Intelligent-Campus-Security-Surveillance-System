@@ -3,6 +3,7 @@ package com.fa26se040.icss.controller;
 import com.fa26se040.icss.dto.common.ApiResponse;
 import com.fa26se040.icss.dto.incident.IncidentClaimResponse;
 import com.fa26se040.icss.dto.incident.IncidentDetailResponse;
+import com.fa26se040.icss.dto.incident.IncidentEventDto;
 import com.fa26se040.icss.dto.incident.IncidentResolveRequest;
 import com.fa26se040.icss.enums.IncidentStatus;
 import com.fa26se040.icss.service.SecurityIncidentService;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @RestController
@@ -71,7 +73,54 @@ public class SecurityIncidentController {
     ) {
         String guardEmail = authentication.getName();
         log.info("Guard [{}] submitting resolution for incident [{}]", guardEmail, id);
-        IncidentDetailResponse response = securityIncidentService.resolveIncident(id, request, guardEmail);
-        return ResponseEntity.ok(ApiResponse.success(response, "Xử lý và đóng sự cố thành công"));
+        try {
+            IncidentDetailResponse response = securityIncidentService.resolveIncident(id, request, guardEmail);
+            return ResponseEntity.ok(ApiResponse.success(response, "Xử lý và đóng sự cố thành công"));
+        } catch (IllegalStateException e) {
+            log.warn("Illegal state resolving incident [{}]: {}", id, e.getMessage());
+            if (e.getMessage() != null && e.getMessage().contains("đã được xử lý")) {
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(HttpStatus.CONFLICT.value(), "INCIDENT_ALREADY_RESOLVED", e.getMessage()));
+            }
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse.error(HttpStatus.BAD_REQUEST.value(), "INVALID_STATE", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/test-alert")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GUARD')")
+    public ResponseEntity<ApiResponse<IncidentDetailResponse>> triggerTestAlert(
+            @RequestBody IncidentEventDto testEvent
+    ) {
+        log.info("Triggering single test alert for camera [{}] type [{}]", testEvent.getCameraCode(), testEvent.getEventType());
+        IncidentDetailResponse response = securityIncidentService.ingestIncident(testEvent);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success(response, "Test alert broadcast thành công"));
+    }
+
+    @PostMapping("/test-alert/batch")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GUARD')")
+    public ResponseEntity<ApiResponse<List<IncidentDetailResponse>>> triggerBatchTestAlerts(
+            @RequestBody List<IncidentEventDto> testEvents
+    ) {
+        log.info("Triggering batch test alerts: count [{}]", testEvents.size());
+        List<IncidentDetailResponse> results = testEvents.stream()
+                .map(securityIncidentService::ingestIncident)
+                .collect(Collectors.toList());
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success(results, results.size() + " test alerts broadcast thành công"));
+    }
+
+    /**
+     * [PRODUCTION HOOK] Endpoint chính thức để AI Service (Python) bắn sự cố trực tiếp qua HTTP REST (Webhook)
+     * Chạy song song hoặc dự phòng cho Kafka Consumer khi tích hợp luồng phát hiện AI thực tế.
+     */
+    @PostMapping("/ingest")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GUARD')")
+    public ResponseEntity<ApiResponse<IncidentDetailResponse>> ingestDirectFromAiService(
+            @RequestBody IncidentEventDto event
+    ) {
+        log.info("Direct ingest incident from AI Service for camera [{}] type [{}]", event.getCameraCode(), event.getEventType());
+        IncidentDetailResponse response = securityIncidentService.ingestIncident(event);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success(response, "Sự cố an ninh đã được tiếp nhận và phát sóng toàn hệ thống"));
     }
 }

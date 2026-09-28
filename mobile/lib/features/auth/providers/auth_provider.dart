@@ -89,11 +89,15 @@ class AuthProvider with ChangeNotifier {
           },
         );
 
-        final data = response.data;
+        final rawData = ApiClient.unwrapApiResponseData(response.data);
+        if (rawData is! Map) {
+          throw StateError('Invalid login response from server');
+        }
+        final data = Map<String, dynamic>.from(rawData);
         final accessToken = data['accessToken']?.toString() ?? '';
         final userData = data['user'];
 
-        if (accessToken.isEmpty || userData == null) {
+        if (accessToken.isEmpty || userData is! Map) {
           throw 'Phản hồi đăng nhập không hợp lệ từ máy chủ';
         }
 
@@ -103,7 +107,7 @@ class AuthProvider with ChangeNotifier {
         await StorageHelper.saveBaseUrl(candidateUrl);
         await StorageHelper.saveToken(accessToken);
 
-        final loggedInUser = UserModel.fromJson(userData);
+        final loggedInUser = UserModel.fromJson(Map<String, dynamic>.from(userData));
         await StorageHelper.saveUser(loggedInUser);
 
         _user = loggedInUser;

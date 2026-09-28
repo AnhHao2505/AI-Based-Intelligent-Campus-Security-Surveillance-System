@@ -1,6 +1,7 @@
 package com.fa26se040.icss.dto.camera;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -21,5 +22,6 @@ public class CreateCameraRequest {
     @Size(max = 100, message = "Camera name cannot exceed 100 characters")
     private String name;
 
+    @NotNull(message = "Camera phải được gán vào một khu vực")
     private UUID areaId;
 }

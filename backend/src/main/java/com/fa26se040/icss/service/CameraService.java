@@ -55,6 +55,10 @@ public class CameraService {
     public CameraDetailResponse createCamera(CreateCameraRequest request) {
         log.info("Creating camera with name: {}", request.getName());
 
+        if (request.getAreaId() == null) {
+            throw new CameraException(CameraErrorCode.ERR_CAM_004);
+        }
+
         String cameraCode = request.getCameraCode();
         if (cameraCode != null && !cameraCode.trim().isEmpty()) {
             cameraCode = cameraCode.trim();
@@ -66,13 +70,10 @@ public class CameraService {
             log.info("Auto-generated camera code: {}", cameraCode);
         }
 
-        Area area = null;
-        if (request.getAreaId() != null) {
-            area = areaRepository.findByIdAndDeletedAtIsNull(request.getAreaId())
-                    .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
-            if (!Boolean.TRUE.equals(area.getIsActive())) {
-                throw new AreaException(AreaErrorCode.ERR_AREA_017);
-            }
+        Area area = areaRepository.findByIdAndDeletedAtIsNull(request.getAreaId())
+                .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
+        if (!Boolean.TRUE.equals(area.getIsActive())) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_017);
         }
 
         Camera camera = Camera.builder()
@@ -337,25 +338,6 @@ public class CameraService {
         }
         Page<CameraHealthLog> logs = cameraHealthLogRepository.findByCameraIdOrderByCheckedAtDesc(cameraId, pageable);
         return logs.map(this::mapToHealthLogResponse);
-    }
-
-    @Transactional(readOnly = true)
-    public List<AreaSimpleResponse> getCameraAreas(UUID cameraId) {
-        log.info("Fetching areas for camera id: {}", cameraId);
-        Camera camera = cameraRepository.findById(cameraId)
-                .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_CAM_002));
-
-        if (camera.getArea() == null || camera.getArea().getDeletedAt() != null) {
-            return List.of();
-        }
-        Area a = camera.getArea();
-        return List.of(new AreaSimpleResponse(
-                a.getId(),
-                a.getName(),
-                a.getAreaLevel(),
-                a.getBuilding(),
-                a.getFloor()
-        ));
     }
 
     public CameraDetailResponse updateRoiGeometry(UUID cameraId, RoiUpdateRequest request) {

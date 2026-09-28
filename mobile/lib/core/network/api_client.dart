@@ -31,11 +31,24 @@ class ApiClient {
           }
           return handler.next(options);
         },
+        onResponse: (response, handler) {
+          response.data = unwrapApiResponseData(response.data);
+          return handler.next(response);
+        },
         onError: (DioException error, handler) {
           return handler.next(error);
         },
       ),
     );
+  }
+
+  /// Unwrap the backend ApiResponse envelope while keeping compatibility with
+  /// endpoints that still return a raw payload.
+  static dynamic unwrapApiResponseData(dynamic body) {
+    if (body is Map && body.containsKey('httpCode') && body.containsKey('message')) {
+      return body['data'];
+    }
+    return body;
   }
 
   // Helper method to format human-readable error messages

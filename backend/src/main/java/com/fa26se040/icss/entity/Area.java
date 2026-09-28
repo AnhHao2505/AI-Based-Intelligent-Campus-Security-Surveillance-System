@@ -79,6 +79,12 @@ public class Area {
     @Column(name = "geometry", columnDefinition = "jsonb")
     private AreaGeometry geometry;
 
+    @Column(name = "center_latitude")
+    private Double centerLatitude;
+
+    @Column(name = "center_longitude")
+    private Double centerLongitude;
+
     @Column(name = "is_active", nullable = false)
     @Builder.Default
     private Boolean isActive = true;

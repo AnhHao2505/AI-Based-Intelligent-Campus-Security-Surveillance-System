@@ -9,6 +9,7 @@ import '../widgets/active_shift_card.dart';
 import '../widgets/my_shift_requests_sheet.dart';
 import '../widgets/shift_list_item.dart';
 import '../widgets/weekly_date_bar.dart';
+import '../../map/screens/guard_map_screen.dart';
 
 class GuardScheduleScreen extends StatefulWidget {
   const GuardScheduleScreen({super.key});
@@ -242,6 +243,22 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
                         icon: Icon(Icons.refresh, color: AppColors.txtSecondary(context), size: 20),
                         tooltip: 'Làm mới lịch trực',
                         onPressed: () => shiftProvider.fetchWeeklyShifts(),
+                      ),
+                      const SizedBox(width: 2),
+
+                      // Map icon button
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.all(6),
+                        constraints: const BoxConstraints(),
+                        icon: const Icon(Icons.map_outlined, color: AppColors.primaryLight, size: 22),
+                        tooltip: 'Bản đồ tuần tra an ninh',
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const GuardMapScreen()),
+                          );
+                        },
                       ),
                       const SizedBox(width: 2),
 
@@ -543,6 +560,22 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
             ],
           ),
         ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        elevation: 4,
+        icon: const Icon(Icons.map_rounded, size: 20),
+        label: const Text(
+          'Bản đồ tuần tra',
+          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+        ),
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const GuardMapScreen()),
+          );
+        },
       ),
     );
   }

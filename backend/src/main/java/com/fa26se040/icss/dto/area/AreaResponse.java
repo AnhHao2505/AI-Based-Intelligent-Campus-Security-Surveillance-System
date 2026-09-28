@@ -13,11 +13,29 @@ public record AreaResponse(
     String building,
     String floor,
     AreaGeometry geometry,
+    Double centerLatitude,
+    Double centerLongitude,
     Boolean isActive,
     OffsetDateTime createdAt,
     OffsetDateTime updatedAt,
     Boolean differsFromPreset
 ) {
+    public AreaResponse(
+        UUID id,
+        String name,
+        AreaLevel areaLevel,
+        Integer areaAccessLevel,
+        Boolean explicitAuthorizationRequired,
+        String building,
+        String floor,
+        AreaGeometry geometry,
+        Boolean isActive,
+        OffsetDateTime createdAt,
+        OffsetDateTime updatedAt,
+        Boolean differsFromPreset
+    ) {
+        this(id, name, areaLevel, areaAccessLevel, explicitAuthorizationRequired, building, floor, geometry, null, null, isActive, createdAt, updatedAt, differsFromPreset);
+    }
     public AreaResponse(
         UUID id,
         String name,
