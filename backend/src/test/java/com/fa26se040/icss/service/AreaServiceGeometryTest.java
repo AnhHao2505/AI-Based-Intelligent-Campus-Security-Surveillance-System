@@ -96,7 +96,7 @@ class AreaServiceGeometryTest {
         when(userRepository.findByEmail("admin@campus.com")).thenReturn(Optional.of(user));
         when(areaRepository.save(any(Area.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        AreaGeometryResponse response = areaService.saveGeometry(areaId, inputGeometry, "admin@campus.com");
+        AreaGeometryResponse response = areaService.saveGeometry(areaId, inputGeometry, 0L, "admin@campus.com");
 
         assertEquals("polygon", response.geometry().getType());
         assertEquals(1, response.geometry().getVersion());

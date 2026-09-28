@@ -662,7 +662,8 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
                 .build();
         testArea = areaRepository.save(testArea);
 
-        String updateJson = "{\"areaAccessLevel\": 3, \"explicitAuthorizationRequired\": true, \"reason\": \"Thắt chặt an ninh phòng Server\"}";
+        String updateJson = "{\"areaAccessLevel\": 3, \"explicitAuthorizationRequired\": true, \"reason\": \"Thắt chặt an ninh phòng Server\", \"version\": "
+                + testArea.getVersion() + "}";
         mockMvc.perform(patch("/api/areas/{id}/access-rules", testArea.getId())
                         .header("Authorization", token)
                         .contentType(MediaType.APPLICATION_JSON)

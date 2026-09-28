@@ -288,6 +288,7 @@ class AreaNameValidationIntegrationTest extends AbstractIntegrationTest {
                 .floorId(testFloor1.getId())
                 .centerLatitude(10.84175)
                 .centerLongitude(106.80922)
+                .version((nodeB.has("data") ? nodeB.get("data") : nodeB).get("version").asLong())
                 .build();
 
         mockMvc.perform(put("/api/areas/" + areaBId)
@@ -329,6 +330,8 @@ class AreaNameValidationIntegrationTest extends AbstractIntegrationTest {
                 .floorId(testFloor1.getId())
                 .centerLatitude(10.84175)
                 .centerLongitude(106.80922)
+                .reason("Đổi cấp độ khu vực theo yêu cầu kiểm thử")
+                .version((nodeRes.has("data") ? nodeRes.get("data") : nodeRes).get("version").asLong())
                 .build();
 
         mockMvc.perform(put("/api/areas/" + areaId)
