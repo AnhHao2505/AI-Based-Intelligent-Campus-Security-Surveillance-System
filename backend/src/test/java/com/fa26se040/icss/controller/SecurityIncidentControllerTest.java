@@ -1,6 +1,5 @@
 package com.fa26se040.icss.controller;
 
-import com.fa26se040.icss.dto.incident.IncidentClaimResponse;
 import com.fa26se040.icss.dto.incident.IncidentDetailResponse;
 import com.fa26se040.icss.dto.incident.IncidentEventDto;
 import com.fa26se040.icss.dto.incident.IncidentResolveRequest;
