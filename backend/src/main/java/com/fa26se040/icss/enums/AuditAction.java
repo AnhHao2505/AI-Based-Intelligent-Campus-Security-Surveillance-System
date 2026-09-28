@@ -20,5 +20,7 @@ public enum AuditAction {
     FINISH,
     EXPIRE,
     FAIL,
-    EXPIRE_EVENT_MODE
+    EXPIRE_EVENT_MODE,
+    // Step 5b (BR-TC-02): ADMIN đổi loại khu vực
+    CHANGE_TYPE
 }

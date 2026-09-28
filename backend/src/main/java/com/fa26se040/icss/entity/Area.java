@@ -103,6 +103,14 @@ public class Area {
     @Column(name = "deleted_at")
     private OffsetDateTime deletedAt;
 
+    /**
+     * Step 5b (BR-TC-13): tăng đúng 1 mỗi lần dòng areas thay đổi thật (AreaService quản lý, không dùng @Version
+     * vì AuditService.saveAndFlush có thể flush nhiều lần trong một thao tác).
+     */
+    @Column(name = "version", nullable = false)
+    @Builder.Default
+    private Long version = 0L;
+
     @OneToMany(mappedBy = "area", fetch = FetchType.LAZY)
     @Builder.Default
     private Set<Camera> cameras = new HashSet<>();
@@ -118,6 +126,9 @@ public class Area {
         }
         if (isActive == null) {
             isActive = true;
+        }
+        if (version == null) {
+            version = 0L;
         }
     }
 

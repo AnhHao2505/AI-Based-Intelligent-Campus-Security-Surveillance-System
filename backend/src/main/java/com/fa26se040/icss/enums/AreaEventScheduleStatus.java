@@ -4,5 +4,8 @@ public enum AreaEventScheduleStatus {
     SCHEDULED,
     STARTED,
     CANCELLED,
-    FAILED
+    FAILED,
+    // Step 5b (BR-ES-S1): trạng thái theo phiên do lịch sinh ra
+    COMPLETED,
+    ENDED_EARLY
 }

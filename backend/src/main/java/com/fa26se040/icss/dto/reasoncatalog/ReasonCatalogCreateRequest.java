@@ -6,7 +6,8 @@ import jakarta.validation.constraints.Size;
 
 public record ReasonCatalogCreateRequest(
         @NotBlank(message = "Loại thao tác không được để trống")
-        @Pattern(regexp = "^(EVENT_ENABLE|EVENT_DISABLE|EVENT_EXTEND)$", message = "Loại thao tác phải là EVENT_ENABLE, EVENT_DISABLE hoặc EVENT_EXTEND")
+        @Pattern(regexp = "^(EVENT_ENABLE|EVENT_DISABLE|EVENT_EXTEND|EVENT_SCHEDULE_CREATE|EVENT_SCHEDULE_UPDATE|EVENT_SCHEDULE_CANCEL)$",
+                message = "Loại thao tác phải là EVENT_ENABLE, EVENT_DISABLE, EVENT_EXTEND, EVENT_SCHEDULE_CREATE, EVENT_SCHEDULE_UPDATE hoặc EVENT_SCHEDULE_CANCEL")
         String actionType,
 
         @NotBlank(message = "Mã lý do không được để trống")

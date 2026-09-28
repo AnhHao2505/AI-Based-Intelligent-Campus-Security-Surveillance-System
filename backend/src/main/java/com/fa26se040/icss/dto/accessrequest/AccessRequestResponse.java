@@ -1,6 +1,7 @@
 package com.fa26se040.icss.dto.accessrequest;
 
 import com.fa26se040.icss.enums.AreaLevel;
+import com.fa26se040.icss.enums.CancelSource;
 import com.fa26se040.icss.enums.RequestStatus;
 import com.fa26se040.icss.enums.RequestType;
 
@@ -32,7 +33,11 @@ public record AccessRequestResponse(
     List<MemberInfo> members,
     OffsetDateTime createdAt,
     OffsetDateTime updatedAt,
-    Boolean isRequester
+    Boolean isRequester,
+    // Step 5b (BR-TC-15): nguồn huỷ (USER / SYSTEM; NULL = chưa huỷ hoặc huỷ trước V56), lý do, người huỷ
+    CancelSource cancelSource,
+    String cancelReason,
+    UUID cancelledById
 ) {
     public AccessRequestResponse(
             UUID id,
@@ -64,7 +69,8 @@ public record AccessRequestResponse(
                 requesterId, requesterName, requesterCode, requesterEmail,
                 requestType, purpose, startTime, endTime, status,
                 reviewerId, reviewerName, reviewerEmail, reviewedAt,
-                rejectionReason, members, createdAt, updatedAt, null
+                rejectionReason, members, createdAt, updatedAt, null,
+                null, null, null
         );
     }
 }

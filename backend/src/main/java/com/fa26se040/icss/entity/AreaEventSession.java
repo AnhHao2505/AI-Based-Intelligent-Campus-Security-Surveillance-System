@@ -43,6 +43,10 @@ public class AreaEventSession {
     @Column(name = "expiry_reminded_at")
     private OffsetDateTime expiryRemindedAt;
 
+    /** Step 5b (BR-ES-S1): lịch nguồn của phiên; phiên do ADJUST kéo dài kế thừa từ phiên trước. */
+    @Column(name = "schedule_id")
+    private UUID scheduleId;
+
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 

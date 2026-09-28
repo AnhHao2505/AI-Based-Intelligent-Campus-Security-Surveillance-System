@@ -92,4 +92,14 @@ public interface AreaAssignedPersonnelRepository extends JpaRepository<AreaAssig
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT u FROM User u WHERE u.id = :userId")
     Optional<User> findUserByIdForUpdate(@Param("userId") UUID userId);
+
+    /**
+     * Step 5b (BR-TC-07): số AP còn hiệu lực của khu vực tại :at — chưa thu hồi và chưa hết hạn
+     * (gồm cả AP có hiệu lực từ một thời điểm sau :at).
+     */
+    @Query("SELECT COUNT(a) FROM AreaAssignedPersonnel a " +
+           "WHERE a.area.id = :areaId " +
+           "AND a.revokedAt IS NULL " +
+           "AND (a.validTo IS NULL OR a.validTo > :at)")
+    long countNotRevokedNotExpired(@Param("areaId") UUID areaId, @Param("at") OffsetDateTime at);
 }

@@ -44,6 +44,10 @@ public interface AreaRepository extends JpaRepository<Area, UUID> {
     @Query("SELECT a FROM Area a WHERE a.id = :id")
     Optional<Area> findByIdWithLock(@Param("id") UUID id);
 
+    /** Step 5b: đọc loại hiện tại (không khoá, không nạp entity) để kiểm dữ liệu trước khi khoá. */
+    @Query("SELECT a.areaLevel FROM Area a WHERE a.id = :id AND a.deletedAt IS NULL")
+    Optional<com.fa26se040.icss.enums.AreaLevel> findAreaLevelById(@Param("id") UUID id);
+
     java.util.List<Area> findByBuildingIgnoreCaseAndFloorIgnoreCaseAndDeletedAtIsNull(String building, String floor);
 
     @Query("SELECT a FROM Area a WHERE a.deletedAt IS NULL AND a.areaLevel IN :levels ORDER BY a.building ASC, a.floor ASC, a.name ASC")
