@@ -59,6 +59,30 @@ import "../../styles/AreaListPage.css";
 const EPS = 0.0005;
 const round6 = (n) => Math.round(n * 1e6) / 1e6;
 
+const validateCenterCoordinates = (latitude, longitude) => {
+	if (
+		String(latitude ?? "").trim() === "" ||
+		String(longitude ?? "").trim() === ""
+	) {
+		return { error: "Vĩ độ và kinh độ là bắt buộc." };
+	}
+
+	const centerLatitude = Number(latitude);
+	const centerLongitude = Number(longitude);
+	if (!Number.isFinite(centerLatitude) || centerLatitude < -90 || centerLatitude > 90) {
+		return { error: "Vĩ độ phải nằm trong khoảng -90 đến 90." };
+	}
+	if (
+		!Number.isFinite(centerLongitude) ||
+		centerLongitude < -180 ||
+		centerLongitude > 180
+	) {
+		return { error: "Kinh độ phải nằm trong khoảng -180 đến 180." };
+	}
+
+	return { centerLatitude, centerLongitude };
+};
+
 const GEOMETRY_ERROR_MESSAGES = {
 	ERR_AREA_002: "Không tìm thấy khu vực được yêu cầu.",
 	ERR_AREA_003: "Cấp độ an ninh không hợp lệ hoặc đã ngừng sử dụng.",
@@ -252,6 +276,8 @@ export default function AreaListPage() {
 		building: "FPT_AROUND",
 		floor: "G",
 		floorId: null,
+		centerLatitude: "",
+		centerLongitude: "",
 		reason: "",
 	});
 
@@ -640,6 +666,8 @@ export default function AreaListPage() {
 			building: currentB,
 			floor: currentF,
 			floorId: currentFloorId,
+			centerLatitude: "",
+			centerLongitude: "",
 			reason: "",
 		});
 		setModalError(null);
@@ -655,6 +683,14 @@ export default function AreaListPage() {
 			return;
 		}
 		setModalError(null);
+		const coordinates = validateCenterCoordinates(
+			formData.centerLatitude,
+			formData.centerLongitude,
+		);
+		if (coordinates.error) {
+			setModalError(coordinates.error);
+			return;
+		}
 		setModalLoading(true);
 		try {
 			const payload = {
@@ -663,6 +699,8 @@ export default function AreaListPage() {
 				building: formData.building ? formData.building.trim() : null,
 				floor: formData.floor ? formData.floor.trim() : null,
 				floorId: formData.floorId || null,
+				centerLatitude: coordinates.centerLatitude,
+				centerLongitude: coordinates.centerLongitude,
 			};
 
 			const created = await createArea(payload);
@@ -699,6 +737,8 @@ export default function AreaListPage() {
 			floor: flCode,
 			floorId:
 				areaToEdit.floorEntity?.id || areaToEdit.floorId || flObj?.id || null,
+			centerLatitude: areaToEdit.centerLatitude ?? "",
+			centerLongitude: areaToEdit.centerLongitude ?? "",
 			reason: "",
 		});
 		setModalError(null);
@@ -714,6 +754,14 @@ export default function AreaListPage() {
 			return;
 		}
 		setModalError(null);
+		const coordinates = validateCenterCoordinates(
+			formData.centerLatitude,
+			formData.centerLongitude,
+		);
+		if (coordinates.error) {
+			setModalError(coordinates.error);
+			return;
+		}
 
 		const targetId = formData.id || selectedArea?.id;
 		if (!targetId) return;
@@ -726,6 +774,8 @@ export default function AreaListPage() {
 				building: formData.building ? formData.building.trim() : null,
 				floor: formData.floor ? formData.floor.trim() : null,
 				floorId: formData.floorId || null,
+				centerLatitude: coordinates.centerLatitude,
+				centerLongitude: coordinates.centerLongitude,
 			};
 
 			const updated = await updateArea(targetId, payload);
@@ -1177,6 +1227,46 @@ export default function AreaListPage() {
 										</select>
 									</div>
 								</div>
+								<div className="area-form-row">
+									<div className="area-form-group">
+										<label htmlFor="create-center-latitude" className="area-form-label">
+											Vĩ độ <span className="required">*</span>
+										</label>
+										<input
+											id="create-center-latitude"
+											type="number"
+											step="any"
+											min="-90"
+											max="90"
+											required
+											className="area-form-input"
+											placeholder="Ví dụ: 10.8411"
+											value={formData.centerLatitude}
+											onChange={(e) =>
+												setFormData({ ...formData, centerLatitude: e.target.value })
+											}
+										/>
+									</div>
+									<div className="area-form-group">
+										<label htmlFor="create-center-longitude" className="area-form-label">
+											Kinh độ <span className="required">*</span>
+										</label>
+										<input
+											id="create-center-longitude"
+											type="number"
+											step="any"
+											min="-180"
+											max="180"
+											required
+											className="area-form-input"
+											placeholder="Ví dụ: 106.8090"
+											value={formData.centerLongitude}
+											onChange={(e) =>
+												setFormData({ ...formData, centerLongitude: e.target.value })
+											}
+										/>
+									</div>
+								</div>
 							</div>
 
 							{/* 4. Phần chân: 2 nút chia đôi chiều rộng, gap 9px */}
@@ -1383,6 +1473,52 @@ export default function AreaListPage() {
 												</option>
 											))}
 										</select>
+									</div>
+								</div>
+								<div className="area-form-row">
+									<div className="area-form-group">
+										<label
+											htmlFor="edit-center-latitude"
+											className="area-form-label"
+										>
+											Vĩ độ <span className="required">*</span>
+										</label>
+										<input
+											id="edit-center-latitude"
+											type="number"
+											step="any"
+											min="-90"
+											max="90"
+											required
+											className="area-form-input"
+											placeholder="Ví dụ: 10.8411"
+											value={formData.centerLatitude}
+											onChange={(e) =>
+												setFormData({ ...formData, centerLatitude: e.target.value })
+											}
+										/>
+									</div>
+									<div className="area-form-group">
+										<label
+											htmlFor="edit-center-longitude"
+											className="area-form-label"
+										>
+											Kinh độ <span className="required">*</span>
+										</label>
+										<input
+											id="edit-center-longitude"
+											type="number"
+											step="any"
+											min="-180"
+											max="180"
+											required
+											className="area-form-input"
+											placeholder="Ví dụ: 106.8090"
+											value={formData.centerLongitude}
+											onChange={(e) =>
+												setFormData({ ...formData, centerLongitude: e.target.value })
+											}
+										/>
 									</div>
 								</div>
 							</div>

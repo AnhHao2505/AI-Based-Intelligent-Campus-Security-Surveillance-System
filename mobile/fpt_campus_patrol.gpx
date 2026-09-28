@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Campus Security System" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata>
+    <name>Lộ Trình Tuần Tra FPT University HCMC</name>
+    <desc>Lộ trình mô phỏng bảo vệ đi tuần tra qua các điểm chốt trong khuôn viên Đại học FPT TP.HCM</desc>
+  </metadata>
+  <trk>
+    <name>Tuan Tra Khuon Vien FPT HCM</name>
+    <trkseg>
+      <!-- 1. Cổng chính -->
+      <trkpt lat="10.84175" lon="106.80922">
+        <ele>10</ele>
+        <time>2026-09-27T00:00:00Z</time>
+      </trkpt>
+      <!-- 2. Lối vào sảnh chính -->
+      <trkpt lat="10.84160" lon="106.80945">
+        <ele>10</ele>
+        <time>2026-09-27T00:00:30Z</time>
+      </trkpt>
+      <!-- 3. Khu Y tế -->
+      <trkpt lat="10.84165" lon="106.80952">
+        <ele>10</ele>
+        <time>2026-09-27T00:01:00Z</time>
+      </trkpt>
+      <!-- 4. Tòa Alpha / Sân trung tâm -->
+      <trkpt lat="10.84180" lon="106.81030">
+        <ele>10</ele>
+        <time>2026-09-27T00:01:45Z</time>
+      </trkpt>
+      <!-- 5. Thư viện LB01 / LB02 -->
+      <trkpt lat="10.84148" lon="106.81008">
+        <ele>10</ele>
+        <time>2026-09-27T00:02:30Z</time>
+      </trkpt>
+      <!-- 6. Khu Hồ sen (Lotus Pond) -->
+      <trkpt lat="10.84105" lon="106.80973">
+        <ele>10</ele>
+        <time>2026-09-27T00:03:15Z</time>
+      </trkpt>
+      <!-- 7. Hành lang phía Tây tòa nhà -->
+      <trkpt lat="10.84135" lon="106.80935">
+        <ele>10</ele>
+        <time>2026-09-27T00:04:00Z</time>
+      </trkpt>
+      <!-- 8. Vòng lại Cổng chính -->
+      <trkpt lat="10.84175" lon="106.80922">
+        <ele>10</ele>
+        <time>2026-09-27T00:04:45Z</time>
+      </trkpt>
+    </trkseg>
+  </trk>
+</gpx>

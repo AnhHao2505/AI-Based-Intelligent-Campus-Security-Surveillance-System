@@ -96,13 +96,14 @@ export default function CameraCreateModal({ isOpen, onClose, onSuccess }) {
 
 						<div className="form-group col-span-2">
 							<label htmlFor="areaId">
-								Khu vực phân công (Tùy chọn)
+								Khu vực phân công <span className="required">*</span>
 							</label>
 							<select
 								id="areaId"
 								name="areaId"
 								value={formData.areaId}
 								onChange={handleChange}
+								required
 								disabled={loading}
 								style={{
 									width: "100%",
@@ -114,7 +115,7 @@ export default function CameraCreateModal({ isOpen, onClose, onSuccess }) {
 									fontSize: "0.875rem",
 								}}
 							>
-								<option value="">-- Chưa gán khu vực (Camera tự do) --</option>
+								<option value="" disabled>-- Chọn khu vực --</option>
 								{availableAreas.map((area) => (
 									<option
 										key={area.id}
@@ -135,7 +136,7 @@ export default function CameraCreateModal({ isOpen, onClose, onSuccess }) {
 									display: "block",
 								}}
 							>
-								Mỗi camera chỉ thuộc tối đa 1 khu vực. Bạn có thể thay đổi sau.
+								Mỗi camera phải được gán vào một khu vực đang hoạt động. Bạn có thể thay đổi sau.
 							</span>
 						</div>
 					</div>

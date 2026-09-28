@@ -1,6 +1,5 @@
 package com.fa26se040.icss.service;
 
-import com.fa26se040.icss.dto.area.AreaAccessRulesUpdateRequest;
 import com.fa26se040.icss.dto.area.AreaResponse;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.User;
@@ -13,8 +12,6 @@ import jakarta.persistence.PersistenceException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;

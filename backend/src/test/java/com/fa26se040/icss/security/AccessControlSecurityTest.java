@@ -10,13 +10,10 @@ import com.fa26se040.icss.service.AuditService;
 import com.fa26se040.icss.service.AreaLevelPresetService;
 import com.fa26se040.icss.service.AreaService;
 import com.fa26se040.icss.service.UserService;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.http.MediaType;
@@ -40,9 +37,6 @@ class AccessControlSecurityTest extends AbstractIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
-
-    @Autowired
-    private ObjectMapper objectMapper;
 
     @Autowired
     private JwtTokenProvider jwtTokenProvider;

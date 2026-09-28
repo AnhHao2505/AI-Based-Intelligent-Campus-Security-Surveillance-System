@@ -31,17 +31,27 @@ public class AreaUpdateRequest {
 
     private UUID floorId;
 
+    @NotNull(message = "Vĩ độ không được để trống")
+    @jakarta.validation.constraints.DecimalMin(value = "-90.0", message = "Vĩ độ phải từ -90 đến 90")
+    @jakarta.validation.constraints.DecimalMax(value = "90.0", message = "Vĩ độ phải từ -90 đến 90")
+    private Double centerLatitude;
+
+    @NotNull(message = "Kinh độ không được để trống")
+    @jakarta.validation.constraints.DecimalMin(value = "-180.0", message = "Kinh độ phải từ -180 đến 180")
+    @jakarta.validation.constraints.DecimalMax(value = "180.0", message = "Kinh độ phải từ -180 đến 180")
+    private Double centerLongitude;
+
     // Step 5b (BR-TC-02): lý do đổi loại khu vực (10–500 ký tự, chỉ bắt buộc khi đổi loại)
     private String reason;
 
     // Step 5b (BR-TC-13): version của khu vực mà client đang xem
     private Long version;
 
-    public AreaUpdateRequest(String name, AreaLevel areaLevel, String building, String floor, UUID floorId) {
-        this(name, areaLevel, building, floor, floorId, null, null);
+    public AreaUpdateRequest(String name, AreaLevel areaLevel, String building, String floor) {
+        this(name, areaLevel, building, floor, null, null, null, null, null);
     }
 
-    public AreaUpdateRequest(String name, AreaLevel areaLevel, String building, String floor) {
-        this(name, areaLevel, building, floor, null, null, null);
+    public AreaUpdateRequest(String name, AreaLevel areaLevel, String building, String floor, UUID floorId) {
+        this(name, areaLevel, building, floor, floorId, null, null, null, null);
     }
 }

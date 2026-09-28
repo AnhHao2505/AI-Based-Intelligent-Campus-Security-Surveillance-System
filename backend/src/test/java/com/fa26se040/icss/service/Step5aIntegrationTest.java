@@ -56,7 +56,6 @@ import com.fa26se040.icss.enums.NotificationType;
 import com.fa26se040.icss.repository.AreaEventSessionRepository;
 import com.fa26se040.icss.repository.NotificationRepository;
 import com.fa26se040.icss.repository.ReasonCatalogRepository;
-import com.fa26se040.icss.service.ReasonCatalogService;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;

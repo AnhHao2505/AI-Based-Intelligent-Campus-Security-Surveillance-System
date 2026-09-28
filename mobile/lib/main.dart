@@ -7,6 +7,10 @@ import 'core/theme/theme_provider.dart';
 import 'core/utils/storage_helper.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/auth/screens/login_screen.dart';
+import 'features/incident/providers/incident_provider.dart';
+import 'features/incident/services/incident_service.dart';
+import 'features/incident/services/stomp_service.dart';
+import 'features/map/providers/map_provider.dart';
 import 'features/shift/providers/shift_provider.dart';
 import 'features/shift/screens/guard_schedule_screen.dart';
 
@@ -18,6 +22,8 @@ void main() async {
   await StorageHelper.loadBaseUrl();
 
   final apiClient = ApiClient();
+  final stompService = StompService();
+  final incidentService = IncidentService(apiClient);
 
   runApp(
     MultiProvider(
@@ -30,6 +36,15 @@ void main() async {
         ),
         ChangeNotifierProvider(
           create: (_) => ShiftProvider(apiClient),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => MapProvider(apiClient),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => IncidentProvider(
+            incidentService: incidentService,
+            stompService: stompService,
+          ),
         ),
       ],
       child: const GuardMobileApp(),

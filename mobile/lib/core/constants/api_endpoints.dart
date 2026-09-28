@@ -33,8 +33,18 @@ class ApiEndpoints {
   static String get shiftRequests => '$baseUrl/api/guard-shift-requests';
   static String get myShiftRequests => '$baseUrl/api/guard-shift-requests/my-requests';
 
-  // Incidents endpoints (for future phase)
+  // Area & Map endpoints
+  static String get areaMapPins => '$baseUrl/api/areas/map-pins';
+  static String areaMapPinsByBuilding(String building) => '$baseUrl/api/areas/map-pins?building=$building';
+
+  // WebSocket endpoint
+  static String get wsSecurity => '${baseUrl.replaceFirst('http', 'ws')}/ws-security';
+
+  // Incidents endpoints
+  static String get activeIncidentsAll => '$baseUrl/api/incidents/active';
   static String activeIncidents(String building) => '$baseUrl/api/incidents/active?building=$building';
   static String claimIncident(String incidentId) => '$baseUrl/api/incidents/$incidentId/claim';
   static String resolveIncident(String incidentId) => '$baseUrl/api/incidents/$incidentId/resolve';
+  static String get testAlert => '$baseUrl/api/incidents/test-alert';
+  static String get testAlertBatch => '$baseUrl/api/incidents/test-alert/batch';
 }

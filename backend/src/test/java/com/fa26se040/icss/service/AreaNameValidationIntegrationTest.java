@@ -110,6 +110,8 @@ class AreaNameValidationIntegrationTest extends AbstractIntegrationTest {
                 .name("Phòng Hợp Lệ " + UUID.randomUUID().toString().substring(0, 5))
                 .areaLevel(AreaLevel.PUBLIC)
                 .floorId(UUID.randomUUID()) // floorId không tồn tại
+                .centerLatitude(10.84175)
+                .centerLongitude(106.80922)
                 .build();
 
         mockMvc.perform(post("/api/areas")
@@ -131,6 +133,8 @@ class AreaNameValidationIntegrationTest extends AbstractIntegrationTest {
                 .name(name1)
                 .areaLevel(AreaLevel.PUBLIC)
                 .floorId(testFloor1.getId())
+                .centerLatitude(10.84175)
+                .centerLongitude(106.80922)
                 .build();
 
         mockMvc.perform(post("/api/areas")
@@ -143,6 +147,8 @@ class AreaNameValidationIntegrationTest extends AbstractIntegrationTest {
                 .name(name2)
                 .areaLevel(AreaLevel.PUBLIC)
                 .floorId(testFloor1.getId())
+                .centerLatitude(10.84175)
+                .centerLongitude(106.80922)
                 .build();
 
         mockMvc.perform(post("/api/areas")
@@ -164,6 +170,8 @@ class AreaNameValidationIntegrationTest extends AbstractIntegrationTest {
                 .name(name)
                 .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
                 .floorId(testFloor1.getId())
+                .centerLatitude(10.84175)
+                .centerLongitude(106.80922)
                 .build();
 
         mockMvc.perform(post("/api/areas")
@@ -177,6 +185,8 @@ class AreaNameValidationIntegrationTest extends AbstractIntegrationTest {
                 .name(name)
                 .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
                 .floorId(testFloor2.getId())
+                .centerLatitude(10.84175)
+                .centerLongitude(106.80922)
                 .build();
 
         mockMvc.perform(post("/api/areas")
@@ -196,6 +206,8 @@ class AreaNameValidationIntegrationTest extends AbstractIntegrationTest {
                 .name(name)
                 .areaLevel(AreaLevel.PUBLIC)
                 .floorId(testFloor1.getId())
+                .centerLatitude(10.84175)
+                .centerLongitude(106.80922)
                 .build();
 
         MvcResult res1 = mockMvc.perform(post("/api/areas")
@@ -218,6 +230,8 @@ class AreaNameValidationIntegrationTest extends AbstractIntegrationTest {
                 .name(name)
                 .areaLevel(AreaLevel.PUBLIC)
                 .floorId(testFloor1.getId())
+                .centerLatitude(10.84175)
+                .centerLongitude(106.80922)
                 .build();
 
         mockMvc.perform(post("/api/areas")
@@ -238,6 +252,8 @@ class AreaNameValidationIntegrationTest extends AbstractIntegrationTest {
                 .name(name)
                 .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
                 .floorId(testFloor1.getId())
+                .centerLatitude(10.84175)
+                .centerLongitude(106.80922)
                 .build();
 
         mockMvc.perform(post("/api/areas")
@@ -251,6 +267,8 @@ class AreaNameValidationIntegrationTest extends AbstractIntegrationTest {
                 .name("Phòng Khác " + suffix)
                 .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
                 .floorId(testFloor2.getId())
+                .centerLatitude(10.84175)
+                .centerLongitude(106.80922)
                 .build();
 
         MvcResult resB = mockMvc.perform(post("/api/areas")
@@ -268,6 +286,8 @@ class AreaNameValidationIntegrationTest extends AbstractIntegrationTest {
                 .name(name)
                 .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
                 .floorId(testFloor1.getId())
+                .centerLatitude(10.84175)
+                .centerLongitude(106.80922)
                 .build();
 
         mockMvc.perform(put("/api/areas/" + areaBId)
@@ -288,6 +308,8 @@ class AreaNameValidationIntegrationTest extends AbstractIntegrationTest {
                 .name(name)
                 .areaLevel(AreaLevel.PUBLIC)
                 .floorId(testFloor1.getId())
+                .centerLatitude(10.84175)
+                .centerLongitude(106.80922)
                 .build();
 
         MvcResult res = mockMvc.perform(post("/api/areas")
@@ -305,6 +327,8 @@ class AreaNameValidationIntegrationTest extends AbstractIntegrationTest {
                 .name(name)
                 .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
                 .floorId(testFloor1.getId())
+                .centerLatitude(10.84175)
+                .centerLongitude(106.80922)
                 .build();
 
         mockMvc.perform(put("/api/areas/" + areaId)
@@ -328,6 +352,8 @@ class AreaNameValidationIntegrationTest extends AbstractIntegrationTest {
                 .name(nfdName)
                 .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
                 .floorId(testFloor1.getId())
+                .centerLatitude(10.84175)
+                .centerLongitude(106.80922)
                 .build();
 
         MvcResult result = mockMvc.perform(post("/api/areas")
@@ -360,6 +386,8 @@ class AreaNameValidationIntegrationTest extends AbstractIntegrationTest {
                 .name("123456")
                 .areaLevel(AreaLevel.PUBLIC)
                 .floorId(testFloor1.getId())
+                .centerLatitude(10.84175)
+                .centerLongitude(106.80922)
                 .build();
 
         mockMvc.perform(post("/api/areas")
@@ -374,6 +402,8 @@ class AreaNameValidationIntegrationTest extends AbstractIntegrationTest {
                 .name("Phòng Máy Chủ @#$")
                 .areaLevel(AreaLevel.PUBLIC)
                 .floorId(testFloor1.getId())
+                .centerLatitude(10.84175)
+                .centerLongitude(106.80922)
                 .build();
 
         mockMvc.perform(post("/api/areas")

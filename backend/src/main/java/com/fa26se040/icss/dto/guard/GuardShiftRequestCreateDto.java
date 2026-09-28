@@ -2,7 +2,6 @@ package com.fa26se040.icss.dto.guard;
 
 import com.fa26se040.icss.enums.GuardShiftRequestType;
 import com.fasterxml.jackson.annotation.JsonAlias;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
 

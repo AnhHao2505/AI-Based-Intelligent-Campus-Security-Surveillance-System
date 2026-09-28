@@ -1195,8 +1195,25 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 6px;
   padding-top: 4px;
+}
+
+.soc-incident-workflow {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.soc-incident-workflow__heading {
+  color: var(--theme-text-muted, #64748b);
+  font-size: 0.65rem;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .btn-soc-jump-cam {
@@ -1223,9 +1240,9 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  background: var(--theme-success-bg, #f0fdf4);
-  border: 1px solid var(--theme-success-border, #86efac);
-  color: var(--theme-success-text, #166534);
+  background: var(--theme-primary-subtle, rgba(37, 99, 235, 0.08));
+  border: 1px solid var(--theme-primary-border, #bfdbfe);
+  color: var(--theme-primary, #2563eb);
   padding: 4px 8px;
   border-radius: 5px;
   font-size: 0.725rem;
@@ -1235,8 +1252,36 @@
 }
 
 .btn-soc-ack:hover {
-  background: #16a34a;
+  background: #2563eb;
   color: #ffffff;
+}
+
+.soc-ack-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(148, 163, 184, 0.12);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  color: var(--theme-text-muted, #64748b);
+  padding: 3px 7px;
+  border-radius: 5px;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.soc-claimed-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #f59e0b;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.soc-action-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .soc-resolved-label {

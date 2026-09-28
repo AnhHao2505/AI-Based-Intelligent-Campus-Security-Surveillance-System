@@ -16,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -78,6 +79,7 @@ public class SecurityIncidentService {
                 .imageUrl(imageUrl)
                 .detectedAt(detectedAt)
                 .status(IncidentStatus.NEW)
+                .resolutionNotes(eventDto.getDetails())
                 .version(0)
                 .build();
 
@@ -163,6 +165,21 @@ public class SecurityIncidentService {
 
         User guard = userRepository.findByEmail(guardEmail)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thông tin tài khoản bảo vệ"));
+
+        // Validation 1: Incident must not be in NEW status
+        if (incident.getStatus() == IncidentStatus.NEW) {
+            throw new IllegalStateException("Cần tiếp nhận sự cố trước khi xử lý");
+        }
+
+        // Validation 2: Incident must not already be resolved
+        if (incident.getStatus().name().startsWith("RESOLVED")) {
+            throw new IllegalStateException("Sự cố này đã được xử lý");
+        }
+
+        // Validation 3: Only the claiming guard can resolve the incident
+        if (incident.getClaimedBy() == null || !incident.getClaimedBy().getEmail().equalsIgnoreCase(guardEmail)) {
+            throw new AccessDeniedException("Bạn không phải người tiếp nhận sự cố này");
+        }
 
         IncidentStatus newStatus = request.getOutcome() == IncidentOutcome.VERIFIED
                 ? IncidentStatus.RESOLVED_VERIFIED

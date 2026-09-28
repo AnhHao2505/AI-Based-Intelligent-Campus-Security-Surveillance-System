@@ -319,7 +319,7 @@ export default function CameraDetailPage() {
     try {
       const payload = {
         name: generalForm.name,
-        areaId: generalForm.areaId ? generalForm.areaId : null,
+        areaId: generalForm.areaId,
       };
       const updated = await updateCamera(id, payload);
       setCamera(updated);

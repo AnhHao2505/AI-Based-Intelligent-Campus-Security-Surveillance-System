@@ -16,6 +16,8 @@ public record AreaListItemResponse(
     AreaGeometry geometry,
     Boolean hasGeometry,
     Boolean differsFromPreset,
+    Double centerLatitude,
+    Double centerLongitude,
     Boolean openToMembers,
     OffsetDateTime openUntil,
     Boolean eventActive,
@@ -27,7 +29,7 @@ public record AreaListItemResponse(
     // Step 5b (BR-TC-13): version của khu vực (optimistic concurrency)
     Long version
 ) {
-    /** Chữ ký canonical trước Step 5b: version = null (chưa hiện thực). */
+    /** Chữ ký canonical của main (trước Step 5b): version = null. */
     public AreaListItemResponse(
         UUID id,
         String name,
@@ -40,6 +42,8 @@ public record AreaListItemResponse(
         AreaGeometry geometry,
         Boolean hasGeometry,
         Boolean differsFromPreset,
+        Double centerLatitude,
+        Double centerLongitude,
         Boolean openToMembers,
         OffsetDateTime openUntil,
         Boolean eventActive,
@@ -49,7 +53,7 @@ public record AreaListItemResponse(
         String eventLastAdjustedByName,
         Integer upcomingScheduleCount
     ) {
-        this(id, name, areaLevel, areaAccessLevel, explicitAuthorizationRequired, building, floor, isActive, geometry, hasGeometry, differsFromPreset, openToMembers, openUntil, eventActive, eventStartedAt, eventStartedByName, eventLastAdjustedAt, eventLastAdjustedByName, upcomingScheduleCount, null);
+        this(id, name, areaLevel, areaAccessLevel, explicitAuthorizationRequired, building, floor, isActive, geometry, hasGeometry, differsFromPreset, centerLatitude, centerLongitude, openToMembers, openUntil, eventActive, eventStartedAt, eventStartedByName, eventLastAdjustedAt, eventLastAdjustedByName, upcomingScheduleCount, null);
     }
 
     public AreaListItemResponse(
@@ -72,7 +76,10 @@ public record AreaListItemResponse(
         OffsetDateTime eventLastAdjustedAt,
         String eventLastAdjustedByName
     ) {
-        this(id, name, areaLevel, areaAccessLevel, explicitAuthorizationRequired, building, floor, isActive, geometry, hasGeometry, differsFromPreset, openToMembers, openUntil, eventActive, eventStartedAt, eventStartedByName, eventLastAdjustedAt, eventLastAdjustedByName, 0);
+        this(id, name, areaLevel, areaAccessLevel, explicitAuthorizationRequired, building, floor,
+                isActive, geometry, hasGeometry, differsFromPreset, null, null, openToMembers,
+                openUntil, eventActive, eventStartedAt, eventStartedByName, eventLastAdjustedAt,
+                eventLastAdjustedByName, 0);
     }
 
     public AreaListItemResponse(
@@ -91,7 +98,9 @@ public record AreaListItemResponse(
         OffsetDateTime openUntil,
         Boolean eventActive
     ) {
-        this(id, name, areaLevel, areaAccessLevel, explicitAuthorizationRequired, building, floor, isActive, geometry, hasGeometry, differsFromPreset, openToMembers, openUntil, eventActive, null, null, null, null, 0);
+        this(id, name, areaLevel, areaAccessLevel, explicitAuthorizationRequired, building, floor,
+                isActive, geometry, hasGeometry, differsFromPreset, null, null, openToMembers,
+                openUntil, eventActive, null, null, null, null, 0);
     }
 
     public AreaListItemResponse(
@@ -107,7 +116,9 @@ public record AreaListItemResponse(
         Boolean hasGeometry,
         Boolean differsFromPreset
     ) {
-        this(id, name, areaLevel, areaAccessLevel, explicitAuthorizationRequired, building, floor, isActive, geometry, hasGeometry, differsFromPreset, false, null, false);
+        this(id, name, areaLevel, areaAccessLevel, explicitAuthorizationRequired, building, floor,
+                isActive, geometry, hasGeometry, differsFromPreset, null, null, false, null, false,
+                null, null, null, null, 0);
     }
 
     public AreaListItemResponse(
@@ -122,6 +133,8 @@ public record AreaListItemResponse(
         AreaGeometry geometry,
         Boolean hasGeometry
     ) {
-        this(id, name, areaLevel, areaAccessLevel, explicitAuthorizationRequired, building, floor, isActive, geometry, hasGeometry, false, false, null, false);
+        this(id, name, areaLevel, areaAccessLevel, explicitAuthorizationRequired, building, floor,
+                isActive, geometry, hasGeometry, false, null, null, false, null, false,
+                null, null, null, null, 0);
     }
 }

@@ -43,7 +43,7 @@ export default function CameraGeneralTab({
 							size={15}
 							className="text-blue"
 						/>
-						<span>Khu vực phụ trách (Mỗi camera thuộc tối đa 1 khu vực)</span>
+						<span>Khu vực phụ trách *</span>
 					</label>
 
 					<div
@@ -59,6 +59,7 @@ export default function CameraGeneralTab({
 							onChange={(e) =>
 								setGeneralForm({ ...generalForm, areaId: e.target.value })
 							}
+							required
 							style={{
 								flex: "1 1 300px",
 								padding: "0.6rem 0.85rem",
@@ -69,7 +70,7 @@ export default function CameraGeneralTab({
 								fontSize: "0.875rem",
 							}}
 						>
-							<option value="">-- Chưa gán khu vực (Camera tự do) --</option>
+							<option value="" disabled>-- Chọn khu vực --</option>
 							{availableAreas.map((area) => (
 								<option
 									key={area.id}

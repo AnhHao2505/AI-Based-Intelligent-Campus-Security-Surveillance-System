@@ -9,8 +9,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.JoinTable;
-import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
@@ -85,6 +83,12 @@ public class Area {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "geometry", columnDefinition = "jsonb")
     private AreaGeometry geometry;
+
+    @Column(name = "center_latitude")
+    private Double centerLatitude;
+
+    @Column(name = "center_longitude")
+    private Double centerLongitude;
 
     @Column(name = "is_active", nullable = false)
     @Builder.Default

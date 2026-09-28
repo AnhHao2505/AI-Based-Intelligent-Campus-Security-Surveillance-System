@@ -9,7 +9,6 @@ import com.fa26se040.icss.dto.accessrequest.AccessRequestReviewRequest;
 import com.fa26se040.icss.dto.accessrequest.GroupAccessRequestCreateRequest;
 import com.fa26se040.icss.dto.accessrequest.IndividualAccessRequestCreateRequest;
 import com.fa26se040.icss.entity.AccessRequest;
-import com.fa26se040.icss.entity.AccessRequestMember;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.ConfigKey;
@@ -36,7 +35,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.access.AccessDeniedException;
 
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;

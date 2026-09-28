@@ -11,7 +11,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import com.fa26se040.icss.dto.accessrequest.AreaSimpleResponse;
 import com.fa26se040.icss.dto.camera.*;
 import com.fa26se040.icss.dto.common.ApiResponse;
 import com.fa26se040.icss.enums.CameraStatus;
@@ -115,13 +114,6 @@ public class CameraController {
         log.info("REST request to get health logs for camera: {}", id);
         Page<CameraHealthLogResponse> logs = cameraService.getHealthLogs(id, pageable);
         return ResponseEntity.ok(ApiResponse.success(logs, "Lấy nhật ký hoạt động camera thành công"));
-    }
-
-    @GetMapping("/{id}/areas")
-    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER', 'GUARD')")
-    public ResponseEntity<ApiResponse<List<AreaSimpleResponse>>> getAreas(@PathVariable UUID id) {
-        log.info("REST request to get areas assigned to camera: {}", id);
-        return ResponseEntity.ok(ApiResponse.success(cameraService.getCameraAreas(id), "Lấy danh sách khu vực của camera thành công"));
     }
 
     @PostMapping("/{id}/connect")
