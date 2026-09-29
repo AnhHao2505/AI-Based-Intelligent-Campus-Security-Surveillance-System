@@ -219,3 +219,15 @@ export async function updateEventSchedule(areaId, scheduleId, data) {
 export async function cancelEventSchedule(areaId, scheduleId, data) {
 	return apiPost(`/api/areas/${areaId}/event-schedules/${scheduleId}/cancel`, data);
 }
+
+/**
+ * Xem trước tác động khi ADMIN đổi loại khu vực (chỉ đọc, BR-TC-03)
+ * GET /api/areas/{id}/type-change-preview?newAreaLevel=
+ * @param {string} id
+ * @param {string} newAreaLevel PUBLIC | INTERNAL_CONFIDENTIAL | CONFIDENTIAL_CONTACT_REQUIRED | HIGHLY_CONFIDENTIAL
+ * @returns {Promise<Object>} AreaTypeChangePreviewResponse
+ */
+export async function getTypeChangePreview(id, newAreaLevel) {
+	const query = new URLSearchParams({ newAreaLevel });
+	return apiGet(`/api/areas/${id}/type-change-preview?${query.toString()}`);
+}

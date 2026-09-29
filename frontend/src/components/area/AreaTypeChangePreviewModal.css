@@ -1,0 +1,135 @@
+/* BL2 — modal xem trước đổi loại khu vực. Chỉ dùng token --theme-*. */
+.atcp {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  font-size: 13px;
+  color: var(--theme-text-primary);
+}
+
+.atcp-change {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--theme-border);
+  border-radius: 10px;
+  background: var(--theme-bg-surface-elevated);
+}
+
+.atcp-change__label {
+  font-size: 12px;
+  color: var(--theme-text-muted);
+}
+
+.atcp-change__level {
+  margin-top: 2px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.atcp-change__meta {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--theme-text-secondary);
+}
+
+.atcp-change__arrow {
+  color: var(--theme-text-muted);
+}
+
+.atcp-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.atcp-section__title {
+  font-weight: 600;
+}
+
+.atcp-section__title--danger {
+  color: var(--theme-danger-text);
+}
+
+.atcp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.atcp-list__item {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--theme-border);
+  border-radius: 8px;
+}
+
+.atcp-list__time {
+  color: var(--theme-text-secondary);
+}
+
+.atcp-empty {
+  color: var(--theme-text-muted);
+}
+
+.atcp-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid;
+}
+
+.atcp-alert--danger {
+  color: var(--theme-danger-text);
+  background: var(--theme-danger-bg);
+  border-color: var(--theme-danger-border);
+}
+
+.atcp-alert--ok {
+  color: var(--theme-text-secondary);
+  background: var(--theme-primary-subtle);
+  border-color: var(--theme-primary-border);
+}
+
+.atcp-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.atcp-fact {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--theme-border);
+  border-radius: 8px;
+}
+
+.atcp-fact span {
+  color: var(--theme-text-secondary);
+}
+
+@media (max-width: 640px) {
+  .atcp-change {
+    grid-template-columns: 1fr;
+  }
+
+  .atcp-change__arrow {
+    transform: rotate(90deg);
+  }
+
+  .atcp-facts {
+    grid-template-columns: 1fr;
+  }
+}
