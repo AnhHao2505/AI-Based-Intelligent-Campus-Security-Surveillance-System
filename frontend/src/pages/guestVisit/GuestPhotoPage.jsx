@@ -172,15 +172,8 @@ export default function GuestPhotoPage() {
       closeAttachModal();
       loadVisits(page);
     } catch (err) {
-      if (err?.code === 'ERR_GUEST_016') {
-        setUploadError('Lượt khách đã được người khác cập nhật, vui lòng tải lại.');
-        setTimeout(() => {
-          closeAttachModal();
-          loadVisits(page);
-        }, 1500);
-      } else {
-        setUploadError(err?.message || 'Không thể gắn ảnh cho khách.');
-      }
+      // Backend gắn ảnh không dùng version (không trả 016): hiện nguyên câu lỗi (030–037), giữ modal mở
+      setUploadError(err?.message || 'Không thể gắn ảnh cho khách.');
     } finally {
       setUploadLoading(false);
     }
