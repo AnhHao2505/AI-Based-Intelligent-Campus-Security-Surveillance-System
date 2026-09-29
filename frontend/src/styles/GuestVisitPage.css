@@ -232,3 +232,56 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Filter buttons for Guest Visit pages */
+.guest-visit__filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 4px 0;
+}
+
+.guest-visit__filter-btn {
+  background: var(--theme-bg-surface);
+  border: 1px solid var(--theme-border);
+  color: var(--theme-text-secondary);
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.guest-visit__filter-btn:hover {
+  background: var(--theme-bg-surface-hover);
+  color: var(--theme-text-primary);
+  border-color: var(--theme-border-hover);
+}
+
+.guest-visit__filter-btn--active {
+  background: var(--theme-primary-bg, #eff6ff);
+  color: var(--theme-primary, #2563eb);
+  border-color: var(--theme-primary-border, #bfdbfe);
+  font-weight: 600;
+}
+
+.guest-visit__spin {
+  animation: guest-spin 1s linear infinite;
+}
+
+@keyframes guest-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.guest-visit__reason--danger {
+  background: var(--theme-danger-bg);
+  border-color: var(--theme-danger-border);
+  color: var(--theme-danger-text);
+}

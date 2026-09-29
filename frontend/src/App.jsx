@@ -17,6 +17,7 @@ import GuardDashboardPage from "./pages/guard/GuardDashboardPage";
 import AccessRequestPage from "./pages/accessRequest/AccessRequestPage";
 import AccessRequestReviewPage from "./pages/accessRequest/AccessRequestReviewPage";
 import GuestVisitPage from "./pages/guestVisit/GuestVisitPage";
+import GuestVisitReviewPage from "./pages/guestVisit/GuestVisitReviewPage";
 import AccessHistoryPage from "./pages/accessHistory/AccessHistoryPage";
 import NotificationsPage from "./pages/notifications/NotificationsPage";
 import ManageAccountPage from "./pages/accounts/ManageAccountPage";
@@ -249,6 +250,15 @@ function App() {
 								element={
 									<ProtectedRoute allowedRoles={[ROLES.FACILITY_MANAGER]}>
 										<AccessRequestReviewPage />
+									</ProtectedRoute>
+								}
+							/>
+
+							<Route
+								path="/admin/guest-visits"
+								element={
+									<ProtectedRoute allowedRoles={[ROLES.FACILITY_MANAGER]}>
+										<GuestVisitReviewPage />
 									</ProtectedRoute>
 								}
 							/>

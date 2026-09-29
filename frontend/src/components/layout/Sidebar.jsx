@@ -23,6 +23,7 @@ import {
 	Compass,
 	Tag,
 	UserPlus,
+	UserCheck,
 } from "lucide-react";
 import { ROLES, ROLE_LABELS } from "../../constants/roles";
 import { useTheme } from "../../context/ThemeContext";
@@ -317,6 +318,18 @@ export default function Sidebar({ user, onLogout }) {
 											>
 												<ClipboardCheck size={18} />
 												<span>Phê duyệt truy cập</span>
+											</NavLink>
+											<NavLink
+												to="/admin/guest-visits"
+												className={({ isActive }) =>
+													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
+												}
+												title={
+													sidebarCollapsed ? "Duyệt lượt khách" : undefined
+												}
+											>
+												<UserCheck size={18} />
+												<span>Duyệt lượt khách</span>
 											</NavLink>
 											<NavLink
 												to="/admin/guard-schedules"
