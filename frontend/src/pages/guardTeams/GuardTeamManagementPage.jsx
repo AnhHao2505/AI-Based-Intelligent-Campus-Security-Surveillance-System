@@ -886,9 +886,10 @@ export default function GuardTeamManagementPage() {
     <div className="guard-schedule-page space-y-6">
       {/* 1. Header & Command Bar */}
       <div className="schedule-header">
-        <div>
+        <div className="min-w-0">
           <h1 className="schedule-header-title">
-            <Calendar className="text-blue-600 dark:text-blue-400" /> Quản Lý Đội Bảo Vệ
+            <Calendar className="text-blue-600 dark:text-blue-400 shrink-0" />
+            <span>Quản Lý Đội Bảo Vệ</span>
           </h1>
           <p className="schedule-header-subtitle">
             Phân công ca trực theo đội, điều phối chốt an ninh và phê duyệt yêu cầu đổi/nghỉ ca
@@ -897,14 +898,14 @@ export default function GuardTeamManagementPage() {
 
         <div className="schedule-header__actions">
           {activeTab === 'SCHEDULE' && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center flex-wrap gap-2 sm:gap-2.5 shrink-0">
               <button
                 type="button"
                 onClick={() => setShowExportModal(true)}
                 className="schedule-btn-secondary text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800/80 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
                 title="Xuất bảng tổng hợp chấm công và tính lương ra file Excel"
               >
-                <FileSpreadsheet size={16} className="text-emerald-600 dark:text-emerald-400" />
+                <FileSpreadsheet size={16} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
                 <span>Xuất Excel Chấm Công</span>
               </button>
               {shifts.length > 0 && (
@@ -914,7 +915,7 @@ export default function GuardTeamManagementPage() {
                   className="schedule-btn-secondary text-rose-600 hover:text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-900/60 hover:bg-rose-50 dark:hover:bg-rose-950/40"
                   title="Xóa nhanh các ca trực tuần chưa diễn ra (để phân lại khi cần)"
                 >
-                  <Trash2 size={15} className="text-rose-500" />
+                  <Trash2 size={15} className="text-rose-500 shrink-0" />
                   <span>Xóa Lịch Tuần</span>
                 </button>
               )}
@@ -923,7 +924,7 @@ export default function GuardTeamManagementPage() {
                 onClick={() => setShowWizardModal(true)}
                 className="schedule-btn-primary"
               >
-                <Wand2 size={16} />
+                <Wand2 size={16} className="shrink-0" />
                 <span>Phân Lịch Trực Cho Đội</span>
               </button>
             </div>
@@ -935,7 +936,7 @@ export default function GuardTeamManagementPage() {
               onClick={() => setIsCreateTeamModalOpen(true)}
               className="schedule-btn-primary"
             >
-              <Plus size={16} strokeWidth={2.5} />
+              <Plus size={16} strokeWidth={2.5} className="shrink-0" />
               <span>Thêm Đội Mới</span>
             </button>
           )}

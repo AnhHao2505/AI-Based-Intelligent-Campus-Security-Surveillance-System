@@ -21,11 +21,23 @@ import {
   Building2,
   Calendar,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  RefreshCw,
+  Clock,
+  MapPin
 } from 'lucide-react';
 import { guardScheduleApi } from '../../api/guardScheduleApi';
 import { getUsers } from '../../services/userService';
 import { ROLES } from '../../constants/roles';
+
+// Helper chuẩn hóa tên đội hiển thị (VD: "1" -> "Đội 1")
+const formatTeamName = (name) => {
+  if (!name) return 'Đội Bảo Vệ';
+  const str = String(name).trim();
+  if (/^\d+$/.test(str)) return `Đội ${str}`;
+  return str.startsWith('Đội') ? str : `Đội ${str}`;
+};
+
 
 const PRESET_COLORS = [
   '#2563eb', // Blue
@@ -610,7 +622,7 @@ export default function GuardTeamsTab({
 
   // Delete team
   const handleDeleteTeam = async (team) => {
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa "${team.teamName}"? Các nhân viên trong đội sẽ chuyển về trạng thái Chưa phân đội.`)) {
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa "${formatTeamName(team.teamName)}"? Các nhân viên trong đội sẽ chuyển về trạng thái Chưa phân đội.`)) {
       return;
     }
     setLoading(true);
@@ -744,7 +756,7 @@ export default function GuardTeamsTab({
       await fetchTeams();
       if (onTeamsUpdated) onTeamsUpdated();
       const shiftLabel = dispatchShiftType === 'SHIFT_MORNING' ? ' (Ca Sáng)' : dispatchShiftType === 'SHIFT_AFTERNOON' ? ' (Ca Chiều)' : dispatchShiftType === 'SHIFT_NIGHT' ? ' (Ca Đêm)' : '';
-      alert(`Đã điều động thành công ${selectedDispatchGuardIds.length} bảo vệ tăng cường${shiftLabel} cho ${assigningTeam.teamName}!`);
+      alert(`Đã điều động thành công ${selectedDispatchGuardIds.length} bảo vệ tăng cường${shiftLabel} cho ${formatTeamName(assigningTeam.teamName)}!`);
       setSelectedDispatchGuardIds([]);
       setDispatchReason('');
       setDispatchShiftType('SHIFT_MORNING');
@@ -900,17 +912,18 @@ export default function GuardTeamsTab({
   return (
     <div className="space-y-6">
       {/* 1. Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         <div className="schedule-kpi-card">
           <div>
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
               Tổng Số Đội Bảo Vệ
             </span>
-            <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">
+            <div className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white mt-1">
               {teams.length} <span className="text-sm font-normal text-slate-500">đội</span>
             </div>
-            <div className="flex items-center gap-1.5 mt-1 text-xs text-blue-600 dark:text-blue-400">
-              <Users size={14} /> Phân nhóm theo khu vực
+            <div className="flex items-center gap-1.5 mt-2 text-xs font-medium text-slate-600 dark:text-slate-400">
+              <Users size={13} className="text-blue-600 dark:text-blue-400 shrink-0" />
+              <span>Phân nhóm theo khu vực chốt</span>
             </div>
           </div>
           <div className="schedule-kpi-icon-wrap kpi-icon-blue">
@@ -920,15 +933,16 @@ export default function GuardTeamsTab({
 
         <div className="schedule-kpi-card">
           <div>
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
               Quân Số Đã Vào Đội
             </span>
-            <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
+            <div className="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400 mt-1">
               {totalAssignedGuards} / {linkedGuards.length}{' '}
               <span className="text-sm font-normal text-slate-500">nhân viên</span>
             </div>
-            <div className="flex items-center gap-1.5 mt-1 text-xs text-emerald-600 dark:text-emerald-400">
-              <UserCheck size={14} /> Sẵn sàng nhận ca
+            <div className="flex items-center gap-1.5 mt-2 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+              <Shield size={13} className="shrink-0" />
+              <span>Sẵn sàng nhận lịch ca trực</span>
             </div>
           </div>
           <div className="schedule-kpi-icon-wrap kpi-icon-emerald">
@@ -938,48 +952,80 @@ export default function GuardTeamsTab({
 
         <div className="schedule-kpi-card">
           <div>
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
               Chưa Phân Đội
             </span>
-            <div className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1">
+            <div className="text-2xl font-bold tracking-tight text-amber-600 dark:text-amber-400 mt-1">
               {Math.max(0, linkedGuards.length - totalAssignedGuards)}{' '}
               <span className="text-sm font-normal text-slate-500">nhân viên</span>
             </div>
-            <div className="flex items-center gap-1.5 mt-1 text-xs text-amber-600 dark:text-amber-400">
-              <UserX size={14} /> Chờ phân bổ vào đội
+            <div className="flex items-center gap-1.5 mt-2 text-xs font-medium text-amber-600 dark:text-amber-400">
+              {Math.max(0, linkedGuards.length - totalAssignedGuards) > 0 ? (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
+                  <span>Cần phân bổ vào đội</span>
+                </>
+              ) : (
+                <>
+                  <UserCheck size={13} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span className="text-slate-500 dark:text-slate-400 font-normal">Đã phân bổ toàn bộ</span>
+                </>
+              )}
             </div>
           </div>
           <div className="schedule-kpi-icon-wrap kpi-icon-amber">
-            <Users size={22} />
+            <UserX size={22} />
           </div>
         </div>
       </div>
 
-      {/* 2. Toolbar (Loại bỏ nút duplicate vì nút chính đã nằm trên Page Header) */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        <div className="schedule-search-input-wrap flex-1 max-w-md">
-          <Search size={16} className="text-slate-400 flex-shrink-0" />
-          <input
-            type="text"
-            value={searchKeyword}
-            onChange={(e) => setSearchKeyword(e.target.value)}
-            placeholder="Tìm theo tên đội hoặc mô tả phân công..."
-            className="w-full bg-transparent border-none outline-none text-xs text-slate-800 dark:text-slate-100 placeholder:text-slate-400"
-          />
-          {searchKeyword && (
-            <button
-              type="button"
-              onClick={() => setSearchKeyword('')}
-              className="text-slate-400 hover:text-slate-600 transition"
-              title="Xóa tìm kiếm"
-            >
-              <X size={14} />
-            </button>
-          )}
+      {/* 2. Toolbar */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1 pb-1">
+        {/* Left: Section Identity & Count Badge */}
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 shrink-0">
+            <Users size={16} />
+          </div>
+          <span className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
+            Danh Sách Đội Bảo Vệ
+          </span>
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/80">
+            {filteredTeams.length} / {teams.length} đội
+          </span>
         </div>
 
-        <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-          Hiển thị <strong>{filteredTeams.length}</strong> / <strong>{teams.length}</strong> đội
+        {/* Right: Search Box & Refresh Button */}
+        <div className="flex items-center gap-2">
+          <div className="schedule-search-box flex-1 sm:w-64 md:w-72 h-[38px]">
+            <Search size={14} className="schedule-search-icon" />
+            <input
+              type="text"
+              value={searchKeyword}
+              onChange={(e) => setSearchKeyword(e.target.value)}
+              placeholder="Tìm theo tên đội, khu vực..."
+              className="schedule-search-input text-xs !h-[38px]"
+            />
+            {searchKeyword && (
+              <button
+                type="button"
+                onClick={() => setSearchKeyword('')}
+                className="schedule-search-clear"
+                title="Xóa tìm kiếm"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={fetchTeams}
+            disabled={loading}
+            className="schedule-btn-secondary p-2.5 h-[38px] min-w-[38px] flex items-center justify-center rounded-xl cursor-pointer"
+            title="Làm mới danh sách đội"
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin text-blue-600' : ''} />
+          </button>
         </div>
       </div>
 
@@ -1023,7 +1069,7 @@ export default function GuardTeamsTab({
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 lg:gap-6">
           {filteredTeams.map((team) => {
             // Find guards in this team (sắp xếp theo mã bảo vệ)
             const rawMembers = (team.members && team.members.length > 0)
@@ -1076,137 +1122,117 @@ export default function GuardTeamsTab({
             return (
               <div
                 key={team.id}
-                className="team-card-modern"
+                className="team-card-modern hover:shadow-md transition-all duration-200 border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-2xl p-5 sm:p-6 flex flex-col justify-between relative overflow-hidden"
               >
+                {/* Accent Color Bar at Top */}
                 <div
                   className="team-card-stripe"
                   style={{ backgroundColor: team.colorCode || '#2563eb' }}
                 />
 
                 <div>
-                  {/* Card Header: Team Name, Badges & Location */}
-                  <div>
-                    <div className="flex items-center justify-between gap-2 pt-0.5">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span
-                          className="w-3.5 h-3.5 rounded-full ring-2 ring-white dark:ring-slate-900 shadow-xs shrink-0"
-                          style={{ backgroundColor: team.colorCode || '#2563eb' }}
-                        />
-                        <h4 className="font-bold text-base text-slate-900 dark:text-white truncate">
-                          {team.teamName}
-                        </h4>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                          {memberCount} chính thức
+                  {/* Card Header: Team Title, Location & Member Badge */}
+                  <div className="flex items-start justify-between gap-3 pt-0.5">
+                    <div className="min-w-0">
+                      <h4 className="font-bold text-base text-slate-900 dark:text-white leading-tight truncate">
+                        {formatTeamName(team.teamName)}
+                      </h4>
+                      <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mt-1.5">
+                        <Building2 size={13} className="text-indigo-500 shrink-0" />
+                        <span className="truncate max-w-[200px]" title={assignedLocation || 'Chưa gán khu vực'}>
+                          {assignedLocation || 'Chưa gán khu vực'}
                         </span>
-                        {teamDispatches.length > 0 && (
-                          <span
-                            className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 dark:bg-amber-950/70 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 flex items-center gap-1"
-                            title="Số bảo vệ đang được điều động tăng cường cho sự kiện"
-                          >
-                            <Zap size={11} className="fill-amber-500 text-amber-500" />
-                            +{teamDispatches.length} tăng cường
-                          </span>
-                        )}
                       </div>
                     </div>
 
-                    {/* Vị trí phụ trách */}
-                    <div className="mt-1.5 mb-2.5 flex items-center gap-2 flex-wrap">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium border ${
-                          assignedLocation
-                            ? 'bg-slate-100/90 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200/80 dark:border-slate-700'
-                            : 'bg-slate-50 dark:bg-slate-800/50 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700 italic'
-                        }`}
-                        title={assignedLocation ? `Vị trí phụ trách: ${assignedLocation}` : 'Đội này chưa được phân công vị trí cụ thể'}
-                      >
-                        <Building2 size={12} className={assignedLocation ? 'text-indigo-500 shrink-0' : 'text-slate-400 shrink-0'} />
-                        <span className="truncate max-w-[220px]">{assignedLocation || 'Chưa gán khu vực'}</span>
+                    <div className="flex flex-col items-end gap-1.5 shrink-0">
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200/80 dark:border-blue-800/80 shadow-2xs">
+                        <Users size={12} className="text-blue-600 dark:text-blue-400" />
+                        <span>{memberCount} nhân sự</span>
                       </span>
 
-                      {hasCustomDescription && (
-                        <span className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-[200px]" title={team.description}>
-                          • {team.description}
+                      {teamDispatches.length > 0 && (
+                        <span
+                          className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 dark:bg-amber-950/70 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800"
+                          title="Số bảo vệ đang được điều động tăng cường cho sự kiện"
+                        >
+                          <Zap size={11} className="fill-amber-500 text-amber-500" />
+                          <span>+{teamDispatches.length} tăng cường</span>
                         </span>
                       )}
                     </div>
                   </div>
 
-                  {/* Members list section */}
-                  <div className="border-t border-slate-100 dark:border-slate-700/60 pt-2.5">
-                    {/* Avatar stack + summary */}
-                    <div className="flex items-center gap-2.5 mb-2">
-                      <div className="flex -space-x-1.5 overflow-hidden shrink-0">
-                        {members.slice(0, 5).map((m) => (
-                          <div
-                            key={m.id}
-                            className="w-6 h-6 rounded-full ring-2 ring-white dark:ring-slate-800 flex items-center justify-center text-[10px] font-bold text-white shadow-xs shrink-0 select-none"
-                            style={{ backgroundColor: getAvatarBg(m.fullName || m.userCode) }}
-                            title={`${m.fullName || m.userCode}${m.userCode ? ` (${m.userCode})` : ''}`}
-                          >
-                            {getInitials(m.fullName || m.userCode)}
-                          </div>
-                        ))}
-                        {members.length > 5 && (
-                          <button
-                            type="button"
-                            onClick={() => toggleExpandTeam(team.id)}
-                            className="w-6 h-6 rounded-full ring-2 ring-white dark:ring-slate-800 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 flex items-center justify-center text-[10px] font-bold shrink-0 select-none cursor-pointer transition-colors"
-                            title={members.slice(5).map((m) => m.fullName || m.userCode).join(', ')}
-                          >
-                            +{members.length - 5}
-                          </button>
-                        )}
-                      </div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                        {members.length === 0 ? (
-                          <span className="italic">Chưa có nhân sự</span>
-                        ) : (
-                          <span>
-                            <strong className="text-slate-700 dark:text-slate-200 font-semibold">{members.length}</strong> nhân sự trong đội
-                          </span>
-                        )}
-                      </div>
-                    </div>
+                  {/* Team Description (if custom) */}
+                  {hasCustomDescription && (
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-2.5 line-clamp-1 italic">
+                      "{team.description}"
+                    </p>
+                  )}
 
-                    {/* Member chips preview (First 4 chips + expand button) */}
-                    {members.length === 0 ? (
-                      <div className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500 py-1 italic">
-                        <UserX size={14} className="text-slate-400 shrink-0" />
-                        <span>Chưa phân bổ nhân sự vào đội này</span>
-                      </div>
-                    ) : (
-                      <div className="flex flex-wrap gap-1.5 items-center">
-                        {(isExpanded ? members : members.slice(0, 4)).map((m) => (
-                          <span
-                            key={m.id}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100/90 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border border-slate-200/70 dark:border-slate-700/60"
-                            title={`${m.fullName || m.userCode}${m.userCode ? ` (${m.userCode})` : ''}`}
-                          >
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/90 shrink-0" />
-                            <span className="truncate max-w-[120px]">{m.fullName || m.userCode}</span>
-                          </span>
-                        ))}
+                  {/* Shift Demand Info Panel */}
+                  <div className="bg-slate-50/90 dark:bg-slate-800/40 rounded-xl p-3 border border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs mt-4 mb-4">
+                    <span className="text-[11.5px] font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                      <Clock size={13} className="text-slate-400" /> Nhu cầu ca/ngày:
+                    </span>
+                    <div className="flex items-center gap-2.5">
+                      <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-300 font-semibold text-xs" title="Ca Sáng">
+                        <Sun size={13} className="text-amber-500" /> {team.weekdayMorningDemand ?? 3}S
+                      </span>
+                      <span className="text-slate-300 dark:text-slate-600">•</span>
+                      <span className="inline-flex items-center gap-1 text-orange-700 dark:text-orange-300 font-semibold text-xs" title="Ca Chiều">
+                        <Sunset size={13} className="text-orange-500" /> {team.weekdayAfternoonDemand ?? 4}C
+                      </span>
+                      <span className="text-slate-300 dark:text-slate-600">•</span>
+                      <span className="inline-flex items-center gap-1 text-indigo-700 dark:text-indigo-300 font-semibold text-xs" title="Ca Đêm">
+                        <Moon size={13} className="text-indigo-500" /> {team.weekdayNightDemand ?? 2}Đ
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Members Section */}
+                  <div className="pt-1">
+                    {/* Member Header: Overlapping Avatars & Toggle Button */}
+                    {members.length > 0 && (
+                      <div className="flex items-center justify-between gap-2 mb-3">
+                        <div className="flex -space-x-1.5 overflow-hidden shrink-0">
+                          {members.slice(0, 5).map((m) => (
+                            <div
+                              key={m.id}
+                              className="w-6.5 h-6.5 rounded-full ring-2 ring-white dark:ring-slate-900 flex items-center justify-center text-[10px] font-bold text-white shadow-xs shrink-0 select-none"
+                              style={{ backgroundColor: getAvatarBg(m.fullName || m.userCode) }}
+                              title={`${m.fullName || m.userCode}${m.userCode ? ` (${m.userCode})` : ''}`}
+                            >
+                              {getInitials(m.fullName || m.userCode)}
+                            </div>
+                          ))}
+                          {members.length > 5 && (
+                            <button
+                              type="button"
+                              onClick={() => toggleExpandTeam(team.id)}
+                              className="w-6.5 h-6.5 rounded-full ring-2 ring-white dark:ring-slate-900 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 flex items-center justify-center text-[10px] font-bold shrink-0 select-none shadow-xs cursor-pointer transition-colors"
+                              title={isExpanded ? 'Thu gọn danh sách' : `Xem tất cả ${members.length} nhân sự`}
+                            >
+                              +{members.length - 5}
+                            </button>
+                          )}
+                        </div>
 
                         {members.length > 4 && (
                           <button
                             type="button"
                             onClick={() => toggleExpandTeam(team.id)}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 bg-blue-50 dark:bg-blue-950/50 hover:bg-blue-100/70 border border-blue-200/60 dark:border-blue-800/50 transition-colors cursor-pointer"
-                            title={isExpanded ? 'Thu gọn danh sách' : `Xem thêm ${members.length - 4} nhân viên khác`}
+                            className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1.5 cursor-pointer transition-colors"
                           >
                             {isExpanded ? (
                               <>
                                 <span>Thu gọn</span>
-                                <ChevronUp size={12} />
+                                <ChevronUp size={13} />
                               </>
                             ) : (
                               <>
-                                <span>+{members.length - 4} khác</span>
-                                <ChevronDown size={12} />
+                                <span>Xem tất cả ({members.length})</span>
+                                <ChevronDown size={13} />
                               </>
                             )}
                           </button>
@@ -1214,9 +1240,35 @@ export default function GuardTeamsTab({
                       </div>
                     )}
 
+                    {/* Member chips preview */}
+                    {members.length === 0 ? (
+                      <div className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500 py-3 px-3.5 rounded-xl bg-slate-50/60 dark:bg-slate-800/30 border border-dashed border-slate-200 dark:border-slate-800 italic">
+                        <UserX size={15} className="text-slate-400 shrink-0" />
+                        <span>Chưa phân bổ nhân sự vào đội này</span>
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap gap-2 items-center mb-1">
+                        {(isExpanded ? members : members.slice(0, 4)).map((m) => (
+                          <span
+                            key={m.id}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100/90 dark:bg-slate-800/80 hover:bg-slate-200/80 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-300 border border-slate-200/70 dark:border-slate-700/60 transition-colors"
+                            title={`${m.fullName || m.userCode}${m.userCode ? ` (${m.userCode})` : ''}`}
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                            <span className="truncate max-w-[120px]">{m.fullName || m.userCode}</span>
+                            {m.userCode && (
+                              <span className="font-mono text-[10.5px] text-slate-400 dark:text-slate-500 font-normal">
+                                {m.userCode}
+                              </span>
+                            )}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
                     {/* Dispatched members for this team */}
                     {teamDispatches.length > 0 && (
-                      <div className="mt-2.5 pt-2 border-t border-amber-200/70 dark:border-amber-900/50">
+                      <div className="mt-3 pt-2.5 border-t border-amber-200/70 dark:border-amber-900/50">
                         <div className="text-[11px] font-semibold text-amber-700 dark:text-amber-300 mb-1.5 flex items-center justify-between">
                           <span className="flex items-center gap-1.5">
                             <Zap size={11} className="fill-amber-500 text-amber-500" />
@@ -1227,7 +1279,7 @@ export default function GuardTeamsTab({
                           {teamDispatches.map((d) => (
                             <span
                               key={d.id}
-                              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800 shadow-2xs"
+                              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10.5px] font-semibold bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800 shadow-2xs"
                               title={`Tăng cường: ${d.startDate} -> ${d.endDate}${d.shiftType ? ' (' + (d.shiftType === 'SHIFT_MORNING' ? 'Ca Sáng' : d.shiftType === 'SHIFT_AFTERNOON' ? 'Ca Chiều' : 'Ca Đêm') + ')' : ''} | Lý do: ${d.reason || 'Sự kiện'}`}
                             >
                               <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
@@ -1244,7 +1296,7 @@ export default function GuardTeamsTab({
                               <button
                                 type="button"
                                 onClick={() => handleCancelDispatch(d.id)}
-                                className="text-amber-400 hover:text-rose-600 transition ml-0.5 p-0.5"
+                                className="text-amber-400 hover:text-rose-600 transition ml-0.5 p-0.5 cursor-pointer"
                                 title="Kết thúc sớm điều động này"
                               >
                                 <X size={11} />
@@ -1257,13 +1309,13 @@ export default function GuardTeamsTab({
                   </div>
                 </div>
 
-                {/* Card Actions */}
-                <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1">
+                {/* Card Actions Footer */}
+                <div className="team-card-actions-footer border-t border-slate-200/80 dark:border-slate-800/90 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 shrink-0">
                     <button
                       type="button"
                       onClick={() => handleOpenEdit(team)}
-                      className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition"
+                      className="w-9 h-9 rounded-lg flex items-center justify-center bg-amber-50 hover:bg-amber-100 active:bg-amber-200/80 dark:bg-amber-950/40 dark:hover:bg-amber-900/60 text-amber-600 dark:text-amber-400 border border-amber-200/90 dark:border-amber-800/80 shadow-2xs transition-all cursor-pointer"
                       title="Chỉnh sửa thông tin đội"
                     >
                       <Edit2 size={15} />
@@ -1271,7 +1323,7 @@ export default function GuardTeamsTab({
                     <button
                       type="button"
                       onClick={() => handleDeleteTeam(team)}
-                      className="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
+                      className="w-9 h-9 rounded-lg flex items-center justify-center bg-rose-50 hover:bg-rose-100 active:bg-rose-200/80 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 border border-rose-200/90 dark:border-rose-800/80 shadow-2xs transition-all cursor-pointer"
                       title="Xóa đội"
                     >
                       <Trash2 size={15} />
@@ -1281,9 +1333,9 @@ export default function GuardTeamsTab({
                   <button
                     type="button"
                     onClick={() => handleOpenAssignMembers(team)}
-                    className="schedule-btn-secondary text-xs h-8 px-3"
+                    className="inline-flex items-center justify-center gap-2 px-4 h-9 rounded-lg text-xs font-semibold bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white dark:bg-blue-950/60 dark:hover:bg-blue-600 dark:text-blue-300 dark:hover:text-white border border-blue-200/90 dark:border-blue-800/90 hover:border-blue-600 shadow-2xs hover:shadow-xs transition-all cursor-pointer whitespace-nowrap shrink-0 group active:scale-[0.98]"
                   >
-                    <Users size={14} />
+                    <Users size={14} className="text-blue-600 dark:text-blue-400 group-hover:text-white shrink-0 transition-colors" />
                     <span>Phân Bổ Quân Số</span>
                   </button>
                 </div>
@@ -1311,7 +1363,7 @@ export default function GuardTeamsTab({
                 </div>
                 <div className="schedule-modal__header-text">
                   <h3 className="schedule-modal__title">
-                    Phân Bổ & Điều Động Quân Số — {assigningTeam.teamName}
+                    Phân Bổ & Điều Động Quân Số — {formatTeamName(assigningTeam.teamName)}
                   </h3>
                   <p className="schedule-modal__subtitle">
                     {assignModalTab === 'PERMANENT'
@@ -1524,7 +1576,7 @@ export default function GuardTeamsTab({
                               <div className="shrink-0 ml-3">
                                 {isCurrentTeamMember ? (
                                   <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                                    {guardCurrentTeam || assigningTeam?.teamName || 'Thành viên đội'}
+                                    {formatTeamName(guardCurrentTeam || assigningTeam?.teamName || 'Thành viên đội')}
                                   </span>
                                 ) : (
                                   <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
@@ -1804,10 +1856,10 @@ export default function GuardTeamsTab({
                                 }`}
                               >
                                 {isSameTeam
-                                  ? `${guardTeamName || assigningTeam?.teamName} (Cùng đội)`
+                                  ? `${formatTeamName(guardTeamName || assigningTeam?.teamName)} (Cùng đội)`
                                   : isUnassigned
                                   ? 'Chưa phân đội'
-                                  : `Đội: ${guardTeamName}`}
+                                  : formatTeamName(guardTeamName)}
                               </span>
                             </label>
                           );
@@ -2091,7 +2143,7 @@ export default function GuardTeamsTab({
 
                                 {guardTeamName ? (
                                   <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 shrink-0 ml-2">
-                                    {guardTeamName}
+                                    {formatTeamName(guardTeamName)}
                                   </span>
                                 ) : (
                                   <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 shrink-0 ml-2">

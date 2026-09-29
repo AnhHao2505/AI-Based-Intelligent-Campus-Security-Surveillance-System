@@ -385,6 +385,14 @@ export default function ManageAccountPage() {
       return;
     }
 
+    if (file.size > 350 * 1024) {
+      setFormErrors((prev) => ({
+        ...prev,
+        faceImage: `Dung lượng ảnh (${(file.size / 1024).toFixed(1)} KB) vượt quá giới hạn tối đa 350 KB. Vui lòng chọn hoặc nén ảnh nhỏ hơn.`
+      }));
+      return;
+    }
+
     setFrontFile(file);
     setFrontPreview(URL.createObjectURL(file));
     setFormErrors((prev) => ({ ...prev, faceImage: null }));
@@ -425,6 +433,8 @@ export default function ManageAccountPage() {
 
     if (!frontFile) {
       errors.faceImage = 'Vui lòng tải lên ảnh chân dung chính diện để đăng ký khuôn mặt';
+    } else if (frontFile.size > 350 * 1024) {
+      errors.faceImage = `Dung lượng ảnh (${(frontFile.size / 1024).toFixed(1)} KB) vượt quá giới hạn tối đa 350 KB. Vui lòng chọn hoặc nén ảnh nhỏ hơn.`;
     }
 
     if (Object.keys(errors).length > 0) {
@@ -458,6 +468,8 @@ export default function ManageAccountPage() {
         setFormErrors({ email: msg });
       } else if (msg.toLowerCase().includes('mã') || msg.toLowerCase().includes('code')) {
         setFormErrors({ userCode: msg });
+      } else if (msg.toLowerCase().includes('khuôn mặt') || msg.toLowerCase().includes('ảnh') || msg.toLowerCase().includes('dung lượng') || msg.toLowerCase().includes('face')) {
+        setFormErrors({ faceImage: msg });
       } else {
         setFormErrors({ general: msg });
       }
