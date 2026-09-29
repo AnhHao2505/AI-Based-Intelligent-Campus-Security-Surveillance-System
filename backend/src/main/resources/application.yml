@@ -106,3 +106,4 @@ icss:
     notification-expiring-soon-cron: ${NOTIFICATION_EXPIRING_SOON_CRON:0 */10 * * * *}
     notification-pending-overdue-cron: ${NOTIFICATION_PENDING_OVERDUE_CRON:0 0 * * * *}
     event-mode-tick-cron: ${EVENT_MODE_TICK_CRON:0 */1 * * * *}
+    guest-visit-tick-cron: ${GUEST_VISIT_TICK_CRON:0 */1 * * * *}
