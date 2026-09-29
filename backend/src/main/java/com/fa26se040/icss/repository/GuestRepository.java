@@ -4,6 +4,7 @@ import com.fa26se040.icss.entity.Guest;
 import com.fa26se040.icss.enums.GuestBiometricStatus;
 import com.fa26se040.icss.enums.GuestVisitStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -27,6 +28,17 @@ public interface GuestRepository extends JpaRepository<Guest, UUID> {
     List<UUID> findIdsNeedingBiometricDeletion(@Param("withPhoto") Collection<GuestBiometricStatus> withPhoto,
                                                @Param("closedStatuses") Collection<GuestVisitStatus> closedStatuses,
                                                @Param("endBefore") OffsetDateTime endBefore);
+
+    /** A9: xoá object sau commit thành công -> bỏ đánh dấu, chỉ khi đánh dấu vẫn là đúng object đó. */
+    @Modifying
+    @Query("UPDATE Guest g SET g.pendingDeleteObjectKey = NULL WHERE g.id = :id AND g.pendingDeleteObjectKey = :key")
+    int clearPendingDelete(@Param("id") UUID id, @Param("key") String key);
+
+    /** A9: xoá sau commit lỗi -> bảo đảm đánh dấu là object này (nếu đang trống hoặc đã là nó) để job thử lại. */
+    @Modifying
+    @Query("UPDATE Guest g SET g.pendingDeleteObjectKey = :key WHERE g.id = :id "
+            + "AND (g.pendingDeleteObjectKey IS NULL OR g.pendingDeleteObjectKey = :key)")
+    int markPendingDeleteIfEmpty(@Param("id") UUID id, @Param("key") String key);
 
     @Query("SELECT g.id FROM Guest g WHERE g.pendingDeleteObjectKey IS NOT NULL")
     List<UUID> findIdsWithPendingPhotoDeletion();
