@@ -22,3 +22,5 @@ icss:
     notification-expiring-soon-cron: "-"
     notification-pending-overdue-cron: "-"
     rate-limiter-cleanup-cron: "-"
+    # Job lượt khách (GuestVisitJobService)
+    guest-visit-tick-cron: "-"
