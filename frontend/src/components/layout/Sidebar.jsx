@@ -24,6 +24,7 @@ import {
 	Tag,
 	UserPlus,
 	UserCheck,
+	Camera,
 } from "lucide-react";
 import { ROLES, ROLE_LABELS } from "../../constants/roles";
 import { useTheme } from "../../context/ThemeContext";
@@ -381,6 +382,18 @@ export default function Sidebar({ user, onLogout }) {
 											>
 												<Users size={18} />
 												<span>Quản lý tài khoản</span>
+											</NavLink>
+											<NavLink
+												to="/admin/guest-photos"
+												className={({ isActive }) =>
+													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
+												}
+												title={
+													sidebarCollapsed ? "Ảnh khách" : undefined
+												}
+											>
+												<Camera size={18} />
+												<span>Ảnh khách</span>
 											</NavLink>
 
 											<div className="sidebar__section">

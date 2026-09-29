@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiPatch } from "../api/apiClient";
+import { apiGet, apiPost, apiPatch, apiFetch } from "../api/apiClient";
 
 /**
  * Lượt khách (BR-GV v2). Backend: GuestVisitController (/api/guest-visits).
@@ -58,6 +58,27 @@ export const guestVisitService = {
       body.reason = reason.trim();
     }
     return await apiPatch(`/api/guest-visits/${id}/revoke`, body);
+  },
+
+  /** ADMIN: Gắn ảnh cho khách (Multipart FormData kèm xác nhận đồng ý) */
+  async uploadGuestPhoto(visitId, guestId, { file, consentConfirmed, consentNoticeVersion }) {
+    const formData = new FormData();
+    if (file) formData.append("file", file);
+    if (consentConfirmed !== undefined && consentConfirmed !== null) {
+      formData.append("consentConfirmed", String(consentConfirmed));
+    }
+    if (consentNoticeVersion) {
+      formData.append("consentNoticeVersion", consentNoticeVersion);
+    }
+    return await apiFetch(`/api/guest-visits/${visitId}/guests/${guestId}/photo`, {
+      method: "POST",
+      body: formData,
+    });
+  },
+
+  /** ADMIN: Lấy URL xem ảnh khách có hạn (presigned) */
+  async getGuestPhotoUrl(visitId, guestId) {
+    return await apiPost(`/api/guest-visits/${visitId}/guests/${guestId}/photo-url`);
   },
 };
 
