@@ -18,7 +18,8 @@ import java.util.Set;
 
 /**
  * Xoá sinh trắc khách (BR-GV-27). Chạy trong transaction của thao tác gọi (huỷ, thu hồi, job).
- * Thứ tự: xoá embedding → khách DELETED → xoá ảnh trên kho; kho lỗi thì giữ pending_delete_object_key để job thử lại.
+ * Thứ tự: xoá embedding → khách DELETED + đánh dấu object cần xoá → commit → xoá ảnh trên kho (A9: chỉ sau commit);
+ * kho lỗi thì đánh dấu còn nguyên để job thử lại.
  */
 @Slf4j
 @Service
@@ -30,6 +31,7 @@ public class GuestBiometricService {
     private final GuestRepository guestRepository;
     private final GuestFaceEmbeddingRepository embeddingRepository;
     private final GuestPhotoStorageService photoStorage;
+    private final GuestPhotoDeletionService photoDeletion;
     private final AuditService auditService;
 
     /**
@@ -50,16 +52,15 @@ public class GuestBiometricService {
         guest.setBiometricStatus(GuestBiometricStatus.DELETED);
         guest.setBiometricDeletedAt(now);
         guest.setPhotoObjectKey(null);
-        boolean removed = true;
-        if (key != null) {
-            removed = tryRemove(key);
-            if (!removed) {
-                guest.setPendingDeleteObjectKey(key);
-            }
+        if (key != null && guest.getPendingDeleteObjectKey() == null) {
+            guest.setPendingDeleteObjectKey(key);
         }
         guestRepository.save(guest);
         auditService.record(AuditTargetType.GUEST, AuditAction.DELETE_BIOMETRIC, guest.getId().toString(), null, null,
-                before, snapshot(guest, removed), reason, actor);
+                before, snapshot(guest, key != null), reason, actor);
+        if (key != null) {
+            photoDeletion.deleteAfterCommit(guest.getId(), key);
+        }
         return true;
     }
 
@@ -88,8 +89,8 @@ public class GuestBiometricService {
         }
     }
 
-    public static GuestAuditSnapshot snapshot(Guest g, Boolean photoRemoved) {
+    public static GuestAuditSnapshot snapshot(Guest g, Boolean photoDeletionScheduled) {
         return new GuestAuditSnapshot(g.getId(), g.getVisit() != null ? g.getVisit().getId() : null,
-                g.getBiometricStatus(), g.getConsentNoticeVersion(), photoRemoved, g.getAnonymizedAt() != null);
+                g.getBiometricStatus(), g.getConsentNoticeVersion(), photoDeletionScheduled, g.getAnonymizedAt() != null);
     }
 }

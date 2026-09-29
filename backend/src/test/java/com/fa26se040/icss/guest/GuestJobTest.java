@@ -153,8 +153,8 @@ public class GuestJobTest extends GuestTestSupport {
         assertFalse(embeddingRepository.existsById(g.getId()), "embedding vẫn xoá");
         assertEquals(key, after.getPendingDeleteObjectKey(), "giữ đánh dấu cần xoá ảnh");
         assertTrue(audits(g.getId().toString(), AuditTargetType.GUEST, AuditAction.DELETE_BIOMETRIC).get(0).getNewValue()
-                        .replace(" ", "").contains("\"photoRemovedFromStorage\":false"),
-                "snapshot ghi photoRemovedFromStorage = false");
+                        .replace(" ", "").contains("\"photoDeletionScheduled\":true"),
+                "snapshot ghi photoDeletionScheduled = true (xoá ảnh sau commit)");
 
         reset(photoStorage);
         jobService.retryPendingPhotoDeletions();
