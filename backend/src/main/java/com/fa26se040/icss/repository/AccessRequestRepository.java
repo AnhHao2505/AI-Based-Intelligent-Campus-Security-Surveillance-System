@@ -3,9 +3,12 @@ package com.fa26se040.icss.repository;
 import com.fa26se040.icss.entity.AccessRequest;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.RequestStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -18,7 +21,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public interface AccessRequestRepository extends JpaRepository<AccessRequest, UUID> {
+public interface AccessRequestRepository extends JpaRepository<AccessRequest, UUID>, JpaSpecificationExecutor<AccessRequest> {
 
     @Query("SELECT ar FROM AccessRequest ar " +
            "JOIN FETCH ar.area " +
@@ -30,26 +33,40 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, UU
     @Query(value = "SELECT ar FROM AccessRequest ar " +
                    "JOIN FETCH ar.area " +
                    "WHERE ar.requester.id = :requesterId " +
-                   "AND (:status IS NULL OR ar.status = :status)",
+                   "AND (:status IS NULL OR ar.status = :status) " +
+                   "AND (:areaId IS NULL OR ar.area.id = :areaId)",
            countQuery = "SELECT COUNT(ar) FROM AccessRequest ar " +
                         "WHERE ar.requester.id = :requesterId " +
-                        "AND (:status IS NULL OR ar.status = :status)")
+                        "AND (:status IS NULL OR ar.status = :status) " +
+                        "AND (:areaId IS NULL OR ar.area.id = :areaId)")
     Page<AccessRequest> findMyRequests(
             @Param("requesterId") UUID requesterId,
             @Param("status") RequestStatus status,
+            @Param("areaId") UUID areaId,
             Pageable pageable
     );
+
+    default Page<AccessRequest> findMyRequests(UUID requesterId, RequestStatus status, Pageable pageable) {
+        return findMyRequests(requesterId, status, null, pageable);
+    }
 
     @Query(value = "SELECT ar FROM AccessRequest ar " +
                    "JOIN FETCH ar.area " +
                    "JOIN FETCH ar.requester " +
-                   "WHERE (:status IS NULL OR ar.status = :status)",
+                   "WHERE (:status IS NULL OR ar.status = :status) " +
+                   "AND (:areaId IS NULL OR ar.area.id = :areaId)",
            countQuery = "SELECT COUNT(ar) FROM AccessRequest ar " +
-                        "WHERE (:status IS NULL OR ar.status = :status)")
+                        "WHERE (:status IS NULL OR ar.status = :status) " +
+                        "AND (:areaId IS NULL OR ar.area.id = :areaId)")
     Page<AccessRequest> findAllRequests(
             @Param("status") RequestStatus status,
+            @Param("areaId") UUID areaId,
             Pageable pageable
     );
+
+    default Page<AccessRequest> findAllRequests(RequestStatus status, Pageable pageable) {
+        return findAllRequests(status, null, pageable);
+    }
 
     @Query("SELECT DISTINCT ar FROM AccessRequest ar " +
            "JOIN FETCH ar.requester " +
@@ -101,10 +118,19 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, UU
             @Param("threshold") OffsetDateTime threshold
     );
 
-    @Modifying
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT ar FROM AccessRequest ar " +
+           "WHERE ar.status = :status AND ar.startTime < :now")
+    List<AccessRequest> findPendingOverdueRequestsForUpdate(
+            @Param("status") RequestStatus status,
+            @Param("now") OffsetDateTime now
+    );
+
+    @Modifying(clearAutomatically = false, flushAutomatically = true)
     @Query("UPDATE AccessRequest ar SET ar.status = :newStatus, ar.updatedAt = :now " +
-           "WHERE ar.status = :currentStatus AND ar.startTime < :now")
-    int expireOverdueRequests(
+           "WHERE ar.id IN :ids AND ar.status = :currentStatus")
+    int expireOverdueRequestsByIds(
+            @Param("ids") Collection<UUID> ids,
             @Param("currentStatus") RequestStatus currentStatus,
             @Param("newStatus") RequestStatus newStatus,
             @Param("now") OffsetDateTime now
@@ -137,6 +163,60 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, UU
             @Param("newStatus") RequestStatus newStatus,
             @Param("now") OffsetDateTime now,
             @Param("expectedStatus") RequestStatus expectedStatus
+    );
+
+    /**
+     * Step 5b (BR-TC-15): ghi nguồn huỷ sau khi cancelIfPending đã thành công (chỉ chạm đơn đã CANCELLED).
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE AccessRequest r " +
+           "SET r.cancelSource = :source, " +
+           "    r.cancelledBy = :cancelledBy, " +
+           "    r.cancelReason = :reason " +
+           "WHERE r.id = :id AND r.status = :cancelledStatus")
+    int recordCancellation(
+            @Param("id") UUID id,
+            @Param("source") com.fa26se040.icss.enums.CancelSource source,
+            @Param("cancelledBy") User cancelledBy,
+            @Param("reason") String reason,
+            @Param("cancelledStatus") RequestStatus cancelledStatus
+    );
+
+    /**
+     * Step 5b (BR-TC-08, BR-TC-14): hệ thống huỷ đơn khi đổi loại khu vực — conditional UPDATE nguyên tử.
+     * Không clear persistence context: transaction đổi loại còn giữ entity Area đã khoá.
+     */
+    @Modifying(clearAutomatically = false, flushAutomatically = true)
+    @Query("UPDATE AccessRequest r " +
+           "SET r.status = :cancelledStatus, " +
+           "    r.updatedAt = :now, " +
+           "    r.cancelSource = :source, " +
+           "    r.cancelledBy = NULL, " +
+           "    r.cancelReason = :reason " +
+           "WHERE r.id = :id AND r.status = :expectedStatus")
+    int cancelBySystemIfStatus(
+            @Param("id") UUID id,
+            @Param("expectedStatus") RequestStatus expectedStatus,
+            @Param("cancelledStatus") RequestStatus cancelledStatus,
+            @Param("source") com.fa26se040.icss.enums.CancelSource source,
+            @Param("reason") String reason,
+            @Param("now") OffsetDateTime now
+    );
+
+    /**
+     * Step 5b (BR-TC-03, BR-TC-08): đơn còn hiệu lực của khu vực (status trong :statuses, chưa kết thúc),
+     * kèm người gửi và thành viên để đánh giá quy tắc của loại mới.
+     */
+    @Query("SELECT DISTINCT r FROM AccessRequest r " +
+           "JOIN FETCH r.requester " +
+           "LEFT JOIN FETCH r.members m " +
+           "LEFT JOIN FETCH m.user " +
+           "WHERE r.area.id = :areaId AND r.status IN :statuses AND r.endTime > :now " +
+           "ORDER BY r.startTime ASC")
+    List<AccessRequest> findNotEndedByAreaWithParticipants(
+            @Param("areaId") UUID areaId,
+            @Param("statuses") Collection<RequestStatus> statuses,
+            @Param("now") OffsetDateTime now
     );
 
     /**

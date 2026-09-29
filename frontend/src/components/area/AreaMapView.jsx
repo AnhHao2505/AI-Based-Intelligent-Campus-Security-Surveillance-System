@@ -7,10 +7,13 @@ import {
 	AlertCircle,
 	X,
 	EyeOff,
-	Users,
-	ShieldCheck,
 } from "lucide-react";
-import { getLevelConfig, getLevelPolygonClass as getLevelPolygonClassHelper, AREA_LEVEL_CONFIG } from "../../utils/areaHelpers";
+import {
+	getLevelConfig,
+	getAccessLevelConfig,
+	getLevelPolygonClass as getLevelPolygonClassHelper,
+	AREA_LEVEL_CONFIG,
+} from "../../utils/areaHelpers";
 
 export default function AreaMapView({
 	areas,
@@ -51,6 +54,7 @@ export default function AreaMapView({
 	onOpenAccessRulesModal,
 	onOpenEditModal,
 	getLevelPolygonClass,
+	levelPresets,
 }) {
 	return (
 		<div className="zone-map-layout">
@@ -152,7 +156,7 @@ export default function AreaMapView({
 								className="zone-canvas-empty__switch-btn"
 								onClick={() => onToggleView("list")}
 							>
-								Chuyển sang chế độ Danh sách
+								Chuyển sang chế độ danh sách
 							</button>
 						</div>
 					) : (
@@ -195,7 +199,7 @@ export default function AreaMapView({
 											}}
 										>
 											<title>
-												{area.name} ({area.code})
+												{area.name}
 											</title>
 										</polygon>
 									);
@@ -245,7 +249,9 @@ export default function AreaMapView({
 					</div>
 					<div className="zone-canvas-legend__item">
 						<span className="zone-canvas-legend__dot zone-canvas-legend__dot--contact" />
-						<span>{AREA_LEVEL_CONFIG.CONFIDENTIAL_CONTACT_REQUIRED.badgeLabel}</span>
+						<span>
+							{AREA_LEVEL_CONFIG.CONFIDENTIAL_CONTACT_REQUIRED.badgeLabel}
+						</span>
 					</div>
 					<div className="zone-canvas-legend__item">
 						<span className="zone-canvas-legend__dot zone-canvas-legend__dot--private" />
@@ -303,11 +309,10 @@ export default function AreaMapView({
 											/>
 											<span className="zone-rail-item__name">{area.name}</span>
 											<span
-												className="zone-card__pill-level"
+												className={getAccessLevelConfig(area.areaAccessLevel).className}
 												title="Cấp độ người dùng tối thiểu để vào tự do"
-												style={{ fontSize: "10px", padding: "1px 5px" }}
 											>
-												Level {area.areaAccessLevel ?? 1}
+												{getAccessLevelConfig(area.areaAccessLevel).label}
 											</span>
 											{area.differsFromPreset && (
 												<span
@@ -367,28 +372,25 @@ export default function AreaMapView({
 						<div className="zone-detail-content">
 							<div className="zone-detail-header">
 								<h2 className="zone-detail-title">{selectedArea.name}</h2>
-								<div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-									<span className="zone-detail-code">{selectedArea.code}</span>
+								<div
+									style={{
+										display: "flex",
+										gap: "8px",
+										alignItems: "center",
+										flexWrap: "wrap",
+									}}
+								>
+									{selectedArea.building && <span className="zone-detail-code">{selectedArea.building}</span>}
 									<span
-										className="zone-card__pill-level"
+										className={getAccessLevelConfig(selectedArea.areaAccessLevel).className}
 										title="Cấp độ người dùng tối thiểu để vào tự do"
 									>
-										Level {selectedArea.areaAccessLevel ?? 1}
+										{getAccessLevelConfig(selectedArea.areaAccessLevel).label}
 									</span>
 									{selectedArea.differsFromPreset && (
 										<span
+											className="zone-card__pill-differs"
 											title="Quy tắc truy cập của khu vực này khác với giá trị mặc định của loại khu vực"
-											style={{
-												display: "inline-flex",
-												alignItems: "center",
-												padding: "2px 8px",
-												borderRadius: "12px",
-												fontSize: "11px",
-												fontWeight: 600,
-												background: "rgba(234, 88, 12, 0.12)",
-												color: "var(--theme-warning, #ea580c)",
-												border: "1px solid rgba(234, 88, 12, 0.3)",
-											}}
 										>
 											Khác mặc định
 										</span>
@@ -428,45 +430,21 @@ export default function AreaMapView({
 								</div>
 							</div>
 
-							{/* Description Box */}
-							<div
-								className="zone-details__desc-box"
-								style={{ marginTop: "10px" }}
-							>
-								<div
-									style={{
-										fontWeight: 600,
-										color: "var(--theme-text-primary)",
-										marginBottom: "4px",
-									}}
-								>
-									Đặc tả quyền truy cập:
-								</div>
-								<p style={{ margin: "0 0 6px 0" }}>
-									{
-										getLevelConfig(
-											selectedArea.areaLevel ||
-												selectedArea.level?.code ||
-												"PUBLIC",
-										).description
-									}
-								</p>
-								<p style={{ margin: 0, fontSize: "11.5px", color: "var(--theme-text-muted)", borderTop: "1px dashed var(--theme-border)", paddingTop: "6px" }}>
-									💡 <em>Lưu ý: Danh sách nhân viên chỉ định cố định áp dụng cho mọi phòng trừ loại <strong>{AREA_LEVEL_CONFIG.PUBLIC.name} (PUBLIC)</strong>.</em>
-								</p>
-							</div>
+
 
 							{/* Actions */}
 							<div className="zone-detail-actions">
-								{isFacilityManager && (selectedArea.areaLevel || selectedArea.level?.code) !== "PUBLIC" && (
-									<button
-										type="button"
-										className="zone-btn-action"
-										onClick={() => onOpenAssignedPersonnelModal(selectedArea)}
-									>
-										Nhân sự chỉ định
-									</button>
-								)}
+								{isFacilityManager &&
+									(selectedArea.areaLevel || selectedArea.level?.code) !==
+										"PUBLIC" && (
+										<button
+											type="button"
+											className="zone-btn-action"
+											onClick={() => onOpenAssignedPersonnelModal(selectedArea)}
+										>
+											Nhân sự chỉ định
+										</button>
+									)}
 								{isFacilityManager && (
 									<button
 										type="button"

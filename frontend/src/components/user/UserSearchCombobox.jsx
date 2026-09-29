@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Loader2, X, User, Check, Shield } from 'lucide-react';
+import { Search, Loader2, X } from 'lucide-react';
 import { searchUsers } from '../../services/userService';
 import { ROLE_LABELS } from '../../constants/roles';
 import './UserSearchCombobox.css';
+import { getAccessLevelConfig } from '../../utils/areaHelpers';
 
 export default function UserSearchCombobox({
   onSelect,
-  excludeUserIds = [],
+  annotateUser = null,
   placeholder = 'Tìm người dùng theo tên, mã hoặc email...',
   disabled = false,
   selectedUser = null,
@@ -46,18 +47,14 @@ export default function UserSearchCombobox({
     try {
       const data = await searchUsers(clean, 0, 20);
       const items = data?.content || [];
-      // Filter out excluded user IDs if specified
-      const filtered = excludeUserIds.length > 0
-        ? items.filter((u) => !excludeUserIds.includes(u.id))
-        : items;
-      setResults(filtered);
+      setResults(items);
     } catch (err) {
       console.error('Lỗi tìm kiếm người dùng:', err);
       setResults([]);
     } finally {
       setLoading(false);
     }
-  }, [excludeUserIds]);
+  }, []);
 
   const handleInputChange = (e) => {
     const val = e.target.value;
@@ -100,11 +97,22 @@ export default function UserSearchCombobox({
           <div className="user-combobox__selected-info">
             <span className="user-combobox__selected-name">{selectedUser.fullName}</span>
             <span className="user-combobox__selected-code">({selectedUser.userCode})</span>
+            {annotateUser && annotateUser(selectedUser) && (
+              <span
+                className={`user-combobox__annotation-pill ${
+                  annotateUser(selectedUser).includes('Sắp')
+                    ? 'user-combobox__annotation-pill--upcoming'
+                    : ''
+                }`}
+              >
+                {annotateUser(selectedUser)}
+              </span>
+            )}
             <span className={`user-combobox__role-pill role--${selectedUser.role}`}>
               {ROLE_LABELS[selectedUser.role] || selectedUser.role}
             </span>
-            <span className="user-combobox__level-pill">
-              Level {selectedUser.accessLevel ?? 1}
+            <span className={getAccessLevelConfig(selectedUser.accessLevel).className}>
+              {getAccessLevelConfig(selectedUser.accessLevel).label}
             </span>
           </div>
           {!disabled && onClear && (
@@ -169,26 +177,40 @@ export default function UserSearchCombobox({
             </div>
           ) : (
             <ul className="user-combobox__list">
-              {results.map((u) => (
-                <li
-                  key={u.id}
-                  className="user-combobox__item"
-                  onClick={() => handleSelectUser(u)}
-                >
-                  <div className="user-combobox__item-main">
-                    <span className="user-combobox__item-name">{u.fullName}</span>
-                    <span className="user-combobox__item-code">{u.userCode}</span>
-                  </div>
-                  <div className="user-combobox__item-badges">
-                    <span className={`user-combobox__role-pill role--${u.role}`}>
-                      {ROLE_LABELS[u.role] || u.role}
-                    </span>
-                    <span className="user-combobox__level-pill">
-                      Level {u.accessLevel ?? 1}
-                    </span>
-                  </div>
-                </li>
-              ))}
+              {results.map((u) => {
+                const annotation = annotateUser ? annotateUser(u) : null;
+                return (
+                  <li
+                    key={u.id}
+                    className="user-combobox__item"
+                    onClick={() => handleSelectUser(u)}
+                  >
+                    <div className="user-combobox__item-main">
+                      <span className="user-combobox__item-name">{u.fullName}</span>
+                      <span className="user-combobox__item-code">{u.userCode}</span>
+                      {annotation && (
+                        <span
+                          className={`user-combobox__annotation-pill ${
+                            annotation.includes('Sắp')
+                              ? 'user-combobox__annotation-pill--upcoming'
+                              : ''
+                          }`}
+                        >
+                          {annotation}
+                        </span>
+                      )}
+                    </div>
+                    <div className="user-combobox__item-badges">
+                      <span className={`user-combobox__role-pill role--${u.role}`}>
+                        {ROLE_LABELS[u.role] || u.role}
+                      </span>
+                      <span className={getAccessLevelConfig(u.accessLevel).className}>
+                        {getAccessLevelConfig(u.accessLevel).label}
+                      </span>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>

@@ -2,14 +2,12 @@ package com.fa26se040.icss;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootTest
-class ApplicationIntegrationTest {
+class ApplicationIntegrationTest extends AbstractIntegrationTest {
 
     @Test
-    @DisplayName("Context loads successfully and validates Flyway migrations against PostgreSQL")
+    @DisplayName("Context loads successfully and validates Flyway migrations against test PostgreSQL")
     void contextLoads() {
-        // Boots Spring context, runs Flyway migrations up to V26, and validates Hibernate schema
+        // Boots Spring context, runs Flyway migrations against campus_security_test, and validates Hibernate schema
     }
 }

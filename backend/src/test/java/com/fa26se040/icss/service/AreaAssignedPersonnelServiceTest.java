@@ -34,7 +34,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -61,7 +60,7 @@ class AreaAssignedPersonnelServiceTest {
     private UserRepository userRepository;
 
     @Mock
-    private AccessControlAuditService auditService;
+    private com.fa26se040.icss.service.AuditService auditService;
 
     @InjectMocks
     private AreaAssignedPersonnelService service;
@@ -93,7 +92,6 @@ class AreaAssignedPersonnelServiceTest {
 
         lab = Area.builder()
                 .id(UUID.randomUUID())
-                .code("LAB-01")
                 .name("Phòng Lab 01")
                 .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
                 .isActive(true)
@@ -534,7 +532,6 @@ class AreaAssignedPersonnelServiceTest {
     void create_PublicArea_ThrowsException() {
         Area publicArea = Area.builder()
                 .id(UUID.randomUUID())
-                .code("PUB-01")
                 .name("Sảnh công cộng")
                 .areaLevel(AreaLevel.PUBLIC)
                 .isActive(true)
@@ -558,7 +555,6 @@ class AreaAssignedPersonnelServiceTest {
     void create_InternalConfidentialArea_Success() {
         Area internalArea = Area.builder()
                 .id(UUID.randomUUID())
-                .code("INTERNAL-01")
                 .name("Phòng ban nội bộ")
                 .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
                 .isActive(true)
@@ -582,7 +578,6 @@ class AreaAssignedPersonnelServiceTest {
     void create_ConfidentialContactRequiredArea_Success() {
         Area contactArea = Area.builder()
                 .id(UUID.randomUUID())
-                .code("CONTACT-01")
                 .name("Phòng cần xác nhận")
                 .areaLevel(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
                 .isActive(true)
@@ -617,17 +612,17 @@ class AreaAssignedPersonnelServiceTest {
         AssignedPersonnelResponse resp = service.create(lab.getId(), req, FM_EMAIL);
         assertNotNull(resp);
 
-        org.mockito.ArgumentCaptor<com.fa26se040.icss.enums.AccessControlTargetType> targetTypeCaptor =
-                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.enums.AccessControlTargetType.class);
-        org.mockito.ArgumentCaptor<com.fa26se040.icss.enums.AccessControlAction> actionCaptor =
-                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.enums.AccessControlAction.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.enums.AuditTargetType> targetTypeCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.enums.AuditTargetType.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.enums.AuditAction> actionCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.enums.AuditAction.class);
         org.mockito.ArgumentCaptor<String> targetIdCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
         org.mockito.ArgumentCaptor<Area> areaCaptor = org.mockito.ArgumentCaptor.forClass(Area.class);
         org.mockito.ArgumentCaptor<User> userCaptor = org.mockito.ArgumentCaptor.forClass(User.class);
-        org.mockito.ArgumentCaptor<com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot> oldSnapshotCaptor =
-                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot.class);
-        org.mockito.ArgumentCaptor<com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot> newSnapshotCaptor =
-                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.dto.accesscontrol.snapshot.AuditSnapshot> oldSnapshotCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.dto.accesscontrol.snapshot.AuditSnapshot.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.dto.accesscontrol.snapshot.AuditSnapshot> newSnapshotCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.dto.accesscontrol.snapshot.AuditSnapshot.class);
         org.mockito.ArgumentCaptor<String> reasonCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
         org.mockito.ArgumentCaptor<User> actorCaptor = org.mockito.ArgumentCaptor.forClass(User.class);
 
@@ -643,8 +638,8 @@ class AreaAssignedPersonnelServiceTest {
                 actorCaptor.capture()
         );
 
-        assertEquals(com.fa26se040.icss.enums.AccessControlTargetType.AREA_ASSIGNMENT, targetTypeCaptor.getValue());
-        assertEquals(com.fa26se040.icss.enums.AccessControlAction.ASSIGN, actionCaptor.getValue());
+        assertEquals(com.fa26se040.icss.enums.AuditTargetType.AREA_ASSIGNMENT, targetTypeCaptor.getValue());
+        assertEquals(com.fa26se040.icss.enums.AuditAction.ASSIGN, actionCaptor.getValue());
         assertEquals(resp.id().toString(), targetIdCaptor.getValue());
         assertEquals(lab, areaCaptor.getValue());
         assertEquals(lecturer, userCaptor.getValue());
@@ -668,17 +663,17 @@ class AreaAssignedPersonnelServiceTest {
         AssignedPersonnelResponse resp = service.updateValidTo(lab.getId(), rec.getId(), req, FM_EMAIL);
         assertNotNull(resp);
 
-        org.mockito.ArgumentCaptor<com.fa26se040.icss.enums.AccessControlTargetType> targetTypeCaptor =
-                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.enums.AccessControlTargetType.class);
-        org.mockito.ArgumentCaptor<com.fa26se040.icss.enums.AccessControlAction> actionCaptor =
-                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.enums.AccessControlAction.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.enums.AuditTargetType> targetTypeCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.enums.AuditTargetType.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.enums.AuditAction> actionCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.enums.AuditAction.class);
         org.mockito.ArgumentCaptor<String> targetIdCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
         org.mockito.ArgumentCaptor<Area> areaCaptor = org.mockito.ArgumentCaptor.forClass(Area.class);
         org.mockito.ArgumentCaptor<User> userCaptor = org.mockito.ArgumentCaptor.forClass(User.class);
-        org.mockito.ArgumentCaptor<com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot> oldSnapshotCaptor =
-                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot.class);
-        org.mockito.ArgumentCaptor<com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot> newSnapshotCaptor =
-                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.dto.accesscontrol.snapshot.AuditSnapshot> oldSnapshotCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.dto.accesscontrol.snapshot.AuditSnapshot.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.dto.accesscontrol.snapshot.AuditSnapshot> newSnapshotCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.dto.accesscontrol.snapshot.AuditSnapshot.class);
         org.mockito.ArgumentCaptor<String> reasonCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
         org.mockito.ArgumentCaptor<User> actorCaptor = org.mockito.ArgumentCaptor.forClass(User.class);
 
@@ -694,8 +689,8 @@ class AreaAssignedPersonnelServiceTest {
                 actorCaptor.capture()
         );
 
-        assertEquals(com.fa26se040.icss.enums.AccessControlTargetType.AREA_ASSIGNMENT, targetTypeCaptor.getValue());
-        assertEquals(com.fa26se040.icss.enums.AccessControlAction.UPDATE_VALIDITY, actionCaptor.getValue());
+        assertEquals(com.fa26se040.icss.enums.AuditTargetType.AREA_ASSIGNMENT, targetTypeCaptor.getValue());
+        assertEquals(com.fa26se040.icss.enums.AuditAction.UPDATE_VALIDITY, actionCaptor.getValue());
         assertEquals(rec.getId().toString(), targetIdCaptor.getValue());
         assertEquals(lab, areaCaptor.getValue());
         assertEquals(lecturer, userCaptor.getValue());
@@ -719,17 +714,17 @@ class AreaAssignedPersonnelServiceTest {
         AssignedPersonnelResponse resp = service.revoke(lab.getId(), rec.getId(), req, FM_EMAIL);
         assertNotNull(resp);
 
-        org.mockito.ArgumentCaptor<com.fa26se040.icss.enums.AccessControlTargetType> targetTypeCaptor =
-                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.enums.AccessControlTargetType.class);
-        org.mockito.ArgumentCaptor<com.fa26se040.icss.enums.AccessControlAction> actionCaptor =
-                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.enums.AccessControlAction.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.enums.AuditTargetType> targetTypeCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.enums.AuditTargetType.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.enums.AuditAction> actionCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.enums.AuditAction.class);
         org.mockito.ArgumentCaptor<String> targetIdCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
         org.mockito.ArgumentCaptor<Area> areaCaptor = org.mockito.ArgumentCaptor.forClass(Area.class);
         org.mockito.ArgumentCaptor<User> userCaptor = org.mockito.ArgumentCaptor.forClass(User.class);
-        org.mockito.ArgumentCaptor<com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot> oldSnapshotCaptor =
-                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot.class);
-        org.mockito.ArgumentCaptor<com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot> newSnapshotCaptor =
-                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.dto.accesscontrol.snapshot.AccessControlAuditSnapshot.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.dto.accesscontrol.snapshot.AuditSnapshot> oldSnapshotCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.dto.accesscontrol.snapshot.AuditSnapshot.class);
+        org.mockito.ArgumentCaptor<com.fa26se040.icss.dto.accesscontrol.snapshot.AuditSnapshot> newSnapshotCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.dto.accesscontrol.snapshot.AuditSnapshot.class);
         org.mockito.ArgumentCaptor<String> reasonCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
         org.mockito.ArgumentCaptor<User> actorCaptor = org.mockito.ArgumentCaptor.forClass(User.class);
 
@@ -745,8 +740,8 @@ class AreaAssignedPersonnelServiceTest {
                 actorCaptor.capture()
         );
 
-        assertEquals(com.fa26se040.icss.enums.AccessControlTargetType.AREA_ASSIGNMENT, targetTypeCaptor.getValue());
-        assertEquals(com.fa26se040.icss.enums.AccessControlAction.REVOKE, actionCaptor.getValue());
+        assertEquals(com.fa26se040.icss.enums.AuditTargetType.AREA_ASSIGNMENT, targetTypeCaptor.getValue());
+        assertEquals(com.fa26se040.icss.enums.AuditAction.REVOKE, actionCaptor.getValue());
         assertEquals(rec.getId().toString(), targetIdCaptor.getValue());
         assertEquals(lab, areaCaptor.getValue());
         assertEquals(lecturer, userCaptor.getValue());
@@ -773,6 +768,6 @@ class AreaAssignedPersonnelServiceTest {
         assertEquals(to, resp.validTo());
 
         verify(assignedPersonnelRepository, org.mockito.Mockito.never()).save(any(AreaAssignedPersonnel.class));
-        verify(auditService, org.mockito.Mockito.never()).record(any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(auditService, org.mockito.Mockito.never()).record(any(), any(), any(), any(), any(), any(), any(), any(), any(User.class));
     }
 }

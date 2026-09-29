@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import * as authService from '../services/authService';
+import { DEMO_LOGIN_ENABLED } from '../config/demoConfig';
 
 const AuthContext = createContext(null);
 
@@ -26,6 +27,12 @@ export function AuthProvider({ children }) {
     const initAuth = async () => {
       const storedToken = localStorage.getItem('accessToken');
       if (!storedToken) {
+        setLoading(false);
+        return;
+      }
+
+      if (storedToken.startsWith('frontend-demo-') && !DEMO_LOGIN_ENABLED) {
+        logout();
         setLoading(false);
         return;
       }
@@ -80,6 +87,9 @@ export function AuthProvider({ children }) {
   };
 
   const loginAsDemoRole = (role) => {
+    if (!DEMO_LOGIN_ENABLED) {
+      throw new Error('Chế độ đăng nhập demo đang bị tắt.');
+    }
     const response = authService.createDemoAuth(role);
     authService.saveAuth(response);
     setUser(response.user);
@@ -121,10 +131,13 @@ export function AuthProvider({ children }) {
     );
   }
 
+  const isDemoMode = DEMO_LOGIN_ENABLED && Boolean(token?.startsWith('frontend-demo-'));
+
   const value = {
     user,
     token,
     loading,
+    isDemoMode,
     isAuthenticated: !!user,
     loginWithCredentials,
     loginWithPassword: loginWithCredentials,

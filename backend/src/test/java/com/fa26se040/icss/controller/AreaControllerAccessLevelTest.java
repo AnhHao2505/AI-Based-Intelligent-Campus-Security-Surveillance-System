@@ -125,7 +125,7 @@ class AreaControllerAccessLevelTest {
         when(areaService.updateAccessRules(eq(areaId), any(), any()))
                 .thenThrow(new AreaException(AreaErrorCode.ERR_AREA_017));
 
-        String body = objectMapper.writeValueAsString(new AreaAccessRulesUpdateRequest(2, false, "Lý do"));
+        String body = objectMapper.writeValueAsString(new AreaAccessRulesUpdateRequest(2, false, "Điều chỉnh theo quy định mới"));
         mockMvc.perform(patch("/api/areas/{id}/access-rules", areaId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
@@ -137,21 +137,22 @@ class AreaControllerAccessLevelTest {
     @DisplayName("PATCH /api/areas/{id}/access-rules hợp lệ -> 200 OK")
     void updateAccessRules_Valid_Returns200() throws Exception {
         UUID areaId = UUID.randomUUID();
-        AreaResponse resp = new AreaResponse(
-                areaId,
-                "LAB-01",
-                "Phòng Lab",
-                AreaLevel.HIGHLY_CONFIDENTIAL,
-                2,
-                false,
-                "Tòa A",
-                "Tầng 1",
-                "Mô tả",
-                null,
-                true,
-                OffsetDateTime.now(),
-                OffsetDateTime.now()
-        );
+        AreaResponse resp = AreaResponse.builder()
+                .id(areaId)
+                .name("Phòng Lab")
+                .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
+                .areaAccessLevel(2)
+                .explicitAuthorizationRequired(false)
+                .building("Tòa A")
+                .floor("Tầng 1")
+                .isActive(true)
+                .createdAt(OffsetDateTime.now())
+                .updatedAt(OffsetDateTime.now())
+                .differsFromPreset(false)
+                .openToMembers(false)
+                .eventActive(false)
+                .upcomingScheduleCount(0)
+                .build();
 
         when(areaService.updateAccessRules(eq(areaId), any(), any())).thenReturn(resp);
 
@@ -160,7 +161,7 @@ class AreaControllerAccessLevelTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.areaAccessLevel").value(2))
-                .andExpect(jsonPath("$.explicitAuthorizationRequired").value(false));
+                .andExpect(jsonPath("$.data.areaAccessLevel").value(2))
+                .andExpect(jsonPath("$.data.explicitAuthorizationRequired").value(false));
     }
 }

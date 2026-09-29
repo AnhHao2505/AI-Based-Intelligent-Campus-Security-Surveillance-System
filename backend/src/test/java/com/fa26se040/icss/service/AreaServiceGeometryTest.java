@@ -49,6 +49,9 @@ class AreaServiceGeometryTest {
     @Mock
     private FloorRepository floorRepository;
 
+    @Mock
+    private AuditService auditService;
+
     @InjectMocks
     private AreaService areaService;
 
@@ -61,7 +64,6 @@ class AreaServiceGeometryTest {
         areaId = UUID.randomUUID();
         area = Area.builder()
                 .id(areaId)
-                .code("ZONE-01")
                 .name("Zone 1")
                 .areaLevel(AreaLevel.PUBLIC)
                 .building("FPT_AROUND")
@@ -88,13 +90,13 @@ class AreaServiceGeometryTest {
                 ))
                 .build();
 
-        when(areaRepository.findByIdAndDeletedAtIsNull(areaId)).thenReturn(Optional.of(area));
+        when(areaRepository.findByIdWithLock(areaId)).thenReturn(Optional.of(area));
         when(areaRepository.findByBuildingIgnoreCaseAndFloorIgnoreCaseAndDeletedAtIsNull("FPT_AROUND", "G"))
                 .thenReturn(Collections.emptyList());
         when(userRepository.findByEmail("admin@campus.com")).thenReturn(Optional.of(user));
         when(areaRepository.save(any(Area.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        AreaGeometryResponse response = areaService.saveGeometry(areaId, inputGeometry, "admin@campus.com");
+        AreaGeometryResponse response = areaService.saveGeometry(areaId, inputGeometry, 0L, "admin@campus.com");
 
         assertEquals("polygon", response.geometry().getType());
         assertEquals(1, response.geometry().getVersion());

@@ -1,5 +1,6 @@
 package com.fa26se040.icss.controller;
 
+import com.fa26se040.icss.dto.common.ApiResponse;
 import com.fa26se040.icss.dto.guard.GuardTeamCreateRequest;
 import com.fa26se040.icss.dto.guard.GuardTeamDto;
 import com.fa26se040.icss.dto.guard.GuardTeamMemberAssignRequest;
@@ -25,45 +26,47 @@ public class GuardTeamController {
     private final GuardTeamService guardTeamService;
 
     @GetMapping
-    public ResponseEntity<List<GuardTeamDto>> getAllTeams() {
-        return ResponseEntity.ok(guardTeamService.getAllTeams());
+    public ResponseEntity<ApiResponse<List<GuardTeamDto>>> getAllTeams() {
+        return ResponseEntity.ok(ApiResponse.success(guardTeamService.getAllTeams(), "Lấy danh sách đội bảo vệ thành công"));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<GuardTeamDto> getTeamById(@PathVariable UUID id) {
-        return ResponseEntity.ok(guardTeamService.getTeamById(id));
+    public ResponseEntity<ApiResponse<GuardTeamDto>> getTeamById(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.success(guardTeamService.getTeamById(id), "Lấy thông tin đội bảo vệ thành công"));
     }
 
     @PostMapping
-    public ResponseEntity<GuardTeamDto> createTeam(@Valid @RequestBody GuardTeamCreateRequest request) {
+    public ResponseEntity<ApiResponse<GuardTeamDto>> createTeam(@Valid @RequestBody GuardTeamCreateRequest request) {
         GuardTeamDto created = guardTeamService.createTeam(request);
-        return new ResponseEntity<>(created, HttpStatus.CREATED);
+        return new ResponseEntity<>(ApiResponse.created(created, "Tạo đội bảo vệ mới thành công"), HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<GuardTeamDto> updateTeam(
+    public ResponseEntity<ApiResponse<GuardTeamDto>> updateTeam(
             @PathVariable UUID id,
             @Valid @RequestBody GuardTeamCreateRequest request
     ) {
-        return ResponseEntity.ok(guardTeamService.updateTeam(id, request));
+        GuardTeamDto updated = guardTeamService.updateTeam(id, request);
+        return ResponseEntity.ok(ApiResponse.success(updated, "Cập nhật đội bảo vệ thành công"));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteTeam(@PathVariable UUID id) {
+    public ResponseEntity<ApiResponse<Void>> deleteTeam(@PathVariable UUID id) {
         guardTeamService.deleteTeam(id);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(ApiResponse.success("Xóa đội bảo vệ thành công"));
     }
 
     @PutMapping("/{id}/members")
-    public ResponseEntity<GuardTeamDto> assignMembers(
+    public ResponseEntity<ApiResponse<GuardTeamDto>> assignMembers(
             @PathVariable UUID id,
             @Valid @RequestBody GuardTeamMemberAssignRequest request
     ) {
-        return ResponseEntity.ok(guardTeamService.assignMembers(id, request));
+        GuardTeamDto result = guardTeamService.assignMembers(id, request);
+        return ResponseEntity.ok(ApiResponse.success(result, "Phân công thành viên đội bảo vệ thành công"));
     }
 
     @GetMapping("/unassigned-guards")
-    public ResponseEntity<List<GuardTeamDto.TeamMemberDto>> getUnassignedGuards() {
-        return ResponseEntity.ok(guardTeamService.getAvailableGuardsWithoutTeam());
+    public ResponseEntity<ApiResponse<List<GuardTeamDto.TeamMemberDto>>> getUnassignedGuards() {
+        return ResponseEntity.ok(ApiResponse.success(guardTeamService.getAvailableGuardsWithoutTeam(), "Lấy danh sách bảo vệ chưa phân đội thành công"));
     }
 }

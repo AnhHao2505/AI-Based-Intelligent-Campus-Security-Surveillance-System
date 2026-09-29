@@ -1,7 +1,6 @@
 package com.fa26se040.icss.service;
 
 import com.fa26se040.icss.dto.BulkImportResponse;
-import com.fa26se040.icss.dto.BulkImportRowResult;
 import com.fa26se040.icss.dto.FaceDataResponseDto;
 import com.fa26se040.icss.dto.UserInfo;
 import com.fa26se040.icss.dto.user.StaffAccountCreateRequest;
@@ -17,7 +16,6 @@ import com.fa26se040.icss.dto.user.UserSearchResponse;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.exception.DuplicateResourceException;
-import com.fa26se040.icss.exception.MaxRecordsExceededException;
 import com.fa26se040.icss.exception.ResourceNotFoundException;
 import com.fa26se040.icss.exception.UnauthorizedException;
 import com.fa26se040.icss.repository.UserRepository;
@@ -34,16 +32,13 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.zip.ZipEntry;
-import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 
@@ -79,10 +74,9 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final FaceDataService faceDataService;
     private final MinioStorageService minioStorageService;
-    private final UserBulkImportHelper userBulkImportHelper;
     private final NotificationService notificationService;
     private final UserAccessLevelHelper userAccessLevelHelper;
-    private final AccessControlAuditService auditService;
+    private final AuditService auditService;
     private final UserBulkImportService userBulkImportService;
 
     @Transactional
@@ -577,10 +571,10 @@ public class UserService {
                     new com.fa26se040.icss.dto.accesscontrol.snapshot.UserAccessLevelAuditSnapshot(saved.getAccessLevel());
 
             auditService.record(
-                    com.fa26se040.icss.enums.AccessControlTargetType.USER_ACCESS_LEVEL,
-                    com.fa26se040.icss.enums.AccessControlAction.UPDATE,
+                    com.fa26se040.icss.enums.AuditTargetType.USER_ACCESS_LEVEL,
+                    com.fa26se040.icss.enums.AuditAction.UPDATE,
                     saved.getId().toString(),
-                    null,
+                    (com.fa26se040.icss.entity.Area) null,
                     saved,
                     oldSnapshot,
                     newSnapshot,

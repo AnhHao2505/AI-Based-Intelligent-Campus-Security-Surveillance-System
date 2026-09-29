@@ -23,6 +23,7 @@ import accessRequestService from "../../services/accessRequestService";
 import { getLevelConfig, AREA_LEVEL_CONFIG } from "../../utils/areaHelpers";
 import { useAuth } from "../../context/AuthContext";
 import "../../styles/AccessRequestPage.css";
+import PageHeader from "../../components/ui/PageHeader";
 
 export default function AccessRequestPage() {
 	const { user } = useAuth();
@@ -53,6 +54,7 @@ export default function AccessRequestPage() {
 	// History State
 	const [historyList, setHistoryList] = useState([]);
 	const [historyStatusFilter, setHistoryStatusFilter] = useState("");
+	const [historyAreaFilter, setHistoryAreaFilter] = useState("");
 	const [loadingHistory, setLoadingHistory] = useState(false);
 	const [historyPage, setHistoryPage] = useState(0);
 	const [historyTotalPages, setHistoryTotalPages] = useState(1);
@@ -184,11 +186,12 @@ export default function AccessRequestPage() {
 
 	// Load my requests
 	const loadMyRequests = useCallback(
-		async (page = 0, status = historyStatusFilter) => {
+		async (page = 0, status = historyStatusFilter, areaId = historyAreaFilter) => {
 			setLoadingHistory(true);
 			try {
 				const res = await accessRequestService.getMyRequests({
 					status: status || undefined,
+					areaId: areaId || undefined,
 					page,
 					size: 10,
 				});
@@ -202,7 +205,7 @@ export default function AccessRequestPage() {
 				setLoadingHistory(false);
 			}
 		},
-		[historyStatusFilter],
+		[historyStatusFilter, historyAreaFilter],
 	);
 
 	useEffect(() => {
@@ -211,8 +214,8 @@ export default function AccessRequestPage() {
 	}, [loadAreas]);
 
 	useEffect(() => {
-		loadMyRequests(0, historyStatusFilter);
-	}, [historyStatusFilter, loadMyRequests]);
+		loadMyRequests(0, historyStatusFilter, historyAreaFilter);
+	}, [historyStatusFilter, historyAreaFilter, loadMyRequests]);
 
 	// Selected area object
 	const areaList = Array.isArray(areas) ? areas : areas?.content || [];
@@ -453,7 +456,7 @@ export default function AccessRequestPage() {
 			initDefaultTimes();
 
 			// Refresh history list and smooth scroll down
-			loadMyRequests(0, historyStatusFilter);
+			loadMyRequests(0, historyStatusFilter, historyAreaFilter);
 			setTimeout(() => {
 				historyCardRef.current?.scrollIntoView({ behavior: "smooth" });
 			}, 500);
@@ -473,7 +476,7 @@ export default function AccessRequestPage() {
 			await accessRequestService.cancelRequest(cancelItem.id);
 			setCancelItem(null);
 			setFormSuccess("Huỷ yêu cầu truy cập thành công!");
-			loadMyRequests(historyPage, historyStatusFilter);
+			loadMyRequests(historyPage, historyStatusFilter, historyAreaFilter);
 			setTimeout(() => setFormSuccess(null), 4000);
 		} catch (err) {
 			if (err.status === 409) {
@@ -481,7 +484,7 @@ export default function AccessRequestPage() {
 				setHistoryWarning(
 					err.message || "Yêu cầu này vừa được xử lý, không thể huỷ.",
 				);
-				loadMyRequests(historyPage, historyStatusFilter);
+				loadMyRequests(historyPage, historyStatusFilter, historyAreaFilter);
 				setTimeout(() => setHistoryWarning(null), 7000);
 			} else {
 				setCancelError(err.message || "Không thể huỷ yêu cầu truy cập.");
@@ -529,6 +532,10 @@ export default function AccessRequestPage() {
 
 	return (
 		<div className="arp-container">
+			<PageHeader
+				title="Yêu cầu truy cập"
+				description="Gửi yêu cầu ra vào khu vực cần cấp phép và theo dõi trạng thái các yêu cầu của bạn."
+			/>
 			{/* THẺ 1: YÊU CẦU TRUY CẬP MỚI */}
 			<div className="arp-card">
 				{/* 2a. Đầu thẻ */}
@@ -587,14 +594,14 @@ export default function AccessRequestPage() {
 						>
 							<option value="">-- Chọn khu vực cần đăng ký truy cập --</option>
 							{areas.map((a) => {
-								const lvlConf = getLevelConfig(a.areaLevel);
+								const floorPart = a.floor ? (String(a.floor).startsWith("Tầng") ? a.floor : `Tầng ${a.floor}`) : null;
+								const loc = [a.building, floorPart].filter(Boolean).join(" · ");
 								return (
 									<option
 										key={a.id}
 										value={a.id}
 									>
-										[{a.code}] {a.name} — {a.building || "Campus"}, Tầng{" "}
-										{a.floor || "1"} ({lvlConf.name})
+										{loc ? `${a.name} (${loc})` : a.name}
 									</option>
 								);
 							})}
@@ -635,7 +642,7 @@ export default function AccessRequestPage() {
 											<div>
 												{isHighlyConf
 													? `Khu vực ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name}. Chỉ áp dụng hình thức đăng ký truy cập Cá nhân (Individual).`
-													: "Khu vực yêu cầu xác nhận. Nhân sự Level 2 cần làm đơn đăng ký (Cá nhân hoặc Nhóm) hoặc có tên trong danh sách chỉ định."}
+													: "Khu vực yêu cầu xác nhận. Nhân sự cấp 2 cần làm đơn đăng ký (cá nhân hoặc nhóm) hoặc có tên trong danh sách chỉ định."}
 											</div>
 										</div>
 									</div>
@@ -737,6 +744,19 @@ export default function AccessRequestPage() {
 								/>
 							</div>
 						</div>
+						{timeSummary?.text && (
+							<div
+								style={{
+									fontSize: "12px",
+									marginTop: "6px",
+									color: timeSummary.isError
+										? "var(--theme-danger, #ef4444)"
+										: "var(--theme-text-secondary, #94a3b8)",
+								}}
+							>
+								{timeSummary.text}
+							</div>
+						)}
 					</div>
 
 					{/* TRƯỜNG 4: Danh sách thành viên (nếu chọn GROUP) */}
@@ -885,16 +905,39 @@ export default function AccessRequestPage() {
 								key={f.val}
 								type="button"
 								className={`arp-filter-btn ${historyStatusFilter === f.val ? "arp-filter-btn--active" : ""}`}
-								onClick={() => setHistoryStatusFilter(f.val)}
+								onClick={() => {
+									setHistoryStatusFilter(f.val);
+									setHistoryPage(0);
+								}}
 							>
 								{f.label}
 							</button>
 						))}
 
+						<select
+							className="arp-select-filter"
+							value={historyAreaFilter}
+							onChange={(e) => {
+								setHistoryAreaFilter(e.target.value);
+								setHistoryPage(0);
+							}}
+						>
+							<option value="">Tất cả khu vực</option>
+							{areaList.map((a) => {
+								const floorPart = a.floor ? (String(a.floor).startsWith("Tầng") ? a.floor : `Tầng ${a.floor}`) : null;
+								const loc = [a.building, floorPart].filter(Boolean).join(" · ");
+								return (
+									<option key={a.id} value={a.id}>
+										{loc ? `${a.name} (${loc})` : a.name}
+									</option>
+								);
+							})}
+						</select>
+
 						<button
 							type="button"
 							className="arp-refresh-btn"
-							onClick={() => loadMyRequests(historyPage, historyStatusFilter)}
+							onClick={() => loadMyRequests(historyPage, historyStatusFilter, historyAreaFilter)}
 							title="Làm mới danh sách"
 							disabled={loadingHistory}
 						>
@@ -944,9 +987,9 @@ export default function AccessRequestPage() {
 									<tr>
 										<th>Khu vực</th>
 										<th>Hình thức</th>
-										<th>Thời gian truy cập</th>
+										<th className="ui-col-time-range">Thời gian truy cập</th>
 										<th>Trạng thái</th>
-										<th>Ngày tạo</th>
+										<th className="ui-col-time">Ngày tạo</th>
 										<th style={{ textAlign: "right" }}>Thao tác</th>
 									</tr>
 								</thead>
@@ -956,11 +999,11 @@ export default function AccessRequestPage() {
 											<tr>
 												<td>
 													<div style={{ fontWeight: 600 }}>{req.areaName}</div>
-													<div className="arp-table-room-code">
-														[{req.areaCode}]{" "}
-														{req.building ? `· ${req.building}` : ""}{" "}
-														{req.floor ? `Tầng ${req.floor}` : ""}
-													</div>
+													{([req.building, req.floor ? `Tầng ${req.floor}` : null].filter(Boolean).length > 0) && (
+														<div className="arp-table-room-code">
+															{[req.building, req.floor ? `Tầng ${req.floor}` : null].filter(Boolean).join(" · ")}
+														</div>
+													)}
 												</td>
 												<td>
 													<span
@@ -972,6 +1015,42 @@ export default function AccessRequestPage() {
 													>
 														{req.requestType === "GROUP" ? "Nhóm" : "Cá nhân"}
 													</span>
+													{req.isRequester === false && (
+														<div
+															style={{
+																marginTop: "4px",
+																fontSize: "11px",
+																display: "flex",
+																alignItems: "center",
+																flexWrap: "wrap",
+																gap: "4px",
+															}}
+														>
+															<span
+																style={{
+																	display: "inline-block",
+																	padding: "1px 6px",
+																	borderRadius: "4px",
+																	background: "rgba(59, 130, 246, 0.12)",
+																	border: "1px solid rgba(59, 130, 246, 0.25)",
+																	color: "var(--brand-blue, #3b82f6)",
+																	fontWeight: 600,
+																}}
+															>
+																Thành viên nhóm
+															</span>
+															{req.requesterName && (
+																<span
+																	style={{
+																		color: "var(--theme-text-muted, #94a3b8)",
+																	}}
+																	title={`Người tạo đơn: ${req.requesterName}`}
+																>
+																	({req.requesterName})
+																</span>
+															)}
+														</div>
+													)}
 												</td>
 												<td>
 													<div style={{ fontSize: "13px" }}>
@@ -1019,6 +1098,11 @@ export default function AccessRequestPage() {
 															</>
 														)}
 													</span>
+													{req.status === "CANCELLED" && req.cancelSource === "SYSTEM" && (
+														<div className="arp-cancel-system" title={req.cancelReason || ""}>
+															Huỷ bởi hệ thống: {req.cancelReason}
+														</div>
+													)}
 												</td>
 												<td
 													style={{
@@ -1038,7 +1122,7 @@ export default function AccessRequestPage() {
 															gap: "8px",
 														}}
 													>
-														{req.status === "PENDING" && (
+														{req.status === "PENDING" && req.isRequester !== false && (
 															<button
 																type="button"
 																className="arp-btn arp-btn--danger-ghost arp-btn--sm"
@@ -1066,6 +1150,7 @@ export default function AccessRequestPage() {
 																		loadMyRequests(
 																			historyPage,
 																			historyStatusFilter,
+																			historyAreaFilter,
 																		);
 																		setTimeout(
 																			() => setFormSuccess(null),
@@ -1144,7 +1229,7 @@ export default function AccessRequestPage() {
 								type="button"
 								className="arp-page-btn"
 								onClick={() =>
-									loadMyRequests(historyPage - 1, historyStatusFilter)
+									loadMyRequests(historyPage - 1, historyStatusFilter, historyAreaFilter)
 								}
 								disabled={historyPage === 0 || loadingHistory}
 								title="Trang trước"
@@ -1165,7 +1250,7 @@ export default function AccessRequestPage() {
 												key={p}
 												type="button"
 												className={`arp-page-btn ${p === historyPage ? "arp-page-btn--active" : ""}`}
-												onClick={() => loadMyRequests(p, historyStatusFilter)}
+												onClick={() => loadMyRequests(p, historyStatusFilter, historyAreaFilter)}
 												disabled={loadingHistory}
 											>
 												{p + 1}
@@ -1189,7 +1274,7 @@ export default function AccessRequestPage() {
 								type="button"
 								className="arp-page-btn"
 								onClick={() =>
-									loadMyRequests(historyPage + 1, historyStatusFilter)
+									loadMyRequests(historyPage + 1, historyStatusFilter, historyAreaFilter)
 								}
 								disabled={
 									historyPage >= historyTotalPages - 1 || loadingHistory
@@ -1220,7 +1305,7 @@ export default function AccessRequestPage() {
 								</div>
 								<div>
 									<h2 className="arp-modal__title">
-										Chi tiết Yêu cầu Truy cập
+										Chi tiết yêu cầu truy cập
 									</h2>
 									<div className="arp-modal__subtitle">
 										Mã yêu cầu: #{selectedDetail.id?.substring(0, 8)}
@@ -1241,7 +1326,9 @@ export default function AccessRequestPage() {
 								<div className="arp-detail-item">
 									<span className="arp-detail-label">Khu vực</span>
 									<span className="arp-detail-val">
-										{selectedDetail.areaName} ({selectedDetail.areaCode})
+										{selectedDetail.areaName}
+										{([selectedDetail.building, selectedDetail.floor ? `Tầng ${selectedDetail.floor}` : null].filter(Boolean).length > 0) &&
+											` (${[selectedDetail.building, selectedDetail.floor ? `Tầng ${selectedDetail.floor}` : null].filter(Boolean).join(" · ")})`}
 									</span>
 									<span
 										style={{
@@ -1249,8 +1336,7 @@ export default function AccessRequestPage() {
 											color: "var(--theme-text-muted)",
 										}}
 									>
-										Cấp độ: {getLevelConfig(selectedDetail.areaLevel).name} |{" "}
-										{selectedDetail.building} - Tầng {selectedDetail.floor}
+										Cấp độ: {getLevelConfig(selectedDetail.areaLevel).name}
 									</span>
 								</div>
 
@@ -1291,6 +1377,11 @@ export default function AccessRequestPage() {
 												</>
 											)}
 										</span>
+										{selectedDetail.status === "CANCELLED" && selectedDetail.cancelSource === "SYSTEM" && (
+											<div className="arp-cancel-system arp-cancel-system--detail">
+												Huỷ bởi hệ thống: {selectedDetail.cancelReason}
+											</div>
+										)}
 									</div>
 								</div>
 
@@ -1314,7 +1405,29 @@ export default function AccessRequestPage() {
 										{selectedDetail.requestType === "GROUP"
 											? "Tập thể / Nhóm"
 											: "Cá nhân"}
+										{selectedDetail.isRequester === false && (
+											<span
+												style={{
+													marginLeft: "8px",
+													display: "inline-block",
+													padding: "1px 6px",
+													borderRadius: "4px",
+													background: "rgba(59, 130, 246, 0.12)",
+													border: "1px solid rgba(59, 130, 246, 0.25)",
+													color: "var(--brand-blue, #3b82f6)",
+													fontSize: "11px",
+													fontWeight: 600,
+												}}
+											>
+												Thành viên nhóm
+											</span>
+										)}
 									</span>
+									{selectedDetail.isRequester === false && selectedDetail.requesterName && (
+										<span style={{ fontSize: "11px", color: "var(--theme-text-muted)" }}>
+											Người tạo đơn: {selectedDetail.requesterName} ({selectedDetail.requesterCode || selectedDetail.requesterEmail})
+										</span>
+									)}
 								</div>
 
 								<div className="arp-detail-item">
@@ -1474,8 +1587,9 @@ export default function AccessRequestPage() {
 							}}
 						>
 							<div>
-								<strong>Khu vực:</strong> {cancelItem.areaName} (
-								{cancelItem.areaCode})
+								<strong>Khu vực:</strong> {cancelItem.areaName}
+								{([cancelItem.building, cancelItem.floor ? `Tầng ${cancelItem.floor}` : null].filter(Boolean).length > 0) &&
+									` (${[cancelItem.building, cancelItem.floor ? `Tầng ${cancelItem.floor}` : null].filter(Boolean).join(" · ")})`}
 							</div>
 							<div>
 								<strong>Khung giờ:</strong>{" "}

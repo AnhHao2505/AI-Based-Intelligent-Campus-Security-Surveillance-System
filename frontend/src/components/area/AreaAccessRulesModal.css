@@ -8,6 +8,22 @@
   gap: 20px;
 }
 
+/* Q6 (Step 5b): khung khoá toàn bộ ô nhập khi đang tải khu vực — giữ nguyên bố cục cột của form */
+.access-rules-fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.access-rules-loading {
+  font-size: 13px;
+  color: var(--theme-text-secondary);
+}
+
 .access-rules-alert {
   display: flex;
   align-items: center;
@@ -155,8 +171,7 @@
   margin: 0;
   font-size: 12px;
   line-height: 1.45;
-  color: var(--theme-warning, #f59e0b);
-  font-style: italic;
+  color: var(--theme-text-secondary);
 }
 
 /* Callout Note */

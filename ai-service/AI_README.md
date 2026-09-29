@@ -4,7 +4,7 @@ Microservice xử lý AI thời gian thực cho hệ thống giám sát an ninh:
 - **Phát hiện người (Human Detection):** YOLOv8 (Class 0: `person`).
 - **Theo dõi đối tượng (Human Tracking):** ByteTrack (Gán và duy trì `track_id` liên tục).
 - **Phát hiện khuôn mặt (Face Detection):** OpenCV YuNet ONNX.
-- **Phân tích hành vi lảng vảng (Loitering Engine):** Đếm thời gian lưu trú trong vùng cấm ROI. Kết hợp giữa Human Tracking và Face Detection để phát hiện kẻ đột nhập/lảng vảng ngay cả khi quay lưng, che mặt hoặc không quét được khuôn mặt.
+- **Phân tích khung hình & Xâm nhập vùng cấm (Frame Analysis Engine):** Kiểm tra đối tượng trong vùng ROI, đối soát danh tính khuôn mặt và cảnh báo ngoài giờ hoạt động.
 - **Tích hợp cảnh báo:** Apache Kafka (Real-time Event Stream) & MinIO (Lưu trữ ảnh bằng chứng vi phạm).
 
 ---
@@ -23,8 +23,11 @@ ai-service/
 │   │   ├── entity.py               # Các cấu trúc dữ liệu (Point, BBox, TrackedPerson, Alert)
 │   │   ├── human_detector.py       # Module YOLOv8 Person Detection
 │   │   ├── face_detector.py        # Module YuNet Face Detection
-│   │   └── loitering_engine.py     # Logic Loitering kết hợp Face & Track ID
+│   │   ├── face_embedder.py        # Trích xuất đặc trưng khuôn mặt 512D
+│   │   ├── face_matcher.py         # So khớp khuôn mặt Cosine Similarity In-Memory RAM
+│   │   └── frame_analysis_engine.py# Logic phân tích vi phạm an ninh ROI & Time Rules
 │   ├── pipeline/
+│   │   ├── stream_worker.py        # Worker chạy ngầm theo dõi camera RTSP
 │   │   └── video_pipeline.py       # Full Video Analysis Pipeline
 │   ├── integration/
 │   │   ├── kafka_producer.py       # Producer gửi cảnh báo lên Kafka

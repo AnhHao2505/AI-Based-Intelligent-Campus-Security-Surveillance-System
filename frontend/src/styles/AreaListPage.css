@@ -83,7 +83,7 @@
   width: 38px;
   height: 38px;
   border-radius: 10px;
-  background: var(--brand-gradient);
+  background: var(--brand-identity-gradient);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -183,7 +183,7 @@
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: var(--brand-gradient);
+  background: var(--brand-identity-gradient);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -422,6 +422,8 @@
 .area-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  /* UI-B B3: mọi hàng cao bằng nhau -> các thẻ cùng chiều cao */
+  grid-auto-rows: 1fr;
   gap: 10px;
   width: 100%;
 }
@@ -538,45 +540,7 @@
   font-size: 11px;
 }
 
-/* Security Level Badges */
-.level-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.level-badge--public {
-  background: rgba(34, 197, 94, 0.12);
-  border: 1px solid rgba(34, 197, 94, 0.25);
-  color: #86efac;
-}
-
-.level-badge--internal,
-.level-badge--internal_confidential {
-  background: rgba(59, 130, 246, 0.12);
-  border: 1px solid rgba(59, 130, 246, 0.25);
-  color: #93c5fd;
-}
-
-.level-badge--contact,
-.level-badge--confidential_contact_required {
-  background: rgba(245, 158, 11, 0.12);
-  border: 1px solid rgba(245, 158, 11, 0.25);
-  color: #fde047;
-}
-
-.level-badge--private,
-.level-badge--highly_confidential {
-  background: rgba(248, 113, 113, 0.12);
-  border: 1px solid rgba(248, 113, 113, 0.25);
-  color: #fca5a5;
-}
+/* Security Level Badges: chuyển sang styles/components.css (.level-badge) */
 
 /* Access Level & Explicit Authorization Badges */
 .zone-card__badges {
@@ -586,16 +550,16 @@
   flex-wrap: wrap;
 }
 
-.zone-card__pill-level {
+.zone-card__pill-schedule {
   display: inline-flex;
   align-items: center;
   padding: 2px 6px;
   border-radius: 4px;
   font-size: 10px;
   font-weight: 600;
-  background: var(--brand-subtle);
-  border: 1px solid var(--brand-subtle-border);
-  color: var(--brand-text);
+  background: var(--theme-info-bg);
+  border: 1px solid var(--theme-info-border);
+  color: var(--theme-info-text);
 }
 
 .zone-card__pill-explicit {
@@ -605,9 +569,24 @@
   border-radius: 4px;
   font-size: 10px;
   font-weight: 600;
-  background: rgba(239, 68, 68, 0.12);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  color: #fca5a5;
+  /* UI-B B3: 7.60:1 (light) / 8.39:1 (dark) */
+  background: var(--theme-danger-bg);
+  border: 1px solid var(--theme-danger-border);
+  color: var(--theme-danger-text);
+}
+
+/* Pill "Khác mặc định": 6.84:1 (light) / 10.13:1 (dark) */
+.zone-card__pill-differs {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--theme-warning-bg);
+  border: 1px solid var(--theme-warning-border);
+  color: var(--theme-warning-text);
 }
 
 .zone-pill-explicit {
@@ -1126,6 +1105,16 @@
   margin: 5px 0 0;
 }
 
+.area-form-error {
+  font-size: 11px;
+  color: var(--theme-danger, #ef4444);
+  margin: 5px 0 0;
+}
+
+.area-form-input--error {
+  border-color: var(--theme-danger, #ef4444) !important;
+}
+
 /* Security Level Selector (3 Buttons) */
 .area-level-selector {
   display: grid;
@@ -1328,7 +1317,22 @@
 }
 
 .area-btn-modal--submit:hover:not(:disabled) {
-  filter: brightness(1.06);
+  background: var(--action-primary-bg-hover);
+}
+
+.area-btn-modal--submit:focus-visible {
+  outline: 2px solid var(--focus-ring-color);
+  outline-offset: 2px;
+}
+
+.area-btn-modal--submit:disabled {
+  background: var(--action-disabled-bg);
+  color: var(--action-disabled-text);
+  box-shadow: none;
+  filter: none;
+  transform: none;
+  opacity: 1;
+  cursor: not-allowed;
 }
 
 .area-btn-modal--danger {
@@ -1462,12 +1466,15 @@
    ========================================================================== */
 
 .zone-page {
-  padding: 24px 32px;
-  max-width: 1440px;
-  margin: 0 auto;
   background-color: var(--theme-bg-page);
   min-height: calc(100vh - 64px);
   color: var(--theme-text-primary);
+  box-sizing: border-box;
+  /* UI-1 A4: khuôn trang dùng chung */
+  width: 100%;
+  max-width: var(--page-max-width);
+  margin: 0 auto;
+  padding: var(--page-padding-y) var(--page-padding-x);
   box-sizing: border-box;
 }
 
@@ -1691,10 +1698,24 @@
   flex-shrink: 0;
 }
 
-.zone-toolbar__add-btn:hover {
-  filter: brightness(1.08);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px var(--brand-glow);
+.zone-toolbar__add-btn:hover:not(:disabled) {
+  background: var(--action-primary-bg-hover);
+  box-shadow: 0 4px 10px var(--brand-glow);
+}
+
+.zone-toolbar__add-btn:focus-visible {
+  outline: 2px solid var(--focus-ring-color);
+  outline-offset: 2px;
+}
+
+.zone-toolbar__add-btn:disabled {
+  background: var(--action-disabled-bg);
+  color: var(--action-disabled-text);
+  box-shadow: none;
+  filter: none;
+  transform: none;
+  opacity: 1;
+  cursor: not-allowed;
 }
 
 /* --------------------------------------------------------------------------
@@ -2693,6 +2714,52 @@
   background: rgba(239, 68, 68, 0.12);
   color: #ef4444;
   border-color: rgba(239, 68, 68, 0.3);
+}
+
+.area-camera-detail-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  background: rgba(56, 189, 248, 0.08);
+  color: #38bdf8;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.area-camera-detail-btn:hover {
+  background: #0284c7;
+  border-color: #0284c7;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(2, 132, 199, 0.35);
+  transform: translateY(-1px);
+}
+
+.area-camera-modal-mgmt-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  background: var(--brand-subtle, rgba(37, 99, 235, 0.1));
+  border: 1px solid var(--brand-blue, #2563eb);
+  color: var(--brand-text, #60a5fa);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.area-camera-modal-mgmt-link:hover {
+  background: var(--brand-blue, #2563eb);
+  color: #ffffff;
+  box-shadow: 0 2px 10px rgba(37, 99, 235, 0.3);
+  transform: translateY(-1px);
 }
 
 /* Add Button */

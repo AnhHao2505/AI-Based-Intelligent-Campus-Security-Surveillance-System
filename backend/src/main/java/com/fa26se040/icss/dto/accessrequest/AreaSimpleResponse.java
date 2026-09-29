@@ -5,7 +5,6 @@ import java.util.UUID;
 
 public record AreaSimpleResponse(
     UUID id,
-    String code,
     String name,
     AreaLevel areaLevel,
     String building,

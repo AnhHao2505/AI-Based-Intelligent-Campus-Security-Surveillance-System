@@ -1,12 +1,13 @@
 package com.fa26se040.icss.controller;
 
-import com.fa26se040.icss.dto.accesscontrol.AccessControlAuditLogResponse;
+import com.fa26se040.icss.dto.accesscontrol.AuditLogResponse;
 import com.fa26se040.icss.dto.accesscontrol.LevelPresetResponse;
 import com.fa26se040.icss.dto.accesscontrol.LevelPresetUpdateRequest;
-import com.fa26se040.icss.enums.AccessControlTargetType;
+import com.fa26se040.icss.dto.common.ApiResponse;
 import com.fa26se040.icss.enums.AreaLevel;
-import com.fa26se040.icss.service.AccessControlAuditService;
+import com.fa26se040.icss.enums.AuditTargetType;
 import com.fa26se040.icss.service.AreaLevelPresetService;
+import com.fa26se040.icss.service.AuditService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -17,9 +18,9 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -35,47 +36,65 @@ import java.util.UUID;
 public class AccessControlController {
 
     private final AreaLevelPresetService areaLevelPresetService;
-    private final AccessControlAuditService auditService;
+    private final AuditService auditService;
 
     @GetMapping("/level-presets")
     @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
-    public ResponseEntity<List<LevelPresetResponse>> getLevelPresets() {
-        return ResponseEntity.ok(areaLevelPresetService.getAllPresets());
+    public ResponseEntity<ApiResponse<List<LevelPresetResponse>>> getLevelPresets() {
+        return ResponseEntity.ok(ApiResponse.success(areaLevelPresetService.getAllPresets(), "Lấy danh sách cấu hình cấp độ truy cập thành công"));
     }
 
-    @org.springframework.web.bind.annotation.RequestMapping(
+    @RequestMapping(
             value = "/level-presets/{areaLevel}",
             method = {org.springframework.web.bind.annotation.RequestMethod.PUT, org.springframework.web.bind.annotation.RequestMethod.PATCH}
     )
     @PreAuthorize("hasRole('FACILITY_MANAGER')")
-    public ResponseEntity<LevelPresetResponse> updateLevelPreset(
+    public ResponseEntity<ApiResponse<LevelPresetResponse>> updateLevelPreset(
             @PathVariable AreaLevel areaLevel,
             @Valid @RequestBody LevelPresetUpdateRequest request,
             Authentication authentication
     ) {
         String actorEmail = authentication != null ? authentication.getName() : null;
-        return ResponseEntity.ok(areaLevelPresetService.updatePreset(areaLevel, request, actorEmail));
+        LevelPresetResponse response = areaLevelPresetService.updatePreset(areaLevel, request, actorEmail);
+        return ResponseEntity.ok(ApiResponse.success(response, "Cập nhật cấu hình cấp độ truy cập thành công"));
     }
 
     @GetMapping("/audit-logs")
     @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
-    public ResponseEntity<Page<AccessControlAuditLogResponse>> getAuditLogs(
-            @RequestParam(required = false) AccessControlTargetType targetType,
+    public ResponseEntity<ApiResponse<Page<AuditLogResponse>>> getAuditLogs(
+            @RequestParam(required = false) String module,
+            @RequestParam(required = false) UUID correlationId,
+            @RequestParam(required = false) AuditTargetType targetType,
             @RequestParam(required = false) UUID areaId,
             @RequestParam(required = false) UUID subjectUserId,
             @RequestParam(required = false) UUID changedBy,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime to,
-            @PageableDefault(size = 10, sort = "changedAt", direction = Sort.Direction.DESC) Pageable pageable
+            @PageableDefault(size = 10, sort = "changedAt", direction = Sort.Direction.DESC) Pageable pageable,
+            Authentication authentication
     ) {
-        return ResponseEntity.ok(auditService.getAuditLogs(
+        String userRole = null;
+        if (authentication != null && authentication.getAuthorities() != null) {
+            for (GrantedAuthority ga : authentication.getAuthorities()) {
+                String auth = ga.getAuthority();
+                if (auth.startsWith("ROLE_")) {
+                    userRole = auth.substring(5);
+                    break;
+                }
+            }
+        }
+        Page<AuditLogResponse> logs = auditService.getAuditLogs(
+                module,
+                correlationId,
                 targetType,
                 areaId,
                 subjectUserId,
                 changedBy,
                 from,
                 to,
-                pageable
-        ));
+                pageable,
+                userRole
+        );
+        return ResponseEntity.ok(ApiResponse.success(logs, "Lấy nhật ký kiểm toán phân quyền thành công"));
     }
 }

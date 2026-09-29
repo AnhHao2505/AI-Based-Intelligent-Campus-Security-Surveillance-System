@@ -122,7 +122,7 @@ class StorageService:
         frame: np.ndarray,
         camera_code: str,
         track_id: int,
-        event_type: str = "LOITER"
+        event_type: str = "INCIDENT"
     ) -> Optional[str]:
         """
         Lưu ảnh quả tang vi phạm vào Bucket 'security-evidence':

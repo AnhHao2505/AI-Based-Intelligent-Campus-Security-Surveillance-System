@@ -1,11 +1,14 @@
 package com.fa26se040.icss.service;
 
+import static org.mockito.ArgumentMatchers.argThat;
+
+import static org.mockito.ArgumentMatchers.anyCollection;
+
 import com.fa26se040.icss.dto.accessrequest.AccessRequestResponse;
 import com.fa26se040.icss.dto.accessrequest.AccessRequestReviewRequest;
 import com.fa26se040.icss.dto.accessrequest.GroupAccessRequestCreateRequest;
 import com.fa26se040.icss.dto.accessrequest.IndividualAccessRequestCreateRequest;
 import com.fa26se040.icss.entity.AccessRequest;
-import com.fa26se040.icss.entity.AccessRequestMember;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.ConfigKey;
@@ -32,7 +35,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.access.AccessDeniedException;
 
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -72,6 +74,9 @@ class AccessRequestServiceTest {
     @Mock
     private MemberLookupRateLimiter memberLookupRateLimiter;
 
+    @Mock
+    private AuditService auditService;
+
     @InjectMocks
     private AccessRequestService accessRequestService;
 
@@ -90,6 +95,7 @@ class AccessRequestServiceTest {
                 .email("student.tuan@fpt.edu.vn")
                 .userCode("SV-001")
                 .fullName("Nguyễn Văn Tuấn")
+                .accessLevel(3)
                 .role(Role.NORMAL_USER)
                 .isActive(true)
                 .build();
@@ -108,6 +114,7 @@ class AccessRequestServiceTest {
                 .email("student.an@fpt.edu.vn")
                 .userCode("SV-002")
                 .fullName("Lê Văn An")
+                .accessLevel(3)
                 .role(Role.NORMAL_USER)
                 .isActive(true)
                 .build();
@@ -117,13 +124,13 @@ class AccessRequestServiceTest {
                 .email("student.hoa@fpt.edu.vn")
                 .userCode("SV-003")
                 .fullName("Phạm Thị Hoa")
+                .accessLevel(3)
                 .role(Role.NORMAL_USER)
                 .isActive(true)
                 .build();
 
         semiPrivateArea = Area.builder()
                 .id(UUID.randomUUID())
-                .code("LAB-01")
                 .name("Phòng Thí Nghiệm AI")
                 .areaLevel(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
                 .building("Tòa Alpha")
@@ -133,7 +140,6 @@ class AccessRequestServiceTest {
 
         privateArea = Area.builder()
                 .id(UUID.randomUUID())
-                .code("SERVER-01")
                 .name("Phòng Server Trung Tâm")
                 .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
                 .building("Tòa Beta")
@@ -143,7 +149,6 @@ class AccessRequestServiceTest {
 
         publicArea = Area.builder()
                 .id(UUID.randomUUID())
-                .code("HALL-A")
                 .name("Sảnh Chính A")
                 .areaLevel(AreaLevel.PUBLIC)
                 .isActive(true)
@@ -187,7 +192,7 @@ class AccessRequestServiceTest {
         assertEquals(RequestType.INDIVIDUAL, response.requestType());
         assertEquals(RequestStatus.PENDING, response.status());
         assertEquals("Học nhóm và nghiên cứu", response.purpose());
-        assertEquals(semiPrivateArea.getCode(), response.areaCode());
+        assertEquals(semiPrivateArea.getName(), response.areaName());
         assertEquals(requester.getUserCode(), response.requesterCode());
     }
 
@@ -296,7 +301,6 @@ class AccessRequestServiceTest {
     void createIndividualRequest_InternalConfidentialArea_Success() {
         Area internalArea = Area.builder()
                 .id(UUID.randomUUID())
-                .code("INTERNAL-01")
                 .name("Khu vực nội bộ")
                 .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
                 .building("Tòa A")
@@ -325,7 +329,7 @@ class AccessRequestServiceTest {
 
         AccessRequestResponse response = accessRequestService.createIndividualRequest(request, requester.getEmail());
         assertNotNull(response);
-        assertEquals(internalArea.getCode(), response.areaCode());
+        assertEquals(internalArea.getName(), response.areaName());
     }
 
     @Test
@@ -602,8 +606,8 @@ class AccessRequestServiceTest {
     void reviewRequest_ReviewIfPendingZero_EntityNotFound_ThrowsResourceNotFoundException() {
         UUID requestId = UUID.randomUUID();
 
-        when(userRepository.findByEmail(reviewer.getEmail())).thenReturn(Optional.of(reviewer));
-        when(accessRequestRepository.reviewIfPending(
+        org.mockito.Mockito.lenient().when(userRepository.findByEmail(reviewer.getEmail())).thenReturn(Optional.of(reviewer));
+        org.mockito.Mockito.lenient().when(accessRequestRepository.reviewIfPending(
                 eq(requestId),
                 eq(RequestStatus.APPROVED),
                 eq(reviewer),
@@ -842,13 +846,23 @@ class AccessRequestServiceTest {
     @Test
     @DisplayName("Quét các yêu cầu quá hạn chuyển sang EXPIRED thành công")
     void expireOverdueRequests_Success() {
-        when(accessRequestRepository.expireOverdueRequests(eq(RequestStatus.PENDING), eq(RequestStatus.EXPIRED), any(OffsetDateTime.class)))
+        AccessRequest r1 = AccessRequest.builder().id(UUID.randomUUID()).status(RequestStatus.PENDING)
+                .startTime(OffsetDateTime.now().minusHours(2)).endTime(OffsetDateTime.now().minusHours(1)).build();
+        AccessRequest r2 = AccessRequest.builder().id(UUID.randomUUID()).status(RequestStatus.PENDING)
+                .startTime(OffsetDateTime.now().minusHours(3)).endTime(OffsetDateTime.now().minusHours(2)).build();
+        AccessRequest r3 = AccessRequest.builder().id(UUID.randomUUID()).status(RequestStatus.PENDING)
+                .startTime(OffsetDateTime.now().minusHours(4)).endTime(OffsetDateTime.now().minusHours(3)).build();
+        when(accessRequestRepository.findPendingOverdueRequestsForUpdate(eq(RequestStatus.PENDING), any(OffsetDateTime.class)))
+                .thenReturn(List.of(r1, r2, r3));
+        when(accessRequestRepository.expireOverdueRequestsByIds(anyCollection(), eq(RequestStatus.PENDING), eq(RequestStatus.EXPIRED), any(OffsetDateTime.class)))
                 .thenReturn(3);
 
         int expiredCount = accessRequestService.expireOverdueRequests();
 
         assertEquals(3, expiredCount);
-        verify(accessRequestRepository).expireOverdueRequests(eq(RequestStatus.PENDING), eq(RequestStatus.EXPIRED), any(OffsetDateTime.class));
+        verify(accessRequestRepository).expireOverdueRequestsByIds(
+                argThat(ids -> ids.size() == 3 && ids.containsAll(List.of(r1.getId(), r2.getId(), r3.getId()))),
+                eq(RequestStatus.PENDING), eq(RequestStatus.EXPIRED), any(OffsetDateTime.class));
     }
 
     @Test
@@ -939,5 +953,99 @@ class AccessRequestServiceTest {
         );
 
         assertTrue(ex.getMessage().contains("2"));
+    }
+
+    @Test
+    @DisplayName("DTO AccessRequestResponse có đủ areaId và areaName")
+    void getRequestById_DtoContainsBothAreaIdAndAreaName() {
+        AccessRequest request = AccessRequest.builder()
+                .id(UUID.randomUUID())
+                .area(semiPrivateArea)
+                .requester(requester)
+                .requestType(RequestType.INDIVIDUAL)
+                .purpose("Học tập")
+                .startTime(OffsetDateTime.now().plusDays(1))
+                .endTime(OffsetDateTime.now().plusDays(1).plusHours(2))
+                .status(RequestStatus.PENDING)
+                .createdAt(OffsetDateTime.now())
+                .build();
+
+        when(accessRequestRepository.findByIdWithDetails(request.getId())).thenReturn(Optional.of(request));
+
+        AccessRequestResponse response = accessRequestService.getRequestById(request.getId(), requester.getEmail(), false);
+
+        assertNotNull(response);
+        assertEquals(semiPrivateArea.getId(), response.areaId());
+        assertEquals(semiPrivateArea.getName(), response.areaName());
+    }
+
+    @Test
+    @DisplayName("getMyRequests lọc theo areaId trả đúng bản ghi và DTO có đủ areaId, areaName")
+    void getMyRequests_FilterByAreaId_ReturnsCorrectRecords() {
+        AccessRequest request = AccessRequest.builder()
+                .id(UUID.randomUUID())
+                .area(semiPrivateArea)
+                .requester(requester)
+                .requestType(RequestType.INDIVIDUAL)
+                .purpose("Học nhóm")
+                .startTime(OffsetDateTime.now().plusDays(1))
+                .endTime(OffsetDateTime.now().plusDays(1).plusHours(2))
+                .status(RequestStatus.PENDING)
+                .createdAt(OffsetDateTime.now())
+                .build();
+
+        when(userRepository.findByEmail(requester.getEmail())).thenReturn(Optional.of(requester));
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(0, 10);
+        org.springframework.data.domain.Page<AccessRequest> page = new org.springframework.data.domain.PageImpl<>(List.of(request), pageable, 1);
+        when(accessRequestRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class), any(org.springframework.data.domain.Pageable.class)))
+                .thenReturn(page);
+
+        org.springframework.data.domain.Page<AccessRequestResponse> result = accessRequestService.getMyRequests(
+                requester.getEmail(),
+                RequestStatus.PENDING,
+                semiPrivateArea.getId(),
+                pageable
+        );
+
+        assertNotNull(result);
+        assertEquals(1, result.getTotalElements());
+        AccessRequestResponse dto = result.getContent().get(0);
+        assertEquals(request.getId(), dto.id());
+        assertEquals(semiPrivateArea.getId(), dto.areaId());
+        assertEquals(semiPrivateArea.getName(), dto.areaName());
+    }
+
+    @Test
+    @DisplayName("getAllRequests lọc theo areaId trả đúng bản ghi và DTO có đủ areaId, areaName")
+    void getAllRequests_FilterByAreaId_ReturnsCorrectRecords() {
+        AccessRequest request = AccessRequest.builder()
+                .id(UUID.randomUUID())
+                .area(semiPrivateArea)
+                .requester(requester)
+                .requestType(RequestType.INDIVIDUAL)
+                .purpose("Học nhóm")
+                .startTime(OffsetDateTime.now().plusDays(1))
+                .endTime(OffsetDateTime.now().plusDays(1).plusHours(2))
+                .status(RequestStatus.PENDING)
+                .createdAt(OffsetDateTime.now())
+                .build();
+
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(0, 10);
+        org.springframework.data.domain.Page<AccessRequest> page = new org.springframework.data.domain.PageImpl<>(List.of(request), pageable, 1);
+        when(accessRequestRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class), any(org.springframework.data.domain.Pageable.class)))
+                .thenReturn(page);
+
+        org.springframework.data.domain.Page<AccessRequestResponse> result = accessRequestService.getAllRequests(
+                RequestStatus.PENDING,
+                semiPrivateArea.getId(),
+                pageable
+        );
+
+        assertNotNull(result);
+        assertEquals(1, result.getTotalElements());
+        AccessRequestResponse dto = result.getContent().get(0);
+        assertEquals(request.getId(), dto.id());
+        assertEquals(semiPrivateArea.getId(), dto.areaId());
+        assertEquals(semiPrivateArea.getName(), dto.areaName());
     }
 }

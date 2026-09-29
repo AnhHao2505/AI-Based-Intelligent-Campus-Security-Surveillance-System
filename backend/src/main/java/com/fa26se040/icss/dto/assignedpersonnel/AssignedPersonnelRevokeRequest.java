@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 public record AssignedPersonnelRevokeRequest(
-    @NotBlank(message = "Lý do thu hồi không được để trống")
-    @Size(max = 500, message = "Lý do thu hồi tối đa 500 ký tự")
+    @NotBlank(message = "Lý do không được để trống")
+    @Size(min = 10, max = 500, message = "Lý do phải có từ 10 đến 500 ký tự")
     String reason
 ) {}

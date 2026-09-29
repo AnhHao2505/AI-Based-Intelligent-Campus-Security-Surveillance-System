@@ -36,11 +36,11 @@ export const AREA_LEVEL_CONFIG = {
     bgColor: 'rgba(245, 158, 11, 0.08)',
     borderColor: 'rgba(245, 158, 11, 0.35)',
     icon: 'alert-triangle',
-    description: 'Khu vực yêu cầu: cấp độ cao vào tự do, còn lại cần nhân sự chỉ định hoặc đơn đăng ký.'
+    description: 'Mọi cấp đều cần được chỉ định hoặc có đơn được duyệt'
   },
   HIGHLY_CONFIDENTIAL: {
     code: 'HIGHLY_CONFIDENTIAL',
-    name: 'Tuyệt mật – chỉ người được chỉ định',
+    name: 'Tuyệt mật – người được chỉ định hoặc có đơn cá nhân được duyệt',
     badgeLabel: 'Tuyệt mật',
     badgeClass: 'level-badge--private',
     cardClass: 'zone-card--private',
@@ -48,7 +48,7 @@ export const AREA_LEVEL_CONFIG = {
     bgColor: 'rgba(239, 68, 68, 0.08)',
     borderColor: 'rgba(239, 68, 68, 0.35)',
     icon: 'lock',
-    description: 'Khu vực an ninh đặc biệt nghiêm ngặt. Chỉ người được chỉ định mới được phép vào.'
+    description: 'Tuyệt mật – người được chỉ định hoặc có đơn cá nhân được duyệt'
   }
 };
 
@@ -78,6 +78,43 @@ export function getLevelConfig(level) {
 }
 
 /**
+ * Cấp truy cập người dùng / khu vực (1–3): MỘT nhãn và MỘT bộ màu cho mọi trang.
+ * Màu định nghĩa ở styles/components.css (.access-level-badge--N) qua token theme.css.
+ */
+export const ACCESS_LEVEL_CONFIG = {
+  1: { level: 1, label: 'Cấp 1', className: 'access-level-badge access-level-badge--1' },
+  2: { level: 2, label: 'Cấp 2', className: 'access-level-badge access-level-badge--2' },
+  3: { level: 3, label: 'Cấp 3', className: 'access-level-badge access-level-badge--3' },
+};
+
+/**
+ * Lấy nhãn + class hiển thị cho cấp truy cập (mặc định Cấp 1 khi thiếu dữ liệu)
+ */
+export function getAccessLevelConfig(level) {
+  const n = Number(level);
+  return ACCESS_LEVEL_CONFIG[n] || ACCESS_LEVEL_CONFIG[1];
+}
+
+/**
+ * Hiển thị trạng thái lịch chế độ sự kiện (chỉ trình bày, không đổi dữ liệu).
+ * Step 5b (BR-ES-S3): nhãn theo trạng thái ĐÃ LƯU, không tính theo giờ xem.
+ * STARTED -> COMPLETED (phiên đóng do hết giờ) | ENDED_EARLY (FM tắt sớm) do backend chuyển.
+ * variant dùng cho components/ui/Badge.
+ */
+const SCHEDULE_STATUS_VIEW = {
+  SCHEDULED: { label: 'Đã lên lịch', variant: 'brand' },
+  STARTED: { label: 'Đang diễn ra', variant: 'success' },
+  COMPLETED: { label: 'Đã kết thúc', variant: 'neutral' },
+  ENDED_EARLY: { label: 'Kết thúc sớm', variant: 'warning' },
+  CANCELLED: { label: 'Đã huỷ', variant: 'neutral' },
+  FAILED: { label: 'Thất bại', variant: 'danger' },
+};
+
+export function getScheduleStatusView(status) {
+  return SCHEDULE_STATUS_VIEW[status] || { label: status || '—', variant: 'neutral' };
+}
+
+/**
  * Lấy class CSS polygon tương ứng cho từng Cấp độ An ninh khu vực
  */
 export function getLevelPolygonClass(level) {
@@ -93,18 +130,65 @@ export function getLevelPolygonClass(level) {
 }
 
 /**
+ * BR-AR-01: Chuẩn hoá Unicode NFC trước, sau đó trim và gộp khoảng trắng liên tiếp.
+ */
+export function normalizeAreaName(name) {
+  if (!name) return '';
+  return name.normalize('NFC').trim().replace(/ +/g, ' ');
+}
+
+/**
+ * BR-AR-01..04: Validate tên khu vực theo chuẩn backend.
+ * Trả về message lỗi nếu không hợp lệ, hoặc null nếu hợp lệ.
+ */
+export function validateAreaName(name) {
+  if (!name || !name.trim()) {
+    return 'Tên khu vực bắt buộc, dài 3–100 ký tự.';
+  }
+  const normalized = normalizeAreaName(name);
+
+  // BR-AR-02: Độ dài 3–100 ký tự sau chuẩn hoá
+  if (normalized.length < 3 || normalized.length > 100) {
+    return 'Tên khu vực bắt buộc, dài 3–100 ký tự.';
+  }
+
+  // BR-AR-03: Phải chứa ít nhất một chữ cái (Unicode, gồm tiếng Việt có dấu)
+  if (!/\p{L}/u.test(normalized)) {
+    return 'Tên khu vực phải chứa ít nhất một chữ cái.';
+  }
+
+  // BR-AR-04: Ký tự cho phép: chữ (Unicode), số, khoảng trắng thường ' ', - _ ( ) . , /
+  if (!/^[\p{L}0-9 \-_().,/]+$/u.test(normalized)) {
+    return 'Tên khu vực chỉ được chứa chữ cái, số, khoảng trắng và các ký tự: - _ ( ) . , /';
+  }
+
+  return null;
+}
+
+/**
  * Error Code Mapping sang thông báo thân thiện
  */
 export const ERROR_MESSAGES = {
-  ERR_AREA_001: 'Mã khu vực đã tồn tại trên hệ thống.',
   ERR_AREA_002: 'Không tìm thấy khu vực hoặc khu vực đã bị vô hiệu hóa.',
   ERR_AREA_003: 'Cấp độ an ninh không hợp lệ hoặc đã bị vô hiệu hóa.',
   ERR_AREA_004: 'Mã khu vực chỉ gồm chữ in hoa, số và dấu gạch ngang, dài 3–50 ký tự.',
-  ERR_AREA_005: 'Tên khu vực bắt buộc, tối đa 150 ký tự.',
+  ERR_AREA_005: 'Tên khu vực bắt buộc, dài 3–100 ký tự.',
+  ERR_AREA_006: 'Toạ độ bản đồ phải có đủ cả X và Y.',
   ERR_AREA_007: 'Không được thay đổi mã khu vực sau khi tạo.',
   ERR_AREA_008: 'Khi hạ cấp độ an ninh, lý do là bắt buộc (10–255 ký tự).',
   ERR_AREA_009: 'Không thể vô hiệu hóa khu vực do còn camera đang gán.',
   ERR_AREA_010: 'Không thể vô hiệu hóa khu vực do còn quyền truy cập.',
+  ERR_AREA_011: 'Hình đa giác phải có ít nhất 3 đỉnh.',
+  ERR_AREA_012: 'Toạ độ đỉnh đa giác phải nằm trong khoảng [0, 1].',
+  ERR_AREA_013: 'Toạ độ đa giác bị chồng lấn với khu vực khác cùng tầng.',
+  ERR_AREA_014: 'Không thể thay đổi toà nhà hoặc tầng khi khu vực đang có toạ độ đa giác. Vui lòng xoá đa giác trước.',
+  ERR_AREA_015: 'Khu vực phải có thông tin toà nhà và tầng trước khi gán toạ độ đa giác.',
+  ERR_AREA_016: 'Hình đa giác phải có ít nhất 3 đỉnh phân biệt (không trùng nhau).',
+  ERR_AREA_017: 'Khu vực đã ngừng hoạt động hoặc đã bị xoá.',
+  ERR_AREA_018: 'Tên khu vực phải chứa ít nhất một chữ cái.',
+  ERR_AREA_019: 'Tên khu vực chỉ được chứa chữ cái, số, khoảng trắng và các ký tự: - _ ( ) . , /',
+  ERR_AREA_020: 'Tên khu vực đã tồn tại trong cùng tầng.',
+  ERR_AREA_021: 'Thông tin tầng không hợp lệ hoặc không tìm thấy tầng tương ứng.',
 };
 
 
@@ -114,7 +198,7 @@ export function getErrorMessage(error) {
     return error.message;
   }
   if (error.code && ERROR_MESSAGES[error.code]) {
-    return `[${error.code}] ${ERROR_MESSAGES[error.code]}`;
+    return ERROR_MESSAGES[error.code];
   }
   return error.message || 'Đã có lỗi xảy ra. Vui lòng thử lại.';
 }

@@ -13,6 +13,7 @@ import com.fa26se040.icss.enums.CameraStatus;
 import com.fa26se040.icss.enums.OperationalStatus;
 import com.fa26se040.icss.exception.CameraErrorCode;
 import com.fa26se040.icss.exception.CameraException;
+import com.fa26se040.icss.repository.AreaRepository;
 import com.fa26se040.icss.repository.CameraHealthLogRepository;
 import com.fa26se040.icss.repository.CameraRepository;
 import com.fa26se040.icss.repository.CameraStreamConfigurationRepository;
@@ -56,6 +57,15 @@ class CameraServiceTest {
     @Mock
     private MinioStorageService minioStorageService;
 
+    @Mock
+    private RoiGeometryValidator roiGeometryValidator;
+
+    @Mock
+    private SystemConfigService systemConfigService;
+
+    @Mock
+    private AreaRepository areaRepository;
+
     @InjectMocks
     private CameraService cameraService;
 
@@ -71,7 +81,7 @@ class CameraServiceTest {
                 .name("Camera Cổng Chính")
                 .status(CameraStatus.ACTIVE)
                 .operationalStatus(OperationalStatus.ONLINE)
-                .areas(new HashSet<>())
+                .area(null)
                 .build();
     }
 
@@ -204,39 +214,16 @@ class CameraServiceTest {
     }
 
     @Test
-    @DisplayName("GetCameraAreas: should return assigned areas correctly")
-    void testGetCameraAreas() {
-        Area area = Area.builder()
-                .id(UUID.randomUUID())
-                .code("AREA-01")
-                .name("Sảnh Chính")
-                .areaLevel(AreaLevel.PUBLIC)
-                .building("Tòa A")
-                .floor("Tầng 1")
-                .build();
-        testCamera.getAreas().add(area);
-
-        when(cameraRepository.findById(testCameraId)).thenReturn(Optional.of(testCamera));
-
-        List<AreaSimpleResponse> areas = cameraService.getCameraAreas(testCameraId);
-
-        assertEquals(1, areas.size());
-        assertEquals("AREA-01", areas.get(0).code());
-        assertEquals("Sảnh Chính", areas.get(0).name());
-    }
-
-    @Test
     @DisplayName("GetCameraDetail: should include assignedAreas in detail response")
     void testGetCameraDetailIncludesAssignedAreas() {
         Area area = Area.builder()
                 .id(UUID.randomUUID())
-                .code("AREA-02")
                 .name("Phòng Server")
                 .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
                 .building("Tòa B")
                 .floor("Tầng 3")
                 .build();
-        testCamera.getAreas().add(area);
+        testCamera.setArea(area);
 
         when(cameraRepository.findById(testCameraId)).thenReturn(Optional.of(testCamera));
 
@@ -246,6 +233,6 @@ class CameraServiceTest {
         assertEquals("CAM-001", detail.getCameraCode());
         assertNotNull(detail.getAssignedAreas());
         assertEquals(1, detail.getAssignedAreas().size());
-        assertEquals("AREA-02", detail.getAssignedAreas().get(0).code());
+        assertEquals("Phòng Server", detail.getAssignedAreas().get(0).name());
     }
 }

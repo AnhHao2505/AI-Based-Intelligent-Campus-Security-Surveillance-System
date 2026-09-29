@@ -1,5 +1,6 @@
 package com.fa26se040.icss.controller;
 
+import com.fa26se040.icss.dto.common.ApiResponse;
 import com.fa26se040.icss.dto.guard.GuardShiftRequestCreateDto;
 import com.fa26se040.icss.dto.guard.GuardShiftRequestResponseDto;
 import com.fa26se040.icss.dto.guard.GuardShiftRequestReviewDto;
@@ -29,48 +30,50 @@ public class GuardShiftRequestController {
 
     @PostMapping
     @PreAuthorize("hasAnyRole('GUARD', 'ADMIN', 'FACILITY_MANAGER')")
-    public ResponseEntity<GuardShiftRequestResponseDto> createRequest(
+    public ResponseEntity<ApiResponse<GuardShiftRequestResponseDto>> createRequest(
             @Valid @RequestBody GuardShiftRequestCreateDto dto,
             Authentication authentication
     ) {
         GuardShiftRequestResponseDto created = requestService.createRequest(dto, authentication.getName());
-        return new ResponseEntity<>(created, HttpStatus.CREATED);
+        return new ResponseEntity<>(ApiResponse.created(created, "Tạo yêu cầu đổi ca/nghỉ phép thành công"), HttpStatus.CREATED);
     }
 
     @GetMapping("/my-requests")
     @PreAuthorize("hasAnyRole('GUARD', 'ADMIN', 'FACILITY_MANAGER')")
-    public ResponseEntity<List<GuardShiftRequestResponseDto>> getMyRequests(Authentication authentication) {
-        return ResponseEntity.ok(requestService.getMyRequests(authentication.getName()));
+    public ResponseEntity<ApiResponse<List<GuardShiftRequestResponseDto>>> getMyRequests(Authentication authentication) {
+        return ResponseEntity.ok(ApiResponse.success(requestService.getMyRequests(authentication.getName()), "Lấy danh sách yêu cầu của tôi thành công"));
     }
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
-    public ResponseEntity<List<GuardShiftRequestResponseDto>> getAllRequests(
+    public ResponseEntity<ApiResponse<List<GuardShiftRequestResponseDto>>> getAllRequests(
             @RequestParam(required = false) GuardShiftRequestStatus status,
             @RequestParam(required = false) UUID teamId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
     ) {
-        return ResponseEntity.ok(requestService.getAllRequests(status, teamId, startDate, endDate));
+        return ResponseEntity.ok(ApiResponse.success(requestService.getAllRequests(status, teamId, startDate, endDate), "Lấy danh sách tất cả yêu cầu ca trực thành công"));
     }
 
     @PutMapping("/{id}/approve")
     @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
-    public ResponseEntity<GuardShiftRequestResponseDto> approveRequest(
+    public ResponseEntity<ApiResponse<GuardShiftRequestResponseDto>> approveRequest(
             @PathVariable UUID id,
             @RequestBody(required = false) GuardShiftRequestReviewDto reviewDto,
             Authentication authentication
     ) {
-        return ResponseEntity.ok(requestService.approveRequest(id, reviewDto, authentication.getName()));
+        GuardShiftRequestResponseDto result = requestService.approveRequest(id, reviewDto, authentication.getName());
+        return ResponseEntity.ok(ApiResponse.success(result, "Phê duyệt yêu cầu thành công"));
     }
 
     @PutMapping("/{id}/reject")
     @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
-    public ResponseEntity<GuardShiftRequestResponseDto> rejectRequest(
+    public ResponseEntity<ApiResponse<GuardShiftRequestResponseDto>> rejectRequest(
             @PathVariable UUID id,
             @RequestBody(required = false) GuardShiftRequestReviewDto reviewDto,
             Authentication authentication
     ) {
-        return ResponseEntity.ok(requestService.rejectRequest(id, reviewDto, authentication.getName()));
+        GuardShiftRequestResponseDto result = requestService.rejectRequest(id, reviewDto, authentication.getName());
+        return ResponseEntity.ok(ApiResponse.success(result, "Từ chối yêu cầu thành công"));
     }
 }

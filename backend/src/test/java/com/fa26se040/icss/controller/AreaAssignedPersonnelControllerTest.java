@@ -109,8 +109,8 @@ class AreaAssignedPersonnelControllerTest {
         mockMvc.perform(get("/api/areas/{areaId}/assigned-personnel", areaId)
                         .param("status", "ACTIVE"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value(recordId.toString()))
-                .andExpect(jsonPath("$[0].status").value("ACTIVE"));
+                .andExpect(jsonPath("$.data[0].id").value(recordId.toString()))
+                .andExpect(jsonPath("$.data[0].status").value("ACTIVE"));
     }
 
     @Test
@@ -120,7 +120,8 @@ class AreaAssignedPersonnelControllerTest {
                 userId,
                 OffsetDateTime.now(),
                 OffsetDateTime.now().plusMonths(6),
-                "Gán giảng viên"
+                "Gán giảng viên",
+                "Điều chỉnh theo phân công mới"
         );
 
         when(service.create(eq(areaId), any(AssignedPersonnelCreateRequest.class), eq(fmEmail)))
@@ -131,7 +132,7 @@ class AreaAssignedPersonnelControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.id").value(recordId.toString()));
+                .andExpect(jsonPath("$.data.id").value(recordId.toString()));
     }
 
     @Test
@@ -155,7 +156,8 @@ class AreaAssignedPersonnelControllerTest {
     @DisplayName("PATCH /{id} cập nhật validTo → 200 OK")
     void updateValidTo_Valid_Returns200() throws Exception {
         AssignedPersonnelUpdateRequest request = new AssignedPersonnelUpdateRequest(
-                OffsetDateTime.now().plusMonths(12)
+                OffsetDateTime.now().plusMonths(12),
+                "Điều chỉnh theo phân công mới"
         );
 
         when(service.updateValidTo(eq(areaId), eq(recordId), any(AssignedPersonnelUpdateRequest.class), eq(fmEmail)))
@@ -166,14 +168,15 @@ class AreaAssignedPersonnelControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(recordId.toString()));
+                .andExpect(jsonPath("$.data.id").value(recordId.toString()));
     }
 
     @Test
     @DisplayName("PATCH /{id} khi {id} không thuộc {areaId} → 404 Not Found")
     void updateValidTo_RecordNotInArea_Returns404() throws Exception {
         AssignedPersonnelUpdateRequest request = new AssignedPersonnelUpdateRequest(
-                OffsetDateTime.now().plusMonths(12)
+                OffsetDateTime.now().plusMonths(12),
+                "Điều chỉnh theo phân công mới"
         );
 
         when(service.updateValidTo(eq(areaId), eq(recordId), any(AssignedPersonnelUpdateRequest.class), eq(fmEmail)))
@@ -243,23 +246,28 @@ class AreaAssignedPersonnelControllerTest {
     }
 
     @Test
-    @DisplayName("BR-AL-03: POST /assigned-personnel reason tuỳ chọn (null -> 201; 501 ký tự -> 400)")
+    @DisplayName("BR-AL-03 + U2: POST /assigned-personnel reason bắt buộc (null -> 400; 9 ký tự -> 400; 10 ký tự -> 201; 501 ký tự -> 400)")
     void create_ReasonValidation() throws Exception {
-        // reason = null -> 201 Created
-        AssignedPersonnelCreateRequest nullReasonReq = new AssignedPersonnelCreateRequest(
-                userId,
-                OffsetDateTime.now(),
-                OffsetDateTime.now().plusMonths(3),
-                "Ghi chú",
-                null
-        );
+        // reason = null / 9 ký tự -> 400 Bad Request (U2: bắt buộc 10–500)
+        for (String bad : new String[]{null, "a".repeat(9)}) {
+            AssignedPersonnelCreateRequest badReq = new AssignedPersonnelCreateRequest(
+                    userId, OffsetDateTime.now(), OffsetDateTime.now().plusMonths(3), "Ghi chú", bad);
+            mockMvc.perform(post("/api/areas/{areaId}/assigned-personnel", areaId)
+                            .principal(auth)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(badReq)))
+                    .andExpect(status().isBadRequest());
+        }
+
+        // reason = 10 ký tự -> 201 Created
+        AssignedPersonnelCreateRequest okReq = new AssignedPersonnelCreateRequest(
+                userId, OffsetDateTime.now(), OffsetDateTime.now().plusMonths(3), "Ghi chú", "a".repeat(10));
         when(service.create(eq(areaId), any(AssignedPersonnelCreateRequest.class), eq(fmEmail)))
                 .thenReturn(sampleResponse(AssignedPersonnelStatus.ACTIVE));
-
         mockMvc.perform(post("/api/areas/{areaId}/assigned-personnel", areaId)
                         .principal(auth)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(nullReasonReq)))
+                        .content(objectMapper.writeValueAsString(okReq)))
                 .andExpect(status().isCreated());
 
         // reason = 501 ký tự -> 400 Bad Request
@@ -278,20 +286,28 @@ class AreaAssignedPersonnelControllerTest {
     }
 
     @Test
-    @DisplayName("BR-AL-03: PATCH /{id} reason tuỳ chọn (null -> 200; 501 ký tự -> 400)")
+    @DisplayName("BR-AL-03 + U2: PATCH /{id} reason bắt buộc (null -> 400; 9 ký tự -> 400; 10 ký tự -> 200; 501 ký tự -> 400)")
     void updateValidTo_ReasonValidation() throws Exception {
-        // reason = null -> 200 OK
-        AssignedPersonnelUpdateRequest nullReasonReq = new AssignedPersonnelUpdateRequest(
-                OffsetDateTime.now().plusMonths(6),
-                null
-        );
+        // reason = null / 9 ký tự -> 400 Bad Request (U2: bắt buộc 10–500)
+        for (String bad : new String[]{null, "a".repeat(9)}) {
+            AssignedPersonnelUpdateRequest badReq = new AssignedPersonnelUpdateRequest(
+                    OffsetDateTime.now().plusMonths(6), bad);
+            mockMvc.perform(patch("/api/areas/{areaId}/assigned-personnel/{id}", areaId, recordId)
+                            .principal(auth)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(badReq)))
+                    .andExpect(status().isBadRequest());
+        }
+
+        // reason = 10 ký tự -> 200 OK
+        AssignedPersonnelUpdateRequest okReq = new AssignedPersonnelUpdateRequest(
+                OffsetDateTime.now().plusMonths(6), "a".repeat(10));
         when(service.updateValidTo(eq(areaId), eq(recordId), any(AssignedPersonnelUpdateRequest.class), eq(fmEmail)))
                 .thenReturn(sampleResponse(AssignedPersonnelStatus.ACTIVE));
-
         mockMvc.perform(patch("/api/areas/{areaId}/assigned-personnel/{id}", areaId, recordId)
                         .principal(auth)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(nullReasonReq)))
+                        .content(objectMapper.writeValueAsString(okReq)))
                 .andExpect(status().isOk());
 
         // reason = 501 ký tự -> 400 Bad Request

@@ -12,7 +12,6 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.UUID;
 
 @Data
 @NoArgsConstructor
@@ -40,6 +39,10 @@ public class RoiGeometry {
 
     private List<RoiPolygon> polygons;
 
+    @JsonProperty("entry_lines")
+    @JsonAlias({"entry_lines", "entryLines"})
+    private List<EntryLine> entryLines;
+
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
@@ -48,15 +51,6 @@ public class RoiGeometry {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class RoiPolygon {
         private String label;
-
-        @JsonProperty("target_area_id")
-        @JsonAlias({"target_area_id", "targetAreaId"})
-        private UUID targetAreaId;
-
-        @JsonProperty("alert_rules")
-        @JsonAlias({"alert_rules", "alertRules"})
-        private List<String> alertRules;
-
         private List<Vertex> vertices;
 
         @Data
@@ -69,5 +63,26 @@ public class RoiGeometry {
             private BigDecimal x;
             private BigDecimal y;
         }
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class EntryLine {
+        private String label;
+
+        @JsonProperty("point_a")
+        @JsonAlias({"point_a", "pointA"})
+        private RoiPolygon.Vertex pointA;
+
+        @JsonProperty("point_b")
+        @JsonAlias({"point_b", "pointB"})
+        private RoiPolygon.Vertex pointB;
+
+        @Builder.Default
+        private String direction = "AB_IS_IN";
     }
 }

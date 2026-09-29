@@ -6,17 +6,14 @@ import com.fa26se040.icss.dto.user.UserSearchResponse;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.AreaLevel;
 import com.fa26se040.icss.enums.Role;
-import com.fa26se040.icss.service.AccessControlAuditService;
+import com.fa26se040.icss.service.AuditService;
 import com.fa26se040.icss.service.AreaLevelPresetService;
 import com.fa26se040.icss.service.AreaService;
 import com.fa26se040.icss.service.UserService;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.http.MediaType;
@@ -26,6 +23,8 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
+import com.fa26se040.icss.AbstractIntegrationTest;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
@@ -34,15 +33,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
-@AutoConfigureMockMvc
-class AccessControlSecurityTest {
+class AccessControlSecurityTest extends AbstractIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
-
-    @Autowired
-    private ObjectMapper objectMapper;
 
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
@@ -51,7 +45,7 @@ class AccessControlSecurityTest {
     private AreaLevelPresetService presetService;
 
     @MockBean
-    private AccessControlAuditService auditService;
+    private AuditService auditService;
 
     @MockBean
     private UserService userService;
@@ -178,7 +172,7 @@ class AccessControlSecurityTest {
         @Test
         @DisplayName("BR-AL-08: GET /audit-logs: ADMIN được phép -> 200 OK")
         void getAuditLogs_Admin_Returns200() throws Exception {
-            when(auditService.getAuditLogs(any(), any(), any(), any(), any(), any(), any()))
+            when(auditService.getAuditLogs(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
                     .thenReturn(new PageImpl<>(List.of()));
             mockMvc.perform(get("/api/access-control/audit-logs")
                             .header("Authorization", tokenFor(Role.ADMIN)))
@@ -188,7 +182,7 @@ class AccessControlSecurityTest {
         @Test
         @DisplayName("BR-AL-08: GET /audit-logs: FM được phép -> 200 OK")
         void getAuditLogs_FacilityManager_Returns200() throws Exception {
-            when(auditService.getAuditLogs(any(), any(), any(), any(), any(), any(), any()))
+            when(auditService.getAuditLogs(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
                     .thenReturn(new PageImpl<>(List.of()));
             mockMvc.perform(get("/api/access-control/audit-logs")
                             .header("Authorization", tokenFor(Role.FACILITY_MANAGER)))
@@ -278,8 +272,14 @@ class AccessControlSecurityTest {
         @DisplayName("PATCH /areas/{id}/access-rules: FM được phép -> 200 OK")
         void patchAreaRules_FacilityManager_Returns200() throws Exception {
             when(areaService.updateAccessRules(eq(sampleId), any(), any()))
-                    .thenReturn(new AreaResponse(sampleId, "A01", "Khu vực 1", AreaLevel.PUBLIC, 2, false,
-                            "Tòa A", "Tầng 1", "Mô tả", null, true, OffsetDateTime.now(), OffsetDateTime.now()));
+                    .thenReturn(AreaResponse.builder()
+                            .id(sampleId).name("Khu vực 1").areaLevel(AreaLevel.PUBLIC)
+                            .areaAccessLevel(2).explicitAuthorizationRequired(false)
+                            .building("Tòa A").floor("Tầng 1").isActive(true)
+                            .createdAt(OffsetDateTime.now()).updatedAt(OffsetDateTime.now())
+                            .differsFromPreset(false).openToMembers(false).eventActive(false)
+                            .upcomingScheduleCount(0)
+                            .build());
 
             mockMvc.perform(patch("/api/areas/{id}/access-rules", sampleId)
                             .header("Authorization", tokenFor(Role.FACILITY_MANAGER))

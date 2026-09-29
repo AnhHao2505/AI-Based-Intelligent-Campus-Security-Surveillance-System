@@ -1,15 +1,30 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, Loader } from "lucide-react";
 import { createCamera } from "../services/cameraService";
+import { getAreas } from "../services/areaService";
 import "../styles/CameraCreateModal.css";
 
 export default function CameraCreateModal({ isOpen, onClose, onSuccess }) {
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState(null);
+	const [availableAreas, setAvailableAreas] = useState([]);
 	const [formData, setFormData] = useState({
 		name: "",
-		installedAt: "",
+		areaId: "",
 	});
+
+	useEffect(() => {
+		if (isOpen) {
+			setFormData({ name: "", areaId: "" });
+			setError(null);
+			getAreas({ size: 200, isActive: true })
+				.then((res) => {
+					const list = res?.content || res?.areas || (Array.isArray(res) ? res : []);
+					setAvailableAreas(list);
+				})
+				.catch((err) => console.error("Failed to load areas:", err));
+		}
+	}, [isOpen]);
 
 	if (!isOpen) return null;
 
@@ -23,12 +38,9 @@ export default function CameraCreateModal({ isOpen, onClose, onSuccess }) {
 		setLoading(true);
 		setError(null);
 
-		// Prepare payload matching CreateCameraRequest (Spec 2.1)
 		const payload = {
 			name: formData.name.trim(),
-			installedAt: formData.installedAt
-				? new Date(formData.installedAt).toISOString()
-				: undefined,
+			areaId: formData.areaId ? formData.areaId : null,
 		};
 
 		try {
@@ -83,15 +95,49 @@ export default function CameraCreateModal({ isOpen, onClose, onSuccess }) {
 						</div>
 
 						<div className="form-group col-span-2">
-							<label htmlFor="installedAt">Thời điểm lắp đặt</label>
-							<input
-								type="datetime-local"
-								id="installedAt"
-								name="installedAt"
-								value={formData.installedAt}
+							<label htmlFor="areaId">
+								Khu vực phân công <span className="required">*</span>
+							</label>
+							<select
+								id="areaId"
+								name="areaId"
+								value={formData.areaId}
 								onChange={handleChange}
+								required
 								disabled={loading}
-							/>
+								style={{
+									width: "100%",
+									padding: "0.6rem 0.85rem",
+									borderRadius: "8px",
+									border: "1px solid var(--theme-border)",
+									background: "var(--theme-bg-input, var(--theme-bg-surface))",
+									color: "var(--theme-text-primary)",
+									fontSize: "0.875rem",
+								}}
+							>
+								<option value="" disabled>-- Chọn khu vực --</option>
+								{availableAreas.map((area) => (
+									<option
+										key={area.id}
+										value={area.id}
+									>
+										{area.name}{" "}
+										{area.building
+											? `(${area.building}${area.floor ? ` - Tầng ${area.floor}` : ""})`
+											: ""}
+									</option>
+								))}
+							</select>
+							<span
+								style={{
+									fontSize: "0.775rem",
+									color: "var(--theme-text-muted)",
+									marginTop: "0.25rem",
+									display: "block",
+								}}
+							>
+								Mỗi camera phải được gán vào một khu vực đang hoạt động. Bạn có thể thay đổi sau.
+							</span>
 						</div>
 					</div>
 

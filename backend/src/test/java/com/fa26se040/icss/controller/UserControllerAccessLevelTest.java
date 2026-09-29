@@ -80,16 +80,16 @@ class UserControllerAccessLevelTest {
         mockMvc.perform(get("/api/users/search")
                         .param("q", "NV"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content[0].id").value(userId.toString()))
-                .andExpect(jsonPath("$.content[0].userCode").value("NV001"))
-                .andExpect(jsonPath("$.content[0].fullName").value("Nguyễn Văn A"))
-                .andExpect(jsonPath("$.content[0].role").value("GUARD"))
-                .andExpect(jsonPath("$.content[0].accessLevel").value(2))
-                .andExpect(jsonPath("$.content[0].email").doesNotExist())
-                .andExpect(jsonPath("$.content[0].password").doesNotExist())
-                .andExpect(jsonPath("$.content[0].importBatchId").doesNotExist())
-                .andExpect(jsonPath("$.content[0].createdAt").doesNotExist())
-                .andExpect(jsonPath("$.content[0].faceImage").doesNotExist());
+                .andExpect(jsonPath("$.data.content[0].id").value(userId.toString()))
+                .andExpect(jsonPath("$.data.content[0].userCode").value("NV001"))
+                .andExpect(jsonPath("$.data.content[0].fullName").value("Nguyễn Văn A"))
+                .andExpect(jsonPath("$.data.content[0].role").value("GUARD"))
+                .andExpect(jsonPath("$.data.content[0].accessLevel").value(2))
+                .andExpect(jsonPath("$.data.content[0].email").doesNotExist())
+                .andExpect(jsonPath("$.data.content[0].password").doesNotExist())
+                .andExpect(jsonPath("$.data.content[0].importBatchId").doesNotExist())
+                .andExpect(jsonPath("$.data.content[0].createdAt").doesNotExist())
+                .andExpect(jsonPath("$.data.content[0].faceImage").doesNotExist());
     }
 
     @Test
@@ -175,8 +175,8 @@ class UserControllerAccessLevelTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(userId.toString()))
-                .andExpect(jsonPath("$.accessLevel").value(3));
+                .andExpect(jsonPath("$.data.id").value(userId.toString()))
+                .andExpect(jsonPath("$.data.accessLevel").value(3));
     }
 
     @Test

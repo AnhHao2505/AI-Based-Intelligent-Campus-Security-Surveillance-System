@@ -17,17 +17,34 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import accessRequestService from '../../services/accessRequestService';
-import { getLevelConfig } from '../../utils/areaHelpers';
+import { getLevelConfig, AREA_LEVEL_CONFIG } from '../../utils/areaHelpers';
 import '../../styles/AccessRequestReviewPage.css';
+import PageHeader from '../../components/ui/PageHeader';
+import '../../components/ui/Button.css';
 
 export default function AccessRequestReviewPage() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedAreaId, setSelectedAreaId] = useState('');
+  const [areasList, setAreasList] = useState([]);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [totalElements, setTotalElements] = useState(0);
+
+  // Load available areas for filter dropdown using lightweight AreaSimpleResponse endpoint
+  useEffect(() => {
+    const fetchAreas = async () => {
+      try {
+        const data = await accessRequestService.getAvailableAreas();
+        setAreasList(Array.isArray(data) ? data : data?.content || []);
+      } catch (err) {
+        console.error('Lỗi tải danh sách khu vực:', err);
+      }
+    };
+    fetchAreas();
+  }, []);
 
   // Modals state
   const [detailItem, setDetailItem] = useState(null);
@@ -50,11 +67,12 @@ export default function AccessRequestReviewPage() {
   });
 
   // Load Requests
-  const loadRequests = useCallback(async (targetPage = 0, status = statusFilter) => {
+  const loadRequests = useCallback(async (targetPage = 0, status = statusFilter, areaId = selectedAreaId) => {
     setLoading(true);
     try {
       const res = await accessRequestService.getAllRequests({
         status: status || undefined,
+        areaId: areaId || undefined,
         page: targetPage,
         size: 10
       });
@@ -67,7 +85,7 @@ export default function AccessRequestReviewPage() {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, [statusFilter, selectedAreaId]);
 
   // Load Stats counts
   const loadStats = useCallback(async () => {
@@ -94,9 +112,9 @@ export default function AccessRequestReviewPage() {
   }, []);
 
   useEffect(() => {
-    loadRequests(0, statusFilter);
+    loadRequests(0, statusFilter, selectedAreaId);
     loadStats();
-  }, [loadRequests, loadStats, statusFilter]);
+  }, [loadRequests, loadStats, statusFilter, selectedAreaId]);
 
   // Handle Approve
   const handleConfirmApprove = async () => {
@@ -109,14 +127,14 @@ export default function AccessRequestReviewPage() {
       });
       setActionSuccess('Đã phê duyệt yêu cầu thành công!');
       setApproveItem(null);
-      loadRequests(page, statusFilter);
+      loadRequests(page, statusFilter, selectedAreaId);
       loadStats();
       setTimeout(() => setActionSuccess(null), 3000);
     } catch (err) {
       if (err.status === 409) {
         setApproveItem(null);
         setActionWarning(err.message || 'Yêu cầu này đã được xử lý bởi người khác. Danh sách đã được làm mới.');
-        loadRequests(page, statusFilter);
+        loadRequests(page, statusFilter, selectedAreaId);
         loadStats();
         setTimeout(() => setActionWarning(null), 7000);
       } else {
@@ -131,7 +149,11 @@ export default function AccessRequestReviewPage() {
   const handleConfirmReject = async () => {
     if (!rejectItem) return;
     if (!rejectionReason.trim()) {
-      setActionError('Vui lòng nhập lý do từ chối yêu cầu');
+      setActionError('Vui lòng nhập lý do từ chối yêu cầu (từ 10 đến 500 ký tự)');
+      return;
+    }
+    if (rejectionReason.trim().length < 10) {
+      setActionError('Lý do từ chối phải có ít nhất 10 ký tự (hiện có ' + rejectionReason.trim().length + ' ký tự)');
       return;
     }
 
@@ -145,7 +167,7 @@ export default function AccessRequestReviewPage() {
       setActionSuccess('Đã từ chối yêu cầu truy cập.');
       setRejectItem(null);
       setRejectionReason('');
-      loadRequests(page, statusFilter);
+      loadRequests(page, statusFilter, selectedAreaId);
       loadStats();
       setTimeout(() => setActionSuccess(null), 3000);
     } catch (err) {
@@ -153,7 +175,7 @@ export default function AccessRequestReviewPage() {
         setRejectItem(null);
         setRejectionReason('');
         setActionWarning(err.message || 'Yêu cầu này đã được xử lý bởi người khác. Danh sách đã được làm mới.');
-        loadRequests(page, statusFilter);
+        loadRequests(page, statusFilter, selectedAreaId);
         loadStats();
         setTimeout(() => setActionWarning(null), 7000);
       } else {
@@ -188,39 +210,34 @@ export default function AccessRequestReviewPage() {
     });
   };
 
-  // Client-side search filter
+  // Client-side search filter (lọc khu vực và trạng thái đã xử lý hoàn toàn tại server)
   const filteredRequests = requests.filter(req => {
     if (!searchTerm.trim()) return true;
     const term = searchTerm.toLowerCase();
     return (
       (req.requesterName && req.requesterName.toLowerCase().includes(term)) ||
-      (req.requesterCode && req.requesterCode.toLowerCase().includes(term)) ||
-      (req.areaName && req.areaName.toLowerCase().includes(term)) ||
-      (req.areaCode && req.areaCode.toLowerCase().includes(term))
+      (req.requesterCode && req.requesterCode.toLowerCase().includes(term))
     );
   });
 
   return (
     <div className="arr-container">
       {/* Header */}
-      <div className="arr-header">
-        <div>
-          <h1 className="arr-header__title">Phê duyệt Yêu cầu Truy cập Khu vực</h1>
-          <p className="arr-header__subtitle">
-            Xét duyệt và quản lý các yêu cầu đăng ký ra vào khu vực bán riêng tư và riêng tư trong campus.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          className="arr-filter-btn"
-          onClick={() => { loadRequests(page, statusFilter); loadStats(); }}
-          title="Làm mới dữ liệu"
-        >
-          <RefreshCw size={14} className={loading ? 'spin' : ''} />
-          <span>Làm mới</span>
-        </button>
-      </div>
+      <PageHeader
+        title="Phê duyệt yêu cầu truy cập khu vực"
+        description={`Xét duyệt yêu cầu ra vào các khu vực ${AREA_LEVEL_CONFIG.INTERNAL_CONFIDENTIAL.badgeLabel}, ${AREA_LEVEL_CONFIG.CONFIDENTIAL_CONTACT_REQUIRED.badgeLabel} và ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.badgeLabel}.`}
+        actions={
+          <button
+            type="button"
+            className="ui-btn ui-btn--secondary ui-btn--md"
+            onClick={() => { loadRequests(page, statusFilter, selectedAreaId); loadStats(); }}
+            title="Làm mới dữ liệu"
+          >
+            <RefreshCw size={16} className={loading ? 'spin' : ''} />
+            <span>Làm mới</span>
+          </button>
+        }
+      />
 
       {/* Notifications */}
       {actionSuccess && (
@@ -315,22 +332,47 @@ export default function AccessRequestReviewPage() {
               key={f.val}
               type="button"
               className={`arr-filter-btn ${statusFilter === f.val ? 'arr-filter-btn--active' : ''}`}
-              onClick={() => setStatusFilter(f.val)}
+              onClick={() => {
+                setStatusFilter(f.val);
+                setPage(0);
+              }}
             >
               {f.label}
             </button>
           ))}
         </div>
 
-        <div className="arr-search-wrap">
-          <Search size={14} className="arr-search-icon" />
-          <input
-            type="text"
-            className="arr-search-input"
-            placeholder="Tìm theo tên, mã số, khu vực..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+        <div className="arr-toolbar-right">
+          <select
+            className="arr-select"
+            value={selectedAreaId}
+            onChange={(e) => {
+              setSelectedAreaId(e.target.value);
+              setPage(0);
+            }}
+          >
+            <option value="">Tất cả khu vực</option>
+            {areasList.map((a) => {
+              const floorPart = a.floor ? (String(a.floor).startsWith('Tầng') ? a.floor : `Tầng ${a.floor}`) : null;
+              const loc = [a.building, floorPart].filter(Boolean).join(' · ');
+              return (
+                <option key={a.id} value={a.id}>
+                  {loc ? `${a.name} (${loc})` : a.name}
+                </option>
+              );
+            })}
+          </select>
+
+          <div className="arr-search-wrap">
+            <Search size={14} className="arr-search-icon" />
+            <input
+              type="text"
+              className="arr-search-input"
+              placeholder="Tìm theo tên, mã số người yêu cầu..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
         </div>
       </div>
 
@@ -353,11 +395,11 @@ export default function AccessRequestReviewPage() {
                 <tr>
                   <th>Người yêu cầu</th>
                   <th>Khu vực đăng ký</th>
-                  <th>Thời gian truy cập</th>
+                  <th className="ui-col-time-range">Thời gian truy cập</th>
                   <th>Hình thức</th>
                   <th>Trạng thái</th>
-                  <th>Ngày gửi</th>
-                  <th style={{ textAlign: 'center' }}>Thao tác</th>
+                  <th className="ui-col-time">Ngày gửi</th>
+                  <th className="arr-col-actions">Thao tác</th>
                 </tr>
               </thead>
               <tbody>
@@ -381,7 +423,10 @@ export default function AccessRequestReviewPage() {
                       <div className="arr-area-tag">
                         <span className="arr-area-name">{req.areaName}</span>
                         <span className="arr-area-sub">
-                          [{req.areaCode}] - {req.building || 'Campus'} - {getLevelConfig(req.areaLevel).name}
+                          {([req.building, req.floor ? `Tầng ${req.floor}` : null].filter(Boolean).length > 0)
+                            ? `${[req.building, req.floor ? `Tầng ${req.floor}` : null].filter(Boolean).join(' · ')} - `
+                            : ''}
+                          {getLevelConfig(req.areaLevel).name}
                         </span>
                       </div>
                     </td>
@@ -410,6 +455,11 @@ export default function AccessRequestReviewPage() {
                         {req.status === 'CANCELLED' && 'Đã huỷ'}
                         {req.status === 'EXPIRED' && 'Hết hạn'}
                       </span>
+                      {req.status === 'CANCELLED' && req.cancelSource === 'SYSTEM' && (
+                        <div className="arr-cancel-system" title={req.cancelReason || ''}>
+                          Huỷ bởi hệ thống: {req.cancelReason}
+                        </div>
+                      )}
                     </td>
 
                     {/* Created At */}
@@ -418,8 +468,8 @@ export default function AccessRequestReviewPage() {
                     </td>
 
                     {/* Actions */}
-                    <td>
-                      <div className="arr-actions" style={{ justifyContent: 'center' }}>
+                    <td className="arr-col-actions">
+                      <div className="arr-actions">
                         {req.status === 'PENDING' && (
                           <>
                             <button
@@ -466,7 +516,7 @@ export default function AccessRequestReviewPage() {
                 type="button"
                 className="arr-filter-btn"
                 disabled={page <= 0}
-                onClick={() => loadRequests(page - 1, statusFilter)}
+                onClick={() => loadRequests(page - 1, statusFilter, selectedAreaId)}
               >
                 <ChevronLeft size={14} />
                 <span>Trước</span>
@@ -475,7 +525,7 @@ export default function AccessRequestReviewPage() {
                 type="button"
                 className="arr-filter-btn"
                 disabled={page >= totalPages - 1}
-                onClick={() => loadRequests(page + 1, statusFilter)}
+                onClick={() => loadRequests(page + 1, statusFilter, selectedAreaId)}
               >
                 <span>Tiếp</span>
                 <ChevronRight size={14} />
@@ -490,7 +540,7 @@ export default function AccessRequestReviewPage() {
         <div className="arr-modal-overlay" onClick={() => !actionLoading && setApproveItem(null)}>
           <div className="arr-modal arr-modal--sm" onClick={e => e.stopPropagation()}>
             <div className="arr-modal__header">
-              <h2 className="arr-modal__title">Xác nhận Phê duyệt</h2>
+              <h2 className="arr-modal__title">Xác nhận phê duyệt</h2>
               <button
                 type="button"
                 className="arr-modal__close"
@@ -512,7 +562,12 @@ export default function AccessRequestReviewPage() {
               </p>
 
               <div className="arr-info-box">
-                <div><strong>Khu vực:</strong> [{approveItem.areaCode}] {approveItem.areaName}</div>
+                <div>
+                  <strong>Khu vực:</strong> {approveItem.areaName}
+                  {([approveItem.building, approveItem.floor ? `Tầng ${approveItem.floor}` : null].filter(Boolean).length > 0)
+                    ? ` (${[approveItem.building, approveItem.floor ? `Tầng ${approveItem.floor}` : null].filter(Boolean).join(' · ')})`
+                    : ''}
+                </div>
                 <div><strong>Thời gian:</strong> {formatDateTime(approveItem.startTime)} - {formatDateTime(approveItem.endTime)}</div>
                 <div><strong>Mục đích:</strong> {approveItem.purpose}</div>
               </div>
@@ -534,7 +589,7 @@ export default function AccessRequestReviewPage() {
                 disabled={actionLoading}
               >
                 <Check size={16} />
-                <span>{actionLoading ? 'Đang duyệt...' : 'Xác nhận Duyệt'}</span>
+                <span>{actionLoading ? 'Đang duyệt...' : 'Xác nhận duyệt'}</span>
               </button>
             </div>
           </div>
@@ -546,7 +601,7 @@ export default function AccessRequestReviewPage() {
         <div className="arr-modal-overlay" onClick={() => !actionLoading && setRejectItem(null)}>
           <div className="arr-modal" onClick={e => e.stopPropagation()}>
             <div className="arr-modal__header">
-              <h2 className="arr-modal__title">Từ chối Yêu cầu Truy cập</h2>
+              <h2 className="arr-modal__title">Từ chối yêu cầu truy cập</h2>
               <button
                 type="button"
                 className="arr-modal__close"
@@ -581,7 +636,7 @@ export default function AccessRequestReviewPage() {
                   required
                 />
                 <div className="arr-char-count">
-                  {rejectionReason.length}/500 ký tự
+                  {rejectionReason.length}/500 ký tự (tối thiểu 10 ký tự)
                 </div>
               </div>
             </div>
@@ -599,10 +654,10 @@ export default function AccessRequestReviewPage() {
                 type="button"
                 className="arr-filter-btn arr-btn--reject-modal"
                 onClick={handleConfirmReject}
-                disabled={actionLoading || !rejectionReason.trim()}
+                disabled={actionLoading || rejectionReason.trim().length < 10}
               >
                 <X size={16} />
-                <span>{actionLoading ? 'Đang xử lý...' : 'Xác nhận Từ chối'}</span>
+                <span>{actionLoading ? 'Đang xử lý...' : 'Xác nhận từ chối'}</span>
               </button>
             </div>
           </div>
@@ -614,7 +669,7 @@ export default function AccessRequestReviewPage() {
         <div className="arr-modal-overlay" onClick={() => setDetailItem(null)}>
           <div className="arr-modal" onClick={e => e.stopPropagation()}>
             <div className="arr-modal__header">
-              <h2 className="arr-modal__title">Chi tiết Yêu cầu Truy cập</h2>
+              <h2 className="arr-modal__title">Chi tiết yêu cầu truy cập</h2>
               <button
                 type="button"
                 className="arr-modal__close"
@@ -644,14 +699,24 @@ export default function AccessRequestReviewPage() {
                       {detailItem.status === 'CANCELLED' && 'Đã huỷ'}
                       {detailItem.status === 'EXPIRED' && 'Hết hạn'}
                     </span>
+                    {detailItem.status === 'CANCELLED' && detailItem.cancelSource === 'SYSTEM' && (
+                      <div className="arr-cancel-system arr-cancel-system--detail">
+                        Huỷ bởi hệ thống: {detailItem.cancelReason}
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 <div>
                   <div className="arr-detail-label">KHU VỰC ĐĂNG KÝ</div>
-                  <div style={{ fontWeight: 600 }}>{detailItem.areaName} ({detailItem.areaCode})</div>
+                  <div style={{ fontWeight: 600 }}>
+                    {detailItem.areaName}
+                    {([detailItem.building, detailItem.floor ? `Tầng ${detailItem.floor}` : null].filter(Boolean).length > 0)
+                      ? ` (${[detailItem.building, detailItem.floor ? `Tầng ${detailItem.floor}` : null].filter(Boolean).join(' · ')})`
+                      : ''}
+                  </div>
                   <div className="arr-text-muted" style={{ fontSize: '0.8125rem' }}>
-                    Cấp độ: {getLevelConfig(detailItem.areaLevel).name} | {detailItem.building} - Tầng {detailItem.floor}
+                    Cấp độ: {getLevelConfig(detailItem.areaLevel).name}
                   </div>
                 </div>
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
 	Users,
 	UserPlus,
@@ -43,7 +43,7 @@ export default function AreaAssignedPersonnelModal({
 	area,
 	isFacilityManager = false,
 }) {
-	const [personnelList, setPersonnelList] = useState([]);
+	const [allPersonnel, setAllPersonnel] = useState([]);
 	const [loading, setLoading] = useState(false);
 	const [statusFilter, setStatusFilter] = useState("ALL");
 
@@ -74,16 +74,15 @@ export default function AreaAssignedPersonnelModal({
 		if (!area?.id) return;
 		setLoading(true);
 		try {
-			const filterParam = statusFilter === "ALL" ? null : statusFilter;
-			const data = await getAssignedPersonnel(area.id, filterParam);
-			setPersonnelList(Array.isArray(data) ? data : []);
+			const data = await getAssignedPersonnel(area.id, null);
+			setAllPersonnel(Array.isArray(data) ? data : []);
 		} catch (err) {
 			console.error("Lỗi khi tải danh sách nhân sự gán:", err);
 			toast.error(err?.message || "Không thể tải danh sách nhân sự gán");
 		} finally {
 			setLoading(false);
 		}
-	}, [area?.id, statusFilter]);
+	}, [area?.id]);
 
 	useEffect(() => {
 		if (isOpen && area?.id) {
@@ -101,6 +100,28 @@ export default function AreaAssignedPersonnelModal({
 		}
 	}, [isOpen, area?.id, loadData]);
 
+	// annotateUser: user có bản ghi ACTIVE → "Đang được gán"; UPCOMING → "Sắp hiệu lực"; còn lại → null
+	const annotateUser = useCallback(
+		(user) => {
+			if (!user?.id) return null;
+			const userRecords = allPersonnel.filter((p) => p.user?.id === user.id);
+			if (userRecords.some((p) => p.status === "ACTIVE")) {
+				return "Đang được gán";
+			}
+			if (userRecords.some((p) => p.status === "UPCOMING")) {
+				return "Sắp hiệu lực";
+			}
+			return null;
+		},
+		[allPersonnel],
+	);
+
+	// Filter list by status tab
+	const displayedList = useMemo(() => {
+		if (statusFilter === "ALL") return allPersonnel;
+		return allPersonnel.filter((p) => p.status === statusFilter);
+	}, [allPersonnel, statusFilter]);
+
 	if (!area) return null;
 
 	// Xử lý Gán nhân sự mới
@@ -108,6 +129,19 @@ export default function AreaAssignedPersonnelModal({
 		e?.preventDefault();
 		if (!selectedUser) {
 			toast.error("Vui lòng chọn người dùng cần gán");
+			return;
+		}
+		const trimmedAddReason = addReasonInput.trim();
+		if (!trimmedAddReason) {
+			toast.error("Vui lòng nhập lý do gán nhân sự");
+			return;
+		}
+		if (trimmedAddReason.length < 10) {
+			toast.error("Lý do phải có từ 10 đến 500 ký tự");
+			return;
+		}
+		if (trimmedAddReason.length > 500) {
+			toast.error("Lý do không được vượt quá 500 ký tự");
 			return;
 		}
 
@@ -123,7 +157,7 @@ export default function AreaAssignedPersonnelModal({
 						? null
 						: formatToOffsetDateTime(validToInput),
 				note: noteInput.trim() || null,
-				reason: addReasonInput.trim() || undefined,
+				reason: trimmedAddReason,
 			};
 
 			await assignPersonnel(area.id, payload);
@@ -174,6 +208,19 @@ export default function AreaAssignedPersonnelModal({
 	const handleSaveValidTo = async (e) => {
 		e?.preventDefault();
 		if (!editItem) return;
+		const trimmedEditReason = editReasonInput.trim();
+		if (!trimmedEditReason) {
+			toast.error("Vui lòng nhập lý do điều chỉnh thời hạn");
+			return;
+		}
+		if (trimmedEditReason.length < 10) {
+			toast.error("Lý do phải có từ 10 đến 500 ký tự");
+			return;
+		}
+		if (trimmedEditReason.length > 500) {
+			toast.error("Lý do không được vượt quá 500 ký tự");
+			return;
+		}
 
 		setSubmittingEdit(true);
 		try {
@@ -182,7 +229,7 @@ export default function AreaAssignedPersonnelModal({
 					editIsIndefinite || !editValidToInput
 						? null
 						: formatToOffsetDateTime(editValidToInput),
-				reason: editReasonInput.trim() || undefined,
+				reason: trimmedEditReason,
 			};
 
 			await updateAssignedPersonnel(area.id, editItem.id, payload);
@@ -211,15 +258,24 @@ export default function AreaAssignedPersonnelModal({
 	const handleConfirmRevoke = async (e) => {
 		e?.preventDefault();
 		if (!revokeItem) return;
-		if (!revokeReason.trim()) {
+		const trimmedRevokeReason = revokeReason.trim();
+		if (!trimmedRevokeReason) {
 			toast.error("Lý do thu hồi là bắt buộc");
+			return;
+		}
+		if (trimmedRevokeReason.length < 10) {
+			toast.error("Lý do phải có từ 10 đến 500 ký tự");
+			return;
+		}
+		if (trimmedRevokeReason.length > 500) {
+			toast.error("Lý do không được vượt quá 500 ký tự");
 			return;
 		}
 
 		setSubmittingRevoke(true);
 		try {
 			await revokeAssignedPersonnel(area.id, revokeItem.id, {
-				reason: revokeReason.trim(),
+				reason: trimmedRevokeReason,
 			});
 			toast.success(`Đã thu hồi quyền ra vào của ${revokeItem.user?.fullName}`);
 			setRevokeItem(null);
@@ -250,16 +306,13 @@ export default function AreaAssignedPersonnelModal({
 		}
 	};
 
-	// Active / Upcoming IDs to avoid duplicate selection in add form
-	const activeUserIds = personnelList
-		.filter((p) => p.status === "ACTIVE" || p.status === "UPCOMING")
-		.map((p) => p.user?.id)
-		.filter(Boolean);
+	const selectedUserAnnotation = selectedUser ? annotateUser(selectedUser) : null;
 
 	const mainFooter = (
 		<div className="ap-modal__footer">
 			<span className="ap-modal__count">
-				Tổng số: <strong>{personnelList.length}</strong> bản ghi
+				Hiển thị: <strong>{displayedList.length}</strong> /{" "}
+				<strong>{allPersonnel.length}</strong> bản ghi
 			</span>
 			<Button
 				variant="secondary"
@@ -277,10 +330,10 @@ export default function AreaAssignedPersonnelModal({
 				isOpen={isOpen}
 				onClose={onClose}
 				title="Nhân viên chỉ định"
-				subtitle={`Danh sách nhân sự làm việc tại ${area.name} (${area.code})`}
+				subtitle={`Quản lý danh sách người được đặc cách ra vào: ${area.name}`}
 				icon={Users}
 				iconVariant="brand"
-				size="lg"
+				size="xl"
 				footer={mainFooter}
 			>
 				<div className="ap-modal-content">
@@ -337,9 +390,21 @@ export default function AreaAssignedPersonnelModal({
 										onSelect={(u) => setSelectedUser(u)}
 										selectedUser={selectedUser}
 										onClear={() => setSelectedUser(null)}
-										excludeUserIds={activeUserIds}
+										annotateUser={annotateUser}
 										placeholder="Tìm theo tên hoặc mã người dùng (tối thiểu 2 ký tự)..."
 									/>
+									{selectedUserAnnotation && (
+										<div className="ap-selected-user-hint">
+											<AlertCircle
+												size={14}
+												className="ap-selected-user-hint__icon"
+											/>
+											<span>
+												Người này đã có quyền tại khu vực. Chỉ gán được nếu khung
+												thời gian mới không trùng.
+											</span>
+										</div>
+									)}
 								</div>
 
 								{/* Valid From */}
@@ -395,17 +460,24 @@ export default function AreaAssignedPersonnelModal({
 									/>
 								</div>
 
-								{/* Reason (Optional) */}
+								{/* Reason (Mandatory 10-500 chars) */}
 								<div className="ap-form-group ap-form-group--full">
-									<label className="ap-form-label">Lý do gán (tuỳ chọn)</label>
+									<label className="ap-form-label">
+										Lý do gán <span className="ap-form-required">*</span>
+									</label>
 									<input
 										type="text"
 										className="ap-form-input"
-										placeholder="Nhập lý do phân quyền chỉ định (tối đa 500 ký tự)..."
+										placeholder="Nhập lý do phân quyền chỉ định (tối thiểu 10 ký tự, tối đa 500 ký tự)..."
 										value={addReasonInput}
 										onChange={(e) => setAddReasonInput(e.target.value)}
 										maxLength={500}
+										required
 									/>
+									<div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "var(--theme-text-muted, #64748b)", marginTop: "4px" }}>
+										<span>Tối thiểu 10 ký tự, tối đa 500 ký tự</span>
+										<span>{addReasonInput.length}/500 ký tự</span>
+									</div>
 								</div>
 							</div>
 
@@ -424,7 +496,7 @@ export default function AreaAssignedPersonnelModal({
 									variant="primary"
 									size="sm"
 									loading={submittingAdd}
-									disabled={!selectedUser}
+									disabled={!selectedUser || addReasonInput.trim().length < 10}
 								>
 									Xác nhận gán
 								</Button>
@@ -442,7 +514,7 @@ export default function AreaAssignedPersonnelModal({
 								/>
 								<span>Đang tải danh sách nhân sự...</span>
 							</div>
-						) : personnelList.length === 0 ? (
+						) : displayedList.length === 0 ? (
 							<div className="ap-table-empty">
 								<Users size={32} />
 								<p className="ap-table-empty__title">
@@ -461,18 +533,22 @@ export default function AreaAssignedPersonnelModal({
 										<th>Mã số</th>
 										<th>Họ và tên</th>
 										<th>Vai trò</th>
-										<th>Hiệu lực từ</th>
-										<th>Hiệu lực đến</th>
+										<th>Hiệu lực</th>
 										<th>Trạng thái</th>
 										<th>Người cấp</th>
 										<th>Ghi chú</th>
 										{isFacilityManager && (
-											<th style={{ textAlign: "center" }}>Thao tác</th>
+											<th
+												className="ap-th--sticky-actions"
+												style={{ textAlign: "center" }}
+											>
+												Thao tác
+											</th>
 										)}
 									</tr>
 								</thead>
 								<tbody>
-									{personnelList.map((item) => {
+									{displayedList.map((item) => {
 										const isRevoked = item.status === "REVOKED";
 
 										return (
@@ -495,19 +571,27 @@ export default function AreaAssignedPersonnelModal({
 															"—"}
 													</span>
 												</td>
-												<td>
-													{formatDisplayDateTime(
-														item.validFrom || item.createdAt,
-													)}
-												</td>
-												<td>
-													{item.validTo ? (
-														formatDisplayDateTime(item.validTo)
-													) : (
-														<span className="ap-text--indefinite">
-															Không thời hạn
+												<td className="ap-cell--validity">
+													<div className="ap-validity-row">
+														<span className="ap-validity-label">Từ:</span>
+														<span className="ap-validity-val">
+															{formatDisplayDateTime(
+																item.validFrom || item.createdAt,
+															)}
 														</span>
-													)}
+													</div>
+													<div className="ap-validity-row">
+														<span className="ap-validity-label">Đến:</span>
+														<span className="ap-validity-val">
+															{item.validTo ? (
+																formatDisplayDateTime(item.validTo)
+															) : (
+																<span className="ap-text--indefinite">
+																	Không thời hạn
+																</span>
+															)}
+														</span>
+													</div>
 												</td>
 												<td>{renderStatusBadge(item.status)}</td>
 												<td
@@ -516,12 +600,16 @@ export default function AreaAssignedPersonnelModal({
 												>
 													{item.createdBy || "—"}
 												</td>
-												<td className="ap-cell--note">
+												<td
+													className="ap-cell--note"
+													title={
+														isRevoked
+															? `Lý do thu hồi: ${item.revokeReason || "—"}`
+															: (item.note || "—")
+													}
+												>
 													{isRevoked ? (
-														<span
-															className="ap-revoke-note"
-															title={item.revokeReason}
-														>
+														<span className="ap-revoke-note">
 															Thu hồi: {item.revokeReason}
 														</span>
 													) : (
@@ -531,7 +619,10 @@ export default function AreaAssignedPersonnelModal({
 
 												{/* Actions for FM */}
 												{isFacilityManager && (
-													<td style={{ textAlign: "center" }}>
+													<td
+														className="ap-cell--sticky-actions"
+														style={{ textAlign: "center" }}
+													>
 														{!isRevoked ? (
 															<div className="ap-actions">
 																<button
@@ -626,15 +717,22 @@ export default function AreaAssignedPersonnelModal({
 						</div>
 
 						<div className="ap-form-group" style={{ marginTop: "12px" }}>
-							<label className="ap-form-label">Lý do điều chỉnh (tuỳ chọn)</label>
+							<label className="ap-form-label">
+								Lý do điều chỉnh <span className="ap-form-required">*</span>
+							</label>
 							<input
 								type="text"
 								className="ap-form-input"
-								placeholder="Ví dụ: Gia hạn theo yêu cầu trưởng bộ môn (tối đa 500 ký tự)..."
+								placeholder="Ví dụ: Gia hạn theo yêu cầu trưởng bộ môn (tối thiểu 10 ký tự, tối đa 500 ký tự)..."
 								value={editReasonInput}
 								onChange={(e) => setEditReasonInput(e.target.value)}
 								maxLength={500}
+								required
 							/>
+							<div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "var(--theme-text-muted, #64748b)", marginTop: "4px" }}>
+								<span>Tối thiểu 10 ký tự, tối đa 500 ký tự</span>
+								<span>{editReasonInput.length}/500 ký tự</span>
+							</div>
 						</div>
 					</div>
 				</Modal>
@@ -663,7 +761,7 @@ export default function AreaAssignedPersonnelModal({
 								variant="danger"
 								onClick={handleConfirmRevoke}
 								loading={submittingRevoke}
-								disabled={!revokeReason.trim()}
+								disabled={revokeReason.trim().length < 10}
 							>
 								Xác nhận thu hồi
 							</Button>
@@ -693,12 +791,16 @@ export default function AreaAssignedPersonnelModal({
 							<textarea
 								className="ap-form-textarea"
 								rows={3}
-								placeholder="Nhập lý do thu hồi (bắt buộc, ví dụ: Chuyển công tác, hết nhiệm kỳ)..."
+								placeholder="Nhập lý do thu hồi (tối thiểu 10 ký tự, tối đa 500 ký tự)..."
 								value={revokeReason}
 								onChange={(e) => setRevokeReason(e.target.value)}
 								maxLength={500}
 								required
 							/>
+							<div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "var(--theme-text-muted, #64748b)", marginTop: "4px" }}>
+								<span>Tối thiểu 10 ký tự, tối đa 500 ký tự</span>
+								<span>{revokeReason.length}/500 ký tự</span>
+							</div>
 						</div>
 					</div>
 				</Modal>

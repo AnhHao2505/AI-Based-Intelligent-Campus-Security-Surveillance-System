@@ -14,17 +14,15 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.time.OffsetDateTime;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import java.util.UUID;
 
 @Entity
 @Table(name = "cameras")
 @Getter
 @Setter
-@ToString(exclude = {"streamConfiguration", "healthLogs", "areas"})
+@ToString(exclude = {"streamConfiguration", "healthLogs", "area"})
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -49,9 +47,6 @@ public class Camera {
     @Column(name = "operational_status", nullable = false, length = 50)
     private OperationalStatus operationalStatus;
 
-    @Column(name = "installed_at")
-    private OffsetDateTime installedAt;
-
     @Column(name = "created_at")
     private OffsetDateTime createdAt;
 
@@ -71,9 +66,9 @@ public class Camera {
     @OneToMany(mappedBy = "camera", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<CameraHealthLog> healthLogs;
 
-    @ManyToMany(mappedBy = "cameras", fetch = FetchType.LAZY)
-    @Builder.Default
-    private Set<Area> areas = new HashSet<>();
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "area_id")
+    private Area area;
 
     @PrePersist
     protected void onCreate() {

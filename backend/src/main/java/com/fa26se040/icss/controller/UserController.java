@@ -2,6 +2,7 @@ package com.fa26se040.icss.controller;
 
 import com.fa26se040.icss.dto.BulkImportResponse;
 import com.fa26se040.icss.dto.UserInfo;
+import com.fa26se040.icss.dto.common.ApiResponse;
 import com.fa26se040.icss.dto.user.StaffAccountCreateRequest;
 import com.fa26se040.icss.dto.user.StaffAccountCreateResponse;
 import com.fa26se040.icss.dto.user.UserListResponse;
@@ -42,12 +43,12 @@ public class UserController {
 
     @PostMapping(value = "/normal/bulk-import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<BulkImportResponse> bulkImportNormalUsers(
+    public ResponseEntity<ApiResponse<BulkImportResponse>> bulkImportNormalUsers(
             @RequestParam("file") MultipartFile file
     ) {
         log.info("Received request for bulk import normal users with file: {}", file.getOriginalFilename());
         BulkImportResponse response = userService.bulkImportNormalUsers(file);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(ApiResponse.success(response, "Import danh sách người dùng thành công"));
     }
 
     @GetMapping("/normal/bulk-import/template")
@@ -62,12 +63,12 @@ public class UserController {
 
     @PostMapping(value = "/staff/bulk-import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<BulkImportResponse> bulkImportStaffUsers(
+    public ResponseEntity<ApiResponse<BulkImportResponse>> bulkImportStaffUsers(
             @RequestParam("file") MultipartFile file
     ) {
         log.info("Received request for bulk import staff users with file: {}", file.getOriginalFilename());
         BulkImportResponse response = userService.bulkImportStaffUsers(file);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(ApiResponse.success(response, "Import danh sách cán bộ/nhân viên thành công"));
     }
 
     @GetMapping("/staff/bulk-import/template")
@@ -82,17 +83,17 @@ public class UserController {
 
     @PostMapping(value = "/staff-accounts", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<StaffAccountCreateResponse> createStaffAccount(
+    public ResponseEntity<ApiResponse<StaffAccountCreateResponse>> createStaffAccount(
             @Valid @ModelAttribute StaffAccountCreateRequest request
     ) {
         log.info("Request received to create staff account for userCode: {}", request.getUserCode());
         StaffAccountCreateResponse response = userService.createStaffAccount(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return new ResponseEntity<>(ApiResponse.created(response, "Tạo tài khoản nhân viên thành công"), HttpStatus.CREATED);
     }
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
-    public ResponseEntity<UserPageResponse> getUsers(
+    public ResponseEntity<ApiResponse<UserPageResponse>> getUsers(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String accountType,
             @RequestParam(required = false) Boolean isActive,
@@ -109,86 +110,86 @@ public class UserController {
         }
         Pageable pageable = PageRequest.of(Math.max(0, page), cappedSize, sortOrder);
         UserPageResponse result = userService.getUsers(keyword, accountType, isActive, pageable);
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(ApiResponse.success(result, "Lấy danh sách người dùng thành công"));
     }
 
     @GetMapping("/{code}")
     @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
-    public ResponseEntity<UserInfo> getUserByCode(@PathVariable String code) {
+    public ResponseEntity<ApiResponse<UserInfo>> getUserByCode(@PathVariable String code) {
         log.info("Received request to get user by code: {}", code);
         UserInfo userInfo = userService.getUserByCode(code);
-        return ResponseEntity.ok(userInfo);
+        return ResponseEntity.ok(ApiResponse.success(userInfo, "Lấy thông tin người dùng thành công"));
     }
 
     @PatchMapping("/{id}/toggle-active")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<UserListResponse> toggleActive(
+    public ResponseEntity<ApiResponse<UserListResponse>> toggleActive(
             @PathVariable UUID id,
             Authentication authentication
     ) {
         String currentUserEmail = authentication != null ? authentication.getName() : null;
         log.info("Admin {} toggling active for user {}", currentUserEmail, id);
         UserListResponse response = userService.toggleActive(id, currentUserEmail);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(ApiResponse.success(response, "Cập nhật trạng thái người dùng thành công"));
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Void> softDelete(
+    public ResponseEntity<ApiResponse<Void>> softDelete(
             @PathVariable UUID id,
             Authentication authentication
     ) {
         String currentUserEmail = authentication != null ? authentication.getName() : null;
         log.info("Admin {} soft-deleting user {}", currentUserEmail, id);
         userService.softDelete(id, currentUserEmail);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(ApiResponse.success("Xóa người dùng thành công"));
     }
 
     @GetMapping("/import-batches")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Page<ImportBatchSummaryResponse>> getImportBatches(
+    public ResponseEntity<ApiResponse<Page<ImportBatchSummaryResponse>>> getImportBatches(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
         int cappedSize = Math.min(Math.max(1, size), 100);
         Pageable pageable = PageRequest.of(Math.max(0, page), cappedSize);
         Page<ImportBatchSummaryResponse> result = userService.getImportBatches(pageable);
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(ApiResponse.success(result, "Lấy danh sách lô import thành công"));
     }
 
     @GetMapping("/import-batches/{batchId}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<BatchUserResponse>> getBatchDetails(
+    public ResponseEntity<ApiResponse<List<BatchUserResponse>>> getBatchDetails(
             @PathVariable UUID batchId
     ) {
         log.info("Admin requested details for import batch: {}", batchId);
         List<BatchUserResponse> users = userService.getBatchDetails(batchId);
-        return ResponseEntity.ok(users);
+        return ResponseEntity.ok(ApiResponse.success(users, "Lấy chi tiết lô import thành công"));
     }
 
     @DeleteMapping("/import-batches/{batchId}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<BatchDeleteResponse> deleteBatch(
+    public ResponseEntity<ApiResponse<BatchDeleteResponse>> deleteBatch(
             @PathVariable UUID batchId
     ) {
         log.info("Admin soft-deleting import batch: {}", batchId);
         BatchDeleteResponse response = userService.deleteBatch(batchId);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(ApiResponse.success(response, "Xóa lô import thành công"));
     }
 
     @PostMapping("/import-batches/{batchId}/restore")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<BatchRestoreResponse> restoreBatch(
+    public ResponseEntity<ApiResponse<BatchRestoreResponse>> restoreBatch(
             @PathVariable UUID batchId
     ) {
         log.info("Admin restoring import batch: {}", batchId);
         BatchRestoreResponse response = userService.restoreBatch(batchId);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(ApiResponse.success(response, "Khôi phục lô import thành công"));
     }
 
     @GetMapping("/search")
     @PreAuthorize("hasAnyRole('FACILITY_MANAGER', 'ADMIN')")
-    public ResponseEntity<Page<UserSearchResponse>> searchUsers(
+    public ResponseEntity<ApiResponse<Page<UserSearchResponse>>> searchUsers(
             @RequestParam String q,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
@@ -196,12 +197,12 @@ public class UserController {
         int cappedSize = Math.min(Math.max(1, size), 20);
         Pageable pageable = PageRequest.of(Math.max(0, page), cappedSize);
         Page<UserSearchResponse> result = userService.searchUsers(q, pageable);
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(ApiResponse.success(result, "Tìm kiếm người dùng thành công"));
     }
 
     @PatchMapping("/{id}/access-level")
     @PreAuthorize("hasRole('FACILITY_MANAGER')")
-    public ResponseEntity<UserSearchResponse> updateAccessLevel(
+    public ResponseEntity<ApiResponse<UserSearchResponse>> updateAccessLevel(
             @PathVariable UUID id,
             @Valid @RequestBody UserAccessLevelUpdateRequest request,
             Authentication authentication
@@ -209,6 +210,6 @@ public class UserController {
         String actorEmail = authentication != null ? authentication.getName() : null;
         log.info("Facility Manager [{}] updating access level for user {}: {}", actorEmail, id, request.accessLevel());
         UserSearchResponse response = userService.updateAccessLevel(id, request.accessLevel(), request.reason(), actorEmail);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(ApiResponse.success(response, "Cập nhật cấp độ truy cập thành công"));
     }
 }

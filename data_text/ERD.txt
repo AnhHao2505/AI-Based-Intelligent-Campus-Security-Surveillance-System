@@ -29,12 +29,10 @@ Table password_reset_tokens {
 
 Table areas {
   id UUID [pk, default: `gen_random_uuid()`]
-  code VARCHAR(50) [not null]
   name VARCHAR(150) [not null]
   area_level VARCHAR(30) [not null, note: 'PUBLIC | SEMI_PRIVATE | PRIVATE']
   building VARCHAR(50)
   floor VARCHAR(20)
-  description TEXT
   geometry JSONB [note: 'Area polygon geometry (type, version, vertices)']
   is_active BOOLEAN [not null, default: true]
   created_at TIMESTAMPTZ [not null, default: `CURRENT_TIMESTAMP`]

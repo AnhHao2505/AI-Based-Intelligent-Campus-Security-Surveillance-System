@@ -68,6 +68,9 @@ class AccessDecisionServiceTest {
     @Mock
     private AccessRequestRepository accessRequestRepository;
 
+    @Mock
+    private com.fa26se040.icss.repository.AreaEventScheduleRepository areaEventScheduleRepository;
+
     @InjectMocks
     private AccessDecisionService accessDecisionService;
 
@@ -86,7 +89,6 @@ class AccessDecisionServiceTest {
 
         lab = Area.builder()
                 .id(UUID.randomUUID())
-                .code("LAB-01")
                 .name("Phòng Lab 01")
                 .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
                 .isActive(true)
@@ -388,7 +390,6 @@ class AccessDecisionServiceTest {
 
         Area serverRoom = Area.builder()
                 .id(UUID.randomUUID())
-                .code("SRV-01")
                 .name("Phòng Server")
                 .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
                 .areaAccessLevel(3)
@@ -413,7 +414,6 @@ class AccessDecisionServiceTest {
 
         Area office = Area.builder()
                 .id(UUID.randomUUID())
-                .code("OFFICE-HT")
                 .name("Phòng Hiệu Trưởng")
                 .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
                 .areaAccessLevel(3)
@@ -447,7 +447,6 @@ class AccessDecisionServiceTest {
 
         Area meetingRoom = Area.builder()
                 .id(UUID.randomUUID())
-                .code("SEMI-01")
                 .name("Phòng Họp Chung")
                 .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
                 .areaAccessLevel(2)
@@ -471,7 +470,6 @@ class AccessDecisionServiceTest {
 
         Area contactArea = Area.builder()
                 .id(UUID.randomUUID())
-                .code("CONTACT-01")
                 .name("Phòng Yêu Cầu Xác Nhận")
                 .areaLevel(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
                 .areaAccessLevel(3)
@@ -494,7 +492,6 @@ class AccessDecisionServiceTest {
 
         Area contactArea = Area.builder()
                 .id(UUID.randomUUID())
-                .code("CONTACT-01")
                 .name("Phòng Yêu Cầu Xác Nhận")
                 .areaLevel(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
                 .areaAccessLevel(3)
@@ -515,7 +512,6 @@ class AccessDecisionServiceTest {
 
         Area meetingRoom = Area.builder()
                 .id(UUID.randomUUID())
-                .code("SEMI-01")
                 .name("Phòng Họp Chung")
                 .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
                 .areaAccessLevel(2)
@@ -549,7 +545,6 @@ class AccessDecisionServiceTest {
 
         Area meetingRoom = Area.builder()
                 .id(UUID.randomUUID())
-                .code("SEMI-01")
                 .name("Phòng Họp Chung")
                 .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
                 .areaAccessLevel(2)
@@ -585,7 +580,6 @@ class AccessDecisionServiceTest {
 
         Area serverRoom = Area.builder()
                 .id(UUID.randomUUID())
-                .code("SRV-CRITICAL")
                 .name("Phòng Máy Chủ Tối Mật")
                 .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
                 .areaAccessLevel(3)
@@ -619,7 +613,7 @@ class AccessDecisionServiceTest {
             switch (areaLevel) {
                 case PUBLIC -> { areaAccessLevel = 1; explicitRequired = false; }
                 case INTERNAL_CONFIDENTIAL -> { areaAccessLevel = 2; explicitRequired = false; }
-                case CONFIDENTIAL_CONTACT_REQUIRED -> { areaAccessLevel = 3; explicitRequired = false; }
+                case CONFIDENTIAL_CONTACT_REQUIRED -> { areaAccessLevel = 2; explicitRequired = true; }
                 case HIGHLY_CONFIDENTIAL -> { areaAccessLevel = 3; explicitRequired = true; }
                 default -> throw new IllegalStateException();
             }
@@ -672,14 +666,13 @@ class AccessDecisionServiceTest {
         switch (areaLevel) {
             case PUBLIC -> { areaAccessLevel = 1; explicitAuthRequired = false; }
             case INTERNAL_CONFIDENTIAL -> { areaAccessLevel = 2; explicitAuthRequired = false; }
-            case CONFIDENTIAL_CONTACT_REQUIRED -> { areaAccessLevel = 3; explicitAuthRequired = false; }
+            case CONFIDENTIAL_CONTACT_REQUIRED -> { areaAccessLevel = 2; explicitAuthRequired = true; }
             case HIGHLY_CONFIDENTIAL -> { areaAccessLevel = 3; explicitAuthRequired = true; }
             default -> throw new IllegalArgumentException("Unknown level: " + areaLevel);
         }
 
         Area targetArea = Area.builder()
                 .id(UUID.randomUUID())
-                .code("AREA-" + areaLevel.name())
                 .name("Area " + areaLevel.name())
                 .areaLevel(areaLevel)
                 .areaAccessLevel(areaAccessLevel)

@@ -20,9 +20,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -35,6 +41,12 @@ public class SystemConfigService {
     private final SystemConfigurationRepository systemConfigurationRepository;
     private final SystemConfigurationChangeLogRepository changeLogRepository;
     private final UserRepository userRepository;
+    private final org.springframework.beans.factory.ObjectProvider<AreaService> areaServiceProvider;
+    private final org.springframework.beans.factory.ObjectProvider<InAppNotificationService> notificationServiceProvider;
+    private final RestTemplate aiRestTemplate = new RestTemplate();
+
+    @Value("${ai.service.url:http://localhost:8000}")
+    private String aiServiceUrl;
 
     private volatile Map<String, String> cache = new ConcurrentHashMap<>();
 
@@ -75,6 +87,11 @@ public class SystemConfigService {
         }
     }
 
+    public String getString(ConfigKey configKey) {
+        String value = cache.get(configKey.getKey());
+        return value == null || value.isBlank() ? configKey.getDefaultValue() : value.trim();
+    }
+
     public boolean getBoolean(ConfigKey configKey) {
         String raw = cache.get(configKey.getKey());
         if (raw == null) {
@@ -109,6 +126,11 @@ public class SystemConfigService {
 
     @Transactional
     public SystemConfigResponse update(String key, String rawValue, String actorEmail) {
+        return update(key, rawValue, null, actorEmail);
+    }
+
+    @Transactional
+    public SystemConfigResponse update(String key, String rawValue, String reason, String actorEmail) {
         if (rawValue == null || rawValue.trim().isEmpty()) {
             throw new IllegalArgumentException("Giá trị cấu hình không được để trống");
         }
@@ -141,6 +163,7 @@ public class SystemConfigService {
                 .newValue(value)
                 .changedBy(actor)
                 .changedAt(now)
+                .reason(reason)
                 .build();
         changeLogRepository.save(logEntry);
 
@@ -150,16 +173,99 @@ public class SystemConfigService {
                 @Override
                 public void afterCommit() {
                     cache.put(key, value);
+                    if ("AI_AFTER_HOUR_START".equals(key) || "AI_AFTER_HOUR_END".equals(key)) {
+                        syncAfterHourToAi();
+                    }
+                    checkEventModeLimitsAndNotifyFm(key);
                 }
             });
         } else {
             cache.put(key, value);
+            if ("AI_AFTER_HOUR_START".equals(key) || "AI_AFTER_HOUR_END".equals(key)) {
+                syncAfterHourToAi();
+            }
+            checkEventModeLimitsAndNotifyFm(key);
         }
 
         log.info("Cập nhật SystemConfiguration thành công: key={}, old={}, new={}, actor={}",
                 key, oldValue, value, actorEmail);
 
         return mapToResponse(saved);
+    }
+
+    private void checkEventModeLimitsAndNotifyFm(String key) {
+        if (!"EVENT_MODE_MAX_HOURS".equals(key) && !"EVENT_MODE_WINDOW_DAYS".equals(key) && !"EVENT_MODE_BUDGET_HOURS".equals(key)) {
+            return;
+        }
+
+        AreaService areaService = areaServiceProvider.getIfAvailable();
+        InAppNotificationService notificationService = notificationServiceProvider.getIfAvailable();
+        if (areaService == null || notificationService == null) {
+            return;
+        }
+
+        int maxHours = areaService.getEventModeMaxHours();
+        int windowDays = areaService.getEventModeWindowDays();
+        int budgetHours = areaService.getEventModeBudgetHours();
+
+        List<com.fa26se040.icss.entity.Area> violating = areaService.findAreasViolatingNewEventLimits(maxHours, windowDays, budgetHours);
+        if (violating.isEmpty()) {
+            log.info("No active event areas violate new event limits after config key {} updated", key);
+            return;
+        }
+
+        List<com.fa26se040.icss.entity.User> activeFms = userRepository.findActiveUsersByRole(com.fa26se040.icss.enums.Role.FACILITY_MANAGER);
+        if (activeFms.isEmpty()) {
+            return;
+        }
+
+        java.time.format.DateTimeFormatter dtf = java.time.format.DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy").withZone(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
+        StringBuilder sb = new StringBuilder("Giới hạn chế độ sự kiện đã thay đổi. Các khu vực vượt giới hạn mới: ");
+        for (int i = 0; i < violating.size(); i++) {
+            com.fa26se040.icss.entity.Area a = violating.get(i);
+            if (i > 0) sb.append("; ");
+            sb.append(a.getName());
+            boolean hasDetail = false;
+            if (a.isEventActive(java.time.OffsetDateTime.now()) && a.getOpenUntil() != null) {
+                sb.append(" (kết thúc: ").append(dtf.format(a.getOpenUntil())).append(")");
+                hasDetail = true;
+            }
+            List<com.fa26se040.icss.entity.AreaEventSchedule> vScheds = areaService.getViolatingSchedules(a.getId(), maxHours, windowDays, budgetHours);
+            if (!vScheds.isEmpty()) {
+                sb.append(" [Lịch vi phạm: ");
+                for (int j = 0; j < vScheds.size(); j++) {
+                    if (j > 0) sb.append(", ");
+                    com.fa26se040.icss.entity.AreaEventSchedule sc = vScheds.get(j);
+                    sb.append(dtf.format(sc.getStartAt())).append(" - ").append(dtf.format(sc.getEndAt()));
+                }
+                sb.append("]");
+            } else if (!hasDetail && a.getOpenUntil() != null) {
+                sb.append(" (kết thúc: ").append(dtf.format(a.getOpenUntil())).append(")");
+            }
+        }
+
+        notificationService.createForUsers(
+                activeFms,
+                com.fa26se040.icss.enums.NotificationType.EVENT_MODE_LIMIT_CHANGED,
+                "Giới hạn chế độ sự kiện đã thay đổi",
+                sb.toString(),
+                violating.get(0).getId(),
+                "AREA"
+        );
+    }
+
+    private void syncAfterHourToAi() {
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            Map<String, String> body = Map.of(
+                    "start", getString(ConfigKey.AI_AFTER_HOUR_START),
+                    "end", getString(ConfigKey.AI_AFTER_HOUR_END));
+            aiRestTemplate.postForObject(aiServiceUrl + "/api/v1/system-config/after-hour",
+                    new HttpEntity<>(body, headers), Map.class);
+        } catch (Exception e) {
+            log.warn("Could not sync after-hour configuration to AI service: {}", e.getMessage());
+        }
     }
 
     @Transactional(readOnly = true)
@@ -184,6 +290,18 @@ public class SystemConfigService {
                 if (config.getMaxValue() != null && intVal > config.getMaxValue().intValue()) {
                     throw new IllegalArgumentException("Giá trị không được lớn hơn " + config.getMaxValue().intValue());
                 }
+                if ("EVENT_MODE_MIN_MINUTES".equals(config.getConfigKey())) {
+                    int maxHours = getInt(ConfigKey.EVENT_MODE_MAX_HOURS);
+                    if (intVal > maxHours * 60) {
+                        throw new IllegalArgumentException("Thời lượng tối thiểu (EVENT_MODE_MIN_MINUTES) không được lớn hơn thời lượng tối đa (EVENT_MODE_MAX_HOURS * 60 phút)");
+                    }
+                }
+                if ("EVENT_MODE_MAX_HOURS".equals(config.getConfigKey())) {
+                    int minMinutes = getInt(ConfigKey.EVENT_MODE_MIN_MINUTES);
+                    if (intVal * 60 < minMinutes) {
+                        throw new IllegalArgumentException("Thời lượng tối đa (EVENT_MODE_MAX_HOURS * 60 phút) không được nhỏ hơn thời lượng tối thiểu (EVENT_MODE_MIN_MINUTES)");
+                    }
+                }
             }
             case "DECIMAL" -> {
                 BigDecimal decVal;
@@ -207,6 +325,13 @@ public class SystemConfigService {
             case "STRING" -> {
                 if (value.length() > 255) {
                     throw new IllegalArgumentException("Độ dài giá trị cấu hình không được vượt quá 255 ký tự");
+                }
+                if ("AI_AFTER_HOUR_START".equals(config.getConfigKey()) || "AI_AFTER_HOUR_END".equals(config.getConfigKey())) {
+                    try {
+                        LocalTime.parse(value);
+                    } catch (RuntimeException e) {
+                        throw new IllegalArgumentException("Giờ after-hour phải theo định dạng HH:mm");
+                    }
                 }
             }
             default -> log.warn("Unknown dataType [{}] for config [{}]", dataType, config.getConfigKey());
@@ -251,7 +376,8 @@ public class SystemConfigService {
                 changeLog.getNewValue(),
                 changeLog.getChangedAt(),
                 changedByEmail,
-                changedByName
+                changedByName,
+                changeLog.getReason()
         );
     }
 }

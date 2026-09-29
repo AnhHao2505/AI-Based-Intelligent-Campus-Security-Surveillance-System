@@ -4,10 +4,13 @@
    ========================================================================== */
 
 .arr-container {
-  padding: 1.5rem 2rem;
-  max-width: 1360px;
-  margin: 0 auto;
   animation: arrFadeIn 0.25s ease-out;
+  /* UI-1 A4: khuôn trang dùng chung */
+  width: 100%;
+  max-width: var(--page-max-width);
+  margin: 0 auto;
+  padding: var(--page-padding-y) var(--page-padding-x);
+  box-sizing: border-box;
 }
 
 @keyframes arrFadeIn {
@@ -22,46 +25,14 @@
 }
 
 /* Header */
-.arr-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 1.5rem;
-  gap: 1rem;
-}
-
-.arr-header__title {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--theme-text-primary);
-  letter-spacing: -0.02em;
-  margin: 0 0 0.25rem 0;
-}
-
-.arr-header__subtitle {
-  font-size: 0.875rem;
-  color: var(--theme-text-muted);
-  margin: 0;
-}
 
 /* Stats Cards */
 .arr-stats-grid {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  /* UI-B B5: tự xuống hàng theo bề rộng, không ép 6 cột hẹp làm nhãn bị gãy dòng */
+  grid-template-columns: repeat(auto-fit, minmax(176px, 1fr));
   gap: 1rem;
   margin-bottom: 1.5rem;
-}
-
-@media (max-width: 1400px) {
-  .arr-stats-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-
-@media (max-width: 768px) {
-  .arr-stats-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
 }
 
 @media (max-width: 480px) {
@@ -130,12 +101,16 @@
 .arr-stat-card__content {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .arr-stat-card__label {
   font-size: 0.8125rem;
   color: var(--theme-text-muted);
   font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .arr-stat-card__value {
@@ -195,6 +170,33 @@
 .arr-filter-btn--active:hover {
   opacity: 0.92;
   color: var(--brand-on-gradient);
+}
+
+/* Toolbar Right */
+.arr-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.arr-select {
+  padding: 0.45rem 2rem 0.45rem 0.75rem;
+  font-size: 0.8125rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--theme-input-border);
+  background: var(--theme-bg-input);
+  color: var(--theme-text-primary);
+  outline: none;
+  cursor: pointer;
+  min-width: 220px;
+  font-family: inherit;
+  transition: all 0.15s ease;
+}
+
+.arr-select:focus {
+  border-color: var(--brand-blue);
+  box-shadow: var(--focus-ring);
 }
 
 /* Search Input */
@@ -292,10 +294,7 @@
 .arr-table th {
   background: var(--theme-bg-page);
   padding: 0.875rem 1rem;
-  font-weight: 600;
-  color: var(--theme-text-muted);
   border-bottom: 1px solid var(--theme-border);
-  white-space: nowrap;
 }
 
 .arr-table td {
@@ -686,4 +685,32 @@
 .arr-pagination__btns {
   display: flex;
   gap: 0.5rem;
+}
+
+/* UI-B B5: cột thao tác canh phải, rộng cố định -> nút "Xem chi tiết" luôn cùng vị trí */
+.arr-col-actions {
+  width: 132px;
+  min-width: 132px;
+  text-align: right;
+}
+
+.arr-col-actions .arr-actions {
+  justify-content: flex-end;
+}
+
+/* BR-TC-15 (Step 5b): đơn bị hệ thống huỷ hiện nguồn + lý do; người dùng tự huỷ giữ như cũ */
+.arr-cancel-system {
+  margin-top: 4px;
+  max-width: 260px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--theme-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.arr-cancel-system--detail {
+  max-width: none;
+  white-space: normal;
 }

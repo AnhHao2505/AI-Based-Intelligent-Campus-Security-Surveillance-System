@@ -21,6 +21,7 @@ import {
   testConnection,
   updateRoiGeometry,
 } from "../../services/cameraService";
+import { getAreas } from "../../services/areaService";
 import RoiEditorModal from "../../components/camera/RoiEditorModal";
 import CameraGeneralTab from "../../components/camera/CameraGeneralTab";
 import CameraStreamTab from "../../components/camera/CameraStreamTab";
@@ -34,24 +35,20 @@ export default function CameraDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  // Tabs: 'general' | 'stream' | 'surveillance'
   const [activeTab, setActiveTab] = useState("general");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
 
-  // Health Logs State
   const [logs, setLogs] = useState([]);
   const [logPage, setLogPage] = useState(0);
   const [logTotalPages, setLogTotalPages] = useState(0);
   const [logsLoading, setLogsLoading] = useState(false);
 
-  // Stream Tab - Test Connection State
   const [testingConnection, setTestingConnection] = useState(false);
   const [testResult, setTestResult] = useState(null);
 
-  // Surveillance Tab - ROI, Reference Snapshot & Drift Detection State
   const [connecting, setConnecting] = useState(false);
   const [capturingSnapshot, setCapturingSnapshot] = useState(false);
   const [refreshingLive, setRefreshingLive] = useState(false);
@@ -60,11 +57,11 @@ export default function CameraDetailPage() {
   const [roiModalOpen, setRoiModalOpen] = useState(false);
   const [activeSnapshotForModal, setActiveSnapshotForModal] = useState(null);
 
-  // Form states
   const [camera, setCamera] = useState(null);
+  const [availableAreas, setAvailableAreas] = useState([]);
   const [generalForm, setGeneralForm] = useState({
     name: "",
-    installedAt: "",
+    areaId: "",
   });
 
   const [streamForm, setStreamForm] = useState({
@@ -75,6 +72,15 @@ export default function CameraDetailPage() {
     mainStreamPath: "",
   });
 
+  useEffect(() => {
+    getAreas({ size: 200, isActive: true })
+      .then((res) => {
+        const list = res?.content || res?.areas || (Array.isArray(res) ? res : []);
+        setAvailableAreas(list);
+      })
+      .catch((err) => console.error("Failed to load areas:", err));
+  }, []);
+
   const loadCameraDetails = async () => {
     setLoading(true);
     setError(null);
@@ -82,13 +88,11 @@ export default function CameraDetailPage() {
       const data = await fetchCameraDetail(id);
       setCamera(data);
 
-      // Init General Form
       setGeneralForm({
         name: data.name || "",
-        installedAt: data.installedAt ? data.installedAt.substring(0, 16) : "",
+        areaId: data.assignedArea?.id || (data.assignedAreas?.[0]?.id || ""),
       });
 
-      // Init Stream Form
       if (data.streamConfig) {
         setStreamForm({
           host: data.streamConfig.host || "",
@@ -315,9 +319,7 @@ export default function CameraDetailPage() {
     try {
       const payload = {
         name: generalForm.name,
-        installedAt: generalForm.installedAt
-          ? new Date(generalForm.installedAt).toISOString()
-          : null,
+        areaId: generalForm.areaId,
       };
       const updated = await updateCamera(id, payload);
       setCamera(updated);
@@ -387,7 +389,6 @@ export default function CameraDetailPage() {
 
   return (
     <div className="camera-detail-page">
-      {/* Breadcrumb Navigation */}
       <div className="breadcrumb">
         <button
           className="btn-back"
@@ -399,7 +400,6 @@ export default function CameraDetailPage() {
         <span className="current">{camera.name || camera.cameraCode}</span>
       </div>
 
-      {/* Notifications */}
       {successMsg && (
         <div className="success-toast">
           <span>{successMsg}</span>
@@ -440,7 +440,6 @@ export default function CameraDetailPage() {
         </div>
       )}
 
-      {/* Main Details Header */}
       <div className="detail-header-card">
         <div className="detail-header-left">
           <div className="camera-icon-wrapper">
@@ -500,7 +499,6 @@ export default function CameraDetailPage() {
         </button>
       </div>
 
-      {/* Configurations Tabs Grid */}
       <div className="detail-grid">
         <div className="config-card">
           <div className="tabs-navigation">
@@ -531,18 +529,17 @@ export default function CameraDetailPage() {
           </div>
 
           <div className="tab-content">
-            {/* GENERAL TAB */}
             {activeTab === "general" && (
               <CameraGeneralTab
                 camera={camera}
                 generalForm={generalForm}
                 setGeneralForm={setGeneralForm}
+                availableAreas={availableAreas}
                 saving={saving}
                 onSubmit={handleGeneralSubmit}
               />
             )}
 
-            {/* STREAM TAB */}
             {activeTab === "stream" && (
               <CameraStreamTab
                 camera={camera}
@@ -557,7 +554,6 @@ export default function CameraDetailPage() {
               />
             )}
 
-            {/* SURVEILLANCE / ROI TAB */}
             {activeTab === "surveillance" && (
               <CameraSurveillanceTab
                 camera={camera}
@@ -576,7 +572,6 @@ export default function CameraDetailPage() {
           </div>
         </div>
 
-        {/* Redesigned Health Logs Component */}
         <CameraHealthLogs
           logs={logs}
           loading={logsLoading}
@@ -587,7 +582,6 @@ export default function CameraDetailPage() {
         />
       </div>
 
-      {/* ROI Editor Modal */}
       <RoiEditorModal
         isOpen={roiModalOpen}
         onClose={() => setRoiModalOpen(false)}

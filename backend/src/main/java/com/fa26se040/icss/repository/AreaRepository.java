@@ -16,11 +16,37 @@ import java.util.UUID;
 @Repository
 public interface AreaRepository extends JpaRepository<Area, UUID> {
 
-    boolean existsByCodeAndDeletedAtIsNull(String code);
-
     boolean existsByIdAndDeletedAtIsNull(UUID id);
 
+    @Query("SELECT COUNT(a) > 0 FROM Area a " +
+            "WHERE a.floorEntity.id = :floorId " +
+            "AND LOWER(a.name) = LOWER(:name) " +
+            "AND a.deletedAt IS NULL")
+    boolean existsByFloorIdAndNameIgnoreCase(
+            @Param("floorId") UUID floorId,
+            @Param("name") String name
+    );
+
+    @Query("SELECT COUNT(a) > 0 FROM Area a " +
+            "WHERE a.id != :id " +
+            "AND a.floorEntity.id = :floorId " +
+            "AND LOWER(a.name) = LOWER(:name) " +
+            "AND a.deletedAt IS NULL")
+    boolean existsByFloorIdAndNameIgnoreCaseExcludingId(
+            @Param("id") UUID id,
+            @Param("floorId") UUID floorId,
+            @Param("name") String name
+    );
+
     Optional<Area> findByIdAndDeletedAtIsNull(UUID id);
+
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT a FROM Area a WHERE a.id = :id")
+    Optional<Area> findByIdWithLock(@Param("id") UUID id);
+
+    /** Step 5b: đọc loại hiện tại (không khoá, không nạp entity) để kiểm dữ liệu trước khi khoá. */
+    @Query("SELECT a.areaLevel FROM Area a WHERE a.id = :id AND a.deletedAt IS NULL")
+    Optional<com.fa26se040.icss.enums.AreaLevel> findAreaLevelById(@Param("id") UUID id);
 
     java.util.List<Area> findByBuildingIgnoreCaseAndFloorIgnoreCaseAndDeletedAtIsNull(String building, String floor);
 
@@ -28,6 +54,8 @@ public interface AreaRepository extends JpaRepository<Area, UUID> {
 
     @Query("SELECT a FROM Area a WHERE a.deletedAt IS NULL AND a.areaLevel IN :levels ORDER BY a.building ASC, a.floor ASC, a.name ASC")
     java.util.List<Area> findAvailableForRequest(@Param("levels") Collection<AreaLevel> levels);
+
+    java.util.List<Area> findByOpenToMembersTrueAndOpenUntilAfterAndDeletedAtIsNull(java.time.OffsetDateTime now);
 
     @Query(
         value = """
@@ -38,7 +66,6 @@ public interface AreaRepository extends JpaRepository<Area, UUID> {
               AND (:areaLevel IS NULL OR a.areaLevel = :areaLevel)
               AND (CAST(:building AS string) IS NULL OR LOWER(a.building) = LOWER(CAST(:building AS string)))
               AND (CAST(:keyword AS string) IS NULL OR (
-                    LOWER(a.code) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%')) OR
                     LOWER(a.name) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%'))
                   ))
             """,
@@ -50,7 +77,6 @@ public interface AreaRepository extends JpaRepository<Area, UUID> {
               AND (:areaLevel IS NULL OR a.areaLevel = :areaLevel)
               AND (CAST(:building AS string) IS NULL OR LOWER(a.building) = LOWER(CAST(:building AS string)))
               AND (CAST(:keyword AS string) IS NULL OR (
-                    LOWER(a.code) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%')) OR
                     LOWER(a.name) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%'))
                   ))
             """
@@ -65,4 +91,36 @@ public interface AreaRepository extends JpaRepository<Area, UUID> {
 
     @Query("SELECT a FROM Area a JOIN a.cameras c WHERE c.cameraCode = :cameraCode AND a.deletedAt IS NULL")
     java.util.List<Area> findAreasByCameraCode(@Param("cameraCode") String cameraCode);
+
+    @Query("""
+        SELECT a FROM Area a
+        WHERE a.deletedAt IS NULL
+          AND a.isActive = true
+          AND a.centerLatitude IS NOT NULL
+          AND a.centerLongitude IS NOT NULL
+        ORDER BY a.name ASC
+    """)
+    java.util.List<Area> findAllAreaMapPins();
+
+    @Query("""
+        SELECT a FROM Area a
+        WHERE a.deletedAt IS NULL
+          AND a.isActive = true
+          AND a.centerLatitude IS NOT NULL
+          AND a.centerLongitude IS NOT NULL
+          AND LOWER(a.building) = LOWER(:building)
+        ORDER BY a.name ASC
+    """)
+    java.util.List<Area> findAreaMapPinsByBuilding(@Param("building") String building);
+
+    @Query("""
+        SELECT a FROM Area a
+        WHERE a.deletedAt IS NULL
+          AND a.isActive = true
+          AND a.centerLatitude IS NOT NULL
+          AND a.centerLongitude IS NOT NULL
+          AND (CAST(:building AS string) IS NULL OR LOWER(a.building) = LOWER(CAST(:building AS string)))
+        ORDER BY a.name ASC
+    """)
+    java.util.List<Area> findAreaMapPins(@Param("building") String building);
 }

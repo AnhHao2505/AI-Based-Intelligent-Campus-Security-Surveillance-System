@@ -20,6 +20,8 @@ import {
 	CalendarClock,
 	Sliders,
 	ShieldCheck,
+	Compass,
+	Tag,
 } from "lucide-react";
 import { ROLES, ROLE_LABELS } from "../../constants/roles";
 import { useTheme } from "../../context/ThemeContext";
@@ -213,6 +215,24 @@ export default function Sidebar({ user, onLogout }) {
 									</NavLink>
 								)}
 
+								{isGuard && (
+									<NavLink
+										to="/notifications"
+										className={({ isActive }) =>
+											`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
+										}
+										title={sidebarCollapsed ? "Thông báo" : undefined}
+									>
+										<Bell size={18} />
+										<span>Thông báo</span>
+										{unreadCount > 0 && (
+											<span className="sidebar__unread-badge">
+												{unreadCount > 9 ? "9+" : unreadCount}
+											</span>
+										)}
+									</NavLink>
+								)}
+
 								{isAdmin && (
 									<NavLink
 										to="/cameras"
@@ -234,10 +254,16 @@ export default function Sidebar({ user, onLogout }) {
 										className={({ isActive }) =>
 											`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
 										}
-										title={sidebarCollapsed ? "Quản lý vùng" : undefined}
+										title={
+											sidebarCollapsed
+												? isAdmin
+													? "Cấu hình vùng"
+													: "Quản lý vùng"
+												: undefined
+										}
 									>
 										<MapPin size={18} />
-										<span>Quản lý vùng</span>
+										<span>{isAdmin ? "Cấu hình vùng" : "Quản lý vùng"}</span>
 									</NavLink>
 
 									{isFacilityManager && (
@@ -299,16 +325,14 @@ export default function Sidebar({ user, onLogout }) {
 									{isAdmin && (
 										<>
 											<NavLink
-												to="/fm/access-levels"
+												to="/admin/map"
 												className={({ isActive }) =>
 													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
 												}
-												title={
-													sidebarCollapsed ? "Phân quyền truy cập" : undefined
-												}
+												title={sidebarCollapsed ? "Quản lý bản đồ" : undefined}
 											>
-												<ShieldCheck size={18} />
-												<span>Phân quyền truy cập</span>
+												<Compass size={18} />
+												<span>Quản lý bản đồ</span>
 											</NavLink>
 											<NavLink
 												to="/admin/accounts"
@@ -336,9 +360,21 @@ export default function Sidebar({ user, onLogout }) {
 													<Sliders size={18} />
 													<span>Cấu hình hệ thống</span>
 												</NavLink>
-							</div>
-						</>
-					)}
+												<NavLink
+													to="/admin/reason-catalogs"
+													className={({ isActive }) =>
+														`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
+													}
+													title={
+														sidebarCollapsed ? "Danh mục lý do" : undefined
+													}
+												>
+													<Tag size={18} />
+													<span>Danh mục lý do</span>
+												</NavLink>
+											</div>
+										</>
+									)}
 								</div>
 							)}
 						</>

@@ -14,10 +14,33 @@ public class AreaException extends RuntimeException {
         this.args = args;
     }
 
+    public AreaException(AreaErrorCode errorCode, String customMessage) {
+        super(customMessage != null ? customMessage : errorCode.getMessageTemplate());
+        this.errorCode = errorCode;
+        this.args = new Object[]{customMessage};
+    }
+
     private static String formatMessage(AreaErrorCode errorCode, Object[] args) {
-        if (args != null && args.length > 0 && errorCode.getMessageTemplate().contains("{n}")) {
-            return errorCode.getMessageTemplate().replace("{n}", String.valueOf(args[0]));
+        if (errorCode == null || errorCode.getMessageTemplate() == null) {
+            return "";
         }
-        return errorCode.getMessageTemplate();
+        String template = errorCode.getMessageTemplate();
+        if (args == null || args.length == 0) {
+            return template;
+        }
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("\\{[A-Za-z0-9_]+\\}");
+        java.util.regex.Matcher matcher = pattern.matcher(template);
+        StringBuffer sb = new StringBuffer();
+        int argIndex = 0;
+        while (matcher.find()) {
+            if (argIndex < args.length && args[argIndex] != null) {
+                matcher.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(String.valueOf(args[argIndex])));
+                argIndex++;
+            } else {
+                matcher.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(matcher.group()));
+            }
+        }
+        matcher.appendTail(sb);
+        return sb.toString();
     }
 }

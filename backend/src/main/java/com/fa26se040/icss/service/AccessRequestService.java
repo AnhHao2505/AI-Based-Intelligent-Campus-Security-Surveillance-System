@@ -17,11 +17,16 @@ import com.fa26se040.icss.enums.NotificationType;
 import com.fa26se040.icss.enums.RequestStatus;
 import com.fa26se040.icss.enums.RequestType;
 import com.fa26se040.icss.enums.Role;
+import com.fa26se040.icss.context.AuditContext;
+import com.fa26se040.icss.dto.accesscontrol.snapshot.AccessRequestSnapshot;
+import com.fa26se040.icss.enums.AuditAction;
+import com.fa26se040.icss.enums.AuditTargetType;
 import com.fa26se040.icss.exception.ConcurrentReviewException;
 import com.fa26se040.icss.exception.DuplicateResourceException;
 import com.fa26se040.icss.exception.ResourceNotFoundException;
 import com.fa26se040.icss.exception.UnauthorizedException;
 import com.fa26se040.icss.repository.AccessRequestRepository;
+import com.fa26se040.icss.repository.AccessRequestSpecification;
 import com.fa26se040.icss.repository.AreaRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import com.fa26se040.icss.security.MemberLookupRateLimiter;
@@ -29,7 +34,10 @@ import com.fa26se040.icss.util.StringNormalizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -64,6 +72,7 @@ public class AccessRequestService {
     private final InAppNotificationService inAppNotificationService;
     private final SystemConfigService systemConfigService;
     private final MemberLookupRateLimiter memberLookupRateLimiter;
+    private final AuditService auditService;
 
     @Transactional
     public AccessRequestResponse createIndividualRequest(IndividualAccessRequestCreateRequest request, String actorEmail) {
@@ -73,6 +82,7 @@ public class AccessRequestService {
         Area area = getArea(request.areaId());
 
         validateCommonRules(area, request.startTime(), request.endTime());
+        validateAccessLevels(area, List.of(requester));
 
         // Validate overlap for requester only
         validateNoOverlap(area.getId(), request.startTime(), request.endTime(), List.of(requester));
@@ -90,6 +100,18 @@ public class AccessRequestService {
 
         AccessRequest saved = accessRequestRepository.save(accessRequest);
         log.info("Individual access request created with id: {}", saved.getId());
+
+        auditService.record(
+                AuditTargetType.ACCESS_REQUEST,
+                AuditAction.CREATE,
+                saved.getId().toString(),
+                saved.getArea(),
+                saved.getRequester(),
+                null,
+                AccessRequestSnapshot.from(saved),
+                null,
+                requester
+        );
 
         // Bắn thông báo NEW_REQUEST_PENDING cho tất cả FACILITY_MANAGER
         try {
@@ -127,6 +149,7 @@ public class AccessRequestService {
         List<User> allParticipants = new ArrayList<>();
         allParticipants.add(requester);
         allParticipants.addAll(memberUsers);
+        validateAccessLevels(area, allParticipants);
         validateNoOverlap(area.getId(), request.startTime(), request.endTime(), allParticipants);
 
         AccessRequest accessRequest = AccessRequest.builder()
@@ -150,6 +173,18 @@ public class AccessRequestService {
 
         AccessRequest saved = accessRequestRepository.save(accessRequest);
         log.info("Group access request created with id: {} and {} members", saved.getId(), memberUsers.size());
+
+        auditService.record(
+                AuditTargetType.ACCESS_REQUEST,
+                AuditAction.CREATE,
+                saved.getId().toString(),
+                saved.getArea(),
+                saved.getRequester(),
+                null,
+                AccessRequestSnapshot.from(saved),
+                null,
+                requester
+        );
 
         // Bắn thông báo ADDED_TO_GROUP cho members và NEW_REQUEST_PENDING cho FMs
         try {
@@ -248,16 +283,39 @@ public class AccessRequestService {
     }
 
     @Transactional(readOnly = true)
-    public Page<AccessRequestResponse> getMyRequests(String actorEmail, RequestStatus status, Pageable pageable) {
+    public Page<AccessRequestResponse> getMyRequests(String actorEmail, RequestStatus status, UUID areaId, Pageable pageable) {
         User requester = getRequester(actorEmail);
-        Page<AccessRequest> page = accessRequestRepository.findMyRequests(requester.getId(), status, pageable);
+        Pageable effectivePageable = pageable;
+        if (pageable.getSort().isUnsorted()) {
+            effectivePageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by(Sort.Direction.DESC, "createdAt"));
+        }
+        Specification<AccessRequest> spec = AccessRequestSpecification.filter(requester.getId(), status, areaId);
+        Page<AccessRequest> page = accessRequestRepository.findAll(spec, effectivePageable);
+        return page.map(ar -> {
+            boolean isReq = ar.getRequester() != null && requester.getId().equals(ar.getRequester().getId());
+            return mapToResponse(ar, isReq);
+        });
+    }
+
+    @Transactional(readOnly = true)
+    public Page<AccessRequestResponse> getMyRequests(String actorEmail, RequestStatus status, Pageable pageable) {
+        return getMyRequests(actorEmail, status, null, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<AccessRequestResponse> getAllRequests(RequestStatus status, UUID areaId, Pageable pageable) {
+        Pageable effectivePageable = pageable;
+        if (pageable.getSort().isUnsorted()) {
+            effectivePageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by(Sort.Direction.DESC, "createdAt"));
+        }
+        Specification<AccessRequest> spec = AccessRequestSpecification.filter(null, status, areaId);
+        Page<AccessRequest> page = accessRequestRepository.findAll(spec, effectivePageable);
         return page.map(this::mapToResponse);
     }
 
     @Transactional(readOnly = true)
     public Page<AccessRequestResponse> getAllRequests(RequestStatus status, Pageable pageable) {
-        Page<AccessRequest> page = accessRequestRepository.findAllRequests(status, pageable);
-        return page.map(this::mapToResponse);
+        return getAllRequests(status, null, pageable);
     }
 
     @Transactional(readOnly = true)
@@ -291,6 +349,46 @@ public class AccessRequestService {
             if (reviewRequest.rejectionReason() == null || reviewRequest.rejectionReason().trim().isEmpty()) {
                 throw new IllegalArgumentException("Vui lòng cung cấp lý do từ chối yêu cầu");
             }
+            int len = reviewRequest.rejectionReason().trim().length();
+            if (len < 10 || len > 500) {
+                throw new IllegalArgumentException("Lý do từ chối phải có từ 10 đến 500 ký tự");
+            }
+        }
+
+        // BR-RQ-02: Kiểm tra lại cấp độ truy cập và cấu hình nhóm khi FM phê duyệt (APPROVED)
+        if (reviewRequest.status() == RequestStatus.APPROVED) {
+            AccessRequest pendingReq = accessRequestRepository.findByIdWithDetails(id)
+                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu truy cập với mã: " + id));
+
+            if (pendingReq.getStatus() == RequestStatus.PENDING) {
+                Area currentArea = areaRepository.findById(pendingReq.getArea().getId())
+                        .orElse(pendingReq.getArea());
+
+                boolean groupAllowedInPrivate = systemConfigService.getBoolean(ConfigKey.ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE);
+                if (pendingReq.getRequestType() == RequestType.GROUP
+                        && currentArea.getAreaLevel() == AreaLevel.HIGHLY_CONFIDENTIAL
+                        && !groupAllowedInPrivate) {
+                    throw new IllegalArgumentException("Khu vực bảo mật cao (HIGHLY_CONFIDENTIAL) không cho phép duyệt đơn truy cập nhóm (GROUP)");
+                }
+
+                List<User> participants = new ArrayList<>();
+                if (pendingReq.getRequester() != null) {
+                    User freshRequester = userRepository.findById(pendingReq.getRequester().getId())
+                            .orElse(pendingReq.getRequester());
+                    participants.add(freshRequester);
+                }
+                if (pendingReq.getMembers() != null) {
+                    for (AccessRequestMember m : pendingReq.getMembers()) {
+                        if (m.getUser() != null) {
+                            User freshMember = userRepository.findById(m.getUser().getId())
+                                    .orElse(m.getUser());
+                            participants.add(freshMember);
+                        }
+                    }
+                }
+
+                validateAccessLevels(currentArea, participants);
+            }
         }
 
         // 2. Lấy thông tin reviewer từ actorEmail
@@ -301,6 +399,10 @@ public class AccessRequestService {
         String rejectionReason = reviewRequest.status() == RequestStatus.REJECTED
                 ? reviewRequest.rejectionReason().trim()
                 : null;
+
+        AccessRequest beforeReq = accessRequestRepository.findByIdWithDetails(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu truy cập với mã: " + id));
+        AccessRequestSnapshot beforeSnapshot = AccessRequestSnapshot.from(beforeReq);
 
         // 3. Conditional UPDATE nguyên tử tại database (single source of truth)
         int updatedCount = accessRequestRepository.reviewIfPending(
@@ -322,6 +424,23 @@ public class AccessRequestService {
             AccessRequest updated = accessRequestRepository.findByIdWithDetails(id)
                     .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu truy cập với mã: " + id));
             log.info("Access request {} reviewed: {}", updated.getId(), updated.getStatus());
+
+            AccessRequestSnapshot afterSnapshot = AccessRequestSnapshot.from(updated);
+            AuditAction auditAction = reviewRequest.status() == RequestStatus.APPROVED
+                    ? AuditAction.APPROVE
+                    : AuditAction.REJECT;
+
+            auditService.record(
+                    AuditTargetType.ACCESS_REQUEST,
+                    auditAction,
+                    updated.getId().toString(),
+                    updated.getArea(),
+                    updated.getRequester(),
+                    beforeSnapshot,
+                    afterSnapshot,
+                    rejectionReason,
+                    reviewer
+            );
 
             try {
                 List<User> recipients = new ArrayList<>();
@@ -393,6 +512,8 @@ public class AccessRequestService {
             throw new AccessDeniedException("Bạn không có quyền huỷ yêu cầu truy cập này");
         }
 
+        AccessRequestSnapshot beforeSnapshot = AccessRequestSnapshot.from(accessRequest);
+
         // 2. Conditional UPDATE nguyên tử (XOÁ HOÀN TOÀN pre-check status != PENDING)
         OffsetDateTime now = OffsetDateTime.now();
         int updatedCount = accessRequestRepository.cancelIfPending(
@@ -407,9 +528,24 @@ public class AccessRequestService {
             // [RÀNG BUỘC NOTIFICATION / SIDE-EFFECTS]:
             // Mọi tác vụ phát sinh (gửi thông báo, email, Kafka event, v.v.)
             // CHỈ ĐƯỢC THỰC HIỆN TẠI ĐÂY. Tuyệt đối không thực hiện ở nhánh 409.
+            // Step 5b (BR-TC-15): người dùng tự huỷ -> cancel_source USER, cancelled_by = người huỷ
+            accessRequestRepository.recordCancellation(
+                    id, com.fa26se040.icss.enums.CancelSource.USER, accessRequest.getRequester(), null, RequestStatus.CANCELLED);
             AccessRequest updated = accessRequestRepository.findByIdWithDetails(id)
                     .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu truy cập với mã: " + id));
             log.info("Access request {} cancelled by requester", updated.getId());
+
+            auditService.record(
+                    AuditTargetType.ACCESS_REQUEST,
+                    AuditAction.CANCEL,
+                    updated.getId().toString(),
+                    updated.getArea(),
+                    updated.getRequester(),
+                    beforeSnapshot,
+                    AccessRequestSnapshot.from(updated),
+                    null,
+                    accessRequest.getRequester()
+            );
 
             try {
                 if (updated.getRequestType() == RequestType.GROUP && updated.getMembers() != null && !updated.getMembers().isEmpty()) {
@@ -453,44 +589,97 @@ public class AccessRequestService {
     @Scheduled(cron = "${icss.scheduler.expire-overdue-cron:0 */15 * * * *}")
     @Transactional
     public int expireOverdueRequests() {
-        OffsetDateTime now = OffsetDateTime.now();
+        return AuditContext.runAsSystem("EXPIRE_OVERDUE_REQUESTS_JOB", () -> {
+            OffsetDateTime now = OffsetDateTime.now();
 
-        // 1. Lấy danh sách các request PENDING sắp bị expire TRƯỚC KHI bulk update để biết gửi thông báo cho ai
-        List<AccessRequest> pendingOverdueRequests = List.of();
-        try {
-            pendingOverdueRequests = accessRequestRepository.findPendingOverdueRequests(RequestStatus.PENDING, now);
-        } catch (Exception e) {
-            log.error("Failed to fetch pending overdue requests before expiring", e);
-        }
-
-        // 2. Thực hiện bulk update chuyển sang EXPIRED
-        int count = accessRequestRepository.expireOverdueRequests(
-                RequestStatus.PENDING,
-                RequestStatus.EXPIRED,
-                now
-        );
-        if (count > 0) {
-            log.info("Expired {} overdue pending access requests at {}", count, now);
-        }
-
-        // 3. Gửi thông báo ACCESS_DENIED cho requester của từng request bị expire
-        if (!pendingOverdueRequests.isEmpty()) {
-            for (AccessRequest req : pendingOverdueRequests) {
-                try {
-                    if (req.getRequester() != null) {
-                        String areaName = req.getArea() != null ? req.getArea().getName() : "khu vực";
-                        String timeRange = InAppNotificationService.formatTimeRange(req.getStartTime(), req.getEndTime());
-                        String title = "Yêu cầu truy cập đã hết hạn";
-                        String message = "Yêu cầu vào " + areaName + " (" + timeRange + ") đã hết hạn do không được xử lý trước giờ bắt đầu.";
-                        inAppNotificationService.createForUser(req.getRequester(), NotificationType.ACCESS_DENIED, title, message, req.getId());
-                    }
-                } catch (Exception e) {
-                    log.error("Failed to send ACCESS_DENIED notification for expired request {}", req.getId(), e);
-                }
+            // 1. Khoá (PESSIMISTIC_WRITE) đúng các đơn sẽ bị expire. Lỗi ở bước này phải ném ra để
+            //    cả transaction rollback: không được expire đơn nào khi chưa ghi được audit (LA4).
+            List<AccessRequest> overdueRequests = accessRequestRepository
+                    .findPendingOverdueRequestsForUpdate(RequestStatus.PENDING, now);
+            if (overdueRequests == null || overdueRequests.isEmpty()) {
+                return 0;
             }
-        }
 
-        return count;
+            // 2. Chỉ update theo danh sách id đã khoá -> tập bị EXPIRED trùng khớp tập được ghi audit
+            List<UUID> ids = overdueRequests.stream().map(AccessRequest::getId).toList();
+            int count = accessRequestRepository.expireOverdueRequestsByIds(
+                    ids,
+                    RequestStatus.PENDING,
+                    RequestStatus.EXPIRED,
+                    now
+            );
+            if (count != ids.size()) {
+                log.error("Expire overdue requests mismatch: locked {} but updated {} — rolling back", ids.size(), count);
+                throw new IllegalStateException("Số đơn cập nhật (" + count + ") khác số đơn đã khoá (" + ids.size() + ")");
+            }
+            log.info("Expired {} overdue pending access requests at {}", count, now);
+
+            // 3. Ghi audit cho đúng các đơn đã expire (cùng transaction; lỗi -> rollback toàn bộ)
+            for (AccessRequest req : overdueRequests) {
+                AccessRequestSnapshot beforeSnapshot = AccessRequestSnapshot.from(req);
+                AccessRequestSnapshot afterSnapshot = new AccessRequestSnapshot(
+                        req.getId(),
+                        req.getRequestType() != null ? req.getRequestType().name() : null,
+                        RequestStatus.EXPIRED.name(),
+                        req.getArea() != null ? req.getArea().getId() : null,
+                        req.getRequester() != null ? req.getRequester().getId() : null,
+                        req.getStartTime(),
+                        req.getEndTime(),
+                        req.getPurpose(),
+                        req.getRejectionReason()
+                );
+
+                auditService.record(
+                        AuditTargetType.ACCESS_REQUEST,
+                        AuditAction.EXPIRE,
+                        req.getId().toString(),
+                        req.getArea(),
+                        req.getRequester(),
+                        beforeSnapshot,
+                        afterSnapshot,
+                        "Hết hạn tự động do quá giờ bắt đầu"
+                );
+            }
+
+            // 4. Thông báo chỉ gửi SAU KHI commit thành công -> không báo "đã hết hạn" cho đơn bị rollback
+            List<ExpiredNotice> notices = overdueRequests.stream()
+                    .filter(req -> req.getRequester() != null)
+                    .map(req -> new ExpiredNotice(
+                            req.getRequester(),
+                            req.getId(),
+                            req.getArea() != null ? req.getArea().getName() : "khu vực",
+                            InAppNotificationService.formatTimeRange(req.getStartTime(), req.getEndTime())))
+                    .toList();
+            runAfterCommit(() -> notices.forEach(this::sendExpiredNotice));
+
+            return count;
+        });
+    }
+
+    private record ExpiredNotice(User requester, UUID requestId, String areaName, String timeRange) {}
+
+    private void sendExpiredNotice(ExpiredNotice n) {
+        try {
+            String title = "Yêu cầu truy cập đã hết hạn";
+            String message = "Yêu cầu vào " + n.areaName() + " (" + n.timeRange() + ") đã hết hạn do không được xử lý trước giờ bắt đầu.";
+            inAppNotificationService.createForUser(n.requester(), NotificationType.ACCESS_DENIED, title, message, n.requestId());
+        } catch (Exception e) {
+            log.error("Failed to send ACCESS_DENIED notification for expired request {}", n.requestId(), e);
+        }
+    }
+
+    private void runAfterCommit(Runnable action) {
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            action.run();
+                        }
+                    });
+        } else {
+            action.run();
+        }
     }
 
     private User getRequester(String actorEmail) {
@@ -524,11 +713,25 @@ public class AccessRequestService {
             throw new AccessDeniedException("Bạn không có quyền chuyển yêu cầu truy cập này sang Hoàn thành.");
         }
 
+        AccessRequestSnapshot beforeSnapshot = AccessRequestSnapshot.from(accessRequest);
+
         accessRequest.setStatus(RequestStatus.FINISHED);
         accessRequest.setUpdatedAt(OffsetDateTime.now());
 
         AccessRequest updated = accessRequestRepository.save(accessRequest);
         log.info("Access request {} marked as FINISHED", updated.getId());
+
+        auditService.record(
+                AuditTargetType.ACCESS_REQUEST,
+                AuditAction.FINISH,
+                updated.getId().toString(),
+                updated.getArea(),
+                updated.getRequester(),
+                beforeSnapshot,
+                AccessRequestSnapshot.from(updated),
+                null,
+                actor
+        );
 
         return mapToResponse(updated);
     }
@@ -556,6 +759,26 @@ public class AccessRequestService {
         long durationMinutes = Duration.between(startTime, endTime).toMinutes();
         if (durationMinutes > (long) maxDurationHours * 60) {
             throw new IllegalArgumentException("Thời lượng truy cập tối đa không quá " + maxDurationHours + " giờ");
+        }
+    }
+
+    private void validateAccessLevels(Area area, List<User> participants) {
+        if (area.getAreaAccessLevel() == null || participants == null || participants.isEmpty()) {
+            return;
+        }
+        int requiredLevel = area.getAreaAccessLevel();
+        List<String> unqualified = new ArrayList<>();
+        for (User user : participants) {
+            int userLevel = user.getAccessLevel() != null ? user.getAccessLevel() : 1;
+            if (userLevel < requiredLevel) {
+                unqualified.add(user.getFullName() + " (" + user.getUserCode() + ")");
+            }
+        }
+        if (!unqualified.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Người dùng không đủ cấp độ truy cập vào khu vực (yêu cầu Level " + requiredLevel + "): "
+                            + String.join(", ", unqualified)
+            );
         }
     }
 
@@ -640,6 +863,10 @@ public class AccessRequestService {
     }
 
     private AccessRequestResponse mapToResponse(AccessRequest ar) {
+        return mapToResponse(ar, null);
+    }
+
+    private AccessRequestResponse mapToResponse(AccessRequest ar, Boolean isRequester) {
         List<MemberInfo> memberInfos = List.of();
         if (ar.getMembers() != null && !ar.getMembers().isEmpty()) {
             memberInfos = ar.getMembers().stream()
@@ -654,7 +881,6 @@ public class AccessRequestService {
         return new AccessRequestResponse(
                 ar.getId(),
                 ar.getArea() != null ? ar.getArea().getId() : null,
-                ar.getArea() != null ? ar.getArea().getCode() : null,
                 ar.getArea() != null ? ar.getArea().getName() : null,
                 ar.getArea() != null ? ar.getArea().getAreaLevel() : null,
                 ar.getArea() != null ? ar.getArea().getBuilding() : null,
@@ -675,7 +901,11 @@ public class AccessRequestService {
                 ar.getRejectionReason(),
                 memberInfos,
                 ar.getCreatedAt(),
-                ar.getUpdatedAt()
+                ar.getUpdatedAt(),
+                isRequester,
+                ar.getCancelSource(),
+                ar.getCancelReason(),
+                ar.getCancelledBy() != null ? ar.getCancelledBy().getId() : null
         );
     }
 }

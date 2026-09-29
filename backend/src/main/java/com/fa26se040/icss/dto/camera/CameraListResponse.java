@@ -19,4 +19,8 @@ public class CameraListResponse {
     private String name;
     private CameraStatus status;
     private OperationalStatus operationalStatus;
+    private UUID areaId;
+    private String areaName;
+    private String building;
+    private String floor;
 }

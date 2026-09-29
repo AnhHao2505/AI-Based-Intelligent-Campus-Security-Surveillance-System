@@ -9,9 +9,8 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.JoinTable;
-import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -48,9 +47,6 @@ public class Area {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "code", nullable = false, length = 50)
-    private String code;
-
     @Column(name = "name", nullable = false, length = 150)
     private String name;
 
@@ -67,6 +63,13 @@ public class Area {
     @Builder.Default
     private Boolean explicitAuthorizationRequired = true;
 
+    @Column(name = "open_to_members", nullable = false)
+    @Builder.Default
+    private Boolean openToMembers = false;
+
+    @Column(name = "open_until")
+    private OffsetDateTime openUntil;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "floor_id")
     private Floor floorEntity;
@@ -77,12 +80,15 @@ public class Area {
     @Column(name = "floor", length = 20)
     private String floor;
 
-    @Column(name = "description", columnDefinition = "TEXT")
-    private String description;
-
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "geometry", columnDefinition = "jsonb")
     private AreaGeometry geometry;
+
+    @Column(name = "center_latitude")
+    private Double centerLatitude;
+
+    @Column(name = "center_longitude")
+    private Double centerLongitude;
 
     @Column(name = "is_active", nullable = false)
     @Builder.Default
@@ -97,12 +103,15 @@ public class Area {
     @Column(name = "deleted_at")
     private OffsetDateTime deletedAt;
 
-    @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(
-        name = "area_cameras",
-        joinColumns = @JoinColumn(name = "area_id"),
-        inverseJoinColumns = @JoinColumn(name = "camera_id")
-    )
+    /**
+     * Step 5b (BR-TC-13): tăng đúng 1 mỗi lần dòng areas thay đổi thật (AreaService quản lý, không dùng @Version
+     * vì AuditService.saveAndFlush có thể flush nhiều lần trong một thao tác).
+     */
+    @Column(name = "version", nullable = false)
+    @Builder.Default
+    private Long version = 0L;
+
+    @OneToMany(mappedBy = "area", fetch = FetchType.LAZY)
     @Builder.Default
     private Set<Camera> cameras = new HashSet<>();
 
@@ -118,6 +127,9 @@ public class Area {
         if (isActive == null) {
             isActive = true;
         }
+        if (version == null) {
+            version = 0L;
+        }
     }
 
     @PreUpdate
@@ -131,6 +143,11 @@ public class Area {
         if (o == null || getClass() != o.getClass()) return false;
         Area area = (Area) o;
         return id != null && Objects.equals(id, area.id);
+    }
+
+    public boolean isEventActive(OffsetDateTime at) {
+        if (at == null) return false;
+        return Boolean.TRUE.equals(openToMembers) && openUntil != null && at.isBefore(openUntil);
     }
 
     @Override

@@ -38,11 +38,12 @@ export const accessRequestService = {
 
   /**
    * Lấy danh sách yêu cầu của bản thân người dùng đăng nhập
-   * @param {Object} params - { status, page, size }
+   * @param {Object} params - { status, areaId, page, size }
    */
-  async getMyRequests({ status, page = 0, size = 10 } = {}) {
+  async getMyRequests({ status, areaId, page = 0, size = 10 } = {}) {
     const query = new URLSearchParams();
     if (status) query.append('status', status);
+    if (areaId) query.append('areaId', areaId);
     query.append('page', page);
     query.append('size', size);
     return await apiGet(`/api/access-requests/my?${query.toString()}`);
@@ -50,11 +51,12 @@ export const accessRequestService = {
 
   /**
    * Dành cho FM / Quản trị viên: Lấy tất cả yêu cầu để phê duyệt
-   * @param {Object} params - { status, page, size }
+   * @param {Object} params - { status, areaId, page, size }
    */
-  async getAllRequests({ status, page = 0, size = 10 } = {}) {
+  async getAllRequests({ status, areaId, page = 0, size = 10 } = {}) {
     const query = new URLSearchParams();
     if (status) query.append('status', status);
+    if (areaId) query.append('areaId', areaId);
     query.append('page', page);
     query.append('size', size);
     return await apiGet(`/api/access-requests?${query.toString()}`);

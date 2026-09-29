@@ -11,6 +11,7 @@ import {
   sendResetLink,
   resetPasswordWithToken
 } from '../services/authService';
+import { DEMO_LOGIN_ENABLED } from '../config/demoConfig';
 import '../styles/LoginPage.css';
 
 const credentialSchema = z.object({
@@ -70,6 +71,10 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
   };
 
   const handleRoleBypass = (role) => {
+    if (!DEMO_LOGIN_ENABLED) {
+      setError('Tính năng đăng nhập bypass demo đã bị vô hiệu hóa.');
+      return;
+    }
     setError(null);
     loginAsDemoRole(role);
     if (onLoginSuccess) onLoginSuccess();
@@ -373,21 +378,23 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
         </p>
 
         {/* Role badges */}
-        <div className="login-card__roles">
-          {Object.entries(ROLE_LABELS).map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              className="login-card__role-badge"
-              onClick={() => handleRoleBypass(key)}
-              disabled={loading}
-              aria-label={`Đăng nhập bypass với vai trò ${label}`}
-              title={`Đăng nhập bypass: ${label}`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        {DEMO_LOGIN_ENABLED && (
+          <div className="login-card__roles">
+            {Object.entries(ROLE_LABELS).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                className="login-card__role-badge"
+                onClick={() => handleRoleBypass(key)}
+                disabled={loading}
+                aria-label={`Đăng nhập bypass với vai trò ${label}`}
+                title={`Đăng nhập bypass: ${label}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <footer className="login-footer">

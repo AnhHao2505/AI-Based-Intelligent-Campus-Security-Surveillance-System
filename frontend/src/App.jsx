@@ -10,6 +10,7 @@ import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import UnauthorizedPage from "./pages/UnauthorizedPage";
 import AreaListPage from "./pages/areas/AreaListPage";
+import CampusMapPage from "./pages/areas/CampusMapPage";
 import CameraListPage from "./pages/cameras/CameraListPage";
 import CameraDetailPage from "./pages/cameras/CameraDetailPage";
 import GuardDashboardPage from "./pages/guard/GuardDashboardPage";
@@ -19,9 +20,10 @@ import AccessHistoryPage from "./pages/accessHistory/AccessHistoryPage";
 import NotificationsPage from "./pages/notifications/NotificationsPage";
 import ManageAccountPage from "./pages/accounts/ManageAccountPage";
 import SystemConfigPage from "./pages/system/SystemConfigPage";
-import UiKitPage from "./pages/_devPreview/UiKitPage";
 import GuardTeamManagementPage from "./pages/guardTeams/GuardTeamManagementPage";
+import ReasonCatalogPage from "./pages/system/ReasonCatalogPage";
 import UserAccessLevelPage from "./pages/accessControl/UserAccessLevelPage";
+import DemoModeBanner from "./components/common/DemoModeBanner";
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
 
@@ -44,8 +46,8 @@ const ROUTE_TITLES = {
 	"/admin/access-levels": "Phân quyền Truy cập",
 	"/admin/system-configurations": "Cấu hình Hệ thống",
 	"/login": "Đăng nhập",
+	"/admin/reason-catalogs": "Danh mục Lý do",
 	"/unauthorized": "Không có quyền truy cập",
-	"/dev/ui-kit": "UI Kit",
 };
 
 function getPageTitle(pathname) {
@@ -114,6 +116,7 @@ function App() {
 		<GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
 			<ThemeProvider>
 				<AuthProvider>
+					<DemoModeBanner />
 					<Routes>
 						{/* Public Routes */}
 						<Route
@@ -128,10 +131,6 @@ function App() {
 						<Route
 							path="/unauthorized"
 							element={<UnauthorizedPage />}
-						/>
-						<Route
-							path="/dev/ui-kit"
-							element={<UiKitPage />}
 						/>
 
 						{/* Authenticated Management Routes using shared AppLayout */}
@@ -152,6 +151,17 @@ function App() {
 							/>
 
 							<Route
+								path="/admin/map"
+								element={
+									<ProtectedRoute
+										allowedRoles={[ROLES.ADMIN]}
+									>
+										<CampusMapPage />
+									</ProtectedRoute>
+								}
+							/>
+
+							<Route
 								path="/admin/areas"
 								element={
 									<ProtectedRoute
@@ -166,7 +176,7 @@ function App() {
 								path="/admin/areas/map"
 								element={
 									<Navigate
-										to="/admin/areas?view=map"
+										to="/admin/map"
 										replace
 									/>
 								}
@@ -257,7 +267,8 @@ function App() {
 									<ProtectedRoute
 										allowedRoles={[
 											ROLES.NORMAL_USER,
-											ROLES.FACILITY_MANAGER
+											ROLES.FACILITY_MANAGER,
+											ROLES.GUARD
 										]}
 									>
 										<NotificationsPage />
@@ -278,7 +289,7 @@ function App() {
 								path="/fm/access-levels"
 								element={
 									<ProtectedRoute
-										allowedRoles={[ROLES.FACILITY_MANAGER, ROLES.ADMIN]}
+										allowedRoles={[ROLES.FACILITY_MANAGER]}
 									>
 										<UserAccessLevelPage />
 									</ProtectedRoute>
@@ -296,6 +307,14 @@ function App() {
 								element={
 									<ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
 										<SystemConfigPage />
+									</ProtectedRoute>
+								}
+							/>
+							<Route
+								path="/admin/reason-catalogs"
+								element={
+									<ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+										<ReasonCatalogPage />
 									</ProtectedRoute>
 								}
 							/>

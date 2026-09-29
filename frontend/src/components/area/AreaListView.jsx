@@ -7,9 +7,26 @@ import {
 	ShieldCheck,
 	Users,
 	Pencil,
-	Trash2,
+	Ban,
 } from "lucide-react";
-import { getLevelConfig, AREA_LEVEL_CONFIG } from "../../utils/areaHelpers";
+import { getLevelConfig, getAccessLevelConfig, AREA_LEVEL_CONFIG } from "../../utils/areaHelpers";
+
+const formatEventUntil = (openUntil) => {
+	if (!openUntil) return "";
+	const d = new Date(openUntil);
+	const timeStr = d.toLocaleTimeString("vi-VN", {
+		hour: "2-digit",
+		minute: "2-digit",
+	});
+	const today = new Date();
+	const isToday =
+		d.getDate() === today.getDate() &&
+		d.getMonth() === today.getMonth() &&
+		d.getFullYear() === today.getFullYear();
+	return isToday
+		? timeStr
+		: `${timeStr} (${d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" })})`;
+};
 
 export default function AreaListView({
 	floorAreas,
@@ -73,15 +90,31 @@ export default function AreaListView({
 											{levelConfig.badgeLabel}
 										</span>
 										<span
-											className="zone-card__pill-level"
+											className={getAccessLevelConfig(area.areaAccessLevel).className}
 											title="Cấp độ người dùng tối thiểu để vào tự do"
 										>
-											Level {area.areaAccessLevel ?? 1}
+											{getAccessLevelConfig(area.areaAccessLevel).label}
 										</span>
+										{area.explicitAuthorizationRequired && (
+											<span
+												className="zone-card__pill-explicit"
+												title="Khu vực bắt buộc chỉ định nhân sự đích danh"
+											>
+												Chỉ định
+											</span>
+										)}
 										{area.differsFromPreset && (
 											<span
 												className="zone-card__pill-differs"
 												title="Quy tắc truy cập của khu vực này khác với giá trị mặc định của loại khu vực"
+											>
+												Khác mặc định
+											</span>
+										)}
+										{area.eventActive && area.openUntil && (
+											<span
+												className="zone-card__pill-event"
+												title={`Chế độ sự kiện đang mở đến ${formatEventUntil(area.openUntil)}`}
 												style={{
 													display: "inline-flex",
 													alignItems: "center",
@@ -89,19 +122,27 @@ export default function AreaListView({
 													borderRadius: "12px",
 													fontSize: "11px",
 													fontWeight: 600,
-													background: "rgba(234, 88, 12, 0.12)",
-													color: "var(--theme-warning, #ea580c)",
-													border: "1px solid rgba(234, 88, 12, 0.3)",
+													background: "rgba(147, 51, 234, 0.12)",
+													color: "#9333ea",
+													border: "1px solid rgba(147, 51, 234, 0.3)",
 												}}
 											>
-												Khác mặc định
+												Đang mở sự kiện đến {formatEventUntil(area.openUntil)}
+											</span>
+										)}
+										{area.upcomingScheduleCount > 0 && (
+											<span
+												className="zone-card__pill-schedule"
+												title="Số lịch sự kiện đã đặt, chưa bắt đầu"
+											>
+												{area.upcomingScheduleCount} lịch sự kiện
 											</span>
 										)}
 									</div>
 								</div>
 
 								<h3 className="zone-card__title">{area.name}</h3>
-								<div className="zone-card__code">{area.code}</div>
+
 
 								<div className="zone-card__footer">
 									<div
@@ -139,24 +180,40 @@ export default function AreaListView({
 												onOpenCamerasModal(area);
 											}}
 											title="Xem danh sách Camera"
+											aria-label="Xem danh sách Camera"
 										>
 											<Cctv size={13} />
 										</button>
 
-										{isFacilityManager &&
-											levelKey !== "PUBLIC" && (
-												<button
-													type="button"
-													className="zone-card__quick-btn"
-													onClick={(e) => {
-														e.stopPropagation();
-														onOpenAssignedPersonnelModal(area);
-													}}
-													title="Danh sách nhân viên chỉ định"
-												>
-													<Users size={13} />
-												</button>
-											)}
+										{isFacilityManager && (
+											<button
+												type="button"
+												className="zone-card__quick-btn"
+												onClick={(e) => {
+													e.stopPropagation();
+													onOpenAccessRulesModal(area);
+												}}
+												title="Cấu hình quy tắc truy cập"
+												aria-label="Cấu hình quy tắc truy cập"
+											>
+												<ShieldCheck size={13} />
+											</button>
+										)}
+
+										{isFacilityManager && levelKey !== "PUBLIC" && (
+											<button
+												type="button"
+												className="zone-card__quick-btn"
+												onClick={(e) => {
+													e.stopPropagation();
+													onOpenAssignedPersonnelModal(area);
+												}}
+												title="Danh sách nhân viên chỉ định"
+												aria-label="Danh sách nhân viên chỉ định"
+											>
+												<Users size={13} />
+											</button>
+										)}
 
 										{isAdmin && (
 											<>
@@ -166,9 +223,10 @@ export default function AreaListView({
 													onClick={(e) => {
 														e.stopPropagation();
 														onSelectArea(area.id);
-														onOpenEditModal();
+														onOpenEditModal(area);
 													}}
 													title="Sửa khu vực"
+													aria-label="Sửa khu vực"
 												>
 													<Pencil size={13} />
 												</button>
@@ -178,11 +236,12 @@ export default function AreaListView({
 													onClick={(e) => {
 														e.stopPropagation();
 														onSelectArea(area.id);
-														onOpenDeactivateModal();
+														onOpenDeactivateModal(area);
 													}}
 													title="Vô hiệu hoá"
+													aria-label="Vô hiệu hoá"
 												>
-													<Trash2 size={13} />
+													<Ban size={13} />
 												</button>
 											</>
 										)}
@@ -201,7 +260,7 @@ export default function AreaListView({
 					</div>
 					<div>
 						<h4 className="zone-list-info-banner__title">
-							Quy định Quyền Truy Cập
+							Quy định quyền truy cập
 						</h4>
 						<p className="zone-list-info-banner__subtitle">
 							Chi tiết về điều kiện ra vào
@@ -210,25 +269,30 @@ export default function AreaListView({
 				</div>
 
 				<div className="zone-list-info-banner__grid">
-					{['PUBLIC', 'INTERNAL_CONFIDENTIAL', 'CONFIDENTIAL_CONTACT_REQUIRED', 'HIGHLY_CONFIDENTIAL'].map((key) => {
+					{[
+						"PUBLIC",
+						"INTERNAL_CONFIDENTIAL",
+						"CONFIDENTIAL_CONTACT_REQUIRED",
+						"HIGHLY_CONFIDENTIAL",
+					].map((key) => {
 						const config = AREA_LEVEL_CONFIG[key] || getLevelConfig(key);
 						const preset = levelPresets?.[key];
 						const cardModifier =
-							key === 'PUBLIC'
-								? 'zone-list-info-banner__card--public'
-								: key === 'INTERNAL_CONFIDENTIAL'
-									? 'zone-list-info-banner__card--internal'
-									: key === 'CONFIDENTIAL_CONTACT_REQUIRED'
-										? 'zone-list-info-banner__card--contact'
-										: 'zone-list-info-banner__card--private';
+							key === "PUBLIC"
+								? "zone-list-info-banner__card--public"
+								: key === "INTERNAL_CONFIDENTIAL"
+									? "zone-list-info-banner__card--internal"
+									: key === "CONFIDENTIAL_CONTACT_REQUIRED"
+										? "zone-list-info-banner__card--contact"
+										: "zone-list-info-banner__card--private";
 
 						const hasLevel = preset && preset.areaAccessLevel != null;
 						const levelLabel = hasLevel
-							? `Level ${preset.areaAccessLevel}${preset.explicitAuthorizationRequired ? ' · Chỉ định' : '+'}`
+							? `${getAccessLevelConfig(preset.areaAccessLevel).label}${preset.explicitAuthorizationRequired ? " · Chỉ định" : "+"}`
 							: null;
 
 						let explicitTag = null;
-						if (key === 'PUBLIC') {
+						if (key === "PUBLIC") {
 							explicitTag = (
 								<span className="zone-list-info-banner__personnel-tag zone-list-info-banner__personnel-tag--none">
 									Không áp dụng
@@ -255,9 +319,14 @@ export default function AreaListView({
 						}
 
 						return (
-							<div key={key} className={`zone-list-info-banner__card ${cardModifier}`}>
+							<div
+								key={key}
+								className={`zone-list-info-banner__card ${cardModifier}`}
+							>
 								<div className="zone-list-info-banner__card-header">
-									<span className={`zone-list-info-banner__card-badge level-badge ${config.badgeClass}`}>
+									<span
+										className={`zone-list-info-banner__card-badge level-badge ${config.badgeClass}`}
+									>
 										{config.badgeLabel}
 									</span>
 									{levelLabel && (
@@ -284,14 +353,14 @@ export default function AreaListView({
 						className="zone-list-info-banner__footer-icon"
 					/>
 					<span>
-						<strong>Lưu ý về nút quản lý Nhân viên chỉ định:</strong> Biểu tượng
-						nút Nhân viên (
+						<strong>Lưu ý về nút quản lý Nhân sự chỉ định:</strong> Biểu tượng
+						nút Nhân sự (
 						<Users
 							size={12}
 							style={{ display: "inline", margin: "0 2px" }}
 						/>
 						) hiển thị trên thẻ của mọi phòng trừ loại{" "}
-						<strong>{AREA_LEVEL_CONFIG.PUBLIC.name} (PUBLIC)</strong> để cấp quyền ra vào cho nhân
+						<strong>{AREA_LEVEL_CONFIG.PUBLIC.name}</strong> để cấp quyền ra vào cho nhân
 						sự.
 					</span>
 				</div>

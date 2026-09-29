@@ -1,0 +1,1565 @@
+package com.fa26se040.icss.service;
+
+import com.fa26se040.icss.AbstractIntegrationTest;
+import com.fa26se040.icss.dto.accessdecision.AccessDecision;
+import com.fa26se040.icss.dto.area.AreaAccessRulesUpdateRequest;
+import com.fa26se040.icss.dto.area.AreaEventModeUpdateRequest;
+import com.fa26se040.icss.dto.area.AreaGeometry;
+import com.fa26se040.icss.dto.area.AreaResponse;
+import com.fa26se040.icss.dto.area.AreaUpdateRequest;
+import com.fa26se040.icss.entity.AuditLog;
+import com.fa26se040.icss.entity.Area;
+import com.fa26se040.icss.entity.AreaEventSession;
+import com.fa26se040.icss.entity.Building;
+import com.fa26se040.icss.entity.Floor;
+import com.fa26se040.icss.entity.Notification;
+import com.fa26se040.icss.entity.ReasonCatalog;
+import com.fa26se040.icss.entity.User;
+import com.fa26se040.icss.enums.AuditAction;
+import com.fa26se040.icss.enums.EventModeAction;
+import com.fa26se040.icss.enums.AuditTargetType;
+import com.fa26se040.icss.enums.AccessSource;
+import com.fa26se040.icss.enums.AreaLevel;
+import com.fa26se040.icss.enums.ConfigKey;
+import com.fa26se040.icss.enums.NotificationType;
+import com.fa26se040.icss.enums.Role;
+import com.fa26se040.icss.exception.AreaErrorCode;
+import com.fa26se040.icss.exception.AreaException;
+import com.fa26se040.icss.repository.AuditLogRepository;
+import com.fa26se040.icss.repository.AreaEventSessionRepository;
+import com.fa26se040.icss.repository.AreaRepository;
+import com.fa26se040.icss.repository.BuildingRepository;
+import com.fa26se040.icss.repository.FloorRepository;
+import com.fa26se040.icss.repository.NotificationRepository;
+import com.fa26se040.icss.repository.ReasonCatalogRepository;
+import com.fa26se040.icss.repository.UserRepository;
+import com.fa26se040.icss.security.JwtTokenProvider;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+
+import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+public class Step5aSupplement2Test extends AbstractIntegrationTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private JwtTokenProvider jwtTokenProvider;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private AreaRepository areaRepository;
+
+    @Autowired
+    private BuildingRepository buildingRepository;
+
+    @Autowired
+    private FloorRepository floorRepository;
+
+    @Autowired
+    private AuditLogRepository auditLogRepository;
+
+    @Autowired
+    private AreaEventSessionRepository sessionRepository;
+
+    @Autowired
+    private ReasonCatalogRepository reasonCatalogRepository;
+
+    @Autowired
+    private NotificationRepository notificationRepository;
+
+    @Autowired
+    private AreaService areaService;
+
+    @Autowired
+    private SystemConfigService systemConfigService;
+
+    @Autowired
+    private AccessDecisionService accessDecisionService;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    private User adminUser;
+    private User fmUser;
+    private User guardUser;
+    private User normalUser;
+
+    private Building testBuilding;
+    private Floor testFloor;
+    private Area internalArea;
+    private Area contactArea;
+
+    @BeforeEach
+    void setUp() {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+
+        testBuilding = buildingRepository.findByCodeIgnoreCase("BLD_SUPP2")
+                .orElseGet(() -> buildingRepository.save(Building.builder()
+                        .name("Tòa nhà Test Supplement 2")
+                        .code("BLD_SUPP2")
+                        .isActive(true)
+                        .build()));
+
+        testFloor = floorRepository.findByBuildingIdAndFloorCodeIgnoreCase(testBuilding.getId(), "F1")
+                .orElseGet(() -> floorRepository.save(Floor.builder()
+                        .name("Tầng 1 Test Supp2")
+                        .floorCode("F1")
+                        .floorOrder(1)
+                        .building(testBuilding)
+                        .isActive(true)
+                        .build()));
+
+        adminUser = userRepository.save(User.builder()
+                .email("admin." + suffix + "@fpt.edu.vn")
+                .userCode("ADM_" + suffix)
+                .fullName("Admin " + suffix)
+                .role(Role.ADMIN)
+                .accessLevel(3)
+                .isActive(true)
+                .build());
+
+        fmUser = userRepository.save(User.builder()
+                .email("fm." + suffix + "@fpt.edu.vn")
+                .userCode("FM_" + suffix)
+                .fullName("FM " + suffix)
+                .role(Role.FACILITY_MANAGER)
+                .accessLevel(3)
+                .isActive(true)
+                .build());
+
+        guardUser = userRepository.save(User.builder()
+                .email("guard." + suffix + "@fpt.edu.vn")
+                .userCode("GRD_" + suffix)
+                .fullName("Guard " + suffix)
+                .role(Role.GUARD)
+                .accessLevel(2)
+                .isActive(true)
+                .build());
+
+        normalUser = userRepository.save(User.builder()
+                .email("user." + suffix + "@fpt.edu.vn")
+                .userCode("USR_" + suffix)
+                .fullName("Normal User " + suffix)
+                .role(Role.NORMAL_USER)
+                .accessLevel(1)
+                .isActive(true)
+                .build());
+
+        internalArea = areaRepository.save(Area.builder()
+                .name("Khu vực Nội bộ " + suffix)
+                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
+                .areaAccessLevel(2)
+                .explicitAuthorizationRequired(false)
+                .openToMembers(false)
+                .openUntil(null)
+                .floorEntity(testFloor)
+                .building(testBuilding.getCode())
+                .floor(testFloor.getFloorCode())
+                .isActive(true)
+                .build());
+
+        contactArea = areaRepository.save(Area.builder()
+                .name("Khu vực Liên hệ " + suffix)
+                .areaLevel(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
+                .areaAccessLevel(2)
+                .explicitAuthorizationRequired(true)
+                .openToMembers(false)
+                .openUntil(null)
+                .floorEntity(testFloor)
+                .building(testBuilding.getCode())
+                .floor(testFloor.getFloorCode())
+                .isActive(true)
+                .build());
+    }
+
+    /**
+     * T17: Hàm kiểm bất biến BR-EV-07:
+     * đang mở (theo B1: open_to_members=true ∧ open_until!=null ∧ open_until > now)
+     * ⇔ đúng 1 phiên actual_end IS NULL với planned_end = open_until > now.
+     */
+    private void assertEventModeInvariant(UUID areaId, OffsetDateTime now) {
+        Area area = areaRepository.findById(areaId).orElseThrow();
+        List<AreaEventSession> openSessions = sessionRepository.findAll().stream()
+                .filter(s -> s.getArea().getId().equals(areaId) && s.getActualEnd() == null)
+                .toList();
+
+        boolean isActive = area.isEventActive(now);
+        if (isActive) {
+            assertEquals(1, openSessions.size(), "Bất biến BR-EV-07 vi phạm: khu vực đang mở sự kiện phải có đúng 1 phiên actual_end IS NULL");
+            AreaEventSession session = openSessions.get(0);
+            assertNotNull(area.getOpenUntil(), "Khu vực đang mở phải có open_until != null");
+            assertEquals(area.getOpenUntil().toEpochSecond(), session.getPlannedEnd().toEpochSecond(),
+                    "Bất biến BR-EV-07 vi phạm: planned_end của phiên mở phải bằng open_until của area");
+            assertTrue(session.getPlannedEnd().isAfter(now), "Bất biến BR-EV-07 vi phạm: planned_end phải ở tương lai");
+        } else {
+            assertEquals(0, openSessions.size(), "Bất biến BR-EV-07 vi phạm: khu vực không mở sự kiện thì không được có phiên actual_end IS NULL");
+        }
+    }
+
+    /** Step 5b (BR-EV-A1, BR-TC-13): yêu cầu chế độ sự kiện theo hợp đồng mới — action tường minh + version hiện tại của khu vực. */
+    private AreaEventModeUpdateRequest eventReq(UUID areaId, EventModeAction action, OffsetDateTime openUntil,
+                                                String reasonCode, String note) {
+        return eventReqAt(areaService.getAreaById(areaId).version(), action, openUntil, reasonCode, note);
+    }
+
+    /** Như eventReq nhưng dùng version cho trước (luồng đồng thời cùng đọc một version trước khi chạy). */
+    private AreaEventModeUpdateRequest eventReqAt(Long version, EventModeAction action, OffsetDateTime openUntil,
+                                                  String reasonCode, String note) {
+        return AreaEventModeUpdateRequest.builder()
+                .action(action)
+                .openUntil(openUntil)
+                .reasonCode(reasonCode)
+                .note(note)
+                .version(version)
+                .build();
+    }
+
+    /** Step 5b (TC-13c, BR-EV-A7): hai luồng cùng version -> đúng 1 thành công, luồng còn lại nhận 409 ERR_AREA_045. */
+    private void assertExactlyOneWinsOtherStale(int round, List<Throwable> exceptions, boolean firstOk, boolean secondOk) {
+        assertTrue(firstOk ^ secondOk, "Lần lặp " + round + ": đúng 1 luồng thành công (exceptions=" + exceptions + ")");
+        assertEquals(1, exceptions.size(), "Lần lặp " + round + ": đúng 1 luồng nhận lỗi: " + exceptions);
+        Throwable lost = exceptions.get(0);
+        assertTrue(lost instanceof AreaException && ((AreaException) lost).getErrorCode() == AreaErrorCode.ERR_AREA_045,
+                "Lần lặp " + round + ": luồng thua phải nhận 409 ERR_AREA_045: " + lost);
+    }
+
+    @Test
+    @DisplayName("T9: ADMIN gọi PATCH /api/areas/{id}/event-mode -> 403 Forbidden")
+    void testT9_AdminPatchEventMode_Returns403() throws Exception {
+        String adminToken = jwtTokenProvider.generateToken(adminUser);
+        AreaEventModeUpdateRequest req = eventReq(internalArea.getId(), EventModeAction.ENABLE, OffsetDateTime.now().plusHours(2), "SEMINAR", "Admin thu bat su kien");
+
+        mockMvc.perform(patch("/api/areas/{id}/event-mode", internalArea.getId())
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("T10: Khu vực open_to_members = true, open_until tương lai, KHÔNG có phiên -> tắt thành công, 1 audit DISABLE; sau đó bật lại thành công")
+    void testT10_NoSessionRecovery_DisableAndReenable() {
+        OffsetDateTime now = OffsetDateTime.now();
+        internalArea.setOpenToMembers(true);
+        internalArea.setOpenUntil(now.plusHours(2));
+        areaRepository.save(internalArea);
+
+        // Đảm bảo không có phiên nào trong DB
+        sessionRepository.deleteAll(sessionRepository.findAll().stream()
+                .filter(s -> s.getArea().getId().equals(internalArea.getId()))
+                .toList());
+
+        long auditBefore = auditLogRepository.count();
+
+        // 1. Tắt sự kiện
+        AreaResponse disableResp = areaService.updateEventMode(
+                internalArea.getId(),
+                eventReq(internalArea.getId(), EventModeAction.DISABLE, null, "ENDED_EARLY", "Tat su kien khong co phien truoc do"),
+                fmUser.getEmail()
+        );
+        assertFalse(disableResp.openToMembers());
+        assertFalse(disableResp.eventActive());
+
+        List<AuditLog> logs = auditLogRepository.findAll().stream()
+                .filter(l -> l.getTargetId().equals(internalArea.getId().toString()) && l.getTargetType() == AuditTargetType.AREA_EVENT_MODE)
+                .sorted(java.util.Comparator.comparing(AuditLog::getChangedAt))
+                .toList();
+        assertFalse(logs.isEmpty());
+        AuditLog disableLog = logs.get(logs.size() - 1);
+        assertEquals(AuditAction.DISABLE_EVENT_MODE, disableLog.getAction());
+
+        // 2. Bật lại sự kiện
+        AreaResponse enableResp = areaService.updateEventMode(
+                internalArea.getId(),
+                eventReq(internalArea.getId(), EventModeAction.ENABLE, now.plusHours(2), "SEMINAR", "Bat lai su kien thanh cong"),
+                fmUser.getEmail()
+        );
+        assertTrue(enableResp.openToMembers());
+        assertTrue(enableResp.eventActive());
+
+        List<AuditLog> logsAfter = auditLogRepository.findAll().stream()
+                .filter(l -> l.getTargetId().equals(internalArea.getId().toString()) && l.getTargetType() == AuditTargetType.AREA_EVENT_MODE)
+                .sorted(java.util.Comparator.comparing(AuditLog::getChangedAt))
+                .toList();
+        assertTrue(logsAfter.size() >= 2);
+        AuditLog enableLog = logsAfter.get(logsAfter.size() - 1);
+        assertEquals(AuditAction.ENABLE_EVENT_MODE, enableLog.getAction());
+
+        assertEventModeInvariant(internalArea.getId(), now);
+    }
+
+    @Test
+    @DisplayName("T11: Sự kiện đã hết hạn -> bật với lý do EVENT_ENABLE: thành công, audit ENABLE_EVENT_MODE, phiên cũ actual_end = planned_end, ended_by NULL. Cùng tình huống, lý do EVENT_EXTEND -> 409 M1")
+    void testT11_ExpiredEvent_EnableVsExtend() {
+        OffsetDateTime now = OffsetDateTime.now();
+
+        // Dựng phiên đã hết hạn nhưng chưa đóng
+        AreaEventSession expiredSession = sessionRepository.save(AreaEventSession.builder()
+                .area(internalArea)
+                .startedAt(now.minusHours(4))
+                .plannedEnd(now.minusHours(1))
+                .actualEnd(null)
+                .startedBy(fmUser)
+                .build());
+
+        internalArea.setOpenToMembers(true);
+        internalArea.setOpenUntil(now.minusHours(1));
+        areaRepository.save(internalArea);
+
+        // 1. Cùng tình huống nhưng gửi lý do EVENT_EXTEND -> 409 (ERR_AREA_030)
+        AreaException exExtend = assertThrows(AreaException.class, () ->
+                areaService.updateEventMode(
+                        internalArea.getId(),
+                        eventReq(internalArea.getId(), EventModeAction.ADJUST, now.plusHours(2), "EVENT_PROLONGED", "Gia han khi su kien da het han"),
+                        fmUser.getEmail()
+                )
+        );
+        assertEquals(AreaErrorCode.ERR_AREA_030, exExtend.getErrorCode());
+
+        long auditBefore = auditLogRepository.count();
+
+        // 2. Bật với lý do EVENT_ENABLE -> thành công
+        AreaResponse enableResp = areaService.updateEventMode(
+                internalArea.getId(),
+                eventReq(internalArea.getId(), EventModeAction.ENABLE, now.plusHours(2), "SEMINAR", "Bat lai khi phien cu da het han"),
+                fmUser.getEmail()
+        );
+        assertTrue(enableResp.openToMembers());
+        assertTrue(enableResp.eventActive());
+
+        // Phiên cũ được dọn dẹp: actual_end = planned_end, ended_by = NULL
+        AreaEventSession reloadedOld = sessionRepository.findById(expiredSession.getId()).orElseThrow();
+        assertNotNull(reloadedOld.getActualEnd());
+        assertEquals(reloadedOld.getPlannedEnd().toEpochSecond(), reloadedOld.getActualEnd().toEpochSecond());
+        assertNull(reloadedOld.getEndedBy());
+
+        // Audit EXPIRE_EVENT_MODE (tự đóng phiên cũ) + ENABLE_EVENT_MODE (bật mới) được ghi (BR-ES-19)
+        assertEquals(auditBefore + 2, auditLogRepository.count());
+        List<AuditLog> logs = auditLogRepository.findAll().stream()
+                .filter(l -> l.getTargetId().equals(internalArea.getId().toString()) && l.getTargetType() == AuditTargetType.AREA_EVENT_MODE)
+                .sorted(java.util.Comparator.comparing(AuditLog::getChangedAt))
+                .toList();
+        assertTrue(logs.size() >= 2);
+        AuditLog expireLog = logs.get(logs.size() - 2);
+        assertEquals(AuditAction.EXPIRE_EVENT_MODE, expireLog.getAction());
+        assertEquals("SYSTEM", expireLog.getActorType());
+
+        AuditLog enableLog = logs.get(logs.size() - 1);
+        assertEquals(AuditAction.ENABLE_EVENT_MODE, enableLog.getAction());
+
+        assertEventModeInvariant(internalArea.getId(), now);
+    }
+
+    @Test
+    @DisplayName("T12: Sự kiện đã hết hạn -> tắt -> 409 M1, 0 audit mới; cờ và phiên GIỮ NGUYÊN do rollback; isEventActive = false")
+    void testT12_ExpiredEvent_Disable_Returns409AndRollsBack() {
+        OffsetDateTime now = OffsetDateTime.now();
+
+        AreaEventSession session = sessionRepository.save(AreaEventSession.builder()
+                .area(internalArea)
+                .startedAt(now.minusHours(4))
+                .plannedEnd(now.minusHours(1))
+                .actualEnd(null)
+                .startedBy(fmUser)
+                .build());
+
+        internalArea.setOpenToMembers(true);
+        internalArea.setOpenUntil(now.minusHours(1));
+        areaRepository.save(internalArea);
+
+        long auditBefore = auditLogRepository.count();
+
+        // Tắt sự kiện đã hết hạn -> 409 (ERR_AREA_030)
+        AreaException ex = assertThrows(AreaException.class, () ->
+                areaService.updateEventMode(
+                        internalArea.getId(),
+                        eventReq(internalArea.getId(), EventModeAction.DISABLE, null, "ENDED_EARLY", "Tat su kien da het han"),
+                        fmUser.getEmail()
+                )
+        );
+        assertEquals(AreaErrorCode.ERR_AREA_030, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("đã hết hạn"));
+
+        // 0 audit mới
+        assertEquals(auditBefore, auditLogRepository.count());
+
+        // Trong DB, cờ và phiên GIỮ NGUYÊN như trước request (do rollback)
+        Area reloaded = areaRepository.findById(internalArea.getId()).orElseThrow();
+        assertTrue(reloaded.getOpenToMembers(), "Cờ openToMembers vẫn giữ nguyên do rollback");
+        assertNotNull(reloaded.getOpenUntil(), "openUntil vẫn giữ nguyên do rollback");
+        assertEquals(now.minusHours(1).toEpochSecond(), reloaded.getOpenUntil().toEpochSecond());
+
+        AreaEventSession reloadedSession = sessionRepository.findById(session.getId()).orElseThrow();
+        assertNull(reloadedSession.getActualEnd(), "Phiên vẫn giữ actualEnd = null do rollback");
+
+        // Tuy nhiên theo hàm B1 thì isEventActive(now) = false vì đã quá hạn
+        assertFalse(reloaded.isEventActive(now), "Khu vực không đang mở sự kiện theo hàm B1");
+    }
+
+    @Test
+    @DisplayName("T13: Tắt khi đã tắt -> 409 M1, 0 audit mới")
+    void testT13_DisableWhenAlreadyDisabled_Returns409() {
+        internalArea.setOpenToMembers(false);
+        internalArea.setOpenUntil(null);
+        areaRepository.save(internalArea);
+
+        long auditBefore = auditLogRepository.count();
+
+        AreaException ex = assertThrows(AreaException.class, () ->
+                areaService.updateEventMode(
+                        internalArea.getId(),
+                        eventReq(internalArea.getId(), EventModeAction.DISABLE, null, "ENDED_EARLY", "Tat khi su kien da tat san"),
+                        fmUser.getEmail()
+                )
+        );
+        assertEquals(AreaErrorCode.ERR_AREA_030, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("đang tắt"));
+
+        assertEquals(auditBefore, auditLogRepository.count());
+        assertEventModeInvariant(internalArea.getId(), OffsetDateTime.now());
+    }
+
+    @Test
+    @DisplayName("T14: Đang mở + ENABLE (lý do EVENT_ENABLE) -> 409 M1; đang mở + ADJUST với lý do EVENT_DISABLE -> 400 ERR_AREA_026")
+    void testT14_MismatchedActionType_Returns409() {
+        OffsetDateTime now = OffsetDateTime.now();
+
+        // Bật sự kiện hợp lệ
+        areaService.updateEventMode(
+                internalArea.getId(),
+                eventReq(internalArea.getId(), EventModeAction.ENABLE, now.plusHours(2), "SEMINAR", "Bat su kien de test mismatch"),
+                fmUser.getEmail()
+        );
+
+        // 1. Đang mở + lý do EVENT_ENABLE (khi cố tình đổi giờ) -> 409 (ERR_AREA_030)
+        AreaException ex1 = assertThrows(AreaException.class, () ->
+                areaService.updateEventMode(
+                        internalArea.getId(),
+                        eventReq(internalArea.getId(), EventModeAction.ENABLE, now.plusHours(4), "SEMINAR", "Gui reason EVENT_ENABLE khi dang mo"),
+                        fmUser.getEmail()
+                )
+        );
+        assertEquals(AreaErrorCode.ERR_AREA_030, ex1.getErrorCode());
+
+        // 2. Đang mở + lý do EVENT_DISABLE khi điều chỉnh -> 400 (ERR_AREA_026, BR-EV-A2 Step 5b: lý do sai nhóm kiểm trước khoá)
+        AreaException ex2 = assertThrows(AreaException.class, () ->
+                areaService.updateEventMode(
+                        internalArea.getId(),
+                        eventReq(internalArea.getId(), EventModeAction.ADJUST, now.plusHours(4), "ENDED_EARLY", "Gui reason EVENT_DISABLE voi enabled true"),
+                        fmUser.getEmail()
+                )
+        );
+        assertEquals(AreaErrorCode.ERR_AREA_026, ex2.getErrorCode());
+
+        assertEventModeInvariant(internalArea.getId(), now);
+    }
+
+    @Test
+    @DisplayName("T15: Đồng thời: (a) 2 lần BẬT cùng lúc -> đúng 1 thành công, 1 nhận 409; (b) TẮT + ĐIỀU CHỈNH cùng lúc -> kết quả tuần tự hợp lệ")
+    void testT15_ConcurrentOperations() throws Exception {
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+
+        try {
+            // (a) Chạy 20 lần 2 lần BẬT đồng thời
+            for (int i = 0; i < 20; i++) {
+                OffsetDateTime now = OffsetDateTime.now();
+                internalArea.setOpenToMembers(false);
+                internalArea.setOpenUntil(null);
+                areaRepository.save(internalArea);
+
+                sessionRepository.deleteAll(sessionRepository.findAll().stream()
+                        .filter(s -> s.getArea().getId().equals(internalArea.getId()))
+                        .toList());
+
+                // Step 5b (BR-TC-13): các luồng đồng thời gửi cùng một version đã đọc trước khi chạy
+                Long sharedVersion = areaService.getAreaById(internalArea.getId()).version();
+                CountDownLatch startLatch = new CountDownLatch(1);
+                CountDownLatch doneLatch = new CountDownLatch(2);
+                AtomicInteger successCount = new AtomicInteger(0);
+                AtomicInteger conflict409Count = new AtomicInteger(0);
+
+                Runnable task = () -> {
+                    try {
+                        startLatch.await();
+                        areaService.updateEventMode(
+                                internalArea.getId(),
+                                eventReqAt(sharedVersion, EventModeAction.ENABLE, now.plusHours(2), "SEMINAR", "Bat su kien dong thoi"),
+                                fmUser.getEmail()
+                        );
+                        successCount.incrementAndGet();
+                    } catch (AreaException ex) {
+                        if (ex.getErrorCode() == AreaErrorCode.ERR_AREA_045) { // Step 5b BR-EV-A7: gửi lặp cùng version
+                            conflict409Count.incrementAndGet();
+                        }
+                    } catch (Exception ignored) {
+                    } finally {
+                        doneLatch.countDown();
+                    }
+                };
+
+                executor.submit(task);
+                executor.submit(task);
+                startLatch.countDown();
+                assertTrue(doneLatch.await(5, TimeUnit.SECONDS));
+
+                assertEquals(1, successCount.get(), "Lần lặp " + i + ": đúng 1 request BẬT thành công");
+                assertEquals(1, conflict409Count.get(), "Lần lặp " + i + ": đúng 1 request BẬT nhận 409");
+                assertEventModeInvariant(internalArea.getId(), now);
+            }
+
+            // (b) Chạy 20 lần TẮT + ĐIỀU CHỈNH đồng thời
+            for (int i = 0; i < 20; i++) {
+                OffsetDateTime now = OffsetDateTime.now();
+                // Bật sự kiện trước
+                internalArea.setOpenToMembers(false);
+                internalArea.setOpenUntil(null);
+                areaRepository.save(internalArea);
+                sessionRepository.deleteAll(sessionRepository.findAll().stream()
+                        .filter(s -> s.getArea().getId().equals(internalArea.getId()))
+                        .toList());
+
+                areaService.updateEventMode(
+                        internalArea.getId(),
+                        eventReq(internalArea.getId(), EventModeAction.ENABLE, now.plusHours(2), "SEMINAR", "Bat ban dau cho test b"),
+                        fmUser.getEmail()
+                );
+
+                // Step 5b (BR-TC-13): các luồng đồng thời gửi cùng một version đã đọc trước khi chạy
+                Long sharedVersion = areaService.getAreaById(internalArea.getId()).version();
+                CountDownLatch startLatch = new CountDownLatch(1);
+                CountDownLatch doneLatch = new CountDownLatch(2);
+
+                // Task 1: TẮT
+                Runnable disableTask = () -> {
+                    try {
+                        startLatch.await();
+                        areaService.updateEventMode(
+                                internalArea.getId(),
+                                eventReqAt(sharedVersion, EventModeAction.DISABLE, null, "ENDED_EARLY", "Tat su kien dong thoi"),
+                                fmUser.getEmail()
+                        );
+                    } catch (Exception ignored) {
+                    } finally {
+                        doneLatch.countDown();
+                    }
+                };
+
+                // Task 2: ĐIỀU CHỈNH (EXTEND)
+                Runnable extendTask = () -> {
+                    try {
+                        startLatch.await();
+                        areaService.updateEventMode(
+                                internalArea.getId(),
+                                eventReqAt(sharedVersion, EventModeAction.ADJUST, now.plusHours(4), "EVENT_PROLONGED", "Dieu chinh gio ket thuc dong thoi"),
+                                fmUser.getEmail()
+                        );
+                    } catch (Exception ignored) {
+                    } finally {
+                        doneLatch.countDown();
+                    }
+                };
+
+                executor.submit(disableTask);
+                executor.submit(extendTask);
+                startLatch.countDown();
+                assertTrue(doneLatch.await(5, TimeUnit.SECONDS));
+
+                assertEventModeInvariant(internalArea.getId(), now);
+            }
+        } finally {
+            executor.shutdown();
+        }
+    }
+
+    @Test
+    @DisplayName("T15c: Đồng thời 2 luồng BẬT trên khu vực có sự kiện ĐÃ HẾT HẠN -> đúng 1 thành công, 1 nhận 409, phiên cũ đóng đúng planned_end cũ")
+    void testT15c_ConcurrentOnExpiredEvent() throws Exception {
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+
+        try {
+            for (int i = 0; i < 20; i++) {
+                OffsetDateTime now = OffsetDateTime.now();
+                internalArea.setOpenToMembers(true);
+                internalArea.setOpenUntil(now.minusHours(1));
+                areaRepository.save(internalArea);
+
+                sessionRepository.deleteAll(sessionRepository.findAll().stream()
+                        .filter(s -> s.getArea().getId().equals(internalArea.getId()))
+                        .toList());
+
+                AreaEventSession oldExpired = sessionRepository.save(AreaEventSession.builder()
+                        .area(internalArea)
+                        .startedAt(now.minusHours(3))
+                        .plannedEnd(now.minusHours(1))
+                        .actualEnd(null)
+                        .startedBy(fmUser)
+                        .build());
+
+                // Step 5b (BR-TC-13): các luồng đồng thời gửi cùng một version đã đọc trước khi chạy
+                Long sharedVersion = areaService.getAreaById(internalArea.getId()).version();
+                CountDownLatch startLatch = new CountDownLatch(1);
+                CountDownLatch doneLatch = new CountDownLatch(2);
+                AtomicInteger successCount = new AtomicInteger(0);
+                AtomicInteger conflict409Count = new AtomicInteger(0);
+
+                // Luồng 1: BẬT now + 2h
+                Runnable task1 = () -> {
+                    try {
+                        startLatch.await();
+                        areaService.updateEventMode(
+                                internalArea.getId(),
+                                eventReqAt(sharedVersion, EventModeAction.ENABLE, now.plusHours(2), "SEMINAR", "Bat luong 1 tren expired"),
+                                fmUser.getEmail()
+                        );
+                        successCount.incrementAndGet();
+                    } catch (AreaException ex) {
+                        if (ex.getErrorCode() == AreaErrorCode.ERR_AREA_045) { // Step 5b BR-EV-A7: gửi lặp cùng version
+                            conflict409Count.incrementAndGet();
+                        }
+                    } catch (Exception ignored) {
+                    } finally {
+                        doneLatch.countDown();
+                    }
+                };
+
+                // Luồng 2: BẬT now + 3h
+                Runnable task2 = () -> {
+                    try {
+                        startLatch.await();
+                        areaService.updateEventMode(
+                                internalArea.getId(),
+                                eventReqAt(sharedVersion, EventModeAction.ENABLE, now.plusHours(3), "SEMINAR", "Bat luong 2 tren expired"),
+                                fmUser.getEmail()
+                        );
+                        successCount.incrementAndGet();
+                    } catch (AreaException ex) {
+                        if (ex.getErrorCode() == AreaErrorCode.ERR_AREA_045) { // Step 5b BR-EV-A7: gửi lặp cùng version
+                            conflict409Count.incrementAndGet();
+                        }
+                    } catch (Exception ignored) {
+                    } finally {
+                        doneLatch.countDown();
+                    }
+                };
+
+                executor.submit(task1);
+                executor.submit(task2);
+                startLatch.countDown();
+                assertTrue(doneLatch.await(5, TimeUnit.SECONDS));
+
+                assertEquals(1, successCount.get(), "Lần lặp " + i + ": đúng 1 request BẬT thành công");
+                assertEquals(1, conflict409Count.get(), "Lần lặp " + i + ": đúng 1 request BẬT nhận 409");
+                assertEventModeInvariant(internalArea.getId(), now);
+
+                // Phiên cũ có actual_end = planned_end cũ
+                AreaEventSession reloadedOld = sessionRepository.findById(oldExpired.getId()).orElseThrow();
+                assertNotNull(reloadedOld.getActualEnd(), "Phiên cũ phải được đóng");
+                assertEquals(reloadedOld.getPlannedEnd().toEpochSecond(), reloadedOld.getActualEnd().toEpochSecond());
+                assertNull(reloadedOld.getEndedBy());
+            }
+        } finally {
+            executor.shutdown();
+        }
+    }
+
+    @Test
+    @DisplayName("T15d: Đồng thời 1 luồng BẬT sự kiện + 1 luồng ADMIN update area cùng version -> đúng 1 thành công, luồng còn lại 409 ERR_AREA_045, dữ liệu người thắng còn nguyên (TC-13c)")
+    void testT15d_ConcurrentEnableAndAdminAreaUpdate() throws Exception {
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+
+        try {
+            for (int i = 0; i < 20; i++) {
+                OffsetDateTime now = OffsetDateTime.now();
+                internalArea.setName("Khu vuc Truoc " + i + " " + UUID.randomUUID().toString().substring(0, 5));
+                internalArea.setOpenToMembers(false);
+                internalArea.setOpenUntil(null);
+                areaRepository.save(internalArea);
+
+                sessionRepository.deleteAll(sessionRepository.findAll().stream()
+                        .filter(s -> s.getArea().getId().equals(internalArea.getId()))
+                        .toList());
+
+                // Step 5b (BR-TC-13): các luồng đồng thời gửi cùng một version đã đọc trước khi chạy
+                Long sharedVersion = areaService.getAreaById(internalArea.getId()).version();
+                String newName = "Khu vuc Sau " + i + " " + UUID.randomUUID().toString().substring(0, 5);
+                AreaUpdateRequest adminReq = AreaUpdateRequest.builder()
+                        .name(newName)
+                        .areaLevel(internalArea.getAreaLevel())
+                        .floorId(testFloor.getId())
+                        .centerLatitude(10.8418)
+                        .centerLongitude(106.8100)
+                        .version(sharedVersion)
+                        .build();
+
+                OffsetDateTime targetOpenUntil = now.plusHours(2);
+                CountDownLatch startLatch = new CountDownLatch(1);
+                CountDownLatch doneLatch = new CountDownLatch(2);
+                List<Throwable> exceptions = java.util.Collections.synchronizedList(new ArrayList<>());
+                java.util.concurrent.atomic.AtomicBoolean eventOk = new java.util.concurrent.atomic.AtomicBoolean(false);
+                java.util.concurrent.atomic.AtomicBoolean adminOk = new java.util.concurrent.atomic.AtomicBoolean(false);
+
+                // Luồng 1: BẬT sự kiện
+                Runnable eventTask = () -> {
+                    try {
+                        startLatch.await();
+                        areaService.updateEventMode(
+                                internalArea.getId(),
+                                eventReqAt(sharedVersion, EventModeAction.ENABLE, targetOpenUntil, "SEMINAR", "Bat su kien dong thoi voi update area"),
+                                fmUser.getEmail()
+                        );
+                        eventOk.set(true);
+                    } catch (Throwable ex) {
+                        exceptions.add(ex);
+                    } finally {
+                        doneLatch.countDown();
+                    }
+                };
+
+                // Luồng 2: ADMIN sửa khu vực
+                Runnable adminTask = () -> {
+                    try {
+                        startLatch.await();
+                        areaService.update(
+                                internalArea.getId(),
+                                adminReq,
+                                adminUser.getEmail()
+                        );
+                        adminOk.set(true);
+                    } catch (Throwable ex) {
+                        exceptions.add(ex);
+                    } finally {
+                        doneLatch.countDown();
+                    }
+                };
+
+                executor.submit(eventTask);
+                executor.submit(adminTask);
+                startLatch.countDown();
+                assertTrue(doneLatch.await(10, TimeUnit.SECONDS));
+
+                // Step 5b (TC-13c): cùng version -> đúng 1 luồng thắng, luồng thua 409 ERR_AREA_045; dữ liệu người thắng không bị ghi đè
+                assertExactlyOneWinsOtherStale(i, exceptions, eventOk.get(), adminOk.get());
+                Area finalArea = areaRepository.findById(internalArea.getId()).orElseThrow();
+                if (adminOk.get()) {
+                    assertEquals(newName, finalArea.getName(), "Lần lặp " + i + ": tên mới của khu vực phải được lưu");
+                    assertFalse(finalArea.isEventActive(now), "Lần lặp " + i + ": luồng BẬT thua thì không mở sự kiện");
+                } else {
+                    assertNotEquals(newName, finalArea.getName(), "Lần lặp " + i + ": luồng sửa tên thua thì tên cũ giữ nguyên");
+                    assertTrue(finalArea.isEventActive(now), "Lần lặp " + i + ": khu vực phải đang mở sự kiện");
+                    assertNotNull(finalArea.getOpenUntil(), "Lần lặp " + i + ": openUntil không được null");
+                    assertEquals(targetOpenUntil.toEpochSecond(), finalArea.getOpenUntil().toEpochSecond(), "Lần lặp " + i + ": openUntil phải đúng giá trị luồng BẬT gửi");
+                }
+                assertEventModeInvariant(internalArea.getId(), now);
+            }
+        } finally {
+            executor.shutdown();
+        }
+    }
+
+    @Test
+    @DisplayName("T15e: Đồng thời 1 luồng BẬT sự kiện + 1 luồng FM updateAccessRules cùng version -> đúng 1 thành công, luồng còn lại 409 ERR_AREA_045 + bất biến (TC-13c)")
+    void testT15e_ConcurrentEnableAndAccessRulesUpdate() throws Exception {
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+
+        try {
+            for (int i = 0; i < 20; i++) {
+                OffsetDateTime now = OffsetDateTime.now();
+                internalArea.setOpenToMembers(false);
+                internalArea.setOpenUntil(null);
+                boolean initialExplicit = (i % 2 == 0);
+                boolean targetExplicit = !initialExplicit;
+                internalArea.setExplicitAuthorizationRequired(initialExplicit);
+                areaRepository.save(internalArea);
+
+                sessionRepository.deleteAll(sessionRepository.findAll().stream()
+                        .filter(s -> s.getArea().getId().equals(internalArea.getId()))
+                        .toList());
+
+                OffsetDateTime targetOpenUntil = now.plusHours(2);
+                // Step 5b (BR-TC-13): các luồng đồng thời gửi cùng một version đã đọc trước khi chạy
+                Long sharedVersion = areaService.getAreaById(internalArea.getId()).version();
+                CountDownLatch startLatch = new CountDownLatch(1);
+                CountDownLatch doneLatch = new CountDownLatch(2);
+                List<Throwable> exceptions = java.util.Collections.synchronizedList(new ArrayList<>());
+                java.util.concurrent.atomic.AtomicBoolean eventOk = new java.util.concurrent.atomic.AtomicBoolean(false);
+                java.util.concurrent.atomic.AtomicBoolean rulesOk = new java.util.concurrent.atomic.AtomicBoolean(false);
+
+                // Luồng 1: BẬT sự kiện
+                Runnable eventTask = () -> {
+                    try {
+                        startLatch.await();
+                        areaService.updateEventMode(
+                                internalArea.getId(),
+                                eventReqAt(sharedVersion, EventModeAction.ENABLE, targetOpenUntil, "SEMINAR", "Bat su kien dong thoi voi update rules"),
+                                fmUser.getEmail()
+                        );
+                        eventOk.set(true);
+                    } catch (Throwable ex) {
+                        exceptions.add(ex);
+                    } finally {
+                        doneLatch.countDown();
+                    }
+                };
+
+                // Luồng 2: FM sửa access rules (đổi explicitAuthorizationRequired)
+                Runnable rulesTask = () -> {
+                    try {
+                        startLatch.await();
+                        areaService.updateAccessRules(
+                                internalArea.getId(),
+                                new AreaAccessRulesUpdateRequest(internalArea.getAreaAccessLevel(), targetExplicit, "Doi explicit authorization", sharedVersion),
+                                fmUser.getEmail()
+                        );
+                        rulesOk.set(true);
+                    } catch (Throwable ex) {
+                        exceptions.add(ex);
+                    } finally {
+                        doneLatch.countDown();
+                    }
+                };
+
+                executor.submit(eventTask);
+                executor.submit(rulesTask);
+                startLatch.countDown();
+                assertTrue(doneLatch.await(10, TimeUnit.SECONDS));
+
+                // Step 5b (TC-13c): cùng version -> đúng 1 luồng thắng, luồng thua 409 ERR_AREA_045; dữ liệu người thắng không bị ghi đè
+                assertExactlyOneWinsOtherStale(i, exceptions, eventOk.get(), rulesOk.get());
+                Area finalArea = areaRepository.findById(internalArea.getId()).orElseThrow();
+                if (rulesOk.get()) {
+                    assertEquals(targetExplicit, finalArea.getExplicitAuthorizationRequired(), "Lần lặp " + i + ": explicitAuthorizationRequired phải là " + targetExplicit);
+                    assertFalse(finalArea.isEventActive(now), "Lần lặp " + i + ": luồng BẬT thua thì không mở sự kiện");
+                } else {
+                    assertEquals(initialExplicit, finalArea.getExplicitAuthorizationRequired(), "Lần lặp " + i + ": luồng sửa quy tắc thua thì cờ giữ nguyên");
+                    assertTrue(finalArea.isEventActive(now), "Lần lặp " + i + ": khu vực phải đang mở sự kiện");
+                    assertNotNull(finalArea.getOpenUntil(), "Lần lặp " + i + ": openUntil không được null");
+                    assertEquals(targetOpenUntil.toEpochSecond(), finalArea.getOpenUntil().toEpochSecond(), "Lần lặp " + i + ": openUntil phải đúng giá trị luồng BẬT gửi");
+                }
+                assertEventModeInvariant(internalArea.getId(), now);
+            }
+        } finally {
+            executor.shutdown();
+        }
+    }
+
+    @Test
+    @DisplayName("T15f: Đồng thời 1 luồng TẮT sự kiện (đang mở) + 1 luồng saveGeometry cùng version -> đúng 1 thành công, luồng còn lại 409 ERR_AREA_045, bất biến đúng (TC-13c)")
+    void testT15f_ConcurrentDisableAndGeometrySave() throws Exception {
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+
+        // Đảm bảo không có khu vực nào khác trên cùng tầng có geometry gây xung đột
+        List<Area> others = areaRepository.findByBuildingIgnoreCaseAndFloorIgnoreCaseAndDeletedAtIsNull(
+                internalArea.getBuilding(), internalArea.getFloor());
+        for (Area other : others) {
+            if (other.getGeometry() != null) {
+                other.setGeometry(null);
+                areaRepository.save(other);
+            }
+        }
+
+        try {
+            for (int i = 0; i < 20; i++) {
+                OffsetDateTime now = OffsetDateTime.now();
+                internalArea.setOpenToMembers(true);
+                internalArea.setOpenUntil(now.plusHours(2));
+                internalArea.setGeometry(null);
+                areaRepository.save(internalArea);
+
+                sessionRepository.deleteAll(sessionRepository.findAll().stream()
+                        .filter(s -> s.getArea().getId().equals(internalArea.getId()))
+                        .toList());
+
+                sessionRepository.save(AreaEventSession.builder()
+                        .area(internalArea)
+                        .startedAt(now.minusHours(1))
+                        .plannedEnd(now.plusHours(2))
+                        .actualEnd(null)
+                        .startedBy(fmUser)
+                        .build());
+
+                AreaGeometry testGeometry = AreaGeometry.builder()
+                        .type("polygon")
+                        .version(1)
+                        .vertices(List.of(
+                                new AreaGeometry.Vertex(new java.math.BigDecimal("0.1"), new java.math.BigDecimal("0.1")),
+                                new AreaGeometry.Vertex(new java.math.BigDecimal("0.5"), new java.math.BigDecimal("0.1")),
+                                new AreaGeometry.Vertex(new java.math.BigDecimal("0.3"), new java.math.BigDecimal("0.5"))
+                        ))
+                        .build();
+
+                // Step 5b (BR-TC-13): các luồng đồng thời gửi cùng một version đã đọc trước khi chạy
+                Long sharedVersion = areaService.getAreaById(internalArea.getId()).version();
+                CountDownLatch startLatch = new CountDownLatch(1);
+                CountDownLatch doneLatch = new CountDownLatch(2);
+                List<Throwable> exceptions = java.util.Collections.synchronizedList(new ArrayList<>());
+                java.util.concurrent.atomic.AtomicBoolean eventOk = new java.util.concurrent.atomic.AtomicBoolean(false);
+                java.util.concurrent.atomic.AtomicBoolean geomOk = new java.util.concurrent.atomic.AtomicBoolean(false);
+
+                // Luồng 1: TẮT sự kiện
+                Runnable eventTask = () -> {
+                    try {
+                        startLatch.await();
+                        areaService.updateEventMode(
+                                internalArea.getId(),
+                                eventReqAt(sharedVersion, EventModeAction.DISABLE, null, "ENDED_EARLY", "Tat su kien dong thoi voi save geometry"),
+                                fmUser.getEmail()
+                        );
+                        eventOk.set(true);
+                    } catch (Throwable ex) {
+                        exceptions.add(ex);
+                    } finally {
+                        doneLatch.countDown();
+                    }
+                };
+
+                // Luồng 2: ADMIN lưu geometry
+                Runnable geomTask = () -> {
+                    try {
+                        startLatch.await();
+                        areaService.saveGeometry(
+                                internalArea.getId(),
+                                testGeometry,
+                                sharedVersion,
+                                adminUser.getEmail()
+                        );
+                        geomOk.set(true);
+                    } catch (Throwable ex) {
+                        exceptions.add(ex);
+                    } finally {
+                        doneLatch.countDown();
+                    }
+                };
+
+                executor.submit(eventTask);
+                executor.submit(geomTask);
+                startLatch.countDown();
+                assertTrue(doneLatch.await(10, TimeUnit.SECONDS));
+
+                // Step 5b (TC-13c): cùng version -> đúng 1 luồng thắng, luồng thua 409 ERR_AREA_045; dữ liệu người thắng không bị ghi đè
+                assertExactlyOneWinsOtherStale(i, exceptions, eventOk.get(), geomOk.get());
+                Area finalArea = areaRepository.findById(internalArea.getId()).orElseThrow();
+                if (geomOk.get()) {
+                    assertNotNull(finalArea.getGeometry(), "Lần lặp " + i + ": geometry mới phải còn");
+                    assertEquals(3, finalArea.getGeometry().getVertices().size(), "Lần lặp " + i + ": geometry phải có 3 vertices");
+                    assertTrue(finalArea.isEventActive(now), "Lần lặp " + i + ": luồng TẮT thua thì sự kiện vẫn mở");
+                } else {
+                    assertNull(finalArea.getGeometry(), "Lần lặp " + i + ": luồng lưu geometry thua thì không có geometry");
+                    assertFalse(finalArea.isEventActive(now), "Lần lặp " + i + ": khu vực phải đã tắt sự kiện");
+                    assertFalse(finalArea.getOpenToMembers(), "Lần lặp " + i + ": openToMembers phải false");
+                    assertNull(finalArea.getOpenUntil(), "Lần lặp " + i + ": openUntil phải null");
+                }
+                assertEventModeInvariant(internalArea.getId(), now);
+            }
+        } finally {
+            executor.shutdown();
+        }
+    }
+
+    @Test
+    @DisplayName("T16: ĐIỀU CHỈNH vượt ngân sách -> ERR_AREA_028; phiên hiện tại vẫn actual_end NULL, planned_end cũ (rollback)")
+    void testT16_ExtendOverBudget_Rollback() {
+        OffsetDateTime now = OffsetDateTime.now();
+        // Dọn dẹp phiên cũ
+        sessionRepository.deleteAll(sessionRepository.findAll().stream()
+                .filter(s -> s.getArea().getId().equals(contactArea.getId()))
+                .toList());
+
+        // Tạo 2 phiên quá khứ 20h mỗi phiên = 40h
+        sessionRepository.save(AreaEventSession.builder()
+                .area(contactArea)
+                .startedAt(now.minusDays(4))
+                .plannedEnd(now.minusDays(4).plusHours(20))
+                .actualEnd(now.minusDays(4).plusHours(20))
+                .startedBy(fmUser)
+                .endedBy(fmUser)
+                .build());
+        sessionRepository.save(AreaEventSession.builder()
+                .area(contactArea)
+                .startedAt(now.minusDays(2))
+                .plannedEnd(now.minusDays(2).plusHours(20))
+                .actualEnd(now.minusDays(2).plusHours(20))
+                .startedBy(fmUser)
+                .endedBy(fmUser)
+                .build());
+
+        // Bật 4h (tổng 44h <= 48h)
+        areaService.updateEventMode(
+                contactArea.getId(),
+                eventReq(contactArea.getId(), EventModeAction.ENABLE, now.plusHours(4), "SEMINAR", "Bat 4 gio trong ngan sach"),
+                fmUser.getEmail()
+        );
+
+        AreaEventSession activeSession = sessionRepository.findByAreaIdAndActualEndIsNull(contactArea.getId()).orElseThrow();
+        OffsetDateTime originalPlannedEnd = activeSession.getPlannedEnd();
+
+        // Điều chỉnh thêm 10h (tổng sẽ là 40 + 10 = 50h > 48h) -> bị từ chối ERR_AREA_028
+        AreaException ex = assertThrows(AreaException.class, () ->
+                areaService.updateEventMode(
+                        contactArea.getId(),
+                        eventReq(contactArea.getId(), EventModeAction.ADJUST, now.plusHours(10), "EVENT_PROLONGED", "Thu gia han vuot ngan sach"),
+                        fmUser.getEmail()
+                )
+        );
+        assertEquals(AreaErrorCode.ERR_AREA_028, ex.getErrorCode());
+
+        // Rollback kiểm tra: phiên hiện tại vẫn actual_end = NULL, planned_end = originalPlannedEnd
+        AreaEventSession reloadedActive = sessionRepository.findById(activeSession.getId()).orElseThrow();
+        assertNull(reloadedActive.getActualEnd(), "Phiên hiện tại không được bị đóng khi điều chỉnh thất bại do vượt ngân sách");
+        assertEquals(originalPlannedEnd.toEpochSecond(), reloadedActive.getPlannedEnd().toEpochSecond());
+
+        Area reloadedArea = areaRepository.findById(contactArea.getId()).orElseThrow();
+        assertEquals(originalPlannedEnd.toEpochSecond(), reloadedArea.getOpenUntil().toEpochSecond());
+
+        assertEventModeInvariant(contactArea.getId(), now);
+    }
+
+    @Test
+    @DisplayName("T18: MIN_MINUTES=15: openUntil = now+5 phút -> M2. Sửa config MIN=800 khi MAX=12 -> bị từ chối. Sửa MAX=0.1 -> bị từ chối")
+    void testT18_MinMinutesAndCrossConfigValidation() {
+        OffsetDateTime now = OffsetDateTime.now();
+
+        // 1. openUntil = now + 5 phút (< 15 phút) -> ERR_AREA_031 (M2)
+        AreaException exMin = assertThrows(AreaException.class, () ->
+                areaService.updateEventMode(
+                        internalArea.getId(),
+                        eventReq(internalArea.getId(), EventModeAction.ENABLE, now.plusMinutes(5), "SEMINAR", "Mo 5 phut duoi muc toi thieu"),
+                        fmUser.getEmail()
+                )
+        );
+        assertEquals(AreaErrorCode.ERR_AREA_031, exMin.getErrorCode());
+
+        // 2. Sửa MIN=800 khi MAX=12 -> bị từ chối (800 > 12 * 60 = 720)
+        assertThrows(IllegalArgumentException.class, () ->
+                systemConfigService.update(ConfigKey.EVENT_MODE_MIN_MINUTES.name(), "800", adminUser.getEmail())
+        );
+
+        // 3. Sửa MAX=0.1 (6 phút < MIN 15 phút) -> bị từ chối
+        assertThrows(IllegalArgumentException.class, () ->
+                systemConfigService.update(ConfigKey.EVENT_MODE_MAX_HOURS.name(), "0.1", adminUser.getEmail())
+        );
+
+        assertEventModeInvariant(internalArea.getId(), now);
+    }
+
+    @Test
+    @DisplayName("T19: BẬT / ĐIỀU CHỈNH / TẮT thành công -> mỗi GUARD đang hoạt động nhận 1 EVENT_MODE_CHANGED; bị từ chối / no-op -> 0 thông báo")
+    void testT19_GuardNotificationOnEventModeChanged() {
+        OffsetDateTime now = OffsetDateTime.now();
+        notificationRepository.deleteAll();
+
+        // 1. BẬT thành công
+        areaService.updateEventMode(
+                internalArea.getId(),
+                eventReq(internalArea.getId(), EventModeAction.ENABLE, now.plusHours(2), "SEMINAR", "Bat su kien kiem tra thong bao guard"),
+                fmUser.getEmail()
+        );
+        List<Notification> notifs1 = notificationRepository.findAll().stream()
+                .filter(n -> n.getType() == NotificationType.EVENT_MODE_CHANGED && n.getRecipient().getId().equals(guardUser.getId()))
+                .toList();
+        assertEquals(1, notifs1.size());
+        assertTrue(notifs1.get(0).getMessage().contains("Bật chế độ sự kiện"));
+
+        // 2. ĐIỀU CHỈNH no-op (< 1s lệch giờ) -> 0 thông báo mới
+        OffsetDateTime exactSameTime = areaRepository.findById(internalArea.getId()).orElseThrow().getOpenUntil();
+        areaService.updateEventMode(
+                internalArea.getId(),
+                eventReq(internalArea.getId(), EventModeAction.ADJUST, exactSameTime, "EVENT_PROLONGED", "Dieu chinh no op khong doi gio"),
+                fmUser.getEmail()
+        );
+        List<Notification> notifsNoOp = notificationRepository.findAll().stream()
+                .filter(n -> n.getType() == NotificationType.EVENT_MODE_CHANGED && n.getRecipient().getId().equals(guardUser.getId()))
+                .toList();
+        assertEquals(1, notifsNoOp.size(), "No-op không được gửi thông báo mới");
+
+        // 3. ĐIỀU CHỈNH thành công
+        areaService.updateEventMode(
+                internalArea.getId(),
+                eventReq(internalArea.getId(), EventModeAction.ADJUST, now.plusHours(4), "EVENT_PROLONGED", "Dieu chinh gio ket thuc hop le"),
+                fmUser.getEmail()
+        );
+        List<Notification> notifs2 = notificationRepository.findAll().stream()
+                .filter(n -> n.getType() == NotificationType.EVENT_MODE_CHANGED && n.getRecipient().getId().equals(guardUser.getId()))
+                .toList();
+        assertEquals(2, notifs2.size());
+        assertTrue(notifs2.get(1).getMessage().contains("Điều chỉnh giờ kết thúc"));
+
+        // 4. TẮT thành công
+        areaService.updateEventMode(
+                internalArea.getId(),
+                eventReq(internalArea.getId(), EventModeAction.DISABLE, null, "ENDED_EARLY", "Tat su kien hop le theo lich"),
+                fmUser.getEmail()
+        );
+        List<Notification> notifs3 = notificationRepository.findAll().stream()
+                .filter(n -> n.getType() == NotificationType.EVENT_MODE_CHANGED && n.getRecipient().getId().equals(guardUser.getId()))
+                .toList();
+        assertEquals(3, notifs3.size());
+        assertTrue(notifs3.get(2).getMessage().contains("Tắt chế độ sự kiện"));
+
+        // 5. Thao tác bị từ chối (Tắt khi đã tắt) -> 0 thông báo mới
+        assertThrows(AreaException.class, () ->
+                areaService.updateEventMode(
+                        internalArea.getId(),
+                        eventReq(internalArea.getId(), EventModeAction.DISABLE, null, "ENDED_EARLY", "Thu tat khi da tat"),
+                        fmUser.getEmail()
+                )
+        );
+        List<Notification> notifsRejected = notificationRepository.findAll().stream()
+                .filter(n -> n.getType() == NotificationType.EVENT_MODE_CHANGED && n.getRecipient().getId().equals(guardUser.getId()))
+                .toList();
+        assertEquals(3, notifsRejected.size(), "Thao tác bị từ chối không sinh thông báo");
+
+        assertEventModeInvariant(internalArea.getId(), now);
+    }
+
+    @Test
+    @DisplayName("T20: Job nhắc: phiên còn 20 phút, REMINDER=30 -> started_by nhận 1 EVENT_MODE_EXPIRING; chạy job lần 2 -> vẫn 1; REMINDER=0 -> không nhắc; started_by bị khoá -> mọi FM nhận")
+    void testT20_ExpiryReminderJob() {
+        OffsetDateTime now = OffsetDateTime.now();
+        notificationRepository.deleteAll();
+
+        // 1. Tạo phiên còn 20 phút, REMINDER=30
+        AreaEventSession session = sessionRepository.save(AreaEventSession.builder()
+                .area(internalArea)
+                .startedAt(now.minusHours(2))
+                .plannedEnd(now.plusMinutes(20))
+                .actualEnd(null)
+                .startedBy(fmUser)
+                .expiryRemindedAt(null)
+                .build());
+        internalArea.setOpenToMembers(true);
+        internalArea.setOpenUntil(now.plusMinutes(20));
+        areaRepository.save(internalArea);
+
+        areaService.scanAndSendEventModeExpiryReminders();
+
+        List<Notification> expiringNotifs = notificationRepository.findAll().stream()
+                .filter(n -> n.getType() == NotificationType.EVENT_MODE_EXPIRING && n.getRecipient().getId().equals(fmUser.getId()))
+                .toList();
+        assertEquals(1, expiringNotifs.size());
+
+        AreaEventSession reloadedSession = sessionRepository.findById(session.getId()).orElseThrow();
+        assertNotNull(reloadedSession.getExpiryRemindedAt());
+
+        // Chạy lần 2 -> không tạo thêm thông báo
+        areaService.scanAndSendEventModeExpiryReminders();
+        List<Notification> expiringNotifs2 = notificationRepository.findAll().stream()
+                .filter(n -> n.getType() == NotificationType.EVENT_MODE_EXPIRING && n.getRecipient().getId().equals(fmUser.getId()))
+                .toList();
+        assertEquals(1, expiringNotifs2.size());
+
+        // 2. REMINDER = 0 -> không nhắc
+        systemConfigService.update(ConfigKey.EVENT_MODE_EXPIRY_REMINDER_MINUTES.name(), "0", adminUser.getEmail());
+        AreaEventSession session2 = sessionRepository.save(AreaEventSession.builder()
+                .area(contactArea)
+                .startedAt(now.minusHours(2))
+                .plannedEnd(now.plusMinutes(20))
+                .actualEnd(null)
+                .startedBy(fmUser)
+                .expiryRemindedAt(null)
+                .build());
+        contactArea.setOpenToMembers(true);
+        contactArea.setOpenUntil(now.plusMinutes(20));
+        areaRepository.save(contactArea);
+
+        areaService.scanAndSendEventModeExpiryReminders();
+        AreaEventSession reloaded2 = sessionRepository.findById(session2.getId()).orElseThrow();
+        assertNull(reloaded2.getExpiryRemindedAt());
+
+        // Khôi phục REMINDER = 30
+        systemConfigService.update(ConfigKey.EVENT_MODE_EXPIRY_REMINDER_MINUTES.name(), "30", adminUser.getEmail());
+
+        // 3. started_by bị vô hiệu hoá -> mọi FM đang hoạt động nhận
+        fmUser.setIsActive(false);
+        userRepository.save(fmUser);
+
+        User activeFM2 = userRepository.save(User.builder()
+                .email("fm2." + UUID.randomUUID() + "@fpt.edu.vn")
+                .userCode("FM2_" + UUID.randomUUID().toString().substring(0, 5))
+                .fullName("Active FM 2")
+                .role(Role.FACILITY_MANAGER)
+                .accessLevel(3)
+                .isActive(true)
+                .build());
+
+        areaService.scanAndSendEventModeExpiryReminders();
+
+        List<Notification> fm2Notifs = notificationRepository.findAll().stream()
+                .filter(n -> n.getType() == NotificationType.EVENT_MODE_EXPIRING && n.getRecipient().getId().equals(activeFM2.getId()))
+                .toList();
+        assertFalse(fm2Notifs.isEmpty());
+
+        // Khôi phục fmUser
+        fmUser.setIsActive(true);
+        userRepository.save(fmUser);
+    }
+
+    @Test
+    @DisplayName("T20b: Job nhắc hạn bỏ qua phiên có cờ khu vực đã tắt hoặc không đang mở -> expiry_reminded_at vẫn NULL, 0 thông báo")
+    void testT20b_ReminderSkipsExpiredOrInactive() {
+        OffsetDateTime now = OffsetDateTime.now();
+        notificationRepository.deleteAll();
+
+        // 1. Tạo phiên có planned_end còn 20 phút nhưng cờ khu vực open_to_members = false
+        AreaEventSession sessionInactiveArea = sessionRepository.save(AreaEventSession.builder()
+                .area(internalArea)
+                .startedAt(now.minusHours(2))
+                .plannedEnd(now.plusMinutes(20))
+                .actualEnd(null)
+                .startedBy(fmUser)
+                .expiryRemindedAt(null)
+                .build());
+        internalArea.setOpenToMembers(false);
+        internalArea.setOpenUntil(null);
+        areaRepository.save(internalArea);
+
+        areaService.scanAndSendEventModeExpiryReminders();
+
+        AreaEventSession reloaded = sessionRepository.findById(sessionInactiveArea.getId()).orElseThrow();
+        assertNull(reloaded.getExpiryRemindedAt(), "Job không được nhắc và expiry_reminded_at phải vẫn là null khi khu vực không đang mở");
+
+        List<Notification> notifs = notificationRepository.findAll().stream()
+                .filter(n -> n.getType() == NotificationType.EVENT_MODE_EXPIRING)
+                .toList();
+        assertTrue(notifs.isEmpty(), "0 thông báo được gửi khi khu vực không đang mở sự kiện");
+    }
+
+    @Test
+    @DisplayName("T21: Hạ BUDGET_HOURS khi có khu vực đang mở vượt ngân sách mới -> mọi FM nhận 1 EVENT_MODE_LIMIT_CHANGED; hạ khi không vi phạm -> 0")
+    void testT21_BudgetReductionViolatingLimitNotification() {
+        OffsetDateTime now = OffsetDateTime.now();
+        notificationRepository.deleteAll();
+
+        // Dọn các area đang mở khác
+        List<Area> others = areaRepository.findByOpenToMembersTrueAndOpenUntilAfterAndDeletedAtIsNull(now);
+        for (Area a : others) {
+            a.setOpenToMembers(false);
+            a.setOpenUntil(null);
+            areaRepository.save(a);
+        }
+
+        // Tạo chuỗi phiên 40h cho internalArea, đang mở thêm 4h nữa
+        sessionRepository.deleteAll(sessionRepository.findAll().stream()
+                .filter(s -> s.getArea().getId().equals(internalArea.getId()))
+                .toList());
+
+        sessionRepository.save(AreaEventSession.builder()
+                .area(internalArea)
+                .startedAt(now.minusDays(4))
+                .plannedEnd(now.minusDays(4).plusHours(20))
+                .actualEnd(now.minusDays(4).plusHours(20))
+                .startedBy(fmUser)
+                .endedBy(fmUser)
+                .build());
+        sessionRepository.save(AreaEventSession.builder()
+                .area(internalArea)
+                .startedAt(now.minusDays(2))
+                .plannedEnd(now.minusDays(2).plusHours(20))
+                .actualEnd(now.minusDays(2).plusHours(20))
+                .startedBy(fmUser)
+                .endedBy(fmUser)
+                .build());
+
+        areaService.updateEventMode(
+                internalArea.getId(),
+                eventReq(internalArea.getId(), EventModeAction.ENABLE, now.plusHours(4), "SEMINAR", "Bat them 4 gio tong 44 gio"),
+                fmUser.getEmail()
+        );
+
+        long notifsBefore = notificationRepository.count();
+
+        // Hạ BUDGET_HOURS còn 30 (44h > 30h) -> FM nhận thông báo
+        systemConfigService.update(ConfigKey.EVENT_MODE_BUDGET_HOURS.name(), "30", adminUser.getEmail());
+
+        List<Notification> limitNotifs = notificationRepository.findAll().stream()
+                .filter(n -> n.getType() == NotificationType.EVENT_MODE_LIMIT_CHANGED)
+                .toList();
+        assertTrue(limitNotifs.size() > notifsBefore);
+        assertTrue(limitNotifs.stream().anyMatch(n -> n.getMessage().contains(internalArea.getName())));
+
+        // Khôi phục BUDGET_HOURS = 48
+        systemConfigService.update(ConfigKey.EVENT_MODE_BUDGET_HOURS.name(), "48", adminUser.getEmail());
+
+        // Tắt sự kiện internalArea
+        areaService.updateEventMode(
+                internalArea.getId(),
+                eventReq(internalArea.getId(), EventModeAction.DISABLE, null, "ENDED_EARLY", "Tat de khong con vi pham"),
+                fmUser.getEmail()
+        );
+
+        long countAfterDisable = notificationRepository.count();
+
+        // Hạ BUDGET_HOURS khi không có khu vực nào vi phạm -> 0 thông báo
+        systemConfigService.update(ConfigKey.EVENT_MODE_BUDGET_HOURS.name(), "30", adminUser.getEmail());
+        assertEquals(countAfterDisable, notificationRepository.count());
+
+        // Khôi phục lại
+        systemConfigService.update(ConfigKey.EVENT_MODE_BUDGET_HOURS.name(), "48", adminUser.getEmail());
+    }
+
+    @Test
+    @DisplayName("T22: checkEntry với sự kiện hết hạn (cờ open_to_members vẫn true) -> không trả OPEN_EVENT")
+    void testT22_CheckEntryWithExpiredEvent_DoesNotReturnOpenEvent() {
+        OffsetDateTime now = OffsetDateTime.now();
+
+        // Khu vực internalArea có level = 2. normalUser có accessLevel = 1.
+        // Đặt open_to_members = true nhưng open_until trong quá khứ (đã hết hạn)
+        internalArea.setOpenToMembers(true);
+        internalArea.setOpenUntil(now.minusMinutes(10));
+        areaRepository.save(internalArea);
+
+        AccessDecision decision = accessDecisionService.checkEntry(
+                normalUser.getId(),
+                internalArea.getId(),
+                now
+        );
+
+        // Quyết định không được là OPEN_EVENT và bị từ chối do level không đủ (level 1 < level 2)
+        assertNotEquals(AccessSource.OPEN_EVENT, decision.source());
+        assertFalse(decision.allowed());
+    }
+
+    // ===== T23: Hiển thị thời điểm bắt đầu sự kiện (chỉ hiển thị, không đổi BR) =====
+
+    private com.fa26se040.icss.dto.area.AreaResponse enableEvent(Area area, OffsetDateTime until, String note) {
+        return areaService.updateEventMode(area.getId(),
+                eventReq(area.getId(), EventModeAction.ENABLE, until, "SEMINAR", note), fmUser.getEmail());
+    }
+
+    private com.fa26se040.icss.dto.area.AreaResponse adjustEvent(Area area, OffsetDateTime until, String note) {
+        return areaService.updateEventMode(area.getId(),
+                eventReq(area.getId(), EventModeAction.ADJUST, until, "EVENT_PROLONGED", note), fmUser.getEmail());
+    }
+
+    @Test
+    @DisplayName("T23a: Bật -> eventStartedAt = started_at phiên, eventStartedByName = FM, eventLastAdjustedAt null")
+    void testT23a_EnableShowsStartTime() {
+        OffsetDateTime now = OffsetDateTime.now();
+        com.fa26se040.icss.dto.area.AreaResponse resp = enableEvent(internalArea, now.plusHours(2), "Kiem thu T23a bat su kien");
+
+        AreaEventSession session = sessionRepository.findByAreaIdAndActualEndIsNull(internalArea.getId()).orElseThrow();
+        assertNotNull(resp.eventStartedAt());
+        assertEquals(session.getStartedAt().toEpochSecond(), resp.eventStartedAt().toEpochSecond());
+        assertEquals(fmUser.getFullName(), resp.eventStartedByName());
+        assertNull(resp.eventLastAdjustedAt());
+        assertNull(resp.eventLastAdjustedByName());
+
+        com.fa26se040.icss.dto.area.AreaResponse detail = areaService.getAreaById(internalArea.getId());
+        assertEquals(resp.eventStartedAt().toEpochSecond(), detail.eventStartedAt().toEpochSecond());
+        assertEventModeInvariant(internalArea.getId(), OffsetDateTime.now());
+    }
+
+    @Test
+    @DisplayName("T23b: Bật rồi điều chỉnh 2 lần -> eventStartedAt giữ mốc bật ban đầu, eventLastAdjustedAt = lần điều chỉnh thứ 2")
+    void testT23b_AdjustKeepsOriginalStart() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now();
+        com.fa26se040.icss.dto.area.AreaResponse first = enableEvent(internalArea, now.plusHours(2), "Kiem thu T23b bat su kien");
+        OffsetDateTime originalStart = first.eventStartedAt();
+        assertNotNull(originalStart);
+
+        Thread.sleep(1100);
+        adjustEvent(internalArea, OffsetDateTime.now().plusHours(3), "Kiem thu T23b dieu chinh 1");
+        Thread.sleep(1100);
+        com.fa26se040.icss.dto.area.AreaResponse last = adjustEvent(internalArea, OffsetDateTime.now().plusHours(4), "Kiem thu T23b dieu chinh 2");
+
+        AreaEventSession current = sessionRepository.findByAreaIdAndActualEndIsNull(internalArea.getId()).orElseThrow();
+        assertEquals(originalStart.toEpochSecond(), last.eventStartedAt().toEpochSecond(), "Giờ bắt đầu không đổi khi điều chỉnh");
+        assertNotNull(last.eventLastAdjustedAt());
+        assertEquals(current.getStartedAt().toEpochSecond(), last.eventLastAdjustedAt().toEpochSecond());
+        assertTrue(last.eventLastAdjustedAt().isAfter(originalStart));
+        assertEquals(fmUser.getFullName(), last.eventLastAdjustedByName());
+        assertEventModeInvariant(internalArea.getId(), OffsetDateTime.now());
+    }
+
+    @Test
+    @DisplayName("T23c: Tắt rồi bật lại -> chuỗi mới: eventStartedAt = mốc bật lại, eventLastAdjustedAt null")
+    void testT23c_DisableThenEnableStartsNewChain() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now();
+        com.fa26se040.icss.dto.area.AreaResponse first = enableEvent(internalArea, now.plusHours(2), "Kiem thu T23c bat lan 1");
+        Thread.sleep(1100);
+        adjustEvent(internalArea, OffsetDateTime.now().plusHours(3), "Kiem thu T23c dieu chinh");
+        com.fa26se040.icss.dto.area.AreaResponse off = areaService.updateEventMode(internalArea.getId(),
+                eventReq(internalArea.getId(), EventModeAction.DISABLE, null, "ENDED_EARLY", "Kiem thu T23c tat su kien"), fmUser.getEmail());
+        assertNull(off.eventStartedAt());
+        assertNull(off.eventLastAdjustedAt());
+
+        com.fa26se040.icss.dto.area.AreaResponse again = enableEvent(internalArea, OffsetDateTime.now().plusHours(2), "Kiem thu T23c bat lai");
+        AreaEventSession current = sessionRepository.findByAreaIdAndActualEndIsNull(internalArea.getId()).orElseThrow();
+        assertEquals(current.getStartedAt().toEpochSecond(), again.eventStartedAt().toEpochSecond());
+        assertTrue(again.eventStartedAt().isAfter(first.eventStartedAt()));
+        assertNull(again.eventLastAdjustedAt());
+        assertEventModeInvariant(internalArea.getId(), OffsetDateTime.now());
+    }
+
+    @Test
+    @DisplayName("T23d: Sự kiện đã hết hạn (cờ còn true) -> 4 field thời điểm đều null")
+    void testT23d_ExpiredEventHasNoStartTime() {
+        OffsetDateTime now = OffsetDateTime.now();
+        sessionRepository.save(AreaEventSession.builder()
+                .area(internalArea)
+                .startedAt(now.minusHours(4))
+                .plannedEnd(now.minusHours(1))
+                .actualEnd(null)
+                .startedBy(fmUser)
+                .build());
+        internalArea.setOpenToMembers(true);
+        internalArea.setOpenUntil(now.minusHours(1));
+        areaRepository.save(internalArea);
+
+        com.fa26se040.icss.dto.area.AreaResponse detail = areaService.getAreaById(internalArea.getId());
+        assertFalse(detail.eventActive());
+        assertNull(detail.eventStartedAt());
+        assertNull(detail.eventStartedByName());
+        assertNull(detail.eventLastAdjustedAt());
+        assertNull(detail.eventLastAdjustedByName());
+    }
+
+    // ======================================================================
+    // FIX-K8a2: câu báo ERR_AREA_030 phải nêu giờ kết thúc THỰC TẾ của phiên gần nhất
+    // (COALESCE(actual_end, planned_end)), không phải planned_end.
+    // ======================================================================
+
+    private static final java.time.format.DateTimeFormatter K8A2_DTF =
+            java.time.format.DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy").withZone(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
+
+    @Test
+    @DisplayName("T-K8a2-a1: Bật tới T+60' rồi tắt tay; bật lại với lý do lệch loại -> 400 ERR_AREA_026 (BR-EV-A2)")
+    void testTK8a2_a1_ManualDisableThenMismatchedReason_MessageUsesActualEnd() {
+        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime planned = now.plusMinutes(60);
+
+        areaService.updateEventMode(internalArea.getId(),
+                eventReq(internalArea.getId(), EventModeAction.ENABLE, planned, "SEMINAR", "Bat su kien T-K8a2-a1"), fmUser.getEmail());
+        areaService.updateEventMode(internalArea.getId(),
+                eventReq(internalArea.getId(), EventModeAction.DISABLE, null, "ENDED_EARLY", "Tat tay ngay T-K8a2-a1"), fmUser.getEmail());
+
+        AreaEventSession last = sessionRepository.findTopByAreaIdOrderByStartedAtDesc(internalArea.getId()).orElseThrow();
+        assertNotNull(last.getActualEnd(), "Phiên đã tắt tay phải có actual_end");
+        String actualEndText = K8A2_DTF.format(last.getActualEnd());
+        String plannedEndText = K8A2_DTF.format(last.getPlannedEnd());
+        assertNotEquals(actualEndText, plannedEndText, "Tiền điều kiện: giờ tắt thực tế khác planned_end");
+
+        // Như K8a: bật lại với mã của nhóm tắt (ENDED_EARLY)
+        AreaException ex = assertThrows(AreaException.class, () ->
+                areaService.updateEventMode(internalArea.getId(),
+                        eventReq(internalArea.getId(), EventModeAction.ENABLE, now.plusMinutes(90), "ENDED_EARLY", "Gui ly do lech loai T-K8a2-a1"),
+                        fmUser.getEmail()));
+        // Step 5b (BR-EV-A2): lý do sai nhóm kiểm trước khoá -> 400 ERR_AREA_026 (không còn câu 030);
+        // câu 030 "đã tắt lúc <actual_end>" được kiểm ở T-K8a2-a2
+        assertEquals(AreaErrorCode.ERR_AREA_026, ex.getErrorCode());
+    }
+
+    @Test
+    @DisplayName("T-K8a2-a2: Bật tới T+60' rồi tắt tay; tắt lần nữa (BR-EV-10) -> 409 ERR_AREA_030 nêu giờ tắt thực tế")
+    void testTK8a2_a2_ManualDisableThenDisableAgain_MessageUsesActualEnd() {
+        OffsetDateTime now = OffsetDateTime.now();
+
+        areaService.updateEventMode(internalArea.getId(),
+                eventReq(internalArea.getId(), EventModeAction.ENABLE, now.plusMinutes(60), "SEMINAR", "Bat su kien T-K8a2-a2"), fmUser.getEmail());
+        areaService.updateEventMode(internalArea.getId(),
+                eventReq(internalArea.getId(), EventModeAction.DISABLE, null, "ENDED_EARLY", "Tat tay ngay T-K8a2-a2"), fmUser.getEmail());
+
+        AreaEventSession last = sessionRepository.findTopByAreaIdOrderByStartedAtDesc(internalArea.getId()).orElseThrow();
+        String actualEndText = K8A2_DTF.format(last.getActualEnd());
+        String plannedEndText = K8A2_DTF.format(last.getPlannedEnd());
+
+        AreaException ex = assertThrows(AreaException.class, () ->
+                areaService.updateEventMode(internalArea.getId(),
+                        eventReq(internalArea.getId(), EventModeAction.DISABLE, null, "ENDED_EARLY", "Tat lan nua T-K8a2-a2"),
+                        fmUser.getEmail()));
+        assertEquals(AreaErrorCode.ERR_AREA_030, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("đã tắt lúc " + actualEndText),
+                "Phải nêu giờ tắt thực tế " + actualEndText + " — message: " + ex.getMessage());
+        assertFalse(ex.getMessage().contains(plannedEndText),
+                "Không được nêu planned_end " + plannedEndText + " — message: " + ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("T-K8a2-b1: Phiên đã đóng với actual_end = planned_end -> 409 ERR_AREA_030 \"đã hết hạn lúc\" planned_end")
+    void testTK8a2_b1_ClosedAtPlannedEnd_MessageUsesPlannedEnd() {
+        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime planned = now.minusHours(1);
+        sessionRepository.save(AreaEventSession.builder()
+                .area(internalArea)
+                .startedAt(now.minusHours(3))
+                .plannedEnd(planned)
+                .actualEnd(planned)
+                .startedBy(fmUser)
+                .build());
+        internalArea.setOpenToMembers(false);
+        internalArea.setOpenUntil(null);
+        areaRepository.save(internalArea);
+
+        AreaException ex = assertThrows(AreaException.class, () ->
+                areaService.updateEventMode(internalArea.getId(),
+                        eventReq(internalArea.getId(), EventModeAction.DISABLE, null, "ENDED_EARLY", "Tat khi phien da het han T-K8a2-b1"),
+                        fmUser.getEmail()));
+        assertEquals(AreaErrorCode.ERR_AREA_030, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("đã hết hạn lúc " + K8A2_DTF.format(planned)),
+                "Phải nêu planned_end " + K8A2_DTF.format(planned) + " — message: " + ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("T-K8a2-b2: Phiên chưa đóng nhưng đã quá planned_end -> 409 ERR_AREA_030 \"đã hết hạn lúc\" planned_end")
+    void testTK8a2_b2_UnclosedPastPlannedEnd_MessageUsesPlannedEnd() {
+        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime planned = now.minusHours(1);
+        sessionRepository.save(AreaEventSession.builder()
+                .area(internalArea)
+                .startedAt(now.minusHours(3))
+                .plannedEnd(planned)
+                .actualEnd(null)
+                .startedBy(fmUser)
+                .build());
+        internalArea.setOpenToMembers(true);
+        internalArea.setOpenUntil(planned);
+        areaRepository.save(internalArea);
+
+        AreaException ex = assertThrows(AreaException.class, () ->
+                areaService.updateEventMode(internalArea.getId(),
+                        eventReq(internalArea.getId(), EventModeAction.DISABLE, null, "ENDED_EARLY", "Tat khi phien qua han T-K8a2-b2"),
+                        fmUser.getEmail()));
+        assertEquals(AreaErrorCode.ERR_AREA_030, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("đã hết hạn lúc " + K8A2_DTF.format(planned)),
+                "Phải nêu planned_end " + K8A2_DTF.format(planned) + " — message: " + ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("T-K8a2-c: Đang mở + lý do lệch loại -> 409 ERR_AREA_030 vẫn 'đang mở đến <openUntil>' (không đổi hành vi)")
+    void testTK8a2_c_ActiveEvent_MessageStillShowsOpenUntil() {
+        OffsetDateTime now = OffsetDateTime.now();
+        areaService.updateEventMode(internalArea.getId(),
+                eventReq(internalArea.getId(), EventModeAction.ENABLE, now.plusHours(2), "SEMINAR", "Bat su kien T-K8a2-c"), fmUser.getEmail());
+        Area reloaded = areaRepository.findById(internalArea.getId()).orElseThrow();
+        String openUntilText = K8A2_DTF.format(reloaded.getOpenUntil());
+
+        AreaException ex = assertThrows(AreaException.class, () ->
+                areaService.updateEventMode(internalArea.getId(),
+                        eventReq(internalArea.getId(), EventModeAction.ENABLE, now.plusHours(4), "SEMINAR", "Gui EVENT_ENABLE khi dang mo T-K8a2-c"),
+                        fmUser.getEmail()));
+        assertEquals(AreaErrorCode.ERR_AREA_030, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("đang mở đến " + openUntilText),
+                "Phải giữ 'đang mở đến " + openUntilText + "' — message: " + ex.getMessage());
+    }
+}

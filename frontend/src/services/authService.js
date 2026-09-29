@@ -23,7 +23,8 @@ export async function loginWithGoogle(idToken) {
     throw new Error(error.message || `HTTP ${response.status}`);
   }
 
-  return response.json();
+  const json = await response.json();
+  return json && json.data ? json.data : json;
 }
 
 /**
@@ -105,7 +106,8 @@ export async function loginWithCredentials(email, password) {
     throw new Error(error.message || `HTTP ${response.status}`);
   }
 
-  return response.json();
+  const json = await response.json();
+  return json && json.data ? json.data : json;
 }
 
 /**
