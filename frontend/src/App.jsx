@@ -247,7 +247,8 @@ function App() {
 										allowedRoles={[
 											ROLES.NORMAL_USER,
 											ROLES.FACILITY_MANAGER,
-											ROLES.GUARD
+											ROLES.GUARD,
+											ROLES.ADMIN,
 										]}
 									>
 										<NotificationsPage />

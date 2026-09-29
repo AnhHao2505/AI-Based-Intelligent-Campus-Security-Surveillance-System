@@ -17,7 +17,9 @@ import {
   CalendarX,
   Hourglass,
   SlidersHorizontal,
-  ArrowLeftRight
+  ArrowLeftRight,
+  Camera,
+  UserCheck
 } from 'lucide-react';
 import { notificationService } from '../../services/notificationService';
 import { useAuth } from '../../context/AuthContext';
@@ -82,6 +84,16 @@ export default function NotificationsPage() {
         navigate('/admin/access-requests');
       } else {
         navigate('/access-requests');
+      }
+    }
+
+    if (notif.referenceType === 'GUEST_VISIT' || notif.reference_type === 'GUEST_VISIT' || notif.type?.startsWith('GUEST_')) {
+      if (notif.type === 'GUEST_VISIT_PENDING') {
+        navigate('/admin/guest-visits');
+      } else if (notif.type === 'GUEST_PHOTO_REQUIRED') {
+        navigate('/admin/guest-photos');
+      } else {
+        navigate('/guest-visits');
       }
     }
   };
@@ -203,6 +215,43 @@ export default function NotificationsPage() {
         return (
           <div className="notif-icon-box notif-icon-box--cancelled" title="Đơn bị hệ thống huỷ">
             <XCircle size={16} />
+          </div>
+        );
+      // Guest visits & photos notifications (U5)
+      case 'GUEST_VISIT_PENDING':
+        return (
+          <div className="notif-icon-box notif-icon-box--pending" title="Lượt khách mới chờ duyệt">
+            <UserCheck size={16} />
+          </div>
+        );
+      case 'GUEST_VISIT_APPROVED':
+        return (
+          <div className="notif-icon-box notif-icon-box--approved" title="Lượt khách đã được duyệt">
+            <CircleCheck size={16} />
+          </div>
+        );
+      case 'GUEST_VISIT_REJECTED':
+        return (
+          <div className="notif-icon-box notif-icon-box--rejected" title="Lượt khách bị từ chối">
+            <CircleX size={16} />
+          </div>
+        );
+      case 'GUEST_VISIT_REVOKED':
+        return (
+          <div className="notif-icon-box notif-icon-box--denied" title="Lượt khách bị thu hồi">
+            <ShieldX size={16} />
+          </div>
+        );
+      case 'GUEST_VISIT_EXPIRED':
+        return (
+          <div className="notif-icon-box notif-icon-box--expiring" title="Lượt khách hết hạn">
+            <Clock size={16} />
+          </div>
+        );
+      case 'GUEST_PHOTO_REQUIRED':
+        return (
+          <div className="notif-icon-box notif-icon-box--schedule" title="Cần gắn ảnh khách">
+            <Camera size={16} />
           </div>
         );
       default:

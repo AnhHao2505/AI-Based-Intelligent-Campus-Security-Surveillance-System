@@ -362,6 +362,21 @@ export default function Sidebar({ user, onLogout }) {
 									{isAdmin && (
 										<>
 											<NavLink
+												to="/notifications"
+												className={({ isActive }) =>
+													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
+												}
+												title={sidebarCollapsed ? "Thông báo" : undefined}
+											>
+												<Bell size={18} />
+												<span>Thông báo</span>
+												{unreadCount > 0 && (
+													<span className="sidebar__unread-badge">
+														{unreadCount > 9 ? "9+" : unreadCount}
+													</span>
+												)}
+											</NavLink>
+											<NavLink
 												to="/admin/map"
 												className={({ isActive }) =>
 													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
