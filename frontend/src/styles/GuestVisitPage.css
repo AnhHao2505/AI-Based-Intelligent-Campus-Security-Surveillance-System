@@ -255,15 +255,15 @@
 }
 
 .guest-visit__filter-btn:hover {
-  background: var(--theme-bg-surface-hover);
+  background: var(--theme-bg-surface-elevated);
   color: var(--theme-text-primary);
   border-color: var(--theme-border-hover);
 }
 
 .guest-visit__filter-btn--active {
-  background: var(--theme-primary-bg, #eff6ff);
-  color: var(--theme-primary, #2563eb);
-  border-color: var(--theme-primary-border, #bfdbfe);
+  background: var(--theme-primary-subtle);
+  color: var(--theme-primary);
+  border-color: var(--theme-primary-border);
   font-weight: 600;
 }
 

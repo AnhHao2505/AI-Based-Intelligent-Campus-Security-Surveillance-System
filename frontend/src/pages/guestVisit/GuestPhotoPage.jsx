@@ -172,7 +172,7 @@ export default function GuestPhotoPage() {
       closeAttachModal();
       loadVisits(page);
     } catch (err) {
-      if (err?.code === 'ERR_GUEST_016' || err?.status === 409) {
+      if (err?.code === 'ERR_GUEST_016') {
         setUploadError('Lượt khách đã được người khác cập nhật, vui lòng tải lại.');
         setTimeout(() => {
           closeAttachModal();

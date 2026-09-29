@@ -136,7 +136,7 @@ export default function GuestVisitReviewPage() {
       setDetail(null);
       loadVisits(page);
     } catch (err) {
-      if (err?.code === 'ERR_GUEST_016' || err?.status === 409) {
+      if (err?.code === 'ERR_GUEST_016') {
         setActionError('Lượt khách đã được người khác cập nhật, vui lòng tải lại.');
         setTimeout(() => {
           setApproveTarget(null);
@@ -170,7 +170,7 @@ export default function GuestVisitReviewPage() {
       setDetail(null);
       loadVisits(page);
     } catch (err) {
-      if (err?.code === 'ERR_GUEST_016' || err?.status === 409) {
+      if (err?.code === 'ERR_GUEST_016') {
         setActionError('Lượt khách đã được người khác cập nhật, vui lòng tải lại.');
         setTimeout(() => {
           setRejectTarget(null);
@@ -203,7 +203,7 @@ export default function GuestVisitReviewPage() {
       setDetail(null);
       loadVisits(page);
     } catch (err) {
-      if (err?.code === 'ERR_GUEST_016' || err?.status === 409) {
+      if (err?.code === 'ERR_GUEST_016') {
         setActionError('Lượt khách đã được người khác cập nhật, vui lòng tải lại.');
         setTimeout(() => {
           setRevokeTarget(null);
