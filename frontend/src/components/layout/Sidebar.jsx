@@ -22,6 +22,7 @@ import {
 	ShieldCheck,
 	Compass,
 	Tag,
+	UserPlus,
 } from "lucide-react";
 import { ROLES, ROLE_LABELS } from "../../constants/roles";
 import { useTheme } from "../../context/ThemeContext";
@@ -173,6 +174,17 @@ export default function Sidebar({ user, onLogout }) {
 							</NavLink>
 
 							<NavLink
+								to="/guest-visits"
+								className={({ isActive }) =>
+									`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
+								}
+								title={sidebarCollapsed ? "Khách của tôi" : undefined}
+							>
+								<UserPlus size={18} />
+								<span>Khách của tôi</span>
+							</NavLink>
+
+							<NavLink
 								to="/notifications"
 								className={({ isActive }) =>
 									`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
@@ -264,6 +276,17 @@ export default function Sidebar({ user, onLogout }) {
 									>
 										<MapPin size={18} />
 										<span>{isAdmin ? "Cấu hình vùng" : "Quản lý vùng"}</span>
+									</NavLink>
+
+									<NavLink
+										to="/guest-visits"
+										className={({ isActive }) =>
+											`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
+										}
+										title={sidebarCollapsed ? "Khách của tôi" : undefined}
+									>
+										<UserPlus size={18} />
+										<span>Khách của tôi</span>
 									</NavLink>
 
 									{isFacilityManager && (
