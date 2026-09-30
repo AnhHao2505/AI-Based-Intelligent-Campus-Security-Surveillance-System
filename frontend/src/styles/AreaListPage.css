@@ -2995,3 +2995,127 @@
 
 
 
+
+/* ===================================================================== */
+/* Step 6 — vô hiệu hoá / khôi phục khu vực (BR-AD-01, 07, 08)           */
+/* ===================================================================== */
+
+.area-deactivate-blockers {
+  background: var(--theme-danger-bg);
+  border: 1px solid var(--theme-danger-border);
+  color: var(--theme-danger-text);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 12px;
+  margin-bottom: 10px;
+}
+
+.area-deactivate-blockers__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.area-deactivate-blockers ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.area-deactivate-blockers li {
+  margin-bottom: 4px;
+  line-height: 1.45;
+}
+
+.area-deactivate-blockers li:last-child {
+  margin-bottom: 0;
+}
+
+.area-form-hint--error {
+  color: var(--theme-danger-text);
+}
+
+.zone-deactivated {
+  background: var(--theme-bg-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: 10px;
+  padding: 16px;
+  margin-top: 12px;
+}
+
+.zone-deactivated__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.zone-deactivated__title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--theme-text-primary);
+  margin: 0 0 4px;
+}
+
+.zone-deactivated__subtitle {
+  font-size: 12px;
+  color: var(--theme-text-muted);
+  margin: 0;
+}
+
+.zone-deactivated__count {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--theme-text-secondary);
+  background: var(--theme-bg-input);
+  border: 1px solid var(--theme-border);
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+
+.zone-deactivated__empty {
+  font-size: 13px;
+  color: var(--theme-text-muted);
+  margin: 8px 0 0;
+}
+
+.zone-deactivated__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.zone-deactivated__table th {
+  text-align: left;
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--theme-text-secondary);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--theme-border);
+}
+
+.zone-deactivated__table td {
+  padding: 10px;
+  color: var(--theme-text-primary);
+  border-bottom: 1px solid var(--theme-border);
+}
+
+.zone-deactivated__table tr:last-child td {
+  border-bottom: none;
+}
+
+.zone-deactivated__name {
+  font-weight: 500;
+}
+
+.zone-deactivated__actions {
+  text-align: right;
+}
+
+.zone-deactivated__restore-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

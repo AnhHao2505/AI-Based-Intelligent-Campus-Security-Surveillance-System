@@ -26,6 +26,8 @@ import {
 	Compass,
 	Info,
 	ExternalLink,
+	RotateCcw,
+	Archive,
 } from "lucide-react";
 import AreaAccessRulesModal from "../../components/area/AreaAccessRulesModal";
 import AreaAssignedPersonnelModal from "../../components/area/AreaAssignedPersonnelModal";
@@ -41,6 +43,7 @@ import {
 	createArea,
 	updateArea,
 	deactivateArea,
+	restoreArea,
 	getFloorPlans,
 	saveAreaGeometry,
 	deleteAreaGeometry,
@@ -94,8 +97,7 @@ const GEOMETRY_ERROR_MESSAGES = {
 	ERR_AREA_006: "Toạ độ bản đồ phải có đủ cả X và Y.",
 	ERR_AREA_007: "Không được thay đổi mã khu vực sau khi tạo.",
 	ERR_AREA_008: "Lý do giải trình không được để trống khi hạ cấp an ninh.",
-	ERR_AREA_009: "Không thể vô hiệu hóa: còn camera đang gán.",
-	ERR_AREA_010: "Không thể vô hiệu hóa: còn quyền truy cập.",
+	ERR_AREA_009: "Không thể vô hiệu hóa: còn camera đang gán. Gỡ camera khỏi khu vực trước.",
 	ERR_AREA_011: "Hình đa giác phải có ít nhất 3 đỉnh.",
 	ERR_AREA_012: "Toạ độ các đỉnh phải nằm trong khoảng chuẩn hoá [0.0, 1.0].",
 	ERR_AREA_013: "Hình bị chồng lấn với khu vực khác trên cùng tầng.",
@@ -206,6 +208,19 @@ export default function AreaListPage() {
 	const [modalError, setModalError] = useState(null);
 	const [nameError, setNameError] = useState(null);
 	const [dependencies, setDependencies] = useState(null);
+	// Step 6 (BR-AD-01, 08): khu vực đang mở modal vô hiệu hoá + lý do. Giữ riêng với selectedArea vì sau 409 045
+	// danh sách được tải lại và khu vực có thể không còn trong danh sách đang hoạt động.
+	const [deactivateTarget, setDeactivateTarget] = useState(null);
+	const [deactivateReason, setDeactivateReason] = useState("");
+	// Step 6 (BR-AD-07): bộ lọc "Đã vô hiệu hoá" + khôi phục — chỉ ADMIN
+	const [showDeactivated, setShowDeactivated] = useState(false);
+	const [deactivatedAreas, setDeactivatedAreas] = useState([]);
+	const [deactivatedLoading, setDeactivatedLoading] = useState(false);
+	const [deactivatedError, setDeactivatedError] = useState(null);
+	const [restoreTarget, setRestoreTarget] = useState(null);
+	const [restoreReason, setRestoreReason] = useState("");
+	const [restoreError, setRestoreError] = useState(null);
+	const [restoreLoading, setRestoreLoading] = useState(false);
 
 	// Camera list modal states
 	const [camerasModalOpen, setCamerasModalOpen] = useState(false);
@@ -857,13 +872,15 @@ export default function AreaListPage() {
 		const areaToDeactivate = targetArea || selectedArea;
 		if (!areaToDeactivate) return;
 		setSelectedAreaId(areaToDeactivate.id);
-		setFormData((prev) => ({ ...prev, id: areaToDeactivate.id }));
+		setDeactivateTarget(areaToDeactivate);
+		setDeactivateReason("");
 		setModalError(null);
 		setDependencies(null);
 		setDeactivateModalOpen(true);
 		setModalLoading(true);
 
 		try {
+			// BR-AD-08: xem trước chỉ đọc — blockers + số AP / đơn / lượt khách sẽ bị xử lý + version
 			const depRes = await getDependencies(areaToDeactivate.id);
 			setDependencies(depRes);
 		} catch (err) {
@@ -874,21 +891,98 @@ export default function AreaListPage() {
 		}
 	};
 
+	const closeDeactivateModal = () => {
+		setDeactivateModalOpen(false);
+		setDeactivateTarget(null);
+	};
+
+	const deactivateReasonLength = deactivateReason.trim().length;
+	const deactivateReasonInvalid = deactivateReasonLength < 10 || deactivateReasonLength > 500;
+	const deactivateBlocked = !dependencies || (dependencies.blockers || []).length > 0;
+
 	const handleDeactivateSubmit = async () => {
-		const targetId = formData.id || selectedArea?.id;
-		if (!targetId) return;
+		if (!deactivateTarget || !dependencies) return;
+		const targetId = deactivateTarget.id;
 		setModalLoading(true);
 		setModalError(null);
 		try {
-			await deactivateArea(targetId);
-			setDeactivateModalOpen(false);
+			await deactivateArea(targetId, { reason: deactivateReason.trim(), version: dependencies.version });
+			closeDeactivateModal();
 			setSelectedAreaId(null);
 			await fetchData();
+			if (showDeactivated) await fetchDeactivatedAreas();
 		} catch (err) {
 			console.error("Deactivate area failed:", err);
-			setModalError(getErrorMessage(err));
+			if (err?.code === "ERR_AREA_045") {
+				// Người khác vừa cập nhật khu vực: tải lại danh sách + xem trước để có dữ liệu và version mới
+				setModalError("Khu vực đã được người khác cập nhật. Đã tải lại dữ liệu mới nhất, vui lòng kiểm tra lại.");
+				await fetchData(targetId);
+				try {
+					setDependencies(await getDependencies(targetId));
+				} catch {
+					setDependencies(null);
+					setModalError(
+						"Khu vực đã được người khác cập nhật và không còn ở trạng thái đang hoạt động. Vui lòng đóng cửa sổ này.",
+					);
+				}
+			} else {
+				setModalError(getErrorMessage(err));
+			}
 		} finally {
 			setModalLoading(false);
+		}
+	};
+
+	// ------------------------------------------------------------------ Step 6: đã vô hiệu hoá + khôi phục
+
+	const fetchDeactivatedAreas = useCallback(async () => {
+		setDeactivatedLoading(true);
+		setDeactivatedError(null);
+		try {
+			const res = await getAreas({ size: 100, isActive: false });
+			const list = res?.content || res || [];
+			setDeactivatedAreas(Array.isArray(list) ? list : []);
+		} catch (err) {
+			console.error("Failed to load deactivated areas:", err);
+			setDeactivatedError(getErrorMessage(err));
+		} finally {
+			setDeactivatedLoading(false);
+		}
+	}, []);
+
+	useEffect(() => {
+		if (isAdmin && showDeactivated) {
+			fetchDeactivatedAreas();
+		}
+	}, [isAdmin, showDeactivated, fetchDeactivatedAreas]);
+
+	const openRestoreModal = (area) => {
+		setRestoreTarget(area);
+		setRestoreReason("");
+		setRestoreError(null);
+	};
+
+	const restoreReasonLength = restoreReason.trim().length;
+	const restoreReasonInvalid = restoreReasonLength < 10 || restoreReasonLength > 500;
+
+	const handleRestoreSubmit = async () => {
+		if (!restoreTarget) return;
+		setRestoreLoading(true);
+		setRestoreError(null);
+		try {
+			await restoreArea(restoreTarget.id, { reason: restoreReason.trim(), version: restoreTarget.version });
+			setRestoreTarget(null);
+			await Promise.all([fetchDeactivatedAreas(), fetchData()]);
+		} catch (err) {
+			console.error("Restore area failed:", err);
+			if (err?.code === "ERR_AREA_045") {
+				setRestoreError("Khu vực đã được người khác cập nhật. Đã tải lại danh sách, vui lòng mở lại để khôi phục.");
+				await fetchDeactivatedAreas();
+			} else {
+				setRestoreError(getErrorMessage(err));
+			}
+		} finally {
+			setRestoreLoading(false);
 		}
 	};
 
@@ -1007,6 +1101,29 @@ export default function AreaListPage() {
 					</div>
 
 					{isAdmin && (
+						<div className="zone-view-toggle" role="group" aria-label="Lọc trạng thái khu vực">
+							<button
+								type="button"
+								className={`zone-view-toggle__btn ${!showDeactivated ? "zone-view-toggle__btn--active" : ""}`}
+								onClick={() => setShowDeactivated(false)}
+								title="Khu vực đang hoạt động"
+							>
+								<Layers size={15} />
+								<span>Đang hoạt động</span>
+							</button>
+							<button
+								type="button"
+								className={`zone-view-toggle__btn ${showDeactivated ? "zone-view-toggle__btn--active" : ""}`}
+								onClick={() => setShowDeactivated(true)}
+								title="Khu vực đã vô hiệu hoá"
+							>
+								<Archive size={15} />
+								<span>Đã vô hiệu hoá</span>
+							</button>
+						</div>
+					)}
+
+					{isAdmin && (
 						<button
 							type="button"
 							className="zone-toolbar__add-btn"
@@ -1036,7 +1153,71 @@ export default function AreaListPage() {
 			{/* ============================================================ */}
 			{/* 2. MAIN CONTENT (MAP VIEW OR LIST VIEW)                      */}
 			{/* ============================================================ */}
-			{!loading && viewMode === "map" && (
+			{/* Step 6 (BR-AD-07): danh sách khu vực đã vô hiệu hoá + khôi phục — chỉ ADMIN */}
+			{isAdmin && showDeactivated && (
+				<section className="zone-deactivated" aria-label="Khu vực đã vô hiệu hoá">
+					<div className="zone-deactivated__header">
+						<div>
+							<h2 className="zone-deactivated__title">Khu vực đã vô hiệu hoá</h2>
+							<p className="zone-deactivated__subtitle">
+								Khôi phục chỉ mở lại khu vực. Nhân sự chỉ định, đơn truy cập, lượt khách và camera đã gỡ không tự hồi phục.
+							</p>
+						</div>
+						<span className="zone-deactivated__count">{deactivatedAreas.length} khu vực</span>
+					</div>
+
+					{deactivatedLoading && (
+						<div className="zone-page__loading">
+							<Loader2 className="animate-spin" size={24} />
+							<span>Đang tải khu vực đã vô hiệu hoá...</span>
+						</div>
+					)}
+					{!deactivatedLoading && deactivatedError && (
+						<div className="zone-modal-alert">
+							<AlertCircle size={15} />
+							<span>{deactivatedError}</span>
+						</div>
+					)}
+					{!deactivatedLoading && !deactivatedError && deactivatedAreas.length === 0 && (
+						<p className="zone-deactivated__empty">Không có khu vực nào đã vô hiệu hoá.</p>
+					)}
+					{!deactivatedLoading && !deactivatedError && deactivatedAreas.length > 0 && (
+						<table className="zone-deactivated__table">
+							<thead>
+								<tr>
+									<th>Tên khu vực</th>
+									<th>Toà nhà / Tầng</th>
+									<th>Loại</th>
+									<th aria-label="Thao tác" />
+								</tr>
+							</thead>
+							<tbody>
+								{deactivatedAreas.map((a) => (
+									<tr key={a.id}>
+										<td className="zone-deactivated__name">{a.name}</td>
+										<td>
+											{a.building || "—"} / {a.floor || "—"}
+										</td>
+										<td>{AREA_LEVEL_CONFIG[a.areaLevel]?.name || a.areaLevel}</td>
+										<td className="zone-deactivated__actions">
+											<button
+												type="button"
+												className="area-btn-modal area-btn-modal--cancel zone-deactivated__restore-btn"
+												onClick={() => openRestoreModal(a)}
+											>
+												<RotateCcw size={14} />
+												<span>Khôi phục</span>
+											</button>
+										</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+					)}
+				</section>
+			)}
+
+			{!loading && !showDeactivated && viewMode === "map" && (
 				<AreaMapView
 					areas={areas}
 					selectedBuilding={selectedBuilding}
@@ -1080,7 +1261,7 @@ export default function AreaListPage() {
 				/>
 			)}
 
-			{!loading && viewMode === "list" && (
+			{!loading && !showDeactivated && viewMode === "list" && (
 				<AreaListView
 					floorAreas={floorAreas}
 					selectedFloor={selectedFloor}
@@ -1640,11 +1821,11 @@ export default function AreaListPage() {
 				onClose={() => setTypePreview(null)}
 			/>
 
-			{/* DEACTIVATE ZONE MODAL */}
-			{deactivateModalOpen && selectedArea && (
+			{/* DEACTIVATE ZONE MODAL — Step 6 (BR-AD-01, 08): xem trước + lý do + version */}
+			{deactivateModalOpen && deactivateTarget && (
 				<div
 					className="area-modal-backdrop"
-					onClick={() => setDeactivateModalOpen(false)}
+					onClick={closeDeactivateModal}
 				>
 					<div
 						className="area-modal"
@@ -1658,14 +1839,14 @@ export default function AreaListPage() {
 								<div className="area-modal__header-text">
 									<h3 className="area-modal__title">Vô hiệu hoá khu vực</h3>
 									<p className="area-modal__subtitle">
-										Xác nhận ngừng kích hoạt khu vực này
+										Khu vực ngừng hoạt động, không còn nhận đơn hay lượt khách
 									</p>
 								</div>
 							</div>
 							<button
 								type="button"
 								className="area-modal__close-btn"
-								onClick={() => setDeactivateModalOpen(false)}
+								onClick={closeDeactivateModal}
 								aria-label="Đóng"
 							>
 								<X size={16} />
@@ -1681,27 +1862,71 @@ export default function AreaListPage() {
 							)}
 
 							<p className="area-modal__lead">
-								Bạn có chắc chắn muốn vô hiệu hoá khu vực{" "}
-								<strong>{selectedArea.name}</strong>?
+								Vô hiệu hoá khu vực <strong>{deactivateTarget.name}</strong>?
 							</p>
+
+							{modalLoading && !dependencies && (
+								<div className="zone-page__loading">
+									<Loader2 className="animate-spin" size={20} />
+									<span>Đang kiểm tra phụ thuộc...</span>
+								</div>
+							)}
+
+							{dependencies && (dependencies.blockers || []).length > 0 && (
+								<div className="area-deactivate-blockers" role="alert">
+									<div className="area-deactivate-blockers__title">
+										<AlertTriangle size={15} />
+										<span>Chưa thể vô hiệu hoá — cần xử lý trước:</span>
+									</div>
+									<ul>
+										{dependencies.blockers.map((b) => (
+											<li key={b.errorCode}>{b.message}</li>
+										))}
+									</ul>
+								</div>
+							)}
 
 							{dependencies && (
 								<div className="area-dependencies-box">
 									<div className="area-dependencies-box__title">
-										Phụ thuộc liên quan (sẽ bị ảnh hưởng):
+										Hệ thống sẽ tự xử lý khi vô hiệu hoá:
 									</div>
 									<ul>
 										<li>
-											Camera đang gán:{" "}
-											<strong>{dependencies.assignedCamerasCount || 0}</strong>
+											Nhân sự chỉ định bị thu hồi: <strong>{dependencies.apToRevoke ?? 0}</strong>
 										</li>
 										<li>
-											Lượt yêu cầu truy cập còn hiệu lực:{" "}
-											<strong>
-												{dependencies.activeAccessRequestsCount || 0}
-											</strong>
+											Đơn truy cập bị huỷ: <strong>{dependencies.requestsToCancel ?? 0}</strong>
+										</li>
+										<li>
+											Lượt khách chờ duyệt bị huỷ: <strong>{dependencies.guestVisitsToCancel ?? 0}</strong>
+										</li>
+										<li>
+											Lượt khách đã duyệt bị thu hồi (xoá ảnh khuôn mặt):{" "}
+											<strong>{dependencies.guestVisitsToRevoke ?? 0}</strong>
 										</li>
 									</ul>
+								</div>
+							)}
+
+							{dependencies && (
+								<div className="area-form-group">
+									<label htmlFor="deactivate-reason" className="area-form-label">
+										Lý do vô hiệu hoá <span className="required">*</span>
+									</label>
+									<textarea
+										id="deactivate-reason"
+										className="area-form-input area-form-input--textarea"
+										rows={3}
+										maxLength={500}
+										value={deactivateReason}
+										onChange={(e) => setDeactivateReason(e.target.value)}
+										placeholder="Nêu lý do vô hiệu hoá (10–500 ký tự)"
+										disabled={modalLoading}
+									/>
+									<span className={`area-form-hint ${deactivateReason && deactivateReasonInvalid ? "area-form-hint--error" : ""}`}>
+										{deactivateReasonLength}/500 ký tự (bắt buộc từ 10 đến 500 ký tự)
+									</span>
 								</div>
 							)}
 						</div>
@@ -1710,7 +1935,7 @@ export default function AreaListPage() {
 							<button
 								type="button"
 								className="area-btn-modal area-btn-modal--cancel"
-								onClick={() => setDeactivateModalOpen(false)}
+								onClick={closeDeactivateModal}
 								disabled={modalLoading}
 							>
 								Huỷ
@@ -1719,9 +1944,100 @@ export default function AreaListPage() {
 								type="button"
 								className="area-btn-modal area-btn-modal--danger"
 								onClick={handleDeactivateSubmit}
-								disabled={modalLoading}
+								disabled={modalLoading || deactivateBlocked || deactivateReasonInvalid}
 							>
-								{modalLoading ? "Đang vô hiệu hoá..." : "Xác nhận vô hiệu hoá"}
+								{modalLoading && dependencies ? "Đang vô hiệu hoá..." : "Xác nhận vô hiệu hoá"}
+							</button>
+						</div>
+					</div>
+				</div>
+			)}
+
+			{/* RESTORE ZONE MODAL — Step 6 (BR-AD-07) */}
+			{restoreTarget && (
+				<div
+					className="area-modal-backdrop"
+					onClick={() => !restoreLoading && setRestoreTarget(null)}
+				>
+					<div
+						className="area-modal"
+						onClick={(e) => e.stopPropagation()}
+					>
+						<div className="area-modal__header">
+							<div className="area-modal__header-left">
+								<div className="area-modal__icon-badge">
+									<RotateCcw size={16} />
+								</div>
+								<div className="area-modal__header-text">
+									<h3 className="area-modal__title">Khôi phục khu vực</h3>
+									<p className="area-modal__subtitle">Mở lại khu vực đã vô hiệu hoá</p>
+								</div>
+							</div>
+							<button
+								type="button"
+								className="area-modal__close-btn"
+								onClick={() => setRestoreTarget(null)}
+								disabled={restoreLoading}
+								aria-label="Đóng"
+							>
+								<X size={16} />
+							</button>
+						</div>
+
+						<div className="area-modal__body">
+							{restoreError && (
+								<div className="zone-modal-alert">
+									<AlertCircle size={15} />
+									<span>{restoreError}</span>
+								</div>
+							)}
+							<p className="area-modal__lead">
+								Khôi phục khu vực <strong>{restoreTarget.name}</strong> ({restoreTarget.building || "—"} /{" "}
+								{restoreTarget.floor || "—"})?
+							</p>
+							<div className="area-dependencies-box">
+								<div className="area-dependencies-box__title">Lưu ý</div>
+								<ul>
+									<li>Nhân sự chỉ định, đơn truy cập và lượt khách đã bị huỷ / thu hồi KHÔNG tự hồi phục.</li>
+									<li>Camera cần được gán lại nếu cần.</li>
+								</ul>
+							</div>
+							<div className="area-form-group">
+								<label htmlFor="restore-reason" className="area-form-label">
+									Lý do khôi phục <span className="required">*</span>
+								</label>
+								<textarea
+									id="restore-reason"
+									className="area-form-input area-form-input--textarea"
+									rows={3}
+									maxLength={500}
+									value={restoreReason}
+									onChange={(e) => setRestoreReason(e.target.value)}
+									placeholder="Nêu lý do khôi phục (10–500 ký tự)"
+									disabled={restoreLoading}
+								/>
+								<span className={`area-form-hint ${restoreReason && restoreReasonInvalid ? "area-form-hint--error" : ""}`}>
+									{restoreReasonLength}/500 ký tự (bắt buộc từ 10 đến 500 ký tự)
+								</span>
+							</div>
+						</div>
+
+						<div className="area-modal__footer">
+							<button
+								type="button"
+								className="area-btn-modal area-btn-modal--cancel"
+								onClick={() => setRestoreTarget(null)}
+								disabled={restoreLoading}
+							>
+								Huỷ
+							</button>
+							<button
+								type="button"
+								className="area-btn-modal area-btn-modal--submit"
+								onClick={handleRestoreSubmit}
+								disabled={restoreLoading || restoreReasonInvalid}
+							>
+								{restoreLoading ? "Đang khôi phục..." : "Xác nhận khôi phục"}
 							</button>
 						</div>
 					</div>
