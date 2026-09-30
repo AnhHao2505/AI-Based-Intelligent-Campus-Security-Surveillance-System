@@ -15,6 +15,7 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -427,7 +428,8 @@ public class Step5bVersionTest extends Step5bTestSupport {
         Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
         Long v0 = apiVersion(area);
 
-        MvcResult r = send(delete("/api/areas/{id}", area.getId()), admin, null).andReturn();
+        MvcResult r = send(post("/api/areas/{id}/deactivate", area.getId()), admin,
+                Map.of("reason", "Ngừng sử dụng khu vực để thử version", "version", v0)).andReturn();
 
         assertEquals(200, status(r), describe(r));
         assertNotNull(reload(area).getDeletedAt(), "Tiền đề: khu vực phải bị vô hiệu hoá");

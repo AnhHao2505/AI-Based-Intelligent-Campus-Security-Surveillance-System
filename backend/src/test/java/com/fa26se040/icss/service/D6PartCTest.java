@@ -11,7 +11,6 @@ import com.fa26se040.icss.dto.accessrequest.AccessRequestReviewRequest;
 import com.fa26se040.icss.dto.accessrequest.GroupAccessRequestCreateRequest;
 import com.fa26se040.icss.dto.accessrequest.IndividualAccessRequestCreateRequest;
 import com.fa26se040.icss.dto.area.AreaCreateRequest;
-import com.fa26se040.icss.dto.area.AreaDependencyResponse;
 import com.fa26se040.icss.dto.area.AreaGeometry;
 import com.fa26se040.icss.dto.area.AreaUpdateRequest;
 import com.fa26se040.icss.dto.audit.AuditActor;
@@ -295,10 +294,13 @@ class D6PartCTest {
     @DisplayName("D6-05 Case 5: AreaService.deactivate ghi audit AREA DEACTIVATE")
     void testD6_05_AreaDeactivate() {
         when(areaRepository.findByIdWithLock(testArea.getId())).thenReturn(Optional.of(testArea));
-        when(dependencyChecker.check(testArea.getId())).thenReturn(new AreaDependencyResponse(testArea.getId(), true, List.of(), List.of(), null));
+        when(dependencyChecker.evaluate(eq(testArea), any())).thenReturn(new AreaDependencyChecker.DeactivationEvaluation(
+                List.of(), List.of(), List.of(), List.of(), List.of()));
         when(areaRepository.save(any(Area.class))).thenReturn(testArea);
 
-        areaService.deactivate(testArea.getId(), "fm@fpt.edu.vn");
+        areaService.deactivate(testArea.getId(),
+                new com.fa26se040.icss.dto.area.AreaDeactivateRequest("Khu vực ngừng sử dụng để sửa chữa", testArea.getVersion()),
+                "fm@fpt.edu.vn");
 
         verify(auditService).record(
                 eq(AuditTargetType.AREA),
@@ -308,7 +310,7 @@ class D6PartCTest {
                 isNull(),
                 any(AreaSnapshot.class),
                 any(AreaSnapshot.class),
-                isNull(),
+                eq("Khu vực ngừng sử dụng để sửa chữa"),
                 eq(fmUser)
         );
     }
@@ -316,6 +318,7 @@ class D6PartCTest {
     @Test
     @DisplayName("D6-05 Case 6: AreaService.updateCamerasForArea ghi audit AREA UPDATE_CAMERAS")
     void testD6_05_AreaUpdateCameras() {
+        when(areaRepository.findByIdWithLock(testArea.getId())).thenReturn(Optional.of(testArea));
         when(areaRepository.findByIdAndDeletedAtIsNull(testArea.getId())).thenReturn(Optional.of(testArea));
         UUID camId1 = UUID.randomUUID();
         UUID camId2 = UUID.randomUUID();

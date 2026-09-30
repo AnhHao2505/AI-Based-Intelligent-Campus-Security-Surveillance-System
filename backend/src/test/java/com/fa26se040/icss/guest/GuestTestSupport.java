@@ -226,7 +226,12 @@ public abstract class GuestTestSupport extends AbstractIntegrationTest {
             OffsetDateTime now = OffsetDateTime.now();
             for (AreaEventSession s : sessionRepository.findByAreaId(areaId)) {
                 if (s.getActualEnd() == null) {
-                    s.setActualEnd(now.isBefore(s.getStartedAt()) ? s.getStartedAt() : now);
+                    // chk_event_sessions_actual_end: started_at <= actual_end <= planned_end (phiên đã quá hạn thì đóng ở planned_end)
+                    OffsetDateTime end = now.isBefore(s.getStartedAt()) ? s.getStartedAt() : now;
+                    if (s.getPlannedEnd() != null && end.isAfter(s.getPlannedEnd())) {
+                        end = s.getPlannedEnd();
+                    }
+                    s.setActualEnd(end);
                     sessionRepository.save(s);
                 }
             }

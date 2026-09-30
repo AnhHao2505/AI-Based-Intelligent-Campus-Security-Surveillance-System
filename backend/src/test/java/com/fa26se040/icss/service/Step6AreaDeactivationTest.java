@@ -647,7 +647,7 @@ class Step6AreaDeactivationTest extends GuestTestSupport {
         Area other = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
         Camera cam = newCamera(other, "Camera khu khác");
 
-        MvcResult r = send(put("/api/areas/{id}/cameras", area.getId()), admin, List.of(cam.getId())).andReturn();
+        MvcResult r = send(put("/api/areas/{id}/cameras", area.getId()), admin, Map.of("cameraIds", List.of(cam.getId()))).andReturn();
 
         assertEquals(400, status(r), describe(r));
         assertEquals("ERR_AREA_017", errorCode(r));
@@ -667,7 +667,7 @@ class Step6AreaDeactivationTest extends GuestTestSupport {
         rules.put("explicitAuthorizationRequired", true);
         rules.put("reason", "Điều chỉnh quy tắc sau khi vô hiệu hoá");
         rules.put("version", v1);
-        assertBlocked(send(patch("/api/areas/{id}/access-rules", area.getId()), fm, rules).andReturn(), "access-rules");
+        assertBlocked(send(patch("/api/areas/{id}/access-rules", area.getId()), fm, rules).andReturn(), "access-rules", 400, "ERR_AREA_017");
 
         Map<String, Object> event = new LinkedHashMap<>();
         event.put("action", "ENABLE");
@@ -675,14 +675,14 @@ class Step6AreaDeactivationTest extends GuestTestSupport {
         event.put("reasonCode", "OTHER");
         event.put("note", "Hội thảo sau khi vô hiệu hoá khu vực");
         event.put("version", v1);
-        assertBlocked(send(patch("/api/areas/{id}/event-mode", area.getId()), fm, event).andReturn(), "event-mode");
+        assertBlocked(send(patch("/api/areas/{id}/event-mode", area.getId()), fm, event).andReturn(), "event-mode", 400, "ERR_AREA_017");
 
         Map<String, Object> schedule = new LinkedHashMap<>();
         schedule.put("startAt", now.plusDays(2).toString());
         schedule.put("endAt", now.plusDays(2).plusHours(2).toString());
         schedule.put("reasonCode", "OTHER");
         schedule.put("note", "Lịch sau khi vô hiệu hoá khu vực");
-        assertBlocked(send(post("/api/areas/{id}/event-schedules", area.getId()), fm, schedule).andReturn(), "event-schedules");
+        assertBlocked(send(post("/api/areas/{id}/event-schedules", area.getId()), fm, schedule).andReturn(), "event-schedules", 400, "ERR_AREA_017");
 
         Map<String, Object> putBody = new LinkedHashMap<>();
         putBody.put("name", area.getName() + " moi");
@@ -691,27 +691,32 @@ class Step6AreaDeactivationTest extends GuestTestSupport {
         putBody.put("centerLatitude", LAT);
         putBody.put("centerLongitude", LNG);
         putBody.put("version", v1);
-        assertBlocked(send(put("/api/areas/{id}", area.getId()), admin, putBody).andReturn(), "PUT");
+        assertBlocked(send(put("/api/areas/{id}", area.getId()), admin, putBody).andReturn(), "PUT", 404, "ERR_AREA_002");
 
         Map<String, Object> geometry = Map.of("type", "polygon", "version", 1, "vertices", List.of(
                 Map.of("x", 0.1, "y", 0.1), Map.of("x", 0.2, "y", 0.1), Map.of("x", 0.2, "y", 0.2)));
-        assertBlocked(send(patch("/api/areas/{id}/geometry", area.getId()).param("version", String.valueOf(v1)), admin, geometry).andReturn(), "geometry");
+        assertBlocked(send(patch("/api/areas/{id}/geometry", area.getId()).param("version", String.valueOf(v1)), admin, geometry).andReturn(), "geometry", 404, "ERR_AREA_002");
 
         Map<String, Object> request = new LinkedHashMap<>();
         request.put("areaId", area.getId());
         request.put("purpose", "Vào khu vực đã vô hiệu hoá để thử");
         request.put("startTime", now.plusHours(2).toString());
         request.put("endTime", now.plusHours(3).toString());
-        assertBlocked(send(post("/api/access-requests/individual"), hostL2, request).andReturn(), "tạo đơn");
+        assertBlocked(send(post("/api/access-requests/individual"), hostL2, request).andReturn(), "tạo đơn", 404, null);
 
         assertBlocked(send(post("/api/guest-visits"), hostL2,
-                createBody(future(0), future(60), List.of(area), List.of(guestInput("Khách thử", null)))).andReturn(), "tạo lượt khách");
+                createBody(future(0), future(60), List.of(area), List.of(guestInput("Khách thử", null)))).andReturn(), "tạo lượt khách", 400, "ERR_GUEST_008");
 
         assertEquals(v1, dbVersion(area), "không đường ghi nào được đổi khu vực");
         assertEquals(false, areaRow(area).get("is_active"));
     }
 
-    void assertBlocked(MvcResult r, String what) throws Exception {
-        assertTrue(status(r) >= 400 && status(r) < 500, what + " phải bị chặn (4xx): " + describe(r));
+    void assertBlocked(MvcResult r, String what, int expectedStatus, String expectedCode) throws Exception {
+        assertEquals(expectedStatus, status(r), what + " phải bị chặn: " + describe(r));
+        if (expectedCode != null) {
+            assertEquals(expectedCode, errorCode(r), what + ": " + describe(r));
+        } else {
+            assertTrue(message(r).contains("vô hiệu hoá"), what + ": " + describe(r));
+        }
     }
 }
