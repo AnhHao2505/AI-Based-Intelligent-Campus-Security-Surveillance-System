@@ -94,5 +94,7 @@ class Step6AreaDeactivationRollbackTest extends GuestTestSupport {
         assertTrue(auditsForTarget(request.getId().toString()).isEmpty());
         assertTrue(notificationsOf(otherHost, NotificationType.REQUEST_SYSTEM_CANCELLED).isEmpty());
         assertTrue(notificationsOf(hostL2, NotificationType.GUEST_VISIT_REVOKED).isEmpty());
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM notifications WHERE recipient_id = ? AND type = 'ACCESS_PERMISSION_REVOKED'",
+                Integer.class, otherHost.getId()), "Rollback thì không báo thu hồi AP");
     }
 }

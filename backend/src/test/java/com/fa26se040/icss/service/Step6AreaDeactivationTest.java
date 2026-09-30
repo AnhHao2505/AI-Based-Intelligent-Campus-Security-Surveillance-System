@@ -132,6 +132,12 @@ class Step6AreaDeactivationTest extends GuestTestSupport {
                 + "WHERE target_type = ? AND action = ? AND target_id = ?", targetType, action, targetId);
     }
 
+    /** Thông báo theo loại (so chuỗi, không phụ thuộc enum Java). */
+    List<Map<String, Object>> notifs(User u, String type) {
+        return jdbc.queryForList("SELECT title, message, reference_id, reference_type FROM notifications WHERE recipient_id = ? AND type = ?",
+                u.getId(), type);
+    }
+
     // ------------------------------------------------------------------ HTTP
 
     Map<String, Object> body(String reason, Long version) {
@@ -391,6 +397,7 @@ class Step6AreaDeactivationTest extends GuestTestSupport {
         verify(photoStorage, never()).removeObject(g.getPhotoObjectKey());
         assertTrue(notificationsOf(hostL2, NotificationType.GUEST_VISIT_REVOKED).isEmpty());
         assertTrue(notificationsOf(hostL2, NotificationType.REQUEST_SYSTEM_CANCELLED).isEmpty());
+        assertTrue(notifs(hostL2, "ACCESS_PERMISSION_REVOKED").isEmpty());
     }
 
     // ================================================================== BR-AD-04
@@ -422,6 +429,19 @@ class Step6AreaDeactivationTest extends GuestTestSupport {
             assertEquals(PREFIX + REASON, audits.get(0).get("reason"));
             assertEquals(correlation, audits.get(0).get("correlation_id"), "cùng correlation với thao tác vô hiệu hoá");
         }
+        // H1 (BR-AD-04): mỗi người được gán của AP bị thu hồi nhận 1 ACCESS_PERMISSION_REVOKED (tên khu vực + lý do)
+        for (Object[] pair : new Object[][]{{hostL2, active}, {otherHost, openEnded}, {fm2, upcoming}}) {
+            User u = (User) pair[0];
+            AreaAssignedPersonnel ap = (AreaAssignedPersonnel) pair[1];
+            List<Map<String, Object>> n = notifs(u, "ACCESS_PERMISSION_REVOKED");
+            assertEquals(1, n.size(), "thông báo thu hồi AP cho " + u.getUserCode());
+            String msg = (String) n.get(0).get("message");
+            assertTrue(msg.contains(area.getName()) && msg.contains(REASON), msg);
+            assertEquals(ap.getId(), n.get(0).get("reference_id"));
+            assertEquals("AREA_ASSIGNMENT", n.get(0).get("reference_type"));
+        }
+        assertTrue(notifs(guard, "ACCESS_PERMISSION_REVOKED").isEmpty(), "AP hết hạn không bị thu hồi -> không báo");
+        assertTrue(notifs(hostL1, "ACCESS_PERMISSION_REVOKED").isEmpty(), "AP đã thu hồi trước -> không báo");
         assertNull(apRow(expired).get("revoked_at"), "AP hết hạn giữ nguyên");
         assertEquals("thu hồi trước", apRow(revoked).get("revoke_reason"), "AP đã thu hồi giữ nguyên");
         assertTrue(auditRows("AREA_ASSIGNMENT", "REVOKE", expired.getId().toString()).isEmpty());
@@ -493,6 +513,14 @@ class Step6AreaDeactivationTest extends GuestTestSupport {
         verify(photoStorage).removeObject(key);
         assertNull(guest(g.getId()).getPendingDeleteObjectKey(), "xoá sau commit thành công -> bỏ đánh dấu");
         assertEquals(1, notificationsOf(hostL2, NotificationType.GUEST_VISIT_REVOKED).size(), "host nhận thông báo thu hồi");
+        // H2 (BR-AD-09): host lượt PENDING bị huỷ nhận GUEST_VISIT_CANCELLED_BY_SYSTEM (tên khu vực + lý do)
+        List<Map<String, Object>> cancelNotifs = notifs(otherHost, "GUEST_VISIT_CANCELLED_BY_SYSTEM");
+        assertEquals(1, cancelNotifs.size(), "host lượt PENDING nhận thông báo huỷ");
+        String cancelMsg = (String) cancelNotifs.get(0).get("message");
+        assertTrue(cancelMsg.contains(area.getName()) && cancelMsg.contains(REASON), cancelMsg);
+        assertEquals(pending.getId(), cancelNotifs.get(0).get("reference_id"));
+        assertEquals("GUEST_VISIT", cancelNotifs.get(0).get("reference_type"));
+        assertTrue(notifs(hostL2, "GUEST_VISIT_CANCELLED_BY_SYSTEM").isEmpty(), "lượt APPROVED bị thu hồi, không phải huỷ");
         assertEquals(1, audits(approved.getId().toString(), AuditTargetType.GUEST_VISIT, AuditAction.REVOKE).size());
         assertEquals(1, audits(pending.getId().toString(), AuditTargetType.GUEST_VISIT, AuditAction.CANCEL).size());
 
