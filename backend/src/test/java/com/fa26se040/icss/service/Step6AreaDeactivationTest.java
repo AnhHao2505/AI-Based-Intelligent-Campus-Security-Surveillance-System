@@ -255,12 +255,16 @@ class Step6AreaDeactivationTest extends GuestTestSupport {
     }
 
     @Test
-    @DisplayName("BR-AD-01: DELETE /api/areas/{id} đã bỏ -> không vô hiệu hoá được nữa")
+    @DisplayName("BR-AD-01 + H3: DELETE /api/areas/{id} đã bỏ -> 405 METHOD_NOT_ALLOWED (ApiResponse), khu vực không đổi")
     void ad01_deleteEndpointRemoved() throws Exception {
         Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
         Long v0 = dbVersion(area);
         MvcResult r = send(delete("/api/areas/{id}", area.getId()), admin, null).andReturn();
-        assertTrue(status(r) >= 400, describe(r));
+        // H3: shared handler trả 405 theo định dạng ApiResponse (trước đây rơi vào handler chung -> 500)
+        assertEquals(405, status(r), describe(r));
+        assertEquals("METHOD_NOT_ALLOWED", errorCode(r), describe(r));
+        assertEquals(405, json(r).path("httpCode").asInt(), describe(r));
+        assertFalse(message(r).isBlank(), describe(r));
         assertUntouched(area, v0);
     }
 
