@@ -243,6 +243,17 @@ class _MyShiftRequestsSheetState extends State<MyShiftRequestsSheet> {
                                           color: AppColors.primary,
                                         ),
                                       ),
+                                      if (req.formattedTargetShiftDate.isNotEmpty) ...[
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          'Ca đổi của bạn: ${req.formattedTargetShiftDate}${req.formattedTargetShiftTimeRange.isNotEmpty ? ", ${req.formattedTargetShiftTimeRange}" : ""}',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppColors.txtSecondary(context),
+                                          ),
+                                        ),
+                                      ],
                                     ],
                                   ] else ...[
                                     if (req.shiftDate != null)
@@ -258,7 +269,7 @@ class _MyShiftRequestsSheetState extends State<MyShiftRequestsSheet> {
                                     if (req.isSwap && req.targetSubstituteGuardName != null) ...[
                                       const SizedBox(height: 4),
                                       Text(
-                                        'Đổi với: ${req.targetSubstituteGuardName}${req.formattedTargetShiftDate.isNotEmpty ? " (Ca gốc: ${req.formattedTargetShiftDate})" : ""}',
+                                        'Đổi với: ${req.targetSubstituteGuardName}${req.formattedTargetShiftDate.isNotEmpty ? " (Ca gốc: ${req.formattedTargetShiftDate}${req.formattedTargetShiftTimeRange.isNotEmpty ? ", ${req.formattedTargetShiftTimeRange}" : ""})" : ""}',
                                         style: const TextStyle(
                                           fontSize: 12,
                                           fontWeight: FontWeight.w600,

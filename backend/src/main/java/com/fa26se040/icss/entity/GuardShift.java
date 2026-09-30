@@ -67,9 +67,6 @@ public class GuardShift {
     @JoinColumn(name = "area_id")
     private Area area;
 
-    @Column(name = "radio_channel", length = 50)
-    private String radioChannel;
-
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     @Builder.Default

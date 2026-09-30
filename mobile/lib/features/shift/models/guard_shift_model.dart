@@ -13,7 +13,6 @@ class GuardShiftModel {
   final String? areaId;
   final String? areaName;
   final String? building;
-  final String? radioChannel;
   final String status; // "SCHEDULED", "CHECKED_IN", "COMPLETED", "ABSENT", "CANCELLED"
   final String? checkInAt;
   final String? checkOutAt;
@@ -32,7 +31,6 @@ class GuardShiftModel {
     this.areaId,
     this.areaName,
     this.building,
-    this.radioChannel,
     required this.status,
     this.checkInAt,
     this.checkOutAt,
@@ -53,7 +51,6 @@ class GuardShiftModel {
       areaId: json['areaId']?.toString(),
       areaName: json['areaName']?.toString(),
       building: json['building']?.toString(),
-      radioChannel: json['radioChannel']?.toString(),
       status: json['status']?.toString() ?? 'SCHEDULED',
       checkInAt: json['checkInAt']?.toString(),
       checkOutAt: json['checkOutAt']?.toString(),
@@ -75,7 +72,6 @@ class GuardShiftModel {
       'areaId': areaId,
       'areaName': areaName,
       'building': building,
-      'radioChannel': radioChannel,
       'status': status,
       'checkInAt': checkInAt,
       'checkOutAt': checkOutAt,

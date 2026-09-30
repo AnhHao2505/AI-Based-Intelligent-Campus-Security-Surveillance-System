@@ -212,6 +212,42 @@ class GuardShiftRequestModel {
     return targetShiftDate!;
   }
 
+  String get formattedShiftStartTime {
+    if (shiftStartTime == null || shiftStartTime!.isEmpty) return '';
+    return shiftStartTime!.length >= 5 ? shiftStartTime!.substring(0, 5) : shiftStartTime!;
+  }
+
+  String get formattedShiftEndTime {
+    if (shiftEndTime == null || shiftEndTime!.isEmpty) return '';
+    return shiftEndTime!.length >= 5 ? shiftEndTime!.substring(0, 5) : shiftEndTime!;
+  }
+
+  String get formattedShiftTimeRange {
+    final start = formattedShiftStartTime;
+    final end = formattedShiftEndTime;
+    if (start.isEmpty && end.isEmpty) return '';
+    if (start.isNotEmpty && end.isNotEmpty) return '$start - $end';
+    return start.isNotEmpty ? start : end;
+  }
+
+  String get formattedTargetStartTime {
+    if (targetStartTime == null || targetStartTime!.isEmpty) return '';
+    return targetStartTime!.length >= 5 ? targetStartTime!.substring(0, 5) : targetStartTime!;
+  }
+
+  String get formattedTargetEndTime {
+    if (targetEndTime == null || targetEndTime!.isEmpty) return '';
+    return targetEndTime!.length >= 5 ? targetEndTime!.substring(0, 5) : targetEndTime!;
+  }
+
+  String get formattedTargetShiftTimeRange {
+    final start = formattedTargetStartTime;
+    final end = formattedTargetEndTime;
+    if (start.isEmpty && end.isEmpty) return '';
+    if (start.isNotEmpty && end.isNotEmpty) return '$start - $end';
+    return start.isNotEmpty ? start : end;
+  }
+
   String get statusLabel {
     switch (status) {
       case 'APPROVED':

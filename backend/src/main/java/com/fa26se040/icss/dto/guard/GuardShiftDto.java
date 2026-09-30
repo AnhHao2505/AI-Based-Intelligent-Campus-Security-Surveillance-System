@@ -28,7 +28,6 @@ public class GuardShiftDto {
     private UUID areaId;
     private String areaName;
     private String building;
-    private String radioChannel;
     private ShiftStatus status;
     private OffsetDateTime checkInAt;
     private OffsetDateTime checkOutAt;

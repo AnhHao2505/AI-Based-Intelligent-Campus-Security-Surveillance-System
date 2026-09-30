@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Calendar,
   Clock,
@@ -15,44 +15,18 @@ import {
   X,
   MessageSquare,
   Shield,
-  HelpCircle
+  HelpCircle,
+  Sun,
+  Sunset,
+  Moon,
+  User,
+  AlertTriangle,
+  ArrowRight,
+  ClipboardList,
+  MapPin,
+  ChevronDown
 } from 'lucide-react';
 import { guardScheduleApi } from '../../api/guardScheduleApi';
-
-const STATUS_FILTERS = [
-  {
-    key: 'PENDING',
-    label: 'Chờ Duyệt',
-    icon: Clock,
-    activeClass: 'bg-amber-500 hover:bg-amber-600 text-white border-amber-600 shadow-sm',
-    inactiveClass: 'bg-amber-50/70 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 text-amber-700 dark:text-amber-300 border-amber-200/80 dark:border-amber-800/80',
-    iconClass: 'text-amber-500'
-  },
-  {
-    key: 'APPROVED',
-    label: 'Đã Duyệt',
-    icon: CheckCircle2,
-    activeClass: 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-700 shadow-sm',
-    inactiveClass: 'bg-emerald-50/70 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border-emerald-200/80 dark:border-emerald-800/80',
-    iconClass: 'text-emerald-500'
-  },
-  {
-    key: 'REJECTED',
-    label: 'Từ Chối',
-    icon: XCircle,
-    activeClass: 'bg-rose-600 hover:bg-rose-700 text-white border-rose-700 shadow-sm',
-    inactiveClass: 'bg-rose-50/70 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 border-rose-200/80 dark:border-rose-800/80',
-    iconClass: 'text-rose-500'
-  },
-  {
-    key: 'ALL',
-    label: 'Tất Cả',
-    icon: Filter,
-    activeClass: 'bg-blue-600 hover:bg-blue-700 text-white border-blue-700 shadow-sm',
-    inactiveClass: 'bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200/80 dark:border-slate-700/80',
-    iconClass: 'text-blue-500'
-  }
-];
 
 const formatDateVN = (dateStr) => {
   if (!dateStr) return '';
@@ -85,7 +59,7 @@ const formatDateTimeVN = (dateStr) => {
       const year = d.getFullYear();
       const hours = String(d.getHours()).padStart(2, '0');
       const mins = String(d.getMinutes()).padStart(2, '0');
-      return `${hours}:${mins} ${day}-${month}-${year}`;
+      return `${hours}:${mins}, ${day}/${month}/${year}`;
     }
   } catch (e) {
     // ignore
@@ -93,12 +67,72 @@ const formatDateTimeVN = (dateStr) => {
   return formatDateVN(dateStr);
 };
 
+// Helper: Determine shift category (Morning, Afternoon, Night) based on start time
+const getShiftInfo = (startTime, endTime) => {
+  const s = (startTime || '').substring(0, 5);
+  const e = (endTime || '').substring(0, 5);
+  if (!s) {
+    return {
+      label: 'Ca trực',
+      time: s && e ? `${s} - ${e}` : 'Chưa định giờ',
+      icon: Clock,
+      color: 'text-slate-700 bg-slate-100 border-slate-200 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300'
+    };
+  }
+
+  const hour = parseInt(s.split(':')[0], 10);
+  if (hour >= 5 && hour < 13) {
+    return {
+      label: 'Ca Sáng',
+      time: `${s} - ${e || '14:00'}`,
+      icon: Sun,
+      color: 'text-amber-800 bg-amber-50/90 border-amber-200/90 dark:text-amber-300 dark:bg-amber-950/40 dark:border-amber-800/80',
+      badgeClass: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-400/40'
+    };
+  }
+  if (hour >= 13 && hour < 21) {
+    return {
+      label: 'Ca Chiều',
+      time: `${s} - ${e || '22:00'}`,
+      icon: Sunset,
+      color: 'text-orange-800 bg-orange-50/90 border-orange-200/90 dark:text-orange-300 dark:bg-orange-950/40 dark:border-orange-800/80',
+      badgeClass: 'bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-400/40'
+    };
+  }
+  return {
+    label: 'Ca Đêm',
+    time: `${s} - ${e || '06:00'}`,
+    icon: Moon,
+    color: 'text-indigo-800 bg-indigo-50/90 border-indigo-200/90 dark:text-indigo-300 dark:bg-indigo-950/40 dark:border-indigo-800/80',
+    badgeClass: 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-400/40'
+  };
+};
+
+const getInitials = (name) => {
+  if (!name) return 'BV';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
+
+const formatTeamName = (team) => {
+  if (!team) return '';
+  const str = String(team).trim();
+  if (/^\d+$/.test(str)) return `Đội ${str}`;
+  return str.startsWith('Đội') ? str : `Đội ${str}`;
+};
+
 export default function ShiftRequestsTab({ onRequestsUpdated }) {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // Trục lọc chính theo TRẠNG THÁI (Approval Pipeline): 'PENDING' | 'APPROVED' | 'REJECTED' | 'ALL'
   const [statusFilter, setStatusFilter] = useState('PENDING');
+  // Ô lọc phụ theo LOẠI ĐƠN: 'ALL' | 'SWAP' | 'LEAVE'
+  const [typeFilter, setTypeFilter] = useState('ALL');
+  const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
+  const typeDropdownRef = useRef(null);
   const [searchKeyword, setSearchKeyword] = useState('');
 
   // Sub-modal: Approve Leave (Select Substitute)
@@ -119,16 +153,25 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
     submitting: false
   });
 
-  // Fetch Requests
+  // Đóng dropdown loại đơn khi click ra ngoài
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (typeDropdownRef.current && !typeDropdownRef.current.contains(e.target)) {
+        setIsTypeDropdownOpen(false);
+      }
+    };
+    if (isTypeDropdownOpen) {
+      document.addEventListener('mousedown', handleOutsideClick);
+    }
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [isTypeDropdownOpen]);
+
+  // Fetch Requests (lấy đầy đủ để số liệu thống kê ở các thẻ KPI luôn chính xác)
   const fetchRequests = async () => {
     setLoading(true);
     setError(null);
     try {
-      const params = {};
-      if (statusFilter !== 'ALL') {
-        params.status = statusFilter;
-      }
-      const res = await guardScheduleApi.getShiftRequests(params);
+      const res = await guardScheduleApi.getShiftRequests({});
       setRequests(Array.isArray(res) ? res : []);
     } catch (err) {
       console.error('Lỗi tải danh sách yêu cầu ca trực:', err);
@@ -140,31 +183,98 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
 
   useEffect(() => {
     fetchRequests();
-  }, [statusFilter]);
+  }, []);
 
-  // Filter by search
+  // Compute stats across current requests
+  const stats = useMemo(() => {
+    const total = requests.length;
+    const pending = requests.filter((r) => r.status === 'PENDING').length;
+    const approved = requests.filter((r) => r.status === 'APPROVED').length;
+    const rejected = requests.filter((r) => r.status === 'REJECTED').length;
+
+    // Đơn đổi ca
+    const swaps = requests.filter(
+      (r) => r.requestType === 'SWAP' || r.requestType === 'SWAP_SHIFT'
+    ).length;
+
+    // Đơn xin nghỉ
+    const leaves = requests.filter(
+      (r) => r.requestType !== 'SWAP' && r.requestType !== 'SWAP_SHIFT'
+    ).length;
+
+    // Ca nghỉ đột xuất
+    const emergencyLeaves = requests.filter(
+      (r) =>
+        r.isEmergency === true &&
+        r.requestType !== 'SWAP' &&
+        r.requestType !== 'SWAP_SHIFT'
+    ).length;
+
+    return {
+      total,
+      pending,
+      approved,
+      rejected,
+      swaps,
+      leaves,
+      emergencyLeaves
+    };
+  }, [requests]);
+
+  // Filter by statusFilter, typeFilter & searchKeyword
   const filteredRequests = useMemo(() => {
-    if (!searchKeyword.trim()) return requests;
-    const kw = searchKeyword.toLowerCase().trim();
-    return requests.filter((r) => {
-      const reqName = r.requesterName || r.requesterGuard?.fullName || '';
-      const reqCode = r.requesterCode || r.requesterGuard?.userCode || '';
-      const subName = r.substituteGuardName || r.targetSubstituteGuard?.fullName || '';
-      const reason = r.reason || '';
-      return (
-        reqName.toLowerCase().includes(kw) ||
-        reqCode.toLowerCase().includes(kw) ||
-        subName.toLowerCase().includes(kw) ||
-        reason.toLowerCase().includes(kw)
+    let list = requests;
+
+    // 1. Lọc theo Trạng thái (từ 4 thẻ KPI)
+    if (statusFilter === 'PENDING') {
+      list = list.filter((r) => r.status === 'PENDING');
+    } else if (statusFilter === 'APPROVED') {
+      list = list.filter((r) => r.status === 'APPROVED');
+    } else if (statusFilter === 'REJECTED') {
+      list = list.filter((r) => r.status === 'REJECTED');
+    }
+    // statusFilter === 'ALL' giữ nguyên toàn bộ
+
+    // 2. Lọc theo Loại đơn (từ ô lọc dropdown)
+    if (typeFilter === 'SWAP') {
+      list = list.filter(
+        (r) => r.requestType === 'SWAP' || r.requestType === 'SWAP_SHIFT'
       );
-    });
-  }, [requests, searchKeyword]);
+    } else if (typeFilter === 'LEAVE') {
+      list = list.filter(
+        (r) => r.requestType !== 'SWAP' && r.requestType !== 'SWAP_SHIFT'
+      );
+    }
+
+    // 3. Lọc theo từ khóa tìm kiếm
+    if (searchKeyword.trim()) {
+      const kw = searchKeyword.toLowerCase().trim();
+      list = list.filter((r) => {
+        const reqName = r.requesterName || r.requesterGuard?.fullName || '';
+        const reqCode = r.requesterCode || r.requesterGuard?.userCode || '';
+        const subName = r.substituteGuardName || r.targetSubstituteGuard?.fullName || '';
+        const reason = r.reason || '';
+        const area = r.areaName || r.shift?.area?.name || '';
+        const targetArea = r.targetAreaName || r.targetShift?.area?.name || '';
+        return (
+          reqName.toLowerCase().includes(kw) ||
+          reqCode.toLowerCase().includes(kw) ||
+          subName.toLowerCase().includes(kw) ||
+          reason.toLowerCase().includes(kw) ||
+          area.toLowerCase().includes(kw) ||
+          targetArea.toLowerCase().includes(kw)
+        );
+      });
+    }
+
+    return list;
+  }, [requests, statusFilter, typeFilter, searchKeyword]);
 
   // Approve Swap Shift
   const handleApproveSwap = async (req) => {
     if (
       !window.confirm(
-        `Xác nhận duyệt yêu cầu đổi ca của ${req.requesterName || 'bảo vệ'}? Ca trực sẽ được chuyển sang người nhận trực thay.`
+        `Xác nhận duyệt yêu cầu đổi ca của ${req.requesterName || 'bảo vệ'}? Ca trực sẽ được chuyển sang cho người nhận trực thay.`
       )
     ) {
       return;
@@ -279,54 +389,318 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
     }
   };
 
-  const pendingCount = useMemo(() => {
-    return requests.filter((r) => r.status === 'PENDING').length;
-  }, [requests]);
-
   return (
-    <div className="space-y-6">
-      {/* 1. Header Toolbar & Filters */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        {/* Status Filter Buttons */}
-        <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
-          {STATUS_FILTERS.map((f) => {
-            const Icon = f.icon;
-            const isActive = statusFilter === f.key;
-            return (
-              <button
-                key={f.key}
-                type="button"
-                onClick={() => setStatusFilter(f.key)}
-                className={`px-5 py-2.5 sm:py-3 rounded-xl text-sm font-bold border transition-all flex items-center gap-2 cursor-pointer shadow-xs ${
-                  isActive ? f.activeClass : f.inactiveClass
-                }`}
-              >
-                {Icon && <Icon size={18} className={isActive ? 'text-white' : f.iconClass} />}
-                <span>{f.label}</span>
-                {f.key === 'PENDING' && pendingCount > 0 && (
-                  <span
-                    className={`ml-1 px-2 py-0.5 rounded-full text-xs font-bold ${
-                      isActive ? 'bg-white/30 text-white' : 'bg-amber-500 text-white shadow-xs'
-                    }`}
-                  >
-                    {pendingCount}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+    <div className="space-y-5">
+      {/* 1. OVERVIEW & PRIMARY TABS (4 Thẻ phân nhóm hoàn toàn theo TRẠNG THÁI - Approval Pipeline) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {/* Card 1: Chờ Phê Duyệt (Màu cam) */}
+        <div
+          onClick={() => setStatusFilter('PENDING')}
+          className={`schedule-kpi-card cursor-pointer select-none transition-all ${
+            statusFilter === 'PENDING' ? 'is-filter-active is-active-amber' : ''
+          }`}
+          title="Xem danh sách đơn chờ phê duyệt"
+        >
+          <div>
+            <span
+              className={`text-xs ${
+                statusFilter === 'PENDING'
+                  ? 'font-bold text-amber-900 dark:text-amber-300'
+                  : 'font-semibold text-slate-500 dark:text-slate-400'
+              }`}
+            >
+              Chờ Phê Duyệt
+            </span>
+            <div className="text-2xl font-bold tracking-tight text-amber-600 dark:text-amber-400 mt-1">
+              {stats.pending} <span className="text-sm font-normal text-slate-500">đơn</span>
+            </div>
+            <div className="flex items-center gap-1.5 mt-2 text-xs font-medium text-amber-600 dark:text-amber-400">
+              {stats.pending > 0 ? (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
+                  <span>Cần Quản lý xử lý</span>
+                </>
+              ) : (
+                <span className="text-slate-500 dark:text-slate-400 font-normal">
+                  Đã giải quyết hết
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="schedule-kpi-icon-wrap kpi-icon-amber">
+            <Clock size={22} />
+          </div>
         </div>
 
-        {/* Search & Refresh */}
-        <div className="flex items-center gap-2.5">
-          <div className="schedule-search-box flex-1 sm:w-80 h-[44px]">
-            <Search size={17} className="schedule-search-icon" />
+        {/* Card 2: Đã Phê Duyệt (Màu xanh lá) */}
+        <div
+          onClick={() => setStatusFilter('APPROVED')}
+          className={`schedule-kpi-card cursor-pointer select-none transition-all ${
+            statusFilter === 'APPROVED' ? 'is-filter-active is-active-emerald' : ''
+          }`}
+          title="Xem danh sách đơn đã phê duyệt"
+        >
+          <div>
+            <span
+              className={`text-xs ${
+                statusFilter === 'APPROVED'
+                  ? 'font-bold text-emerald-900 dark:text-emerald-300'
+                  : 'font-semibold text-slate-500 dark:text-slate-400'
+              }`}
+            >
+              Đã Phê Duyệt
+            </span>
+            <div className="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400 mt-1">
+              {stats.approved} <span className="text-sm font-normal text-slate-500">đơn</span>
+            </div>
+            <div className="flex items-center gap-1.5 mt-2 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 size={13} className="shrink-0" />
+              <span>{stats.approved > 0 ? 'Đã duyệt thành công' : 'Chưa có đơn duyệt'}</span>
+            </div>
+          </div>
+          <div className="schedule-kpi-icon-wrap kpi-icon-emerald">
+            <CheckCircle2 size={22} />
+          </div>
+        </div>
+
+        {/* Card 3: Từ Chối (Màu đỏ) */}
+        <div
+          onClick={() => setStatusFilter('REJECTED')}
+          className={`schedule-kpi-card cursor-pointer select-none transition-all ${
+            statusFilter === 'REJECTED' ? 'is-filter-active is-active-rose' : ''
+          }`}
+          title="Xem danh sách đơn đã từ chối"
+        >
+          <div>
+            <span
+              className={`text-xs ${
+                statusFilter === 'REJECTED'
+                  ? 'font-bold text-rose-900 dark:text-rose-300'
+                  : 'font-semibold text-slate-500 dark:text-slate-400'
+              }`}
+            >
+              Từ Chối
+            </span>
+            <div className="text-2xl font-bold tracking-tight text-rose-600 dark:text-rose-400 mt-1">
+              {stats.rejected} <span className="text-sm font-normal text-slate-500">đơn</span>
+            </div>
+            <div className="flex items-center gap-1.5 mt-2 text-xs font-medium text-rose-600 dark:text-rose-400">
+              <XCircle size={13} className="shrink-0" />
+              <span>{stats.rejected > 0 ? 'Không được chấp thuận' : 'Không có đơn từ chối'}</span>
+            </div>
+          </div>
+          <div className="schedule-kpi-icon-wrap kpi-icon-rose">
+            <XCircle size={22} />
+          </div>
+        </div>
+
+        {/* Card 4: Tất Cả Đơn (Màu xanh dương) */}
+        <div
+          onClick={() => setStatusFilter('ALL')}
+          className={`schedule-kpi-card cursor-pointer select-none transition-all ${
+            statusFilter === 'ALL' ? 'is-filter-active is-active-blue' : ''
+          }`}
+          title="Xem toàn bộ danh sách đơn"
+        >
+          <div>
+            <span
+              className={`text-xs ${
+                statusFilter === 'ALL'
+                  ? 'font-bold text-sky-900 dark:text-sky-300'
+                  : 'font-semibold text-slate-500 dark:text-slate-400'
+              }`}
+            >
+              Tất Cả Đơn
+            </span>
+            <div className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white mt-1">
+              {stats.total} <span className="text-sm font-normal text-slate-500">đơn</span>
+            </div>
+            <div className="flex items-center gap-1.5 mt-2 text-xs font-medium text-slate-600 dark:text-slate-400">
+              <ArrowRightLeft size={13} className="text-sky-600 dark:text-sky-400 shrink-0" />
+              <span>{stats.swaps} đổi ca • {stats.leaves} nghỉ trực</span>
+            </div>
+          </div>
+          <div className="schedule-kpi-icon-wrap kpi-icon-blue">
+            <ClipboardList size={22} />
+          </div>
+        </div>
+      </div>
+
+      {/* 2. TOOLBAR */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1 pb-1">
+        {/* Left: Section Identity & Badges */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 shrink-0">
+              <ClipboardList size={16} />
+            </div>
+            <span className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
+              {statusFilter === 'PENDING' && 'Đơn chờ phê duyệt'}
+              {statusFilter === 'APPROVED' && 'Đơn đã phê duyệt'}
+              {statusFilter === 'REJECTED' && 'Đơn đã từ chối'}
+              {statusFilter === 'ALL' && 'Toàn bộ danh sách yêu cầu'}
+            </span>
+
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/80">
+              {filteredRequests.length} đơn
+            </span>
+          </div>
+
+          {/* Active type filter badge if not ALL */}
+          {typeFilter !== 'ALL' && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800">
+              <span>{typeFilter === 'SWAP' ? '⇄ Đổi ca trực' : '📅 Nghỉ trực'}</span>
+              <button
+                type="button"
+                onClick={() => setTypeFilter('ALL')}
+                className="hover:text-blue-900 dark:hover:text-white cursor-pointer ml-0.5"
+                title="Bỏ lọc loại đơn"
+              >
+                <X size={12} />
+              </button>
+            </span>
+          )}
+        </div>
+
+        {/* Right: Type Filter Dropdown, Search Box & Refresh Button */}
+        <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
+          {/* Ô lọc nhỏ theo loại đơn: Custom Dropdown */}
+          <div className="relative shrink-0" ref={typeDropdownRef}>
+            <button
+              type="button"
+              onClick={() => setIsTypeDropdownOpen((prev) => !prev)}
+              className={`h-[38px] px-3.5 rounded-xl text-xs font-semibold flex items-center justify-between gap-2.5 border transition-all cursor-pointer shadow-xs select-none ${
+                typeFilter !== 'ALL'
+                  ? 'bg-blue-50/80 border-blue-300 text-blue-700 dark:bg-blue-950/60 dark:border-blue-700 dark:text-blue-300'
+                  : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/60'
+              } ${isTypeDropdownOpen ? 'ring-2 ring-blue-500/20 border-blue-400 dark:border-blue-600' : ''}`}
+              title="Lọc theo loại đơn"
+            >
+              <div className="flex items-center gap-2">
+                {typeFilter === 'ALL' && <Filter size={13} className="text-slate-400 shrink-0" />}
+                {typeFilter === 'SWAP' && <ArrowRightLeft size={13} className="text-blue-600 dark:text-blue-400 shrink-0" />}
+                {typeFilter === 'LEAVE' && <Calendar size={13} className="text-amber-600 dark:text-amber-400 shrink-0" />}
+                <span className="whitespace-nowrap">
+                  {typeFilter === 'ALL' && 'Tất cả loại đơn'}
+                  {typeFilter === 'SWAP' && 'Đổi ca trực'}
+                  {typeFilter === 'LEAVE' && 'Nghỉ trực'}
+                </span>
+              </div>
+              <ChevronDown
+                size={14}
+                className={`text-slate-400 shrink-0 transition-transform duration-200 ${
+                  isTypeDropdownOpen ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
+
+            {/* Custom Dropdown Menu Popover */}
+            {isTypeDropdownOpen && (
+              <div className="absolute right-0 top-full mt-1.5 w-56 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-50 p-1.5 backdrop-blur-md">
+                <div className="px-2.5 py-1.5 text-[10.5px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-800/80 mb-1 flex items-center justify-between">
+                  <span>Loại yêu cầu</span>
+                  {typeFilter !== 'ALL' && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setTypeFilter('ALL');
+                        setIsTypeDropdownOpen(false);
+                      }}
+                      className="text-blue-600 dark:text-blue-400 hover:underline cursor-pointer font-semibold lowercase text-[10.5px]"
+                    >
+                      đặt lại
+                    </button>
+                  )}
+                </div>
+
+                {/* Option: Tất cả loại đơn */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTypeFilter('ALL');
+                    setIsTypeDropdownOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-medium transition cursor-pointer text-left ${
+                    typeFilter === 'ALL'
+                      ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-semibold'
+                      : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Filter size={13} className="text-slate-400 shrink-0" />
+                    <span>Tất cả loại đơn</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="px-1.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-200/60 dark:border-slate-700">
+                      {stats.total}
+                    </span>
+                    {typeFilter === 'ALL' && <Check size={13} className="text-blue-600 shrink-0 ml-0.5" />}
+                  </div>
+                </button>
+
+                {/* Option: Đổi ca trực */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTypeFilter('SWAP');
+                    setIsTypeDropdownOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-medium transition cursor-pointer text-left mt-0.5 ${
+                    typeFilter === 'SWAP'
+                      ? 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 font-semibold'
+                      : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <ArrowRightLeft size={13} className="text-blue-600 dark:text-blue-400 shrink-0" />
+                    <span>Đổi ca trực</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="px-1.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800">
+                      {stats.swaps}
+                    </span>
+                    {typeFilter === 'SWAP' && <Check size={13} className="text-blue-600 shrink-0 ml-0.5" />}
+                  </div>
+                </button>
+
+                {/* Option: Nghỉ trực */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTypeFilter('LEAVE');
+                    setIsTypeDropdownOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-medium transition cursor-pointer text-left mt-0.5 ${
+                    typeFilter === 'LEAVE'
+                      ? 'bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 font-semibold'
+                      : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Calendar size={13} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                    <span>Nghỉ trực</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="px-1.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800">
+                      {stats.leaves}
+                    </span>
+                    {typeFilter === 'LEAVE' && <Check size={13} className="text-amber-600 shrink-0 ml-0.5" />}
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Search Box */}
+          <div className="schedule-search-box flex-1 sm:w-60 md:w-64 h-[38px]">
+            <Search size={14} className="schedule-search-icon" />
             <input
               type="text"
               value={searchKeyword}
               onChange={(e) => setSearchKeyword(e.target.value)}
-              placeholder="Tìm theo người gửi, lý do..."
-              className="schedule-search-input text-sm"
+              placeholder="Tìm theo tên, mã NV, ca, lý do..."
+              className="schedule-search-input text-xs !h-[38px]"
             />
             {searchKeyword && (
               <button
@@ -335,19 +709,20 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
                 className="schedule-search-clear"
                 title="Xóa tìm kiếm"
               >
-                <X size={15} />
+                <X size={13} />
               </button>
             )}
           </div>
 
+          {/* Refresh Button */}
           <button
             type="button"
             onClick={fetchRequests}
             disabled={loading}
-            className="schedule-btn-secondary p-2.5 h-[44px] min-w-[44px] flex items-center justify-center rounded-xl"
+            className="schedule-btn-secondary p-2.5 h-[38px] min-w-[38px] flex items-center justify-center rounded-xl cursor-pointer shrink-0"
             title="Làm mới danh sách"
           >
-            <RefreshCw size={17} className={loading ? 'animate-spin' : ''} />
+            <RefreshCw size={14} className={loading ? 'animate-spin text-blue-600' : ''} />
           </button>
         </div>
       </div>
@@ -360,27 +735,70 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
         </div>
       )}
 
-      {/* 2. Requests List */}
+      {/* 3. REQUESTS LIST */}
       {loading && requests.length === 0 ? (
         <div className="text-center py-16 text-slate-500 text-xs">
           Đang tải danh sách yêu cầu ca trực...
         </div>
       ) : filteredRequests.length === 0 ? (
         <div className="schedule-empty-state">
-          <div className="schedule-empty-state__icon schedule-empty-state__icon--emerald">
-            <CheckCircle2 size={28} />
+          <div
+            className={`schedule-empty-state__icon ${
+              statusFilter === 'APPROVED'
+                ? 'schedule-empty-state__icon--emerald'
+                : statusFilter === 'REJECTED'
+                ? 'schedule-empty-state__icon--rose'
+                : 'schedule-empty-state__icon--amber'
+            }`}
+          >
+            {statusFilter === 'APPROVED' ? (
+              <CheckCircle2 size={28} />
+            ) : statusFilter === 'REJECTED' ? (
+              <XCircle size={28} />
+            ) : statusFilter === 'ALL' ? (
+              <ClipboardList size={28} />
+            ) : (
+              <Clock size={28} />
+            )}
           </div>
           <h3 className="schedule-empty-state__title">
             {statusFilter === 'PENDING'
-              ? 'Không có yêu cầu nào đang chờ duyệt'
-              : 'Không có yêu cầu nào trong danh mục này'}
+              ? 'Không có yêu cầu nào đang chờ xử lý'
+              : statusFilter === 'APPROVED'
+              ? 'Chưa có yêu cầu nào được phê duyệt'
+              : statusFilter === 'REJECTED'
+              ? 'Không có yêu cầu nào bị từ chối'
+              : 'Không tìm thấy yêu cầu phù hợp'}
           </h3>
           <p className="schedule-empty-state__desc">
-            Khi nhân viên bảo vệ gửi đơn xin đổi ca hoặc nghỉ đột xuất qua hệ thống, đơn sẽ xuất hiện tại đây để Quản lý phê duyệt.
+            {searchKeyword
+              ? `Không tìm thấy yêu cầu khớp với từ khóa "${searchKeyword}". Thử tìm kiếm với từ khóa khác.`
+              : typeFilter !== 'ALL'
+              ? `Không có đơn ${typeFilter === 'SWAP' ? 'đổi ca' : 'nghỉ trực'} nào trong mục này.`
+              : statusFilter === 'PENDING'
+              ? 'Tất cả đơn xin đổi ca và xin nghỉ từ nhân viên bảo vệ đã được phê duyệt hoặc xử lý hoàn tất.'
+              : statusFilter === 'APPROVED'
+              ? 'Các đơn sau khi được Quản lý chấp thuận sẽ hiển thị tại đây.'
+              : statusFilter === 'REJECTED'
+              ? 'Các đơn không hợp lệ hoặc bị từ chối sẽ hiển thị tại đây.'
+              : 'Hiện tại hệ thống chưa ghi nhận đơn yêu cầu nào.'}
           </p>
+          {(searchKeyword || typeFilter !== 'ALL' || statusFilter !== 'PENDING') && (
+            <button
+              type="button"
+              onClick={() => {
+                setStatusFilter('PENDING');
+                setTypeFilter('ALL');
+                setSearchKeyword('');
+              }}
+              className="mt-2 text-xs font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400 underline cursor-pointer"
+            >
+              Quay lại danh sách chờ duyệt
+            </button>
+          )}
         </div>
       ) : (
-        <div className="space-y-3.5">
+        <div className="space-y-4">
           {filteredRequests.map((req) => {
             const isPending = req.status === 'PENDING';
             const isApproved = req.status === 'APPROVED';
@@ -414,188 +832,274 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
             const targetStartTime = (req.targetStartTime || req.targetShift?.startTime || '').substring(0, 5);
             const targetEndTime = (req.targetEndTime || req.targetShift?.endTime || '').substring(0, 5);
             const substituteCode = req.substituteGuardCode || req.targetSubstituteGuard?.userCode || '';
+            const requesterTeamName = req.requesterTeamName || req.requesterGuard?.team?.teamName || '';
+            const areaName = req.areaName || req.shift?.area?.name || '';
+            const targetAreaName = req.targetAreaName || req.targetShift?.area?.name || '';
             const reviewNote = req.reviewNotes || req.reviewNote;
 
+            // Shift categories
+            const shift1Info = getShiftInfo(startTime, endTime);
+            const targetShiftInfo = getShiftInfo(targetStartTime, targetEndTime);
+            const Shift1Icon = shift1Info.icon;
+            const TargetShiftIcon = targetShiftInfo.icon;
+
             return (
-              <div
-                key={req.id}
-                className="bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700/80 rounded-2xl p-4 sm:p-5 shadow-xs hover:shadow-md transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
-              >
-                {/* Left: Request info */}
-                <div className="flex items-start gap-3.5 flex-1 min-w-0">
-                  <div
-                    className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-xs ${
-                      isSwap
-                        ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200/70 dark:border-blue-800/70'
-                        : isEmergency
-                        ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200/70 dark:border-rose-800/70'
-                        : 'bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border border-amber-200/70 dark:border-amber-800/70'
-                    }`}
-                  >
-                    {isSwap ? <ArrowRightLeft size={19} /> : <UserX size={19} />}
+              <div key={req.id} className="schedule-request-card">
+                {/* Header: Identity, Metadata, Badges */}
+                <div className="schedule-request-header">
+                  <div className="schedule-request-user">
+                    <div
+                      className={`schedule-request-avatar ${
+                        isSwap
+                          ? 'schedule-request-avatar--swap'
+                          : isEmergency
+                          ? 'schedule-request-avatar--emergency'
+                          : 'schedule-request-avatar--leave'
+                      }`}
+                    >
+                      {getInitials(requesterName)}
+                    </div>
+                    <div className="schedule-request-user-info">
+                      <div className="schedule-request-user-top">
+                        <span className="schedule-request-user-name">{requesterName}</span>
+                        <span className="schedule-request-badge-code">{requesterCode}</span>
+                        {requesterTeamName && (
+                          <span className="schedule-request-badge-team">
+                            {formatTeamName(requesterTeamName)}
+                          </span>
+                        )}
+                        {req.createdAt && (
+                          <span className="schedule-request-meta-time">
+                            • Gửi lúc {formatDateTimeVN(req.createdAt)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="space-y-1.5 flex-1 min-w-0">
-                    {/* Header: Name, Code, Type, Status */}
-                    <div className="flex items-center flex-wrap gap-2">
-                      <span className="font-bold text-sm text-slate-900 dark:text-white tracking-tight">
-                        {requesterName}
-                      </span>
-                      <span className="text-[11px] font-mono font-medium px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700/70 text-slate-600 dark:text-slate-300">
-                        {requesterCode}
-                      </span>
-                      <span
-                        className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                          isSwap
-                            ? 'bg-blue-50 text-blue-700 border border-blue-200/80 dark:bg-blue-950/70 dark:text-blue-300 dark:border-blue-800'
-                            : isEmergency
-                            ? 'bg-rose-50 text-rose-700 border border-rose-200/80 dark:bg-rose-950/70 dark:text-rose-300 dark:border-rose-800'
-                            : 'bg-amber-50 text-amber-700 border border-amber-200/80 dark:bg-amber-950/70 dark:text-amber-300 dark:border-amber-800'
-                        }`}
-                      >
+                  <div className="schedule-request-header-tags">
+                    {/* Type pill */}
+                    <span
+                      className={`schedule-type-pill ${
+                        isSwap
+                          ? 'schedule-type-pill--swap'
+                          : isEmergency
+                          ? 'schedule-type-pill--emergency'
+                          : 'schedule-type-pill--leave'
+                      }`}
+                    >
+                      {isSwap ? (
+                        <ArrowRightLeft size={13} />
+                      ) : isEmergency ? (
+                        <AlertTriangle size={13} />
+                      ) : (
+                        <Calendar size={13} />
+                      )}
+                      <span>
                         {isSwap
-                          ? 'Đổi Ca'
+                          ? 'Đổi Ca Trực'
                           : isEmergency
                           ? 'Nghỉ Đột Xuất'
                           : 'Nghỉ Phép Thường'}
                       </span>
-                      <span
-                        className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold flex items-center gap-1.5 ${
-                          isPending
-                            ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30'
-                            : isApproved
-                            ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30'
-                            : 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-500/30'
-                        }`}
-                      >
-                        <span
-                          className={`w-1.5 h-1.5 rounded-full ${
-                            isPending
-                              ? 'bg-amber-500 animate-pulse'
-                              : isApproved
-                              ? 'bg-emerald-500'
-                              : 'bg-rose-500'
-                          }`}
-                        />
+                    </span>
+
+                    {/* Status pill */}
+                    <span
+                      className={`schedule-status-pill ${
+                        isPending
+                          ? 'schedule-status-pill--pending'
+                          : isApproved
+                          ? 'schedule-status-pill--approved'
+                          : 'schedule-status-pill--rejected'
+                      }`}
+                    >
+                      {isPending ? (
+                        <Clock size={13} />
+                      ) : isApproved ? (
+                        <Check size={13} />
+                      ) : (
+                        <X size={13} />
+                      )}
+                      <span>
                         {isPending
                           ? 'Chờ Duyệt'
                           : isApproved
                           ? 'Đã Duyệt'
                           : 'Đã Từ Chối'}
                       </span>
-
-                      {req.createdAt && (
-                        <span className="text-[11px] text-slate-400 dark:text-slate-500 ml-auto hidden sm:inline">
-                          {formatDateTimeVN(req.createdAt)}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Shift Details: 2-way swap vs Leave */}
-                    {isSwap ? (
-                      <div className="flex flex-wrap items-center gap-2 pt-0.5 text-xs">
-                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50/80 dark:bg-blue-950/50 border border-blue-200/70 dark:border-blue-800/60 text-blue-900 dark:text-blue-200">
-                          <Calendar size={13} className="text-blue-600 flex-shrink-0" />
-                          <span>Ca trực:</span>
-                          <strong className="font-semibold">{displayDate} ({startTime} — {endTime})</strong>
-                        </div>
-
-                        <ArrowRightLeft size={14} className="text-blue-500 flex-shrink-0" />
-
-                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50/80 dark:bg-indigo-950/50 border border-indigo-200/70 dark:border-indigo-800/60 text-indigo-900 dark:text-indigo-200">
-                          <UserCheck size={13} className="text-indigo-600 flex-shrink-0" />
-                          <span>Đổi với <strong>{substituteName || 'Người nhận đổi'}</strong>{targetDate ? ':' : ''}</span>
-                          {targetDate ? (
-                            <strong className="font-semibold">
-                              {formatDateVN(targetDate)} ({targetStartTime} — {targetEndTime})
-                            </strong>
-                          ) : (
-                            <span className="text-slate-400 italic text-[11px]">(Đơn cũ)</span>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex flex-wrap items-center gap-2 pt-0.5 text-xs text-slate-600 dark:text-slate-300">
-                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-slate-900/50 border border-slate-200/70 dark:border-slate-700/60">
-                          <Calendar size={13} className="text-blue-500 flex-shrink-0" />
-                          <span className="text-slate-500 dark:text-slate-400">Ca xin nghỉ:</span>
-                          <strong className="font-semibold text-slate-800 dark:text-slate-200">{displayDate}</strong>
-                        </div>
-
-                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-slate-900/50 border border-slate-200/70 dark:border-slate-700/60">
-                          <Clock size={13} className="text-amber-500 flex-shrink-0" />
-                          <span className="text-slate-500 dark:text-slate-400">Giờ trực:</span>
-                          <strong className="font-semibold text-slate-800 dark:text-slate-200">{startTime} — {endTime}</strong>
-                        </div>
-
-                        {substituteName && (
-                          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50/80 dark:bg-emerald-950/50 border border-emerald-200/70 dark:border-emerald-800/60 text-emerald-800 dark:text-emerald-300">
-                            <UserCheck size={13} className="text-emerald-600 flex-shrink-0" />
-                            <span>Đã gán trực thay:</span>
-                            <strong className="font-bold">{substituteName}</strong>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Reason */}
-                    {req.reason && (
-                      <div className="text-xs text-slate-600 dark:text-slate-300 italic pt-0.5 px-3 py-1.5 rounded-lg bg-slate-50/80 dark:bg-slate-900/40 border-l-2 border-slate-300 dark:border-slate-600">
-                        <span className="not-italic font-medium text-slate-400 dark:text-slate-500 mr-1">Lý do:</span>
-                        "{req.reason}"
-                      </div>
-                    )}
-
-                    {/* Review Note / Rejection Reason */}
-                    {reviewNote && (
-                      <div className={`text-xs p-2 rounded-lg border flex items-start gap-1.5 ${
-                        isRejected
-                          ? 'bg-rose-50/70 dark:bg-rose-950/40 border-rose-200/80 dark:border-rose-800/80 text-rose-800 dark:text-rose-200'
-                          : 'bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
-                      }`}>
-                        <MessageSquare size={13} className={`flex-shrink-0 mt-0.5 ${isRejected ? 'text-rose-500' : 'text-slate-400'}`} />
-                        <div>
-                          <span className="font-bold mr-1">
-                            {isRejected ? 'Lý do từ chối của Quản lý:' : 'Ghi chú duyệt:'}
-                          </span>
-                          <span>"{reviewNote}"</span>
-                        </div>
-                      </div>
-                    )}
+                    </span>
                   </div>
                 </div>
 
-                {/* Right: Actions */}
-                {isPending && (
-                  <div className="flex items-center gap-2 self-end md:self-center w-full md:w-auto justify-end border-t md:border-t-0 pt-2.5 md:pt-0">
-                    <button
-                      type="button"
-                      onClick={() => handleOpenReject(req)}
-                      className="px-3.5 py-2 rounded-xl text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 border border-rose-200/80 dark:border-rose-800/80 transition flex items-center gap-1.5 shadow-xs cursor-pointer"
-                    >
-                      <X size={14} />
-                      <span>Từ Chối</span>
-                    </button>
+                {/* Shift Details Flow */}
+                {isSwap ? (
+                  <div className="schedule-shifts-grid schedule-shifts-grid--swap">
+                    {/* Ca người gửi */}
+                    <div className="schedule-shift-block">
+                      <div className="schedule-shift-block__header">
+                        <span className="schedule-shift-block__label">
+                          <User size={13} /> Ca gửi đổi
+                        </span>
+                        <span className="schedule-shift-block__guard">{requesterName}</span>
+                      </div>
+                      <div className="schedule-shift-block__details">
+                        <span className={`schedule-shift-pill ${shift1Info.color}`}>
+                          <Shift1Icon size={13} /> {shift1Info.label}: {shift1Info.time}
+                        </span>
+                        <span className="schedule-shift-tag">
+                          <Calendar size={13} /> {displayDate}
+                        </span>
+                        {areaName && (
+                          <span className="schedule-shift-tag">
+                            <MapPin size={13} /> {areaName}
+                          </span>
+                        )}
+                      </div>
+                    </div>
 
-                    {isSwap ? (
+                    {/* Center Arrow */}
+                    <div className="schedule-shift-swap-arrow">
+                      <div className="schedule-shift-swap-circle" title="Hoán đổi ca trực 2 chiều">
+                        <ArrowRightLeft size={16} />
+                      </div>
+                    </div>
+
+                    {/* Ca người nhận */}
+                    <div className="schedule-shift-block">
+                      <div className="schedule-shift-block__header">
+                        <span className="schedule-shift-block__label">
+                          <UserCheck size={13} /> Ca nhận đổi
+                        </span>
+                        <span className="schedule-shift-block__guard">
+                          {substituteName || 'Người nhận đổi'}
+                          {substituteCode && (
+                            <span className="font-normal text-xs text-slate-500 ml-1">
+                              ({substituteCode})
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                      {targetDate ? (
+                        <div className="schedule-shift-block__details">
+                          <span className={`schedule-shift-pill ${targetShiftInfo.color}`}>
+                            <TargetShiftIcon size={13} /> {targetShiftInfo.label}: {targetShiftInfo.time}
+                          </span>
+                          <span className="schedule-shift-tag">
+                            <Calendar size={13} /> {formatDateVN(targetDate)}
+                          </span>
+                          {targetAreaName && (
+                            <span className="schedule-shift-tag">
+                              <MapPin size={13} /> {targetAreaName}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-xs italic text-slate-400 py-1">
+                          Chưa có thông tin ca đối ứng
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="schedule-shifts-grid schedule-shifts-grid--leave">
+                    {/* Ca xin nghỉ */}
+                    <div className="schedule-shift-block">
+                      <div className="schedule-shift-block__header">
+                        <span className="schedule-shift-block__label">
+                          <Calendar size={13} /> Ca xin nghỉ
+                        </span>
+                      </div>
+                      <div className="schedule-shift-block__details">
+                        <span className={`schedule-shift-pill ${shift1Info.color}`}>
+                          <Shift1Icon size={13} /> {shift1Info.label}: {shift1Info.time}
+                        </span>
+                        <span className="schedule-shift-tag">
+                          <Calendar size={13} /> {displayDate}
+                        </span>
+                        {areaName && (
+                          <span className="schedule-shift-tag">
+                            <MapPin size={13} /> {areaName}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Nhân sự trực thay */}
+                    <div className="schedule-shift-block">
+                      <div className="schedule-shift-block__header">
+                        <span className="schedule-shift-block__label">
+                          <UserCheck size={13} /> Nhân sự trực thay thế
+                        </span>
+                      </div>
+                      <div className="schedule-shift-block__details">
+                        {substituteName ? (
+                          <span className="schedule-substitute-assigned">
+                            <Check size={14} />
+                            <span>
+                              Đã chỉ định: <strong>{substituteName}</strong> ({substituteCode})
+                            </span>
+                          </span>
+                        ) : (
+                          <span className="schedule-substitute-pending">
+                            <AlertCircle size={14} />
+                            <span>Chưa chỉ định — Quản lý sẽ chọn khi duyệt</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Lý do từ nhân viên */}
+                {req.reason && (
+                  <div className="schedule-request-reason">
+                    <span className="schedule-request-reason__label">Lý do:</span>
+                    <span className="schedule-request-reason__text">"{req.reason}"</span>
+                  </div>
+                )}
+
+                {/* Phản hồi / Ghi chú phê duyệt */}
+                {reviewNote && (
+                  <div className={`schedule-review-feedback ${isRejected ? 'is-rejected' : 'is-approved'}`}>
+                    <span className="font-semibold">
+                      {isRejected ? 'Lý do từ chối của Quản lý:' : 'Ghi chú duyệt:'}
+                    </span>
+                    <span>"{reviewNote}"</span>
+                  </div>
+                )}
+
+                {/* Actions Footer */}
+                {isPending && (
+                  <div className="schedule-request-actions">
+                    <div className="schedule-request-actions__hint">
+                      {isSwap
+                        ? 'Duyệt đổi ca sẽ tự động hoán đổi lịch trực của 2 nhân viên'
+                        : 'Duyệt xin nghỉ sẽ mở danh sách chọn nhân viên trực thay'}
+                    </div>
+                    <div className="schedule-request-actions__btns">
                       <button
                         type="button"
-                        onClick={() => handleApproveSwap(req)}
-                        className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 shadow-sm hover:shadow transition flex items-center gap-1.5 cursor-pointer"
+                        onClick={() => handleOpenReject(req)}
+                        className="schedule-btn-reject"
                       >
-                        <Check size={14} />
-                        <span>Duyệt Đổi Ca</span>
+                        <X size={14} />
+                        <span>Từ Chối</span>
                       </button>
-                    ) : (
+
                       <button
                         type="button"
-                        onClick={() => handleOpenApproveLeave(req)}
-                        className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 shadow-sm hover:shadow transition flex items-center gap-1.5 cursor-pointer"
+                        onClick={() =>
+                          isSwap ? handleApproveSwap(req) : handleOpenApproveLeave(req)
+                        }
+                        className={`schedule-btn-approve ${
+                          isSwap ? '' : 'schedule-btn-approve--emerald'
+                        }`}
                       >
                         <Check size={14} />
-                        <span>Duyệt Nghỉ Trực</span>
+                        <span>{isSwap ? 'Duyệt Đổi Ca' : 'Duyệt Nghỉ Trực'}</span>
                       </button>
-                    )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -604,7 +1108,7 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
         </div>
       )}
 
-      {/* 3. MODAL: APPROVE LEAVE WITH SUBSTITUTE */}
+      {/* 4. MODAL: APPROVE LEAVE WITH SUBSTITUTE */}
       {leaveModal.isOpen && (
         <div
           className="schedule-modal-backdrop"
@@ -640,32 +1144,57 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
 
             <form onSubmit={handleSubmitApproveLeave}>
               <div className="schedule-modal__body space-y-4">
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 text-xs space-y-1">
-                  <div>
-                    <strong>Nhân viên xin nghỉ:</strong>{' '}
-                    {leaveModal.request?.requesterName ||
-                      leaveModal.request?.requesterGuard?.fullName}
+                {/* Summary Info */}
+                <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 text-xs space-y-1.5">
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500">Nhân viên xin nghỉ:</span>
+                    <strong className="text-slate-800 dark:text-slate-200">
+                      {leaveModal.request?.requesterName ||
+                        leaveModal.request?.requesterGuard?.fullName}{' '}
+                      ({leaveModal.request?.requesterCode ||
+                        leaveModal.request?.requesterGuard?.userCode ||
+                        'NV-BV'})
+                    </strong>
                   </div>
-                  <div>
-                    <strong>Ngày trực:</strong>{' '}
-                    {formatDateVN(leaveModal.request?.shiftDate ||
-                      leaveModal.request?.shift?.shiftDate)}
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500">Ngày trực:</span>
+                    <strong className="text-slate-800 dark:text-slate-200">
+                      {formatDateVN(
+                        leaveModal.request?.shiftDate ||
+                          leaveModal.request?.shift?.shiftDate
+                      )}
+                    </strong>
                   </div>
-                  <div>
-                    <strong>Lý do:</strong>{' '}
-                    <span className="italic">
-                      {leaveModal.request?.reason || 'Không ghi rõ'}
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500">Loại đơn:</span>
+                    <span
+                      className={`font-semibold px-2 py-0.5 rounded text-[11px] ${
+                        leaveModal.request?.isEmergency
+                          ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300'
+                          : 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300'
+                      }`}
+                    >
+                      {leaveModal.request?.isEmergency
+                        ? 'Nghỉ Đột Xuất'
+                        : 'Nghỉ Phép Thường'}
+                    </span>
+                  </div>
+                  <div className="pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
+                    <span className="text-slate-500">Lý do: </span>
+                    <span className="italic text-slate-700 dark:text-slate-300">
+                      "{leaveModal.request?.reason || 'Không ghi rõ'}"
                     </span>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                     Chọn Nhân Viên Bảo Vệ Trực Thay <span className="text-rose-500">*</span>
                   </label>
                   {leaveModal.loadingSubstitutes ? (
-                    <div className="text-xs text-slate-500 py-2">
-                      Đang tìm kiếm nhân viên bảo vệ rảnh ca...
+                    <div className="text-xs text-slate-500 py-3 flex items-center gap-2">
+                      <RefreshCw size={14} className="animate-spin text-blue-600" />
+                      <span>Đang tìm kiếm nhân viên bảo vệ rảnh ca...</span>
                     </div>
                   ) : (
                     <select
@@ -677,12 +1206,13 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
                         }))
                       }
                       required
-                      className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200"
+                      className="w-full px-3 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs"
                     >
                       <option value="">-- Chọn bảo vệ trực thay --</option>
                       {leaveModal.substitutes.map((s) => (
                         <option key={s.id} value={s.id}>
-                          {s.fullName} ({s.userCode || 'NV-BV'}) — {s.isSameTeam ? `[Cùng đội] ${s.teamName}` : s.teamName}
+                          {s.fullName} ({s.userCode || 'NV-BV'}) —{' '}
+                          {s.isSameTeam ? `[Cùng đội] ${s.teamName}` : s.teamName}
                         </option>
                       ))}
                       <option value="CANCEL_SHIFT">
@@ -690,13 +1220,13 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
                       </option>
                     </select>
                   )}
-                  <p className="text-[11px] text-slate-400 mt-1">
+                  <p className="text-[11px] text-slate-400 mt-1.5">
                     Hệ thống tự động lọc các bảo vệ đang nghỉ trong ngày và đảm bảo nhịp sinh học nghỉ ngơi (ưu tiên cùng đội).
                   </p>
                 </div>
               </div>
 
-              <div className="schedule-modal__footer flex items-center justify-end gap-2">
+              <div className="schedule-modal__footer flex items-center justify-end gap-2.5">
                 <button
                   type="button"
                   onClick={() => setLeaveModal((prev) => ({ ...prev, isOpen: false }))}
@@ -718,7 +1248,7 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
         </div>
       )}
 
-      {/* 4. MODAL: REJECT DIALOG */}
+      {/* 5. MODAL: REJECT DIALOG */}
       {rejectDialog.isOpen && (
         <div
           className="schedule-modal-backdrop"
@@ -731,7 +1261,7 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
           <div className="schedule-modal max-w-md">
             <div className="schedule-modal__header">
               <div className="schedule-modal__header-left">
-                <div className="schedule-modal__icon-badge">
+                <div className="schedule-modal__icon-badge bg-rose-50 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400">
                   <XCircle size={18} />
                 </div>
                 <div className="schedule-modal__header-text">
@@ -756,7 +1286,7 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
               <div className="schedule-modal__body space-y-3">
                 <p className="text-xs text-slate-600 dark:text-slate-300">
                   Bạn đang từ chối yêu cầu của{' '}
-                  <strong>
+                  <strong className="text-slate-900 dark:text-white">
                     {rejectDialog.request?.requesterName ||
                       rejectDialog.request?.requesterGuard?.fullName}
                   </strong>
@@ -764,7 +1294,7 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
                 </p>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                     Lý Do Từ Chối (Tùy chọn)
                   </label>
                   <textarea
@@ -777,12 +1307,12 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
                         reviewNote: e.target.value
                       }))
                     }
-                    className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs"
                   />
                 </div>
               </div>
 
-              <div className="schedule-modal__footer flex items-center justify-end gap-2">
+              <div className="schedule-modal__footer flex items-center justify-end gap-2.5">
                 <button
                   type="button"
                   onClick={() => setRejectDialog((prev) => ({ ...prev, isOpen: false }))}
@@ -794,7 +1324,7 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
                 <button
                   type="submit"
                   disabled={rejectDialog.submitting}
-                  className="px-4 py-2 rounded-lg text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 transition"
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 transition shadow-2xs"
                 >
                   {rejectDialog.submitting ? 'Đang Lưu...' : 'Xác Nhận Từ Chối'}
                 </button>

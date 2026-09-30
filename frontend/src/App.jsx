@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { ThemeProvider } from "./context/ThemeContext";
 import { AuthProvider, useAuth } from "./context/AuthContext";
@@ -23,12 +23,45 @@ import AccessHistoryPage from "./pages/accessHistory/AccessHistoryPage";
 import NotificationsPage from "./pages/notifications/NotificationsPage";
 import ManageAccountPage from "./pages/accounts/ManageAccountPage";
 import SystemConfigPage from "./pages/system/SystemConfigPage";
+import GuardTeamManagementPage from "./pages/guardTeams/GuardTeamManagementPage";
 import ReasonCatalogPage from "./pages/system/ReasonCatalogPage";
 import UserAccessLevelPage from "./pages/accessControl/UserAccessLevelPage";
 import DemoModeBanner from "./components/common/DemoModeBanner";
-import GuardScheduleManagementPage from "./pages/admin/GuardScheduleManagementPage";
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
+
+const ROUTE_TITLES = {
+	"/": "FPTU SecureVision",
+	"/dashboard": "Dashboard",
+	"/admin/areas": "Quản lý Vùng",
+	"/admin/areas/map": "Bản đồ Vùng",
+	"/cameras": "Quản lý Camera",
+	"/admin/cameras": "Quản lý Camera",
+	"/admin/accounts": "Quản lý Tài khoản",
+	"/admin/guard-teams": "Quản lý Đội bảo vệ",
+	"/admin/guard-schedules": "Quản lý Đội bảo vệ",
+	"/guard": "Trung tâm Giám sát",
+	"/access-requests": "Yêu cầu Truy cập",
+	"/access-history": "Lịch sử Truy cập",
+	"/notifications": "Thông báo",
+	"/admin/access-requests": "Phê duyệt Truy cập",
+	"/fm/access-levels": "Phân quyền Truy cập",
+	"/admin/access-levels": "Phân quyền Truy cập",
+	"/admin/system-configurations": "Cấu hình Hệ thống",
+	"/login": "Đăng nhập",
+	"/admin/reason-catalogs": "Danh mục Lý do",
+	"/unauthorized": "Không có quyền truy cập",
+};
+
+function getPageTitle(pathname) {
+	if (ROUTE_TITLES[pathname]) {
+		return ROUTE_TITLES[pathname];
+	}
+	if (pathname.startsWith("/cameras/")) {
+		return "Chi tiết Camera";
+	}
+	return null;
+}
 
 function RootRoute() {
 	const { user } = useAuth();
@@ -62,6 +95,17 @@ function DashboardRoute() {
 }
 
 function App() {
+	const location = useLocation();
+
+	useEffect(() => {
+		const title = getPageTitle(location.pathname);
+		if (title) {
+			document.title = `${title} — AI Campus Security`;
+		} else {
+			document.title = "AI Campus Security";
+		}
+	}, [location.pathname]);
+
 	const [resetToken, setResetToken] = useState(() => {
 		const urlParams = new URLSearchParams(window.location.search);
 		const token = urlParams.get("token");
@@ -189,10 +233,18 @@ function App() {
 							/>
 
 							<Route
+								path="/admin/guard-teams"
+								element={
+									<ProtectedRoute allowedRoles={[ROLES.FACILITY_MANAGER]}>
+										<GuardTeamManagementPage />
+									</ProtectedRoute>
+								}
+							/>
+							<Route
 								path="/admin/guard-schedules"
 								element={
 									<ProtectedRoute allowedRoles={[ROLES.FACILITY_MANAGER]}>
-										<GuardScheduleManagementPage />
+										<GuardTeamManagementPage />
 									</ProtectedRoute>
 								}
 							/>

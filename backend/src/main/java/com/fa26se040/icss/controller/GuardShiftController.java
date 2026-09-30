@@ -12,12 +12,15 @@ import com.fa26se040.icss.dto.guard.GuardShiftUpdateRequest;
 import com.fa26se040.icss.dto.guard.WizardGenerateShiftsRequest;
 import com.fa26se040.icss.enums.ShiftStatus;
 import com.fa26se040.icss.service.GuardScheduleService;
+import com.fa26se040.icss.service.GuardShiftExportService;
 import com.fa26se040.icss.service.GuardShiftRequestService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -35,6 +38,7 @@ public class GuardShiftController {
 
     private final GuardScheduleService guardScheduleService;
     private final GuardShiftRequestService guardShiftRequestService;
+    private final GuardShiftExportService guardShiftExportService;
 
     // ==========================================
     // ADMIN & FM ENDPOINTS
@@ -51,6 +55,28 @@ public class GuardShiftController {
     ) {
         log.info("Admin/FM querying shifts from [{}] to [{}], building: [{}]", startDate, endDate, building);
         return ResponseEntity.ok(ApiResponse.success(guardScheduleService.getShifts(startDate, endDate, guardId, building, status), "Lấy danh sách ca trực thành công"));
+    }
+
+    @GetMapping("/export-timesheet")
+    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
+    public ResponseEntity<byte[]> exportTimesheet(
+            @RequestParam int year,
+            @RequestParam int month,
+            @RequestParam(required = false) UUID teamId
+    ) {
+        log.info("Admin/FM exporting guard timesheet Excel for year={}, month={}, teamId={}", year, month, teamId);
+        try {
+            byte[] excelBytes = guardShiftExportService.exportMonthlyTimesheet(year, month, teamId);
+            String filename = String.format("Bang_Cham_Cong_Bao_Ve_Thang_%02d_%d.xlsx", month, year);
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                    .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                    .body(excelBytes);
+        } catch (Exception e) {
+            log.error("Error exporting guard timesheet Excel: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().build();
+        }
     }
 
     @PostMapping

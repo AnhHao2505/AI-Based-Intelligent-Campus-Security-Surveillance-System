@@ -16,9 +16,9 @@ import java.util.UUID;
 @Repository
 public interface GuardShiftRepository extends JpaRepository<GuardShift, UUID> {
 
-    @Query("SELECT s FROM GuardShift s LEFT JOIN s.area a WHERE s.shiftDate BETWEEN :startDate AND :endDate " +
-            "AND (:guardId IS NULL OR s.guard.id = :guardId) " +
-            "AND (CAST(:building AS string) IS NULL OR a IS NULL OR LOWER(a.building) = LOWER(CAST(:building AS string))) " +
+    @Query("SELECT s FROM GuardShift s LEFT JOIN s.area a LEFT JOIN s.guard g LEFT JOIN g.team t WHERE s.shiftDate BETWEEN :startDate AND :endDate " +
+            "AND (:guardId IS NULL OR g.id = :guardId) " +
+            "AND (CAST(:building AS string) IS NULL OR LOWER(COALESCE(a.building, t.description)) = LOWER(CAST(:building AS string))) " +
             "AND (:status IS NULL OR s.status = :status) " +
             "ORDER BY s.shiftDate ASC, s.startTime ASC")
     List<GuardShift> findShifts(
@@ -41,8 +41,8 @@ public interface GuardShiftRepository extends JpaRepository<GuardShift, UUID> {
             UUID guardId, LocalDate shiftDate, LocalTime startTime
     );
 
-    @Query("SELECT s FROM GuardShift s WHERE s.shiftDate = :date " +
-            "AND LOWER(s.area.building) = LOWER(:building) " +
+    @Query("SELECT s FROM GuardShift s LEFT JOIN s.area a LEFT JOIN s.guard g LEFT JOIN g.team t WHERE s.shiftDate = :date " +
+            "AND LOWER(COALESCE(a.building, t.description)) = LOWER(:building) " +
             "AND s.status IN ('SCHEDULED', 'CHECKED_IN')")
     List<GuardShift> findActiveShiftsInBuilding(
             @Param("date") LocalDate date,

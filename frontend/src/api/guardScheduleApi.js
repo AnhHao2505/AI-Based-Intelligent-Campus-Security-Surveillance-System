@@ -1,20 +1,6 @@
 import { apiGet, apiPost, apiPut, apiDelete } from './apiClient';
 
 export const guardScheduleApi = {
-  // Templates (Admin)
-  getTemplates: (building) => {
-    const query = building ? `?building=${encodeURIComponent(building)}` : '';
-    return apiGet(`/api/guard-schedules/templates${query}`);
-  },
-
-  createTemplate: (data) => apiPost('/api/guard-schedules/templates', data),
-
-  updateTemplate: (id, data) => apiPut(`/api/guard-schedules/templates/${id}`, data),
-
-  deleteTemplate: (id) => apiDelete(`/api/guard-schedules/templates/${id}`),
-
-  generateShifts: (data) => apiPost('/api/guard-schedules/generate', data),
-
   // Shifts (Admin)
   getShifts: (params = {}) => {
     const query = new URLSearchParams();
@@ -56,6 +42,84 @@ export const guardScheduleApi = {
   getAvailableSubstitutes: (shiftId) => apiGet(`/api/guard-shifts/${shiftId}/available-substitutes`),
 
   getAvailableSwapShifts: (shiftId) => apiGet(`/api/guard-shifts/${shiftId}/available-swap-shifts`),
+
+  // Export Timesheet Excel
+  exportTimesheet: async ({ year, month, teamId }) => {
+    const query = new URLSearchParams();
+    query.append('year', year);
+    query.append('month', month);
+    if (teamId) query.append('teamId', teamId);
+
+    const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+
+    // Demo Mode Fallback: Tạo file tổng hợp demo nếu đăng nhập qua tài khoản demo
+    if (token?.startsWith('frontend-demo-')) {
+      const csvContent = '\uFEFF' +
+        `BẢNG CHẤM CÔNG VÀ TỔNG HỢP CA TRỰC BẢO VỆ\n` +
+        `Tháng: ${String(month).padStart(2, '0')}/${year}\n` +
+        `Đơn vị: ${teamId ? 'Đội đã chọn' : 'Toàn bộ các đội bảo vệ'}\n\n` +
+        `STT,Mã Bảo Vệ,Họ và Tên,Đội Biên Chế,Tổng Ca Trực,Ca Sáng,Ca Chiều,Ca Đêm,Làm Thêm (OT),Nghỉ Phép\n` +
+        `1,NV-BV01,Nguyễn Văn An,Tổ 1 - An ninh Cổng & Vòng ngoài,24,10,8,6,2,1\n` +
+        `2,NV-BV02,Bảo Vệ Demo,Tổ 1 - An ninh Cổng & Vòng ngoài,22,8,8,6,0,2\n`;
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Bang_Cham_Cong_Bao_Ve_Thang_${String(month).padStart(2, '0')}_${year}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      return;
+    }
+
+    const response = await fetch(`${API_BASE_URL}/api/guard-shifts/export-timesheet?${query.toString()}`, {
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      }
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+      }
+      if (response.status === 403) {
+        throw new Error('Bạn không có quyền xuất báo cáo chấm công (cần tài khoản Quản lý CSVC hoặc Quản trị viên).');
+      }
+      let errDetail = '';
+      try {
+        const errJson = await response.json();
+        errDetail = errJson.message || errJson.error || '';
+      } catch (_) {
+        try {
+          errDetail = await response.text();
+        } catch (_) {}
+      }
+      throw new Error(errDetail || `Không thể tải file báo cáo chấm công (Mã lỗi ${response.status}).`);
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+
+    // Lấy tên file từ header Content-Disposition nếu có
+    let filename = `Bang_Cham_Cong_Bao_Ve_Thang_${String(month).padStart(2, '0')}_${year}.xlsx`;
+    const disposition = response.headers.get('content-disposition');
+    if (disposition && disposition.includes('filename=')) {
+      const match = disposition.match(/filename="?([^"]+)"?/);
+      if (match && match[1]) {
+        filename = decodeURIComponent(match[1]);
+      }
+    }
+
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  },
 
   // Shift Requests
   getShiftRequests: (params = {}) => {

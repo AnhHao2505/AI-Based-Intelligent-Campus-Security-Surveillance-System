@@ -59,7 +59,4 @@ public class WizardGenerateShiftsRequest {
     private Integer weekendNightDemand;
 
     private String building;
-
-    @Builder.Default
-    private Boolean saveAsTemplate = true;
 }

@@ -1,21 +1,15 @@
 package com.fa26se040.icss.service;
 
-import com.fa26se040.icss.dto.guard.GenerateShiftsRequest;
-import com.fa26se040.icss.dto.guard.GenerateShiftsResponse;
-import com.fa26se040.icss.dto.guard.GuardScheduleTemplateCreateRequest;
-import com.fa26se040.icss.dto.guard.GuardScheduleTemplateDto;
 import com.fa26se040.icss.dto.guard.GuardShiftCreateRequest;
 import com.fa26se040.icss.dto.guard.GuardShiftDto;
 import com.fa26se040.icss.dto.guard.GuardShiftUpdateRequest;
 import com.fa26se040.icss.entity.Area;
-import com.fa26se040.icss.entity.GuardScheduleTemplate;
 import com.fa26se040.icss.entity.GuardShift;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.enums.ShiftStatus;
 import com.fa26se040.icss.enums.ShiftType;
 import com.fa26se040.icss.repository.AreaRepository;
-import com.fa26se040.icss.repository.GuardScheduleTemplateRepository;
 import com.fa26se040.icss.repository.GuardShiftRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -57,7 +51,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class GuardScheduleService {
 
-    private final GuardScheduleTemplateRepository templateRepository;
     private final GuardShiftRepository shiftRepository;
     private final UserRepository userRepository;
     private final AreaRepository areaRepository;
@@ -65,177 +58,9 @@ public class GuardScheduleService {
     private final GuardShiftRequestRepository shiftRequestRepository;
     private final GuardTeamDispatchRepository dispatchRepository;
 
-    // ==========================================
-    // 1. TEMPLATE MANAGEMENT (ADMIN)
-    // ==========================================
 
-    @Transactional(readOnly = true)
-    public List<GuardScheduleTemplateDto> getTemplates(String building) {
-        List<GuardScheduleTemplate> list;
-        if (building == null || building.isBlank() || "ALL".equalsIgnoreCase(building.trim())) {
-            list = templateRepository.findByIsActiveTrue();
-        } else {
-            list = templateRepository.findActiveTemplatesByBuilding(building.trim());
-        }
-        return list.stream().map(this::mapTemplateToDto).collect(Collectors.toList());
-    }
 
-    @Transactional
-    public GuardScheduleTemplateDto createTemplate(GuardScheduleTemplateCreateRequest request) {
-        User guard = userRepository.findById(request.getGuardId())
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy nhân viên bảo vệ"));
 
-        if (guard.getRole() != Role.GUARD) {
-            throw new IllegalArgumentException("Tài khoản được gán phải có vai trò GUARD");
-        }
-
-        Area area = null;
-        if (request.getAreaId() != null) {
-            area = areaRepository.findById(request.getAreaId())
-                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy khu vực được chỉ định"));
-        }
-
-        if (templateRepository.existsByGuardIdAndDayOfWeekAndStartTimeAndIsActiveTrue(
-                guard.getId(), request.getDayOfWeek(), request.getStartTime())) {
-            throw new IllegalArgumentException("Bảo vệ này đã có lịch mẫu vào thứ và khung giờ này");
-        }
-
-        GuardScheduleTemplate template = GuardScheduleTemplate.builder()
-                .guard(guard)
-                .dayOfWeek(request.getDayOfWeek())
-                .shiftType(request.getShiftType())
-                .startTime(request.getStartTime())
-                .endTime(request.getEndTime())
-                .area(area)
-                .radioChannel(request.getRadioChannel())
-                .notes(request.getNotes())
-                .isActive(true)
-                .build();
-
-        GuardScheduleTemplate saved = templateRepository.save(template);
-        return mapTemplateToDto(saved);
-    }
-
-    @Transactional
-    public GuardScheduleTemplateDto updateTemplate(UUID id, GuardScheduleTemplateCreateRequest request) {
-        GuardScheduleTemplate template = templateRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy lịch mẫu"));
-
-        User guard = userRepository.findById(request.getGuardId())
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy nhân viên bảo vệ"));
-
-        if (guard.getRole() != Role.GUARD) {
-            throw new IllegalArgumentException("Tài khoản được gán phải có vai trò GUARD");
-        }
-
-        Area area = null;
-        if (request.getAreaId() != null) {
-            area = areaRepository.findById(request.getAreaId())
-                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy khu vực được chỉ định"));
-        }
-
-        template.setGuard(guard);
-        template.setDayOfWeek(request.getDayOfWeek());
-        template.setShiftType(request.getShiftType());
-        template.setStartTime(request.getStartTime());
-        template.setEndTime(request.getEndTime());
-        template.setArea(area);
-        template.setRadioChannel(request.getRadioChannel());
-        template.setNotes(request.getNotes());
-
-        GuardScheduleTemplate saved = templateRepository.save(template);
-        return mapTemplateToDto(saved);
-    }
-
-    @Transactional
-    public void deleteTemplate(UUID id) {
-        GuardScheduleTemplate template = templateRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy lịch mẫu"));
-        template.setIsActive(false);
-        templateRepository.save(template);
-    }
-
-    // ==========================================
-    // 2. BULK GENERATION FROM TEMPLATES
-    // ==========================================
-
-    @Transactional
-    public GenerateShiftsResponse generateShifts(GenerateShiftsRequest request) {
-        if (request.getEndDate().isBefore(request.getStartDate())) {
-            throw new IllegalArgumentException("Ngày kết thúc phải lớn hơn hoặc bằng ngày bắt đầu");
-        }
-
-        List<GuardScheduleTemplate> templates;
-        if (request.getBuilding() == null || request.getBuilding().isBlank() || "ALL".equalsIgnoreCase(request.getBuilding().trim())) {
-            templates = templateRepository.findByIsActiveTrue();
-        } else {
-            templates = templateRepository.findActiveTemplatesByBuilding(request.getBuilding().trim());
-        }
-        int generatedCount = 0;
-        List<String> warnings = new ArrayList<>();
-
-        // Group checks: Set of "date_shiftType_building" with security room assigned
-        Set<String> coveredSecurityRooms = new HashSet<>();
-        Set<String> allBuildingShifts = new HashSet<>();
-
-        LocalDate currentDate = request.getStartDate();
-        while (!currentDate.isAfter(request.getEndDate())) {
-            // Map Java DayOfWeek to 1-7: Sunday is 1, Monday is 2, ..., Saturday is 7
-            int dow = mapToDayOfWeekInt(currentDate.getDayOfWeek());
-
-            for (GuardScheduleTemplate t : templates) {
-                if (t.getDayOfWeek() == dow) {
-                    boolean exists = shiftRepository.existsByGuardIdAndShiftDateAndStartTime(
-                            t.getGuard().getId(), currentDate, t.getStartTime()
-                    );
-
-                    if (!exists) {
-                        GuardShift shift = GuardShift.builder()
-                                .guard(t.getGuard())
-                                .shiftDate(currentDate)
-                                .shiftType(t.getShiftType())
-                                .startTime(t.getStartTime())
-                                .endTime(t.getEndTime())
-                                .area(t.getArea())
-                                .radioChannel(t.getRadioChannel())
-                                .status(ShiftStatus.SCHEDULED)
-                                .notes(t.getNotes())
-                                .build();
-                        shiftRepository.save(shift);
-                        generatedCount++;
-                    }
-
-                    if (t.getArea() != null && t.getArea().getBuilding() != null) {
-                        String buildingKey = currentDate + "_" + t.getShiftType() + "_" + t.getArea().getBuilding();
-                        allBuildingShifts.add(buildingKey);
-
-                        String areaName = t.getArea().getName().toLowerCase();
-                        if (areaName.contains("phòng bảo vệ") || areaName.contains("security room") || areaName.contains("phòng camera")) {
-                            coveredSecurityRooms.add(buildingKey);
-                        }
-                    }
-                }
-            }
-            currentDate = currentDate.plusDays(1);
-        }
-
-        // Validate building security room presence rule
-        for (String buildingKey : allBuildingShifts) {
-            if (!coveredSecurityRooms.contains(buildingKey)) {
-                String[] parts = buildingKey.split("_");
-                String dateStr = parts[0];
-                String shiftTypeStr = parts[1];
-                String bldStr = parts.length > 2 ? parts[2] : "";
-                warnings.add(String.format("Ngày %s - %s tại %s: Chưa có bảo vệ được phân công tại chốt Phòng bảo vệ/Camera!",
-                        dateStr, shiftTypeStr, bldStr));
-            }
-        }
-
-        return GenerateShiftsResponse.builder()
-                .totalGenerated(generatedCount)
-                .warnings(warnings)
-                .build();
-    }
 
     public CapacityCalculateResponse calculateCapacity(CapacityCalculateRequest request) {
         int mDemand = request.getMorningDemand() != null ? request.getMorningDemand() : 0;
@@ -400,6 +225,9 @@ public class GuardScheduleService {
             List<Area> buildingAreas = areaRepository.findByBuildingIgnoreCaseAndFloorIgnoreCaseAndDeletedAtIsNull(request.getBuilding().trim(), "G");
             if (buildingAreas.isEmpty()) {
                 buildingAreas = areaRepository.findByBuildingIgnoreCaseAndFloorIgnoreCaseAndDeletedAtIsNull(request.getBuilding().trim(), "1");
+            }
+            if (buildingAreas.isEmpty()) {
+                buildingAreas = areaRepository.findByBuildingIgnoreCaseAndDeletedAtIsNull(request.getBuilding().trim());
             }
             if (!buildingAreas.isEmpty()) {
                 targetArea = buildingAreas.get(0);
@@ -673,24 +501,6 @@ public class GuardScheduleService {
                             .build();
                     createdShifts.add(shiftRepository.save(shift));
 
-                    if (Boolean.TRUE.equals(request.getSaveAsTemplate()) && dayIndex < 7) {
-                        boolean tExists = templateRepository.existsByGuardIdAndDayOfWeekAndStartTimeAndIsActiveTrue(
-                                 guard.getId(), dow, startTime
-                        );
-                        if (!tExists) {
-                            GuardScheduleTemplate template = GuardScheduleTemplate.builder()
-                                    .guard(guard)
-                                    .dayOfWeek(dow)
-                                    .shiftType(shiftType)
-                                    .startTime(startTime)
-                                    .endTime(endTime)
-                                    .area(targetArea)
-                                    .isActive(true)
-                                    .notes(null)
-                                    .build();
-                            templateRepository.save(template);
-                        }
-                    }
                 }
             }
 
@@ -754,7 +564,6 @@ public class GuardScheduleService {
                 .startTime(request.getStartTime())
                 .endTime(request.getEndTime())
                 .area(area)
-                .radioChannel(request.getRadioChannel())
                 .status(ShiftStatus.SCHEDULED)
                 .notes(request.getNotes())
                 .isOvertime(Boolean.TRUE.equals(request.getIsOvertime()))
@@ -784,7 +593,6 @@ public class GuardScheduleService {
         shift.setStartTime(request.getStartTime());
         shift.setEndTime(request.getEndTime());
         shift.setArea(area);
-        shift.setRadioChannel(request.getRadioChannel());
         if (request.getStatus() != null) {
             shift.setStatus(request.getStatus());
         }
@@ -1066,26 +874,11 @@ public class GuardScheduleService {
         };
     }
 
-    private GuardScheduleTemplateDto mapTemplateToDto(GuardScheduleTemplate t) {
-        return GuardScheduleTemplateDto.builder()
-                .id(t.getId())
-                .guardId(t.getGuard().getId())
-                .guardName(t.getGuard().getFullName())
-                .guardCode(t.getGuard().getUserCode())
-                .dayOfWeek(t.getDayOfWeek())
-                .shiftType(t.getShiftType())
-                .startTime(t.getStartTime())
-                .endTime(t.getEndTime())
-                .areaId(t.getArea() != null ? t.getArea().getId() : null)
-                .areaName(t.getArea() != null ? t.getArea().getName() : null)
-                .building(t.getArea() != null ? t.getArea().getBuilding() : null)
-                .radioChannel(t.getRadioChannel())
-                .notes(t.getNotes())
-                .isActive(t.getIsActive())
-                .build();
-    }
-
     private GuardShiftDto mapShiftToDto(GuardShift s) {
+        String shiftBuilding = (s.getArea() != null && s.getArea().getBuilding() != null && !s.getArea().getBuilding().isBlank())
+                ? s.getArea().getBuilding()
+                : (s.getGuard() != null && s.getGuard().getTeam() != null ? s.getGuard().getTeam().getDescription() : null);
+
         return GuardShiftDto.builder()
                 .id(s.getId())
                 .guardId(s.getGuard().getId())
@@ -1097,8 +890,7 @@ public class GuardScheduleService {
                 .endTime(s.getEndTime())
                 .areaId(s.getArea() != null ? s.getArea().getId() : null)
                 .areaName(s.getArea() != null ? s.getArea().getName() : null)
-                .building(s.getArea() != null ? s.getArea().getBuilding() : null)
-                .radioChannel(s.getRadioChannel())
+                .building(shiftBuilding)
                 .status(s.getStatus())
                 .checkInAt(s.getCheckInAt())
                 .checkOutAt(s.getCheckOutAt())

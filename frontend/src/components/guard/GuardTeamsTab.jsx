@@ -18,11 +18,26 @@ import {
   Moon,
   Zap,
   CheckCircle2,
-  Building2
+  Building2,
+  Calendar,
+  ChevronDown,
+  ChevronUp,
+  RefreshCw,
+  Clock,
+  MapPin
 } from 'lucide-react';
 import { guardScheduleApi } from '../../api/guardScheduleApi';
 import { getUsers } from '../../services/userService';
 import { ROLES } from '../../constants/roles';
+
+// Helper chuẩn hóa tên đội hiển thị (VD: "1" -> "Đội 1")
+const formatTeamName = (name) => {
+  if (!name) return 'Đội Bảo Vệ';
+  const str = String(name).trim();
+  if (/^\d+$/.test(str)) return `Đội ${str}`;
+  return str.startsWith('Đội') ? str : `Đội ${str}`;
+};
+
 
 const PRESET_COLORS = [
   '#2563eb', // Blue
@@ -34,6 +49,7 @@ const PRESET_COLORS = [
   '#4f46e5', // Indigo
   '#0891b2'  // Cyan
 ];
+
 // Helper sắp xếp theo mã bảo vệ (userCode) theo thứ tự tự nhiên (ví dụ BV1, BV2, BV10...)
 const compareUserCodes = (a, b) => {
   const codeA = (a.userCode || '').trim();
@@ -49,6 +65,172 @@ const compareUserCodes = (a, b) => {
   return (a.fullName || '').localeCompare(b.fullName || '', 'vi', { sensitivity: 'base' });
 };
 
+// Helper tạo chữ viết tắt Avatar (VD: "Nguyễn Văn An" -> "NA")
+const getInitials = (name = '') => {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
+
+// Bảng màu avatar hài hòa, trang nhã
+const AVATAR_BG_COLORS = [
+  '#2563eb', // Blue
+  '#0d9488', // Teal
+  '#16a34a', // Green
+  '#d97706', // Amber
+  '#7c3aed', // Purple
+  '#4f46e5', // Indigo
+  '#0891b2', // Cyan
+  '#db2777'  // Pink
+];
+
+const getAvatarBg = (str = '') => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % AVATAR_BG_COLORS.length;
+  return AVATAR_BG_COLORS[index];
+};
+
+const BUILDING_RAW_CODES = new Set([
+  'TOA_ALPHA',
+  'TOA_BETA',
+  'KHU_THE_THAO',
+  'FPT_AROUND',
+  'CO_SO_HCM',
+  'CAMPUS'
+]);
+
+const formatBuildingName = (code, buildings = [], areas = []) => {
+  if (!code) return '';
+  const b = (buildings || []).find((item) => item.code === code || item.id === code || item.name === code);
+  if (b?.name) return b.name;
+  const a = (areas || []).find((item) => item.building === code);
+  if (a?.building) return a.building;
+  if (code === 'TOA_ALPHA') return 'Tòa Alpha';
+  if (code === 'TOA_BETA') return 'Tòa Beta';
+  if (code === 'KHU_THE_THAO') return 'Khu Thể Thao & Sân Bóng';
+  if (code === 'FPT_AROUND') return 'Khuôn viên Ngoài trời';
+  if (code === 'CO_SO_HCM') return 'Cơ sở HCM';
+  if (code === 'CAMPUS') return 'Toàn trường';
+  return code;
+};
+
+// Component bảng cấu hình nhu cầu ca trực trực quan & hiện đại
+function ShiftDemandTable({
+  weekdayMorningDemand,
+  setWeekdayMorningDemand,
+  weekdayAfternoonDemand,
+  setWeekdayAfternoonDemand,
+  weekdayNightDemand,
+  setWeekdayNightDemand,
+  sundayMorningDemand,
+  setSundayMorningDemand,
+  sundayAfternoonDemand,
+  setSundayAfternoonDemand,
+  sundayNightDemand,
+  setSundayNightDemand
+}) {
+  const m_wd = Math.max(0, parseInt(weekdayMorningDemand, 10) || 0);
+  const a_wd = Math.max(0, parseInt(weekdayAfternoonDemand, 10) || 0);
+  const n_wd = Math.max(0, parseInt(weekdayNightDemand, 10) || 0);
+  const m_su = Math.max(0, parseInt(sundayMorningDemand, 10) || 0);
+  const a_su = Math.max(0, parseInt(sundayAfternoonDemand, 10) || 0);
+  const n_su = Math.max(0, parseInt(sundayNightDemand, 10) || 0);
+
+  const renderStepper = (val, onDec, onInc, onChange) => (
+    <div className="inline-flex items-center justify-center p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700">
+      <button
+        type="button"
+        onClick={onDec}
+        className="w-6 h-6 rounded flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-slate-700 shadow-2xs active:scale-95 font-bold text-sm transition cursor-pointer"
+        title="Giảm 1"
+      >
+        -
+      </button>
+      <input
+        type="number"
+        min="2"
+        max="50"
+        value={val}
+        onChange={onChange}
+        className="w-8 text-center font-bold text-xs py-0.5 bg-transparent text-slate-800 dark:text-slate-100 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+      />
+      <button
+        type="button"
+        onClick={onInc}
+        className="w-6 h-6 rounded flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-slate-700 shadow-2xs active:scale-95 font-bold text-sm transition cursor-pointer"
+        title="Tăng 1"
+      >
+        +
+      </button>
+    </div>
+  );
+
+  return (
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden shadow-2xs">
+      <table className="w-full text-xs text-left">
+        <thead className="bg-slate-50/80 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 border-b border-slate-200 dark:border-slate-700 font-semibold">
+          <tr>
+            <th className="py-2.5 px-4 font-semibold text-slate-600 dark:text-slate-400">Thời gian</th>
+            <th className="py-2.5 px-3 text-center">
+              <div className="inline-flex items-center gap-1.5 text-sky-600 dark:text-sky-400 font-semibold">
+                <Sun size={13} className="text-sky-500" />
+                <span>Ca Sáng</span>
+              </div>
+            </th>
+            <th className="py-2.5 px-3 text-center">
+              <div className="inline-flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-semibold">
+                <Sunset size={13} className="text-amber-500" />
+                <span>Ca Chiều</span>
+              </div>
+            </th>
+            <th className="py-2.5 px-3 text-center">
+              <div className="inline-flex items-center gap-1.5 text-purple-600 dark:text-purple-400 font-semibold">
+                <Moon size={13} className="text-purple-500" />
+                <span>Ca Đêm</span>
+              </div>
+            </th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+          <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+            <td className="py-2.5 px-4 font-semibold text-xs text-slate-800 dark:text-slate-100 whitespace-nowrap">
+              Thứ 2 – Thứ 7
+            </td>
+            <td className="py-2.5 px-3 text-center">
+              {renderStepper(weekdayMorningDemand, () => setWeekdayMorningDemand(Math.max(2, m_wd - 1)), () => setWeekdayMorningDemand(m_wd + 1), (e) => setWeekdayMorningDemand(Math.max(2, parseInt(e.target.value, 10) || 2)))}
+            </td>
+            <td className="py-2.5 px-3 text-center">
+              {renderStepper(weekdayAfternoonDemand, () => setWeekdayAfternoonDemand(Math.max(2, a_wd - 1)), () => setWeekdayAfternoonDemand(a_wd + 1), (e) => setWeekdayAfternoonDemand(Math.max(2, parseInt(e.target.value, 10) || 2)))}
+            </td>
+            <td className="py-2.5 px-3 text-center">
+              {renderStepper(weekdayNightDemand, () => setWeekdayNightDemand(Math.max(2, n_wd - 1)), () => setWeekdayNightDemand(n_wd + 1), (e) => setWeekdayNightDemand(Math.max(2, parseInt(e.target.value, 10) || 2)))}
+            </td>
+          </tr>
+
+          <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+            <td className="py-2.5 px-4 font-semibold text-xs text-slate-800 dark:text-slate-100 whitespace-nowrap">
+              Chủ Nhật
+            </td>
+            <td className="py-2.5 px-3 text-center">
+              {renderStepper(sundayMorningDemand, () => setSundayMorningDemand(Math.max(2, m_su - 1)), () => setSundayMorningDemand(m_su + 1), (e) => setSundayMorningDemand(Math.max(2, parseInt(e.target.value, 10) || 2)))}
+            </td>
+            <td className="py-2.5 px-3 text-center">
+              {renderStepper(sundayAfternoonDemand, () => setSundayAfternoonDemand(Math.max(2, a_su - 1)), () => setSundayAfternoonDemand(a_su + 1), (e) => setSundayAfternoonDemand(Math.max(2, parseInt(e.target.value, 10) || 2)))}
+            </td>
+            <td className="py-2.5 px-3 text-center">
+              {renderStepper(sundayNightDemand, () => setSundayNightDemand(Math.max(2, n_su - 1)), () => setSundayNightDemand(n_su + 1), (e) => setSundayNightDemand(Math.max(2, parseInt(e.target.value, 10) || 2)))}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export default function GuardTeamsTab({
   teams: propTeams = [],
   allGuards = [],
@@ -62,6 +244,19 @@ export default function GuardTeamsTab({
   const [teams, setTeams] = useState(propTeams);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [expandedTeamIds, setExpandedTeamIds] = useState(() => new Set());
+
+  const toggleExpandTeam = (teamId) => {
+    setExpandedTeamIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(teamId)) {
+        next.delete(teamId);
+      } else {
+        next.add(teamId);
+      }
+      return next;
+    });
+  };
 
   // Danh sách bảo vệ nội bộ: đồng bộ từ allGuards hoặc tự fetch nếu prop rỗng
   const [internalGuards, setInternalGuards] = useState(allGuards);
@@ -147,9 +342,10 @@ export default function GuardTeamsTab({
     const d = String(now.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
   }, []);
+  const [dispatchMode, setDispatchMode] = useState('SINGLE'); // 'SINGLE' (sự kiện 1 ca / 1 ngày) | 'RANGE' (dài ngày)
   const [dispatchStartDate, setDispatchStartDate] = useState(todayDateStr);
   const [dispatchEndDate, setDispatchEndDate] = useState(todayDateStr);
-  const [dispatchShiftType, setDispatchShiftType] = useState('ALL');
+  const [dispatchShiftType, setDispatchShiftType] = useState('SHIFT_MORNING');
   const [dispatchReason, setDispatchReason] = useState('');
   const [selectedDispatchGuardIds, setSelectedDispatchGuardIds] = useState([]);
   const [dispatchSearch, setDispatchSearch] = useState('');
@@ -426,7 +622,7 @@ export default function GuardTeamsTab({
 
   // Delete team
   const handleDeleteTeam = async (team) => {
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa "${team.teamName}"? Các nhân viên trong đội sẽ chuyển về trạng thái Chưa phân đội.`)) {
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa "${formatTeamName(team.teamName)}"? Các nhân viên trong đội sẽ chuyển về trạng thái Chưa phân đội.`)) {
       return;
     }
     setLoading(true);
@@ -460,15 +656,16 @@ export default function GuardTeamsTab({
           .map((g) => g.id);
     setSelectedGuardIds(currentMemberIds);
     setMemberSearch('');
+    setDispatchMode('SINGLE');
     setDispatchStartDate(todayDateStr);
     setDispatchEndDate(todayDateStr);
-    setDispatchShiftType('ALL');
+    setDispatchShiftType('SHIFT_MORNING');
     setDispatchReason('');
     setSelectedDispatchGuardIds([]);
     setDispatchSearch('');
   };
 
-  // Chọn nhanh bảo vệ vào đội khi phân bổ quân số (ưu tiên thành viên hiện tại -> chưa phân đội -> bảo vệ khác)
+  // Chọn nhanh bảo vệ vào đội khi phân bổ quân số (ưu tiên thành viên hiện tại -> chưa phân đội)
   const handleQuickSelectForAssign = () => {
     const targetCount = safeGuardsRecommended || minGuardsRecommended || 12;
     if (!assigningTeam) return;
@@ -481,15 +678,8 @@ export default function GuardTeamsTab({
     const unassignedGuards = linkedGuards.filter(
       (g) => !g.team?.id && !g.teamId && !currentTeamGuards.some((m) => m.id === g.id)
     );
-    // 3. Bảo vệ thuộc đội khác (nếu cần bổ sung thêm)
-    const otherTeamGuards = linkedGuards.filter(
-      (g) =>
-        (g.team?.id || g.teamId) &&
-        g.team?.id !== assigningTeam.id &&
-        g.teamId !== assigningTeam.id
-    );
 
-    const combined = [...currentTeamGuards, ...unassignedGuards, ...otherTeamGuards];
+    const combined = [...currentTeamGuards, ...unassignedGuards];
     const chosen = combined.slice(0, targetCount).map((g) => g.id);
     setSelectedGuardIds(chosen);
   };
@@ -541,11 +731,14 @@ export default function GuardTeamsTab({
       alert('Vui lòng chọn ít nhất một nhân viên bảo vệ để điều động tăng cường');
       return;
     }
-    if (!dispatchStartDate || !dispatchEndDate) {
-      alert('Vui lòng chọn ngày bắt đầu và kết thúc điều động');
+    const finalStartDate = dispatchStartDate;
+    const finalEndDate = dispatchMode === 'SINGLE' ? dispatchStartDate : dispatchEndDate;
+
+    if (!finalStartDate || !finalEndDate) {
+      alert('Vui lòng chọn ngày điều động');
       return;
     }
-    if (dispatchEndDate < dispatchStartDate) {
+    if (finalEndDate < finalStartDate) {
       alert('Ngày kết thúc không được trước ngày bắt đầu');
       return;
     }
@@ -555,18 +748,19 @@ export default function GuardTeamsTab({
       await guardScheduleApi.createDispatches({
         guardIds: selectedDispatchGuardIds,
         toTeamId: assigningTeam.id,
-        startDate: dispatchStartDate,
-        endDate: dispatchEndDate,
+        startDate: finalStartDate,
+        endDate: finalEndDate,
         shiftType: dispatchShiftType === 'ALL' ? null : dispatchShiftType,
         reason: dispatchReason.trim()
       });
       await fetchTeams();
       if (onTeamsUpdated) onTeamsUpdated();
       const shiftLabel = dispatchShiftType === 'SHIFT_MORNING' ? ' (Ca Sáng)' : dispatchShiftType === 'SHIFT_AFTERNOON' ? ' (Ca Chiều)' : dispatchShiftType === 'SHIFT_NIGHT' ? ' (Ca Đêm)' : '';
-      alert(`Đã điều động thành công ${selectedDispatchGuardIds.length} bảo vệ tăng cường${shiftLabel} cho ${assigningTeam.teamName}!`);
+      alert(`Đã điều động thành công ${selectedDispatchGuardIds.length} bảo vệ tăng cường${shiftLabel} cho ${formatTeamName(assigningTeam.teamName)}!`);
       setSelectedDispatchGuardIds([]);
       setDispatchReason('');
-      setDispatchShiftType('ALL');
+      setDispatchShiftType('SHIFT_MORNING');
+      setDispatchMode('SINGLE');
       setAssigningTeam(null);
     } catch (err) {
       alert(err.message || 'Lỗi khi tạo đợt điều động tăng cường');
@@ -589,9 +783,24 @@ export default function GuardTeamsTab({
     }
   };
 
-  // Filter guards in assignment modal (ưu tiên đã chọn, thuộc đội/chưa phân đội lên đầu, trong cùng nhóm xếp theo mã bảo vệ)
+  // Filter guards in assignment modal (chỉ hiển thị thành viên của đội này và bảo vệ chưa phân đội; ẩn bảo vệ thuộc đội khác)
   const filteredGuardsForAssignment = useMemo(() => {
-    let list = linkedGuards;
+    if (!assigningTeam) return [];
+
+    // Chỉ giữ lại:
+    // 1. Thành viên thuộc đội hiện tại (hoặc đang được tick chọn trong đội này)
+    // 2. Bảo vệ chưa phân đội (không thuộc bất kỳ đội nào)
+    // -> Loại bỏ hoàn toàn những bảo vệ đã thuộc đội khác
+    let list = linkedGuards.filter((g) => {
+      const guardTeamId = g.teamId || g.team?.id;
+      // Thuộc đội hiện tại hoặc đang được chọn trong đội này
+      if (guardTeamId === assigningTeam.id || selectedGuardIds.includes(g.id)) return true;
+      // Chưa phân đội
+      if (!guardTeamId) return true;
+      // Đã có đội khác -> Ẩn
+      return false;
+    });
+
     if (memberSearch.trim()) {
       const kw = memberSearch.toLowerCase().trim();
       list = list.filter(
@@ -607,14 +816,7 @@ export default function GuardTeamsTab({
       const bChecked = selectedGuardIds.includes(b.id) ? 0 : 1;
       if (aChecked !== bChecked) return aChecked - bChecked;
 
-      // 2. Thuộc đội hiện tại hoặc chưa phân đội lên trước người thuộc đội khác
-      const aCurrentTeamId = a.teamId || a.team?.id;
-      const bCurrentTeamId = b.teamId || b.team?.id;
-      const aOther = aCurrentTeamId && assigningTeam?.id && aCurrentTeamId !== assigningTeam.id ? 1 : 0;
-      const bOther = bCurrentTeamId && assigningTeam?.id && bCurrentTeamId !== assigningTeam.id ? 1 : 0;
-      if (aOther !== bOther) return aOther - bOther;
-
-      // 3. Trong cùng nhóm: Xếp theo mã bảo vệ
+      // 2. Xếp theo mã bảo vệ
       return compareUserCodes(a, b);
     });
   }, [linkedGuards, memberSearch, selectedGuardIds, assigningTeam]);
@@ -676,6 +878,21 @@ export default function GuardTeamsTab({
       );
     }
 
+    const getDispatchPriority = (g) => {
+      const gTeamName = g.teamName || g.team?.teamName;
+      const gTeamId = g.teamId || g.team?.id;
+      const isUnassigned = !gTeamId && (!gTeamName || gTeamName === 'Chưa phân đội' || gTeamName === 'Chưa có đội');
+      if (isUnassigned) return 1;
+
+      const isSame =
+        g.isSameTeam === true ||
+        (gTeamId && assigningTeam?.id && gTeamId === assigningTeam.id) ||
+        (gTeamName && assigningTeam?.teamName && gTeamName.trim().toLowerCase() === assigningTeam.teamName.trim().toLowerCase());
+      if (isSame) return 0;
+
+      return 2;
+    };
+
     return [...list].sort((a, b) => {
       // 1. Đã tick chọn lên đầu
       const aChecked = selectedDispatchGuardIds.includes(a.id) ? 0 : 1;
@@ -683,14 +900,8 @@ export default function GuardTeamsTab({
       if (aChecked !== bChecked) return aChecked - bChecked;
 
       // 2. Thứ tự ưu tiên nhóm: Cùng đội (0) > Chưa phân đội (1) > Đội khác (2)
-      const aTeamName = a.teamName || a.team?.teamName;
-      const bTeamName = b.teamName || b.team?.teamName;
-      const aPriority = (aTeamName && assigningTeam?.teamName && aTeamName === assigningTeam.teamName)
-        ? 0
-        : (!aTeamName ? 1 : 2);
-      const bPriority = (bTeamName && assigningTeam?.teamName && bTeamName === assigningTeam.teamName)
-        ? 0
-        : (!bTeamName ? 1 : 2);
+      const aPriority = getDispatchPriority(a);
+      const bPriority = getDispatchPriority(b);
       if (aPriority !== bPriority) return aPriority - bPriority;
 
       // 3. Trong cùng nhóm: Xếp theo mã bảo vệ
@@ -701,18 +912,19 @@ export default function GuardTeamsTab({
   return (
     <div className="space-y-6">
       {/* 1. Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         <div className="schedule-kpi-card">
           <div>
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
               Tổng Số Đội Bảo Vệ
             </span>
-            <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">
+            <div className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white mt-1">
               {teams.length} <span className="text-sm font-normal text-slate-500">đội</span>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Phân nhóm phục vụ chia ca trực tự động
-            </p>
+            <div className="flex items-center gap-1.5 mt-2 text-xs font-medium text-slate-600 dark:text-slate-400">
+              <Users size={13} className="text-blue-600 dark:text-blue-400 shrink-0" />
+              <span>Phân nhóm theo khu vực chốt</span>
+            </div>
           </div>
           <div className="schedule-kpi-icon-wrap kpi-icon-blue">
             <Users size={22} />
@@ -721,15 +933,16 @@ export default function GuardTeamsTab({
 
         <div className="schedule-kpi-card">
           <div>
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
               Quân Số Đã Vào Đội
             </span>
-            <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
+            <div className="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400 mt-1">
               {totalAssignedGuards} / {linkedGuards.length}{' '}
               <span className="text-sm font-normal text-slate-500">nhân viên</span>
             </div>
-            <div className="flex items-center gap-1.5 mt-1 text-xs text-emerald-600 dark:text-emerald-400">
-              <UserCheck size={14} /> Sẵn sàng nhận ca
+            <div className="flex items-center gap-1.5 mt-2 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+              <Shield size={13} className="shrink-0" />
+              <span>Sẵn sàng nhận lịch ca trực</span>
             </div>
           </div>
           <div className="schedule-kpi-icon-wrap kpi-icon-emerald">
@@ -739,48 +952,80 @@ export default function GuardTeamsTab({
 
         <div className="schedule-kpi-card">
           <div>
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
               Chưa Phân Đội
             </span>
-            <div className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1">
+            <div className="text-2xl font-bold tracking-tight text-amber-600 dark:text-amber-400 mt-1">
               {Math.max(0, linkedGuards.length - totalAssignedGuards)}{' '}
               <span className="text-sm font-normal text-slate-500">nhân viên</span>
             </div>
-            <div className="flex items-center gap-1.5 mt-1 text-xs text-amber-600 dark:text-amber-400">
-              <UserX size={14} /> Chờ FM phân bổ
+            <div className="flex items-center gap-1.5 mt-2 text-xs font-medium text-amber-600 dark:text-amber-400">
+              {Math.max(0, linkedGuards.length - totalAssignedGuards) > 0 ? (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
+                  <span>Cần phân bổ vào đội</span>
+                </>
+              ) : (
+                <>
+                  <UserCheck size={13} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span className="text-slate-500 dark:text-slate-400 font-normal">Đã phân bổ toàn bộ</span>
+                </>
+              )}
             </div>
           </div>
           <div className="schedule-kpi-icon-wrap kpi-icon-amber">
-            <Users size={22} />
+            <UserX size={22} />
           </div>
         </div>
       </div>
 
-      {/* 2. Toolbar (Loại bỏ nút duplicate vì nút chính đã nằm trên Page Header) */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        <div className="schedule-search-input-wrap flex-1 max-w-md">
-          <Search size={16} className="text-slate-400 flex-shrink-0" />
-          <input
-            type="text"
-            value={searchKeyword}
-            onChange={(e) => setSearchKeyword(e.target.value)}
-            placeholder="Tìm theo tên đội hoặc mô tả phân công..."
-            className="w-full bg-transparent border-none outline-none text-xs text-slate-800 dark:text-slate-100 placeholder:text-slate-400"
-          />
-          {searchKeyword && (
-            <button
-              type="button"
-              onClick={() => setSearchKeyword('')}
-              className="text-slate-400 hover:text-slate-600 transition"
-              title="Xóa tìm kiếm"
-            >
-              <X size={14} />
-            </button>
-          )}
+      {/* 2. Toolbar */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1 pb-1">
+        {/* Left: Section Identity & Count Badge */}
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 shrink-0">
+            <Users size={16} />
+          </div>
+          <span className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
+            Danh Sách Đội Bảo Vệ
+          </span>
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/80">
+            {filteredTeams.length} / {teams.length} đội
+          </span>
         </div>
 
-        <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-          Hiển thị <strong>{filteredTeams.length}</strong> / <strong>{teams.length}</strong> đội
+        {/* Right: Search Box & Refresh Button */}
+        <div className="flex items-center gap-2">
+          <div className="schedule-search-box flex-1 sm:w-64 md:w-72 h-[38px]">
+            <Search size={14} className="schedule-search-icon" />
+            <input
+              type="text"
+              value={searchKeyword}
+              onChange={(e) => setSearchKeyword(e.target.value)}
+              placeholder="Tìm theo tên đội, khu vực..."
+              className="schedule-search-input text-xs !h-[38px]"
+            />
+            {searchKeyword && (
+              <button
+                type="button"
+                onClick={() => setSearchKeyword('')}
+                className="schedule-search-clear"
+                title="Xóa tìm kiếm"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={fetchTeams}
+            disabled={loading}
+            className="schedule-btn-secondary p-2.5 h-[38px] min-w-[38px] flex items-center justify-center rounded-xl cursor-pointer"
+            title="Làm mới danh sách đội"
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin text-blue-600' : ''} />
+          </button>
         </div>
       </div>
 
@@ -824,7 +1069,7 @@ export default function GuardTeamsTab({
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 lg:gap-6">
           {filteredTeams.map((team) => {
             // Find guards in this team (sắp xếp theo mã bảo vệ)
             const rawMembers = (team.members && team.members.length > 0)
@@ -852,114 +1097,170 @@ export default function GuardTeamsTab({
 
             let assignedLocation = '';
             if (buildingCodes.length > 0) {
-              assignedLocation = buildingCodes.map((code) => {
-                const b = (buildings || []).find((item) => item.code === code || item.id === code || item.name === code);
-                if (b?.name) return b.name;
-                const a = (areas || []).find((item) => item.building === code);
-                if (a?.building) return a.building;
-                if (code === 'TOA_ALPHA') return 'Tòa Alpha';
-                if (code === 'TOA_BETA') return 'Tòa Beta';
-                if (code === 'KHU_THE_THAO') return 'Khu Thể Thao';
-                if (code === 'FPT_AROUND') return 'Khuôn viên Ngoài trời';
-                return code;
-              }).join(', ');
+              assignedLocation = buildingCodes
+                .map((code) => formatBuildingName(code, buildings, areas))
+                .filter(Boolean)
+                .join(', ');
             } else if (team.description) {
-              const code = team.description;
-              const b = (buildings || []).find((item) => item.code === code || item.id === code || item.name === code);
-              if (b?.name) {
-                assignedLocation = b.name;
-              } else if (code === 'TOA_ALPHA') {
-                assignedLocation = 'Tòa Alpha';
-              } else if (code === 'TOA_BETA') {
-                assignedLocation = 'Tòa Beta';
-              } else if (code === 'KHU_THE_THAO') {
-                assignedLocation = 'Khu Thể Thao';
-              } else if (code === 'FPT_AROUND') {
-                assignedLocation = 'Khuôn viên Ngoài trời';
-              } else if (!code.startsWith('Tổ tạo nhanh')) {
-                assignedLocation = code;
+              const formatted = formatBuildingName(team.description, buildings, areas);
+              if (formatted && formatted !== team.description) {
+                assignedLocation = formatted;
+              } else if (!team.description.startsWith('Tổ tạo nhanh') && !BUILDING_RAW_CODES.has(team.description)) {
+                assignedLocation = team.description;
               }
             }
+
+            const isExpanded = expandedTeamIds.has(team.id);
+            const isRawCode = BUILDING_RAW_CODES.has(team.description);
+            const hasCustomDescription = Boolean(
+              team.description &&
+              !isRawCode &&
+              !team.description.startsWith('Tổ tạo nhanh') &&
+              team.description !== assignedLocation
+            );
 
             return (
               <div
                 key={team.id}
-                className="team-card-modern"
+                className="team-card-modern hover:shadow-md transition-all duration-200 border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-2xl p-5 sm:p-6 flex flex-col justify-between relative overflow-hidden"
               >
+                {/* Accent Color Bar at Top */}
                 <div
                   className="team-card-stripe"
                   style={{ backgroundColor: team.colorCode || '#2563eb' }}
                 />
 
                 <div>
-                  {/* Card Header */}
-                  <div className="flex items-center justify-between gap-2 mb-2 pt-1 flex-wrap">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className="w-3.5 h-3.5 rounded-full ring-2 ring-white dark:ring-slate-900 shadow-sm flex-shrink-0"
-                          style={{ backgroundColor: team.colorCode || '#2563eb' }}
-                        />
-                        <h4 className="font-bold text-base text-slate-900 dark:text-white">
-                          {team.teamName}
-                        </h4>
+                  {/* Card Header: Team Title, Location & Member Badge */}
+                  <div className="flex items-start justify-between gap-3 pt-0.5">
+                    <div className="min-w-0">
+                      <h4 className="font-bold text-base text-slate-900 dark:text-white leading-tight truncate">
+                        {formatTeamName(team.teamName)}
+                      </h4>
+                      <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mt-1.5">
+                        <Building2 size={13} className="text-indigo-500 shrink-0" />
+                        <span className="truncate max-w-[200px]" title={assignedLocation || 'Chưa gán khu vực'}>
+                          {assignedLocation || 'Chưa gán khu vực'}
+                        </span>
                       </div>
-
-                      {/* Vị trí tòa nhà đã được gán */}
-                      <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold border ${
-                          assignedLocation
-                            ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800'
-                            : 'bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700 italic'
-                        }`}
-                        title={assignedLocation ? `Vị trí phụ trách: ${assignedLocation}` : 'Đội này chưa được phân công vị trí cụ thể'}
-                      >
-                        <Building2 size={11} className={assignedLocation ? 'text-indigo-500 shrink-0' : 'text-slate-400 shrink-0'} />
-                        <span>{assignedLocation || 'Chưa gán tòa'}</span>
-                      </span>
                     </div>
 
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-blue-50 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                        {memberCount} chính thức
+                    <div className="flex flex-col items-end gap-1.5 shrink-0">
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200/80 dark:border-blue-800/80 shadow-2xs">
+                        <Users size={12} className="text-blue-600 dark:text-blue-400" />
+                        <span>{memberCount} nhân sự</span>
                       </span>
+
                       {teamDispatches.length > 0 && (
                         <span
-                          className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 dark:bg-amber-950/70 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 flex items-center gap-1"
+                          className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 dark:bg-amber-950/70 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800"
                           title="Số bảo vệ đang được điều động tăng cường cho sự kiện"
                         >
-                          <Zap size={11} className="fill-amber-500" /> +{teamDispatches.length} tăng cường
+                          <Zap size={11} className="fill-amber-500 text-amber-500" />
+                          <span>+{teamDispatches.length} tăng cường</span>
                         </span>
                       )}
                     </div>
                   </div>
 
-                  {/* Mô tả / Ghi chú đội (nếu có) */}
-                  {team.description && team.description !== 'CO_SO_HCM' && team.description !== 'FPT_AROUND' && (
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-2 truncate">
-                      {team.description}
+                  {/* Team Description (if custom) */}
+                  {hasCustomDescription && (
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-2.5 line-clamp-1 italic">
+                      "{team.description}"
                     </p>
                   )}
 
-                  {/* Members list preview */}
-                  <div className="border-t border-slate-100 dark:border-slate-700/60 pt-3">
-                    <div className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">
-                      Danh sách thành viên ({members.length})
+                  {/* Shift Demand Info Panel */}
+                  <div className="bg-slate-50/90 dark:bg-slate-800/40 rounded-xl p-3 border border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs mt-4 mb-4">
+                    <span className="text-[11.5px] font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                      <Clock size={13} className="text-slate-400" /> Nhu cầu ca/ngày:
+                    </span>
+                    <div className="flex items-center gap-2.5">
+                      <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-300 font-semibold text-xs" title="Ca Sáng">
+                        <Sun size={13} className="text-amber-500" /> {team.weekdayMorningDemand ?? 3}S
+                      </span>
+                      <span className="text-slate-300 dark:text-slate-600">•</span>
+                      <span className="inline-flex items-center gap-1 text-orange-700 dark:text-orange-300 font-semibold text-xs" title="Ca Chiều">
+                        <Sunset size={13} className="text-orange-500" /> {team.weekdayAfternoonDemand ?? 4}C
+                      </span>
+                      <span className="text-slate-300 dark:text-slate-600">•</span>
+                      <span className="inline-flex items-center gap-1 text-indigo-700 dark:text-indigo-300 font-semibold text-xs" title="Ca Đêm">
+                        <Moon size={13} className="text-indigo-500" /> {team.weekdayNightDemand ?? 2}Đ
+                      </span>
                     </div>
+                  </div>
+
+                  {/* Members Section */}
+                  <div className="pt-1">
+                    {/* Member Header: Overlapping Avatars & Toggle Button */}
+                    {members.length > 0 && (
+                      <div className="flex items-center justify-between gap-2 mb-3">
+                        <div className="flex -space-x-1.5 overflow-hidden shrink-0">
+                          {members.slice(0, 5).map((m) => (
+                            <div
+                              key={m.id}
+                              className="w-6.5 h-6.5 rounded-full ring-2 ring-white dark:ring-slate-900 flex items-center justify-center text-[10px] font-bold text-white shadow-xs shrink-0 select-none"
+                              style={{ backgroundColor: getAvatarBg(m.fullName || m.userCode) }}
+                              title={`${m.fullName || m.userCode}${m.userCode ? ` (${m.userCode})` : ''}`}
+                            >
+                              {getInitials(m.fullName || m.userCode)}
+                            </div>
+                          ))}
+                          {members.length > 5 && (
+                            <button
+                              type="button"
+                              onClick={() => toggleExpandTeam(team.id)}
+                              className="w-6.5 h-6.5 rounded-full ring-2 ring-white dark:ring-slate-900 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 flex items-center justify-center text-[10px] font-bold shrink-0 select-none shadow-xs cursor-pointer transition-colors"
+                              title={isExpanded ? 'Thu gọn danh sách' : `Xem tất cả ${members.length} nhân sự`}
+                            >
+                              +{members.length - 5}
+                            </button>
+                          )}
+                        </div>
+
+                        {members.length > 4 && (
+                          <button
+                            type="button"
+                            onClick={() => toggleExpandTeam(team.id)}
+                            className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1.5 cursor-pointer transition-colors"
+                          >
+                            {isExpanded ? (
+                              <>
+                                <span>Thu gọn</span>
+                                <ChevronUp size={13} />
+                              </>
+                            ) : (
+                              <>
+                                <span>Xem tất cả ({members.length})</span>
+                                <ChevronDown size={13} />
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Member chips preview */}
                     {members.length === 0 ? (
-                      <div className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500 py-1.5 italic">
-                        <UserX size={14} className="text-slate-400" />
+                      <div className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500 py-3 px-3.5 rounded-xl bg-slate-50/60 dark:bg-slate-800/30 border border-dashed border-slate-200 dark:border-slate-800 italic">
+                        <UserX size={15} className="text-slate-400 shrink-0" />
                         <span>Chưa phân bổ nhân sự vào đội này</span>
                       </div>
                     ) : (
-                      <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
-                        {members.map((m) => (
+                      <div className="flex flex-wrap gap-2 items-center mb-1">
+                        {(isExpanded ? members : members.slice(0, 4)).map((m) => (
                           <span
                             key={m.id}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 dark:bg-slate-700/60 text-slate-700 dark:text-slate-200 border border-slate-200/60 dark:border-slate-600/40"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100/90 dark:bg-slate-800/80 hover:bg-slate-200/80 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-300 border border-slate-200/70 dark:border-slate-700/60 transition-colors"
+                            title={`${m.fullName || m.userCode}${m.userCode ? ` (${m.userCode})` : ''}`}
                           >
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                            {m.fullName || m.userCode}
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                            <span className="truncate max-w-[120px]">{m.fullName || m.userCode}</span>
+                            {m.userCode && (
+                              <span className="font-mono text-[10.5px] text-slate-400 dark:text-slate-500 font-normal">
+                                {m.userCode}
+                              </span>
+                            )}
                           </span>
                         ))}
                       </div>
@@ -967,35 +1268,35 @@ export default function GuardTeamsTab({
 
                     {/* Dispatched members for this team */}
                     {teamDispatches.length > 0 && (
-                      <div className="mt-2.5 pt-2 border-t border-dashed border-amber-200 dark:border-amber-900/60">
-                        <div className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-1.5 flex items-center justify-between">
-                          <span className="flex items-center gap-1">
+                      <div className="mt-3 pt-2.5 border-t border-amber-200/70 dark:border-amber-900/50">
+                        <div className="text-[11px] font-semibold text-amber-700 dark:text-amber-300 mb-1.5 flex items-center justify-between">
+                          <span className="flex items-center gap-1.5">
                             <Zap size={11} className="fill-amber-500 text-amber-500" />
                             <span>Tăng cường sự kiện ({teamDispatches.length})</span>
                           </span>
                         </div>
-                        <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto pr-0.5">
+                        <div className="flex flex-wrap gap-1.5">
                           {teamDispatches.map((d) => (
                             <span
                               key={d.id}
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800 shadow-xs"
+                              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10.5px] font-semibold bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800 shadow-2xs"
                               title={`Tăng cường: ${d.startDate} -> ${d.endDate}${d.shiftType ? ' (' + (d.shiftType === 'SHIFT_MORNING' ? 'Ca Sáng' : d.shiftType === 'SHIFT_AFTERNOON' ? 'Ca Chiều' : 'Ca Đêm') + ')' : ''} | Lý do: ${d.reason || 'Sự kiện'}`}
                             >
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
                               <span className="truncate max-w-[100px]">{d.guardFullName || d.guardUserCode}</span>
                               {d.shiftType ? (
-                                <span className="text-[9px] px-1 py-0.2 rounded bg-amber-200/80 dark:bg-amber-900/80 text-amber-900 dark:text-amber-100 font-bold">
+                                <span className="text-[9px] px-1 py-0.2 rounded bg-amber-200/80 dark:bg-amber-900/80 text-amber-900 dark:text-amber-100 font-bold shrink-0">
                                   {d.shiftType === 'SHIFT_MORNING' ? 'Sáng' : d.shiftType === 'SHIFT_AFTERNOON' ? 'Chiều' : 'Đêm'}
                                 </span>
                               ) : (
-                                <span className="text-[9px] text-amber-600 dark:text-amber-400 font-mono">
+                                <span className="text-[9px] text-amber-600 dark:text-amber-400 font-mono shrink-0">
                                   ({d.startDate ? d.startDate.slice(5) : ''}..{d.endDate ? d.endDate.slice(5) : ''})
                                 </span>
                               )}
                               <button
                                 type="button"
                                 onClick={() => handleCancelDispatch(d.id)}
-                                className="text-amber-400 hover:text-rose-600 transition ml-0.5"
+                                className="text-amber-400 hover:text-rose-600 transition ml-0.5 p-0.5 cursor-pointer"
                                 title="Kết thúc sớm điều động này"
                               >
                                 <X size={11} />
@@ -1008,13 +1309,13 @@ export default function GuardTeamsTab({
                   </div>
                 </div>
 
-                {/* Card Actions */}
-                <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1">
+                {/* Card Actions Footer */}
+                <div className="team-card-actions-footer border-t border-slate-200/80 dark:border-slate-800/90 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 shrink-0">
                     <button
                       type="button"
                       onClick={() => handleOpenEdit(team)}
-                      className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition"
+                      className="w-9 h-9 rounded-lg flex items-center justify-center bg-amber-50 hover:bg-amber-100 active:bg-amber-200/80 dark:bg-amber-950/40 dark:hover:bg-amber-900/60 text-amber-600 dark:text-amber-400 border border-amber-200/90 dark:border-amber-800/80 shadow-2xs transition-all cursor-pointer"
                       title="Chỉnh sửa thông tin đội"
                     >
                       <Edit2 size={15} />
@@ -1022,7 +1323,7 @@ export default function GuardTeamsTab({
                     <button
                       type="button"
                       onClick={() => handleDeleteTeam(team)}
-                      className="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
+                      className="w-9 h-9 rounded-lg flex items-center justify-center bg-rose-50 hover:bg-rose-100 active:bg-rose-200/80 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 border border-rose-200/90 dark:border-rose-800/80 shadow-2xs transition-all cursor-pointer"
                       title="Xóa đội"
                     >
                       <Trash2 size={15} />
@@ -1032,9 +1333,9 @@ export default function GuardTeamsTab({
                   <button
                     type="button"
                     onClick={() => handleOpenAssignMembers(team)}
-                    className="schedule-btn-secondary text-xs h-8 px-3"
+                    className="inline-flex items-center justify-center gap-2 px-4 h-9 rounded-lg text-xs font-semibold bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white dark:bg-blue-950/60 dark:hover:bg-blue-600 dark:text-blue-300 dark:hover:text-white border border-blue-200/90 dark:border-blue-800/90 hover:border-blue-600 shadow-2xs hover:shadow-xs transition-all cursor-pointer whitespace-nowrap shrink-0 group active:scale-[0.98]"
                   >
-                    <Users size={14} />
+                    <Users size={14} className="text-blue-600 dark:text-blue-400 group-hover:text-white shrink-0 transition-colors" />
                     <span>Phân Bổ Quân Số</span>
                   </button>
                 </div>
@@ -1062,7 +1363,7 @@ export default function GuardTeamsTab({
                 </div>
                 <div className="schedule-modal__header-text">
                   <h3 className="schedule-modal__title">
-                    Phân Bổ & Điều Động Quân Số — {assigningTeam.teamName}
+                    Phân Bổ & Điều Động Quân Số — {formatTeamName(assigningTeam.teamName)}
                   </h3>
                   <p className="schedule-modal__subtitle">
                     {assignModalTab === 'PERMANENT'
@@ -1083,30 +1384,30 @@ export default function GuardTeamsTab({
             </div>
 
             {/* TAB SELECTOR */}
-            <div className="flex border-b border-slate-200 dark:border-slate-700 px-6 pt-1 gap-2 bg-slate-50/60 dark:bg-slate-900/60">
+            <div className="flex border-b border-slate-200 dark:border-slate-700/80 px-6 gap-6 bg-slate-50/50 dark:bg-slate-850">
               <button
                 type="button"
                 onClick={() => setAssignModalTab('PERMANENT')}
-                className={`pb-2.5 pt-2 px-3 text-xs font-bold transition border-b-2 flex items-center gap-1.5 ${
+                className={`pb-3 pt-3 text-xs font-semibold transition border-b-2 flex items-center gap-2 -mb-px cursor-pointer ${
                   assignModalTab === 'PERMANENT'
-                    ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                    : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400'
+                    ? 'border-blue-600 text-blue-600 dark:text-blue-400 font-bold'
+                    : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400'
                 }`}
               >
-                <Users size={14} />
+                <Users size={15} />
                 <span>Thành Viên Cố Định</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setAssignModalTab('DISPATCH')}
-                className={`pb-2.5 pt-2 px-3 text-xs font-bold transition border-b-2 flex items-center gap-1.5 ${
+                className={`pb-3 pt-3 text-xs font-semibold transition border-b-2 flex items-center gap-2 -mb-px cursor-pointer ${
                   assignModalTab === 'DISPATCH'
-                    ? 'border-amber-500 text-amber-600 dark:text-amber-400'
-                    : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400'
+                    ? 'border-amber-500 text-amber-600 dark:text-amber-400 font-bold'
+                    : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400'
                 }`}
               >
-                <Zap size={14} className="fill-amber-500 text-amber-500" />
+                <Zap size={15} className="fill-amber-500 text-amber-500" />
                 <span>Điều Động Tăng Cường (Sự Kiện)</span>
               </button>
             </div>
@@ -1121,196 +1422,27 @@ export default function GuardTeamsTab({
                       Nhu Cầu Quân Số Theo Ca
                     </label>
 
-                    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden shadow-sm">
-                      <table className="w-full text-xs text-left">
-                        <thead className="bg-slate-50 dark:bg-slate-800/70 text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700 font-semibold">
-                          <tr>
-                            <th className="py-2.5 px-3">Thời gian</th>
-                            <th className="py-2.5 px-2 text-center">Ca Sáng</th>
-                            <th className="py-2.5 px-2 text-center">Ca Chiều</th>
-                            <th className="py-2.5 px-2 text-center">Ca Đêm</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                          {/* Hàng 1: T2 - T7 */}
-                          <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                            <td className="py-2.5 px-3 font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap">
-                              Thứ 2 – Thứ 7
-                            </td>
-                            <td className="py-2.5 px-2 text-center">
-                              <div className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 overflow-hidden">
-                                <button
-                                  type="button"
-                                  onClick={() => setWeekdayMorningDemand(Math.max(2, m_wd - 1))}
-                                  className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 font-bold text-xs transition"
-                                >
-                                  -
-                                </button>
-                                <input
-                                  type="number"
-                                  min="2"
-                                  max="50"
-                                  value={weekdayMorningDemand}
-                                  onChange={(e) => setWeekdayMorningDemand(Math.max(2, parseInt(e.target.value, 10) || 2))}
-                                  className="w-8 text-center font-bold text-xs py-0.5 bg-transparent text-slate-800 dark:text-slate-100 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => setWeekdayMorningDemand(m_wd + 1)}
-                                  className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 font-bold text-xs transition"
-                                >
-                                  +
-                                </button>
-                              </div>
-                            </td>
-                            <td className="py-2.5 px-2 text-center">
-                              <div className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 overflow-hidden">
-                                <button
-                                  type="button"
-                                  onClick={() => setWeekdayAfternoonDemand(Math.max(2, a_wd - 1))}
-                                  className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 font-bold text-xs transition"
-                                >
-                                  -
-                                </button>
-                                <input
-                                  type="number"
-                                  min="2"
-                                  max="50"
-                                  value={weekdayAfternoonDemand}
-                                  onChange={(e) => setWeekdayAfternoonDemand(Math.max(2, parseInt(e.target.value, 10) || 2))}
-                                  className="w-8 text-center font-bold text-xs py-0.5 bg-transparent text-slate-800 dark:text-slate-100 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => setWeekdayAfternoonDemand(a_wd + 1)}
-                                  className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 font-bold text-xs transition"
-                                >
-                                  +
-                                </button>
-                              </div>
-                            </td>
-                            <td className="py-2.5 px-2 text-center">
-                              <div className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 overflow-hidden">
-                                <button
-                                  type="button"
-                                  onClick={() => setWeekdayNightDemand(Math.max(2, n_wd - 1))}
-                                  className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 font-bold text-xs transition"
-                                >
-                                  -
-                                </button>
-                                <input
-                                  type="number"
-                                  min="2"
-                                  max="50"
-                                  value={weekdayNightDemand}
-                                  onChange={(e) => setWeekdayNightDemand(Math.max(2, parseInt(e.target.value, 10) || 2))}
-                                  className="w-8 text-center font-bold text-xs py-0.5 bg-transparent text-slate-800 dark:text-slate-100 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => setWeekdayNightDemand(n_wd + 1)}
-                                  className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 font-bold text-xs transition"
-                                >
-                                  +
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-
-                          {/* Hàng 2: Chủ Nhật */}
-                          <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                            <td className="py-2.5 px-3 font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap">
-                              Chủ Nhật
-                            </td>
-                            <td className="py-2.5 px-2 text-center">
-                              <div className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 overflow-hidden">
-                                <button
-                                  type="button"
-                                  onClick={() => setSundayMorningDemand(Math.max(2, m_su - 1))}
-                                  className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 font-bold text-xs transition"
-                                >
-                                  -
-                                </button>
-                                <input
-                                  type="number"
-                                  min="2"
-                                  max="50"
-                                  value={sundayMorningDemand}
-                                  onChange={(e) => setSundayMorningDemand(Math.max(2, parseInt(e.target.value, 10) || 2))}
-                                  className="w-8 text-center font-bold text-xs py-0.5 bg-transparent text-slate-800 dark:text-slate-100 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => setSundayMorningDemand(m_su + 1)}
-                                  className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 font-bold text-xs transition"
-                                >
-                                  +
-                                </button>
-                              </div>
-                            </td>
-                            <td className="py-2.5 px-2 text-center">
-                              <div className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 overflow-hidden">
-                                <button
-                                  type="button"
-                                  onClick={() => setSundayAfternoonDemand(Math.max(2, a_su - 1))}
-                                  className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 font-bold text-xs transition"
-                                >
-                                  -
-                                </button>
-                                <input
-                                  type="number"
-                                  min="2"
-                                  max="50"
-                                  value={sundayAfternoonDemand}
-                                  onChange={(e) => setSundayAfternoonDemand(Math.max(2, parseInt(e.target.value, 10) || 2))}
-                                  className="w-8 text-center font-bold text-xs py-0.5 bg-transparent text-slate-800 dark:text-slate-100 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => setSundayAfternoonDemand(a_su + 1)}
-                                  className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 font-bold text-xs transition"
-                                >
-                                  +
-                                </button>
-                              </div>
-                            </td>
-                            <td className="py-2.5 px-2 text-center">
-                              <div className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 overflow-hidden">
-                                <button
-                                  type="button"
-                                  onClick={() => setSundayNightDemand(Math.max(2, n_su - 1))}
-                                  className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 font-bold text-xs transition"
-                                >
-                                  -
-                                </button>
-                                <input
-                                  type="number"
-                                  min="2"
-                                  max="50"
-                                  value={sundayNightDemand}
-                                  onChange={(e) => setSundayNightDemand(Math.max(2, parseInt(e.target.value, 10) || 2))}
-                                  className="w-8 text-center font-bold text-xs py-0.5 bg-transparent text-slate-800 dark:text-slate-100 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => setSundayNightDemand(n_su + 1)}
-                                  className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 font-bold text-xs transition"
-                                >
-                                  +
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
+                    <ShiftDemandTable
+                      weekdayMorningDemand={weekdayMorningDemand}
+                      setWeekdayMorningDemand={setWeekdayMorningDemand}
+                      weekdayAfternoonDemand={weekdayAfternoonDemand}
+                      setWeekdayAfternoonDemand={setWeekdayAfternoonDemand}
+                      weekdayNightDemand={weekdayNightDemand}
+                      setWeekdayNightDemand={setWeekdayNightDemand}
+                      sundayMorningDemand={sundayMorningDemand}
+                      setSundayMorningDemand={setSundayMorningDemand}
+                      sundayAfternoonDemand={sundayAfternoonDemand}
+                      setSundayAfternoonDemand={setSundayAfternoonDemand}
+                      sundayNightDemand={sundayNightDemand}
+                      setSundayNightDemand={setSundayNightDemand}
+                    />
                   </div>
 
                   {/* ĐỀ XUẤT QUÂN SỐ TỐI GIẢN */}
-                  <div className="px-3.5 py-2.5 rounded-xl bg-blue-50/60 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40 flex items-center justify-between gap-3 text-xs">
-                    <div className="flex items-center gap-2">
+                  <div className="px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 flex items-center justify-between flex-wrap gap-2 text-xs">
+                    <div className="flex items-center gap-3">
                       <span className="text-slate-600 dark:text-slate-300">
-                        Nhu cầu: <strong className="text-slate-800 dark:text-slate-100 font-bold">{weeklyDemand} lượt trực/tuần</strong>
+                        Tổng nhu cầu: <strong className="text-slate-900 dark:text-white font-bold">{weeklyDemand} lượt trực/tuần</strong>
                       </span>
                       <span className="text-slate-300 dark:text-slate-600">•</span>
                       <span className="text-slate-600 dark:text-slate-300">
@@ -1319,16 +1451,16 @@ export default function GuardTeamsTab({
                     </div>
 
                     <span
-                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${
                         selectedGuardIds.length >= minGuardsRecommended && minGuardsRecommended > 0
                           ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
                           : 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
                       }`}
                     >
                       {selectedGuardIds.length >= minGuardsRecommended && minGuardsRecommended > 0 ? (
-                        <CheckCircle2 size={12} />
+                        <CheckCircle2 size={13} className="text-emerald-500 shrink-0" />
                       ) : (
-                        <AlertCircle size={12} />
+                        <AlertCircle size={13} className="text-amber-500 shrink-0" />
                       )}
                       Đã chọn: {selectedGuardIds.length}/{safeGuardsRecommended || minGuardsRecommended} BV
                     </span>
@@ -1337,15 +1469,20 @@ export default function GuardTeamsTab({
                   {/* PHÂN BỔ BẢO VỆ VÀO ĐỘI */}
                   <div className="space-y-2 pt-1">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <label className="text-xs font-bold text-slate-700 dark:text-slate-200">
-                        Danh Sách Chọn Bảo Vệ Vào Đội
-                      </label>
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs font-bold text-slate-800 dark:text-slate-100">
+                          Danh Sách Chọn Bảo Vệ Vào Đội
+                        </label>
+                        <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                          ({selectedGuardIds.length}/{filteredGuardsForAssignment.length})
+                        </span>
+                      </div>
 
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
                           onClick={handleQuickSelectForAssign}
-                          className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 transition flex items-center gap-1.5"
+                          className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
                         >
                           <Zap size={12} className="text-amber-500 fill-amber-500" />
                           <span>Chọn nhanh {safeGuardsRecommended || minGuardsRecommended} bảo vệ</span>
@@ -1355,7 +1492,7 @@ export default function GuardTeamsTab({
                           <button
                             type="button"
                             onClick={() => setSelectedGuardIds([])}
-                            className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition"
+                            className="text-xs font-medium text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition cursor-pointer px-1.5 py-1"
                           >
                             Bỏ chọn tất cả
                           </button>
@@ -1364,14 +1501,14 @@ export default function GuardTeamsTab({
                     </div>
 
                     <div className="schedule-search-box w-full">
-                      <Search size={13} className="schedule-search-icon" style={{ left: '10px' }} />
+                      <Search size={14} className="schedule-search-icon" style={{ left: '12px' }} />
                       <input
                         type="text"
                         value={memberSearch}
                         onChange={(e) => setMemberSearch(e.target.value)}
                         placeholder="Tìm theo tên, mã NV hoặc email bảo vệ..."
                         className="schedule-search-input"
-                        style={{ height: '34px', paddingLeft: '30px', paddingRight: '26px', fontSize: '12px' }}
+                        style={{ height: '36px', paddingLeft: '34px', paddingRight: '28px', fontSize: '12px' }}
                       />
                       {memberSearch && (
                         <button
@@ -1380,13 +1517,13 @@ export default function GuardTeamsTab({
                           className="schedule-search-clear"
                           title="Xóa tìm kiếm"
                         >
-                          <X size={12} />
+                          <X size={13} />
                         </button>
                       )}
                     </div>
 
                     {/* Guards list */}
-                    <div className="border border-slate-200 dark:border-slate-700 rounded-xl divide-y divide-slate-100 dark:divide-slate-800 max-h-60 overflow-y-auto bg-white dark:bg-slate-900 p-2 shadow-inner">
+                    <div className="border border-slate-200 dark:border-slate-700 rounded-xl divide-y divide-slate-100 dark:divide-slate-800 max-h-64 overflow-y-auto bg-white dark:bg-slate-900 shadow-2xs">
                       {filteredGuardsForAssignment.length === 0 ? (
                         <div className="text-center py-8 text-xs text-slate-400">
                           Không tìm thấy nhân viên bảo vệ nào phù hợp
@@ -1396,46 +1533,57 @@ export default function GuardTeamsTab({
                           const isChecked = selectedGuardIds.includes(guard.id);
                           const guardCurrentTeam = guard.teamName || guard.team?.teamName;
                           const guardCurrentTeamId = guard.teamId || guard.team?.id;
-                          const isOtherTeam =
-                            guardCurrentTeamId && guardCurrentTeamId !== assigningTeam.id;
+                          const isCurrentTeamMember =
+                            guardCurrentTeamId === assigningTeam?.id || selectedGuardIds.includes(guard.id);
 
                           return (
                             <label
                               key={guard.id}
-                              className={`flex items-center justify-between p-2.5 rounded-lg cursor-pointer transition text-xs ${
+                              className={`flex items-center justify-between px-3.5 py-2.5 cursor-pointer transition text-xs select-none ${
                                 isChecked
                                   ? 'bg-blue-50/70 dark:bg-blue-950/40'
                                   : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'
                               }`}
                             >
-                              <div className="flex items-center gap-3">
+                              <div className="flex items-center gap-3 min-w-0">
                                 <input
                                   type="checkbox"
                                   checked={isChecked}
                                   onChange={() => handleToggleGuard(guard.id)}
-                                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
+                                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-4 w-4 shrink-0 cursor-pointer"
                                 />
-                                <div>
-                                  <div className="font-bold text-slate-800 dark:text-slate-100">
-                                    {guard.fullName}
+                                <div
+                                  className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-2xs shrink-0 select-none"
+                                  style={{ backgroundColor: getAvatarBg(guard.fullName || guard.userCode) }}
+                                >
+                                  {getInitials(guard.fullName || guard.userCode)}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className={`text-xs truncate ${isChecked ? 'font-bold text-slate-900 dark:text-white' : 'font-medium text-slate-800 dark:text-slate-100'}`}>
+                                      {guard.fullName}
+                                    </span>
+                                    <span className="font-mono text-[10px] px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-medium shrink-0">
+                                      {guard.userCode || 'NV-BV'}
+                                    </span>
                                   </div>
-                                  <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
-                                    {guard.userCode || 'NV-BV'} — {guard.email}
+                                  <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                                    {guard.email}
                                   </div>
                                 </div>
                               </div>
 
-                              {guardCurrentTeam && (
-                                <span
-                                  className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
-                                    isOtherTeam
-                                      ? 'bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
-                                      : 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800'
-                                  }`}
-                                >
-                                  {guardCurrentTeam}
-                                </span>
-                              )}
+                              <div className="shrink-0 ml-3">
+                                {isCurrentTeamMember ? (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                                    {formatTeamName(guardCurrentTeam || assigningTeam?.teamName || 'Thành viên đội')}
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                                    Chưa phân đội
+                                  </span>
+                                )}
+                              </div>
                             </label>
                           );
                         })
@@ -1444,82 +1592,167 @@ export default function GuardTeamsTab({
                   </div>
                 </div>
 
-                <div className="schedule-modal__footer flex items-center justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setAssigningTeam(null)}
-                    disabled={savingMembers}
-                    className="schedule-btn-secondary"
-                  >
-                    Hủy
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSaveMembers}
-                    disabled={savingMembers}
-                    className="schedule-btn-primary"
-                  >
-                    {savingMembers ? 'Đang Lưu...' : 'Lưu Danh Sách Thành Viên'}
-                  </button>
+                <div className="schedule-modal__footer flex items-center justify-between gap-3">
+                  <div className="text-xs text-slate-500 dark:text-slate-400">
+                    Đã chọn: <strong className="text-slate-800 dark:text-slate-100 font-bold">{selectedGuardIds.length}</strong> bảo vệ
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setAssigningTeam(null)}
+                      disabled={savingMembers}
+                      className="schedule-btn-secondary"
+                    >
+                      Hủy
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveMembers}
+                      disabled={savingMembers}
+                      className="schedule-btn-primary"
+                    >
+                      {savingMembers ? 'Đang Lưu...' : 'Lưu Danh Sách Thành Viên'}
+                    </button>
+                  </div>
                 </div>
               </>
             ) : (
               /* TAB 2: TEMPORARY DISPATCH */
               <>
                 <div className="schedule-modal__body space-y-4">
-                  {/* Date Range, Shift Type & Reason inputs */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Từ ngày <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        type="date"
-                        value={dispatchStartDate}
-                        onChange={(e) => setDispatchStartDate(e.target.value)}
-                        className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-medium"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Đến ngày <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        type="date"
-                        value={dispatchEndDate}
-                        min={dispatchStartDate}
-                        onChange={(e) => setDispatchEndDate(e.target.value)}
-                        className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-medium"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Khung ca tăng cường
-                      </label>
-                      <select
-                        value={dispatchShiftType}
-                        onChange={(e) => setDispatchShiftType(e.target.value)}
-                        className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-medium"
-                      >
-                        <option value="ALL">Tất cả các ca (Cả ngày)</option>
-                        <option value="SHIFT_MORNING">Ca Sáng (06:00 - 14:00)</option>
-                        <option value="SHIFT_AFTERNOON">Ca Chiều (14:00 - 22:00)</option>
-                        <option value="SHIFT_NIGHT">Ca Đêm (22:00 - 06:00)</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Tên sự kiện / Lý do
-                      </label>
-                      <input
-                        type="text"
-                        value={dispatchReason}
-                        onChange={(e) => setDispatchReason(e.target.value)}
-                        placeholder="VD: Lễ Tốt Nghiệp, Hội thao..."
-                        className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100"
-                      />
-                    </div>
+                  {/* Mode switcher: Ca sự kiện trong ngày vs Đợt dài ngày */}
+                  <div className="flex items-center gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg w-fit border border-slate-200 dark:border-slate-700">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDispatchMode('SINGLE');
+                        setDispatchEndDate(dispatchStartDate);
+                        if (dispatchShiftType === 'ALL') setDispatchShiftType('SHIFT_MORNING');
+                      }}
+                      className={`px-3 py-1.5 rounded-md text-xs font-semibold transition flex items-center gap-1.5 ${
+                        dispatchMode === 'SINGLE'
+                          ? 'bg-white dark:bg-slate-700 text-amber-600 dark:text-amber-400 shadow-xs'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      <Zap size={13} className={dispatchMode === 'SINGLE' ? 'fill-amber-500' : ''} />
+                      <span>Ca sự kiện trong ngày (1 ca / 1 ngày)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDispatchMode('RANGE')}
+                      className={`px-3 py-1.5 rounded-md text-xs font-semibold transition flex items-center gap-1.5 ${
+                        dispatchMode === 'RANGE'
+                          ? 'bg-white dark:bg-slate-700 text-amber-600 dark:text-amber-400 shadow-xs'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      <Calendar size={13} />
+                      <span>Đợt tăng cường dài ngày</span>
+                    </button>
                   </div>
+
+                  {/* Mode 1: Single Event / Shift */}
+                  {dispatchMode === 'SINGLE' ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/70 dark:border-amber-900/50 rounded-xl">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                          Ngày diễn ra sự kiện <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="date"
+                          value={dispatchStartDate}
+                          onChange={(e) => {
+                            setDispatchStartDate(e.target.value);
+                            setDispatchEndDate(e.target.value);
+                          }}
+                          className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-medium"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                          Ca trực cần tăng cường <span className="text-rose-500">*</span>
+                        </label>
+                        <select
+                          value={dispatchShiftType}
+                          onChange={(e) => setDispatchShiftType(e.target.value)}
+                          className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-medium"
+                        >
+                          <option value="SHIFT_MORNING">Ca Sáng (06:00 - 14:00)</option>
+                          <option value="SHIFT_AFTERNOON">Ca Chiều (14:00 - 22:00)</option>
+                          <option value="SHIFT_NIGHT">Ca Đêm (22:00 - 06:00)</option>
+                          <option value="ALL">Cả ngày (Tất cả 3 ca)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                          Tên sự kiện / Mục đích
+                        </label>
+                        <input
+                          type="text"
+                          value={dispatchReason}
+                          onChange={(e) => setDispatchReason(e.target.value)}
+                          placeholder="VD: Hội thao trường, Lễ tốt nghiệp..."
+                          className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    /* Mode 2: Multi-day range */
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                          Từ ngày <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="date"
+                          value={dispatchStartDate}
+                          onChange={(e) => setDispatchStartDate(e.target.value)}
+                          className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-medium"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                          Đến ngày <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="date"
+                          value={dispatchEndDate}
+                          min={dispatchStartDate}
+                          onChange={(e) => setDispatchEndDate(e.target.value)}
+                          className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-medium"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                          Khung ca tăng cường
+                        </label>
+                        <select
+                          value={dispatchShiftType}
+                          onChange={(e) => setDispatchShiftType(e.target.value)}
+                          className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-medium"
+                        >
+                          <option value="ALL">Tất cả các ca (Cả ngày)</option>
+                          <option value="SHIFT_MORNING">Ca Sáng (06:00 - 14:00)</option>
+                          <option value="SHIFT_AFTERNOON">Ca Chiều (14:00 - 22:00)</option>
+                          <option value="SHIFT_NIGHT">Ca Đêm (22:00 - 06:00)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                          Tên sự kiện / Lý do
+                        </label>
+                        <input
+                          type="text"
+                          value={dispatchReason}
+                          onChange={(e) => setDispatchReason(e.target.value)}
+                          placeholder="VD: Tuần lễ quân sự, Hội trại..."
+                          className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100"
+                        />
+                      </div>
+                    </div>
+                  )}
+
 
                   {/* Guard search & count */}
                   <div className="space-y-2">
@@ -1552,7 +1785,7 @@ export default function GuardTeamsTab({
                     </div>
 
                     {/* Dispatched eligible guards list */}
-                    <div className="border border-slate-200 dark:border-slate-700 rounded-xl divide-y divide-slate-100 dark:divide-slate-800 max-h-60 overflow-y-auto bg-white dark:bg-slate-900 p-2">
+                    <div className="border border-slate-200 dark:border-slate-700 rounded-xl divide-y divide-slate-100 dark:divide-slate-800 max-h-64 overflow-y-auto bg-white dark:bg-slate-900 shadow-2xs">
                       {loadingAvailableGuards ? (
                         <div className="text-center py-8 text-xs text-slate-400 flex items-center justify-center gap-2">
                           <div className="w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
@@ -1567,43 +1800,66 @@ export default function GuardTeamsTab({
                       ) : (
                         filteredGuardsForDispatch.map((guard) => {
                           const isChecked = selectedDispatchGuardIds.includes(guard.id);
-                          const currentTeamName = guard.teamName || guard.team?.teamName;
-                          const isSameTeam = currentTeamName && assigningTeam?.teamName && currentTeamName === assigningTeam.teamName;
+                          const guardTeamName = guard.teamName || guard.team?.teamName;
+                          const guardTeamId = guard.teamId || guard.team?.id;
+                          const isUnassigned = !guardTeamId && (!guardTeamName || guardTeamName === 'Chưa phân đội' || guardTeamName === 'Chưa có đội');
+                          const isSameTeam = !isUnassigned && (
+                            guard.isSameTeam === true ||
+                            (guardTeamId && assigningTeam?.id && guardTeamId === assigningTeam.id) ||
+                            (guardTeamName && assigningTeam?.teamName && guardTeamName.trim().toLowerCase() === assigningTeam.teamName.trim().toLowerCase())
+                          );
 
                           return (
                             <label
                               key={guard.id}
-                              className={`flex items-center justify-between p-2.5 rounded-lg cursor-pointer transition text-xs ${
+                              className={`flex items-center justify-between px-3.5 py-2.5 cursor-pointer transition text-xs select-none ${
                                 isChecked
                                   ? 'bg-amber-50/80 dark:bg-amber-950/40'
                                   : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'
                               }`}
                             >
-                              <div className="flex items-center gap-3">
+                              <div className="flex items-center gap-3 min-w-0">
                                 <input
                                   type="checkbox"
                                   checked={isChecked}
                                   onChange={() => handleToggleDispatchGuard(guard.id)}
-                                  className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 h-4 w-4"
+                                  className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 h-4 w-4 shrink-0 cursor-pointer"
                                 />
-                                <div>
-                                  <div className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                                    <span>{guard.fullName}</span>
+                                <div
+                                  className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-2xs shrink-0 select-none"
+                                  style={{ backgroundColor: getAvatarBg(guard.fullName || guard.userCode) }}
+                                >
+                                  {getInitials(guard.fullName || guard.userCode)}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className={`text-xs truncate ${isChecked ? 'font-bold text-slate-900 dark:text-white' : 'font-medium text-slate-800 dark:text-slate-100'}`}>
+                                      {guard.fullName}
+                                    </span>
+                                    <span className="font-mono text-[10px] px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-medium shrink-0">
+                                      {guard.userCode || 'NV-BV'}
+                                    </span>
                                   </div>
-                                  <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
-                                    {guard.userCode || 'NV-BV'} — {guard.email}
+                                  <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                                    {guard.email}
                                   </div>
                                 </div>
                               </div>
 
                               <span
-                                className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                                className={`px-2 py-0.5 rounded text-[10px] font-semibold border shrink-0 ml-3 ${
                                   isSameTeam
                                     ? 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800'
+                                    : isUnassigned
+                                    ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
                                     : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
                                 }`}
                               >
-                                {currentTeamName ? (isSameTeam ? `${currentTeamName} (Cùng đội)` : `Đội: ${currentTeamName}`) : 'Chưa phân đội'}
+                                {isSameTeam
+                                  ? `${formatTeamName(guardTeamName || assigningTeam?.teamName)} (Cùng đội)`
+                                  : isUnassigned
+                                  ? 'Chưa phân đội'
+                                  : formatTeamName(guardTeamName)}
                               </span>
                             </label>
                           );
@@ -1613,28 +1869,33 @@ export default function GuardTeamsTab({
                   </div>
                 </div>
 
-                <div className="schedule-modal__footer flex items-center justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setAssigningTeam(null)}
-                    disabled={savingDispatch}
-                    className="schedule-btn-secondary"
-                  >
-                    Hủy
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSaveDispatch}
-                    disabled={savingDispatch || selectedDispatchGuardIds.length === 0}
-                    className="px-4 py-2 text-xs font-bold rounded-xl bg-amber-600 hover:bg-amber-700 text-white shadow-sm transition flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Zap size={13} className="fill-white" />
-                    <span>
-                      {savingDispatch
-                        ? 'Đang Xử Lý...'
-                        : `Xác Nhận Điều Động (${selectedDispatchGuardIds.length} BV)`}
-                    </span>
-                  </button>
+                <div className="schedule-modal__footer flex items-center justify-between gap-3">
+                  <div className="text-xs text-amber-700 dark:text-amber-300 font-medium">
+                    Đã chọn: <strong className="font-bold">{selectedDispatchGuardIds.length}</strong> bảo vệ tăng cường
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setAssigningTeam(null)}
+                      disabled={savingDispatch}
+                      className="schedule-btn-secondary"
+                    >
+                      Hủy
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveDispatch}
+                      disabled={savingDispatch || selectedDispatchGuardIds.length === 0}
+                      className="px-4 py-2 text-xs font-bold rounded-xl bg-amber-600 hover:bg-amber-700 text-white shadow-sm transition flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      <Zap size={13} className="fill-white" />
+                      <span>
+                        {savingDispatch
+                          ? 'Đang Xử Lý...'
+                          : `Xác Nhận Điều Động (${selectedDispatchGuardIds.length} BV)`}
+                      </span>
+                    </button>
+                  </div>
                 </div>
               </>
             )}
@@ -1741,196 +2002,27 @@ export default function GuardTeamsTab({
                         Nhu Cầu Quân Số Theo Ca
                       </label>
 
-                      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden shadow-sm">
-                        <table className="w-full text-xs text-left">
-                          <thead className="bg-slate-50 dark:bg-slate-800/70 text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700 font-semibold">
-                            <tr>
-                              <th className="py-2.5 px-3">Thời gian</th>
-                              <th className="py-2.5 px-2 text-center">Ca Sáng</th>
-                              <th className="py-2.5 px-2 text-center">Ca Chiều</th>
-                              <th className="py-2.5 px-2 text-center">Ca Đêm</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                            {/* Hàng 1: T2 - T7 */}
-                            <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                              <td className="py-2.5 px-3 font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap">
-                                Thứ 2 – Thứ 7
-                              </td>
-                              <td className="py-2.5 px-2 text-center">
-                                <div className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 overflow-hidden">
-                                  <button
-                                    type="button"
-                                    onClick={() => setWeekdayMorningDemand(Math.max(2, m_wd - 1))}
-                                    className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 font-bold text-xs transition"
-                                  >
-                                    -
-                                  </button>
-                                  <input
-                                    type="number"
-                                    min="2"
-                                    max="50"
-                                    value={weekdayMorningDemand}
-                                    onChange={(e) => setWeekdayMorningDemand(Math.max(2, parseInt(e.target.value, 10) || 2))}
-                                    className="w-8 text-center font-bold text-xs py-0.5 bg-transparent text-slate-800 dark:text-slate-100 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => setWeekdayMorningDemand(m_wd + 1)}
-                                    className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 font-bold text-xs transition"
-                                  >
-                                    +
-                                  </button>
-                                </div>
-                              </td>
-                              <td className="py-2.5 px-2 text-center">
-                                <div className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 overflow-hidden">
-                                  <button
-                                    type="button"
-                                    onClick={() => setWeekdayAfternoonDemand(Math.max(2, a_wd - 1))}
-                                    className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 font-bold text-xs transition"
-                                  >
-                                    -
-                                  </button>
-                                  <input
-                                    type="number"
-                                    min="2"
-                                    max="50"
-                                    value={weekdayAfternoonDemand}
-                                    onChange={(e) => setWeekdayAfternoonDemand(Math.max(2, parseInt(e.target.value, 10) || 2))}
-                                    className="w-8 text-center font-bold text-xs py-0.5 bg-transparent text-slate-800 dark:text-slate-100 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => setWeekdayAfternoonDemand(a_wd + 1)}
-                                    className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 font-bold text-xs transition"
-                                  >
-                                    +
-                                  </button>
-                                </div>
-                              </td>
-                              <td className="py-2.5 px-2 text-center">
-                                <div className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 overflow-hidden">
-                                  <button
-                                    type="button"
-                                    onClick={() => setWeekdayNightDemand(Math.max(2, n_wd - 1))}
-                                    className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 font-bold text-xs transition"
-                                  >
-                                    -
-                                  </button>
-                                  <input
-                                    type="number"
-                                    min="2"
-                                    max="50"
-                                    value={weekdayNightDemand}
-                                    onChange={(e) => setWeekdayNightDemand(Math.max(2, parseInt(e.target.value, 10) || 2))}
-                                    className="w-8 text-center font-bold text-xs py-0.5 bg-transparent text-slate-800 dark:text-slate-100 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => setWeekdayNightDemand(n_wd + 1)}
-                                    className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 font-bold text-xs transition"
-                                  >
-                                    +
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-
-                            {/* Hàng 2: Chủ Nhật */}
-                            <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                              <td className="py-2.5 px-3 font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap">
-                                Chủ Nhật
-                              </td>
-                              <td className="py-2.5 px-2 text-center">
-                                <div className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 overflow-hidden">
-                                  <button
-                                    type="button"
-                                    onClick={() => setSundayMorningDemand(Math.max(2, m_su - 1))}
-                                    className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 font-bold text-xs transition"
-                                  >
-                                    -
-                                  </button>
-                                  <input
-                                    type="number"
-                                    min="2"
-                                    max="50"
-                                    value={sundayMorningDemand}
-                                    onChange={(e) => setSundayMorningDemand(Math.max(2, parseInt(e.target.value, 10) || 2))}
-                                    className="w-8 text-center font-bold text-xs py-0.5 bg-transparent text-slate-800 dark:text-slate-100 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => setSundayMorningDemand(m_su + 1)}
-                                    className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 font-bold text-xs transition"
-                                  >
-                                    +
-                                  </button>
-                                </div>
-                              </td>
-                              <td className="py-2.5 px-2 text-center">
-                                <div className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 overflow-hidden">
-                                  <button
-                                    type="button"
-                                    onClick={() => setSundayAfternoonDemand(Math.max(2, a_su - 1))}
-                                    className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 font-bold text-xs transition"
-                                  >
-                                    -
-                                  </button>
-                                  <input
-                                    type="number"
-                                    min="2"
-                                    max="50"
-                                    value={sundayAfternoonDemand}
-                                    onChange={(e) => setSundayAfternoonDemand(Math.max(2, parseInt(e.target.value, 10) || 2))}
-                                    className="w-8 text-center font-bold text-xs py-0.5 bg-transparent text-slate-800 dark:text-slate-100 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => setSundayAfternoonDemand(a_su + 1)}
-                                    className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 font-bold text-xs transition"
-                                  >
-                                    +
-                                  </button>
-                                </div>
-                              </td>
-                              <td className="py-2.5 px-2 text-center">
-                                <div className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 overflow-hidden">
-                                  <button
-                                    type="button"
-                                    onClick={() => setSundayNightDemand(Math.max(2, n_su - 1))}
-                                    className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 font-bold text-xs transition"
-                                  >
-                                    -
-                                  </button>
-                                  <input
-                                    type="number"
-                                    min="2"
-                                    max="50"
-                                    value={sundayNightDemand}
-                                    onChange={(e) => setSundayNightDemand(Math.max(2, parseInt(e.target.value, 10) || 2))}
-                                    className="w-8 text-center font-bold text-xs py-0.5 bg-transparent text-slate-800 dark:text-slate-100 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => setSundayNightDemand(n_su + 1)}
-                                    className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 font-bold text-xs transition"
-                                  >
-                                    +
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
+                      <ShiftDemandTable
+                        weekdayMorningDemand={weekdayMorningDemand}
+                        setWeekdayMorningDemand={setWeekdayMorningDemand}
+                        weekdayAfternoonDemand={weekdayAfternoonDemand}
+                        setWeekdayAfternoonDemand={setWeekdayAfternoonDemand}
+                        weekdayNightDemand={weekdayNightDemand}
+                        setWeekdayNightDemand={setWeekdayNightDemand}
+                        sundayMorningDemand={sundayMorningDemand}
+                        setSundayMorningDemand={setSundayMorningDemand}
+                        sundayAfternoonDemand={sundayAfternoonDemand}
+                        setSundayAfternoonDemand={setSundayAfternoonDemand}
+                        sundayNightDemand={sundayNightDemand}
+                        setSundayNightDemand={setSundayNightDemand}
+                      />
                     </div>
 
                     {/* ĐỀ XUẤT QUÂN SỐ TỐI GIẢN */}
-                    <div className="px-3.5 py-2.5 rounded-xl bg-blue-50/60 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40 flex items-center justify-between gap-3 text-xs">
-                      <div className="flex items-center gap-2">
+                    <div className="px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 flex items-center justify-between flex-wrap gap-2 text-xs">
+                      <div className="flex items-center gap-3">
                         <span className="text-slate-600 dark:text-slate-300">
-                          Nhu cầu: <strong className="text-slate-800 dark:text-slate-100 font-bold">{weeklyDemand} lượt trực/tuần</strong>
+                          Tổng nhu cầu: <strong className="text-slate-900 dark:text-white font-bold">{weeklyDemand} lượt trực/tuần</strong>
                         </span>
                         <span className="text-slate-300 dark:text-slate-600">•</span>
                         <span className="text-slate-600 dark:text-slate-300">
@@ -1939,16 +2031,16 @@ export default function GuardTeamsTab({
                       </div>
 
                       <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${
                           newTeamMemberIds.length >= minGuardsRecommended && minGuardsRecommended > 0
                             ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
                             : 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
                         }`}
                       >
                         {newTeamMemberIds.length >= minGuardsRecommended && minGuardsRecommended > 0 ? (
-                          <CheckCircle2 size={12} />
+                          <CheckCircle2 size={13} className="text-emerald-500 shrink-0" />
                         ) : (
-                          <AlertCircle size={12} />
+                          <AlertCircle size={13} className="text-amber-500 shrink-0" />
                         )}
                         Đã chọn: {newTeamMemberIds.length}/{safeGuardsRecommended || minGuardsRecommended} BV
                       </span>
@@ -2020,35 +2112,41 @@ export default function GuardTeamsTab({
                             return (
                               <label
                                 key={guard.id}
-                                className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition text-xs ${
+                                className={`flex items-center justify-between px-3.5 py-2 cursor-pointer transition text-xs select-none ${
                                   isChecked
                                     ? 'bg-blue-50/70 dark:bg-blue-950/40'
                                     : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'
                                 }`}
                               >
-                                <div className="flex items-center gap-2.5">
+                                <div className="flex items-center gap-2.5 min-w-0">
                                   <input
                                     type="checkbox"
                                     checked={isChecked}
                                     onChange={() => handleToggleCreateMember(guard.id)}
-                                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
+                                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-4 w-4 shrink-0 cursor-pointer"
                                   />
-                                  <div>
-                                    <span className="font-bold text-slate-800 dark:text-slate-100">
+                                  <div
+                                    className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-2xs shrink-0 select-none"
+                                    style={{ backgroundColor: getAvatarBg(guard.fullName || guard.userCode) }}
+                                  >
+                                    {getInitials(guard.fullName || guard.userCode)}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <span className={`text-xs truncate ${isChecked ? 'font-bold text-slate-900 dark:text-white' : 'font-medium text-slate-800 dark:text-slate-100'}`}>
                                       {guard.fullName}
                                     </span>
-                                    <span className="text-[11px] text-slate-400 font-mono ml-2">
+                                    <span className="text-[10px] text-slate-400 font-mono ml-1.5">
                                       ({guard.userCode || 'NV-BV'})
                                     </span>
                                   </div>
                                 </div>
 
                                 {guardTeamName ? (
-                                  <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                                    {guardTeamName}
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 shrink-0 ml-2">
+                                    {formatTeamName(guardTeamName)}
                                   </span>
                                 ) : (
-                                  <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 shrink-0 ml-2">
                                     Chưa phân đội
                                   </span>
                                 )}
