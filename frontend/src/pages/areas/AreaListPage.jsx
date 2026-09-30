@@ -31,6 +31,7 @@ import AreaAccessRulesModal from "../../components/area/AreaAccessRulesModal";
 import AreaAssignedPersonnelModal from "../../components/area/AreaAssignedPersonnelModal";
 import AreaMapView from "../../components/area/AreaMapView";
 import AreaListView from "../../components/area/AreaListView";
+import AreaTypeChangePreviewModal from "../../components/area/AreaTypeChangePreviewModal";
 import PageHeader from "../../components/ui/PageHeader";
 import "../../components/ui/Button.css";
 import { getLevelPresets } from "../../services/accessControlService";
@@ -45,6 +46,7 @@ import {
 	deleteAreaGeometry,
 	getAreaCameras,
 	updateAreaCameras,
+	getTypeChangePreview,
 } from "../../services/areaService";
 import { getBuildings } from "../../services/buildingService";
 import {
@@ -196,6 +198,9 @@ export default function AreaListPage() {
 	// Modal states
 	const [createModalOpen, setCreateModalOpen] = useState(false);
 	const [editModalOpen, setEditModalOpen] = useState(false);
+	// BL2: xem trước đổi loại khu vực trước khi gửi PUT
+	const [typePreview, setTypePreview] = useState(null);
+	const [typePreviewConfirming, setTypePreviewConfirming] = useState(false);
 	const [deactivateModalOpen, setDeactivateModalOpen] = useState(false);
 	const [modalLoading, setModalLoading] = useState(false);
 	const [modalError, setModalError] = useState(null);
@@ -780,23 +785,48 @@ export default function AreaListPage() {
 			return;
 		}
 
+		const payload = {
+			name: normalizeAreaName(formData.name),
+			areaLevel: formData.areaLevel,
+			building: formData.building ? formData.building.trim() : null,
+			floor: formData.floor ? formData.floor.trim() : null,
+			floorId: formData.floorId || null,
+			centerLatitude: coordinates.centerLatitude,
+			centerLongitude: coordinates.centerLongitude,
+			version: formData.version,
+			...(isTypeChange ? { reason: trimmedReason } : {}),
+		};
+
+		if (!isTypeChange) {
+			setModalLoading(true);
+			try {
+				await saveAreaUpdate(targetId, payload);
+			} finally {
+				setModalLoading(false);
+			}
+			return;
+		}
+
+		// BL2: đổi loại -> xem trước, KHÔNG gửi PUT cho tới khi ADMIN xác nhận
 		setModalLoading(true);
 		try {
-			const payload = {
-				name: normalizeAreaName(formData.name),
-				areaLevel: formData.areaLevel,
-				building: formData.building ? formData.building.trim() : null,
-				floor: formData.floor ? formData.floor.trim() : null,
-				floorId: formData.floorId || null,
-				centerLatitude: coordinates.centerLatitude,
-				centerLongitude: coordinates.centerLongitude,
-				version: formData.version,
-				...(isTypeChange ? { reason: trimmedReason } : {}),
-			};
+			const preview = await getTypeChangePreview(targetId, formData.areaLevel);
+			setTypePreview({ preview, targetId, payload });
+		} catch (err) {
+			console.error("Type change preview failed:", err);
+			setModalError(getErrorMessage(err));
+		} finally {
+			setModalLoading(false);
+		}
+	};
 
+	/** PUT /api/areas/{id} — luồng lưu dùng chung cho sửa thường và sau khi xác nhận đổi loại. */
+	const saveAreaUpdate = async (targetId, payload) => {
+		try {
 			const updated = await updateArea(targetId, payload);
 			setEditModalOpen(false);
 			await fetchData(updated.id);
+			return true;
 		} catch (err) {
 			console.error("Update area failed:", err);
 			if (err?.code === "ERR_AREA_045") {
@@ -806,8 +836,20 @@ export default function AreaListPage() {
 			} else {
 				setModalError(getErrorMessage(err));
 			}
+			return false;
+		}
+	};
+
+	/** Xác nhận trong modal xem trước: backend vẫn đánh giá lại sau khi khoá (BR-TC-03b). */
+	const handleConfirmTypeChange = async () => {
+		if (!typePreview) return;
+		setTypePreviewConfirming(true);
+		try {
+			// Thành công: form sửa đóng. Lỗi PUT (048/049/042/045/...): câu lỗi nguyên văn hiện ở form sửa (045 đã tải lại).
+			await saveAreaUpdate(typePreview.targetId, typePreview.payload);
+			setTypePreview(null);
 		} finally {
-			setModalLoading(false);
+			setTypePreviewConfirming(false);
 		}
 	};
 
@@ -1588,6 +1630,15 @@ export default function AreaListPage() {
 					</div>
 				</div>
 			)}
+			{/* BL2: render sau form sửa để nằm trên (cùng z-index 1000) */}
+			<AreaTypeChangePreviewModal
+				isOpen={Boolean(typePreview)}
+				areaName={selectedArea?.name}
+				preview={typePreview?.preview}
+				confirming={typePreviewConfirming}
+				onConfirm={handleConfirmTypeChange}
+				onClose={() => setTypePreview(null)}
+			/>
 
 			{/* DEACTIVATE ZONE MODAL */}
 			{deactivateModalOpen && selectedArea && (

@@ -22,6 +22,9 @@ import {
 	ShieldCheck,
 	Compass,
 	Tag,
+	UserPlus,
+	UserCheck,
+	Camera,
 } from "lucide-react";
 import { ROLES, ROLE_LABELS } from "../../constants/roles";
 import { useTheme } from "../../context/ThemeContext";
@@ -173,6 +176,17 @@ export default function Sidebar({ user, onLogout }) {
 							</NavLink>
 
 							<NavLink
+								to="/guest-visits"
+								className={({ isActive }) =>
+									`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
+								}
+								title={sidebarCollapsed ? "Khách của tôi" : undefined}
+							>
+								<UserPlus size={18} />
+								<span>Khách của tôi</span>
+							</NavLink>
+
+							<NavLink
 								to="/notifications"
 								className={({ isActive }) =>
 									`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
@@ -266,6 +280,17 @@ export default function Sidebar({ user, onLogout }) {
 										<span>{isAdmin ? "Cấu hình vùng" : "Quản lý vùng"}</span>
 									</NavLink>
 
+									<NavLink
+										to="/guest-visits"
+										className={({ isActive }) =>
+											`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
+										}
+										title={sidebarCollapsed ? "Khách của tôi" : undefined}
+									>
+										<UserPlus size={18} />
+										<span>Khách của tôi</span>
+									</NavLink>
+
 									{isFacilityManager && (
 										<>
 											<NavLink
@@ -294,6 +319,18 @@ export default function Sidebar({ user, onLogout }) {
 											>
 												<ClipboardCheck size={18} />
 												<span>Phê duyệt truy cập</span>
+											</NavLink>
+											<NavLink
+												to="/admin/guest-visits"
+												className={({ isActive }) =>
+													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
+												}
+												title={
+													sidebarCollapsed ? "Duyệt lượt khách" : undefined
+												}
+											>
+												<UserCheck size={18} />
+												<span>Duyệt lượt khách</span>
 											</NavLink>
 											<NavLink
 												to="/admin/guard-teams"
@@ -325,6 +362,21 @@ export default function Sidebar({ user, onLogout }) {
 									{isAdmin && (
 										<>
 											<NavLink
+												to="/notifications"
+												className={({ isActive }) =>
+													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
+												}
+												title={sidebarCollapsed ? "Thông báo" : undefined}
+											>
+												<Bell size={18} />
+												<span>Thông báo</span>
+												{unreadCount > 0 && (
+													<span className="sidebar__unread-badge">
+														{unreadCount > 9 ? "9+" : unreadCount}
+													</span>
+												)}
+											</NavLink>
+											<NavLink
 												to="/admin/map"
 												className={({ isActive }) =>
 													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
@@ -345,6 +397,18 @@ export default function Sidebar({ user, onLogout }) {
 											>
 												<Users size={18} />
 												<span>Quản lý tài khoản</span>
+											</NavLink>
+											<NavLink
+												to="/admin/guest-photos"
+												className={({ isActive }) =>
+													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
+												}
+												title={
+													sidebarCollapsed ? "Ảnh khách" : undefined
+												}
+											>
+												<Camera size={18} />
+												<span>Ảnh khách</span>
 											</NavLink>
 
 											<div className="sidebar__section">

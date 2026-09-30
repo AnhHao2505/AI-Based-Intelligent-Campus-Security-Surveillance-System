@@ -16,6 +16,9 @@ import CameraDetailPage from "./pages/cameras/CameraDetailPage";
 import GuardDashboardPage from "./pages/guard/GuardDashboardPage";
 import AccessRequestPage from "./pages/accessRequest/AccessRequestPage";
 import AccessRequestReviewPage from "./pages/accessRequest/AccessRequestReviewPage";
+import GuestVisitPage from "./pages/guestVisit/GuestVisitPage";
+import GuestVisitReviewPage from "./pages/guestVisit/GuestVisitReviewPage";
+import GuestPhotoPage from "./pages/guestVisit/GuestPhotoPage";
 import AccessHistoryPage from "./pages/accessHistory/AccessHistoryPage";
 import NotificationsPage from "./pages/notifications/NotificationsPage";
 import ManageAccountPage from "./pages/accounts/ManageAccountPage";
@@ -221,6 +224,15 @@ function App() {
 							/>
 
 							<Route
+								path="/admin/guest-photos"
+								element={
+									<ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+										<GuestPhotoPage />
+									</ProtectedRoute>
+								}
+							/>
+
+							<Route
 								path="/admin/guard-teams"
 								element={
 									<ProtectedRoute allowedRoles={[ROLES.FACILITY_MANAGER]}>
@@ -230,7 +242,11 @@ function App() {
 							/>
 							<Route
 								path="/admin/guard-schedules"
-								element={<Navigate to="/admin/guard-teams" replace />}
+								element={
+									<ProtectedRoute allowedRoles={[ROLES.FACILITY_MANAGER]}>
+										<GuardTeamManagementPage />
+									</ProtectedRoute>
+								}
 							/>
 
 							<Route
@@ -253,6 +269,21 @@ function App() {
 							/>
 
 							<Route
+								path="/guest-visits"
+								element={
+									<ProtectedRoute
+										allowedRoles={[
+											ROLES.NORMAL_USER,
+											ROLES.FACILITY_MANAGER,
+											ROLES.ADMIN
+										]}
+									>
+										<GuestVisitPage />
+									</ProtectedRoute>
+								}
+							/>
+
+							<Route
 								path="/access-history"
 								element={
 									<ProtectedRoute allowedRoles={[ROLES.NORMAL_USER]}>
@@ -268,7 +299,8 @@ function App() {
 										allowedRoles={[
 											ROLES.NORMAL_USER,
 											ROLES.FACILITY_MANAGER,
-											ROLES.GUARD
+											ROLES.GUARD,
+											ROLES.ADMIN,
 										]}
 									>
 										<NotificationsPage />
@@ -281,6 +313,15 @@ function App() {
 								element={
 									<ProtectedRoute allowedRoles={[ROLES.FACILITY_MANAGER]}>
 										<AccessRequestReviewPage />
+									</ProtectedRoute>
+								}
+							/>
+
+							<Route
+								path="/admin/guest-visits"
+								element={
+									<ProtectedRoute allowedRoles={[ROLES.FACILITY_MANAGER]}>
+										<GuestVisitReviewPage />
 									</ProtectedRoute>
 								}
 							/>

@@ -47,10 +47,11 @@ public class GuestPhotoService {
     private final GuestPhotoStorageService photoStorage;
     private final GuestFaceEmbeddingClient faceClient;
     private final GuestBiometricService biometricService;
+    private final GuestPhotoDeletionService photoDeletion;
     private final AuditService auditService;
 
-    /** Giới hạn kỹ thuật của ảnh đầu vào AI (cùng mức với ảnh đăng ký khuôn mặt người dùng), không phải tham số nghiệp vụ. */
-    @Value("${icss.guest.photo-max-kb:350}")
+    /** Giới hạn kỹ thuật của ảnh đầu vào (property vận hành icss.guest.photo-max-kb), không phải tham số nghiệp vụ. */
+    @Value("${icss.guest.photo-max-kb:2048}")
     private int photoMaxKb;
 
     @Transactional
@@ -94,6 +95,7 @@ public class GuestPhotoService {
         }
 
         // Ảnh cũ còn treo trên kho từ lần xoá lỗi trước: phải xoá được rồi mới gắn ảnh mới
+        // (xoá trước commit ở đây vẫn an toàn: object đó đã được DB đánh dấu là phải xoá)
         if (guest.getPendingDeleteObjectKey() != null && !biometricService.retryPendingPhotoDeletion(guest)) {
             throw new GuestException(GuestErrorCode.ERR_GUEST_036);
         }
@@ -113,18 +115,14 @@ public class GuestPhotoService {
         // BR-GV-16: gắn lại -> xoá ảnh + embedding cũ (audit)
         if (GuestBiometricService.WITH_PHOTO.contains(guest.getBiometricStatus())) {
             String oldKey = guest.getPhotoObjectKey();
-            boolean removed = true;
             if (oldKey != null) {
-                try {
-                    photoStorage.removeObject(oldKey);
-                } catch (Exception ex) {
-                    removed = false;
-                    guest.setPendingDeleteObjectKey(oldKey);
-                }
+                // A9: chỉ đánh dấu trong transaction; xoá object cũ SAU commit (rollback -> ảnh cũ còn nguyên)
+                guest.setPendingDeleteObjectKey(oldKey);
+                photoDeletion.deleteAfterCommit(guest.getId(), oldKey);
             }
             auditService.record(AuditTargetType.GUEST, AuditAction.DELETE_BIOMETRIC, guest.getId().toString(), null, null,
                     before, new GuestAuditSnapshot(guest.getId(), visitId, GuestBiometricStatus.DELETED,
-                            guest.getConsentNoticeVersion(), removed, false),
+                            guest.getConsentNoticeVersion(), oldKey != null, false),
                     "Gắn lại ảnh khách, xoá ảnh và embedding cũ", actor);
         }
 
