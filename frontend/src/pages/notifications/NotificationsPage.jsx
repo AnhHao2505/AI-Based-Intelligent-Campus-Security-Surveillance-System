@@ -19,7 +19,9 @@ import {
   SlidersHorizontal,
   ArrowLeftRight,
   Camera,
-  UserCheck
+  UserCheck,
+  UserMinus,
+  CalendarOff
 } from 'lucide-react';
 import { notificationService } from '../../services/notificationService';
 import { useAuth } from '../../context/AuthContext';
@@ -85,6 +87,17 @@ export default function NotificationsPage() {
       } else {
         navigate('/access-requests');
       }
+    }
+
+    // Step 6 (H1): quyền chỉ định ra vào bị thu hồi khi khu vực bị vô hiệu hoá
+    if (notif.type === 'ACCESS_PERMISSION_REVOKED') {
+      const role = user?.role || user?.role_type || '';
+      if (role === 'FACILITY_MANAGER' || role === 'ADMIN') {
+        navigate('/admin/areas');
+      } else if (role === 'NORMAL_USER') {
+        navigate('/access-requests');
+      }
+      return;
     }
 
     if (notif.referenceType === 'GUEST_VISIT' || notif.reference_type === 'GUEST_VISIT' || notif.type?.startsWith('GUEST_')) {
@@ -246,6 +259,19 @@ export default function NotificationsPage() {
         return (
           <div className="notif-icon-box notif-icon-box--expiring" title="Lượt khách hết hạn">
             <Clock size={16} />
+          </div>
+        );
+      // Step 6 (H1, H2): vô hiệu hoá khu vực
+      case 'ACCESS_PERMISSION_REVOKED':
+        return (
+          <div className="notif-icon-box notif-icon-box--denied" title="Quyền chỉ định ra vào bị thu hồi">
+            <UserMinus size={16} />
+          </div>
+        );
+      case 'GUEST_VISIT_CANCELLED_BY_SYSTEM':
+        return (
+          <div className="notif-icon-box notif-icon-box--cancelled" title="Lượt khách bị hệ thống huỷ">
+            <CalendarOff size={16} />
           </div>
         );
       case 'GUEST_PHOTO_REQUIRED':

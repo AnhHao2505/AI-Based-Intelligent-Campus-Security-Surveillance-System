@@ -81,6 +81,8 @@ public class AreaService {
     public static final String AREA_TYPE_CHANGE_SOURCE = "AREA_TYPE_CHANGE";
     /** Nguồn audit khi hệ thống huỷ đơn do ADMIN vô hiệu hoá khu vực (BR-AD-05). */
     public static final String AREA_DEACTIVATION_SOURCE = "AREA_DEACTIVATION";
+    /** referenceType của thông báo ACCESS_PERMISSION_REVOKED (H1): reference_id = id bản ghi area_assigned_personnel. */
+    public static final String REF_TYPE_AREA_ASSIGNMENT = "AREA_ASSIGNMENT";
     /** Tiền tố lý do thu hồi AP / huỷ đơn / lượt khách khi vô hiệu hoá khu vực (BR-AD-04). */
     public static final String DEACTIVATION_REASON_PREFIX = "Khu vực bị vô hiệu hoá: ";
     /** Lý do huỷ đơn cố định khi khu vực chuyển sang công khai (BR-TC-14). */
@@ -981,7 +983,7 @@ public class AreaService {
 
     /**
      * BR-AD-04: thu hồi AP ACTIVE + UPCOMING của khu vực, revoked_by = ADMIN đang thao tác, audit từng AP
-     * (AREA_ASSIGNMENT / REVOKE) cùng correlation. Chưa có loại thông báo cho người được gán -> không báo.
+     * (AREA_ASSIGNMENT / REVOKE) cùng correlation. Người được gán nhận ACCESS_PERMISSION_REVOKED SAU commit (H1).
      */
     private void revokeAssignedPersonnelOnDeactivation(Area area, List<com.fa26se040.icss.entity.AreaAssignedPersonnel> aps,
                                                        User actor, String reason, OffsetDateTime now) {
@@ -1005,6 +1007,43 @@ public class AreaService {
                     actor
             );
         }
+        notifyAssignedPersonnelRevoked(area.getName(), aps, reason);
+    }
+
+    /** H1 (BR-AD-04): mỗi AP bị thu hồi -> 1 thông báo cho người được gán, gửi sau commit, lỗi không ảnh hưởng nghiệp vụ. */
+    private void notifyAssignedPersonnelRevoked(String areaName, List<com.fa26se040.icss.entity.AreaAssignedPersonnel> aps,
+                                                String reason) {
+        record ApNotice(UUID apId, User recipient, String message) {
+        }
+        List<ApNotice> notices = aps.stream()
+                .filter(ap -> ap.getUser() != null)
+                .map(ap -> new ApNotice(ap.getId(), ap.getUser(),
+                        "Quyền chỉ định ra vào khu vực " + areaName + " của bạn đã bị thu hồi. Lý do: " + reason + "."))
+                .toList();
+        if (notices.isEmpty()) {
+            return;
+        }
+        executeAfterCommitOrImmediately(() -> {
+            InAppNotificationService notifService = inAppNotificationServiceProvider != null
+                    ? inAppNotificationServiceProvider.getIfAvailable() : null;
+            if (notifService == null) {
+                return;
+            }
+            for (ApNotice n : notices) {
+                try {
+                    notifService.createForUser(
+                            n.recipient(),
+                            com.fa26se040.icss.enums.NotificationType.ACCESS_PERMISSION_REVOKED,
+                            "Quyền chỉ định ra vào bị thu hồi",
+                            n.message(),
+                            n.apId(),
+                            REF_TYPE_AREA_ASSIGNMENT
+                    );
+                } catch (Exception ex) {
+                    log.error("Failed to send ACCESS_PERMISSION_REVOKED for assignment {}: {}", n.apId(), ex.getMessage(), ex);
+                }
+            }
+        });
     }
 
     static String buildPendingSchedulesErrorMessage(List<com.fa26se040.icss.entity.AreaEventSchedule> schedules) {

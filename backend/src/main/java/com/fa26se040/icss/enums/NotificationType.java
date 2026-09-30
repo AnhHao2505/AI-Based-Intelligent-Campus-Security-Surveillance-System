@@ -24,5 +24,8 @@ public enum NotificationType {
     GUEST_VISIT_REJECTED,
     GUEST_VISIT_REVOKED,
     GUEST_VISIT_EXPIRED,
-    GUEST_PHOTO_REQUIRED
+    GUEST_PHOTO_REQUIRED,
+    // Step 6 follow-up (H1, H2, V63): vô hiệu hoá khu vực
+    ACCESS_PERMISSION_REVOKED,
+    GUEST_VISIT_CANCELLED_BY_SYSTEM
 }

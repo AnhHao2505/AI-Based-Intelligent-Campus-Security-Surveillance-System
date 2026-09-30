@@ -363,7 +363,7 @@ public class GuestVisitService {
      * APPROVED thành REVOKED (revoked_by = ADMIN) qua đúng luồng thu hồi của FM.
      * Chạy trong transaction vô hiệu hoá (khu vực đã khoá); lỗi ở đây làm rollback cả thao tác.
      * Khoá từng lượt rồi xét lại: lượt vừa bị thao tác khác đổi trạng thái hoặc đã kết thúc thì bỏ qua.
-     * PENDING bị huỷ không có thông báo cho host: chưa có loại thông báo huỷ lượt khách (không tự thêm).
+     * Host của lượt PENDING bị huỷ nhận GUEST_VISIT_CANCELLED_BY_SYSTEM (H2); lượt APPROVED bị thu hồi nhận GUEST_VISIT_REVOKED.
      */
     @Transactional
     public void closeForAreaDeactivation(List<UUID> visitIds, User admin, String reason, OffsetDateTime now) {
@@ -383,6 +383,11 @@ public class GuestVisitService {
                 guestVisitRepository.save(visit);
                 auditService.record(AuditTargetType.GUEST_VISIT, AuditAction.CANCEL, visit.getId().toString(), null, null,
                         before, snapshot(visit), reason, AuditActor.user(admin));
+                // H2: báo host sau commit
+                User host = visit.getHost();
+                notifyAfterCommit(visit.getId(), NotificationType.GUEST_VISIT_CANCELLED_BY_SYSTEM, "Lượt khách bị hệ thống huỷ",
+                        "Lượt khách vào " + areaNames(visit) + " (" + InAppNotificationService.formatTimeRange(visit.getStartTime(), visit.getEndTime())
+                                + ") đã bị hệ thống huỷ. Lý do: " + reason + ".", () -> List.of(host));
             } else {
                 log.info("Guest visit {} changed concurrently ({}), skip on area deactivation", id, visit.getStatus());
             }
