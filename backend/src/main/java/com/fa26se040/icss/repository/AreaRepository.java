@@ -123,4 +123,12 @@ public interface AreaRepository extends JpaRepository<Area, UUID> {
         ORDER BY a.name ASC
     """)
     java.util.List<Area> findAreaMapPins(@Param("building") String building);
+
+    /**
+     * Step 6 (BR-AD-02): số sự cố của khu vực theo trạng thái (sự cố mở = NEW, CLAIMED).
+     * Đặt ở đây để luồng khu vực không phụ thuộc SecurityIncidentService.
+     */
+    @Query("SELECT COUNT(i) FROM SecurityIncident i WHERE i.area.id = :areaId AND i.status IN :statuses")
+    long countIncidentsByAreaIdAndStatusIn(@Param("areaId") UUID areaId,
+                                           @Param("statuses") Collection<com.fa26se040.icss.enums.IncidentStatus> statuses);
 }

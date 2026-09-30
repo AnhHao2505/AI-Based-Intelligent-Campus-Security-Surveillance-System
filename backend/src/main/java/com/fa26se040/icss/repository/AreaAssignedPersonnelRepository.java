@@ -102,4 +102,13 @@ public interface AreaAssignedPersonnelRepository extends JpaRepository<AreaAssig
            "AND a.revokedAt IS NULL " +
            "AND (a.validTo IS NULL OR a.validTo > :at)")
     long countNotRevokedNotExpired(@Param("areaId") UUID areaId, @Param("at") OffsetDateTime at);
+
+    /** Step 6 (BR-AD-04): AP ACTIVE + UPCOMING của khu vực (chưa thu hồi, chưa hết hạn tại :at), kèm user. */
+    @Query("SELECT a FROM AreaAssignedPersonnel a " +
+           "JOIN FETCH a.user " +
+           "WHERE a.area.id = :areaId " +
+           "AND a.revokedAt IS NULL " +
+           "AND (a.validTo IS NULL OR a.validTo > :at) " +
+           "ORDER BY a.validFrom ASC")
+    List<AreaAssignedPersonnel> findNotRevokedNotExpired(@Param("areaId") UUID areaId, @Param("at") OffsetDateTime at);
 }

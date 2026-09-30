@@ -74,9 +74,15 @@ public class AreaService {
     // Step 5b: đổi loại khu vực cần đánh giá đơn truy cập và AP của khu vực
     private final com.fa26se040.icss.repository.AccessRequestRepository accessRequestRepository;
     private final com.fa26se040.icss.repository.AreaAssignedPersonnelRepository assignedPersonnelRepository;
+    // Step 6 (BR-AD-09): vô hiệu hoá khu vực huỷ / thu hồi lượt khách qua luồng sẵn có của GuestVisitService
+    private final org.springframework.beans.factory.ObjectProvider<GuestVisitService> guestVisitServiceProvider;
 
     /** Nguồn audit khi hệ thống huỷ đơn do ADMIN đổi loại khu vực (BR-TC-08). */
     public static final String AREA_TYPE_CHANGE_SOURCE = "AREA_TYPE_CHANGE";
+    /** Nguồn audit khi hệ thống huỷ đơn do ADMIN vô hiệu hoá khu vực (BR-AD-05). */
+    public static final String AREA_DEACTIVATION_SOURCE = "AREA_DEACTIVATION";
+    /** Tiền tố lý do thu hồi AP / huỷ đơn / lượt khách khi vô hiệu hoá khu vực (BR-AD-04). */
+    public static final String DEACTIVATION_REASON_PREFIX = "Khu vực bị vô hiệu hoá: ";
     /** Lý do huỷ đơn cố định khi khu vực chuyển sang công khai (BR-TC-14). */
     public static final String PUBLIC_CANCEL_REASON = "Khu vực đã chuyển sang công khai, không cần đơn";
 
@@ -353,7 +359,8 @@ public class AreaService {
      * BR-TC-08, BR-TC-14: hệ thống huỷ đơn trong cùng transaction đổi loại. Mỗi đơn 1 audit (ACCESS_REQUEST / CANCEL),
      * actor SYSTEM AREA_TYPE_CHANGE, cùng correlation với thao tác ADMIN. Đơn vừa bị thao tác khác đổi trạng thái thì bỏ qua.
      */
-    private List<com.fa26se040.icss.entity.AccessRequest> cancelRequestsBySystem(Area area, List<CancelCandidate> candidates, OffsetDateTime now) {
+    private List<com.fa26se040.icss.entity.AccessRequest> cancelRequestsBySystem(Area area, List<CancelCandidate> candidates,
+                                                                          OffsetDateTime now, String auditSource) {
         List<com.fa26se040.icss.entity.AccessRequest> cancelled = new ArrayList<>();
         for (CancelCandidate c : candidates) {
             com.fa26se040.icss.entity.AccessRequest r = c.request();
@@ -363,7 +370,7 @@ public class AreaService {
                     r.getId(), r.getStatus(), com.fa26se040.icss.enums.RequestStatus.CANCELLED,
                     com.fa26se040.icss.enums.CancelSource.SYSTEM, c.reason(), now);
             if (updated != 1) {
-                log.info("Access request {} changed concurrently, skip system cancel on area type change", r.getId());
+                log.info("Access request {} changed concurrently, skip system cancel ({})", r.getId(), auditSource);
                 continue;
             }
             // Đồng bộ entity trong persistence context với dòng vừa UPDATE (dữ liệu y hệt, không đổi thêm gì)
@@ -381,7 +388,7 @@ public class AreaService {
                     before,
                     com.fa26se040.icss.dto.accesscontrol.snapshot.AccessRequestSnapshot.from(r),
                     c.reason(),
-                    com.fa26se040.icss.dto.audit.AuditActor.system(AREA_TYPE_CHANGE_SOURCE)
+                    com.fa26se040.icss.dto.audit.AuditActor.system(auditSource)
             );
             cancelled.add(r);
         }
@@ -392,11 +399,36 @@ public class AreaService {
     private void notifyAfterTypeChange(Area area, AreaLevel oldLevel, AreaLevel newLevel, String reason,
                                        List<com.fa26se040.icss.entity.AccessRequest> cancelled) {
         UUID areaId = area.getId();
-        String areaName = area.getName();
-        String fmMessage = "Khu vực " + areaName + ": " + areaLevelLabel(oldLevel) + " → " + areaLevelLabel(newLevel)
+        String fmMessage = "Khu vực " + area.getName() + ": " + areaLevelLabel(oldLevel) + " → " + areaLevelLabel(newLevel)
                 + ". Lý do: " + reason + ". Số đơn bị huỷ: " + cancelled.size() + ".";
 
-        // Chuẩn bị người nhận trong transaction (người gửi + thành viên, mỗi người 1 thông báo / đơn)
+        executeAfterCommitOrImmediately(() -> {
+            InAppNotificationService notifService = inAppNotificationServiceProvider != null
+                    ? inAppNotificationServiceProvider.getIfAvailable() : null;
+            if (notifService == null) {
+                return;
+            }
+            try {
+                notifService.createForUsers(
+                        userRepository.findActiveUsersByRole(com.fa26se040.icss.enums.Role.FACILITY_MANAGER),
+                        com.fa26se040.icss.enums.NotificationType.AREA_TYPE_CHANGED,
+                        "Khu vực đổi loại",
+                        fmMessage,
+                        areaId,
+                        "AREA"
+                );
+            } catch (Exception ex) {
+                log.error("Failed to send AREA_TYPE_CHANGED notifications for area {}: {}", areaId, ex.getMessage(), ex);
+            }
+        });
+        notifyRequestsCancelledBySystem(area.getName(), cancelled);
+    }
+
+    /**
+     * BR-TC-10, BR-AD-05: mỗi đơn bị hệ thống huỷ -> 1 thông báo REQUEST_SYSTEM_CANCELLED cho người gửi + thành viên.
+     * Người nhận chuẩn bị trong transaction, gửi SAU commit; lỗi thông báo không ảnh hưởng nghiệp vụ đã commit.
+     */
+    private void notifyRequestsCancelledBySystem(String areaName, List<com.fa26se040.icss.entity.AccessRequest> cancelled) {
         record RequestNotice(UUID requestId, List<User> recipients, String message) {
         }
         List<RequestNotice> notices = new ArrayList<>();
@@ -417,24 +449,15 @@ public class AreaService {
                     + ") đã bị hệ thống huỷ. Lý do: " + r.getCancelReason() + ".";
             notices.add(new RequestNotice(r.getId(), new ArrayList<>(recipients.values()), message));
         }
+        if (notices.isEmpty()) {
+            return;
+        }
 
         executeAfterCommitOrImmediately(() -> {
             InAppNotificationService notifService = inAppNotificationServiceProvider != null
                     ? inAppNotificationServiceProvider.getIfAvailable() : null;
             if (notifService == null) {
                 return;
-            }
-            try {
-                notifService.createForUsers(
-                        userRepository.findActiveUsersByRole(com.fa26se040.icss.enums.Role.FACILITY_MANAGER),
-                        com.fa26se040.icss.enums.NotificationType.AREA_TYPE_CHANGED,
-                        "Khu vực đổi loại",
-                        fmMessage,
-                        areaId,
-                        "AREA"
-                );
-            } catch (Exception ex) {
-                log.error("Failed to send AREA_TYPE_CHANGED notifications for area {}: {}", areaId, ex.getMessage(), ex);
             }
             for (RequestNotice n : notices) {
                 try {
@@ -490,9 +513,10 @@ public class AreaService {
 
     @Transactional(readOnly = true)
     public AreaDependencyResponse getDependencies(UUID id) {
-        areaRepository.findByIdAndDeletedAtIsNull(id)
+        // BR-AD-08: xem trước chỉ đọc, cùng hàm đánh giá với deactivate
+        Area area = areaRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
-        return dependencyChecker.check(id);
+        return dependencyChecker.toResponse(area, dependencyChecker.evaluate(area, OffsetDateTime.now()));
     }
 
     @Transactional
@@ -696,7 +720,7 @@ public class AreaService {
                             actor
                     );
                     List<com.fa26se040.icss.entity.AccessRequest> cancelled =
-                            cancelRequestsBySystem(savedArea, evaluation.allToCancel(), now);
+                            cancelRequestsBySystem(savedArea, evaluation.allToCancel(), now, AREA_TYPE_CHANGE_SOURCE);
                     notifyAfterTypeChange(savedArea, evaluation.currentLevel(), evaluation.newLevel(), reason, cancelled);
                 } else {
                     auditService.record(
@@ -829,51 +853,161 @@ public class AreaService {
                 .toList();
     }
 
+    /**
+     * Step 6 (BR-AD-01..06, 09): ADMIN vô hiệu hoá khu vực trong MỘT transaction.
+     * Thứ tự: kiểm lý do + version -> khoá areas -> so version -> đánh giá blocker (lỗi thì không đổi gì)
+     * -> thu hồi AP, huỷ đơn, huỷ / thu hồi lượt khách -> is_active = false, deleted_at, version + 1 -> audit.
+     * Thông báo gửi sau commit.
+     */
     @Transactional
-    public void deactivate(UUID id, String actorEmail) {
-        Area area = areaRepository.findByIdWithLock(id)
-                .filter(a -> a.getDeletedAt() == null)
-                .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
+    public AreaResponse deactivate(UUID id, com.fa26se040.icss.dto.area.AreaDeactivateRequest req, String actorEmail) {
+        String reason = normalizeReason(req != null ? req.reason() : null, true);
+        Long version = req != null ? req.version() : null;
+        requireVersion(version);
+        User actor = userRepository.findByEmail(actorEmail)
+                .orElseThrow(() -> new UnauthorizedException("Phiên đăng nhập không hợp lệ"));
 
-        if (eventScheduleRepository != null && id != null) {
-            List<com.fa26se040.icss.entity.AreaEventSchedule> pending = eventScheduleRepository
-                    .findByAreaIdAndStatusOrderByStartAtAsc(id, com.fa26se040.icss.enums.AreaEventScheduleStatus.SCHEDULED);
-            if (!pending.isEmpty()) {
-                throw new AreaException(AreaErrorCode.ERR_AREA_042, buildPendingSchedulesErrorMessage(pending));
+        boolean ownCorrelation = com.fa26se040.icss.context.AuditContext.getCorrelationId() == null;
+        if (ownCorrelation) {
+            com.fa26se040.icss.context.AuditContext.setCorrelationId(UUID.randomUUID());
+        }
+        try {
+            Area area = areaRepository.findByIdWithLock(id)
+                    .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
+            checkVersion(area, version);
+            if (area.getDeletedAt() != null) {
+                throw new AreaException(AreaErrorCode.ERR_AREA_053);
+            }
+
+            OffsetDateTime now = OffsetDateTime.now();
+            AreaDependencyChecker.DeactivationEvaluation evaluation = dependencyChecker.evaluate(area, now);
+            if (!evaluation.canDeactivate()) {
+                throw evaluation.firstBlockerException();
+            }
+
+            String derivedReason = deactivationReason(reason);
+            revokeAssignedPersonnelOnDeactivation(area, evaluation.apToRevoke(), actor, derivedReason, now);
+            List<com.fa26se040.icss.entity.AccessRequest> cancelled = cancelRequestsBySystem(area,
+                    evaluation.requestsToCancel().stream().map(r -> new CancelCandidate(r, derivedReason)).toList(),
+                    now, AREA_DEACTIVATION_SOURCE);
+            List<UUID> visitIds = new ArrayList<>();
+            evaluation.guestVisitsToCancel().forEach(v -> visitIds.add(v.getId()));
+            evaluation.guestVisitsToRevoke().forEach(v -> visitIds.add(v.getId()));
+            if (!visitIds.isEmpty()) {
+                guestVisitServiceProvider.getObject().closeForAreaDeactivation(visitIds, actor, derivedReason, now);
+            }
+
+            AreaSnapshot beforeSnapshot = AreaSnapshot.from(area);
+            AreaRowState before = AreaRowState.of(area);
+            area.setIsActive(false);
+            area.setDeletedAt(now);
+            bumpVersionIfChanged(area, before);
+            Area savedArea = areaRepository.save(area);
+
+            auditService.record(
+                    AuditTargetType.AREA,
+                    AuditAction.DEACTIVATE,
+                    savedArea.getId().toString(),
+                    savedArea,
+                    null,
+                    beforeSnapshot,
+                    AreaSnapshot.from(savedArea),
+                    reason,
+                    actor
+            );
+            notifyRequestsCancelledBySystem(savedArea.getName(), cancelled);
+            return mapToAreaResponse(savedArea);
+        } finally {
+            if (ownCorrelation) {
+                com.fa26se040.icss.context.AuditContext.clearCorrelationId();
             }
         }
+    }
 
-        AreaDependencyResponse dep = dependencyChecker.check(id);
-        if (!dep.canDeactivate()) {
-            AreaDependencyResponse.Blocker firstBlocker = dep.blockers().get(0);
-            throw new AreaException(firstBlocker.errorCode(), firstBlocker.count());
+    /**
+     * Step 6 (BR-AD-07): ADMIN khôi phục khu vực đã vô hiệu hoá. Không tự khôi phục AP / đơn / lượt khách / camera.
+     * Chặn 409 khi khu vực chưa vô hiệu hoá (054), tầng / toà không còn hoạt động (055),
+     * trùng tên với khu vực đang hoạt động cùng tầng (020).
+     */
+    @Transactional
+    public AreaResponse restore(UUID id, com.fa26se040.icss.dto.area.AreaRestoreRequest req, String actorEmail) {
+        String reason = normalizeReason(req != null ? req.reason() : null, true);
+        Long version = req != null ? req.version() : null;
+        requireVersion(version);
+        User actor = userRepository.findByEmail(actorEmail)
+                .orElseThrow(() -> new UnauthorizedException("Phiên đăng nhập không hợp lệ"));
+
+        Area area = areaRepository.findByIdWithLock(id)
+                .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
+        checkVersion(area, version);
+        if (area.getDeletedAt() == null) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_054);
+        }
+        com.fa26se040.icss.entity.Floor floorEntity = area.getFloorEntity();
+        if (floorEntity == null || !Boolean.TRUE.equals(floorEntity.getIsActive())
+                || floorEntity.getBuilding() == null || !Boolean.TRUE.equals(floorEntity.getBuilding().getIsActive())) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_055);
+        }
+        if (areaRepository.existsByFloorIdAndNameIgnoreCaseExcludingId(area.getId(), floorEntity.getId(), area.getName())) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_020);
         }
 
-        resolveActorId(actorEmail);
         AreaSnapshot beforeSnapshot = AreaSnapshot.from(area);
         AreaRowState before = AreaRowState.of(area);
-
-        area.setIsActive(false);
-        area.setDeletedAt(OffsetDateTime.now());
+        area.setIsActive(true);
+        area.setDeletedAt(null);
         bumpVersionIfChanged(area, before);
-
         Area savedArea = areaRepository.save(area);
 
-        User actor = actorEmail != null ? userRepository.findByEmail(actorEmail).orElse(null) : null;
         auditService.record(
                 AuditTargetType.AREA,
-                AuditAction.DEACTIVATE,
+                AuditAction.RESTORE,
                 savedArea.getId().toString(),
                 savedArea,
                 null,
                 beforeSnapshot,
                 AreaSnapshot.from(savedArea),
-                null,
+                reason,
                 actor
         );
+        return mapToAreaResponse(savedArea);
     }
 
-    private String buildPendingSchedulesErrorMessage(List<com.fa26se040.icss.entity.AreaEventSchedule> schedules) {
+    /** BR-AD-04: "Khu vực bị vô hiệu hoá: <lý do>", cắt còn 500 ký tự (giới hạn cột lý do + audit). */
+    static String deactivationReason(String reason) {
+        String full = DEACTIVATION_REASON_PREFIX + reason;
+        return full.length() <= 500 ? full : full.substring(0, 499) + "…";
+    }
+
+    /**
+     * BR-AD-04: thu hồi AP ACTIVE + UPCOMING của khu vực, revoked_by = ADMIN đang thao tác, audit từng AP
+     * (AREA_ASSIGNMENT / REVOKE) cùng correlation. Chưa có loại thông báo cho người được gán -> không báo.
+     */
+    private void revokeAssignedPersonnelOnDeactivation(Area area, List<com.fa26se040.icss.entity.AreaAssignedPersonnel> aps,
+                                                       User actor, String reason, OffsetDateTime now) {
+        for (com.fa26se040.icss.entity.AreaAssignedPersonnel ap : aps) {
+            com.fa26se040.icss.enums.AssignedPersonnelStatus oldStatus = AreaAssignedPersonnelService.computeStatus(ap, now);
+            ap.setRevokedAt(now);
+            ap.setRevokedBy(actor);
+            ap.setRevokeReason(reason);
+            ap.setUpdatedAt(now);
+            assignedPersonnelRepository.save(ap);
+            auditService.record(
+                    AuditTargetType.AREA_ASSIGNMENT,
+                    AuditAction.REVOKE,
+                    ap.getId().toString(),
+                    area,
+                    ap.getUser(),
+                    new com.fa26se040.icss.dto.accesscontrol.snapshot.AreaAssignmentAuditSnapshot(ap.getValidFrom(), ap.getValidTo(), oldStatus),
+                    new com.fa26se040.icss.dto.accesscontrol.snapshot.AreaAssignmentAuditSnapshot(ap.getValidFrom(), ap.getValidTo(),
+                            com.fa26se040.icss.enums.AssignedPersonnelStatus.REVOKED),
+                    reason,
+                    actor
+            );
+        }
+    }
+
+    static String buildPendingSchedulesErrorMessage(List<com.fa26se040.icss.entity.AreaEventSchedule> schedules) {
         java.time.ZoneId zone = java.time.ZoneId.of("Asia/Ho_Chi_Minh");
         java.time.format.DateTimeFormatter dtfDateHour = java.time.format.DateTimeFormatter.ofPattern("dd/MM HH:mm").withZone(zone);
         java.time.format.DateTimeFormatter dtfTime = java.time.format.DateTimeFormatter.ofPattern("HH:mm").withZone(zone);
@@ -925,11 +1059,12 @@ public class AreaService {
 
     @Transactional
     public AreaCameraResponse updateCamerasForArea(UUID areaId, List<UUID> cameraIds) {
-        Area area = areaRepository.findByIdAndDeletedAtIsNull(areaId)
+        // Step 6: khoá dòng areas (tuần tự với vô hiệu hoá). Khu vực đã vô hiệu hoá -> ERR_AREA_017, không ghi cameras
+        Area area = areaRepository.findByIdWithLock(areaId)
                 .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
 
         // BR-CAM-02: Khu vực phải đang hoạt động
-        if (!Boolean.TRUE.equals(area.getIsActive())) {
+        if (!Boolean.TRUE.equals(area.getIsActive()) || area.getDeletedAt() != null) {
             throw new AreaException(AreaErrorCode.ERR_AREA_017);
         }
 

@@ -329,14 +329,23 @@ public class GuestVisitService {
             throw new GuestException(GuestErrorCode.ERR_GUEST_018, "thu hồi");
         }
 
+        applyRevoke(visit, fmUser, reason, now);
+        return toResponse(visit);
+    }
+
+    /**
+     * Thu hồi lượt đã duyệt — dùng chung cho FM thu hồi (BR-GV-13) và ADMIN vô hiệu hoá khu vực (BR-AD-09).
+     * Xoá sinh trắc qua deleteAllBiometrics (A9: object MinIO xoá sau commit), báo host sau commit.
+     */
+    private void applyRevoke(GuestVisit visit, User revokedBy, String reason, OffsetDateTime now) {
         GuestVisitAuditSnapshot before = snapshot(visit);
         visit.setStatus(GuestVisitStatus.REVOKED);
-        visit.setRevokedBy(fmUser);
+        visit.setRevokedBy(revokedBy);
         visit.setRevokedAt(now);
         visit.setRevokeReason(reason);
         bumpVersion(visit);
         guestVisitRepository.save(visit);
-        AuditActor actor = AuditActor.user(fmUser);
+        AuditActor actor = AuditActor.user(revokedBy);
         auditService.record(AuditTargetType.GUEST_VISIT, AuditAction.REVOKE, visit.getId().toString(), null, null,
                 before, snapshot(visit), reason, actor);
         // BR-GV-13, 27: thu hồi -> xoá sinh trắc ngay
@@ -345,7 +354,39 @@ public class GuestVisitService {
         notifyAfterCommit(visit.getId(), NotificationType.GUEST_VISIT_REVOKED, "Lượt khách bị thu hồi",
                 "Lượt khách vào " + areaNames(visit) + " (" + InAppNotificationService.formatTimeRange(visit.getStartTime(), visit.getEndTime())
                         + ") đã bị thu hồi. Lý do: " + reason + ".", () -> List.of(host));
-        return toResponse(visit);
+    }
+
+    // ================================================================== vô hiệu hoá khu vực (Step 6, BR-AD-09)
+
+    /**
+     * ADMIN vô hiệu hoá khu vực: lượt khách chưa kết thúc chứa khu vực -> PENDING thành CANCELLED,
+     * APPROVED thành REVOKED (revoked_by = ADMIN) qua đúng luồng thu hồi của FM.
+     * Chạy trong transaction vô hiệu hoá (khu vực đã khoá); lỗi ở đây làm rollback cả thao tác.
+     * Khoá từng lượt rồi xét lại: lượt vừa bị thao tác khác đổi trạng thái hoặc đã kết thúc thì bỏ qua.
+     * PENDING bị huỷ không có thông báo cho host: chưa có loại thông báo huỷ lượt khách (không tự thêm).
+     */
+    @Transactional
+    public void closeForAreaDeactivation(List<UUID> visitIds, User admin, String reason, OffsetDateTime now) {
+        for (UUID id : visitIds) {
+            GuestVisit visit = lockVisit(id);
+            if (!now.isBefore(visit.getEndTime())) {
+                continue;
+            }
+            if (visit.getStatus() == GuestVisitStatus.APPROVED) {
+                applyRevoke(visit, admin, reason, now);
+            } else if (visit.getStatus() == GuestVisitStatus.PENDING) {
+                GuestVisitAuditSnapshot before = snapshot(visit);
+                visit.setStatus(GuestVisitStatus.CANCELLED);
+                visit.setCancelledAt(now);
+                visit.setCancelReason(reason);
+                bumpVersion(visit);
+                guestVisitRepository.save(visit);
+                auditService.record(AuditTargetType.GUEST_VISIT, AuditAction.CANCEL, visit.getId().toString(), null, null,
+                        before, snapshot(visit), reason, AuditActor.user(admin));
+            } else {
+                log.info("Guest visit {} changed concurrently ({}), skip on area deactivation", id, visit.getStatus());
+            }
+        }
     }
 
     /** BR-GV-11: trả câu mô tả vế đầu tiên không còn thoả, hoặc null. */
