@@ -70,7 +70,8 @@ public class CameraService {
             log.info("Auto-generated camera code: {}", cameraCode);
         }
 
-        Area area = areaRepository.findByIdAndDeletedAtIsNull(request.getAreaId())
+        Area area = areaRepository.findByIdWithLock(request.getAreaId())
+                .filter(a -> a.getDeletedAt() == null)
                 .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
         if (!Boolean.TRUE.equals(area.getIsActive())) {
             throw new AreaException(AreaErrorCode.ERR_AREA_017);

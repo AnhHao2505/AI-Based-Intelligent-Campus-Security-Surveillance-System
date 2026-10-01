@@ -1,6 +1,5 @@
 package com.fa26se040.icss.service;
 
-import com.fa26se040.icss.dto.accessrequest.AreaSimpleResponse;
 import com.fa26se040.icss.dto.camera.CameraDetailResponse;
 import com.fa26se040.icss.dto.camera.CameraStreamConfigRequest;
 import com.fa26se040.icss.dto.camera.CameraStreamConfigResponse;
@@ -9,9 +8,11 @@ import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.Camera;
 import com.fa26se040.icss.entity.CameraStreamConfiguration;
 import com.fa26se040.icss.enums.AreaLevel;
+import com.fa26se040.icss.exception.CameraErrorCode;
 import com.fa26se040.icss.enums.CameraStatus;
 import com.fa26se040.icss.enums.OperationalStatus;
-import com.fa26se040.icss.exception.CameraErrorCode;
+import com.fa26se040.icss.exception.AreaErrorCode;
+import com.fa26se040.icss.exception.AreaException;
 import com.fa26se040.icss.exception.CameraException;
 import com.fa26se040.icss.repository.AreaRepository;
 import com.fa26se040.icss.repository.CameraHealthLogRepository;
@@ -29,8 +30,12 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -71,9 +76,18 @@ class CameraServiceTest {
 
     private Camera testCamera;
     private UUID testCameraId;
+    private Area testArea;
+    private UUID testAreaId;
 
     @BeforeEach
     void setUp() {
+        testAreaId = UUID.randomUUID();
+        testArea = Area.builder()
+                .id(testAreaId)
+                .name("Khu vực A")
+                .isActive(true)
+                .build();
+
         testCameraId = UUID.randomUUID();
         testCamera = Camera.builder()
                 .id(testCameraId)
@@ -81,13 +95,14 @@ class CameraServiceTest {
                 .name("Camera Cổng Chính")
                 .status(CameraStatus.ACTIVE)
                 .operationalStatus(OperationalStatus.ONLINE)
-                .area(null)
+                .area(testArea)
                 .build();
     }
 
     @Test
     @DisplayName("CreateCamera: should auto-generate camera code using sequence (CAM-%03d)")
     void testCreateCameraAutoCodeFromSequence() {
+        when(areaRepository.findByIdWithLock(testAreaId)).thenReturn(Optional.of(testArea));
         when(cameraRepository.getNextCameraCodeSequence()).thenReturn(5L);
         when(cameraRepository.save(any(Camera.class))).thenAnswer(invocation -> {
             Camera c = invocation.getArgument(0);
@@ -97,6 +112,7 @@ class CameraServiceTest {
 
         CreateCameraRequest req = CreateCameraRequest.builder()
                 .name("Camera Tòa Nhà Alpha")
+                .areaId(testAreaId)
                 .build();
 
         CameraDetailResponse response = cameraService.createCamera(req);
@@ -117,6 +133,7 @@ class CameraServiceTest {
         CreateCameraRequest req = CreateCameraRequest.builder()
                 .cameraCode("CAM-999")
                 .name("Camera Trùng")
+                .areaId(testAreaId)
                 .build();
 
         CameraException ex = assertThrows(CameraException.class, () -> cameraService.createCamera(req));
@@ -125,22 +142,56 @@ class CameraServiceTest {
     }
 
     @Test
+    @DisplayName("CreateCamera: should throw ERR_CAM_004 when areaId is null")
+    void testCreateCameraMissingAreaId() {
+        CreateCameraRequest req = CreateCameraRequest.builder()
+                .name("Camera Không Khu Vực")
+                .areaId(null)
+                .build();
+
+        CameraException ex = assertThrows(CameraException.class, () -> cameraService.createCamera(req));
+        assertEquals(CameraErrorCode.ERR_CAM_004, ex.getErrorCode());
+        verify(cameraRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("CreateCamera: should throw ERR_AREA_017 when area is inactive")
+    void testCreateCameraInactiveArea() {
+        Area inactiveArea = Area.builder()
+                .id(testAreaId)
+                .name("Khu vực Đã Đóng Cửa")
+                .isActive(false)
+                .build();
+
+        when(areaRepository.findByIdWithLock(testAreaId)).thenReturn(Optional.of(inactiveArea));
+
+        CreateCameraRequest req = CreateCameraRequest.builder()
+                .name("Camera Khu Vực Inactive")
+                .areaId(testAreaId)
+                .build();
+
+        AreaException ex = assertThrows(AreaException.class, () -> cameraService.createCamera(req));
+        assertEquals(AreaErrorCode.ERR_AREA_017, ex.getErrorCode());
+        verify(cameraRepository, never()).save(any());
+    }
+
+    @Test
     @DisplayName("ListCameras: forceSync=false should NOT query MediaMTX live status (<10ms target)")
     void testListCamerasWithoutForceSync() {
-        Pageable pageable = PageRequest.of(0, 10);
+        Pageable pageable = PageRequest.of(0, 10, Sort.by("cameraCode").ascending());
         Page<Camera> cameraPage = new PageImpl<>(List.of(testCamera));
         when(cameraRepository.findFiltered(anyString(), any(), any(), eq(pageable))).thenReturn(cameraPage);
 
         cameraService.listCameras(null, null, null, false, pageable);
 
         verify(mediaMtxService, never()).getLivePathStatuses();
-        verify(cameraRepository).findFiltered(anyString(), any(), any(), eq(pageable));
+        verify(cameraRepository).findFiltered("%%", null, null, pageable);
     }
 
     @Test
     @DisplayName("ListCameras: forceSync=true should query MediaMTX live status")
     void testListCamerasWithForceSync() {
-        Pageable pageable = PageRequest.of(0, 10);
+        Pageable pageable = PageRequest.of(0, 10, Sort.by("cameraCode").ascending());
         Page<Camera> cameraPage = new PageImpl<>(List.of(testCamera));
         when(cameraRepository.findFiltered(anyString(), any(), any(), eq(pageable))).thenReturn(cameraPage);
         when(mediaMtxService.getLivePathStatuses()).thenReturn(Collections.emptyMap());
