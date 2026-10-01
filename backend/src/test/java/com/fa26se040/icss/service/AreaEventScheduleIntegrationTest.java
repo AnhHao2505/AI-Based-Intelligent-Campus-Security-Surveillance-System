@@ -796,7 +796,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
 
         // 1. Vô hiệu hoá khu vực -> ERR_AREA_042 (409)
         AreaException exDeact = assertThrows(AreaException.class, () ->
-                areaService.deactivate(internalArea.getId(), fmUser.getEmail())
+                areaService.deactivate(internalArea.getId(), deactivateRequest(internalArea), adminUser.getEmail())
         );
         assertEquals(AreaErrorCode.ERR_AREA_042, exDeact.getErrorCode());
         assertTrue(exDeact.getMessage().contains("Khu vực còn 1 lịch sự kiện chưa diễn ra:"));
@@ -829,7 +829,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
                 fmUser.getEmail());
 
         // 4. Giờ vô hiệu hoá thành công
-        areaService.deactivate(internalArea.getId(), fmUser.getEmail());
+        areaService.deactivate(internalArea.getId(), deactivateRequest(internalArea), adminUser.getEmail());
         Area reloaded = areaRepository.findById(internalArea.getId()).orElseThrow();
         assertFalse(reloaded.getIsActive());
 
@@ -959,7 +959,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
                 .build());
 
         AreaException ex = assertThrows(AreaException.class, () ->
-                areaService.deactivate(internalArea.getId(), fmUser.getEmail())
+                areaService.deactivate(internalArea.getId(), deactivateRequest(internalArea), adminUser.getEmail())
         );
 
         String msg = ex.getMessage();
@@ -1230,5 +1230,11 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         AreaEventModeAuditSnapshot enableSnap = objectMapper.readValue(enableLog.getNewValue(), AreaEventModeAuditSnapshot.class);
         assertEquals("SEMINAR", enableSnap.reasonCode(), "Audit kích hoạt phải có lý do gốc A");
         assertEquals("Hội thảo / seminar", enableSnap.reasonLabel(), "Audit kích hoạt phải có nhãn gốc A");
+    }
+
+    /** Step 6: vô hiệu hoá cần lý do + version hiện tại của khu vực. */
+    private com.fa26se040.icss.dto.area.AreaDeactivateRequest deactivateRequest(Area area) {
+        return new com.fa26se040.icss.dto.area.AreaDeactivateRequest("Vô hiệu hoá khu vực để kiểm tra lịch sự kiện",
+                areaRepository.findById(area.getId()).orElseThrow().getVersion());
     }
 }

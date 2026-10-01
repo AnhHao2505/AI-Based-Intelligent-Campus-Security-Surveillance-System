@@ -50,4 +50,11 @@ public interface GuestVisitRepository extends JpaRepository<GuestVisit, UUID> {
 
     @Query("SELECT v.id FROM GuestVisit v WHERE v.status = :status AND v.endTime <= :now ORDER BY v.endTime")
     List<UUID> findIdsByStatusAndEndTimeLessThanEqual(@Param("status") GuestVisitStatus status, @Param("now") OffsetDateTime now);
+
+    /** Step 6 (BR-AD-09): lượt khách chứa khu vực, trạng thái thuộc :statuses, chưa kết thúc tại :now. */
+    @Query("SELECT DISTINCT v FROM GuestVisit v JOIN v.areas a "
+            + "WHERE a.id = :areaId AND v.status IN :statuses AND v.endTime > :now ORDER BY v.startTime")
+    List<GuestVisit> findNotEndedByArea(@Param("areaId") UUID areaId,
+                                        @Param("statuses") java.util.Collection<GuestVisitStatus> statuses,
+                                        @Param("now") OffsetDateTime now);
 }

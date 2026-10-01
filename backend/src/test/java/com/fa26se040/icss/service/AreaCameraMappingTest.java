@@ -87,6 +87,7 @@ class AreaCameraMappingTest {
                 .operationalStatus(OperationalStatus.ONLINE)
                 .build();
 
+        when(areaRepository.findByIdWithLock(testAreaId)).thenReturn(Optional.of(testArea));
         when(areaRepository.findByIdAndDeletedAtIsNull(testAreaId)).thenReturn(Optional.of(testArea));
         when(cameraRepository.findAllById(List.of(camId1))).thenReturn(List.of(cam1));
         when(cameraRepository.findByAreaIdAndDeletedAtIsNull(testAreaId))
@@ -108,7 +109,7 @@ class AreaCameraMappingTest {
     @DisplayName("UpdateCamerasForArea: should throw ERR_AREA_017 if area is inactive (BR-CAM-02)")
     void testUpdateCamerasForAreaInactiveArea() {
         testArea.setIsActive(false);
-        when(areaRepository.findByIdAndDeletedAtIsNull(testAreaId)).thenReturn(Optional.of(testArea));
+        when(areaRepository.findByIdWithLock(testAreaId)).thenReturn(Optional.of(testArea));
 
         AreaException ex = assertThrows(AreaException.class,
                 () -> areaService.updateCamerasForArea(testAreaId, List.of(UUID.randomUUID())));
@@ -123,7 +124,7 @@ class AreaCameraMappingTest {
         UUID camId1 = UUID.randomUUID();
         UUID camId2 = UUID.randomUUID();
 
-        when(areaRepository.findByIdAndDeletedAtIsNull(testAreaId)).thenReturn(Optional.of(testArea));
+        when(areaRepository.findByIdWithLock(testAreaId)).thenReturn(Optional.of(testArea));
         when(cameraRepository.findAllById(List.of(camId1, camId2))).thenReturn(List.of(
                 Camera.builder().id(camId1).status(CameraStatus.ACTIVE).build()
         ));
@@ -146,7 +147,7 @@ class AreaCameraMappingTest {
                 .status(CameraStatus.DECOMMISSIONED)
                 .build();
 
-        when(areaRepository.findByIdAndDeletedAtIsNull(testAreaId)).thenReturn(Optional.of(testArea));
+        when(areaRepository.findByIdWithLock(testAreaId)).thenReturn(Optional.of(testArea));
         when(cameraRepository.findAllById(List.of(camId1))).thenReturn(List.of(decommCam));
 
         CameraException ex = assertThrows(CameraException.class,
@@ -165,6 +166,7 @@ class AreaCameraMappingTest {
                 .area(testArea)
                 .build();
 
+        when(areaRepository.findByIdWithLock(testAreaId)).thenReturn(Optional.of(testArea));
         when(areaRepository.findByIdAndDeletedAtIsNull(testAreaId)).thenReturn(Optional.of(testArea));
         when(cameraRepository.findByAreaIdAndDeletedAtIsNull(testAreaId))
                 .thenReturn(List.of(existingCam)) // currently assigned

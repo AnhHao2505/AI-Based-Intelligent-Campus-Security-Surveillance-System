@@ -12,7 +12,7 @@ public enum AreaErrorCode {
     ERR_AREA_006("ERR_AREA_006", HttpStatus.BAD_REQUEST, "Toạ độ bản đồ phải có đủ cả X và Y"),
     ERR_AREA_007("ERR_AREA_007", HttpStatus.BAD_REQUEST, "Không được thay đổi mã khu vực sau khi tạo"),
     ERR_AREA_008("ERR_AREA_008", HttpStatus.BAD_REQUEST, "Hạ cấp độ khu vực bắt buộc nhập lý do"),
-    ERR_AREA_009("ERR_AREA_009", HttpStatus.CONFLICT, "Không thể ngừng: còn {n} camera đang gán"),
+    ERR_AREA_009("ERR_AREA_009", HttpStatus.CONFLICT, "Không thể vô hiệu hoá: còn {n} camera đang gán. Gỡ camera khỏi khu vực trước"),
     ERR_AREA_010("ERR_AREA_010", HttpStatus.CONFLICT, "Không thể ngừng: còn {n} quyền truy cập"),
     ERR_AREA_011("ERR_AREA_011", HttpStatus.BAD_REQUEST, "Hình đa giác phải có ít nhất 3 đỉnh"),
     ERR_AREA_012("ERR_AREA_012", HttpStatus.BAD_REQUEST, "Toạ độ đỉnh đa giác phải nằm trong khoảng [0, 1]"),
@@ -54,7 +54,13 @@ public enum AreaErrorCode {
     ERR_AREA_047("ERR_AREA_047", HttpStatus.BAD_REQUEST, "Thiếu action của thao tác chế độ sự kiện (ENABLE, ADJUST, DISABLE)"),
     ERR_AREA_048("ERR_AREA_048", HttpStatus.CONFLICT, "Khu vực đang mở chế độ sự kiện, không thể đổi sang loại {newType}. Tắt sự kiện trước khi đổi loại"),
     ERR_AREA_049("ERR_AREA_049", HttpStatus.CONFLICT, "Khu vực còn {count} quyền gán nhân sự còn hiệu lực, thu hồi trước khi chuyển sang Công khai"),
-    ERR_AREA_050("ERR_AREA_050", HttpStatus.BAD_REQUEST, "Lý do phải có từ 10 đến 500 ký tự");
+    ERR_AREA_050("ERR_AREA_050", HttpStatus.BAD_REQUEST, "Lý do phải có từ 10 đến 500 ký tự"),
+    // Step 6 — vô hiệu hoá / khôi phục khu vực (BR-AD)
+    ERR_AREA_051("ERR_AREA_051", HttpStatus.CONFLICT, "Khu vực còn {count} sự cố chưa xử lý xong (mới hoặc đang xử lý). Xử lý sự cố trước khi vô hiệu hoá"),
+    ERR_AREA_052("ERR_AREA_052", HttpStatus.CONFLICT, "Khu vực đang mở chế độ sự kiện. Tắt chế độ sự kiện trước khi vô hiệu hoá"),
+    ERR_AREA_053("ERR_AREA_053", HttpStatus.CONFLICT, "Khu vực đã bị vô hiệu hoá"),
+    ERR_AREA_054("ERR_AREA_054", HttpStatus.CONFLICT, "Khu vực chưa bị vô hiệu hoá, không cần khôi phục"),
+    ERR_AREA_055("ERR_AREA_055", HttpStatus.CONFLICT, "Không thể khôi phục: tầng hoặc toà nhà của khu vực không còn hoạt động");
 
     private final String code;
     private final HttpStatus httpStatus;

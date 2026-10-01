@@ -163,9 +163,19 @@ public class AreaEndpointAuthorizationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("T3 [ADMIN ONLY]: DELETE /api/areas/{id} -> 401 không token, 403 cho FM/USER/GUARD")
+    @DisplayName("T3 [ADMIN ONLY]: POST /api/areas/{id}/deactivate -> 401 không token, 403 cho FM/USER/GUARD (Step 6 thay DELETE)")
     void deactivateArea_adminOnly() throws Exception {
-        assertAdminOnly(() -> delete("/api/areas/{id}", randomAreaId));
+        assertAdminOnly(() -> post("/api/areas/{id}/deactivate", randomAreaId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"reason\": \"Ngừng sử dụng khu vực để sửa chữa\", \"version\": 0}"));
+    }
+
+    @Test
+    @DisplayName("T3 [ADMIN ONLY]: POST /api/areas/{id}/restore -> 401 không token, 403 cho FM/USER/GUARD (Step 6)")
+    void restoreArea_adminOnly() throws Exception {
+        assertAdminOnly(() -> post("/api/areas/{id}/restore", randomAreaId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"reason\": \"Mở lại khu vực sau khi sửa chữa\", \"version\": 0}"));
     }
 
     @Test

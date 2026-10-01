@@ -157,15 +157,31 @@ public class AreaController {
         return ResponseEntity.ok(ApiResponse.success("Xóa hình học khu vực thành công"));
     }
 
-    @DeleteMapping("/{id}")
+    /**
+     * Step 6 (BR-AD-01): vô hiệu hoá khu vực. Body {reason, version}. Thay cho DELETE /api/areas/{id} (đã bỏ).
+     * Xem trước tác động: GET /{id}/dependencies (cùng hàm đánh giá).
+     */
+    @PostMapping("/{id}/deactivate")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<Void>> deactivate(
+    public ResponseEntity<ApiResponse<AreaResponse>> deactivate(
             @PathVariable UUID id,
+            @RequestBody(required = false) AreaDeactivateRequest request,
             Authentication authentication
     ) {
         String actorEmail = authentication.getName();
-        areaService.deactivate(id, actorEmail);
-        return ResponseEntity.ok(ApiResponse.success("Vô hiệu hóa khu vực thành công"));
+        return ResponseEntity.ok(ApiResponse.success(areaService.deactivate(id, request, actorEmail), "Vô hiệu hóa khu vực thành công"));
+    }
+
+    /** Step 6 (BR-AD-07): khôi phục khu vực đã vô hiệu hoá. Body {reason, version}. */
+    @PostMapping("/{id}/restore")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<AreaResponse>> restore(
+            @PathVariable UUID id,
+            @RequestBody(required = false) AreaRestoreRequest request,
+            Authentication authentication
+    ) {
+        String actorEmail = authentication.getName();
+        return ResponseEntity.ok(ApiResponse.success(areaService.restore(id, request, actorEmail), "Khôi phục khu vực thành công"));
     }
 
     @GetMapping("/{id}/cameras")

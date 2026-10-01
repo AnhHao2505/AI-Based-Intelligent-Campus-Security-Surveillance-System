@@ -31,7 +31,6 @@ import java.util.UUID;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -220,9 +219,12 @@ class AreaNameValidationIntegrationTest extends AbstractIntegrationTest {
         com.fasterxml.jackson.databind.JsonNode node1 = objectMapper.readTree(res1.getResponse().getContentAsString());
         String areaId1 = (node1.has("data") ? node1.get("data") : node1).get("id").asText();
 
-        // Xoá mềm khu vực 1
-        mockMvc.perform(delete("/api/areas/" + areaId1)
-                        .header("Authorization", adminToken))
+        // Xoá mềm khu vực 1 (Step 6: POST /deactivate thay cho DELETE)
+        long version1 = (node1.has("data") ? node1.get("data") : node1).path("version").asLong();
+        mockMvc.perform(post("/api/areas/" + areaId1 + "/deactivate")
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\": \"Ngừng sử dụng khu vực để thử tạo lại\", \"version\": " + version1 + "}"))
                 .andExpect(status().isOk());
 
         // Tạo lại khu vực mới cùng tên cùng tầng

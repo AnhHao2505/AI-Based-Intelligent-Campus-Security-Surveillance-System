@@ -220,6 +220,21 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(body, HttpStatus.NOT_FOUND);
     }
 
+    /** Phương thức HTTP không hỗ trợ trên đường dẫn có tồn tại (vd. DELETE /api/areas/{id} đã bỏ ở Step 6) -> 405, kèm header Allow. */
+    @ExceptionHandler(org.springframework.web.HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ApiResponse<Object>> handleMethodNotSupported(org.springframework.web.HttpRequestMethodNotSupportedException ex) {
+        ApiResponse<Object> body = ApiResponse.error(
+                HttpStatus.METHOD_NOT_ALLOWED.value(),
+                "METHOD_NOT_ALLOWED",
+                "Phương thức " + ex.getMethod() + " không được hỗ trợ cho đường dẫn này"
+        );
+        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+        if (ex.getSupportedHttpMethods() != null && !ex.getSupportedHttpMethods().isEmpty()) {
+            headers.setAllow(ex.getSupportedHttpMethods());
+        }
+        return new ResponseEntity<>(body, headers, HttpStatus.METHOD_NOT_ALLOWED);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Object>> handleGeneral(Exception ex) {
         String errorId = UUID.randomUUID().toString().substring(0, 8);

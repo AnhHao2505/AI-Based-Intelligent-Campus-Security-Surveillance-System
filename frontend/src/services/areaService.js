@@ -35,8 +35,10 @@ export async function getAreaById(id) {
 }
 
 /**
- * Kiểm tra các phụ thuộc trước khi xóa/vô hiệu hóa khu vực
+ * Xem trước vô hiệu hoá khu vực (chỉ đọc, ADMIN) — Step 6 BR-AD-08
  * GET /api/areas/{id}/dependencies
+ * @returns {Promise<{areaId, version, canDeactivate, blockers: Array<{errorCode, count, message}>,
+ *   apToRevoke, requestsToCancel, guestVisitsToCancel, guestVisitsToRevoke, note}>}
  */
 export async function getDependencies(id) {
 	return apiGet(`/api/areas/${id}/dependencies`);
@@ -61,11 +63,22 @@ export async function updateArea(id, data) {
 }
 
 /**
- * Vô hiệu hóa (Soft Delete) khu vực (ADMIN)
- * DELETE /api/areas/{id}
+ * Vô hiệu hoá khu vực (ADMIN) — Step 6 BR-AD-01. Thay cho DELETE /api/areas/{id} (đã bỏ).
+ * POST /api/areas/{id}/deactivate
+ * @param {Object} data { reason, version } — lý do 10–500 ký tự sau trim, version lấy từ xem trước
  */
-export async function deactivateArea(id) {
-	return apiDelete(`/api/areas/${id}`);
+export async function deactivateArea(id, data) {
+	return apiPost(`/api/areas/${id}/deactivate`, data);
+}
+
+/**
+ * Khôi phục khu vực đã vô hiệu hoá (ADMIN) — Step 6 BR-AD-07.
+ * Không tự khôi phục nhân sự chỉ định, đơn, lượt khách, camera.
+ * POST /api/areas/{id}/restore
+ * @param {Object} data { reason, version }
+ */
+export async function restoreArea(id, data) {
+	return apiPost(`/api/areas/${id}/restore`, data);
 }
 
 /**
