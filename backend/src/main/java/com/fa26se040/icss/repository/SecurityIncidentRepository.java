@@ -15,12 +15,12 @@ import java.util.UUID;
 public interface SecurityIncidentRepository extends JpaRepository<SecurityIncident, UUID> {
 
     @Query("SELECT i FROM SecurityIncident i WHERE i.status IN ('NEW', 'CLAIMED') " +
-            "AND (:building IS NULL OR LOWER(i.building) = LOWER(:building)) " +
+            "AND (:building IS NULL OR LOWER(i.building) = LOWER(CAST(:building AS string))) " +
             "ORDER BY i.detectedAt DESC")
     List<SecurityIncident> findActiveIncidents(@Param("building") String building);
 
     @Query("SELECT i FROM SecurityIncident i WHERE " +
-            "(:building IS NULL OR LOWER(i.building) = LOWER(:building)) AND " +
+            "(:building IS NULL OR LOWER(i.building) = LOWER(CAST(:building AS string))) AND " +
             "(:status IS NULL OR i.status = :status) " +
             "ORDER BY i.detectedAt DESC")
     List<SecurityIncident> findIncidents(

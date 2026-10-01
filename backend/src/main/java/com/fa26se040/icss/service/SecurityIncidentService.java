@@ -100,13 +100,15 @@ public class SecurityIncidentService {
 
     @Transactional(readOnly = true)
     public List<IncidentDetailResponse> getActiveIncidents(String building) {
-        List<SecurityIncident> list = incidentRepository.findActiveIncidents(building);
+        String normalizedBuilding = (building != null && !building.trim().isEmpty()) ? building.trim() : null;
+        List<SecurityIncident> list = incidentRepository.findActiveIncidents(normalizedBuilding);
         return list.stream().map(this::mapToDetailResponse).collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
     public List<IncidentDetailResponse> getIncidents(String building, IncidentStatus status) {
-        List<SecurityIncident> list = incidentRepository.findIncidents(building, status);
+        String normalizedBuilding = (building != null && !building.trim().isEmpty()) ? building.trim() : null;
+        List<SecurityIncident> list = incidentRepository.findIncidents(normalizedBuilding, status);
         return list.stream().map(this::mapToDetailResponse).collect(Collectors.toList());
     }
 
