@@ -82,7 +82,15 @@ public class AccessRequestService {
         Area area = getArea(request.areaId());
 
         validateCommonRules(area, request.startTime(), request.endTime());
-        validateAccessLevels(area, List.of(requester));
+        
+        int requiredLevel = area.getAreaAccessLevel() != null ? area.getAreaAccessLevel() : 1;
+        int requesterLevel = requester.getAccessLevel() != null ? requester.getAccessLevel() : 1;
+        if (requesterLevel < requiredLevel) {
+            throw new IllegalArgumentException(
+                    "Người tạo đơn không đủ cấp độ truy cập vào khu vực (yêu cầu Level " + requiredLevel + "): "
+                            + requester.getFullName() + " (" + requester.getUserCode() + ")"
+            );
+        }
 
         // Validate overlap for requester only
         validateNoOverlap(area.getId(), request.startTime(), request.endTime(), List.of(requester));
@@ -143,13 +151,39 @@ public class AccessRequestService {
             throw new IllegalArgumentException("Khu vực bảo mật cao (HIGHLY_CONFIDENTIAL) chỉ cho phép đăng ký truy cập cá nhân (INDIVIDUAL)");
         }
 
+        // Kiểm tra cấp của người tạo đơn
+        int requiredLevel = area.getAreaAccessLevel() != null ? area.getAreaAccessLevel() : 1;
+        int requesterLevel = requester.getAccessLevel() != null ? requester.getAccessLevel() : 1;
+        if (requesterLevel < requiredLevel) {
+            throw new IllegalArgumentException(
+                    "Người tạo đơn không đủ cấp độ truy cập vào khu vực (yêu cầu Level " + requiredLevel + "): "
+                            + requester.getFullName() + " (" + requester.getUserCode() + ")"
+            );
+        }
+
         List<User> memberUsers = resolveAndValidateGroupMembers(request.memberUserCodes(), requester);
+
+        boolean isSponsorshipAllowed = systemConfigService.getSponsorAllowedAreaLevels().contains(area.getAreaLevel());
+        if (!isSponsorshipAllowed) {
+            List<String> unqualifiedMembers = new ArrayList<>();
+            for (User memberUser : memberUsers) {
+                int memberLevel = memberUser.getAccessLevel() != null ? memberUser.getAccessLevel() : 1;
+                if (memberLevel < requiredLevel) {
+                    unqualifiedMembers.add(memberUser.getFullName() + " (" + memberUser.getUserCode() + ")");
+                }
+            }
+            if (!unqualifiedMembers.isEmpty()) {
+                throw new IllegalArgumentException(
+                        "Thành viên không đủ cấp độ truy cập vào khu vực (yêu cầu Level " + requiredLevel + "): "
+                                + String.join(", ", unqualifiedMembers)
+                );
+            }
+        }
 
         // Validate overlap for both requester and all group members
         List<User> allParticipants = new ArrayList<>();
         allParticipants.add(requester);
         allParticipants.addAll(memberUsers);
-        validateAccessLevels(area, allParticipants);
         validateNoOverlap(area.getId(), request.startTime(), request.endTime(), allParticipants);
 
         AccessRequest accessRequest = AccessRequest.builder()
@@ -164,9 +198,13 @@ public class AccessRequestService {
                 .build();
 
         for (User memberUser : memberUsers) {
+            int memberLevel = memberUser.getAccessLevel() != null ? memberUser.getAccessLevel() : 1;
+            boolean isSponsored = isSponsorshipAllowed && (memberLevel < requiredLevel);
+
             AccessRequestMember member = AccessRequestMember.builder()
                     .accessRequest(accessRequest)
                     .user(memberUser)
+                    .sponsored(isSponsored)
                     .build();
             accessRequest.getMembers().add(member);
         }
@@ -371,23 +409,50 @@ public class AccessRequestService {
                     throw new IllegalArgumentException("Khu vực bảo mật cao (HIGHLY_CONFIDENTIAL) không cho phép duyệt đơn truy cập nhóm (GROUP)");
                 }
 
-                List<User> participants = new ArrayList<>();
+                int requiredLevel = currentArea.getAreaAccessLevel() != null ? currentArea.getAreaAccessLevel() : 1;
+
                 if (pendingReq.getRequester() != null) {
                     User freshRequester = userRepository.findById(pendingReq.getRequester().getId())
                             .orElse(pendingReq.getRequester());
-                    participants.add(freshRequester);
+                    int requesterLevel = freshRequester.getAccessLevel() != null ? freshRequester.getAccessLevel() : 1;
+                    if (requesterLevel < requiredLevel) {
+                        throw new IllegalArgumentException(
+                                "Người tạo đơn không còn đủ cấp độ truy cập vào khu vực (yêu cầu Level " + requiredLevel + "): "
+                                        + freshRequester.getFullName() + " (" + freshRequester.getUserCode() + ")"
+                        );
+                    }
                 }
-                if (pendingReq.getMembers() != null) {
+
+                if (pendingReq.getRequestType() == RequestType.GROUP && pendingReq.getMembers() != null) {
+                    boolean isSponsorshipAllowed = systemConfigService.getSponsorAllowedAreaLevels().contains(currentArea.getAreaLevel());
+                    List<String> unqualifiedMembers = new ArrayList<>();
+
                     for (AccessRequestMember m : pendingReq.getMembers()) {
                         if (m.getUser() != null) {
                             User freshMember = userRepository.findById(m.getUser().getId())
                                     .orElse(m.getUser());
-                            participants.add(freshMember);
+
+                            if (Boolean.FALSE.equals(freshMember.getIsActive()) || freshMember.getDeletedAt() != null) {
+                                throw new IllegalArgumentException("Thành viên " + freshMember.getUserCode() + " đã bị vô hiệu hoá hoặc xoá khỏi hệ thống");
+                            }
+
+                            boolean isSponsored = Boolean.TRUE.equals(m.getSponsored());
+                            if (!isSponsorshipAllowed || !isSponsored) {
+                                int memberLevel = freshMember.getAccessLevel() != null ? freshMember.getAccessLevel() : 1;
+                                if (memberLevel < requiredLevel) {
+                                    unqualifiedMembers.add(freshMember.getFullName() + " (" + freshMember.getUserCode() + ")");
+                                }
+                            }
                         }
                     }
-                }
 
-                validateAccessLevels(currentArea, participants);
+                    if (!unqualifiedMembers.isEmpty()) {
+                        throw new IllegalArgumentException(
+                                "Thành viên không đủ cấp độ truy cập vào khu vực (yêu cầu Level " + requiredLevel + "): "
+                                        + String.join(", ", unqualifiedMembers)
+                        );
+                    }
+                }
             }
         }
 
@@ -873,7 +938,8 @@ public class AccessRequestService {
                     .map(m -> new MemberInfo(
                             m.getUser() != null ? m.getUser().getId() : null,
                             m.getUser() != null ? m.getUser().getUserCode() : null,
-                            m.getUser() != null ? m.getUser().getFullName() : null
+                            m.getUser() != null ? m.getUser().getFullName() : null,
+                            m.getSponsored() != null ? m.getSponsored() : false
                     ))
                     .toList();
         }
