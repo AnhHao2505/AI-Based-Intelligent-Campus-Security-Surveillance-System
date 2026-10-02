@@ -318,18 +318,18 @@ class AreaServiceAccessLevelTest {
                 .name("Phòng Nghiên Cứu")
                 .areaLevel(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
                 .areaAccessLevel(2)
-                .explicitAuthorizationRequired(false)
+                .explicitAuthorizationRequired(true)
                 .isActive(true)
                 .build();
 
         when(areaRepository.findByIdWithLock(areaId)).thenReturn(Optional.of(existing));
 
-        AreaAccessRulesUpdateRequest req = new AreaAccessRulesUpdateRequest(2, false, "Không đổi gì cả", 0L);
+        AreaAccessRulesUpdateRequest req = new AreaAccessRulesUpdateRequest(2, true, "Không đổi gì cả", 0L);
         AreaResponse resp = areaService.updateAccessRules(areaId, req, fmEmail);
 
         assertNotNull(resp);
         assertEquals(2, resp.areaAccessLevel());
-        assertFalse(resp.explicitAuthorizationRequired());
+        assertTrue(resp.explicitAuthorizationRequired());
 
         verify(areaRepository, org.mockito.Mockito.never()).save(any(Area.class));
         verify(auditService, org.mockito.Mockito.never()).record(any(), any(), any(), any(), any(), any(), any(), any(), any(User.class));

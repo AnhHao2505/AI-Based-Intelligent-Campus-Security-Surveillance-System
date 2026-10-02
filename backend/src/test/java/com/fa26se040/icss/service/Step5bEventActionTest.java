@@ -229,7 +229,7 @@ public class Step5bEventActionTest extends Step5bTestSupport {
         OffsetDateTime now = OffsetDateTime.now();
         openEvent(area, now.minusMinutes(10), now.plusHours(1));
         Long v0 = apiVersion(area);
-        MvcResult bump = patchAccessRules(fm2, area, 2, true, v0);
+        MvcResult bump = patchAccessRules(admin, area, 3, false, v0);
         assertEquals(200, status(bump), "Tiền đề: sửa quy tắc để version tăng: " + describe(bump));
         return v0;
     }

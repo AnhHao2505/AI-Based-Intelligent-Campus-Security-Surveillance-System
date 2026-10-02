@@ -699,7 +699,7 @@ class Step6AreaDeactivationTest extends GuestTestSupport {
         rules.put("explicitAuthorizationRequired", true);
         rules.put("reason", "Điều chỉnh quy tắc sau khi vô hiệu hoá");
         rules.put("version", v1);
-        assertBlocked(send(patch("/api/areas/{id}/access-rules", area.getId()), fm, rules).andReturn(), "access-rules", 400, "ERR_AREA_017");
+        assertBlocked(send(patch("/api/areas/{id}/access-rules", area.getId()), admin, rules).andReturn(), "access-rules", 400, "ERR_AREA_017");
 
         Map<String, Object> event = new LinkedHashMap<>();
         event.put("action", "ENABLE");

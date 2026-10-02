@@ -191,9 +191,9 @@ public class AreaEndpointAuthorizationTest extends AbstractIntegrationTest {
     // =========================================================================
 
     @Test
-    @DisplayName("T3 [FM ONLY]: PATCH /api/areas/{id}/access-rules -> 401 không token, 403 cho ADMIN/USER/GUARD")
-    void updateAccessRules_fmOnly() throws Exception {
-        assertFmOnly(() -> patch("/api/areas/{id}/access-rules", randomAreaId)
+    @DisplayName("T3 [ADMIN ONLY]: PATCH /api/areas/{id}/access-rules -> 401 không token, 403 cho FM/USER/GUARD")
+    void updateAccessRules_adminOnly() throws Exception {
+        assertAdminOnly(() -> patch("/api/areas/{id}/access-rules", randomAreaId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {

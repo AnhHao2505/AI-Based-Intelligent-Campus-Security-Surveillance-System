@@ -46,7 +46,7 @@ public class Step5bNoOpAuditTest extends Step5bTestSupport {
         Long v0 = apiVersion(area);
         long auditBefore = auditCountForArea(area);
 
-        MvcResult r = patchAccessRules(fm, area, 2, false, v0);
+        MvcResult r = patchAccessRules(admin, area, 2, false, v0);
 
         assertEquals(200, status(r), describe(r));
         assertEquals(v0, apiVersion(area), "Version không được đổi khi access rules không đổi");

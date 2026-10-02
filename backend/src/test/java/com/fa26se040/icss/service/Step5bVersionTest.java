@@ -101,7 +101,7 @@ public class Step5bVersionTest extends Step5bTestSupport {
         Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
         long auditBefore = auditCountForArea(area);
 
-        MvcResult r = patchAccessRules(fm, area, 2, true, null);
+        MvcResult r = patchAccessRules(admin, area, 3, false, null);
 
         assertMissingVersion(r);
         assertFalse(reload(area).getExplicitAuthorizationRequired());
@@ -114,14 +114,14 @@ public class Step5bVersionTest extends Step5bTestSupport {
         Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
         Long v0 = apiVersion(area);
 
-        MvcResult ok = patchAccessRules(fm, area, 2, true, v0);
+        MvcResult ok = patchAccessRules(admin, area, 3, false, v0);
         assertEquals(200, status(ok), describe(ok));
-        MvcResult stale = patchAccessRules(fm2, area, 3, true, v0);
+        MvcResult stale = patchAccessRules(admin, area, 1, false, v0);
 
         assertStaleVersion(stale);
         Area after = reload(area);
-        assertEquals(2, after.getAreaAccessLevel(), "Không được ghi đè cấp của người trước");
-        assertTrue(after.getExplicitAuthorizationRequired());
+        assertEquals(3, after.getAreaAccessLevel(), "Không được ghi đè cấp của người trước");
+        assertFalse(after.getExplicitAuthorizationRequired());
         assertEquals(1, auditsWithAction(area, "UPDATE").size());
     }
 
@@ -131,7 +131,7 @@ public class Step5bVersionTest extends Step5bTestSupport {
         Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
         Long v0 = apiVersion(area);
 
-        MvcResult r = patchAccessRules(fm, area, 2, true, v0);
+        MvcResult r = patchAccessRules(admin, area, 3, false, v0);
 
         assertEquals(200, status(r), describe(r));
         assertIncrementedBy1(v0, area);
@@ -382,7 +382,7 @@ public class Step5bVersionTest extends Step5bTestSupport {
                 "Tiền đề: job phải kích hoạt lịch");
         assertTrue(reload(area).getOpenToMembers());
         assertIncrementedBy1(v0, area);
-        MvcResult stale = patchAccessRules(fm, area, 3, true, v0);
+        MvcResult stale = patchAccessRules(admin, area, 3, false, v0);
         assertStaleVersion(stale);
         assertEquals(2, reload(area).getAreaAccessLevel());
     }
@@ -399,7 +399,7 @@ public class Step5bVersionTest extends Step5bTestSupport {
 
         assertFalse(reload(area).getOpenToMembers(), "Tiền đề: job phải tắt cờ sự kiện");
         assertIncrementedBy1(v0, area);
-        MvcResult stale = patchAccessRules(fm, area, 3, true, v0);
+        MvcResult stale = patchAccessRules(admin, area, 3, false, v0);
         assertStaleVersion(stale);
         assertEquals(2, reload(area).getAreaAccessLevel());
     }
@@ -419,7 +419,7 @@ public class Step5bVersionTest extends Step5bTestSupport {
 
         assertFalse(reload(area).getOpenToMembers(), "Tiền đề: dọn phiên hết hạn phải tắt cờ sự kiện");
         assertIncrementedBy1(v0, area);
-        assertStaleVersion(patchAccessRules(fm, area, 3, true, v0));
+        assertStaleVersion(patchAccessRules(admin, area, 3, false, v0));
     }
 
     @Test

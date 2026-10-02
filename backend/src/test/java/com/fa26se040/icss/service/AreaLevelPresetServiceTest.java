@@ -104,12 +104,12 @@ class AreaLevelPresetServiceTest {
         when(presetRepository.findById(AreaLevel.PUBLIC)).thenReturn(Optional.of(publicPreset));
         when(presetRepository.save(any(AreaLevelPreset.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        LevelPresetUpdateRequest req = new LevelPresetUpdateRequest(2, true, "Tăng cường bảo vệ sảnh", 0L);
+        LevelPresetUpdateRequest req = new LevelPresetUpdateRequest(2, false, "Tăng cường bảo vệ sảnh", 0L);
         LevelPresetResponse resp = presetService.updatePreset(AreaLevel.PUBLIC, req, "fm@fpt.edu.vn");
 
         assertNotNull(resp);
         assertEquals(2, resp.areaAccessLevel());
-        assertTrue(resp.explicitAuthorizationRequired());
+        assertFalse(resp.explicitAuthorizationRequired());
 
         verify(presetRepository).save(any(AreaLevelPreset.class));
         verify(auditService).record(any(), any(), eq("PUBLIC"), eq(null), eq(null), any(), any(), eq("Tăng cường bảo vệ sảnh"), eq(fm));
@@ -122,7 +122,7 @@ class AreaLevelPresetServiceTest {
         when(presetRepository.findById(AreaLevel.PUBLIC)).thenReturn(Optional.of(publicPreset));
         when(presetRepository.save(any(AreaLevelPreset.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        LevelPresetUpdateRequest req = new LevelPresetUpdateRequest(2, true, "Tăng cường bảo vệ sảnh", 0L);
+        LevelPresetUpdateRequest req = new LevelPresetUpdateRequest(2, false, "Tăng cường bảo vệ sảnh", 0L);
         presetService.updatePreset(AreaLevel.PUBLIC, req, "fm@fpt.edu.vn");
 
         org.mockito.ArgumentCaptor<com.fa26se040.icss.enums.AuditTargetType> targetTypeCaptor =
@@ -157,7 +157,7 @@ class AreaLevelPresetServiceTest {
         org.junit.jupiter.api.Assertions.assertNull(areaCaptor.getValue());
         org.junit.jupiter.api.Assertions.assertNull(userCaptor.getValue());
         assertEquals(new com.fa26se040.icss.dto.accesscontrol.snapshot.LevelPresetAuditSnapshot(1, false), oldSnapshotCaptor.getValue());
-        assertEquals(new com.fa26se040.icss.dto.accesscontrol.snapshot.LevelPresetAuditSnapshot(2, true), newSnapshotCaptor.getValue());
+        assertEquals(new com.fa26se040.icss.dto.accesscontrol.snapshot.LevelPresetAuditSnapshot(2, false), newSnapshotCaptor.getValue());
         assertEquals("Tăng cường bảo vệ sảnh", reasonCaptor.getValue());
         assertEquals(fm, actorCaptor.getValue());
     }
@@ -222,7 +222,7 @@ class AreaLevelPresetServiceTest {
         when(presetRepository.findById(AreaLevel.PUBLIC)).thenReturn(Optional.of(publicPreset));
         when(presetRepository.save(any(AreaLevelPreset.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        LevelPresetUpdateRequest req = new LevelPresetUpdateRequest(2, true, "Tăng cấp mặc định", 0L);
+        LevelPresetUpdateRequest req = new LevelPresetUpdateRequest(2, false, "Tăng cấp mặc định", 0L);
         presetService.updatePreset(AreaLevel.PUBLIC, req, "fm@fpt.edu.vn");
 
         // Existing area values remain unchanged
