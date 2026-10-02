@@ -14,6 +14,7 @@ import EventScheduleSection from "./EventScheduleSection";
 import { getAreaById, updateAreaAccessRules, updateAreaEventMode } from "../../services/areaService";
 import { getActiveReasons } from "../../services/reasonCatalogService";
 import { formatDisplayDateTime, getLevelConfig } from "../../utils/areaHelpers";
+import { useAuth } from "../../context/AuthContext";
 import "./AreaAccessRulesModal.css";
 
 const ACCESS_LEVEL_OPTIONS = [
@@ -51,8 +52,10 @@ export default function AreaAccessRulesModal({
 	onSuccess,
 	levelPresets,
 }) {
+	const { user } = useAuth();
+	const isAdmin = user?.role === "ADMIN";
+
 	const [accessLevel, setAccessLevel] = useState(1);
-	const [explicitAuth, setExplicitAuth] = useState(false);
 	const [eventModeEnabled, setEventModeEnabled] = useState(false);
 	const [openUntil, setOpenUntil] = useState("");
 	const [reason, setReason] = useState("");
@@ -122,13 +125,11 @@ export default function AreaAccessRulesModal({
 		initialOpenUntilLocal = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 	}
 
-	const rulesChanged =
-		Number(accessLevel) !== (area?.areaAccessLevel ?? 1) ||
-		Boolean(explicitAuth) !== Boolean(area?.explicitAuthorizationRequired);
+	const rulesChanged = Boolean(isAdmin) && Number(accessLevel) !== (area?.areaAccessLevel ?? 1);
 
 	const isEventOpenChanged = Boolean(eventModeEnabled) !== Boolean(area?.eventActive);
 	const isTimeChanged = Boolean(eventModeEnabled) && openUntil !== initialOpenUntilLocal;
-	const eventModeChanged = isEventModeApplicable && (isEventOpenChanged || isTimeChanged);
+	const eventModeChanged = !isAdmin && isEventModeApplicable && (isEventOpenChanged || isTimeChanged);
 
 	let currentEventAction = null;
 	if (eventModeChanged) {
@@ -145,7 +146,6 @@ export default function AreaAccessRulesModal({
 		if (area) {
 			setAreaVersion(area.version ?? null);
 			setAccessLevel(area.areaAccessLevel ?? 1);
-			setExplicitAuth(Boolean(area.explicitAuthorizationRequired));
 			setEventModeEnabled(Boolean(area.eventActive));
 			if (area.openUntil) {
 				const d = new Date(area.openUntil);
@@ -208,30 +208,27 @@ export default function AreaAccessRulesModal({
 		if (loadingArea) return;
 		setError(null);
 
-		if (!rulesChanged && !eventModeChanged) {
-			toast.info("Không có thay đổi nào cần lưu.");
-			handleClose();
-			return;
-		}
-
-		const trimmedRuleReason = reason.trim();
-		if (rulesChanged) {
+		if (isAdmin) {
+			if (!rulesChanged) {
+				toast.info("Không có thay đổi nào cần lưu.");
+				handleClose();
+				return;
+			}
+			const trimmedRuleReason = reason.trim();
 			if (!trimmedRuleReason) {
 				setError("Lý do cập nhật quy tắc khu vực là bắt buộc.");
 				return;
 			}
-			if (trimmedRuleReason.length < 10) {
+			if (trimmedRuleReason.length < 10 || trimmedRuleReason.length > 500) {
 				setError("Lý do phải có từ 10 đến 500 ký tự.");
 				return;
 			}
-			if (trimmedRuleReason.length > 500) {
-				setError("Lý do phải có từ 10 đến 500 ký tự.");
+		} else {
+			if (!eventModeChanged) {
+				toast.info("Không có thay đổi nào cần lưu.");
+				handleClose();
 				return;
 			}
-		}
-
-		let trimmedEventNote = "";
-		if (eventModeChanged) {
 			if (eventModeEnabled) {
 				if (!openUntil) {
 					setError("Thời điểm kết thúc sự kiện là bắt buộc khi bật chế độ sự kiện.");
@@ -247,17 +244,13 @@ export default function AreaAccessRulesModal({
 				setError("Vui lòng chọn lý do sự kiện từ danh mục.");
 				return;
 			}
-			trimmedEventNote = eventNote.trim();
+			const trimmedEventNote = eventNote.trim();
 			if (!trimmedEventNote) {
 				setError("Ghi chú thao tác sự kiện là bắt buộc.");
 				return;
 			}
-			if (trimmedEventNote.length < 10) {
-				setError("Ghi chú thao tác sự kiện phải có ít nhất 10 ký tự.");
-				return;
-			}
-			if (trimmedEventNote.length > 500) {
-				setError("Ghi chú thao tác sự kiện không được vượt quá 500 ký tự.");
+			if (trimmedEventNote.length < 10 || trimmedEventNote.length > 500) {
+				setError("Ghi chú thao tác sự kiện phải có từ 10 đến 500 ký tự.");
 				return;
 			}
 		}
@@ -267,26 +260,24 @@ export default function AreaAccessRulesModal({
 		try {
 			let latestUpdated = null;
 			let version = areaVersion;
-			if (rulesChanged) {
+			if (isAdmin && rulesChanged) {
 				const payload = {
 					areaAccessLevel: Number(accessLevel),
-					explicitAuthorizationRequired: Boolean(explicitAuth),
-					reason: trimmedRuleReason,
+					reason: reason.trim(),
 					version,
 				};
 				latestUpdated = await updateAreaAccessRules(area.id, payload);
-				// Lần lưu sau dùng version trong response (lưu quy tắc đã làm version tăng)
 				version = latestUpdated?.version ?? version;
 				setAreaVersion(version);
 			}
 
-			if (eventModeChanged) {
+			if (!isAdmin && eventModeChanged) {
 				const action = EVENT_ACTION_TO_API[currentEventAction];
 				const eventPayload = {
 					action,
 					openUntil: action !== "DISABLE" ? new Date(openUntil).toISOString() : null,
 					reasonCode: eventReasonCode,
-					note: trimmedEventNote,
+					note: eventNote.trim(),
 					version,
 				};
 				latestUpdated = await updateAreaEventMode(area.id, eventPayload);
@@ -300,7 +291,6 @@ export default function AreaAccessRulesModal({
 		} catch (err) {
 			console.error("Lỗi khi cập nhật quy tắc truy cập khu vực:", err);
 			if (err?.code === "ERR_AREA_045") {
-				// Người khác vừa cập nhật khu vực: tải lại dữ liệu mới nhất, giữ modal mở để FM xem lại rồi lưu lại
 				const staleMsg = "Khu vực đã được người khác cập nhật. Đã tải lại dữ liệu mới nhất, vui lòng kiểm tra và lưu lại.";
 				setError(staleMsg);
 				toast.error(staleMsg);
@@ -353,7 +343,13 @@ export default function AreaAccessRulesModal({
 				variant="primary"
 				onClick={handleSubmit}
 				loading={saving}
-				disabled={saving || loadingArea || (rulesChanged && reason.trim().length < 10)}
+				disabled={
+					saving ||
+					loadingArea ||
+					(isAdmin
+						? !rulesChanged || reason.trim().length < 10
+						: !eventModeChanged || (eventModeEnabled && !openUntil) || !eventReasonCode || eventNote.trim().length < 10)
+				}
 				icon={ShieldCheck}
 				type="button"
 			>
@@ -417,407 +413,406 @@ export default function AreaAccessRulesModal({
 					</div>
 				)}
 
-				{/* Section 1: areaAccessLevel */}
-				<div className="access-rules-group">
-					<label className="access-rules-label">
-						Mức độ bảo mật của khu vực
-					</label>
-					<p className="access-rules-hint">
-						Người dùng có cấp độ quyền hạn lớn hơn hoặc bằng mức này sẽ được phép
-						truy cập tự do khi chế độ xác thực cụ thể không được kích hoạt.
-					</p>
-
-					<div className="access-rules-options">
-						{ACCESS_LEVEL_OPTIONS.map((opt) => {
-							const isSelected = accessLevel === opt.level;
-							const IconComponent = opt.icon;
-							return (
-								<label
-									key={opt.level}
-									className={`access-rules-option ${isSelected ? "access-rules-option--selected" : ""}`}
-								>
-									<input
-										type="radio"
-										name="areaAccessLevel"
-										value={opt.level}
-										checked={isSelected}
-										onChange={() => setAccessLevel(opt.level)}
-										className="access-rules-option__radio"
-									/>
-									<div className="access-rules-option__content">
-										<div className="access-rules-option__header">
-											<IconComponent
-												size={16}
-												className="access-rules-option__icon"
-											/>
-											<span className="access-rules-option__title">
-												{opt.title}
-											</span>
-										</div>
-										<span className="access-rules-option__desc">
-											{opt.desc}
-										</span>
-									</div>
-								</label>
-							);
-						})}
-					</div>
-				</div>
-
-				{/* Section 2: explicitAuthorizationRequired */}
-				<div className="access-rules-group">
-					<label className="access-rules-checkbox-card">
-						<div className="access-rules-checkbox-wrap">
-							<input
-								type="checkbox"
-								id="explicit-auth-toggle"
-								checked={explicitAuth}
-								onChange={(e) => setExplicitAuth(e.target.checked)}
-								className="access-rules-checkbox"
-							/>
-						</div>
-						<div className="access-rules-checkbox-info">
-							<span className="access-rules-checkbox-title">
-								Cấp độ không tự cho vào – cần được chỉ định hoặc có đơn được duyệt
-							</span>
-							<p className="access-rules-checkbox-desc">
-								Khi bật, chỉ người được phân quyền hoặc có đơn phê duyệt hợp lệ
-								mới được phép vào khu vực; mức độ truy cập tự do không được áp
-								dụng.
+				{isAdmin ? (
+					<>
+						{/* Section 1: areaAccessLevel (ADMIN ONLY) */}
+						<div className="access-rules-group">
+							<label className="access-rules-label">
+								Mức độ bảo mật của khu vực
+							</label>
+							<p className="access-rules-hint">
+								Người dùng có cấp độ quyền hạn lớn hơn hoặc bằng mức này sẽ được phép
+								truy cập tự do khi chế độ xác thực cụ thể không được kích hoạt.
 							</p>
-						</div>
-					</label>
-				</div>
 
-				{/* Section 2b: Chế độ sự kiện (Event Mode / open_to_members) */}
-				<div className="access-rules-group">
-					<label className="access-rules-label">
-						Chế độ sự kiện
-					</label>
-					{!isEventModeApplicable ? (
-						<div
-							style={{
-								padding: "10px 14px",
-								borderRadius: "8px",
-								background: "rgba(100, 116, 139, 0.08)",
-								border: "1px solid rgba(100, 116, 139, 0.2)",
-								fontSize: "12.5px",
-								color: "var(--theme-text-muted, #64748b)",
-							}}
-						>
-							Chế độ sự kiện chỉ áp dụng cho khu vực <strong>Bảo mật nội bộ</strong> hoặc <strong>Bảo mật - liên hệ trước</strong> (không áp dụng cho khu vực Công khai và Tuyệt mật).
+							<div className="access-rules-options">
+								{ACCESS_LEVEL_OPTIONS.map((opt) => {
+									const isSelected = accessLevel === opt.level;
+									const IconComponent = opt.icon;
+									return (
+										<label
+											key={opt.level}
+											className={`access-rules-option ${isSelected ? "access-rules-option--selected" : ""}`}
+										>
+											<input
+												type="radio"
+												name="areaAccessLevel"
+												value={opt.level}
+												checked={isSelected}
+												onChange={() => setAccessLevel(opt.level)}
+												className="access-rules-option__radio"
+											/>
+											<div className="access-rules-option__content">
+												<div className="access-rules-option__header">
+													<IconComponent
+														size={16}
+														className="access-rules-option__icon"
+													/>
+													<span className="access-rules-option__title">
+														{opt.title}
+													</span>
+												</div>
+												<span className="access-rules-option__desc">
+													{opt.desc}
+												</span>
+											</div>
+										</label>
+									);
+								})}
+							</div>
 						</div>
-					) : (
+
+						{/* Section 3: Lý do cập nhật quy tắc (ADMIN ONLY - khi có thay đổi cấp độ) */}
+						{rulesChanged && (
+							<div className="access-rules-group" style={{ marginTop: "16px" }}>
+								<label
+									htmlFor="access-rules-reason"
+									style={{
+										display: "block",
+										marginBottom: "6px",
+										fontSize: "13.5px",
+										fontWeight: 600,
+										color: "var(--theme-text-primary, #0f172a)",
+									}}
+								>
+									Lý do cập nhật quy tắc khu vực <span style={{ color: "var(--theme-danger, #ef4444)" }}>*</span>
+								</label>
+								<textarea
+									id="access-rules-reason"
+									rows={3}
+									style={{
+										width: "100%",
+										padding: "8px 12px",
+										borderRadius: "8px",
+										border: "1px solid var(--theme-border, #cbd5e1)",
+										background: "var(--theme-card-bg, #ffffff)",
+										color: "var(--theme-text-primary, #0f172a)",
+										fontSize: "13.5px",
+										lineHeight: "1.5",
+										resize: "vertical",
+										boxSizing: "border-box",
+									}}
+									placeholder="Nhập lý do điều chỉnh quy tắc truy cập khu vực (tối đa 500 ký tự)..."
+									value={reason}
+									onChange={(e) => setReason(e.target.value)}
+									maxLength={500}
+									required
+								/>
+								<div
+									style={{
+										display: "flex",
+										justifyContent: "space-between",
+										fontSize: "12px",
+										color: "var(--theme-text-muted, #64748b)",
+										marginTop: "4px",
+									}}
+								>
+									<span>Tối thiểu 10 ký tự, tối đa 500 ký tự</span>
+									<span>{reason.length}/500 ký tự</span>
+								</div>
+							</div>
+						)}
+					</>
+				) : (
+					<>
+						{/* Read-only Security Level Info for FM */}
 						<div
 							style={{
 								padding: "12px 14px",
-								borderRadius: "10px",
+								borderRadius: "8px",
 								background: "var(--theme-bg-surface, #ffffff)",
-								border: "1px solid var(--theme-border, rgba(255, 255, 255, 0.1))",
-								display: "flex",
-								flexDirection: "column",
-								gap: "12px",
+								border: "1px solid var(--theme-border, #cbd5e1)",
+								marginBottom: "16px",
+								fontSize: "13px",
 							}}
 						>
-							{isEventExpired && (
+							<div style={{ fontWeight: 600, color: "var(--theme-text-primary, #0f172a)", marginBottom: "4px" }}>
+								Mức độ bảo mật: Cấp {area?.areaAccessLevel ?? 1} · {area?.explicitAuthorizationRequired ? "Cần chỉ định hoặc đơn duyệt" : "Tự do theo cấp"}
+							</div>
+							<div style={{ fontSize: "12px", color: "var(--theme-text-muted, #64748b)" }}>
+								Định nghĩa loại và cấp độ bảo mật khu vực do Quản trị viên (ADMIN) cấu hình.
+							</div>
+						</div>
+
+						{/* Section 2b: Chế độ sự kiện (FM ONLY) */}
+						<div className="access-rules-group">
+							<label className="access-rules-label">
+								Chế độ sự kiện
+							</label>
+							{!isEventModeApplicable ? (
 								<div
 									style={{
-										padding: "8px 12px",
+										padding: "10px 14px",
 										borderRadius: "8px",
-										background: "var(--theme-info-bg)",
-										border: "1px solid var(--theme-info-border)",
+										background: "rgba(100, 116, 139, 0.08)",
+										border: "1px solid rgba(100, 116, 139, 0.2)",
 										fontSize: "12.5px",
-										display: "flex",
-										alignItems: "center",
-										gap: "8px",
-										color: "var(--theme-info-text)",
+										color: "var(--theme-text-muted, #64748b)",
 									}}
 								>
-									<Info size={15} style={{ flexShrink: 0 }} />
-									<span>
-										Sự kiện đã kết thúc lúc{" "}
-										{area.openUntil ? formatDisplayDateTime(area.openUntil) : "—"}{" "}
-										(coi như đang tắt).
-									</span>
+									Chế độ sự kiện chỉ áp dụng cho khu vực <strong>Bảo mật nội bộ</strong> hoặc <strong>Bảo mật - liên hệ trước</strong> (không áp dụng cho khu vực Công khai và Tuyệt mật).
 								</div>
-							)}
-
-							<label
-								style={{
-									display: "flex",
-									alignItems: "center",
-									justifyContent: "space-between",
-									cursor: "pointer",
-									userSelect: "none",
-								}}
-							>
-								<div>
-									<div style={{ fontWeight: 600, fontSize: "13.5px", color: "var(--theme-text-primary, #0f172a)" }}>
-										Mở cửa cho thành viên trong thời gian sự kiện
-									</div>
-									<div style={{ fontSize: "12px", color: "var(--theme-text-muted, #64748b)", marginTop: "2px" }}>
-										Khi bật, tất cả thành viên hợp lệ được phép vào khu vực cho đến thời điểm kết thúc mà không cần đơn truy cập riêng.
-									</div>
-								</div>
-								<input
-									type="checkbox"
-									id="event-mode-toggle"
-									checked={eventModeEnabled}
-									onChange={(e) => setEventModeEnabled(e.target.checked)}
-									style={{ width: "18px", height: "18px", cursor: "pointer", accentColor: "var(--brand-blue, #3b82f6)" }}
-								/>
-							</label>
-
-							{eventModeEnabled && (
-								<div style={{ borderTop: "1px dashed var(--theme-border, #cbd5e1)", paddingTop: "10px" }}>
-									{area?.eventActive && area?.eventStartedAt && (
-										<div
-											style={{
-												marginBottom: "10px",
-												fontSize: "12.5px",
-												lineHeight: 1.6,
-												color: "var(--theme-text-secondary, #475569)",
-											}}
-										>
-											<div>
-												<strong style={{ color: "var(--theme-text-primary, #0f172a)" }}>Bắt đầu lúc:</strong>{" "}
-												{formatDisplayDateTime(area.eventStartedAt)}
-												{area.eventStartedByName ? ` — bởi ${area.eventStartedByName}` : ""}
-											</div>
-											{area.eventLastAdjustedAt && (
-												<div>
-													<strong style={{ color: "var(--theme-text-primary, #0f172a)" }}>
-														Điều chỉnh giờ kết thúc lần cuối:
-													</strong>{" "}
-													{formatDisplayDateTime(area.eventLastAdjustedAt)}
-													{area.eventLastAdjustedByName ? ` — bởi ${area.eventLastAdjustedByName}` : ""}
-												</div>
-											)}
-										</div>
-									)}
-									<label
-										htmlFor="event-mode-open-until"
-										style={{
-											display: "block",
-											marginBottom: "6px",
-											fontSize: "12.5px",
-											fontWeight: 600,
-											color: "var(--theme-text-primary, #0f172a)",
-										}}
-									>
-										Thời điểm kết thúc sự kiện <span style={{ color: "var(--theme-danger, #ef4444)" }}>*</span>
-									</label>
-									<input
-										type="datetime-local"
-										id="event-mode-open-until"
-										value={openUntil}
-										onChange={(e) => setOpenUntil(e.target.value)}
-										min={new Date().toISOString().slice(0, 16)}
-										required
-										style={{
-											width: "100%",
-											padding: "8px 12px",
-											borderRadius: "8px",
-											border: "1px solid var(--theme-border, #cbd5e1)",
-											background: "var(--theme-card-bg, #ffffff)",
-											color: "var(--theme-text-primary, #0f172a)",
-											fontSize: "13.5px",
-											boxSizing: "border-box",
-										}}
-									/>
-									<p style={{ fontSize: "11.5px", color: "var(--theme-text-muted, #64748b)", margin: "4px 0 0 0" }}>
-										Sau thời điểm này, chế độ sự kiện sẽ tự động hết hiệu lực mà không cần can thiệp thủ công.
-									</p>
-								</div>
-							)}
-
-							{/* Standardized Reason & Note for Event Mode */}
-							{eventModeChanged && (
+							) : (
 								<div
 									style={{
-										borderTop: "1px dashed var(--theme-border, #cbd5e1)",
-										paddingTop: "12px",
+										padding: "12px 14px",
+										borderRadius: "10px",
+										background: "var(--theme-bg-surface, #ffffff)",
+										border: "1px solid var(--theme-border, rgba(255, 255, 255, 0.1))",
 										display: "flex",
 										flexDirection: "column",
-										gap: "10px",
+										gap: "12px",
 									}}
 								>
-									<div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-										<span
+									{isEventExpired && (
+										<div
 											style={{
-												fontSize: "11.5px",
-												fontWeight: 700,
-												textTransform: "uppercase",
-												letterSpacing: "0.5px",
-												color: "var(--brand-blue, #2563eb)",
-											}}
-										>
-											Thao tác:
-										</span>
-										<span style={{ fontSize: "12.5px", fontWeight: 600, color: "var(--theme-text-primary, #0f172a)" }}>
-											{currentEventAction === "EVENT_ENABLE" && "Bật chế độ sự kiện"}
-											{currentEventAction === "EVENT_DISABLE" && "Tắt chế độ sự kiện"}
-											{currentEventAction === "EVENT_EXTEND" && "Điều chỉnh giờ kết thúc"}
-										</span>
-									</div>
-
-									<div>
-										<label
-											htmlFor="event-mode-reason-code"
-											style={{
-												display: "block",
-												marginBottom: "4px",
+												padding: "8px 12px",
+												borderRadius: "8px",
+												background: "var(--theme-info-bg)",
+												border: "1px solid var(--theme-info-border)",
 												fontSize: "12.5px",
-												fontWeight: 600,
-												color: "var(--theme-text-primary, #0f172a)",
+												display: "flex",
+												alignItems: "center",
+												gap: "8px",
+												color: "var(--theme-info-text)",
 											}}
 										>
-											Lý do sự kiện <span style={{ color: "var(--theme-danger, #ef4444)" }}>*</span>
-										</label>
-										{loadingReasons ? (
-											<div style={{ fontSize: "12px", color: "var(--theme-text-muted, #64748b)" }}>
-												Đang tải danh mục lý do...
+											<Info size={15} style={{ flexShrink: 0 }} />
+											<span>
+												Sự kiện đã kết thúc lúc{" "}
+												{area.openUntil ? formatDisplayDateTime(area.openUntil) : "—"}{" "}
+												(coi như đang tắt).
+											</span>
+										</div>
+									)}
+
+									<label
+										style={{
+											display: "flex",
+											alignItems: "center",
+											justifyContent: "space-between",
+											cursor: "pointer",
+											userSelect: "none",
+										}}
+									>
+										<div>
+											<div style={{ fontWeight: 600, fontSize: "13.5px", color: "var(--theme-text-primary, #0f172a)" }}>
+												Mở cửa cho thành viên trong thời gian sự kiện
 											</div>
-										) : (
-											<select
-												id="event-mode-reason-code"
-												value={eventReasonCode}
-												onChange={(e) => setEventReasonCode(e.target.value)}
+											<div style={{ fontSize: "12px", color: "var(--theme-text-muted, #64748b)", marginTop: "2px" }}>
+												Khi bật, tất cả thành viên hợp lệ được phép vào khu vực cho đến thời điểm kết thúc mà không cần đơn truy cập riêng.
+											</div>
+										</div>
+										<input
+											type="checkbox"
+											id="event-mode-toggle"
+											checked={eventModeEnabled}
+											onChange={(e) => setEventModeEnabled(e.target.checked)}
+											style={{ width: "18px", height: "18px", cursor: "pointer", accentColor: "var(--brand-blue, #3b82f6)" }}
+										/>
+									</label>
+
+									{eventModeEnabled && (
+										<div style={{ borderTop: "1px dashed var(--theme-border, #cbd5e1)", paddingTop: "10px" }}>
+											{area?.eventActive && area?.eventStartedAt && (
+												<div
+													style={{
+														marginBottom: "10px",
+														fontSize: "12.5px",
+														lineHeight: 1.6,
+														color: "var(--theme-text-secondary, #475569)",
+													}}
+												>
+													<div>
+														<strong style={{ color: "var(--theme-text-primary, #0f172a)" }}>Bắt đầu lúc:</strong>{" "}
+														{formatDisplayDateTime(area.eventStartedAt)}
+														{area.eventStartedByName ? ` — bởi ${area.eventStartedByName}` : ""}
+													</div>
+													{area.eventLastAdjustedAt && (
+														<div>
+															<strong style={{ color: "var(--theme-text-primary, #0f172a)" }}>
+																Điều chỉnh giờ kết thúc lần cuối:
+															</strong>{" "}
+															{formatDisplayDateTime(area.eventLastAdjustedAt)}
+															{area.eventLastAdjustedByName ? ` — bởi ${area.eventLastAdjustedByName}` : ""}
+														</div>
+													)}
+												</div>
+											)}
+											<label
+												htmlFor="event-mode-open-until"
+												style={{
+													display: "block",
+													marginBottom: "6px",
+													fontSize: "12.5px",
+													fontWeight: 600,
+													color: "var(--theme-text-primary, #0f172a)",
+												}}
+											>
+												Thời điểm kết thúc sự kiện <span style={{ color: "var(--theme-danger, #ef4444)" }}>*</span>
+											</label>
+											<input
+												type="datetime-local"
+												id="event-mode-open-until"
+												value={openUntil}
+												onChange={(e) => setOpenUntil(e.target.value)}
+												min={new Date().toISOString().slice(0, 16)}
+												required
 												style={{
 													width: "100%",
 													padding: "8px 12px",
 													borderRadius: "8px",
 													border: "1px solid var(--theme-border, #cbd5e1)",
 													background: "var(--theme-card-bg, #ffffff)",
-													fontSize: "13px",
 													color: "var(--theme-text-primary, #0f172a)",
+													fontSize: "13.5px",
+													boxSizing: "border-box",
 												}}
-											>
-												{eventReasons.map((r) => (
-													<option key={r.code} value={r.code}>
-														{r.label}
-													</option>
-												))}
-											</select>
-										)}
-									</div>
-
-									<div>
-										<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
-											<label
-												htmlFor="event-mode-note"
-												style={{
-													fontSize: "12.5px",
-													fontWeight: 600,
-													color: "var(--theme-text-primary, #0f172a)",
-												}}
-											>
-												Ghi chú thao tác sự kiện <span style={{ color: "var(--theme-danger, #ef4444)" }}>*</span>
-											</label>
-											<span
-												style={{
-													fontSize: "11.5px",
-													fontWeight: 600,
-													color:
-														eventNote.trim().length >= 10 && eventNote.trim().length <= 500
-															? "var(--theme-text-muted, #64748b)"
-															: "var(--theme-danger, #ef4444)",
-												}}
-											>
-												{eventNote.trim().length}/500 (tối thiểu 10 ký tự)
-											</span>
+											/>
+											<p style={{ fontSize: "11.5px", color: "var(--theme-text-muted, #64748b)", margin: "4px 0 0 0" }}>
+												Sau thời điểm này, chế độ sự kiện sẽ tự động hết hiệu lực mà không cần can thiệp thủ công.
+											</p>
 										</div>
-										<textarea
-											id="event-mode-note"
-											rows={2}
-											value={eventNote}
-											onChange={(e) => setEventNote(e.target.value)}
-											placeholder="Nêu tên sự kiện hoặc đơn vị tổ chức (10–500 ký tự)"
-											maxLength={500}
+									)}
+
+									{/* Standardized Reason & Note for Event Mode */}
+									{eventModeChanged && (
+										<div
 											style={{
-												width: "100%",
-												padding: "8px 12px",
-												borderRadius: "8px",
-												border: "1px solid var(--theme-border, #cbd5e1)",
-												background: "var(--theme-card-bg, #ffffff)",
-												fontSize: "13px",
-												color: "var(--theme-text-primary, #0f172a)",
-												lineHeight: "1.4",
-												resize: "vertical",
-												boxSizing: "border-box",
+												borderTop: "1px dashed var(--theme-border, #cbd5e1)",
+												paddingTop: "12px",
+												display: "flex",
+												flexDirection: "column",
+												gap: "10px",
 											}}
-										/>
-									</div>
+										>
+											<div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+												<span
+													style={{
+														fontSize: "11.5px",
+														fontWeight: 700,
+														textTransform: "uppercase",
+														letterSpacing: "0.5px",
+														color: "var(--brand-blue, #2563eb)",
+													}}
+												>
+													Thao tác:
+												</span>
+												<span style={{ fontSize: "12.5px", fontWeight: 600, color: "var(--theme-text-primary, #0f172a)" }}>
+													{currentEventAction === "EVENT_ENABLE" && "Bật chế độ sự kiện"}
+													{currentEventAction === "EVENT_DISABLE" && "Tắt chế độ sự kiện"}
+													{currentEventAction === "EVENT_EXTEND" && "Điều chỉnh giờ kết thúc"}
+												</span>
+											</div>
+
+											<div>
+												<label
+													htmlFor="event-mode-reason-code"
+													style={{
+														display: "block",
+														marginBottom: "4px",
+														fontSize: "12.5px",
+														fontWeight: 600,
+														color: "var(--theme-text-primary, #0f172a)",
+													}}
+												>
+													Lý do sự kiện <span style={{ color: "var(--theme-danger, #ef4444)" }}>*</span>
+												</label>
+												{loadingReasons ? (
+													<div style={{ fontSize: "12px", color: "var(--theme-text-muted, #64748b)" }}>
+														Đang tải danh mục lý do...
+													</div>
+												) : (
+													<select
+														id="event-mode-reason-code"
+														value={eventReasonCode}
+														onChange={(e) => setEventReasonCode(e.target.value)}
+														style={{
+															width: "100%",
+															padding: "8px 12px",
+															borderRadius: "8px",
+															border: "1px solid var(--theme-border, #cbd5e1)",
+															background: "var(--theme-card-bg, #ffffff)",
+															fontSize: "13px",
+															color: "var(--theme-text-primary, #0f172a)",
+														}}
+													>
+														{eventReasons.map((r) => (
+															<option key={r.code} value={r.code}>
+																{r.label}
+															</option>
+														))}
+													</select>
+												)}
+											</div>
+
+											<div>
+												<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+													<label
+														htmlFor="event-mode-note"
+														style={{
+															fontSize: "12.5px",
+															fontWeight: 600,
+															color: "var(--theme-text-primary, #0f172a)",
+														}}
+													>
+														Ghi chú thao tác sự kiện <span style={{ color: "var(--theme-danger, #ef4444)" }}>*</span>
+													</label>
+													<span
+														style={{
+															fontSize: "11.5px",
+															fontWeight: 600,
+															color:
+																eventNote.trim().length >= 10 && eventNote.trim().length <= 500
+																	? "var(--theme-text-muted, #64748b)"
+																	: "var(--theme-danger, #ef4444)",
+														}}
+													>
+														{eventNote.trim().length}/500 (tối thiểu 10 ký tự)
+													</span>
+												</div>
+												<textarea
+													id="event-mode-note"
+													rows={2}
+													value={eventNote}
+													onChange={(e) => setEventNote(e.target.value)}
+													placeholder="Nêu tên sự kiện hoặc đơn vị tổ chức (10–500 ký tự)"
+													maxLength={500}
+													style={{
+														width: "100%",
+														padding: "8px 12px",
+														borderRadius: "8px",
+														border: "1px solid var(--theme-border, #cbd5e1)",
+														background: "var(--theme-card-bg, #ffffff)",
+														fontSize: "13px",
+														color: "var(--theme-text-primary, #0f172a)",
+														lineHeight: "1.4",
+														resize: "vertical",
+														boxSizing: "border-box",
+													}}
+												/>
+											</div>
+										</div>
+									)}
+
+									{/* Lịch sự kiện (U3b) — thao tác độc lập với nút Lưu thay đổi */}
+									<EventScheduleSection
+										area={area}
+										onSchedulesChanged={() => {
+											schedulesChangedRef.current = true;
+											getAreaById(area.id)
+												.then((res) => {
+													const fresh = res?.data || res;
+													if (fresh?.id) setAreaVersion(fresh.version ?? null);
+												})
+												.catch((err) => console.error("Lỗi khi tải version khu vực sau thao tác lịch:", err));
+										}}
+									/>
 								</div>
 							)}
-
-							{/* Lịch sự kiện (U3b) — thao tác độc lập với nút Lưu thay đổi */}
-							<EventScheduleSection
-								area={area}
-								onSchedulesChanged={() => {
-									schedulesChangedRef.current = true;
-									// Thao tác lịch có thể làm version tăng (dọn phiên hết hạn): chỉ lấy version mới, không reset form
-									getAreaById(area.id)
-										.then((res) => {
-											const fresh = res?.data || res;
-											if (fresh?.id) setAreaVersion(fresh.version ?? null);
-										})
-										.catch((err) => console.error("Lỗi khi tải version khu vực sau thao tác lịch:", err));
-								}}
-							/>
 						</div>
-					)}
-				</div>
-
-				{/* Section 3: Lý do cập nhật quy tắc (Chỉ hiển thị khi có thay đổi Cấp độ hoặc Đích danh) */}
-				{rulesChanged && (
-					<div className="access-rules-group" style={{ marginTop: "16px" }}>
-						<label
-							htmlFor="access-rules-reason"
-							style={{
-								display: "block",
-								marginBottom: "6px",
-								fontSize: "13.5px",
-								fontWeight: 600,
-								color: "var(--theme-text-primary, #0f172a)",
-							}}
-						>
-							Lý do cập nhật quy tắc khu vực <span style={{ color: "var(--theme-danger, #ef4444)" }}>*</span>
-						</label>
-						<textarea
-							id="access-rules-reason"
-							rows={3}
-							style={{
-								width: "100%",
-								padding: "8px 12px",
-								borderRadius: "8px",
-								border: "1px solid var(--theme-border, #cbd5e1)",
-								background: "var(--theme-card-bg, #ffffff)",
-								color: "var(--theme-text-primary, #0f172a)",
-								fontSize: "13.5px",
-								lineHeight: "1.5",
-								resize: "vertical",
-								boxSizing: "border-box",
-							}}
-							placeholder="Nhập lý do điều chỉnh quy tắc truy cập khu vực (tối đa 500 ký tự)..."
-							value={reason}
-							onChange={(e) => setReason(e.target.value)}
-							maxLength={500}
-							required
-						/>
-						<div
-							style={{
-								display: "flex",
-								justifyContent: "space-between",
-								fontSize: "12px",
-								color: "var(--theme-text-muted, #64748b)",
-								marginTop: "4px",
-							}}
-						>
-							<span>Tối thiểu 10 ký tự, tối đa 500 ký tự</span>
-							<span>{reason.length}/500 ký tự</span>
-						</div>
-					</div>
+					</>
 				)}
 				</fieldset>
 			</form>

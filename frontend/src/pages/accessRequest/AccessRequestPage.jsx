@@ -641,8 +641,10 @@ export default function AccessRequestPage() {
 											</div>
 											<div>
 												{isHighlyConf
-													? `Khu vực ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name}. Chỉ áp dụng hình thức đăng ký truy cập Cá nhân (Individual).`
-													: "Khu vực yêu cầu xác nhận. Nhân sự cấp 2 cần làm đơn đăng ký (cá nhân hoặc nhóm) hoặc có tên trong danh sách chỉ định."}
+													? `Khu vực ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name}. Chỉ áp dụng hình thức đăng ký truy cập Cá nhân (không hỗ trợ đăng ký theo nhóm).`
+													: currentArea?.areaLevel === "CONFIDENTIAL_CONTACT_REQUIRED"
+													? "Khu vực yêu cầu liên hệ trước. Người tạo đơn đủ cấp độ truy cập có thể bảo lãnh cho các thành viên trong nhóm tham gia cùng thời gian đăng ký."
+													: "Khu vực yêu cầu phê duyệt trước khi vào."}
 											</div>
 										</div>
 									</div>
@@ -1460,6 +1462,11 @@ export default function AccessRequestPage() {
 													className="arp-member-chip"
 												>
 													<strong>{m.userCode}</strong> · {m.fullName}
+													{m.sponsored && (
+														<span style={{ marginLeft: "6px", fontSize: "11px", padding: "1px 6px", borderRadius: "4px", backgroundColor: "rgba(59, 130, 246, 0.15)", color: "var(--brand-blue, #3b82f6)", fontWeight: 600 }}>
+															Bảo lãnh
+														</span>
+													)}
 												</span>
 											))}
 										</div>

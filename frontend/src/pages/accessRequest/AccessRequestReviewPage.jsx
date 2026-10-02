@@ -756,6 +756,11 @@ export default function AccessRequestReviewPage() {
                     {detailItem.members.map(m => (
                       <span key={m.userId || m.userCode} className="arr-member-chip">
                         <strong>{m.userCode}</strong> - {m.fullName}
+                        {m.sponsored && (
+                          <span style={{ marginLeft: '6px', fontSize: '11px', padding: '1px 6px', borderRadius: '4px', backgroundColor: 'rgba(59, 130, 246, 0.15)', color: 'var(--brand-blue, #3b82f6)', fontWeight: 600 }}>
+                            Bảo lãnh
+                          </span>
+                        )}
                       </span>
                     ))}
                   </div>
