@@ -52,9 +52,17 @@ public class AreaLevelPresetService {
             throw new AccessControlException(AccessControlErrorCode.ERR_AC_003);
         }
 
+        boolean expectedExplicit = (areaLevel == AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED || areaLevel == AreaLevel.HIGHLY_CONFIDENTIAL);
+        if (req.explicitAuthorizationRequired() != null && req.explicitAuthorizationRequired() != expectedExplicit) {
+            throw new IllegalArgumentException(
+                    "Cờ yêu cầu chỉ định (explicitAuthorizationRequired) của preset được suy ra từ loại khu vực ("
+                            + areaLevel + ") và không được thay đổi độc lập."
+            );
+        }
+
         // BR-AL-06: Thao tác không làm thay đổi giá trị (new == old) -> không ghi log, trả về trạng thái hiện tại
         if (Objects.equals(preset.getAreaAccessLevel(), req.areaAccessLevel()) &&
-                Objects.equals(preset.getExplicitAuthorizationRequired(), req.explicitAuthorizationRequired())) {
+                Objects.equals(preset.getExplicitAuthorizationRequired(), expectedExplicit)) {
             log.info("Preset for {} has not changed, skipping audit log", areaLevel);
             return mapToResponse(preset);
         }
@@ -65,7 +73,7 @@ public class AreaLevelPresetService {
         );
 
         preset.setAreaAccessLevel(req.areaAccessLevel());
-        preset.setExplicitAuthorizationRequired(req.explicitAuthorizationRequired());
+        preset.setExplicitAuthorizationRequired(expectedExplicit);
         preset.setUpdatedBy(actor);
         preset.setUpdatedAt(OffsetDateTime.now());
 

@@ -12,6 +12,7 @@ import com.fa26se040.icss.dto.area.AreaUpdateRequest;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.enums.AreaLevel;
 import com.fa26se040.icss.enums.CameraStatus;
+import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.exception.AreaErrorCode;
 import com.fa26se040.icss.exception.AreaException;
@@ -480,11 +481,23 @@ public class AreaService {
 
     @Transactional(readOnly = true)
     public List<AreaSimpleResponse> getAvailableAreasForRequest() {
-        List<Area> areas = areaRepository.findAvailableForRequest(List.of(
-                AreaLevel.INTERNAL_CONFIDENTIAL,
-                AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED,
-                AreaLevel.HIGHLY_CONFIDENTIAL
-        ));
+        return getAvailableAreasForRequest(null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<AreaSimpleResponse> getAvailableAreasForRequest(String actorEmail) {
+        List<Area> areas = areaRepository.findAvailableForRequest();
+
+        if (actorEmail != null) {
+            User caller = userRepository.findByEmail(actorEmail).orElse(null);
+            if (caller != null && caller.getRole() == Role.NORMAL_USER) {
+                int callerLevel = caller.getAccessLevel() != null ? caller.getAccessLevel() : 1;
+                areas = areas.stream()
+                        .filter(a -> a.getAreaAccessLevel() == null || callerLevel >= a.getAreaAccessLevel())
+                        .toList();
+            }
+        }
+
         return areas.stream()
                 .map(a -> new AreaSimpleResponse(
                         a.getId(),
@@ -1185,11 +1198,19 @@ public class AreaService {
             throw new AreaException(AreaErrorCode.ERR_AREA_017);
         }
 
+        boolean expectedExplicit = (area.getAreaLevel() == AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED || area.getAreaLevel() == AreaLevel.HIGHLY_CONFIDENTIAL);
+        if (req.explicitAuthorizationRequired() != null && req.explicitAuthorizationRequired() != expectedExplicit) {
+            throw new IllegalArgumentException(
+                    "Cờ yêu cầu chỉ định (explicitAuthorizationRequired) được suy ra từ loại khu vực ("
+                            + area.getAreaLevel() + ") và không được thay đổi độc lập."
+            );
+        }
+
         java.util.Map<AreaLevel, AreaLevelPreset> presetMap = loadPresetMap();
 
         // BR-AL-06: Thao tác không làm thay đổi giá trị (new == old) -> không ghi log, trả về trạng thái hiện tại
         if (java.util.Objects.equals(area.getAreaAccessLevel(), req.areaAccessLevel()) &&
-                java.util.Objects.equals(area.getExplicitAuthorizationRequired(), req.explicitAuthorizationRequired())) {
+                java.util.Objects.equals(area.getExplicitAuthorizationRequired(), expectedExplicit)) {
             log.info("Area {} access rules unchanged, skipping audit log", id);
             return mapToAreaResponse(area, computeDiffersFromPreset(area, presetMap));
         }
@@ -1198,7 +1219,7 @@ public class AreaService {
         Boolean oldExplicit = area.getExplicitAuthorizationRequired();
 
         area.setAreaAccessLevel(req.areaAccessLevel());
-        area.setExplicitAuthorizationRequired(req.explicitAuthorizationRequired());
+        area.setExplicitAuthorizationRequired(expectedExplicit);
         area.setUpdatedAt(OffsetDateTime.now());
         bumpVersionIfChanged(area, before);
 
