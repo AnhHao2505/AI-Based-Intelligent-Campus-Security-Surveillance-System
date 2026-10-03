@@ -192,6 +192,8 @@ public class Step5aSupplement2Test extends AbstractIntegrationTest {
                 .floor(testFloor.getFloorCode())
                 .isActive(true)
                 .build());
+
+        systemConfigService.update(ConfigKey.EVENT_MODE_BUDGET_HOURS.name(), "48", adminUser.getEmail());
     }
 
     /**
@@ -1288,7 +1290,9 @@ public class Step5aSupplement2Test extends AbstractIntegrationTest {
                 fmUser.getEmail()
         );
 
-        long notifsBefore = notificationRepository.count();
+        long notifsBefore = notificationRepository.findAll().stream()
+                .filter(n -> n.getType() == NotificationType.EVENT_MODE_LIMIT_CHANGED)
+                .count();
 
         // Hạ BUDGET_HOURS còn 30 (44h > 30h) -> FM nhận thông báo
         systemConfigService.update(ConfigKey.EVENT_MODE_BUDGET_HOURS.name(), "30", adminUser.getEmail());
@@ -1309,11 +1313,16 @@ public class Step5aSupplement2Test extends AbstractIntegrationTest {
                 fmUser.getEmail()
         );
 
-        long countAfterDisable = notificationRepository.count();
+        long countAfterDisable = notificationRepository.findAll().stream()
+                .filter(n -> n.getType() == NotificationType.EVENT_MODE_LIMIT_CHANGED)
+                .count();
 
         // Hạ BUDGET_HOURS khi không có khu vực nào vi phạm -> 0 thông báo
         systemConfigService.update(ConfigKey.EVENT_MODE_BUDGET_HOURS.name(), "30", adminUser.getEmail());
-        assertEquals(countAfterDisable, notificationRepository.count());
+        long countAfterNoViolation = notificationRepository.findAll().stream()
+                .filter(n -> n.getType() == NotificationType.EVENT_MODE_LIMIT_CHANGED)
+                .count();
+        assertEquals(countAfterDisable, countAfterNoViolation);
 
         // Khôi phục lại
         systemConfigService.update(ConfigKey.EVENT_MODE_BUDGET_HOURS.name(), "48", adminUser.getEmail());

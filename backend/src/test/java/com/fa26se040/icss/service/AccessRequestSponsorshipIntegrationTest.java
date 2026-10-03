@@ -504,7 +504,7 @@ class AccessRequestSponsorshipIntegrationTest extends AbstractIntegrationTest {
         );
 
         assertThatThrownBy(() -> areaService.updateAccessRules(contactArea.getId(), badReq, adminUser.getEmail()))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(com.fa26se040.icss.exception.AreaException.class)
                 .hasMessageContaining("không được thay đổi độc lập");
 
         // 2. updateLevelPreset: gửi cờ explicit=false cho preset CONFIDENTIAL_CONTACT_REQUIRED -> từ chối
@@ -517,7 +517,7 @@ class AccessRequestSponsorshipIntegrationTest extends AbstractIntegrationTest {
         );
 
         assertThatThrownBy(() -> areaLevelPresetService.updatePreset(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED, badPresetReq, adminUser.getEmail()))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(com.fa26se040.icss.exception.AccessControlException.class)
                 .hasMessageContaining("không được thay đổi độc lập");
     }
 
