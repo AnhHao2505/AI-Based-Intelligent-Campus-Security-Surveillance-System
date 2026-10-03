@@ -505,7 +505,11 @@ class AccessRequestSponsorshipIntegrationTest extends AbstractIntegrationTest {
 
         assertThatThrownBy(() -> areaService.updateAccessRules(contactArea.getId(), badReq, adminUser.getEmail()))
                 .isInstanceOf(com.fa26se040.icss.exception.AreaException.class)
-                .hasMessageContaining("không được thay đổi độc lập");
+                .hasMessageContaining("không được thay đổi độc lập")
+                .hasMessageContaining("CONFIDENTIAL_CONTACT_REQUIRED")
+                .hasMessageNotContaining("{areaLevel}")
+                .satisfies(ex -> assertThat(((com.fa26se040.icss.exception.AreaException) ex).getErrorCode())
+                        .isEqualTo(com.fa26se040.icss.exception.AreaErrorCode.ERR_AREA_056));
 
         // 2. updateLevelPreset: gửi cờ explicit=false cho preset CONFIDENTIAL_CONTACT_REQUIRED -> từ chối
         var preset = areaLevelPresetRepository.findById(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED).orElseThrow();
@@ -518,7 +522,11 @@ class AccessRequestSponsorshipIntegrationTest extends AbstractIntegrationTest {
 
         assertThatThrownBy(() -> areaLevelPresetService.updatePreset(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED, badPresetReq, adminUser.getEmail()))
                 .isInstanceOf(com.fa26se040.icss.exception.AccessControlException.class)
-                .hasMessageContaining("không được thay đổi độc lập");
+                .hasMessageContaining("không được thay đổi độc lập")
+                .hasMessageContaining("CONFIDENTIAL_CONTACT_REQUIRED")
+                .hasMessageNotContaining("{areaLevel}")
+                .satisfies(ex -> assertThat(((com.fa26se040.icss.exception.AccessControlException) ex).getErrorCode())
+                        .isEqualTo(com.fa26se040.icss.exception.AccessControlErrorCode.ERR_AC_005));
     }
 
     @Test

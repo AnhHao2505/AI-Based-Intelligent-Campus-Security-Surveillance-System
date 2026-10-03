@@ -54,7 +54,8 @@ public class AreaLevelPresetService {
 
         boolean expectedExplicit = (areaLevel == AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED || areaLevel == AreaLevel.HIGHLY_CONFIDENTIAL);
         if (req.explicitAuthorizationRequired() != null && req.explicitAuthorizationRequired() != expectedExplicit) {
-            throw new AccessControlException(AccessControlErrorCode.ERR_AC_005, areaLevel.name());
+            // (Object): gọi constructor varargs để điền {areaLevel}; String trần sẽ rơi vào constructor customMessage và mất câu mẫu
+            throw new AccessControlException(AccessControlErrorCode.ERR_AC_005, (Object) areaLevel.name());
         }
 
         // BR-AL-06: Thao tác không làm thay đổi giá trị (new == old) -> không ghi log, trả về trạng thái hiện tại

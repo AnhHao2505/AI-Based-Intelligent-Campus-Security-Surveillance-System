@@ -1200,7 +1200,8 @@ public class AreaService {
 
         boolean expectedExplicit = (area.getAreaLevel() == AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED || area.getAreaLevel() == AreaLevel.HIGHLY_CONFIDENTIAL);
         if (req.explicitAuthorizationRequired() != null && req.explicitAuthorizationRequired() != expectedExplicit) {
-            throw new AreaException(AreaErrorCode.ERR_AREA_056, area.getAreaLevel().name());
+            // (Object): gọi constructor varargs để điền {areaLevel}; String trần sẽ rơi vào constructor customMessage và mất câu mẫu
+            throw new AreaException(AreaErrorCode.ERR_AREA_056, (Object) area.getAreaLevel().name());
         }
 
         java.util.Map<AreaLevel, AreaLevelPreset> presetMap = loadPresetMap();
