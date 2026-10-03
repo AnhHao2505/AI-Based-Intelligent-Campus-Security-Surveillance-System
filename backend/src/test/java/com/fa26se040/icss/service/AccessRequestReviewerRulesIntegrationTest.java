@@ -40,6 +40,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 
 /**
  * BR-RQ-06 (TC-AR-08): người duyệt đơn phải khác người tạo đơn — áp cho cả APPROVED và REJECTED, đơn giữ PENDING.
+ * BR-RQ-07: chỉ NORMAL_USER được tạo đơn (cá nhân, nhóm) — ADMIN / FACILITY_MANAGER / GUARD nhận 403.
  * Gọi qua HTTP (MockMvc) để kiểm cả mã HTTP và mã lỗi. @Transactional: dữ liệu fixture rollback sau mỗi test.
  */
 @Transactional
@@ -175,5 +176,29 @@ class AccessRequestReviewerRulesIntegrationTest extends AbstractIntegrationTest 
         MvcResult other = send(patch("/api/access-requests/{id}/review", requestId), fmOther, review(RequestStatus.APPROVED));
         assertThat(other.getResponse().getStatus()).as(describe(other)).isEqualTo(200);
         assertThat(statusOf(requestId)).isEqualTo(RequestStatus.APPROVED);
+    }
+
+    // ================================================================== BR-RQ-07
+
+    @Test
+    @DisplayName("BR-RQ-07: ADMIN / FACILITY_MANAGER / GUARD tạo đơn cá nhân hoặc đơn nhóm -> 403, không tạo đơn nào")
+    void br_rq_07_onlyNormalUserCanCreateRequests() throws Exception {
+        long before = accessRequestRepository.count();
+        for (User actor : List.of(admin, fmOther, guard)) {
+            MvcResult ind = send(post("/api/access-requests/individual"), actor, individualBody());
+            assertThat(ind.getResponse().getStatus()).as(actor.getRole() + " /individual: " + describe(ind)).isEqualTo(403);
+            MvcResult grp = send(post("/api/access-requests/group"), actor, groupBody());
+            assertThat(grp.getResponse().getStatus()).as(actor.getRole() + " /group: " + describe(grp)).isEqualTo(403);
+        }
+        assertThat(accessRequestRepository.count()).as("không đơn nào được tạo").isEqualTo(before);
+
+        // Đối chứng: NORMAL_USER tạo được cả hai loại
+        assertThat(send(post("/api/access-requests/individual"), requester, individualBody()).getResponse().getStatus()).isEqualTo(201);
+        Map<String, Object> laterGroup = groupBody();
+        OffsetDateTime start = OffsetDateTime.now().plusHours(5).truncatedTo(ChronoUnit.MINUTES);
+        laterGroup.put("startTime", start.toString());
+        laterGroup.put("endTime", start.plusHours(1).toString());
+        MvcResult grpOk = send(post("/api/access-requests/group"), requester, laterGroup);
+        assertThat(grpOk.getResponse().getStatus()).as(describe(grpOk)).isEqualTo(201);
     }
 }
