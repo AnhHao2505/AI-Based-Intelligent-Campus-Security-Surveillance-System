@@ -417,9 +417,11 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
                         start.plusHours(4),
                         end.plusHours(4),
                         "Nhom highly",
-                        List.of(userL3.getUserCode())
+                        List.of(adminUser.getUserCode())
                 ),
-                fmUser.getEmail() // requester level 3, member level 3
+                // BR-RQ-07: chỉ NORMAL_USER tạo đơn; BR-RQ-06: người duyệt (fmUser) phải khác người tạo đơn
+                // -> người tạo là userL3 (NORMAL_USER cấp 3), thành viên adminUser (cấp 3). Kỳ vọng chặn HIGHLY giữ nguyên.
+                userL3.getEmail()
         );
         UUID groupReqId = groupResp.id();
 
