@@ -224,11 +224,11 @@ public class AreaService {
     private TypeChangeEvaluation evaluateTypeChange(Area area, AreaLevel newLevel, OffsetDateTime now) {
         AreaLevel currentLevel = area.getAreaLevel();
 
-        // TC-04: preset của loại mới; thiếu preset -> 3/true (fail-closed)
+        // Cấp số lấy theo preset loại mới (thiếu preset -> fail-closed cấp 3).
+        // Cờ explicit LUÔN suy ra trực tiếp từ loại (PUBLIC/INTERNAL=false, CONTACT/HIGHLY=true), không đọc cờ từ preset.
         AreaLevelPreset preset = areaLevelPresetRepository.findById(newLevel).orElse(null);
         int newAccessLevel = preset != null && preset.getAreaAccessLevel() != null ? preset.getAreaAccessLevel() : 3;
-        boolean newExplicit = preset == null || preset.getExplicitAuthorizationRequired() == null
-                || preset.getExplicitAuthorizationRequired();
+        boolean newExplicit = (newLevel == AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED || newLevel == AreaLevel.HIGHLY_CONFIDENTIAL);
 
         boolean eventActive = area.isEventActive(now);
         List<com.fa26se040.icss.entity.AreaEventSchedule> pendingSchedules = eventScheduleRepository != null
@@ -544,17 +544,19 @@ public class AreaService {
 
         resolveActorId(actorEmail);
 
-        // Fail-closed, khớp DEFAULT trong V38 khi thiếu preset (level 3, explicit_authorization_required = true)
+        // Cấp số lấy theo preset (thiếu preset -> fallback fail-closed cấp 3).
+        // Cờ explicit LUÔN suy ra trực tiếp từ loại khu vực (PUBLIC/INTERNAL=false, CONTACT/HIGHLY=true), không đọc cờ từ preset.
         int areaAccessLevel = 3;
-        boolean explicitAuthRequired = true;
+        boolean explicitAuthRequired = (req.getAreaLevel() == AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED || req.getAreaLevel() == AreaLevel.HIGHLY_CONFIDENTIAL);
 
         Optional<AreaLevelPreset> presetOpt = areaLevelPresetRepository.findById(req.getAreaLevel());
         if (presetOpt.isPresent()) {
             AreaLevelPreset preset = presetOpt.get();
-            areaAccessLevel = preset.getAreaAccessLevel();
-            explicitAuthRequired = preset.getExplicitAuthorizationRequired();
+            if (preset.getAreaAccessLevel() != null) {
+                areaAccessLevel = preset.getAreaAccessLevel();
+            }
         } else {
-            log.warn("Không tìm thấy preset cho area_level = {}, áp dụng fallback fail-closed (level 3, explicit_authorization_required = true)",
+            log.warn("Không tìm thấy preset cho area_level = {}, áp dụng fallback fail-closed (level 3)",
                     req.getAreaLevel());
         }
 
