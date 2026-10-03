@@ -174,11 +174,8 @@ export default function AreaAssignedPersonnelModal({
 			loadData();
 		} catch (err) {
 			console.error("Lỗi khi gán nhân sự:", err);
-			if (err?.status === 409 || err?.code === "ERR_AP_004") {
-				toast.error("Người này đã có quyền trùng thời gian tại khu vực này");
-			} else {
-				toast.error(err?.message || "Không thể gán nhân sự vào khu vực");
-			}
+			// Hiển thị nguyên văn thông báo backend (vd. ERR_AP_004 trùng thời gian, ERR_AP_011 BR-AP-06 tự gán / tự gia hạn)
+			toast.error(err?.message || "Không thể gán nhân sự vào khu vực");
 		} finally {
 			setSubmittingAdd(false);
 		}
@@ -238,11 +235,8 @@ export default function AreaAssignedPersonnelModal({
 			loadData();
 		} catch (err) {
 			console.error("Lỗi khi sửa thời hạn:", err);
-			if (err?.status === 409 || err?.code === "ERR_AP_004") {
-				toast.error("Người này đã có quyền trùng thời gian tại khu vực này");
-			} else {
-				toast.error(err?.message || "Không thể sửa thời hạn gán");
-			}
+			// Hiển thị nguyên văn thông báo backend (vd. ERR_AP_004 trùng thời gian, ERR_AP_011 BR-AP-06 tự gán / tự gia hạn)
+			toast.error(err?.message || "Không thể sửa thời hạn gán");
 		} finally {
 			setSubmittingEdit(false);
 		}
