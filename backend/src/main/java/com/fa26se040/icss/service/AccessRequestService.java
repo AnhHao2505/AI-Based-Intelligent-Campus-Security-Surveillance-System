@@ -21,6 +21,8 @@ import com.fa26se040.icss.context.AuditContext;
 import com.fa26se040.icss.dto.accesscontrol.snapshot.AccessRequestSnapshot;
 import com.fa26se040.icss.enums.AuditAction;
 import com.fa26se040.icss.enums.AuditTargetType;
+import com.fa26se040.icss.exception.AccessControlErrorCode;
+import com.fa26se040.icss.exception.AccessControlException;
 import com.fa26se040.icss.exception.ConcurrentReviewException;
 import com.fa26se040.icss.exception.DuplicateResourceException;
 import com.fa26se040.icss.exception.ResourceNotFoundException;
@@ -393,6 +395,16 @@ public class AccessRequestService {
             }
         }
 
+        // BR-RQ-06: người duyệt phải khác người tạo đơn — áp cho cả APPROVED và REJECTED, kiểm trước mọi ghi DB nên đơn giữ PENDING.
+        // Không phải pre-check trạng thái: kết quả conditional UPDATE vẫn là nguồn chân lý cho 409.
+        User reviewer = userRepository.findByEmail(actorEmail)
+                .orElseThrow(() -> new UnauthorizedException("Không tìm thấy thông tin người duyệt"));
+        AccessRequest targetReq = accessRequestRepository.findByIdWithDetails(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu truy cập với mã: " + id));
+        if (targetReq.getRequester() != null && targetReq.getRequester().getId().equals(reviewer.getId())) {
+            throw new AccessControlException(AccessControlErrorCode.ERR_AC_006);
+        }
+
         // BR-RQ-02: Kiểm tra lại cấp độ truy cập và cấu hình nhóm khi FM phê duyệt (APPROVED)
         if (reviewRequest.status() == RequestStatus.APPROVED) {
             AccessRequest pendingReq = accessRequestRepository.findByIdWithDetails(id)
@@ -456,9 +468,7 @@ public class AccessRequestService {
             }
         }
 
-        // 2. Lấy thông tin reviewer từ actorEmail
-        User reviewer = userRepository.findByEmail(actorEmail)
-                .orElseThrow(() -> new UnauthorizedException("Không tìm thấy thông tin người duyệt"));
+        // 2. reviewer đã lấy ở bước BR-RQ-06 phía trên
 
         OffsetDateTime now = OffsetDateTime.now();
         String rejectionReason = reviewRequest.status() == RequestStatus.REJECTED
