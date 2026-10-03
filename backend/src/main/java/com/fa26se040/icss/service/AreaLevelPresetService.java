@@ -54,10 +54,7 @@ public class AreaLevelPresetService {
 
         boolean expectedExplicit = (areaLevel == AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED || areaLevel == AreaLevel.HIGHLY_CONFIDENTIAL);
         if (req.explicitAuthorizationRequired() != null && req.explicitAuthorizationRequired() != expectedExplicit) {
-            throw new IllegalArgumentException(
-                    "Cờ yêu cầu chỉ định (explicitAuthorizationRequired) của preset được suy ra từ loại khu vực ("
-                            + areaLevel + ") và không được thay đổi độc lập."
-            );
+            throw new AccessControlException(AccessControlErrorCode.ERR_AC_005, areaLevel.name());
         }
 
         // BR-AL-06: Thao tác không làm thay đổi giá trị (new == old) -> không ghi log, trả về trạng thái hiện tại

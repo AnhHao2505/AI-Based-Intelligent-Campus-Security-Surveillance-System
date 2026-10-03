@@ -113,14 +113,6 @@ export default function AccessRequestPage() {
 			};
 		}
 
-		const diffMin = endMin - startMin;
-		if (diffMin > 12 * 60) {
-			return {
-				isError: true,
-				text: "Thời lượng truy cập tối đa không quá 12 giờ",
-			};
-		}
-
 		const startDateTime = new Date(`${requestDate}T${startHour}:00`);
 		const nowBuffer = new Date(Date.now() - 5 * 60 * 1000);
 		if (startDateTime < nowBuffer) {
@@ -130,15 +122,7 @@ export default function AccessRequestPage() {
 			};
 		}
 
-		const maxAdvance = new Date();
-		maxAdvance.setDate(maxAdvance.getDate() + 30);
-		if (startDateTime > maxAdvance) {
-			return {
-				isError: true,
-				text: "Thời gian bắt đầu không được vượt quá 30 ngày tới",
-			};
-		}
-
+		const diffMin = endMin - startMin;
 		const hours = Math.floor(diffMin / 60);
 		const mins = diffMin % 60;
 		let durationStr = "";
@@ -361,19 +345,6 @@ export default function AccessRequestPage() {
 			return;
 		}
 
-		const diffMs = end.getTime() - start.getTime();
-		if (diffMs > 12 * 60 * 60 * 1000) {
-			setFormError("Thời lượng truy cập tối đa không quá 12 giờ.");
-			return;
-		}
-
-		const maxAdvance = new Date();
-		maxAdvance.setDate(maxAdvance.getDate() + 30);
-		if (start > maxAdvance) {
-			setFormError("Thời gian bắt đầu không được vượt quá 30 ngày tới.");
-			return;
-		}
-
 		let cleanMemberCodes = [];
 		if (requestType === "GROUP") {
 			if (
@@ -409,13 +380,6 @@ export default function AccessRequestPage() {
 			if (cleanMemberCodes.length === 0) {
 				setFormError(
 					"Yêu cầu theo nhóm bắt buộc phải có ít nhất một thành viên khác ngoài người tạo.",
-				);
-				return;
-			}
-
-			if (cleanMemberCodes.length > 30) {
-				setFormError(
-					"Số lượng thành viên trong nhóm tối đa 30 người (không tính người tạo).",
 				);
 				return;
 			}

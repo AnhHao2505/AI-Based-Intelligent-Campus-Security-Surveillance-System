@@ -779,7 +779,7 @@ public class Step5aSupplement2Test extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("T15e: Đồng thời 1 luồng BẬT sự kiện + 1 luồng FM updateAccessRules cùng version -> đúng 1 thành công, luồng còn lại 409 ERR_AREA_045 + bất biến (TC-13c)")
+    @DisplayName("T15e: Đồng thời 1 luồng BẬT sự kiện + 1 luồng ADMIN updateAccessRules cùng version -> đúng 1 thành công, luồng còn lại 409 ERR_AREA_045 + bất biến (TC-13c)")
     void testT15e_ConcurrentEnableAndAccessRulesUpdate() throws Exception {
         ExecutorService executor = Executors.newFixedThreadPool(2);
 
@@ -788,9 +788,10 @@ public class Step5aSupplement2Test extends AbstractIntegrationTest {
                 OffsetDateTime now = OffsetDateTime.now();
                 internalArea.setOpenToMembers(false);
                 internalArea.setOpenUntil(null);
-                boolean initialExplicit = (i % 2 == 0);
-                boolean targetExplicit = !initialExplicit;
-                internalArea.setExplicitAuthorizationRequired(initialExplicit);
+                int initialLevel = (i % 2 == 0) ? 2 : 3;
+                int targetLevel = (initialLevel == 2) ? 3 : 2;
+                internalArea.setAreaAccessLevel(initialLevel);
+                internalArea.setExplicitAuthorizationRequired(false);
                 areaRepository.save(internalArea);
 
                 sessionRepository.deleteAll(sessionRepository.findAll().stream()
@@ -823,14 +824,14 @@ public class Step5aSupplement2Test extends AbstractIntegrationTest {
                     }
                 };
 
-                // Luồng 2: FM sửa access rules (đổi explicitAuthorizationRequired)
+                // Luồng 2: ADMIN sửa access rules (đổi areaAccessLevel, cờ explicit giữ false theo loại INTERNAL)
                 Runnable rulesTask = () -> {
                     try {
                         startLatch.await();
                         areaService.updateAccessRules(
                                 internalArea.getId(),
-                                new AreaAccessRulesUpdateRequest(internalArea.getAreaAccessLevel(), targetExplicit, "Doi explicit authorization", sharedVersion),
-                                fmUser.getEmail()
+                                new AreaAccessRulesUpdateRequest(targetLevel, false, "Doi area access level", sharedVersion),
+                                adminUser.getEmail()
                         );
                         rulesOk.set(true);
                     } catch (Throwable ex) {
@@ -849,10 +850,10 @@ public class Step5aSupplement2Test extends AbstractIntegrationTest {
                 assertExactlyOneWinsOtherStale(i, exceptions, eventOk.get(), rulesOk.get());
                 Area finalArea = areaRepository.findById(internalArea.getId()).orElseThrow();
                 if (rulesOk.get()) {
-                    assertEquals(targetExplicit, finalArea.getExplicitAuthorizationRequired(), "Lần lặp " + i + ": explicitAuthorizationRequired phải là " + targetExplicit);
+                    assertEquals(targetLevel, finalArea.getAreaAccessLevel(), "Lần lặp " + i + ": areaAccessLevel phải là " + targetLevel);
                     assertFalse(finalArea.isEventActive(now), "Lần lặp " + i + ": luồng BẬT thua thì không mở sự kiện");
                 } else {
-                    assertEquals(initialExplicit, finalArea.getExplicitAuthorizationRequired(), "Lần lặp " + i + ": luồng sửa quy tắc thua thì cờ giữ nguyên");
+                    assertEquals(initialLevel, finalArea.getAreaAccessLevel(), "Lần lặp " + i + ": luồng sửa quy tắc thua thì cấp giữ nguyên");
                     assertTrue(finalArea.isEventActive(now), "Lần lặp " + i + ": khu vực phải đang mở sự kiện");
                     assertNotNull(finalArea.getOpenUntil(), "Lần lặp " + i + ": openUntil không được null");
                     assertEquals(targetOpenUntil.toEpochSecond(), finalArea.getOpenUntil().toEpochSecond(), "Lần lặp " + i + ": openUntil phải đúng giá trị luồng BẬT gửi");

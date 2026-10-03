@@ -350,11 +350,23 @@ export default function Sidebar({ user, onLogout }) {
 													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
 												}
 												title={
-													sidebarCollapsed ? "Phân quyền truy cập" : undefined
+													sidebarCollapsed ? "Cấp người dùng" : undefined
 												}
 											>
 												<ShieldCheck size={18} />
-												<span>Phân quyền truy cập</span>
+												<span>Cấp người dùng</span>
+											</NavLink>
+											<NavLink
+												to="/admin/audit-logs"
+												className={({ isActive }) =>
+													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
+												}
+												title={
+													sidebarCollapsed ? "Nhật ký kiểm toán" : undefined
+												}
+											>
+												<History size={18} />
+												<span>Nhật ký kiểm toán</span>
 											</NavLink>
 										</>
 									)}
@@ -409,6 +421,30 @@ export default function Sidebar({ user, onLogout }) {
 											>
 												<Camera size={18} />
 												<span>Ảnh khách</span>
+											</NavLink>
+											<NavLink
+												to="/admin/level-presets"
+												className={({ isActive }) =>
+													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
+												}
+												title={
+													sidebarCollapsed ? "Mặc định theo loại" : undefined
+												}
+											>
+												<ShieldCheck size={18} />
+												<span>Mặc định theo loại</span>
+											</NavLink>
+											<NavLink
+												to="/admin/audit-logs"
+												className={({ isActive }) =>
+													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
+												}
+												title={
+													sidebarCollapsed ? "Nhật ký kiểm toán" : undefined
+												}
+											>
+												<History size={18} />
+												<span>Nhật ký kiểm toán</span>
 											</NavLink>
 
 											<div className="sidebar__section">

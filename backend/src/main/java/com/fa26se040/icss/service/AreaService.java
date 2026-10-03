@@ -1200,10 +1200,7 @@ public class AreaService {
 
         boolean expectedExplicit = (area.getAreaLevel() == AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED || area.getAreaLevel() == AreaLevel.HIGHLY_CONFIDENTIAL);
         if (req.explicitAuthorizationRequired() != null && req.explicitAuthorizationRequired() != expectedExplicit) {
-            throw new IllegalArgumentException(
-                    "Cờ yêu cầu chỉ định (explicitAuthorizationRequired) được suy ra từ loại khu vực ("
-                            + area.getAreaLevel() + ") và không được thay đổi độc lập."
-            );
+            throw new AreaException(AreaErrorCode.ERR_AREA_056, area.getAreaLevel().name());
         }
 
         java.util.Map<AreaLevel, AreaLevelPreset> presetMap = loadPresetMap();

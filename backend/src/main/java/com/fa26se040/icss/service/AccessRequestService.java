@@ -816,14 +816,20 @@ public class AccessRequestService {
         }
 
         int maxAdvanceDays = systemConfigService.getInt(ConfigKey.ACCESS_REQUEST_MAX_ADVANCE_DAYS);
-        if (startTime.isAfter(OffsetDateTime.now().plusDays(maxAdvanceDays))) {
-            throw new IllegalArgumentException("Thời gian bắt đầu không được vượt quá " + maxAdvanceDays + " ngày tới");
+        OffsetDateTime maxAllowedTime = OffsetDateTime.now().plusDays(maxAdvanceDays);
+        if (startTime.isAfter(maxAllowedTime)) {
+            long actualDays = java.time.temporal.ChronoUnit.DAYS.between(OffsetDateTime.now().toLocalDate(), startTime.toLocalDate());
+            if (actualDays <= maxAdvanceDays) {
+                actualDays = maxAdvanceDays + 1;
+            }
+            throw new IllegalArgumentException("Thời gian bắt đầu không được vượt quá " + maxAdvanceDays + " ngày tới (bạn chọn " + actualDays + " ngày)");
         }
 
         int maxDurationHours = systemConfigService.getInt(ConfigKey.ACCESS_REQUEST_MAX_DURATION_HOURS);
         long durationMinutes = Duration.between(startTime, endTime).toMinutes();
         if (durationMinutes > (long) maxDurationHours * 60) {
-            throw new IllegalArgumentException("Thời lượng truy cập tối đa không quá " + maxDurationHours + " giờ");
+            long inputHours = durationMinutes % 60 == 0 ? durationMinutes / 60 : (durationMinutes + 59) / 60;
+            throw new IllegalArgumentException("Thời lượng truy cập tối đa không quá " + maxDurationHours + " giờ (bạn nhập " + inputHours + " giờ)");
         }
     }
 
@@ -869,7 +875,7 @@ public class AccessRequestService {
 
         int maxGroupMembers = systemConfigService.getInt(ConfigKey.ACCESS_REQUEST_MAX_GROUP_MEMBERS);
         if (cleanCodes.size() > maxGroupMembers) {
-            throw new IllegalArgumentException("Số lượng thành viên trong nhóm tối đa " + maxGroupMembers + " người (không tính người tạo)");
+            throw new IllegalArgumentException("Số lượng thành viên trong nhóm tối đa " + maxGroupMembers + " người (không tính người tạo) (bạn đã chọn " + cleanCodes.size() + " người)");
         }
 
         List<User> memberUsers = new ArrayList<>();

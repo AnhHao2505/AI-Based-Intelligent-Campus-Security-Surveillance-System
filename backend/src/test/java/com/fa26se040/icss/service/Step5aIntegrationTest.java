@@ -350,7 +350,7 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
         assertTrue(ex2.getMessage().contains(userL2.getFullName()));
         assertTrue(ex2.getMessage().contains(userL2.getUserCode()));
 
-        // Đơn nhóm L2 có 1 thành viên L1 vào CONTACT -> 400 và nêu thành viên L1
+        // Đơn nhóm L2 có 1 thành viên L1 vào CONTACT -> Được chấp nhận do cơ chế bảo lãnh (Quyết định C1), sponsored = true
         GroupAccessRequestCreateRequest groupReq = new GroupAccessRequestCreateRequest(
                 contactArea.getId(),
                 start.plusHours(3),
@@ -358,11 +358,26 @@ public class Step5aIntegrationTest extends AbstractIntegrationTest {
                 "Nhom L2 va L1",
                 List.of(userL1.getUserCode())
         );
-        IllegalArgumentException exGroup = assertThrows(IllegalArgumentException.class, () ->
-                accessRequestService.createGroupRequest(groupReq, userL2.getEmail())
+        var groupResp = accessRequestService.createGroupRequest(groupReq, userL2.getEmail());
+        assertNotNull(groupResp);
+        assertEquals(RequestStatus.PENDING, groupResp.status());
+        assertNotNull(groupResp.members());
+        assertEquals(1, groupResp.members().size());
+        assertTrue(groupResp.members().get(0).sponsored());
+
+        // Ca tương đương ở Bảo mật nội bộ (INTERNAL_CONFIDENTIAL): Đơn nhóm L2 có thành viên L1 -> Vẫn bị từ chối
+        GroupAccessRequestCreateRequest groupReqInternal = new GroupAccessRequestCreateRequest(
+                internalArea.getId(),
+                start.plusHours(6),
+                end.plusHours(6),
+                "Nhom L2 va L1 vao Internal",
+                List.of(userL1.getUserCode())
         );
-        assertTrue(exGroup.getMessage().contains(userL1.getFullName()));
-        assertTrue(exGroup.getMessage().contains(userL1.getUserCode()));
+        IllegalArgumentException exGroupInternal = assertThrows(IllegalArgumentException.class, () ->
+                accessRequestService.createGroupRequest(groupReqInternal, userL2.getEmail())
+        );
+        assertTrue(exGroupInternal.getMessage().contains(userL1.getFullName()));
+        assertTrue(exGroupInternal.getMessage().contains(userL1.getUserCode()));
     }
 
     @Test
