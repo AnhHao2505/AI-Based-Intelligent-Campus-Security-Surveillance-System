@@ -889,20 +889,47 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(res -> assertTrue(res.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8).contains(updatedArea.getName())));
 
-        // Đổi lại Nội bộ -> biến mất khỏi dropdown
-        AreaUpdateRequest updateBackToInternal = AreaUpdateRequest.builder()
-                .name(internalArea.getName())
-                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
-                .floorId(testFloor.getId())
-                .version(updatedArea.getVersion())
-                .reason("Doi lai Noi bo")
-                .build();
-        areaService.update(internalArea.getId(), updateBackToInternal, adminUser.getEmail());
+        // Bước 6–7: Giả lập preset INTERNAL_CONFIDENTIAL bị đặt cờ = true trong DB
+        // ADMIN đổi khu vực CONTACT về INTERNAL -> khu vực có cờ = false (không đọc cờ từ preset),
+        // không xuất hiện trong available-areas cho user cấp 1 và cấp 2.
+        AreaLevelPreset internalPreset = areaLevelPresetRepository.findById(AreaLevel.INTERNAL_CONFIDENTIAL).orElseThrow();
+        Boolean origInternalFlag = internalPreset.getExplicitAuthorizationRequired();
+        internalPreset.setExplicitAuthorizationRequired(true);
+        areaLevelPresetRepository.save(internalPreset);
 
-        mockMvc.perform(get("/api/areas/available-for-request")
-                        .header("Authorization", bearer(normalUserL2)))
-                .andExpect(status().isOk())
-                .andExpect(res -> assertFalse(res.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8).contains(updatedArea.getName())));
+        Area revertedArea;
+        try {
+            AreaUpdateRequest updateBackToInternal = AreaUpdateRequest.builder()
+                    .name(internalArea.getName())
+                    .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
+                    .floorId(testFloor.getId())
+                    .version(updatedArea.getVersion())
+                    .reason("Doi lai Noi bo khi preset bi set explicit=true")
+                    .build();
+            areaService.update(internalArea.getId(), updateBackToInternal, adminUser.getEmail());
+
+            revertedArea = areaRepository.findById(internalArea.getId()).orElseThrow();
+            assertEquals(AreaLevel.INTERNAL_CONFIDENTIAL, revertedArea.getAreaLevel());
+            assertFalse(revertedArea.getExplicitAuthorizationRequired(),
+                    "Cờ explicit phải = false dù preset INTERNAL bị đặt cờ = true");
+
+            // User cấp 1 không thấy trong available-areas
+            mockMvc.perform(get("/api/areas/available-for-request")
+                            .header("Authorization", bearer(normalUserL1)))
+                    .andExpect(status().isOk())
+                    .andExpect(res -> assertFalse(res.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8).contains(revertedArea.getName())));
+
+            // User cấp 2 không thấy trong available-areas
+            mockMvc.perform(get("/api/areas/available-for-request")
+                            .header("Authorization", bearer(normalUserL2)))
+                    .andExpect(status().isOk())
+                    .andExpect(res -> assertFalse(res.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8).contains(revertedArea.getName())));
+        } finally {
+            areaLevelPresetRepository.findById(AreaLevel.INTERNAL_CONFIDENTIAL).ifPresent(p -> {
+                p.setExplicitAuthorizationRequired(origInternalFlag);
+                areaLevelPresetRepository.save(p);
+            });
+        }
 
         // 4. Gửi cờ lệch loại -> lỗi mã riêng (ERR_AREA_056, ERR_AC_005)
         Area currentInternal = areaRepository.findById(internalArea.getId()).orElseThrow();
