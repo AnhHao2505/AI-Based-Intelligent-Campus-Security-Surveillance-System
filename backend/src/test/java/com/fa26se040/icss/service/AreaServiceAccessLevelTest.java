@@ -56,9 +56,6 @@ class AreaServiceAccessLevelTest {
     private AreaDependencyChecker dependencyChecker;
 
     @Mock
-    private AreaGeometryValidator geometryValidator;
-
-    @Mock
     private com.fa26se040.icss.service.AuditService auditService;
 
     @Mock

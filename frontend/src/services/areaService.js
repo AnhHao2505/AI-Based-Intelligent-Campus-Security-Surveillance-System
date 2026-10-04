@@ -90,39 +90,6 @@ export async function getFloorPlans() {
 }
 
 /**
- * Lấy danh sách Area kèm geometry theo tầng
- * GET /api/areas/geometries?building=&floor=
- * Cả hai tham số đều BẮT BUỘC.
- */
-export async function getAreaGeometries(building, floor) {
-	const query = new URLSearchParams({ building, floor });
-	return apiGet(`/api/areas/geometries?${query.toString()}`);
-}
-
-/**
- * Lưu polygon cho một Area (ADMIN)
- * PATCH /api/areas/{id}/geometry?version=
- * @param {string} areaId
- * @param {Array} vertices
- * @param {number} [version] version khu vực đang xem (bắt buộc từ Step 5b; thiếu -> 400 ERR_AREA_044)
- */
-export async function saveAreaGeometry(areaId, vertices, version) {
-	const query = version !== undefined && version !== null ? `?version=${encodeURIComponent(version)}` : "";
-	return apiPatch(`/api/areas/${areaId}/geometry${query}`, { vertices });
-}
-
-/**
- * Xóa polygon của một Area (ADMIN)
- * DELETE /api/areas/{id}/geometry?version=
- * @param {string} areaId
- * @param {number} [version] version khu vực đang xem (bắt buộc từ Step 5b)
- */
-export async function deleteAreaGeometry(areaId, version) {
-	const query = version !== undefined && version !== null ? `?version=${encodeURIComponent(version)}` : "";
-	return apiDelete(`/api/areas/${areaId}/geometry${query}`);
-}
-
-/**
  * Lấy danh sách camera đã được gán vào Khu vực
  * GET /api/areas/{id}/cameras
  */

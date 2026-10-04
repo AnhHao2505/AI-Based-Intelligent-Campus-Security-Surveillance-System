@@ -15,7 +15,6 @@ public record AreaResponse(
     Boolean explicitAuthorizationRequired,
     String building,
     String floor,
-    AreaGeometry geometry,
     Double centerLatitude,
     Double centerLongitude,
     Boolean isActive,

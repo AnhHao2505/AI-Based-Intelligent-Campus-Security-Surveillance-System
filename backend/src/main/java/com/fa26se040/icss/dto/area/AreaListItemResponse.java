@@ -16,8 +16,6 @@ public record AreaListItemResponse(
     String building,
     String floor,
     Boolean isActive,
-    AreaGeometry geometry,
-    Boolean hasGeometry,
     Boolean differsFromPreset,
     Double centerLatitude,
     Double centerLongitude,

@@ -3,8 +3,6 @@ package com.fa26se040.icss.service;
 import com.fa26se040.icss.dto.accessrequest.AreaSimpleResponse;
 import com.fa26se040.icss.dto.area.AreaCreateRequest;
 import com.fa26se040.icss.dto.area.AreaDependencyResponse;
-import com.fa26se040.icss.dto.area.AreaGeometry;
-import com.fa26se040.icss.dto.area.AreaGeometryResponse;
 import com.fa26se040.icss.dto.area.AreaListItemResponse;
 import com.fa26se040.icss.dto.area.AreaMapPinResponse;
 import com.fa26se040.icss.dto.area.AreaResponse;
@@ -21,7 +19,6 @@ import com.fa26se040.icss.exception.UnauthorizedException;
 import com.fa26se040.icss.dto.area.AreaAccessRulesUpdateRequest;
 import com.fa26se040.icss.dto.area.AreaEventModeUpdateRequest;
 import com.fa26se040.icss.dto.accesscontrol.snapshot.AreaCamerasSnapshot;
-import com.fa26se040.icss.dto.accesscontrol.snapshot.AreaGeometrySnapshot;
 import com.fa26se040.icss.dto.accesscontrol.snapshot.AreaSnapshot;
 import com.fa26se040.icss.enums.AuditAction;
 import com.fa26se040.icss.enums.AuditTargetType;
@@ -62,7 +59,6 @@ public class AreaService {
     private final com.fa26se040.icss.repository.FloorRepository floorRepository;
     private final AreaValidator areaValidator;
     private final AreaDependencyChecker dependencyChecker;
-    private final AreaGeometryValidator geometryValidator;
     private final AuditService auditService;
     private final com.fa26se040.icss.repository.ReasonCatalogRepository reasonCatalogRepository;
     private final com.fa26se040.icss.repository.AreaEventSessionRepository eventSessionRepository;
@@ -124,7 +120,6 @@ public class AreaService {
                             a.getFloorEntity() != null ? a.getFloorEntity().getId() : null,
                             a.getBuilding(),
                             a.getFloor(),
-                            a.getGeometry(),
                             a.getCenterLatitude(),
                             a.getCenterLongitude(),
                             a.getIsActive(),
@@ -632,23 +627,6 @@ public class AreaService {
 
         AreaSnapshot beforeSnapshot = AreaSnapshot.from(area);
 
-        // BR-41: Block changing building or floor when the Area already has geometry
-        if (area.getGeometry() != null) {
-            String newBuilding = req.getBuilding() != null ? req.getBuilding().trim() : null;
-            String currentBuilding = area.getBuilding() != null ? area.getBuilding().trim() : null;
-            boolean buildingChanged = (newBuilding == null && currentBuilding != null)
-                    || (newBuilding != null && !newBuilding.equalsIgnoreCase(currentBuilding));
-
-            String newFloor = req.getFloor() != null ? req.getFloor().trim() : null;
-            String currentFloor = area.getFloor() != null ? area.getFloor().trim() : null;
-            boolean floorChanged = (newFloor == null && currentFloor != null)
-                    || (newFloor != null && !newFloor.equalsIgnoreCase(currentFloor));
-
-            if (buildingChanged || floorChanged) {
-                throw new AreaException(AreaErrorCode.ERR_AREA_014);
-            }
-        }
-
         String name = areaValidator.validateAndNormalizeName(req.getName());
 
         // 3. Đổi loại: đánh giá lại trên dữ liệu đã khoá (cùng hàm với xem trước — TC-03b); bị chặn -> không đổi gì (TC-11)
@@ -750,108 +728,6 @@ public class AreaService {
                 com.fa26se040.icss.context.AuditContext.clearCorrelationId();
             }
         }
-    }
-
-    @Transactional
-    public AreaGeometryResponse saveGeometry(UUID id, AreaGeometry geometry, Long version, String actorEmail) {
-        // Hợp lệ dữ liệu trước khi khoá: version (BR-TC-13) + hình dạng polygon
-        requireVersion(version);
-        geometryValidator.validateVertices(geometry);
-
-        Area area = areaRepository.findByIdWithLock(id)
-                .filter(a -> a.getDeletedAt() == null)
-                .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
-        checkVersion(area, version);
-        AreaRowState before = AreaRowState.of(area);
-
-        List<Area> existingOnFloor = areaRepository.findByBuildingIgnoreCaseAndFloorIgnoreCaseAndDeletedAtIsNull(
-                area.getBuilding(),
-                area.getFloor()
-        );
-
-        geometryValidator.validate(geometry, area.getId(), area.getBuilding(), area.getFloor(), existingOnFloor);
-
-        geometry.setType("polygon");
-        geometry.setVersion(1);
-
-        resolveActorId(actorEmail);
-
-        AreaGeometrySnapshot beforeSnapshot = AreaGeometrySnapshot.from(area.getGeometry());
-
-        area.setGeometry(geometry);
-        boolean changed = !AreaRowState.of(area).values().equals(before.values());
-        bumpVersionIfChanged(area, before);
-
-        Area savedArea = areaRepository.save(area);
-        User actor = actorEmail != null ? userRepository.findByEmail(actorEmail).orElse(null) : null;
-        if (changed) {
-            auditService.record(
-                    AuditTargetType.AREA,
-                    AuditAction.UPDATE_GEOMETRY,
-                    savedArea.getId().toString(),
-                    savedArea,
-                    null,
-                    beforeSnapshot,
-                    AreaGeometrySnapshot.from(savedArea.getGeometry()),
-                    null,
-                    actor
-            );
-        }
-        return new AreaGeometryResponse(
-                savedArea.getId(),
-                savedArea.getName(),
-                savedArea.getAreaLevel(),
-                savedArea.getIsActive(),
-                savedArea.getGeometry()
-        );
-    }
-
-    @Transactional
-    public void deleteGeometry(UUID id, Long version, String actorEmail) {
-        requireVersion(version);
-        Area area = areaRepository.findByIdWithLock(id)
-                .filter(a -> a.getDeletedAt() == null)
-                .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
-        checkVersion(area, version);
-
-        if (area.getGeometry() == null) {
-            return;
-        }
-        AreaRowState before = AreaRowState.of(area);
-
-        resolveActorId(actorEmail);
-        AreaGeometrySnapshot beforeSnapshot = AreaGeometrySnapshot.from(area.getGeometry());
-
-        area.setGeometry(null);
-        bumpVersionIfChanged(area, before);
-        Area savedArea = areaRepository.save(area);
-
-        User actor = actorEmail != null ? userRepository.findByEmail(actorEmail).orElse(null) : null;
-        auditService.record(
-                AuditTargetType.AREA,
-                AuditAction.DELETE_GEOMETRY,
-                savedArea.getId().toString(),
-                savedArea,
-                null,
-                beforeSnapshot,
-                null,
-                null,
-                actor
-        );
-    }
-
-    @Transactional(readOnly = true)
-    public List<AreaGeometryResponse> getGeometriesByBuildingAndFloor(String building, String floor) {
-        List<Area> areas = areaRepository.findByBuildingIgnoreCaseAndFloorIgnoreCaseAndDeletedAtIsNull(building, floor);
-        return areas.stream()
-                .map(a -> new AreaGeometryResponse(
-                        a.getId(),
-                        a.getName(),
-                        a.getAreaLevel(),
-                        a.getIsActive(),
-                        a.getGeometry()
-                ))
-                .toList();
     }
 
     /**
@@ -1839,7 +1715,6 @@ public class AreaService {
                 .explicitAuthorizationRequired(area.getExplicitAuthorizationRequired())
                 .building(area.getBuilding())
                 .floor(area.getFloor())
-                .geometry(area.getGeometry())
                 .centerLatitude(area.getCenterLatitude())
                 .centerLongitude(area.getCenterLongitude())
                 .isActive(area.getIsActive())
@@ -1877,8 +1752,6 @@ public class AreaService {
                 .building(area.getBuilding())
                 .floor(area.getFloor())
                 .isActive(area.getIsActive())
-                .geometry(area.getGeometry())
-                .hasGeometry(area.getGeometry() != null)
                 .differsFromPreset(differsFromPreset)
                 .centerLatitude(area.getCenterLatitude())
                 .centerLongitude(area.getCenterLongitude())

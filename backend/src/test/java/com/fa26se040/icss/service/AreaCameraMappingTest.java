@@ -50,9 +50,6 @@ class AreaCameraMappingTest {
     private AreaDependencyChecker dependencyChecker;
 
     @Mock
-    private AreaGeometryValidator geometryValidator;
-
-    @Mock
     private AuditService auditService;
 
     @InjectMocks
