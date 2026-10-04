@@ -50,16 +50,13 @@ import {
 import "../../styles/AreaListPage.css";
 
 const validateCenterCoordinates = (latitude, longitude) => {
-	if (
-		String(latitude ?? "").trim() === "" ||
-		String(longitude ?? "").trim() === ""
-	) {
-		return { error: "Vĩ độ và kinh độ là bắt buộc." };
-	}
-
 	const centerLatitude = Number(latitude);
 	const centerLongitude = Number(longitude);
-	if (!Number.isFinite(centerLatitude) || centerLatitude < -90 || centerLatitude > 90) {
+	if (
+		!Number.isFinite(centerLatitude) ||
+		centerLatitude < -90 ||
+		centerLatitude > 90
+	) {
 		return { error: "Vĩ độ phải nằm trong khoảng -90 đến 90." };
 	}
 	if (
@@ -350,7 +347,8 @@ export default function AreaListPage() {
 	// Derived available floors for current building
 	const availableFloors = useMemo(() => {
 		const currentBuildingObj = availableBuildings.find(
-			(b) => (b.name || "").toUpperCase() === (selectedBuilding || "").toUpperCase(),
+			(b) =>
+				(b.name || "").toUpperCase() === (selectedBuilding || "").toUpperCase(),
 		);
 		if (
 			currentBuildingObj &&
@@ -407,7 +405,9 @@ export default function AreaListPage() {
 	// Modal floors for current form building
 	const modalFloors = useMemo(() => {
 		const bObj = availableBuildings.find(
-			(b) => (b.name || "").toUpperCase() === (formData.building || "").toUpperCase(),
+			(b) =>
+				(b.name || "").toUpperCase() ===
+				(formData.building || "").toUpperCase(),
 		);
 		if (bObj && bObj.floors && bObj.floors.length > 0) {
 			return bObj.floors;
@@ -428,8 +428,7 @@ export default function AreaListPage() {
 			const matchFloor =
 				!selectedFloor ||
 				selectedFloor === "ALL" ||
-				(a.floor || "").toUpperCase() ===
-					(selectedFloor || "").toUpperCase();
+				(a.floor || "").toUpperCase() === (selectedFloor || "").toUpperCase();
 			return matchBuilding && matchFloor;
 		});
 	}, [areas, selectedBuilding, selectedFloor]);
@@ -623,7 +622,8 @@ export default function AreaListPage() {
 
 		// Step 5b (BR-TC-02): đổi loại bắt buộc lý do 10–500 ký tự
 		const isTypeChange =
-			Boolean(formData.originalAreaLevel) && formData.areaLevel !== formData.originalAreaLevel;
+			Boolean(formData.originalAreaLevel) &&
+			formData.areaLevel !== formData.originalAreaLevel;
 		const trimmedReason = (formData.reason || "").trim();
 		if (isTypeChange && (trimmedReason.length < 10 || trimmedReason.length > 500)) {
 			setEditReasonError(`Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmedReason.length}).`);
@@ -678,7 +678,9 @@ export default function AreaListPage() {
 			console.error("Update area failed:", err);
 			if (err?.code === "ERR_AREA_045") {
 				// Người khác vừa cập nhật khu vực: tải lại danh sách để lần mở sau có dữ liệu + version mới
-				setModalError("Khu vực đã được người khác cập nhật. Vui lòng đóng và mở lại để xem dữ liệu mới nhất.");
+				setModalError(
+					"Khu vực đã được người khác cập nhật. Vui lòng đóng và mở lại để xem dữ liệu mới nhất.",
+				);
 				await fetchData(targetId);
 			} else {
 				setModalError(getErrorMessage(err));
@@ -754,7 +756,9 @@ export default function AreaListPage() {
 			console.error("Deactivate area failed:", err);
 			if (err?.code === "ERR_AREA_045") {
 				// Người khác vừa cập nhật khu vực: tải lại danh sách + xem trước để có dữ liệu và version mới
-				setModalError("Khu vực đã được người khác cập nhật. Đã tải lại dữ liệu mới nhất, vui lòng kiểm tra lại.");
+				setModalError(
+					"Khu vực đã được người khác cập nhật. Đã tải lại dữ liệu mới nhất, vui lòng kiểm tra lại.",
+				);
 				await fetchData(targetId);
 				try {
 					setDependencies(await getDependencies(targetId));
@@ -822,7 +826,9 @@ export default function AreaListPage() {
 		} catch (err) {
 			console.error("Restore area failed:", err);
 			if (err?.code === "ERR_AREA_045") {
-				setRestoreError("Khu vực đã được người khác cập nhật. Đã tải lại danh sách, vui lòng mở lại để khôi phục.");
+				setRestoreError(
+					"Khu vực đã được người khác cập nhật. Đã tải lại danh sách, vui lòng mở lại để khôi phục.",
+				);
 				await fetchDeactivatedAreas();
 			} else {
 				setRestoreError(getErrorMessage(err));
@@ -851,14 +857,21 @@ export default function AreaListPage() {
 			)}
 
 			<PageHeader
-				title={isAdmin ? "Cấu hình vùng hạn chế" : "Quản lý vùng an ninh và quyền truy cập"}
+				title={
+					isAdmin
+						? "Cấu hình vùng hạn chế"
+						: "Quản lý vùng an ninh và quyền truy cập"
+				}
 				description={
 					isAdmin
 						? "Thêm mới phân khu, cấu hình cấp độ bảo mật, liên kết camera và thiết lập hạ tầng an ninh."
 						: "Quản lý danh sách nhân sự được chỉ định, tra cứu phân quyền và vận hành phân khu."
 				}
 				actions={
-					<a href="/admin/map" className="ui-btn ui-btn--secondary ui-btn--md">
+					<a
+						href="/admin/map"
+						className="ui-btn ui-btn--secondary ui-btn--md"
+					>
 						<Compass size={16} />
 						<span>Xem trên bản đồ an ninh</span>
 					</a>
@@ -920,9 +933,12 @@ export default function AreaListPage() {
 
 				{/* Add Area Button Group */}
 				<div className="zone-toolbar__actions">
-
 					{isAdmin && (
-						<div className="zone-view-toggle" role="group" aria-label="Lọc trạng thái khu vực">
+						<div
+							className="zone-view-toggle"
+							role="group"
+							aria-label="Lọc trạng thái khu vực"
+						>
 							<button
 								type="button"
 								className={`zone-view-toggle__btn ${!showDeactivated ? "zone-view-toggle__btn--active" : ""}`}
@@ -976,20 +992,31 @@ export default function AreaListPage() {
 			{/* ============================================================ */}
 			{/* Step 6 (BR-AD-07): danh sách khu vực đã vô hiệu hoá + khôi phục — chỉ ADMIN */}
 			{isAdmin && showDeactivated && (
-				<section className="zone-deactivated" aria-label="Khu vực đã vô hiệu hoá">
+				<section
+					className="zone-deactivated"
+					aria-label="Khu vực đã vô hiệu hoá"
+				>
 					<div className="zone-deactivated__header">
 						<div>
-							<h2 className="zone-deactivated__title">Khu vực đã vô hiệu hoá</h2>
+							<h2 className="zone-deactivated__title">
+								Khu vực đã vô hiệu hoá
+							</h2>
 							<p className="zone-deactivated__subtitle">
-								Khôi phục chỉ mở lại khu vực. Nhân sự chỉ định, đơn truy cập, lượt khách và camera đã gỡ không tự hồi phục.
+								Khôi phục chỉ mở lại khu vực. Nhân sự chỉ định, đơn truy cập,
+								lượt khách và camera đã gỡ không tự hồi phục.
 							</p>
 						</div>
-						<span className="zone-deactivated__count">{deactivatedAreas.length} khu vực</span>
+						<span className="zone-deactivated__count">
+							{deactivatedAreas.length} khu vực
+						</span>
 					</div>
 
 					{deactivatedLoading && (
 						<div className="zone-page__loading">
-							<Loader2 className="animate-spin" size={24} />
+							<Loader2
+								className="animate-spin"
+								size={24}
+							/>
 							<span>Đang tải khu vực đã vô hiệu hoá...</span>
 						</div>
 					)}
@@ -999,42 +1026,50 @@ export default function AreaListPage() {
 							<span>{deactivatedError}</span>
 						</div>
 					)}
-					{!deactivatedLoading && !deactivatedError && deactivatedAreas.length === 0 && (
-						<p className="zone-deactivated__empty">Không có khu vực nào đã vô hiệu hoá.</p>
-					)}
-					{!deactivatedLoading && !deactivatedError && deactivatedAreas.length > 0 && (
-						<table className="zone-deactivated__table">
-							<thead>
-								<tr>
-									<th>Tên khu vực</th>
-									<th>Toà nhà / Tầng</th>
-									<th>Loại</th>
-									<th aria-label="Thao tác" />
-								</tr>
-							</thead>
-							<tbody>
-								{deactivatedAreas.map((a) => (
-									<tr key={a.id}>
-										<td className="zone-deactivated__name">{a.name}</td>
-										<td>
-											{a.building || "—"} / {a.floor || "—"}
-										</td>
-										<td>{AREA_LEVEL_CONFIG[a.areaLevel]?.name || a.areaLevel}</td>
-										<td className="zone-deactivated__actions">
-											<button
-												type="button"
-												className="area-btn-modal area-btn-modal--cancel zone-deactivated__restore-btn"
-												onClick={() => openRestoreModal(a)}
-											>
-												<RotateCcw size={14} />
-												<span>Khôi phục</span>
-											</button>
-										</td>
+					{!deactivatedLoading &&
+						!deactivatedError &&
+						deactivatedAreas.length === 0 && (
+							<p className="zone-deactivated__empty">
+								Không có khu vực nào đã vô hiệu hoá.
+							</p>
+						)}
+					{!deactivatedLoading &&
+						!deactivatedError &&
+						deactivatedAreas.length > 0 && (
+							<table className="zone-deactivated__table">
+								<thead>
+									<tr>
+										<th>Tên khu vực</th>
+										<th>Toà nhà / Tầng</th>
+										<th>Loại</th>
+										<th aria-label="Thao tác" />
 									</tr>
-								))}
-							</tbody>
-						</table>
-					)}
+								</thead>
+								<tbody>
+									{deactivatedAreas.map((a) => (
+										<tr key={a.id}>
+											<td className="zone-deactivated__name">{a.name}</td>
+											<td>
+												{a.building || "—"} / {a.floor || "—"}
+											</td>
+											<td>
+												{AREA_LEVEL_CONFIG[a.areaLevel]?.name || a.areaLevel}
+											</td>
+											<td className="zone-deactivated__actions">
+												<button
+													type="button"
+													className="area-btn-modal area-btn-modal--cancel zone-deactivated__restore-btn"
+													onClick={() => openRestoreModal(a)}
+												>
+													<RotateCcw size={14} />
+													<span>Khôi phục</span>
+												</button>
+											</td>
+										</tr>
+									))}
+								</tbody>
+							</table>
+						)}
 				</section>
 			)}
 
@@ -1228,9 +1263,7 @@ export default function AreaListPage() {
 											value={formData.floor}
 											onChange={(e) => {
 												const newF = e.target.value;
-												const flObj = modalFloors.find(
-													(f) => f.name === newF,
-												);
+												const flObj = modalFloors.find((f) => f.name === newF);
 												setFormData({
 													...formData,
 													floor: newF,
@@ -1251,8 +1284,11 @@ export default function AreaListPage() {
 								</div>
 								<div className="area-form-row">
 									<div className="area-form-group">
-										<label htmlFor="create-center-latitude" className="area-form-label">
-											Vĩ độ <span className="required">*</span>
+										<label
+											htmlFor="create-center-latitude"
+											className="area-form-label"
+										>
+											Vĩ độ
 										</label>
 										<input
 											id="create-center-latitude"
@@ -1260,18 +1296,23 @@ export default function AreaListPage() {
 											step="any"
 											min="-90"
 											max="90"
-											required
 											className="area-form-input"
 											placeholder="Ví dụ: 10.8411"
 											value={formData.centerLatitude}
 											onChange={(e) =>
-												setFormData({ ...formData, centerLatitude: e.target.value })
+												setFormData({
+													...formData,
+													centerLatitude: e.target.value,
+												})
 											}
 										/>
 									</div>
 									<div className="area-form-group">
-										<label htmlFor="create-center-longitude" className="area-form-label">
-											Kinh độ <span className="required">*</span>
+										<label
+											htmlFor="create-center-longitude"
+											className="area-form-label"
+										>
+											Kinh độ
 										</label>
 										<input
 											id="create-center-longitude"
@@ -1279,12 +1320,14 @@ export default function AreaListPage() {
 											step="any"
 											min="-180"
 											max="180"
-											required
 											className="area-form-input"
 											placeholder="Ví dụ: 106.8090"
 											value={formData.centerLongitude}
 											onChange={(e) =>
-												setFormData({ ...formData, centerLongitude: e.target.value })
+												setFormData({
+													...formData,
+													centerLongitude: e.target.value,
+												})
 											}
 										/>
 									</div>
@@ -1514,9 +1557,7 @@ export default function AreaListPage() {
 											value={formData.floor}
 											onChange={(e) => {
 												const newF = e.target.value;
-												const flObj = modalFloors.find(
-													(f) => f.name === newF,
-												);
+												const flObj = modalFloors.find((f) => f.name === newF);
 												setFormData({
 													...formData,
 													floor: newF,
@@ -1541,7 +1582,7 @@ export default function AreaListPage() {
 											htmlFor="edit-center-latitude"
 											className="area-form-label"
 										>
-											Vĩ độ <span className="required">*</span>
+											Vĩ độ
 										</label>
 										<input
 											id="edit-center-latitude"
@@ -1549,12 +1590,14 @@ export default function AreaListPage() {
 											step="any"
 											min="-90"
 											max="90"
-											required
 											className="area-form-input"
 											placeholder="Ví dụ: 10.8411"
 											value={formData.centerLatitude}
 											onChange={(e) =>
-												setFormData({ ...formData, centerLatitude: e.target.value })
+												setFormData({
+													...formData,
+													centerLatitude: e.target.value,
+												})
 											}
 										/>
 									</div>
@@ -1563,7 +1606,7 @@ export default function AreaListPage() {
 											htmlFor="edit-center-longitude"
 											className="area-form-label"
 										>
-											Kinh độ <span className="required">*</span>
+											Kinh độ
 										</label>
 										<input
 											id="edit-center-longitude"
@@ -1571,12 +1614,14 @@ export default function AreaListPage() {
 											step="any"
 											min="-180"
 											max="180"
-											required
 											className="area-form-input"
 											placeholder="Ví dụ: 106.8090"
 											value={formData.centerLongitude}
 											onChange={(e) =>
-												setFormData({ ...formData, centerLongitude: e.target.value })
+												setFormData({
+													...formData,
+													centerLongitude: e.target.value,
+												})
 											}
 										/>
 									</div>
@@ -1660,13 +1705,19 @@ export default function AreaListPage() {
 
 							{modalLoading && !dependencies && (
 								<div className="zone-page__loading">
-									<Loader2 className="animate-spin" size={20} />
+									<Loader2
+										className="animate-spin"
+										size={20}
+									/>
 									<span>Đang kiểm tra phụ thuộc...</span>
 								</div>
 							)}
 
 							{dependencies && (dependencies.blockers || []).length > 0 && (
-								<div className="area-deactivate-blockers" role="alert">
+								<div
+									className="area-deactivate-blockers"
+									role="alert"
+								>
 									<div className="area-deactivate-blockers__title">
 										<AlertTriangle size={15} />
 										<span>Chưa thể vô hiệu hoá — cần xử lý trước:</span>
@@ -1686,13 +1737,16 @@ export default function AreaListPage() {
 									</div>
 									<ul>
 										<li>
-											Nhân sự chỉ định bị thu hồi: <strong>{dependencies.apToRevoke ?? 0}</strong>
+											Nhân sự chỉ định bị thu hồi:{" "}
+											<strong>{dependencies.apToRevoke ?? 0}</strong>
 										</li>
 										<li>
-											Đơn truy cập bị huỷ: <strong>{dependencies.requestsToCancel ?? 0}</strong>
+											Đơn truy cập bị huỷ:{" "}
+											<strong>{dependencies.requestsToCancel ?? 0}</strong>
 										</li>
 										<li>
-											Lượt khách chờ duyệt bị huỷ: <strong>{dependencies.guestVisitsToCancel ?? 0}</strong>
+											Lượt khách chờ duyệt bị huỷ:{" "}
+											<strong>{dependencies.guestVisitsToCancel ?? 0}</strong>
 										</li>
 										<li>
 											Lượt khách đã duyệt bị thu hồi (xoá ảnh khuôn mặt):{" "}
@@ -1742,7 +1796,9 @@ export default function AreaListPage() {
 								onClick={handleDeactivateSubmit}
 								disabled={modalLoading || deactivateBlocked}
 							>
-								{modalLoading && dependencies ? "Đang vô hiệu hoá..." : "Xác nhận vô hiệu hoá"}
+								{modalLoading && dependencies
+									? "Đang vô hiệu hoá..."
+									: "Xác nhận vô hiệu hoá"}
 							</button>
 						</div>
 					</div>
@@ -1771,7 +1827,9 @@ export default function AreaListPage() {
 								</div>
 								<div className="area-modal__header-text">
 									<h3 className="area-modal__title">Khôi phục khu vực</h3>
-									<p className="area-modal__subtitle">Mở lại khu vực đã vô hiệu hoá</p>
+									<p className="area-modal__subtitle">
+										Mở lại khu vực đã vô hiệu hoá
+									</p>
 								</div>
 							</div>
 							<button
@@ -1796,13 +1854,16 @@ export default function AreaListPage() {
 								</div>
 							)}
 							<p className="area-modal__lead">
-								Khôi phục khu vực <strong>{restoreTarget.name}</strong> ({restoreTarget.building || "—"} /{" "}
-								{restoreTarget.floor || "—"})?
+								Khôi phục khu vực <strong>{restoreTarget.name}</strong> (
+								{restoreTarget.building || "—"} / {restoreTarget.floor || "—"})?
 							</p>
 							<div className="area-dependencies-box">
 								<div className="area-dependencies-box__title">Lưu ý</div>
 								<ul>
-									<li>Nhân sự chỉ định, đơn truy cập và lượt khách đã bị huỷ / thu hồi KHÔNG tự hồi phục.</li>
+									<li>
+										Nhân sự chỉ định, đơn truy cập và lượt khách đã bị huỷ / thu
+										hồi KHÔNG tự hồi phục.
+									</li>
 									<li>Camera cần được gán lại nếu cần.</li>
 								</ul>
 							</div>

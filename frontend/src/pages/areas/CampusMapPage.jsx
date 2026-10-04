@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { Compass, Building2, AlertCircle, Loader2, Layers } from "lucide-react";
 import CampusMapView from "../../components/area/CampusMapView";
+import ErrorBoundary from "../../components/common/ErrorBoundary";
 import PageHeader from "../../components/ui/PageHeader";
 import "../../components/ui/Button.css";
 import { getAreas, getAreaCameras } from "../../services/areaService";
@@ -90,7 +91,9 @@ export default function CampusMapPage() {
 				(b) => (b.name || "").toUpperCase() === selectedBuilding.toUpperCase(),
 			);
 			if (bObj?.floors?.length > 0) {
-				bObj.floors.forEach((f) => fSet.add(f.name));
+				bObj.floors.forEach((f) => {
+					if (f?.name) fSet.add(String(f.name));
+				});
 			} else {
 				areas
 					.filter(
@@ -104,7 +107,9 @@ export default function CampusMapPage() {
 			}
 		} else {
 			buildingsList.forEach((b) => {
-				(b.floors || []).forEach((f) => fSet.add(f.name));
+				(b.floors || []).forEach((f) => {
+					if (f?.name) fSet.add(String(f.name));
+				});
 			});
 			areas.forEach((a) => {
 				if (a.floor) fSet.add(a.floor);
@@ -117,9 +122,11 @@ export default function CampusMapPage() {
 		}
 
 		return Array.from(fSet).sort((a, b) => {
-			if (a.toLowerCase().includes("trệt")) return -1;
-			if (b.toLowerCase().includes("trệt")) return 1;
-			return a.localeCompare(b);
+			const la = String(a).toLowerCase();
+			const lb = String(b).toLowerCase();
+			if (la.includes("trệt")) return -1;
+			if (lb.includes("trệt")) return 1;
+			return la.localeCompare(lb);
 		});
 	}, [buildingsList, areas, selectedBuilding]);
 
@@ -139,6 +146,25 @@ export default function CampusMapPage() {
 	const handleSelectArea = (areaId) => {
 		setSelectedAreaId((prev) => (prev === areaId ? null : areaId));
 	};
+
+	// Cập nhật cục bộ sau khi lưu tọa độ (không nạp lại để giữ khung nhìn bản đồ)
+	const handleAreaUpdated = useCallback((areaId, updated) => {
+		setAreas((prev) =>
+			prev.map((a) =>
+				a.id === areaId && updated && typeof updated === "object"
+					? {
+							...a,
+							centerLatitude: updated.centerLatitude ?? a.centerLatitude,
+							centerLongitude: updated.centerLongitude ?? a.centerLongitude,
+							version: updated.version ?? a.version,
+							building: updated.building ?? a.building,
+							floor: updated.floor ?? a.floor,
+						}
+					: a,
+			),
+		);
+		setSelectedAreaId(areaId);
+	}, []);
 
 	return (
 		<div className="zone-page">
@@ -229,14 +255,17 @@ export default function CampusMapPage() {
 
 			{/* OUTDOOR CAMPUS MAP */}
 			{!loading && (
-				<CampusMapView
-					areas={filteredAreas}
-					selectedAreaId={selectedAreaId}
-					cameraCounts={cameraCounts}
-					isAdmin={isAdmin}
-					isFacilityManager={isFacilityManager}
-					onSelectArea={handleSelectArea}
-				/>
+				<ErrorBoundary>
+					<CampusMapView
+						areas={filteredAreas}
+						selectedAreaId={selectedAreaId}
+						cameraCounts={cameraCounts}
+						isAdmin={isAdmin}
+						isFacilityManager={isFacilityManager}
+						onSelectArea={handleSelectArea}
+						onAreaUpdated={handleAreaUpdated}
+					/>
+				</ErrorBoundary>
 			)}
 		</div>
 	);
