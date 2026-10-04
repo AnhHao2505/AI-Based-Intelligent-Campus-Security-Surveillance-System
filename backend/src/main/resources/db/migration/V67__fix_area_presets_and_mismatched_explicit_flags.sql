@@ -1,5 +1,5 @@
 -- ============================================================================
--- V65: Chuẩn hoá cờ explicit_authorization_required theo quy tắc nghiệp vụ bất biến
+-- V67: Chuẩn hoá cờ explicit_authorization_required theo quy tắc nghiệp vụ bất biến
 --
 -- 1. LÝ DO / BỐI CẢNH:
 -- Theo quy tắc nghiệp vụ cốt lõi của ICSS (TC-AA-08, BR-AC-02):
@@ -57,11 +57,11 @@ SELECT
         'areaAccessLevel', p.area_access_level,
         'explicitAuthorizationRequired', FALSE
     ),
-    'Chuẩn hoá cờ preset theo loại khu vực (V65, Quyết định 03/10, Phương án A 04/10)',
+    'Chuẩn hoá cờ preset theo loại khu vực (V67, Quyết định 03/10, Phương án A 04/10)',
     NULL,
     CURRENT_TIMESTAMP,
     'SYSTEM',
-    'FLYWAY_MIGRATION_V65',
+    'FLYWAY_MIGRATION_V67',
     gen_random_uuid()
 FROM area_level_presets p
 WHERE p.area_level IN ('PUBLIC', 'INTERNAL_CONFIDENTIAL')
@@ -98,11 +98,11 @@ SELECT
         'areaAccessLevel', p.area_access_level,
         'explicitAuthorizationRequired', TRUE
     ),
-    'Chuẩn hoá cờ preset theo loại khu vực (V65, Quyết định 03/10, Phương án A 04/10)',
+    'Chuẩn hoá cờ preset theo loại khu vực (V67, Quyết định 03/10, Phương án A 04/10)',
     NULL,
     CURRENT_TIMESTAMP,
     'SYSTEM',
-    'FLYWAY_MIGRATION_V65',
+    'FLYWAY_MIGRATION_V67',
     gen_random_uuid()
 FROM area_level_presets p
 WHERE p.area_level IN ('CONFIDENTIAL_CONTACT_REQUIRED', 'HIGHLY_CONFIDENTIAL')
@@ -142,11 +142,11 @@ SELECT
         'areaAccessLevel', a.area_access_level,
         'explicitAuthorizationRequired', FALSE
     ),
-    'Chuẩn hoá cờ explicit theo loại khu vực (V65, Quyết định 03/10, Phương án A 04/10)',
+    'Chuẩn hoá cờ explicit theo loại khu vực (V67, Quyết định 03/10, Phương án A 04/10)',
     NULL,
     CURRENT_TIMESTAMP,
     'SYSTEM',
-    'FLYWAY_MIGRATION_V65',
+    'FLYWAY_MIGRATION_V67',
     gen_random_uuid()
 FROM areas a
 WHERE a.area_level IN ('PUBLIC', 'INTERNAL_CONFIDENTIAL')
@@ -183,11 +183,11 @@ SELECT
         'areaAccessLevel', a.area_access_level,
         'explicitAuthorizationRequired', TRUE
     ),
-    'Chuẩn hoá cờ explicit theo loại khu vực (V65, Quyết định 03/10, Phương án A 04/10)',
+    'Chuẩn hoá cờ explicit theo loại khu vực (V67, Quyết định 03/10, Phương án A 04/10)',
     NULL,
     CURRENT_TIMESTAMP,
     'SYSTEM',
-    'FLYWAY_MIGRATION_V65',
+    'FLYWAY_MIGRATION_V67',
     gen_random_uuid()
 FROM areas a
 WHERE a.area_level IN ('CONFIDENTIAL_CONTACT_REQUIRED', 'HIGHLY_CONFIDENTIAL')

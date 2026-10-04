@@ -1,5 +1,5 @@
 -- ============================================================================
--- V64: Cấu hình bảo lãnh đơn nhóm (BR-RQ-03/04) và đánh dấu thành viên được bảo lãnh
+-- V66: Cấu hình bảo lãnh đơn nhóm (BR-RQ-03/04) và đánh dấu thành viên được bảo lãnh
 -- ============================================================================
 
 -- 1. Thêm cột sponsored vào bảng access_request_members
