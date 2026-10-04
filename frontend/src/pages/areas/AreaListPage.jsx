@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import {
 	Building2,
@@ -97,6 +97,7 @@ const AREA_LEVEL_CARDS = [
 export default function AreaListPage() {
 	const { user } = useAuth();
 	const isAdmin = user?.role === "ADMIN";
+	const navigate = useNavigate();
 	const isFacilityManager = user?.role === "FACILITY_MANAGER";
 
 	// Data states
