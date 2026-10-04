@@ -35,6 +35,7 @@ import AreaMapView from "../../components/area/AreaMapView";
 import AreaListView from "../../components/area/AreaListView";
 import AreaTypeChangePreviewModal from "../../components/area/AreaTypeChangePreviewModal";
 import PageHeader from "../../components/ui/PageHeader";
+import ReasonTextarea from "../../components/ui/ReasonTextarea";
 import "../../components/ui/Button.css";
 import { getLevelPresets } from "../../services/accessControlService";
 import {
@@ -194,12 +195,14 @@ export default function AreaListPage() {
 	const getPresetSubtitle = (areaLevelValue) => {
 		const preset = levelPresets?.[areaLevelValue];
 		if (!preset) return null;
-		return `Mặc định: Level ${preset.areaAccessLevel} · Chỉ định: ${preset.explicitAuthorizationRequired ? "có" : "không"}`;
+		return `Cấp mặc định của loại: ${preset.areaAccessLevel} · Chỉ định: ${preset.explicitAuthorizationRequired ? "có" : "không"}`;
 	};
 
 	// Modal states
 	const [createModalOpen, setCreateModalOpen] = useState(false);
 	const [editModalOpen, setEditModalOpen] = useState(false);
+	const [editReasonError, setEditReasonError] = useState(null);
+	const editReasonRef = useRef(null);
 	// BL2: xem trước đổi loại khu vực trước khi gửi PUT
 	const [typePreview, setTypePreview] = useState(null);
 	const [typePreviewConfirming, setTypePreviewConfirming] = useState(false);
@@ -212,6 +215,8 @@ export default function AreaListPage() {
 	// danh sách được tải lại và khu vực có thể không còn trong danh sách đang hoạt động.
 	const [deactivateTarget, setDeactivateTarget] = useState(null);
 	const [deactivateReason, setDeactivateReason] = useState("");
+	const [deactivateReasonError, setDeactivateReasonError] = useState(null);
+	const deactivateReasonRef = useRef(null);
 	// Step 6 (BR-AD-07): bộ lọc "Đã vô hiệu hoá" + khôi phục — chỉ ADMIN
 	const [showDeactivated, setShowDeactivated] = useState(false);
 	const [deactivatedAreas, setDeactivatedAreas] = useState([]);
@@ -219,6 +224,8 @@ export default function AreaListPage() {
 	const [deactivatedError, setDeactivatedError] = useState(null);
 	const [restoreTarget, setRestoreTarget] = useState(null);
 	const [restoreReason, setRestoreReason] = useState("");
+	const [restoreReasonError, setRestoreReasonError] = useState(null);
+	const restoreReasonRef = useRef(null);
 	const [restoreError, setRestoreError] = useState(null);
 	const [restoreLoading, setRestoreLoading] = useState(false);
 
@@ -755,6 +762,8 @@ export default function AreaListPage() {
 					? areaToEdit.level?.code
 					: areaToEdit.level) ||
 				"PUBLIC",
+			areaAccessLevel:
+				areaToEdit.areaAccessLevel ?? areaToEdit.accessLevel ?? 1,
 			building: bCode,
 			floor: flCode,
 			floorId:
@@ -768,6 +777,7 @@ export default function AreaListPage() {
 		});
 		setModalError(null);
 		setNameError(null);
+		setEditReasonError(null);
 		setEditModalOpen(true);
 	};
 
@@ -796,9 +806,11 @@ export default function AreaListPage() {
 			Boolean(formData.originalAreaLevel) && formData.areaLevel !== formData.originalAreaLevel;
 		const trimmedReason = (formData.reason || "").trim();
 		if (isTypeChange && (trimmedReason.length < 10 || trimmedReason.length > 500)) {
-			setModalError("Đổi loại khu vực bắt buộc nhập lý do từ 10 đến 500 ký tự.");
+			setEditReasonError(`Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmedReason.length}).`);
+			editReasonRef.current?.focus();
 			return;
 		}
+		setEditReasonError(null);
 
 		const payload = {
 			name: normalizeAreaName(formData.name),
@@ -894,19 +906,26 @@ export default function AreaListPage() {
 	const closeDeactivateModal = () => {
 		setDeactivateModalOpen(false);
 		setDeactivateTarget(null);
+		setDeactivateReason("");
+		setDeactivateReasonError(null);
 	};
 
-	const deactivateReasonLength = deactivateReason.trim().length;
-	const deactivateReasonInvalid = deactivateReasonLength < 10 || deactivateReasonLength > 500;
 	const deactivateBlocked = !dependencies || (dependencies.blockers || []).length > 0;
 
 	const handleDeactivateSubmit = async () => {
 		if (!deactivateTarget || !dependencies) return;
+		const trimmed = deactivateReason.trim();
+		if (trimmed.length < 10 || trimmed.length > 500) {
+			setDeactivateReasonError(`Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmed.length}).`);
+			deactivateReasonRef.current?.focus();
+			return;
+		}
 		const targetId = deactivateTarget.id;
 		setModalLoading(true);
 		setModalError(null);
+		setDeactivateReasonError(null);
 		try {
-			await deactivateArea(targetId, { reason: deactivateReason.trim(), version: dependencies.version });
+			await deactivateArea(targetId, { reason: trimmed, version: dependencies.version });
 			closeDeactivateModal();
 			setSelectedAreaId(null);
 			await fetchData();
@@ -959,19 +978,26 @@ export default function AreaListPage() {
 	const openRestoreModal = (area) => {
 		setRestoreTarget(area);
 		setRestoreReason("");
+		setRestoreReasonError(null);
 		setRestoreError(null);
 	};
 
-	const restoreReasonLength = restoreReason.trim().length;
-	const restoreReasonInvalid = restoreReasonLength < 10 || restoreReasonLength > 500;
-
 	const handleRestoreSubmit = async () => {
 		if (!restoreTarget) return;
+		const trimmed = restoreReason.trim();
+		if (trimmed.length < 10 || trimmed.length > 500) {
+			setRestoreReasonError(`Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmed.length}).`);
+			restoreReasonRef.current?.focus();
+			return;
+		}
 		setRestoreLoading(true);
 		setRestoreError(null);
+		setRestoreReasonError(null);
 		try {
-			await restoreArea(restoreTarget.id, { reason: restoreReason.trim(), version: restoreTarget.version });
+			await restoreArea(restoreTarget.id, { reason: trimmed, version: restoreTarget.version });
 			setRestoreTarget(null);
+			setRestoreReason("");
+			setRestoreReasonError(null);
 			await Promise.all([fetchDeactivatedAreas(), fetchData()]);
 		} catch (err) {
 			console.error("Restore area failed:", err);
@@ -1606,9 +1632,22 @@ export default function AreaListPage() {
 								</div>
 
 								<div className="area-form-group">
-									<label className="area-form-label">
-										Loại khu vực <span className="required">*</span>
-									</label>
+									<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+										<label className="area-form-label" style={{ marginBottom: 0 }}>
+											Loại khu vực <span className="required">*</span>
+										</label>
+										<span style={{ fontSize: "12.5px", color: "var(--theme-text-secondary, #475569)" }}>
+											Cấp hiện tại của khu vực: <strong>{formData.areaAccessLevel ?? 1}</strong>
+											{(() => {
+												const origPreset = levelPresets?.[formData.originalAreaLevel || formData.areaLevel];
+												const presetLvl = origPreset?.areaAccessLevel;
+												if (formData.areaAccessLevel != null && presetLvl != null && Number(formData.areaAccessLevel) !== Number(presetLvl)) {
+													return <span style={{ color: "var(--brand-warning, #d97706)", marginLeft: "4px" }}>(khác mặc định của loại: {presetLvl})</span>;
+												}
+												return null;
+											})()}
+										</span>
+									</div>
 									<div className="area-level-selector">
 										{AREA_LEVEL_CARDS.map((card) => {
 											const isSelected = formData.areaLevel === card.value;
@@ -1652,22 +1691,25 @@ export default function AreaListPage() {
 								{/* Step 5b (BR-TC-02): đổi loại -> bắt buộc lý do 10–500 ký tự, ghi vào audit CHANGE_TYPE */}
 								{formData.originalAreaLevel && formData.areaLevel !== formData.originalAreaLevel && (
 									<div className="area-form-group">
-										<label htmlFor="edit-type-change-reason" className="area-form-label">
-											Lý do đổi loại khu vực <span className="required">*</span>
-										</label>
-										<textarea
+										<ReasonTextarea
+											ref={editReasonRef}
 											id="edit-type-change-reason"
-											className="area-form-input area-form-input--textarea"
-											rows={3}
-											maxLength={500}
+											label="Lý do đổi loại khu vực"
+											placeholder="Nêu lý do đổi loại (10–500 ký tự)..."
 											value={formData.reason || ""}
-											onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
-											placeholder="Nêu lý do đổi loại (10–500 ký tự)"
+											onChange={(e) => {
+												const val = e.target.value;
+												setFormData({ ...formData, reason: val });
+												if (editReasonError && val.trim().length >= 10 && val.trim().length <= 500) {
+													setEditReasonError(null);
+												}
+											}}
+											error={editReasonError}
+											hint="Đổi loại sẽ áp cấp truy cập theo mặc định của loại mới và có thể huỷ các đơn truy cập không còn phù hợp."
+											min={10}
+											max={500}
+											required
 										/>
-										<span className="area-form-hint">
-											{(formData.reason || "").trim().length}/500 ký tự. Đổi loại sẽ áp cấp truy cập theo mặc định của loại mới
-											và có thể huỷ các đơn truy cập không còn phù hợp.
-										</span>
 									</div>
 								)}
 
@@ -1911,22 +1953,25 @@ export default function AreaListPage() {
 
 							{dependencies && (
 								<div className="area-form-group">
-									<label htmlFor="deactivate-reason" className="area-form-label">
-										Lý do vô hiệu hoá <span className="required">*</span>
-									</label>
-									<textarea
+									<ReasonTextarea
+										ref={deactivateReasonRef}
 										id="deactivate-reason"
-										className="area-form-input area-form-input--textarea"
-										rows={3}
-										maxLength={500}
+										label="Lý do vô hiệu hoá"
+										placeholder="Nêu lý do vô hiệu hoá (10–500 ký tự)..."
 										value={deactivateReason}
-										onChange={(e) => setDeactivateReason(e.target.value)}
-										placeholder="Nêu lý do vô hiệu hoá (10–500 ký tự)"
+										onChange={(e) => {
+											const val = e.target.value;
+											setDeactivateReason(val);
+											if (deactivateReasonError && val.trim().length >= 10 && val.trim().length <= 500) {
+												setDeactivateReasonError(null);
+											}
+										}}
+										error={deactivateReasonError}
+										min={10}
+										max={500}
 										disabled={modalLoading}
+										required
 									/>
-									<span className={`area-form-hint ${deactivateReason && deactivateReasonInvalid ? "area-form-hint--error" : ""}`}>
-										{deactivateReasonLength}/500 ký tự (bắt buộc từ 10 đến 500 ký tự)
-									</span>
 								</div>
 							)}
 						</div>
@@ -1944,7 +1989,7 @@ export default function AreaListPage() {
 								type="button"
 								className="area-btn-modal area-btn-modal--danger"
 								onClick={handleDeactivateSubmit}
-								disabled={modalLoading || deactivateBlocked || deactivateReasonInvalid}
+								disabled={modalLoading || deactivateBlocked}
 							>
 								{modalLoading && dependencies ? "Đang vô hiệu hoá..." : "Xác nhận vô hiệu hoá"}
 							</button>
@@ -1957,7 +2002,12 @@ export default function AreaListPage() {
 			{restoreTarget && (
 				<div
 					className="area-modal-backdrop"
-					onClick={() => !restoreLoading && setRestoreTarget(null)}
+					onClick={() => {
+						if (!restoreLoading) {
+							setRestoreTarget(null);
+							setRestoreReasonError(null);
+						}
+					}}
 				>
 					<div
 						className="area-modal"
@@ -1976,7 +2026,10 @@ export default function AreaListPage() {
 							<button
 								type="button"
 								className="area-modal__close-btn"
-								onClick={() => setRestoreTarget(null)}
+								onClick={() => {
+									setRestoreTarget(null);
+									setRestoreReasonError(null);
+								}}
 								disabled={restoreLoading}
 								aria-label="Đóng"
 							>
@@ -2003,22 +2056,25 @@ export default function AreaListPage() {
 								</ul>
 							</div>
 							<div className="area-form-group">
-								<label htmlFor="restore-reason" className="area-form-label">
-									Lý do khôi phục <span className="required">*</span>
-								</label>
-								<textarea
+								<ReasonTextarea
+									ref={restoreReasonRef}
 									id="restore-reason"
-									className="area-form-input area-form-input--textarea"
-									rows={3}
-									maxLength={500}
+									label="Lý do khôi phục"
+									placeholder="Nêu lý do khôi phục (10–500 ký tự)..."
 									value={restoreReason}
-									onChange={(e) => setRestoreReason(e.target.value)}
-									placeholder="Nêu lý do khôi phục (10–500 ký tự)"
+									onChange={(e) => {
+										const val = e.target.value;
+										setRestoreReason(val);
+										if (restoreReasonError && val.trim().length >= 10 && val.trim().length <= 500) {
+											setRestoreReasonError(null);
+										}
+									}}
+									error={restoreReasonError}
+									min={10}
+									max={500}
 									disabled={restoreLoading}
+									required
 								/>
-								<span className={`area-form-hint ${restoreReason && restoreReasonInvalid ? "area-form-hint--error" : ""}`}>
-									{restoreReasonLength}/500 ký tự (bắt buộc từ 10 đến 500 ký tự)
-								</span>
 							</div>
 						</div>
 
@@ -2026,7 +2082,10 @@ export default function AreaListPage() {
 							<button
 								type="button"
 								className="area-btn-modal area-btn-modal--cancel"
-								onClick={() => setRestoreTarget(null)}
+								onClick={() => {
+									setRestoreTarget(null);
+									setRestoreReasonError(null);
+								}}
 								disabled={restoreLoading}
 							>
 								Huỷ
@@ -2035,7 +2094,7 @@ export default function AreaListPage() {
 								type="button"
 								className="area-btn-modal area-btn-modal--submit"
 								onClick={handleRestoreSubmit}
-								disabled={restoreLoading || restoreReasonInvalid}
+								disabled={restoreLoading}
 							>
 								{restoreLoading ? "Đang khôi phục..." : "Xác nhận khôi phục"}
 							</button>
