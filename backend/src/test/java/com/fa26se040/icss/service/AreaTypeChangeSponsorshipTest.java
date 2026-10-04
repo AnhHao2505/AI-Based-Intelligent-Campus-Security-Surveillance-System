@@ -126,6 +126,18 @@ class AreaTypeChangeSponsorshipTest extends Step5bTestSupport {
     }
 
     @Test
+    @DisplayName("Q1: đổi sang INTERNAL khi INTERNAL KHÔNG cho bảo lãnh nhưng thành viên sponsored đã đủ cấp 2 -> đơn KHÔNG bị huỷ (giống reviewRequest)")
+    void sponsoredMemberWithSufficientLevelKeptWhenNewTypeDisallowsSponsorship() throws Exception {
+        setSponsorTypes(CONTACT_ONLY);
+        AccessRequest req = approvedGroupRequest(contactArea, userL3, Map.of(userL2, true));
+
+        assertFalse(previewCancels(contactArea, AreaLevel.INTERNAL_CONFIDENTIAL, req), "Xem trước không được liệt kê đơn");
+        changeTypeOk(contactArea, AreaLevel.INTERNAL_CONFIDENTIAL);
+
+        assertEquals(RequestStatus.APPROVED, requestStatus(req));
+    }
+
+    @Test
     @DisplayName("Q1: cấp mới (HIGHLY, cấp 3) > cấp người gửi L2 -> đơn bị huỷ vì người gửi không đủ cấp")
     void requesterBelowNewLevelCancels() throws Exception {
         // Cho phép đơn nhóm ở Tuyệt mật để nhánh "không nhận đơn nhóm" không che mất kiểm cấp người gửi

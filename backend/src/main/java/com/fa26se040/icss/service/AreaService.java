@@ -284,9 +284,10 @@ public class AreaService {
     /**
      * Quy tắc FM kiểm khi duyệt đơn (BR-RQ-02) áp lên loại mới; trả null nếu đơn vẫn thoả loại mới.
      * Q1 (BR-RQ-03/04): người tạo đơn luôn phải đủ cấp; thành viên sponsored được miễn kiểm cấp khi loại mới
-     * cho phép bảo lãnh, ngược lại là vi phạm "loại mới không cho phép bảo lãnh"; thành viên thường kiểm cấp như cũ.
-     * Không dùng chung hàm với reviewRequest: luồng duyệt còn chặn thành viên bị vô hiệu hoá và chỉ kiểm cấp
-     * thành viên sponsored khi loại không cho bảo lãnh — gộp sẽ đổi hành vi luồng duyệt.
+     * cho phép bảo lãnh; loại mới không cho bảo lãnh → kiểm cấp như thành viên thường, giống reviewRequest
+     * (thiếu cấp thì lý do nêu "loại mới không cho phép bảo lãnh"); thành viên thường kiểm cấp như cũ.
+     * Không dùng chung hàm với reviewRequest: luồng duyệt còn chặn thành viên bị vô hiệu hoá — gộp sẽ thêm
+     * điều kiện đó vào đổi loại khu vực.
      */
     private static String describeRuleViolation(com.fa26se040.icss.entity.AccessRequest r, AreaLevel newLevel,
                                                 int newAccessLevel, boolean groupAllowedInPrivate,
@@ -312,7 +313,7 @@ public class AreaService {
                     continue;
                 }
                 if (Boolean.TRUE.equals(m.getSponsored())) {
-                    if (!sponsorAllowedForNewLevel) {
+                    if (!sponsorAllowedForNewLevel && accessLevelOf(u) < newAccessLevel) {
                         sponsorshipNotAllowed.add(displayName(u));
                     }
                     continue;
