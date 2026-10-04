@@ -9,10 +9,7 @@ import {
 	Pencil,
 	Ban,
 } from "lucide-react";
-import {
-	getLevelConfig,
-	getAccessLevelConfig,
-} from "../../utils/areaHelpers";
+import { getLevelConfig, getAccessLevelConfig } from "../../utils/areaHelpers";
 
 const formatEventUntil = (openUntil) => {
 	if (!openUntil) return "";
@@ -109,14 +106,6 @@ export default function AreaListView({
 												title="Khu vực bắt buộc chỉ định nhân sự đích danh"
 											>
 												Chỉ định
-											</span>
-										)}
-										{area.differsFromPreset && (
-											<span
-												className="zone-card__pill-differs"
-												title="Quy tắc truy cập của khu vực này khác với giá trị mặc định của loại khu vực"
-											>
-												Khác mặc định
 											</span>
 										)}
 										{area.eventActive && area.openUntil && (

@@ -477,6 +477,26 @@
   margin: 0;
 }
 
+.campus-detail-location {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--theme-text-muted);
+}
+
+.campus-detail-location__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.campus-detail-location__sep {
+  opacity: 0.6;
+}
+
 .campus-detail-meta {
   display: flex;
   flex-direction: column;

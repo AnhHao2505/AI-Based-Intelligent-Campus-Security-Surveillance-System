@@ -246,16 +246,28 @@ export default function Sidebar({ user, onLogout }) {
 								)}
 
 								{isAdmin && (
-									<NavLink
-										to="/cameras"
-										className={({ isActive }) =>
-											`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
-										}
-										title={sidebarCollapsed ? "Quản lý Camera" : undefined}
-									>
-										<Video size={18} />
-										<span>Quản lý camera</span>
-									</NavLink>
+									<>
+										<NavLink
+											to="/cameras"
+											className={({ isActive }) =>
+												`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
+											}
+											title={sidebarCollapsed ? "Quản lý Camera" : undefined}
+										>
+											<Video size={18} />
+											<span>Quản lý camera</span>
+										</NavLink>
+										<NavLink
+											to="/admin/map"
+											className={({ isActive }) =>
+												`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
+											}
+											title={sidebarCollapsed ? "Quản lý bản đồ" : undefined}
+										>
+											<Compass size={18} />
+											<span>Quản lý bản đồ</span>
+										</NavLink>
+									</>
 								)}
 							</div>
 
@@ -375,16 +387,6 @@ export default function Sidebar({ user, onLogout }) {
 												)}
 											</NavLink>
 											<NavLink
-												to="/admin/map"
-												className={({ isActive }) =>
-													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
-												}
-												title={sidebarCollapsed ? "Quản lý bản đồ" : undefined}
-											>
-												<Compass size={18} />
-												<span>Quản lý bản đồ</span>
-											</NavLink>
-											<NavLink
 												to="/admin/accounts"
 												className={({ isActive }) =>
 													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
@@ -401,9 +403,7 @@ export default function Sidebar({ user, onLogout }) {
 												className={({ isActive }) =>
 													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
 												}
-												title={
-													sidebarCollapsed ? "Ảnh khách" : undefined
-												}
+												title={sidebarCollapsed ? "Ảnh khách" : undefined}
 											>
 												<Camera size={18} />
 												<span>Ảnh khách</span>

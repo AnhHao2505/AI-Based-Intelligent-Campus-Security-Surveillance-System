@@ -575,20 +575,6 @@
   color: var(--theme-danger-text);
 }
 
-/* Pill "Khác mặc định": 6.84:1 (light) / 10.13:1 (dark) */
-.zone-card__pill-differs {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 8px;
-  border-radius: 12px;
-  font-size: 11px;
-  font-weight: 600;
-  white-space: nowrap;
-  background: var(--theme-warning-bg);
-  border: 1px solid var(--theme-warning-border);
-  color: var(--theme-warning-text);
-}
-
 .zone-pill-explicit {
   display: inline-flex;
   align-items: center;

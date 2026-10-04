@@ -10,6 +10,8 @@ import {
 	Maximize2,
 	PanelRightClose,
 	PanelRightOpen,
+	Building2,
+	Layers,
 } from "lucide-react";
 import {
 	getLevelConfig,
@@ -248,20 +250,6 @@ export default function CampusMapView({
 			<div className="campus-map-card">
 				{/* Floating Top Controls */}
 				<div className="campus-map-floating-bar">
-					<div className="campus-map-badge">
-						<Compass size={13} />
-						<span>Bản đồ Khuôn viên FPT</span>
-					</div>
-
-					<button
-						type="button"
-						className="campus-map-btn-icon"
-						onClick={handleResetCampusView}
-						title="Quay lại trung tâm Khuôn viên FPT"
-					>
-						<Maximize2 size={14} />
-					</button>
-
 					<button
 						type="button"
 						className="campus-map-btn-icon"
@@ -407,7 +395,9 @@ export default function CampusMapView({
 				</div>
 
 				{/* Card 2: Selected Area Detail */}
-				<div className={`campus-rail-card campus-rail-card--detail ${!selectedArea ? "campus-rail-card--detail-empty" : ""}`}>
+				<div
+					className={`campus-rail-card campus-rail-card--detail ${!selectedArea ? "campus-rail-card--detail-empty" : ""}`}
+				>
 					{!selectedArea ? (
 						<div className="campus-detail-empty">
 							<p>
@@ -418,15 +408,36 @@ export default function CampusMapView({
 						<div className="campus-detail-content">
 							<div className="campus-detail-header">
 								<h3 className="campus-detail-title">{selectedArea.name}</h3>
-								{selectedArea.building && <span className="zone-detail-code">{selectedArea.building}</span>}
-								Add floor name here too
+								{(selectedArea.building || selectedArea.floor) && (
+									<div className="campus-detail-location">
+										{selectedArea.building && (
+											<span className="campus-detail-location__item">
+												<Building2 size={12} />
+												{selectedArea.building}
+											</span>
+										)}
+										{selectedArea.building && selectedArea.floor && (
+											<span className="campus-detail-location__sep">·</span>
+										)}
+										{selectedArea.floor && (
+											<span className="campus-detail-location__item">
+												<Layers size={12} />
+												{selectedArea.floor}
+											</span>
+										)}
+									</div>
+								)}
 							</div>
 
 							<div className="campus-detail-meta">
 								<div className="campus-detail-meta-row">
 									<span className="campus-detail-meta-label">Loại</span>
 									<span className="campus-detail-meta-val">
-										{getLevelConfig(selectedArea.areaLevel || selectedArea.level).name}
+										{
+											getLevelConfig(
+												selectedArea.areaLevel || selectedArea.level,
+											).name
+										}
 									</span>
 								</div>
 								<div className="campus-detail-meta-row">

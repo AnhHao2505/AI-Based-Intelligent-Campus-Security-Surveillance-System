@@ -1,25 +1,11 @@
-import React, {
-	useState,
-	useEffect,
-	useMemo,
-	useCallback,
-} from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-import {
-	Compass,
-	Building2,
-	AlertCircle,
-	Loader2,
-	Layers,
-} from "lucide-react";
+import { Compass, Building2, AlertCircle, Loader2, Layers } from "lucide-react";
 import CampusMapView from "../../components/area/CampusMapView";
 import PageHeader from "../../components/ui/PageHeader";
 import "../../components/ui/Button.css";
-import {
-	getAreas,
-	getAreaCameras,
-} from "../../services/areaService";
+import { getAreas, getAreaCameras } from "../../services/areaService";
 import { getBuildings } from "../../services/buildingService";
 import { getErrorMessage } from "../../utils/areaHelpers";
 import "../../styles/AreaListPage.css";
@@ -101,8 +87,7 @@ export default function CampusMapPage() {
 		const fSet = new Set();
 		if (selectedBuilding !== "ALL") {
 			const bObj = buildingsList.find(
-				(b) =>
-					(b.name || "").toUpperCase() === selectedBuilding.toUpperCase(),
+				(b) => (b.name || "").toUpperCase() === selectedBuilding.toUpperCase(),
 			);
 			if (bObj?.floors?.length > 0) {
 				bObj.floors.forEach((f) => fSet.add(f.name));
@@ -175,7 +160,10 @@ export default function CampusMapPage() {
 			<div className="zone-toolbar">
 				{/* Building Selector */}
 				<div className="zone-toolbar__group">
-					<Building2 size={16} className="text-secondary" />
+					<Building2
+						size={16}
+						className="text-secondary"
+					/>
 					<select
 						className="zone-select"
 						value={selectedBuilding}
@@ -188,7 +176,10 @@ export default function CampusMapPage() {
 					>
 						<option value="ALL">Tất cả tòa nhà</option>
 						{buildingsList.map((b) => (
-							<option key={b.id || b.name} value={b.name}>
+							<option
+								key={b.id || b.name}
+								value={b.name}
+							>
 								{b.name}
 							</option>
 						))}
@@ -197,7 +188,10 @@ export default function CampusMapPage() {
 
 				{/* Floor Options Selector */}
 				<div className="zone-toolbar__group">
-					<Layers size={16} className="text-secondary" />
+					<Layers
+						size={16}
+						className="text-secondary"
+					/>
 					<select
 						className="zone-select"
 						value={selectedFloor}
@@ -209,7 +203,10 @@ export default function CampusMapPage() {
 					>
 						<option value="ALL">Tất cả tầng</option>
 						{availableFloors.map((fl) => (
-							<option key={fl} value={fl}>
+							<option
+								key={fl}
+								value={fl}
+							>
 								{fl}
 							</option>
 						))}
@@ -217,19 +214,6 @@ export default function CampusMapPage() {
 				</div>
 
 				<div className="zone-toolbar__spacer" />
-
-				<div className="zone-toolbar__actions">
-					<div className="zone-view-toggle">
-						<button
-							type="button"
-							className="zone-view-toggle__btn zone-view-toggle__btn--active"
-							title="Bản đồ địa lý toàn cảnh khuôn viên ngoài trời (OpenStreetMap Standard)"
-						>
-							<Compass size={15} />
-							<span>Khuôn viên (Bản đồ số)</span>
-						</button>
-					</div>
-				</div>
 			</div>
 
 			{/* Loading */}
