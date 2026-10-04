@@ -18,6 +18,7 @@ import Button from '../../components/ui/Button';
 import PageHeader from '../../components/ui/PageHeader';
 import UserSearchCombobox from '../../components/user/UserSearchCombobox';
 import '../../styles/UserAccessLevelPage.css';
+import { formatLocation } from '../../utils/formatLocation';
 
 const SYSTEM_ACTOR_LABELS = {
   EXPIRE_OVERDUE_REQUESTS_JOB: 'Tự động hết hạn đơn quá giờ',
@@ -494,8 +495,7 @@ export default function AuditLogPage() {
               >
                 <option value="">Tất cả khu vực</option>
                 {areasList.map((a) => {
-                  const floorPart = a.floor ? (String(a.floor).startsWith('Tầng') ? a.floor : `Tầng ${a.floor}`) : null;
-                  const loc = [a.building, floorPart].filter(Boolean).join(' · ');
+                  const loc = formatLocation(a.building, a.floor);
                   return (
                     <option key={a.id} value={a.id}>
                       {loc ? `${a.name} (${loc})` : a.name}

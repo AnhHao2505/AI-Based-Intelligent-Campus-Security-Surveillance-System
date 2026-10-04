@@ -23,6 +23,7 @@ import '../../styles/AccessRequestReviewPage.css';
 import PageHeader from '../../components/ui/PageHeader';
 import ReasonTextarea from '../../components/ui/ReasonTextarea';
 import '../../components/ui/Button.css';
+import { formatLocation } from '../../utils/formatLocation';
 
 export default function AccessRequestReviewPage() {
   const [requests, setRequests] = useState([]);
@@ -373,8 +374,7 @@ export default function AccessRequestReviewPage() {
           >
             <option value="">Tất cả khu vực</option>
             {areasList.map((a) => {
-              const floorPart = a.floor ? (String(a.floor).startsWith('Tầng') ? a.floor : `Tầng ${a.floor}`) : null;
-              const loc = [a.building, floorPart].filter(Boolean).join(' · ');
+              const loc = formatLocation(a.building, a.floor);
               return (
                 <option key={a.id} value={a.id}>
                   {loc ? `${a.name} (${loc})` : a.name}
@@ -443,8 +443,8 @@ export default function AccessRequestReviewPage() {
                       <div className="arr-area-tag">
                         <span className="arr-area-name">{req.areaName}</span>
                         <span className="arr-area-sub">
-                          {([req.building, req.floor ? `Tầng ${req.floor}` : null].filter(Boolean).length > 0)
-                            ? `${[req.building, req.floor ? `Tầng ${req.floor}` : null].filter(Boolean).join(' · ')} - `
+                          {formatLocation(req.building, req.floor)
+                            ? `${formatLocation(req.building, req.floor)} - `
                             : ''}
                           {getLevelConfig(req.areaLevel).name}
                         </span>
@@ -585,8 +585,8 @@ export default function AccessRequestReviewPage() {
               <div className="arr-info-box">
                 <div>
                   <strong>Khu vực:</strong> {approveItem.areaName}
-                  {([approveItem.building, approveItem.floor ? `Tầng ${approveItem.floor}` : null].filter(Boolean).length > 0)
-                    ? ` (${[approveItem.building, approveItem.floor ? `Tầng ${approveItem.floor}` : null].filter(Boolean).join(' · ')})`
+                  {formatLocation(approveItem.building, approveItem.floor)
+                    ? ` (${formatLocation(approveItem.building, approveItem.floor)})`
                     : ''}
                 </div>
                 <div><strong>Thời gian:</strong> {formatDateTime(approveItem.startTime)} - {formatDateTime(approveItem.endTime)}</div>
@@ -736,8 +736,8 @@ export default function AccessRequestReviewPage() {
                   <div className="arr-detail-label">KHU VỰC ĐĂNG KÝ</div>
                   <div style={{ fontWeight: 600 }}>
                     {detailItem.areaName}
-                    {([detailItem.building, detailItem.floor ? `Tầng ${detailItem.floor}` : null].filter(Boolean).length > 0)
-                      ? ` (${[detailItem.building, detailItem.floor ? `Tầng ${detailItem.floor}` : null].filter(Boolean).join(' · ')})`
+                    {formatLocation(detailItem.building, detailItem.floor)
+                      ? ` (${formatLocation(detailItem.building, detailItem.floor)})`
                       : ''}
                   </div>
                   <div className="arr-text-muted" style={{ fontSize: '0.8125rem' }}>

@@ -24,6 +24,7 @@ import { getLevelConfig, AREA_LEVEL_CONFIG } from "../../utils/areaHelpers";
 import { useAuth } from "../../context/AuthContext";
 import "../../styles/AccessRequestPage.css";
 import PageHeader from "../../components/ui/PageHeader";
+import { formatLocation } from "../../utils/formatLocation";
 
 export default function AccessRequestPage() {
 	const { user } = useAuth();
@@ -558,8 +559,7 @@ export default function AccessRequestPage() {
 						>
 							<option value="">-- Chọn khu vực cần đăng ký truy cập --</option>
 							{areas.map((a) => {
-								const floorPart = a.floor ? (String(a.floor).startsWith("Tầng") ? a.floor : `Tầng ${a.floor}`) : null;
-								const loc = [a.building, floorPart].filter(Boolean).join(" · ");
+								const loc = formatLocation(a.building, a.floor);
 								return (
 									<option
 										key={a.id}
@@ -890,8 +890,7 @@ export default function AccessRequestPage() {
 						>
 							<option value="">Tất cả khu vực</option>
 							{areaList.map((a) => {
-								const floorPart = a.floor ? (String(a.floor).startsWith("Tầng") ? a.floor : `Tầng ${a.floor}`) : null;
-								const loc = [a.building, floorPart].filter(Boolean).join(" · ");
+								const loc = formatLocation(a.building, a.floor);
 								return (
 									<option key={a.id} value={a.id}>
 										{loc ? `${a.name} (${loc})` : a.name}
@@ -965,9 +964,9 @@ export default function AccessRequestPage() {
 											<tr>
 												<td>
 													<div style={{ fontWeight: 600 }}>{req.areaName}</div>
-													{([req.building, req.floor ? `Tầng ${req.floor}` : null].filter(Boolean).length > 0) && (
+													{formatLocation(req.building, req.floor) && (
 														<div className="arp-table-room-code">
-															{[req.building, req.floor ? `Tầng ${req.floor}` : null].filter(Boolean).join(" · ")}
+															{formatLocation(req.building, req.floor)}
 														</div>
 													)}
 												</td>
@@ -1293,8 +1292,8 @@ export default function AccessRequestPage() {
 									<span className="arp-detail-label">Khu vực</span>
 									<span className="arp-detail-val">
 										{selectedDetail.areaName}
-										{([selectedDetail.building, selectedDetail.floor ? `Tầng ${selectedDetail.floor}` : null].filter(Boolean).length > 0) &&
-											` (${[selectedDetail.building, selectedDetail.floor ? `Tầng ${selectedDetail.floor}` : null].filter(Boolean).join(" · ")})`}
+										{formatLocation(selectedDetail.building, selectedDetail.floor) &&
+											` (${formatLocation(selectedDetail.building, selectedDetail.floor)})`}
 									</span>
 									<span
 										style={{
@@ -1559,8 +1558,8 @@ export default function AccessRequestPage() {
 						>
 							<div>
 								<strong>Khu vực:</strong> {cancelItem.areaName}
-								{([cancelItem.building, cancelItem.floor ? `Tầng ${cancelItem.floor}` : null].filter(Boolean).length > 0) &&
-									` (${[cancelItem.building, cancelItem.floor ? `Tầng ${cancelItem.floor}` : null].filter(Boolean).join(" · ")})`}
+								{formatLocation(cancelItem.building, cancelItem.floor) &&
+									` (${formatLocation(cancelItem.building, cancelItem.floor)})`}
 							</div>
 							<div>
 								<strong>Khung giờ:</strong>{" "}

@@ -10,6 +10,7 @@ import {
 	Ban,
 } from "lucide-react";
 import { getLevelConfig, getAccessLevelConfig } from "../../utils/areaHelpers";
+import { formatBuilding, formatFloor } from "../../utils/formatLocation";
 
 const formatEventUntil = (openUntil) => {
 	if (!openUntil) return "";
@@ -56,8 +57,8 @@ export default function AreaListView({
 						Chưa có khu vực nào{" "}
 						{selectedFloor === "ALL"
 							? "trong"
-							: `trên ${selectedFloor === "G" ? "Tầng Trệt" : `Tầng ${selectedFloor}`}`}{" "}
-						(Tòa {selectedBuilding})
+							: `trên ${formatFloor(selectedFloor)}`}{" "}
+						({formatBuilding(selectedBuilding)})
 					</div>
 					{isAdmin && (
 						<button

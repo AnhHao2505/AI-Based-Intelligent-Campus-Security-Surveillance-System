@@ -17,6 +17,7 @@ import { getActiveReasons } from "../../services/reasonCatalogService";
 import { formatDisplayDateTime, getLevelConfig } from "../../utils/areaHelpers";
 import { useAuth } from "../../context/AuthContext";
 import "../../styles/AreaAccessRulesModal.css";
+import { formatLocation } from "../../utils/formatLocation";
 
 const ACCESS_LEVEL_OPTIONS = [
 	{
@@ -198,12 +199,7 @@ export default function AreaAccessRulesModal({
 
 	if (!area) return null;
 
-	const floorPart = area.floor
-		? String(area.floor).startsWith("Tầng")
-			? area.floor
-			: `Tầng ${area.floor}`
-		: null;
-	const loc = [area.building, floorPart].filter(Boolean).join(" · ");
+	const loc = formatLocation(area.building, area.floor);
 	const areaDisplay = [area.name, loc].filter(Boolean).join(" · ");
 
 	const preset = levelPresets?.[areaLevelKey];
