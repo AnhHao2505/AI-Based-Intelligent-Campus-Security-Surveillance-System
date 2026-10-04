@@ -326,8 +326,27 @@ export default function AreaAccessRulesModal({
 		}
 	};
 
+	// UX-03: lý do nút "Lưu thay đổi" đang khoá — cùng điều kiện với thuộc tính disabled trước đây
+	const noChanges = isAdmin ? !rulesChanged : !eventModeChanged;
+	const saveBlockers = [];
+	if (noChanges) {
+		saveBlockers.push("chưa có thay đổi nào để lưu");
+	} else if (!isAdmin) {
+		if (eventModeEnabled && !openUntil) saveBlockers.push("chọn thời điểm kết thúc sự kiện");
+		if (!eventReasonCode) saveBlockers.push("chọn lý do sự kiện");
+	}
+	const showSaveHint = !saving && !loadingArea && saveBlockers.length > 0;
+
 	const footer = (
 		<div className="access-rules-modal__footer">
+			{showSaveHint && (
+				<div id="access-rules-save-hint" className="access-rules-modal__save-hint" role="status">
+					<AlertCircle size={14} className="access-rules-modal__save-hint-icon" />
+					<span>
+						{noChanges ? "Chưa có thay đổi nào để lưu." : `Cần ${saveBlockers.join("; ")} để lưu.`}
+					</span>
+				</div>
+			)}
 			<Button
 				variant="secondary"
 				onClick={handleClose}
@@ -340,13 +359,8 @@ export default function AreaAccessRulesModal({
 				variant="primary"
 				onClick={handleSubmit}
 				loading={saving}
-				disabled={
-					saving ||
-					loadingArea ||
-					(isAdmin
-						? !rulesChanged
-						: !eventModeChanged || (eventModeEnabled && !openUntil) || !eventReasonCode)
-				}
+				disabled={saving || loadingArea || saveBlockers.length > 0}
+				aria-describedby={showSaveHint ? "access-rules-save-hint" : undefined}
 				icon={ShieldCheck}
 				type="button"
 			>

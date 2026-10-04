@@ -485,15 +485,19 @@ export default function AccessRequestPage() {
 	};
 
 	const timeSummary = getTimeSummary();
-	const isFormValid = Boolean(
-		selectedAreaId &&
-		requestDate &&
-		startHour &&
-		endHour &&
-		isTimeValid() &&
-		purpose.trim() &&
-		(requestType !== "GROUP" || memberList.length > 0),
-	);
+	// UX-03: lý do nút "Gửi yêu cầu" đang khoá — cùng điều kiện với isFormValid
+	const submitBlockers = [];
+	if (!selectedAreaId) submitBlockers.push("chọn khu vực cần truy cập");
+	if (!requestDate || !startHour || !endHour) {
+		submitBlockers.push("chọn ngày và khung giờ");
+	} else if (!isTimeValid()) {
+		submitBlockers.push("giờ kết thúc phải sau giờ bắt đầu");
+	}
+	if (requestType === "GROUP" && memberList.length === 0) {
+		submitBlockers.push("thêm ít nhất một thành viên nhóm");
+	}
+	if (!purpose.trim()) submitBlockers.push("nhập mục đích sử dụng khu vực");
+	const isFormValid = submitBlockers.length === 0;
 
 	return (
 		<div className="arp-container">
@@ -822,10 +826,17 @@ export default function AccessRequestPage() {
 
 					{/* 2c. Chân thẻ */}
 					<div className="arp-card__footer">
+						{!isFormValid && !submitting && (
+							<div id="arp-submit-hint" className="arp-submit-hint" role="status">
+								<AlertCircle size={14} className="arp-submit-hint__icon" />
+								<span>Cần {submitBlockers.join("; ")} để gửi yêu cầu.</span>
+							</div>
+						)}
 						<button
 							type="submit"
 							className="arp-btn-submit"
 							disabled={!isFormValid || submitting}
+							aria-describedby={!isFormValid ? "arp-submit-hint" : undefined}
 						>
 							{submitting ? (
 								<>

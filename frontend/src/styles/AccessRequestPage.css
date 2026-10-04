@@ -99,6 +99,36 @@
   align-items: center;
 }
 
+/* UX-03: lý do nút gửi đang khoá, đặt cạnh nút */
+.arp-submit-hint {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-right: auto;
+  padding-right: 16px;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--theme-text-muted);
+}
+
+.arp-submit-hint__icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--theme-warning-text);
+}
+
+@media (max-width: 640px) {
+  .arp-card__footer {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .arp-submit-hint {
+    flex-basis: 100%;
+    padding-right: 0;
+  }
+}
+
 /* ==========================================================================
    Form Controls & Labels
    ========================================================================== */
