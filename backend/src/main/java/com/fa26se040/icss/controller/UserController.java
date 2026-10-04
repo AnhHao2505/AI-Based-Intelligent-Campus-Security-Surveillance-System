@@ -114,7 +114,7 @@ public class UserController {
     }
 
     @GetMapping("/{code}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<UserInfo>> getUserByCode(@PathVariable String code) {
         log.info("Received request to get user by code: {}", code);
         UserInfo userInfo = userService.getUserByCode(code);
