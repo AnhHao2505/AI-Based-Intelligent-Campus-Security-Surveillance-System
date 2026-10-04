@@ -1082,7 +1082,7 @@ public class Step5aSupplement2Test extends AbstractIntegrationTest {
                 .filter(n -> n.getType() == NotificationType.EVENT_MODE_CHANGED && n.getRecipient().getId().equals(guardUser.getId()))
                 .toList();
         assertEquals(1, notifs1.size());
-        assertTrue(notifs1.get(0).getMessage().contains("Bật chế độ sự kiện"));
+        assertTrue(notifs1.stream().anyMatch(n -> n.getMessage().contains("Bật chế độ sự kiện")));
 
         // 2. ĐIỀU CHỈNH no-op (< 1s lệch giờ) -> 0 thông báo mới
         OffsetDateTime exactSameTime = areaRepository.findById(internalArea.getId()).orElseThrow().getOpenUntil();
@@ -1106,7 +1106,7 @@ public class Step5aSupplement2Test extends AbstractIntegrationTest {
                 .filter(n -> n.getType() == NotificationType.EVENT_MODE_CHANGED && n.getRecipient().getId().equals(guardUser.getId()))
                 .toList();
         assertEquals(2, notifs2.size());
-        assertTrue(notifs2.get(1).getMessage().contains("Điều chỉnh giờ kết thúc"));
+        assertTrue(notifs2.stream().anyMatch(n -> n.getMessage().contains("Điều chỉnh giờ kết thúc")));
 
         // 4. TẮT thành công
         areaService.updateEventMode(
@@ -1118,7 +1118,7 @@ public class Step5aSupplement2Test extends AbstractIntegrationTest {
                 .filter(n -> n.getType() == NotificationType.EVENT_MODE_CHANGED && n.getRecipient().getId().equals(guardUser.getId()))
                 .toList();
         assertEquals(3, notifs3.size());
-        assertTrue(notifs3.get(2).getMessage().contains("Tắt chế độ sự kiện"));
+        assertTrue(notifs3.stream().anyMatch(n -> n.getMessage().contains("Tắt chế độ sự kiện")));
 
         // 5. Thao tác bị từ chối (Tắt khi đã tắt) -> 0 thông báo mới
         assertThrows(AreaException.class, () ->

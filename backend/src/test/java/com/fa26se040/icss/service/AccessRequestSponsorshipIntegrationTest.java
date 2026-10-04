@@ -14,24 +14,33 @@ import com.fa26se040.icss.dto.systemconfig.SystemConfigUpdateRequest;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.Building;
 import com.fa26se040.icss.entity.Floor;
+import com.fa26se040.icss.entity.Notification;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.AccessSource;
 import com.fa26se040.icss.enums.AreaLevel;
+import com.fa26se040.icss.enums.NotificationType;
 import com.fa26se040.icss.enums.RequestStatus;
 import com.fa26se040.icss.enums.Role;
+import com.fa26se040.icss.repository.AccessRequestMemberRepository;
+import com.fa26se040.icss.repository.AccessRequestRepository;
 import com.fa26se040.icss.repository.AreaLevelPresetRepository;
 import com.fa26se040.icss.repository.AreaRepository;
+import com.fa26se040.icss.repository.AuditLogRepository;
 import com.fa26se040.icss.repository.BuildingRepository;
 import com.fa26se040.icss.repository.FloorRepository;
+import com.fa26se040.icss.repository.NotificationRepository;
+import com.fa26se040.icss.repository.SystemConfigurationChangeLogRepository;
+import com.fa26se040.icss.repository.SystemConfigurationRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import com.fa26se040.icss.security.JwtTokenProvider;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -42,7 +51,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@Transactional
 class AccessRequestSponsorshipIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
@@ -81,6 +89,27 @@ class AccessRequestSponsorshipIntegrationTest extends AbstractIntegrationTest {
     @Autowired
     private FloorRepository floorRepository;
 
+    @Autowired
+    private NotificationRepository notificationRepository;
+
+    @Autowired
+    private AccessRequestRepository accessRequestRepository;
+
+    @Autowired
+    private AccessRequestMemberRepository accessRequestMemberRepository;
+
+    @Autowired
+    private SystemConfigurationRepository systemConfigurationRepository;
+
+    @Autowired
+    private SystemConfigurationChangeLogRepository systemConfigurationChangeLogRepository;
+
+    @Autowired
+    private AuditLogRepository auditLogRepository;
+
+    @Autowired
+    private TransactionTemplate transactionTemplate;
+
     private User adminUser;
     private User fmUser;
     private User creatorL2;
@@ -98,112 +127,204 @@ class AccessRequestSponsorshipIntegrationTest extends AbstractIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        transactionTemplate.execute(status -> {
+            String suffix = UUID.randomUUID().toString().substring(0, 8);
 
-        Building building = buildingRepository.findByCodeIgnoreCase("TOA_SPONSOR")
-                .orElseGet(() -> buildingRepository.save(Building.builder().code("TOA_SPONSOR").name("Tòa Sponsor").build()));
+            Building building = buildingRepository.findByCodeIgnoreCase("TOA_SPONSOR")
+                    .orElseGet(() -> buildingRepository.save(Building.builder().code("TOA_SPONSOR").name("Tòa Sponsor").build()));
 
-        Floor floor = floorRepository.findByBuildingCodeIgnoreCaseAndFloorCodeIgnoreCase("TOA_SPONSOR", "1")
-                .orElseGet(() -> floorRepository.save(Floor.builder().building(building).floorCode("1").name("Tầng 1").floorOrder(1).build()));
+            Floor floor = floorRepository.findByBuildingCodeIgnoreCaseAndFloorCodeIgnoreCase("TOA_SPONSOR", "1")
+                    .orElseGet(() -> floorRepository.save(Floor.builder().building(building).floorCode("1").name("Tầng 1").floorOrder(1).build()));
 
-        adminUser = userRepository.save(User.builder()
-                .userCode("ADM-" + suffix)
-                .fullName("Admin Sponsor " + suffix)
-                .email("admin-" + suffix + "@fpt.edu.vn")
-                .role(Role.ADMIN)
-                .accessLevel(3)
-                .isActive(true)
-                .build());
+            adminUser = userRepository.save(User.builder()
+                    .userCode("ADM-" + suffix)
+                    .fullName("Admin Sponsor " + suffix)
+                    .email("admin-" + suffix + "@fpt.edu.vn")
+                    .role(Role.ADMIN)
+                    .accessLevel(3)
+                    .isActive(true)
+                    .build());
 
-        fmUser = userRepository.save(User.builder()
-                .userCode("FM-" + suffix)
-                .fullName("FM Sponsor " + suffix)
-                .email("fm-" + suffix + "@fpt.edu.vn")
-                .role(Role.FACILITY_MANAGER)
-                .accessLevel(3)
-                .isActive(true)
-                .build());
+            fmUser = userRepository.save(User.builder()
+                    .userCode("FM-" + suffix)
+                    .fullName("FM Sponsor " + suffix)
+                    .email("fm-" + suffix + "@fpt.edu.vn")
+                    .role(Role.FACILITY_MANAGER)
+                    .accessLevel(3)
+                    .isActive(true)
+                    .build());
 
-        creatorL2 = userRepository.save(User.builder()
-                .userCode("CRE2-" + suffix)
-                .fullName("Creator Level 2 " + suffix)
-                .email("cre2-" + suffix + "@fpt.edu.vn")
-                .role(Role.NORMAL_USER)
-                .accessLevel(2)
-                .isActive(true)
-                .build());
+            creatorL2 = userRepository.save(User.builder()
+                    .userCode("CRE2-" + suffix)
+                    .fullName("Creator Level 2 " + suffix)
+                    .email("cre2-" + suffix + "@fpt.edu.vn")
+                    .role(Role.NORMAL_USER)
+                    .accessLevel(2)
+                    .isActive(true)
+                    .build());
 
-        creatorL1 = userRepository.save(User.builder()
-                .userCode("CRE1-" + suffix)
-                .fullName("Creator Level 1 " + suffix)
-                .email("cre1-" + suffix + "@fpt.edu.vn")
-                .role(Role.NORMAL_USER)
-                .accessLevel(1)
-                .isActive(true)
-                .build());
+            creatorL1 = userRepository.save(User.builder()
+                    .userCode("CRE1-" + suffix)
+                    .fullName("Creator Level 1 " + suffix)
+                    .email("cre1-" + suffix + "@fpt.edu.vn")
+                    .role(Role.NORMAL_USER)
+                    .accessLevel(1)
+                    .isActive(true)
+                    .build());
 
-        memberL1 = userRepository.save(User.builder()
-                .userCode("MEM1-" + suffix)
-                .fullName("Member Level 1 " + suffix)
-                .email("mem1-" + suffix + "@fpt.edu.vn")
-                .role(Role.NORMAL_USER)
-                .accessLevel(1)
-                .isActive(true)
-                .build());
+            memberL1 = userRepository.save(User.builder()
+                    .userCode("MEM1-" + suffix)
+                    .fullName("Member Level 1 " + suffix)
+                    .email("mem1-" + suffix + "@fpt.edu.vn")
+                    .role(Role.NORMAL_USER)
+                    .accessLevel(1)
+                    .isActive(true)
+                    .build());
 
-        memberL2 = userRepository.save(User.builder()
-                .userCode("MEM2-" + suffix)
-                .fullName("Member Level 2 " + suffix)
-                .email("mem2-" + suffix + "@fpt.edu.vn")
-                .role(Role.NORMAL_USER)
-                .accessLevel(2)
-                .isActive(true)
-                .build());
+            memberL2 = userRepository.save(User.builder()
+                    .userCode("MEM2-" + suffix)
+                    .fullName("Member Level 2 " + suffix)
+                    .email("mem2-" + suffix + "@fpt.edu.vn")
+                    .role(Role.NORMAL_USER)
+                    .accessLevel(2)
+                    .isActive(true)
+                    .build());
 
-        inactiveMember = userRepository.save(User.builder()
-                .userCode("INACT-" + suffix)
-                .fullName("Inactive Member " + suffix)
-                .email("inact-" + suffix + "@fpt.edu.vn")
-                .role(Role.NORMAL_USER)
-                .accessLevel(2)
-                .isActive(false)
-                .build());
+            inactiveMember = userRepository.save(User.builder()
+                    .userCode("INACT-" + suffix)
+                    .fullName("Inactive Member " + suffix)
+                    .email("inact-" + suffix + "@fpt.edu.vn")
+                    .role(Role.NORMAL_USER)
+                    .accessLevel(2)
+                    .isActive(false)
+                    .build());
 
-        contactArea = areaRepository.save(Area.builder()
-                .name("Contact Area " + suffix)
-                .building("TOA_SPONSOR")
-                .floor("1")
-                .floorEntity(floor)
-                .areaLevel(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
-                .areaAccessLevel(2)
-                .explicitAuthorizationRequired(true)
-                .isActive(true)
-                .build());
+            contactArea = areaRepository.save(Area.builder()
+                    .name("Contact Area " + suffix)
+                    .building("TOA_SPONSOR")
+                    .floor("1")
+                    .floorEntity(floor)
+                    .areaLevel(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
+                    .areaAccessLevel(2)
+                    .explicitAuthorizationRequired(true)
+                    .isActive(true)
+                    .build());
 
-        internalArea = areaRepository.save(Area.builder()
-                .name("Internal Area " + suffix)
-                .building("TOA_SPONSOR")
-                .floor("1")
-                .floorEntity(floor)
-                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
-                .areaAccessLevel(2)
-                .explicitAuthorizationRequired(false)
-                .isActive(true)
-                .build());
+            internalArea = areaRepository.save(Area.builder()
+                    .name("Internal Area " + suffix)
+                    .building("TOA_SPONSOR")
+                    .floor("1")
+                    .floorEntity(floor)
+                    .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
+                    .areaAccessLevel(2)
+                    .explicitAuthorizationRequired(false)
+                    .isActive(true)
+                    .build());
 
-        highlyArea = areaRepository.save(Area.builder()
-                .name("Highly Area " + suffix)
-                .building("TOA_SPONSOR")
-                .floor("1")
-                .floorEntity(floor)
-                .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
-                .areaAccessLevel(3)
-                .explicitAuthorizationRequired(true)
-                .isActive(true)
-                .build());
+            highlyArea = areaRepository.save(Area.builder()
+                    .name("Highly Area " + suffix)
+                    .building("TOA_SPONSOR")
+                    .floor("1")
+                    .floorEntity(floor)
+                    .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
+                    .areaAccessLevel(3)
+                    .explicitAuthorizationRequired(true)
+                    .isActive(true)
+                    .build());
+
+            // Ensure sponsor config starts in default state
+            systemConfigurationRepository.findById(com.fa26se040.icss.enums.ConfigKey.ACCESS_REQUEST_SPONSOR_ALLOWED_AREA_TYPES.name())
+                    .ifPresent(cfg -> {
+                        cfg.setConfigValue("CONFIDENTIAL_CONTACT_REQUIRED");
+                        cfg.setUpdatedBy(null);
+                        systemConfigurationRepository.save(cfg);
+                    });
+
+            return null;
+        });
 
         tokenAdmin = "Bearer " + jwtTokenProvider.generateToken(adminUser);
         tokenFm = "Bearer " + jwtTokenProvider.generateToken(fmUser);
+    }
+
+    @AfterEach
+    void tearDown() {
+        transactionTemplate.execute(status -> {
+            // 1. Reset system configuration
+            systemConfigurationRepository.findById(com.fa26se040.icss.enums.ConfigKey.ACCESS_REQUEST_SPONSOR_ALLOWED_AREA_TYPES.name())
+                    .ifPresent(cfg -> {
+                        cfg.setConfigValue("CONFIDENTIAL_CONTACT_REQUIRED");
+                        cfg.setUpdatedBy(null);
+                        systemConfigurationRepository.save(cfg);
+                    });
+
+            List<UUID> userIds = List.of(
+                    adminUser.getId(), fmUser.getId(), creatorL2.getId(),
+                    creatorL1.getId(), memberL1.getId(), memberL2.getId(), inactiveMember.getId()
+            );
+            List<UUID> areaIds = List.of(contactArea.getId(), internalArea.getId(), highlyArea.getId());
+
+            // 2. Delete change logs referencing test users
+            var changeLogs = systemConfigurationChangeLogRepository.findAll().stream()
+                    .filter(cl -> cl.getChangedBy() != null && userIds.contains(cl.getChangedBy().getId()))
+                    .toList();
+            systemConfigurationChangeLogRepository.deleteAll(changeLogs);
+
+            // 3. Delete notifications for test users
+            for (UUID uid : userIds) {
+                var notifs = notificationRepository.findAll().stream()
+                        .filter(n -> n.getRecipient() != null && n.getRecipient().getId().equals(uid))
+                        .toList();
+                notificationRepository.deleteAll(notifs);
+            }
+
+            // 4. Delete access requests and members
+            for (UUID aid : areaIds) {
+                var reqs = accessRequestRepository.findAll().stream()
+                        .filter(r -> r.getArea() != null && r.getArea().getId().equals(aid))
+                        .toList();
+                for (var r : reqs) {
+                    accessRequestMemberRepository.deleteAll(r.getMembers());
+                    accessRequestRepository.delete(r);
+                }
+            }
+
+            // 5. Query audit logs once to see which users/areas cannot be hard-deleted
+            var allAudits = auditLogRepository.findAll();
+            java.util.Set<UUID> auditedUserIds = new java.util.HashSet<>();
+            java.util.Set<UUID> auditedAreaIds = new java.util.HashSet<>();
+            for (var al : allAudits) {
+                if (al.getChangedBy() != null) auditedUserIds.add(al.getChangedBy().getId());
+                if (al.getSubjectUser() != null) auditedUserIds.add(al.getSubjectUser().getId());
+                if (al.getArea() != null) auditedAreaIds.add(al.getArea().getId());
+            }
+
+            // 6. Delete or deactivate areas
+            for (UUID aid : areaIds) {
+                if (auditedAreaIds.contains(aid)) {
+                    areaRepository.findById(aid).ifPresent(a -> {
+                        a.setIsActive(false);
+                        areaRepository.save(a);
+                    });
+                } else {
+                    areaRepository.deleteById(aid);
+                }
+            }
+
+            // 7. Delete or deactivate users
+            for (UUID uid : userIds) {
+                if (auditedUserIds.contains(uid)) {
+                    userRepository.findById(uid).ifPresent(u -> {
+                        u.setIsActive(false);
+                        userRepository.save(u);
+                    });
+                } else {
+                    userRepository.deleteById(uid);
+                }
+            }
+
+            return null;
+        });
     }
 
     @Test
@@ -232,6 +353,12 @@ class AccessRequestSponsorshipIntegrationTest extends AbstractIntegrationTest {
         // memberL2 có accessLevel=2 >= requiredLevel=2 -> sponsored = false
         var m2 = resp.members().stream().filter(m -> m.userCode().equals(memberL2.getUserCode())).findFirst().orElseThrow();
         assertThat(m2.sponsored()).isFalse();
+
+        // Assert notification created for FM
+        List<Notification> fmNotifs = notificationRepository.findAll().stream()
+                .filter(n -> n.getRecipient() != null && n.getRecipient().getId().equals(fmUser.getId()) && n.getType() == NotificationType.NEW_REQUEST_PENDING)
+                .toList();
+        assertThat(fmNotifs).isNotEmpty();
     }
 
     @Test
@@ -363,6 +490,14 @@ class AccessRequestSponsorshipIntegrationTest extends AbstractIntegrationTest {
         AccessRequestResponse resp = accessRequestService.createGroupRequest(req, creatorL2.getEmail());
         assertThat(resp).isNotNull();
         assertThat(resp.members().get(0).sponsored()).isTrue();
+
+        // 5. Khôi phục cấu hình về mặc định
+        systemConfigService.update(
+                com.fa26se040.icss.enums.ConfigKey.ACCESS_REQUEST_SPONSOR_ALLOWED_AREA_TYPES.name(),
+                "CONFIDENTIAL_CONTACT_REQUIRED",
+                "Khôi phục mặc định",
+                adminUser.getEmail()
+        );
     }
 
     @Test
@@ -425,6 +560,12 @@ class AccessRequestSponsorshipIntegrationTest extends AbstractIntegrationTest {
         // 3. Ngoài khung giờ (end + 10 phút) -> DENIED
         AccessDecision afterDecision = accessDecisionService.checkEntry(memberL1.getId(), contactArea.getId(), end.plusMinutes(10));
         assertThat(afterDecision.allowed()).isFalse();
+
+        // 4. Assert notification for creatorL2 when approved
+        List<Notification> creatorNotifs = notificationRepository.findAll().stream()
+                .filter(n -> n.getRecipient() != null && n.getRecipient().getId().equals(creatorL2.getId()) && n.getType() == NotificationType.REQUEST_APPROVED)
+                .toList();
+        assertThat(creatorNotifs).isNotEmpty();
     }
 
     @Test
