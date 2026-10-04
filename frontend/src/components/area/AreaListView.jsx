@@ -91,7 +91,11 @@ export default function AreaListView({
 										</span>
 										<span
 											className={getAccessLevelConfig(area.areaAccessLevel).className}
-											title="Cấp độ người dùng tối thiểu để vào tự do"
+											title={
+												area.explicitAuthorizationRequired
+													? "Cấp tối thiểu để được gửi đơn xin vào (không cho vào tự do)"
+													: "Cấp tối thiểu để được vào tự do"
+											}
 										>
 											{getAccessLevelConfig(area.areaAccessLevel).label}
 										</span>
