@@ -362,4 +362,42 @@ class AreaServiceAccessLevelTest {
         AreaException exDel = assertThrows(AreaException.class, () -> areaService.updateAccessRules(areaId, req, adminEmail));
         assertEquals(AreaErrorCode.ERR_AREA_017, exDel.getErrorCode());
     }
+
+    @Test
+    @DisplayName("getAvailableAreasForRequest: Loại bỏ khu vực có areaAccessLevel == null (fail-closed)")
+    void getAvailableAreasForRequest_WhenAreaAccessLevelNull_ExcludesArea() {
+        User caller = User.builder()
+                .id(UUID.randomUUID())
+                .email("user@fpt.edu.vn")
+                .role(Role.NORMAL_USER)
+                .accessLevel(2)
+                .isActive(true)
+                .build();
+        when(userRepository.findByEmail("user@fpt.edu.vn")).thenReturn(Optional.of(caller));
+
+        Area validArea = Area.builder()
+                .id(UUID.randomUUID())
+                .name("Khu vực hợp lệ")
+                .areaLevel(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
+                .areaAccessLevel(2)
+                .explicitAuthorizationRequired(true)
+                .isActive(true)
+                .build();
+
+        Area nullLevelArea = Area.builder()
+                .id(UUID.randomUUID())
+                .name("Khu vực cấp null")
+                .areaLevel(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
+                .areaAccessLevel(null)
+                .explicitAuthorizationRequired(true)
+                .isActive(true)
+                .build();
+
+        when(areaRepository.findAvailableForRequest()).thenReturn(java.util.List.of(validArea, nullLevelArea));
+
+        var result = areaService.getAvailableAreasForRequest("user@fpt.edu.vn");
+
+        assertEquals(1, result.size());
+        assertEquals(validArea.getId(), result.get(0).id());
+    }
 }

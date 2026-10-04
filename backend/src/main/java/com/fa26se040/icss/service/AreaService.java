@@ -493,7 +493,13 @@ public class AreaService {
             if (caller != null && caller.getRole() == Role.NORMAL_USER) {
                 int callerLevel = caller.getAccessLevel() != null ? caller.getAccessLevel() : 1;
                 areas = areas.stream()
-                        .filter(a -> a.getAreaAccessLevel() == null || callerLevel >= a.getAreaAccessLevel())
+                        .filter(a -> {
+                            if (a.getAreaAccessLevel() == null) {
+                                log.warn("Excluding area {} from request dropdown: areaAccessLevel is null", a.getId());
+                                return false;
+                            }
+                            return callerLevel >= a.getAreaAccessLevel();
+                        })
                         .toList();
             }
         }
