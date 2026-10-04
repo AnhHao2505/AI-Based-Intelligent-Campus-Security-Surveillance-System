@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   ClipboardCheck,
   Clock,
@@ -20,6 +20,7 @@ import accessRequestService from '../../services/accessRequestService';
 import { getLevelConfig, AREA_LEVEL_CONFIG } from '../../utils/areaHelpers';
 import '../../styles/AccessRequestReviewPage.css';
 import PageHeader from '../../components/ui/PageHeader';
+import ReasonTextarea from '../../components/ui/ReasonTextarea';
 import '../../components/ui/Button.css';
 
 export default function AccessRequestReviewPage() {
@@ -51,6 +52,8 @@ export default function AccessRequestReviewPage() {
   const [approveItem, setApproveItem] = useState(null);
   const [rejectItem, setRejectItem] = useState(null);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [rejectionReasonError, setRejectionReasonError] = useState(null);
+  const rejectReasonInputRef = useRef(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState(null);
   const [actionSuccess, setActionSuccess] = useState(null);
@@ -148,25 +151,25 @@ export default function AccessRequestReviewPage() {
   // Handle Reject
   const handleConfirmReject = async () => {
     if (!rejectItem) return;
-    if (!rejectionReason.trim()) {
-      setActionError('Vui lòng nhập lý do từ chối yêu cầu (từ 10 đến 500 ký tự)');
-      return;
-    }
-    if (rejectionReason.trim().length < 10) {
-      setActionError('Lý do từ chối phải có ít nhất 10 ký tự (hiện có ' + rejectionReason.trim().length + ' ký tự)');
+    const trimmed = rejectionReason.trim();
+    if (!trimmed || trimmed.length < 10 || trimmed.length > 500) {
+      setRejectionReasonError(`Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmed.length}).`);
+      rejectReasonInputRef.current?.focus();
       return;
     }
 
     setActionLoading(true);
     setActionError(null);
+    setRejectionReasonError(null);
     try {
       await accessRequestService.reviewRequest(rejectItem.id, {
         status: 'REJECTED',
-        rejectionReason: rejectionReason.trim()
+        rejectionReason: trimmed
       });
       setActionSuccess('Đã từ chối yêu cầu truy cập.');
       setRejectItem(null);
       setRejectionReason('');
+      setRejectionReasonError(null);
       loadRequests(page, statusFilter, selectedAreaId);
       loadStats();
       setTimeout(() => setActionSuccess(null), 3000);
@@ -174,6 +177,7 @@ export default function AccessRequestReviewPage() {
       if (err.status === 409) {
         setRejectItem(null);
         setRejectionReason('');
+        setRejectionReasonError(null);
         setActionWarning(err.message || 'Yêu cầu này đã được xử lý bởi người khác. Danh sách đã được làm mới.');
         loadRequests(page, statusFilter, selectedAreaId);
         loadStats();
@@ -622,30 +626,33 @@ export default function AccessRequestReviewPage() {
                 Từ chối yêu cầu của <strong>{rejectItem.requesterName}</strong> tại khu vực <strong>{rejectItem.areaName}</strong>. Vui lòng nêu rõ lý do:
               </p>
 
-              <div>
-                <label className="arr-form-label">
-                  Lý do từ chối <span className="arr-required">*</span>
-                </label>
-                <textarea
-                  className="arr-textarea"
-                  placeholder="Ví dụ: Khu vực đang bảo trì thiết bị, trùng lịch sự kiện quan trọng, mục đích không phù hợp..."
-                  value={rejectionReason}
-                  onChange={(e) => setRejectionReason(e.target.value)}
-                  maxLength={500}
-                  disabled={actionLoading}
-                  required
-                />
-                <div className="arr-char-count">
-                  {rejectionReason.length}/500 ký tự (tối thiểu 10 ký tự)
-                </div>
-              </div>
+              <ReasonTextarea
+                ref={rejectReasonInputRef}
+                label="Lý do từ chối"
+                placeholder="Ví dụ: Khu vực đang bảo trì thiết bị, trùng lịch sự kiện quan trọng, mục đích không phù hợp..."
+                value={rejectionReason}
+                onChange={(e) => {
+                  setRejectionReason(e.target.value);
+                  if (rejectionReasonError && e.target.value.trim().length >= 10 && e.target.value.trim().length <= 500) {
+                    setRejectionReasonError(null);
+                  }
+                }}
+                error={rejectionReasonError}
+                min={10}
+                max={500}
+                disabled={actionLoading}
+                required
+              />
             </div>
 
             <div className="arr-modal__footer">
               <button
                 type="button"
                 className="arr-filter-btn"
-                onClick={() => setRejectItem(null)}
+                onClick={() => {
+                  setRejectItem(null);
+                  setRejectionReasonError(null);
+                }}
                 disabled={actionLoading}
               >
                 Hủy bỏ
@@ -654,7 +661,7 @@ export default function AccessRequestReviewPage() {
                 type="button"
                 className="arr-filter-btn arr-btn--reject-modal"
                 onClick={handleConfirmReject}
-                disabled={actionLoading || rejectionReason.trim().length < 10}
+                disabled={actionLoading}
               >
                 <X size={16} />
                 <span>{actionLoading ? 'Đang xử lý...' : 'Xác nhận từ chối'}</span>

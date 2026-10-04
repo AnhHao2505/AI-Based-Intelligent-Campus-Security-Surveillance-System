@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Sliders,
   Edit3,
@@ -13,6 +13,7 @@ import { getLevelConfig, getAccessLevelConfig } from '../../utils/areaHelpers';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import PageHeader from '../../components/ui/PageHeader';
+import ReasonTextarea from '../../components/ui/ReasonTextarea';
 import './UserAccessLevelPage.css';
 
 const ACCESS_LEVELS = [
@@ -31,8 +32,10 @@ export default function AdminPresetPage() {
     accessLevel: 1,
     explicitAuthorizationRequired: false,
     reason: '',
+    reasonError: '',
     isSaving: false,
   });
+  const reasonRef = useRef(null);
 
   const loadPresets = useCallback(async () => {
     setLoadingPresets(true);
@@ -63,23 +66,20 @@ export default function AdminPresetPage() {
       accessLevel: preset.areaAccessLevel ?? preset.accessLevel ?? 1,
       explicitAuthorizationRequired: isExplicitFixed,
       reason: '',
+      reasonError: '',
       isSaving: false,
     });
   };
 
   const handleSavePreset = async () => {
     const { preset, accessLevel, explicitAuthorizationRequired, reason } = editPresetModal;
-    const trimmedReason = reason?.trim();
-    if (!trimmedReason) {
-      toast.error('Vui lòng nhập lý do thay đổi cấu hình mặc định');
-      return;
-    }
-    if (trimmedReason.length < 10) {
-      toast.error('Lý do phải có từ 10 đến 500 ký tự');
-      return;
-    }
-    if (trimmedReason.length > 500) {
-      toast.error('Lý do không được vượt quá 500 ký tự');
+    const trimmedReason = reason?.trim() || '';
+    if (trimmedReason.length < 10 || trimmedReason.length > 500) {
+      setEditPresetModal((prev) => ({
+        ...prev,
+        reasonError: `Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmedReason.length}).`,
+      }));
+      reasonRef.current?.focus();
       return;
     }
 
@@ -91,7 +91,7 @@ export default function AdminPresetPage() {
       await updateLevelPreset(areaLevelKey, {
         areaAccessLevel: accessLevel,
         explicitAuthorizationRequired,
-        reason: reason.trim(),
+        reason: trimmedReason,
         version: preset.version,
       });
       toast.success(`Đã cập nhật cấu hình mặc định cho loại ${cfg.name}`);
@@ -101,6 +101,7 @@ export default function AdminPresetPage() {
         accessLevel: 1,
         explicitAuthorizationRequired: false,
         reason: '',
+        reasonError: '',
         isSaving: false,
       });
       loadPresets();
@@ -321,22 +322,28 @@ export default function AdminPresetPage() {
                 </div>
 
                 <div className="modal-field">
-                  <label className="modal-label">
-                    Lý do thay đổi <span className="text-danger">*</span>
-                  </label>
-                  <textarea
-                    className="form-control textarea"
-                    rows={3}
-                    placeholder="Nhập lý do điều chỉnh cấu hình mặc định (từ 10 đến 500 ký tự)..."
+                  <ReasonTextarea
+                    ref={reasonRef}
+                    label="Lý do thay đổi"
+                    required
                     value={editPresetModal.reason}
-                    onChange={(e) =>
-                      setEditPresetModal((prev) => ({ ...prev, reason: e.target.value }))
+                    onChange={(val) =>
+                      setEditPresetModal((prev) => ({
+                        ...prev,
+                        reason: val,
+                        reasonError:
+                          prev.reasonError && val.trim().length >= 10 && val.trim().length <= 500
+                            ? ''
+                            : prev.reasonError,
+                      }))
                     }
+                    minLength={10}
+                    maxLength={500}
+                    placeholder="Nhập lý do điều chỉnh cấu hình mặc định (từ 10 đến 500 ký tự)..."
+                    rows={3}
+                    error={editPresetModal.reasonError}
                     disabled={editPresetModal.isSaving}
                   />
-                  <div className="field-char-count">
-                    {editPresetModal.reason.length}/500 ký tự (tối thiểu 10)
-                  </div>
                 </div>
 
                 <div className="modal-actions">

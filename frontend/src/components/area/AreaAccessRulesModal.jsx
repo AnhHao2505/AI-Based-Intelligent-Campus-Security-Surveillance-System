@@ -10,6 +10,7 @@ import {
 import { toast } from "sonner";
 import Modal from "../ui/Modal";
 import Button from "../ui/Button";
+import ReasonTextarea from "../ui/ReasonTextarea";
 import EventScheduleSection from "./EventScheduleSection";
 import { getAreaById, updateAreaAccessRules, updateAreaEventMode } from "../../services/areaService";
 import { getActiveReasons } from "../../services/reasonCatalogService";
@@ -59,6 +60,8 @@ export default function AreaAccessRulesModal({
 	const [eventModeEnabled, setEventModeEnabled] = useState(false);
 	const [openUntil, setOpenUntil] = useState("");
 	const [reason, setReason] = useState("");
+	const [reasonError, setReasonError] = useState(null);
+	const reasonRef = useRef(null);
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState(null);
 
@@ -66,6 +69,8 @@ export default function AreaAccessRulesModal({
 	const [eventReasons, setEventReasons] = useState([]);
 	const [eventReasonCode, setEventReasonCode] = useState("");
 	const [eventNote, setEventNote] = useState("");
+	const [eventNoteError, setEventNoteError] = useState(null);
+	const eventNoteRef = useRef(null);
 	const [loadingReasons, setLoadingReasons] = useState(false);
 
 	// Step 5b (BR-TC-13): version khu vực gửi kèm mọi lần lưu; cập nhật theo response và sau thao tác lịch
@@ -215,14 +220,12 @@ export default function AreaAccessRulesModal({
 				return;
 			}
 			const trimmedRuleReason = reason.trim();
-			if (!trimmedRuleReason) {
-				setError("Lý do cập nhật quy tắc khu vực là bắt buộc.");
+			if (!trimmedRuleReason || trimmedRuleReason.length < 10 || trimmedRuleReason.length > 500) {
+				setReasonError(`Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmedRuleReason.length}).`);
+				reasonRef.current?.focus();
 				return;
 			}
-			if (trimmedRuleReason.length < 10 || trimmedRuleReason.length > 500) {
-				setError("Lý do phải có từ 10 đến 500 ký tự.");
-				return;
-			}
+			setReasonError(null);
 		} else {
 			if (!eventModeChanged) {
 				toast.info("Không có thay đổi nào cần lưu.");
@@ -245,14 +248,12 @@ export default function AreaAccessRulesModal({
 				return;
 			}
 			const trimmedEventNote = eventNote.trim();
-			if (!trimmedEventNote) {
-				setError("Ghi chú thao tác sự kiện là bắt buộc.");
+			if (!trimmedEventNote || trimmedEventNote.length < 10 || trimmedEventNote.length > 500) {
+				setEventNoteError(`Ghi chú phải từ 10 đến 500 ký tự (hiện có ${trimmedEventNote.length}).`);
+				eventNoteRef.current?.focus();
 				return;
 			}
-			if (trimmedEventNote.length < 10 || trimmedEventNote.length > 500) {
-				setError("Ghi chú thao tác sự kiện phải có từ 10 đến 500 ký tự.");
-				return;
-			}
+			setEventNoteError(null);
 		}
 
 		setSaving(true);
@@ -347,8 +348,8 @@ export default function AreaAccessRulesModal({
 					saving ||
 					loadingArea ||
 					(isAdmin
-						? !rulesChanged || reason.trim().length < 10
-						: !eventModeChanged || (eventModeEnabled && !openUntil) || !eventReasonCode || eventNote.trim().length < 10)
+						? !rulesChanged
+						: !eventModeChanged || (eventModeEnabled && !openUntil) || !eventReasonCode)
 				}
 				icon={ShieldCheck}
 				type="button"
@@ -465,51 +466,24 @@ export default function AreaAccessRulesModal({
 						{/* Section 3: Lý do cập nhật quy tắc (ADMIN ONLY - khi có thay đổi cấp độ) */}
 						{rulesChanged && (
 							<div className="access-rules-group" style={{ marginTop: "16px" }}>
-								<label
-									htmlFor="access-rules-reason"
-									style={{
-										display: "block",
-										marginBottom: "6px",
-										fontSize: "13.5px",
-										fontWeight: 600,
-										color: "var(--theme-text-primary, #0f172a)",
-									}}
-								>
-									Lý do cập nhật quy tắc khu vực <span style={{ color: "var(--theme-danger, #ef4444)" }}>*</span>
-								</label>
-								<textarea
+								<ReasonTextarea
+									ref={reasonRef}
 									id="access-rules-reason"
-									rows={3}
-									style={{
-										width: "100%",
-										padding: "8px 12px",
-										borderRadius: "8px",
-										border: "1px solid var(--theme-border, #cbd5e1)",
-										background: "var(--theme-card-bg, #ffffff)",
-										color: "var(--theme-text-primary, #0f172a)",
-										fontSize: "13.5px",
-										lineHeight: "1.5",
-										resize: "vertical",
-										boxSizing: "border-box",
-									}}
-									placeholder="Nhập lý do điều chỉnh quy tắc truy cập khu vực (tối đa 500 ký tự)..."
+									label="Lý do cập nhật quy tắc khu vực"
+									placeholder="Nhập lý do điều chỉnh quy tắc truy cập khu vực (từ 10 đến 500 ký tự)..."
 									value={reason}
-									onChange={(e) => setReason(e.target.value)}
-									maxLength={500}
+									onChange={(e) => {
+										const val = e.target.value;
+										setReason(val);
+										if (reasonError && val.trim().length >= 10 && val.trim().length <= 500) {
+											setReasonError(null);
+										}
+									}}
+									error={reasonError}
+									min={10}
+									max={500}
 									required
 								/>
-								<div
-									style={{
-										display: "flex",
-										justifyContent: "space-between",
-										fontSize: "12px",
-										color: "var(--theme-text-muted, #64748b)",
-										marginTop: "4px",
-									}}
-								>
-									<span>Tối thiểu 10 ký tự, tối đa 500 ký tự</span>
-									<span>{reason.length}/500 ký tự</span>
-								</div>
 							</div>
 						)}
 					</>
@@ -748,49 +722,24 @@ export default function AreaAccessRulesModal({
 											</div>
 
 											<div>
-												<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
-													<label
-														htmlFor="event-mode-note"
-														style={{
-															fontSize: "12.5px",
-															fontWeight: 600,
-															color: "var(--theme-text-primary, #0f172a)",
-														}}
-													>
-														Ghi chú thao tác sự kiện <span style={{ color: "var(--theme-danger, #ef4444)" }}>*</span>
-													</label>
-													<span
-														style={{
-															fontSize: "11.5px",
-															fontWeight: 600,
-															color:
-																eventNote.trim().length >= 10 && eventNote.trim().length <= 500
-																	? "var(--theme-text-muted, #64748b)"
-																	: "var(--theme-danger, #ef4444)",
-														}}
-													>
-														{eventNote.trim().length}/500 (tối thiểu 10 ký tự)
-													</span>
-												</div>
-												<textarea
+												<ReasonTextarea
+													ref={eventNoteRef}
 													id="event-mode-note"
-													rows={2}
+													label="Ghi chú thao tác sự kiện"
+													placeholder="Nêu tên sự kiện hoặc đơn vị tổ chức (10–500 ký tự)..."
 													value={eventNote}
-													onChange={(e) => setEventNote(e.target.value)}
-													placeholder="Nêu tên sự kiện hoặc đơn vị tổ chức (10–500 ký tự)"
-													maxLength={500}
-													style={{
-														width: "100%",
-														padding: "8px 12px",
-														borderRadius: "8px",
-														border: "1px solid var(--theme-border, #cbd5e1)",
-														background: "var(--theme-card-bg, #ffffff)",
-														fontSize: "13px",
-														color: "var(--theme-text-primary, #0f172a)",
-														lineHeight: "1.4",
-														resize: "vertical",
-														boxSizing: "border-box",
+													onChange={(e) => {
+														const val = e.target.value;
+														setEventNote(val);
+														if (eventNoteError && val.trim().length >= 10 && val.trim().length <= 500) {
+															setEventNoteError(null);
+														}
 													}}
+													error={eventNoteError}
+													rows={2}
+													min={10}
+													max={500}
+													required
 												/>
 											</div>
 										</div>

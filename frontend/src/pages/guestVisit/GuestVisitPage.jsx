@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import {
 	UserPlus,
 	RefreshCw,
@@ -16,6 +16,7 @@ import Modal from "../../components/ui/Modal";
 import Button from "../../components/ui/Button";
 import Badge from "../../components/ui/Badge";
 import PageHeader from "../../components/ui/PageHeader";
+import ReasonTextarea from "../../components/ui/ReasonTextarea";
 import guestVisitService from "../../services/guestVisitService";
 import { getLevelConfig } from "../../utils/areaHelpers";
 import {
@@ -69,6 +70,8 @@ export default function GuestVisitPage() {
 	const [detail, setDetail] = useState(null);
 	const [cancelTarget, setCancelTarget] = useState(null);
 	const [cancelReason, setCancelReason] = useState("");
+	const [cancelReasonError, setCancelReasonError] = useState(null);
+	const cancelReasonRef = useRef(null);
 	const [cancelling, setCancelling] = useState(false);
 	const [cancelError, setCancelError] = useState("");
 
@@ -164,28 +167,37 @@ export default function GuestVisitPage() {
 	const openCancel = (visit) => {
 		setCancelTarget(visit);
 		setCancelReason("");
+		setCancelReasonError(null);
 		setCancelError("");
 	};
 
-	const cancelReasonLength = cancelReason.trim().length;
-	const cancelReasonInvalid = cancelReasonLength > 0 && (cancelReasonLength < 10 || cancelReasonLength > 500);
-
 	const submitCancel = async () => {
 		if (!cancelTarget) return;
+		const trimmed = cancelReason.trim();
+		if (trimmed.length > 0 && (trimmed.length < 10 || trimmed.length > 500)) {
+			setCancelReasonError(`Nếu nhập, lý do phải từ 10 đến 500 ký tự (hiện có ${trimmed.length}).`);
+			cancelReasonRef.current?.focus();
+			return;
+		}
 		setCancelling(true);
 		setCancelError("");
+		setCancelReasonError(null);
 		try {
 			await guestVisitService.cancelVisit(cancelTarget.id, {
 				version: cancelTarget.version,
-				reason: cancelReason,
+				reason: trimmed,
 			});
 			setCancelTarget(null);
+			setCancelReason("");
+			setCancelReasonError(null);
 			setDetail(null);
 			await loadVisits(page);
 		} catch (err) {
 			if (err?.code === "ERR_GUEST_016") {
 				setCancelError("Lượt khách đã được người khác cập nhật. Danh sách đã được tải lại, vui lòng kiểm tra rồi thử lại.");
 				setCancelTarget(null);
+				setCancelReason("");
+				setCancelReasonError(null);
 				await loadVisits(page);
 			} else {
 				setCancelError(err?.message || "Không huỷ được lượt khách.");
@@ -490,7 +502,12 @@ export default function GuestVisitPage() {
 			{/* Huỷ */}
 			<Modal
 				isOpen={!!cancelTarget}
-				onClose={() => !cancelling && setCancelTarget(null)}
+				onClose={() => {
+					if (!cancelling) {
+						setCancelTarget(null);
+						setCancelReasonError(null);
+					}
+				}}
 				title="Huỷ lượt khách"
 				subtitle={
 					cancelTarget?.status === "APPROVED"
@@ -502,10 +519,17 @@ export default function GuestVisitPage() {
 				closeOnBackdrop={!cancelling}
 				footer={
 					<>
-						<Button variant="secondary" onClick={() => setCancelTarget(null)} disabled={cancelling}>
+						<Button
+							variant="secondary"
+							onClick={() => {
+								setCancelTarget(null);
+								setCancelReasonError(null);
+							}}
+							disabled={cancelling}
+						>
 							Đóng
 						</Button>
-						<Button variant="danger" onClick={submitCancel} loading={cancelling} disabled={cancelReasonInvalid}>
+						<Button variant="danger" onClick={submitCancel} loading={cancelling} disabled={cancelling}>
 							Xác nhận huỷ
 						</Button>
 					</>
@@ -517,13 +541,23 @@ export default function GuestVisitPage() {
 						<span>{cancelError}</span>
 					</div>
 				)}
-				<label className="guest-visit__field">
-					<span className="guest-visit__label">Lý do (không bắt buộc)</span>
-					<textarea rows={3} value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} disabled={cancelling} />
-					<span className={`guest-visit__hint ${cancelReasonInvalid ? "guest-visit__hint--error" : ""}`}>
-						Nếu nhập, lý do phải từ 10 đến 500 ký tự ({cancelReasonLength}/500)
-					</span>
-				</label>
+				<ReasonTextarea
+					ref={cancelReasonRef}
+					label="Lý do (không bắt buộc)"
+					placeholder="Nhập lý do huỷ lượt khách (nếu có)..."
+					value={cancelReason}
+					onChange={(e) => {
+						setCancelReason(e.target.value);
+						if (cancelReasonError && (e.target.value.trim().length === 0 || (e.target.value.trim().length >= 10 && e.target.value.trim().length <= 500))) {
+							setCancelReasonError(null);
+						}
+					}}
+					error={cancelReasonError}
+					required={false}
+					min={10}
+					max={500}
+					disabled={cancelling}
+				/>
 			</Modal>
 		</div>
 	);

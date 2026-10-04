@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
 	Save,
 	RotateCcw,
@@ -17,7 +17,7 @@ import {
 	updateSystemConfig,
 	getSystemConfigHistory,
 } from "../../services/systemConfigService";
-import { Button, Input, Card, Modal, Badge, PageHeader } from "../../components/ui";
+import { Button, Input, Card, Modal, Badge, PageHeader, ReasonTextarea } from "../../components/ui";
 import "../../styles/SystemConfigPage.css";
 
 export default function SystemConfigPage() {
@@ -41,7 +41,9 @@ export default function SystemConfigPage() {
 	// Confirm reason modal state
 	const [confirmModalConfig, setConfirmModalConfig] = useState(null);
 	const [confirmReason, setConfirmReason] = useState("");
+	const [confirmReasonError, setConfirmReasonError] = useState("");
 	const [confirmError, setConfirmError] = useState(null);
+	const confirmReasonRef = useRef(null);
 
 	useEffect(() => {
 		fetchConfigs();
@@ -100,6 +102,7 @@ export default function SystemConfigPage() {
 	const handleOpenSaveModal = (config) => {
 		setConfirmModalConfig(config);
 		setConfirmReason("");
+		setConfirmReasonError("");
 		setConfirmError(null);
 	};
 
@@ -109,21 +112,15 @@ export default function SystemConfigPage() {
 		const value = editedValues[key];
 		const trimmedReason = confirmReason.trim();
 
-		if (!trimmedReason) {
-			setConfirmError("Vui lòng nhập lý do thay đổi cấu hình");
-			return;
-		}
-		if (trimmedReason.length < 10) {
-			setConfirmError("Lý do phải có từ 10 đến 500 ký tự");
-			return;
-		}
-		if (trimmedReason.length > 500) {
-			setConfirmError("Lý do không được vượt quá 500 ký tự");
+		if (trimmedReason.length < 10 || trimmedReason.length > 500) {
+			setConfirmReasonError(`Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmedReason.length}).`);
+			confirmReasonRef.current?.focus();
 			return;
 		}
 
 		setSavingKey(key);
 		setConfirmError(null);
+		setConfirmReasonError("");
 		setErrorMsg(null);
 		setSuccessMsg(null);
 
@@ -577,7 +574,6 @@ export default function SystemConfigPage() {
 								variant="primary"
 								onClick={handleConfirmSave}
 								loading={savingKey === confirmModalConfig.configKey}
-								disabled={confirmReason.trim().length < 10}
 							>
 								Xác nhận lưu
 							</Button>
@@ -609,37 +605,23 @@ export default function SystemConfigPage() {
 							</div>
 						</div>
 						<div>
-							<label style={{ display: "block", marginBottom: "6px", fontWeight: 600, fontSize: "13.5px" }}>
-								Lý do thay đổi cấu hình <span style={{ color: "#ef4444" }}>*</span>
-							</label>
-							<textarea
-								rows={3}
-								style={{
-									width: "100%",
-									padding: "8px 12px",
-									borderRadius: "8px",
-									border: "1px solid var(--theme-border, #cbd5e1)",
-									fontSize: "13.5px",
-									boxSizing: "border-box",
-									resize: "vertical",
-								}}
-								placeholder="Nhập lý do thay đổi cấu hình (tối thiểu 10 ký tự, tối đa 500 ký tự)..."
+							<ReasonTextarea
+								ref={confirmReasonRef}
+								label="Lý do thay đổi cấu hình"
+								required
 								value={confirmReason}
-								onChange={(e) => setConfirmReason(e.target.value)}
-								maxLength={500}
-							/>
-							<div
-								style={{
-									display: "flex",
-									justifyContent: "space-between",
-									fontSize: "12px",
-									color: "#64748b",
-									marginTop: "4px",
+								onChange={(val) => {
+									setConfirmReason(val);
+									if (confirmReasonError && val.trim().length >= 10 && val.trim().length <= 500) {
+										setConfirmReasonError("");
+									}
 								}}
-							>
-								<span>Tối thiểu 10 ký tự, tối đa 500 ký tự</span>
-								<span>{confirmReason.length}/500 ký tự</span>
-							</div>
+								minLength={10}
+								maxLength={500}
+								placeholder="Nhập lý do thay đổi cấu hình (tối thiểu 10 ký tự, tối đa 500 ký tự)..."
+								rows={3}
+								error={confirmReasonError}
+							/>
 						</div>
 					</div>
 				</Modal>

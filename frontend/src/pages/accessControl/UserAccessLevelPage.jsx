@@ -15,6 +15,7 @@ import { getAccessLevelConfig } from '../../utils/areaHelpers';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import PageHeader from '../../components/ui/PageHeader';
+import ReasonTextarea from '../../components/ui/ReasonTextarea';
 import './UserAccessLevelPage.css';
 
 const ACCESS_LEVELS = [
@@ -34,12 +35,14 @@ export default function UserAccessLevelPage() {
   const [hasSearched, setHasSearched] = useState(false);
   const [selectedLevels, setSelectedLevels] = useState({});
   const debounceRef = useRef(null);
+  const userReasonRef = useRef(null);
 
   const [confirmUserModal, setConfirmUserModal] = useState({
     isOpen: false,
     user: null,
     newLevel: 1,
     reason: '',
+    reasonError: '',
     isSaving: false,
   });
 
@@ -110,29 +113,26 @@ export default function UserAccessLevelPage() {
       user: targetUser,
       newLevel,
       reason: '',
+      reasonError: '',
       isSaving: false,
     });
   };
 
   const handleConfirmSaveUserLevel = async () => {
     const { user, newLevel, reason } = confirmUserModal;
-    const trimmedReason = reason?.trim();
-    if (!trimmedReason) {
-      toast.error('Vui lòng nhập lý do điều chỉnh cấp độ truy cập');
-      return;
-    }
-    if (trimmedReason.length < 10) {
-      toast.error('Lý do phải có từ 10 đến 500 ký tự');
-      return;
-    }
-    if (trimmedReason.length > 500) {
-      toast.error('Lý do không được vượt quá 500 ký tự');
+    const trimmedReason = reason?.trim() || '';
+    if (trimmedReason.length < 10 || trimmedReason.length > 500) {
+      setConfirmUserModal((prev) => ({
+        ...prev,
+        reasonError: `Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmedReason.length}).`,
+      }));
+      userReasonRef.current?.focus();
       return;
     }
 
     setConfirmUserModal((prev) => ({ ...prev, isSaving: true }));
     try {
-      const updated = await updateUserAccessLevel(user.id, newLevel, reason.trim());
+      const updated = await updateUserAccessLevel(user.id, newLevel, trimmedReason);
       toast.success(
         `Đã cập nhật cấp độ truy cập của ${user.fullName} thành Cấp ${updated.accessLevel}`
       );
@@ -145,6 +145,7 @@ export default function UserAccessLevelPage() {
         user: null,
         newLevel: 1,
         reason: '',
+        reasonError: '',
         isSaving: false,
       });
     } catch (err) {
@@ -344,22 +345,28 @@ export default function UserAccessLevelPage() {
             </div>
 
             <div className="modal-field">
-              <label className="modal-label">
-                Lý do thay đổi <span className="text-danger">*</span>
-              </label>
-              <textarea
-                className="form-control textarea"
-                rows={3}
-                placeholder="Nhập lý do cụ thể điều chỉnh cấp độ truy cập (từ 10 đến 500 ký tự)..."
+              <ReasonTextarea
+                ref={userReasonRef}
+                label="Lý do thay đổi"
+                required
                 value={confirmUserModal.reason}
-                onChange={(e) =>
-                  setConfirmUserModal((prev) => ({ ...prev, reason: e.target.value }))
+                onChange={(val) =>
+                  setConfirmUserModal((prev) => ({
+                    ...prev,
+                    reason: val,
+                    reasonError:
+                      prev.reasonError && val.trim().length >= 10 && val.trim().length <= 500
+                        ? ''
+                        : prev.reasonError,
+                  }))
                 }
+                minLength={10}
+                maxLength={500}
+                placeholder="Nhập lý do cụ thể điều chỉnh cấp độ truy cập (từ 10 đến 500 ký tự)..."
+                rows={3}
+                error={confirmUserModal.reasonError}
                 disabled={confirmUserModal.isSaving}
               />
-              <div className="field-char-count">
-                {confirmUserModal.reason.length}/500 ký tự (tối thiểu 10)
-              </div>
             </div>
 
             <div className="modal-actions">
@@ -375,7 +382,7 @@ export default function UserAccessLevelPage() {
               <Button
                 variant="primary"
                 onClick={handleConfirmSaveUserLevel}
-                disabled={confirmUserModal.isSaving || confirmUserModal.reason.trim().length < 10}
+                disabled={confirmUserModal.isSaving}
                 leftIcon={
                   confirmUserModal.isSaving ? (
                     <Loader2 size={16} className="animate-spin" />
