@@ -14,7 +14,9 @@ public enum AssignedPersonnelErrorCode {
     ERR_AP_007("ERR_AP_007", HttpStatus.BAD_REQUEST, "Không thể gán vào khu vực đã ngừng hoạt động hoặc đã bị xoá"),
     ERR_AP_008("ERR_AP_008", HttpStatus.BAD_REQUEST, "Lý do thu hồi không được để trống"),
     ERR_AP_009("ERR_AP_009", HttpStatus.CONFLICT, "Bản ghi gán đã bị thu hồi, không thể thao tác thêm"),
-    ERR_AP_010("ERR_AP_010", HttpStatus.BAD_REQUEST, "Khu vực công cộng (PUBLIC) không áp dụng gán nhân sự chỉ định");
+    ERR_AP_010("ERR_AP_010", HttpStatus.BAD_REQUEST, "Khu vực công cộng (PUBLIC) không áp dụng gán nhân sự chỉ định"),
+    // BR-AP-06: không tự gán / tự gia hạn quyền chỉ định cho chính mình
+    ERR_AP_011("ERR_AP_011", HttpStatus.FORBIDDEN, "Không được tự gán hoặc tự gia hạn quyền chỉ định cho chính mình. Hãy nhờ quản lý cơ sở vật chất khác thực hiện");
 
     private final String code;
     private final HttpStatus httpStatus;

@@ -54,7 +54,8 @@ public enum AreaErrorCode {
     ERR_AREA_052("ERR_AREA_052", HttpStatus.CONFLICT, "Khu vực đang mở chế độ sự kiện. Tắt chế độ sự kiện trước khi vô hiệu hoá"),
     ERR_AREA_053("ERR_AREA_053", HttpStatus.CONFLICT, "Khu vực đã bị vô hiệu hoá"),
     ERR_AREA_054("ERR_AREA_054", HttpStatus.CONFLICT, "Khu vực chưa bị vô hiệu hoá, không cần khôi phục"),
-    ERR_AREA_055("ERR_AREA_055", HttpStatus.CONFLICT, "Không thể khôi phục: tầng hoặc toà nhà của khu vực không còn hoạt động");
+    ERR_AREA_055("ERR_AREA_055", HttpStatus.CONFLICT, "Không thể khôi phục: tầng hoặc toà nhà của khu vực không còn hoạt động"),
+    ERR_AREA_056("ERR_AREA_056", HttpStatus.BAD_REQUEST, "Cờ yêu cầu chỉ định (explicitAuthorizationRequired) được suy ra từ loại khu vực ({areaLevel}) và không được thay đổi độc lập");
 
     private final String code;
     private final HttpStatus httpStatus;

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import {
   Users,
   Eye,
@@ -15,6 +15,7 @@ import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import PageHeader from '../../components/ui/PageHeader';
 import Pagination from '../../components/ui/Pagination';
+import ReasonTextarea from '../../components/ui/ReasonTextarea';
 import guestVisitService from '../../services/guestVisitService';
 import {
   getGuestVisitStatus,
@@ -69,9 +70,13 @@ export default function GuestVisitReviewPage() {
 
   const [rejectTarget, setRejectTarget] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [rejectReasonError, setRejectReasonError] = useState(null);
+  const rejectReasonRef = useRef(null);
 
   const [revokeTarget, setRevokeTarget] = useState(null);
   const [revokeReason, setRevokeReason] = useState('');
+  const [revokeReasonError, setRevokeReasonError] = useState(null);
+  const revokeReasonRef = useRef(null);
 
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState(null);
@@ -154,19 +159,24 @@ export default function GuestVisitReviewPage() {
   // Handle Reject Submit
   const handleReject = async () => {
     if (!rejectTarget) return;
-    if (rejectReason.trim().length < 10 || rejectReason.trim().length > 500) {
-      setActionError('Lý do từ chối bắt buộc từ 10 đến 500 ký tự.');
+    const trimmed = rejectReason.trim();
+    if (trimmed.length < 10 || trimmed.length > 500) {
+      setRejectReasonError(`Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmed.length}).`);
+      rejectReasonRef.current?.focus();
       return;
     }
     setActionLoading(true);
     setActionError(null);
+    setRejectReasonError(null);
     try {
       await guestVisitService.reviewVisit(rejectTarget.id, {
         version: rejectTarget.version,
         decision: 'REJECTED',
-        reason: rejectReason.trim(),
+        reason: trimmed,
       });
       setRejectTarget(null);
+      setRejectReason('');
+      setRejectReasonError(null);
       setDetail(null);
       loadVisits(page);
     } catch (err) {
@@ -174,6 +184,8 @@ export default function GuestVisitReviewPage() {
         setActionError('Lượt khách đã được người khác cập nhật, vui lòng tải lại.');
         setTimeout(() => {
           setRejectTarget(null);
+          setRejectReason('');
+          setRejectReasonError(null);
           setDetail(null);
           loadVisits(page);
         }, 1500);
@@ -188,18 +200,23 @@ export default function GuestVisitReviewPage() {
   // Handle Revoke Submit
   const handleRevoke = async () => {
     if (!revokeTarget) return;
-    if (revokeReason.trim().length < 10 || revokeReason.trim().length > 500) {
-      setActionError('Lý do thu hồi bắt buộc từ 10 đến 500 ký tự.');
+    const trimmed = revokeReason.trim();
+    if (trimmed.length < 10 || trimmed.length > 500) {
+      setRevokeReasonError(`Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmed.length}).`);
+      revokeReasonRef.current?.focus();
       return;
     }
     setActionLoading(true);
     setActionError(null);
+    setRevokeReasonError(null);
     try {
       await guestVisitService.revokeVisit(revokeTarget.id, {
         version: revokeTarget.version,
-        reason: revokeReason.trim(),
+        reason: trimmed,
       });
       setRevokeTarget(null);
+      setRevokeReason('');
+      setRevokeReasonError(null);
       setDetail(null);
       loadVisits(page);
     } catch (err) {
@@ -207,6 +224,8 @@ export default function GuestVisitReviewPage() {
         setActionError('Lượt khách đã được người khác cập nhật, vui lòng tải lại.');
         setTimeout(() => {
           setRevokeTarget(null);
+          setRevokeReason('');
+          setRevokeReasonError(null);
           setDetail(null);
           loadVisits(page);
         }, 1500);
@@ -217,12 +236,6 @@ export default function GuestVisitReviewPage() {
       setActionLoading(false);
     }
   };
-
-  const rejectReasonLength = rejectReason.trim().length;
-  const isRejectReasonInvalid = rejectReasonLength < 10 || rejectReasonLength > 500;
-
-  const revokeReasonLength = revokeReason.trim().length;
-  const isRevokeReasonInvalid = revokeReasonLength < 10 || revokeReasonLength > 500;
 
   const isDetailApprovedAndActive = useMemo(() => {
     if (!detail || detail.status !== 'APPROVED') return false;
@@ -536,7 +549,12 @@ export default function GuestVisitReviewPage() {
       {/* REJECT MODAL */}
       <Modal
         isOpen={!!rejectTarget}
-        onClose={() => !actionLoading && setRejectTarget(null)}
+        onClose={() => {
+          if (!actionLoading) {
+            setRejectTarget(null);
+            setRejectReasonError(null);
+          }
+        }}
         title="Từ chối lượt khách"
         icon={X}
         iconVariant="danger"
@@ -546,7 +564,10 @@ export default function GuestVisitReviewPage() {
           <>
             <Button
               variant="secondary"
-              onClick={() => setRejectTarget(null)}
+              onClick={() => {
+                setRejectTarget(null);
+                setRejectReasonError(null);
+              }}
               disabled={actionLoading}
             >
               Hủy bỏ
@@ -555,7 +576,7 @@ export default function GuestVisitReviewPage() {
               variant="danger"
               onClick={handleReject}
               loading={actionLoading}
-              disabled={isRejectReasonInvalid}
+              disabled={actionLoading}
             >
               Xác nhận từ chối
             </Button>
@@ -573,21 +594,23 @@ export default function GuestVisitReviewPage() {
             <p style={{ margin: 0, fontSize: '14px' }}>
               Từ chối lượt khách của <strong>{rejectTarget.hostName}</strong> ({rejectTarget.hostCode}). Vui lòng nêu rõ lý do:
             </p>
-            <label className="guest-visit__field">
-              <span className="guest-visit__label">Lý do từ chối *</span>
-              <textarea
-                rows={3}
-                value={rejectReason}
-                onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="Ví dụ: Khu vực đang có sự kiện bảo mật, không phù hợp tiếp khách vào khung giờ này..."
-                maxLength={500}
-                disabled={actionLoading}
-                required
-              />
-              <span className={`guest-visit__hint ${isRejectReasonInvalid && rejectReasonLength > 0 ? 'guest-visit__hint--error' : ''}`}>
-                {rejectReasonLength}/500 ký tự (bắt buộc từ 10 đến 500 ký tự)
-              </span>
-            </label>
+            <ReasonTextarea
+              ref={rejectReasonRef}
+              label="Lý do từ chối"
+              placeholder="Ví dụ: Khu vực đang có sự kiện bảo mật, không phù hợp tiếp khách vào khung giờ này..."
+              value={rejectReason}
+              onChange={(e) => {
+                setRejectReason(e.target.value);
+                if (rejectReasonError && e.target.value.trim().length >= 10 && e.target.value.trim().length <= 500) {
+                  setRejectReasonError(null);
+                }
+              }}
+              error={rejectReasonError}
+              min={10}
+              max={500}
+              disabled={actionLoading}
+              required
+            />
           </div>
         )}
       </Modal>
@@ -595,7 +618,12 @@ export default function GuestVisitReviewPage() {
       {/* REVOKE MODAL */}
       <Modal
         isOpen={!!revokeTarget}
-        onClose={() => !actionLoading && setRevokeTarget(null)}
+        onClose={() => {
+          if (!actionLoading) {
+            setRevokeTarget(null);
+            setRevokeReasonError(null);
+          }
+        }}
         title="Thu hồi lượt khách đã duyệt"
         subtitle="Khách sẽ mất quyền truy cập vào khu vực ngay lập tức."
         icon={Ban}
@@ -606,7 +634,10 @@ export default function GuestVisitReviewPage() {
           <>
             <Button
               variant="secondary"
-              onClick={() => setRevokeTarget(null)}
+              onClick={() => {
+                setRevokeTarget(null);
+                setRevokeReasonError(null);
+              }}
               disabled={actionLoading}
             >
               Hủy bỏ
@@ -615,7 +646,7 @@ export default function GuestVisitReviewPage() {
               variant="danger"
               onClick={handleRevoke}
               loading={actionLoading}
-              disabled={isRevokeReasonInvalid}
+              disabled={actionLoading}
             >
               Xác nhận thu hồi
             </Button>
@@ -642,21 +673,23 @@ export default function GuestVisitReviewPage() {
               Thu hồi lượt khách của <strong>{revokeTarget.hostName}</strong> ({revokeTarget.hostCode}). Vui lòng nêu rõ lý do:
             </p>
 
-            <label className="guest-visit__field">
-              <span className="guest-visit__label">Lý do thu hồi *</span>
-              <textarea
-                rows={3}
-                value={revokeReason}
-                onChange={(e) => setRevokeReason(e.target.value)}
-                placeholder="Ví dụ: Sự cố kỹ thuật trong khu vực, yêu cầu huỷ khẩn cấp từ ban giám hiệu..."
-                maxLength={500}
-                disabled={actionLoading}
-                required
-              />
-              <span className={`guest-visit__hint ${isRevokeReasonInvalid && revokeReasonLength > 0 ? 'guest-visit__hint--error' : ''}`}>
-                {revokeReasonLength}/500 ký tự (bắt buộc từ 10 đến 500 ký tự)
-              </span>
-            </label>
+            <ReasonTextarea
+              ref={revokeReasonRef}
+              label="Lý do thu hồi"
+              placeholder="Ví dụ: Sự cố kỹ thuật trong khu vực, yêu cầu huỷ khẩn cấp từ ban giám hiệu..."
+              value={revokeReason}
+              onChange={(e) => {
+                setRevokeReason(e.target.value);
+                if (revokeReasonError && e.target.value.trim().length >= 10 && e.target.value.trim().length <= 500) {
+                  setRevokeReasonError(null);
+                }
+              }}
+              error={revokeReasonError}
+              min={10}
+              max={500}
+              disabled={actionLoading}
+              required
+            />
           </div>
         )}
       </Modal>

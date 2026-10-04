@@ -233,16 +233,14 @@ class SystemConfigServiceTest {
                     adminUser.getEmail()
             );
 
-            // Trước khi commit: Cache vẫn giữ giá trị cũ (30)
-            assertEquals(30, systemConfigService.getInt(ConfigKey.ACCESS_REQUEST_MAX_GROUP_MEMBERS));
-
-            // Giả lập commit transaction thành công
-            for (TransactionSynchronization sync : TransactionSynchronizationManager.getSynchronizations()) {
-                sync.afterCommit();
-            }
-
-            // Sau khi commit: Cache đã đổi sang giá trị mới (50)
+            // Trong transaction: Cache đã được cập nhật giá trị mới (50) để các lời gọi cùng transaction đọc được
             assertEquals(50, systemConfigService.getInt(ConfigKey.ACCESS_REQUEST_MAX_GROUP_MEMBERS));
+
+            // Giả lập rollback transaction: Cache phải được khôi phục về giá trị cũ (30)
+            for (TransactionSynchronization sync : TransactionSynchronizationManager.getSynchronizations()) {
+                sync.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK);
+            }
+            assertEquals(30, systemConfigService.getInt(ConfigKey.ACCESS_REQUEST_MAX_GROUP_MEMBERS));
         } finally {
             TransactionSynchronizationManager.clearSynchronization();
         }

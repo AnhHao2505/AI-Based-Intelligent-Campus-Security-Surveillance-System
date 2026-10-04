@@ -7,3 +7,4 @@ export { default as Modal } from './Modal';
 export { default as Table } from './Table';
 export { default as Pagination } from './Pagination';
 export { default as PageHeader } from './PageHeader';
+export { default as ReasonTextarea } from './ReasonTextarea';

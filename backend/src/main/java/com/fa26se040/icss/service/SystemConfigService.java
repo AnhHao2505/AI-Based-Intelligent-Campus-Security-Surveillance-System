@@ -167,20 +167,31 @@ public class SystemConfigService {
                 .build();
         changeLogRepository.save(logEntry);
 
-        // Update in-memory cache only after transaction commits successfully
+        // Update in-memory cache immediately so in-transaction reads see the new value
+        cache.put(key, value);
+
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    cache.put(key, value);
                     if ("AI_AFTER_HOUR_START".equals(key) || "AI_AFTER_HOUR_END".equals(key)) {
                         syncAfterHourToAi();
                     }
                     checkEventModeLimitsAndNotifyFm(key);
                 }
+
+                @Override
+                public void afterCompletion(int status) {
+                    if (status != STATUS_COMMITTED) {
+                        if (oldValue != null) {
+                            cache.put(key, oldValue);
+                        } else {
+                            cache.remove(key);
+                        }
+                    }
+                }
             });
         } else {
-            cache.put(key, value);
             if ("AI_AFTER_HOUR_START".equals(key) || "AI_AFTER_HOUR_END".equals(key)) {
                 syncAfterHourToAi();
             }
@@ -333,9 +344,63 @@ public class SystemConfigService {
                         throw new IllegalArgumentException("Giờ after-hour phải theo định dạng HH:mm");
                     }
                 }
+                if (ConfigKey.ACCESS_REQUEST_SPONSOR_ALLOWED_AREA_TYPES.getKey().equals(config.getConfigKey())) {
+                    validateSponsorAllowedAreaTypes(value);
+                }
             }
             default -> log.warn("Unknown dataType [{}] for config [{}]", dataType, config.getConfigKey());
         }
+    }
+
+    private void validateSponsorAllowedAreaTypes(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            throw new IllegalArgumentException("Danh sách loại khu vực cho phép bảo lãnh không được để trống");
+        }
+        String[] parts = value.split(",");
+        boolean hasValid = false;
+        for (String raw : parts) {
+            String token = raw.trim();
+            if (token.isEmpty()) {
+                continue;
+            }
+            com.fa26se040.icss.enums.AreaLevel level;
+            try {
+                level = com.fa26se040.icss.enums.AreaLevel.valueOf(token);
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Loại khu vực không hợp lệ: " + token);
+            }
+            if (level == com.fa26se040.icss.enums.AreaLevel.PUBLIC) {
+                throw new IllegalArgumentException("Không cho phép bảo lãnh đối với khu vực công khai (PUBLIC)");
+            }
+            if (level == com.fa26se040.icss.enums.AreaLevel.HIGHLY_CONFIDENTIAL) {
+                throw new IllegalArgumentException("Không cho phép bảo lãnh đối với khu vực bảo mật cao (HIGHLY_CONFIDENTIAL)");
+            }
+            hasValid = true;
+        }
+        if (!hasValid) {
+            throw new IllegalArgumentException("Danh sách loại khu vực cho phép bảo lãnh không được để trống");
+        }
+    }
+
+    public java.util.Set<com.fa26se040.icss.enums.AreaLevel> getSponsorAllowedAreaLevels() {
+        String raw = getString(ConfigKey.ACCESS_REQUEST_SPONSOR_ALLOWED_AREA_TYPES);
+        if (raw == null || raw.isBlank()) {
+            return java.util.Set.of(com.fa26se040.icss.enums.AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED);
+        }
+        java.util.Set<com.fa26se040.icss.enums.AreaLevel> levels = new java.util.HashSet<>();
+        for (String part : raw.split(",")) {
+            String token = part.trim();
+            if (!token.isEmpty()) {
+                try {
+                    com.fa26se040.icss.enums.AreaLevel al = com.fa26se040.icss.enums.AreaLevel.valueOf(token);
+                    if (al != com.fa26se040.icss.enums.AreaLevel.PUBLIC && al != com.fa26se040.icss.enums.AreaLevel.HIGHLY_CONFIDENTIAL) {
+                        levels.add(al);
+                    }
+                } catch (IllegalArgumentException ignored) {
+                }
+            }
+        }
+        return levels.isEmpty() ? java.util.Set.of(com.fa26se040.icss.enums.AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED) : levels;
     }
 
     private SystemConfigResponse mapToResponse(SystemConfiguration config) {

@@ -71,6 +71,11 @@ public class AreaAssignedPersonnelService {
             throw new AssignedPersonnelException(AssignedPersonnelErrorCode.ERR_AP_010);
         }
 
+        // BR-AP-06: người thao tác không tự gán quyền chỉ định cho chính mình
+        if (actor.getId().equals(request.userId())) {
+            throw new AssignedPersonnelException(AssignedPersonnelErrorCode.ERR_AP_011);
+        }
+
         // Khoá dòng users để tuần tự hoá các thao tác gán cùng user (chống race BR-AP-03)
         User user = assignedPersonnelRepository.findUserByIdForUpdate(request.userId())
                 .orElseThrow(() -> new AssignedPersonnelException(AssignedPersonnelErrorCode.ERR_AP_005));
@@ -127,6 +132,11 @@ public class AreaAssignedPersonnelService {
         User actor = resolveActor(actorEmail);
 
         AreaAssignedPersonnel entity = getOwnedRecord(areaId, id);
+
+        // BR-AP-06: người thao tác không tự gia hạn / sửa thời hạn quyền chỉ định của chính mình (tự thu hồi vẫn được)
+        if (entity.getUser() != null && actor.getId().equals(entity.getUser().getId())) {
+            throw new AssignedPersonnelException(AssignedPersonnelErrorCode.ERR_AP_011);
+        }
 
         // BR-AP-08: không sửa bản ghi đã thu hồi
         if (entity.getRevokedAt() != null) {

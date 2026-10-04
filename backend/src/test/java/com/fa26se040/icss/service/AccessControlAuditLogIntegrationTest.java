@@ -639,15 +639,25 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
     @DisplayName("Hồi quy Lỗi 2 — Thao tác 5 (Cập nhật Area Access Rules): commit thật, dữ liệu nghiệp vụ đổi, 1 dòng log mới, jsonb đúng giá trị")
     void testCommit_UpdateAreaAccessRules_CreatesAuditLogAndChangesBusinessData() throws Exception {
         String uniqueSuffix = UUID.randomUUID().toString().substring(0, 8);
+        User adminActor = User.builder()
+                .userCode("ADM-" + uniqueSuffix)
+                .fullName("Admin Rules Commit")
+                .email("admin-" + uniqueSuffix + "@fpt.edu.vn")
+                .role(Role.ADMIN)
+                .isActive(true)
+                .build();
+        adminActor = userRepository.save(adminActor);
+        String adminToken = "Bearer " + jwtTokenProvider.generateToken(adminActor);
+
         User fmActor = User.builder()
                 .userCode("FM-" + uniqueSuffix)
-                .fullName("FM AreaRules Commit")
+                .fullName("FM Rules Attempt")
                 .email("fm-" + uniqueSuffix + "@fpt.edu.vn")
                 .role(Role.FACILITY_MANAGER)
                 .isActive(true)
                 .build();
         fmActor = userRepository.save(fmActor);
-        String token = "Bearer " + jwtTokenProvider.generateToken(fmActor);
+        String fmToken = "Bearer " + jwtTokenProvider.generateToken(fmActor);
 
         Floor floor = getOrCreateTestFloor();
         Area testArea = Area.builder()
@@ -662,10 +672,19 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
                 .build();
         testArea = areaRepository.save(testArea);
 
-        String updateJson = "{\"areaAccessLevel\": 3, \"explicitAuthorizationRequired\": true, \"reason\": \"Thắt chặt an ninh phòng Server\", \"version\": "
+        String updateJson = "{\"areaAccessLevel\": 3, \"explicitAuthorizationRequired\": false, \"reason\": \"Thắt chặt an ninh phòng Server\", \"version\": "
                 + testArea.getVersion() + "}";
+
+        // FM gọi access-rules -> 403 Forbidden (Quyết định C5)
         mockMvc.perform(patch("/api/areas/{id}/access-rules", testArea.getId())
-                        .header("Authorization", token)
+                        .header("Authorization", fmToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updateJson))
+                .andExpect(status().isForbidden());
+
+        // ADMIN gọi access-rules -> 200 OK
+        mockMvc.perform(patch("/api/areas/{id}/access-rules", testArea.getId())
+                        .header("Authorization", adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(updateJson))
                 .andExpect(status().isOk());
@@ -675,7 +694,7 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
                 "SELECT area_access_level, explicit_authorization_required FROM areas WHERE id = :id"
         ).setParameter("id", testArea.getId()).getSingleResult();
         assertEquals(3, ((Number) areaData[0]).intValue());
-        assertEquals(true, areaData[1]);
+        assertEquals(false, areaData[1]);
 
         // 2. Kiểm tra log
         Number count = (Number) entityManager.createNativeQuery(
@@ -691,22 +710,32 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
                 "SELECT new_value ->> 'explicitAuthorizationRequired' FROM audit_logs WHERE target_id = :targetId AND target_type = 'AREA_ACCESS_RULES'"
         ).setParameter("targetId", testArea.getId().toString()).getSingleResult();
         assertEquals("3", newLevel);
-        assertEquals("true", newExplicit);
+        assertEquals("false", newExplicit);
     }
 
     @Test
     @DisplayName("Hồi quy Lỗi 2 — Thao tác 6 (Cập nhật Level Preset): commit thật, dữ liệu nghiệp vụ đổi, 1 dòng log mới, jsonb đúng giá trị")
     void testCommit_UpdateLevelPreset_CreatesAuditLogAndChangesBusinessData() throws Exception {
         String uniqueSuffix = UUID.randomUUID().toString().substring(0, 8);
+        User adminActor = User.builder()
+                .userCode("ADM-" + uniqueSuffix)
+                .fullName("Admin Preset Commit")
+                .email("admin-" + uniqueSuffix + "@fpt.edu.vn")
+                .role(Role.ADMIN)
+                .isActive(true)
+                .build();
+        adminActor = userRepository.save(adminActor);
+        String adminToken = "Bearer " + jwtTokenProvider.generateToken(adminActor);
+
         User fmActor = User.builder()
                 .userCode("FM-" + uniqueSuffix)
-                .fullName("FM Preset Commit")
+                .fullName("FM Preset Attempt")
                 .email("fm-" + uniqueSuffix + "@fpt.edu.vn")
                 .role(Role.FACILITY_MANAGER)
                 .isActive(true)
                 .build();
         fmActor = userRepository.save(fmActor);
-        String token = "Bearer " + jwtTokenProvider.generateToken(fmActor);
+        String fmToken = "Bearer " + jwtTokenProvider.generateToken(fmActor);
 
         // Lấy trạng thái hiện tại của CONFIDENTIAL_CONTACT_REQUIRED
         Object[] currentData = (Object[]) entityManager.createNativeQuery(
@@ -717,7 +746,7 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
         long currentVersion = ((Number) currentData[2]).longValue();
 
         int targetLevel = (currentLevel == 3) ? 2 : 3;
-        boolean targetExplicit = !currentExplicit;
+        boolean targetExplicit = true;
         String reason = "Cập nhật preset " + uniqueSuffix;
 
         String updateJson = String.format(
@@ -725,9 +754,17 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
                 targetLevel, targetExplicit, reason, currentVersion
         );
 
+        // FM gọi preset -> 403 Forbidden (Quyết định C5)
+        mockMvc.perform(put("/api/access-control/level-presets/{areaLevel}", AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
+                        .header("Authorization", fmToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updateJson))
+                .andExpect(status().isForbidden());
+
         try {
+            // ADMIN gọi preset -> 200 OK
             mockMvc.perform(put("/api/access-control/level-presets/{areaLevel}", AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
-                            .header("Authorization", token)
+                            .header("Authorization", adminToken)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(updateJson))
                     .andExpect(status().isOk());
@@ -762,7 +799,7 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
                         currentLevel, currentExplicit, "Khôi phục preset sau test " + uniqueSuffix, ((Number) after[2]).longValue()
                 );
                 mockMvc.perform(put("/api/access-control/level-presets/{areaLevel}", AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
-                                .header("Authorization", token)
+                                .header("Authorization", adminToken)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(restoreJson))
                         .andExpect(status().isOk());

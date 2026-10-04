@@ -29,8 +29,9 @@ public class AreaController {
 
     @GetMapping("/available-for-request")
     @PreAuthorize("hasAnyRole('NORMAL_USER', 'FACILITY_MANAGER', 'ADMIN')")
-    public ResponseEntity<ApiResponse<List<AreaSimpleResponse>>> getAvailableAreasForRequest() {
-        return ResponseEntity.ok(ApiResponse.success(areaService.getAvailableAreasForRequest(), "Lấy danh sách khu vực khả dụng thành công"));
+    public ResponseEntity<ApiResponse<List<AreaSimpleResponse>>> getAvailableAreasForRequest(Authentication authentication) {
+        String actorEmail = authentication != null ? authentication.getName() : null;
+        return ResponseEntity.ok(ApiResponse.success(areaService.getAvailableAreasForRequest(actorEmail), "Lấy danh sách khu vực khả dụng thành công"));
     }
 
     @GetMapping("/map-pins")
@@ -166,7 +167,7 @@ public class AreaController {
     }
 
     @PatchMapping("/{id}/access-rules")
-    @PreAuthorize("hasRole('FACILITY_MANAGER')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<AreaResponse>> updateAccessRules(
             @PathVariable UUID id,
             @Valid @RequestBody AreaAccessRulesUpdateRequest request,

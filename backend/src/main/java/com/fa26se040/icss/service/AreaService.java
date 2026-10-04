@@ -10,6 +10,7 @@ import com.fa26se040.icss.dto.area.AreaUpdateRequest;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.enums.AreaLevel;
 import com.fa26se040.icss.enums.CameraStatus;
+import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.exception.AreaErrorCode;
 import com.fa26se040.icss.exception.AreaException;
@@ -217,11 +218,11 @@ public class AreaService {
     private TypeChangeEvaluation evaluateTypeChange(Area area, AreaLevel newLevel, OffsetDateTime now) {
         AreaLevel currentLevel = area.getAreaLevel();
 
-        // TC-04: preset của loại mới; thiếu preset -> 3/true (fail-closed)
+        // Cấp số lấy theo preset loại mới (thiếu preset -> fail-closed cấp 3).
+        // Cờ explicit LUÔN suy ra trực tiếp từ loại (PUBLIC/INTERNAL=false, CONTACT/HIGHLY=true), không đọc cờ từ preset.
         AreaLevelPreset preset = areaLevelPresetRepository.findById(newLevel).orElse(null);
         int newAccessLevel = preset != null && preset.getAreaAccessLevel() != null ? preset.getAreaAccessLevel() : 3;
-        boolean newExplicit = preset == null || preset.getExplicitAuthorizationRequired() == null
-                || preset.getExplicitAuthorizationRequired();
+        boolean newExplicit = (newLevel == AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED || newLevel == AreaLevel.HIGHLY_CONFIDENTIAL);
 
         boolean eventActive = area.isEventActive(now);
         List<com.fa26se040.icss.entity.AreaEventSchedule> pendingSchedules = eventScheduleRepository != null
@@ -474,11 +475,29 @@ public class AreaService {
 
     @Transactional(readOnly = true)
     public List<AreaSimpleResponse> getAvailableAreasForRequest() {
-        List<Area> areas = areaRepository.findAvailableForRequest(List.of(
-                AreaLevel.INTERNAL_CONFIDENTIAL,
-                AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED,
-                AreaLevel.HIGHLY_CONFIDENTIAL
-        ));
+        return getAvailableAreasForRequest(null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<AreaSimpleResponse> getAvailableAreasForRequest(String actorEmail) {
+        List<Area> areas = areaRepository.findAvailableForRequest();
+
+        if (actorEmail != null) {
+            User caller = userRepository.findByEmail(actorEmail).orElse(null);
+            if (caller != null && caller.getRole() == Role.NORMAL_USER) {
+                int callerLevel = caller.getAccessLevel() != null ? caller.getAccessLevel() : 1;
+                areas = areas.stream()
+                        .filter(a -> {
+                            if (a.getAreaAccessLevel() == null) {
+                                log.warn("Excluding area {} from request dropdown: areaAccessLevel is null", a.getId());
+                                return false;
+                            }
+                            return callerLevel >= a.getAreaAccessLevel();
+                        })
+                        .toList();
+            }
+        }
+
         return areas.stream()
                 .map(a -> new AreaSimpleResponse(
                         a.getId(),
@@ -525,17 +544,19 @@ public class AreaService {
 
         resolveActorId(actorEmail);
 
-        // Fail-closed, khớp DEFAULT trong V38 khi thiếu preset (level 3, explicit_authorization_required = true)
+        // Cấp số lấy theo preset (thiếu preset -> fallback fail-closed cấp 3).
+        // Cờ explicit LUÔN suy ra trực tiếp từ loại khu vực (PUBLIC/INTERNAL=false, CONTACT/HIGHLY=true), không đọc cờ từ preset.
         int areaAccessLevel = 3;
-        boolean explicitAuthRequired = true;
+        boolean explicitAuthRequired = (req.getAreaLevel() == AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED || req.getAreaLevel() == AreaLevel.HIGHLY_CONFIDENTIAL);
 
         Optional<AreaLevelPreset> presetOpt = areaLevelPresetRepository.findById(req.getAreaLevel());
         if (presetOpt.isPresent()) {
             AreaLevelPreset preset = presetOpt.get();
-            areaAccessLevel = preset.getAreaAccessLevel();
-            explicitAuthRequired = preset.getExplicitAuthorizationRequired();
+            if (preset.getAreaAccessLevel() != null) {
+                areaAccessLevel = preset.getAreaAccessLevel();
+            }
         } else {
-            log.warn("Không tìm thấy preset cho area_level = {}, áp dụng fallback fail-closed (level 3, explicit_authorization_required = true)",
+            log.warn("Không tìm thấy preset cho area_level = {}, áp dụng fallback fail-closed (level 3)",
                     req.getAreaLevel());
         }
 
@@ -1060,11 +1081,17 @@ public class AreaService {
             throw new AreaException(AreaErrorCode.ERR_AREA_017);
         }
 
+        boolean expectedExplicit = (area.getAreaLevel() == AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED || area.getAreaLevel() == AreaLevel.HIGHLY_CONFIDENTIAL);
+        if (req.explicitAuthorizationRequired() != null && req.explicitAuthorizationRequired() != expectedExplicit) {
+            // (Object): gọi constructor varargs để điền {areaLevel}; String trần sẽ rơi vào constructor customMessage và mất câu mẫu
+            throw new AreaException(AreaErrorCode.ERR_AREA_056, (Object) area.getAreaLevel().name());
+        }
+
         java.util.Map<AreaLevel, AreaLevelPreset> presetMap = loadPresetMap();
 
         // BR-AL-06: Thao tác không làm thay đổi giá trị (new == old) -> không ghi log, trả về trạng thái hiện tại
         if (java.util.Objects.equals(area.getAreaAccessLevel(), req.areaAccessLevel()) &&
-                java.util.Objects.equals(area.getExplicitAuthorizationRequired(), req.explicitAuthorizationRequired())) {
+                java.util.Objects.equals(area.getExplicitAuthorizationRequired(), expectedExplicit)) {
             log.info("Area {} access rules unchanged, skipping audit log", id);
             return mapToAreaResponse(area, computeDiffersFromPreset(area, presetMap));
         }
@@ -1073,7 +1100,7 @@ public class AreaService {
         Boolean oldExplicit = area.getExplicitAuthorizationRequired();
 
         area.setAreaAccessLevel(req.areaAccessLevel());
-        area.setExplicitAuthorizationRequired(req.explicitAuthorizationRequired());
+        area.setExplicitAuthorizationRequired(expectedExplicit);
         area.setUpdatedAt(OffsetDateTime.now());
         bumpVersionIfChanged(area, before);
 
