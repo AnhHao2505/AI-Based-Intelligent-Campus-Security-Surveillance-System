@@ -98,6 +98,11 @@
   color: #fbbf24;
 }
 
+.arr-stat-card__icon--finished {
+  background: var(--theme-info-bg);
+  color: var(--theme-info-text);
+}
+
 .arr-stat-card__content {
   display: flex;
   flex-direction: column;
@@ -405,6 +410,12 @@
   background: rgba(245, 158, 11, 0.12);
   color: #fbbf24;
   border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.arr-badge--finished {
+  background: var(--theme-info-bg);
+  color: var(--theme-info-text);
+  border: 1px solid var(--theme-info-border);
 }
 
 .arr-badge--individual {
