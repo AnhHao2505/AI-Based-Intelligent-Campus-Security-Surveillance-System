@@ -614,6 +614,24 @@
   text-align: left;
 }
 
+/* UI-08: điện thoại — giữ bề rộng tối thiểu cho 6 cột, khung bảng cuộn ngang để
+   cột Trạng thái và Thao tác vẫn truy cập được (không ép cột Khu vực xuống từng chữ) */
+@media (max-width: 640px) {
+  .arp-table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+
+  .arp-table {
+    min-width: 760px;
+  }
+
+  .arp-table th {
+    white-space: nowrap;
+  }
+}
+
 .arp-table th {
   background: var(--theme-bg-surface-elevated, rgba(15, 23, 42, 0.5));
   padding: 12px 16px;
