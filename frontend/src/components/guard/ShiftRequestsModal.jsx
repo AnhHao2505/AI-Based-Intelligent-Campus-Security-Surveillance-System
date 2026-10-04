@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Search, Check, AlertCircle, Clock, Calendar, CheckCircle2 } from 'lucide-react';
+import { X, AlertCircle, Calendar, CheckCircle2 } from 'lucide-react';
 import { guardScheduleApi } from '../../api/guardScheduleApi';
 
 const formatDateVN = (dateStr) => {

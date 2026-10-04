@@ -6,9 +6,6 @@ import {
   Plus,
   Wand2,
   Clock,
-  Radio,
-  MapPin,
-  CheckCircle2,
   Trash2,
   Edit2,
   Users,
@@ -18,11 +15,8 @@ import {
   Sunset,
   Moon,
   Search,
-  Filter,
   RefreshCw,
   Building2,
-  LayoutGrid,
-  Check,
   AlertCircle,
   ClipboardList,
   Zap,
@@ -251,10 +245,10 @@ export default function GuardTeamManagementPage() {
         : [];
       if (areaList.length === 0) {
         areaList = [
-          { id: 'area-1', name: 'Chốt Cổng Chính & Bãi Xe', building: 'FPT_AROUND' },
-          { id: 'area-2', name: 'Phòng Điều Khiển Camera & Trực Ban', building: 'FPT_AROUND' },
-          { id: 'area-3', name: 'Sảnh Chính Tầng Trệt', building: 'FPT_AROUND' },
-          { id: 'area-4', name: 'Tuần Tra Hành Lang & Các Tầng', building: 'FPT_AROUND' }
+          { id: 'area-1', name: 'Chốt Cổng Chính & Bãi Xe', building: 'Tòa Alpha' },
+          { id: 'area-2', name: 'Phòng Điều Khiển Camera & Trực Ban', building: 'Tòa Alpha' },
+          { id: 'area-3', name: 'Sảnh Chính Tầng Trệt', building: 'Tòa Alpha' },
+          { id: 'area-4', name: 'Tuần Tra Hành Lang & Các Tầng', building: 'Tòa Alpha' }
         ];
       }
       setAreas(areaList);
@@ -356,32 +350,21 @@ export default function GuardTeamManagementPage() {
   }, [shifts, selectedBuilding, getShiftBuilding]);
 
   // Get short friendly building name for badges
-  const getShortBuildingName = useCallback((bldCode) => {
-    if (!bldCode) return null;
-    const b = (buildings || []).find((item) => item.code === bldCode || item.id === bldCode || item.name === bldCode);
-    if (b?.name) {
-      if (b.name.includes(' - ')) {
-        return b.name.split(' - ')[0].trim();
-      }
-      return b.name;
+  const getShortBuildingName = useCallback((bld) => {
+    if (!bld) return null;
+    const b = (buildings || []).find((item) => item.name === bld || item.id === bld);
+    const name = b?.name || bld;
+    if (name.includes(' - ')) {
+      return name.split(' - ')[0].trim();
     }
-    if (bldCode === 'TOA_ALPHA') return 'Tòa Alpha';
-    if (bldCode === 'TOA_BETA') return 'Tòa Beta';
-    if (bldCode === 'KHU_THE_THAO') return 'Khu Thể Thao';
-    if (bldCode === 'FPT_AROUND') return 'Ngoài trời & Sảnh';
-    return bldCode;
+    return name;
   }, [buildings]);
 
   // Full building name for tooltip / title
-  const getFullBuildingName = useCallback((bldCode) => {
-    if (!bldCode) return null;
-    const b = (buildings || []).find((item) => item.code === bldCode || item.id === bldCode || item.name === bldCode);
-    if (b?.name) return b.name;
-    if (bldCode === 'TOA_ALPHA') return 'Tòa Alpha - Giảng đường chính';
-    if (bldCode === 'TOA_BETA') return 'Tòa Beta - Phòng Lab & Kỹ thuật';
-    if (bldCode === 'KHU_THE_THAO') return 'Khu Thể Thao & Sân Bóng';
-    if (bldCode === 'FPT_AROUND') return 'Khuôn viên Ngoài trời & Sảnh';
-    return bldCode;
+  const getFullBuildingName = useCallback((bld) => {
+    if (!bld) return null;
+    const b = (buildings || []).find((item) => item.name === bld || item.id === bld);
+    return b?.name || bld;
   }, [buildings]);
 
   // Determine the assigned building code for a guard

@@ -16,7 +16,7 @@ import { getAreaById, updateAreaAccessRules, updateAreaEventMode } from "../../s
 import { getActiveReasons } from "../../services/reasonCatalogService";
 import { formatDisplayDateTime, getLevelConfig } from "../../utils/areaHelpers";
 import { useAuth } from "../../context/AuthContext";
-import "./AreaAccessRulesModal.css";
+import "../../styles/AreaAccessRulesModal.css";
 
 const ACCESS_LEVEL_OPTIONS = [
 	{

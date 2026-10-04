@@ -84,11 +84,11 @@ public abstract class GuestTestSupport extends AbstractIntegrationTest {
     void setUpGuestBase() {
         Mockito.reset(photoStorage, faceClient);
         suffix = UUID.randomUUID().toString().substring(0, 8);
-        building = buildingRepository.findByCodeIgnoreCase("TEST_BLD_GA")
+        building = buildingRepository.findByNameIgnoreCase("Tòa nhà Test khách")
                 .orElseGet(() -> buildingRepository.save(Building.builder()
-                        .name("Tòa nhà Test khách").code("TEST_BLD_GA").isActive(true).build()));
+                        .name("Tòa nhà Test khách").isActive(true).build()));
         floor = floorRepository.save(Floor.builder()
-                .name("Tầng test khách " + suffix).floorCode("FGA-" + suffix).floorOrder(1)
+                .name("Tầng 1 " + suffix).floorOrder(1)
                 .building(building).isActive(true).build());
 
         admin = newUser("adm", Role.ADMIN, 3, true);
@@ -160,8 +160,8 @@ public abstract class GuestTestSupport extends AbstractIntegrationTest {
                 .areaAccessLevel(accessLevel)
                 .explicitAuthorizationRequired(explicit)
                 .floorEntity(floor)
-                .building(building.getCode())
-                .floor(floor.getFloorCode())
+                .building(building.getName())
+                .floor(floor.getName())
                 .centerLatitude(LAT)
                 .centerLongitude(LNG)
                 .isActive(true)

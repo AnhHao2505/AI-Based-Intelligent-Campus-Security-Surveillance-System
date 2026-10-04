@@ -124,40 +124,6 @@ public class AreaController {
         return ResponseEntity.ok(ApiResponse.success(response, "Cập nhật khu vực thành công"));
     }
 
-    @GetMapping("/geometries")
-    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
-    public ResponseEntity<ApiResponse<List<AreaGeometryResponse>>> getGeometries(
-            @RequestParam String building,
-            @RequestParam String floor
-    ) {
-        return ResponseEntity.ok(ApiResponse.success(areaService.getGeometriesByBuildingAndFloor(building, floor), "Lấy danh sách hình học khu vực thành công"));
-    }
-
-    @PatchMapping("/{id}/geometry")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<AreaGeometryResponse>> saveGeometry(
-            @PathVariable UUID id,
-            @RequestBody AreaGeometry geometry,
-            // Step 5b (BR-TC-13): version khu vực gửi qua query vì AreaGeometry.version là phiên bản định dạng hình học
-            @RequestParam(required = false) Long version,
-            Authentication authentication
-    ) {
-        String actorEmail = authentication.getName();
-        return ResponseEntity.ok(ApiResponse.success(areaService.saveGeometry(id, geometry, version, actorEmail), "Lưu hình học khu vực thành công"));
-    }
-
-    @DeleteMapping("/{id}/geometry")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<Void>> deleteGeometry(
-            @PathVariable UUID id,
-            @RequestParam(required = false) Long version,
-            Authentication authentication
-    ) {
-        String actorEmail = authentication.getName();
-        areaService.deleteGeometry(id, version, actorEmail);
-        return ResponseEntity.ok(ApiResponse.success("Xóa hình học khu vực thành công"));
-    }
-
     /**
      * Step 6 (BR-AD-01): vô hiệu hoá khu vực. Body {reason, version}. Thay cho DELETE /api/areas/{id} (đã bỏ).
      * Xem trước tác động: GET /{id}/dependencies (cùng hàm đánh giá).

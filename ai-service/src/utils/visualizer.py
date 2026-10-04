@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from typing import List, Optional, Any, Union, Dict
+from typing import List, Optional, Any, Union
 from ..core.entity import TrackedPerson, Point, RoiPolygonConfig
 
 class FrameVisualizer:

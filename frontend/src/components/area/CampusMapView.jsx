@@ -10,8 +10,14 @@ import {
 	Maximize2,
 	PanelRightClose,
 	PanelRightOpen,
+	Building2,
+	Layers,
 } from "lucide-react";
-import { getLevelConfig, getAccessLevelConfig, AREA_LEVEL_CONFIG } from "../../utils/areaHelpers";
+import {
+	getLevelConfig,
+	getAccessLevelConfig,
+	AREA_LEVEL_CONFIG,
+} from "../../utils/areaHelpers";
 import "../../styles/CampusMapView.css";
 
 // FPT University HCMC Campus default center (Saigon Hi-Tech Park, District 9)
@@ -61,20 +67,23 @@ const LANDMARK_LOCATIONS = [
 	{ matches: ["hồ sen", "lotus", "hồ"], coords: [106.80973, 10.84105] },
 	{ matches: ["thư viện", "library", "lib"], coords: [106.81008, 10.84148] },
 	{ matches: ["y tế", "med", "medical"], coords: [106.80952, 10.84165] },
-	{ matches: ["thể thao", "sân bóng", "sport", "gym", "khu_the_thao"], coords: [106.81145, 10.8417] },
-	{ matches: ["alpha", "toa_alpha"], coords: [106.81015, 10.84165] },
-	{ matches: ["beta", "toa_beta"], coords: [106.81065, 10.8410] },
-	{ matches: ["căn tin", "nhà ăn", "canteen"], coords: [106.81090, 10.84130] },
-	{ matches: ["bãi xe", "nhà xe", "parking"], coords: [106.80880, 10.84180] },
-	{ matches: ["lb01"], coords: [106.81030, 10.84180] },
+	{
+		matches: ["thể thao", "sân bóng", "sport", "gym", "khu_the_thao"],
+		coords: [106.81145, 10.8417],
+	},
+	{ matches: ["alpha"], coords: [106.81015, 10.84165] },
+	{ matches: ["beta"], coords: [106.81065, 10.841] },
+	{ matches: ["căn tin", "nhà ăn", "canteen"], coords: [106.8109, 10.8413] },
+	{ matches: ["bãi xe", "nhà xe", "parking"], coords: [106.8088, 10.8418] },
+	{ matches: ["lb01"], coords: [106.8103, 10.8418] },
 	{ matches: ["lb02"], coords: [106.81045, 10.84185] },
 	{ matches: ["server", "máy chủ"], coords: [106.81025, 10.84155] },
 ];
 
 const DEFAULT_CAMPUS_MARKERS = {
-	KHU_THE_THAO: [106.81145, 10.8417],
-	TOA_ALPHA: [106.81015, 10.84165],
-	TOA_BETA: [106.81065, 10.8410],
+	"Khu thể thao": [106.81145, 10.8417],
+	"Tòa Alpha": [106.81015, 10.84165],
+	"Tòa Beta": [106.81065, 10.841],
 };
 
 // Calculate approximate centroid of polygon coordinates
@@ -241,20 +250,6 @@ export default function CampusMapView({
 			<div className="campus-map-card">
 				{/* Floating Top Controls */}
 				<div className="campus-map-floating-bar">
-					<div className="campus-map-badge">
-						<Compass size={13} />
-						<span>Bản đồ Khuôn viên FPT</span>
-					</div>
-
-					<button
-						type="button"
-						className="campus-map-btn-icon"
-						onClick={handleResetCampusView}
-						title="Quay lại trung tâm Khuôn viên FPT"
-					>
-						<Maximize2 size={14} />
-					</button>
-
 					<button
 						type="button"
 						className="campus-map-btn-icon"
@@ -270,7 +265,9 @@ export default function CampusMapView({
 				</div>
 
 				{/* Map Viewport */}
-				<div className={`campus-map-viewport ${compactLabels ? "campus-map-viewport--compact" : ""}`}>
+				<div
+					className={`campus-map-viewport ${compactLabels ? "campus-map-viewport--compact" : ""}`}
+				>
 					<Map
 						ref={mapRef}
 						initialViewState={CAMPUS_CENTER}
@@ -382,7 +379,16 @@ export default function CampusMapView({
 										</div>
 
 										<div className="campus-rail-item__right">
-											<span className={getAccessLevelConfig(area.areaAccessLevel).className}>
+											<span
+												className={
+													getAccessLevelConfig(area.areaAccessLevel).className
+												}
+												title={
+													area.explicitAuthorizationRequired
+														? "Cấp tối thiểu để được gửi đơn xin vào (không cho vào tự do)"
+														: "Cấp tối thiểu để được vào tự do"
+												}
+											>
 												{getAccessLevelConfig(area.areaAccessLevel).label}
 											</span>
 										</div>
@@ -394,7 +400,9 @@ export default function CampusMapView({
 				</div>
 
 				{/* Card 2: Selected Area Detail */}
-				<div className={`campus-rail-card campus-rail-card--detail ${!selectedArea ? "campus-rail-card--detail-empty" : ""}`}>
+				<div
+					className={`campus-rail-card campus-rail-card--detail ${!selectedArea ? "campus-rail-card--detail-empty" : ""}`}
+				>
 					{!selectedArea ? (
 						<div className="campus-detail-empty">
 							<p>
@@ -405,40 +413,59 @@ export default function CampusMapView({
 						<div className="campus-detail-content">
 							<div className="campus-detail-header">
 								<h3 className="campus-detail-title">{selectedArea.name}</h3>
-								{selectedArea.building && <span className="zone-detail-code">{selectedArea.building}</span>}
+								{(selectedArea.building || selectedArea.floor) && (
+									<div className="campus-detail-location">
+										{selectedArea.building && (
+											<span className="campus-detail-location__item">
+												<Building2 size={12} />
+												{selectedArea.building}
+											</span>
+										)}
+										{selectedArea.building && selectedArea.floor && (
+											<span className="campus-detail-location__sep">·</span>
+										)}
+										{selectedArea.floor && (
+											<span className="campus-detail-location__item">
+												<Layers size={12} />
+												{selectedArea.floor}
+											</span>
+										)}
+									</div>
+								)}
 							</div>
 
 							<div className="campus-detail-meta">
 								<div className="campus-detail-meta-row">
-									<span className="campus-detail-meta-label">Mức an ninh</span>
+									<span className="campus-detail-meta-label">Loại</span>
 									<span className="campus-detail-meta-val">
 										{
 											getLevelConfig(
-												selectedArea.areaLevel || selectedArea.level?.code,
+												selectedArea.areaLevel || selectedArea.level,
 											).name
 										}
 									</span>
 								</div>
-
 								<div className="campus-detail-meta-row">
-									<span className="campus-detail-meta-label">
-										Cấp truy cập tối thiểu
-									</span>
-									<span className="campus-detail-meta-val">
+									<span className="campus-detail-meta-label">Cấp truy cập</span>
+									<span
+										className="campus-detail-meta-val"
+										title={
+											selectedArea.explicitAuthorizationRequired
+												? "Cấp tối thiểu để được gửi đơn xin vào (không cho vào tự do)"
+												: "Cấp tối thiểu để được vào tự do"
+										}
+									>
 										{getAccessLevelConfig(selectedArea.areaAccessLevel).label}
 									</span>
 								</div>
-
-								<div className="campus-detail-meta-row">
-									<span className="campus-detail-meta-label">
-										Camera giám sát
-									</span>
-									<span className="campus-detail-meta-val">
-										{cameraCounts[selectedArea.id] !== undefined
-											? `${cameraCounts[selectedArea.id]} camera`
-											: "..."}
-									</span>
-								</div>
+								{cameraCounts[selectedArea.id] !== undefined && (
+									<div className="campus-detail-meta-row">
+										<span className="campus-detail-meta-label">Camera</span>
+										<span className="campus-detail-meta-val">
+											{cameraCounts[selectedArea.id]}
+										</span>
+									</div>
+								)}
 							</div>
 						</div>
 					)}

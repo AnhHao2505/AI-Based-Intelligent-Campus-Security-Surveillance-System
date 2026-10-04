@@ -130,11 +130,11 @@ class AccessRequestSponsorshipIntegrationTest extends AbstractIntegrationTest {
         transactionTemplate.execute(status -> {
             String suffix = UUID.randomUUID().toString().substring(0, 8);
 
-            Building building = buildingRepository.findByCodeIgnoreCase("TOA_SPONSOR")
-                    .orElseGet(() -> buildingRepository.save(Building.builder().code("TOA_SPONSOR").name("Tòa Sponsor").build()));
+            Building building = buildingRepository.findByNameIgnoreCase("Tòa Sponsor")
+                    .orElseGet(() -> buildingRepository.save(Building.builder().name("Tòa Sponsor").build()));
 
-            Floor floor = floorRepository.findByBuildingCodeIgnoreCaseAndFloorCodeIgnoreCase("TOA_SPONSOR", "1")
-                    .orElseGet(() -> floorRepository.save(Floor.builder().building(building).floorCode("1").name("Tầng 1").floorOrder(1).build()));
+            Floor floor = floorRepository.findByBuildingNameIgnoreCaseAndNameIgnoreCase("Tòa Sponsor", "Tầng 1")
+                    .orElseGet(() -> floorRepository.save(Floor.builder().building(building).name("Tầng 1").floorOrder(1).build()));
 
             adminUser = userRepository.save(User.builder()
                     .userCode("ADM-" + suffix)

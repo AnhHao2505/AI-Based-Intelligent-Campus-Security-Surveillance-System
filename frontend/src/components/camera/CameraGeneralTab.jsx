@@ -70,7 +70,12 @@ export default function CameraGeneralTab({
 								fontSize: "0.875rem",
 							}}
 						>
-							<option value="" disabled>-- Chọn khu vực --</option>
+							<option
+								value=""
+								disabled
+							>
+								-- Chọn khu vực --
+							</option>
 							{availableAreas.map((area) => (
 								<option
 									key={area.id}
@@ -102,21 +107,9 @@ export default function CameraGeneralTab({
 							}}
 						>
 							<ExternalLink size={14} />
-							<span>Quản lý khu vực</span>
+							<span>Đến danh sách khu vực</span>
 						</button>
 					</div>
-
-					<p
-						style={{
-							fontSize: "0.8rem",
-							color: "var(--theme-text-muted)",
-							marginTop: "0.4rem",
-						}}
-					>
-						💡 Theo thiết kế mới, mỗi camera chỉ thuộc về 1 khu vực duy nhất.
-						Các vùng ROI đa giác sẽ tự động giám sát 3 sự cố an ninh (Người lạ,
-						Xâm nhập, Ngoài giờ) theo quy định của khu vực này.
-					</p>
 				</div>
 			</div>
 

@@ -9,16 +9,10 @@ import org.springframework.stereotype.Component;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 @Component
 @RequiredArgsConstructor
 public class RoiGeometryValidator {
-
-    public static final Set<String> ALLOWED_DIRECTIONS = Set.of(
-            "AB_IS_IN",
-            "AB_IS_OUT"
-    );
 
     public void validate(RoiGeometry geometry) {
         if (geometry == null) {
@@ -26,31 +20,18 @@ public class RoiGeometryValidator {
         }
 
         List<RoiGeometry.RoiPolygon> polygons = geometry.getPolygons();
-        List<RoiGeometry.EntryLine> entryLines = geometry.getEntryLines();
 
         boolean hasPolygons = polygons != null && !polygons.isEmpty();
-        boolean hasLines = entryLines != null && !entryLines.isEmpty();
 
-        if (!hasPolygons && !hasLines) {
+        if (!hasPolygons) {
             throw new CameraException(CameraErrorCode.ERR_ROI_001);
         }
 
-        if (hasPolygons) {
-            if (polygons.size() > 10) {
-                throw new CameraException(CameraErrorCode.ERR_ROI_001);
-            }
-            for (RoiGeometry.RoiPolygon polygon : polygons) {
-                validatePolygon(polygon);
-            }
+        if (polygons.size() > 10) {
+            throw new CameraException(CameraErrorCode.ERR_ROI_001);
         }
-
-        if (hasLines) {
-            if (entryLines.size() > 5) {
-                throw new CameraException(CameraErrorCode.ERR_ROI_009);
-            }
-            for (RoiGeometry.EntryLine line : entryLines) {
-                validateEntryLine(line);
-            }
+        for (RoiGeometry.RoiPolygon polygon : polygons) {
+            validatePolygon(polygon);
         }
     }
 
@@ -84,36 +65,6 @@ public class RoiGeometryValidator {
 
         if (distinctVertices.size() < 3) {
             throw new CameraException(CameraErrorCode.ERR_ROI_004);
-        }
-    }
-
-    private void validateEntryLine(RoiGeometry.EntryLine line) {
-        if (line == null || line.getPointA() == null || line.getPointB() == null) {
-            throw new CameraException(CameraErrorCode.ERR_ROI_008);
-        }
-
-        if (line.getLabel() != null && line.getLabel().length() > 100) {
-            throw new CameraException(CameraErrorCode.ERR_ROI_005);
-        }
-
-        validateCoordinate(line.getPointA().getX(), line.getPointA().getY());
-        validateCoordinate(line.getPointB().getX(), line.getPointB().getY());
-
-        double dx = line.getPointB().getX().doubleValue() - line.getPointA().getX().doubleValue();
-        double dy = line.getPointB().getY().doubleValue() - line.getPointA().getY().doubleValue();
-        double dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < 0.001) {
-            throw new CameraException(CameraErrorCode.ERR_ROI_008);
-        }
-
-        if (line.getDirection() == null || line.getDirection().isBlank()) {
-            line.setDirection("AB_IS_IN");
-        } else {
-            String dir = line.getDirection().trim().toUpperCase();
-            if (!ALLOWED_DIRECTIONS.contains(dir)) {
-                throw new CameraException(CameraErrorCode.ERR_ROI_007);
-            }
-            line.setDirection(dir);
         }
     }
 

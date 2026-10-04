@@ -334,7 +334,6 @@ public class GuardScheduleService {
         int dayIndex = 0;
 
         while (!currentDate.isAfter(effectiveEndDate)) {
-            int dow = mapToDayOfWeekInt(currentDate.getDayOfWeek());
             boolean isSunday = (currentDate.getDayOfWeek() == java.time.DayOfWeek.SUNDAY);
 
             int dayMorning = (isSunday && customSunday && suM != null) ? suM : nMorning;
@@ -856,22 +855,6 @@ public class GuardScheduleService {
                 }
             }
         }
-    }
-
-    // ==========================================
-    // HELPERS & MAPPERS
-    // ==========================================
-
-    private int mapToDayOfWeekInt(DayOfWeek dow) {
-        return switch (dow) {
-            case SUNDAY -> 1;
-            case MONDAY -> 2;
-            case TUESDAY -> 3;
-            case WEDNESDAY -> 4;
-            case THURSDAY -> 5;
-            case FRIDAY -> 6;
-            case SATURDAY -> 7;
-        };
     }
 
     private GuardShiftDto mapShiftToDto(GuardShift s) {

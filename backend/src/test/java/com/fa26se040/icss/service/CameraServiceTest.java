@@ -1,6 +1,5 @@
 package com.fa26se040.icss.service;
 
-import com.fa26se040.icss.dto.accessrequest.AreaSimpleResponse;
 import com.fa26se040.icss.dto.camera.CameraDetailResponse;
 import com.fa26se040.icss.dto.camera.CameraStreamConfigRequest;
 import com.fa26se040.icss.dto.camera.CameraStreamConfigResponse;
@@ -88,6 +87,9 @@ class CameraServiceTest {
     @Test
     @DisplayName("CreateCamera: should auto-generate camera code using sequence (CAM-%03d)")
     void testCreateCameraAutoCodeFromSequence() {
+        UUID areaId = UUID.randomUUID();
+        when(areaRepository.findByIdAndDeletedAtIsNull(areaId))
+                .thenReturn(Optional.of(Area.builder().id(areaId).isActive(true).build()));
         when(cameraRepository.getNextCameraCodeSequence()).thenReturn(5L);
         when(cameraRepository.save(any(Camera.class))).thenAnswer(invocation -> {
             Camera c = invocation.getArgument(0);
@@ -97,6 +99,7 @@ class CameraServiceTest {
 
         CreateCameraRequest req = CreateCameraRequest.builder()
                 .name("Camera Tòa Nhà Alpha")
+                .areaId(areaId)
                 .build();
 
         CameraDetailResponse response = cameraService.createCamera(req);
@@ -112,11 +115,13 @@ class CameraServiceTest {
     @Test
     @DisplayName("CreateCamera: should throw ERR_CAM_003 when cameraCode already exists")
     void testCreateCameraDuplicateCode() {
+        UUID areaId = UUID.randomUUID();
         when(cameraRepository.existsByCameraCode("CAM-999")).thenReturn(true);
 
         CreateCameraRequest req = CreateCameraRequest.builder()
                 .cameraCode("CAM-999")
                 .name("Camera Trùng")
+                .areaId(areaId)
                 .build();
 
         CameraException ex = assertThrows(CameraException.class, () -> cameraService.createCamera(req));
@@ -127,25 +132,25 @@ class CameraServiceTest {
     @Test
     @DisplayName("ListCameras: forceSync=false should NOT query MediaMTX live status (<10ms target)")
     void testListCamerasWithoutForceSync() {
-        Pageable pageable = PageRequest.of(0, 10);
+        Pageable effectivePageable = PageRequest.of(0, 10, org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.ASC, "cameraCode"));
         Page<Camera> cameraPage = new PageImpl<>(List.of(testCamera));
-        when(cameraRepository.findFiltered(anyString(), any(), any(), eq(pageable))).thenReturn(cameraPage);
+        when(cameraRepository.findFiltered(eq("%%"), isNull(), isNull(), eq(effectivePageable))).thenReturn(cameraPage);
 
-        cameraService.listCameras(null, null, null, false, pageable);
+        cameraService.listCameras(null, null, null, false, PageRequest.of(0, 10));
 
         verify(mediaMtxService, never()).getLivePathStatuses();
-        verify(cameraRepository).findFiltered(anyString(), any(), any(), eq(pageable));
+        verify(cameraRepository).findFiltered(eq("%%"), isNull(), isNull(), eq(effectivePageable));
     }
 
     @Test
     @DisplayName("ListCameras: forceSync=true should query MediaMTX live status")
     void testListCamerasWithForceSync() {
-        Pageable pageable = PageRequest.of(0, 10);
+        Pageable effectivePageable = PageRequest.of(0, 10, org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.ASC, "cameraCode"));
         Page<Camera> cameraPage = new PageImpl<>(List.of(testCamera));
-        when(cameraRepository.findFiltered(anyString(), any(), any(), eq(pageable))).thenReturn(cameraPage);
+        when(cameraRepository.findFiltered(eq("%%"), isNull(), isNull(), eq(effectivePageable))).thenReturn(cameraPage);
         when(mediaMtxService.getLivePathStatuses()).thenReturn(Collections.emptyMap());
 
-        cameraService.listCameras(null, null, null, true, pageable);
+        cameraService.listCameras(null, null, null, true, PageRequest.of(0, 10));
 
         verify(mediaMtxService).getLivePathStatuses();
     }

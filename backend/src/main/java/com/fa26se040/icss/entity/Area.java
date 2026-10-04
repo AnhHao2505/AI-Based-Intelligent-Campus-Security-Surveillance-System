@@ -20,7 +20,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import com.fa26se040.icss.dto.area.AreaGeometry;
 import com.fa26se040.icss.enums.AreaLevel;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -77,12 +76,8 @@ public class Area {
     @Column(name = "building", length = 50)
     private String building;
 
-    @Column(name = "floor", length = 20)
+    @Column(name = "floor", length = 50)
     private String floor;
-
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "geometry", columnDefinition = "jsonb")
-    private AreaGeometry geometry;
 
     @Column(name = "center_latitude")
     private Double centerLatitude;

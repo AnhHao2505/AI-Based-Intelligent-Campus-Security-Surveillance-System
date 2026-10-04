@@ -1,41 +1,14 @@
-import React, {
-	useState,
-	useEffect,
-	useMemo,
-	useCallback,
-	useRef,
-} from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-import {
-	Compass,
-	Map as MapIcon,
-	Layers,
-	Building2,
-	List as ListIcon,
-	AlertCircle,
-	X,
-	Loader2,
-	Shield,
-	Settings,
-} from "lucide-react";
+import { Compass, Building2, AlertCircle, Loader2, Layers } from "lucide-react";
 import CampusMapView from "../../components/area/CampusMapView";
-import AreaMapView from "../../components/area/AreaMapView";
 import PageHeader from "../../components/ui/PageHeader";
 import "../../components/ui/Button.css";
-import {
-	getAreas,
-	getFloorPlans,
-	saveAreaGeometry,
-	deleteAreaGeometry,
-	getAreaCameras,
-} from "../../services/areaService";
+import { getAreas, getAreaCameras } from "../../services/areaService";
 import { getBuildings } from "../../services/buildingService";
-import { getLevelPolygonClass, getErrorMessage } from "../../utils/areaHelpers";
+import { getErrorMessage } from "../../utils/areaHelpers";
 import "../../styles/AreaListPage.css";
-
-const EPS = 0.0005;
-const round6 = (n) => Math.round(n * 1e6) / 1e6;
 
 export default function CampusMapPage() {
 	const { user } = useAuth();
@@ -43,61 +16,28 @@ export default function CampusMapPage() {
 	const isFacilityManager = user?.role === "FACILITY_MANAGER";
 	const navigate = useNavigate();
 
-	const [searchParams, setSearchParams] = useSearchParams();
-	// 'outdoor' (Campus GPS) or 'indoor' (Floor Plan SVG)
-	const mapType = searchParams.get("type") === "indoor" ? "indoor" : "outdoor";
-
-	const handleToggleMapType = (type) => {
-		setSearchParams((prev) => {
-			const next = new URLSearchParams(prev);
-			next.set("type", type);
-			return next;
-		});
-	};
-
 	// Data states
 	const [areas, setAreas] = useState([]);
-	const [floorPlans, setFloorPlans] = useState([]);
 	const [buildingsList, setBuildingsList] = useState([]);
 	const [loading, setLoading] = useState(true);
 	const [pageError, setPageError] = useState(null);
-	const [imageError, setImageError] = useState(false);
-
-	// Filters for indoor floor plan
-	const [selectedBuilding, setSelectedBuilding] = useState("");
-	const [selectedFloor, setSelectedFloor] = useState("");
+	const [selectedBuilding, setSelectedBuilding] = useState("ALL");
+	const [selectedFloor, setSelectedFloor] = useState("ALL");
 	const [selectedAreaId, setSelectedAreaId] = useState(null);
 	const [cameraCounts, setCameraCounts] = useState({});
-
-	// Drawing states for indoor SVG
-	const [drawingAreaId, setDrawingAreaId] = useState(null);
-	const [draftVertices, setDraftVertices] = useState([]);
-	const [drawError, setDrawError] = useState(null);
-	const [savingGeometry, setSavingGeometry] = useState(false);
-	const [confirmDeleteId, setConfirmDeleteId] = useState(null);
-	const [deletingGeometryId, setDeletingGeometryId] = useState(null);
-
-	const rowRefs = useRef({});
 
 	// Fetch all data
 	const fetchData = useCallback(async (keepSelectedId = null) => {
 		setLoading(true);
 		setPageError(null);
-		setImageError(false);
 		try {
-			const [areasRes, plansRes, buildingsRes] = await Promise.all([
+			const [areasRes, buildingsRes] = await Promise.all([
 				getAreas({ size: 100, isActive: true }),
-				getFloorPlans().catch(() => []),
 				getBuildings().catch(() => []),
 			]);
 
 			const areaList = areasRes?.content || areasRes || [];
 			setAreas(Array.isArray(areaList) ? areaList : []);
-
-			const activePlans = (plansRes || []).filter(
-				(fp) => fp.isActive !== false,
-			);
-			setFloorPlans(activePlans);
 			setBuildingsList(Array.isArray(buildingsRes) ? buildingsRes : []);
 
 			if (keepSelectedId) {
@@ -115,346 +55,165 @@ export default function CampusMapPage() {
 		fetchData();
 	}, [fetchData]);
 
-	// Derived available buildings
-	const availableBuildings = useMemo(() => {
-		if (buildingsList.length > 0) {
-			return buildingsList.map((b) => ({
-				code: b.code,
-				name: b.name,
-				floors: b.floors || [],
-			}));
-		}
-		const bSet = new Set();
-		floorPlans.forEach((fp) => {
-			if (fp.building) bSet.add(fp.building);
-		});
-		areas.forEach((a) => {
-			if (a.building) bSet.add(a.building);
-		});
-		const list = Array.from(bSet).sort();
-		return (list.length > 0 ? list : ["FPT_AROUND"]).map((code) => ({
-			code,
-			name: code,
-			floors: [],
-		}));
-	}, [buildingsList, floorPlans, areas]);
-
-	// Default building initialization
+	// Load camera counts
 	useEffect(() => {
-		if (!selectedBuilding && availableBuildings.length > 0) {
-			const defaultB =
-				availableBuildings.find((b) => b.code === "FPT_AROUND") ||
-				availableBuildings[0];
-			setSelectedBuilding(defaultB.code);
+		let isCancelled = false;
+		async function loadAllCounts() {
+			if (areas.length === 0) return;
+			const counts = {};
+			await Promise.all(
+				areas.map(async (a) => {
+					try {
+						const res = await getAreaCameras(a.id);
+						const list = res?.content || res || [];
+						counts[a.id] = Array.isArray(list) ? list.length : 0;
+					} catch {
+						counts[a.id] = 0;
+					}
+				}),
+			);
+			if (!isCancelled) {
+				setCameraCounts(counts);
+			}
 		}
-	}, [availableBuildings, selectedBuilding]);
+		loadAllCounts();
+		return () => {
+			isCancelled = true;
+		};
+	}, [areas]);
 
-	// Derived available floors
+	// Available floors for current building selection
 	const availableFloors = useMemo(() => {
-		const currentBuildingObj = availableBuildings.find(
-			(b) => b.code === selectedBuilding,
-		);
-		if (currentBuildingObj?.floors?.length > 0) {
-			return currentBuildingObj.floors.map((f) => ({
-				code: f.floorCode,
-				name: f.name || `Tầng ${f.floorCode}`,
-				floorId: f.id,
-			}));
-		}
 		const fSet = new Set();
-		floorPlans
-			.filter((fp) => fp.building === selectedBuilding)
-			.forEach((fp) => {
-				if (fp.floor) fSet.add(fp.floor);
+		if (selectedBuilding !== "ALL") {
+			const bObj = buildingsList.find(
+				(b) => (b.name || "").toUpperCase() === selectedBuilding.toUpperCase(),
+			);
+			if (bObj?.floors?.length > 0) {
+				bObj.floors.forEach((f) => fSet.add(f.name));
+			} else {
+				areas
+					.filter(
+						(a) =>
+							(a.building || "").toUpperCase() ===
+							selectedBuilding.toUpperCase(),
+					)
+					.forEach((a) => {
+						if (a.floor) fSet.add(a.floor);
+					});
+			}
+		} else {
+			buildingsList.forEach((b) => {
+				(b.floors || []).forEach((f) => fSet.add(f.name));
 			});
-		areas
-			.filter((a) => a.building === selectedBuilding)
-			.forEach((a) => {
+			areas.forEach((a) => {
 				if (a.floor) fSet.add(a.floor);
 			});
-
-		return Array.from(fSet)
-			.sort((a, b) => a.localeCompare(b))
-			.map((fl) => ({
-				code: fl,
-				name: `Tầng ${fl}`,
-				floorId: null,
-			}));
-	}, [availableBuildings, floorPlans, areas, selectedBuilding]);
-
-	useEffect(() => {
-		if (
-			availableFloors.length > 0 &&
-			!availableFloors.some((f) => f.code === selectedFloor)
-		) {
-			setSelectedFloor(availableFloors[0].code);
 		}
-	}, [availableFloors, selectedFloor]);
 
-	const selectedPlan = useMemo(() => {
-		return (
-			floorPlans.find(
-				(fp) => fp.building === selectedBuilding && fp.floor === selectedFloor,
-			) || null
-		);
-	}, [floorPlans, selectedBuilding, selectedFloor]);
+		if (fSet.size === 0) {
+			fSet.add("Tầng Trệt");
+			fSet.add("Tầng 1");
+		}
 
-	const selectedArea = useMemo(() => {
-		return areas.find((a) => a.id === selectedAreaId) || null;
-	}, [areas, selectedAreaId]);
-
-	// Pre-fetch camera counts
-	useEffect(() => {
-		if (!areas || areas.length === 0) return;
-		let active = true;
-
-		const missingAreas = areas.filter((a) => cameraCounts[a.id] === undefined);
-		if (missingAreas.length === 0) return;
-
-		Promise.all(
-			missingAreas.map(async (a) => {
-				try {
-					const res = await getAreaCameras(a.id);
-					const count =
-						res?.cameras?.length ?? (Array.isArray(res) ? res.length : 0);
-					return { id: a.id, count };
-				} catch {
-					return { id: a.id, count: 0 };
-				}
-			}),
-		).then((results) => {
-			if (active) {
-				const countsMap = {};
-				results.forEach(({ id, count }) => {
-					countsMap[id] = count;
-				});
-				setCameraCounts((prev) => ({ ...prev, ...countsMap }));
-			}
+		return Array.from(fSet).sort((a, b) => {
+			if (a.toLowerCase().includes("trệt")) return -1;
+			if (b.toLowerCase().includes("trệt")) return 1;
+			return a.localeCompare(b);
 		});
+	}, [buildingsList, areas, selectedBuilding]);
 
-		return () => {
-			active = false;
-		};
-	}, [areas, cameraCounts]);
-
-	const handleSelectArea = (areaId) => {
-		setSelectedAreaId(areaId);
-		setConfirmDeleteId(null);
-	};
-
-	// Drawing handlers for Indoor SVG
-	const startDrawing = (areaId) => {
-		setDrawingAreaId(areaId);
-		setDraftVertices([]);
-		setDrawError(null);
-		setConfirmDeleteId(null);
-	};
-
-	const cancelDrawing = () => {
-		setDrawingAreaId(null);
-		setDraftVertices([]);
-		setDrawError(null);
-	};
-
-	const handleUndoVertex = () => {
-		setDraftVertices((prev) => prev.slice(0, -1));
-	};
-
-	const finishDrawing = async () => {
-		if (savingGeometry || drawingAreaId === null || draftVertices.length < 3)
-			return;
-		setSavingGeometry(true);
-		setDrawError(null);
-		try {
-			const drawingArea = areas.find((a) => a.id === drawingAreaId);
-			await saveAreaGeometry(drawingAreaId, draftVertices, drawingArea?.version);
-			const targetId = drawingAreaId;
-			cancelDrawing();
-			await fetchData(targetId);
-		} catch (err) {
-			setDrawError(err.message || "Không lưu được hình đa giác.");
-		} finally {
-			setSavingGeometry(false);
-		}
-	};
-
-	const handleDeleteGeometry = async (areaId) => {
-		if (deletingGeometryId !== null) return;
-		setDeletingGeometryId(areaId);
-		try {
-			const targetArea = areas.find((a) => a.id === areaId);
-			await deleteAreaGeometry(areaId, targetArea?.version);
-			setConfirmDeleteId(null);
-			await fetchData(areaId);
-		} catch (err) {
-			setPageError("Không xoá được hình đa giác.");
-		} finally {
-			setDeletingGeometryId(null);
-		}
-	};
-
-	const handleSvgClick = (event) => {
-		if (savingGeometry || drawingAreaId === null || !selectedPlan) return;
-		const svg = event.currentTarget;
-		const ctm = svg.getScreenCTM();
-		if (!ctm) return;
-		const pt = svg.createSVGPoint();
-		pt.x = event.clientX;
-		pt.y = event.clientY;
-		const local = pt.matrixTransform(ctm.inverse());
-		const nx = local.x / selectedPlan.originalWidth;
-		const ny = local.y / selectedPlan.originalHeight;
-		if (nx < 0 || nx > 1 || ny < 0 || ny > 1) return;
-		const roundedX = round6(nx);
-		const roundedY = round6(ny);
-		const isDuplicate = draftVertices.some(
-			(v) => Math.abs(v.x - roundedX) < EPS && Math.abs(v.y - roundedY) < EPS,
-		);
-		if (isDuplicate) return;
-		setDraftVertices((prev) => [...prev, { x: roundedX, y: roundedY }]);
-	};
-
-	const mapPolygons = useMemo(() => {
-		if (!selectedPlan) return [];
-		return areas.filter(
-			(a) =>
-				a.building === selectedBuilding &&
-				a.floor === selectedFloor &&
-				a.geometry?.vertices?.length >= 3,
-		);
-	}, [areas, selectedBuilding, selectedFloor, selectedPlan]);
-
-	const sortedAreasForRail = useMemo(() => {
-		return [...areas].sort((a, b) => {
-			const aInScope =
-				a.building === selectedBuilding && a.floor === selectedFloor;
-			const bInScope =
-				b.building === selectedBuilding && b.floor === selectedFloor;
-			if (aInScope && !bInScope) return -1;
-			if (!aInScope && bInScope) return 1;
-			return (a.name || "").localeCompare(b.name || "");
+	// Filtered areas by building and floor
+	const filteredAreas = useMemo(() => {
+		return areas.filter((a) => {
+			const matchBuilding =
+				selectedBuilding === "ALL" ||
+				(a.building || "").toUpperCase() === selectedBuilding.toUpperCase();
+			const matchFloor =
+				selectedFloor === "ALL" ||
+				(a.floor || "").toUpperCase() === selectedFloor.toUpperCase();
+			return matchBuilding && matchFloor;
 		});
 	}, [areas, selectedBuilding, selectedFloor]);
 
-	const totalAreasCount = areas.length;
-	const noGeometryCount = useMemo(() => {
-		return areas.filter((a) => !(a.geometry?.vertices?.length >= 3)).length;
-	}, [areas]);
-
-	const isSelectedAreaInCurrentScope =
-		selectedArea &&
-		selectedArea.building === selectedBuilding &&
-		selectedArea.floor === selectedFloor;
-
-	const selectedAreaHasGeometry =
-		selectedArea && selectedArea.geometry?.vertices?.length >= 3;
+	const handleSelectArea = (areaId) => {
+		setSelectedAreaId((prev) => (prev === areaId ? null : areaId));
+	};
 
 	return (
 		<div className="zone-page">
-			{/* Page Error Banner */}
+			{/* Page Header */}
+			<PageHeader
+				title="Bản đồ khuôn viên"
+				subtitle="Bản đồ an ninh toàn diện và giám sát khu vực theo toạ độ địa lý."
+			/>
+
+			{/* Global Error Banner */}
 			{pageError && (
-				<div className="zone-alert zone-alert--error">
+				<div className="zone-page__alert zone-page__alert--danger">
 					<AlertCircle size={18} />
 					<span>{pageError}</span>
-					<button
-						type="button"
-						className="zone-alert__close"
-						onClick={() => setPageError(null)}
-					>
-						<X size={16} />
-					</button>
 				</div>
 			)}
 
-			<PageHeader
-				title="Quản lý bản đồ an ninh"
-				description={
-					isAdmin
-						? "Cấu hình toạ độ khuôn viên ngoài trời và vẽ đa giác sơ đồ mặt bằng các tầng."
-						: "Theo dõi vị trí các phân khu an ninh và nhân sự được chỉ định."
-				}
-				actions={
-					<button
-						type="button"
-						className="ui-btn ui-btn--secondary ui-btn--md"
-						onClick={() => navigate("/admin/areas")}
-					>
-						<ListIcon size={16} />
-						<span>Sang quản lý vùng</span>
-					</button>
-				}
-			/>
-
-			{/* Map Sub-Toolbar: Switch between Outdoor GPS and Indoor Floor Plan */}
+			{/* Toolbar */}
 			<div className="zone-toolbar">
-				{mapType === "indoor" && (
-					<>
-						<div className="zone-toolbar__building">
-							<Building2
-								size={16}
-								className="zone-toolbar__building-icon"
-							/>
-							<select
-								className="zone-toolbar__building-select"
-								value={selectedBuilding}
-								onChange={(e) => {
-									setSelectedBuilding(e.target.value);
-									setSelectedAreaId(null);
-								}}
+				{/* Building Selector */}
+				<div className="zone-toolbar__group">
+					<Building2
+						size={16}
+						className="text-secondary"
+					/>
+					<select
+						className="zone-select"
+						value={selectedBuilding}
+						onChange={(e) => {
+							setSelectedBuilding(e.target.value);
+							setSelectedFloor("ALL");
+							setSelectedAreaId(null);
+						}}
+						title="Lọc khu vực theo tòa nhà"
+					>
+						<option value="ALL">Tất cả tòa nhà</option>
+						{buildingsList.map((b) => (
+							<option
+								key={b.id || b.name}
+								value={b.name}
 							>
-								{availableBuildings.map((b) => (
-									<option
-										key={b.code}
-										value={b.code}
-									>
-										{b.name}
-									</option>
-								))}
-							</select>
-						</div>
+								{b.name}
+							</option>
+						))}
+					</select>
+				</div>
 
-						<div className="zone-toolbar__tabs">
-							{availableFloors.map((fl) => (
-								<button
-									key={fl.code}
-									type="button"
-									className={`zone-toolbar__tab ${selectedFloor === fl.code ? "zone-toolbar__tab--active" : ""}`}
-									onClick={() => {
-										setSelectedFloor(fl.code);
-										setSelectedAreaId(null);
-									}}
-								>
-									{fl.name}
-								</button>
-							))}
-						</div>
-					</>
-				)}
+				{/* Floor Options Selector */}
+				<div className="zone-toolbar__group">
+					<Layers
+						size={16}
+						className="text-secondary"
+					/>
+					<select
+						className="zone-select"
+						value={selectedFloor}
+						onChange={(e) => {
+							setSelectedFloor(e.target.value);
+							setSelectedAreaId(null);
+						}}
+						title="Lọc khu vực theo tầng"
+					>
+						<option value="ALL">Tất cả tầng</option>
+						{availableFloors.map((fl) => (
+							<option
+								key={fl}
+								value={fl}
+							>
+								{fl}
+							</option>
+						))}
+					</select>
+				</div>
 
 				<div className="zone-toolbar__spacer" />
-
-				<div className="zone-toolbar__actions">
-					<div className="zone-view-toggle">
-						<button
-							type="button"
-							className={`zone-view-toggle__btn ${mapType === "outdoor" ? "zone-view-toggle__btn--active" : ""}`}
-							onClick={() => handleToggleMapType("outdoor")}
-							title="Bản đồ địa lý toàn cảnh khuôn viên ngoài trời (OpenStreetMap Standard)"
-						>
-							<Compass size={15} />
-							<span>Khuôn viên (Ngoài trời)</span>
-						</button>
-						<button
-							type="button"
-							className={`zone-view-toggle__btn ${mapType === "indoor" ? "zone-view-toggle__btn--active" : ""}`}
-							onClick={() => handleToggleMapType("indoor")}
-							title="Sơ đồ mặt bằng chi tiết các tầng trong nhà"
-						>
-							<MapIcon size={15} />
-							<span>Sơ đồ tầng (Trong nhà)</span>
-						</button>
-					</div>
-				</div>
 			</div>
 
 			{/* Loading */}
@@ -468,58 +227,15 @@ export default function CampusMapPage() {
 				</div>
 			)}
 
-			{/* 1. OUTDOOR MAP: CampusMapView with OpenStreetMap Standard */}
-			{!loading && mapType === "outdoor" && (
+			{/* OUTDOOR CAMPUS MAP */}
+			{!loading && (
 				<CampusMapView
-					areas={areas}
+					areas={filteredAreas}
 					selectedAreaId={selectedAreaId}
 					cameraCounts={cameraCounts}
 					isAdmin={isAdmin}
 					isFacilityManager={isFacilityManager}
 					onSelectArea={handleSelectArea}
-				/>
-			)}
-
-			{/* 2. INDOOR MAP: AreaMapView (Floor Plan SVG) */}
-			{!loading && mapType === "indoor" && (
-				<AreaMapView
-					areas={areas}
-					selectedBuilding={selectedBuilding}
-					selectedFloor={selectedFloor}
-					selectedPlan={selectedPlan}
-					imageError={imageError}
-					setImageError={setImageError}
-					drawingAreaId={drawingAreaId}
-					draftVertices={draftVertices}
-					savingGeometry={savingGeometry}
-					drawError={drawError}
-					setDrawError={setDrawError}
-					mapPolygons={mapPolygons}
-					selectedAreaId={selectedAreaId}
-					selectedArea={selectedArea}
-					cameraCounts={cameraCounts}
-					sortedAreasForRail={sortedAreasForRail}
-					totalAreasCount={totalAreasCount}
-					noGeometryCount={noGeometryCount}
-					confirmDeleteId={confirmDeleteId}
-					deletingGeometryId={deletingGeometryId}
-					isFacilityManager={isFacilityManager}
-					isAdmin={isAdmin}
-					isSelectedAreaInCurrentScope={isSelectedAreaInCurrentScope}
-					selectedAreaHasGeometry={selectedAreaHasGeometry}
-					rowRefs={rowRefs}
-					onSelectArea={handleSelectArea}
-					onUndoVertex={handleUndoVertex}
-					onFinishDrawing={finishDrawing}
-					onCancelDrawing={cancelDrawing}
-					onSvgClick={handleSvgClick}
-					onToggleView={() => navigate("/admin/areas")}
-					onStartDrawing={startDrawing}
-					onDeleteGeometry={handleDeleteGeometry}
-					setConfirmDeleteId={setConfirmDeleteId}
-					onOpenAssignedPersonnelModal={null}
-					onOpenEditModal={() => navigate("/admin/areas")}
-					getLevelPolygonClass={getLevelPolygonClass}
 				/>
 			)}
 		</div>

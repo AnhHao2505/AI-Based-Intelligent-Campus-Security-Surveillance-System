@@ -66,10 +66,10 @@ class AccessRequestReviewerRulesIntegrationTest extends AbstractIntegrationTest 
     @BeforeEach
     void setUp() {
         suffix = UUID.randomUUID().toString().substring(0, 8);
-        Building building = buildingRepository.findByCodeIgnoreCase("TOA_RQ_RULES")
-                .orElseGet(() -> buildingRepository.save(Building.builder().code("TOA_RQ_RULES").name("Tòa RQ rules").build()));
-        Floor floor = floorRepository.findByBuildingCodeIgnoreCaseAndFloorCodeIgnoreCase("TOA_RQ_RULES", "1")
-                .orElseGet(() -> floorRepository.save(Floor.builder().building(building).floorCode("1").name("Tầng 1").floorOrder(1).build()));
+        Building building = buildingRepository.findByNameIgnoreCase("Tòa RQ rules")
+                .orElseGet(() -> buildingRepository.save(Building.builder().name("Tòa RQ rules").build()));
+        Floor floor = floorRepository.findByBuildingNameIgnoreCaseAndNameIgnoreCase("Tòa RQ rules", "Tầng 1")
+                .orElseGet(() -> floorRepository.save(Floor.builder().building(building).name("Tầng 1").floorOrder(1).build()));
 
         admin = user("adm", Role.ADMIN, 3);
         fmOther = user("fmo", Role.FACILITY_MANAGER, 3);

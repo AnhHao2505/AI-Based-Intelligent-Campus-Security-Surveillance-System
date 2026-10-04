@@ -1,7 +1,6 @@
 import logging
 import time
 from typing import Optional, Tuple, Dict, List
-import cv2
 import numpy as np
 import psycopg2
 

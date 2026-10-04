@@ -62,10 +62,10 @@ class AreaAssignedPersonnelSelfAssignIntegrationTest extends AbstractIntegration
     @BeforeEach
     void setUp() {
         suffix = UUID.randomUUID().toString().substring(0, 8);
-        Building building = buildingRepository.findByCodeIgnoreCase("TOA_AP_SELF")
-                .orElseGet(() -> buildingRepository.save(Building.builder().code("TOA_AP_SELF").name("Tòa AP self").build()));
-        Floor floor = floorRepository.findByBuildingCodeIgnoreCaseAndFloorCodeIgnoreCase("TOA_AP_SELF", "1")
-                .orElseGet(() -> floorRepository.save(Floor.builder().building(building).floorCode("1").name("Tầng 1").floorOrder(1).build()));
+        Building building = buildingRepository.findByNameIgnoreCase("Tòa AP self")
+                .orElseGet(() -> buildingRepository.save(Building.builder().name("Tòa AP self").build()));
+        Floor floor = floorRepository.findByBuildingNameIgnoreCaseAndNameIgnoreCase("Tòa AP self", "Tầng 1")
+                .orElseGet(() -> floorRepository.save(Floor.builder().building(building).name("Tầng 1").floorOrder(1).build()));
         fm1 = user("fm1");
         fm2 = user("fm2");
         area = areaRepository.save(Area.builder()

@@ -26,24 +26,12 @@ public class Floor {
     @JoinColumn(name = "building_id", nullable = false)
     private Building building;
 
-    @Column(name = "floor_code", nullable = false, length = 20)
-    private String floorCode;
-
     @Column(name = "name", nullable = false, length = 100)
     private String name;
 
     @Column(name = "floor_order", nullable = false)
     @Builder.Default
     private Integer floorOrder = 0;
-
-    @Column(name = "image_key", length = 255)
-    private String imageKey;
-
-    @Column(name = "original_width")
-    private Integer originalWidth;
-
-    @Column(name = "original_height")
-    private Integer originalHeight;
 
     @Column(name = "is_active", nullable = false)
     @Builder.Default

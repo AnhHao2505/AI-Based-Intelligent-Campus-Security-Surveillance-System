@@ -16,7 +16,7 @@ import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import PageHeader from '../../components/ui/PageHeader';
 import ReasonTextarea from '../../components/ui/ReasonTextarea';
-import './UserAccessLevelPage.css';
+import '../../styles/UserAccessLevelPage.css';
 
 const ACCESS_LEVELS = [
   { level: 1, name: 'Cấp 1 — Mọi người dùng' },

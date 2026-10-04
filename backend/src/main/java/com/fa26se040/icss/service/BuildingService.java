@@ -59,7 +59,6 @@ public class BuildingService {
 
         return BuildingDto.builder()
                 .id(b.getId())
-                .code(b.getCode())
                 .name(b.getName())
                 .description(b.getDescription())
                 .totalFloors(b.getTotalFloors())
@@ -73,14 +72,9 @@ public class BuildingService {
         return FloorDto.builder()
                 .id(f.getId())
                 .buildingId(f.getBuilding() != null ? f.getBuilding().getId() : null)
-                .buildingCode(f.getBuilding() != null ? f.getBuilding().getCode() : null)
                 .buildingName(f.getBuilding() != null ? f.getBuilding().getName() : null)
-                .floorCode(f.getFloorCode())
                 .name(f.getName())
                 .floorOrder(f.getFloorOrder())
-                .imageKey(f.getImageKey())
-                .originalWidth(f.getOriginalWidth())
-                .originalHeight(f.getOriginalHeight())
                 .isActive(f.getIsActive())
                 .areaCount(f.getAreas() != null ? (int) f.getAreas().stream().filter(a -> a.getDeletedAt() == null).count() : 0)
                 .build();

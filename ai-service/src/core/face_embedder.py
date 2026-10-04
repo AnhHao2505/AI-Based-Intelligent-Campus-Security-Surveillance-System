@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from typing import List, Optional
+from typing import List
 
 class FaceEmbedder:
     """

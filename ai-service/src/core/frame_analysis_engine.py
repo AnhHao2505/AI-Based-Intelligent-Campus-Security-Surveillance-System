@@ -1,7 +1,7 @@
 import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from typing import Dict, List, Optional, Tuple, Any, Union
+from typing import Dict, List, Optional, Tuple, Any
 from ..config import settings
 from .entity import (
     TrackedPerson, BoundingBox, Point, SecurityAlertEvent,

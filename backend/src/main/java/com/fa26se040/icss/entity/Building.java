@@ -22,10 +22,7 @@ public class Building {
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
-    @Column(name = "code", nullable = false, unique = true, length = 50)
-    private String code;
-
-    @Column(name = "name", nullable = false, length = 150)
+    @Column(name = "name", nullable = false, unique = true, length = 150)
     private String name;
 
     @Column(name = "description", columnDefinition = "TEXT")

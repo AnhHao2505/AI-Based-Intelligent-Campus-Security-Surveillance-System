@@ -14,14 +14,9 @@ import java.util.UUID;
 public class FloorDto {
     private UUID id;
     private UUID buildingId;
-    private String buildingCode;
     private String buildingName;
-    private String floorCode;
     private String name;
     private Integer floorOrder;
-    private String imageKey;
-    private Integer originalWidth;
-    private Integer originalHeight;
     private Boolean isActive;
     private int areaCount;
 }

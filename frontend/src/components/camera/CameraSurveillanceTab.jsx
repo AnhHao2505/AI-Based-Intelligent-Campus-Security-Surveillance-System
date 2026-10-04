@@ -9,10 +9,6 @@ import {
 	CheckCircle2,
 	Layers,
 	AlertTriangle,
-	ShieldAlert,
-	ArrowRight,
-	LogIn,
-	LogOut,
 } from "lucide-react";
 
 export function formatImageUrl(url) {
@@ -34,30 +30,6 @@ export function computePolygonCentroid(vertices) {
 	return {
 		x: sumX / vertices.length,
 		y: sumY / vertices.length,
-	};
-}
-
-export function computeLineOrientation(
-	pointA,
-	pointB,
-	direction,
-	width,
-	height,
-) {
-	const ax = (Number(pointA?.x) || 0) * width;
-	const ay = (Number(pointA?.y) || 0) * height;
-	const bx = (Number(pointB?.x) || 0) * width;
-	const by = (Number(pointB?.y) || 0) * height;
-	const mx = (ax + bx) / 2;
-	const my = (ay + by) / 2;
-
-	return {
-		ax,
-		ay,
-		bx,
-		by,
-		midX: mx,
-		midY: my,
 	};
 }
 
@@ -91,10 +63,7 @@ export default function CameraSurveillanceTab({
 		camera?.roiGeometry?.referenceCapturedAt;
 
 	const roiPolygons = camera?.roiGeometry?.polygons || [];
-	const roiEntryLines =
-		camera?.roiGeometry?.entry_lines || camera?.roiGeometry?.entryLines || [];
-
-	const totalRoiCount = roiPolygons.length + roiEntryLines.length;
+	const totalRoiCount = roiPolygons.length;
 
 	// Render SVG Shapes helper
 	const renderRoiSvgElements = (width, height, isDrift = false) => (
@@ -103,38 +72,7 @@ export default function CameraSurveillanceTab({
 			preserveAspectRatio="none"
 			className="roi-preview-svg"
 		>
-			<defs>
-				<marker
-					id={`arrow-in-${isDrift ? "drift" : "ref"}`}
-					viewBox="0 0 10 10"
-					refX="6"
-					refY="5"
-					markerWidth="6"
-					markerHeight="6"
-					orient="auto-start-reverse"
-				>
-					<path
-						d="M 0 1 L 10 5 L 0 9 z"
-						fill="#10b981"
-					/>
-				</marker>
-				<marker
-					id={`arrow-out-${isDrift ? "drift" : "ref"}`}
-					viewBox="0 0 10 10"
-					refX="6"
-					refY="5"
-					markerWidth="6"
-					markerHeight="6"
-					orient="auto-start-reverse"
-				>
-					<path
-						d="M 0 1 L 10 5 L 0 9 z"
-						fill="#38bdf8"
-					/>
-				</marker>
-			</defs>
-
-			{/* 1. Polygons */}
+			{/* Polygons */}
 			{roiPolygons.map((poly, idx) => {
 				const pts = (poly.vertices || [])
 					.map(
@@ -165,66 +103,6 @@ export default function CameraSurveillanceTab({
 					</g>
 				);
 			})}
-
-			{/* 2. Entry Lines */}
-			{roiEntryLines.map((line, idx) => {
-				const orient = computeLineOrientation(
-					line.point_a || line.pointA,
-					line.point_b || line.pointB,
-					line.direction || "AB_IS_IN",
-					width,
-					height,
-				);
-				if (!orient) return null;
-
-				return (
-					<g key={`line-${idx}`}>
-						{/* Main line */}
-						<line
-							x1={orient.ax}
-							y1={orient.ay}
-							x2={orient.bx}
-							y2={orient.by}
-							stroke="#06b6d4"
-							strokeWidth={3}
-							strokeLinecap="round"
-						/>
-
-						{/* Point A */}
-						<circle
-							cx={orient.ax}
-							cy={orient.ay}
-							r={6}
-							fill="#06b6d4"
-							stroke="#ffffff"
-							strokeWidth={1.5}
-						/>
-
-						{/* Point B */}
-						<circle
-							cx={orient.bx}
-							cy={orient.by}
-							r={6}
-							fill="#0891b2"
-							stroke="#ffffff"
-							strokeWidth={1.5}
-						/>
-
-						{/* Text label in the middle */}
-						<text
-							x={orient.midX}
-							y={orient.midY - 8}
-							fill="#ffffff"
-							fontSize={12}
-							fontWeight={700}
-							textAnchor="middle"
-							filter="drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8))"
-						>
-							{line.label || `Ranh ${idx + 1}`}
-						</text>
-					</g>
-				);
-			})}
 		</svg>
 	);
 
@@ -234,7 +112,7 @@ export default function CameraSurveillanceTab({
 				<div className="roi-section-info">
 					<p>
 						Quản lý vùng giám sát an ninh (Tự động phát hiện Người lạ,
-						Người không có thẩm quyền truy cập, Ngoài giờ) và đường ranh Ra/Vào (ghi nhận Access Log).
+						Người không có thẩm quyền truy cập, Ngoài giờ).
 					</p>
 				</div>
 
@@ -384,7 +262,7 @@ export default function CameraSurveillanceTab({
 								Độ phân giải: {refWidth}x{refHeight}
 							</span>
 							<span>
-								{roiPolygons.length} vùng • {roiEntryLines.length} đường ranh
+								{roiPolygons.length} vùng giám sát
 							</span>
 						</div>
 					</div>
@@ -475,8 +353,7 @@ export default function CameraSurveillanceTab({
 							<p>
 								Camera này chưa có ảnh tham chiếu và vùng ROI. Bấm nút{" "}
 								<strong>"Chụp ảnh mới"</strong> để trích xuất khung hình từ
-								camera và bắt đầu khoanh vùng giám sát an ninh hoặc đặt đường
-								ranh ra/vào.
+								camera và bắt đầu khoanh vùng giám sát an ninh.
 							</p>
 						</div>
 					)}

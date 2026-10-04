@@ -409,28 +409,6 @@ public class CameraService {
                 }
             }
 
-            List<Map<String, Object>> entryLinesList = new ArrayList<>();
-            if (roi.getEntryLines() != null) {
-                for (RoiGeometry.EntryLine l : roi.getEntryLines()) {
-                    Map<String, Object> lineMap = new HashMap<>();
-                    lineMap.put("label", l.getLabel() != null ? l.getLabel() : "");
-                    lineMap.put("direction", l.getDirection() != null ? l.getDirection() : "AB_IS_IN");
-                    if (l.getPointA() != null && l.getPointA().getX() != null && l.getPointA().getY() != null) {
-                        lineMap.put("point_a", Map.of(
-                                "x", l.getPointA().getX().doubleValue(),
-                                "y", l.getPointA().getY().doubleValue()
-                        ));
-                    }
-                    if (l.getPointB() != null && l.getPointB().getX() != null && l.getPointB().getY() != null) {
-                        lineMap.put("point_b", Map.of(
-                                "x", l.getPointB().getX().doubleValue(),
-                                "y", l.getPointB().getY().doubleValue()
-                        ));
-                    }
-                    entryLinesList.add(lineMap);
-                }
-            }
-
             Map<String, Object> body = new HashMap<>();
             body.put("camera_code", cameraCode);
             body.put("after_hour_start", systemConfigService.getString(ConfigKey.AI_AFTER_HOUR_START));
@@ -438,7 +416,6 @@ public class CameraService {
             body.put("reference_width", roi.getReferenceSnapshotWidth() != null ? roi.getReferenceSnapshotWidth() : 1920);
             body.put("reference_height", roi.getReferenceSnapshotHeight() != null ? roi.getReferenceSnapshotHeight() : 1080);
             body.put("polygons", polygonsList);
-            body.put("entry_lines", entryLinesList);
 
             HttpEntity<Map<String, Object>> httpEntity = new HttpEntity<>(body, headers);
             restTemplate.postForObject(endpoint, httpEntity, Map.class);

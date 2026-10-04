@@ -1,8 +1,7 @@
 import time
 import logging
-import cv2
 import numpy as np
-from typing import List, Optional, Tuple, Dict, Any
+from typing import List, Optional, Tuple, Any
 
 from ..config import settings
 from ..core.entity import Point, TrackedPerson, SecurityAlertEvent, RoiPolygonConfig, EntryLineConfig

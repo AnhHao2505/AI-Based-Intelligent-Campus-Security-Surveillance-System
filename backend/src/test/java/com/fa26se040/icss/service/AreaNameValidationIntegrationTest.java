@@ -25,7 +25,6 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.text.Normalizer;
-import java.time.OffsetDateTime;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.is;
@@ -81,14 +80,14 @@ class AreaNameValidationIntegrationTest extends AbstractIntegrationTest {
         });
         adminToken = "Bearer " + jwtTokenProvider.generateToken(admin);
 
-        testBuilding = buildingRepository.findByCodeIgnoreCase("TOA_ALPHA")
-                .orElseGet(() -> buildingRepository.save(Building.builder().code("TOA_ALPHA").name("Tòa Alpha").build()));
+        testBuilding = buildingRepository.findByNameIgnoreCase("Tòa Alpha")
+                .orElseGet(() -> buildingRepository.save(Building.builder().name("Tòa Alpha").build()));
 
-        testFloor1 = floorRepository.findByBuildingCodeIgnoreCaseAndFloorCodeIgnoreCase("TOA_ALPHA", "1")
-                .orElseGet(() -> floorRepository.save(Floor.builder().building(testBuilding).floorCode("1").name("Tầng 1").floorOrder(1).build()));
+        testFloor1 = floorRepository.findByBuildingNameIgnoreCaseAndNameIgnoreCase("Tòa Alpha", "Tầng 1")
+                .orElseGet(() -> floorRepository.save(Floor.builder().building(testBuilding).name("Tầng 1").floorOrder(1).build()));
 
-        testFloor2 = floorRepository.findByBuildingCodeIgnoreCaseAndFloorCodeIgnoreCase("TOA_ALPHA", "2")
-                .orElseGet(() -> floorRepository.save(Floor.builder().building(testBuilding).floorCode("2").name("Tầng 2").floorOrder(2).build()));
+        testFloor2 = floorRepository.findByBuildingNameIgnoreCaseAndNameIgnoreCase("Tòa Alpha", "Tầng 2")
+                .orElseGet(() -> floorRepository.save(Floor.builder().building(testBuilding).name("Tầng 2").floorOrder(2).build()));
     }
 
     @Test
@@ -384,7 +383,6 @@ class AreaNameValidationIntegrationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("BR-AR-03 & BR-AR-04: Tên không hợp lệ bị từ chối với mã lỗi tương ứng")
     void testInvalidNames_RejectedWithAppropriateErrorCode() throws Exception {
-        String suffix = UUID.randomUUID().toString().substring(0, 6);
 
         // Chỉ số -> ERR_AREA_018
         AreaCreateRequest reqOnlyNumbers = AreaCreateRequest.builder()

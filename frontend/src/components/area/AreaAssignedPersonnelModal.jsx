@@ -6,11 +6,7 @@ import {
 	UserX,
 	AlertCircle,
 	Clock,
-	CheckCircle2,
-	Calendar,
 	X,
-	HelpCircle,
-	FileText,
 } from "lucide-react";
 import { toast } from "sonner";
 import Modal from "../ui/Modal";
@@ -28,7 +24,7 @@ import {
 	formatToOffsetDateTime,
 	formatDisplayDateTime,
 } from "../../utils/areaHelpers";
-import "./AreaAssignedPersonnelModal.css";
+import "../../styles/AreaAssignedPersonnelModal.css";
 
 const STATUS_FILTERS = [
 	{ key: "ALL", label: "Tất cả" },

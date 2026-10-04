@@ -17,7 +17,7 @@ import { formatDisplayDateTime } from '../../utils/areaHelpers';
 import Button from '../../components/ui/Button';
 import PageHeader from '../../components/ui/PageHeader';
 import UserSearchCombobox from '../../components/user/UserSearchCombobox';
-import './UserAccessLevelPage.css';
+import '../../styles/UserAccessLevelPage.css';
 
 const SYSTEM_ACTOR_LABELS = {
   EXPIRE_OVERDUE_REQUESTS_JOB: 'Tự động hết hạn đơn quá giờ',
