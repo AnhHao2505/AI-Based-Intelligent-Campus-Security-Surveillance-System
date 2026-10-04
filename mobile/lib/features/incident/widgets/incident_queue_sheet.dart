@@ -158,7 +158,7 @@ class IncidentQueueSheet extends StatelessWidget {
                   shrinkWrap: true,
                   padding: const EdgeInsets.all(16),
                   itemCount: queue.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  separatorBuilder: (_, _) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
                     final item = queue[index];
                     final color = _getSeverityColor(item.severityWeight);

@@ -5,6 +5,7 @@ import com.fa26se040.icss.dto.incident.IncidentDetailResponse;
 import com.fa26se040.icss.dto.incident.IncidentEventDto;
 import com.fa26se040.icss.dto.incident.IncidentResolveRequest;
 import com.fa26se040.icss.entity.Area;
+import com.fa26se040.icss.entity.GuardLocation;
 import com.fa26se040.icss.entity.SecurityIncident;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.IncidentOutcome;
@@ -36,6 +37,7 @@ public class SecurityIncidentService {
     private final AreaRepository areaRepository;
     private final UserRepository userRepository;
     private final SimpMessagingTemplate messagingTemplate;
+    private final GuardLocationService guardLocationService;
 
     @Transactional
     public IncidentDetailResponse ingestIncident(IncidentEventDto eventDto) {
@@ -87,11 +89,31 @@ public class SecurityIncidentService {
         IncidentDetailResponse response = mapToDetailResponse(saved);
 
         // 2. Real-time WebSocket dispatching
-        // A. Building-scoped topic
+        // A. Dispatch targeted alerts only to guards currently inside the campus geofence
+        if (guardLocationService != null) {
+            try {
+                List<GuardLocation> guardsInCampus = guardLocationService.findGuardsInsideCampus();
+                log.info("Incident [{}] in area [{}] (Building: [{}]): Found [{}] guards inside campus geofence to notify",
+                        saved.getId(), area.getName(), building, guardsInCampus.size());
+
+                for (GuardLocation guardLoc : guardsInCampus) {
+                    if (guardLoc.getGuard() != null && guardLoc.getGuard().getId() != null) {
+                        String guardTopic = "/topic/guards/" + guardLoc.getGuard().getId() + "/alerts";
+                        messagingTemplate.convertAndSend(guardTopic, response);
+                        log.info("Dispatched incident [{}] to guard [{}] ({}) at topic [{}]",
+                                saved.getId(), guardLoc.getGuard().getFullName(), guardLoc.getGuard().getEmail(), guardTopic);
+                    }
+                }
+            } catch (Exception e) {
+                log.error("Lỗi khi điều phối cảnh báo tới các bảo vệ trong geofence: {}", e.getMessage(), e);
+            }
+        }
+
+        // B. Building-scoped topic (for web dashboard & monitoring)
         String buildingTopic = "/topic/buildings/" + building.toUpperCase() + "/alerts";
         messagingTemplate.convertAndSend(buildingTopic, response);
 
-        // B. Global fallback topic
+        // C. Global topic (for system admins & overview)
         messagingTemplate.convertAndSend("/topic/security-alerts", response);
 
         log.info("Broadcasted new incident [{}] to [{}] and [/topic/security-alerts]", saved.getId(), buildingTopic);

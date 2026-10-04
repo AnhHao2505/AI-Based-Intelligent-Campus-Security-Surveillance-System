@@ -248,6 +248,19 @@ class _GuardMapScreenState extends State<GuardMapScreen>
                     : null,
               ),
 
+              // Campus Geofence Boundary Polygon Layer
+              if (mapProvider.campusGeofence.length >= 3)
+                PolygonLayer(
+                  polygons: [
+                    Polygon(
+                      points: mapProvider.campusGeofence,
+                      color: const Color(0x1F2563EB),
+                      borderColor: const Color(0xFF2563EB),
+                      borderStrokeWidth: 2.0,
+                    ),
+                  ],
+                ),
+
               // Navigation Polyline Route Layer
               if (mapState.currentRoute != null &&
                   mapState.currentRoute!.points.isNotEmpty) ...[
@@ -409,12 +422,50 @@ class _GuardMapScreenState extends State<GuardMapScreen>
                                 color: AppColors.txtPrimary(context),
                               ),
                             ),
-                            Text(
-                              '${filteredPins.length} khu vực bảo vệ',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: AppColors.txtSecondary(context),
-                              ),
+                            Row(
+                              children: [
+                                Text(
+                                  '${filteredPins.length} khu vực bảo vệ',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.txtSecondary(context),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: (mapProvider.isInsideCampus ? Colors.green : Colors.orange).withAlpha(30),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: (mapProvider.isInsideCampus ? Colors.green : Colors.orange).withAlpha(120),
+                                      width: 0.8,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Container(
+                                        width: 5,
+                                        height: 5,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: mapProvider.isInsideCampus ? Colors.green : Colors.orange,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        mapProvider.isInsideCampus ? 'Trong trường' : 'Ngoài trường',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w600,
+                                          color: mapProvider.isInsideCampus ? Colors.green : Colors.orange,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -451,11 +502,22 @@ class _GuardMapScreenState extends State<GuardMapScreen>
                         final bldName = isAll ? null : mapState.buildings[index - 1];
                         final isSelected = mapState.selectedBuilding == bldName;
 
+                        String chipLabel;
+                        if (isAll) {
+                          chipLabel = 'Tất cả';
+                        } else if (bldName != null &&
+                            (bldName.trim().toLowerCase().startsWith('tòa ') ||
+                             bldName.trim().toLowerCase().startsWith('toa '))) {
+                          chipLabel = bldName.trim();
+                        } else {
+                          chipLabel = 'Tòa ${bldName ?? ""}';
+                        }
+
                         return Padding(
                           padding: const EdgeInsets.only(right: 8),
                           child: FilterChip(
                             label: Text(
-                              isAll ? 'Tất cả' : 'Tòa $bldName',
+                              chipLabel,
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,

@@ -238,7 +238,6 @@ export default function CampusMapPage() {
 						))}
 					</select>
 				</div>
-
 				<div className="zone-toolbar__spacer" />
 			</div>
 
@@ -267,6 +266,12 @@ export default function CampusMapPage() {
 					/>
 				</ErrorBoundary>
 			)}
+			<p>
+				Lưu ý, các ghim vị trí trên bản đồ chỉ mang tính chất tương đối, nó có
+				thể bị lệch khi view để đảm bảo các ghim vị trí không chồng lên nhau,
+				nhưng tọa độ tuyệt đối bạn đã lưu cho khu vực vẫn sẽ được dùng để điều
+				hướng bảo vệ tới khu vực xảy ra sự cố
+			</p>
 		</div>
 	);
 }

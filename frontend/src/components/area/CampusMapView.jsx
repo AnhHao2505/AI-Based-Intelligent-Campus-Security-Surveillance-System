@@ -10,6 +10,8 @@ import MapGL, {
 	NavigationControl,
 	FullscreenControl,
 	Marker,
+	Source,
+	Layer,
 } from "react-map-gl/maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
 import {
@@ -27,6 +29,16 @@ import {
 	Loader2,
 	LocateFixed,
 	Globe,
+	Shield,
+	UserCheck,
+	Battery,
+	Radio,
+	PenTool,
+	RotateCcw,
+	BellRing,
+	User,
+	CheckCircle2,
+	Plus,
 } from "lucide-react";
 import {
 	getLevelConfig,
@@ -35,6 +47,12 @@ import {
 	AREA_LEVEL_CONFIG,
 } from "../../utils/areaHelpers";
 import { updateArea } from "../../services/areaService";
+import {
+	getActiveGuardLocations,
+	getCampusGeofence,
+	updateCampusGeofence,
+} from "../../services/guardLocationService";
+import { triggerTestAlert } from "../../services/incidentService";
 import "../../styles/CampusMapView.css";
 
 // FPT University HCMC Campus default center (Saigon Hi-Tech Park, District 9)
@@ -45,6 +63,54 @@ const CAMPUS_CENTER = {
 	pitch: 30,
 	bearing: -10,
 };
+
+// Danh sách vị trí bảo vệ thử nghiệm mặc định (luôn hiển thị trên bản đồ khuôn viên)
+const DEFAULT_TEST_GUARDS = [
+	{
+		guardId: "sec-002-demo",
+		guardName: "Bảo vệ Demo",
+		guardEmail: "guard.demo@fpt.edu.vn",
+		userCode: "SEC-002",
+		teamName: "Đội Tuần Tra Cơ Động",
+		latitude: 10.84113,
+		longitude: 106.80988,
+		accuracy: 5.0,
+		batteryLevel: 92.0,
+		isInsideGeofence: true,
+		isFresh: true,
+		updatedAt: new Date().toISOString(),
+	},
+	{
+		guardId: "sec-003-ngoai",
+		guardName: "Bảo vệ Ngoài Trường",
+		guardEmail: "guard.ngoai@fpt.edu.vn",
+		userCode: "SEC-003",
+		teamName: "Đội Bảo Vệ Ca 1",
+		latitude: 10.84190,
+		longitude: 106.80800,
+		accuracy: 8.0,
+		batteryLevel: 75.0,
+		isInsideGeofence: false,
+		isFresh: true,
+		updatedAt: new Date().toISOString(),
+	},
+];
+
+function mergeGuardsWithDefaults(serverGuards) {
+	const map = new Map();
+	DEFAULT_TEST_GUARDS.forEach((g) => {
+		map.set(g.userCode || g.guardEmail || g.guardId, { ...g });
+	});
+	if (Array.isArray(serverGuards)) {
+		serverGuards.forEach((sg) => {
+			if (sg && sg.latitude != null && sg.longitude != null) {
+				const key = sg.userCode || sg.guardEmail || sg.guardId;
+				map.set(key, { ...map.get(key), ...sg });
+			}
+		});
+	}
+	return Array.from(map.values());
+}
 
 // OpenStreetMap Standard Raster Style with multi-subdomain CDN for speed & reliability
 const OSM_STYLE = {
@@ -158,6 +224,90 @@ export default function CampusMapView({
 	const [coordError, setCoordError] = useState(null);
 	const [coordSuccess, setCoordSuccess] = useState(null);
 	const isEditingCoords = Boolean(editingAreaId);
+
+	// Vị trí thời gian thực của các bảo vệ và Geofence khuôn viên
+	const [guards, setGuards] = useState(DEFAULT_TEST_GUARDS);
+	const [selectedGuard, setSelectedGuard] = useState(null);
+	const [campusGeofence, setCampusGeofence] = useState(null);
+	const [showGeofence, setShowGeofence] = useState(true);
+
+	// Chế độ vẽ Geofence khuôn viên (chỉ ADMIN)
+	const [isDrawingGeofence, setIsDrawingGeofence] = useState(false);
+	const [draftGeofencePolygon, setDraftGeofencePolygon] = useState([]);
+	const [isSavingGeofence, setIsSavingGeofence] = useState(false);
+
+	// Modal kiểm thử bắn cảnh báo sự cố tới các bảo vệ
+	const [showTestAlertModal, setShowTestAlertModal] = useState(false);
+	const [isTriggeringTestAlert, setIsTriggeringTestAlert] = useState(false);
+	const [testAlertResult, setTestAlertResult] = useState(null);
+
+	// Tải thông tin Geofence khuôn viên và cập nhật danh sách bảo vệ
+	useEffect(() => {
+		let isMounted = true;
+		getCampusGeofence()
+			.then((data) => {
+				if (isMounted && data) setCampusGeofence(data);
+			})
+			.catch((err) => console.warn("Lỗi tải thông tin Geofence:", err));
+
+		const loadGuards = () => {
+			getActiveGuardLocations()
+				.then((data) => {
+					if (isMounted) setGuards(mergeGuardsWithDefaults(data));
+				})
+				.catch((err) => {
+					console.warn("Lỗi tải vị trí bảo vệ:", err);
+					if (isMounted) setGuards(DEFAULT_TEST_GUARDS);
+				});
+		};
+
+		loadGuards();
+		const interval = setInterval(loadGuards, 15000);
+		return () => {
+			isMounted = false;
+			clearInterval(interval);
+		};
+	}, []);
+
+	// Đa giác GeoJSON cho Geofence khuôn viên đã lưu
+	const geofenceGeoJson = useMemo(() => {
+		if (!campusGeofence?.polygon || campusGeofence.polygon.length < 3) return null;
+		const coords = campusGeofence.polygon.map((p) => [p.longitude, p.latitude]);
+		coords.push([campusGeofence.polygon[0].longitude, campusGeofence.polygon[0].latitude]);
+		return {
+			type: "Feature",
+			geometry: {
+				type: "Polygon",
+				coordinates: [coords],
+			},
+			properties: {
+				name: campusGeofence.campusName,
+			},
+		};
+	}, [campusGeofence]);
+
+	// Đa giác/Đường GeoJSON cho Geofence đang vẽ dở (nháp)
+	const draftGeofenceGeoJson = useMemo(() => {
+		if (!isDrawingGeofence || draftGeofencePolygon.length < 2) return null;
+		const coords = draftGeofencePolygon.map((p) => [p.longitude, p.latitude]);
+		if (draftGeofencePolygon.length >= 3) {
+			coords.push([draftGeofencePolygon[0].longitude, draftGeofencePolygon[0].latitude]);
+			return {
+				type: "Feature",
+				geometry: {
+					type: "Polygon",
+					coordinates: [coords],
+				},
+			};
+		}
+		return {
+			type: "Feature",
+			geometry: {
+				type: "LineString",
+				coordinates: coords,
+			},
+		};
+	}, [isDrawingGeofence, draftGeofencePolygon]);
 
 	// Khu vực đang chọn
 	const selectedArea = useMemo(() => {
@@ -586,14 +736,132 @@ export default function CampusMapView({
 		}
 	}, [editingArea, draftCoords, onAreaUpdated]);
 
+	const handleStartDrawingGeofence = useCallback(() => {
+		if (campusGeofence?.polygon && campusGeofence.polygon.length > 0) {
+			setDraftGeofencePolygon(
+				campusGeofence.polygon.map((p) => ({
+					latitude: p.latitude,
+					longitude: p.longitude,
+				})),
+			);
+		} else {
+			setDraftGeofencePolygon([]);
+		}
+		setIsDrawingGeofence(true);
+		setEditingAreaId(null);
+		setDraftCoords(null);
+		setCoordError(null);
+	}, [campusGeofence]);
+
+	const handleCancelDrawingGeofence = useCallback(() => {
+		setIsDrawingGeofence(false);
+		setDraftGeofencePolygon([]);
+	}, []);
+
+	const handleStartFreshGeofence = useCallback(() => {
+		setDraftGeofencePolygon([]);
+	}, []);
+
+	const handleRemoveLastPoint = useCallback(() => {
+		setDraftGeofencePolygon((prev) => prev.slice(0, -1));
+	}, []);
+
+	const handleResetDefaultGeofence = useCallback(() => {
+		if (campusGeofence?.polygon) {
+			setDraftGeofencePolygon(
+				campusGeofence.polygon.map((p) => ({
+					latitude: p.latitude,
+					longitude: p.longitude,
+				})),
+			);
+		} else {
+			setDraftGeofencePolygon([]);
+		}
+	}, [campusGeofence]);
+
+	const handleMoveGeofenceVertex = useCallback((idx, lng, lat) => {
+		setDraftGeofencePolygon((prev) => {
+			const next = [...prev];
+			next[idx] = {
+				latitude: Number(lat.toFixed(7)),
+				longitude: Number(lng.toFixed(7)),
+			};
+			return next;
+		});
+	}, []);
+
+	const handleSaveGeofence = useCallback(async () => {
+		if (draftGeofencePolygon.length < 3) {
+			alert("Geofence cần tối thiểu 3 điểm để tạo đa giác ranh giới khép kín.");
+			return;
+		}
+		setIsSavingGeofence(true);
+		try {
+			const updated = await updateCampusGeofence({
+				campusName: campusGeofence?.campusName || "FPT University HCMC Campus",
+				description:
+					campusGeofence?.description ||
+					"Khuôn viên Đại học FPT TP.HCM (Khu Công nghệ cao, TP. Thủ Đức)",
+				polygon: draftGeofencePolygon,
+			});
+			setCampusGeofence(updated);
+			setIsDrawingGeofence(false);
+			setDraftGeofencePolygon([]);
+			setCoordSuccess("Đã lưu ranh giới Geofence khuôn viên thành công!");
+			const guardsData = await getActiveGuardLocations();
+			setGuards(mergeGuardsWithDefaults(guardsData));
+		} catch (err) {
+			alert(getErrorMessage(err));
+		} finally {
+			setIsSavingGeofence(false);
+		}
+	}, [draftGeofencePolygon, campusGeofence]);
+
+	const handleTriggerTestAlert = useCallback(async () => {
+		setIsTriggeringTestAlert(true);
+		setTestAlertResult(null);
+		try {
+			const res = await triggerTestAlert({
+				cameraCode: "CAM-01",
+				eventType: "SECURITY_ALERT",
+				details: "Sự cố thử nghiệm kiểm tra Geofence điều phối bảo vệ",
+			});
+			setTestAlertResult({
+				success: true,
+				message:
+					"Đã kích hoạt sự cố thử nghiệm thành công! Cảnh báo đã được phát qua WebSocket tới các bảo vệ trong khuôn viên.",
+				data: res,
+			});
+			const updatedGuards = await getActiveGuardLocations();
+			setGuards(mergeGuardsWithDefaults(updatedGuards));
+		} catch (err) {
+			setTestAlertResult({
+				success: false,
+				message: getErrorMessage(err),
+			});
+		} finally {
+			setIsTriggeringTestAlert(false);
+		}
+	}, []);
+
 	const handleMapClick = useCallback(
 		(e) => {
+			if (isDrawingGeofence && e?.lngLat) {
+				setDraftGeofencePolygon((prev) => [
+					...prev,
+					{
+						latitude: Number(e.lngLat.lat.toFixed(7)),
+						longitude: Number(e.lngLat.lng.toFixed(7)),
+					},
+				]);
+				return;
+			}
 			if (isEditingCoords && e?.lngLat) {
 				setDraftCoords([e.lngLat.lng, e.lngLat.lat]);
 				setCoordError(null);
 			}
 		},
-		[isEditingCoords],
+		[isDrawingGeofence, isEditingCoords],
 	);
 
 	return (
@@ -749,6 +1017,35 @@ export default function CampusMapView({
 						<Compass size={14} />
 					</button>
 
+					{isAdmin && (
+						<button
+							type="button"
+							className={`campus-map-btn-icon ${isDrawingGeofence ? "active" : ""}`}
+							onClick={
+								isDrawingGeofence
+									? handleCancelDrawingGeofence
+									: handleStartDrawingGeofence
+							}
+							title={
+								isDrawingGeofence
+									? "Hủy vẽ Geofence"
+									: "Vẽ / Chỉnh sửa Geofence khuôn viên"
+							}
+						>
+							<PenTool size={14} />
+						</button>
+					)}
+
+					<button
+						type="button"
+						className="campus-test-alert-btn"
+						onClick={() => setShowTestAlertModal(true)}
+						title="Kiểm thử cảnh báo sự cố tới các bảo vệ theo Geofence"
+					>
+						<BellRing size={13} />
+						<span>Test cảnh báo</span>
+					</button>
+
 					<button
 						type="button"
 						className="campus-map-btn-icon"
@@ -762,6 +1059,78 @@ export default function CampusMapView({
 						)}
 					</button>
 				</div>
+
+				{/* Thanh công cụ vẽ Geofence khuôn viên (ADMIN) */}
+				{isDrawingGeofence && (
+					<div className="campus-geofence-editor">
+						<div className="campus-geofence-editor__info">
+							<PenTool size={15} />
+							<span>
+								Vẽ Geofence khuôn viên:{" "}
+								<strong>
+									{draftGeofencePolygon.length === 0
+										? "0 điểm (Nhấp trên bản đồ để bắt đầu vẽ)"
+										: `${draftGeofencePolygon.length} điểm`}
+								</strong>
+								{draftGeofencePolygon.length > 0 &&
+									draftGeofencePolygon.length < 3 &&
+									" (Cần tối thiểu 3 điểm)"}
+							</span>
+						</div>
+						<div className="campus-geofence-editor__actions">
+							<button
+								type="button"
+								className="campus-coord-btn campus-coord-btn--ghost"
+								onClick={handleStartFreshGeofence}
+								disabled={isSavingGeofence}
+								title="Xóa toàn bộ các điểm để vẽ đa giác mới từ đầu"
+							>
+								<Plus size={13} />
+								Vẽ mới
+							</button>
+							<button
+								type="button"
+								className="campus-coord-btn campus-coord-btn--ghost"
+								onClick={handleRemoveLastPoint}
+								disabled={draftGeofencePolygon.length === 0 || isSavingGeofence}
+								title="Xóa điểm vừa thêm"
+							>
+								Xóa điểm cuối
+							</button>
+							<button
+								type="button"
+								className="campus-coord-btn campus-coord-btn--ghost"
+								onClick={handleResetDefaultGeofence}
+								disabled={isSavingGeofence}
+								title="Khôi phục lại đa giác ban đầu"
+							>
+								<RotateCcw size={13} />
+								Khôi phục
+							</button>
+							<button
+								type="button"
+								className="campus-coord-btn campus-coord-btn--ghost"
+								onClick={handleCancelDrawingGeofence}
+								disabled={isSavingGeofence}
+							>
+								Hủy
+							</button>
+							<button
+								type="button"
+								className="campus-coord-btn campus-coord-btn--primary"
+								onClick={handleSaveGeofence}
+								disabled={draftGeofencePolygon.length < 3 || isSavingGeofence}
+							>
+								{isSavingGeofence ? (
+									<Loader2 size={13} className="animate-spin" />
+								) : (
+									<Save size={13} />
+								)}
+								Lưu Geofence
+							</button>
+						</div>
+					</div>
+				)}
 
 				{/* Thanh công cụ đặt tọa độ (ADMIN) */}
 				{isEditingCoords && editingArea && (
@@ -948,6 +1317,114 @@ export default function CampusMapView({
 							</Marker>
 						)}
 
+						{/* Đa giác Geofence nháp đang được vẽ */}
+						{isDrawingGeofence && draftGeofenceGeoJson && (
+							<Source id="draft-geofence" type="geojson" data={draftGeofenceGeoJson}>
+								{draftGeofenceGeoJson.geometry.type === "Polygon" && (
+									<Layer
+										id="draft-geofence-fill"
+										type="fill"
+										paint={{
+											"fill-color": "#3b82f6",
+											"fill-opacity": 0.18,
+										}}
+									/>
+								)}
+								<Layer
+									id="draft-geofence-line"
+									type="line"
+									paint={{
+										"line-color": "#2563eb",
+										"line-width": 2.5,
+										"line-dasharray": [2, 1],
+									}}
+								/>
+							</Source>
+						)}
+
+						{/* Điểm kéo thả (Vertex Handles) của Geofence khi Admin đang vẽ */}
+						{isDrawingGeofence &&
+							draftGeofencePolygon.map((pt, idx) => (
+								<Marker
+									key={`draft-vertex-${idx}`}
+									longitude={pt.longitude}
+									latitude={pt.latitude}
+									anchor="center"
+									draggable
+									onDragEnd={(e) => {
+										if (e?.lngLat) {
+											handleMoveGeofenceVertex(idx, e.lngLat.lng, e.lngLat.lat);
+										}
+									}}
+									style={{ zIndex: 50 }}
+								>
+									<div
+										className="campus-geofence-handle"
+										title={`Điểm ${idx + 1}: [${pt.longitude.toFixed(5)}, ${pt.latitude.toFixed(5)}] (Kéo để chỉnh sửa)`}
+									>
+										{idx + 1}
+									</div>
+								</Marker>
+							))}
+
+						{/* Campus Geofence Layer (Đa giác ranh giới duy nhất toàn khuôn viên trường) */}
+						{!isDrawingGeofence && showGeofence && geofenceGeoJson && (
+							<Source id="campus-geofence" type="geojson" data={geofenceGeoJson}>
+								<Layer
+									id="campus-geofence-fill"
+									type="fill"
+									paint={{
+										"fill-color": "#3b82f6",
+										"fill-opacity": 0.08,
+									}}
+								/>
+								<Layer
+									id="campus-geofence-line"
+									type="line"
+									paint={{
+										"line-color": "#2563eb",
+										"line-width": 2,
+										"line-dasharray": [2, 2],
+									}}
+								/>
+							</Source>
+						)}
+
+						{/* Ghim tròn chuẩn cho nhân viên bảo vệ (Round Guard Pins) */}
+						{guards
+							.filter((g) => g.latitude != null && g.longitude != null)
+							.map((guard) => {
+								const isSelected = selectedGuard?.guardId === guard.guardId;
+								const isInside = guard.isInsideGeofence;
+								return (
+									<Marker
+										key={guard.guardId}
+										longitude={guard.longitude}
+										latitude={guard.latitude}
+										anchor="center"
+										onClick={(e) => {
+											stopMapEvent(e);
+											setSelectedGuard(guard);
+											onSelectArea?.(null);
+										}}
+										style={{ zIndex: isSelected ? 60 : 25 }}
+									>
+										<div
+											className={`campus-guard-pin ${isInside ? "campus-guard-pin--inside" : "campus-guard-pin--outside"} ${isSelected ? "campus-guard-pin--selected" : ""}`}
+											title={`${guard.guardName} (${guard.userCode || "Bảo vệ"}) · ${isInside ? "Trong khuôn viên" : "Ngoài khuôn viên"}`}
+										>
+											{isInside && <span className="campus-guard-pin__pulse" />}
+											<div className="campus-guard-pin__circle">
+												<Shield className="campus-guard-pin__icon" size={16} />
+											</div>
+											<span className="campus-guard-pin__tag">
+												{guard.guardName?.split(" ").slice(-1)[0] || "BV"}
+											</span>
+										</div>
+									</Marker>
+								);
+							})}
+
 						{/* Google-Style Real Coordinate Markers with Auto-Shift for Overlaps */}
 						{positionedAreas.map((item) => {
 							const isSelected = selectedAreaId === item.id;
@@ -961,6 +1438,7 @@ export default function CampusMapView({
 									anchor="bottom"
 									onClick={(e) => {
 										stopMapEvent(e);
+										setSelectedGuard(null);
 										handleSelectAreaItem(item.id, item.baseCoords);
 									}}
 									style={{ zIndex: isSelected ? 50 : 10 + (item.idx || 0) }}
@@ -1021,6 +1499,14 @@ export default function CampusMapView({
 					<div className="campus-map-legend__item">
 						<span className="campus-map-legend__dot campus-map-legend__dot--private" />
 						<span>{AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.badgeLabel}</span>
+					</div>
+					<div className="campus-map-legend__item">
+						<User size={13} className="campus-map-legend__person-icon" />
+						<span>Bảo vệ ({guards.filter((g) => g.isInsideGeofence).length} trong trường)</span>
+					</div>
+					<div className="campus-map-legend__item">
+						<span className="campus-map-legend__dot campus-map-legend__dot--geofence" />
+						<span>Geofence khuôn viên</span>
 					</div>
 				</div>
 			</div>
@@ -1095,14 +1581,79 @@ export default function CampusMapView({
 					</div>
 				</div>
 
-				{/* Card 2: Selected Area Detail */}
+				{/* Card 2: Selected Area or Guard Detail */}
 				<div
-					className={`campus-rail-card campus-rail-card--detail ${!selectedArea ? "campus-rail-card--detail-empty" : ""}`}
+					className={`campus-rail-card campus-rail-card--detail ${!selectedArea && !selectedGuard ? "campus-rail-card--detail-empty" : ""}`}
 				>
-					{!selectedArea ? (
+					{selectedGuard ? (
+						<div className="campus-detail-content">
+							<div className="campus-detail-header">
+								<div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", width: "100%" }}>
+									<div>
+										<h3 className="campus-detail-title">{selectedGuard.guardName}</h3>
+										<span style={{ fontSize: "12px", color: "var(--theme-text-muted)" }}>
+											Mã: {selectedGuard.userCode || "N/A"} · Đội: {selectedGuard.teamName || "Chung"}
+										</span>
+									</div>
+									<button
+										type="button"
+										className="campus-search-box__clear"
+										style={{ position: "static", transform: "none" }}
+										onClick={() => setSelectedGuard(null)}
+										title="Đóng chi tiết bảo vệ"
+									>
+										<X size={14} />
+									</button>
+								</div>
+							</div>
+
+							<div className="campus-detail-meta" style={{ marginTop: "12px" }}>
+								<div className="campus-detail-meta-row">
+									<span className="campus-detail-meta-label">Trạng thái Geofence</span>
+									<span
+										className="campus-detail-meta-val"
+										style={{
+											color: selectedGuard.isInsideGeofence ? "#059669" : "#d97706",
+											fontWeight: 700,
+										}}
+									>
+										{selectedGuard.isInsideGeofence
+											? "✓ Đang trong khuôn viên"
+											: "⚠ Ngoài khuôn viên"}
+									</span>
+								</div>
+								<div className="campus-detail-meta-row">
+									<span className="campus-detail-meta-label">Tọa độ GPS</span>
+									<span className="campus-detail-meta-val campus-detail-meta-val--coords">
+										{Number(selectedGuard.latitude).toFixed(5)}, {Number(selectedGuard.longitude).toFixed(5)}
+									</span>
+								</div>
+								{selectedGuard.batteryLevel != null && (
+									<div className="campus-detail-meta-row">
+										<span className="campus-detail-meta-label">Pin thiết bị</span>
+										<span className="campus-detail-meta-val">
+											{Math.round(selectedGuard.batteryLevel)}%
+										</span>
+									</div>
+								)}
+								<div className="campus-detail-meta-row">
+									<span className="campus-detail-meta-label">Cập nhật GPS</span>
+									<span className="campus-detail-meta-val">
+										{selectedGuard.updatedAt
+											? new Date(selectedGuard.updatedAt).toLocaleTimeString("vi-VN", {
+													hour: "2-digit",
+													minute: "2-digit",
+													second: "2-digit",
+												})
+											: "Vừa xong"}
+									</span>
+								</div>
+							</div>
+						</div>
+					) : !selectedArea ? (
 						<div className="campus-detail-empty">
 							<p>
-								Chọn một khu vực trên bản đồ hoặc danh sách để xem chi tiết.
+								Chọn một khu vực hoặc bảo vệ trên bản đồ để xem chi tiết.
 							</p>
 						</div>
 					) : (
@@ -1181,6 +1732,140 @@ export default function CampusMapView({
 					)}
 				</div>
 			</div>
+
+			{/* MODAL KIỂM THỬ BẮN CẢNH BÁO SỰ CỐ TỚI BẢO VỆ */}
+			{showTestAlertModal && (
+				<>
+					<div
+						className="campus-test-alert-backdrop"
+						onClick={() => setShowTestAlertModal(false)}
+					/>
+					<div className="campus-test-alert-modal">
+						<div className="campus-test-alert-header">
+							<div className="campus-test-alert-title">
+								<BellRing size={18} />
+								<span>Kiểm Thử Cảnh Báo Sự Cố Tới Bảo Vệ</span>
+							</div>
+							<button
+								type="button"
+								className="campus-search-box__clear"
+								style={{ position: "static", transform: "none" }}
+								onClick={() => setShowTestAlertModal(false)}
+								title="Đóng modal"
+							>
+								<X size={16} />
+							</button>
+						</div>
+
+						<p
+							style={{
+								fontSize: "12.5px",
+								color: "var(--theme-text-muted)",
+								margin: "0 0 14px",
+								lineHeight: "1.5",
+							}}
+						>
+							Hệ thống sẽ mô phỏng một sự cố an ninh và kích hoạt điều phối thông báo
+							thời gian thực qua WebSocket. Chỉ các bảo vệ{" "}
+							<strong>nằm trong Geofence khuôn viên</strong> và có{" "}
+							<strong>GPS mới (&lt; 10 phút)</strong> mới được gửi cảnh báo.
+						</p>
+
+						<div className="campus-test-scenario-list">
+							<div className="campus-test-scenario-item campus-test-scenario-item--received">
+								<div className="campus-test-scenario-item__head">
+									<span>1. Bảo vệ Demo (SEC-002)</span>
+									<span className="campus-test-scenario-item__badge campus-test-scenario-item__badge--success">
+										Nhận cảnh báo
+									</span>
+								</div>
+								<div className="campus-test-scenario-item__desc">
+									Tọa độ trong trường · GPS mới (&lt; 1 phút) · Thỏa mãn Geofence.
+								</div>
+							</div>
+
+							<div className="campus-test-scenario-item campus-test-scenario-item--ignored">
+								<div className="campus-test-scenario-item__head">
+									<span>2. Bảo vệ Ngoài Trường (SEC-003)</span>
+									<span className="campus-test-scenario-item__badge campus-test-scenario-item__badge--neutral">
+										Bị loại trừ (Ngoài trường)
+									</span>
+								</div>
+								<div className="campus-test-scenario-item__desc">
+									Tọa độ Quận 1 (ngoài ranh giới Geofence) · Không gửi cảnh báo.
+								</div>
+							</div>
+
+							<div className="campus-test-scenario-item campus-test-scenario-item--ignored">
+								<div className="campus-test-scenario-item__head">
+									<span>3. Bảo vệ GPS Quá Hạn (SEC-004)</span>
+									<span className="campus-test-scenario-item__badge campus-test-scenario-item__badge--neutral">
+										Bị loại trừ (GPS cũ)
+									</span>
+								</div>
+								<div className="campus-test-scenario-item__desc">
+									Tọa độ trong trường nhưng GPS đã 2 giờ trước (&gt; 10 phút) · Không gửi cảnh báo.
+								</div>
+							</div>
+						</div>
+
+						{testAlertResult && (
+							<div
+								style={{
+									padding: "10px 12px",
+									borderRadius: "8px",
+									fontSize: "12px",
+									marginBottom: "14px",
+									display: "flex",
+									alignItems: "center",
+									gap: "8px",
+									background: testAlertResult.success ? "#f0fdf4" : "#fef2f2",
+									color: testAlertResult.success ? "#15803d" : "#b91c1c",
+									border: `1px solid ${testAlertResult.success ? "#bbf7d0" : "#fecaca"}`,
+								}}
+							>
+								{testAlertResult.success ? (
+									<CheckCircle2 size={15} />
+								) : (
+									<AlertCircle size={15} />
+								)}
+								<span>{testAlertResult.message}</span>
+							</div>
+						)}
+
+						<div
+							style={{
+								display: "flex",
+								justifyContent: "flex-end",
+								gap: "10px",
+								marginTop: "16px",
+							}}
+						>
+							<button
+								type="button"
+								className="campus-coord-btn campus-coord-btn--ghost"
+								onClick={() => setShowTestAlertModal(false)}
+							>
+								Đóng
+							</button>
+							<button
+								type="button"
+								className="campus-test-alert-btn"
+								onClick={handleTriggerTestAlert}
+								disabled={isTriggeringTestAlert}
+								style={{ padding: "8px 16px", fontSize: "13px" }}
+							>
+								{isTriggeringTestAlert ? (
+									<Loader2 size={14} className="animate-spin" />
+								) : (
+									<BellRing size={14} />
+								)}
+								Kích hoạt cảnh báo thử nghiệm
+							</button>
+						</div>
+					</div>
+				</>
+			)}
 		</div>
 	);
 }

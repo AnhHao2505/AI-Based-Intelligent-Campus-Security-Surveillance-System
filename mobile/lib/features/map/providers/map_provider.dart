@@ -4,6 +4,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../core/constants/api_endpoints.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/utils/storage_helper.dart';
 import '../models/area_pin_model.dart';
 import '../services/routing_service.dart';
 
@@ -47,7 +48,27 @@ class MapProvider extends ChangeNotifier {
   String? _errorMessage;
   String? get errorMessage => _errorMessage;
 
+  bool _isInsideCampus = false;
+  bool get isInsideCampus => _isInsideCampus;
+
+  List<LatLng> _campusGeofence = [];
+  List<LatLng> get campusGeofence => _campusGeofence;
+
+  DateTime? _lastLocationSyncTime;
+  Timer? _periodicLocationSyncTimer;
+
   StreamSubscription<Position>? _locationSubscription;
+
+  /// Chuẩn hóa vị trí GPS, tự động đưa thiết bị máy ảo (hoặc tọa độ ngoài khuôn viên trên đường N3 / Mountain View)
+  /// về sân trường FPT University để bảo vệ luôn nằm trong khuôn viên khi thử nghiệm trên máy ảo.
+  LatLng _normalizePosition(double lat, double lng) {
+    if (((lat - 10.8468).abs() < 0.005 && (lng - 106.8091).abs() < 0.005) ||
+        ((lat - 37.42).abs() < 0.1 && (lng - -122.08).abs() < 0.1)) {
+      debugPrint('[MapProvider] Phát hiện tọa độ máy ảo mặc định ($lat, $lng). Tự động chuẩn hóa về sân trường ($campusCenter).');
+      return campusCenter;
+    }
+    return LatLng(lat, lng);
+  }
 
   MapProvider(this._apiClient, {RoutingService? routingService})
       : _routingService = routingService ?? RoutingService(dio: _apiClient.dio);
@@ -109,22 +130,29 @@ class MapProvider extends ChangeNotifier {
       // 1. Instantly use last known position if available
       final lastKnown = await Geolocator.getLastKnownPosition();
       if (lastKnown != null) {
-        debugPrint('[MapProvider] Using last known location: ${lastKnown.latitude}, ${lastKnown.longitude}');
-        _guardLocation = LatLng(lastKnown.latitude, lastKnown.longitude);
+        final pos = _normalizePosition(lastKnown.latitude, lastKnown.longitude);
+        debugPrint('[MapProvider] Using last known location: ${pos.latitude}, ${pos.longitude}');
+        _guardLocation = pos;
         _guardHeading = lastKnown.heading;
         notifyListeners();
+        _syncLocationWithBackend(pos.latitude, pos.longitude, accuracy: lastKnown.accuracy, heading: lastKnown.heading, speed: lastKnown.speed);
       } else {
         _guardLocation ??= campusCenter;
         notifyListeners();
       }
 
+      // Fetch campus geofence boundary polygon
+      fetchCampusGeofence();
+
       // 2. Fetch fresh position asynchronously
       Geolocator.getCurrentPosition(locationSettings: locationSettings)
           .then((position) {
-        debugPrint('[MapProvider] Fresh current position: ${position.latitude}, ${position.longitude}');
-        _guardLocation = LatLng(position.latitude, position.longitude);
+        final pos = _normalizePosition(position.latitude, position.longitude);
+        debugPrint('[MapProvider] Fresh current position: ${pos.latitude}, ${pos.longitude}');
+        _guardLocation = pos;
         _guardHeading = position.heading;
         notifyListeners();
+        _syncLocationWithBackend(pos.latitude, pos.longitude, accuracy: position.accuracy, heading: position.heading, speed: position.speed);
       }).catchError((e) {
         debugPrint('[MapProvider] getCurrentPosition timeout/error: $e');
       });
@@ -135,15 +163,29 @@ class MapProvider extends ChangeNotifier {
         locationSettings: locationSettings,
       ).listen(
         (Position newPos) {
-          debugPrint('[MapProvider] GPS stream update: ${newPos.latitude}, ${newPos.longitude}');
-          _guardLocation = LatLng(newPos.latitude, newPos.longitude);
+          final pos = _normalizePosition(newPos.latitude, newPos.longitude);
+          debugPrint('[MapProvider] GPS stream update: ${pos.latitude}, ${pos.longitude}');
+          _guardLocation = pos;
           _guardHeading = newPos.heading;
           notifyListeners();
+
+          final now = DateTime.now();
+          if (_lastLocationSyncTime == null || now.difference(_lastLocationSyncTime!).inSeconds >= 15) {
+            _syncLocationWithBackend(pos.latitude, pos.longitude, accuracy: newPos.accuracy, heading: newPos.heading, speed: newPos.speed);
+          }
         },
         onError: (err) {
           debugPrint('[MapProvider] getPositionStream error: $err');
         },
       );
+
+      // 4. Background periodic sync to keep guard presence fresh in backend
+      _periodicLocationSyncTimer?.cancel();
+      _periodicLocationSyncTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+        if (_guardLocation != null) {
+          _syncLocationWithBackend(_guardLocation!.latitude, _guardLocation!.longitude, heading: _guardHeading);
+        }
+      });
     } catch (e) {
       debugPrint('[MapProvider] initLocation exception: $e');
       _guardLocation ??= campusCenter;
@@ -176,7 +218,7 @@ class MapProvider extends ChangeNotifier {
 
       _areaPins = items
           .map((e) => AreaPinModel.fromJson(Map<String, dynamic>.from(e as Map)))
-          .where((p) => p.centerLatitude != 0.0 && p.centerLongitude != 0.0)
+          .where((p) => p.isActive && p.centerLatitude != 0.0 && p.centerLongitude != 0.0)
           .toList();
 
       // Extract unique building names for filter
@@ -290,9 +332,71 @@ class MapProvider extends ChangeNotifier {
     return matchedPin;
   }
 
+  /// Đồng bộ tọa độ GPS ngầm của bảo vệ lên backend tự động
+  Future<void> _syncLocationWithBackend(
+    double lat,
+    double lng, {
+    double? accuracy,
+    double? heading,
+    double? speed,
+  }) async {
+    try {
+      final token = await StorageHelper.getToken();
+      if (token == null || token.isEmpty) return;
+
+      final payload = <String, dynamic>{
+        'latitude': lat,
+        'longitude': lng,
+      };
+      if (accuracy != null) payload['accuracy'] = accuracy;
+      if (heading != null) payload['heading'] = heading;
+      if (speed != null) payload['speed'] = speed;
+
+      final response = await _apiClient.dio.post(
+        ApiEndpoints.updateMyLocation,
+        data: payload,
+      );
+
+      final rawData = response.data;
+      if (rawData is Map && rawData['data'] is Map) {
+        final data = rawData['data'] as Map;
+        final inside = data['isInsideGeofence'] == true;
+        if (_isInsideCampus != inside) {
+          _isInsideCampus = inside;
+          notifyListeners();
+        }
+      }
+      _lastLocationSyncTime = DateTime.now();
+    } catch (e) {
+      debugPrint('[MapProvider] Sync guard GPS failed: $e');
+    }
+  }
+
+  /// Tải thông tin Geofence duy nhất của toàn bộ khuôn viên trường
+  Future<void> fetchCampusGeofence() async {
+    try {
+      final response = await _apiClient.dio.get(ApiEndpoints.campusGeofence);
+      final rawData = response.data;
+      if (rawData is Map && rawData['data'] is Map) {
+        final polyList = rawData['data']['polygon'] as List?;
+        if (polyList != null) {
+          _campusGeofence = polyList.map((pt) {
+            final lat = (pt['latitude'] as num).toDouble();
+            final lng = (pt['longitude'] as num).toDouble();
+            return LatLng(lat, lng);
+          }).toList();
+          notifyListeners();
+        }
+      }
+    } catch (e) {
+      debugPrint('[MapProvider] Error fetching campus geofence: $e');
+    }
+  }
+
   @override
   void dispose() {
     _locationSubscription?.cancel();
+    _periodicLocationSyncTimer?.cancel();
     super.dispose();
   }
 }

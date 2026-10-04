@@ -16,6 +16,7 @@ class StompService {
 
   void connect({
     String? building,
+    String? guardId,
     required Function(IncidentModel) onNewIncident,
     required Function(Map<String, dynamic>) onIncidentUpdate,
   }) async {
@@ -23,7 +24,7 @@ class StompService {
 
     final token = await StorageHelper.getToken();
     final wsUrl = ApiEndpoints.wsSecurity;
-    debugPrint('[STOMP] Connecting to: $wsUrl');
+    debugPrint('[STOMP] Connecting to: $wsUrl (guardId: $guardId)');
 
     _client = StompClient(
       config: StompConfig(
@@ -33,20 +34,39 @@ class StompService {
           _isConnected = true;
           onConnectionChange?.call();
 
-          // 1. Global security alerts topic
-          _client?.subscribe(
-            destination: '/topic/security-alerts',
-            callback: (StompFrame frame) {
-              if (frame.body == null || frame.body!.isEmpty) return;
-              try {
-                final Map<String, dynamic> data = jsonDecode(frame.body!);
-                final incident = IncidentModel.fromJson(data);
-                onNewIncident(incident);
-              } catch (e) {
-                debugPrint('[STOMP] Error parsing security alert: $e');
-              }
-            },
-          );
+          // 1. Guard personal alerts topic (only sent when guard is verified inside campus geofence)
+          if (guardId != null && guardId.isNotEmpty) {
+            final guardTopic = '/topic/guards/$guardId/alerts';
+            debugPrint('[STOMP] Subscribing to personal guard topic: $guardTopic');
+            _client?.subscribe(
+              destination: guardTopic,
+              callback: (StompFrame frame) {
+                if (frame.body == null || frame.body!.isEmpty) return;
+                try {
+                  final Map<String, dynamic> data = jsonDecode(frame.body!);
+                  final incident = IncidentModel.fromJson(data);
+                  onNewIncident(incident);
+                } catch (e) {
+                  debugPrint('[STOMP] Error parsing personal guard alert: $e');
+                }
+              },
+            );
+          } else {
+            // Global security alerts fallback topic (for general monitoring)
+            _client?.subscribe(
+              destination: '/topic/security-alerts',
+              callback: (StompFrame frame) {
+                if (frame.body == null || frame.body!.isEmpty) return;
+                try {
+                  final Map<String, dynamic> data = jsonDecode(frame.body!);
+                  final incident = IncidentModel.fromJson(data);
+                  onNewIncident(incident);
+                } catch (e) {
+                  debugPrint('[STOMP] Error parsing security alert: $e');
+                }
+              },
+            );
+          }
 
           // 2. Building specific topic (if applicable)
           if (building != null && building.isNotEmpty) {

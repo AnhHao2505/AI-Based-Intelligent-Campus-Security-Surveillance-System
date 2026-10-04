@@ -72,9 +72,11 @@ class IncidentProvider extends ChangeNotifier {
 
   // ═══════════════ WEBSOCKET INITIALIZATION ═══════════════
 
-  void initStomp({String? building}) {
+  void initStomp({String? building}) async {
+    final currentUser = await StorageHelper.getUser();
     stompService.connect(
       building: building,
+      guardId: currentUser?.id,
       onNewIncident: _onNewIncidentReceived,
       onIncidentUpdate: _onIncidentUpdateReceived,
     );
