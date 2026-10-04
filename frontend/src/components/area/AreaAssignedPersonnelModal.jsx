@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
 	Users,
 	UserPlus,
@@ -11,6 +11,7 @@ import {
 import { toast } from "sonner";
 import Modal from "../ui/Modal";
 import Button from "../ui/Button";
+import ReasonTextarea from "../ui/ReasonTextarea";
 import UserSearchCombobox from "../user/UserSearchCombobox";
 import {
 	getAssignedPersonnel,
@@ -37,7 +38,7 @@ export default function AreaAssignedPersonnelModal({
 	isOpen,
 	onClose,
 	area,
-	isFacilityManager = false,
+	isFacilityManager,
 }) {
 	const [allPersonnel, setAllPersonnel] = useState([]);
 	const [loading, setLoading] = useState(false);
@@ -51,6 +52,8 @@ export default function AreaAssignedPersonnelModal({
 	const [isIndefinite, setIsIndefinite] = useState(false);
 	const [noteInput, setNoteInput] = useState("");
 	const [addReasonInput, setAddReasonInput] = useState("");
+	const [addReasonError, setAddReasonError] = useState("");
+	const addReasonRef = useRef(null);
 	const [submittingAdd, setSubmittingAdd] = useState(false);
 
 	// Modal Sửa Hạn State
@@ -58,11 +61,15 @@ export default function AreaAssignedPersonnelModal({
 	const [editValidToInput, setEditValidToInput] = useState("");
 	const [editIsIndefinite, setEditIsIndefinite] = useState(false);
 	const [editReasonInput, setEditReasonInput] = useState("");
+	const [editReasonError, setEditReasonError] = useState("");
+	const editReasonRef = useRef(null);
 	const [submittingEdit, setSubmittingEdit] = useState(false);
 
 	// Modal Thu Hồi State
 	const [revokeItem, setRevokeItem] = useState(null);
 	const [revokeReason, setRevokeReason] = useState("");
+	const [revokeReasonError, setRevokeReasonError] = useState("");
+	const revokeReasonRef = useRef(null);
 	const [submittingRevoke, setSubmittingRevoke] = useState(false);
 
 	// Load danh sách nhân sự đã gán
@@ -90,9 +97,13 @@ export default function AreaAssignedPersonnelModal({
 			setIsIndefinite(false);
 			setNoteInput("");
 			setAddReasonInput("");
+			setAddReasonError("");
 			setEditItem(null);
 			setEditReasonInput("");
+			setEditReasonError("");
 			setRevokeItem(null);
+			setRevokeReason("");
+			setRevokeReasonError("");
 		}
 	}, [isOpen, area?.id, loadData]);
 
@@ -128,16 +139,9 @@ export default function AreaAssignedPersonnelModal({
 			return;
 		}
 		const trimmedAddReason = addReasonInput.trim();
-		if (!trimmedAddReason) {
-			toast.error("Vui lòng nhập lý do gán nhân sự");
-			return;
-		}
-		if (trimmedAddReason.length < 10) {
-			toast.error("Lý do phải có từ 10 đến 500 ký tự");
-			return;
-		}
-		if (trimmedAddReason.length > 500) {
-			toast.error("Lý do không được vượt quá 500 ký tự");
+		if (trimmedAddReason.length < 10 || trimmedAddReason.length > 500) {
+			setAddReasonError(`Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmedAddReason.length}).`);
+			addReasonRef.current?.focus();
 			return;
 		}
 
@@ -167,14 +171,12 @@ export default function AreaAssignedPersonnelModal({
 			setIsIndefinite(false);
 			setNoteInput("");
 			setAddReasonInput("");
+			setAddReasonError("");
 			loadData();
 		} catch (err) {
 			console.error("Lỗi khi gán nhân sự:", err);
-			if (err?.status === 409 || err?.code === "ERR_AP_004") {
-				toast.error("Người này đã có quyền trùng thời gian tại khu vực này");
-			} else {
-				toast.error(err?.message || "Không thể gán nhân sự vào khu vực");
-			}
+			// Hiển thị nguyên văn thông báo backend (vd. ERR_AP_004 trùng thời gian, ERR_AP_011 BR-AP-06 tự gán / tự gia hạn)
+			toast.error(err?.message || "Không thể gán nhân sự vào khu vực");
 		} finally {
 			setSubmittingAdd(false);
 		}
@@ -184,6 +186,7 @@ export default function AreaAssignedPersonnelModal({
 	const handleOpenEditValidTo = (item) => {
 		setEditItem(item);
 		setEditReasonInput("");
+		setEditReasonError("");
 		if (!item.validTo) {
 			setEditIsIndefinite(true);
 			setEditValidToInput("");
@@ -205,16 +208,9 @@ export default function AreaAssignedPersonnelModal({
 		e?.preventDefault();
 		if (!editItem) return;
 		const trimmedEditReason = editReasonInput.trim();
-		if (!trimmedEditReason) {
-			toast.error("Vui lòng nhập lý do điều chỉnh thời hạn");
-			return;
-		}
-		if (trimmedEditReason.length < 10) {
-			toast.error("Lý do phải có từ 10 đến 500 ký tự");
-			return;
-		}
-		if (trimmedEditReason.length > 500) {
-			toast.error("Lý do không được vượt quá 500 ký tự");
+		if (trimmedEditReason.length < 10 || trimmedEditReason.length > 500) {
+			setEditReasonError(`Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmedEditReason.length}).`);
+			editReasonRef.current?.focus();
 			return;
 		}
 
@@ -234,11 +230,8 @@ export default function AreaAssignedPersonnelModal({
 			loadData();
 		} catch (err) {
 			console.error("Lỗi khi sửa thời hạn:", err);
-			if (err?.status === 409 || err?.code === "ERR_AP_004") {
-				toast.error("Người này đã có quyền trùng thời gian tại khu vực này");
-			} else {
-				toast.error(err?.message || "Không thể sửa thời hạn gán");
-			}
+			// Hiển thị nguyên văn thông báo backend (vd. ERR_AP_004 trùng thời gian, ERR_AP_011 BR-AP-06 tự gán / tự gia hạn)
+			toast.error(err?.message || "Không thể sửa thời hạn gán");
 		} finally {
 			setSubmittingEdit(false);
 		}
@@ -248,6 +241,7 @@ export default function AreaAssignedPersonnelModal({
 	const handleOpenRevoke = (item) => {
 		setRevokeItem(item);
 		setRevokeReason("");
+		setRevokeReasonError("");
 	};
 
 	// Xác nhận thu hồi
@@ -255,16 +249,9 @@ export default function AreaAssignedPersonnelModal({
 		e?.preventDefault();
 		if (!revokeItem) return;
 		const trimmedRevokeReason = revokeReason.trim();
-		if (!trimmedRevokeReason) {
-			toast.error("Lý do thu hồi là bắt buộc");
-			return;
-		}
-		if (trimmedRevokeReason.length < 10) {
-			toast.error("Lý do phải có từ 10 đến 500 ký tự");
-			return;
-		}
-		if (trimmedRevokeReason.length > 500) {
-			toast.error("Lý do không được vượt quá 500 ký tự");
+		if (trimmedRevokeReason.length < 10 || trimmedRevokeReason.length > 500) {
+			setRevokeReasonError(`Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmedRevokeReason.length}).`);
+			revokeReasonRef.current?.focus();
 			return;
 		}
 
@@ -458,22 +445,23 @@ export default function AreaAssignedPersonnelModal({
 
 								{/* Reason (Mandatory 10-500 chars) */}
 								<div className="ap-form-group ap-form-group--full">
-									<label className="ap-form-label">
-										Lý do gán <span className="ap-form-required">*</span>
-									</label>
-									<input
-										type="text"
-										className="ap-form-input"
-										placeholder="Nhập lý do phân quyền chỉ định (tối thiểu 10 ký tự, tối đa 500 ký tự)..."
-										value={addReasonInput}
-										onChange={(e) => setAddReasonInput(e.target.value)}
-										maxLength={500}
+									<ReasonTextarea
+										ref={addReasonRef}
+										label="Lý do gán"
 										required
+										value={addReasonInput}
+										onChange={(val) => {
+											setAddReasonInput(val);
+											if (addReasonError && val.trim().length >= 10 && val.trim().length <= 500) {
+												setAddReasonError("");
+											}
+										}}
+										minLength={10}
+										maxLength={500}
+										placeholder="Nhập lý do phân quyền chỉ định (tối thiểu 10 ký tự, tối đa 500 ký tự)..."
+										rows={3}
+										error={addReasonError}
 									/>
-									<div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "var(--theme-text-muted, #64748b)", marginTop: "4px" }}>
-										<span>Tối thiểu 10 ký tự, tối đa 500 ký tự</span>
-										<span>{addReasonInput.length}/500 ký tự</span>
-									</div>
 								</div>
 							</div>
 
@@ -492,7 +480,7 @@ export default function AreaAssignedPersonnelModal({
 									variant="primary"
 									size="sm"
 									loading={submittingAdd}
-									disabled={!selectedUser || addReasonInput.trim().length < 10}
+									disabled={!selectedUser}
 								>
 									Xác nhận gán
 								</Button>
@@ -713,22 +701,23 @@ export default function AreaAssignedPersonnelModal({
 						</div>
 
 						<div className="ap-form-group" style={{ marginTop: "12px" }}>
-							<label className="ap-form-label">
-								Lý do điều chỉnh <span className="ap-form-required">*</span>
-							</label>
-							<input
-								type="text"
-								className="ap-form-input"
-								placeholder="Ví dụ: Gia hạn theo yêu cầu trưởng bộ môn (tối thiểu 10 ký tự, tối đa 500 ký tự)..."
-								value={editReasonInput}
-								onChange={(e) => setEditReasonInput(e.target.value)}
-								maxLength={500}
+							<ReasonTextarea
+								ref={editReasonRef}
+								label="Lý do điều chỉnh"
 								required
+								value={editReasonInput}
+								onChange={(val) => {
+									setEditReasonInput(val);
+									if (editReasonError && val.trim().length >= 10 && val.trim().length <= 500) {
+										setEditReasonError("");
+									}
+								}}
+								minLength={10}
+								maxLength={500}
+								placeholder="Ví dụ: Gia hạn theo yêu cầu trưởng bộ môn (tối thiểu 10 ký tự, tối đa 500 ký tự)..."
+								rows={3}
+								error={editReasonError}
 							/>
-							<div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "var(--theme-text-muted, #64748b)", marginTop: "4px" }}>
-								<span>Tối thiểu 10 ký tự, tối đa 500 ký tự</span>
-								<span>{editReasonInput.length}/500 ký tự</span>
-							</div>
 						</div>
 					</div>
 				</Modal>
@@ -757,7 +746,6 @@ export default function AreaAssignedPersonnelModal({
 								variant="danger"
 								onClick={handleConfirmRevoke}
 								loading={submittingRevoke}
-								disabled={revokeReason.trim().length < 10}
 							>
 								Xác nhận thu hồi
 							</Button>
@@ -781,22 +769,23 @@ export default function AreaAssignedPersonnelModal({
 							className="ap-form-group"
 							style={{ marginTop: "12px" }}
 						>
-							<label className="ap-form-label">
-								Lý do thu hồi <span className="ap-form-required">*</span>
-							</label>
-							<textarea
-								className="ap-form-textarea"
-								rows={3}
-								placeholder="Nhập lý do thu hồi (tối thiểu 10 ký tự, tối đa 500 ký tự)..."
-								value={revokeReason}
-								onChange={(e) => setRevokeReason(e.target.value)}
-								maxLength={500}
+							<ReasonTextarea
+								ref={revokeReasonRef}
+								label="Lý do thu hồi"
 								required
+								value={revokeReason}
+								onChange={(val) => {
+									setRevokeReason(val);
+									if (revokeReasonError && val.trim().length >= 10 && val.trim().length <= 500) {
+										setRevokeReasonError("");
+									}
+								}}
+								minLength={10}
+								maxLength={500}
+								placeholder="Nhập lý do thu hồi (tối thiểu 10 ký tự, tối đa 500 ký tự)..."
+								rows={3}
+								error={revokeReasonError}
 							/>
-							<div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "var(--theme-text-muted, #64748b)", marginTop: "4px" }}>
-								<span>Tối thiểu 10 ký tự, tối đa 500 ký tự</span>
-								<span>{revokeReason.length}/500 ký tự</span>
-							</div>
 						</div>
 					</div>
 				</Modal>

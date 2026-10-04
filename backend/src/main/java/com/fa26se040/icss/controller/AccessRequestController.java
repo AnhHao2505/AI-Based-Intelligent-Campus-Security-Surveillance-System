@@ -44,8 +44,9 @@ public class AccessRequestController {
 
     @GetMapping("/available-areas")
     @PreAuthorize("hasAnyRole('NORMAL_USER', 'FACILITY_MANAGER', 'ADMIN')")
-    public ResponseEntity<ApiResponse<List<AreaSimpleResponse>>> getAvailableAreas() {
-        return ResponseEntity.ok(ApiResponse.success(areaService.getAvailableAreasForRequest(), "Lấy danh sách khu vực khả dụng thành công"));
+    public ResponseEntity<ApiResponse<List<AreaSimpleResponse>>> getAvailableAreas(Authentication authentication) {
+        String actorEmail = authentication != null ? authentication.getName() : null;
+        return ResponseEntity.ok(ApiResponse.success(areaService.getAvailableAreasForRequest(actorEmail), "Lấy danh sách khu vực khả dụng thành công"));
     }
 
     @PostMapping("/individual")

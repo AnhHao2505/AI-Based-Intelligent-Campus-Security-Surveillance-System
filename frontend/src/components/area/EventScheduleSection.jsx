@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { CalendarClock, CalendarPlus, Pencil, XCircle, AlertCircle, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import Button from "../ui/Button";
 import Badge from "../ui/Badge";
+import ReasonTextarea from "../ui/ReasonTextarea";
 import { useAuth } from "../../context/AuthContext";
 import {
 	getEventSchedules,
@@ -64,6 +65,8 @@ export default function EventScheduleSection({ area, onSchedulesChanged }) {
 	const [reasons, setReasons] = useState([]);
 	const [loadingReasons, setLoadingReasons] = useState(false);
 	const [formError, setFormError] = useState(null);
+	const [noteError, setNoteError] = useState(null);
+	const noteRef = useRef(null);
 	const [submitting, setSubmitting] = useState(false);
 
 	const loadSchedules = useCallback(async () => {
@@ -147,30 +150,38 @@ export default function EventScheduleSection({ area, onSchedulesChanged }) {
 		setTarget(null);
 		setForm(EMPTY_FORM);
 		setFormError(null);
+		setNoteError(null);
 	};
-
 
 	const validate = () => {
 		if (mode !== "cancel") {
-			if (!form.startAt || !form.endAt) return "Vui lòng chọn giờ bắt đầu và giờ kết thúc.";
+			if (!form.startAt || !form.endAt) return { type: "time", msg: "Vui lòng chọn giờ bắt đầu và giờ kết thúc." };
 			const start = new Date(form.startAt).getTime();
 			const end = new Date(form.endAt).getTime();
-			if (start <= Date.now()) return "Giờ bắt đầu phải ở trong tương lai.";
-			if (end <= start) return "Giờ kết thúc phải sau giờ bắt đầu.";
+			if (start <= Date.now()) return { type: "time", msg: "Giờ bắt đầu phải ở trong tương lai." };
+			if (end <= start) return { type: "time", msg: "Giờ kết thúc phải sau giờ bắt đầu." };
 		}
-		if (!form.reasonCode) return "Vui lòng chọn lý do từ danh mục.";
+		if (!form.reasonCode) return { type: "reason", msg: "Vui lòng chọn lý do từ danh mục." };
 		const note = form.note.trim();
-		if (note.length < 10 || note.length > 500) return "Ghi chú phải có từ 10 đến 500 ký tự.";
+		if (note.length < 10 || note.length > 500) {
+			return { type: "note", msg: `Ghi chú phải từ 10 đến 500 ký tự (hiện có ${note.length}).` };
+		}
 		return null;
 	};
 
 	const handleSubmit = async () => {
-		const msg = validate();
-		if (msg) {
-			setFormError(msg);
+		const validationResult = validate();
+		if (validationResult) {
+			if (validationResult.type === "note") {
+				setNoteError(validationResult.msg);
+				noteRef.current?.focus();
+			} else {
+				setFormError(validationResult.msg);
+			}
 			return;
 		}
 		setFormError(null);
+		setNoteError(null);
 		setSubmitting(true);
 		const note = form.note.trim();
 		try {
@@ -286,24 +297,24 @@ export default function EventScheduleSection({ area, onSchedulesChanged }) {
 						</select>
 					)}
 				</label>
-				<label className="evs-field">
-					<span className="evs-field__label evs-field__label--split">
-						<span>
-							Ghi chú <span className="evs-required">*</span>
-						</span>
-						<span className={noteValid ? "evs-counter" : "evs-counter evs-counter--invalid"}>
-							{noteLength}/500 (tối thiểu 10 ký tự)
-						</span>
-					</span>
-					<textarea
-						className="evs-input evs-textarea"
-						rows={2}
-						maxLength={500}
-						value={form.note}
-						placeholder="Nêu tên sự kiện hoặc đơn vị tổ chức (10–500 ký tự)"
-						onChange={(e) => setForm((p) => ({ ...p, note: e.target.value }))}
-					/>
-				</label>
+				<ReasonTextarea
+					ref={noteRef}
+					label="Ghi chú"
+					placeholder="Nêu tên sự kiện hoặc đơn vị tổ chức (10–500 ký tự)..."
+					value={form.note}
+					onChange={(e) => {
+						const val = e.target.value;
+						setForm((p) => ({ ...p, note: val }));
+						if (noteError && val.trim().length >= 10 && val.trim().length <= 500) {
+							setNoteError(null);
+						}
+					}}
+					error={noteError}
+					rows={2}
+					min={10}
+					max={500}
+					required
+				/>
 				<div className="evs-form__actions">
 					<Button variant="secondary" size="sm" onClick={closeForm} disabled={submitting}>
 						Đóng

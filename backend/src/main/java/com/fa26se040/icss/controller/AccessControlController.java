@@ -48,7 +48,7 @@ public class AccessControlController {
             value = "/level-presets/{areaLevel}",
             method = {org.springframework.web.bind.annotation.RequestMethod.PUT, org.springframework.web.bind.annotation.RequestMethod.PATCH}
     )
-    @PreAuthorize("hasRole('FACILITY_MANAGER')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<LevelPresetResponse>> updateLevelPreset(
             @PathVariable AreaLevel areaLevel,
             @Valid @RequestBody LevelPresetUpdateRequest request,

@@ -77,23 +77,23 @@ class AccessControlSecurityTest extends AbstractIntegrationTest {
         private final String putBody = "{\"areaAccessLevel\": 2, \"explicitAuthorizationRequired\": false, \"reason\": \"Bảo mật cao hơn\", \"version\": 0}";
 
         @Test
-        @DisplayName("PUT /level-presets: FM được phép -> 200 OK")
-        void putPreset_FacilityManager_Returns200() throws Exception {
+        @DisplayName("PUT /level-presets: ADMIN được phép -> 200 OK")
+        void putPreset_Admin_Returns200() throws Exception {
             when(presetService.updatePreset(eq(AreaLevel.PUBLIC), any(), any()))
-                    .thenReturn(new LevelPresetResponse(AreaLevel.PUBLIC, 2, false, OffsetDateTime.now(), "FM", "FM01", 1L));
+                    .thenReturn(new LevelPresetResponse(AreaLevel.PUBLIC, 2, false, OffsetDateTime.now(), "Admin", "ADMIN01", 1L));
 
             mockMvc.perform(put("/api/access-control/level-presets/{areaLevel}", AreaLevel.PUBLIC)
-                            .header("Authorization", tokenFor(Role.FACILITY_MANAGER))
+                            .header("Authorization", tokenFor(Role.ADMIN))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(putBody))
                     .andExpect(status().isOk());
         }
 
         @Test
-        @DisplayName("PUT /level-presets: ADMIN bị cấm -> 403 Forbidden")
-        void putPreset_Admin_Returns403() throws Exception {
+        @DisplayName("PUT /level-presets: FM bị cấm -> 403 Forbidden")
+        void putPreset_FacilityManager_Returns403() throws Exception {
             mockMvc.perform(put("/api/access-control/level-presets/{areaLevel}", AreaLevel.PUBLIC)
-                            .header("Authorization", tokenFor(Role.ADMIN))
+                            .header("Authorization", tokenFor(Role.FACILITY_MANAGER))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(putBody))
                     .andExpect(status().isForbidden());
@@ -269,8 +269,8 @@ class AccessControlSecurityTest extends AbstractIntegrationTest {
         private final String areaRulesBody = "{\"areaAccessLevel\": 2, \"explicitAuthorizationRequired\": false, \"reason\": \"Điều chỉnh quy tắc khu vực\"}";
 
         @Test
-        @DisplayName("PATCH /areas/{id}/access-rules: FM được phép -> 200 OK")
-        void patchAreaRules_FacilityManager_Returns200() throws Exception {
+        @DisplayName("PATCH /areas/{id}/access-rules: ADMIN được phép -> 200 OK")
+        void patchAreaRules_Admin_Returns200() throws Exception {
             when(areaService.updateAccessRules(eq(sampleId), any(), any()))
                     .thenReturn(AreaResponse.builder()
                             .id(sampleId).name("Khu vực 1").areaLevel(AreaLevel.PUBLIC)
@@ -282,17 +282,17 @@ class AccessControlSecurityTest extends AbstractIntegrationTest {
                             .build());
 
             mockMvc.perform(patch("/api/areas/{id}/access-rules", sampleId)
-                            .header("Authorization", tokenFor(Role.FACILITY_MANAGER))
+                            .header("Authorization", tokenFor(Role.ADMIN))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(areaRulesBody))
                     .andExpect(status().isOk());
         }
 
         @Test
-        @DisplayName("PATCH /areas/{id}/access-rules: ADMIN bị cấm -> 403 Forbidden")
-        void patchAreaRules_Admin_Returns403() throws Exception {
+        @DisplayName("PATCH /areas/{id}/access-rules: FM bị cấm -> 403 Forbidden")
+        void patchAreaRules_FacilityManager_Returns403() throws Exception {
             mockMvc.perform(patch("/api/areas/{id}/access-rules", sampleId)
-                            .header("Authorization", tokenFor(Role.ADMIN))
+                            .header("Authorization", tokenFor(Role.FACILITY_MANAGER))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(areaRulesBody))
                     .andExpect(status().isForbidden());

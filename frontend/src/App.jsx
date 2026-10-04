@@ -26,6 +26,8 @@ import SystemConfigPage from "./pages/system/SystemConfigPage";
 import GuardTeamManagementPage from "./pages/guardTeams/GuardTeamManagementPage";
 import ReasonCatalogPage from "./pages/system/ReasonCatalogPage";
 import UserAccessLevelPage from "./pages/accessControl/UserAccessLevelPage";
+import AdminPresetPage from "./pages/accessControl/AdminPresetPage";
+import AuditLogPage from "./pages/accessControl/AuditLogPage";
 import DemoModeBanner from "./components/common/DemoModeBanner";
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
@@ -47,6 +49,8 @@ const ROUTE_TITLES = {
 	"/admin/access-requests": "Phê duyệt Truy cập",
 	"/fm/access-levels": "Phân quyền Truy cập",
 	"/admin/access-levels": "Phân quyền Truy cập",
+	"/admin/level-presets": "Cấu hình Mặc định theo Loại",
+	"/admin/audit-logs": "Nhật ký Kiểm toán",
 	"/admin/system-configurations": "Cấu hình Hệ thống",
 	"/login": "Đăng nhập",
 	"/admin/reason-catalogs": "Danh mục Lý do",
@@ -339,7 +343,29 @@ function App() {
 
 							<Route
 								path="/admin/access-levels"
-								element={<Navigate to="/fm/access-levels" replace />}
+								element={<Navigate to="/admin/level-presets" replace />}
+							/>
+
+							<Route
+								path="/admin/level-presets"
+								element={
+									<ProtectedRoute
+										allowedRoles={[ROLES.ADMIN]}
+									>
+										<AdminPresetPage />
+									</ProtectedRoute>
+								}
+							/>
+
+							<Route
+								path="/admin/audit-logs"
+								element={
+									<ProtectedRoute
+										allowedRoles={[ROLES.ADMIN, ROLES.FACILITY_MANAGER]}
+									>
+										<AuditLogPage />
+									</ProtectedRoute>
+								}
 							/>
 
 

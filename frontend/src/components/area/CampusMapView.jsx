@@ -1694,7 +1694,14 @@ export default function CampusMapView({
 								</div>
 								<div className="campus-detail-meta-row">
 									<span className="campus-detail-meta-label">Cấp truy cập</span>
-									<span className="campus-detail-meta-val">
+									<span
+										className="campus-detail-meta-val"
+										title={
+											selectedArea.explicitAuthorizationRequired
+												? "Cấp tối thiểu để được gửi đơn xin vào (không cho vào tự do)"
+												: "Cấp tối thiểu để được vào tự do"
+										}
+									>
 										{getAccessLevelConfig(selectedArea.areaAccessLevel).label}
 									</span>
 								</div>

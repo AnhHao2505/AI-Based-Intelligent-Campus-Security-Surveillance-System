@@ -40,6 +40,10 @@ public class AccessRequestMember {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    @Builder.Default
+    @Column(name = "sponsored", nullable = false)
+    private Boolean sponsored = false;
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

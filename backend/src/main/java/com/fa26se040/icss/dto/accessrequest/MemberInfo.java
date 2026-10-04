@@ -5,5 +5,10 @@ import java.util.UUID;
 public record MemberInfo(
     UUID userId,
     String userCode,
-    String fullName
-) {}
+    String fullName,
+    Boolean sponsored
+) {
+    public MemberInfo(UUID userId, String userCode, String fullName) {
+        this(userId, userCode, fullName, false);
+    }
+}
