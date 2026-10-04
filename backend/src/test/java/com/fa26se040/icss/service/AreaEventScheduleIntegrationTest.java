@@ -550,6 +550,20 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
     @DisplayName("ES-T08: checkEntry trong khung lịch (job chưa chạy) -> OPEN_EVENT; ngoài khung -> không")
     void testES_T08_CheckEntryWithinScheduleWindow() {
         OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime schedStart = now.minusMinutes(15);
+        OffsetDateTime schedEnd = now.plusHours(2);
+
+        eventScheduleRepository.save(AreaEventSchedule.builder()
+                .area(internalArea)
+                .startAt(schedStart)
+                .endAt(schedEnd)
+                .status(AreaEventScheduleStatus.SCHEDULED)
+                .reasonCode(REASON_ENABLE)
+                .reasonLabel("Hội thảo lên lịch")
+                .note("Lịch cho test ES-T08")
+                .createdBy(fmUser)
+                .createdAt(now.minusHours(1))
+                .build());
 
         // 1. checkEntry tại thời điểm now (trong khung lịch) -> allowed OPEN_EVENT
         AccessDecision decisionInside = accessDecisionService.checkEntry(userL1.getId(), internalArea.getId(), now);
