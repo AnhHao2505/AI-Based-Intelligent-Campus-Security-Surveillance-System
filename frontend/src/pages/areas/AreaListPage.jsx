@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import {
 	Building2,
@@ -868,13 +869,16 @@ export default function AreaListPage() {
 						: "Quản lý danh sách nhân sự được chỉ định, tra cứu phân quyền và vận hành phân khu."
 				}
 				actions={
-					<a
-						href="/admin/map"
-						className="ui-btn ui-btn--secondary ui-btn--md"
-					>
-						<Compass size={16} />
-						<span>Xem trên bản đồ an ninh</span>
-					</a>
+					// Route /admin/map chỉ cho ADMIN (App.jsx) → FM không thấy lối tắt dẫn tới trang bị chặn
+					isAdmin ? (
+						<Link
+							to="/admin/map"
+							className="ui-btn ui-btn--secondary ui-btn--md"
+						>
+							<Compass size={16} />
+							<span>Xem trên bản đồ an ninh</span>
+						</Link>
+					) : null
 				}
 			/>
 
