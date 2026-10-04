@@ -73,10 +73,10 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
     private AuditService auditService;
 
     private Floor getOrCreateTestFloor() {
-        Building b = buildingRepository.findByCodeIgnoreCase("TOA_ALPHA")
-                .orElseGet(() -> buildingRepository.save(Building.builder().code("TOA_ALPHA").name("Tòa Alpha").build()));
-        return floorRepository.findByBuildingCodeIgnoreCaseAndFloorCodeIgnoreCase("TOA_ALPHA", "1")
-                .orElseGet(() -> floorRepository.save(Floor.builder().building(b).floorCode("1").name("Tầng 1").floorOrder(1).build()));
+        Building b = buildingRepository.findByNameIgnoreCase("Tòa Alpha")
+                .orElseGet(() -> buildingRepository.save(Building.builder().name("Tòa Alpha").build()));
+        return floorRepository.findByBuildingNameIgnoreCaseAndNameIgnoreCase("Tòa Alpha", "Tầng 1")
+                .orElseGet(() -> floorRepository.save(Floor.builder().building(b).name("Tầng 1").floorOrder(1).build()));
     }
 
     @Test

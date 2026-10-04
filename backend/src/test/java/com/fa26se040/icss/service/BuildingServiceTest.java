@@ -13,7 +13,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -37,7 +36,6 @@ class BuildingServiceTest {
     void testGetAllActiveBuildings() {
         Building b = Building.builder()
                 .id(UUID.randomUUID())
-                .code("TOA_ALPHA")
                 .name("Tòa Alpha")
                 .totalFloors(5)
                 .isActive(true)
@@ -45,7 +43,6 @@ class BuildingServiceTest {
         Floor f = Floor.builder()
                 .id(UUID.randomUUID())
                 .building(b)
-                .floorCode("TANG_1")
                 .name("Tầng 1")
                 .floorOrder(1)
                 .isActive(true)
@@ -57,9 +54,9 @@ class BuildingServiceTest {
         List<BuildingDto> result = buildingService.getAllActiveBuildings();
         assertNotNull(result);
         assertEquals(1, result.size());
-        assertEquals("TOA_ALPHA", result.get(0).getCode());
+        assertEquals("Tòa Alpha", result.get(0).getName());
         assertEquals(1, result.get(0).getFloors().size());
-        assertEquals("TANG_1", result.get(0).getFloors().get(0).getFloorCode());
+        assertEquals("Tầng 1", result.get(0).getFloors().get(0).getName());
     }
 
     @Test
@@ -68,13 +65,11 @@ class BuildingServiceTest {
         UUID buildingId = UUID.randomUUID();
         Building b = Building.builder()
                 .id(buildingId)
-                .code("TOA_BETA")
                 .name("Tòa Beta")
                 .build();
         Floor f = Floor.builder()
                 .id(UUID.randomUUID())
                 .building(b)
-                .floorCode("TANG_G")
                 .name("Tầng Trệt")
                 .floorOrder(0)
                 .isActive(true)
@@ -86,7 +81,7 @@ class BuildingServiceTest {
         List<FloorDto> result = buildingService.getFloorsByBuildingId(buildingId);
         assertNotNull(result);
         assertEquals(1, result.size());
-        assertEquals("TANG_G", result.get(0).getFloorCode());
-        assertEquals("TOA_BETA", result.get(0).getBuildingCode());
+        assertEquals("Tầng Trệt", result.get(0).getName());
+        assertEquals("Tòa Beta", result.get(0).getBuildingName());
     }
 }

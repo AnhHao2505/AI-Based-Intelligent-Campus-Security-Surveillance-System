@@ -14,7 +14,7 @@ import EventScheduleSection from "./EventScheduleSection";
 import { getAreaById, updateAreaAccessRules, updateAreaEventMode } from "../../services/areaService";
 import { getActiveReasons } from "../../services/reasonCatalogService";
 import { formatDisplayDateTime, getLevelConfig } from "../../utils/areaHelpers";
-import "./AreaAccessRulesModal.css";
+import "../../styles/AreaAccessRulesModal.css";
 
 const ACCESS_LEVEL_OPTIONS = [
 	{

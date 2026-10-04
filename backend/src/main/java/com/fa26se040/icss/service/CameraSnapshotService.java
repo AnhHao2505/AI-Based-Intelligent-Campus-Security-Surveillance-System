@@ -153,8 +153,6 @@ public class CameraSnapshotService {
      */
     @Transactional(readOnly = true)
     public TestConnectionResponse testConnection(UUID cameraId) {
-        Camera camera = cameraRepository.findById(cameraId)
-                .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_CAM_002));
 
         CameraStreamConfiguration config = streamConfigRepo.findByCameraId(cameraId)
                 .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_STREAM_001));

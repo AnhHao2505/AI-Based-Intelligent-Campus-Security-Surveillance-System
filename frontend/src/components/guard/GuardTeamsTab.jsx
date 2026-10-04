@@ -4,15 +4,12 @@ import {
   Plus,
   Edit2,
   Trash2,
-  Check,
   X,
   Search,
   AlertCircle,
   Shield,
   UserCheck,
   UserX,
-  Palette,
-  FileText,
   Sun,
   Sunset,
   Moon,
@@ -24,7 +21,6 @@ import {
   ChevronUp,
   RefreshCw,
   Clock,
-  MapPin
 } from 'lucide-react';
 import { guardScheduleApi } from '../../api/guardScheduleApi';
 import { getUsers } from '../../services/userService';
@@ -92,30 +88,6 @@ const getAvatarBg = (str = '') => {
   }
   const index = Math.abs(hash) % AVATAR_BG_COLORS.length;
   return AVATAR_BG_COLORS[index];
-};
-
-const BUILDING_RAW_CODES = new Set([
-  'TOA_ALPHA',
-  'TOA_BETA',
-  'KHU_THE_THAO',
-  'FPT_AROUND',
-  'CO_SO_HCM',
-  'CAMPUS'
-]);
-
-const formatBuildingName = (code, buildings = [], areas = []) => {
-  if (!code) return '';
-  const b = (buildings || []).find((item) => item.code === code || item.id === code || item.name === code);
-  if (b?.name) return b.name;
-  const a = (areas || []).find((item) => item.building === code);
-  if (a?.building) return a.building;
-  if (code === 'TOA_ALPHA') return 'Tòa Alpha';
-  if (code === 'TOA_BETA') return 'Tòa Beta';
-  if (code === 'KHU_THE_THAO') return 'Khu Thể Thao & Sân Bóng';
-  if (code === 'FPT_AROUND') return 'Khuôn viên Ngoài trời';
-  if (code === 'CO_SO_HCM') return 'Cơ sở HCM';
-  if (code === 'CAMPUS') return 'Toàn trường';
-  return code;
 };
 
 // Component bảng cấu hình nhu cầu ca trực trực quan & hiện đại
@@ -1091,30 +1063,20 @@ export default function GuardTeamsTab({
             const teamShifts = (shifts || []).filter(
               (s) => teamMemberIds.has(s.guardId) || teamMemberIds.has(s.guard?.id)
             );
-            const buildingCodes = Array.from(
+            const teamBuildings = Array.from(
               new Set(teamShifts.map((s) => s.area?.building || s.building).filter(Boolean))
             );
 
             let assignedLocation = '';
-            if (buildingCodes.length > 0) {
-              assignedLocation = buildingCodes
-                .map((code) => formatBuildingName(code, buildings, areas))
-                .filter(Boolean)
-                .join(', ');
-            } else if (team.description) {
-              const formatted = formatBuildingName(team.description, buildings, areas);
-              if (formatted && formatted !== team.description) {
-                assignedLocation = formatted;
-              } else if (!team.description.startsWith('Tổ tạo nhanh') && !BUILDING_RAW_CODES.has(team.description)) {
-                assignedLocation = team.description;
-              }
+            if (teamBuildings.length > 0) {
+              assignedLocation = teamBuildings.join(', ');
+            } else if (team.description && !team.description.startsWith('Tổ tạo nhanh')) {
+              assignedLocation = team.description;
             }
 
             const isExpanded = expandedTeamIds.has(team.id);
-            const isRawCode = BUILDING_RAW_CODES.has(team.description);
             const hasCustomDescription = Boolean(
               team.description &&
-              !isRawCode &&
               !team.description.startsWith('Tổ tạo nhanh') &&
               team.description !== assignedLocation
             );
@@ -1977,16 +1939,14 @@ export default function GuardTeamsTab({
                     >
                       <option value="">-- Chưa gán tòa / Tùy chỉnh sau --</option>
                       {(buildings || []).map((b) => (
-                        <option key={b.code || b.id} value={b.code || b.id}>
-                          {b.name} ({b.code || b.id})
+                        <option key={b.name || b.id} value={b.name || b.id}>
+                          {b.name}
                         </option>
                       ))}
                       {(!buildings || buildings.length === 0) && (
                         <>
-                          <option value="TOA_ALPHA">Tòa Alpha (TOA_ALPHA)</option>
-                          <option value="TOA_BETA">Tòa Beta (TOA_BETA)</option>
-                          <option value="KHU_THE_THAO">Khu Thể Thao & Sân Bóng (KHU_THE_THAO)</option>
-                          <option value="FPT_AROUND">Khuôn viên Ngoài trời (FPT_AROUND)</option>
+                          <option value="Tòa Alpha">Tòa Alpha</option>
+                          <option value="Tòa Beta">Tòa Beta</option>
                         </>
                       )}
                     </select>

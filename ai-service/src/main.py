@@ -9,7 +9,6 @@ from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 
 from .config import settings
-from .core.entity import Point
 from .pipeline.video_pipeline import VideoPipeline
 from .integration.storage_service import StorageService
 

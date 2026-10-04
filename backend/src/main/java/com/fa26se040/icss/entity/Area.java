@@ -77,7 +77,7 @@ public class Area {
     @Column(name = "building", length = 50)
     private String building;
 
-    @Column(name = "floor", length = 20)
+    @Column(name = "floor", length = 50)
     private String floor;
 
     @JdbcTypeCode(SqlTypes.JSON)

@@ -4,8 +4,6 @@ import {
 	LayoutDashboard,
 	MapPin,
 	Video,
-	Cpu,
-	Network,
 	ShieldAlert,
 	KeyRound,
 	ClipboardCheck,

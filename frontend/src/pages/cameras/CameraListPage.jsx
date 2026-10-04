@@ -158,7 +158,7 @@ export default function CameraListPage() {
             >
               <option value="">-- Trạng thái thiết bị --</option>
               <option value="ACTIVE">Đang hoạt động</option>
-              <option value="DECOMMISSIONED">Đã tắt/Huỷ</option>
+              <option value="DECOMMISSIONED">Đã tắt</option>
             </select>
 
             <select

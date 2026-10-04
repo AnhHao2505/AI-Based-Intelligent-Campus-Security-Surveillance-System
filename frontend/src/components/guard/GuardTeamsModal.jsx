@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Users, Check, AlertCircle, Trash2, Edit2, Shield } from 'lucide-react';
+import { X, Plus, Users, AlertCircle } from 'lucide-react';
 import { guardScheduleApi } from '../../api/guardScheduleApi';
 
 export default function GuardTeamsModal({

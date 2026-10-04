@@ -20,7 +20,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -95,10 +94,9 @@ class AreaServiceAccessLevelTest {
 
         Floor defaultFloor = Floor.builder()
                 .id(UUID.randomUUID())
-                .floorCode("1")
                 .name("Tầng 1")
                 .build();
-        org.mockito.Mockito.lenient().when(floorRepository.findByBuildingCodeIgnoreCaseAndFloorCodeIgnoreCase(any(), any()))
+        org.mockito.Mockito.lenient().when(floorRepository.findByBuildingNameIgnoreCaseAndNameIgnoreCase(any(), any()))
                 .thenReturn(Optional.of(defaultFloor));
     }
 

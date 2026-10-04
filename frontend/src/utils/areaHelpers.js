@@ -40,7 +40,7 @@ export const AREA_LEVEL_CONFIG = {
   },
   HIGHLY_CONFIDENTIAL: {
     code: 'HIGHLY_CONFIDENTIAL',
-    name: 'Tuyệt mật – người được chỉ định hoặc có đơn cá nhân được duyệt',
+    name: 'Tuyệt mật',
     badgeLabel: 'Tuyệt mật',
     badgeClass: 'level-badge--private',
     cardClass: 'zone-card--private',

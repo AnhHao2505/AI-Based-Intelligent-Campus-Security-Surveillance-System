@@ -10,7 +10,6 @@ import com.fa26se040.icss.enums.*;
 import com.fa26se040.icss.exception.AreaErrorCode;
 import com.fa26se040.icss.exception.AreaException;
 import com.fa26se040.icss.repository.*;
-import com.fa26se040.icss.scheduler.AreaEventModeScheduler;
 import com.fa26se040.icss.security.JwtTokenProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -74,8 +73,6 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
     @Autowired
     private SystemConfigService systemConfigService;
 
-    @Autowired
-    private AreaEventModeScheduler areaEventModeScheduler;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -101,17 +98,15 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
     void setUpData() {
         String suffix = UUID.randomUUID().toString().substring(0, 8);
 
-        testBuilding = buildingRepository.findByCodeIgnoreCase("TEST_BLD_SCHED")
+        testBuilding = buildingRepository.findByNameIgnoreCase("Tòa nhà Test Schedule")
                 .orElseGet(() -> buildingRepository.save(Building.builder()
                         .name("Tòa nhà Test Schedule")
-                        .code("TEST_BLD_SCHED")
                         .isActive(true)
                         .build()));
 
-        testFloor = floorRepository.findByBuildingIdAndFloorCodeIgnoreCase(testBuilding.getId(), "F1")
+        testFloor = floorRepository.findByBuildingIdAndNameIgnoreCase(testBuilding.getId(), "Tầng 1 Test Schedule")
                 .orElseGet(() -> floorRepository.save(Floor.builder()
                         .name("Tầng 1 Test Schedule")
-                        .floorCode("F1")
                         .floorOrder(1)
                         .building(testBuilding)
                         .isActive(true)
@@ -159,8 +154,8 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
                 .areaAccessLevel(2)
                 .explicitAuthorizationRequired(false)
                 .floorEntity(testFloor)
-                .building(testBuilding.getCode())
-                .floor(testFloor.getFloorCode())
+                .building(testBuilding.getName())
+                .floor(testFloor.getName())
                 .isActive(true)
                 .openToMembers(false)
                 .build());
@@ -171,8 +166,8 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
                 .areaAccessLevel(2)
                 .explicitAuthorizationRequired(true)
                 .floorEntity(testFloor)
-                .building(testBuilding.getCode())
-                .floor(testFloor.getFloorCode())
+                .building(testBuilding.getName())
+                .floor(testFloor.getName())
                 .isActive(true)
                 .openToMembers(false)
                 .build());
@@ -183,8 +178,8 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
                 .areaAccessLevel(1)
                 .explicitAuthorizationRequired(false)
                 .floorEntity(testFloor)
-                .building(testBuilding.getCode())
-                .floor(testFloor.getFloorCode())
+                .building(testBuilding.getName())
+                .floor(testFloor.getName())
                 .isActive(true)
                 .openToMembers(false)
                 .build());
@@ -195,8 +190,8 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
                 .areaAccessLevel(3)
                 .explicitAuthorizationRequired(true)
                 .floorEntity(testFloor)
-                .building(testBuilding.getCode())
-                .floor(testFloor.getFloorCode())
+                .building(testBuilding.getName())
+                .floor(testFloor.getName())
                 .isActive(true)
                 .openToMembers(false)
                 .build());
@@ -555,18 +550,6 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
     @DisplayName("ES-T08: checkEntry trong khung lịch (job chưa chạy) -> OPEN_EVENT; ngoài khung -> không")
     void testES_T08_CheckEntryWithinScheduleWindow() {
         OffsetDateTime now = OffsetDateTime.now();
-        // Tạo lịch bao trùm thời điểm hiện tại: [now - 10m, now + 2h]
-        AreaEventSchedule schedule = eventScheduleRepository.save(AreaEventSchedule.builder()
-                .area(internalArea)
-                .startAt(now.minusMinutes(10))
-                .endAt(now.plusHours(2))
-                .status(AreaEventScheduleStatus.SCHEDULED)
-                .reasonCode(REASON_ENABLE)
-                .reasonLabel("Hội thảo lên lịch")
-                .note("Lich su kien dang dien ra chua chay job")
-                .createdBy(fmUser)
-                .createdAt(now.minusHours(1))
-                .build());
 
         // 1. checkEntry tại thời điểm now (trong khung lịch) -> allowed OPEN_EVENT
         AccessDecision decisionInside = accessDecisionService.checkEntry(userL1.getId(), internalArea.getId(), now);
@@ -807,8 +790,8 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         AreaUpdateRequest updateReq = AreaUpdateRequest.builder()
                 .name(internalArea.getName())
                 .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
-                .building(testBuilding.getCode())
-                .floor(testFloor.getFloorCode())
+                .building(testBuilding.getName())
+                .floor(testFloor.getName())
                 .floorId(testFloor.getId())
                 .centerLatitude(10.8418)
                 .centerLongitude(106.8100)

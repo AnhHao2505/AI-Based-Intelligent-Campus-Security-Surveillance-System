@@ -5,7 +5,6 @@ import {
 	Edit2,
 	PowerOff,
 	Power,
-	ShieldAlert,
 	CheckCircle2,
 	AlertCircle,
 	Tag,

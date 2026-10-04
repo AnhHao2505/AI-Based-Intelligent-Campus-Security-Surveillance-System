@@ -5,13 +5,11 @@ import {
   Info,
   X,
   Users,
-  ShieldCheck,
   Sliders,
   History,
   AlertTriangle,
   RotateCcw,
   Edit3,
-  Calendar,
   Filter,
   Link,
 } from 'lucide-react';
@@ -30,7 +28,7 @@ import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import PageHeader from '../../components/ui/PageHeader';
 import UserSearchCombobox from '../../components/user/UserSearchCombobox';
-import './UserAccessLevelPage.css';
+import '../../styles/UserAccessLevelPage.css';
 
 
 const SYSTEM_ACTOR_LABELS = {

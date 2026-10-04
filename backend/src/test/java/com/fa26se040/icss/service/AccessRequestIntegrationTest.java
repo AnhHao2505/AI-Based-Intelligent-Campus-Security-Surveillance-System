@@ -56,11 +56,11 @@ class AccessRequestIntegrationTest extends AbstractIntegrationTest {
     @Autowired
     private FloorRepository floorRepository;
 
-    private Floor getOrCreateTestFloor(String floorCode) {
-        Building b = buildingRepository.findByCodeIgnoreCase("TOA_ALPHA")
-                .orElseGet(() -> buildingRepository.save(Building.builder().code("TOA_ALPHA").name("Tòa Alpha").build()));
-        return floorRepository.findByBuildingCodeIgnoreCaseAndFloorCodeIgnoreCase("TOA_ALPHA", floorCode)
-                .orElseGet(() -> floorRepository.save(Floor.builder().building(b).floorCode(floorCode).name("Tầng " + floorCode).floorOrder(1).build()));
+    private Floor getOrCreateTestFloor(String floorName) {
+        Building b = buildingRepository.findByNameIgnoreCase("Tòa Alpha")
+                .orElseGet(() -> buildingRepository.save(Building.builder().name("Tòa Alpha").build()));
+        return floorRepository.findByBuildingNameIgnoreCaseAndNameIgnoreCase("Tòa Alpha", floorName)
+                .orElseGet(() -> floorRepository.save(Floor.builder().building(b).name(floorName).floorOrder(1).build()));
     }
 
     @Test

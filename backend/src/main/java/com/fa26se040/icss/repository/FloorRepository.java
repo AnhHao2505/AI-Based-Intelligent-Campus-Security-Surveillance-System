@@ -15,14 +15,14 @@ public interface FloorRepository extends JpaRepository<Floor, UUID> {
 
     List<Floor> findByBuildingIdAndIsActiveTrueOrderByFloorOrderAsc(UUID buildingId);
 
-    Optional<Floor> findByBuildingIdAndFloorCodeIgnoreCase(UUID buildingId, String floorCode);
+    Optional<Floor> findByBuildingIdAndNameIgnoreCase(UUID buildingId, String name);
 
-    @Query("SELECT f FROM Floor f JOIN f.building b WHERE LOWER(b.code) = LOWER(:buildingCode) AND LOWER(f.floorCode) = LOWER(:floorCode)")
-    Optional<Floor> findByBuildingCodeIgnoreCaseAndFloorCodeIgnoreCase(
-            @Param("buildingCode") String buildingCode,
-            @Param("floorCode") String floorCode
+    @Query("SELECT f FROM Floor f JOIN f.building b WHERE LOWER(b.name) = LOWER(:buildingName) AND LOWER(f.name) = LOWER(:floorName)")
+    Optional<Floor> findByBuildingNameIgnoreCaseAndNameIgnoreCase(
+            @Param("buildingName") String buildingName,
+            @Param("floorName") String floorName
     );
 
-    @Query("SELECT f FROM Floor f JOIN FETCH f.building b WHERE f.isActive = true AND b.isActive = true ORDER BY b.code ASC, f.floorOrder ASC")
+    @Query("SELECT f FROM Floor f JOIN FETCH f.building b WHERE f.isActive = true AND b.isActive = true ORDER BY b.name ASC, f.floorOrder ASC")
     List<Floor> findAllActiveFloors();
 }

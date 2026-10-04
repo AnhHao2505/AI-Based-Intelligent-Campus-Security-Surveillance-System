@@ -17,7 +17,7 @@ import {
 	updateSystemConfig,
 	getSystemConfigHistory,
 } from "../../services/systemConfigService";
-import { Button, Input, Card, Modal, Badge, PageHeader } from "../../components/ui";
+import { Button, Input, Card, Modal, PageHeader } from "../../components/ui";
 import "../../styles/SystemConfigPage.css";
 
 export default function SystemConfigPage() {

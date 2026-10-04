@@ -3,7 +3,6 @@ package com.fa26se040.icss.service;
 import com.fa26se040.icss.dto.guard.GuardTeamCreateRequest;
 import com.fa26se040.icss.dto.guard.GuardTeamDto;
 import com.fa26se040.icss.entity.GuardTeam;
-import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.repository.GuardTeamRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,7 +14,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 

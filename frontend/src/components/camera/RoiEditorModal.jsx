@@ -3,26 +3,16 @@ import {
 	X,
 	Plus,
 	Trash2,
-	Save,
 	RotateCcw,
-	RotateCw,
 	Check,
-	AlertTriangle,
 	Layers,
 	HelpCircle,
 	Loader2,
 	Move,
-	ArrowRight,
-	ArrowLeftRight,
-	ShieldAlert,
-	LogIn,
-	LogOut,
-	Maximize2,
 } from "lucide-react";
 import "../../styles/RoiEditorModal.css";
 
 const MAX_POLYGONS = 10;
-const MAX_ENTRY_LINES = 5;
 const MIN_VERTICES = 3;
 
 export default function RoiEditorModal({
@@ -32,22 +22,19 @@ export default function RoiEditorModal({
 	snapshotWidth = 1920,
 	snapshotHeight = 1080,
 	initialRoiGeometry,
-	availableAreas = [],
 	onSave,
 }) {
 	const [polygons, setPolygons] = useState([]);
-	const [entryLines, setEntryLines] = useState([]);
-	const [selectedItem, setSelectedItem] = useState(null); // { type: "POLYGON" | "LINE", index: number }
+	const [selectedItem, setSelectedItem] = useState(null); // { type: "POLYGON", index: number }
 
 	// Drawing state
-	const [drawMode, setDrawMode] = useState(null); // null | "POLYGON" | "LINE"
+	const [drawMode, setDrawMode] = useState(null); // null | "POLYGON"
 	const [draftVertices, setDraftVertices] = useState([]);
-	const [draftLineStart, setDraftLineStart] = useState(null);
 	const [cursorPos, setCursorPos] = useState(null);
 	const [isNearFirst, setIsNearFirst] = useState(false);
 
 	// Dragging state
-	const [draggedTarget, setDraggedTarget] = useState(null); // { type: "POLYGON", pIdx, vIdx } | { type: "LINE", lIdx, point: "A" | "B" }
+	const [draggedTarget, setDraggedTarget] = useState(null); // { type: "POLYGON", pIdx, vIdx }
 
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState(null);
@@ -78,7 +65,6 @@ export default function RoiEditorModal({
 			setError(null);
 			setDrawMode(null);
 			setDraftVertices([]);
-			setDraftLineStart(null);
 			setCursorPos(null);
 			setIsNearFirst(false);
 			setDraggedTarget(null);
@@ -95,7 +81,7 @@ export default function RoiEditorModal({
 				});
 			}
 
-			// 1. Polygons
+			// Polygons
 			const polys = Array.isArray(initialRoiGeometry?.polygons)
 				? initialRoiGeometry.polygons.map((p, idx) => ({
 						id: `poly_${Date.now()}_${idx}`,
@@ -108,30 +94,8 @@ export default function RoiEditorModal({
 				: [];
 			setPolygons(polys);
 
-			// 2. Entry Lines
-			const rawLines =
-				initialRoiGeometry?.entry_lines || initialRoiGeometry?.entryLines || [];
-			const lines = Array.isArray(rawLines)
-				? rawLines.map((l, idx) => ({
-						id: `line_${Date.now()}_${idx}`,
-						label: l.label || `Đường ranh ${idx + 1}`,
-						pointA: {
-							x: Number(l.point_a?.x ?? l.pointA?.x ?? 0),
-							y: Number(l.point_a?.y ?? l.pointA?.y ?? 0),
-						},
-						pointB: {
-							x: Number(l.point_b?.x ?? l.pointB?.x ?? 0),
-							y: Number(l.point_b?.y ?? l.pointB?.y ?? 0),
-						},
-						direction: l.direction === "AB_IS_OUT" ? "AB_IS_OUT" : "AB_IS_IN",
-					}))
-				: [];
-			setEntryLines(lines);
-
 			if (polys.length > 0) {
 				setSelectedItem({ type: "POLYGON", index: 0 });
-			} else if (lines.length > 0) {
-				setSelectedItem({ type: "LINE", index: 0 });
 			} else {
 				setSelectedItem(null);
 			}
@@ -220,39 +184,6 @@ export default function RoiEditorModal({
 			}
 
 			setDraftVertices((prev) => [...prev, pt]);
-		} else if (drawMode === "LINE") {
-			if (!draftLineStart) {
-				// Point A placed
-				setDraftLineStart(pt);
-			} else {
-				// Point B placed -> complete line
-				const dist = Math.hypot(
-					(pt.x - draftLineStart.x) * imgDimensions.width,
-					(pt.y - draftLineStart.y) * imgDimensions.height,
-				);
-				if (dist < 10) {
-					setError(
-						"Điểm kết thúc quá gần điểm bắt đầu. Vui lòng chọn điểm khác.",
-					);
-					return;
-				}
-
-				const newLine = {
-					id: `line_${Date.now()}`,
-					label: `Đường ranh ${entryLines.length + 1}`,
-					pointA: draftLineStart,
-					pointB: pt,
-					direction: "AB_IS_IN",
-				};
-
-				const nextLines = [...entryLines, newLine];
-				setEntryLines(nextLines);
-				setSelectedItem({ type: "LINE", index: nextLines.length - 1 });
-				setDraftLineStart(null);
-				setCursorPos(null);
-				setDrawMode(null);
-				setError(null);
-			}
 		}
 	};
 
@@ -278,16 +209,6 @@ export default function RoiEditorModal({
 						const nextVertices = [...poly.vertices];
 						nextVertices[draggedTarget.vIdx] = pt;
 						return { ...poly, vertices: nextVertices };
-					}),
-				);
-			} else if (draggedTarget.type === "LINE") {
-				setEntryLines((prev) =>
-					prev.map((line, lIdx) => {
-						if (lIdx !== draggedTarget.lIdx) return line;
-						return {
-							...line,
-							[draggedTarget.point === "A" ? "pointA" : "pointB"]: pt,
-						};
 					}),
 				);
 			}
@@ -324,7 +245,6 @@ export default function RoiEditorModal({
 			if (e.key === "Escape") {
 				if (drawMode) {
 					setDraftVertices([]);
-					setDraftLineStart(null);
 					setCursorPos(null);
 					setIsNearFirst(false);
 					setDrawMode(null);
@@ -360,30 +280,14 @@ export default function RoiEditorModal({
 		setError(null);
 		setSelectedItem(null);
 		setDraftVertices([]);
-		setDraftLineStart(null);
 		setCursorPos(null);
 		setIsNearFirst(false);
 		setDrawMode("POLYGON");
 	};
 
-	// Start Line Drawing
-	const startDrawingLine = () => {
-		if (entryLines.length >= MAX_ENTRY_LINES) {
-			setError(`Đã đạt giới hạn tối đa ${MAX_ENTRY_LINES} đường ranh ra/vào.`);
-			return;
-		}
-		setError(null);
-		setSelectedItem(null);
-		setDraftVertices([]);
-		setDraftLineStart(null);
-		setCursorPos(null);
-		setDrawMode("LINE");
-	};
-
 	// Cancel Drawing
 	const cancelDrawing = () => {
 		setDraftVertices([]);
-		setDraftLineStart(null);
 		setCursorPos(null);
 		setIsNearFirst(false);
 		setDrawMode(null);
@@ -402,31 +306,11 @@ export default function RoiEditorModal({
 		}
 	};
 
-	const handleDeleteEntryLine = (indexToDelete) => {
-		setEntryLines((prev) => prev.filter((_, idx) => idx !== indexToDelete));
-		if (selectedItem?.type === "LINE") {
-			if (selectedItem.index === indexToDelete) {
-				setSelectedItem(null);
-			} else if (selectedItem.index > indexToDelete) {
-				setSelectedItem({ type: "LINE", index: selectedItem.index - 1 });
-			}
-		}
-	};
-
 	// Update Selected Item
 	const handleUpdatePolygonLabel = (label) => {
 		if (selectedItem?.type !== "POLYGON") return;
 		setPolygons((prev) =>
 			prev.map((p, idx) => (idx === selectedItem.index ? { ...p, label } : p)),
-		);
-	};
-
-	const handleUpdateLine = (field, value) => {
-		if (selectedItem?.type !== "LINE") return;
-		setEntryLines((prev) =>
-			prev.map((l, idx) =>
-				idx === selectedItem.index ? { ...l, [field]: value } : l,
-			),
 		);
 	};
 
@@ -439,8 +323,8 @@ export default function RoiEditorModal({
 			return;
 		}
 
-		if (polygons.length === 0 && entryLines.length === 0) {
-			setError("Cần ít nhất 1 vùng giám sát an ninh hoặc 1 đường ranh ra/vào.");
+		if (polygons.length === 0) {
+			setError("Cần ít nhất 1 vùng giám sát an ninh đa giác.");
 			return;
 		}
 
@@ -455,19 +339,6 @@ export default function RoiEditorModal({
 			}
 		}
 
-		// Validate lines
-		for (let i = 0; i < entryLines.length; i++) {
-			const l = entryLines[i];
-			const dist = Math.hypot(
-				(l.pointB.x - l.pointA.x) * imgDimensions.width,
-				(l.pointB.y - l.pointA.y) * imgDimensions.height,
-			);
-			if (dist < 10) {
-				setError(`Đường ranh "${l.label || i + 1}" có 2 điểm quá gần nhau.`);
-				return;
-			}
-		}
-
 		setSaving(true);
 		setError(null);
 
@@ -478,26 +349,6 @@ export default function RoiEditorModal({
 					x: Number(Math.min(Math.max(Number(v.x) || 0, 0), 1).toFixed(4)),
 					y: Number(Math.min(Math.max(Number(v.y) || 0, 0), 1).toFixed(4)),
 				})),
-			})),
-			entry_lines: entryLines.map((l) => ({
-				label: l.label ? l.label.trim().slice(0, 100) : undefined,
-				point_a: {
-					x: Number(
-						Math.min(Math.max(Number(l.pointA.x) || 0, 0), 1).toFixed(4),
-					),
-					y: Number(
-						Math.min(Math.max(Number(l.pointA.y) || 0, 0), 1).toFixed(4),
-					),
-				},
-				point_b: {
-					x: Number(
-						Math.min(Math.max(Number(l.pointB.x) || 0, 0), 1).toFixed(4),
-					),
-					y: Number(
-						Math.min(Math.max(Number(l.pointB.y) || 0, 0), 1).toFixed(4),
-					),
-				},
-				direction: l.direction || "AB_IS_IN",
 			})),
 		};
 
@@ -534,28 +385,10 @@ export default function RoiEditorModal({
 		};
 	};
 
-	// Helper to calculate line midpoint for label placement
-	const computeLineOrientation = (pointA, pointB) => {
-		const ax = pointA.x * imgDimensions.width;
-		const ay = pointA.y * imgDimensions.height;
-		const bx = pointB.x * imgDimensions.width;
-		const by = pointB.y * imgDimensions.height;
-
-		const mx = (ax + bx) / 2;
-		const my = (ay + by) / 2;
-
-		return {
-			midX: mx,
-			midY: my,
-		};
-	};
-
 	if (!isOpen) return null;
 
 	const selectedPoly =
 		selectedItem?.type === "POLYGON" ? polygons[selectedItem.index] : null;
-	const selectedLine =
-		selectedItem?.type === "LINE" ? entryLines[selectedItem.index] : null;
 
 	return (
 		<div
@@ -574,7 +407,7 @@ export default function RoiEditorModal({
 							Cấu hình vùng quan sát của camera
 						</h3>
 						<span className="roi-counter-badge">
-							{polygons.length}/10 vùng • {entryLines.length}/5 đường ranh
+							{polygons.length}/10 vùng giám sát
 						</span>
 					</div>
 
@@ -600,10 +433,7 @@ export default function RoiEditorModal({
 									Đang lưu...
 								</>
 							) : (
-								<>
-									<Save size={16} />
-									Lưu vùng kiểm soát
-								</>
+								"Lưu cấu hình"
 							)}
 						</button>
 						<button
@@ -623,27 +453,16 @@ export default function RoiEditorModal({
 						<div className="roi-canvas-toolbar">
 							<div className="roi-toolbar-left">
 								{!drawMode ? (
-									<>
-										<button
-											className="roi-btn roi-btn-primary"
-											onClick={startDrawingPolygon}
-											disabled={polygons.length >= MAX_POLYGONS}
-											title="Khoanh vùng đa giác để giám sát: Người lạ, Xâm nhập, Ngoài giờ"
-										>
-											<Plus size={16} />
-											Vẽ vùng giám sát (Đa giác)
-										</button>
-										<button
-											className="roi-btn roi-btn-teal"
-											onClick={startDrawingLine}
-											disabled={entryLines.length >= MAX_ENTRY_LINES}
-											title="Vẽ 1 đoạn thẳng A -> B cho mỗi cửa để tự động nhận diện cả 2 chiều Ra và Vào"
-										>
-											<ArrowRight size={16} />
-											Vẽ đường ranh Ra/Vào (Đoạn thẳng)
-										</button>
-									</>
-								) : drawMode === "POLYGON" ? (
+									<button
+										className="roi-btn roi-btn-primary"
+										onClick={startDrawingPolygon}
+										disabled={polygons.length >= MAX_POLYGONS}
+										title="Khoanh vùng đa giác để giám sát: Người lạ, Xâm nhập, Ngoài giờ"
+									>
+										<Plus size={16} />
+										Vẽ vùng giám sát (Đa giác)
+									</button>
+								) : (
 									<>
 										<button
 											className="roi-btn roi-btn-primary"
@@ -670,29 +489,6 @@ export default function RoiEditorModal({
 											Hủy vẽ (Esc)
 										</button>
 									</>
-								) : (
-									<>
-										<span
-											style={{
-												fontSize: "0.85rem",
-												color: "#22d3ee",
-												fontWeight: 600,
-												padding: "0.4rem 0.6rem",
-												background: "rgba(6, 182, 212, 0.15)",
-												borderRadius: "6px",
-											}}
-										>
-											{draftLineStart
-												? "Đang vẽ Điểm B (Click để kết thúc đường ranh)"
-												: "Click để đặt Điểm A (bắt đầu)"}
-										</span>
-										<button
-											className="roi-btn roi-btn-danger"
-											onClick={cancelDrawing}
-										>
-											Hủy vẽ (Esc)
-										</button>
-									</>
 								)}
 							</div>
 
@@ -700,24 +496,19 @@ export default function RoiEditorModal({
 								<HelpCircle size={15} />
 								{drawMode === "POLYGON" ? (
 									<span>
-										Click để đặt đỉnh. Click vào{" "}
-										<strong>đỉnh đầu (xanh lá)</strong> hoặc double-click để
-										hoàn tất.
-									</span>
-								) : drawMode === "LINE" ? (
-									<span>
-										Chỉ cần 1 đường cho 1 cửa: Click điểm A, sau đó click điểm B
-										để tự động nhận diện cả 2 chiều Ra/Vào.
+										Nhấp chuột lên ảnh để thêm đỉnh. Nhấp vào đỉnh đầu tiên
+										(vòng vàng) hoặc nhấn Enter để khép kín hình.
 									</span>
 								) : (
 									<span>
-										Click vào vùng hoặc đường ranh để chọn và chỉnh sửa toạ độ.
+										Click vào vùng để chọn và chỉnh sửa toạ độ. Kéo thả các đỉnh
+										để di chuyển.
 									</span>
 								)}
 							</div>
 						</div>
 
-						{/* Canvas Viewport */}
+						{/* Snapshot Canvas Container */}
 						<div className="roi-canvas-wrapper">
 							<div
 								className="roi-viewport"
@@ -731,88 +522,43 @@ export default function RoiEditorModal({
 									<img
 										ref={imgRef}
 										src={imageSrc}
-										alt="Camera Snapshot"
+										alt="Camera Snapshot Reference"
 										className="roi-snapshot-img"
 										onLoad={handleImageLoad}
 									/>
 								) : (
-									<div className="roi-empty-state">
-										Không có ảnh snapshot để hiển thị.
+									<div className="roi-no-image">
+										<p>Không có ảnh chụp tham chiếu từ camera.</p>
+										<span>Vui lòng kết nối camera để lấy khung hình mẫu.</span>
 									</div>
 								)}
 
-								{/* SVG Overlay matching image dimensions */}
+								{/* Interactive SVG Overlay */}
 								<svg
 									ref={svgRef}
 									viewBox={`0 0 ${imgDimensions.width} ${imgDimensions.height}`}
-									preserveAspectRatio="none"
-									className={`roi-svg-overlay ${!drawMode ? "mode-select" : ""}`}
+									className={`roi-svg-overlay ${drawMode ? "drawing" : ""}`}
 									onClick={handleSvgClick}
 									onDoubleClick={handleSvgDoubleClick}
 									onMouseMove={handleSvgMouseMove}
 								>
-									<defs>
-										<marker
-											id="arrow-head-in"
-											viewBox="0 0 10 10"
-											refX="6"
-											refY="5"
-											markerWidth="6"
-											markerHeight="6"
-											orient="auto-start-reverse"
-										>
-											<path
-												d="M 0 1 L 10 5 L 0 9 z"
-												fill="#10b981"
-											/>
-										</marker>
-										<marker
-											id="arrow-head-out"
-											viewBox="0 0 10 10"
-											refX="6"
-											refY="5"
-											markerWidth="6"
-											markerHeight="6"
-											orient="auto-start-reverse"
-										>
-											<path
-												d="M 0 1 L 10 5 L 0 9 z"
-												fill="#38bdf8"
-											/>
-										</marker>
-										<marker
-											id="arrow-line-dir"
-											viewBox="0 0 10 10"
-											refX="5"
-											refY="5"
-											markerWidth="5"
-											markerHeight="5"
-											orient="auto"
-										>
-											<path
-												d="M 0 2 L 8 5 L 0 8 z"
-												fill="#06b6d4"
-											/>
-										</marker>
-									</defs>
-
-									{/* Render Saved Polygons */}
+									{/* Render Existing Polygons */}
 									{polygons.map((poly, pIdx) => {
 										const isSelected =
 											selectedItem?.type === "POLYGON" &&
 											selectedItem.index === pIdx;
-										const pointsStr = poly.vertices
+										const centroid = computeCentroid(poly.vertices);
+										const pts = (poly.vertices || [])
 											.map(
 												(v) =>
 													`${v.x * imgDimensions.width},${v.y * imgDimensions.height}`,
 											)
 											.join(" ");
-										const centroid = computeCentroid(poly.vertices);
 
 										return (
 											<g key={poly.id || pIdx}>
 												<polygon
-													points={pointsStr}
+													points={pts}
 													className={`roi-polygon-shape ${isSelected ? "selected" : ""}`}
 													onClick={(e) => {
 														if (!drawMode) {
@@ -823,166 +569,41 @@ export default function RoiEditorModal({
 															});
 														}
 													}}
+												/>
+
+												{/* Center Label for Polygon */}
+												<text
+													x={centroid.x}
+													y={centroid.y}
+													className="roi-poly-label-svg"
 												>
-													<title>{poly.label || `Vùng ${pIdx + 1}`}</title>
-												</polygon>
+													{poly.label || `Vùng ${pIdx + 1}`}
+												</text>
 
-												{poly.vertices && poly.vertices.length >= 3 && (
-													<text
-														x={centroid.x}
-														y={centroid.y}
-														className="roi-poly-label-svg"
-													>
-														{pIdx + 1}. {poly.label || `Vùng ${pIdx + 1}`}
-													</text>
-												)}
-
+												{/* Draggable vertex handles */}
 												{isSelected &&
 													!drawMode &&
-													poly.vertices.map((v, vIdx) => (
-														<circle
-															key={vIdx}
-															cx={v.x * imgDimensions.width}
-															cy={v.y * imgDimensions.height}
-															r={handleRadius}
-															className="roi-edit-handle"
-															onMouseDown={(e) => {
-																e.stopPropagation();
-																setDraggedTarget({
-																	type: "POLYGON",
-																	pIdx,
-																	vIdx,
-																});
-															}}
-														/>
-													))}
-											</g>
-										);
-									})}
-
-									{/* Render Saved Entry Lines */}
-									{entryLines.map((line, lIdx) => {
-										const isSelected =
-											selectedItem?.type === "LINE" &&
-											selectedItem.index === lIdx;
-										const ax = line.pointA.x * imgDimensions.width;
-										const ay = line.pointA.y * imgDimensions.height;
-										const bx = line.pointB.x * imgDimensions.width;
-										const by = line.pointB.y * imgDimensions.height;
-
-										const orient = computeLineOrientation(
-											line.pointA,
-											line.pointB,
-											line.direction,
-										);
-
-										return (
-											<g key={line.id || lIdx}>
-												{/* The main line segment */}
-												<line
-													x1={ax}
-													y1={ay}
-													x2={bx}
-													y2={by}
-													className={`roi-line-shape ${isSelected ? "selected" : ""}`}
-													onClick={(e) => {
-														if (!drawMode) {
-															e.stopPropagation();
-															setSelectedItem({ type: "LINE", index: lIdx });
-														}
-													}}
-												/>
-
-												{/* Midpoint line label */}
-												{orient && (
-													<g className="roi-line-indicator">
-														{/* Label showing Line name in the middle */}
-														<text
-															x={orient.midX}
-															y={orient.midY - 8}
-															fill="#f8fafc"
-															fontSize={12}
-															fontWeight={700}
-															textAnchor="middle"
-															filter="drop-shadow(0 1px 3px rgba(0, 0, 0, 0.95))"
-														>
-															{line.label || `Ranh ${lIdx + 1}`}
-														</text>
-													</g>
-												)}
-
-												{/* Endpoints A and B */}
-												<circle
-													cx={ax}
-													cy={ay}
-													r={handleRadius * 0.9}
-													fill="#06b6d4"
-													stroke="#ffffff"
-													strokeWidth={2}
-												/>
-												<text
-													x={ax}
-													y={ay - 10}
-													fill="#ffffff"
-													fontSize={11}
-													fontWeight={700}
-													textAnchor="middle"
-												>
-													A
-												</text>
-
-												<circle
-													cx={bx}
-													cy={by}
-													r={handleRadius * 0.9}
-													fill="#0891b2"
-													stroke="#ffffff"
-													strokeWidth={2}
-												/>
-												<text
-													x={bx}
-													y={by - 10}
-													fill="#ffffff"
-													fontSize={11}
-													fontWeight={700}
-													textAnchor="middle"
-												>
-													B
-												</text>
-
-												{/* Draggable handles when line is selected */}
-												{isSelected && !drawMode && (
-													<>
-														<circle
-															cx={ax}
-															cy={ay}
-															r={handleRadius * 1.2}
-															className="roi-edit-handle"
-															onMouseDown={(e) => {
-																e.stopPropagation();
-																setDraggedTarget({
-																	type: "LINE",
-																	lIdx,
-																	point: "A",
-																});
-															}}
-														/>
-														<circle
-															cx={bx}
-															cy={by}
-															r={handleRadius * 1.2}
-															className="roi-edit-handle"
-															onMouseDown={(e) => {
-																e.stopPropagation();
-																setDraggedTarget({
-																	type: "LINE",
-																	lIdx,
-																	point: "B",
-																});
-															}}
-														/>
-													</>
-												)}
+													(poly.vertices || []).map((v, vIdx) => {
+														const cx = v.x * imgDimensions.width;
+														const cy = v.y * imgDimensions.height;
+														return (
+															<circle
+																key={vIdx}
+																cx={cx}
+																cy={cy}
+																r={handleRadius}
+																className="roi-edit-handle"
+																onMouseDown={(e) => {
+																	e.stopPropagation();
+																	setDraggedTarget({
+																		type: "POLYGON",
+																		pIdx,
+																		vIdx,
+																	});
+																}}
+															/>
+														);
+													})}
 											</g>
 										);
 									})}
@@ -1050,23 +671,17 @@ export default function RoiEditorModal({
 																cx={v.x * imgDimensions.width}
 																cy={v.y * imgDimensions.height}
 																r={handleRadius * 2.2}
-																className="roi-first-target-halo"
+																className="roi-snap-ring"
 															/>
 														)}
 
 														<circle
 															cx={v.x * imgDimensions.width}
 															cy={v.y * imgDimensions.height}
-															r={
+															r={handleRadius}
+															className={`roi-draft-handle ${
 																isFirst && isNearFirst
-																	? handleRadius * 1.4
-																	: handleRadius
-															}
-															className={`roi-draft-vertex ${
-																isFirst ? "roi-draft-vertex--first" : ""
-															} ${
-																isFirst && isNearFirst
-																	? "roi-draft-vertex--closing"
+																	? "roi-draft-handle-snap"
 																	: ""
 															}`}
 														/>
@@ -1096,47 +711,6 @@ export default function RoiEditorModal({
 											})}
 										</g>
 									)}
-
-									{/* Render Draft Line currently being drawn */}
-									{drawMode === "LINE" && draftLineStart && cursorPos && (
-										<g>
-											<line
-												x1={draftLineStart.x * imgDimensions.width}
-												y1={draftLineStart.y * imgDimensions.height}
-												x2={cursorPos.x * imgDimensions.width}
-												y2={cursorPos.y * imgDimensions.height}
-												stroke="#06b6d4"
-												strokeWidth={3}
-												strokeDasharray="6 4"
-											/>
-											<circle
-												cx={draftLineStart.x * imgDimensions.width}
-												cy={draftLineStart.y * imgDimensions.height}
-												r={handleRadius}
-												fill="#06b6d4"
-												stroke="#ffffff"
-												strokeWidth={2}
-											/>
-											<text
-												x={draftLineStart.x * imgDimensions.width}
-												y={draftLineStart.y * imgDimensions.height - 10}
-												fill="#ffffff"
-												fontSize={11}
-												fontWeight={700}
-												textAnchor="middle"
-											>
-												A
-											</text>
-											<circle
-												cx={cursorPos.x * imgDimensions.width}
-												cy={cursorPos.y * imgDimensions.height}
-												r={handleRadius * 0.8}
-												fill="#f59e0b"
-												stroke="#ffffff"
-												strokeWidth={1.5}
-											/>
-										</g>
-									)}
 								</svg>
 							</div>
 						</div>
@@ -1145,47 +719,30 @@ export default function RoiEditorModal({
 					{/* Sidebar Section */}
 					<div className="roi-sidebar">
 						<div className="roi-sidebar-header">
-							<span>Danh sách hình học ROI</span>
+							<span>Vùng giám sát ROI</span>
 							{error && (
 								<span
 									style={{
-										color: "#f87171",
-										fontSize: "0.75rem",
-										display: "flex",
-										alignItems: "center",
-										gap: "4px",
+										color: "#ef4444",
+										fontSize: "0.8rem",
+										marginLeft: "auto",
 									}}
 								>
-									<AlertTriangle size={14} /> Có lỗi
+									{error}
 								</span>
 							)}
 						</div>
 
 						<div className="roi-sidebar-content">
-							{error && (
-								<div
-									style={{
-										padding: "0.65rem 0.85rem",
-										background: "rgba(239, 68, 68, 0.15)",
-										border: "1px solid rgba(239, 68, 68, 0.3)",
-										borderRadius: "8px",
-										color: "#fca5a5",
-										fontSize: "0.825rem",
-									}}
-								>
-									{error}
-								</div>
-							)}
-
-							{/* Group 1: Surveillance Polygons */}
+							{/* Polygons */}
 							<div className="roi-section-group">
 								<div className="roi-section-heading">
-									<span>1. Vùng giám sát an ninh ({polygons.length}/10)</span>
+									<span>Vùng đa giác giám sát ({polygons.length}/10)</span>
 								</div>
 								<div className="roi-polygon-list">
 									{polygons.length === 0 ? (
 										<div className="roi-empty-state">
-											Chưa có vùng giám sát an ninh.
+											Chưa cấu hình vùng giám sát nào.
 										</div>
 									) : (
 										polygons.map((poly, idx) => {
@@ -1204,17 +761,17 @@ export default function RoiEditorModal({
 														<span className="roi-poly-badge">{idx + 1}</span>
 														<div>
 															<div className="roi-poly-label">
-																{poly.label || `Vùng ${idx + 1}`}
+																{poly.label || `Vùng giám sát ${idx + 1}`}
 															</div>
-															<div className="roi-poly-sub">
-																{poly.vertices ? poly.vertices.length : 0} đỉnh
+															<div className="roi-poly-meta">
+																{poly.vertices?.length || 0} đỉnh đa giác
 															</div>
 														</div>
 													</div>
 
 													<button
 														className="roi-poly-delete-btn"
-														title="Xóa vùng"
+														title="Xóa vùng này"
 														onClick={(e) => {
 															e.stopPropagation();
 															handleDeletePolygon(idx);
@@ -1229,57 +786,7 @@ export default function RoiEditorModal({
 								</div>
 							</div>
 
-							{/* Group 2: Entry/Exit Lines */}
-							<div className="roi-section-group">
-								<div className="roi-section-heading">
-									<span>2. Đường ranh Ra/Vào ({entryLines.length}/5)</span>
-								</div>
-								<div className="roi-polygon-list">
-									{entryLines.length === 0 ? (
-										<div className="roi-empty-state">
-											Chưa có đường ranh ra/vào.
-										</div>
-									) : (
-										entryLines.map((line, idx) => {
-											const isSelected =
-												selectedItem?.type === "LINE" &&
-												selectedItem.index === idx;
-											const isInRight = line.direction === "AB_IS_IN";
-											return (
-												<div
-													key={line.id || idx}
-													className={`roi-polygon-item ${isSelected ? "active" : ""}`}
-													onClick={() =>
-														setSelectedItem({ type: "LINE", index: idx })
-													}
-												>
-													<div className="roi-polygon-item-left">
-														<span className="roi-line-badge">{idx + 1}</span>
-														<div>
-															<div className="roi-poly-label">
-																{line.label || `Đường ranh ${idx + 1}`}
-															</div>
-														</div>
-													</div>
-
-													<button
-														className="roi-poly-delete-btn"
-														title="Xóa đường ranh"
-														onClick={(e) => {
-															e.stopPropagation();
-															handleDeleteEntryLine(idx);
-														}}
-													>
-														<Trash2 size={16} />
-													</button>
-												</div>
-											);
-										})
-									)}
-								</div>
-							</div>
-
-							{/* Form 1: Edit Selected Polygon */}
+							{/* Form: Edit Selected Polygon */}
 							{selectedPoly && (
 								<div className="roi-edit-form">
 									<div className="roi-form-title">
@@ -1303,86 +810,6 @@ export default function RoiEditorModal({
 											placeholder="VD: Sảnh chính, Khu làm việc..."
 											onChange={(e) => handleUpdatePolygonLabel(e.target.value)}
 										/>
-									</div>
-
-									<div className="roi-info-banner">
-										<div className="roi-info-banner-title">
-											<ShieldAlert size={15} />
-											Tự động giám sát 3 sự cố an ninh:
-										</div>
-										<div>
-											Đa giác ROI giám sát sẽ tự động đối chiếu phân tích 3 sự
-											cố cho khu vực gán của camera:
-										</div>
-										<div className="roi-tag-list">
-											<span className="roi-tag roi-tag-alert">
-												1. Người lạ (UNKNOWN)
-											</span>
-											<span className="roi-tag roi-tag-alert">
-												2. Xâm nhập (UNAUTHORIZED)
-											</span>
-											<span className="roi-tag roi-tag-alert">
-												3. Ngoài giờ (AFTER_HOURS)
-											</span>
-										</div>
-									</div>
-								</div>
-							)}
-
-							{/* Form 2: Edit Selected Entry Line */}
-							{selectedLine && (
-								<div className="roi-edit-form">
-									<div className="roi-form-title">
-										<ArrowLeftRight
-											size={15}
-											color="#06b6d4"
-										/>
-										<span>
-											Chi tiết đường ranh:{" "}
-											{selectedLine.label || `Ranh ${selectedItem.index + 1}`}
-										</span>
-									</div>
-
-									<div className="roi-form-group">
-										<label className="roi-form-label">Tên đường ranh</label>
-										<input
-											type="text"
-											className="roi-form-input"
-											value={selectedLine.label || ""}
-											maxLength={100}
-											placeholder="VD: Cổng vào chính, Cửa tầng 1..."
-											onChange={(e) =>
-												handleUpdateLine("label", e.target.value)
-											}
-										/>
-									</div>
-
-									<div
-										className="roi-info-banner"
-										style={{
-											background: "rgba(6, 182, 212, 0.08)",
-											borderColor: "rgba(6, 182, 212, 0.25)",
-											marginTop: "0.5rem",
-										}}
-									>
-										<div
-											className="roi-info-banner-title"
-											style={{ color: "#22d3ee" }}
-										>
-											<ArrowLeftRight size={15} />
-											Đường ranh ghi nhận ra vào:
-										</div>
-										<div
-											style={{
-												fontSize: "0.825rem",
-												color: "#cbd5e1",
-												lineHeight: 1.45,
-											}}
-										>
-											Đoạn thẳng này được dùng để phát hiện và ghi nhận nhật ký
-											người đi qua lại cửa/lối vào (Access Log). Không cần phân
-											biệt chiều ra vào khi vẽ.
-										</div>
 									</div>
 								</div>
 							)}

@@ -12,7 +12,7 @@ import {
 } from "../../services/areaService";
 import { getActiveReasons } from "../../services/reasonCatalogService";
 import { formatDisplayDateTime, getScheduleStatusView } from "../../utils/areaHelpers";
-import "./EventScheduleSection.css";
+import "../../styles/EventScheduleSection.css";
 
 // Nhóm lý do riêng cho từng thao tác với lịch (Step 5b, BR-ES-L1/L2)
 const REASON_ACTION = {

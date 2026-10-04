@@ -37,37 +37,35 @@ export default function StaffingWizardModal({
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
 
-  // Lấy danh sách building từ prop buildings (object/string) và areas
+  // Lấy danh sách tên building từ prop buildings và areas
   const availableBuildings = useMemo(() => {
-    const map = new Map();
+    const bSet = new Set();
     (buildings || []).forEach((b) => {
-      if (typeof b === 'object' && b !== null) {
-        if (b.code) map.set(b.code, b.name ? `${b.name} (${b.code})` : b.code);
+      if (typeof b === 'object' && b !== null && b.name) {
+        bSet.add(b.name.trim());
       } else if (typeof b === 'string' && b.trim()) {
-        map.set(b.trim(), b.trim());
+        bSet.add(b.trim());
       }
     });
 
     (areas || []).forEach((a) => {
-      if (a.building && a.building.trim() && !map.has(a.building.trim())) {
-        map.set(a.building.trim(), a.building.trim());
+      if (a.building && a.building.trim()) {
+        bSet.add(a.building.trim());
       }
     });
 
-    if (map.size === 0) {
-      map.set('FPT_AROUND', 'Khuôn viên Ngoài trời & Sảnh (FPT_AROUND)');
-      map.set('TOA_ALPHA', 'Tòa Alpha - Giảng đường chính (TOA_ALPHA)');
-      map.set('TOA_BETA', 'Tòa Beta - Phòng Lab & Kỹ thuật (TOA_BETA)');
-      map.set('KHU_THE_THAO', 'Khu Thể Thao & Sân Bóng (KHU_THE_THAO)');
+    if (bSet.size === 0) {
+      bSet.add('Tòa Alpha');
+      bSet.add('Tòa Beta');
     }
 
-    return Array.from(map.entries()).map(([code, label]) => ({ code, label }));
+    return Array.from(bSet).sort();
   }, [areas, buildings]);
 
   useEffect(() => {
     if (!building && availableBuildings.length > 0) {
-      const defaultB = availableBuildings.find(b => b.code === 'FPT_AROUND') || availableBuildings[0];
-      setBuilding(defaultB.code);
+      const defaultB = availableBuildings.find(b => b === 'Tòa Alpha') || availableBuildings[0];
+      setBuilding(defaultB);
     }
   }, [availableBuildings, building]);
 
@@ -155,11 +153,11 @@ export default function StaffingWizardModal({
       if (activeTeam.description) {
         const desc = activeTeam.description;
         const matchingBuilding = (buildings || []).find(
-          (b) => b.code === desc || b.id === desc || b.name === desc
+          (b) => b.name === desc || b.id === desc
         );
         if (matchingBuilding) {
-          setBuilding(matchingBuilding.code || matchingBuilding.id);
-        } else if (['TOA_ALPHA', 'TOA_BETA', 'KHU_THE_THAO', 'FPT_AROUND'].includes(desc)) {
+          setBuilding(matchingBuilding.name);
+        } else if (availableBuildings.includes(desc)) {
           setBuilding(desc);
         }
       }
@@ -250,7 +248,7 @@ export default function StaffingWizardModal({
         weekendNightDemand: sundayNightDemand,
         selectedGuardIds: selectedMemberIds,
         memberGuardIds: selectedMemberIds,
-        building: building || 'FPT_AROUND'
+        building: building || 'Tòa Alpha'
       };
 
       const res = await guardScheduleApi.generateShiftsFromWizard(payload);
@@ -524,9 +522,9 @@ export default function StaffingWizardModal({
                   required
                   className="w-full px-3 py-2 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  {availableBuildings.map((b) => (
-                    <option key={b.code} value={b.code}>
-                      {b.label}
+                  {availableBuildings.map((bName) => (
+                    <option key={bName} value={bName}>
+                      {bName}
                     </option>
                   ))}
                 </select>

@@ -1,19 +1,13 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import {
 	Building2,
-	Map as MapIcon,
-	List as ListIcon,
 	Plus,
 	Pencil,
 	Trash2,
-	Check,
-	EyeOff,
 	AlertCircle,
 	X,
 	Loader2,
-	Undo2,
 	Layers,
 	Cctv,
 	VideoOff,
@@ -21,8 +15,6 @@ import {
 	Search,
 	AlertTriangle,
 	CheckCircle2,
-	ShieldCheck,
-	Users,
 	Compass,
 	Info,
 	ExternalLink,
@@ -31,7 +23,6 @@ import {
 } from "lucide-react";
 import AreaAccessRulesModal from "../../components/area/AreaAccessRulesModal";
 import AreaAssignedPersonnelModal from "../../components/area/AreaAssignedPersonnelModal";
-import AreaMapView from "../../components/area/AreaMapView";
 import AreaListView from "../../components/area/AreaListView";
 import AreaTypeChangePreviewModal from "../../components/area/AreaTypeChangePreviewModal";
 import PageHeader from "../../components/ui/PageHeader";
@@ -44,9 +35,6 @@ import {
 	updateArea,
 	deactivateArea,
 	restoreArea,
-	getFloorPlans,
-	saveAreaGeometry,
-	deleteAreaGeometry,
 	getAreaCameras,
 	updateAreaCameras,
 	getTypeChangePreview,
@@ -54,15 +42,11 @@ import {
 import { getBuildings } from "../../services/buildingService";
 import {
 	AREA_LEVEL_CONFIG,
-	getLevelPolygonClass,
 	getErrorMessage,
 	normalizeAreaName,
 	validateAreaName,
 } from "../../utils/areaHelpers";
 import "../../styles/AreaListPage.css";
-
-const EPS = 0.0005;
-const round6 = (n) => Math.round(n * 1e6) / 1e6;
 
 const validateCenterCoordinates = (latitude, longitude) => {
 	if (
@@ -86,26 +70,6 @@ const validateCenterCoordinates = (latitude, longitude) => {
 	}
 
 	return { centerLatitude, centerLongitude };
-};
-
-const GEOMETRY_ERROR_MESSAGES = {
-	ERR_AREA_002: "Không tìm thấy khu vực được yêu cầu.",
-	ERR_AREA_003: "Cấp độ an ninh không hợp lệ hoặc đã ngừng sử dụng.",
-	ERR_AREA_004:
-		"Mã khu vực chỉ gồm chữ in hoa, số và dấu gạch ngang, dài 3–50 ký tự.",
-	ERR_AREA_005: "Tên khu vực bắt buộc, tối đa 150 ký tự.",
-	ERR_AREA_006: "Toạ độ bản đồ phải có đủ cả X và Y.",
-	ERR_AREA_007: "Không được thay đổi mã khu vực sau khi tạo.",
-	ERR_AREA_008: "Lý do giải trình không được để trống khi hạ cấp an ninh.",
-	ERR_AREA_009: "Không thể vô hiệu hóa: còn camera đang gán. Gỡ camera khỏi khu vực trước.",
-	ERR_AREA_011: "Hình đa giác phải có ít nhất 3 đỉnh.",
-	ERR_AREA_012: "Toạ độ các đỉnh phải nằm trong khoảng chuẩn hoá [0.0, 1.0].",
-	ERR_AREA_013: "Hình bị chồng lấn với khu vực khác trên cùng tầng.",
-	ERR_AREA_014:
-		"Không thể thay đổi toà nhà hoặc tầng khi khu vực đang có toạ độ đa giác.",
-	ERR_AREA_015: "Khu vực này chưa có thông tin toà nhà và tầng.",
-	ERR_AREA_016: "Hình phải có ít nhất 3 đỉnh phân biệt (không trùng nhau).",
-	ERR_AREA_017: "Khu vực đã ngừng hoạt động hoặc đã bị xoá.",
 };
 
 const AREA_LEVEL_CARDS = [
@@ -136,40 +100,17 @@ export default function AreaListPage() {
 	const isAdmin = user?.role === "ADMIN";
 	const isFacilityManager = user?.role === "FACILITY_MANAGER";
 
-	const [searchParams, setSearchParams] = useSearchParams();
-	const navigate = useNavigate();
-	const rawView = searchParams.get("view");
-	const viewMode = rawView === "map" ? "map" : "list";
-
-	const handleToggleView = (mode) => {
-		setSearchParams((prev) => {
-			const next = new URLSearchParams(prev);
-			next.set("view", mode);
-			return next;
-		});
-	};
-
 	// Data states
 	const [areas, setAreas] = useState([]);
-	const [floorPlans, setFloorPlans] = useState([]);
 	const [buildingsList, setBuildingsList] = useState([]);
 	const [loading, setLoading] = useState(true);
 	const [pageError, setPageError] = useState(null);
-	const [imageError, setImageError] = useState(false);
 
 	// Filters
 	const [selectedBuilding, setSelectedBuilding] = useState("");
-	const [selectedFloor, setSelectedFloor] = useState("");
+	const [selectedFloor, setSelectedFloor] = useState("ALL");
 	const [selectedAreaId, setSelectedAreaId] = useState(null);
 	const [cameraCounts, setCameraCounts] = useState({});
-
-	// Drawing states
-	const [drawingAreaId, setDrawingAreaId] = useState(null);
-	const [draftVertices, setDraftVertices] = useState([]);
-	const [drawError, setDrawError] = useState(null);
-	const [savingGeometry, setSavingGeometry] = useState(false);
-	const [confirmDeleteId, setConfirmDeleteId] = useState(null);
-	const [deletingGeometryId, setDeletingGeometryId] = useState(null);
 
 	// Level Presets (ADMIN / FM)
 	const [levelPresets, setLevelPresets] = useState(null);
@@ -293,8 +234,8 @@ export default function AreaListPage() {
 	const [formData, setFormData] = useState({
 		name: "",
 		areaLevel: "PUBLIC",
-		building: "FPT_AROUND",
-		floor: "G",
+		building: "Tòa Alpha",
+		floor: "Tầng Trệt",
 		floorId: null,
 		centerLatitude: "",
 		centerLongitude: "",
@@ -307,21 +248,14 @@ export default function AreaListPage() {
 	const fetchData = useCallback(async (keepSelectedId = null) => {
 		setLoading(true);
 		setPageError(null);
-		setImageError(false);
 		try {
-			const [areasRes, plansRes, buildingsRes] = await Promise.all([
+			const [areasRes, buildingsRes] = await Promise.all([
 				getAreas({ size: 100, isActive: true }),
-				getFloorPlans().catch(() => []),
 				getBuildings().catch(() => []),
 			]);
 
 			const areaList = areasRes?.content || areasRes || [];
 			setAreas(Array.isArray(areaList) ? areaList : []);
-
-			const activePlans = (plansRes || []).filter(
-				(fp) => fp.isActive !== false,
-			);
-			setFloorPlans(activePlans);
 			setBuildingsList(Array.isArray(buildingsRes) ? buildingsRes : []);
 
 			if (keepSelectedId) {
@@ -379,40 +313,37 @@ export default function AreaListPage() {
 	const availableBuildings = useMemo(() => {
 		if (buildingsList.length > 0) {
 			return buildingsList.map((b) => ({
-				code: b.code,
+				id: b.id,
 				name: b.name,
 				floors: b.floors || [],
 			}));
 		}
 		const bSet = new Set();
-		floorPlans.forEach((fp) => {
-			if (fp.building) bSet.add(fp.building);
-		});
 		areas.forEach((a) => {
 			if (a.building) bSet.add(a.building);
 		});
 		const list = Array.from(bSet).sort();
-		return (list.length > 0 ? list : ["FPT_AROUND"]).map((code) => ({
-			code,
-			name: code,
+		return (list.length > 0 ? list : ["Tòa Alpha", "Tòa Beta"]).map((name) => ({
+			id: null,
+			name,
 			floors: [],
 		}));
-	}, [buildingsList, floorPlans, areas]);
+	}, [buildingsList, areas]);
 
 	// Default building initialization
 	useEffect(() => {
 		if (!selectedBuilding && availableBuildings.length > 0) {
 			const defaultB =
-				availableBuildings.find((b) => b.code === "FPT_AROUND") ||
+				availableBuildings.find((b) => b.name === "Tòa Alpha") ||
 				availableBuildings[0];
-			setSelectedBuilding(defaultB.code);
+			setSelectedBuilding(defaultB.name);
 		}
 	}, [availableBuildings, selectedBuilding]);
 
 	// Derived available floors for current building
 	const availableFloors = useMemo(() => {
 		const currentBuildingObj = availableBuildings.find(
-			(b) => b.code === selectedBuilding,
+			(b) => (b.name || "").toUpperCase() === (selectedBuilding || "").toUpperCase(),
 		);
 		if (
 			currentBuildingObj &&
@@ -420,72 +351,80 @@ export default function AreaListPage() {
 			currentBuildingObj.floors.length > 0
 		) {
 			return currentBuildingObj.floors.map((f) => ({
-				code: f.floorCode,
-				name: f.name || `Tầng ${f.floorCode}`,
+				name: f.name,
 				floorId: f.id,
 			}));
 		}
+
 		const fSet = new Set();
-		floorPlans
-			.filter((fp) => fp.building === selectedBuilding)
-			.forEach((fp) => {
-				if (fp.floor) fSet.add(fp.floor);
-			});
 		areas
-			.filter((a) => a.building === selectedBuilding)
+			.filter(
+				(a) =>
+					(a.building || "").toUpperCase() ===
+					(selectedBuilding || "").toUpperCase(),
+			)
 			.forEach((a) => {
 				if (a.floor) fSet.add(a.floor);
 			});
 
+		if (fSet.size === 0) {
+			return [
+				{ name: "Tầng Trệt", floorId: null },
+				{ name: "Tầng 1", floorId: null },
+			];
+		}
+
 		return Array.from(fSet)
 			.sort((a, b) => {
-				const isNumA = /^\d+$/.test(a);
-				const isNumB = /^\d+$/.test(b);
-				if (!isNumA && isNumB) return -1;
-				if (isNumA && !isNumB) return 1;
-				if (!isNumA && !isNumB) return a.localeCompare(b);
-				return parseInt(a, 10) - parseInt(b, 10);
+				if (a.toLowerCase().includes("trệt")) return -1;
+				if (b.toLowerCase().includes("trệt")) return 1;
+				return a.localeCompare(b);
 			})
 			.map((fl) => ({
-				code: fl,
-				name: `Tầng ${fl}`,
+				name: fl,
 				floorId: null,
 			}));
-	}, [availableBuildings, floorPlans, areas, selectedBuilding]);
+	}, [availableBuildings, areas, selectedBuilding]);
 
 	// Default floor initialization
 	useEffect(() => {
 		if (
 			availableFloors.length > 0 &&
-			!availableFloors.some((f) => f.code === selectedFloor)
+			selectedFloor !== "ALL" &&
+			!availableFloors.some((f) => f.name === selectedFloor)
 		) {
-			setSelectedFloor(availableFloors[0].code);
+			setSelectedFloor("ALL");
 		}
 	}, [availableFloors, selectedFloor]);
 
 	// Modal floors for current form building
 	const modalFloors = useMemo(() => {
-		const bObj = availableBuildings.find((b) => b.code === formData.building);
+		const bObj = availableBuildings.find(
+			(b) => (b.name || "").toUpperCase() === (formData.building || "").toUpperCase(),
+		);
 		if (bObj && bObj.floors && bObj.floors.length > 0) {
 			return bObj.floors;
 		}
-		return [{ floorCode: "G", name: "Tầng Trệt" }];
+		return [
+			{ id: null, name: "Tầng Trệt" },
+			{ id: null, name: "Tầng 1" },
+		];
 	}, [availableBuildings, formData.building]);
-
-	// Current floor plan matching building & floor
-	const selectedPlan = useMemo(() => {
-		return (
-			floorPlans.find(
-				(fp) => fp.building === selectedBuilding && fp.floor === selectedFloor,
-			) || null
-		);
-	}, [floorPlans, selectedBuilding, selectedFloor]);
 
 	// Filtered areas on current building and floor (for list view)
 	const floorAreas = useMemo(() => {
-		return areas.filter(
-			(a) => a.building === selectedBuilding && a.floor === selectedFloor,
-		);
+		return areas.filter((a) => {
+			const matchBuilding =
+				!selectedBuilding ||
+				(a.building || "").toUpperCase() ===
+					(selectedBuilding || "").toUpperCase();
+			const matchFloor =
+				!selectedFloor ||
+				selectedFloor === "ALL" ||
+				(a.floor || "").toUpperCase() ===
+					(selectedFloor || "").toUpperCase();
+			return matchBuilding && matchFloor;
+		});
 	}, [areas, selectedBuilding, selectedFloor]);
 
 	// Selected area object
@@ -530,25 +469,19 @@ export default function AreaListPage() {
 	// Handle switching building or floor
 	const handleSelectBuilding = (b) => {
 		setSelectedBuilding(b);
+		setSelectedFloor("ALL");
 		setSelectedAreaId(null);
-		if (drawingAreaId !== null) cancelDrawing();
-		setConfirmDeleteId(null);
-		setImageError(false);
 	};
 
 	const handleSelectFloor = (fl) => {
 		setSelectedFloor(fl);
 		setSelectedAreaId(null);
-		if (drawingAreaId !== null) cancelDrawing();
-		setConfirmDeleteId(null);
-		setImageError(false);
 	};
 
-	// Bidirectional selection
-	const handleSelectArea = (areaId, fromMap = false) => {
+	// Area selection
+	const handleSelectArea = (areaId) => {
 		setSelectedAreaId(areaId);
-		setConfirmDeleteId(null);
-		if (fromMap && rowRefs.current[areaId]) {
+		if (rowRefs.current[areaId]) {
 			rowRefs.current[areaId].scrollIntoView({
 				behavior: "smooth",
 				block: "nearest",
@@ -556,131 +489,18 @@ export default function AreaListPage() {
 		}
 	};
 
-	// Polygon drawing logic
-	const startDrawing = (areaId) => {
-		setDrawingAreaId(areaId);
-		setDraftVertices([]);
-		setDrawError(null);
-		setConfirmDeleteId(null);
-	};
-
-	const cancelDrawing = () => {
-		setDrawingAreaId(null);
-		setDraftVertices([]);
-		setDrawError(null);
-	};
-
-	const handleUndoVertex = () => {
-		setDraftVertices((prev) => prev.slice(0, -1));
-	};
-
-	const finishDrawing = async () => {
-		if (savingGeometry || drawingAreaId === null || draftVertices.length < 3)
-			return;
-		setSavingGeometry(true);
-		setDrawError(null);
-		try {
-			const drawingArea = areas.find((a) => a.id === drawingAreaId);
-			await saveAreaGeometry(drawingAreaId, draftVertices, drawingArea?.version);
-			const targetId = drawingAreaId;
-			cancelDrawing();
-			await fetchData(targetId);
-		} catch (err) {
-			const msg =
-				GEOMETRY_ERROR_MESSAGES[err.code] ||
-				err.message ||
-				"Không lưu được hình. Vui lòng thử lại.";
-			setDrawError(msg);
-		} finally {
-			setSavingGeometry(false);
-		}
-	};
-
-	const handleDeleteGeometry = async (areaId) => {
-		if (deletingGeometryId !== null) return;
-		setDeletingGeometryId(areaId);
-		try {
-			const targetArea = areas.find((a) => a.id === areaId);
-			await deleteAreaGeometry(areaId, targetArea?.version);
-			setConfirmDeleteId(null);
-			await fetchData(areaId);
-		} catch (err) {
-			console.error("Failed to delete area geometry:", err);
-			setPageError("Không xoá được hình đa giác. Vui lòng thử lại.");
-		} finally {
-			setDeletingGeometryId(null);
-		}
-	};
-
-	const handleSvgClick = (event) => {
-		if (savingGeometry || drawingAreaId === null || !selectedPlan) return;
-		const svg = event.currentTarget;
-		const ctm = svg.getScreenCTM();
-		if (!ctm) return;
-		const pt = svg.createSVGPoint();
-		pt.x = event.clientX;
-		pt.y = event.clientY;
-		const local = pt.matrixTransform(ctm.inverse());
-		const nx = local.x / selectedPlan.originalWidth;
-		const ny = local.y / selectedPlan.originalHeight;
-		if (nx < 0 || nx > 1 || ny < 0 || ny > 1) return;
-		const roundedX = round6(nx);
-		const roundedY = round6(ny);
-		const isDuplicate = draftVertices.some(
-			(v) => Math.abs(v.x - roundedX) < EPS && Math.abs(v.y - roundedY) < EPS,
-		);
-		if (isDuplicate) return;
-		setDraftVertices((prev) => [...prev, { x: roundedX, y: roundedY }]);
-	};
-
-	// Polygons for current floor plan
-	const mapPolygons = useMemo(() => {
-		if (!selectedPlan) return [];
-		return areas.filter(
-			(a) =>
-				a.building === selectedBuilding &&
-				a.floor === selectedFloor &&
-				a.geometry &&
-				Array.isArray(a.geometry.vertices) &&
-				a.geometry.vertices.length >= 3,
-		);
-	}, [areas, selectedBuilding, selectedFloor, selectedPlan]);
-
-	// Sorted list for Card 1 (areas in current floor first, then others dimmed)
-	const sortedAreasForRail = useMemo(() => {
-		return [...areas].sort((a, b) => {
-			const aInScope =
-				a.building === selectedBuilding && a.floor === selectedFloor;
-			const bInScope =
-				b.building === selectedBuilding && b.floor === selectedFloor;
-			if (aInScope && !bInScope) return -1;
-			if (!aInScope && bInScope) return 1;
-			return (a.name || "").localeCompare(b.name || "");
-		});
-	}, [areas, selectedBuilding, selectedFloor]);
-
-	const totalAreasCount = areas.length;
-	const noGeometryCount = useMemo(() => {
-		return areas.filter(
-			(a) =>
-				!a.hasGeometry &&
-				!(
-					a.geometry &&
-					Array.isArray(a.geometry.vertices) &&
-					a.geometry.vertices.length >= 3
-				),
-		).length;
-	}, [areas]);
-
 	// Modal Handlers
 	const handleOpenCreateModal = () => {
 		const currentB =
-			selectedBuilding || availableBuildings[0]?.code || "FPT_AROUND";
-		const bObj = availableBuildings.find((b) => b.code === currentB);
+			selectedBuilding || availableBuildings[0]?.name || "Tòa Alpha";
+		const bObj = availableBuildings.find((b) => b.name === currentB);
 		const floorsForB = bObj?.floors || [];
-		const currentF = selectedFloor || floorsForB[0]?.floorCode || "G";
+		const currentF =
+			selectedFloor && selectedFloor !== "ALL"
+				? selectedFloor
+				: floorsForB[0]?.name || "Tầng Trệt";
 		const currentFloorId =
-			floorsForB.find((f) => f.floorCode === currentF)?.id || null;
+			floorsForB.find((f) => f.name === currentF)?.id || null;
 
 		setFormData({
 			name: "",
@@ -740,10 +560,10 @@ export default function AreaListPage() {
 		const areaToEdit = targetArea || selectedArea;
 		if (!areaToEdit) return;
 		setSelectedAreaId(areaToEdit.id);
-		const bCode = areaToEdit.building || "FPT_AROUND";
-		const bObj = availableBuildings.find((b) => b.code === bCode);
-		const flCode = areaToEdit.floor || "G";
-		const flObj = bObj?.floors?.find((f) => f.floorCode === flCode);
+		const bName = areaToEdit.building || "Tòa Alpha";
+		const bObj = availableBuildings.find((b) => b.name === bName);
+		const flName = areaToEdit.floor || "Tầng Trệt";
+		const flObj = bObj?.floors?.find((f) => f.name === flName);
 
 		setFormData({
 			id: areaToEdit.id,
@@ -755,8 +575,8 @@ export default function AreaListPage() {
 					? areaToEdit.level?.code
 					: areaToEdit.level) ||
 				"PUBLIC",
-			building: bCode,
-			floor: flCode,
+			building: bName,
+			floor: flName,
 			floorId:
 				areaToEdit.floorEntity?.id || areaToEdit.floorId || flObj?.id || null,
 			centerLatitude: areaToEdit.centerLatitude ?? "",
@@ -986,18 +806,6 @@ export default function AreaListPage() {
 		}
 	};
 
-	const isSelectedAreaInCurrentScope =
-		selectedArea &&
-		selectedArea.building === selectedBuilding &&
-		selectedArea.floor === selectedFloor;
-
-	const selectedAreaHasGeometry =
-		selectedArea &&
-		(selectedArea.hasGeometry ||
-			(selectedArea.geometry &&
-				Array.isArray(selectedArea.geometry.vertices) &&
-				selectedArea.geometry.vertices.length >= 3));
-
 	return (
 		<div className="zone-page">
 			{/* Inline Page Error Banner */}
@@ -1049,8 +857,8 @@ export default function AreaListPage() {
 					>
 						{availableBuildings.map((b) => (
 							<option
-								key={b.code}
-								value={b.code}
+								key={b.id || b.name}
+								value={b.name}
 							>
 								{b.name}
 							</option>
@@ -1058,47 +866,34 @@ export default function AreaListPage() {
 					</select>
 				</div>
 
-				{/* Floor Tabs */}
-				<div className="zone-toolbar__tabs">
-					{availableFloors.map((fl) => {
-						const isActive = selectedFloor === fl.code;
-						return (
-							<button
-								key={fl.code}
-								type="button"
-								className={`zone-toolbar__tab ${isActive ? "zone-toolbar__tab--active" : ""}`}
-								onClick={() => handleSelectFloor(fl.code)}
+				{/* Floor Selector (Options) */}
+				<div className="zone-toolbar__building">
+					<Layers
+						size={16}
+						className="zone-toolbar__building-icon"
+					/>
+					<select
+						className="zone-toolbar__building-select"
+						value={selectedFloor}
+						onChange={(e) => handleSelectFloor(e.target.value)}
+						title="Chọn tầng"
+					>
+						<option value="ALL">Tất cả tầng</option>
+						{availableFloors.map((fl) => (
+							<option
+								key={fl.floorId || fl.name}
+								value={fl.name}
 							>
 								{fl.name}
-							</button>
-						);
-					})}
+							</option>
+						))}
+					</select>
 				</div>
 
 				<div className="zone-toolbar__spacer" />
 
-				{/* View Toggle + Add Area Button Group */}
+				{/* Add Area Button Group */}
 				<div className="zone-toolbar__actions">
-					<div className="zone-view-toggle">
-						<button
-							type="button"
-							className={`zone-view-toggle__btn ${viewMode === "list" ? "zone-view-toggle__btn--active" : ""}`}
-							onClick={() => handleToggleView("list")}
-							title="Danh sách phân khu an ninh"
-						>
-							<ListIcon size={15} />
-							<span>Danh sách</span>
-						</button>
-						<button
-							type="button"
-							className={`zone-view-toggle__btn ${viewMode === "map" ? "zone-view-toggle__btn--active" : ""}`}
-							onClick={() => handleToggleView("map")}
-							title="Sơ đồ mặt bằng chi tiết các tầng"
-						>
-							<MapIcon size={15} />
-							<span>Sơ đồ tầng</span>
-						</button>
-					</div>
 
 					{isAdmin && (
 						<div className="zone-view-toggle" role="group" aria-label="Lọc trạng thái khu vực">
@@ -1217,51 +1012,7 @@ export default function AreaListPage() {
 				</section>
 			)}
 
-			{!loading && !showDeactivated && viewMode === "map" && (
-				<AreaMapView
-					areas={areas}
-					selectedBuilding={selectedBuilding}
-					selectedFloor={selectedFloor}
-					selectedPlan={selectedPlan}
-					imageError={imageError}
-					setImageError={setImageError}
-					drawingAreaId={drawingAreaId}
-					draftVertices={draftVertices}
-					savingGeometry={savingGeometry}
-					drawError={drawError}
-					setDrawError={setDrawError}
-					mapPolygons={mapPolygons}
-					selectedAreaId={selectedAreaId}
-					selectedArea={selectedArea}
-					cameraCounts={cameraCounts}
-					sortedAreasForRail={sortedAreasForRail}
-					totalAreasCount={totalAreasCount}
-					noGeometryCount={noGeometryCount}
-					confirmDeleteId={confirmDeleteId}
-					deletingGeometryId={deletingGeometryId}
-					isFacilityManager={isFacilityManager}
-					isAdmin={isAdmin}
-					isSelectedAreaInCurrentScope={isSelectedAreaInCurrentScope}
-					selectedAreaHasGeometry={selectedAreaHasGeometry}
-					rowRefs={rowRefs}
-					onSelectArea={handleSelectArea}
-					onUndoVertex={handleUndoVertex}
-					onFinishDrawing={finishDrawing}
-					onCancelDrawing={cancelDrawing}
-					onSvgClick={handleSvgClick}
-					onToggleView={handleToggleView}
-					onStartDrawing={startDrawing}
-					onDeleteGeometry={handleDeleteGeometry}
-					setConfirmDeleteId={setConfirmDeleteId}
-					onOpenAssignedPersonnelModal={handleOpenAssignedPersonnelModal}
-					onOpenAccessRulesModal={handleOpenAccessRulesModal}
-					onOpenEditModal={handleOpenEditModal}
-					getLevelPolygonClass={getLevelPolygonClass}
-					levelPresets={levelPresets}
-				/>
-			)}
-
-			{!loading && !showDeactivated && viewMode === "list" && (
+			{!loading && !showDeactivated && (
 				<AreaListView
 					floorAreas={floorAreas}
 					selectedFloor={selectedFloor}
@@ -1416,23 +1167,23 @@ export default function AreaListPage() {
 											onChange={(e) => {
 												const newB = e.target.value;
 												const bObj = availableBuildings.find(
-													(b) => b.code === newB,
+													(b) => b.name === newB,
 												);
 												const firstFloor = bObj?.floors?.[0];
 												setFormData({
 													...formData,
 													building: newB,
-													floor: firstFloor ? firstFloor.floorCode : "G",
+													floor: firstFloor ? firstFloor.name : "Tầng Trệt",
 													floorId: firstFloor ? firstFloor.id : null,
 												});
 											}}
 										>
 											{availableBuildings.map((b) => (
 												<option
-													key={b.code}
-													value={b.code}
+													key={b.id || b.name}
+													value={b.name}
 												>
-													{b.name} ({b.code})
+													{b.name}
 												</option>
 											))}
 										</select>
@@ -1452,7 +1203,7 @@ export default function AreaListPage() {
 											onChange={(e) => {
 												const newF = e.target.value;
 												const flObj = modalFloors.find(
-													(f) => f.floorCode === newF,
+													(f) => f.name === newF,
 												);
 												setFormData({
 													...formData,
@@ -1463,8 +1214,8 @@ export default function AreaListPage() {
 										>
 											{modalFloors.map((fl) => (
 												<option
-													key={fl.floorCode}
-													value={fl.floorCode}
+													key={fl.id || fl.name}
+													value={fl.name}
 												>
 													{fl.name}
 												</option>
@@ -1686,23 +1437,23 @@ export default function AreaListPage() {
 											onChange={(e) => {
 												const newB = e.target.value;
 												const bObj = availableBuildings.find(
-													(b) => b.code === newB,
+													(b) => b.name === newB,
 												);
 												const firstFloor = bObj?.floors?.[0];
 												setFormData({
 													...formData,
 													building: newB,
-													floor: firstFloor ? firstFloor.floorCode : "G",
+													floor: firstFloor ? firstFloor.name : "Tầng Trệt",
 													floorId: firstFloor ? firstFloor.id : null,
 												});
 											}}
 										>
 											{availableBuildings.map((b) => (
 												<option
-													key={b.code}
-													value={b.code}
+													key={b.id || b.name}
+													value={b.name}
 												>
-													{b.name} ({b.code})
+													{b.name}
 												</option>
 											))}
 										</select>
@@ -1722,7 +1473,7 @@ export default function AreaListPage() {
 											onChange={(e) => {
 												const newF = e.target.value;
 												const flObj = modalFloors.find(
-													(f) => f.floorCode === newF,
+													(f) => f.name === newF,
 												);
 												setFormData({
 													...formData,
@@ -1733,8 +1484,8 @@ export default function AreaListPage() {
 										>
 											{modalFloors.map((fl) => (
 												<option
-													key={fl.floorCode}
-													value={fl.floorCode}
+													key={fl.id || fl.name}
+													value={fl.name}
 												>
 													{fl.name}
 												</option>

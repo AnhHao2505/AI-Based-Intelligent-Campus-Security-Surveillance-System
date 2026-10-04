@@ -20,7 +20,6 @@ import com.fa26se040.icss.exception.CameraException;
 import com.fa26se040.icss.exception.UnauthorizedException;
 import com.fa26se040.icss.dto.area.AreaAccessRulesUpdateRequest;
 import com.fa26se040.icss.dto.area.AreaEventModeUpdateRequest;
-import com.fa26se040.icss.dto.accesscontrol.snapshot.AreaAccessRulesAuditSnapshot;
 import com.fa26se040.icss.dto.accesscontrol.snapshot.AreaCamerasSnapshot;
 import com.fa26se040.icss.dto.accesscontrol.snapshot.AreaGeometrySnapshot;
 import com.fa26se040.icss.dto.accesscontrol.snapshot.AreaSnapshot;
@@ -549,7 +548,7 @@ public class AreaService {
         if (req.getFloorId() != null) {
             targetFloor = floorRepository.findById(req.getFloorId()).orElse(null);
         } else if (req.getBuilding() != null && !req.getBuilding().trim().isEmpty() && req.getFloor() != null && !req.getFloor().trim().isEmpty()) {
-            targetFloor = floorRepository.findByBuildingCodeIgnoreCaseAndFloorCodeIgnoreCase(
+            targetFloor = floorRepository.findByBuildingNameIgnoreCaseAndNameIgnoreCase(
                     req.getBuilding().trim(), req.getFloor().trim()).orElse(null);
         }
 
@@ -562,10 +561,10 @@ public class AreaService {
         }
 
         String buildingVal = targetFloor.getBuilding() != null
-                ? targetFloor.getBuilding().getCode()
+                ? targetFloor.getBuilding().getName()
                 : (req.getBuilding() != null ? req.getBuilding().trim() : null);
 
-        String floorVal = targetFloor.getFloorCode();
+        String floorVal = targetFloor.getName();
 
         Area area = Area.builder()
                 .name(name)
@@ -667,7 +666,7 @@ public class AreaService {
         if (req.getFloorId() != null) {
             targetFloor = floorRepository.findById(req.getFloorId()).orElse(null);
         } else if (req.getBuilding() != null && !req.getBuilding().trim().isEmpty() && req.getFloor() != null && !req.getFloor().trim().isEmpty()) {
-            targetFloor = floorRepository.findByBuildingCodeIgnoreCaseAndFloorCodeIgnoreCase(
+            targetFloor = floorRepository.findByBuildingNameIgnoreCaseAndNameIgnoreCase(
                     req.getBuilding().trim(), req.getFloor().trim()).orElse(null);
         }
 
@@ -680,10 +679,10 @@ public class AreaService {
         }
 
         String buildingVal = targetFloor.getBuilding() != null
-                ? targetFloor.getBuilding().getCode()
+                ? targetFloor.getBuilding().getName()
                 : (req.getBuilding() != null ? req.getBuilding().trim() : area.getBuilding());
 
-        String floorVal = targetFloor.getFloorCode();
+        String floorVal = targetFloor.getName();
 
         area.setName(name);
         area.setAreaLevel(req.getAreaLevel());

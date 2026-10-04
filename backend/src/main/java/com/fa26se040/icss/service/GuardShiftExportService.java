@@ -17,7 +17,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
-import org.apache.poi.xssf.usermodel.XSSFCellStyle;
 import org.apache.poi.xssf.usermodel.XSSFColor;
 import org.apache.poi.xssf.usermodel.XSSFFont;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -561,7 +560,6 @@ public class GuardShiftExportService {
         byte[] navyBlue = new byte[]{(byte) 30, (byte) 58, (byte) 138};
         byte[] slateBlue = new byte[]{(byte) 51, (byte) 65, (byte) 85};
         byte[] lightYellow = new byte[]{(byte) 254, (byte) 243, (byte) 199};
-        byte[] grayBorder = new byte[]{(byte) 203, (byte) 213, (byte) 225};
 
         // Title Style
         XSSFFont titleFont = workbook.createFont();

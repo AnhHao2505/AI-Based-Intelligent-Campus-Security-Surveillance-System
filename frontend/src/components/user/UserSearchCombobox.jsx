@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, Loader2, X } from 'lucide-react';
 import { searchUsers } from '../../services/userService';
 import { ROLE_LABELS } from '../../constants/roles';
-import './UserSearchCombobox.css';
+import '../../styles/UserSearchCombobox.css';
 import { getAccessLevelConfig } from '../../utils/areaHelpers';
 
 export default function UserSearchCombobox({

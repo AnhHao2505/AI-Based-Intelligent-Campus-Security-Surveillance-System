@@ -3,7 +3,7 @@ import { AlertTriangle, ArrowRight, Ban, CheckCircle2 } from "lucide-react";
 import Modal from "../ui/Modal";
 import Button from "../ui/Button";
 import { AREA_LEVEL_CONFIG, formatDisplayDateTime } from "../../utils/areaHelpers";
-import "./AreaTypeChangePreviewModal.css";
+import "../../styles/AreaTypeChangePreviewModal.css";
 
 const levelName = (level) => AREA_LEVEL_CONFIG[level]?.name || level || "—";
 const accessText = (level, explicit) =>
