@@ -138,10 +138,10 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
     void setUp() {
         suffix = UUID.randomUUID().toString().substring(0, 8);
 
-        testBuilding = buildingRepository.findByCodeIgnoreCase("TOA_BETA")
-                .orElseGet(() -> buildingRepository.save(Building.builder().code("TOA_BETA").name("Tòa Beta").build()));
-        testFloor = floorRepository.findByBuildingCodeIgnoreCaseAndFloorCodeIgnoreCase("TOA_BETA", "1")
-                .orElseGet(() -> floorRepository.save(Floor.builder().building(testBuilding).floorCode("1").name("Tầng 1").floorOrder(1).build()));
+        testBuilding = buildingRepository.findByNameIgnoreCase("Tòa Beta")
+                .orElseGet(() -> buildingRepository.save(Building.builder().name("Tòa Beta").build()));
+        testFloor = floorRepository.findByBuildingNameIgnoreCaseAndNameIgnoreCase("Tòa Beta", "Tầng 1")
+                .orElseGet(() -> floorRepository.save(Floor.builder().building(testBuilding).name("Tầng 1").floorOrder(1).build()));
 
         normalUserL1 = userRepository.save(User.builder()
                 .userCode("SV1-" + suffix)
@@ -755,7 +755,7 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
         SecurityIncident incident = securityIncidentRepository.save(SecurityIncident.builder()
                 .cameraCode("CAM-INC-" + suffix)
                 .area(internalArea)
-                .building(testBuilding.getCode())
+                .building(testBuilding.getName())
                 .eventType("INTRUSION")
                 .detectedAt(OffsetDateTime.now().minusMinutes(10))
                 .status(IncidentStatus.NEW)
