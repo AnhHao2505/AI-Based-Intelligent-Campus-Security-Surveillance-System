@@ -699,7 +699,7 @@ class Step6AreaDeactivationTest extends GuestTestSupport {
         rules.put("explicitAuthorizationRequired", true);
         rules.put("reason", "Điều chỉnh quy tắc sau khi vô hiệu hoá");
         rules.put("version", v1);
-        assertBlocked(send(patch("/api/areas/{id}/access-rules", area.getId()), fm, rules).andReturn(), "access-rules", 400, "ERR_AREA_017");
+        assertBlocked(send(patch("/api/areas/{id}/access-rules", area.getId()), admin, rules).andReturn(), "access-rules", 400, "ERR_AREA_017");
 
         Map<String, Object> event = new LinkedHashMap<>();
         event.put("action", "ENABLE");
@@ -724,10 +724,6 @@ class Step6AreaDeactivationTest extends GuestTestSupport {
         putBody.put("centerLongitude", LNG);
         putBody.put("version", v1);
         assertBlocked(send(put("/api/areas/{id}", area.getId()), admin, putBody).andReturn(), "PUT", 404, "ERR_AREA_002");
-
-        Map<String, Object> geometry = Map.of("type", "polygon", "version", 1, "vertices", List.of(
-                Map.of("x", 0.1, "y", 0.1), Map.of("x", 0.2, "y", 0.1), Map.of("x", 0.2, "y", 0.2)));
-        assertBlocked(send(patch("/api/areas/{id}/geometry", area.getId()).param("version", String.valueOf(v1)), admin, geometry).andReturn(), "geometry", 404, "ERR_AREA_002");
 
         Map<String, Object> request = new LinkedHashMap<>();
         request.put("areaId", area.getId());

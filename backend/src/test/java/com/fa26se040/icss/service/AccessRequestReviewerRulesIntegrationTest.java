@@ -79,8 +79,8 @@ class AccessRequestReviewerRulesIntegrationTest extends AbstractIntegrationTest 
 
         contactArea = areaRepository.save(Area.builder()
                 .name("RQ rules contact " + suffix)
-                .building("TOA_RQ_RULES")
-                .floor("1")
+                .building(building.getName())
+                .floor(floor.getName())
                 .floorEntity(floor)
                 .areaLevel(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
                 .areaAccessLevel(2)

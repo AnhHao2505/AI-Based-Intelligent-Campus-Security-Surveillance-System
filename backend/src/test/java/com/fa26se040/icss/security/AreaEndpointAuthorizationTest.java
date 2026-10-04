@@ -156,6 +156,7 @@ public class AreaEndpointAuthorizationTest extends AbstractIntegrationTest {
                 .content("""
                         {
                             "areaAccessLevel": 2,
+                            "explicitAuthorizationRequired": false,
                             "reason": "Điều chỉnh quy tắc truy cập hợp lệ",
                             "version": 0
                         }

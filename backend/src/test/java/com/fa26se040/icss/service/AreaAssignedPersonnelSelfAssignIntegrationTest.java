@@ -70,8 +70,8 @@ class AreaAssignedPersonnelSelfAssignIntegrationTest extends AbstractIntegration
         fm2 = user("fm2");
         area = areaRepository.save(Area.builder()
                 .name("AP self " + suffix)
-                .building("TOA_AP_SELF")
-                .floor("1")
+                .building(building.getName())
+                .floor(floor.getName())
                 .floorEntity(floor)
                 .areaLevel(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
                 .areaAccessLevel(2)

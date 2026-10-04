@@ -201,8 +201,8 @@ class AccessRequestSponsorshipIntegrationTest extends AbstractIntegrationTest {
 
             contactArea = areaRepository.save(Area.builder()
                     .name("Contact Area " + suffix)
-                    .building("TOA_SPONSOR")
-                    .floor("1")
+                    .building(building.getName())
+                    .floor(floor.getName())
                     .floorEntity(floor)
                     .areaLevel(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
                     .areaAccessLevel(2)
@@ -212,8 +212,8 @@ class AccessRequestSponsorshipIntegrationTest extends AbstractIntegrationTest {
 
             internalArea = areaRepository.save(Area.builder()
                     .name("Internal Area " + suffix)
-                    .building("TOA_SPONSOR")
-                    .floor("1")
+                    .building(building.getName())
+                    .floor(floor.getName())
                     .floorEntity(floor)
                     .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
                     .areaAccessLevel(2)
@@ -223,8 +223,8 @@ class AccessRequestSponsorshipIntegrationTest extends AbstractIntegrationTest {
 
             highlyArea = areaRepository.save(Area.builder()
                     .name("Highly Area " + suffix)
-                    .building("TOA_SPONSOR")
-                    .floor("1")
+                    .building(building.getName())
+                    .floor(floor.getName())
                     .floorEntity(floor)
                     .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
                     .areaAccessLevel(3)
