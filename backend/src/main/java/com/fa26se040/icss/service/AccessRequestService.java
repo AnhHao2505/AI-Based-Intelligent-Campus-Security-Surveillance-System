@@ -335,6 +335,11 @@ public class AccessRequestService {
      */
     static final String INVALID_MEMBER_REASON = "Không tìm thấy người dùng hợp lệ với mã này";
 
+    /** BR-RQ-SP-05: lý do hệ thống huỷ đơn khi người tạo đơn bị vô hiệu hoá / xoá. */
+    public static final String REQUESTER_INACTIVE_CANCEL_REASON = "Người tạo đơn không còn hoạt động";
+    /** Nguồn audit (actor SYSTEM) khi huỷ đơn do người tạo bị vô hiệu hoá / xoá. */
+    public static final String REQUESTER_DEACTIVATION_SOURCE = "REQUESTER_DEACTIVATION";
+
     /**
      * BR-RQ-MEM-01: thành viên đơn nhóm phải là NORMAL_USER, đang hoạt động (isActive khác false), chưa xoá mềm.
      * Dùng chung cho resolveMembers, tạo đơn nhóm và gợi ý mã thành viên.
@@ -795,6 +800,86 @@ public class AccessRequestService {
 
             return count;
         });
+    }
+
+    /**
+     * BR-RQ-SP-05: người tạo đơn bị vô hiệu hoá / xoá -> hệ thống huỷ mọi đơn người đó đứng tên đang PENDING / APPROVED
+     * và chưa kết thúc (end_time > now). Chạy trong transaction của thao tác vô hiệu hoá / xoá (lỗi -> rollback cả hai).
+     * Tái sử dụng cơ chế huỷ của hệ thống: conditional UPDATE {@code cancelBySystemIfStatus} (CancelSource.SYSTEM),
+     * audit ACCESS_REQUEST / CANCEL với actor SYSTEM, thông báo REQUEST_SYSTEM_CANCELLED gửi SAU commit cho thành viên.
+     * Đơn vừa bị thao tác khác đổi trạng thái thì bỏ qua. Kích hoạt lại tài khoản không khôi phục đơn đã huỷ.
+     *
+     * @return số đơn đã huỷ
+     */
+    @Transactional
+    public int cancelActiveRequestsOfRequester(UUID requesterId, String reason) {
+        OffsetDateTime now = OffsetDateTime.now();
+        List<AccessRequest> candidates = accessRequestRepository.findNotEndedByRequesterWithParticipants(
+                requesterId, List.of(RequestStatus.PENDING, RequestStatus.APPROVED), now);
+
+        List<SystemCancelledNotice> notices = new ArrayList<>();
+        int cancelled = 0;
+        for (AccessRequest r : candidates) {
+            AccessRequestSnapshot before = AccessRequestSnapshot.from(r);
+            int updated = accessRequestRepository.cancelBySystemIfStatus(
+                    r.getId(), r.getStatus(), RequestStatus.CANCELLED, com.fa26se040.icss.enums.CancelSource.SYSTEM, reason, now);
+            if (updated != 1) {
+                log.info("Access request {} changed concurrently, skip system cancel ({})", r.getId(), REQUESTER_DEACTIVATION_SOURCE);
+                continue;
+            }
+            // Đồng bộ entity trong persistence context với dòng vừa UPDATE
+            r.setStatus(RequestStatus.CANCELLED);
+            r.setCancelSource(com.fa26se040.icss.enums.CancelSource.SYSTEM);
+            r.setCancelledBy(null);
+            r.setCancelReason(reason);
+            r.setUpdatedAt(now);
+            auditService.record(
+                    AuditTargetType.ACCESS_REQUEST,
+                    AuditAction.CANCEL,
+                    r.getId().toString(),
+                    r.getArea(),
+                    r.getRequester(),
+                    before,
+                    AccessRequestSnapshot.from(r),
+                    reason,
+                    com.fa26se040.icss.dto.audit.AuditActor.system(REQUESTER_DEACTIVATION_SOURCE)
+            );
+            cancelled++;
+
+            // Người nhận: thành viên của đơn (người tạo đã không còn hoạt động)
+            List<User> members = new ArrayList<>();
+            if (r.getMembers() != null) {
+                for (AccessRequestMember m : r.getMembers()) {
+                    User u = m.getUser();
+                    if (u != null && (r.getRequester() == null || !u.getId().equals(r.getRequester().getId()))) {
+                        members.add(u);
+                    }
+                }
+            }
+            if (!members.isEmpty()) {
+                notices.add(new SystemCancelledNotice(r.getId(), members,
+                        "Đơn truy cập khu vực " + (r.getArea() != null ? r.getArea().getName() : "khu vực") + " ("
+                                + InAppNotificationService.formatTimeRange(r.getStartTime(), r.getEndTime())
+                                + ") đã bị hệ thống huỷ. Lý do: " + reason + "."));
+            }
+        }
+        if (cancelled > 0) {
+            log.info("Cancelled {} active access requests of requester {} ({})", cancelled, requesterId, REQUESTER_DEACTIVATION_SOURCE);
+        }
+        runAfterCommit(() -> notices.forEach(this::sendSystemCancelledNotice));
+        return cancelled;
+    }
+
+    private record SystemCancelledNotice(UUID requestId, List<User> recipients, String message) {}
+
+    /** Cùng loại / tiêu đề / dạng câu với thông báo hệ thống huỷ đơn khi đổi loại khu vực (AreaService, BR-TC-10). */
+    private void sendSystemCancelledNotice(SystemCancelledNotice n) {
+        try {
+            inAppNotificationService.createForUsers(n.recipients(), NotificationType.REQUEST_SYSTEM_CANCELLED,
+                    "Đơn truy cập bị hệ thống huỷ", n.message(), n.requestId(), InAppNotificationService.REF_TYPE_ACCESS_REQUEST);
+        } catch (Exception e) {
+            log.error("Failed to send REQUEST_SYSTEM_CANCELLED for request {}: {}", n.requestId(), e.getMessage(), e);
+        }
     }
 
     private record ExpiredNotice(User requester, UUID requestId, String areaName, String timeRange) {}

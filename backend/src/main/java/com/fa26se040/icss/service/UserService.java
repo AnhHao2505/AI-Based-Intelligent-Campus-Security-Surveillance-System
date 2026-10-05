@@ -78,6 +78,8 @@ public class UserService {
     private final UserAccessLevelHelper userAccessLevelHelper;
     private final AuditService auditService;
     private final UserBulkImportService userBulkImportService;
+    // BR-RQ-SP-05: vô hiệu hoá / xoá tài khoản -> hệ thống huỷ đơn truy cập người đó đứng tên (cùng transaction)
+    private final AccessRequestService accessRequestService;
 
     @Transactional
     public StaffAccountCreateResponse createStaffAccount(StaffAccountCreateRequest request) {
@@ -229,9 +231,15 @@ public class UserService {
             throw new IllegalArgumentException("Không thể tự vô hiệu hóa tài khoản của chính mình.");
         }
 
+        boolean deactivating = Boolean.TRUE.equals(user.getIsActive());
         user.setIsActive(!user.getIsActive());
         user.setUpdatedAt(OffsetDateTime.now());
         User updatedUser = userRepository.save(user);
+
+        // BR-RQ-SP-05: chỉ chiều vô hiệu hoá huỷ đơn; kích hoạt lại KHÔNG khôi phục đơn đã huỷ
+        if (deactivating) {
+            accessRequestService.cancelActiveRequestsOfRequester(userId, AccessRequestService.REQUESTER_INACTIVE_CANCEL_REASON);
+        }
 
         log.info("Toggled active state for user {}: now {}", userId, updatedUser.getIsActive());
         return UserListResponse.fromEntity(updatedUser);
@@ -251,6 +259,9 @@ public class UserService {
         user.setIsActive(false);
         user.setUpdatedAt(OffsetDateTime.now());
         userRepository.save(user);
+
+        // BR-RQ-SP-05: xoá tài khoản -> huỷ đơn người đó đứng tên (cùng transaction)
+        accessRequestService.cancelActiveRequestsOfRequester(userId, AccessRequestService.REQUESTER_INACTIVE_CANCEL_REASON);
 
         log.info("Soft-deleted user {}", userId);
     }
@@ -275,6 +286,14 @@ public class UserService {
     public BatchDeleteResponse deleteBatch(UUID batchId) {
         if (!userRepository.existsByImportBatchId(batchId)) {
             throw new ResourceNotFoundException("Không tìm thấy lô import với mã: " + batchId);
+        }
+        // BR-RQ-SP-05: huỷ đơn của từng tài khoản sắp bị gỡ (lấy trước câu UPDATE hàng loạt), cùng transaction
+        List<UUID> usersToDelete = userRepository.findByImportBatchIdOrderByUserCodeAsc(batchId).stream()
+                .filter(u -> u.getDeletedAt() == null)
+                .map(User::getId)
+                .toList();
+        for (UUID uid : usersToDelete) {
+            accessRequestService.cancelActiveRequestsOfRequester(uid, AccessRequestService.REQUESTER_INACTIVE_CANCEL_REASON);
         }
         int deletedCount = userRepository.softDeleteByImportBatchId(batchId);
         log.info("Soft-deleted import batch {}: {} users affected", batchId, deletedCount);
