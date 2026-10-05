@@ -24,6 +24,7 @@ import { getLevelConfig, AREA_LEVEL_CONFIG } from "../../utils/areaHelpers";
 import { useAuth } from "../../context/AuthContext";
 import "../../styles/AccessRequestPage.css";
 import PageHeader from "../../components/ui/PageHeader";
+import { formatLocation } from "../../utils/formatLocation";
 
 export default function AccessRequestPage() {
 	const { user } = useAuth();
@@ -484,15 +485,19 @@ export default function AccessRequestPage() {
 	};
 
 	const timeSummary = getTimeSummary();
-	const isFormValid = Boolean(
-		selectedAreaId &&
-		requestDate &&
-		startHour &&
-		endHour &&
-		isTimeValid() &&
-		purpose.trim() &&
-		(requestType !== "GROUP" || memberList.length > 0),
-	);
+	// UX-03: lý do nút "Gửi yêu cầu" đang khoá — cùng điều kiện với isFormValid
+	const submitBlockers = [];
+	if (!selectedAreaId) submitBlockers.push("chọn khu vực cần truy cập");
+	if (!requestDate || !startHour || !endHour) {
+		submitBlockers.push("chọn ngày và khung giờ");
+	} else if (!isTimeValid()) {
+		submitBlockers.push("giờ kết thúc phải sau giờ bắt đầu");
+	}
+	if (requestType === "GROUP" && memberList.length === 0) {
+		submitBlockers.push("thêm ít nhất một thành viên nhóm");
+	}
+	if (!purpose.trim()) submitBlockers.push("nhập mục đích sử dụng khu vực");
+	const isFormValid = submitBlockers.length === 0;
 
 	return (
 		<div className="arp-container">
@@ -558,8 +563,7 @@ export default function AccessRequestPage() {
 						>
 							<option value="">-- Chọn khu vực cần đăng ký truy cập --</option>
 							{areas.map((a) => {
-								const floorPart = a.floor ? (String(a.floor).startsWith("Tầng") ? a.floor : `Tầng ${a.floor}`) : null;
-								const loc = [a.building, floorPart].filter(Boolean).join(" · ");
+								const loc = formatLocation(a.building, a.floor);
 								return (
 									<option
 										key={a.id}
@@ -822,10 +826,17 @@ export default function AccessRequestPage() {
 
 					{/* 2c. Chân thẻ */}
 					<div className="arp-card__footer">
+						{!isFormValid && !submitting && (
+							<div id="arp-submit-hint" className="arp-submit-hint" role="status">
+								<AlertCircle size={14} className="arp-submit-hint__icon" />
+								<span>Cần {submitBlockers.join("; ")} để gửi yêu cầu.</span>
+							</div>
+						)}
 						<button
 							type="submit"
 							className="arp-btn-submit"
 							disabled={!isFormValid || submitting}
+							aria-describedby={!isFormValid ? "arp-submit-hint" : undefined}
 						>
 							{submitting ? (
 								<>
@@ -890,8 +901,7 @@ export default function AccessRequestPage() {
 						>
 							<option value="">Tất cả khu vực</option>
 							{areaList.map((a) => {
-								const floorPart = a.floor ? (String(a.floor).startsWith("Tầng") ? a.floor : `Tầng ${a.floor}`) : null;
-								const loc = [a.building, floorPart].filter(Boolean).join(" · ");
+								const loc = formatLocation(a.building, a.floor);
 								return (
 									<option key={a.id} value={a.id}>
 										{loc ? `${a.name} (${loc})` : a.name}
@@ -965,9 +975,9 @@ export default function AccessRequestPage() {
 											<tr>
 												<td>
 													<div style={{ fontWeight: 600 }}>{req.areaName}</div>
-													{([req.building, req.floor ? `Tầng ${req.floor}` : null].filter(Boolean).length > 0) && (
+													{formatLocation(req.building, req.floor) && (
 														<div className="arp-table-room-code">
-															{[req.building, req.floor ? `Tầng ${req.floor}` : null].filter(Boolean).join(" · ")}
+															{formatLocation(req.building, req.floor)}
 														</div>
 													)}
 												</td>
@@ -1293,8 +1303,8 @@ export default function AccessRequestPage() {
 									<span className="arp-detail-label">Khu vực</span>
 									<span className="arp-detail-val">
 										{selectedDetail.areaName}
-										{([selectedDetail.building, selectedDetail.floor ? `Tầng ${selectedDetail.floor}` : null].filter(Boolean).length > 0) &&
-											` (${[selectedDetail.building, selectedDetail.floor ? `Tầng ${selectedDetail.floor}` : null].filter(Boolean).join(" · ")})`}
+										{formatLocation(selectedDetail.building, selectedDetail.floor) &&
+											` (${formatLocation(selectedDetail.building, selectedDetail.floor)})`}
 									</span>
 									<span
 										style={{
@@ -1559,8 +1569,8 @@ export default function AccessRequestPage() {
 						>
 							<div>
 								<strong>Khu vực:</strong> {cancelItem.areaName}
-								{([cancelItem.building, cancelItem.floor ? `Tầng ${cancelItem.floor}` : null].filter(Boolean).length > 0) &&
-									` (${[cancelItem.building, cancelItem.floor ? `Tầng ${cancelItem.floor}` : null].filter(Boolean).join(" · ")})`}
+								{formatLocation(cancelItem.building, cancelItem.floor) &&
+									` (${formatLocation(cancelItem.building, cancelItem.floor)})`}
 							</div>
 							<div>
 								<strong>Khung giờ:</strong>{" "}

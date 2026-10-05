@@ -253,6 +253,9 @@ public class AreaService {
         // Chỉ đọc cấu hình khi thật sự có đơn cần đánh giá
         boolean groupAllowedInPrivate = !requests.isEmpty()
                 && systemConfigService.getBoolean(com.fa26se040.icss.enums.ConfigKey.ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE);
+        // Q1 (BR-RQ-03/04): cùng nguồn cấu hình bảo lãnh với luồng duyệt đơn
+        boolean sponsorAllowedForNewLevel = !requests.isEmpty()
+                && systemConfigService.getSponsorAllowedAreaLevels().contains(newLevel);
         for (com.fa26se040.icss.entity.AccessRequest r : requests) {
             boolean approved = r.getStatus() == com.fa26se040.icss.enums.RequestStatus.APPROVED;
             if (newLevel == AreaLevel.PUBLIC) {
@@ -260,7 +263,7 @@ public class AreaService {
                 (approved ? approvedToCancel : pendingToCancel).add(new CancelCandidate(r, PUBLIC_CANCEL_REASON));
                 continue;
             }
-            String violation = describeRuleViolation(r, newLevel, newAccessLevel, groupAllowedInPrivate);
+            String violation = describeRuleViolation(r, newLevel, newAccessLevel, groupAllowedInPrivate, sponsorAllowedForNewLevel);
             if (violation == null) {
                 continue;
             }
@@ -278,35 +281,64 @@ public class AreaService {
                 approvedToCancel, pendingToCancel, pendingNotApprovable, eventActive, pendingSchedules.size(), blockers);
     }
 
-    /** Cùng quy tắc FM kiểm khi duyệt đơn (BR-RQ-02); trả null nếu đơn vẫn thoả loại mới. */
+    /**
+     * Quy tắc FM kiểm khi duyệt đơn (BR-RQ-02) áp lên loại mới; trả null nếu đơn vẫn thoả loại mới.
+     * Q1 (BR-RQ-03/04): người tạo đơn luôn phải đủ cấp; thành viên sponsored được miễn kiểm cấp khi loại mới
+     * cho phép bảo lãnh; loại mới không cho bảo lãnh → kiểm cấp như thành viên thường, giống reviewRequest
+     * (thiếu cấp thì lý do nêu "loại mới không cho phép bảo lãnh"); thành viên thường kiểm cấp như cũ.
+     * Không dùng chung hàm với reviewRequest: luồng duyệt còn chặn thành viên bị vô hiệu hoá — gộp sẽ thêm
+     * điều kiện đó vào đổi loại khu vực.
+     */
     private static String describeRuleViolation(com.fa26se040.icss.entity.AccessRequest r, AreaLevel newLevel,
-                                                int newAccessLevel, boolean groupAllowedInPrivate) {
+                                                int newAccessLevel, boolean groupAllowedInPrivate,
+                                                boolean sponsorAllowedForNewLevel) {
         if (r.getRequestType() == com.fa26se040.icss.enums.RequestType.GROUP
                 && newLevel == AreaLevel.HIGHLY_CONFIDENTIAL && !groupAllowedInPrivate) {
             return "khu vực Tuyệt mật không nhận đơn nhóm";
         }
-        java.util.LinkedHashMap<UUID, User> participants = new java.util.LinkedHashMap<>();
-        if (r.getRequester() != null) {
-            participants.put(r.getRequester().getId(), r.getRequester());
+        List<String> unqualified = new ArrayList<>();
+        List<String> sponsorshipNotAllowed = new ArrayList<>();
+        java.util.Set<UUID> seen = new java.util.HashSet<>();
+        User requester = r.getRequester();
+        if (requester != null) {
+            seen.add(requester.getId());
+            if (accessLevelOf(requester) < newAccessLevel) {
+                unqualified.add(displayName(requester));
+            }
         }
         if (r.getMembers() != null) {
             for (com.fa26se040.icss.entity.AccessRequestMember m : r.getMembers()) {
-                if (m.getUser() != null) {
-                    participants.putIfAbsent(m.getUser().getId(), m.getUser());
+                User u = m.getUser();
+                if (u == null || !seen.add(u.getId())) {
+                    continue;
+                }
+                if (Boolean.TRUE.equals(m.getSponsored())) {
+                    if (!sponsorAllowedForNewLevel && accessLevelOf(u) < newAccessLevel) {
+                        sponsorshipNotAllowed.add(displayName(u));
+                    }
+                    continue;
+                }
+                if (accessLevelOf(u) < newAccessLevel) {
+                    unqualified.add(displayName(u));
                 }
             }
         }
-        List<String> unqualified = new ArrayList<>();
-        for (User u : participants.values()) {
-            int level = u.getAccessLevel() != null ? u.getAccessLevel() : 1;
-            if (level < newAccessLevel) {
-                unqualified.add(u.getFullName() + " (" + u.getUserCode() + ")");
-            }
+        List<String> parts = new ArrayList<>();
+        if (!unqualified.isEmpty()) {
+            parts.add("không đủ cấp truy cập " + newAccessLevel + ": " + String.join(", ", unqualified));
         }
-        if (unqualified.isEmpty()) {
-            return null;
+        if (!sponsorshipNotAllowed.isEmpty()) {
+            parts.add("loại mới không cho phép bảo lãnh thành viên: " + String.join(", ", sponsorshipNotAllowed));
         }
-        return "không đủ cấp truy cập " + newAccessLevel + ": " + String.join(", ", unqualified);
+        return parts.isEmpty() ? null : String.join("; ", parts);
+    }
+
+    private static int accessLevelOf(User u) {
+        return u.getAccessLevel() != null ? u.getAccessLevel() : 1;
+    }
+
+    private static String displayName(User u) {
+        return u.getFullName() + " (" + u.getUserCode() + ")";
     }
 
     private static com.fa26se040.icss.dto.area.AreaTypeChangePreviewResponse.RequestItem toPreviewItem(CancelCandidate c) {

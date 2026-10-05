@@ -6,6 +6,7 @@ import {
   XCircle,
   Ban,
   CalendarX,
+  CheckCheck,
   Calendar,
   Search,
   RefreshCw,
@@ -22,6 +23,7 @@ import '../../styles/AccessRequestReviewPage.css';
 import PageHeader from '../../components/ui/PageHeader';
 import ReasonTextarea from '../../components/ui/ReasonTextarea';
 import '../../components/ui/Button.css';
+import { formatLocation } from '../../utils/formatLocation';
 
 export default function AccessRequestReviewPage() {
   const [requests, setRequests] = useState([]);
@@ -66,7 +68,8 @@ export default function AccessRequestReviewPage() {
     approved: 0,
     rejected: 0,
     cancelled: 0,
-    expired: 0
+    expired: 0,
+    finished: 0
   });
 
   // Load Requests
@@ -93,13 +96,15 @@ export default function AccessRequestReviewPage() {
   // Load Stats counts
   const loadStats = useCallback(async () => {
     try {
-      const [allRes, pendingRes, approvedRes, rejectedRes, cancelledRes, expiredRes] = await Promise.all([
+      // Đủ 6 trạng thái của RequestStatus để tổng các thẻ = "Tổng yêu cầu"
+      const [allRes, pendingRes, approvedRes, rejectedRes, cancelledRes, expiredRes, finishedRes] = await Promise.all([
         accessRequestService.getAllRequests({ page: 0, size: 1 }),
         accessRequestService.getAllRequests({ status: 'PENDING', page: 0, size: 1 }),
         accessRequestService.getAllRequests({ status: 'APPROVED', page: 0, size: 1 }),
         accessRequestService.getAllRequests({ status: 'REJECTED', page: 0, size: 1 }),
         accessRequestService.getAllRequests({ status: 'CANCELLED', page: 0, size: 1 }),
-        accessRequestService.getAllRequests({ status: 'EXPIRED', page: 0, size: 1 })
+        accessRequestService.getAllRequests({ status: 'EXPIRED', page: 0, size: 1 }),
+        accessRequestService.getAllRequests({ status: 'FINISHED', page: 0, size: 1 })
       ]);
       setStats({
         total: allRes?.totalElements || 0,
@@ -107,7 +112,8 @@ export default function AccessRequestReviewPage() {
         approved: approvedRes?.totalElements || 0,
         rejected: rejectedRes?.totalElements || 0,
         cancelled: cancelledRes?.totalElements || 0,
-        expired: expiredRes?.totalElements || 0
+        expired: expiredRes?.totalElements || 0,
+        finished: finishedRes?.totalElements || 0
       });
     } catch (err) {
       console.error('Lỗi khi tải thống kê:', err);
@@ -319,6 +325,16 @@ export default function AccessRequestReviewPage() {
             <span className="arr-stat-card__value">{stats.expired}</span>
           </div>
         </div>
+
+        <div className="arr-stat-card">
+          <div className="arr-stat-card__icon arr-stat-card__icon--finished">
+            <CheckCheck size={22} />
+          </div>
+          <div className="arr-stat-card__content">
+            <span className="arr-stat-card__label">Hoàn thành</span>
+            <span className="arr-stat-card__value">{stats.finished}</span>
+          </div>
+        </div>
       </div>
 
       {/* Filter Toolbar */}
@@ -330,7 +346,8 @@ export default function AccessRequestReviewPage() {
             { label: 'Đã duyệt', val: 'APPROVED' },
             { label: 'Đã từ chối', val: 'REJECTED' },
             { label: 'Đã huỷ', val: 'CANCELLED' },
-            { label: 'Hết hạn', val: 'EXPIRED' }
+            { label: 'Hết hạn', val: 'EXPIRED' },
+            { label: 'Hoàn thành', val: 'FINISHED' }
           ].map(f => (
             <button
               key={f.val}
@@ -357,8 +374,7 @@ export default function AccessRequestReviewPage() {
           >
             <option value="">Tất cả khu vực</option>
             {areasList.map((a) => {
-              const floorPart = a.floor ? (String(a.floor).startsWith('Tầng') ? a.floor : `Tầng ${a.floor}`) : null;
-              const loc = [a.building, floorPart].filter(Boolean).join(' · ');
+              const loc = formatLocation(a.building, a.floor);
               return (
                 <option key={a.id} value={a.id}>
                   {loc ? `${a.name} (${loc})` : a.name}
@@ -427,8 +443,8 @@ export default function AccessRequestReviewPage() {
                       <div className="arr-area-tag">
                         <span className="arr-area-name">{req.areaName}</span>
                         <span className="arr-area-sub">
-                          {([req.building, req.floor ? `Tầng ${req.floor}` : null].filter(Boolean).length > 0)
-                            ? `${[req.building, req.floor ? `Tầng ${req.floor}` : null].filter(Boolean).join(' · ')} - `
+                          {formatLocation(req.building, req.floor)
+                            ? `${formatLocation(req.building, req.floor)} - `
                             : ''}
                           {getLevelConfig(req.areaLevel).name}
                         </span>
@@ -458,6 +474,7 @@ export default function AccessRequestReviewPage() {
                         {req.status === 'REJECTED' && 'Từ chối'}
                         {req.status === 'CANCELLED' && 'Đã huỷ'}
                         {req.status === 'EXPIRED' && 'Hết hạn'}
+                        {req.status === 'FINISHED' && 'Hoàn thành'}
                       </span>
                       {req.status === 'CANCELLED' && req.cancelSource === 'SYSTEM' && (
                         <div className="arr-cancel-system" title={req.cancelReason || ''}>
@@ -568,8 +585,8 @@ export default function AccessRequestReviewPage() {
               <div className="arr-info-box">
                 <div>
                   <strong>Khu vực:</strong> {approveItem.areaName}
-                  {([approveItem.building, approveItem.floor ? `Tầng ${approveItem.floor}` : null].filter(Boolean).length > 0)
-                    ? ` (${[approveItem.building, approveItem.floor ? `Tầng ${approveItem.floor}` : null].filter(Boolean).join(' · ')})`
+                  {formatLocation(approveItem.building, approveItem.floor)
+                    ? ` (${formatLocation(approveItem.building, approveItem.floor)})`
                     : ''}
                 </div>
                 <div><strong>Thời gian:</strong> {formatDateTime(approveItem.startTime)} - {formatDateTime(approveItem.endTime)}</div>
@@ -705,6 +722,7 @@ export default function AccessRequestReviewPage() {
                       {detailItem.status === 'REJECTED' && 'Bị từ chối'}
                       {detailItem.status === 'CANCELLED' && 'Đã huỷ'}
                       {detailItem.status === 'EXPIRED' && 'Hết hạn'}
+                      {detailItem.status === 'FINISHED' && 'Hoàn thành'}
                     </span>
                     {detailItem.status === 'CANCELLED' && detailItem.cancelSource === 'SYSTEM' && (
                       <div className="arr-cancel-system arr-cancel-system--detail">
@@ -718,8 +736,8 @@ export default function AccessRequestReviewPage() {
                   <div className="arr-detail-label">KHU VỰC ĐĂNG KÝ</div>
                   <div style={{ fontWeight: 600 }}>
                     {detailItem.areaName}
-                    {([detailItem.building, detailItem.floor ? `Tầng ${detailItem.floor}` : null].filter(Boolean).length > 0)
-                      ? ` (${[detailItem.building, detailItem.floor ? `Tầng ${detailItem.floor}` : null].filter(Boolean).join(' · ')})`
+                    {formatLocation(detailItem.building, detailItem.floor)
+                      ? ` (${formatLocation(detailItem.building, detailItem.floor)})`
                       : ''}
                   </div>
                   <div className="arr-text-muted" style={{ fontSize: '0.8125rem' }}>

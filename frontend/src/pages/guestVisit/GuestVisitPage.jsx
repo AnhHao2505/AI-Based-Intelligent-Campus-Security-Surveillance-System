@@ -130,15 +130,17 @@ export default function GuestVisitPage() {
 	const removeGuest = (index) => setGuests((prev) => prev.filter((_, i) => i !== index));
 
 	const purposeLength = purpose.trim().length;
-	const canSubmitCreate =
-		!creating &&
-		purposeLength >= 10 &&
-		purposeLength <= 500 &&
-		startTime &&
-		endTime &&
-		areaIds.length > 0 &&
-		guests.length > 0 &&
-		guests.every((g) => g.fullName.trim().length >= 2);
+	// UX-03: lý do nút "Gửi duyệt" đang khoá — cùng điều kiện với canSubmitCreate
+	const createBlockers = [];
+	if (purposeLength < 10 || purposeLength > 500) {
+		createBlockers.push(`mục đích 10–500 ký tự (hiện có ${purposeLength})`);
+	}
+	if (!startTime || !endTime) createBlockers.push("chọn thời gian bắt đầu và kết thúc");
+	if (areaIds.length === 0) createBlockers.push("chọn ít nhất một khu vực");
+	if (guests.length === 0 || !guests.every((g) => g.fullName.trim().length >= 2)) {
+		createBlockers.push("nhập họ tên (tối thiểu 2 ký tự) cho mọi khách");
+	}
+	const canSubmitCreate = !creating && createBlockers.length === 0;
 
 	const submitCreate = async () => {
 		setCreating(true);
@@ -327,10 +329,21 @@ export default function GuestVisitPage() {
 				closeOnBackdrop={!creating}
 				footer={
 					<>
+						{!creating && createBlockers.length > 0 && (
+							<div id="guest-visit-create-hint" className="guest-visit__submit-hint" role="status">
+								<AlertCircle size={14} className="guest-visit__submit-hint-icon" />
+								<span>Cần {createBlockers.join("; ")} để gửi duyệt.</span>
+							</div>
+						)}
 						<Button variant="secondary" onClick={() => setCreateOpen(false)} disabled={creating}>
 							Đóng
 						</Button>
-						<Button onClick={submitCreate} loading={creating} disabled={!canSubmitCreate}>
+						<Button
+							onClick={submitCreate}
+							loading={creating}
+							disabled={!canSubmitCreate}
+							aria-describedby={createBlockers.length > 0 ? "guest-visit-create-hint" : undefined}
+						>
 							Gửi duyệt
 						</Button>
 					</>

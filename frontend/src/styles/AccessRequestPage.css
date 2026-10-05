@@ -99,6 +99,36 @@
   align-items: center;
 }
 
+/* UX-03: lý do nút gửi đang khoá, đặt cạnh nút */
+.arp-submit-hint {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-right: auto;
+  padding-right: 16px;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--theme-text-muted);
+}
+
+.arp-submit-hint__icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--theme-warning-text);
+}
+
+@media (max-width: 640px) {
+  .arp-card__footer {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .arp-submit-hint {
+    flex-basis: 100%;
+    padding-right: 0;
+  }
+}
+
 /* ==========================================================================
    Form Controls & Labels
    ========================================================================== */
@@ -612,6 +642,24 @@
   border-collapse: collapse;
   font-size: 13px;
   text-align: left;
+}
+
+/* UI-08: điện thoại — giữ bề rộng tối thiểu cho 6 cột, khung bảng cuộn ngang để
+   cột Trạng thái và Thao tác vẫn truy cập được (không ép cột Khu vực xuống từng chữ) */
+@media (max-width: 640px) {
+  .arp-table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+
+  .arp-table {
+    min-width: 760px;
+  }
+
+  .arp-table th {
+    white-space: nowrap;
+  }
 }
 
 .arp-table th {

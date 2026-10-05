@@ -285,3 +285,22 @@
   border-color: var(--theme-danger-border);
   color: var(--theme-danger-text);
 }
+
+/* UX-03: lý do nút "Gửi duyệt" đang khoá, đặt cạnh nút trong chân modal */
+.guest-visit__submit-hint {
+	display: inline-flex;
+	align-items: flex-start;
+	gap: 6px;
+	margin-right: auto;
+	max-width: 60%;
+	font-size: 12.5px;
+	line-height: 1.4;
+	color: var(--theme-text-muted);
+	text-align: left;
+}
+
+.guest-visit__submit-hint-icon {
+	flex-shrink: 0;
+	margin-top: 1px;
+	color: var(--theme-warning-text);
+}

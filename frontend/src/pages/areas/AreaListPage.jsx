@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import {
 	Building2,
@@ -96,6 +97,7 @@ const AREA_LEVEL_CARDS = [
 export default function AreaListPage() {
 	const { user } = useAuth();
 	const isAdmin = user?.role === "ADMIN";
+	const navigate = useNavigate();
 	const isFacilityManager = user?.role === "FACILITY_MANAGER";
 
 	// Data states
@@ -868,13 +870,16 @@ export default function AreaListPage() {
 						: "Quản lý danh sách nhân sự được chỉ định, tra cứu phân quyền và vận hành phân khu."
 				}
 				actions={
-					<a
-						href="/admin/map"
-						className="ui-btn ui-btn--secondary ui-btn--md"
-					>
-						<Compass size={16} />
-						<span>Xem trên bản đồ an ninh</span>
-					</a>
+					// Route /admin/map chỉ cho ADMIN (App.jsx) → FM không thấy lối tắt dẫn tới trang bị chặn
+					isAdmin ? (
+						<Link
+							to="/admin/map"
+							className="ui-btn ui-btn--secondary ui-btn--md"
+						>
+							<Compass size={16} />
+							<span>Xem trên bản đồ an ninh</span>
+						</Link>
+					) : null
 				}
 			/>
 

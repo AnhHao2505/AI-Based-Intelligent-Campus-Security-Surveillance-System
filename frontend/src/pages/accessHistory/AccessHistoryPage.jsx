@@ -1,30 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   History,
   RefreshCw
 } from 'lucide-react';
-import { getAreas } from '../../services/areaService';
 import '../../styles/AccessHistoryPage.css';
 import PageHeader from '../../components/ui/PageHeader';
 
 export default function AccessHistoryPage() {
-  // Bộ lọc đang ở chế độ disabled vì chức năng lịch sử ra vào (MF4) đang phát triển
+  // Bộ lọc đang ở chế độ disabled vì chức năng lịch sử ra vào đang phát triển.
+  // Không tải danh sách khu vực: GET /api/areas chỉ dành cho ADMIN/FM (NORMAL_USER nhận 403).
   const [timeRange, setTimeRange] = useState('ALL');
   const [selectedAreaId, setSelectedAreaId] = useState('');
-  const [areasList, setAreasList] = useState([]);
-
-  // Load available areas for filter dropdown (giới hạn tối đa 100 khu vực theo API /api/areas)
-  useEffect(() => {
-    const loadAreas = async () => {
-      try {
-        const res = await getAreas({ size: 100 });
-        setAreasList(res?.content || []);
-      } catch (err) {
-        console.error('Lỗi tải danh sách khu vực:', err);
-      }
-    };
-    loadAreas();
-  }, []);
 
   const timeFilterOptions = [
     { label: 'Hôm nay', val: 'TODAY' },
@@ -69,15 +55,6 @@ export default function AccessHistoryPage() {
               title="Chức năng đang phát triển"
             >
               <option value="">Tất cả khu vực</option>
-              {areasList.map((a) => {
-                const floorPart = a.floor ? (String(a.floor).startsWith('Tầng') ? a.floor : `Tầng ${a.floor}`) : null;
-                const loc = [a.building, floorPart].filter(Boolean).join(' · ');
-                return (
-                  <option key={a.id} value={a.id}>
-                    {loc ? `${a.name} (${loc})` : a.name}
-                  </option>
-                );
-              })}
             </select>
 
             <button
@@ -99,7 +76,7 @@ export default function AccessHistoryPage() {
               Chức năng lịch sử ra vào đang phát triển
             </div>
             <div className="ahp-empty__subtitle" style={{ maxWidth: '480px', margin: '8px auto 0', lineHeight: 1.5 }}>
-              Hệ thống đang hoàn thiện phân hệ nhận diện và lịch sử ra vào (MF4). Vui lòng quay lại sau.
+              Chức năng lịch sử ra vào đang được hoàn thiện. Vui lòng quay lại sau.
             </div>
           </div>
         </div>
