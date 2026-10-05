@@ -128,7 +128,7 @@ export default function AdminPresetPage() {
             size="sm"
             onClick={loadPresets}
             disabled={loadingPresets}
-            leftIcon={<RotateCcw size={16} className={loadingPresets ? 'animate-spin' : ''} />}
+            icon={<RotateCcw size={16} className={loadingPresets ? 'animate-spin' : ''} />}
           >
             Làm mới
           </Button>
@@ -220,7 +220,7 @@ export default function AdminPresetPage() {
                             variant="outline"
                             size="sm"
                             onClick={() => openEditPresetModal(p)}
-                            leftIcon={<Edit3 size={15} />}
+                            icon={<Edit3 size={15} />}
                           >
                             Chỉnh sửa
                           </Button>
@@ -360,7 +360,7 @@ export default function AdminPresetPage() {
                     variant="primary"
                     onClick={handleSavePreset}
                     disabled={editPresetModal.isSaving}
-                    leftIcon={
+                    icon={
                       editPresetModal.isSaving ? (
                         <Loader2 size={16} className="animate-spin" />
                       ) : (

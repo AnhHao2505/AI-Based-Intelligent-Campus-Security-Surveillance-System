@@ -383,7 +383,7 @@ export default function UserAccessLevelPage() {
                 variant="primary"
                 onClick={handleConfirmSaveUserLevel}
                 disabled={confirmUserModal.isSaving}
-                leftIcon={
+                icon={
                   confirmUserModal.isSaving ? (
                     <Loader2 size={16} className="animate-spin" />
                   ) : (

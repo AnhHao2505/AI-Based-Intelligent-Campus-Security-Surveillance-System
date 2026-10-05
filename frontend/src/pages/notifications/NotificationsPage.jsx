@@ -280,7 +280,7 @@ export default function NotificationsPage() {
     <div className="notif-container">
       <PageHeader
         title="Thông báo"
-        description="Cập nhật về yêu cầu truy cập và quyền của bạn."
+        description="Thông báo về yêu cầu, khu vực, khách và các sự kiện liên quan đến bạn"
         actions={
           <button
             type="button"
