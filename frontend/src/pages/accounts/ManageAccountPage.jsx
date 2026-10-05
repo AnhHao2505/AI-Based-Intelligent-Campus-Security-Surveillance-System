@@ -35,6 +35,7 @@ import {
 	deleteImportBatch,
 	restoreImportBatch,
 } from "../../services/userService";
+import { getSystemConfigs } from "../../services/systemConfigService";
 import { ROLES, ROLE_LABELS } from "../../constants/roles";
 import { useAuth } from "../../context/AuthContext";
 import "../../styles/ManageAccountPage.css";
@@ -110,6 +111,8 @@ export default function ManageAccountPage() {
 	const [bulkImportResult, setBulkImportResult] = useState(null);
 	const [bulkFilter, setBulkFilter] = useState("ALL");
 	const [showBulkConfirmModal, setShowBulkConfirmModal] = useState(false);
+	// UI-19: số dòng tối đa đọc từ cấu hình USER_BULK_IMPORT_MAX_ROWS mỗi lần mở modal (null = chưa đọc được)
+	const [bulkMaxRows, setBulkMaxRows] = useState(null);
 
 	// Batch Management State
 	const [showBatchListModal, setShowBatchListModal] = useState(false);
@@ -231,7 +234,24 @@ export default function ManageAccountPage() {
 		setFormErrors({});
 		setShowBulkConfirmModal(false);
 		setModalType("bulkImport");
+		setBulkMaxRows(null);
+		loadBulkMaxRows();
 	};
+
+	const loadBulkMaxRows = async () => {
+		try {
+			const list = await getSystemConfigs();
+			const cfg = (list || []).find((c) => c.configKey === "USER_BULK_IMPORT_MAX_ROWS");
+			const n = cfg ? parseInt(cfg.configValue, 10) : NaN;
+			setBulkMaxRows(Number.isFinite(n) && n > 0 ? n : null);
+		} catch (err) {
+			console.error("Không đọc được cấu hình số dòng tối đa khi nạp theo lô:", err);
+			setBulkMaxRows(null);
+		}
+	};
+
+	// Không viết cứng con số: chưa đọc được cấu hình thì chỉ nêu là theo cấu hình hệ thống
+	const bulkMaxRowsText = bulkMaxRows ? `tối đa ${bulkMaxRows} dòng` : "số dòng tối đa theo cấu hình hệ thống";
 
 	const handleZipFileChange = (e) => {
 		const file = e.target.files?.[0];
@@ -1722,8 +1742,8 @@ export default function ManageAccountPage() {
 														<>
 															• Tải file mẫu Excel (<code>.xlsx</code>) và nhập
 															thông tin (3 cột: <code>user_code</code>,{" "}
-															<code>full_name</code>, <code>email</code>, tối đa
-															200 dòng).
+															<code>full_name</code>, <code>email</code>,{" "}
+															{bulkMaxRowsText}).
 															<br />•{" "}
 															<strong>Hỗ trợ trực tiếp file Excel:</strong> Bạn
 															có thể dùng trực tiếp file{" "}
@@ -1743,7 +1763,7 @@ export default function ManageAccountPage() {
 															• Tải file mẫu Excel (<code>.xlsx</code>) và nhập
 															thông tin (4 cột: <code>user_code</code>,{" "}
 															<code>full_name</code>, <code>email</code>,{" "}
-															<code>role</code>, tối đa 200 dòng).
+															<code>role</code>, {bulkMaxRowsText}).
 															<br />• Cột <code>role</code> bắt buộc có giá trị
 															ở mọi dòng, chọn một trong các vai trò:{" "}
 															<code>ADMIN</code>, <code>FACILITY_MANAGER</code>,{" "}
