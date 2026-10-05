@@ -16,3 +16,4 @@ python-dotenv>=1.0.1
 lapx>=0.5.5
 scipy>=1.12.0
 psycopg2==2.9.12
+onnxruntime>=1.18.0

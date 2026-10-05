@@ -28,6 +28,7 @@ class FrameAnalysisEngine:
         self.after_hour_start = after_hour_start or settings.DEFAULT_AFTER_HOUR_START
         self.after_hour_end = after_hour_end or settings.DEFAULT_AFTER_HOUR_END
         self.active_tracks: Dict[int, TrackedPerson] = {}
+        self.pending_faces: Dict[int, FaceDetectionResult] = {}
 
     def process_frame(
         self,
@@ -102,10 +103,16 @@ class FrameAnalysisEngine:
                     first_seen_time=current_time,
                     last_seen_time=current_time
                 )
+                if track_id in self.pending_faces:
+                    person.face_detected = True
+                    person.face_info = self.pending_faces.pop(track_id)
                 self.active_tracks[track_id] = person
             else:
                 person = self.active_tracks[track_id]
                 person.update_position(bbox, current_time)
+                if track_id in self.pending_faces:
+                    person.face_detected = True
+                    person.face_info = self.pending_faces.pop(track_id)
 
             # Kiểm tra nằm trong Surveillance Polygons
             in_roi = False
@@ -141,16 +148,27 @@ class FrameAnalysisEngine:
                     ))
                     person.alert_after_hours_sent = True
 
-                # Sự cố 2: UNAUTHORIZED hoặc UNKNOWN
+                # Sự cố 2: UNAUTHORIZED hoặc UNKNOWN hoặc TÀI KHOẢN BỊ VÔ HIỆU HÓA
                 if person.face_detected and person.face_info:
                     if not person.face_info.is_authorized:
                         if not person.alert_unauthorized_sent:
+                            matched_code = person.face_info.matched_code
+                            matched_name = person.face_info.matched_name
+                            is_active = getattr(person.face_info, "is_active", True)
+
+                            if matched_code and not is_active:
+                                detail_msg = f"Phát hiện tài khoản bị vô hiệu hóa: {matched_name} ({matched_code}) tại khu vực {matched_label or 'giám sát'}."
+                            elif matched_code:
+                                detail_msg = f"Phát hiện đối tượng không được phép: {matched_name} ({matched_code}) tại khu vực {matched_label or 'giám sát'}."
+                            else:
+                                detail_msg = f"Phát hiện đối tượng chưa đăng ký / người lạ tại khu vực {matched_label or 'giám sát'}."
+
                             alert = SecurityAlertEvent(
                                 camera_code=camera_code,
                                 event_type="UNAUTHORIZED",
                                 track_id=person.track_id,
                                 confidence=person.bbox.confidence,
-                                details=f"Phát hiện đối tượng không được phép {person.face_info.matched_name or 'Chưa rõ'} tại vùng {matched_label or 'giám sát'}.",
+                                details=detail_msg,
                                 location=loc_info
                             )
                             generated_alerts.append(alert)
@@ -164,11 +182,16 @@ class FrameAnalysisEngine:
 
         for tid in inactive_ids:
             del self.active_tracks[tid]
+            if tid in self.pending_faces:
+                del self.pending_faces[tid]
 
         return list(self.active_tracks.values()), generated_alerts
 
     def associate_face(self, track_id: int, face_result: FaceDetectionResult):
-        if track_id in self.active_tracks and face_result is not None:
+        if face_result is None:
+            return
+        if track_id in self.active_tracks:
             self.active_tracks[track_id].face_detected = True
             self.active_tracks[track_id].face_info = face_result
-
+        else:
+            self.pending_faces[track_id] = face_result

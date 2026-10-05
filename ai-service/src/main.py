@@ -58,7 +58,8 @@ async def health_check():
         "status": "UP",
         "models": {
             "yolo_model": os.path.exists(settings.MODEL_YOLO_PATH) or True,
-            "yunet_model": os.path.exists(settings.MODEL_YUNET_PATH)
+            "yunet_model": os.path.exists(settings.MODEL_YUNET_PATH),
+            "arcface_model": os.path.exists(settings.MODEL_ARCFACE_PATH)
         },
         "kafka_connected": default_pipeline.kafka_producer.is_connected if default_pipeline else False,
         "minio_connected": default_pipeline.storage_service.is_connected if default_pipeline else False
@@ -165,8 +166,10 @@ async def analyze_frame(file: UploadFile = File(...)):
     }
 
 from fastapi import Form
+from .core.face_detector import FaceDetector
 from .core.face_embedder import FaceEmbedder
 
+face_detector = FaceDetector()
 face_embedder = FaceEmbedder(embedding_dim=512)
 
 @app.post("/api/v1/faces/process-registration")
@@ -175,10 +178,6 @@ async def process_face_registration(
     full_name: Optional[str] = Form(None),
     front_image: UploadFile = File(...)
 ):
-    global default_pipeline
-    if not default_pipeline:
-        raise HTTPException(status_code=500, detail="AI Service chưa sẵn sàng.")
-
     raw_bytes = await front_image.read()
     if not raw_bytes:
         raise HTTPException(status_code=400, detail="Ảnh chính diện bị rỗng.")
@@ -190,20 +189,29 @@ async def process_face_registration(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Không thể đọc file ảnh chính diện: {str(e)}")
 
-    faces = default_pipeline.face_detector.detect_in_image(img)
-    face_count = len(faces)
+    try:
+        detector = default_pipeline.face_detector if default_pipeline else face_detector
+        faces = detector.detect_in_image(img)
+        face_count = len(faces)
 
-    if not faces:
-        face_crop = img
-    else:
-        faces.sort(key=lambda f: f.score, reverse=True)
-        fx1, fy1, fx2, fy2 = faces[0].bbox.to_int_xyxy()
-        ih, iw, _ = img.shape
-        fx1, fy1 = max(0, fx1), max(0, fy1)
-        fx2, fy2 = min(iw, fx2), min(ih, fy2)
-        face_crop = img[fy1:fy2, fx1:fx2] if (fx2 > fx1 and fy2 > fy1) else img
+        landmarks = None
+        if not faces:
+            face_crop = img
+        else:
+            faces.sort(key=lambda f: f.score, reverse=True)
+            fx1, fy1, fx2, fy2 = faces[0].bbox.to_int_xyxy()
+            ih, iw, _ = img.shape
+            fx1, fy1 = max(0, fx1), max(0, fy1)
+            fx2, fy2 = min(iw, fx2), min(ih, fy2)
+            face_crop = img[fy1:fy2, fx1:fx2] if (fx2 > fx1 and fy2 > fy1) else img
+            if faces[0].landmarks:
+                landmarks = [(pt[0] - fx1, pt[1] - fy1) for pt in faces[0].landmarks]
 
-    vector_512 = face_embedder.extract_embedding(face_crop)
+        vector_512 = face_embedder.extract_embedding(face_crop, landmarks=landmarks)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Registration error: {type(e).__name__}: {str(e)}")
 
     return {
         "success": True,

@@ -141,12 +141,20 @@ class VideoPipeline:
                         fx2, fy2 = min(w, fx2), min(h, fy2)
                         face_crop = frame[fy1:fy2, fx1:fx2]
                         if face_crop.size > 0:
-                            match = self.face_matcher.match_face(face_crop, threshold=settings.FACE_MATCH_THRESHOLD)
+                            crop_landmarks = None
+                            if face_result.landmarks:
+                                crop_landmarks = [(pt[0] - fx1, pt[1] - fy1) for pt in face_result.landmarks]
+                            match = self.face_matcher.match_face(
+                                face_crop,
+                                threshold=settings.FACE_MATCH_THRESHOLD,
+                                landmarks=crop_landmarks
+                            )
                             if match:
-                                code, name, score = match
+                                code, name, score, is_active = match
                                 face_result.matched_code = code
                                 face_result.matched_name = name
-                                face_result.is_authorized = True
+                                face_result.is_active = is_active
+                                face_result.is_authorized = is_active  # Chỉ được phép (authorized) nếu tài khoản ĐANG HOẠT ĐỘNG (is_active == True)
 
                         self.analysis_engine.associate_face(track_id, face_result)
 

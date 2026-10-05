@@ -95,6 +95,19 @@ public class CameraSnapshotService {
             // Đồng bộ sang MediaMTX Gateway để đảm bảo path đã được đăng ký
             mediaMtxService.syncCameraPath(camera.getCameraCode(), rtspUrl);
 
+            // Kích hoạt AI Stream Worker phân tích người & khuôn mặt theo thời gian thực
+            try {
+                String streamStartUrl = aiServiceUrl + "/api/v1/stream/start";
+                String workerRtspUrl = "rtsp://localhost:8554/" + camera.getCameraCode().toLowerCase();
+                restTemplate.postForObject(streamStartUrl, Map.of(
+                        "camera_code", camera.getCameraCode(),
+                        "rtsp_url", workerRtspUrl
+                ), Map.class);
+                log.info("✅ Đã kích hoạt AI Stream Worker cho camera [{}] tại luồng {}", camera.getCameraCode(), workerRtspUrl);
+            } catch (Exception ex) {
+                log.warn("⚠️ Không thể tự động kích hoạt AI Stream Worker cho camera [{}]: {}", camera.getCameraCode(), ex.getMessage());
+            }
+
             // Cập nhật operationalStatus = ONLINE
             camera.setOperationalStatus(OperationalStatus.ONLINE);
             camera.setUpdatedAt(OffsetDateTime.now());

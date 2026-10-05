@@ -32,19 +32,23 @@ class Settings(BaseSettings):
     
     # AI Models Paths (Đường dẫn nhất quán dựa trên thư mục gốc ai-service)
     MODEL_YOLO_PATH: str = Field(
-        default=os.path.join(AI_SERVICE_DIR, "yolov8n.pt"),
+        default=os.path.join(AI_SERVICE_DIR, "models", "yolo11n.pt") if os.path.exists(os.path.join(AI_SERVICE_DIR, "models", "yolo11n.pt")) else "yolo11n.pt",
         validation_alias="MODEL_YOLO_PATH"
     )
     MODEL_YUNET_PATH: str = Field(
         default=os.path.join(AI_SERVICE_DIR, "models", "face_detection_yunet.onnx"),
         validation_alias="MODEL_YUNET_PATH"
     )
+    MODEL_ARCFACE_PATH: str = Field(
+        default=os.path.join(AI_SERVICE_DIR, "models", "w600k_r50.onnx"),
+        validation_alias="MODEL_ARCFACE_PATH"
+    )
     
     # AI Thresholds & Business Rules
     DEFAULT_DETECTION_CONFIDENCE: float = 0.50
     DEFAULT_FACE_CONFIDENCE: float = 0.60
     DEFAULT_FACE_NMS_THRESHOLD: float = 0.30
-    FACE_MATCH_THRESHOLD: float = 0.55
+    FACE_MATCH_THRESHOLD: float = 0.50
     UPPER_BODY_CROP_RATIO: float = 0.60
     DEFAULT_AFTER_HOUR_START: str = "22:00"
     DEFAULT_AFTER_HOUR_END: str = "06:00"

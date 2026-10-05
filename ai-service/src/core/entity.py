@@ -33,6 +33,12 @@ class BoundingBox:
         """Điểm chân người - dùng chuẩn xác nhất khi tính toán nằm trong Polygon/đường ranh ROI"""
         return Point((self.x1 + self.x2) / 2.0, self.y2)
 
+    def to_int_xyxy(self) -> Tuple[int, int, int, int]:
+        return int(round(self.x1)), int(round(self.y1)), int(round(self.x2)), int(round(self.y2))
+
+    def to_xyxy(self) -> Tuple[float, float, float, float]:
+        return self.x1, self.y1, self.x2, self.y2
+
 @dataclass
 class FaceDetectionResult:
     bbox: BoundingBox
@@ -42,6 +48,7 @@ class FaceDetectionResult:
     matched_code: Optional[str] = None
     matched_name: Optional[str] = None
     is_authorized: bool = False
+    is_active: bool = True
 
 @dataclass
 class TrackedPerson:

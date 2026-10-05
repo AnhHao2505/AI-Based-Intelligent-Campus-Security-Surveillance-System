@@ -14,7 +14,7 @@ class CameraStreamWorker:
     """
     Worker xử lý ngầm luồng video RTSP từ MediaMTX:
     - Kéo frame liên tục từ RTSP stream theo từng camera
-    - Phân tích qua VideoPipeline (YOLOv8 + YuNet)
+    - Phân tích qua VideoPipeline (YOLO11 + YuNet)
     - Gửi Incident Event sang Kafka khi phát hiện vi phạm
     """
     def __init__(

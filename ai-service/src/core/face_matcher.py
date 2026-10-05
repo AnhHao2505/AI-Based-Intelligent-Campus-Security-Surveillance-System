@@ -44,14 +44,17 @@ class FaceMatcher:
             conn = self._get_connection()
             cur = conn.cursor()
             cur.execute("""
-                SELECT fd.code, COALESCE(u.full_name, fd.code) AS full_name, fd.embedding_front::text 
+                SELECT fd.code, 
+                       COALESCE(u.full_name, fd.code) AS full_name, 
+                       fd.embedding_front::text,
+                       COALESCE(u.is_active, true) AS is_active
                 FROM face_data fd 
                 LEFT JOIN users u ON fd.user_id = u.id OR (fd.code = u.user_code AND u.deleted_at IS NULL);
             """)
             rows = cur.fetchall()
             
             new_cache = []
-            for code, full_name, emb_str in rows:
+            for code, full_name, emb_str, is_active in rows:
                 if emb_str:
                     clean_str = emb_str.strip("[]")
                     vec = np.array([float(x) for x in clean_str.split(",")], dtype=np.float32)
@@ -61,7 +64,8 @@ class FaceMatcher:
                     new_cache.append({
                         "code": code,
                         "full_name": full_name,
-                        "vector": vec
+                        "vector": vec,
+                        "is_active": bool(is_active)
                     })
             
             self.cached_faces = new_cache
@@ -72,10 +76,15 @@ class FaceMatcher:
         except Exception as e:
             logger.warning(f"⚠️ [FaceMatcher] Không thể kết nối Database để nạp face cache: {e}")
 
-    def match_face(self, face_crop: np.ndarray, threshold: Optional[float] = None) -> Optional[Tuple[str, str, float]]:
+    def match_face(
+        self,
+        face_crop: np.ndarray,
+        threshold: Optional[float] = None,
+        landmarks: Optional[List[Tuple[float, float]]] = None
+    ) -> Optional[Tuple[str, str, float, bool]]:
         """
         So khớp khuôn mặt cắt ra từ camera với Database:
-        Trả về: (Mã SV/CB, Họ và Tên, Độ tương đồng Cosine Score) nếu score >= threshold.
+        Trả về: (Mã SV/CB, Họ và Tên, Độ tương đồng Cosine Score, Trạng thái hoạt động is_active) nếu score >= threshold.
         """
         if face_crop is None or face_crop.size == 0:
             return None
@@ -83,8 +92,8 @@ class FaceMatcher:
         if threshold is None:
             threshold = settings.FACE_MATCH_THRESHOLD
 
-        # Trích xuất vector 512 chiều từ ảnh mặt camera
-        vec_list = self.embedder.extract_embedding(face_crop)
+        # Trích xuất vector 512 chiều từ ảnh mặt camera qua ArcFace ONNX (kèm 5 điểm mốc căn chỉnh)
+        vec_list = self.embedder.extract_embedding(face_crop, landmarks=landmarks)
         cam_vec = np.array(vec_list, dtype=np.float32)
         norm = np.linalg.norm(cam_vec)
         if norm < 1e-6:
@@ -109,7 +118,8 @@ class FaceMatcher:
                 best_match = item
 
         if best_match and best_score >= threshold:
-            logger.info(f"🎯 [FaceMatcher] NHẬN DIỆN KHUÔN MẶT: {best_match['code']} - {best_match['full_name']} (Khớp: {best_score:.1%})")
-            return (best_match["code"], best_match["full_name"], best_score)
+            is_active = bool(best_match.get("is_active", True))
+            logger.info(f"🎯 [FaceMatcher] NHẬN DIỆN KHUÔN MẶT: {best_match['code']} - {best_match['full_name']} (Khớp: {best_score:.1%}, Hoạt động: {is_active})")
+            return (best_match["code"], best_match["full_name"], best_score, is_active)
 
         return None
