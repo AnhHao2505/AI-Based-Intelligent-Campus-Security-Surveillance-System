@@ -427,8 +427,10 @@ class AccessRequestSponsorshipIntegrationTest extends AbstractIntegrationTest {
                 List.of("NON_EXISTENT_CODE_9999")
         );
 
+        // Mã không tồn tại: cùng loại lỗi + cùng câu với mã bị khoá (không dò được mã nào tồn tại — CLAUDE.md 9a)
         assertThatThrownBy(() -> accessRequestService.createGroupRequest(reqNonExistent, creatorL2.getEmail()))
-                .isInstanceOf(Exception.class);
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("NON_EXISTENT_CODE_9999: Không tìm thấy người dùng hợp lệ với mã này");
     }
 
     @Test

@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 /**
- * Tạo đơn nhóm có thành viên bị vô hiệu hoá / đã xoá -> 400 với CÙNG lý do chung như resolve-members
+ * Tạo đơn nhóm có thành viên không tồn tại / bị vô hiệu hoá / đã xoá -> 400 với CÙNG lý do chung như resolve-members
  * ("Không tìm thấy người dùng hợp lệ với mã này"), không lộ là tài khoản tồn tại nhưng bị khoá (CLAUDE.md 9a).
  */
 class GroupMemberGenericReasonTest extends Step5bTestSupport {
@@ -38,6 +38,10 @@ class GroupMemberGenericReasonTest extends Step5bTestSupport {
     }
 
     private MvcResult createGroup(User memberUser) throws Exception {
+        return createGroup(memberUser.getUserCode());
+    }
+
+    private MvcResult createGroup(String memberCode) throws Exception {
         Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
         OffsetDateTime start = OffsetDateTime.now().plusHours(3).truncatedTo(ChronoUnit.MINUTES);
         Map<String, Object> body = new LinkedHashMap<>();
@@ -45,13 +49,17 @@ class GroupMemberGenericReasonTest extends Step5bTestSupport {
         body.put("startTime", start.toString());
         body.put("endTime", start.plusHours(1).toString());
         body.put("purpose", "Đơn nhóm kiểm lý do chung " + suffix);
-        body.put("memberUserCodes", List.of(memberUser.getUserCode()));
+        body.put("memberUserCodes", List.of(memberCode));
         return send(post("/api/access-requests/group"), userL2, body).andReturn();
     }
 
     private void assertGenericReason(MvcResult r, User memberUser) throws Exception {
+        assertGenericReason(r, memberUser.getUserCode());
+    }
+
+    private void assertGenericReason(MvcResult r, String memberCode) throws Exception {
         assertEquals(400, status(r), describe(r));
-        assertEquals(memberUser.getUserCode() + ": " + GENERIC_REASON, message(r));
+        assertEquals(memberCode + ": " + GENERIC_REASON, message(r));
         assertFalse(message(r).toLowerCase().contains("vô hiệu"), "Không được nêu tài khoản bị vô hiệu hoá");
     }
 
@@ -67,6 +75,13 @@ class GroupMemberGenericReasonTest extends Step5bTestSupport {
     void deletedMember_genericReason() throws Exception {
         User deleted = member("del", true, true);
         assertGenericReason(createGroup(deleted), deleted);
+    }
+
+    @Test
+    @DisplayName("Mã không tồn tại -> 400, CÙNG lý do chung với mã bị khoá / đã xoá (không phân biệt được bằng mã HTTP hay câu)")
+    void nonExistentMember_sameGenericReason() throws Exception {
+        String code = "GM-NOPE-" + suffix;
+        assertGenericReason(createGroup(code), code);
     }
 
     @Test
