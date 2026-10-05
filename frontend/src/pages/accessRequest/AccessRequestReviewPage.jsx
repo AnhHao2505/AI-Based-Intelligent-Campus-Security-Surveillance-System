@@ -24,6 +24,7 @@ import PageHeader from '../../components/ui/PageHeader';
 import ReasonTextarea from '../../components/ui/ReasonTextarea';
 import '../../components/ui/Button.css';
 import { formatLocation } from '../../utils/formatLocation';
+import { formatDateTime } from '../../utils/formatDateTime';
 
 export default function AccessRequestReviewPage() {
   const [requests, setRequests] = useState([]);
@@ -205,19 +206,6 @@ export default function AccessRequestReviewPage() {
       .slice(0, 2)
       .join('')
       .toUpperCase();
-  };
-
-  // Format date helper
-  const formatDateTime = (isoString) => {
-    if (!isoString) return '—';
-    const d = new Date(isoString);
-    return d.toLocaleString('vi-VN', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
   };
 
   // Client-side search filter (lọc khu vực và trạng thái đã xử lý hoàn toàn tại server)

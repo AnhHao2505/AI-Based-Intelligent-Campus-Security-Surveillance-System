@@ -25,6 +25,7 @@ import { useAuth } from "../../context/AuthContext";
 import "../../styles/AccessRequestPage.css";
 import PageHeader from "../../components/ui/PageHeader";
 import { formatLocation } from "../../utils/formatLocation";
+import { formatDateTime, formatRange } from "../../utils/formatDateTime";
 
 export default function AccessRequestPage() {
 	const { user } = useAuth();
@@ -466,31 +467,6 @@ export default function AccessRequestPage() {
 		} finally {
 			setCancelling(false);
 		}
-	};
-
-	// Format table time: dd/MM/yyyy · HH:mm – HH:mm
-	const formatTableTime = (startStr, endStr) => {
-		if (!startStr || !endStr) return "—";
-		const s = new Date(startStr);
-		const e = new Date(endStr);
-		const pad = (n) => String(n).padStart(2, "0");
-		const dStr = `${pad(s.getDate())}/${pad(s.getMonth() + 1)}/${s.getFullYear()}`;
-		const sTime = `${pad(s.getHours())}:${pad(s.getMinutes())}`;
-		const eTime = `${pad(e.getHours())}:${pad(e.getMinutes())}`;
-
-		const endDStr = `${pad(e.getDate())}/${pad(e.getMonth() + 1)}/${e.getFullYear()}`;
-		if (dStr === endDStr) {
-			return `${dStr} · ${sTime} – ${eTime}`;
-		}
-		return `${dStr} ${sTime} – ${endDStr} ${eTime}`;
-	};
-
-	// Format single datetime
-	const formatDateTime = (isoString) => {
-		if (!isoString) return "—";
-		const d = new Date(isoString);
-		const pad = (n) => String(n).padStart(2, "0");
-		return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} · ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 	};
 
 	const timeSummary = getTimeSummary();
@@ -1053,7 +1029,7 @@ export default function AccessRequestPage() {
 												</td>
 												<td>
 													<div style={{ fontSize: "13px" }}>
-														{formatTableTime(req.startTime, req.endTime)}
+														{formatRange(req.startTime, req.endTime)}
 													</div>
 												</td>
 												<td>
@@ -1595,7 +1571,7 @@ export default function AccessRequestPage() {
 							</div>
 							<div>
 								<strong>Khung giờ:</strong>{" "}
-								{formatTableTime(cancelItem.startTime, cancelItem.endTime)}
+								{formatRange(cancelItem.startTime, cancelItem.endTime)}
 							</div>
 							<div>
 								<strong>Hình thức:</strong>{" "}

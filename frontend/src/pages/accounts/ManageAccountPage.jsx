@@ -39,6 +39,7 @@ import { ROLES, ROLE_LABELS } from "../../constants/roles";
 import { useAuth } from "../../context/AuthContext";
 import "../../styles/ManageAccountPage.css";
 import PageHeader from "../../components/ui/PageHeader";
+import { formatDateTime } from "../../utils/formatDateTime";
 
 const DEFAULT_PAGE_SIZE = 10;
 
@@ -2085,18 +2086,7 @@ export default function ManageAccountPage() {
 																	color: "var(--theme-text-secondary, #475569)",
 																}}
 															>
-																{batch.createdAt
-																	? new Date(batch.createdAt).toLocaleString(
-																			"vi-VN",
-																			{
-																				year: "numeric",
-																				month: "2-digit",
-																				day: "2-digit",
-																				hour: "2-digit",
-																				minute: "2-digit",
-																			},
-																		)
-																	: "-"}
+																{formatDateTime(batch.createdAt)}
 															</td>
 															<td>
 																{isAllDeleted ? (

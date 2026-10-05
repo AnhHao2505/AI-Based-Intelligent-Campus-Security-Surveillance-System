@@ -29,6 +29,7 @@ import Pagination from '../../components/ui/Pagination';
 import '../../styles/NotificationsPage.css';
 import PageHeader from '../../components/ui/PageHeader';
 import '../../components/ui/Button.css';
+import { formatDateTime } from '../../utils/formatDateTime';
 
 export default function NotificationsPage() {
   const { user } = useAuth();
@@ -115,22 +116,6 @@ export default function NotificationsPage() {
     fetchNotifications(0);
   }, []);
 
-  const formatTime = (ts) => {
-    if (!ts) return '';
-    try {
-      const d = new Date(ts);
-      if (isNaN(d.getTime())) return ts;
-      return d.toLocaleString('vi-VN', {
-        hour: '2-digit',
-        minute: '2-digit',
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-      });
-    } catch {
-      return ts;
-    }
-  };
 
   const renderIcon = (type) => {
     switch (type) {
@@ -356,7 +341,7 @@ export default function NotificationsPage() {
 
                   {/* Cột 3 — Thời gian */}
                   <div className="notif-item__time">
-                    {formatTime(notif.createdAt)}
+                    {formatDateTime(notif.createdAt)}
                   </div>
                 </div>
               ))}
