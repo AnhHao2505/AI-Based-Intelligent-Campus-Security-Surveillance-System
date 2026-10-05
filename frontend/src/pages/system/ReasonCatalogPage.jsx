@@ -26,7 +26,7 @@ const ACTION_TYPES = [
 	// Step 5b (BR-ES-L1): nhóm lý do riêng cho lịch sự kiện
 	{ value: "EVENT_SCHEDULE_CREATE", label: "Đặt lịch sự kiện" },
 	{ value: "EVENT_SCHEDULE_UPDATE", label: "Sửa lịch sự kiện" },
-	{ value: "EVENT_SCHEDULE_CANCEL", label: "Huỷ lịch sự kiện" },
+	{ value: "EVENT_SCHEDULE_CANCEL", label: "Hủy lịch sự kiện" },
 ];
 
 export default function ReasonCatalogPage() {
@@ -190,7 +190,7 @@ export default function ReasonCatalogPage() {
 		<div className="syscfg-container">
 			{/* Header */}
 			<PageHeader
-				title="Danh mục lý do chế độ sự kiện"
+				title="Danh mục lý do"
 				description="Quản lý các lý do chuẩn hóa cho thao tác bật, tắt và điều chỉnh giờ kết thúc sự kiện khu vực. Mọi thay đổi đều được ghi vết kiểm toán."
 				actions={
 					<Button

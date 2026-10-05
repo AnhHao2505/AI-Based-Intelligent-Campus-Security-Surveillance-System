@@ -749,7 +749,7 @@ export default function ManageAccountPage() {
 						>
 							<option value="">Trạng thái: Tất cả</option>
 							<option value="true">Đang hoạt động</option>
-							<option value="false">Đã vô hiệu hoá</option>
+							<option value="false">Đã vô hiệu hóa</option>
 						</select>
 						<ChevronDown
 							size={16}
@@ -928,7 +928,7 @@ export default function ManageAccountPage() {
 													<span>
 														{item.isActive
 															? "Đang hoạt động"
-															: "Đã vô hiệu hoá"}
+															: "Đã vô hiệu hóa"}
 													</span>
 												</span>
 											</td>
@@ -1406,7 +1406,7 @@ export default function ManageAccountPage() {
 								onClick={closeModal}
 								disabled={isSubmitting}
 							>
-								Huỷ
+								Hủy
 							</button>
 							<button
 								type="button"
@@ -1420,7 +1420,7 @@ export default function ManageAccountPage() {
 										className="spin"
 									/>
 								)}
-								<span>{isSubmitting ? "Đang xử lý..." : "Vô hiệu hoá"}</span>
+								<span>{isSubmitting ? "Đang xử lý..." : "Vô hiệu hóa"}</span>
 							</button>
 						</div>
 					</div>
@@ -1471,7 +1471,7 @@ export default function ManageAccountPage() {
 								onClick={closeModal}
 								disabled={isSubmitting}
 							>
-								Huỷ
+								Hủy
 							</button>
 							<button
 								type="button"
@@ -2505,7 +2505,7 @@ export default function ManageAccountPage() {
 										lineHeight: "1.4",
 									}}
 								>
-									ℹ️ Thao tác này chỉ xoá mềm (soft-delete). Bạn{" "}
+									ℹ️ Thao tác này chỉ xóa mềm (soft-delete). Bạn{" "}
 									<strong>hoàn toàn có thể khôi phục lại</strong> các tài khoản
 									này sau đó từ danh sách lô.
 								</div>

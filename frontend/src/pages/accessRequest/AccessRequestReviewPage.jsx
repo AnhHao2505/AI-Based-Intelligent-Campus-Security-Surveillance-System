@@ -222,7 +222,7 @@ export default function AccessRequestReviewPage() {
     <div className="arr-container">
       {/* Header */}
       <PageHeader
-        title="Phê duyệt yêu cầu truy cập khu vực"
+        title="Phê duyệt yêu cầu truy cập"
         description={`Xét duyệt yêu cầu ra vào các khu vực ${AREA_LEVEL_CONFIG.INTERNAL_CONFIDENTIAL.badgeLabel}, ${AREA_LEVEL_CONFIG.CONFIDENTIAL_CONTACT_REQUIRED.badgeLabel} và ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.badgeLabel}.`}
         actions={
           <button
@@ -299,7 +299,7 @@ export default function AccessRequestReviewPage() {
             <Ban size={22} />
           </div>
           <div className="arr-stat-card__content">
-            <span className="arr-stat-card__label">Đã huỷ</span>
+            <span className="arr-stat-card__label">Đã hủy</span>
             <span className="arr-stat-card__value">{stats.cancelled}</span>
           </div>
         </div>
@@ -333,7 +333,7 @@ export default function AccessRequestReviewPage() {
             { label: 'Chờ duyệt', val: 'PENDING' },
             { label: 'Đã duyệt', val: 'APPROVED' },
             { label: 'Đã từ chối', val: 'REJECTED' },
-            { label: 'Đã huỷ', val: 'CANCELLED' },
+            { label: 'Đã hủy', val: 'CANCELLED' },
             { label: 'Hết hạn', val: 'EXPIRED' },
             { label: 'Hoàn thành', val: 'FINISHED' }
           ].map(f => (
@@ -460,13 +460,13 @@ export default function AccessRequestReviewPage() {
                         {req.status === 'PENDING' && 'Chờ duyệt'}
                         {req.status === 'APPROVED' && 'Đã duyệt'}
                         {req.status === 'REJECTED' && 'Từ chối'}
-                        {req.status === 'CANCELLED' && 'Đã huỷ'}
+                        {req.status === 'CANCELLED' && 'Đã hủy'}
                         {req.status === 'EXPIRED' && 'Hết hạn'}
                         {req.status === 'FINISHED' && 'Hoàn thành'}
                       </span>
                       {req.status === 'CANCELLED' && req.cancelSource === 'SYSTEM' && (
                         <div className="arr-cancel-system" title={req.cancelReason || ''}>
-                          Huỷ bởi hệ thống: {req.cancelReason}
+                          Hủy bởi hệ thống: {req.cancelReason}
                         </div>
                       )}
                     </td>
@@ -708,13 +708,13 @@ export default function AccessRequestReviewPage() {
                       {detailItem.status === 'PENDING' && 'Chờ phê duyệt'}
                       {detailItem.status === 'APPROVED' && 'Đã phê duyệt'}
                       {detailItem.status === 'REJECTED' && 'Bị từ chối'}
-                      {detailItem.status === 'CANCELLED' && 'Đã huỷ'}
+                      {detailItem.status === 'CANCELLED' && 'Đã hủy'}
                       {detailItem.status === 'EXPIRED' && 'Hết hạn'}
                       {detailItem.status === 'FINISHED' && 'Hoàn thành'}
                     </span>
                     {detailItem.status === 'CANCELLED' && detailItem.cancelSource === 'SYSTEM' && (
                       <div className="arr-cancel-system arr-cancel-system--detail">
-                        Huỷ bởi hệ thống: {detailItem.cancelReason}
+                        Hủy bởi hệ thống: {detailItem.cancelReason}
                       </div>
                     )}
                   </div>

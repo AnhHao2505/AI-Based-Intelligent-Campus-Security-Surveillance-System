@@ -162,7 +162,7 @@ export default function NotificationsPage() {
         );
       case 'REQUEST_CANCELLED':
         return (
-          <div className="notif-icon-box notif-icon-box--cancelled" title="Yêu cầu đã huỷ">
+          <div className="notif-icon-box notif-icon-box--cancelled" title="Yêu cầu đã hủy">
             <XCircle size={16} />
           </div>
         );
@@ -211,7 +211,7 @@ export default function NotificationsPage() {
         );
       case 'REQUEST_SYSTEM_CANCELLED':
         return (
-          <div className="notif-icon-box notif-icon-box--cancelled" title="Đơn bị hệ thống huỷ">
+          <div className="notif-icon-box notif-icon-box--cancelled" title="Đơn bị hệ thống hủy">
             <XCircle size={16} />
           </div>
         );
@@ -255,7 +255,7 @@ export default function NotificationsPage() {
         );
       case 'GUEST_VISIT_CANCELLED_BY_SYSTEM':
         return (
-          <div className="notif-icon-box notif-icon-box--cancelled" title="Lượt khách bị hệ thống huỷ">
+          <div className="notif-icon-box notif-icon-box--cancelled" title="Lượt khách bị hệ thống hủy">
             <CalendarOff size={16} />
           </div>
         );

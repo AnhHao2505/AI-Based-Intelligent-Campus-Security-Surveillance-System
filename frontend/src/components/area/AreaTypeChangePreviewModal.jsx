@@ -127,8 +127,8 @@ export default function AreaTypeChangePreviewModal({ isOpen, areaName, preview, 
 					)}
 				</div>
 
-				<RequestList title="Đơn đã duyệt (APPROVED) sẽ bị hệ thống huỷ" items={preview.approvedRequestsToCancel} />
-				{toPublic && <RequestList title="Đơn chờ duyệt (PENDING) sẽ bị hệ thống huỷ" items={preview.pendingRequestsToCancel} />}
+				<RequestList title="Đơn đã duyệt (APPROVED) sẽ bị hệ thống hủy" items={preview.approvedRequestsToCancel} />
+				{toPublic && <RequestList title="Đơn chờ duyệt (PENDING) sẽ bị hệ thống hủy" items={preview.pendingRequestsToCancel} />}
 			</div>
 		</Modal>
 	);

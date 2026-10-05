@@ -203,7 +203,7 @@ export default function EventScheduleSection({ area, onSchedulesChanged }) {
 				toast.success("Đã cập nhật lịch sự kiện");
 			} else if (mode === "cancel") {
 				await cancelEventSchedule(areaId, target.id, { reasonCode: form.reasonCode, note });
-				toast.success("Đã huỷ lịch sự kiện");
+				toast.success("Đã hủy lịch sự kiện");
 			}
 			closeForm();
 			await loadSchedules();
@@ -233,7 +233,7 @@ export default function EventScheduleSection({ area, onSchedulesChanged }) {
 
 	const renderForm = () => {
 		const title =
-			mode === "create" ? "Đặt lịch sự kiện" : mode === "edit" ? "Sửa lịch sự kiện" : "Huỷ lịch sự kiện";
+			mode === "create" ? "Đặt lịch sự kiện" : mode === "edit" ? "Sửa lịch sự kiện" : "Hủy lịch sự kiện";
 		return (
 			<div className="evs-form" onKeyDown={preventEnterSubmit}>
 				<div className="evs-form__title">{title}</div>
@@ -278,7 +278,7 @@ export default function EventScheduleSection({ area, onSchedulesChanged }) {
 				)}
 				<label className="evs-field">
 					<span className="evs-field__label">
-						{mode === "cancel" ? "Lý do huỷ" : "Lý do"} <span className="evs-required">*</span>
+						{mode === "cancel" ? "Lý do hủy" : "Lý do"} <span className="evs-required">*</span>
 					</span>
 					{loadingReasons ? (
 						<span className="evs-muted">Đang tải danh mục lý do...</span>
@@ -326,7 +326,7 @@ export default function EventScheduleSection({ area, onSchedulesChanged }) {
 						loading={submitting}
 						disabled={submitting || loadingReasons}
 					>
-						{mode === "create" ? "Đặt lịch" : mode === "edit" ? "Lưu lịch" : "Xác nhận huỷ"}
+						{mode === "create" ? "Đặt lịch" : mode === "edit" ? "Lưu lịch" : "Xác nhận hủy"}
 					</Button>
 				</div>
 			</div>
@@ -361,7 +361,7 @@ export default function EventScheduleSection({ area, onSchedulesChanged }) {
 					)}
 					{s.status === "CANCELLED" && (
 						<div>
-							<span className="evs-item__key">Huỷ bởi:</span> {s.cancelledByName || "—"}
+							<span className="evs-item__key">Hủy bởi:</span> {s.cancelledByName || "—"}
 							{s.cancelledAt ? ` · ${formatDisplayDateTime(s.cancelledAt)}` : ""}
 							{s.cancelReasonLabel ? ` · ${s.cancelReasonLabel}` : ""}
 							{s.cancelNote ? ` – ${s.cancelNote}` : ""}
@@ -380,7 +380,7 @@ export default function EventScheduleSection({ area, onSchedulesChanged }) {
 							Sửa
 						</Button>
 						<Button variant="ghost" size="sm" icon={XCircle} onClick={() => openForm("cancel", s)} disabled={submitting}>
-							Huỷ
+							Hủy
 						</Button>
 					</div>
 				)}

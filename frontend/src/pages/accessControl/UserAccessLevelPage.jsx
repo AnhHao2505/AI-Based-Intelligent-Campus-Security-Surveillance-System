@@ -158,7 +158,7 @@ export default function UserAccessLevelPage() {
   return (
     <div className="user-access-level-page">
       <PageHeader
-        title="Phân quyền Cấp độ Người dùng"
+        title="Cấp truy cập người dùng"
         subtitle="Tra cứu và điều chỉnh cấp độ truy cập (Level 1, Level 2, Level 3) cho người dùng trong khuôn viên."
       />
 
@@ -183,7 +183,7 @@ export default function UserAccessLevelPage() {
                   setUsers([]);
                   setHasSearched(false);
                 }}
-                title="Xoá từ khoá"
+                title="Xóa từ khóa"
               >
                 <X size={14} />
               </button>

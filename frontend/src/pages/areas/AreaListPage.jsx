@@ -882,11 +882,7 @@ export default function AreaListPage() {
 			)}
 
 			<PageHeader
-				title={
-					isAdmin
-						? "Cấu hình vùng hạn chế"
-						: "Quản lý vùng an ninh và quyền truy cập"
-				}
+				title="Quản lý khu vực"
 				description={
 					isAdmin
 						? "Thêm mới phân khu, cấu hình cấp độ bảo mật, liên kết camera và thiết lập hạ tầng an ninh."
@@ -920,7 +916,7 @@ export default function AreaListPage() {
 						className="zone-toolbar__building-select"
 						value={selectedBuilding}
 						onChange={(e) => handleSelectBuilding(e.target.value)}
-						title="Chọn toà nhà"
+						title="Chọn tòa nhà"
 					>
 						{availableBuildings.map((b) => (
 							<option
@@ -980,10 +976,10 @@ export default function AreaListPage() {
 								type="button"
 								className={`zone-view-toggle__btn ${showDeactivated ? "zone-view-toggle__btn--active" : ""}`}
 								onClick={() => setShowDeactivated(true)}
-								title="Khu vực đã vô hiệu hoá"
+								title="Khu vực đã vô hiệu hóa"
 							>
 								<Archive size={15} />
-								<span>Đã vô hiệu hoá</span>
+								<span>Đã vô hiệu hóa</span>
 							</button>
 						</div>
 					)}
@@ -1022,12 +1018,12 @@ export default function AreaListPage() {
 			{isAdmin && showDeactivated && (
 				<section
 					className="zone-deactivated"
-					aria-label="Khu vực đã vô hiệu hoá"
+					aria-label="Khu vực đã vô hiệu hóa"
 				>
 					<div className="zone-deactivated__header">
 						<div>
 							<h2 className="zone-deactivated__title">
-								Khu vực đã vô hiệu hoá
+								Khu vực đã vô hiệu hóa
 							</h2>
 							<p className="zone-deactivated__subtitle">
 								Khôi phục chỉ mở lại khu vực. Nhân sự chỉ định, đơn truy cập,
@@ -1045,7 +1041,7 @@ export default function AreaListPage() {
 								className="animate-spin"
 								size={24}
 							/>
-							<span>Đang tải khu vực đã vô hiệu hoá...</span>
+							<span>Đang tải khu vực đã vô hiệu hóa...</span>
 						</div>
 					)}
 					{!deactivatedLoading && deactivatedError && (
@@ -1058,7 +1054,7 @@ export default function AreaListPage() {
 						!deactivatedError &&
 						deactivatedAreas.length === 0 && (
 							<p className="zone-deactivated__empty">
-								Không có khu vực nào đã vô hiệu hoá.
+								Không có khu vực nào đã vô hiệu hóa.
 							</p>
 						)}
 					{!deactivatedLoading &&
@@ -1068,7 +1064,7 @@ export default function AreaListPage() {
 								<thead>
 									<tr>
 										<th>Tên khu vực</th>
-										<th>Toà nhà / Tầng</th>
+										<th>Tòa nhà / Tầng</th>
 										<th>Loại</th>
 										<th aria-label="Thao tác" />
 									</tr>
@@ -1143,7 +1139,7 @@ export default function AreaListPage() {
 								<div className="area-modal__header-text">
 									<h3 className="area-modal__title">Thêm vùng mới</h3>
 									<p className="area-modal__subtitle">
-										Tạo khu vực giám sát trong toà nhà
+										Tạo khu vực giám sát trong tòa nhà
 									</p>
 								</div>
 							</div>
@@ -1179,7 +1175,7 @@ export default function AreaListPage() {
 										type="text"
 										required
 										className={`area-form-input ${nameError ? "area-form-input--error" : ""}`}
-										placeholder="Cổng chính toà nhà"
+										placeholder="Cổng chính tòa nhà"
 										value={formData.name}
 										onChange={(e) => {
 											setFormData({ ...formData, name: e.target.value });
@@ -1247,7 +1243,7 @@ export default function AreaListPage() {
 											htmlFor="create-building"
 											className="area-form-label"
 										>
-											Toà nhà / Phân khu <span className="required">*</span>
+											Tòa nhà / Phân khu <span className="required">*</span>
 										</label>
 										<select
 											id="create-building"
@@ -1374,7 +1370,7 @@ export default function AreaListPage() {
 									onClick={() => setCreateModalOpen(false)}
 									disabled={modalLoading}
 								>
-									Huỷ
+									Hủy
 								</button>
 								<button
 									type="submit"
@@ -1531,7 +1527,7 @@ export default function AreaListPage() {
 												}
 											}}
 											error={editReasonError}
-											hint="Đổi loại sẽ áp cấp truy cập theo mặc định của loại mới và có thể huỷ các đơn truy cập không còn phù hợp."
+											hint="Đổi loại sẽ áp cấp truy cập theo mặc định của loại mới và có thể hủy các đơn truy cập không còn phù hợp."
 											min={10}
 											max={500}
 											required
@@ -1545,7 +1541,7 @@ export default function AreaListPage() {
 											htmlFor="edit-building"
 											className="area-form-label"
 										>
-											Toà nhà / Phân khu <span className="required">*</span>
+											Tòa nhà / Phân khu <span className="required">*</span>
 										</label>
 										<select
 											id="edit-building"
@@ -1671,7 +1667,7 @@ export default function AreaListPage() {
 									onClick={() => setEditModalOpen(false)}
 									disabled={modalLoading}
 								>
-									Huỷ
+									Hủy
 								</button>
 								<button
 									type="submit"
@@ -1711,7 +1707,7 @@ export default function AreaListPage() {
 									<Trash2 size={16} />
 								</div>
 								<div className="area-modal__header-text">
-									<h3 className="area-modal__title">Vô hiệu hoá khu vực</h3>
+									<h3 className="area-modal__title">Vô hiệu hóa khu vực</h3>
 									<p className="area-modal__subtitle">
 										Khu vực ngừng hoạt động, không còn nhận đơn hay lượt khách
 									</p>
@@ -1736,7 +1732,7 @@ export default function AreaListPage() {
 							)}
 
 							<p className="area-modal__lead">
-								Vô hiệu hoá khu vực <strong>{deactivateTarget.name}</strong>?
+								Vô hiệu hóa khu vực <strong>{deactivateTarget.name}</strong>?
 							</p>
 
 							{modalLoading && !dependencies && (
@@ -1756,7 +1752,7 @@ export default function AreaListPage() {
 								>
 									<div className="area-deactivate-blockers__title">
 										<AlertTriangle size={15} />
-										<span>Chưa thể vô hiệu hoá — cần xử lý trước:</span>
+										<span>Chưa thể vô hiệu hóa — cần xử lý trước:</span>
 									</div>
 									<ul>
 										{dependencies.blockers.map((b) => (
@@ -1769,7 +1765,7 @@ export default function AreaListPage() {
 							{dependencies && (
 								<div className="area-dependencies-box">
 									<div className="area-dependencies-box__title">
-										Hệ thống sẽ tự xử lý khi vô hiệu hoá:
+										Hệ thống sẽ tự xử lý khi vô hiệu hóa:
 									</div>
 									<ul>
 										<li>
@@ -1777,15 +1773,15 @@ export default function AreaListPage() {
 											<strong>{dependencies.apToRevoke ?? 0}</strong>
 										</li>
 										<li>
-											Đơn truy cập bị huỷ:{" "}
+											Đơn truy cập bị hủy:{" "}
 											<strong>{dependencies.requestsToCancel ?? 0}</strong>
 										</li>
 										<li>
-											Lượt khách chờ duyệt bị huỷ:{" "}
+											Lượt khách chờ duyệt bị hủy:{" "}
 											<strong>{dependencies.guestVisitsToCancel ?? 0}</strong>
 										</li>
 										<li>
-											Lượt khách đã duyệt bị thu hồi (xoá ảnh khuôn mặt):{" "}
+											Lượt khách đã duyệt bị thu hồi (xóa ảnh khuôn mặt):{" "}
 											<strong>{dependencies.guestVisitsToRevoke ?? 0}</strong>
 										</li>
 									</ul>
@@ -1797,8 +1793,8 @@ export default function AreaListPage() {
 									<ReasonTextarea
 										ref={deactivateReasonRef}
 										id="deactivate-reason"
-										label="Lý do vô hiệu hoá"
-										placeholder="Nêu lý do vô hiệu hoá (10–500 ký tự)..."
+										label="Lý do vô hiệu hóa"
+										placeholder="Nêu lý do vô hiệu hóa (10–500 ký tự)..."
 										value={deactivateReason}
 										onChange={(e) => {
 											const val = e.target.value;
@@ -1824,7 +1820,7 @@ export default function AreaListPage() {
 								onClick={closeDeactivateModal}
 								disabled={modalLoading}
 							>
-								Huỷ
+								Hủy
 							</button>
 							<button
 								type="button"
@@ -1833,8 +1829,8 @@ export default function AreaListPage() {
 								disabled={modalLoading || deactivateBlocked}
 							>
 								{modalLoading && dependencies
-									? "Đang vô hiệu hoá..."
-									: "Xác nhận vô hiệu hoá"}
+									? "Đang vô hiệu hóa..."
+									: "Xác nhận vô hiệu hóa"}
 							</button>
 						</div>
 					</div>
@@ -1864,7 +1860,7 @@ export default function AreaListPage() {
 								<div className="area-modal__header-text">
 									<h3 className="area-modal__title">Khôi phục khu vực</h3>
 									<p className="area-modal__subtitle">
-										Mở lại khu vực đã vô hiệu hoá
+										Mở lại khu vực đã vô hiệu hóa
 									</p>
 								</div>
 							</div>
@@ -1897,7 +1893,7 @@ export default function AreaListPage() {
 								<div className="area-dependencies-box__title">Lưu ý</div>
 								<ul>
 									<li>
-										Nhân sự chỉ định, đơn truy cập và lượt khách đã bị huỷ / thu
+										Nhân sự chỉ định, đơn truy cập và lượt khách đã bị hủy / thu
 										hồi KHÔNG tự hồi phục.
 									</li>
 									<li>Camera cần được gán lại nếu cần.</li>
@@ -1936,7 +1932,7 @@ export default function AreaListPage() {
 								}}
 								disabled={restoreLoading}
 							>
-								Huỷ
+								Hủy
 							</button>
 							<button
 								type="button"
