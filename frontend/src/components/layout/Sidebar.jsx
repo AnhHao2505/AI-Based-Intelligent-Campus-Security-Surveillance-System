@@ -280,14 +280,12 @@ export default function Sidebar({ user, onLogout }) {
 										}
 										title={
 											sidebarCollapsed
-												? isAdmin
-													? "Cấu hình vùng"
-													: "Quản lý vùng"
+												? "Quản lý khu vực"
 												: undefined
 										}
 									>
 										<MapPin size={18} />
-										<span>{isAdmin ? "Cấu hình vùng" : "Quản lý vùng"}</span>
+										<span>Quản lý khu vực</span>
 									</NavLink>
 
 									<NavLink
@@ -324,11 +322,11 @@ export default function Sidebar({ user, onLogout }) {
 													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
 												}
 												title={
-													sidebarCollapsed ? "Phê duyệt truy cập" : undefined
+													sidebarCollapsed ? "Phê duyệt yêu cầu truy cập" : undefined
 												}
 											>
 												<ClipboardCheck size={18} />
-												<span>Phê duyệt truy cập</span>
+												<span>Phê duyệt yêu cầu truy cập</span>
 											</NavLink>
 											<NavLink
 												to="/admin/guest-visits"
@@ -360,11 +358,11 @@ export default function Sidebar({ user, onLogout }) {
 													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
 												}
 												title={
-													sidebarCollapsed ? "Cấp người dùng" : undefined
+													sidebarCollapsed ? "Cấp truy cập người dùng" : undefined
 												}
 											>
 												<ShieldCheck size={18} />
-												<span>Cấp người dùng</span>
+												<span>Cấp truy cập người dùng</span>
 											</NavLink>
 											<NavLink
 												to="/admin/audit-logs"
@@ -426,11 +424,11 @@ export default function Sidebar({ user, onLogout }) {
 													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
 												}
 												title={
-													sidebarCollapsed ? "Mặc định theo loại" : undefined
+													sidebarCollapsed ? "Mặc định theo loại khu vực" : undefined
 												}
 											>
 												<ShieldCheck size={18} />
-												<span>Mặc định theo loại</span>
+												<span>Mặc định theo loại khu vực</span>
 											</NavLink>
 											<NavLink
 												to="/admin/audit-logs"

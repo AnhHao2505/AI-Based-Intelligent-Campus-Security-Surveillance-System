@@ -30,7 +30,7 @@ const STATUS_FILTERS = [
   { value: 'PENDING', label: 'Chờ duyệt' },
   { value: 'APPROVED', label: 'Đã duyệt' },
   { value: 'REJECTED', label: 'Bị từ chối' },
-  { value: 'CANCELLED', label: 'Đã huỷ' },
+  { value: 'CANCELLED', label: 'Đã hủy' },
   { value: 'REVOKED', label: 'Bị thu hồi' },
   { value: 'EXPIRED', label: 'Hết hạn' },
   { value: 'COMPLETED', label: 'Đã kết thúc' },
@@ -456,7 +456,7 @@ export default function GuestVisitReviewPage() {
             />
 
             <ReasonBlock
-              label="Lý do huỷ"
+              label="Lý do hủy"
               value={detail.cancelReason}
               time={detail.cancelledAt}
             />
@@ -658,7 +658,7 @@ export default function GuestVisitReviewPage() {
             <div className="guest-visit__alert guest-visit__alert--warning">
               <AlertTriangle size={16} />
               <span>
-                Cảnh báo: Thu hồi lượt khách sẽ huỷ quyền vào các khu vực của khách ngay lập tức và toàn bộ dữ liệu khuôn mặt đã gắn sẽ bị xoá khỏi hệ thống.
+                Cảnh báo: Thu hồi lượt khách sẽ hủy quyền vào các khu vực của khách ngay lập tức và toàn bộ dữ liệu khuôn mặt đã gắn sẽ bị xóa khỏi hệ thống.
               </span>
             </div>
 
@@ -676,7 +676,7 @@ export default function GuestVisitReviewPage() {
             <ReasonTextarea
               ref={revokeReasonRef}
               label="Lý do thu hồi"
-              placeholder="Ví dụ: Sự cố kỹ thuật trong khu vực, yêu cầu huỷ khẩn cấp từ ban giám hiệu..."
+              placeholder="Ví dụ: Sự cố kỹ thuật trong khu vực, yêu cầu hủy khẩn cấp từ ban giám hiệu..."
               value={revokeReason}
               onChange={(e) => {
                 setRevokeReason(e.target.value);

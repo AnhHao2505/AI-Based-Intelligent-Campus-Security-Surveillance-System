@@ -194,8 +194,8 @@ export default function AreaListView({
 													e.stopPropagation();
 													onOpenAccessRulesModal(area);
 												}}
-												title="Cấu hình quy tắc truy cập"
-												aria-label="Cấu hình quy tắc truy cập"
+												title="Chế độ sự kiện và lịch"
+												aria-label="Chế độ sự kiện và lịch"
 											>
 												<ShieldCheck size={13} />
 											</button>
@@ -239,8 +239,8 @@ export default function AreaListView({
 														onSelectArea(area.id);
 														onOpenDeactivateModal(area);
 													}}
-													title="Vô hiệu hoá"
-													aria-label="Vô hiệu hoá"
+													title="Vô hiệu hóa"
+													aria-label="Vô hiệu hóa"
 												>
 													<Ban size={13} />
 												</button>

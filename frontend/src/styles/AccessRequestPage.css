@@ -228,24 +228,25 @@
   animation: arpFadeIn 0.2s ease-out;
 }
 
+/* UI-36: banner cấp độ an ninh dùng token cảnh báo/nguy hiểm của theme (đủ tương phản ở cả 2 chế độ) */
 .arp-area-info--private {
-  background: rgba(239, 68, 68, 0.08);
-  border: 1px solid rgba(239, 68, 68, 0.25);
-  color: #fca5a5;
+  background: var(--theme-danger-bg);
+  border: 1px solid var(--theme-danger-border);
+  color: var(--theme-danger-text);
 }
 
 .arp-area-info--semi {
-  background: rgba(245, 158, 11, 0.08);
-  border: 1px solid rgba(245, 158, 11, 0.25);
-  color: #fde047;
+  background: var(--theme-warning-bg);
+  border: 1px solid var(--theme-warning-border);
+  color: var(--theme-warning-text);
 }
 
 .arp-area-level-name {
   display: inline-block;
   padding: 1px 6px;
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.1);
-  font-family: monospace;
+  font-weight: 700;
+  border: 1px solid currentColor;
 }
 
 /* ==========================================================================
@@ -336,10 +337,21 @@
   gap: 12px;
 }
 
+/* UI-15: 4 ô (từ ngày, từ giờ, đến ngày, đến giờ) xếp 2 hàng */
+.arp-time-grid--range {
+  grid-template-columns: 1.2fr 1fr;
+}
+
 @media (max-width: 640px) {
   .arp-time-grid {
     grid-template-columns: 1fr;
   }
+}
+
+.arp-purpose-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .arp-time-summary {
@@ -369,6 +381,54 @@
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 10px;
+}
+
+/* Autocomplete mã thành viên (MemberCodeCombobox) */
+.arp-member-combobox {
+  position: relative;
+  min-width: 0;
+}
+
+.arp-member-combobox__list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--theme-bg-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: 8px;
+  box-shadow: var(--theme-card-shadow-hover);
+}
+
+.arp-member-combobox__option {
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--theme-text-primary);
+}
+
+.arp-member-combobox__option--active {
+  background: var(--theme-primary-subtle);
+}
+
+.arp-member-combobox__code {
+  font-weight: 600;
+}
+
+.arp-member-combobox__name {
+  color: var(--theme-text-muted);
+}
+
+.arp-member-combobox__empty {
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--theme-text-muted);
 }
 
 .arp-member-list {

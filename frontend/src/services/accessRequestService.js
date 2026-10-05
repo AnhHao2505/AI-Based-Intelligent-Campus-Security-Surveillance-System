@@ -98,6 +98,16 @@ export const accessRequestService = {
   },
 
   /**
+   * Gợi ý mã thành viên cho ô nhập đơn nhóm (tối đa 10, chỉ mã + họ tên).
+   * Dùng chung rate limit với resolveMembers (vượt ngưỡng -> lỗi 429).
+   * @param {string} [q] - Tiền tố mã; bỏ trống để lấy thành viên gần đây trong đơn của chính mình
+   */
+  async getMemberSuggestions(q) {
+    const query = q ? `?q=${encodeURIComponent(q)}` : '';
+    return await apiGet(`/api/access-requests/member-suggestions${query}`);
+  },
+
+  /**
    * Chuyển yêu cầu truy cập từ APPROVED sang FINISHED
    * @param {string} id - UUID của yêu cầu
    */

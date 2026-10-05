@@ -71,6 +71,7 @@ public class AccessRequestService {
     private final AccessRequestRepository accessRequestRepository;
     private final AreaRepository areaRepository;
     private final UserRepository userRepository;
+    private final com.fa26se040.icss.repository.AccessRequestMemberRepository accessRequestMemberRepository;
     private final InAppNotificationService inAppNotificationService;
     private final SystemConfigService systemConfigService;
     private final MemberLookupRateLimiter memberLookupRateLimiter;
@@ -308,18 +309,83 @@ public class AccessRequestService {
             }
         }
 
-        final String commonFailureReason = "Không tìm thấy người dùng hợp lệ với mã này";
         List<MemberLookupResult> results = new ArrayList<>();
         for (String code : distinctCodes) {
             User user = userMap.get(code);
-            if (user == null || Boolean.FALSE.equals(user.getIsActive()) || user.getDeletedAt() != null) {
-                results.add(new MemberLookupResult(code, null, false, commonFailureReason));
+            if (!isEligibleMember(user)) {
+                results.add(new MemberLookupResult(code, null, false, INVALID_MEMBER_REASON));
             } else {
                 results.add(new MemberLookupResult(user.getUserCode(), user.getFullName(), true, null));
             }
         }
 
         return results;
+    }
+
+    /** Giới hạn kỹ thuật của danh sách gợi ý trên UI (không phải tham số nghiệp vụ). */
+    private static final int MEMBER_SUGGESTION_LIMIT = 10;
+    /** Số bản ghi "thành viên gần đây" đọc tối đa trước khi gộp trùng theo người. */
+    private static final int MEMBER_SUGGESTION_RECENT_SCAN = 200;
+    private static final java.util.regex.Pattern MEMBER_SUGGESTION_QUERY =
+            java.util.regex.Pattern.compile("^[A-Za-z0-9-]{1,20}$");
+
+    /**
+     * Lý do chung khi một mã không dùng được làm thành viên (không tồn tại / vô hiệu hoá / đã xoá / không phải
+     * NORMAL_USER) — cùng một câu cho mọi trường hợp để không lộ tài khoản nào tồn tại (CLAUDE.md 9a).
+     */
+    static final String INVALID_MEMBER_REASON = "Không tìm thấy người dùng hợp lệ với mã này";
+
+    /**
+     * BR-RQ-MEM-01: thành viên đơn nhóm phải là NORMAL_USER, đang hoạt động (isActive khác false), chưa xoá mềm.
+     * Dùng chung cho resolveMembers, tạo đơn nhóm và gợi ý mã thành viên.
+     */
+    static boolean isEligibleMember(User user) {
+        return user != null
+                && user.getRole() == Role.NORMAL_USER
+                && !Boolean.FALSE.equals(user.getIsActive())
+                && user.getDeletedAt() == null;
+    }
+
+    /**
+     * Gợi ý mã thành viên cho form đơn nhóm. q trống -> thành viên gần đây trong đơn của chính người gọi;
+     * q có giá trị -> mã bắt đầu bằng q. Dùng chung rate limit với resolve-members (vượt ngưỡng -> 429).
+     * Chỉ trả mã + họ tên, loại chính người gọi, tối đa MEMBER_SUGGESTION_LIMIT.
+     */
+    @Transactional(readOnly = true)
+    public List<com.fa26se040.icss.dto.accessrequest.MemberSuggestion> suggestMembers(String q, String actorEmail) {
+        memberLookupRateLimiter.checkRateLimit(actorEmail);
+        User caller = getRequester(actorEmail);
+        String query = q == null ? "" : q.trim();
+
+        List<User> candidates;
+        if (query.isEmpty()) {
+            candidates = accessRequestMemberRepository
+                    .findRecentByRequesterIdWithUser(caller.getId(), Role.NORMAL_USER,
+                            PageRequest.of(0, MEMBER_SUGGESTION_RECENT_SCAN))
+                    .stream()
+                    .map(AccessRequestMember::getUser)
+                    .toList();
+        } else {
+            if (!MEMBER_SUGGESTION_QUERY.matcher(query).matches()) {
+                throw new IllegalArgumentException("Mã tìm kiếm chỉ gồm chữ, số hoặc dấu gạch ngang, dài 1–20 ký tự");
+            }
+            candidates = userRepository
+                    .findTop50ByUserCodeStartingWithIgnoreCaseAndRoleAndIsActiveTrueAndDeletedAtIsNullOrderByUserCodeAsc(
+                            query.toUpperCase(java.util.Locale.ROOT), Role.NORMAL_USER);
+        }
+
+        Map<UUID, com.fa26se040.icss.dto.accessrequest.MemberSuggestion> picked = new java.util.LinkedHashMap<>();
+        for (User user : candidates) {
+            if (!isEligibleMember(user) || user.getId().equals(caller.getId())) {
+                continue;
+            }
+            picked.putIfAbsent(user.getId(),
+                    new com.fa26se040.icss.dto.accessrequest.MemberSuggestion(user.getUserCode(), user.getFullName()));
+            if (picked.size() >= MEMBER_SUGGESTION_LIMIT) {
+                break;
+            }
+        }
+        return new ArrayList<>(picked.values());
     }
 
     @Transactional(readOnly = true)
@@ -895,6 +961,10 @@ public class AccessRequestService {
 
             if (Boolean.FALSE.equals(memberUser.getIsActive()) || memberUser.getDeletedAt() != null) {
                 throw new IllegalArgumentException("Tài khoản người dùng " + code + " đã bị vô hiệu hoá");
+            }
+            if (!isEligibleMember(memberUser)) {
+                // BR-RQ-MEM-01: role khác NORMAL_USER -> cùng lý do chung với resolve-members
+                throw new IllegalArgumentException(code + ": " + INVALID_MEMBER_REASON);
             }
             memberUsers.add(memberUser);
         }

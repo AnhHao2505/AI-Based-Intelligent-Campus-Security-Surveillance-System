@@ -29,6 +29,7 @@ import Pagination from '../../components/ui/Pagination';
 import '../../styles/NotificationsPage.css';
 import PageHeader from '../../components/ui/PageHeader';
 import '../../components/ui/Button.css';
+import { formatDateTime } from '../../utils/formatDateTime';
 
 export default function NotificationsPage() {
   const { user } = useAuth();
@@ -115,22 +116,6 @@ export default function NotificationsPage() {
     fetchNotifications(0);
   }, []);
 
-  const formatTime = (ts) => {
-    if (!ts) return '';
-    try {
-      const d = new Date(ts);
-      if (isNaN(d.getTime())) return ts;
-      return d.toLocaleString('vi-VN', {
-        hour: '2-digit',
-        minute: '2-digit',
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-      });
-    } catch {
-      return ts;
-    }
-  };
 
   const renderIcon = (type) => {
     switch (type) {
@@ -177,7 +162,7 @@ export default function NotificationsPage() {
         );
       case 'REQUEST_CANCELLED':
         return (
-          <div className="notif-icon-box notif-icon-box--cancelled" title="Yêu cầu đã huỷ">
+          <div className="notif-icon-box notif-icon-box--cancelled" title="Yêu cầu đã hủy">
             <XCircle size={16} />
           </div>
         );
@@ -226,7 +211,7 @@ export default function NotificationsPage() {
         );
       case 'REQUEST_SYSTEM_CANCELLED':
         return (
-          <div className="notif-icon-box notif-icon-box--cancelled" title="Đơn bị hệ thống huỷ">
+          <div className="notif-icon-box notif-icon-box--cancelled" title="Đơn bị hệ thống hủy">
             <XCircle size={16} />
           </div>
         );
@@ -270,7 +255,7 @@ export default function NotificationsPage() {
         );
       case 'GUEST_VISIT_CANCELLED_BY_SYSTEM':
         return (
-          <div className="notif-icon-box notif-icon-box--cancelled" title="Lượt khách bị hệ thống huỷ">
+          <div className="notif-icon-box notif-icon-box--cancelled" title="Lượt khách bị hệ thống hủy">
             <CalendarOff size={16} />
           </div>
         );
@@ -295,7 +280,7 @@ export default function NotificationsPage() {
     <div className="notif-container">
       <PageHeader
         title="Thông báo"
-        description="Cập nhật về yêu cầu truy cập và quyền của bạn."
+        description="Thông báo về yêu cầu, khu vực, khách và các sự kiện liên quan đến bạn"
         actions={
           <button
             type="button"
@@ -356,7 +341,7 @@ export default function NotificationsPage() {
 
                   {/* Cột 3 — Thời gian */}
                   <div className="notif-item__time">
-                    {formatTime(notif.createdAt)}
+                    {formatDateTime(notif.createdAt)}
                   </div>
                 </div>
               ))}

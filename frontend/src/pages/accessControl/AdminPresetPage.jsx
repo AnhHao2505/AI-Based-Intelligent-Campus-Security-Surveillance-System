@@ -120,7 +120,7 @@ export default function AdminPresetPage() {
   return (
     <div className="user-access-level-page">
       <PageHeader
-        title="Cấu hình Mặc định theo Loại Khu vực"
+        title="Mặc định theo loại khu vực"
         subtitle="Quản lý cấp độ truy cập mặc định cho từng loại khu vực trong toàn bộ khuôn viên."
         actions={
           <Button
@@ -128,7 +128,7 @@ export default function AdminPresetPage() {
             size="sm"
             onClick={loadPresets}
             disabled={loadingPresets}
-            leftIcon={<RotateCcw size={16} className={loadingPresets ? 'animate-spin' : ''} />}
+            icon={<RotateCcw size={16} className={loadingPresets ? 'animate-spin' : ''} />}
           >
             Làm mới
           </Button>
@@ -220,7 +220,7 @@ export default function AdminPresetPage() {
                             variant="outline"
                             size="sm"
                             onClick={() => openEditPresetModal(p)}
-                            leftIcon={<Edit3 size={15} />}
+                            icon={<Edit3 size={15} />}
                           >
                             Chỉnh sửa
                           </Button>
@@ -300,7 +300,7 @@ export default function AdminPresetPage() {
                 </div>
 
                 <div className="modal-field">
-                  <label className="modal-label">Yêu cầu chỉ định (Explicit Authorization)</label>
+                  <label className="modal-label">Yêu cầu chỉ định</label>
                   <div className="explicit-toggle-wrapper">
                     <label className="switch-disabled">
                       <input
@@ -360,7 +360,7 @@ export default function AdminPresetPage() {
                     variant="primary"
                     onClick={handleSavePreset}
                     disabled={editPresetModal.isSaving}
-                    leftIcon={
+                    icon={
                       editPresetModal.isSaving ? (
                         <Loader2 size={16} className="animate-spin" />
                       ) : (

@@ -212,7 +212,7 @@ export default function GuestPhotoPage() {
   return (
     <div className="guest-visit">
       <PageHeader
-        title="Quản lý ảnh khách"
+        title="Ảnh khách"
         description="Gắn ảnh nhận diện khuôn mặt và quản lý dữ liệu sinh trắc học cho khách của các lượt đã duyệt."
         actions={
           <Button
@@ -362,7 +362,7 @@ export default function GuestPhotoPage() {
                                     </Button>
                                   </div>
                                 ) : (
-                                  <span className="guest-visit__muted">Đã xoá dữ liệu</span>
+                                  <span className="guest-visit__muted">Đã xóa dữ liệu</span>
                                 )}
                               </td>
                             </tr>
@@ -431,7 +431,7 @@ export default function GuestPhotoPage() {
               <div className="guest-visit__alert guest-visit__alert--warning">
                 <AlertTriangle size={16} />
                 <span>
-                  Lưu ý: Khách này đã có ảnh. Gắn ảnh mới sẽ xoá ảnh cũ và trích xuất lại dữ liệu khuôn mặt.
+                  Lưu ý: Khách này đã có ảnh. Gắn ảnh mới sẽ xóa ảnh cũ và trích xuất lại dữ liệu khuôn mặt.
                 </span>
               </div>
             )}

@@ -1350,6 +1350,11 @@
     justify-content: center;
   }
 
+  /* UI-20: nút đầu trang xuống dòng thay vì bị cắt */
+  .account-toolbar__actions {
+    flex-wrap: wrap;
+  }
+
   .account-search-wrapper {
     max-width: 100%;
   }
@@ -1525,4 +1530,20 @@
 /* UI-1 A4: container đã có gap, PageHeader không cần lề dưới */
 .account-page > .ui-page-header {
   margin-bottom: 0;
+}
+
+/* UI-20: điện thoại — ô tìm chiếm cả hàng, bảng giữ bề rộng tối thiểu và cuộn ngang trong khung */
+@media (max-width: 640px) {
+  .account-search-wrapper {
+    flex: 1 1 100%;
+  }
+
+  .account-toolbar__actions > * {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .account-table {
+    min-width: 720px;
+  }
 }

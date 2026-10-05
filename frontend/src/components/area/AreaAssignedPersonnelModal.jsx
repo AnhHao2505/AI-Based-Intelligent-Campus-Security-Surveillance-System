@@ -432,7 +432,7 @@ export default function AreaAssignedPersonnelModal({
 
 								{/* Note */}
 								<div className="ap-form-group ap-form-group--full">
-									<label className="ap-form-label">Ghi chú (tuỳ chọn)</label>
+									<label className="ap-form-label">Ghi chú (tùy chọn)</label>
 									<input
 										type="text"
 										className="ap-form-input"
@@ -473,7 +473,7 @@ export default function AreaAssignedPersonnelModal({
 									onClick={() => setShowAddForm(false)}
 									disabled={submittingAdd}
 								>
-									Huỷ
+									Hủy
 								</Button>
 								<Button
 									type="submit"
@@ -657,7 +657,7 @@ export default function AreaAssignedPersonnelModal({
 								onClick={() => setEditItem(null)}
 								disabled={submittingEdit}
 							>
-								Huỷ
+								Hủy
 							</Button>
 							<Button
 								variant="primary"
@@ -740,7 +740,7 @@ export default function AreaAssignedPersonnelModal({
 								onClick={() => setRevokeItem(null)}
 								disabled={submittingRevoke}
 							>
-								Huỷ
+								Hủy
 							</Button>
 							<Button
 								variant="danger"
