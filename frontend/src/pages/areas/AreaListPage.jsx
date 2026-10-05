@@ -71,6 +71,16 @@ const validateCenterCoordinates = (latitude, longitude) => {
 	return { centerLatitude, centerLongitude };
 };
 
+// UI-11: lỗi tại chỗ cho 1 ô toạ độ (giới hạn toán học, cùng câu với validateCenterCoordinates); ô trống không báo
+const coordinateFieldError = (value, min, max, label) => {
+	if (value === "" || value === null || value === undefined) return null;
+	const n = Number(value);
+	if (!Number.isFinite(n) || n < min || n > max) {
+		return `${label} phải nằm trong khoảng ${min} đến ${max}.`;
+	}
+	return null;
+};
+
 const AREA_LEVEL_CARDS = [
 	{
 		value: "PUBLIC",
@@ -171,6 +181,16 @@ export default function AreaListPage() {
 
 	// Camera list modal states
 	const [camerasModalOpen, setCamerasModalOpen] = useState(false);
+
+	// UI-22: Escape đóng popup "Danh sách Camera"
+	useEffect(() => {
+		if (!camerasModalOpen) return undefined;
+		const handleKeyDown = (e) => {
+			if (e.key === "Escape") setCamerasModalOpen(false);
+		};
+		document.addEventListener("keydown", handleKeyDown);
+		return () => document.removeEventListener("keydown", handleKeyDown);
+	}, [camerasModalOpen]);
 	const [camerasModalArea, setCamerasModalArea] = useState(null);
 	const [areaCamerasList, setAreaCamerasList] = useState([]);
 	const [loadingAreaCameras, setLoadingAreaCameras] = useState(false);
@@ -524,6 +544,9 @@ export default function AreaListPage() {
 		setNameError(null);
 		setCreateModalOpen(true);
 	};
+
+	const latitudeError = coordinateFieldError(formData.centerLatitude, -90, 90, "Vĩ độ");
+	const longitudeError = coordinateFieldError(formData.centerLongitude, -180, 180, "Kinh độ");
 
 	const handleCreateSubmit = async (e) => {
 		e.preventDefault();
@@ -1260,7 +1283,7 @@ export default function AreaListPage() {
 											htmlFor="create-floor"
 											className="area-form-label"
 										>
-											Tầng & Sơ đồ <span className="required">*</span>
+											Tầng <span className="required">*</span>
 										</label>
 										<select
 											id="create-floor"
@@ -1301,7 +1324,8 @@ export default function AreaListPage() {
 											step="any"
 											min="-90"
 											max="90"
-											className="area-form-input"
+											className={`area-form-input ${latitudeError ? "area-form-input--error" : ""}`}
+											aria-invalid={Boolean(latitudeError)}
 											placeholder="Ví dụ: 10.8411"
 											value={formData.centerLatitude}
 											onChange={(e) =>
@@ -1311,6 +1335,7 @@ export default function AreaListPage() {
 												})
 											}
 										/>
+										{latitudeError && <div className="area-form-error">{latitudeError}</div>}
 									</div>
 									<div className="area-form-group">
 										<label
@@ -1325,7 +1350,8 @@ export default function AreaListPage() {
 											step="any"
 											min="-180"
 											max="180"
-											className="area-form-input"
+											className={`area-form-input ${longitudeError ? "area-form-input--error" : ""}`}
+											aria-invalid={Boolean(longitudeError)}
 											placeholder="Ví dụ: 106.8090"
 											value={formData.centerLongitude}
 											onChange={(e) =>
@@ -1335,6 +1361,7 @@ export default function AreaListPage() {
 												})
 											}
 										/>
+										{longitudeError && <div className="area-form-error">{longitudeError}</div>}
 									</div>
 								</div>
 							</div>
@@ -1352,7 +1379,7 @@ export default function AreaListPage() {
 								<button
 									type="submit"
 									className="area-btn-modal area-btn-modal--submit"
-									disabled={modalLoading}
+									disabled={modalLoading || Boolean(latitudeError || longitudeError)}
 								>
 									{modalLoading ? "Đang tạo..." : "Tạo khu vực"}
 								</button>
@@ -1554,7 +1581,7 @@ export default function AreaListPage() {
 											htmlFor="edit-floor"
 											className="area-form-label"
 										>
-											Tầng & Sơ đồ <span className="required">*</span>
+											Tầng <span className="required">*</span>
 										</label>
 										<select
 											id="edit-floor"
@@ -1595,7 +1622,8 @@ export default function AreaListPage() {
 											step="any"
 											min="-90"
 											max="90"
-											className="area-form-input"
+											className={`area-form-input ${latitudeError ? "area-form-input--error" : ""}`}
+											aria-invalid={Boolean(latitudeError)}
 											placeholder="Ví dụ: 10.8411"
 											value={formData.centerLatitude}
 											onChange={(e) =>
@@ -1605,6 +1633,7 @@ export default function AreaListPage() {
 												})
 											}
 										/>
+										{latitudeError && <div className="area-form-error">{latitudeError}</div>}
 									</div>
 									<div className="area-form-group">
 										<label
@@ -1619,7 +1648,8 @@ export default function AreaListPage() {
 											step="any"
 											min="-180"
 											max="180"
-											className="area-form-input"
+											className={`area-form-input ${longitudeError ? "area-form-input--error" : ""}`}
+											aria-invalid={Boolean(longitudeError)}
 											placeholder="Ví dụ: 106.8090"
 											value={formData.centerLongitude}
 											onChange={(e) =>
@@ -1629,6 +1659,7 @@ export default function AreaListPage() {
 												})
 											}
 										/>
+										{longitudeError && <div className="area-form-error">{longitudeError}</div>}
 									</div>
 								</div>
 							</div>
@@ -1645,7 +1676,7 @@ export default function AreaListPage() {
 								<button
 									type="submit"
 									className="area-btn-modal area-btn-modal--submit"
-									disabled={modalLoading}
+									disabled={modalLoading || Boolean(latitudeError || longitudeError)}
 								>
 									{modalLoading ? "Đang lưu..." : "Lưu thay đổi"}
 								</button>
@@ -2171,7 +2202,7 @@ export default function AreaListPage() {
 								<span>
 									{isFacilityManager
 										? "Danh sách các thiết bị camera giám sát thuộc khu vực này."
-										: "Gán hoặc chuyển đổi khu vực được quản lý tại trang Quản lý Camera."}
+										: "Có thể hủy gán camera khỏi khu vực ngay tại đây. Gán camera mới hoặc chuyển sang khu vực khác thực hiện tại trang Quản lý Camera."}
 								</span>
 							</div>
 
