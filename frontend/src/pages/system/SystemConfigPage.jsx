@@ -207,6 +207,8 @@ export default function SystemConfigPage() {
 				return "Mức truy cập";
 			case "SECURITY":
 				return "An ninh";
+			case "ACCOUNT":
+				return "Tài khoản";
 			default:
 				return groupKey;
 		}
