@@ -566,9 +566,21 @@ public class AreaService {
         return dependencyChecker.toResponse(area, dependencyChecker.evaluate(area, OffsetDateTime.now()));
     }
 
+    /**
+     * BR-AR-COORD-01..03: toạ độ trung tâm là tuỳ chọn — trống cả hai = "chưa định vị" (lưu null, không hiện trên
+     * bản đồ); chỉ có một trong hai thì từ chối. Dùng chung cho tạo và sửa (sửa xoá trắng cả hai -> về null).
+     */
+    private static void requireCoordinatePair(Double centerLatitude, Double centerLongitude) {
+        if ((centerLatitude == null) != (centerLongitude == null)) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_006,
+                    "Phải nhập đủ cả vĩ độ và kinh độ, hoặc để trống cả hai.");
+        }
+    }
+
     @Transactional
     public AreaResponse create(AreaCreateRequest req, String actorEmail) {
         String name = areaValidator.validateAndNormalizeName(req.getName());
+        requireCoordinatePair(req.getCenterLatitude(), req.getCenterLongitude());
 
         if (req.getAreaLevel() == null) {
             throw new AreaException(AreaErrorCode.ERR_AREA_003);
@@ -658,6 +670,7 @@ public class AreaService {
         if (req.getAreaLevel() == null) {
             throw new AreaException(AreaErrorCode.ERR_AREA_003);
         }
+        requireCoordinatePair(req.getCenterLatitude(), req.getCenterLongitude());
         requireVersion(req.getVersion());
         String reason = normalizeReason(req.getReason(), false);
         // Đổi loại bắt buộc lý do (TC-02): đọc loại hiện tại không khoá, không nạp entity; kiểm lại sau khi khoá

@@ -50,9 +50,21 @@ import {
 } from "../../utils/areaHelpers";
 import "../../styles/AreaListPage.css";
 
+// BR-AR-COORD-01..03: toạ độ tuỳ chọn — trống cả hai = "chưa định vị" (null); chỉ nhập một ô thì từ chối
+const COORDINATE_PAIR_ERROR = "Phải nhập đủ cả vĩ độ và kinh độ, hoặc để trống cả hai.";
+const isBlankCoordinate = (value) => String(value ?? "").trim() === "";
+
 const validateCenterCoordinates = (latitude, longitude) => {
-	const centerLatitude = Number(latitude);
-	const centerLongitude = Number(longitude);
+	const latBlank = isBlankCoordinate(latitude);
+	const lngBlank = isBlankCoordinate(longitude);
+	if (latBlank && lngBlank) {
+		return { centerLatitude: null, centerLongitude: null };
+	}
+	if (latBlank || lngBlank) {
+		return { error: COORDINATE_PAIR_ERROR };
+	}
+	const centerLatitude = Number(String(latitude).trim());
+	const centerLongitude = Number(String(longitude).trim());
 	if (
 		!Number.isFinite(centerLatitude) ||
 		centerLatitude < -90 ||
@@ -545,8 +557,17 @@ export default function AreaListPage() {
 		setCreateModalOpen(true);
 	};
 
-	const latitudeError = coordinateFieldError(formData.centerLatitude, -90, 90, "Vĩ độ");
-	const longitudeError = coordinateFieldError(formData.centerLongitude, -180, 180, "Kinh độ");
+	// Lỗi khoảng giá trị của từng ô; BR-AR-COORD-02 (chỉ nhập một ô) hiện dưới ô đang trống
+	const latitudeError =
+		coordinateFieldError(formData.centerLatitude, -90, 90, "Vĩ độ") ||
+		(isBlankCoordinate(formData.centerLatitude) && !isBlankCoordinate(formData.centerLongitude)
+			? COORDINATE_PAIR_ERROR
+			: null);
+	const longitudeError =
+		coordinateFieldError(formData.centerLongitude, -180, 180, "Kinh độ") ||
+		(isBlankCoordinate(formData.centerLongitude) && !isBlankCoordinate(formData.centerLatitude)
+			? COORDINATE_PAIR_ERROR
+			: null);
 
 	const handleCreateSubmit = async (e) => {
 		e.preventDefault();
@@ -1360,6 +1381,7 @@ export default function AreaListPage() {
 										{longitudeError && <div className="area-form-error">{longitudeError}</div>}
 									</div>
 								</div>
+								<div className="area-form-hint">Để trống cả hai nếu chưa xác định vị trí — khu vực sẽ ở trạng thái "Chưa định vị" và không hiện trên bản đồ.</div>
 							</div>
 
 							{/* 4. Phần chân: 2 nút chia đôi chiều rộng, gap 9px */}
@@ -1658,6 +1680,7 @@ export default function AreaListPage() {
 										{longitudeError && <div className="area-form-error">{longitudeError}</div>}
 									</div>
 								</div>
+								<div className="area-form-hint">Để trống cả hai nếu chưa xác định vị trí — khu vực sẽ ở trạng thái "Chưa định vị" và không hiện trên bản đồ.</div>
 							</div>
 
 							<div className="area-modal__footer">
