@@ -179,12 +179,21 @@ public class UserService {
                 .build();
     }
 
+    /**
+     * Chỉ ADMIN thấy toàn bộ user. Caller khác (thực tế là FACILITY_MANAGER ở màn quản lý đội bảo vệ —
+     * GuardTeamManagementPage, GuardTeamsTab chỉ dùng role GUARD) bị ép về tài khoản GUARD,
+     * bỏ qua accountType client gửi.
+     */
     @Transactional(readOnly = true)
-    public UserPageResponse getUsers(String keyword, String accountType, Boolean isActive, Pageable pageable) {
+    public UserPageResponse getUsers(String keyword, String accountType, Boolean isActive, Pageable pageable, Role callerRole) {
         String kw = (keyword != null && !keyword.trim().isEmpty()) ? keyword.trim() : null;
+        boolean guardScopeOnly = callerRole != Role.ADMIN;
+        List<Role> guardScopeRoles = List.of(Role.GUARD);
 
         List<Role> roleFilter = null;
-        if ("SYSTEM".equalsIgnoreCase(accountType)) {
+        if (guardScopeOnly) {
+            roleFilter = guardScopeRoles;
+        } else if ("SYSTEM".equalsIgnoreCase(accountType)) {
             roleFilter = SYSTEM_ROLES;
         } else if ("NORMAL".equalsIgnoreCase(accountType)) {
             roleFilter = NORMAL_ROLES;
@@ -199,8 +208,9 @@ public class UserService {
 
         Page<UserListResponse> dtoPage = userPage.map(UserListResponse::fromEntity);
 
-        long normalCount = userRepository.countByRolesAndDeletedAtIsNull(NORMAL_ROLES);
-        long systemCount = userRepository.countByRolesAndDeletedAtIsNull(SYSTEM_ROLES);
+        // Caller giới hạn không được biết tổng số tài khoản thường/quản trị — chỉ đếm trong tập được xem.
+        long normalCount = guardScopeOnly ? 0 : userRepository.countByRolesAndDeletedAtIsNull(NORMAL_ROLES);
+        long systemCount = userRepository.countByRolesAndDeletedAtIsNull(guardScopeOnly ? guardScopeRoles : SYSTEM_ROLES);
 
         return UserPageResponse.builder()
                 .users(dtoPage)
