@@ -959,11 +959,9 @@ public class AccessRequestService {
             User memberUser = userRepository.findByUserCode(code)
                     .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với mã số: " + code));
 
-            if (Boolean.FALSE.equals(memberUser.getIsActive()) || memberUser.getDeletedAt() != null) {
-                throw new IllegalArgumentException("Tài khoản người dùng " + code + " đã bị vô hiệu hoá");
-            }
             if (!isEligibleMember(memberUser)) {
-                // BR-RQ-MEM-01: role khác NORMAL_USER -> cùng lý do chung với resolve-members
+                // Vô hiệu hoá / đã xoá / role khác NORMAL_USER (BR-RQ-MEM-01): cùng lý do chung với resolve-members,
+                // không để lộ tài khoản tồn tại nhưng bị khoá (CLAUDE.md 9a)
                 throw new IllegalArgumentException(code + ": " + INVALID_MEMBER_REASON);
             }
             memberUsers.add(memberUser);
