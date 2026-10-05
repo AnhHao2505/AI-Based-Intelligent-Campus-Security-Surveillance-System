@@ -365,6 +365,7 @@ export function SecuritySurveillancePage() {
 
 		const stompClient = new Client({
 			brokerURL,
+			connectHeaders: { Authorization: `Bearer ${localStorage.getItem('accessToken')}` },
 			reconnectDelay: 4000,
 			heartbeatIncoming: 4000,
 			heartbeatOutgoing: 4000,
