@@ -126,6 +126,17 @@ public class AccessRequestController {
         return ResponseEntity.ok(ApiResponse.success(result, "Tra cứu thành viên thành công"));
     }
 
+    @GetMapping("/member-suggestions")
+    @PreAuthorize("hasRole('NORMAL_USER')")
+    public ResponseEntity<ApiResponse<List<com.fa26se040.icss.dto.accessrequest.MemberSuggestion>>> suggestMembers(
+            @RequestParam(required = false) String q,
+            Authentication authentication
+    ) {
+        String actorEmail = authentication.getName();
+        return ResponseEntity.ok(ApiResponse.success(accessRequestService.suggestMembers(q, actorEmail),
+                "Gợi ý mã thành viên thành công"));
+    }
+
     @GetMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<AccessRequestResponse>> getRequestById(

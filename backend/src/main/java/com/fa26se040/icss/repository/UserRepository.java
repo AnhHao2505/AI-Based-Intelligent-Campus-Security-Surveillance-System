@@ -34,6 +34,12 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     List<User> findAllByUserCodeIn(Collection<String> userCodes);
 
+    /**
+     * Gợi ý mã thành viên: mã bắt đầu bằng tiền tố (không phân biệt hoa thường), sắp theo mã.
+     * Spring Data tự escape %, _ và \ của tham số StartingWith. Lọc điều kiện thành viên hợp lệ làm ở service.
+     */
+    List<User> findTop50ByUserCodeStartingWithIgnoreCaseOrderByUserCodeAsc(String userCodePrefix);
+
     @Query("SELECT LOWER(u.email) FROM User u WHERE u.deletedAt IS NULL AND LOWER(u.email) IN :emails")
     Set<String> findExistingEmails(@Param("emails") Collection<String> emails);
 

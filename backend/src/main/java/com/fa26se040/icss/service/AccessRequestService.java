@@ -71,6 +71,7 @@ public class AccessRequestService {
     private final AccessRequestRepository accessRequestRepository;
     private final AreaRepository areaRepository;
     private final UserRepository userRepository;
+    private final com.fa26se040.icss.repository.AccessRequestMemberRepository accessRequestMemberRepository;
     private final InAppNotificationService inAppNotificationService;
     private final SystemConfigService systemConfigService;
     private final MemberLookupRateLimiter memberLookupRateLimiter;
@@ -312,7 +313,7 @@ public class AccessRequestService {
         List<MemberLookupResult> results = new ArrayList<>();
         for (String code : distinctCodes) {
             User user = userMap.get(code);
-            if (user == null || Boolean.FALSE.equals(user.getIsActive()) || user.getDeletedAt() != null) {
+            if (!isEligibleMember(user)) {
                 results.add(new MemberLookupResult(code, null, false, commonFailureReason));
             } else {
                 results.add(new MemberLookupResult(user.getUserCode(), user.getFullName(), true, null));
@@ -320,6 +321,61 @@ public class AccessRequestService {
         }
 
         return results;
+    }
+
+    /** Giới hạn kỹ thuật của danh sách gợi ý trên UI (không phải tham số nghiệp vụ). */
+    private static final int MEMBER_SUGGESTION_LIMIT = 10;
+    /** Số bản ghi "thành viên gần đây" đọc tối đa trước khi gộp trùng theo người. */
+    private static final int MEMBER_SUGGESTION_RECENT_SCAN = 200;
+    private static final java.util.regex.Pattern MEMBER_SUGGESTION_QUERY =
+            java.util.regex.Pattern.compile("^[A-Za-z0-9-]{1,20}$");
+
+    /**
+     * Điều kiện một user được làm thành viên đơn nhóm — dùng chung cho resolveMembers, tạo đơn nhóm và gợi ý:
+     * tồn tại, không bị vô hiệu hoá (isActive khác false), chưa xoá mềm. Không giới hạn role.
+     */
+    static boolean isEligibleMember(User user) {
+        return user != null && !Boolean.FALSE.equals(user.getIsActive()) && user.getDeletedAt() == null;
+    }
+
+    /**
+     * Gợi ý mã thành viên cho form đơn nhóm. q trống -> thành viên gần đây trong đơn của chính người gọi;
+     * q có giá trị -> mã bắt đầu bằng q. Dùng chung rate limit với resolve-members (vượt ngưỡng -> 429).
+     * Chỉ trả mã + họ tên, loại chính người gọi, tối đa MEMBER_SUGGESTION_LIMIT.
+     */
+    @Transactional(readOnly = true)
+    public List<com.fa26se040.icss.dto.accessrequest.MemberSuggestion> suggestMembers(String q, String actorEmail) {
+        memberLookupRateLimiter.checkRateLimit(actorEmail);
+        User caller = getRequester(actorEmail);
+        String query = q == null ? "" : q.trim();
+
+        List<User> candidates;
+        if (query.isEmpty()) {
+            candidates = accessRequestMemberRepository
+                    .findRecentByRequesterIdWithUser(caller.getId(), PageRequest.of(0, MEMBER_SUGGESTION_RECENT_SCAN))
+                    .stream()
+                    .map(AccessRequestMember::getUser)
+                    .toList();
+        } else {
+            if (!MEMBER_SUGGESTION_QUERY.matcher(query).matches()) {
+                throw new IllegalArgumentException("Mã tìm kiếm chỉ gồm chữ, số hoặc dấu gạch ngang, dài 1–20 ký tự");
+            }
+            candidates = userRepository.findTop50ByUserCodeStartingWithIgnoreCaseOrderByUserCodeAsc(
+                    query.toUpperCase(java.util.Locale.ROOT));
+        }
+
+        Map<UUID, com.fa26se040.icss.dto.accessrequest.MemberSuggestion> picked = new java.util.LinkedHashMap<>();
+        for (User user : candidates) {
+            if (!isEligibleMember(user) || user.getId().equals(caller.getId())) {
+                continue;
+            }
+            picked.putIfAbsent(user.getId(),
+                    new com.fa26se040.icss.dto.accessrequest.MemberSuggestion(user.getUserCode(), user.getFullName()));
+            if (picked.size() >= MEMBER_SUGGESTION_LIMIT) {
+                break;
+            }
+        }
+        return new ArrayList<>(picked.values());
     }
 
     @Transactional(readOnly = true)
@@ -893,7 +949,7 @@ public class AccessRequestService {
             User memberUser = userRepository.findByUserCode(code)
                     .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với mã số: " + code));
 
-            if (Boolean.FALSE.equals(memberUser.getIsActive()) || memberUser.getDeletedAt() != null) {
+            if (!isEligibleMember(memberUser)) {
                 throw new IllegalArgumentException("Tài khoản người dùng " + code + " đã bị vô hiệu hoá");
             }
             memberUsers.add(memberUser);
