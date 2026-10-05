@@ -42,7 +42,7 @@ class AccessRequestMemberSuggestionTest extends Step5bTestSupport {
     void setUpSuggestion() {
         originalRateLimit = systemConfigService.getString(ConfigKey.SECURITY_MEMBER_LOOKUP_RATE_PER_MINUTE);
         prefix = "MS" + suffix.toUpperCase();
-        caller = codeUser(prefix + "-00", Role.NORMAL_USER, true, false);
+        caller = codeUser(prefix + "-00", Role.NORMAL_USER, true, false, 2);
     }
 
     @AfterEach
@@ -54,12 +54,16 @@ class AccessRequestMemberSuggestionTest extends Step5bTestSupport {
     }
 
     private User codeUser(String code, Role role, boolean active, boolean deleted) {
+        return codeUser(code, role, active, deleted, 1);
+    }
+
+    private User codeUser(String code, Role role, boolean active, boolean deleted, int level) {
         return userRepository.save(User.builder()
                 .email(code.toLowerCase() + "@fpt.edu.vn")
                 .userCode(code)
                 .fullName("Thanh vien " + code)
                 .role(role)
-                .accessLevel(1)
+                .accessLevel(level)
                 .isActive(active)
                 .deletedAt(deleted ? OffsetDateTime.now().minusDays(1) : null)
                 .build());
@@ -107,7 +111,7 @@ class AccessRequestMemberSuggestionTest extends Step5bTestSupport {
     }
 
     @Test
-    @DisplayName("#3 không có người gọi, user vô hiệu hoá, user đã xoá (đúng những người resolve-members từ chối); role khác vẫn có")
+    @DisplayName("#3 không có người gọi, user vô hiệu hoá, user đã xoá, user khác NORMAL_USER (đúng những người resolve-members từ chối)")
     void excludesCallerAndIneligibleUsers() throws Exception {
         User active = codeUser(prefix + "-01", Role.NORMAL_USER, true, false);
         User inactive = codeUser(prefix + "-02", Role.NORMAL_USER, false, false);
@@ -117,11 +121,13 @@ class AccessRequestMemberSuggestionTest extends Step5bTestSupport {
         MvcResult r = suggest(caller, prefix);
 
         assertEquals(200, status(r), describe(r));
-        assertEquals(List.of(active.getUserCode(), otherRole.getUserCode()), codes(r));
+        // BR-RQ-MEM-01: FACILITY_MANAGER không còn được gợi ý
+        assertEquals(List.of(active.getUserCode()), codes(r));
 
-        // Cùng điều kiện với resolve-members: 2 user bị loại cũng bị resolve-members từ chối
+        // Cùng điều kiện với resolve-members: 3 user bị loại cũng bị resolve-members từ chối
         MvcResult resolved = send(post("/api/access-requests/resolve-members"), caller,
-                Map.of("userCodes", List.of(inactive.getUserCode(), deleted.getUserCode()))).andReturn();
+                Map.of("userCodes", List.of(inactive.getUserCode(), deleted.getUserCode(), otherRole.getUserCode())))
+                .andReturn();
         assertEquals(200, status(resolved), describe(resolved));
         for (JsonNode item : json(resolved).path("data")) {
             assertFalse(item.path("found").asBoolean(), "resolve-members phải từ chối " + item);
@@ -190,6 +196,76 @@ class AccessRequestMemberSuggestionTest extends Step5bTestSupport {
     void unauthenticated_unauthorized() throws Exception {
         MvcResult r = mockMvc.perform(get("/api/access-requests/member-suggestions").param("q", "s")).andReturn();
         assertEquals(401, status(r), describe(r));
+    }
+
+    // ------------------------------------------------------------------ BR-RQ-MEM-01: thành viên chỉ NORMAL_USER
+
+    @Test
+    @DisplayName("MEM-1: gợi ý theo tiền tố chỉ khớp mã GUARD / ADMIN -> rỗng")
+    void suggestionsExcludeGuardAndAdmin() throws Exception {
+        codeUser(prefix + "-G1", Role.GUARD, true, false);
+        codeUser(prefix + "-A1", Role.ADMIN, true, false);
+
+        MvcResult r = suggest(caller, prefix + "-");
+
+        assertEquals(200, status(r), describe(r));
+        assertEquals(List.of(), codes(r));
+    }
+
+    @Test
+    @DisplayName("MEM-2: resolve-members với mã GUARD -> not found, lý do giống hệt mã không tồn tại")
+    void resolveGuardCode_sameReasonAsNonexistent() throws Exception {
+        User guardMember = codeUser(prefix + "-G2", Role.GUARD, true, false);
+        String missing = prefix + "-ZZ";
+
+        MvcResult r = send(post("/api/access-requests/resolve-members"), caller,
+                Map.of("userCodes", List.of(guardMember.getUserCode(), missing))).andReturn();
+
+        assertEquals(200, status(r), describe(r));
+        JsonNode data = json(r).path("data");
+        assertEquals(2, data.size());
+        JsonNode guardItem = data.get(0);
+        JsonNode missingItem = data.get(1);
+        assertFalse(guardItem.path("found").asBoolean());
+        assertFalse(missingItem.path("found").asBoolean());
+        assertEquals(missingItem.path("reason").asText(), guardItem.path("reason").asText(),
+                "Không được lộ là tài khoản tồn tại nhưng khác role");
+        assertTrue(guardItem.path("fullName").isNull() || guardItem.path("fullName").isMissingNode(),
+                "Không trả họ tên của tài khoản khác role: " + guardItem);
+    }
+
+    private Map<String, Object> groupBody(Area area, User member) {
+        OffsetDateTime start = OffsetDateTime.now().plusHours(3).truncatedTo(java.time.temporal.ChronoUnit.MINUTES);
+        Map<String, Object> b = new java.util.LinkedHashMap<>();
+        b.put("areaId", area.getId());
+        b.put("startTime", start.toString());
+        b.put("endTime", start.plusHours(1).toString());
+        b.put("purpose", "Đơn nhóm kiểm BR-RQ-MEM-01 " + suffix);
+        b.put("memberUserCodes", List.of(member.getUserCode()));
+        return b;
+    }
+
+    @Test
+    @DisplayName("MEM-3: tạo đơn nhóm có thành viên FACILITY_MANAGER -> 400")
+    void createGroupWithFacilityManagerMember_badRequest() throws Exception {
+        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        User fmMember = codeUser(prefix + "-F1", Role.FACILITY_MANAGER, true, false, 3);
+
+        MvcResult r = send(post("/api/access-requests/group"), caller, groupBody(area, fmMember)).andReturn();
+
+        assertEquals(400, status(r), describe(r));
+        assertTrue(message(r).contains("Không tìm thấy người dùng hợp lệ với mã này"), message(r));
+    }
+
+    @Test
+    @DisplayName("MEM-4: tạo đơn nhóm có thành viên NORMAL_USER đủ cấp -> 201 như cũ")
+    void createGroupWithNormalUserMember_created() throws Exception {
+        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        User member = codeUser(prefix + "-N1", Role.NORMAL_USER, true, false, 2);
+
+        MvcResult r = send(post("/api/access-requests/group"), caller, groupBody(area, member)).andReturn();
+
+        assertEquals(201, status(r), describe(r));
     }
 
     @Test

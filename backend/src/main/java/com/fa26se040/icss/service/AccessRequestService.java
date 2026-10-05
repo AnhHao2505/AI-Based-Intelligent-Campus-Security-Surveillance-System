@@ -309,12 +309,11 @@ public class AccessRequestService {
             }
         }
 
-        final String commonFailureReason = "Không tìm thấy người dùng hợp lệ với mã này";
         List<MemberLookupResult> results = new ArrayList<>();
         for (String code : distinctCodes) {
             User user = userMap.get(code);
             if (!isEligibleMember(user)) {
-                results.add(new MemberLookupResult(code, null, false, commonFailureReason));
+                results.add(new MemberLookupResult(code, null, false, INVALID_MEMBER_REASON));
             } else {
                 results.add(new MemberLookupResult(user.getUserCode(), user.getFullName(), true, null));
             }
@@ -331,11 +330,20 @@ public class AccessRequestService {
             java.util.regex.Pattern.compile("^[A-Za-z0-9-]{1,20}$");
 
     /**
-     * Điều kiện một user được làm thành viên đơn nhóm — dùng chung cho resolveMembers, tạo đơn nhóm và gợi ý:
-     * tồn tại, không bị vô hiệu hoá (isActive khác false), chưa xoá mềm. Không giới hạn role.
+     * Lý do chung khi một mã không dùng được làm thành viên (không tồn tại / vô hiệu hoá / đã xoá / không phải
+     * NORMAL_USER) — cùng một câu cho mọi trường hợp để không lộ tài khoản nào tồn tại (CLAUDE.md 9a).
+     */
+    static final String INVALID_MEMBER_REASON = "Không tìm thấy người dùng hợp lệ với mã này";
+
+    /**
+     * BR-RQ-MEM-01: thành viên đơn nhóm phải là NORMAL_USER, đang hoạt động (isActive khác false), chưa xoá mềm.
+     * Dùng chung cho resolveMembers, tạo đơn nhóm và gợi ý mã thành viên.
      */
     static boolean isEligibleMember(User user) {
-        return user != null && !Boolean.FALSE.equals(user.getIsActive()) && user.getDeletedAt() == null;
+        return user != null
+                && user.getRole() == Role.NORMAL_USER
+                && !Boolean.FALSE.equals(user.getIsActive())
+                && user.getDeletedAt() == null;
     }
 
     /**
@@ -352,7 +360,8 @@ public class AccessRequestService {
         List<User> candidates;
         if (query.isEmpty()) {
             candidates = accessRequestMemberRepository
-                    .findRecentByRequesterIdWithUser(caller.getId(), PageRequest.of(0, MEMBER_SUGGESTION_RECENT_SCAN))
+                    .findRecentByRequesterIdWithUser(caller.getId(), Role.NORMAL_USER,
+                            PageRequest.of(0, MEMBER_SUGGESTION_RECENT_SCAN))
                     .stream()
                     .map(AccessRequestMember::getUser)
                     .toList();
@@ -360,8 +369,9 @@ public class AccessRequestService {
             if (!MEMBER_SUGGESTION_QUERY.matcher(query).matches()) {
                 throw new IllegalArgumentException("Mã tìm kiếm chỉ gồm chữ, số hoặc dấu gạch ngang, dài 1–20 ký tự");
             }
-            candidates = userRepository.findTop50ByUserCodeStartingWithIgnoreCaseOrderByUserCodeAsc(
-                    query.toUpperCase(java.util.Locale.ROOT));
+            candidates = userRepository
+                    .findTop50ByUserCodeStartingWithIgnoreCaseAndRoleAndIsActiveTrueAndDeletedAtIsNullOrderByUserCodeAsc(
+                            query.toUpperCase(java.util.Locale.ROOT), Role.NORMAL_USER);
         }
 
         Map<UUID, com.fa26se040.icss.dto.accessrequest.MemberSuggestion> picked = new java.util.LinkedHashMap<>();
@@ -949,8 +959,12 @@ public class AccessRequestService {
             User memberUser = userRepository.findByUserCode(code)
                     .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với mã số: " + code));
 
-            if (!isEligibleMember(memberUser)) {
+            if (Boolean.FALSE.equals(memberUser.getIsActive()) || memberUser.getDeletedAt() != null) {
                 throw new IllegalArgumentException("Tài khoản người dùng " + code + " đã bị vô hiệu hoá");
+            }
+            if (!isEligibleMember(memberUser)) {
+                // BR-RQ-MEM-01: role khác NORMAL_USER -> cùng lý do chung với resolve-members
+                throw new IllegalArgumentException(code + ": " + INVALID_MEMBER_REASON);
             }
             memberUsers.add(memberUser);
         }
