@@ -383,6 +383,54 @@
   gap: 10px;
 }
 
+/* Autocomplete mã thành viên (MemberCodeCombobox) */
+.arp-member-combobox {
+  position: relative;
+  min-width: 0;
+}
+
+.arp-member-combobox__list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--theme-bg-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: 8px;
+  box-shadow: var(--theme-card-shadow-hover);
+}
+
+.arp-member-combobox__option {
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--theme-text-primary);
+}
+
+.arp-member-combobox__option--active {
+  background: var(--theme-primary-subtle);
+}
+
+.arp-member-combobox__code {
+  font-weight: 600;
+}
+
+.arp-member-combobox__name {
+  color: var(--theme-text-muted);
+}
+
+.arp-member-combobox__empty {
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--theme-text-muted);
+}
+
 .arp-member-list {
   display: flex;
   flex-wrap: wrap;

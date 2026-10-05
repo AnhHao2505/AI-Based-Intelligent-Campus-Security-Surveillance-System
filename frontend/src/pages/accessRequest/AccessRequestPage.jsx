@@ -26,6 +26,7 @@ import "../../styles/AccessRequestPage.css";
 import PageHeader from "../../components/ui/PageHeader";
 import { formatLocation } from "../../utils/formatLocation";
 import { formatDateTime, formatRange } from "../../utils/formatDateTime";
+import MemberCodeCombobox from "../../components/accessRequest/MemberCodeCombobox";
 
 export default function AccessRequestPage() {
 	const { user } = useAuth();
@@ -232,8 +233,9 @@ export default function AccessRequestPage() {
 	};
 
 	// Member lookup
-	const handleAddMember = async () => {
-		const rawInput = memberCodeInput.trim();
+	// codeOverride: mã chọn từ gợi ý (autocomplete) — vẫn đi qua resolve-members như khi gõ tay
+	const handleAddMember = async (codeOverride) => {
+		const rawInput = (typeof codeOverride === "string" ? codeOverride : memberCodeInput).trim();
 		if (!rawInput) return;
 
 		// Tách danh sách mã bằng dấu phẩy, chấm phẩy hoặc khoảng trắng
@@ -734,24 +736,19 @@ export default function AccessRequestPage() {
 								<span className="arp-required">*</span>
 							</label>
 							<div className="arp-member-lookup">
-								<input
-									type="text"
-									className="arp-input"
-									placeholder="Nhập mã số thành viên (vd: SV-002, GV-001...)"
+								<MemberCodeCombobox
+									placeholder="Nhập mã số thành viên (vd: SV-002, GV-001...) hoặc bấm ↓"
 									value={memberCodeInput}
-									onChange={(e) => setMemberCodeInput(e.target.value)}
-									onKeyDown={(e) => {
-										if (e.key === "Enter") {
-											e.preventDefault();
-											handleAddMember();
-										}
-									}}
+									onChange={setMemberCodeInput}
+									onPick={(code) => handleAddMember(code)}
+									onSubmitTyped={() => handleAddMember()}
+									excludeCodes={[...memberList.map((m) => m.userCode), user?.userCode]}
 									disabled={lookingUpMember || submitting}
 								/>
 								<button
 									type="button"
 									className="arp-btn arp-btn--secondary"
-									onClick={handleAddMember}
+									onClick={() => handleAddMember()}
 									disabled={
 										!memberCodeInput.trim() || lookingUpMember || submitting
 									}
