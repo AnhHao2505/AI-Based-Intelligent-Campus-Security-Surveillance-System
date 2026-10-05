@@ -38,6 +38,8 @@ export default function AccessRequestPage() {
 	const [selectedAreaId, setSelectedAreaId] = useState("");
 	const [requestType, setRequestType] = useState("INDIVIDUAL"); // 'INDIVIDUAL' | 'GROUP'
 	const [requestDate, setRequestDate] = useState("");
+	// UI-15: ngày kết thúc riêng để đặt được đơn qua nửa đêm (mặc định = ngày bắt đầu)
+	const [endDate, setEndDate] = useState("");
 	const [startHour, setStartHour] = useState("08:00");
 	const [endHour, setEndHour] = useState("11:00");
 	const [purpose, setPurpose] = useState("");
@@ -83,18 +85,27 @@ export default function AccessRequestPage() {
 		const dd = String(tomorrow.getDate()).padStart(2, "0");
 
 		setRequestDate(`${yyyy}-${mm}-${dd}`);
+		setEndDate(`${yyyy}-${mm}-${dd}`);
 		setStartHour("08:00");
 		setEndHour("11:00");
 	};
 
+	// Thời điểm bắt đầu / kết thúc theo giờ trình duyệt (ngày kết thúc mặc định = ngày bắt đầu)
+	const getStartDateTime = () => new Date(`${requestDate}T${startHour}:00`);
+	const getEndDateTime = () => new Date(`${endDate || requestDate}T${endHour}:00`);
+
 	// Check if chosen time range is valid
 	const isTimeValid = () => {
 		if (!requestDate || !startHour || !endHour) return false;
-		const [sh, sm] = startHour.split(":").map(Number);
-		const [eh, em] = endHour.split(":").map(Number);
-		const startMin = sh * 60 + sm;
-		const endMin = eh * 60 + em;
-		return endMin > startMin;
+		return getEndDateTime() > getStartDateTime();
+	};
+
+	// Đổi ngày bắt đầu: ngày kết thúc đi theo nếu đang trùng ngày cũ hoặc sớm hơn ngày mới
+	const handleStartDateChange = (value) => {
+		if (!endDate || endDate === requestDate || endDate < value) {
+			setEndDate(value);
+		}
+		setRequestDate(value);
 	};
 
 	// Real-time summary text for date & time
@@ -102,19 +113,16 @@ export default function AccessRequestPage() {
 		if (!requestDate || !startHour || !endHour) {
 			return { isError: false, text: "" };
 		}
-		const [sh, sm] = startHour.split(":").map(Number);
-		const [eh, em] = endHour.split(":").map(Number);
-		const startMin = sh * 60 + sm;
-		const endMin = eh * 60 + em;
+		const startDateTime = getStartDateTime();
+		const endDateTime = getEndDateTime();
 
-		if (endMin <= startMin) {
+		if (endDateTime <= startDateTime) {
 			return {
 				isError: true,
-				text: "Giờ kết thúc phải sau giờ bắt đầu",
+				text: "Thời điểm kết thúc phải sau thời điểm bắt đầu",
 			};
 		}
 
-		const startDateTime = new Date(`${requestDate}T${startHour}:00`);
 		const nowBuffer = new Date(Date.now() - 5 * 60 * 1000);
 		if (startDateTime < nowBuffer) {
 			return {
@@ -123,7 +131,7 @@ export default function AccessRequestPage() {
 			};
 		}
 
-		const diffMin = endMin - startMin;
+		const diffMin = Math.round((endDateTime - startDateTime) / 60000);
 		const hours = Math.floor(diffMin / 60);
 		const mins = diffMin % 60;
 		let durationStr = "";
@@ -135,8 +143,6 @@ export default function AccessRequestPage() {
 			durationStr = `${mins} phút`;
 		}
 
-		const [y, m, d] = requestDate.split("-").map(Number);
-		const dateObj = new Date(y, m - 1, d);
 		const daysOfWeek = [
 			"Chủ Nhật",
 			"Thứ Hai",
@@ -146,12 +152,15 @@ export default function AccessRequestPage() {
 			"Thứ Sáu",
 			"Thứ Bảy",
 		];
-		const dayName = daysOfWeek[dateObj.getDay()] || "";
-		const formattedDate = `${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}/${y}`;
+		const describeDay = (dt) =>
+			`${daysOfWeek[dt.getDay()] || ""}, ${String(dt.getDate()).padStart(2, "0")}/${String(dt.getMonth() + 1).padStart(2, "0")}/${dt.getFullYear()}`;
+		const sameDay = startDateTime.toDateString() === endDateTime.toDateString();
 
 		return {
 			isError: false,
-			text: `${dayName}, ${formattedDate} · ${startHour} – ${endHour} (${durationStr})`,
+			text: sameDay
+				? `${describeDay(startDateTime)} · ${startHour} – ${endHour} (${durationStr})`
+				: `${describeDay(startDateTime)} ${startHour} → ${describeDay(endDateTime)} ${endHour} (${durationStr})`,
 		};
 	};
 
@@ -333,12 +342,12 @@ export default function AccessRequestPage() {
 		}
 
 		if (!isTimeValid()) {
-			setFormError("Thời gian kết thúc phải sau thời gian bắt đầu");
+			setFormError("Thời điểm kết thúc phải sau thời điểm bắt đầu");
 			return;
 		}
 
-		const start = new Date(`${requestDate}T${startHour}:00`);
-		const end = new Date(`${requestDate}T${endHour}:00`);
+		const start = getStartDateTime();
+		const end = getEndDateTime();
 		const nowBuffer = new Date(Date.now() - 5 * 60 * 1000);
 
 		if (start < nowBuffer) {
@@ -491,7 +500,7 @@ export default function AccessRequestPage() {
 	if (!requestDate || !startHour || !endHour) {
 		submitBlockers.push("chọn ngày và khung giờ");
 	} else if (!isTimeValid()) {
-		submitBlockers.push("giờ kết thúc phải sau giờ bắt đầu");
+		submitBlockers.push("thời điểm kết thúc phải sau thời điểm bắt đầu");
 	}
 	if (requestType === "GROUP" && memberList.length === 0) {
 		submitBlockers.push("thêm ít nhất một thành viên nhóm");
@@ -679,14 +688,14 @@ export default function AccessRequestPage() {
 							<span>Khung thời gian truy cập</span>
 							<span className="arp-required">*</span>
 						</label>
-						<div className="arp-time-grid">
+						<div className="arp-time-grid arp-time-grid--range">
 							<div>
-								<label className="arp-sub-label">Ngày</label>
+								<label className="arp-sub-label">Từ ngày</label>
 								<input
 									type="date"
 									className="arp-input"
 									value={requestDate}
-									onChange={(e) => setRequestDate(e.target.value)}
+									onChange={(e) => handleStartDateChange(e.target.value)}
 									disabled={submitting}
 									required
 								/>
@@ -698,6 +707,18 @@ export default function AccessRequestPage() {
 									className="arp-input"
 									value={startHour}
 									onChange={(e) => setStartHour(e.target.value)}
+									disabled={submitting}
+									required
+								/>
+							</div>
+							<div>
+								<label className="arp-sub-label">Đến ngày</label>
+								<input
+									type="date"
+									className="arp-input"
+									value={endDate || requestDate}
+									min={requestDate || undefined}
+									onChange={(e) => setEndDate(e.target.value)}
 									disabled={submitting}
 									required
 								/>
@@ -740,7 +761,7 @@ export default function AccessRequestPage() {
 								<input
 									type="text"
 									className="arp-input"
-									placeholder="Nhập mã số thành viên (vd: SE160001, NV102...)"
+									placeholder="Nhập mã số thành viên (vd: SV-002, GV-001...)"
 									value={memberCodeInput}
 									onChange={(e) => setMemberCodeInput(e.target.value)}
 									onKeyDown={(e) => {
@@ -810,17 +831,19 @@ export default function AccessRequestPage() {
 							disabled={submitting}
 							required
 						/>
-						<div
-							className="arp-hint"
-							style={{
-								textAlign: "right",
-								color:
-									purpose.length > 1000
-										? "var(--theme-danger)"
-										: "var(--theme-text-muted)",
-							}}
-						>
-							{purpose.length}/1000
+						<div className="arp-purpose-meta">
+							<span className="arp-hint">Bắt buộc, tối đa 1000 ký tự</span>
+							<span
+								className="arp-hint"
+								style={{
+									color:
+										purpose.length > 1000
+											? "var(--theme-danger)"
+											: "var(--theme-text-muted)",
+								}}
+							>
+								{purpose.length}/1000 ký tự
+							</span>
 						</div>
 					</div>
 
@@ -1283,9 +1306,6 @@ export default function AccessRequestPage() {
 									<h2 className="arp-modal__title">
 										Chi tiết yêu cầu truy cập
 									</h2>
-									<div className="arp-modal__subtitle">
-										Mã yêu cầu: #{selectedDetail.id?.substring(0, 8)}
-									</div>
 								</div>
 							</div>
 							<button
@@ -1312,7 +1332,7 @@ export default function AccessRequestPage() {
 											color: "var(--theme-text-muted)",
 										}}
 									>
-										Cấp độ: {getLevelConfig(selectedDetail.areaLevel).name}
+										Loại khu vực: {getLevelConfig(selectedDetail.areaLevel).name}
 									</span>
 								</div>
 
@@ -1381,6 +1401,7 @@ export default function AccessRequestPage() {
 										{selectedDetail.requestType === "GROUP"
 											? "Tập thể / Nhóm"
 											: "Cá nhân"}
+										{selectedDetail.isRequester === false && " "}
 										{selectedDetail.isRequester === false && (
 											<span
 												style={{

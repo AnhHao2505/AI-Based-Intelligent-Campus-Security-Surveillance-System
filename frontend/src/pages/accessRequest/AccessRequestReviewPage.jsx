@@ -741,7 +741,7 @@ export default function AccessRequestReviewPage() {
                       : ''}
                   </div>
                   <div className="arr-text-muted" style={{ fontSize: '0.8125rem' }}>
-                    Cấp độ: {getLevelConfig(detailItem.areaLevel).name}
+                    Loại khu vực: {getLevelConfig(detailItem.areaLevel).name}
                   </div>
                 </div>
 
