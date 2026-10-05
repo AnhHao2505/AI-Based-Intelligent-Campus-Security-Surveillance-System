@@ -24,60 +24,12 @@ const SYSTEM_ACTOR_LABELS = {
   EXPIRE_OVERDUE_REQUESTS_JOB: 'Tự động hết hạn đơn quá giờ',
   EVENT_MODE_EXPIRY: 'Tự động kết thúc sự kiện hết hạn',
   EVENT_SCHEDULE_ACTIVATION: 'Tự động kích hoạt lịch sự kiện',
-  AREA_TYPE_CHANGE: 'Đổi loại khu vực',
-  AREA_DEACTIVATION: 'Vô hiệu hóa khu vực',
-  GUEST_VISIT_JOB: 'Tự động xử lý lượt khách',
-  GUEST_VISIT: 'Lượt khách',
 };
 
-// UI-13: không hiện mã nguồn kỹ thuật (vd FLYWAY_MIGRATION_V67) cho người dùng
 const renderSystemActor = (source) => {
-  if (!source || source === 'SYSTEM' || source === 'NONE') return 'Hệ thống';
-  if (source.startsWith('FLYWAY_MIGRATION')) return 'Hệ thống (cập nhật dữ liệu)';
-  return SYSTEM_ACTOR_LABELS[source] ? `Hệ thống – ${SYSTEM_ACTOR_LABELS[source]}` : 'Hệ thống';
+  if (!source) return 'Hệ thống';
+  return SYSTEM_ACTOR_LABELS[source] ? `Hệ thống – ${SYSTEM_ACTOR_LABELS[source]}` : `Hệ thống – ${source}`;
 };
-
-// UI-13: nhãn tiếng Việt cho tên trường trong snapshot audit (dto/accesscontrol/snapshot/*);
-// trường chưa có nhãn hiện nguyên tên trong ngoặc
-const AUDIT_FIELD_LABELS = {
-  id: 'Mã',
-  name: 'Tên',
-  status: 'Trạng thái',
-  validFrom: 'Hiệu lực từ',
-  validTo: 'Hiệu lực đến',
-  accessLevel: 'Cấp truy cập',
-  areaAccessLevel: 'Cấp truy cập',
-  explicitAuthorizationRequired: 'Yêu cầu chỉ định',
-  areaLevel: 'Loại khu vực',
-  building: 'Tòa nhà',
-  floor: 'Tầng',
-  isActive: 'Hoạt động',
-  centerLatitude: 'Vĩ độ',
-  centerLongitude: 'Kinh độ',
-  cameraIds: 'Camera',
-  requestType: 'Hình thức',
-  areaId: 'Khu vực',
-  requesterId: 'Người gửi',
-  reason: 'Lý do',
-  rejectionReason: 'Lý do từ chối',
-  openToMembers: 'Mở cho thành viên',
-  openUntil: 'Mở đến',
-  reasonCode: 'Mã lý do',
-  reasonLabel: 'Lý do',
-  note: 'Ghi chú',
-  sessionId: 'Phiên sự kiện',
-  plannedEnd: 'Kết thúc dự kiến',
-  scheduleId: 'Lịch sự kiện',
-  scheduleStatus: 'Trạng thái lịch',
-  startAt: 'Bắt đầu',
-  endAt: 'Kết thúc',
-  code: 'Mã lý do',
-  label: 'Nhãn hiển thị',
-  actionType: 'Loại thao tác',
-  isOther: 'Mục "Khác"',
-};
-
-const auditFieldLabel = (field) => AUDIT_FIELD_LABELS[field] || `(${field})`;
 
 const MODULE_OPTIONS_ADMIN = [
   { value: '', label: 'Tất cả phân hệ' },
@@ -129,10 +81,6 @@ export default function AuditLogPage() {
   const [filterAreaId, setFilterAreaId] = useState('');
   const [filterSubjectUser, setFilterSubjectUser] = useState(null);
   const [filterChangedByUser, setFilterChangedByUser] = useState(null);
-  // UI-31: chữ đang gõ trong ô tìm người (chưa chọn gợi ý) + lỗi tại chỗ
-  const [subjectQuery, setSubjectQuery] = useState('');
-  const [changedByQuery, setChangedByQuery] = useState('');
-  const [userFilterErrors, setUserFilterErrors] = useState({ subject: null, changedBy: null });
   const [filterFrom, setFilterFrom] = useState('');
   const [filterTo, setFilterTo] = useState('');
 
@@ -214,19 +162,7 @@ export default function AuditLogPage() {
     loadAuditLogs(0, '');
   };
 
-  const handleApplyFilters = () => {
-    const pickFromList = 'Chọn người từ danh sách gợi ý';
-    const errors = {
-      subject: !filterSubjectUser && subjectQuery.trim() ? pickFromList : null,
-      changedBy: !filterChangedByUser && changedByQuery.trim() ? pickFromList : null,
-    };
-    setUserFilterErrors(errors);
-    if (errors.subject || errors.changedBy) return;
-    loadAuditLogs(0);
-  };
-
   const handleResetFilters = () => {
-    setUserFilterErrors({ subject: null, changedBy: null });
     setFilterModule('');
     setFilterCorrelationId('');
     setFilterTargetType('');
@@ -470,7 +406,7 @@ export default function AuditLogPage() {
     return (
       <div className="audit-detail-rules">
         <span className="audit-val--json-summary">
-          {typeof snap === 'object' ? Object.keys(snap).slice(0, 3).map(auditFieldLabel).join(', ') : String(snap)}
+          {typeof snap === 'object' ? Object.keys(snap).slice(0, 3).join(', ') : String(snap)}
         </span>
       </div>
     );
@@ -499,7 +435,8 @@ export default function AuditLogPage() {
           <div className="audit-correlation-banner">
             <div className="audit-correlation-banner__content">
               <Link size={15} />
-              <span>Đang xem các bản ghi thuộc cùng một thao tác</span>
+              <span>Đang lọc theo mã thao tác (Correlation ID):</span>
+              <span className="audit-correlation-banner__id">{filterCorrelationId}</span>
             </div>
             <button
               type="button"
@@ -592,34 +529,20 @@ export default function AuditLogPage() {
               <label className="audit-filter-label">Người bị tác động</label>
               <UserSearchCombobox
                 selectedUser={filterSubjectUser}
-                onSelect={(u) => {
-                  setFilterSubjectUser(u);
-                  setUserFilterErrors((prev) => ({ ...prev, subject: null }));
-                }}
+                onSelect={(u) => setFilterSubjectUser(u)}
                 onClear={() => setFilterSubjectUser(null)}
-                onQueryChange={setSubjectQuery}
                 placeholder="Tìm theo tên/mã người bị tác động..."
               />
-              {userFilterErrors.subject && (
-                <span className="audit-filter-error" role="alert">{userFilterErrors.subject}</span>
-              )}
             </div>
 
             <div className="audit-filter-item audit-filter-item--wide">
               <label className="audit-filter-label">Người thực hiện</label>
               <UserSearchCombobox
                 selectedUser={filterChangedByUser}
-                onSelect={(u) => {
-                  setFilterChangedByUser(u);
-                  setUserFilterErrors((prev) => ({ ...prev, changedBy: null }));
-                }}
+                onSelect={(u) => setFilterChangedByUser(u)}
                 onClear={() => setFilterChangedByUser(null)}
-                onQueryChange={setChangedByQuery}
                 placeholder="Tìm theo tên/mã người thực hiện..."
               />
-              {userFilterErrors.changedBy && (
-                <span className="audit-filter-error" role="alert">{userFilterErrors.changedBy}</span>
-              )}
             </div>
           </div>
 
@@ -636,7 +559,7 @@ export default function AuditLogPage() {
               variant="primary"
               size="sm"
               leftIcon={<Search size={15} />}
-              onClick={handleApplyFilters}
+              onClick={() => loadAuditLogs(0)}
             >
               Áp dụng lọc
             </Button>
@@ -735,7 +658,7 @@ export default function AuditLogPage() {
                             <button
                               type="button"
                               className="audit-btn-link"
-                              title="Xem các bản ghi thuộc cùng một thao tác"
+                              title={`Xem các bản ghi cùng thao tác (${log.correlationId})`}
                               onClick={() => handleFilterByCorrelation(log.correlationId)}
                             >
                               <Link size={13} />

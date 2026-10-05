@@ -427,14 +427,6 @@
   }
 }
 
-/* UI-31: lỗi tại chỗ khi gõ tên người mà chưa chọn gợi ý */
-.audit-filter-error {
-  display: block;
-  margin-top: 4px;
-  font-size: 12px;
-  color: var(--theme-danger-text);
-}
-
 .audit-filter-label {
   font-size: 12px;
   font-weight: 500;

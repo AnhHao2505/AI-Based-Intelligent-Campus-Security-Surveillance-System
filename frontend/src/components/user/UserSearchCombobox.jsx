@@ -12,14 +12,8 @@ export default function UserSearchCombobox({
   disabled = false,
   selectedUser = null,
   onClear = null,
-  // Tuỳ chọn: báo chữ đang gõ (rỗng khi đã chọn/xoá) để form cha biết người dùng gõ mà chưa chọn gợi ý (UI-31)
-  onQueryChange = null,
 }) {
-  const [query, setQueryState] = useState('');
-  const setQuery = (val) => {
-    setQueryState(val);
-    onQueryChange?.(val);
-  };
+  const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
