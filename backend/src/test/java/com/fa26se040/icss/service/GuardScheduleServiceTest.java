@@ -226,13 +226,18 @@ class GuardScheduleServiceTest {
     @DisplayName("Bảo vệ check-out thành công trong khung giờ [endTime, endTime + 5min]")
     void testCheckOut_Success() {
         UUID shiftId = UUID.randomUUID();
-        LocalTime nowTime = LocalTime.now();
+        LocalDateTime now = LocalDateTime.now();
+        LocalTime nowTime = now.toLocalTime();
+        LocalTime startTime = nowTime.minusHours(8);
+        // Trước 08:00, now - 8h vòng sang tối hôm qua → service coi là ca qua đêm (kết thúc = shiftDate + 1),
+        // nên ca phải bắt đầu từ hôm qua thì giờ kết thúc mới rơi đúng vào "bây giờ".
+        LocalDate shiftDate = startTime.isAfter(nowTime) ? now.toLocalDate().minusDays(1) : now.toLocalDate();
         GuardShift shift = GuardShift.builder()
                 .id(shiftId)
                 .guard(guardUser)
-                .shiftDate(LocalDate.now())
+                .shiftDate(shiftDate)
                 .shiftType(ShiftType.SHIFT_MORNING)
-                .startTime(nowTime.minusHours(8))
+                .startTime(startTime)
                 .endTime(nowTime)
                 .status(ShiftStatus.CHECKED_IN)
                 .build();
