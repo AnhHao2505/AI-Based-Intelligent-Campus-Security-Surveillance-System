@@ -2,6 +2,7 @@ package com.fa26se040.icss.service;
 
 import com.fa26se040.icss.dto.BulkImportResponse;
 import com.fa26se040.icss.dto.BulkImportRowResult;
+import com.fa26se040.icss.enums.ConfigKey;
 import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.exception.MaxRecordsExceededException;
 import com.fa26se040.icss.util.StringNormalizer;
@@ -40,6 +41,7 @@ public class UserBulkImportService {
     private final SecureRandom random = new SecureRandom();
 
     private final UserBulkImportHelper userBulkImportHelper;
+    private final SystemConfigService systemConfigService;
 
     private static class ParsedMetadata {
         final List<String[]> rows;
@@ -80,9 +82,7 @@ public class UserBulkImportService {
                 if (dataRowCount <= 0) {
                     throw new IllegalArgumentException("File dữ liệu không có bản ghi người dùng nào.");
                 }
-                if (dataRowCount > 200) {
-                    throw new MaxRecordsExceededException("File dữ liệu chứa " + dataRowCount + " bản ghi, vượt quá số lượng tối đa 200 bản ghi cho phép.");
-                }
+                checkRowLimit(dataRowCount);
 
                 String[] headers = rows.get(0);
                 int colUserCode = -1;
@@ -250,9 +250,7 @@ public class UserBulkImportService {
                 if (dataRowCount <= 0) {
                     throw new IllegalArgumentException("File dữ liệu không có bản ghi cán bộ nào.");
                 }
-                if (dataRowCount > 200) {
-                    throw new MaxRecordsExceededException("File dữ liệu chứa " + dataRowCount + " bản ghi, vượt quá số lượng tối đa 200 bản ghi cho phép.");
-                }
+                checkRowLimit(dataRowCount);
 
                 String[] headers = rows.get(0);
                 int colUserCode = -1;
@@ -401,6 +399,18 @@ public class UserBulkImportService {
             }
         } finally {
             cleanupTempZip(tempZip);
+        }
+    }
+
+    /**
+     * UI-19: giới hạn số dòng đọc từ cấu hình USER_BULK_IMPORT_MAX_ROWS mỗi lần nạp (không cache trong service),
+     * sửa trên màn System Configuration có hiệu lực ngay. Thiếu key / sai kiểu -> SystemConfigService trả mặc định 200.
+     */
+    private void checkRowLimit(int dataRowCount) {
+        int maxRows = systemConfigService.getInt(ConfigKey.USER_BULK_IMPORT_MAX_ROWS);
+        if (dataRowCount > maxRows) {
+            throw new MaxRecordsExceededException("File dữ liệu chứa " + dataRowCount + " bản ghi, vượt quá số lượng tối đa "
+                    + maxRows + " bản ghi cho phép.");
         }
     }
 

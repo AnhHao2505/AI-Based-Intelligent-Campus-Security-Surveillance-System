@@ -41,7 +41,9 @@ public enum ConfigKey {
     GUEST_FACE_RETENTION_HOURS("GUEST_FACE_RETENTION_HOURS", "24"),
     GUEST_RECORD_RETENTION_DAYS("GUEST_RECORD_RETENTION_DAYS", "90"),
     GUEST_PHOTO_URL_TTL_SECONDS("GUEST_PHOTO_URL_TTL_SECONDS", "60"),
-    GUEST_CONSENT_NOTICE_VERSION("GUEST_CONSENT_NOTICE_VERSION", "v1");
+    GUEST_CONSENT_NOTICE_VERSION("GUEST_CONSENT_NOTICE_VERSION", "v1"),
+    // UI-19 (V69): số dòng tối đa mỗi lần nạp tài khoản theo lô (cả luồng người dùng thường và cán bộ)
+    USER_BULK_IMPORT_MAX_ROWS("USER_BULK_IMPORT_MAX_ROWS", "200");
 
     private final String key;
     private final String defaultValue;

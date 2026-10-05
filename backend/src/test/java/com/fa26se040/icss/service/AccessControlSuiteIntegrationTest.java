@@ -1073,7 +1073,9 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
         IllegalArgumentException exLocked = assertThrows(IllegalArgumentException.class, () ->
                 accessRequestService.createGroupRequest(reqLocked, normalUserL2.getEmail())
         );
-        assertTrue(exLocked.getMessage().contains("vô hiệu hoá"));
+        // Lý do chung như resolve-members, không lộ tài khoản tồn tại nhưng bị khoá (CLAUDE.md 9a)
+        assertTrue(exLocked.getMessage().contains("Không tìm thấy người dùng hợp lệ với mã này"), exLocked.getMessage());
+        assertFalse(exLocked.getMessage().contains("vô hiệu"), exLocked.getMessage());
 
         // Khôi phục N = 30
         systemConfigService.update(ConfigKey.ACCESS_REQUEST_MAX_GROUP_MEMBERS.getKey(), "30", "Restore", adminUser.getEmail());

@@ -956,14 +956,10 @@ public class AccessRequestService {
 
         List<User> memberUsers = new ArrayList<>();
         for (String code : cleanCodes) {
-            User memberUser = userRepository.findByUserCode(code)
-                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với mã số: " + code));
-
-            if (Boolean.FALSE.equals(memberUser.getIsActive()) || memberUser.getDeletedAt() != null) {
-                throw new IllegalArgumentException("Tài khoản người dùng " + code + " đã bị vô hiệu hoá");
-            }
+            // Không tồn tại / vô hiệu hoá / đã xoá / role khác NORMAL_USER (BR-RQ-MEM-01): CÙNG mã lỗi (400) và CÙNG câu
+            // với resolve-members, không để lộ mã nào tồn tại hay tồn tại nhưng bị khoá (CLAUDE.md 9a)
+            User memberUser = userRepository.findByUserCode(code).orElse(null);
             if (!isEligibleMember(memberUser)) {
-                // BR-RQ-MEM-01: role khác NORMAL_USER -> cùng lý do chung với resolve-members
                 throw new IllegalArgumentException(code + ": " + INVALID_MEMBER_REASON);
             }
             memberUsers.add(memberUser);

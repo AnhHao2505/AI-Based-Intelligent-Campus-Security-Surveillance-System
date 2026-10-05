@@ -54,6 +54,8 @@ export default function AccessRequestPage() {
 	// Submit & Alert state
 	const [submitting, setSubmitting] = useState(false);
 	const [formError, setFormError] = useState(null);
+	// Lỗi tra cứu / thêm thành viên: hiện ngay dưới ô mã thành viên (không đẩy lên đầu form)
+	const [memberError, setMemberError] = useState(null);
 	const [formSuccess, setFormSuccess] = useState(null);
 
 	// History State
@@ -262,14 +264,14 @@ export default function AccessRequestPage() {
 		}
 
 		if (newCodes.length === 0) {
-			setFormError(
+			setMemberError(
 				`Mã người dùng ${duplicateCodes.join(", ")} đã có trong danh sách.`,
 			);
 			return;
 		}
 
 		setLookingUpMember(true);
-		setFormError(null);
+		setMemberError(null);
 		try {
 			const results = await accessRequestService.resolveMembers(newCodes);
 			const validMembers = [];
@@ -296,13 +298,13 @@ export default function AccessRequestPage() {
 			}
 
 			if (invalidMessages.length > 0) {
-				setFormError(invalidMessages.join(" | "));
+				setMemberError(invalidMessages.join(" | "));
 			}
 		} catch (err) {
 			if (err.status === 429) {
-				setFormError("Bạn tra cứu quá nhanh, vui lòng thử lại sau ít phút");
+				setMemberError("Bạn tra cứu quá nhanh, vui lòng thử lại sau ít phút");
 			} else {
-				setFormError(
+				setMemberError(
 					err.message || "Không thể tra cứu danh sách mã người dùng",
 				);
 			}
@@ -739,11 +741,15 @@ export default function AccessRequestPage() {
 								<MemberCodeCombobox
 									placeholder="Nhập mã số thành viên (vd: SV-002, GV-001...) hoặc bấm ↓"
 									value={memberCodeInput}
-									onChange={setMemberCodeInput}
+									onChange={(text) => {
+										setMemberCodeInput(text);
+										if (memberError) setMemberError(null);
+									}}
 									onPick={(code) => handleAddMember(code)}
 									onSubmitTyped={() => handleAddMember()}
 									excludeCodes={[...memberList.map((m) => m.userCode), user?.userCode]}
 									disabled={lookingUpMember || submitting}
+									describedBy={memberError ? "arp-member-error" : undefined}
 								/>
 								<button
 									type="button"
@@ -756,6 +762,11 @@ export default function AccessRequestPage() {
 									{lookingUpMember ? "Đang tra..." : "Thêm"}
 								</button>
 							</div>
+							{memberError && (
+								<div id="arp-member-error" className="arp-field-error" role="alert">
+									{memberError}
+								</div>
+							)}
 
 							{memberList.length > 0 && (
 								<div className="arp-member-list">

@@ -21,6 +21,8 @@ export default function MemberCodeCombobox({
 	excludeCodes = [],
 	disabled = false,
 	placeholder,
+	// id của dòng lỗi bên ngoài (vd lỗi tra cứu) để gắn aria-describedby
+	describedBy,
 }) {
 	const [open, setOpen] = useState(false);
 	const [items, setItems] = useState([]);
@@ -142,6 +144,8 @@ export default function MemberCodeCombobox({
 				aria-expanded={showList}
 				aria-controls={listId}
 				aria-activedescendant={showList && activeIndex >= 0 ? optionId(activeIndex) : undefined}
+				aria-describedby={describedBy}
+				aria-invalid={describedBy ? true : undefined}
 				placeholder={placeholder}
 				value={value}
 				onChange={(e) => onChange(e.target.value)}
