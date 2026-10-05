@@ -13,6 +13,7 @@ import com.fa26se040.icss.dto.user.BatchDeleteResponse;
 import com.fa26se040.icss.dto.user.BatchRestoreResponse;
 import com.fa26se040.icss.dto.user.UserAccessLevelUpdateRequest;
 import com.fa26se040.icss.dto.user.UserSearchResponse;
+import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -99,7 +100,8 @@ public class UserController {
             @RequestParam(required = false) Boolean isActive,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
-            @RequestParam(defaultValue = "createdAt,desc") String sort
+            @RequestParam(defaultValue = "createdAt,desc") String sort,
+            Authentication authentication
     ) {
         int cappedSize = Math.min(Math.max(1, size), 100);
         Sort sortOrder = Sort.by(Sort.Direction.DESC, "createdAt");
@@ -109,7 +111,10 @@ public class UserController {
             sortOrder = Sort.by(direction, parts[0]);
         }
         Pageable pageable = PageRequest.of(Math.max(0, page), cappedSize, sortOrder);
-        UserPageResponse result = userService.getUsers(keyword, accountType, isActive, pageable);
+        boolean isAdmin = authentication != null && authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        Role callerRole = isAdmin ? Role.ADMIN : Role.FACILITY_MANAGER;
+        UserPageResponse result = userService.getUsers(keyword, accountType, isActive, pageable, callerRole);
         return ResponseEntity.ok(ApiResponse.success(result, "Lấy danh sách người dùng thành công"));
     }
 
