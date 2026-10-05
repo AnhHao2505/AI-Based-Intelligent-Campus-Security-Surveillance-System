@@ -46,6 +46,29 @@ const DEFAULT_PAGE_SIZE = 10;
 // System account roles eligible for creation
 const SYSTEM_STAFF_ROLES = [ROLES.FACILITY_MANAGER, ROLES.GUARD];
 
+// UI-11: cùng quy tắc backend StaffAccountCreateRequest (fullName 3–100, userCode 1–50 ^[a-zA-Z0-9_-]+$, email ≤ 255)
+const USER_CODE_PATTERN = /^[a-zA-Z0-9_-]+$/;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const validateCreateField = (field, rawValue, isNormal) => {
+	const value = (rawValue || "").trim();
+	if (field === "fullName") {
+		if (!value) return "Họ và tên là bắt buộc";
+		if (value.length < 3 || value.length > 100) return "Họ và tên phải có độ dài từ 3 đến 100 ký tự";
+	}
+	if (field === "userCode") {
+		const label = isNormal ? "Mã người dùng" : "Mã cán bộ";
+		if (!value) return `${label} là bắt buộc`;
+		if (value.length > 50) return `${label} tối đa 50 ký tự`;
+		if (!USER_CODE_PATTERN.test(value)) return `${label} chỉ chứa chữ cái, chữ số, dấu gạch ngang hoặc gạch dưới`;
+	}
+	if (field === "email") {
+		if (!value) return "Email là bắt buộc";
+		if (value.length > 255) return "Email không được vượt quá 255 ký tự";
+		if (!EMAIL_PATTERN.test(value)) return "Định dạng email không hợp lệ";
+	}
+	return null;
+};
+
 export default function ManageAccountPage() {
 	const { user: currentUser } = useAuth();
 
@@ -437,21 +460,9 @@ export default function ManageAccountPage() {
 		const isNormal = activeTab === "NORMAL";
 		const errors = {};
 
-		if (!createForm.fullName.trim()) {
-			errors.fullName = "Họ và tên là bắt buộc";
-		}
-
-		if (!createForm.userCode.trim()) {
-			errors.userCode = isNormal
-				? "Mã người dùng là bắt buộc"
-				: "Mã cán bộ là bắt buộc";
-		}
-
-		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-		if (!createForm.email.trim()) {
-			errors.email = "Email là bắt buộc";
-		} else if (!emailRegex.test(createForm.email.trim())) {
-			errors.email = "Định dạng email không hợp lệ";
+		for (const field of ["fullName", "userCode", "email"]) {
+			const fieldError = validateCreateField(field, createForm[field], isNormal);
+			if (fieldError) errors[field] = fieldError;
 		}
 
 		if (!frontFile) {
@@ -1086,9 +1097,22 @@ export default function ManageAccountPage() {
 										className={`account-form-input ${formErrors.fullName ? "account-form-input--error" : ""}`}
 										placeholder="Ví dụ: Nguyễn Văn An"
 										value={createForm.fullName}
-										onChange={(e) =>
-											setCreateForm({ ...createForm, fullName: e.target.value })
-										}
+										onChange={(e) => {
+											setCreateForm({ ...createForm, fullName: e.target.value });
+											if (formErrors.fullName) {
+												setFormErrors((prev) => ({
+													...prev,
+													fullName: validateCreateField("fullName", e.target.value, activeTab === "NORMAL"),
+												}));
+											}
+										}}
+										onBlur={(e) => {
+											if (!e.target.value.trim()) return;
+											setFormErrors((prev) => ({
+												...prev,
+												fullName: validateCreateField("fullName", e.target.value, activeTab === "NORMAL"),
+											}));
+										}}
 										disabled={isSubmitting}
 										autoFocus
 									/>
@@ -1113,13 +1137,26 @@ export default function ManageAccountPage() {
 										className={`account-form-input ${formErrors.userCode ? "account-form-input--error" : ""}`}
 										placeholder={
 											activeTab === "NORMAL"
-												? "Ví dụ: SV001, CB001..."
-												: "Ví dụ: NV-SEC-001, FM-002..."
+												? "Ví dụ: SV-001, GV-001..."
+												: "Ví dụ: SEC-001, FM-002..."
 										}
 										value={createForm.userCode}
-										onChange={(e) =>
-											setCreateForm({ ...createForm, userCode: e.target.value })
-										}
+										onChange={(e) => {
+											setCreateForm({ ...createForm, userCode: e.target.value });
+											if (formErrors.userCode) {
+												setFormErrors((prev) => ({
+													...prev,
+													userCode: validateCreateField("userCode", e.target.value, activeTab === "NORMAL"),
+												}));
+											}
+										}}
+										onBlur={(e) => {
+											if (!e.target.value.trim()) return;
+											setFormErrors((prev) => ({
+												...prev,
+												userCode: validateCreateField("userCode", e.target.value, activeTab === "NORMAL"),
+											}));
+										}}
 										disabled={isSubmitting}
 									/>
 									{formErrors.userCode && (
@@ -1141,9 +1178,22 @@ export default function ManageAccountPage() {
 										className={`account-form-input ${formErrors.email ? "account-form-input--error" : ""}`}
 										placeholder="Ví dụ: staff@fpt.edu.vn"
 										value={createForm.email}
-										onChange={(e) =>
-											setCreateForm({ ...createForm, email: e.target.value })
-										}
+										onChange={(e) => {
+											setCreateForm({ ...createForm, email: e.target.value });
+											if (formErrors.email) {
+												setFormErrors((prev) => ({
+													...prev,
+													email: validateCreateField("email", e.target.value, activeTab === "NORMAL"),
+												}));
+											}
+										}}
+										onBlur={(e) => {
+											if (!e.target.value.trim()) return;
+											setFormErrors((prev) => ({
+												...prev,
+												email: validateCreateField("email", e.target.value, activeTab === "NORMAL"),
+											}));
+										}}
 										disabled={isSubmitting}
 									/>
 									{formErrors.email && (
@@ -2040,7 +2090,7 @@ export default function ManageAccountPage() {
 								>
 									<Layers
 										size={40}
-										style={{ opacity: 0.3, marginBottom: "12px" }}
+										style={{ opacity: 0.3, display: "block", margin: "0 auto 12px" }}
 									/>
 									<p style={{ fontWeight: 500, fontSize: "0.9375rem" }}>
 										Chưa có lô nạp nào trong hệ thống
