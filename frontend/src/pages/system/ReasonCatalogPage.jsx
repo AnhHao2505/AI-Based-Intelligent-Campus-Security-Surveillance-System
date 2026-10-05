@@ -89,12 +89,25 @@ export default function ReasonCatalogPage() {
 		setCreateModalOpen(true);
 	};
 
+	// UI-32: cùng quy tắc backend ReasonCatalogCreateRequest (mã ^[A-Z0-9_]+$ tối đa 50, nhãn tối đa 255)
+	const createCode = (createForm.code || "").trim();
+	const createLabel = (createForm.label || "").trim();
+	const createCodeError = !createCode
+		? null
+		: !/^[A-Z0-9_]+$/.test(createCode)
+			? "Mã lý do chỉ chứa chữ hoa, số và dấu gạch dưới"
+			: createCode.length > 50
+				? "Mã lý do tối đa 50 ký tự"
+				: null;
+	const createLabelError = createLabel.length > 255 ? "Nhãn lý do tối đa 255 ký tự" : null;
+
 	const handleCreateSubmit = async (e) => {
 		e.preventDefault();
 		if (!createForm.code?.trim() || !createForm.label?.trim()) {
 			setErrorMsg("Vui lòng điền đầy đủ mã và nhãn lý do.");
 			return;
 		}
+		if (createCodeError || createLabelError) return;
 		setCreating(true);
 		setErrorMsg(null);
 		try {
@@ -370,17 +383,16 @@ export default function ReasonCatalogPage() {
 
 					<div>
 						<label style={{ display: "block", fontSize: "13px", fontWeight: 600, marginBottom: "4px" }}>
-							Mã lý do (code) <span style={{ color: "red" }}>*</span>
+							Mã lý do <span style={{ color: "red" }}>*</span>
 						</label>
 						<Input
 							value={createForm.code}
 							onChange={(e) => setCreateForm({ ...createForm, code: e.target.value.toUpperCase() })}
 							placeholder="VD: TECH_TALK"
+							error={createCodeError}
+							hint="Chữ hoa, số, gạch dưới. Không thể sửa sau khi tạo."
 							required
 						/>
-						<span style={{ fontSize: "11px", color: "var(--theme-text-muted)" }}>
-							Chữ hoa, số, gạch dưới. Không thể sửa sau khi tạo.
-						</span>
 					</div>
 
 					<div>
@@ -391,6 +403,7 @@ export default function ReasonCatalogPage() {
 							value={createForm.label}
 							onChange={(e) => setCreateForm({ ...createForm, label: e.target.value })}
 							placeholder="VD: Buổi chia sẻ kỹ thuật"
+							error={createLabelError}
 							required
 						/>
 					</div>
@@ -410,7 +423,12 @@ export default function ReasonCatalogPage() {
 						<Button type="button" variant="secondary" onClick={() => setCreateModalOpen(false)}>
 							Hủy
 						</Button>
-						<Button type="submit" variant="primary" loading={creating}>
+						<Button
+							type="submit"
+							variant="primary"
+							loading={creating}
+							disabled={Boolean(createCodeError || createLabelError)}
+						>
 							Tạo mới
 						</Button>
 					</div>

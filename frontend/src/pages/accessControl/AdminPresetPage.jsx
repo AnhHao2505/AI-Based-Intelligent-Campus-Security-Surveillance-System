@@ -300,7 +300,7 @@ export default function AdminPresetPage() {
                 </div>
 
                 <div className="modal-field">
-                  <label className="modal-label">Yêu cầu chỉ định (Explicit Authorization)</label>
+                  <label className="modal-label">Yêu cầu chỉ định</label>
                   <div className="explicit-toggle-wrapper">
                     <label className="switch-disabled">
                       <input
