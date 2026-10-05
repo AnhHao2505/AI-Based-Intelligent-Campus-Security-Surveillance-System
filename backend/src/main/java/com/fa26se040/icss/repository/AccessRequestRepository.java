@@ -220,6 +220,23 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, UU
     );
 
     /**
+     * BR-RQ-SP-05: đơn chưa kết thúc (status thuộc :statuses, end_time > :now) mà :requesterId là NGƯỜI TẠO,
+     * kèm khu vực và thành viên để ghi audit / gửi thông báo khi hệ thống huỷ.
+     */
+    @Query("SELECT DISTINCT r FROM AccessRequest r " +
+           "JOIN FETCH r.requester " +
+           "JOIN FETCH r.area " +
+           "LEFT JOIN FETCH r.members m " +
+           "LEFT JOIN FETCH m.user " +
+           "WHERE r.requester.id = :requesterId AND r.status IN :statuses AND r.endTime > :now " +
+           "ORDER BY r.startTime ASC")
+    List<AccessRequest> findNotEndedByRequesterWithParticipants(
+            @Param("requesterId") UUID requesterId,
+            @Param("statuses") Collection<RequestStatus> statuses,
+            @Param("now") OffsetDateTime now
+    );
+
+    /**
      * Chỉ đọc, dùng cho AccessDecisionService#checkEntry: đơn có status = :status tại :areaId,
      * startTime <= :at < endTime, và user là requester hoặc là member của đơn nhóm.
      */
