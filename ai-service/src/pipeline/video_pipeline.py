@@ -154,7 +154,14 @@ class VideoPipeline:
                                 face_result.matched_code = code
                                 face_result.matched_name = name
                                 face_result.is_active = is_active
-                                face_result.is_authorized = is_active  # Chỉ được phép (authorized) nếu tài khoản ĐANG HOẠT ĐỘNG (is_active == True)
+
+                                # Thẩm định quyền ra vào thực tế tại camera này qua Backend checkEntry
+                                is_allowed, access_reason, area_name = self.face_matcher.check_camera_access(
+                                    self.camera_code, code
+                                )
+                                face_result.is_authorized = is_allowed
+                                face_result.access_reason = access_reason
+                                face_result.area_name = area_name
 
                         self.analysis_engine.associate_face(track_id, face_result)
 

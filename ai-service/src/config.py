@@ -54,6 +54,10 @@ class Settings(BaseSettings):
     DEFAULT_AFTER_HOUR_END: str = "06:00"
     TIMEZONE: str = "Asia/Ho_Chi_Minh"
     
+    # Backend Access Decision Service Integration
+    BACKEND_API_URL: str = Field(default="http://localhost:8080", validation_alias="BACKEND_API_URL")
+    ACCESS_DECISION_CACHE_TTL: float = 30.0
+    
     class Config:
         env_file = (".env", "../.env")
         extra = "ignore"

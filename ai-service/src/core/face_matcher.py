@@ -33,6 +33,8 @@ class FaceMatcher:
         self.cached_faces: List[Dict] = []
         self.last_cache_time = 0
         self.cache_ttl = 30.0 # Tự động làm mới cache mỗi 30 giây
+        self.access_cache: Dict[str, Tuple[bool, str, Optional[str], float]] = {}
+        self.access_cache_ttl = getattr(settings, "ACCESS_DECISION_CACHE_TTL", 30.0)
         self.refresh_cache()
 
     def _get_connection(self):
@@ -123,3 +125,57 @@ class FaceMatcher:
             return (best_match["code"], best_match["full_name"], best_score, is_active)
 
         return None
+
+    def check_camera_access(self, camera_code: str, user_code: str) -> Tuple[bool, str, Optional[str]]:
+        """
+        Kiểm tra quyền ra vào của user_code tại vị trí camera_code:
+        Gọi API POST /api/access-control/check-entry của Spring Boot Backend (checkEntry).
+        Có bộ đệm in-memory RAM (TTL 30s) để đảm bảo tốc độ Real-time 30+ FPS cho luồng video.
+        Trả về: (is_allowed: bool, reason: str, area_name: Optional[str])
+        """
+        if not camera_code or not user_code:
+            return False, "Thiếu thông tin camera hoặc người dùng", None
+
+        cache_key = f"{camera_code}:{user_code}"
+        now = time.time()
+
+        # 1. Kiểm tra cache RAM
+        if cache_key in self.access_cache:
+            allowed, reason, area_name, expire_at = self.access_cache[cache_key]
+            if now < expire_at:
+                return allowed, reason, area_name
+
+        # 2. Gọi API Backend Spring Boot
+        backend_url = getattr(settings, "BACKEND_API_URL", "http://localhost:8080")
+        endpoint = f"{backend_url.rstrip('/')}/api/access-control/check-entry"
+
+        try:
+            import requests
+            resp = requests.post(
+                endpoint,
+                json={"cameraCode": camera_code, "userCode": user_code},
+                timeout=1.5
+            )
+            if resp.status_code == 200:
+                res_json = resp.json()
+                data = res_json.get("data", {})
+                allowed = bool(data.get("allowed", False))
+                reason = data.get("reason", "Xét duyệt từ Backend")
+                area_name = data.get("areaName")
+                self.access_cache[cache_key] = (allowed, reason, area_name, now + self.access_cache_ttl)
+                logger.info(f"🔑 [FaceMatcher] Quyền ra vào [{user_code}] tại [{camera_code}] ({area_name or 'N/A'}): {'HỢP LỆ' if allowed else 'TỪ CHỐI'} ({reason})")
+                return allowed, reason, area_name
+            else:
+                logger.warning(f"⚠️ [FaceMatcher] Backend trả về status {resp.status_code} khi checkEntry cho {user_code}")
+        except Exception as e:
+            logger.debug(f"⚠️ [FaceMatcher] Không thể kết nối Backend để xét checkEntry: {e}. Áp dụng chế độ Safe Offline.")
+
+        # 3. Fallback Offline: Nếu backend tắt, dùng trạng thái tài khoản active làm fallback tạm thời
+        for item in self.cached_faces:
+            if item["code"] == user_code:
+                if item.get("is_active", True):
+                    return True, "Safe Offline Mode (Tài khoản đang hoạt động)", None
+                else:
+                    return False, "Safe Offline Mode: Tài khoản bị vô hiệu hóa", None
+
+        return False, "Đối tượng chưa được cấp quyền", None

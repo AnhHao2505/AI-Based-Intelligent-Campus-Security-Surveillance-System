@@ -1,9 +1,11 @@
 package com.fa26se040.icss.service;
 
 import com.fa26se040.icss.dto.accessdecision.AccessDecision;
+import com.fa26se040.icss.dto.accessdecision.CheckCameraEntryResponse;
 import com.fa26se040.icss.entity.AccessRequest;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.AreaAssignedPersonnel;
+import com.fa26se040.icss.entity.Camera;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.AccessSource;
 import com.fa26se040.icss.enums.AreaLevel;
@@ -11,6 +13,7 @@ import com.fa26se040.icss.enums.RequestStatus;
 import com.fa26se040.icss.repository.AccessRequestRepository;
 import com.fa26se040.icss.repository.AreaAssignedPersonnelRepository;
 import com.fa26se040.icss.repository.AreaRepository;
+import com.fa26se040.icss.repository.CameraRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -24,9 +27,8 @@ import java.util.UUID;
 /**
  * Điểm xét quyền ra vào DUY NHẤT của hệ thống.
  *
- * <p>Đây là điểm bàn giao cho module AI (làm sau): hiện CHƯA có endpoint nào gọi, và không nơi nào
- * khác trong backend được tự xét quyền ra vào. Module nào cần biết "user X có được vào area Y lúc T
- * không" thì gọi {@link #checkEntry(UUID, UUID, OffsetDateTime)}.</p>
+ * <p>Đây là điểm bàn giao cho module AI: phục vụ xét quyền ra vào khuôn viên trường học
+ * thông qua phương thức {@link #checkEntry(UUID, UUID, OffsetDateTime)} và {@link #checkCameraEntry(String, String, OffsetDateTime)}.</p>
  */
 @Service
 @RequiredArgsConstructor
@@ -34,6 +36,7 @@ public class AccessDecisionService {
 
     private final UserRepository userRepository;
     private final AreaRepository areaRepository;
+    private final CameraRepository cameraRepository;
     private final AreaAssignedPersonnelRepository assignedPersonnelRepository;
     private final AccessRequestRepository accessRequestRepository;
     private final com.fa26se040.icss.repository.AreaEventScheduleRepository areaEventScheduleRepository;
@@ -135,5 +138,54 @@ public class AccessDecisionService {
 
         // 6. Không có nguồn cấp quyền nào -> deny NONE
         return AccessDecision.denied("Không có quyền ra vào khu vực tại thời điểm này");
+    }
+
+    /**
+     * Xét quyền ra vào dựa trên mã Camera và mã Người dùng (phục vụ module AI Face Recognition).
+     */
+    @Transactional(readOnly = true)
+    public CheckCameraEntryResponse checkCameraEntry(String cameraCode, String userCode, OffsetDateTime at) {
+        if (at == null) {
+            at = OffsetDateTime.now();
+        }
+        if (cameraCode == null || cameraCode.isBlank()) {
+            return CheckCameraEntryResponse.denied(cameraCode, userCode, "Mã camera không được để trống");
+        }
+        if (userCode == null || userCode.isBlank()) {
+            return CheckCameraEntryResponse.denied(cameraCode, userCode, "Mã người dùng không được để trống");
+        }
+
+        // 1. Tìm Camera và Khu vực tương ứng
+        Optional<Camera> cameraOpt = cameraRepository.findByCameraCodeAndDeletedAtIsNull(cameraCode);
+        if (cameraOpt.isEmpty()) {
+            return CheckCameraEntryResponse.denied(cameraCode, userCode, "Camera không tồn tại hoặc đã bị xoá");
+        }
+        Camera camera = cameraOpt.get();
+        Area area = camera.getArea();
+        if (area == null || !Boolean.TRUE.equals(area.getIsActive()) || area.getDeletedAt() != null) {
+            return CheckCameraEntryResponse.denied(cameraCode, userCode, "Camera chưa được gán vào khu vực hoạt động nào");
+        }
+
+        // 2. Tìm người dùng theo userCode
+        Optional<User> userOpt = userRepository.findByUserCodeAndDeletedAtIsNull(userCode);
+        if (userOpt.isEmpty()) {
+            return CheckCameraEntryResponse.denied(cameraCode, userCode, "Người dùng không tồn tại hoặc đã bị xoá");
+        }
+        User user = userOpt.get();
+
+        // 3. Xét quyền qua checkEntry
+        AccessDecision decision = checkEntry(user.getId(), area.getId(), at);
+
+        return CheckCameraEntryResponse.builder()
+                .allowed(decision.allowed())
+                .source(decision.source())
+                .reason(decision.reason())
+                .cameraCode(camera.getCameraCode())
+                .areaId(area.getId())
+                .areaName(area.getName())
+                .userId(user.getId())
+                .userCode(user.getUserCode())
+                .fullName(user.getFullName())
+                .build();
     }
 }

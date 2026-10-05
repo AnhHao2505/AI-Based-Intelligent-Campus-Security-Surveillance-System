@@ -159,7 +159,9 @@ class FrameAnalysisEngine:
                             if matched_code and not is_active:
                                 detail_msg = f"Phát hiện tài khoản bị vô hiệu hóa: {matched_name} ({matched_code}) tại khu vực {matched_label or 'giám sát'}."
                             elif matched_code:
-                                detail_msg = f"Phát hiện đối tượng không được phép: {matched_name} ({matched_code}) tại khu vực {matched_label or 'giám sát'}."
+                                reason_str = getattr(person.face_info, "access_reason", None) or "Không có quyền ra vào khu vực này."
+                                target_area_name = getattr(person.face_info, "area_name", None) or matched_label or "khu vực giám sát"
+                                detail_msg = f"Phát hiện đối tượng không được phép: {matched_name} ({matched_code}) tại {target_area_name}. Lý do: {reason_str}"
                             else:
                                 detail_msg = f"Phát hiện đối tượng chưa đăng ký / người lạ tại khu vực {matched_label or 'giám sát'}."
 

@@ -49,6 +49,8 @@ class FaceDetectionResult:
     matched_name: Optional[str] = None
     is_authorized: bool = False
     is_active: bool = True
+    access_reason: Optional[str] = None
+    area_name: Optional[str] = None
 
 @dataclass
 class TrackedPerson:

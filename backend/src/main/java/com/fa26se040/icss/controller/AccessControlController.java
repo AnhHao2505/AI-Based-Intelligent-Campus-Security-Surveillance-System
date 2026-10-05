@@ -21,10 +21,15 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import com.fa26se040.icss.dto.accessdecision.CheckCameraEntryRequest;
+import com.fa26se040.icss.dto.accessdecision.CheckCameraEntryResponse;
+import com.fa26se040.icss.service.AccessDecisionService;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -37,6 +42,20 @@ public class AccessControlController {
 
     private final AreaLevelPresetService areaLevelPresetService;
     private final AuditService auditService;
+    private final AccessDecisionService accessDecisionService;
+
+    @PostMapping("/check-entry")
+    public ResponseEntity<ApiResponse<CheckCameraEntryResponse>> checkCameraEntry(
+            @Valid @RequestBody CheckCameraEntryRequest request
+    ) {
+        OffsetDateTime at = request.getTimestamp() != null ? request.getTimestamp() : OffsetDateTime.now();
+        CheckCameraEntryResponse response = accessDecisionService.checkCameraEntry(
+                request.getCameraCode(),
+                request.getUserCode(),
+                at
+        );
+        return ResponseEntity.ok(ApiResponse.success(response, "Xét quyền ra vào thành công"));
+    }
 
     @GetMapping("/level-presets")
     @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")

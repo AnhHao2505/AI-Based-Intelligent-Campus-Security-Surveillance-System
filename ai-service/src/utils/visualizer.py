@@ -128,7 +128,8 @@ class FrameVisualizer:
             face_str = "Chua ro mat"
             if p.face_detected and p.face_info:
                 if p.face_info.matched_name:
-                    face_str = f"Mat: {p.face_info.matched_name}"
+                    perm_tag = "HOP LE" if p.face_info.is_authorized else "KHONG PHEP"
+                    face_str = f"Mat: {p.face_info.matched_name} [{perm_tag}]"
                 else:
                     face_str = f"Mat ({int(p.face_info.score * 100)}%)"
 
