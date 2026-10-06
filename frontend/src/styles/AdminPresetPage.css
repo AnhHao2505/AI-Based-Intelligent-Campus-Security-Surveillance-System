@@ -1,0 +1,178 @@
+/* AdminPresetPage.css — Styles for the Level Presets page */
+
+.admin-preset-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+  max-width: var(--page-max-width, 1400px);
+  margin: 0 auto;
+  padding: 32px;
+  box-sizing: border-box;
+}
+
+/* Section Card */
+.admin-preset-page .section-card {
+  background: var(--theme-bg-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: 14px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  overflow: hidden;
+}
+
+.admin-preset-page .section-card__header {
+  padding: 24px 28px;
+  border-bottom: 1px solid var(--theme-border);
+  background: var(--theme-bg-page);
+}
+
+.admin-preset-page .section-card__title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--theme-text-primary);
+  margin-bottom: 6px;
+}
+
+.admin-preset-page .section-card__desc {
+  font-size: 14px;
+  color: var(--theme-text-muted);
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* Loading State */
+.admin-preset-page .loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 56px;
+  color: var(--theme-text-muted);
+}
+
+/* Table */
+.admin-preset-page .table-wrapper {
+  overflow-x: auto;
+}
+
+.admin-preset-page .data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.admin-preset-page .data-table th {
+  text-align: left;
+  padding: 16px 28px;
+  background: var(--theme-bg-surface);
+  color: var(--theme-text-secondary);
+  font-weight: 600;
+  font-size: 13px;
+  border-bottom: 1px solid var(--theme-border);
+  white-space: nowrap;
+}
+
+.admin-preset-page .data-table td {
+  padding: 20px 28px;
+  border-bottom: 1px solid var(--theme-border);
+  color: var(--theme-text-primary);
+  vertical-align: middle;
+  font-size: 14px;
+}
+
+.admin-preset-page .data-table tr:last-child td {
+  border-bottom: none;
+}
+
+.admin-preset-page .data-table tr:hover td {
+  background: var(--theme-bg-page);
+}
+
+/* Area Type Column */
+.area-type-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.area-type-badge {
+  display: inline-block;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid;
+  width: fit-content;
+}
+
+.area-type-desc {
+  font-size: 13px;
+  color: var(--theme-text-muted);
+  line-height: 1.4;
+  max-width: 380px;
+}
+
+/* Access Level Badge */
+.access-level-badge {
+  display: inline-block;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid;
+  white-space: nowrap;
+}
+
+/* Badge Variants */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge--success {
+  background: rgba(34, 197, 94, 0.12);
+  color: #16a34a;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.badge--danger {
+  background: rgba(239, 68, 68, 0.12);
+  color: #dc2626;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* Version Tag */
+.version-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  background: var(--theme-bg-page);
+  color: var(--theme-text-secondary);
+  border: 1px solid var(--theme-border);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: monospace;
+}
+
+/* Text alignment */
+.text-right {
+  text-align: right;
+}
+
+/* Empty state */
+.empty-state-cell {
+  text-align: center;
+  padding: 48px 28px;
+  color: var(--theme-text-muted);
+  font-size: 14px;
+}

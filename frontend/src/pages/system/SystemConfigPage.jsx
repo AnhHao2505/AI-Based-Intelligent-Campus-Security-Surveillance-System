@@ -591,11 +591,11 @@ export default function SystemConfigPage() {
 						)}
 						<div
 							style={{
-								background: "var(--theme-bg, #f8fafc)",
+								background: "var(--theme-bg-page)",
 								padding: "12px",
 								borderRadius: "8px",
 								fontSize: "13.5px",
-								border: "1px solid var(--theme-border, #e2e8f0)",
+								border: "1px solid var(--theme-border)",
 							}}
 						>
 							<div><strong>Tham số:</strong> {confirmModalConfig.configKey}</div>
