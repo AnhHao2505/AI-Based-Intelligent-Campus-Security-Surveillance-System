@@ -340,3 +340,47 @@
   color: var(--theme-success-text);
   border-color: var(--theme-success-border);
 }
+
+/* --------------------------------------------------------------------------
+   Bổ sung khi nối dữ liệu thật (port từ main): hai ô chọn người thay cho ô tìm
+   tự do (backend không có tìm theo chuỗi / IP), cho phép hàng điều khiển xuống
+   dòng vì có thêm bộ lọc khu vực, trạng thái nút khi đang tải.
+   -------------------------------------------------------------------------- */
+.audit-user-filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  width: 100%;
+}
+
+.audit-user-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.audit-user-filter__label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--theme-text-secondary);
+}
+
+.audit-log-page .audit-filter-controls {
+  flex-wrap: wrap;
+}
+
+.audit-refresh-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .audit-user-filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .audit-log-page {
+    padding: var(--page-padding-y) var(--page-padding-x);
+  }
+}
