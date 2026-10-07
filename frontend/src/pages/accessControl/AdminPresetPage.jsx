@@ -15,6 +15,7 @@ import Modal from '../../components/ui/Modal';
 import PageHeader from '../../components/ui/PageHeader';
 import ReasonTextarea from '../../components/ui/ReasonTextarea';
 import '../../styles/UserAccessLevelPage.css';
+import '../../styles/AdminPresetPage.css';
 
 const ACCESS_LEVELS = [
   { level: 1, name: 'Cấp 1 — Mọi người dùng' },
@@ -118,7 +119,7 @@ export default function AdminPresetPage() {
   };
 
   return (
-    <div className="user-access-level-page">
+    <div className="admin-preset-page">
       <PageHeader
         title="Mặc định theo loại khu vực"
         subtitle="Quản lý cấp độ truy cập mặc định cho từng loại khu vực trong toàn bộ khuôn viên."
