@@ -174,6 +174,20 @@ public class GuestVisitService {
         }
     }
 
+    /**
+     * BR-GV-04: khu vực chọn được trong form lượt khách — cùng điều kiện với checkArea (đang hoạt động, chưa xoá mềm,
+     * loại INTERNAL / CONTACT). Không lọc theo cờ explicit nên có cả khu vực INTERNAL.
+     * BR-GV-06 (host phủ khu vực) phụ thuộc khung giờ nên vẫn kiểm lúc tạo lượt (ERR_GUEST_014).
+     */
+    @Transactional(readOnly = true)
+    public List<com.fa26se040.icss.dto.accessrequest.AreaSimpleResponse> listSelectableAreas() {
+        return areaRepository.findAvailableForRequest(GuestRules.GUEST_AREA_LEVELS).stream()
+                .filter(a -> rules.areaActive(a) && rules.areaTypeAllowed(a))
+                .map(a -> new com.fa26se040.icss.dto.accessrequest.AreaSimpleResponse(
+                        a.getId(), a.getName(), a.getAreaLevel(), a.getBuilding(), a.getFloor()))
+                .toList();
+    }
+
     // ================================================================== xem
 
     @Transactional(readOnly = true)
