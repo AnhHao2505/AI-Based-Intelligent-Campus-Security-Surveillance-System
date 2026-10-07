@@ -28,7 +28,5 @@ public enum AuditAction {
     ATTACH_PHOTO,
     VIEW_PHOTO,
     DELETE_BIOMETRIC,
-    ANONYMIZE,
-    // Step 6 (BR-AD-07, V62): ADMIN khôi phục khu vực đã vô hiệu hoá
-    RESTORE
+    ANONYMIZE
 }

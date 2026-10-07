@@ -33,8 +33,7 @@ class CameraStreamWorker:
         self.pipeline = VideoPipeline(camera_code=self.camera_code)
         if roi_geometry:
             polys = roi_geometry.get("polygons", [])
-            lines = roi_geometry.get("entry_lines", [])
-            self.pipeline.set_roi_config(polygons=polys, entry_lines=lines)
+            self.pipeline.set_roi_config(polygons=polys)
         
         self.is_running = False
         self.thread: Optional[threading.Thread] = None
@@ -43,18 +42,16 @@ class CameraStreamWorker:
         self.lock = threading.Lock()
 
     def update_roi(self, polygons: Optional[List[Any]] = None,
-                   entry_lines: Optional[List[Any]] = None,
                    after_hour_start: Optional[str] = None, after_hour_end: Optional[str] = None):
         """Cập nhật cấu hình ROI cho worker đang chạy"""
         if self.pipeline:
-            self.pipeline.set_roi_config(polygons=polygons, entry_lines=entry_lines)
+            self.pipeline.set_roi_config(polygons=polygons)
             if after_hour_start:
                 self.pipeline.analysis_engine.after_hour_start = after_hour_start
             if after_hour_end:
                 self.pipeline.analysis_engine.after_hour_end = after_hour_end
             poly_count = len(polygons) if polygons else 0
-            line_count = len(entry_lines) if entry_lines else 0
-            logger.info(f"Đã cập nhật ROI ({poly_count} polygons, {line_count} lines) cho Stream Worker [{self.camera_code}].")
+            logger.info(f"Đã cập nhật ROI ({poly_count} polygons) cho Stream Worker [{self.camera_code}].")
 
     def start(self):
         """Bắt đầu worker đọc luồng trong luồng riêng (Thread)"""

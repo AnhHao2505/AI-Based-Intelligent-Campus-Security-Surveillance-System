@@ -19,8 +19,6 @@ import {
 	Compass,
 	Info,
 	ExternalLink,
-	RotateCcw,
-	Archive,
 } from "lucide-react";
 import AreaAccessRulesModal from "../../components/area/AreaAccessRulesModal";
 import AreaAssignedPersonnelModal from "../../components/area/AreaAssignedPersonnelModal";
@@ -36,7 +34,6 @@ import {
 	createArea,
 	updateArea,
 	deactivateArea,
-	restoreArea,
 	getAreaCameras,
 	updateAreaCameras,
 	getTypeChangePreview,
@@ -179,17 +176,6 @@ export default function AreaListPage() {
 	const [deactivateReason, setDeactivateReason] = useState("");
 	const [deactivateReasonError, setDeactivateReasonError] = useState(null);
 	const deactivateReasonRef = useRef(null);
-	// Step 6 (BR-AD-07): bộ lọc "Đã vô hiệu hoá" + khôi phục — chỉ ADMIN
-	const [showDeactivated, setShowDeactivated] = useState(false);
-	const [deactivatedAreas, setDeactivatedAreas] = useState([]);
-	const [deactivatedLoading, setDeactivatedLoading] = useState(false);
-	const [deactivatedError, setDeactivatedError] = useState(null);
-	const [restoreTarget, setRestoreTarget] = useState(null);
-	const [restoreReason, setRestoreReason] = useState("");
-	const [restoreReasonError, setRestoreReasonError] = useState(null);
-	const restoreReasonRef = useRef(null);
-	const [restoreError, setRestoreError] = useState(null);
-	const [restoreLoading, setRestoreLoading] = useState(false);
 
 	// Camera list modal states
 	const [camerasModalOpen, setCamerasModalOpen] = useState(false);
@@ -797,7 +783,6 @@ export default function AreaListPage() {
 			closeDeactivateModal();
 			setSelectedAreaId(null);
 			await fetchData();
-			if (showDeactivated) await fetchDeactivatedAreas();
 		} catch (err) {
 			console.error("Deactivate area failed:", err);
 			if (err?.code === "ERR_AREA_045") {
@@ -819,68 +804,6 @@ export default function AreaListPage() {
 			}
 		} finally {
 			setModalLoading(false);
-		}
-	};
-
-	// ------------------------------------------------------------------ Step 6: đã vô hiệu hoá + khôi phục
-
-	const fetchDeactivatedAreas = useCallback(async () => {
-		setDeactivatedLoading(true);
-		setDeactivatedError(null);
-		try {
-			const res = await getAreas({ size: 100, isActive: false });
-			const list = res?.content || res || [];
-			setDeactivatedAreas(Array.isArray(list) ? list : []);
-		} catch (err) {
-			console.error("Failed to load deactivated areas:", err);
-			setDeactivatedError(getErrorMessage(err));
-		} finally {
-			setDeactivatedLoading(false);
-		}
-	}, []);
-
-	useEffect(() => {
-		if (isAdmin && showDeactivated) {
-			fetchDeactivatedAreas();
-		}
-	}, [isAdmin, showDeactivated, fetchDeactivatedAreas]);
-
-	const openRestoreModal = (area) => {
-		setRestoreTarget(area);
-		setRestoreReason("");
-		setRestoreReasonError(null);
-		setRestoreError(null);
-	};
-
-	const handleRestoreSubmit = async () => {
-		if (!restoreTarget) return;
-		const trimmed = restoreReason.trim();
-		if (trimmed.length < 10 || trimmed.length > 500) {
-			setRestoreReasonError(`Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmed.length}).`);
-			restoreReasonRef.current?.focus();
-			return;
-		}
-		setRestoreLoading(true);
-		setRestoreError(null);
-		setRestoreReasonError(null);
-		try {
-			await restoreArea(restoreTarget.id, { reason: trimmed, version: restoreTarget.version });
-			setRestoreTarget(null);
-			setRestoreReason("");
-			setRestoreReasonError(null);
-			await Promise.all([fetchDeactivatedAreas(), fetchData()]);
-		} catch (err) {
-			console.error("Restore area failed:", err);
-			if (err?.code === "ERR_AREA_045") {
-				setRestoreError(
-					"Khu vực đã được người khác cập nhật. Đã tải lại danh sách, vui lòng mở lại để khôi phục.",
-				);
-				await fetchDeactivatedAreas();
-			} else {
-				setRestoreError(getErrorMessage(err));
-			}
-		} finally {
-			setRestoreLoading(false);
 		}
 	};
 
@@ -979,33 +902,6 @@ export default function AreaListPage() {
 				{/* Add Area Button Group */}
 				<div className="zone-toolbar__actions">
 					{isAdmin && (
-						<div
-							className="zone-view-toggle"
-							role="group"
-							aria-label="Lọc trạng thái khu vực"
-						>
-							<button
-								type="button"
-								className={`zone-view-toggle__btn ${!showDeactivated ? "zone-view-toggle__btn--active" : ""}`}
-								onClick={() => setShowDeactivated(false)}
-								title="Khu vực đang hoạt động"
-							>
-								<Layers size={15} />
-								<span>Đang hoạt động</span>
-							</button>
-							<button
-								type="button"
-								className={`zone-view-toggle__btn ${showDeactivated ? "zone-view-toggle__btn--active" : ""}`}
-								onClick={() => setShowDeactivated(true)}
-								title="Khu vực đã vô hiệu hóa"
-							>
-								<Archive size={15} />
-								<span>Đã vô hiệu hóa</span>
-							</button>
-						</div>
-					)}
-
-					{isAdmin && (
 						<button
 							type="button"
 							className="zone-toolbar__add-btn"
@@ -1033,92 +929,9 @@ export default function AreaListPage() {
 			)}
 
 			{/* ============================================================ */}
-			{/* 2. MAIN CONTENT (MAP VIEW OR LIST VIEW)                      */}
+			{/* 2. MAIN CONTENT (LIST VIEW)                                 */}
 			{/* ============================================================ */}
-			{/* Step 6 (BR-AD-07): danh sách khu vực đã vô hiệu hoá + khôi phục — chỉ ADMIN */}
-			{isAdmin && showDeactivated && (
-				<section
-					className="zone-deactivated"
-					aria-label="Khu vực đã vô hiệu hóa"
-				>
-					<div className="zone-deactivated__header">
-						<div>
-							<h2 className="zone-deactivated__title">
-								Khu vực đã vô hiệu hóa
-							</h2>
-							<p className="zone-deactivated__subtitle">
-								Khôi phục chỉ mở lại khu vực. Nhân sự chỉ định, đơn truy cập,
-								lượt khách và camera đã gỡ không tự hồi phục.
-							</p>
-						</div>
-						<span className="zone-deactivated__count">
-							{deactivatedAreas.length} khu vực
-						</span>
-					</div>
-
-					{deactivatedLoading && (
-						<div className="zone-page__loading">
-							<Loader2
-								className="animate-spin"
-								size={24}
-							/>
-							<span>Đang tải khu vực đã vô hiệu hóa...</span>
-						</div>
-					)}
-					{!deactivatedLoading && deactivatedError && (
-						<div className="zone-modal-alert">
-							<AlertCircle size={15} />
-							<span>{deactivatedError}</span>
-						</div>
-					)}
-					{!deactivatedLoading &&
-						!deactivatedError &&
-						deactivatedAreas.length === 0 && (
-							<p className="zone-deactivated__empty">
-								Không có khu vực nào đã vô hiệu hóa.
-							</p>
-						)}
-					{!deactivatedLoading &&
-						!deactivatedError &&
-						deactivatedAreas.length > 0 && (
-							<table className="zone-deactivated__table">
-								<thead>
-									<tr>
-										<th>Tên khu vực</th>
-										<th>Tòa nhà / Tầng</th>
-										<th>Loại</th>
-										<th aria-label="Thao tác" />
-									</tr>
-								</thead>
-								<tbody>
-									{deactivatedAreas.map((a) => (
-										<tr key={a.id}>
-											<td className="zone-deactivated__name">{a.name}</td>
-											<td>
-												{a.building || "—"} / {a.floor || "—"}
-											</td>
-											<td>
-												{AREA_LEVEL_CONFIG[a.areaLevel]?.name || a.areaLevel}
-											</td>
-											<td className="zone-deactivated__actions">
-												<button
-													type="button"
-													className="area-btn-modal area-btn-modal--cancel zone-deactivated__restore-btn"
-													onClick={() => openRestoreModal(a)}
-												>
-													<RotateCcw size={14} />
-													<span>Khôi phục</span>
-												</button>
-											</td>
-										</tr>
-									))}
-								</tbody>
-							</table>
-						)}
-				</section>
-			)}
-
-			{!loading && !showDeactivated && (
+			{!loading && (
 				<AreaListView
 					floorAreas={floorAreas}
 					selectedFloor={selectedFloor}
@@ -1854,116 +1667,6 @@ export default function AreaListPage() {
 								{modalLoading && dependencies
 									? "Đang vô hiệu hóa..."
 									: "Xác nhận vô hiệu hóa"}
-							</button>
-						</div>
-					</div>
-				</div>
-			)}
-
-			{/* RESTORE ZONE MODAL — Step 6 (BR-AD-07) */}
-			{restoreTarget && (
-				<div
-					className="area-modal-backdrop"
-					onClick={() => {
-						if (!restoreLoading) {
-							setRestoreTarget(null);
-							setRestoreReasonError(null);
-						}
-					}}
-				>
-					<div
-						className="area-modal"
-						onClick={(e) => e.stopPropagation()}
-					>
-						<div className="area-modal__header">
-							<div className="area-modal__header-left">
-								<div className="area-modal__icon-badge">
-									<RotateCcw size={16} />
-								</div>
-								<div className="area-modal__header-text">
-									<h3 className="area-modal__title">Khôi phục khu vực</h3>
-									<p className="area-modal__subtitle">
-										Mở lại khu vực đã vô hiệu hóa
-									</p>
-								</div>
-							</div>
-							<button
-								type="button"
-								className="area-modal__close-btn"
-								onClick={() => {
-									setRestoreTarget(null);
-									setRestoreReasonError(null);
-								}}
-								disabled={restoreLoading}
-								aria-label="Đóng"
-							>
-								<X size={16} />
-							</button>
-						</div>
-
-						<div className="area-modal__body">
-							{restoreError && (
-								<div className="zone-modal-alert">
-									<AlertCircle size={15} />
-									<span>{restoreError}</span>
-								</div>
-							)}
-							<p className="area-modal__lead">
-								Khôi phục khu vực <strong>{restoreTarget.name}</strong> (
-								{restoreTarget.building || "—"} / {restoreTarget.floor || "—"})?
-							</p>
-							<div className="area-dependencies-box">
-								<div className="area-dependencies-box__title">Lưu ý</div>
-								<ul>
-									<li>
-										Nhân sự chỉ định, đơn truy cập và lượt khách đã bị hủy / thu
-										hồi KHÔNG tự hồi phục.
-									</li>
-									<li>Camera cần được gán lại nếu cần.</li>
-								</ul>
-							</div>
-							<div className="area-form-group">
-								<ReasonTextarea
-									ref={restoreReasonRef}
-									id="restore-reason"
-									label="Lý do khôi phục"
-									placeholder="Nêu lý do khôi phục (10–500 ký tự)..."
-									value={restoreReason}
-									onChange={(e) => {
-										const val = e.target.value;
-										setRestoreReason(val);
-										if (restoreReasonError && val.trim().length >= 10 && val.trim().length <= 500) {
-											setRestoreReasonError(null);
-										}
-									}}
-									error={restoreReasonError}
-									min={10}
-									max={500}
-									disabled={restoreLoading}
-									required
-								/>
-							</div>
-						</div>
-
-						<div className="area-modal__footer">
-							<button
-								type="button"
-								className="area-btn-modal area-btn-modal--cancel"
-								onClick={() => {
-									setRestoreTarget(null);
-									setRestoreReasonError(null);
-								}}
-								disabled={restoreLoading}
-							>
-								Hủy
-							</button>
-							<button
-								type="button"
-								className="area-btn-modal area-btn-modal--submit"
-								onClick={handleRestoreSubmit}
-								disabled={restoreLoading}
-							>
-								{restoreLoading ? "Đang khôi phục..." : "Xác nhận khôi phục"}
 							</button>
 						</div>
 					</div>

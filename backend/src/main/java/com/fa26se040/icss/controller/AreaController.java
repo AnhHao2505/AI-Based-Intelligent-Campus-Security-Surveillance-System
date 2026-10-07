@@ -139,18 +139,6 @@ public class AreaController {
         return ResponseEntity.ok(ApiResponse.success(areaService.deactivate(id, request, actorEmail), "Vô hiệu hóa khu vực thành công"));
     }
 
-    /** Step 6 (BR-AD-07): khôi phục khu vực đã vô hiệu hoá. Body {reason, version}. */
-    @PostMapping("/{id}/restore")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<AreaResponse>> restore(
-            @PathVariable UUID id,
-            @RequestBody(required = false) AreaRestoreRequest request,
-            Authentication authentication
-    ) {
-        String actorEmail = authentication.getName();
-        return ResponseEntity.ok(ApiResponse.success(areaService.restore(id, request, actorEmail), "Khôi phục khu vực thành công"));
-    }
-
     @GetMapping("/{id}/cameras")
     @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER', 'GUARD')")
     public ResponseEntity<ApiResponse<AreaCameraResponse>> getCameras(@PathVariable UUID id) {

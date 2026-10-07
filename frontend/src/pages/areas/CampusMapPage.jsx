@@ -185,13 +185,13 @@ export default function CampusMapPage() {
 			{/* Toolbar */}
 			<div className="zone-toolbar">
 				{/* Building Selector */}
-				<div className="zone-toolbar__group">
+				<div className="zone-toolbar__building">
 					<Building2
 						size={16}
-						className="text-secondary"
+						className="zone-toolbar__building-icon"
 					/>
 					<select
-						className="zone-select"
+						className="zone-toolbar__building-select"
 						value={selectedBuilding}
 						onChange={(e) => {
 							setSelectedBuilding(e.target.value);
@@ -213,13 +213,13 @@ export default function CampusMapPage() {
 				</div>
 
 				{/* Floor Options Selector */}
-				<div className="zone-toolbar__group">
+				<div className="zone-toolbar__building">
 					<Layers
 						size={16}
-						className="text-secondary"
+						className="zone-toolbar__building-icon"
 					/>
 					<select
-						className="zone-select"
+						className="zone-toolbar__building-select"
 						value={selectedFloor}
 						onChange={(e) => {
 							setSelectedFloor(e.target.value);

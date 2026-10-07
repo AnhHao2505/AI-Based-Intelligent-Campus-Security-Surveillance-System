@@ -59,7 +59,7 @@
 | Dịch vụ                 | Tên đăng nhập (User) | Mật khẩu (Password) | Ghi chú                                        |
 | :---------------------- | :------------------- | :------------------ | :--------------------------------------------- |
 | **PostgreSQL Database** | `sep`                | `123456`            | Tên CSDL: `campus_security`, Port `5432`       |
-| **MinIO S3 Storage**    | `minioadmin`         | `minioadmin123`     | Tên Bucket chính: `security-evidence`          |
+| **MinIO S3 Storage**    | `minioadmin`         | `12345678abc`     | Tên Bucket chính: `security-evidence`          |
 | **pgAdmin 4 Web**       | `admin@example.com`  | `admin123`          | Server host: `postgres`, DB: `campus_security` |
 
 ---

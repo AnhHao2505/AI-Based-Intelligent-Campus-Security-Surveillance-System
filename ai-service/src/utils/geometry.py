@@ -67,24 +67,6 @@ def scale_polygon_to_frame(points: List[Any], frame_width: int, frame_height: in
 
     return result
 
-def cross_product_2d(a: Point, b: Point, p: Point) -> float:
-    """
-    Tính tích có hướng vector AB x AP trong mặt phẳng 2D.
-    > 0: P nằm bên trái vector AB
-    < 0: P nằm bên phải vector AB
-    = 0: P thẳng hàng với AB
-    """
-    return (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x)
-
-def _ccw(a: Point, b: Point, c: Point) -> bool:
-    return (c.y - a.y) * (b.x - a.x) > (b.y - a.y) * (c.x - a.x)
-
-def segments_intersect(p1: Point, p2: Point, p3: Point, p4: Point) -> bool:
-    """
-    Kiểm tra 2 đoạn thẳng p1-p2 và p3-p4 có giao nhau hay không.
-    """
-    return (_ccw(p1, p3, p4) != _ccw(p2, p3, p4)) and (_ccw(p1, p2, p3) != _ccw(p1, p2, p4))
-
 def normalize_to_unit(x: float, y: float, ref_width: int, ref_height: int) -> Tuple[float, float]:
     """Chuyển đổi tọa độ pixel về khoảng [0.0, 1.0] dựa trên kích thước tham chiếu"""
     if ref_width <= 0 or ref_height <= 0:
@@ -92,3 +74,4 @@ def normalize_to_unit(x: float, y: float, ref_width: int, ref_height: int) -> Tu
     nx = max(0.0, min(1.0, x / ref_width))
     ny = max(0.0, min(1.0, y / ref_height))
     return (round(nx, 4), round(ny, 4))
+

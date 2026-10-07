@@ -4,7 +4,7 @@ import numpy as np
 from typing import List, Optional, Tuple, Any
 
 from ..config import settings
-from ..core.entity import Point, TrackedPerson, SecurityAlertEvent, RoiPolygonConfig, EntryLineConfig
+from ..core.entity import Point, TrackedPerson, SecurityAlertEvent, RoiPolygonConfig
 from ..core.human_detector import HumanDetector
 from ..core.face_detector import FaceDetector
 from ..core.face_matcher import FaceMatcher
@@ -21,7 +21,7 @@ class VideoPipeline:
     1. Human Detection & Tracking (YOLOv8 + ByteTrack)
     2. Crop vùng người & Face Detection (YuNet)
     3. Face Recognition Matching (pgvector Cosine Search)
-    4. Violation Analysis (ROI Polygon & Entry/Exit Lines Check)
+    4. Violation Analysis (ROI Polygon Check)
     5. Cảnh báo tự động (Kafka Event + MinIO Snapshot Upload)
     6. Visualization & Overlay Rendering
     """
@@ -34,16 +34,14 @@ class VideoPipeline:
         model_yunet_path: Optional[str] = None,
         roi_polygons: Optional[List[Any]] = None,
         after_hour_start: Optional[str] = None,
-        after_hour_end: Optional[str] = None,
-        entry_lines: Optional[List[Any]] = None
+        after_hour_end: Optional[str] = None
     ):
         self.camera_code = camera_code
         self.roi_polygon = roi_polygon or []
         self.roi_polygons: List[RoiPolygonConfig] = []
-        self.entry_lines: List[EntryLineConfig] = []
 
-        if roi_polygons or entry_lines:
-            self.set_roi_config(roi_polygons, entry_lines)
+        if roi_polygons:
+            self.set_roi_config(roi_polygons)
         elif self.roi_polygon:
             self.set_roi_polygon(self.roi_polygon)
 
@@ -76,8 +74,8 @@ class VideoPipeline:
             )
         ]
 
-    def set_roi_config(self, polygons: Optional[List[Any]] = None, entry_lines: Optional[List[Any]] = None):
-        """Cập nhật danh sách đa polygon ROI và entry/exit lines đầy đủ thuộc tính chuẩn hóa"""
+    def set_roi_config(self, polygons: Optional[List[Any]] = None):
+        """Cập nhật danh sách đa polygon ROI đầy đủ thuộc tính chuẩn hóa"""
         configs: List[RoiPolygonConfig] = []
         if polygons:
             for p in polygons:
@@ -99,26 +97,6 @@ class VideoPipeline:
             self.roi_polygon = configs[0].vertices
         else:
             self.roi_polygon = []
-
-        line_configs: List[EntryLineConfig] = []
-        if entry_lines:
-            for el in entry_lines:
-                if isinstance(el, EntryLineConfig):
-                    line_configs.append(el)
-                elif isinstance(el, dict):
-                    pa_dict = el.get("point_a", {})
-                    pb_dict = el.get("point_b", {})
-                    pa = Point(float(pa_dict.get("x", 0.0)), float(pa_dict.get("y", 0.0)))
-                    pb = Point(float(pb_dict.get("x", 0.0)), float(pb_dict.get("y", 0.0)))
-                    line_configs.append(
-                        EntryLineConfig(
-                            label=el.get("label", ""),
-                            point_a=pa,
-                            point_b=pb,
-                            direction=el.get("direction", "AB_IS_IN")
-                        )
-                    )
-        self.entry_lines = line_configs
 
     def process_frame(
         self,
@@ -172,15 +150,14 @@ class VideoPipeline:
 
                         self.analysis_engine.associate_face(track_id, face_result)
 
-        # 4. Phân tích Xâm nhập vùng cấm & Ranh giới ra vào
+        # 4. Phân tích Xâm nhập vùng cấm
         active_persons, alerts = self.analysis_engine.process_frame(
             detected_tracks=detected_tracks,
             roi_polygon=self.roi_polygon,
             camera_code=self.camera_code,
             current_time=current_time,
             roi_polygons=self.roi_polygons,
-            frame_size=(w, h),
-            entry_lines=self.entry_lines
+            frame_size=(w, h)
         )
 
         # 5. Xử lý lưu bằng chứng và gửi cảnh báo tự động
@@ -188,8 +165,7 @@ class VideoPipeline:
             snapshot_frame = frame.copy()
             snapshot_frame = FrameVisualizer.draw_all_rois(
                 snapshot_frame,
-                polygons=self.roi_polygons if self.roi_polygons else (self.roi_polygon if self.roi_polygon else None),
-                entry_lines=self.entry_lines
+                polygons=self.roi_polygons if self.roi_polygons else (self.roi_polygon if self.roi_polygon else None)
             )
             snapshot_frame = self.visualizer.draw_tracked_persons(
                 snapshot_frame,
@@ -209,8 +185,7 @@ class VideoPipeline:
         annotated_frame = frame.copy()
         annotated_frame = FrameVisualizer.draw_all_rois(
             annotated_frame,
-            polygons=self.roi_polygons if self.roi_polygons else (self.roi_polygon if self.roi_polygon else None),
-            entry_lines=self.entry_lines
+            polygons=self.roi_polygons if self.roi_polygons else (self.roi_polygon if self.roi_polygon else None)
         )
         annotated_frame = self.visualizer.draw_tracked_persons(
             annotated_frame,
@@ -218,3 +193,4 @@ class VideoPipeline:
         )
         
         return annotated_frame, active_persons, alerts
+
