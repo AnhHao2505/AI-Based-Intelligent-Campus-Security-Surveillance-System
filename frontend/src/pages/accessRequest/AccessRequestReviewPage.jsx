@@ -54,6 +54,8 @@ export default function AccessRequestReviewPage() {
   const [detailItem, setDetailItem] = useState(null);
   const [approveItem, setApproveItem] = useState(null);
   const [rejectItem, setRejectItem] = useState(null);
+  // BR-RQ-44: FM chuyển đơn APPROVED sang FINISHED
+  const [finishItem, setFinishItem] = useState(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [rejectionReasonError, setRejectionReasonError] = useState(null);
   const rejectReasonInputRef = useRef(null);
@@ -150,6 +152,25 @@ export default function AccessRequestReviewPage() {
       } else {
         setActionError(err.message || 'Lỗi khi phê duyệt yêu cầu');
       }
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Handle Finish (BR-RQ-44) — backend không yêu cầu lý do, chỉ xác nhận
+  const handleConfirmFinish = async () => {
+    if (!finishItem) return;
+    setActionLoading(true);
+    setActionError(null);
+    try {
+      await accessRequestService.finishRequest(finishItem.id);
+      setActionSuccess('Đã chuyển yêu cầu sang Hoàn thành.');
+      setFinishItem(null);
+      loadRequests(page, statusFilter, selectedAreaId);
+      loadStats();
+      setTimeout(() => setActionSuccess(null), 3000);
+    } catch (err) {
+      setActionError(err.message || 'Lỗi khi chuyển yêu cầu sang Hoàn thành');
     } finally {
       setActionLoading(false);
     }
@@ -499,6 +520,16 @@ export default function AccessRequestReviewPage() {
                             </button>
                           </>
                         )}
+                        {req.status === 'APPROVED' && (
+                          <button
+                            type="button"
+                            className="arr-btn-icon"
+                            onClick={() => { setFinishItem(req); setActionError(null); }}
+                            title="Chuyển sang Hoàn thành"
+                          >
+                            <CheckCheck size={16} />
+                          </button>
+                        )}
                         <button
                           type="button"
                           className="arr-btn-icon"
@@ -599,6 +630,67 @@ export default function AccessRequestReviewPage() {
               >
                 <Check size={16} />
                 <span>{actionLoading ? 'Đang duyệt...' : 'Xác nhận duyệt'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* FINISH CONFIRMATION MODAL — BR-RQ-44 */}
+      {finishItem && (
+        <div className="arr-modal-overlay" onClick={() => !actionLoading && setFinishItem(null)}>
+          <div className="arr-modal arr-modal--sm" onClick={e => e.stopPropagation()}>
+            <div className="arr-modal__header">
+              <h2 className="arr-modal__title">Xác nhận hoàn thành</h2>
+              <button
+                type="button"
+                className="arr-modal__close"
+                onClick={() => !actionLoading && setFinishItem(null)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="arr-modal__body">
+              {actionError && (
+                <div className="arr-alert arr-alert--danger">
+                  {actionError}
+                </div>
+              )}
+
+              <p className="arr-confirm-text">
+                Chuyển yêu cầu truy cập khu vực <strong>{finishItem.areaName}</strong> của <strong>{finishItem.requesterName}</strong> sang <strong>Hoàn thành</strong>?
+              </p>
+
+              <div className="arr-info-box">
+                <div>
+                  <strong>Khu vực:</strong> {finishItem.areaName}
+                  {formatLocation(finishItem.building, finishItem.floor)
+                    ? ` (${formatLocation(finishItem.building, finishItem.floor)})`
+                    : ''}
+                </div>
+                <div><strong>Thời gian:</strong> {formatDateTime(finishItem.startTime)} - {formatDateTime(finishItem.endTime)}</div>
+                <div><strong>Mục đích:</strong> {finishItem.purpose}</div>
+              </div>
+            </div>
+
+            <div className="arr-modal__footer">
+              <button
+                type="button"
+                className="arr-filter-btn"
+                onClick={() => setFinishItem(null)}
+                disabled={actionLoading}
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                className="arr-filter-btn arr-btn--approve-modal"
+                onClick={handleConfirmFinish}
+                disabled={actionLoading}
+              >
+                <CheckCheck size={16} />
+                <span>{actionLoading ? 'Đang cập nhật...' : 'Xác nhận hoàn thành'}</span>
               </button>
             </div>
           </div>

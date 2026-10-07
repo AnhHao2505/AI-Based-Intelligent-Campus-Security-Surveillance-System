@@ -932,10 +932,8 @@ public class AccessRequestService {
         User actor = userRepository.findByEmail(actorEmail)
                 .orElseThrow(() -> new UnauthorizedException("Không tìm thấy thông tin người dùng"));
 
-        boolean isRequester = accessRequest.getRequester().getEmail().equalsIgnoreCase(actorEmail);
-        boolean isStaff = actor.getRole() == Role.FACILITY_MANAGER || actor.getRole() == Role.ADMIN;
-
-        if (!isRequester && !isStaff) {
+        // BR-RQ-44: chỉ FACILITY_MANAGER (khớp @PreAuthorize của controller); requester / ADMIN không được hoàn thành đơn
+        if (actor.getRole() != Role.FACILITY_MANAGER) {
             throw new AccessDeniedException("Bạn không có quyền chuyển yêu cầu truy cập này sang Hoàn thành.");
         }
 
