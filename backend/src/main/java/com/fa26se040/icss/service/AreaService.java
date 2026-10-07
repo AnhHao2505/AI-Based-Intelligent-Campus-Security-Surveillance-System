@@ -867,6 +867,55 @@ public class AreaService {
         }
     }
 
+    /**
+     * Step 6 (BR-AD-07): ADMIN khôi phục khu vực đã vô hiệu hoá. Không tự khôi phục AP / đơn / lượt khách / camera.
+     * Chặn 409 khi khu vực chưa vô hiệu hoá (054), tầng / toà không còn hoạt động (055),
+     * trùng tên với khu vực đang hoạt động cùng tầng (020).
+     */
+    @Transactional
+    public AreaResponse restore(UUID id, com.fa26se040.icss.dto.area.AreaRestoreRequest req, String actorEmail) {
+        String reason = normalizeReason(req != null ? req.reason() : null, true);
+        Long version = req != null ? req.version() : null;
+        requireVersion(version);
+        User actor = userRepository.findByEmail(actorEmail)
+                .orElseThrow(() -> new UnauthorizedException("Phiên đăng nhập không hợp lệ"));
+
+        Area area = areaRepository.findByIdWithLock(id)
+                .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
+        checkVersion(area, version);
+        if (area.getDeletedAt() == null) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_054);
+        }
+        com.fa26se040.icss.entity.Floor floorEntity = area.getFloorEntity();
+        if (floorEntity == null || !Boolean.TRUE.equals(floorEntity.getIsActive())
+                || floorEntity.getBuilding() == null || !Boolean.TRUE.equals(floorEntity.getBuilding().getIsActive())) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_055);
+        }
+        if (areaRepository.existsByFloorIdAndNameIgnoreCaseExcludingId(area.getId(), floorEntity.getId(), area.getName())) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_020);
+        }
+
+        AreaSnapshot beforeSnapshot = AreaSnapshot.from(area);
+        AreaRowState before = AreaRowState.of(area);
+        area.setIsActive(true);
+        area.setDeletedAt(null);
+        bumpVersionIfChanged(area, before);
+        Area savedArea = areaRepository.save(area);
+
+        auditService.record(
+                AuditTargetType.AREA,
+                AuditAction.RESTORE,
+                savedArea.getId().toString(),
+                savedArea,
+                null,
+                beforeSnapshot,
+                AreaSnapshot.from(savedArea),
+                reason,
+                actor
+        );
+        return mapToAreaResponse(savedArea);
+    }
+
     /** BR-AD-04: "Khu vực bị vô hiệu hoá: <lý do>", cắt còn 500 ký tự (giới hạn cột lý do + audit). */
     static String deactivationReason(String reason) {
         String full = DEACTIVATION_REASON_PREFIX + reason;
