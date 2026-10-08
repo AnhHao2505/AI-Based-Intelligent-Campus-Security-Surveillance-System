@@ -2,6 +2,7 @@ import os
 import cv2
 import time
 import base64
+import asyncio
 import numpy as np
 from fastapi import FastAPI, File, UploadFile, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -119,13 +120,27 @@ async def configure_camera(req: ROIConfigRequest):
     default_pipeline.set_roi_config(polygons=polygons_to_set)
 
     worker_updated = False
-    if req.camera_code in active_workers:
+    if req.camera_code in active_workers and active_workers[req.camera_code].is_running:
         active_workers[req.camera_code].update_roi(
             polygons=polygons_to_set,
             after_hour_start=ah_start,
             after_hour_end=ah_end
         )
         worker_updated = True
+    else:
+        try:
+            worker_rtsp = f"rtsp://localhost:8554/{req.camera_code.lower()}"
+            worker = CameraStreamWorker(
+                camera_code=req.camera_code,
+                rtsp_url=worker_rtsp,
+                roi_geometry={"polygons": polygons_to_set}
+            )
+            worker.start()
+            active_workers[req.camera_code] = worker
+            worker_updated = True
+            logger.info(f"✅ Tự động khởi động AI Stream Worker cho camera [{req.camera_code}] tại {worker_rtsp}")
+        except Exception as ex:
+            logger.warning(f"⚠️ Không thể tự động khởi động Stream Worker cho [{req.camera_code}]: {ex}")
 
     return {
         "success": True,
@@ -270,44 +285,93 @@ async def get_stream_status(camera_code: str = Query(..., description="Mã camer
     
     return active_workers[camera_code].get_status()
 
+from fastapi.responses import StreamingResponse
+
+@app.get("/api/v1/stream/live-annotated")
+async def get_live_annotated_feed(camera_code: str = Query(..., description="Mã camera, ví dụ: CAM-002")):
+    """
+    Luồng video trực tiếp đã được AI vẽ Bounding Box, Track ID, Khuôn mặt và Vùng ROI theo thời gian thực.
+    Mở trực tiếp trên trình duyệt Web để xem AI đang tracking thế nào:
+    http://localhost:8000/api/v1/stream/live-annotated?camera_code=CAM-002
+    """
+    if camera_code not in active_workers or not active_workers[camera_code].is_running:
+        raise HTTPException(status_code=404, detail="Camera worker hiện chưa chạy. Hãy kích hoạt luồng trước.")
+        
+    async def frame_generator():
+        worker = active_workers[camera_code]
+        while worker.is_running:
+            with worker.lock:
+                frame = worker.latest_frame
+            if frame is not None:
+                _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+            await asyncio.sleep(0.08) # ~12 FPS preview
+            
+    return StreamingResponse(frame_generator(), media_type="multipart/x-mixed-replace; boundary=frame")
+
 class SnapshotRequest(BaseModel):
     rtsp_url: str
     timeout_ms: int = 5000
 
+def _read_rtsp_frame_sync(rtsp_url: str, timeout_ms: int):
+    timeout_us = max(1000, timeout_ms) * 1000
+    os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = f"rtsp_transport;tcp|stimeout;{timeout_us}"
+    
+    # Thử tối đa 2 lần để tránh xung đột socket khi người dùng vừa bấm Lưu luồng rồi bấm Thử kết nối liên tiếp
+    for attempt in range(2):
+        cap = cv2.VideoCapture(rtsp_url, cv2.CAP_FFMPEG)
+        cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, timeout_ms)
+        cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, timeout_ms)
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        try:
+            if cap.isOpened():
+                for _ in range(5):
+                    ret, frame = cap.read()
+                    if ret and frame is not None:
+                        return frame
+                    time.sleep(0.05)
+        finally:
+            cap.release()
+        if attempt == 0:
+            time.sleep(0.25)
+    return None
+
 @app.post("/api/v1/cameras/snapshot")
 async def capture_rtsp_snapshot(req: SnapshotRequest):
     start_time = time.time()
+    timeout_sec = min(max(req.timeout_ms / 1000.0, 1.0), 4.0)
     
-    os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp"
-    cap = cv2.VideoCapture(req.rtsp_url, cv2.CAP_FFMPEG)
-    cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, req.timeout_ms)
-    cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, req.timeout_ms)
-    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-    
+    logger.info(f"📸 [Snapshot] Bắt đầu trích xuất khung hình: url={req.rtsp_url}, timeout={req.timeout_ms}ms")
     try:
-        if not cap.isOpened():
-            raise HTTPException(status_code=502, detail="Không thể kết nối RTSP stream")
-        
-        ret, frame = cap.read()
-        if not ret or frame is None:
-            raise HTTPException(status_code=502, detail="Không thể đọc frame từ RTSP")
-        
-        latency_ms = int((time.time() - start_time) * 1000)
-        height, width = frame.shape[:2]
-        
-        _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
-        base64_str = base64.b64encode(buffer).decode('utf-8')
-        
-        return {
-            "success": True,
-            "snapshot_base64": f"data:image/jpeg;base64,{base64_str}",
-            "width": width,
-            "height": height,
-            "latency_ms": latency_ms
-        }
-    except HTTPException:
-        raise
+        loop = asyncio.get_running_loop()
+        frame = await asyncio.wait_for(
+            loop.run_in_executor(None, _read_rtsp_frame_sync, req.rtsp_url, req.timeout_ms),
+            timeout=timeout_sec + 0.5
+        )
+    except asyncio.TimeoutError:
+        logger.warning(f"⚠️ [Snapshot] Timeout khi trích xuất khung hình từ {req.rtsp_url}")
+        raise HTTPException(status_code=504, detail="Quá thời gian kết nối RTSP stream (Timeout)")
     except Exception as e:
+        logger.warning(f"⚠️ [Snapshot] Lỗi ngoại lệ khi trích xuất khung hình từ {req.rtsp_url}: {e}")
         raise HTTPException(status_code=502, detail=f"Lỗi trích xuất snapshot: {str(e)}")
-    finally:
-        cap.release()
+        
+    if frame is None:
+        logger.warning(f"⚠️ [Snapshot] Không đọc được frame từ {req.rtsp_url}")
+        raise HTTPException(status_code=502, detail="Không thể kết nối hoặc đọc frame từ RTSP")
+        
+    logger.info(f"✅ [Snapshot] Trích xuất thành công: shape={frame.shape} từ {req.rtsp_url}")
+
+    latency_ms = int((time.time() - start_time) * 1000)
+    height, width = frame.shape[:2]
+    
+    _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+    base64_str = base64.b64encode(buffer).decode('utf-8')
+    
+    return {
+        "success": True,
+        "snapshot_base64": f"data:image/jpeg;base64,{base64_str}",
+        "width": width,
+        "height": height,
+        "latency_ms": latency_ms
+    }
