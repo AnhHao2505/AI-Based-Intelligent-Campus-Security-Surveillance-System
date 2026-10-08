@@ -327,7 +327,8 @@ export default function AdminPresetPage() {
                     label="Lý do thay đổi"
                     required
                     value={editPresetModal.reason}
-                    onChange={(val) =>
+                    onChange={(e) => {
+                      const val = e.target.value;
                       setEditPresetModal((prev) => ({
                         ...prev,
                         reason: val,
@@ -335,8 +336,8 @@ export default function AdminPresetPage() {
                           prev.reasonError && val.trim().length >= 10 && val.trim().length <= 500
                             ? ''
                             : prev.reasonError,
-                      }))
-                    }
+                      }));
+                    }}
                     minLength={10}
                     maxLength={500}
                     placeholder="Nhập lý do điều chỉnh cấu hình mặc định (từ 10 đến 500 ký tự)..."
