@@ -108,11 +108,12 @@ export const accessRequestService = {
   },
 
   /**
-   * Chuyển yêu cầu truy cập từ APPROVED sang FINISHED
+   * Chuyển yêu cầu truy cập từ APPROVED sang FINISHED (BR-RQ-46: chỉ khi đã tới giờ bắt đầu)
    * @param {string} id - UUID của yêu cầu
+   * @param {string} reason - Lý do hoàn thành (10–500 ký tự), gửi kèm thông báo cho người tạo + thành viên
    */
-  async finishRequest(id) {
-    return await apiPatch(`/api/access-requests/${id}/finish`);
+  async finishRequest(id, reason) {
+    return await apiPatch(`/api/access-requests/${id}/finish`, { reason });
   },
 };
 

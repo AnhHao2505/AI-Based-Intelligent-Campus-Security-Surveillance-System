@@ -1,6 +1,7 @@
 package com.fa26se040.icss.controller;
 
 import com.fa26se040.icss.dto.accessrequest.AccessRequestCreateRequest;
+import com.fa26se040.icss.dto.accessrequest.AccessRequestFinishRequest;
 import com.fa26se040.icss.dto.accessrequest.AccessRequestResponse;
 import com.fa26se040.icss.dto.accessrequest.AccessRequestReviewRequest;
 import com.fa26se040.icss.dto.accessrequest.AreaSimpleResponse;
@@ -177,10 +178,11 @@ public class AccessRequestController {
     @PreAuthorize("hasRole('FACILITY_MANAGER')")
     public ResponseEntity<ApiResponse<AccessRequestResponse>> finishRequest(
             @PathVariable UUID id,
+            @Valid @RequestBody AccessRequestFinishRequest finishRequest,
             Authentication authentication
     ) {
         String actorEmail = authentication.getName();
-        AccessRequestResponse result = accessRequestService.finishRequest(id, actorEmail);
+        AccessRequestResponse result = accessRequestService.finishRequest(id, finishRequest.reason(), actorEmail);
         return ResponseEntity.ok(ApiResponse.success(result, "Hoàn tất yêu cầu truy cập thành công"));
     }
 }

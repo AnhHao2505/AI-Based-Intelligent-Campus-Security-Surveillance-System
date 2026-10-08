@@ -931,7 +931,7 @@ public class AccessRequestService {
     }
 
     @Transactional
-    public AccessRequestResponse finishRequest(UUID id, String actorEmail) {
+    public AccessRequestResponse finishRequest(UUID id, String reason, String actorEmail) {
         log.info("Finishing access request {} by user {}", id, actorEmail);
 
         AccessRequest accessRequest = accessRequestRepository.findByIdWithDetails(id)
@@ -949,10 +949,18 @@ public class AccessRequestService {
             throw new AccessDeniedException("Bạn không có quyền chuyển yêu cầu truy cập này sang Hoàn thành.");
         }
 
+        // BR-RQ-46: chỉ hoàn thành đơn đã tới giờ bắt đầu (now >= startTime); chưa bắt đầu thì không phải "kết thúc"
+        OffsetDateTime now = OffsetDateTime.now();
+        if (accessRequest.getStartTime() != null && now.isBefore(accessRequest.getStartTime())) {
+            throw new AccessControlException(AccessControlErrorCode.ERR_AC_007,
+                    (Object) accessRequest.getStartTime().atZoneSameInstant(VN_ZONE).format(VN_DATE_TIME_FORMATTER));
+        }
+        String finishReason = reason != null ? reason.trim() : null;
+
         AccessRequestSnapshot beforeSnapshot = AccessRequestSnapshot.from(accessRequest);
 
         accessRequest.setStatus(RequestStatus.FINISHED);
-        accessRequest.setUpdatedAt(OffsetDateTime.now());
+        accessRequest.setUpdatedAt(now);
 
         AccessRequest updated = accessRequestRepository.save(accessRequest);
         log.info("Access request {} marked as FINISHED", updated.getId());
@@ -965,9 +973,33 @@ public class AccessRequestService {
                 updated.getRequester(),
                 beforeSnapshot,
                 AccessRequestSnapshot.from(updated),
-                null,
+                finishReason,
                 actor
         );
+
+        // BR-RQ-46: báo người tạo đơn + thành viên nhóm (đơn hết hiệu lực sớm, họ không còn vào được theo đơn này).
+        // Lỗi gửi thông báo không làm hỏng thao tác hoàn thành (InAppNotificationService chạy REQUIRES_NEW).
+        try {
+            List<User> recipients = new ArrayList<>();
+            if (updated.getRequester() != null) {
+                recipients.add(updated.getRequester());
+            }
+            if (updated.getMembers() != null) {
+                for (var member : updated.getMembers()) {
+                    if (member.getUser() != null) {
+                        recipients.add(member.getUser());
+                    }
+                }
+            }
+            String areaName = updated.getArea() != null ? updated.getArea().getName() : "khu vực";
+            String timeRange = InAppNotificationService.formatTimeRange(updated.getStartTime(), updated.getEndTime());
+            String title = "Yêu cầu truy cập đã được kết thúc";
+            String message = "Yêu cầu vào " + areaName + " (" + timeRange + ") đã được " + actor.getFullName()
+                    + " chuyển sang Hoàn thành, không còn hiệu lực để ra vào. Lý do: " + finishReason;
+            inAppNotificationService.createForUsers(recipients, NotificationType.REQUEST_FINISHED, title, message, updated.getId());
+        } catch (Exception e) {
+            log.error("Failed to send finish notification for request {}", updated.getId(), e);
+        }
 
         return mapToResponse(updated);
     }

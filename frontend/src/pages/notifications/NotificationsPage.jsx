@@ -21,7 +21,8 @@ import {
   Camera,
   UserCheck,
   UserMinus,
-  CalendarOff
+  CalendarOff,
+  CheckCheck
 } from 'lucide-react';
 import { notificationService } from '../../services/notificationService';
 import { useAuth } from '../../context/AuthContext';
@@ -213,6 +214,13 @@ export default function NotificationsPage() {
         return (
           <div className="notif-icon-box notif-icon-box--cancelled" title="Đơn bị hệ thống hủy">
             <XCircle size={16} />
+          </div>
+        );
+      // B-03 (BR-RQ-46): FM chuyển đơn đã duyệt sang Hoàn thành, kèm lý do
+      case 'REQUEST_FINISHED':
+        return (
+          <div className="notif-icon-box notif-icon-box--cancelled" title="Đơn đã được kết thúc">
+            <CheckCheck size={16} />
           </div>
         );
       // Guest visits & photos notifications (U5)

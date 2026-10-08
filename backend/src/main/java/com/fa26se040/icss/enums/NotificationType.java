@@ -27,5 +27,7 @@ public enum NotificationType {
     GUEST_PHOTO_REQUIRED,
     // Step 6 follow-up (H1, H2, V63): vô hiệu hoá khu vực
     ACCESS_PERMISSION_REVOKED,
-    GUEST_VISIT_CANCELLED_BY_SYSTEM
+    GUEST_VISIT_CANCELLED_BY_SYSTEM,
+    // B-03 (BR-RQ-46, V70): FM chuyển đơn đã duyệt sang Hoàn thành
+    REQUEST_FINISHED
 }
