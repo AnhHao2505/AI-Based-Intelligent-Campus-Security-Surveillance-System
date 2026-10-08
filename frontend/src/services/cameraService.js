@@ -142,10 +142,13 @@ export function connectStream(cameraId) {
 }
 
 /**
- * Thử kết nối RTSP stream (không đổi trạng thái camera, không ghi health log)
+ * Thử kết nối RTSP stream và cập nhật trạng thái hoạt động camera
  */
-export function testConnection(cameraId) {
-  return request(`/api/cameras/${cameraId}/test-connection`, { method: 'POST' });
+export function testConnection(cameraId, data) {
+  return request(`/api/cameras/${cameraId}/test-connection`, {
+    method: 'POST',
+    body: data ? JSON.stringify(data) : undefined,
+  });
 }
 
 /**
