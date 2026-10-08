@@ -159,7 +159,7 @@ export default function UserAccessLevelPage() {
     <div className="user-access-level-page">
       <PageHeader
         title="Cấp truy cập người dùng"
-        subtitle="Tra cứu và điều chỉnh cấp độ truy cập (Level 1, Level 2, Level 3) cho người dùng trong khuôn viên."
+        description="Tra cứu và điều chỉnh cấp độ truy cập (Level 1, Level 2, Level 3) cho người dùng trong khuôn viên."
       />
 
       <div className="tab-pane">
