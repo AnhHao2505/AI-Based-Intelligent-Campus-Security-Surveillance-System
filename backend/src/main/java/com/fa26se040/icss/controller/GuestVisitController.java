@@ -48,6 +48,13 @@ public class GuestVisitController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(data, "Đã tạo lượt khách, chờ duyệt"));
     }
 
+    /** BR-GV-04: khu vực chọn được trong form lượt khách (INTERNAL / CONTACT đang hoạt động). Cùng quyền với tạo lượt. */
+    @GetMapping("/selectable-areas")
+    @PreAuthorize("hasAnyRole('NORMAL_USER', 'FACILITY_MANAGER', 'ADMIN')")
+    public ResponseEntity<ApiResponse<java.util.List<com.fa26se040.icss.dto.accessrequest.AreaSimpleResponse>>> selectableAreas() {
+        return ResponseEntity.ok(ApiResponse.success(guestVisitService.listSelectableAreas(), "Danh sách khu vực nhận khách"));
+    }
+
     @GetMapping("/my")
     @PreAuthorize("hasAnyRole('NORMAL_USER', 'FACILITY_MANAGER', 'ADMIN')")
     public ResponseEntity<ApiResponse<Page<GuestVisitResponse>>> listMine(

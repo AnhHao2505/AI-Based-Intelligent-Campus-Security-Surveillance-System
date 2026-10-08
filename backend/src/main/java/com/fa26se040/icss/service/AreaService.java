@@ -512,25 +512,26 @@ public class AreaService {
 
     @Transactional(readOnly = true)
     public List<AreaSimpleResponse> getAvailableAreasForRequest(String actorEmail) {
-        List<Area> areas = areaRepository.findAvailableForRequest();
+        User caller = actorEmail != null ? userRepository.findByEmail(actorEmail).orElse(null) : null;
 
-        if (actorEmail != null) {
-            User caller = userRepository.findByEmail(actorEmail).orElse(null);
-            if (caller != null && caller.getRole() == Role.NORMAL_USER) {
-                int callerLevel = caller.getAccessLevel() != null ? caller.getAccessLevel() : 1;
-                areas = areas.stream()
-                        .filter(a -> {
-                            if (a.getAreaAccessLevel() == null) {
-                                log.warn("Excluding area {} from request dropdown: areaAccessLevel is null", a.getId());
-                                return false;
-                            }
-                            return callerLevel >= a.getAreaAccessLevel();
-                        })
-                        .toList();
+        // Ứng viên: khu vực cờ explicit = true + khu vực INTERNAL (chỉ được xin khi bật bảo lãnh INTERNAL)
+        List<Area> areas = areaRepository.findAvailableForRequest();
+        Set<AreaLevel> sponsorLevels = Set.of();
+        List<Area> internalCandidates = areaRepository.findAvailableForRequest(Set.of(AreaLevel.INTERNAL_CONFIDENTIAL));
+        if (!internalCandidates.isEmpty()) {
+            // Cấu hình bảo lãnh chỉ quyết định khu vực INTERNAL nên chỉ đọc khi có khu vực INTERNAL để xét
+            sponsorLevels = systemConfigService.getSponsorAllowedAreaLevels();
+            if (sponsorLevels.contains(AreaLevel.INTERNAL_CONFIDENTIAL)) {
+                java.util.Map<UUID, Area> merged = new java.util.LinkedHashMap<>();
+                areas.forEach(a -> merged.put(a.getId(), a));
+                internalCandidates.forEach(a -> merged.putIfAbsent(a.getId(), a));
+                areas = merged.values().stream().sorted(AVAILABLE_AREA_ORDER).toList();
             }
         }
 
+        Set<AreaLevel> sponsorAllowedLevels = sponsorLevels;
         return areas.stream()
+                .filter(a -> isAvailableForRequest(a, caller, sponsorAllowedLevels))
                 .map(a -> new AreaSimpleResponse(
                         a.getId(),
                         a.getName(),
@@ -539,6 +540,42 @@ public class AreaService {
                         a.getFloor()
                 ))
                 .toList();
+    }
+
+    /** Cùng thứ tự với query findAvailableForRequest (toà, tầng, tên). */
+    private static final java.util.Comparator<Area> AVAILABLE_AREA_ORDER = java.util.Comparator
+            .comparing(Area::getBuilding, java.util.Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER))
+            .thenComparing(Area::getFloor, java.util.Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER))
+            .thenComparing(Area::getName, java.util.Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER));
+
+    /**
+     * BR-RQ-33: tiêu chí "khu vực được xin" — nguồn duy nhất cho danh sách available-areas và kiểm tra khi tạo đơn
+     * (AccessRequestService), để gọi API thẳng không vượt được danh sách.
+     * - Chưa xoá mềm, đang hoạt động.
+     * - Cờ explicitAuthorizationRequired = true, HOẶC khu vực INTERNAL khi INTERNAL nằm trong
+     *   ACCESS_REQUEST_SPONSOR_ALLOWED_AREA_TYPES (Lucas 08/10, phương án A: đơn bảo lãnh vào khu vực Nội bộ).
+     * - NORMAL_USER: cấp khu vực khác null (fail-closed) và không vượt cấp người gọi. FM / ADMIN / caller null không lọc theo cấp.
+     */
+    public static boolean isAvailableForRequest(Area area, User caller, Set<AreaLevel> sponsorAllowedLevels) {
+        if (area == null || area.getDeletedAt() != null || !Boolean.TRUE.equals(area.getIsActive())) {
+            return false;
+        }
+        boolean requestableType = Boolean.TRUE.equals(area.getExplicitAuthorizationRequired())
+                || (area.getAreaLevel() == AreaLevel.INTERNAL_CONFIDENTIAL
+                        && sponsorAllowedLevels != null
+                        && sponsorAllowedLevels.contains(AreaLevel.INTERNAL_CONFIDENTIAL));
+        if (!requestableType) {
+            return false;
+        }
+        if (caller == null || caller.getRole() != Role.NORMAL_USER) {
+            return true;
+        }
+        if (area.getAreaAccessLevel() == null) {
+            log.warn("Excluding area {} from request dropdown: areaAccessLevel is null", area.getId());
+            return false;
+        }
+        int callerLevel = caller.getAccessLevel() != null ? caller.getAccessLevel() : 1;
+        return callerLevel >= area.getAreaAccessLevel();
     }
 
     @Transactional(readOnly = true)

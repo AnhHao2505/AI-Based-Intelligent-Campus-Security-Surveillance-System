@@ -4,9 +4,13 @@ import { apiGet, apiPost, apiPatch, apiFetch } from "../api/apiClient";
  * Lượt khách (BR-GV v2). Backend: GuestVisitController (/api/guest-visits).
  */
 export const guestVisitService = {
-  /** Khu vực có thể chọn cho lượt khách: lấy danh sách khu vực hạn chế rồi lọc INTERNAL / CONTACT ở phía gọi. */
+  /**
+   * Khu vực có thể chọn cho lượt khách (BR-GV-04): khu vực INTERNAL / CONTACT đang hoạt động, gồm cả khu vực
+   * INTERNAL (danh sách xin truy cập /api/areas/available-for-request không có loại này).
+   * GET /api/guest-visits/selectable-areas
+   */
   async getSelectableAreas() {
-    return await apiGet("/api/areas/available-for-request");
+    return await apiGet("/api/guest-visits/selectable-areas");
   },
 
   /** Host tạo lượt: { purpose, startTime, endTime, areaIds[], guests[{ fullName, organization }] } */
