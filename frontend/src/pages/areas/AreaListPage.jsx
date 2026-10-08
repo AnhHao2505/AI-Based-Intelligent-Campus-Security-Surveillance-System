@@ -2255,7 +2255,7 @@ export default function AreaListPage() {
 				isFacilityManager={isFacilityManager}
 			/>
 
-			{/* Area Access Rules Modal (FM only) */}
+			{/* Area Access Rules Modal — ADMIN: đổi cấp; FM: chế độ sự kiện + lịch (A-09) */}
 			<AreaAccessRulesModal
 				isOpen={accessRulesModalOpen}
 				onClose={() => setAccessRulesModalOpen(false)}

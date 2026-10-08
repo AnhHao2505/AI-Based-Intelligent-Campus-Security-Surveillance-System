@@ -186,7 +186,9 @@ export default function AreaListView({
 											<Cctv size={13} />
 										</button>
 
-										{isFacilityManager && (
+										{/* A-09: cùng một popup — ADMIN đổi cấp truy cập (PATCH /access-rules chỉ ADMIN),
+										    FM bật/tắt chế độ sự kiện và lịch (PATCH /event-mode, /event-schedules chỉ FM) */}
+										{(isAdmin || isFacilityManager) && (
 											<button
 												type="button"
 												className="zone-card__quick-btn"
@@ -194,8 +196,8 @@ export default function AreaListView({
 													e.stopPropagation();
 													onOpenAccessRulesModal(area);
 												}}
-												title="Chế độ sự kiện và lịch"
-												aria-label="Chế độ sự kiện và lịch"
+												title={isAdmin ? "Đổi cấp truy cập khu vực" : "Chế độ sự kiện và lịch"}
+												aria-label={isAdmin ? "Đổi cấp truy cập khu vực" : "Chế độ sự kiện và lịch"}
 											>
 												<ShieldCheck size={13} />
 											</button>
