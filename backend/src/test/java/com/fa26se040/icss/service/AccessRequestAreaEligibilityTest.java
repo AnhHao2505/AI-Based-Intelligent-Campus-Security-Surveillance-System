@@ -46,6 +46,7 @@ class AccessRequestAreaEligibilityTest extends AbstractIntegrationTest {
 
     private static final String SPONSOR_KEY = ConfigKey.ACCESS_REQUEST_SPONSOR_ALLOWED_AREA_TYPES.getKey();
     private static final String SPONSOR_DEFAULT = ConfigKey.ACCESS_REQUEST_SPONSOR_ALLOWED_AREA_TYPES.getDefaultValue();
+    private static final String GROUP_HC_KEY = ConfigKey.ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE.getKey();
 
     @Autowired private MockMvc mockMvc;
     @Autowired private JwtTokenProvider jwtTokenProvider;
@@ -89,6 +90,9 @@ class AccessRequestAreaEligibilityTest extends AbstractIntegrationTest {
         // DB test dùng chung: trả cấu hình bảo lãnh về mặc định, vô hiệu hoá user fixture
         if (!SPONSOR_DEFAULT.equals(systemConfigService.getString(ConfigKey.ACCESS_REQUEST_SPONSOR_ALLOWED_AREA_TYPES))) {
             systemConfigService.update(SPONSOR_KEY, SPONSOR_DEFAULT, "Trả về mặc định sau test BR-RQ-33", admin.getEmail());
+        }
+        if (systemConfigService.getBoolean(ConfigKey.ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE)) {
+            systemConfigService.update(GROUP_HC_KEY, "false", "Trả về mặc định sau test A-06", admin.getEmail());
         }
         for (User u : userRepository.findAllById(createdUsers)) {
             u.setIsActive(false);
@@ -138,6 +142,16 @@ class AccessRequestAreaEligibilityTest extends AbstractIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andReturn();
+    }
+
+    /** Cờ groupRequestAllowed của một khu vực trong available-areas (null nếu khu vực không có trong danh sách). */
+    private Boolean groupRequestAllowed(User caller, Area area) throws Exception {
+        for (var node : objectMapper.readTree(availableAreas(caller)).path("data")) {
+            if (area.getId().toString().equals(node.path("id").asText())) {
+                return node.path("groupRequestAllowed").isBoolean() ? node.path("groupRequestAllowed").asBoolean() : null;
+            }
+        }
+        return null;
     }
 
     private String availableAreas(User caller) throws Exception {
@@ -203,5 +217,22 @@ class AccessRequestAreaEligibilityTest extends AbstractIntegrationTest {
         Area otherContact = area("contact2", AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED, 2, true);
         MvcResult group = create("/api/access-requests/group", otherContact, List.of(member.getUserCode()));
         assertEquals(201, group.getResponse().getStatus(), body(group));
+    }
+
+    @Test
+    @DisplayName("A-06 (BR-RQ-28): available-areas trả groupRequestAllowed theo ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE; bật cấu hình -> đơn nhóm Tuyệt mật 201")
+    void highlyConfidential_groupFlagFollowsConfig() throws Exception {
+        Area hcArea = area("hc", AreaLevel.HIGHLY_CONFIDENTIAL, 3, true);
+
+        assertEquals(Boolean.FALSE, groupRequestAllowed(requester, hcArea), "mặc định: Tuyệt mật không nhận đơn nhóm");
+        assertEquals(Boolean.TRUE, groupRequestAllowed(requester, contactArea), "CONTACT luôn nhận đơn nhóm");
+        MvcResult rejected = create("/api/access-requests/group", hcArea, List.of(member.getUserCode()));
+        assertEquals(400, rejected.getResponse().getStatus(), body(rejected));
+
+        systemConfigService.update(GROUP_HC_KEY, "true", "Bật đơn nhóm Tuyệt mật cho test A-06", admin.getEmail());
+
+        assertEquals(Boolean.TRUE, groupRequestAllowed(requester, hcArea), "bật cấu hình: Tuyệt mật nhận đơn nhóm");
+        MvcResult accepted = create("/api/access-requests/group", hcArea, List.of(member.getUserCode()));
+        assertEquals(201, accepted.getResponse().getStatus(), body(accepted));
     }
 }

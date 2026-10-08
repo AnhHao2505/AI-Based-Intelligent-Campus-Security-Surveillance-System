@@ -151,7 +151,7 @@ public class AccessRequestService {
         validateCommonRules(area, request.startTime(), request.endTime());
 
         boolean groupAllowedInPrivate = systemConfigService.getBoolean(ConfigKey.ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE);
-        if (!groupAllowedInPrivate && area.getAreaLevel() == AreaLevel.HIGHLY_CONFIDENTIAL) {
+        if (!AreaService.isGroupRequestAllowed(area.getAreaLevel(), groupAllowedInPrivate)) {
             throw new IllegalArgumentException("Khu vực bảo mật cao (HIGHLY_CONFIDENTIAL) chỉ cho phép đăng ký truy cập cá nhân (INDIVIDUAL)");
         }
 

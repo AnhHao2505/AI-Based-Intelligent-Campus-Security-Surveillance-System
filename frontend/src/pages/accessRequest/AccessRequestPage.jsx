@@ -219,16 +219,21 @@ export default function AccessRequestPage() {
 	const areaList = Array.isArray(areas) ? areas : areas?.content || [];
 	const currentArea = areaList.find((a) => a.id === selectedAreaId);
 
-	// When area changes, if area is HIGHLY_CONFIDENTIAL, force INDIVIDUAL
+	// A-06 (BR-RQ-28): khu vực có nhận đơn nhóm hay không do BE quyết (cờ groupRequestAllowed của available-areas,
+	// theo ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE). Thiếu cờ thì giữ luật mặc định: Tuyệt mật chỉ nhận đơn cá nhân.
+	const isGroupBlocked = (area) => {
+		if (!area) return false;
+		if (typeof area.groupRequestAllowed === "boolean") return !area.groupRequestAllowed;
+		return area.areaLevel === "HIGHLY_CONFIDENTIAL" || area.areaLevel === "PRIVATE";
+	};
+	const groupBlocked = isGroupBlocked(currentArea);
+
+	// When area changes, if area does not accept group requests, force INDIVIDUAL
 	const handleAreaChange = (e) => {
 		const areaId = e.target.value;
 		setSelectedAreaId(areaId);
 		const found = areaList.find((a) => a.id === areaId);
-		if (
-			found &&
-			(found.areaLevel === "HIGHLY_CONFIDENTIAL" ||
-				found.areaLevel === "PRIVATE")
-		) {
+		if (isGroupBlocked(found)) {
 			setRequestType("INDIVIDUAL");
 			setMemberList([]);
 		}
@@ -362,10 +367,7 @@ export default function AccessRequestPage() {
 
 		let cleanMemberCodes = [];
 		if (requestType === "GROUP") {
-			if (
-				currentArea?.areaLevel === "HIGHLY_CONFIDENTIAL" ||
-				currentArea?.areaLevel === "PRIVATE"
-			) {
+			if (groupBlocked) {
 				setFormError(
 					`Khu vực ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name} chỉ cho phép đăng ký cá nhân.`,
 				);
@@ -598,7 +600,9 @@ export default function AccessRequestPage() {
 											</div>
 											<div>
 												{isHighlyConf
-													? `Khu vực ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name}. Chỉ áp dụng hình thức đăng ký truy cập Cá nhân (không hỗ trợ đăng ký theo nhóm).`
+													? groupBlocked
+														? `Khu vực ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name}. Chỉ áp dụng hình thức đăng ký truy cập Cá nhân (không hỗ trợ đăng ký theo nhóm).`
+														: `Khu vực ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name}. Đơn nhóm được phép theo cấu hình hệ thống; thành viên cần đáp ứng điều kiện cấp độ truy cập của khu vực.`
 													: currentArea?.areaLevel === "CONFIDENTIAL_CONTACT_REQUIRED"
 													? "Khu vực yêu cầu liên hệ trước. Người tạo đơn đủ cấp độ truy cập có thể bảo lãnh cho các thành viên trong nhóm tham gia cùng thời gian đăng ký."
 													: "Khu vực yêu cầu phê duyệt trước khi vào."}
@@ -636,15 +640,13 @@ export default function AccessRequestPage() {
 								type="button"
 								className={`arp-type-btn ${requestType === "GROUP" ? "arp-type-btn--selected" : ""}`}
 								onClick={() => {
-									if (currentArea?.areaLevel !== "HIGHLY_CONFIDENTIAL") {
+									if (!groupBlocked) {
 										setRequestType("GROUP");
 									}
 								}}
-								disabled={
-									currentArea?.areaLevel === "HIGHLY_CONFIDENTIAL" || submitting
-								}
+								disabled={groupBlocked || submitting}
 								title={
-									currentArea?.areaLevel === "HIGHLY_CONFIDENTIAL"
+									groupBlocked
 										? `Khu vực ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name} chỉ cho phép đăng ký cá nhân`
 										: ""
 								}
