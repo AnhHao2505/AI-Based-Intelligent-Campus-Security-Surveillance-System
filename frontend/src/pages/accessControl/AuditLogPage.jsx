@@ -126,6 +126,14 @@ const getActionLabel = (targetType, action) => {
   else if (action === 'EXPIRE') actionLabel = 'Hết hạn';
   else if (action === 'AUTO_EXPIRE') actionLabel = 'Tự động hết hạn';
   else if (action === 'EXPIRE_EVENT_MODE') actionLabel = 'Sự kiện hết hạn';
+  else if (action === 'CHANGE_TYPE') actionLabel = 'Đổi loại khu vực';
+  else if (action === 'COMPLETE') actionLabel = 'Hoàn thành';
+  else if (action === 'ATTACH_PHOTO') actionLabel = 'Đính kèm ảnh';
+  else if (action === 'VIEW_PHOTO') actionLabel = 'Xem ảnh';
+  else if (action === 'DELETE_BIOMETRIC') actionLabel = 'Xóa dữ liệu sinh trắc';
+  else if (action === 'ANONYMIZE') actionLabel = 'Ẩn danh hóa';
+  else if (action === 'FAIL') actionLabel = 'Thất bại';
+  else if (action === 'RESTORE') actionLabel = 'Khôi phục';
 
   if (targetType === 'AREA_EVENT_SCHEDULE') {
     if (action === 'CREATE') actionLabel = 'Đặt lịch';
