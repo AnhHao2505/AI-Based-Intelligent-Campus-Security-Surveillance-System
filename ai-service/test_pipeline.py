@@ -29,7 +29,7 @@ if hasattr(sys.stdout, 'reconfigure'):
 
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
-from src.core.entity import Point, BoundingBox
+from src.core.entity import Point, BoundingBox, FaceDetectionResult
 from src.pipeline.video_pipeline import VideoPipeline
 
 def get_now_str() -> str:
@@ -138,12 +138,15 @@ def run_webcam_test(source=None):
                 for p in persons:
                     # Thông tin nhận diện khuôn mặt
                     if p.face_detected and p.face_info:
-                        if p.face_info.is_authorized:
-                            face_str = f"\033[92mHỢP LỆ: {p.face_info.matched_name or p.face_info.matched_code}\033[0m"
+                        if p.face_info.matched_code:
+                            if p.face_info.is_authorized:
+                                face_str = f"\033[92mHỢP LỆ: {p.face_info.matched_name} ({p.face_info.matched_code})\033[0m"
+                            else:
+                                face_str = f"\033[91mKHÔNG PHÉP: {p.face_info.matched_name} ({p.face_info.matched_code})\033[0m"
                         else:
-                            face_str = f"\033[93mKHÔNG PHÉP: {p.face_info.matched_name or 'Chưa rõ'}\033[0m"
+                            face_str = f"\033[93mNGƯỜI LẠ (Chưa đăng ký trong hệ thống)\033[0m"
                     else:
-                        face_str = "Chưa quét được mặt (Quay lưng/Che mặt)"
+                        face_str = "\033[90mChưa quét được mặt (Quay lưng / Che mặt)\033[0m"
 
                     roi_str = "\033[91mTRONG VÙNG CẤM\033[0m" if p.is_in_roi else "Bình thường"
                     print(f"[{get_now_str()}] | 👁️  THEO DÕI  | Track #{p.track_id:<3} | Vị trí: {roi_str} | Khuôn mặt: {face_str} | FPS: {fps:.1f}")
@@ -180,7 +183,7 @@ def run_auto_test():
     print(f"[{get_now_str()}] [*] Đang khởi tạo mô phỏng chuỗi frame...")
     engine = pipeline.analysis_engine
 
-    print(f"\n1. Test: Người ở ngoài ROI...")
+    print(f"\n1. Test: Đối tượng ở ngoài vùng cấm ROI...")
     bbox_outside = BoundingBox(x1=50, y1=50, x2=100, y2=150)
     persons, alerts = engine.process_frame([(101, bbox_outside)], roi, current_time=1000.0)
     assert len(persons) == 1
@@ -188,13 +191,64 @@ def run_auto_test():
     assert len(alerts) == 0
     print(f"   [{get_now_str()}] -> [PASS] Không kích hoạt cảnh báo khi đối tượng ở ngoài ROI.")
 
-    print(f"\n2. Test: Người bước vào trong ROI...")
+    print(f"\n2. Test: Đối tượng vào ROI nhưng chưa rõ mặt (Quy tắc 'chưa rõ mặt là gán unknown luôn')...")
     bbox_inside = BoundingBox(x1=250, y1=150, x2=350, y2=350)
-    persons, alerts = engine.process_frame([(101, bbox_inside)], roi, current_time=1005.0)
+    persons, alerts = engine.process_frame([(101, bbox_inside)], roi, current_time=1001.0)
     assert persons[0].is_in_roi == True
-    print(f"   [{get_now_str()}] -> [PASS] Ghi nhận chính xác đối tượng đã bước vào trong vùng cấm ROI.")
+    assert len(alerts) == 1
+    assert alerts[0].event_type == "UNKNOWN_PERSON"
+    assert "chưa rõ mặt" in alerts[0].details
+    print(f"   [{get_now_str()}] -> [PASS] Gán chính xác UNKNOWN_PERSON (chưa rõ mặt) khi đối tượng trong vùng cấm ROI.")
 
-    print(f"\n3. Test: Chạy frame mẫu qua Full VideoPipeline (Detection + Tracking + Analysis)...")
+    print(f"\n3. Test: Đối tượng có trong DB và được CẤP QUYỀN HỢP LỆ (Authorized)...")
+    face_auth = FaceDetectionResult(
+        bbox=bbox_inside,
+        score=0.96,
+        matched_code="GV001",
+        matched_name="Nguyễn Văn Thầy",
+        is_authorized=True,
+        is_active=True,
+        access_reason="Người dùng được phân quyền ra vào hợp lệ"
+    )
+    engine.associate_face(track_id=102, face_result=face_auth)
+    persons, alerts = engine.process_frame([(102, bbox_inside)], roi, current_time=1002.0)
+    assert len(alerts) == 0
+    print(f"   [{get_now_str()}] -> [PASS] Đối tượng HỢP LỆ (GV001) được duyệt ra vào, KHÔNG sinh sự cố cảnh báo.")
+
+    print(f"\n4. Test: Đối tượng có trong DB nhưng KHÔNG CÓ QUYỀN (Unauthorized Access)...")
+    face_unauth = FaceDetectionResult(
+        bbox=bbox_inside,
+        score=0.95,
+        matched_code="SE170123",
+        matched_name="Trần Sinh Viên",
+        is_authorized=False,
+        is_active=True,
+        access_reason="Sinh viên không có quyền vào phòng máy chủ"
+    )
+    engine.associate_face(track_id=103, face_result=face_unauth)
+    persons, alerts = engine.process_frame([(103, bbox_inside)], roi, current_time=1003.0)
+    assert len(alerts) == 1
+    assert alerts[0].event_type == "UNAUTHORIZED_ACCESS"
+    assert "SE170123" in alerts[0].details
+    print(f"   [{get_now_str()}] -> [PASS] Bắt chính xác UNAUTHORIZED_ACCESS đối với tài khoản không có quyền.")
+
+    print(f"\n5. Test: Đối tượng phát hiện mặt nhưng là NGƯỜI LẠ ngoài hệ thống (Unknown Person)...")
+    face_stranger = FaceDetectionResult(
+        bbox=bbox_inside,
+        score=0.88,
+        matched_code=None,
+        matched_name=None,
+        is_authorized=False,
+        is_active=True
+    )
+    engine.associate_face(track_id=104, face_result=face_stranger)
+    persons, alerts = engine.process_frame([(104, bbox_inside)], roi, current_time=1004.0)
+    assert len(alerts) == 1
+    assert alerts[0].event_type == "UNKNOWN_PERSON"
+    assert "người lạ" in alerts[0].details
+    print(f"   [{get_now_str()}] -> [PASS] Bắt chính xác UNKNOWN_PERSON đối với người lạ không có trong database.")
+
+    print(f"\n6. Test: Chạy frame mẫu qua Full VideoPipeline (Detection + Tracking + Analysis)...")
     sample_frame = np.zeros((480, 640, 3), dtype=np.uint8)
     ann_frame, p_list, a_list = pipeline.process_frame(sample_frame)
     assert ann_frame.shape == sample_frame.shape
@@ -204,13 +258,37 @@ def run_auto_test():
     print("       TẤT CẢ CÁC BÀI TEST AI LOGIC ĐÃ HOÀN TOÀN CHÍNH XÁC (100% PASS)")
     print("=" * 70)
 
+def list_available_cameras():
+    print("=" * 70)
+    print("   DANH SÁCH CAMERA PHÁT HIỆN TRÊN MÁY TÍNH (AVAILABLE CAMERAS)")
+    print("=" * 70)
+    found = False
+    for idx in range(6):
+        cap = cv2.VideoCapture(idx, cv2.CAP_DSHOW)
+        if not cap.isOpened():
+            cap = cv2.VideoCapture(idx)
+        if cap.isOpened():
+            ret, frame = cap.read()
+            if ret and frame is not None:
+                h, w, _ = frame.shape
+                print(f" [✓] Camera Index #{idx}: Đang sẵn sàng hoạt động (Độ phân giải: {w}x{h} px)")
+                print(f"     -> Lệnh chạy với camera này: python test_pipeline.py --mode webcam --source {idx}\n")
+                found = True
+            cap.release()
+    if not found:
+        print(" [!] Không tìm thấy camera phần cứng nào hoạt động.")
+    print("=" * 70)
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Test AI & Camera Pipeline")
     parser.add_argument("--mode", choices=["auto", "webcam"], default="auto", help="Chế độ test (auto hoặc webcam)")
     parser.add_argument("--source", default=None, help="Nguồn camera: Index số (0, 1, 2) hoặc URL RTSP/HTTP (DroidCam, IP Cam) hoặc file video")
+    parser.add_argument("--list-cameras", action="store_true", help="Liệt kê danh sách tất cả camera đang kết nối")
     args = parser.parse_args()
 
-    if args.mode == "webcam":
+    if args.list_cameras:
+        list_available_cameras()
+    elif args.mode == "webcam":
         run_webcam_test(source=args.source)
     else:
         run_auto_test()

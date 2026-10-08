@@ -77,6 +77,7 @@ class FaceMatcher:
             conn.close()
         except Exception as e:
             logger.warning(f"⚠️ [FaceMatcher] Không thể kết nối Database để nạp face cache: {e}")
+            self.last_cache_time = time.time()
 
     def match_face(
         self,

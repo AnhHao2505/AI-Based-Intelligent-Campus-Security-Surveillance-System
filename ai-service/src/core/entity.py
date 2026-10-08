@@ -68,6 +68,7 @@ class TrackedPerson:
     
     # Cờ trạng thái đã bắn thông báo
     alert_unauthorized_sent: bool = False
+    alert_unknown_sent: bool = False
     alert_after_hours_sent: bool = False
 
     def update_position(self, new_bbox: BoundingBox, current_time: float):
@@ -78,7 +79,7 @@ class TrackedPerson:
 class SecurityAlertEvent:
     event_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     camera_code: str = "CAM-001"
-    event_type: str = "UNKNOWN"  # AFTER_HOURS_PRESENCE, UNAUTHORIZED_ACCESS, UNKNOWN_PERSON
+    event_type: str = "UNKNOWN_PERSON"  # AFTER_HOURS_PRESENCE, UNAUTHORIZED_ACCESS, UNKNOWN_PERSON
     track_id: int = -1
     duration_seconds: float = 0.0
     confidence: float = 1.0
