@@ -94,6 +94,7 @@ public class AccessRequestService {
                             + requester.getFullName() + " (" + requester.getUserCode() + ")"
             );
         }
+        requireAreaAvailableForRequest(area, requester);
 
         // Validate overlap for requester only
         validateNoOverlap(area.getId(), request.startTime(), request.endTime(), List.of(requester));
@@ -163,6 +164,7 @@ public class AccessRequestService {
                             + requester.getFullName() + " (" + requester.getUserCode() + ")"
             );
         }
+        requireAreaAvailableForRequest(area, requester);
 
         List<User> memberUsers = resolveAndValidateGroupMembers(request.memberUserCodes(), requester);
 
@@ -339,6 +341,9 @@ public class AccessRequestService {
     public static final String REQUESTER_INACTIVE_CANCEL_REASON = "Người tạo đơn không còn hoạt động";
     /** Nguồn audit (actor SYSTEM) khi huỷ đơn do người tạo bị vô hiệu hoá / xoá. */
     public static final String REQUESTER_DEACTIVATION_SOURCE = "REQUESTER_DEACTIVATION";
+
+    /** BR-RQ-33: khu vực không nằm trong danh sách khu vực được xin (available-areas). */
+    static final String AREA_NOT_REQUESTABLE_MESSAGE = "Khu vực này không nằm trong danh sách khu vực được phép xin truy cập";
 
     /**
      * BR-RQ-MEM-01: thành viên đơn nhóm phải là NORMAL_USER, đang hoạt động (isActive khác false), chưa xoá mềm.
@@ -916,6 +921,13 @@ public class AccessRequestService {
     private Area getArea(UUID areaId) {
         return areaRepository.findByIdAndDeletedAtIsNull(areaId)
                 .orElseThrow(() -> new ResourceNotFoundException("Khu vực không tồn tại hoặc đã bị vô hiệu hoá"));
+    }
+
+    /** BR-RQ-33: cùng tiêu chí với danh sách available-areas (AreaService.isAvailableForRequest) -> 400. */
+    private void requireAreaAvailableForRequest(Area area, User requester) {
+        if (!AreaService.isAvailableForRequest(area, requester, systemConfigService.getSponsorAllowedAreaLevels())) {
+            throw new IllegalArgumentException(AREA_NOT_REQUESTABLE_MESSAGE);
+        }
     }
 
     @Transactional
