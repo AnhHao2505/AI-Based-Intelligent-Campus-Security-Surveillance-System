@@ -201,8 +201,9 @@ export default function AuditLogPage() {
         if (filterAreaId) params.areaId = filterAreaId;
         if (filterSubjectUser?.id) params.subjectUserId = filterSubjectUser.id;
         if (filterChangedByUser?.id) params.changedBy = filterChangedByUser.id;
-        if (filterFrom) params.from = `${filterFrom}T00:00:00Z`;
-        if (filterTo) params.to = `${filterTo}T23:59:59Z`;
+        // Ngày lọc là ngày theo giờ Việt Nam (UTC+7), không phải UTC
+        if (filterFrom) params.from = `${filterFrom}T00:00:00+07:00`;
+        if (filterTo) params.to = `${filterTo}T23:59:59+07:00`;
 
         const res = await getAuditLogs(params);
         setLogs(res?.content || []);
