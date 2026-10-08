@@ -612,7 +612,8 @@ export default function SystemConfigPage() {
 								label="Lý do thay đổi cấu hình"
 								required
 								value={confirmReason}
-								onChange={(val) => {
+								onChange={(e) => {
+									const val = e.target.value;
 									setConfirmReason(val);
 									if (confirmReasonError && val.trim().length >= 10 && val.trim().length <= 500) {
 										setConfirmReasonError("");

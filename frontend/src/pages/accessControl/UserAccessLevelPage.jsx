@@ -350,7 +350,8 @@ export default function UserAccessLevelPage() {
                 label="Lý do thay đổi"
                 required
                 value={confirmUserModal.reason}
-                onChange={(val) =>
+                onChange={(e) => {
+                  const val = e.target.value;
                   setConfirmUserModal((prev) => ({
                     ...prev,
                     reason: val,
@@ -358,8 +359,8 @@ export default function UserAccessLevelPage() {
                       prev.reasonError && val.trim().length >= 10 && val.trim().length <= 500
                         ? ''
                         : prev.reasonError,
-                  }))
-                }
+                  }));
+                }}
                 minLength={10}
                 maxLength={500}
                 placeholder="Nhập lý do cụ thể điều chỉnh cấp độ truy cập (từ 10 đến 500 ký tự)..."
