@@ -22,7 +22,8 @@ import {
   UserCheck,
   UserMinus,
   CalendarOff,
-  CheckCheck
+  CheckCheck,
+  ShieldCheck
 } from 'lucide-react';
 import { notificationService } from '../../services/notificationService';
 import { useAuth } from '../../context/AuthContext';
@@ -89,6 +90,16 @@ export default function NotificationsPage() {
       } else {
         navigate('/access-requests');
       }
+    }
+
+    // A-05: thông báo khu vực / chế độ sự kiện (BE gắn referenceType = "AREA") -> màn Quản lý khu vực.
+    // GUARD (nhận EVENT_MODE_CHANGED) không có màn này nên chỉ đánh dấu đã đọc.
+    if (notif.referenceType === 'AREA' || notif.reference_type === 'AREA') {
+      const role = user?.role || user?.role_type || '';
+      if (role === 'FACILITY_MANAGER' || role === 'ADMIN') {
+        navigate('/admin/areas');
+      }
+      return;
     }
 
     // Step 6 (H1): quyền chỉ định ra vào bị thu hồi khi khu vực bị vô hiệu hoá
@@ -186,6 +197,13 @@ export default function NotificationsPage() {
         return (
           <div className="notif-icon-box notif-icon-box--schedule" title="Giới hạn chế độ sự kiện đã thay đổi">
             <SlidersHorizontal size={16} />
+          </div>
+        );
+      // A-05: gửi Guard mỗi lần bật / tắt / đổi giờ kết thúc chế độ sự kiện
+      case 'EVENT_MODE_CHANGED':
+        return (
+          <div className="notif-icon-box notif-icon-box--schedule" title="Chế độ sự kiện thay đổi">
+            <ShieldCheck size={16} />
           </div>
         );
       case 'EVENT_MODE_SCHEDULED':
