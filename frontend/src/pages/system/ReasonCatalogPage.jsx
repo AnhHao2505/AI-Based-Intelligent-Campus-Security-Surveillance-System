@@ -64,7 +64,7 @@ export default function ReasonCatalogPage() {
 		try {
 			const data = await getReasonCatalogs({
 				actionType: filterAction || undefined,
-				isActive: filterActive !== "" ? filterActive === "true" : undefined,
+				active: filterActive !== "" ? filterActive === "true" : undefined,
 			});
 			setReasons(data || []);
 		} catch (err) {
