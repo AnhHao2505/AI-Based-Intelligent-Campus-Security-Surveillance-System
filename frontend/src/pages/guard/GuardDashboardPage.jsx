@@ -167,8 +167,9 @@ export function SecuritySurveillancePage() {
 
 				setCameraList(list);
 				if (list.length > 0) {
+					const firstOnline = list.find((c) => c.status === "ONLINE") || list[0];
 					setSelectedCamera((prev) =>
-						prev && list.some((c) => c.code === prev) ? prev : list[0].code,
+						prev && list.some((c) => c.code === prev) ? prev : firstOnline.code,
 					);
 				}
 			} catch (err) {
