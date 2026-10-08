@@ -4,6 +4,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -178,6 +179,13 @@ public class GlobalExceptionHandler {
         String name = ex.getName();
         Object value = ex.getValue();
         String message = String.format("Giá trị '%s' không hợp lệ cho tham số '%s'", value, name);
+        return buildResponse(HttpStatus.BAD_REQUEST, message);
+    }
+
+    /** B-06: thiếu query param bắt buộc (vd. actionType của /api/reason-catalogs/active) -> 400, không rơi vào handleGeneral (500). */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ApiResponse<Object>> handleMissingRequestParameter(MissingServletRequestParameterException ex) {
+        String message = String.format("Thiếu tham số bắt buộc '%s'", ex.getParameterName());
         return buildResponse(HttpStatus.BAD_REQUEST, message);
     }
 
