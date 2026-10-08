@@ -39,6 +39,7 @@ const MODULE_OPTIONS_ADMIN = [
   { value: 'ACCESS_CONTROL', label: 'Phân quyền' },
   { value: 'ACCESS_REQUEST', label: 'Yêu cầu truy cập' },
   { value: 'SYSTEM', label: 'Hệ thống' },
+  { value: 'GUEST', label: 'Khách' },
 ];
 
 const MODULE_OPTIONS_FM = [
@@ -62,6 +63,12 @@ const TARGET_TYPE_OPTIONS = [
   { value: 'ACCESS_REQUEST', label: 'Yêu cầu truy cập' },
 ];
 
+// Đối tượng của phân hệ GUEST — chỉ ADMIN được đọc (audit_module_roles, V60)
+const TARGET_TYPE_OPTIONS_GUEST = [
+  { value: 'GUEST_VISIT', label: 'Lượt khách' },
+  { value: 'GUEST', label: 'Khách' },
+];
+
 const TARGET_TYPE_LABELS = {
   USER_ACCESS_LEVEL: 'Cấp người dùng',
   AREA_ACCESS_RULES: 'Quy tắc khu vực',
@@ -76,6 +83,8 @@ const TARGET_TYPE_LABELS = {
   ACCESS_REQUEST: 'Yêu cầu truy cập',
   SYSTEM_CONFIG: 'Cấu hình hệ thống',
   SYSTEM: 'Hệ thống',
+  GUEST_VISIT: 'Lượt khách',
+  GUEST: 'Khách',
 };
 
 // Màu badge "Loại sự kiện" theo bảng màu của thiết kế (category-badge--*)
@@ -491,7 +500,7 @@ export default function AuditLogPage() {
                 value={filterTargetType}
                 onChange={(e) => setFilterTargetType(e.target.value)}
               >
-                {TARGET_TYPE_OPTIONS.map((opt) => (
+                {(isAdmin ? [...TARGET_TYPE_OPTIONS, ...TARGET_TYPE_OPTIONS_GUEST] : TARGET_TYPE_OPTIONS).map((opt) => (
                   <option key={opt.value} value={opt.value}>
                     {opt.label}
                   </option>
