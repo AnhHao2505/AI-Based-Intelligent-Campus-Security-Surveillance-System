@@ -41,22 +41,22 @@ public class GuestVisitController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('NORMAL_USER', 'FACILITY_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('NORMAL_USER', 'FACILITY_MANAGER')")
     public ResponseEntity<ApiResponse<GuestVisitResponse>> create(@RequestBody JsonNode body, Authentication authentication) {
         GuestVisitCreateRequest req = readStrict(body, GuestVisitCreateRequest.class);
         GuestVisitResponse data = guestVisitService.create(req, authentication.getName());
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(data, "Đã tạo lượt khách, chờ duyệt"));
     }
 
-    /** BR-GV-04: khu vực chọn được trong form lượt khách (INTERNAL / CONTACT đang hoạt động). Cùng quyền với tạo lượt. */
+    /** BR-GV-04: khu vực chọn được trong form lượt khách (INTERNAL / CONTACT đang hoạt động). Cùng quyền với tạo lượt (B-04: không có ADMIN). */
     @GetMapping("/selectable-areas")
-    @PreAuthorize("hasAnyRole('NORMAL_USER', 'FACILITY_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('NORMAL_USER', 'FACILITY_MANAGER')")
     public ResponseEntity<ApiResponse<java.util.List<com.fa26se040.icss.dto.accessrequest.AreaSimpleResponse>>> selectableAreas() {
         return ResponseEntity.ok(ApiResponse.success(guestVisitService.listSelectableAreas(), "Danh sách khu vực nhận khách"));
     }
 
     @GetMapping("/my")
-    @PreAuthorize("hasAnyRole('NORMAL_USER', 'FACILITY_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('NORMAL_USER', 'FACILITY_MANAGER')")
     public ResponseEntity<ApiResponse<Page<GuestVisitResponse>>> listMine(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -73,7 +73,7 @@ public class GuestVisitController {
     }
 
     @PatchMapping("/{id}/cancel")
-    @PreAuthorize("hasAnyRole('NORMAL_USER', 'FACILITY_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('NORMAL_USER', 'FACILITY_MANAGER')")
     public ResponseEntity<ApiResponse<GuestVisitResponse>> cancel(@PathVariable UUID id,
                                                                   @RequestBody(required = false) GuestVisitCancelRequest body,
                                                                   Authentication authentication) {

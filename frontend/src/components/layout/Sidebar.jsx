@@ -288,16 +288,19 @@ export default function Sidebar({ user, onLogout }) {
 										<span>Quản lý khu vực</span>
 									</NavLink>
 
-									<NavLink
-										to="/guest-visits"
-										className={({ isActive }) =>
-											`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
-										}
-										title={sidebarCollapsed ? "Khách của tôi" : undefined}
-									>
-										<UserPlus size={18} />
-										<span>Khách của tôi</span>
-									</NavLink>
+									{/* B-04: ADMIN không làm host khách — chỉ FM thấy "Khách của tôi" trong khối này */}
+									{isFacilityManager && (
+										<NavLink
+											to="/guest-visits"
+											className={({ isActive }) =>
+												`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
+											}
+											title={sidebarCollapsed ? "Khách của tôi" : undefined}
+										>
+											<UserPlus size={18} />
+											<span>Khách của tôi</span>
+										</NavLink>
+									)}
 
 									{isFacilityManager && (
 										<>

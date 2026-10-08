@@ -2,6 +2,7 @@ package com.fa26se040.icss.guest;
 
 import com.fa26se040.icss.entity.*;
 import com.fa26se040.icss.enums.*;
+import com.fa26se040.icss.service.GuestRules;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -65,11 +66,21 @@ public class GuestVisitHostTest extends GuestTestSupport {
     }
 
     @Test
-    @DisplayName("GV-01 đúng: FM cấp 2 và ADMIN cấp 3 cũng làm host được")
-    void create_ok_fmAndAdmin() throws Exception {
+    @DisplayName("GV-01 đúng: FM cấp 2 cũng làm host được")
+    void create_ok_fm() throws Exception {
         User fmL2 = newUser("fm2l", Role.FACILITY_MANAGER, 2, true);
         createdId(create(fmL2, validBody()));
-        createdId(create(admin, validBody()));
+    }
+
+    @Test
+    @DisplayName("B-04: ADMIN (kể cả cấp 3) không làm host — tạo lượt / danh sách khu vực form / lượt của tôi / huỷ -> 403")
+    void admin_notHost_forbidden() throws Exception {
+        assertEquals(403, status(create(admin, validBody())));
+        assertEquals(403, status(send(get("/api/guest-visits/selectable-areas"), admin, null).andReturn()));
+        assertEquals(403, status(send(get("/api/guest-visits/my"), admin, null).andReturn()));
+        UUID id = createdId(create(hostL2, validBody()));
+        assertEquals(403, status(send(patch("/api/guest-visits/" + id + "/cancel"), admin, Map.of("version", 0)).andReturn()));
+        assertFalse(GuestRules.HOST_ROLES.contains(Role.ADMIN));
     }
 
     @Test

@@ -107,6 +107,9 @@ export default function NotificationsPage() {
         navigate('/admin/guest-visits');
       } else if (notif.type === 'GUEST_PHOTO_REQUIRED') {
         navigate('/admin/guest-photos');
+      } else if ((user?.role || user?.role_type) === 'ADMIN') {
+        // B-04: ADMIN không có trang "Khách của tôi"
+        navigate('/admin/guest-visits');
       } else {
         navigate('/guest-visits');
       }
