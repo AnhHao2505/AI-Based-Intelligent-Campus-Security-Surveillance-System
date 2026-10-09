@@ -94,6 +94,16 @@ export default function GuestVisitPage() {
 		loadVisits(0);
 	}, [loadVisits]);
 
+	// B-04: điều kiện mời khách (cấp ≥ GUEST_HOST_MIN_LEVEL). Lỗi tải -> để null, vẫn hiện nút (BE vẫn chặn ERR_GUEST_002)
+	const [eligibility, setEligibility] = useState(null);
+	useEffect(() => {
+		guestVisitService
+			.getEligibility()
+			.then((data) => setEligibility(data || null))
+			.catch((err) => console.error("Lỗi tải điều kiện mời khách:", err));
+	}, []);
+	const cannotHost = eligibility?.canHost === false;
+
 	const selectableAreas = useMemo(
 		() => areas.filter((a) => GUEST_ALLOWED_AREA_LEVELS.includes(a.areaLevel)),
 		[areas],
@@ -224,13 +234,23 @@ export default function GuestVisitPage() {
 						<Button variant="secondary" icon={RefreshCw} onClick={() => loadVisits(page)} loading={loading}>
 							Tải lại
 						</Button>
-						<Button icon={UserPlus} onClick={openCreate}>
-							Tạo lượt khách
-						</Button>
+						{!cannotHost && (
+							<Button icon={UserPlus} onClick={openCreate}>
+								Tạo lượt khách
+							</Button>
+						)}
 					</>
 				}
 			/>
 
+			{cannotHost && (
+				<div className="guest-visit__alert guest-visit__alert--warning" role="status">
+					<AlertCircle size={16} />
+					<span>
+						Cần cấp truy cập ≥ {eligibility.minLevel} để mời khách (cấp hiện tại: {eligibility.myLevel ?? "—"})
+					</span>
+				</div>
+			)}
 			{listError && (
 				<div className="guest-visit__alert guest-visit__alert--danger">
 					<AlertCircle size={16} />

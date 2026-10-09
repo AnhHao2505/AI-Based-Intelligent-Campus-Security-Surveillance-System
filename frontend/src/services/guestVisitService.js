@@ -14,6 +14,14 @@ export const guestVisitService = {
   },
 
   /** Host tạo lượt: { purpose, startTime, endTime, areaIds[], guests[{ fullName, organization }] } */
+  /**
+   * Điều kiện mời khách của người đang đăng nhập (B-04): { canHost, myLevel, minLevel }
+   * GET /api/guest-visits/eligibility
+   */
+  async getEligibility() {
+    return await apiGet("/api/guest-visits/eligibility");
+  },
+
   async createVisit(data) {
     return await apiPost("/api/guest-visits", data);
   },

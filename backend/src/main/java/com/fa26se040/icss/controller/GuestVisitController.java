@@ -1,6 +1,7 @@
 package com.fa26se040.icss.controller;
 
 import com.fa26se040.icss.dto.common.ApiResponse;
+import com.fa26se040.icss.dto.guest.GuestHostEligibilityResponse;
 import com.fa26se040.icss.dto.guest.GuestVisitCancelRequest;
 import com.fa26se040.icss.dto.guest.GuestVisitCreateRequest;
 import com.fa26se040.icss.dto.guest.GuestVisitResponse;
@@ -53,6 +54,13 @@ public class GuestVisitController {
     @PreAuthorize("hasAnyRole('NORMAL_USER', 'FACILITY_MANAGER')")
     public ResponseEntity<ApiResponse<java.util.List<com.fa26se040.icss.dto.accessrequest.AreaSimpleResponse>>> selectableAreas() {
         return ResponseEntity.ok(ApiResponse.success(guestVisitService.listSelectableAreas(), "Danh sách khu vực nhận khách"));
+    }
+
+    /** B-04: {canHost, myLevel, minLevel} để FE ẩn form tạo lượt khi không đủ điều kiện. Cùng quyền với tạo lượt. */
+    @GetMapping("/eligibility")
+    @PreAuthorize("hasAnyRole('NORMAL_USER', 'FACILITY_MANAGER')")
+    public ResponseEntity<ApiResponse<GuestHostEligibilityResponse>> eligibility(Authentication authentication) {
+        return ResponseEntity.ok(ApiResponse.success(guestVisitService.eligibility(authentication.getName()), "Điều kiện mời khách"));
     }
 
     @GetMapping("/my")
