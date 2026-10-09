@@ -191,6 +191,23 @@
   font-size: 12px;
 }
 
+/* BR-GV-06: khu không mời được trong khung giờ đã chọn */
+.guest-visit__area--blocked {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.guest-visit__area-name {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.guest-visit__area-reason {
+  font-size: 12px;
+  color: var(--theme-warning-text);
+}
+
 .guest-visit__guest-row {
   display: grid;
   grid-template-columns: 1.2fr 1fr auto;

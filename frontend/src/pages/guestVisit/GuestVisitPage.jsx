@@ -39,6 +39,12 @@ function toIso(localValue) {
 	return localValue ? new Date(localValue).toISOString() : null;
 }
 
+// BR-GV-06: lý do khu vực không mời được trong khung giờ đã chọn (reasonCode của selectable-areas)
+const AREA_BLOCK_REASONS = {
+	ERR_GUEST_014: "Bạn không vào được khu này trong suốt khung giờ đã chọn",
+	ERR_GUEST_002: "Tài khoản chưa đủ điều kiện mời khách",
+};
+
 function ReasonBlock({ label, value }) {
 	if (!value) return null;
 	return (
@@ -174,6 +180,37 @@ export default function GuestVisitPage() {
 			setLoadingAreas(false);
 		}
 	};
+
+	// BR-GV-06: đã chọn đủ giờ (bắt đầu < kết thúc) thì hỏi lại BE khu nào mời được trong khung giờ đó; đổi giờ thì tính lại.
+	// Khu không mời được: hiện mờ, không tick được, bỏ tick nếu đang tick. Chưa đủ giờ thì bỏ đánh dấu.
+	const areaWindowSeq = useRef(0);
+	useEffect(() => {
+		if (!createOpen) return undefined;
+		const startIso = toIso(startTime);
+		const endIso = toIso(endTime);
+		const seq = ++areaWindowSeq.current;
+		if (!startIso || !endIso || new Date(startIso) >= new Date(endIso)) {
+			setAreas((prev) =>
+				prev.some((a) => a.hostCanInvite !== undefined)
+					? prev.map(({ hostCanInvite: _h, reasonCode: _r, ...rest }) => rest)
+					: prev,
+			);
+			return undefined;
+		}
+		const timer = setTimeout(() => {
+			guestVisitService
+				.getSelectableAreas({ startTime: startIso, endTime: endIso })
+				.then((data) => {
+					if (seq !== areaWindowSeq.current) return;
+					const list = Array.isArray(data) ? data : [];
+					setAreas(list);
+					const blocked = new Set(list.filter((a) => a.hostCanInvite === false).map((a) => a.id));
+					setAreaIds((prev) => (prev.some((id) => blocked.has(id)) ? prev.filter((id) => !blocked.has(id)) : prev));
+				})
+				.catch((err) => console.error("Lỗi kiểm tra khu vực theo khung giờ:", err));
+		}, 300);
+		return () => clearTimeout(timer);
+	}, [createOpen, startTime, endTime]);
 
 	const toggleArea = (id) => {
 		setAreaIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -472,10 +509,26 @@ export default function GuestVisitPage() {
 							<div className="guest-visit__areas">
 								{selectableAreas.map((a) => {
 									const level = getLevelConfig(a.areaLevel);
+									const blocked = a.hostCanInvite === false;
+									const blockReason = blocked
+										? AREA_BLOCK_REASONS[a.reasonCode] || "Không mời được khách vào khu này trong khung giờ đã chọn"
+										: null;
 									return (
-										<label key={a.id} className="guest-visit__area">
-											<input type="checkbox" checked={areaIds.includes(a.id)} onChange={() => toggleArea(a.id)} />
-											<span>{a.name}</span>
+										<label
+											key={a.id}
+											className={`guest-visit__area${blocked ? " guest-visit__area--blocked" : ""}`}
+											title={blockReason || undefined}
+										>
+											<input
+												type="checkbox"
+												checked={!blocked && areaIds.includes(a.id)}
+												disabled={blocked}
+												onChange={() => toggleArea(a.id)}
+											/>
+											<span className="guest-visit__area-name">
+												{a.name}
+												{blockReason && <span className="guest-visit__area-reason">{blockReason}</span>}
+											</span>
 											<span className="guest-visit__muted">{level.name}</span>
 										</label>
 									);
