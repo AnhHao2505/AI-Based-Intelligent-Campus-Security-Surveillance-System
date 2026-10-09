@@ -17,6 +17,7 @@ import systemConfigService from '../../services/systemConfigService';
 import {
   getGuestBiometricStatus,
   formatDateTime,
+  getMissingPhotoInfo,
 } from '../../utils/guestHelpers';
 import '../../styles/GuestVisitPage.css';
 
@@ -298,6 +299,14 @@ export default function GuestPhotoPage() {
                       <div className="guest-visit__muted" style={{ fontSize: '12px', marginTop: '2px' }}>
                         Khu vực: {areaNames || '—'}
                       </div>
+                      {/* BR-GV-38: lượt đã duyệt còn khách chưa đăng ký khuôn mặt */}
+                      {getMissingPhotoInfo(v) && (
+                        <div className="guest-visit__photo-missing">
+                          <Badge variant="warning">
+                            Chưa có ảnh ({getMissingPhotoInfo(v).missing}/{getMissingPhotoInfo(v).total} khách)
+                          </Badge>
+                        </div>
+                      )}
                     </div>
                   </div>
 
