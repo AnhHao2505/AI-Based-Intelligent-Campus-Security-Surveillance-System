@@ -127,13 +127,8 @@ export default function AccessRequestPage() {
 			};
 		}
 
-		const nowBuffer = new Date(Date.now() - 5 * 60 * 1000);
-		if (startDateTime < nowBuffer) {
-			return {
-				isError: true,
-				text: "Thời gian bắt đầu không được ở trong quá khứ",
-			};
-		}
+		// A-07: không tự kiểm "giờ bắt đầu ở quá khứ" với ngưỡng viết cứng — ngưỡng là
+		// ACCESS_REQUEST_PAST_START_BUFFER_MINUTES (BE đọc cấu hình, NORMAL_USER không đọc được); BE trả lỗi khi gửi.
 
 		const diffMin = Math.round((endDateTime - startDateTime) / 60000);
 		const hours = Math.floor(diffMin / 60);
@@ -356,14 +351,9 @@ export default function AccessRequestPage() {
 			return;
 		}
 
+		// A-07: kiểm "giờ bắt đầu ở quá khứ" để BE làm (ngưỡng theo cấu hình), lỗi hiện qua setFormError ở catch
 		const start = getStartDateTime();
 		const end = getEndDateTime();
-		const nowBuffer = new Date(Date.now() - 5 * 60 * 1000);
-
-		if (start < nowBuffer) {
-			setFormError("Thời gian bắt đầu không được ở trong quá khứ.");
-			return;
-		}
 
 		let cleanMemberCodes = [];
 		if (requestType === "GROUP") {
