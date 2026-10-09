@@ -98,7 +98,8 @@ export default function NotificationsPage() {
       // Mở đúng đơn: trang đích đọc ?requestId (tô sáng dòng hoặc mở popup chi tiết)
       const refId = notif.referenceId || notif.reference_id;
       const query = refId ? `?requestId=${encodeURIComponent(refId)}` : '';
-      if (role === 'FACILITY_MANAGER' || role === 'ADMIN') {
+      // ADMIN đã dừng ở nhánh BR-NT-26 phía trên
+      if (role === 'FACILITY_MANAGER') {
         navigate(`/admin/access-requests${query}`);
       } else {
         navigate(`/access-requests${query}`);
@@ -134,10 +135,8 @@ export default function NotificationsPage() {
         navigate(`/admin/guest-visits${visitQuery}`);
       } else if (notif.type === 'GUEST_PHOTO_REQUIRED') {
         navigate('/admin/guest-photos');
-      } else if ((user?.role || user?.role_type) === 'ADMIN') {
-        // B-04: ADMIN không có trang "Khách của tôi"
-        navigate(`/admin/guest-visits${visitQuery}`);
       } else {
+        // ADMIN không tới nhánh này: GUEST_PHOTO_REQUIRED đi nhánh trên, loại khác dừng ở BR-NT-26
         navigate(`/guest-visits${visitQuery}`);
       }
     }
