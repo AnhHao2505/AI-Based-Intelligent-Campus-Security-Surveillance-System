@@ -108,15 +108,17 @@ public interface UserRepository extends JpaRepository<User, UUID> {
             SELECT u FROM User u
             WHERE u.deletedAt IS NULL
               AND u.isActive = true
-              AND (LOWER(u.userCode) LIKE LOWER(CONCAT('%', :q, '%'))
-                   OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :q, '%')))
+              AND (CAST(:q AS string) IS NULL OR :q = ''
+                   OR LOWER(u.userCode) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%'))
+                   OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')))
             """,
         countQuery = """
             SELECT COUNT(u) FROM User u
             WHERE u.deletedAt IS NULL
               AND u.isActive = true
-              AND (LOWER(u.userCode) LIKE LOWER(CONCAT('%', :q, '%'))
-                   OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :q, '%')))
+              AND (CAST(:q AS string) IS NULL OR :q = ''
+                   OR LOWER(u.userCode) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%'))
+                   OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')))
             """
     )
     Page<User> searchActiveUsers(@Param("q") String q, Pageable pageable);
@@ -128,16 +130,18 @@ public interface UserRepository extends JpaRepository<User, UUID> {
             WHERE u.deletedAt IS NULL
               AND u.isActive = true
               AND u.accessLevel = :accessLevel
-              AND (LOWER(u.userCode) LIKE LOWER(CONCAT('%', :q, '%'))
-                   OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :q, '%')))
+              AND (CAST(:q AS string) IS NULL OR :q = ''
+                   OR LOWER(u.userCode) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%'))
+                   OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')))
             """,
         countQuery = """
             SELECT COUNT(u) FROM User u
             WHERE u.deletedAt IS NULL
               AND u.isActive = true
               AND u.accessLevel = :accessLevel
-              AND (LOWER(u.userCode) LIKE LOWER(CONCAT('%', :q, '%'))
-                   OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :q, '%')))
+              AND (CAST(:q AS string) IS NULL OR :q = ''
+                   OR LOWER(u.userCode) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%'))
+                   OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')))
             """
     )
     Page<User> searchActiveUsersByAccessLevel(@Param("q") String q, @Param("accessLevel") Integer accessLevel, Pageable pageable);
