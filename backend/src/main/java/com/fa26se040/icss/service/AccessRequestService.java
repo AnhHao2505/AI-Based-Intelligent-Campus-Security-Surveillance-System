@@ -1007,7 +1007,7 @@ public class AccessRequestService {
     /**
      * BR-RQ-47: FM huỷ đơn APPROVED chưa tới giờ bắt đầu (bổ sung B-03: chưa bắt đầu thì không "Hoàn thành" mà huỷ).
      * Conditional UPDATE nguyên tử (status = APPROVED AND startTime > now) là nguồn chân lý duy nhất, không pre-check.
-     * Nguồn huỷ ghi USER (CHECK V56 chỉ có USER / SYSTEM) với cancelled_by = FM và cancel_reason = lý do.
+     * Nguồn huỷ ghi STAFF (V73 thêm vào CHECK) với cancelled_by = FM và cancel_reason = lý do.
      */
     @Transactional
     public AccessRequestResponse cancelApprovedRequest(UUID id, String reason, String actorEmail) {
@@ -1033,7 +1033,7 @@ public class AccessRequestService {
         if (updatedCount == 1) {
             // [RÀNG BUỘC NOTIFICATION / SIDE-EFFECTS]: chỉ ở nhánh 1 dòng
             accessRequestRepository.recordCancellation(
-                    id, com.fa26se040.icss.enums.CancelSource.USER, actor, cancelReason, RequestStatus.CANCELLED);
+                    id, com.fa26se040.icss.enums.CancelSource.STAFF, actor, cancelReason, RequestStatus.CANCELLED);
             AccessRequest updated = accessRequestRepository.findByIdWithDetails(id)
                     .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu truy cập với mã: " + id));
             log.info("Approved access request {} cancelled by FM {}", updated.getId(), actor.getId());

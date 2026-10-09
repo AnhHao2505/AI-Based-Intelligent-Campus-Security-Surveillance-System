@@ -1126,6 +1126,12 @@ export default function AccessRequestPage() {
 															Hủy bởi hệ thống: {req.cancelReason}
 														</div>
 													)}
+													{/* BR-RQ-47: FM huỷ đơn đã duyệt (cancel_source STAFF) */}
+													{req.status === "CANCELLED" && req.cancelSource === "STAFF" && (
+														<div className="arp-cancel-system" title={req.cancelReason || ""}>
+															Quản lý huỷ: {req.cancelReason}
+														</div>
+													)}
 												</td>
 												<td
 													style={{
@@ -1366,6 +1372,11 @@ export default function AccessRequestPage() {
 										{selectedDetail.status === "CANCELLED" && selectedDetail.cancelSource === "SYSTEM" && (
 											<div className="arp-cancel-system arp-cancel-system--detail">
 												Hủy bởi hệ thống: {selectedDetail.cancelReason}
+											</div>
+										)}
+										{selectedDetail.status === "CANCELLED" && selectedDetail.cancelSource === "STAFF" && (
+											<div className="arp-cancel-system arp-cancel-system--detail">
+												Quản lý huỷ: {selectedDetail.cancelReason}
 											</div>
 										)}
 									</div>

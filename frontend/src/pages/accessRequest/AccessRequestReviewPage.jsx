@@ -502,6 +502,12 @@ export default function AccessRequestReviewPage() {
                           Hủy bởi hệ thống: {req.cancelReason}
                         </div>
                       )}
+                      {/* BR-RQ-47: FM huỷ đơn đã duyệt (cancel_source STAFF) */}
+                      {req.status === 'CANCELLED' && req.cancelSource === 'STAFF' && (
+                        <div className="arr-cancel-system" title={req.cancelReason || ''}>
+                          Quản lý huỷ: {req.cancelReason}
+                        </div>
+                      )}
                     </td>
 
                     {/* Created At */}
@@ -942,6 +948,11 @@ export default function AccessRequestReviewPage() {
                     {detailItem.status === 'CANCELLED' && detailItem.cancelSource === 'SYSTEM' && (
                       <div className="arr-cancel-system arr-cancel-system--detail">
                         Hủy bởi hệ thống: {detailItem.cancelReason}
+                      </div>
+                    )}
+                    {detailItem.status === 'CANCELLED' && detailItem.cancelSource === 'STAFF' && (
+                      <div className="arr-cancel-system arr-cancel-system--detail">
+                        Quản lý huỷ: {detailItem.cancelReason}
                       </div>
                     )}
                   </div>

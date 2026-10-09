@@ -42,7 +42,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 
 /**
  * BR-RQ-47 (B-03 bổ sung): FM huỷ đơn APPROVED chưa bắt đầu qua PATCH /api/access-requests/{id}/cancel-approved.
- * Lý do 10–500 ký tự; đơn CANCELLED (cancel_source USER, cancelled_by = FM, cancel_reason); audit CANCEL kèm lý do;
+ * Lý do 10–500 ký tự; đơn CANCELLED (cancel_source STAFF từ V73, cancelled_by = FM, cancel_reason); audit CANCEL kèm lý do;
  * REQUEST_CANCELLED cho người tạo + thành viên. Đã bắt đầu -> 400 ERR_AC_008. NORMAL_USER / ADMIN không huỷ được đơn APPROVED.
  */
 class AccessRequestStaffCancelTest extends AbstractIntegrationTest {
@@ -174,7 +174,7 @@ class AccessRequestStaffCancelTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("FM huỷ đơn nhóm APPROVED chưa bắt đầu -> 200 CANCELLED, nguồn USER + người huỷ FM + lý do, 1 audit CANCEL có lý do, 2 thông báo REQUEST_CANCELLED")
+    @DisplayName("FM huỷ đơn nhóm APPROVED chưa bắt đầu -> 200 CANCELLED, nguồn STAFF + người huỷ FM + lý do, 1 audit CANCEL có lý do, 2 thông báo REQUEST_CANCELLED")
     void fm_cancelApprovedNotStarted_ok() throws Exception {
         AccessRequest r = request(RequestStatus.APPROVED, future(), List.of(otherUser));
 
@@ -183,7 +183,7 @@ class AccessRequestStaffCancelTest extends AbstractIntegrationTest {
         assertEquals(200, res.getResponse().getStatus(), body(res));
         assertEquals("CANCELLED", status(r));
         var row = jdbc.queryForMap("SELECT cancel_source, cancelled_by, cancel_reason FROM access_requests WHERE id = ?", r.getId());
-        assertEquals("USER", row.get("cancel_source"));
+        assertEquals("STAFF", row.get("cancel_source"));
         assertEquals(fm.getId(), row.get("cancelled_by"));
         assertEquals(REASON, row.get("cancel_reason"));
         assertEquals(1, cancelAudits(r));
@@ -197,6 +197,32 @@ class AccessRequestStaffCancelTest extends AbstractIntegrationTest {
                     String.class, r.getId(), u.getId());
             assertTrue(msg.contains(REASON), msg);
         }
+    }
+
+    @Test
+    @DisplayName("Người tạo tự huỷ đơn PENDING qua /cancel -> cancel_source USER (không phải STAFF), cancelled_by = người tạo; response trả USER")
+    void requesterCancelPending_sourceUser() throws Exception {
+        AccessRequest r = request(RequestStatus.PENDING, future(), List.of());
+
+        MvcResult res = mockMvc.perform(patch("/api/access-requests/{id}/cancel", r.getId())
+                .header("Authorization", "Bearer " + jwtTokenProvider.generateToken(requester))).andReturn();
+
+        assertEquals(200, res.getResponse().getStatus(), body(res));
+        var row = jdbc.queryForMap("SELECT cancel_source, cancelled_by FROM access_requests WHERE id = ?", r.getId());
+        assertEquals("USER", row.get("cancel_source"));
+        assertEquals(requester.getId(), row.get("cancelled_by"));
+        assertTrue(body(res).contains("\"cancelSource\":\"USER\""), body(res));
+    }
+
+    @Test
+    @DisplayName("Response của FM huỷ đơn đã duyệt trả cancelSource STAFF (FE hiện nhãn \"Quản lý huỷ\")")
+    void fm_cancelApproved_responseSourceStaff() throws Exception {
+        AccessRequest r = request(RequestStatus.APPROVED, future(), List.of());
+
+        MvcResult res = cancelApproved(fm, r);
+
+        assertEquals(200, res.getResponse().getStatus(), body(res));
+        assertTrue(body(res).contains("\"cancelSource\":\"STAFF\""), body(res));
     }
 
     @Test
