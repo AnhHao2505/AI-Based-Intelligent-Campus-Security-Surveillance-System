@@ -171,7 +171,7 @@ export default function CampusMapPage() {
 			{/* Page Header */}
 			<PageHeader
 				title="Bản đồ khuôn viên"
-				subtitle="Bản đồ an ninh toàn diện và giám sát khu vực theo toạ độ địa lý."
+				description="Bản đồ an ninh toàn diện và giám sát khu vực theo toạ độ địa lý."
 			/>
 
 			{/* Global Error Banner */}
