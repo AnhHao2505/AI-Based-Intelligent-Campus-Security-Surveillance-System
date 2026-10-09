@@ -1,4 +1,5 @@
 import { apiGet } from '../api/apiClient';
+import { getStoredUser, setStoredUser, clearStoredAuth } from '../utils/authStorage';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
@@ -39,8 +40,10 @@ export async function getCurrentUser() {
  * Lưu auth data vào localStorage
  */
 export function saveAuth(authResponse) {
-  localStorage.setItem('accessToken', authResponse.accessToken);
-  localStorage.setItem('user', JSON.stringify(authResponse.user));
+  if (authResponse?.accessToken) {
+    localStorage.setItem('accessToken', authResponse.accessToken);
+  }
+  setStoredUser(authResponse?.user);
 }
 
 export function createDemoAuth(role) {
@@ -64,19 +67,15 @@ export function getAccessToken() {
 }
 
 /**
- * Lấy user info từ localStorage
+ * Lấy user info từ localStorage (an toàn qua helper)
  */
-export function getStoredUser() {
-  const user = localStorage.getItem('user');
-  return user ? JSON.parse(user) : null;
-}
+export { getStoredUser, clearStoredAuth };
 
 /**
  * Xoá auth data (logout)
  */
 export function clearAuth() {
-  localStorage.removeItem('accessToken');
-  localStorage.removeItem('user');
+  clearStoredAuth();
 }
 
 /**

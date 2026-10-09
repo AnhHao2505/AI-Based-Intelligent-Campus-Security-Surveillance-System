@@ -1,4 +1,5 @@
 import { DEMO_LOGIN_ENABLED } from '../config/demoConfig';
+import { getStoredUser, clearStoredAuth } from '../utils/authStorage';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
@@ -16,7 +17,7 @@ function toSystemErrorMessage(rawMessage) {
 }
 
 function getDemoResponse(path) {
-  if (path.includes('/auth/me')) return JSON.parse(localStorage.getItem('user') || 'null');
+  if (path.includes('/auth/me')) return getStoredUser();
   if (path.includes('/notifications/unread-count')) return { count: 2 };
   if (path.includes('/notifications')) {
     return {
@@ -131,8 +132,7 @@ export async function apiFetch(path, options = {}) {
 
   if (token?.startsWith('frontend-demo-')) {
     if (!DEMO_LOGIN_ENABLED) {
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('user');
+      clearStoredAuth();
       if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
         window.location.href = '/login';
       }
@@ -157,8 +157,7 @@ export async function apiFetch(path, options = {}) {
   }
 
   if (response.status === 401) {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('user');
+    clearStoredAuth();
     if (window.location.pathname !== '/login') {
       window.location.href = '/login';
     }
