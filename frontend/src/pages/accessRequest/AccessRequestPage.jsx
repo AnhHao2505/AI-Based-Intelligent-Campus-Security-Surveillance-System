@@ -30,7 +30,6 @@ import MemberCodeCombobox from "../../components/accessRequest/MemberCodeCombobo
 
 export default function AccessRequestPage() {
 	const { user } = useAuth();
-	const isFacilityManager = user?.role === "FACILITY_MANAGER";
 
 	// Available Areas
 	const [areas, setAreas] = useState([]);
@@ -1108,40 +1107,6 @@ export default function AccessRequestPage() {
 																title="Hủy yêu cầu truy cập này"
 															>
 																Hủy
-															</button>
-														)}
-														{isFacilityManager && req.status === "APPROVED" && (
-															<button
-																type="button"
-																className="arp-btn arp-btn--secondary arp-btn--sm"
-																onClick={async () => {
-																	try {
-																		await accessRequestService.finishRequest(
-																			req.id,
-																		);
-																		setFormSuccess(
-																			"Chuyển trạng thái sang Hoàn thành!",
-																		);
-																		loadMyRequests(
-																			historyPage,
-																			historyStatusFilter,
-																			historyAreaFilter,
-																		);
-																		setTimeout(
-																			() => setFormSuccess(null),
-																			4000,
-																		);
-																	} catch (err) {
-																		setFormError(
-																			err.message ||
-																				"Không thể cập nhật trạng thái.",
-																		);
-																		setTimeout(() => setFormError(null), 4000);
-																	}
-																}}
-																title="Chuyển sang Hoàn thành"
-															>
-																Hoàn thành
 															</button>
 														)}
 														{req.status === "REJECTED" && (
