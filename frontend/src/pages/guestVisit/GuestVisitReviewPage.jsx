@@ -18,6 +18,7 @@ import Pagination from '../../components/ui/Pagination';
 import ReasonTextarea from '../../components/ui/ReasonTextarea';
 import guestVisitService from '../../services/guestVisitService';
 import { useAuth } from '../../context/AuthContext';
+import { ROLES } from '../../constants/roles';
 import {
   getGuestVisitStatus,
   getGuestBiometricStatus,
@@ -286,6 +287,10 @@ export default function GuestVisitReviewPage() {
   // A-08 (BR-GV-10): FM không tự duyệt / từ chối / thu hồi lượt mình là người mời (BE trả 403 ERR_GUEST_022).
   // GuestVisitResponse không có hostId nên so theo mã người dùng.
   const isOwnVisit = Boolean(detail && user?.userCode && detail.hostCode === user.userCode);
+  // Duyệt / từ chối / thu hồi chỉ FM (BE @PreAuthorize FACILITY_MANAGER); ADMIN và role khác chỉ xem
+  const isFacilityManager = user?.role === ROLES.FACILITY_MANAGER;
+  const hasDetailActions =
+    isFacilityManager && !isOwnVisit && (detail?.status === 'PENDING' || isDetailApprovedAndActive);
 
   return (
     <div className="guest-visit">
@@ -427,12 +432,12 @@ export default function GuestVisitReviewPage() {
         size="lg"
         footer={
           <>
-            {isOwnVisit && (detail?.status === 'PENDING' || isDetailApprovedAndActive) && (
+            {isFacilityManager && isOwnVisit && (detail?.status === 'PENDING' || isDetailApprovedAndActive) && (
               <span className="guest-visit__muted" role="note">
                 Bạn là người mời lượt này nên không được tự duyệt, từ chối hoặc thu hồi.
               </span>
             )}
-            {detail?.status === 'PENDING' && !isOwnVisit && (
+            {hasDetailActions && detail?.status === 'PENDING' && (
               <>
                 <Button
                   variant="danger"
@@ -450,7 +455,7 @@ export default function GuestVisitReviewPage() {
                 </Button>
               </>
             )}
-            {isDetailApprovedAndActive && !isOwnVisit && (
+            {hasDetailActions && isDetailApprovedAndActive && (
               <Button
                 variant="danger"
                 icon={Ban}
@@ -459,9 +464,12 @@ export default function GuestVisitReviewPage() {
                 Thu hồi
               </Button>
             )}
-            <Button variant="secondary" onClick={() => setDetail(null)}>
-              Đóng
-            </Button>
+            {/* Popup có nút hành động thì bỏ "Đóng" (còn X + Esc); chỉ để xem thì giữ "Đóng" */}
+            {!hasDetailActions && (
+              <Button variant="secondary" onClick={() => setDetail(null)}>
+                Đóng
+              </Button>
+            )}
           </>
         }
       >

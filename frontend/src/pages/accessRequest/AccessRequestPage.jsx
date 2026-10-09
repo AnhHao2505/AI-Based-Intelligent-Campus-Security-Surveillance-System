@@ -1533,13 +1533,6 @@ export default function AccessRequestPage() {
 						}}
 					>
 						<Button
-							variant="secondary"
-							onClick={() => setCancelItem(null)}
-							disabled={cancelling}
-						>
-							Đóng
-						</Button>
-						<Button
 							variant="danger"
 							onClick={handleConfirmCancel}
 							loading={cancelling}

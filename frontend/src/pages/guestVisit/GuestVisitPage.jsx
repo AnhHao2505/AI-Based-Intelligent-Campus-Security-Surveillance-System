@@ -419,9 +419,6 @@ export default function GuestVisitPage() {
 								<span>Cần {createBlockers.join("; ")} để gửi duyệt.</span>
 							</div>
 						)}
-						<Button variant="secondary" onClick={() => setCreateOpen(false)} disabled={creating}>
-							Đóng
-						</Button>
 						<Button
 							onClick={submitCreate}
 							loading={creating}
@@ -539,9 +536,12 @@ export default function GuestVisitPage() {
 								Hủy lượt
 							</Button>
 						)}
-						<Button variant="secondary" onClick={() => setDetail(null)}>
-							Đóng
-						</Button>
+						{/* Có nút hành động thì bỏ "Đóng" (còn X + Esc); chỉ để xem thì giữ "Đóng" */}
+						{!(detail && canHostCancel(detail)) && (
+							<Button variant="secondary" onClick={() => setDetail(null)}>
+								Đóng
+							</Button>
+						)}
 					</>
 				}
 			>
@@ -616,16 +616,6 @@ export default function GuestVisitPage() {
 				closeOnBackdrop={!cancelling}
 				footer={
 					<>
-						<Button
-							variant="secondary"
-							onClick={() => {
-								setCancelTarget(null);
-								setCancelReasonError(null);
-							}}
-							disabled={cancelling}
-						>
-							Đóng
-						</Button>
 						<Button variant="danger" onClick={submitCancel} loading={cancelling} disabled={cancelling}>
 							Xác nhận hủy
 						</Button>
