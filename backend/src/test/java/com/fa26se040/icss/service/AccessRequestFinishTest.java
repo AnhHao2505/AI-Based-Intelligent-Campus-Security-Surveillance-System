@@ -2,6 +2,7 @@ package com.fa26se040.icss.service;
 
 import com.fa26se040.icss.AbstractIntegrationTest;
 import com.fa26se040.icss.entity.AccessRequest;
+import com.fa26se040.icss.entity.AccessRequestMember;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.Building;
 import com.fa26se040.icss.entity.Floor;
@@ -10,6 +11,8 @@ import com.fa26se040.icss.enums.AreaLevel;
 import com.fa26se040.icss.enums.RequestStatus;
 import com.fa26se040.icss.enums.RequestType;
 import com.fa26se040.icss.enums.Role;
+import com.fa26se040.icss.exception.AccessControlErrorCode;
+import com.fa26se040.icss.exception.AccessControlException;
 import com.fa26se040.icss.repository.AccessRequestRepository;
 import com.fa26se040.icss.repository.AreaRepository;
 import com.fa26se040.icss.repository.BuildingRepository;
@@ -21,6 +24,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.web.servlet.MockMvc;
@@ -39,6 +43,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 /**
  * BR-RQ-44: chỉ FACILITY_MANAGER chuyển đơn APPROVED sang FINISHED (PATCH /api/access-requests/{id}/finish).
  * Service khớp controller: requester / ADMIN gọi thẳng service cũng bị từ chối. Điều kiện trạng thái APPROVED giữ nguyên.
+ * BR-RQ-46 (B-03): chỉ khi now >= startTime (trước đó ERR_AC_007), bắt buộc lý do 10–500 ký tự,
+ * lý do vào audit, thông báo REQUEST_FINISHED cho người tạo + thành viên.
  */
 class AccessRequestFinishTest extends AbstractIntegrationTest {
 
@@ -108,24 +114,52 @@ class AccessRequestFinishTest extends AbstractIntegrationTest {
         return u;
     }
 
+    private static final String REASON = "Sự kiện kết thúc sớm hơn dự kiến";
+
     private AccessRequest request(RequestStatus status) {
-        OffsetDateTime start = OffsetDateTime.now().minusHours(1).truncatedTo(ChronoUnit.SECONDS);
-        return accessRequestRepository.save(AccessRequest.builder()
+        return request(status, OffsetDateTime.now().minusHours(1), List.of());
+    }
+
+    private AccessRequest request(RequestStatus status, OffsetDateTime startAt, List<User> members) {
+        OffsetDateTime start = startAt.truncatedTo(ChronoUnit.SECONDS);
+        AccessRequest req = AccessRequest.builder()
                 .area(area)
                 .requester(requester)
-                .requestType(RequestType.INDIVIDUAL)
+                .requestType(members.isEmpty() ? RequestType.INDIVIDUAL : RequestType.GROUP)
                 .purpose("Đơn RQ44 " + suffix)
                 .startTime(start)
                 .endTime(start.plusHours(3))
                 .status(status)
                 .reviewer(status == RequestStatus.PENDING ? null : fm)
                 .reviewedAt(status == RequestStatus.PENDING ? null : start.minusHours(1))
-                .build());
+                .build();
+        for (User m : members) {
+            req.getMembers().add(AccessRequestMember.builder().accessRequest(req).user(m).build());
+        }
+        return accessRequestRepository.save(req);
     }
 
     private MvcResult finish(User actor, AccessRequest r) throws Exception {
+        return finish(actor, r, "{\"reason\":\"" + REASON + "\"}");
+    }
+
+    private MvcResult finish(User actor, AccessRequest r, String json) throws Exception {
         return mockMvc.perform(patch("/api/access-requests/{id}/finish", r.getId())
-                .header("Authorization", "Bearer " + jwtTokenProvider.generateToken(actor))).andReturn();
+                .header("Authorization", "Bearer " + jwtTokenProvider.generateToken(actor))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json)).andReturn();
+    }
+
+    private int finishNotifications(AccessRequest r) {
+        return jdbc.queryForObject(
+                "SELECT count(*) FROM notifications WHERE type = 'REQUEST_FINISHED' AND reference_id = ?",
+                Integer.class, r.getId());
+    }
+
+    private int finishAudits(AccessRequest r) {
+        return jdbc.queryForObject(
+                "SELECT count(*) FROM audit_logs WHERE target_type = 'ACCESS_REQUEST' AND action = 'FINISH' AND target_id = ?",
+                Integer.class, r.getId().toString());
     }
 
     private String status(AccessRequest r) {
@@ -145,9 +179,7 @@ class AccessRequestFinishTest extends AbstractIntegrationTest {
 
         assertEquals(200, res.getResponse().getStatus(), body(res));
         assertEquals("FINISHED", status(r));
-        assertEquals(1, jdbc.queryForObject(
-                "SELECT count(*) FROM audit_logs WHERE target_type = 'ACCESS_REQUEST' AND action = 'FINISH' AND target_id = ?",
-                Integer.class, r.getId().toString()));
+        assertEquals(1, finishAudits(r));
     }
 
     @Test
@@ -167,8 +199,8 @@ class AccessRequestFinishTest extends AbstractIntegrationTest {
     void nonFm_service_forbidden() {
         AccessRequest r = request(RequestStatus.APPROVED);
 
-        assertThrows(AccessDeniedException.class, () -> accessRequestService.finishRequest(r.getId(), requester.getEmail()));
-        assertThrows(AccessDeniedException.class, () -> accessRequestService.finishRequest(r.getId(), admin.getEmail()));
+        assertThrows(AccessDeniedException.class, () -> accessRequestService.finishRequest(r.getId(), REASON, requester.getEmail()));
+        assertThrows(AccessDeniedException.class, () -> accessRequestService.finishRequest(r.getId(), REASON, admin.getEmail()));
         assertEquals("APPROVED", status(r));
     }
 
@@ -181,5 +213,64 @@ class AccessRequestFinishTest extends AbstractIntegrationTest {
 
         assertEquals(400, res.getResponse().getStatus(), body(res));
         assertEquals("PENDING", status(r));
+    }
+
+    @Test
+    @DisplayName("BR-RQ-46: FM hoàn thành đơn chưa tới giờ bắt đầu -> 400 ERR_AC_007, đơn giữ APPROVED, không audit, không thông báo")
+    void fm_finishBeforeStart_rejected() throws Exception {
+        AccessRequest r = request(RequestStatus.APPROVED, OffsetDateTime.now().plusHours(2), List.of());
+
+        MvcResult res = finish(fm, r);
+
+        assertEquals(400, res.getResponse().getStatus(), body(res));
+        assertTrue(body(res).contains("ERR_AC_007"), body(res));
+        assertEquals("APPROVED", status(r));
+        assertEquals(0, finishAudits(r));
+        assertEquals(0, finishNotifications(r));
+    }
+
+    @Test
+    @DisplayName("BR-RQ-46 (service): gọi thẳng service với đơn chưa bắt đầu -> AccessControlException ERR_AC_007")
+    void service_finishBeforeStart_throws() {
+        AccessRequest r = request(RequestStatus.APPROVED, OffsetDateTime.now().plusMinutes(30), List.of());
+
+        AccessControlException ex = assertThrows(AccessControlException.class,
+                () -> accessRequestService.finishRequest(r.getId(), REASON, fm.getEmail()));
+        assertEquals(AccessControlErrorCode.ERR_AC_007, ex.getErrorCode());
+        assertEquals("APPROVED", status(r));
+    }
+
+    @Test
+    @DisplayName("BR-RQ-46: thiếu lý do / lý do < 10 ký tự sau trim / > 500 ký tự -> 400 VALIDATION_ERROR, đơn giữ APPROVED")
+    void fm_finishInvalidReason_validationError() throws Exception {
+        AccessRequest r = request(RequestStatus.APPROVED);
+
+        for (String json : List.of("{}", "{\"reason\":\"   ngắn    \"}", "{\"reason\":\"" + "a".repeat(501) + "\"}")) {
+            MvcResult res = finish(fm, r, json);
+            assertEquals(400, res.getResponse().getStatus(), json + ": " + body(res));
+            assertTrue(body(res).contains("VALIDATION_ERROR"), body(res));
+        }
+        assertEquals("APPROVED", status(r));
+    }
+
+    @Test
+    @DisplayName("BR-RQ-46: hoàn thành đơn nhóm -> lý do vào audit, REQUEST_FINISHED gửi người tạo + thành viên (mỗi người 1)")
+    void fm_finishGroup_auditReasonAndNotifies() throws Exception {
+        AccessRequest r = request(RequestStatus.APPROVED, OffsetDateTime.now().minusMinutes(10), List.of(otherUser));
+
+        MvcResult res = finish(fm, r, "{\"reason\":\"  " + REASON + "  \"}");
+
+        assertEquals(200, res.getResponse().getStatus(), body(res));
+        assertEquals("FINISHED", status(r));
+        assertEquals(REASON, jdbc.queryForObject(
+                "SELECT reason FROM audit_logs WHERE target_type = 'ACCESS_REQUEST' AND action = 'FINISH' AND target_id = ?",
+                String.class, r.getId().toString()));
+        assertEquals(2, finishNotifications(r));
+        for (User u : List.of(requester, otherUser)) {
+            String msg = jdbc.queryForObject(
+                    "SELECT message FROM notifications WHERE type = 'REQUEST_FINISHED' AND reference_id = ? AND recipient_id = ?",
+                    String.class, r.getId(), u.getId());
+            assertTrue(msg.contains(REASON), msg);
+        }
     }
 }

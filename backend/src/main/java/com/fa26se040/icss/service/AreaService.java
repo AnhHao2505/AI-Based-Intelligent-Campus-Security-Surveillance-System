@@ -530,16 +530,30 @@ public class AreaService {
         }
 
         Set<AreaLevel> sponsorAllowedLevels = sponsorLevels;
-        return areas.stream()
+        List<Area> available = areas.stream()
                 .filter(a -> isAvailableForRequest(a, caller, sponsorAllowedLevels))
+                .toList();
+        // A-06: cấu hình đơn nhóm chỉ quyết định khu vực HIGHLY_CONFIDENTIAL nên chỉ đọc khi danh sách có khu vực đó
+        boolean groupAllowedInHighlyConfidential = available.stream().anyMatch(a -> a.getAreaLevel() == AreaLevel.HIGHLY_CONFIDENTIAL)
+                && systemConfigService.getBoolean(com.fa26se040.icss.enums.ConfigKey.ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE);
+        return available.stream()
                 .map(a -> new AreaSimpleResponse(
                         a.getId(),
                         a.getName(),
                         a.getAreaLevel(),
                         a.getBuilding(),
-                        a.getFloor()
+                        a.getFloor(),
+                        isGroupRequestAllowed(a.getAreaLevel(), groupAllowedInHighlyConfidential)
                 ))
                 .toList();
+    }
+
+    /**
+     * BR-RQ-28: khu vực HIGHLY_CONFIDENTIAL chỉ nhận đơn cá nhân, trừ khi ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE = true.
+     * Dùng chung cho kiểm tra khi tạo đơn nhóm (AccessRequestService) và cờ groupRequestAllowed của available-areas (A-06).
+     */
+    public static boolean isGroupRequestAllowed(AreaLevel areaLevel, boolean groupAllowedInHighlyConfidential) {
+        return areaLevel != AreaLevel.HIGHLY_CONFIDENTIAL || groupAllowedInHighlyConfidential;
     }
 
     /** Cùng thứ tự với query findAvailableForRequest (toà, tầng, tên). */

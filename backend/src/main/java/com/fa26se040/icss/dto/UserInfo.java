@@ -17,4 +17,6 @@ public class UserInfo {
     private String email;
     private String role;
     private String userCode;
+    // B-04: cấp truy cập hiện tại (FE dùng để giải thích điều kiện mời khách); null ở nơi không điền
+    private Integer accessLevel;
 }

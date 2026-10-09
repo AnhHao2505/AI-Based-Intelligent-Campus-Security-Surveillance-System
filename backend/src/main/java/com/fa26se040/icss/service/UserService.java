@@ -551,6 +551,21 @@ public class UserService {
         ));
     }
 
+    /** BR-AL-23 + BR-AL-28: cùng quy tắc tìm kiếm, lọc thêm theo cấp hiện tại khi accessLevel khác null. */
+    @Transactional(readOnly = true)
+    public Page<UserSearchResponse> searchUsers(String q, Integer accessLevel, Pageable pageable) {
+        if (accessLevel == null) {
+            return searchUsers(q, pageable);
+        }
+        if (q == null || q.trim().length() < 2) {
+            throw new IllegalArgumentException("Từ khoá tìm kiếm phải có tối thiểu 2 ký tự");
+        }
+        int cappedSize = Math.min(Math.max(1, pageable.getPageSize()), 20);
+        Pageable cappedPageable = PageRequest.of(pageable.getPageNumber(), cappedSize, pageable.getSort());
+        return userRepository.searchActiveUsersByAccessLevel(q.trim(), accessLevel, cappedPageable)
+                .map(u -> new UserSearchResponse(u.getId(), u.getUserCode(), u.getFullName(), u.getRole(), u.getAccessLevel()));
+    }
+
     public int resolveDefaultAccessLevel(Role role) {
         return userAccessLevelHelper.resolveDefaultAccessLevel(role);
     }

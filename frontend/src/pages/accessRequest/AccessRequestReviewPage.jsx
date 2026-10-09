@@ -54,8 +54,16 @@ export default function AccessRequestReviewPage() {
   const [detailItem, setDetailItem] = useState(null);
   const [approveItem, setApproveItem] = useState(null);
   const [rejectItem, setRejectItem] = useState(null);
-  // BR-RQ-44: FM chuyển đơn APPROVED sang FINISHED
+  // BR-RQ-44: FM chuyển đơn APPROVED sang FINISHED; BR-RQ-46: chỉ khi đã bắt đầu, bắt buộc lý do
   const [finishItem, setFinishItem] = useState(null);
+  const [finishReason, setFinishReason] = useState('');
+  const [finishReasonError, setFinishReasonError] = useState(null);
+  const finishReasonInputRef = useRef(null);
+  // BR-RQ-47: FM huỷ đơn APPROVED chưa bắt đầu, bắt buộc lý do
+  const [staffCancelItem, setStaffCancelItem] = useState(null);
+  const [staffCancelReason, setStaffCancelReason] = useState('');
+  const [staffCancelReasonError, setStaffCancelReasonError] = useState(null);
+  const staffCancelReasonInputRef = useRef(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [rejectionReasonError, setRejectionReasonError] = useState(null);
   const rejectReasonInputRef = useRef(null);
@@ -157,20 +165,63 @@ export default function AccessRequestReviewPage() {
     }
   };
 
-  // Handle Finish (BR-RQ-44) — backend không yêu cầu lý do, chỉ xác nhận
+  // Handle Finish (BR-RQ-44, BR-RQ-46) — bắt buộc lý do 10–500 ký tự; backend chặn đơn chưa bắt đầu (ERR_AC_007)
   const handleConfirmFinish = async () => {
     if (!finishItem) return;
+    const trimmed = finishReason.trim();
+    if (trimmed.length < 10 || trimmed.length > 500) {
+      setFinishReasonError(`Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmed.length}).`);
+      finishReasonInputRef.current?.focus();
+      return;
+    }
+    setFinishReasonError(null);
     setActionLoading(true);
     setActionError(null);
     try {
-      await accessRequestService.finishRequest(finishItem.id);
+      await accessRequestService.finishRequest(finishItem.id, trimmed);
       setActionSuccess('Đã chuyển yêu cầu sang Hoàn thành.');
       setFinishItem(null);
+      setFinishReason('');
       loadRequests(page, statusFilter, selectedAreaId);
       loadStats();
       setTimeout(() => setActionSuccess(null), 3000);
     } catch (err) {
       setActionError(err.message || 'Lỗi khi chuyển yêu cầu sang Hoàn thành');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Handle Staff Cancel (BR-RQ-47) — bắt buộc lý do 10–500 ký tự; backend chặn đơn đã bắt đầu (ERR_AC_008)
+  const handleConfirmStaffCancel = async () => {
+    if (!staffCancelItem) return;
+    const trimmed = staffCancelReason.trim();
+    if (trimmed.length < 10 || trimmed.length > 500) {
+      setStaffCancelReasonError(`Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmed.length}).`);
+      staffCancelReasonInputRef.current?.focus();
+      return;
+    }
+    setStaffCancelReasonError(null);
+    setActionLoading(true);
+    setActionError(null);
+    try {
+      await accessRequestService.cancelApprovedRequest(staffCancelItem.id, trimmed);
+      setActionSuccess('Đã huỷ yêu cầu đã duyệt.');
+      setStaffCancelItem(null);
+      setStaffCancelReason('');
+      loadRequests(page, statusFilter, selectedAreaId);
+      loadStats();
+      setTimeout(() => setActionSuccess(null), 3000);
+    } catch (err) {
+      if (err.status === 409) {
+        setStaffCancelItem(null);
+        setActionWarning(err.message || 'Yêu cầu này đã được xử lý bởi người khác. Danh sách đã được làm mới.');
+        loadRequests(page, statusFilter, selectedAreaId);
+        loadStats();
+        setTimeout(() => setActionWarning(null), 7000);
+      } else {
+        setActionError(err.message || 'Lỗi khi huỷ yêu cầu đã duyệt');
+      }
     } finally {
       setActionLoading(false);
     }
@@ -520,16 +571,48 @@ export default function AccessRequestReviewPage() {
                             </button>
                           </>
                         )}
-                        {req.status === 'APPROVED' && (
-                          <button
-                            type="button"
-                            className="arr-btn-icon"
-                            onClick={() => { setFinishItem(req); setActionError(null); }}
-                            title="Chuyển sang Hoàn thành"
-                          >
-                            <CheckCheck size={16} />
-                          </button>
-                        )}
+                        {req.status === 'APPROVED' && (() => {
+                          // BR-RQ-46: chưa tới giờ bắt đầu thì chưa "kết thúc" được — khoá nút, tooltip đặt ở span vì nút disabled không nhận hover
+                          const notStarted = req.startTime && new Date(req.startTime).getTime() > Date.now();
+                          return (
+                            <>
+                            {notStarted && (
+                              // BR-RQ-47: nút Huỷ đặt ngay cạnh nút Hoàn thành đang khoá
+                              <button
+                                type="button"
+                                className="arr-btn-icon arr-btn-icon--reject"
+                                onClick={() => {
+                                  setStaffCancelItem(req);
+                                  setStaffCancelReason('');
+                                  setStaffCancelReasonError(null);
+                                  setActionError(null);
+                                }}
+                                title="Huỷ yêu cầu đã duyệt (chưa bắt đầu)"
+                                aria-label="Huỷ yêu cầu đã duyệt"
+                              >
+                                <Ban size={16} />
+                              </button>
+                            )}
+                            <span title={notStarted ? 'Chưa bắt đầu, dùng Huỷ' : undefined}>
+                              <button
+                                type="button"
+                                className="arr-btn-icon"
+                                onClick={() => {
+                                  setFinishItem(req);
+                                  setFinishReason('');
+                                  setFinishReasonError(null);
+                                  setActionError(null);
+                                }}
+                                disabled={notStarted}
+                                aria-label={notStarted ? 'Chưa bắt đầu, dùng Huỷ' : 'Chuyển sang Hoàn thành'}
+                                title={notStarted ? undefined : 'Chuyển sang Hoàn thành'}
+                              >
+                                <CheckCheck size={16} />
+                              </button>
+                            </span>
+                            </>
+                          );
+                        })()}
                         <button
                           type="button"
                           className="arr-btn-icon"
@@ -636,7 +719,7 @@ export default function AccessRequestReviewPage() {
         </div>
       )}
 
-      {/* FINISH CONFIRMATION MODAL — BR-RQ-44 */}
+      {/* FINISH CONFIRMATION MODAL — BR-RQ-44, BR-RQ-46 */}
       {finishItem && (
         <div className="arr-modal-overlay" onClick={() => !actionLoading && setFinishItem(null)}>
           <div className="arr-modal arr-modal--sm" onClick={e => e.stopPropagation()}>
@@ -672,6 +755,30 @@ export default function AccessRequestReviewPage() {
                 <div><strong>Thời gian:</strong> {formatDateTime(finishItem.startTime)} - {formatDateTime(finishItem.endTime)}</div>
                 <div><strong>Mục đích:</strong> {finishItem.purpose}</div>
               </div>
+
+              <p className="arr-confirm-text">
+                Người tạo đơn và các thành viên sẽ nhận thông báo kèm lý do; đơn không còn hiệu lực để ra vào.
+              </p>
+
+              <ReasonTextarea
+                ref={finishReasonInputRef}
+                id="finish-reason"
+                label="Lý do hoàn thành"
+                placeholder="Ví dụ: Sự kiện kết thúc sớm, nhóm đã rời khu vực..."
+                value={finishReason}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setFinishReason(val);
+                  if (finishReasonError && val.trim().length >= 10 && val.trim().length <= 500) {
+                    setFinishReasonError(null);
+                  }
+                }}
+                error={finishReasonError}
+                min={10}
+                max={500}
+                disabled={actionLoading}
+                required
+              />
             </div>
 
             <div className="arr-modal__footer">
@@ -691,6 +798,81 @@ export default function AccessRequestReviewPage() {
               >
                 <CheckCheck size={16} />
                 <span>{actionLoading ? 'Đang cập nhật...' : 'Xác nhận hoàn thành'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* STAFF CANCEL MODAL — BR-RQ-47 */}
+      {staffCancelItem && (
+        <div className="arr-modal-overlay" onClick={() => !actionLoading && setStaffCancelItem(null)}>
+          <div className="arr-modal" onClick={e => e.stopPropagation()}>
+            <div className="arr-modal__header">
+              <h2 className="arr-modal__title">Huỷ yêu cầu đã duyệt</h2>
+              <button
+                type="button"
+                className="arr-modal__close"
+                onClick={() => !actionLoading && setStaffCancelItem(null)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="arr-modal__body">
+              {actionError && (
+                <div className="arr-alert arr-alert--danger">
+                  {actionError}
+                </div>
+              )}
+
+              <p className="arr-confirm-text">
+                Huỷ yêu cầu của <strong>{staffCancelItem.requesterName}</strong> tại khu vực <strong>{staffCancelItem.areaName}</strong> trước giờ bắt đầu. Người tạo đơn và các thành viên sẽ nhận thông báo kèm lý do.
+              </p>
+
+              <div className="arr-info-box">
+                <div><strong>Thời gian:</strong> {formatDateTime(staffCancelItem.startTime)} - {formatDateTime(staffCancelItem.endTime)}</div>
+                <div><strong>Mục đích:</strong> {staffCancelItem.purpose}</div>
+              </div>
+
+              <ReasonTextarea
+                ref={staffCancelReasonInputRef}
+                id="staff-cancel-reason"
+                label="Lý do huỷ"
+                placeholder="Ví dụ: Khu vực phải đóng để bảo trì đột xuất..."
+                value={staffCancelReason}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setStaffCancelReason(val);
+                  if (staffCancelReasonError && val.trim().length >= 10 && val.trim().length <= 500) {
+                    setStaffCancelReasonError(null);
+                  }
+                }}
+                error={staffCancelReasonError}
+                min={10}
+                max={500}
+                disabled={actionLoading}
+                required
+              />
+            </div>
+
+            <div className="arr-modal__footer">
+              <button
+                type="button"
+                className="arr-filter-btn"
+                onClick={() => setStaffCancelItem(null)}
+                disabled={actionLoading}
+              >
+                Đóng
+              </button>
+              <button
+                type="button"
+                className="arr-filter-btn arr-btn--reject-modal"
+                onClick={handleConfirmStaffCancel}
+                disabled={actionLoading}
+              >
+                <Ban size={16} />
+                <span>{actionLoading ? 'Đang huỷ...' : 'Xác nhận huỷ'}</span>
               </button>
             </div>
           </div>

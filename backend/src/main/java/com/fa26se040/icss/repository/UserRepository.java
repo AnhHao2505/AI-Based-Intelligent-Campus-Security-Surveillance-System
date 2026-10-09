@@ -121,6 +121,27 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     )
     Page<User> searchActiveUsers(@Param("q") String q, Pageable pageable);
 
+    /** BR-AL-28: lọc thêm theo cấp hiện tại cho màn Cấp truy cập (đổi cấp nhiều người). */
+    @Query(
+        value = """
+            SELECT u FROM User u
+            WHERE u.deletedAt IS NULL
+              AND u.isActive = true
+              AND u.accessLevel = :accessLevel
+              AND (LOWER(u.userCode) LIKE LOWER(CONCAT('%', :q, '%'))
+                   OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :q, '%')))
+            """,
+        countQuery = """
+            SELECT COUNT(u) FROM User u
+            WHERE u.deletedAt IS NULL
+              AND u.isActive = true
+              AND u.accessLevel = :accessLevel
+              AND (LOWER(u.userCode) LIKE LOWER(CONCAT('%', :q, '%'))
+                   OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :q, '%')))
+            """
+    )
+    Page<User> searchActiveUsersByAccessLevel(@Param("q") String q, @Param("accessLevel") Integer accessLevel, Pageable pageable);
+
     @Query(
         value = """
             SELECT new com.fa26se040.icss.dto.user.ImportBatchSummaryResponse(

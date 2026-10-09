@@ -9,14 +9,33 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../../context/AuthContext';
-import { searchUsers, updateUserAccessLevel } from '../../services/userService';
+import { searchUsers, updateUserAccessLevel, bulkUpdateUserAccessLevel } from '../../services/userService';
 import { ROLES, ROLE_LABELS } from '../../constants/roles';
 import { getAccessLevelConfig } from '../../utils/areaHelpers';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import PageHeader from '../../components/ui/PageHeader';
+import Pagination from '../../components/ui/Pagination';
 import ReasonTextarea from '../../components/ui/ReasonTextarea';
 import '../../styles/UserAccessLevelPage.css';
+
+const PAGE_SIZE = 20;
+
+// BR-AL-28: nhãn kết quả đổi cấp theo từng người
+const OUTCOME_LABELS = {
+  UPDATED: 'Thành công',
+  UNCHANGED: 'Không đổi',
+  FAILED: 'Lỗi',
+};
+
+const EMPTY_BULK_MODAL = {
+  isOpen: false,
+  newLevel: 2,
+  reason: '',
+  reasonError: '',
+  isSaving: false,
+  result: null,
+};
 
 const ACCESS_LEVELS = [
   { level: 1, name: 'Cấp 1 — Mọi người dùng' },
@@ -37,6 +56,16 @@ export default function UserAccessLevelPage() {
   const debounceRef = useRef(null);
   const userReasonRef = useRef(null);
 
+  // BR-AL-28: phân trang, lọc theo cấp hiện tại, chọn nhiều người (giữ lựa chọn khi đổi trang / đổi từ khoá)
+  const [page, setPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
+  const [levelFilter, setLevelFilter] = useState('');
+  const [selected, setSelected] = useState({});
+  const [bulkModal, setBulkModal] = useState(EMPTY_BULK_MODAL);
+  const bulkReasonRef = useRef(null);
+  const selectedList = Object.values(selected);
+
   const [confirmUserModal, setConfirmUserModal] = useState({
     isOpen: false,
     user: null,
@@ -46,7 +75,7 @@ export default function UserAccessLevelPage() {
     isSaving: false,
   });
 
-  const handleSearchUsers = useCallback(async (q) => {
+  const handleSearchUsers = useCallback(async (q, pageNo = 0, level = '') => {
     const clean = q.trim();
     if (clean.length < 2) {
       setUsers([]);
@@ -58,9 +87,12 @@ export default function UserAccessLevelPage() {
     setLoadingUsers(true);
     setHasSearched(true);
     try {
-      const res = await searchUsers(clean, 0, 20);
+      const res = await searchUsers(clean, pageNo, PAGE_SIZE, level ? Number(level) : undefined);
       const items = res?.content || [];
       setUsers(items);
+      setPage(pageNo);
+      setTotalPages(res?.totalPages ?? 0);
+      setTotalElements(res?.totalElements ?? items.length);
 
       const initialMap = {};
       items.forEach((u) => {
@@ -87,7 +119,7 @@ export default function UserAccessLevelPage() {
     if (val.trim().length >= 2) {
       setLoadingUsers(true);
       debounceRef.current = setTimeout(() => {
-        handleSearchUsers(val);
+        handleSearchUsers(val, 0, levelFilter);
       }, 300);
     } else {
       setUsers([]);
@@ -116,6 +148,72 @@ export default function UserAccessLevelPage() {
       reasonError: '',
       isSaving: false,
     });
+  };
+
+  const isSelfUser = (item) =>
+    (currentUser?.id && item.id === currentUser.id) ||
+    (currentUser?.email && item.email?.toLowerCase() === currentUser.email?.toLowerCase());
+
+  const toggleSelect = (item) => {
+    setSelected((prev) => {
+      const next = { ...prev };
+      if (next[item.id]) delete next[item.id];
+      else next[item.id] = item;
+      return next;
+    });
+  };
+
+  const selectablePageUsers = users.filter((u) => !isSelfUser(u));
+  const allPageSelected =
+    selectablePageUsers.length > 0 && selectablePageUsers.every((u) => selected[u.id]);
+
+  const toggleSelectPage = () => {
+    setSelected((prev) => {
+      const next = { ...prev };
+      if (allPageSelected) selectablePageUsers.forEach((u) => delete next[u.id]);
+      else selectablePageUsers.forEach((u) => { next[u.id] = u; });
+      return next;
+    });
+  };
+
+  const openBulkModal = () => {
+    if (selectedList.length === 0) return;
+    setBulkModal({ ...EMPTY_BULK_MODAL, isOpen: true });
+  };
+
+  const closeBulkModal = () => {
+    const hadResult = Boolean(bulkModal.result);
+    setBulkModal(EMPTY_BULK_MODAL);
+    if (hadResult) setSelected({});
+  };
+
+  const handleConfirmBulk = async () => {
+    const trimmedReason = bulkModal.reason?.trim() || '';
+    if (trimmedReason.length < 10 || trimmedReason.length > 500) {
+      setBulkModal((prev) => ({
+        ...prev,
+        reasonError: `Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmedReason.length}).`,
+      }));
+      bulkReasonRef.current?.focus();
+      return;
+    }
+    setBulkModal((prev) => ({ ...prev, isSaving: true, reasonError: '' }));
+    try {
+      const result = await bulkUpdateUserAccessLevel(
+        selectedList.map((u) => u.id),
+        Number(bulkModal.newLevel),
+        trimmedReason
+      );
+      setBulkModal((prev) => ({ ...prev, isSaving: false, result }));
+      toast.success(
+        `Đổi cấp xong: ${result.updated} thành công, ${result.unchanged} không đổi, ${result.failed} lỗi`
+      );
+      handleSearchUsers(keyword, page, levelFilter);
+    } catch (err) {
+      console.error('Lỗi đổi cấp nhiều người:', err);
+      toast.error(err?.message || 'Không thể đổi cấp truy cập');
+      setBulkModal((prev) => ({ ...prev, isSaving: false }));
+    }
   };
 
   const handleConfirmSaveUserLevel = async () => {
@@ -159,7 +257,7 @@ export default function UserAccessLevelPage() {
     <div className="user-access-level-page">
       <PageHeader
         title="Cấp truy cập người dùng"
-        subtitle="Tra cứu và điều chỉnh cấp độ truy cập (Level 1, Level 2, Level 3) cho người dùng trong khuôn viên."
+        description="Tra cứu và điều chỉnh cấp độ truy cập (Level 1, Level 2, Level 3) cho người dùng trong khuôn viên."
       />
 
       <div className="tab-pane">
@@ -189,7 +287,40 @@ export default function UserAccessLevelPage() {
               </button>
             )}
           </div>
+          <select
+            className="access-level-select access-level-filter"
+            value={levelFilter}
+            onChange={(e) => {
+              const val = e.target.value;
+              setLevelFilter(val);
+              if (keyword.trim().length >= 2) handleSearchUsers(keyword, 0, val);
+            }}
+            aria-label="Lọc theo cấp hiện tại"
+          >
+            <option value="">Mọi cấp hiện tại</option>
+            {ACCESS_LEVELS.map((opt) => (
+              <option key={opt.level} value={opt.level}>
+                Đang ở cấp {opt.level}
+              </option>
+            ))}
+          </select>
         </div>
+
+        {isFM && selectedList.length > 0 && (
+          <div className="access-level-bulk-bar" role="status">
+            <span>
+              Đã chọn <strong>{selectedList.length}</strong> người
+            </span>
+            <div className="access-level-bulk-bar__actions">
+              <Button variant="outline" size="sm" onClick={() => setSelected({})}>
+                Bỏ chọn
+              </Button>
+              <Button variant="primary" size="sm" icon={ShieldCheck} onClick={openBulkModal}>
+                Đổi cấp
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Table Card */}
         <div className="access-level-table-card">
@@ -219,6 +350,18 @@ export default function UserAccessLevelPage() {
               <table className="access-level-table">
                 <thead>
                   <tr>
+                    {isFM && (
+                      <th className="access-level-cell--check">
+                        <input
+                          type="checkbox"
+                          checked={allPageSelected}
+                          onChange={toggleSelectPage}
+                          disabled={selectablePageUsers.length === 0}
+                          aria-label="Chọn tất cả trang này"
+                          title="Chọn tất cả trang này"
+                        />
+                      </th>
+                    )}
                     <th>Mã định danh</th>
                     <th>Họ và tên</th>
                     <th>Vai trò</th>
@@ -240,6 +383,18 @@ export default function UserAccessLevelPage() {
 
                     return (
                       <tr key={item.id} className={isSelf ? 'access-level-row--self' : ''}>
+                        {isFM && (
+                          <td className="access-level-cell--check">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(selected[item.id])}
+                              onChange={() => toggleSelect(item)}
+                              disabled={isSelf}
+                              aria-label={`Chọn ${item.userCode}`}
+                              title={isSelf ? 'Bạn không thể tự thay đổi cấp truy cập của chính mình' : undefined}
+                            />
+                          </td>
+                        )}
                         <td className="access-level-cell--code">{item.userCode}</td>
                         <td className="access-level-cell--name">
                           <div className="user-name-wrapper">
@@ -306,10 +461,148 @@ export default function UserAccessLevelPage() {
                   })}
                 </tbody>
               </table>
+              {totalPages > 1 && (
+                <Pagination
+                  currentPage={page}
+                  totalPages={totalPages}
+                  totalElements={totalElements}
+                  pageSize={PAGE_SIZE}
+                  onPageChange={(newPage) => handleSearchUsers(keyword, newPage, levelFilter)}
+                  itemLabel="người dùng"
+                />
+              )}
             </div>
           )}
         </div>
       </div>
+
+      {/* Modal: đổi cấp nhiều người (BR-AL-28) */}
+      {bulkModal.isOpen && (
+        <Modal
+          isOpen={bulkModal.isOpen}
+          onClose={() => !bulkModal.isSaving && closeBulkModal()}
+          title={bulkModal.result ? 'Kết quả đổi cấp truy cập' : `Đổi cấp truy cập cho ${selectedList.length} người`}
+        >
+          <div className="user-modal-content">
+            {!bulkModal.result ? (
+              <>
+                <div className="modal-field">
+                  <label className="change-summary-label" htmlFor="bulk-new-level">Cấp mới</label>
+                  <select
+                    id="bulk-new-level"
+                    className="access-level-select"
+                    value={bulkModal.newLevel}
+                    onChange={(e) => setBulkModal((prev) => ({ ...prev, newLevel: Number(e.target.value) }))}
+                    disabled={bulkModal.isSaving}
+                  >
+                    {ACCESS_LEVELS.map((opt) => (
+                      <option key={opt.level} value={opt.level}>
+                        {opt.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="modal-field">
+                  <span className="change-summary-label">Những người sẽ bị đổi cấp:</span>
+                  <ul className="access-level-bulk-list">
+                    {selectedList.map((u) => (
+                      <li key={u.id}>
+                        {u.fullName} ({u.userCode}) — đang ở cấp {u.accessLevel ?? 1}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="modal-field">
+                  <ReasonTextarea
+                    ref={bulkReasonRef}
+                    label="Lý do thay đổi"
+                    required
+                    value={bulkModal.reason}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setBulkModal((prev) => ({
+                        ...prev,
+                        reason: val,
+                        reasonError:
+                          prev.reasonError && val.trim().length >= 10 && val.trim().length <= 500
+                            ? ''
+                            : prev.reasonError,
+                      }));
+                    }}
+                    min={10}
+                    max={500}
+                    placeholder="Nhập lý do điều chỉnh cấp độ truy cập (từ 10 đến 500 ký tự)..."
+                    rows={3}
+                    error={bulkModal.reasonError}
+                    disabled={bulkModal.isSaving}
+                  />
+                </div>
+
+                <div className="modal-actions">
+                  <Button variant="outline" onClick={closeBulkModal} disabled={bulkModal.isSaving}>
+                    Hủy bỏ
+                  </Button>
+                  <Button
+                    variant="primary"
+                    onClick={handleConfirmBulk}
+                    disabled={bulkModal.isSaving}
+                    icon={
+                      bulkModal.isSaving ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <ShieldCheck size={16} />
+                      )
+                    }
+                  >
+                    {bulkModal.isSaving ? 'Đang lưu...' : 'Xác nhận đổi cấp'}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="access-level-bulk-summary">
+                  {bulkModal.result.updated} thành công · {bulkModal.result.unchanged} không đổi · {bulkModal.result.failed} lỗi
+                </p>
+                <div className="access-level-table-wrapper">
+                  <table className="access-level-table">
+                    <thead>
+                      <tr>
+                        <th>Người dùng</th>
+                        <th>Kết quả</th>
+                        <th>Chi tiết</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bulkModal.result.results.map((r) => (
+                        <tr key={r.userId}>
+                          <td>{r.fullName ? `${r.fullName} (${r.userCode})` : r.userId}</td>
+                          <td>
+                            <span className={`access-level-outcome access-level-outcome--${r.outcome}`}>
+                              {OUTCOME_LABELS[r.outcome] || r.outcome}
+                            </span>
+                          </td>
+                          <td>
+                            {r.outcome === 'UPDATED'
+                              ? `Cấp ${r.oldLevel ?? '—'} → ${r.newLevel}`
+                              : r.message || '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="modal-actions">
+                  <Button variant="primary" onClick={closeBulkModal}>
+                    Đóng
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </Modal>
+      )}
 
       {/* Modal: Xác nhận thay đổi cấp độ người dùng */}
       {confirmUserModal.isOpen && (

@@ -46,6 +46,10 @@ export default function ReasonCatalogPage() {
 		sortOrder: 0,
 	});
 	const [creating, setCreating] = useState(false);
+	// B-01: lỗi gửi form hiện trong popup (banner của trang nằm sau lớp phủ). Trùng mã -> ngay dưới ô Mã lý do.
+	const [createSubmitError, setCreateSubmitError] = useState(null);
+	const [createCodeServerError, setCreateCodeServerError] = useState(null);
+	const [editSubmitError, setEditSubmitError] = useState(null);
 
 	// Edit Modal
 	const [editModalOpen, setEditModalOpen] = useState(false);
@@ -64,7 +68,7 @@ export default function ReasonCatalogPage() {
 		try {
 			const data = await getReasonCatalogs({
 				actionType: filterAction || undefined,
-				isActive: filterActive !== "" ? filterActive === "true" : undefined,
+				active: filterActive !== "" ? filterActive === "true" : undefined,
 			});
 			setReasons(data || []);
 		} catch (err) {
@@ -86,6 +90,8 @@ export default function ReasonCatalogPage() {
 			label: "",
 			sortOrder: reasons.length + 1,
 		});
+		setCreateSubmitError(null);
+		setCreateCodeServerError(null);
 		setCreateModalOpen(true);
 	};
 
@@ -104,12 +110,15 @@ export default function ReasonCatalogPage() {
 	const handleCreateSubmit = async (e) => {
 		e.preventDefault();
 		if (!createForm.code?.trim() || !createForm.label?.trim()) {
-			setErrorMsg("Vui lòng điền đầy đủ mã và nhãn lý do.");
+			setCreateSubmitError("Vui lòng điền đầy đủ mã và nhãn lý do.");
 			return;
 		}
 		if (createCodeError || createLabelError) return;
 		setCreating(true);
 		setErrorMsg(null);
+		setSuccessMsg(null);
+		setCreateSubmitError(null);
+		setCreateCodeServerError(null);
 		try {
 			await createReasonCatalog({
 				actionType: createForm.actionType,
@@ -121,7 +130,13 @@ export default function ReasonCatalogPage() {
 			setCreateModalOpen(false);
 			fetchReasons();
 		} catch (err) {
-			setErrorMsg(err.message || "Không thể tạo lý do mới.");
+			const msg = err.message || "Không thể tạo lý do mới.";
+			// BE (ReasonCatalogService) báo trùng mã bằng câu "Mã lý do '…' đã tồn tại cho loại thao tác …"
+			if (/đã tồn tại/i.test(msg)) {
+				setCreateCodeServerError(msg);
+			} else {
+				setCreateSubmitError(msg);
+			}
 		} finally {
 			setCreating(false);
 		}
@@ -135,17 +150,20 @@ export default function ReasonCatalogPage() {
 			label: item.label,
 			sortOrder: item.sortOrder ?? 0,
 		});
+		setEditSubmitError(null);
 		setEditModalOpen(true);
 	};
 
 	const handleUpdateSubmit = async (e) => {
 		e.preventDefault();
 		if (!editForm.label?.trim()) {
-			setErrorMsg("Nhãn lý do không được để trống.");
+			setEditSubmitError("Nhãn lý do không được để trống.");
 			return;
 		}
 		setUpdating(true);
 		setErrorMsg(null);
+		setSuccessMsg(null);
+		setEditSubmitError(null);
 		try {
 			await updateReasonCatalog(editForm.id, {
 				label: editForm.label.trim(),
@@ -155,7 +173,7 @@ export default function ReasonCatalogPage() {
 			setEditModalOpen(false);
 			fetchReasons();
 		} catch (err) {
-			setErrorMsg(err.message || "Không thể cập nhật lý do.");
+			setEditSubmitError(err.message || "Không thể cập nhật lý do.");
 		} finally {
 			setUpdating(false);
 		}
@@ -358,6 +376,12 @@ export default function ReasonCatalogPage() {
 				icon={Tag}
 			>
 				<form onSubmit={handleCreateSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+					{createSubmitError && (
+						<div className="syscfg-alert syscfg-alert--danger" role="alert">
+							<AlertCircle size={18} className="syscfg-alert__icon" />
+							<span className="syscfg-alert__text">{createSubmitError}</span>
+						</div>
+					)}
 					<div>
 						<label style={{ display: "block", fontSize: "13px", fontWeight: 600, marginBottom: "4px" }}>
 							Loại thao tác <span style={{ color: "red" }}>*</span>
@@ -387,9 +411,12 @@ export default function ReasonCatalogPage() {
 						</label>
 						<Input
 							value={createForm.code}
-							onChange={(e) => setCreateForm({ ...createForm, code: e.target.value.toUpperCase() })}
+							onChange={(e) => {
+								setCreateForm({ ...createForm, code: e.target.value.toUpperCase() });
+								setCreateCodeServerError(null);
+							}}
 							placeholder="VD: TECH_TALK"
-							error={createCodeError}
+							error={createCodeError || createCodeServerError}
 							hint="Chữ hoa, số, gạch dưới. Không thể sửa sau khi tạo."
 							required
 						/>
@@ -443,6 +470,12 @@ export default function ReasonCatalogPage() {
 				icon={Edit2}
 			>
 				<form onSubmit={handleUpdateSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+					{editSubmitError && (
+						<div className="syscfg-alert syscfg-alert--danger" role="alert">
+							<AlertCircle size={18} className="syscfg-alert__icon" />
+							<span className="syscfg-alert__text">{editSubmitError}</span>
+						</div>
+					)}
 					<div>
 						<label style={{ display: "block", fontSize: "13px", fontWeight: 600, marginBottom: "4px" }}>
 							Mã lý do

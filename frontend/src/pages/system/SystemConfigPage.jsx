@@ -11,6 +11,7 @@ import {
 	SlidersHorizontal,
 	Info,
 	Cpu,
+	UserPlus,
 } from "lucide-react";
 import {
 	getSystemConfigs,
@@ -209,6 +210,9 @@ export default function SystemConfigPage() {
 				return "An ninh";
 			case "ACCOUNT":
 				return "Tài khoản";
+			// B-02: nhóm tham số khách (V60)
+			case "GUEST":
+				return "Khách";
 			default:
 				return groupKey;
 		}
@@ -233,6 +237,13 @@ export default function SystemConfigPage() {
 			case "AI_CONFIG":
 				return (
 					<Cpu
+						size={18}
+						className="syscfg-group-icon"
+					/>
+				);
+			case "GUEST":
+				return (
+					<UserPlus
 						size={18}
 						className="syscfg-group-icon"
 					/>

@@ -30,7 +30,6 @@ import MemberCodeCombobox from "../../components/accessRequest/MemberCodeCombobo
 
 export default function AccessRequestPage() {
 	const { user } = useAuth();
-	const isFacilityManager = user?.role === "FACILITY_MANAGER";
 
 	// Available Areas
 	const [areas, setAreas] = useState([]);
@@ -127,13 +126,8 @@ export default function AccessRequestPage() {
 			};
 		}
 
-		const nowBuffer = new Date(Date.now() - 5 * 60 * 1000);
-		if (startDateTime < nowBuffer) {
-			return {
-				isError: true,
-				text: "Thời gian bắt đầu không được ở trong quá khứ",
-			};
-		}
+		// A-07: không tự kiểm "giờ bắt đầu ở quá khứ" với ngưỡng viết cứng — ngưỡng là
+		// ACCESS_REQUEST_PAST_START_BUFFER_MINUTES (BE đọc cấu hình, NORMAL_USER không đọc được); BE trả lỗi khi gửi.
 
 		const diffMin = Math.round((endDateTime - startDateTime) / 60000);
 		const hours = Math.floor(diffMin / 60);
@@ -219,16 +213,21 @@ export default function AccessRequestPage() {
 	const areaList = Array.isArray(areas) ? areas : areas?.content || [];
 	const currentArea = areaList.find((a) => a.id === selectedAreaId);
 
-	// When area changes, if area is HIGHLY_CONFIDENTIAL, force INDIVIDUAL
+	// A-06 (BR-RQ-28): khu vực có nhận đơn nhóm hay không do BE quyết (cờ groupRequestAllowed của available-areas,
+	// theo ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE). Thiếu cờ thì giữ luật mặc định: Tuyệt mật chỉ nhận đơn cá nhân.
+	const isGroupBlocked = (area) => {
+		if (!area) return false;
+		if (typeof area.groupRequestAllowed === "boolean") return !area.groupRequestAllowed;
+		return area.areaLevel === "HIGHLY_CONFIDENTIAL" || area.areaLevel === "PRIVATE";
+	};
+	const groupBlocked = isGroupBlocked(currentArea);
+
+	// When area changes, if area does not accept group requests, force INDIVIDUAL
 	const handleAreaChange = (e) => {
 		const areaId = e.target.value;
 		setSelectedAreaId(areaId);
 		const found = areaList.find((a) => a.id === areaId);
-		if (
-			found &&
-			(found.areaLevel === "HIGHLY_CONFIDENTIAL" ||
-				found.areaLevel === "PRIVATE")
-		) {
+		if (isGroupBlocked(found)) {
 			setRequestType("INDIVIDUAL");
 			setMemberList([]);
 		}
@@ -351,21 +350,13 @@ export default function AccessRequestPage() {
 			return;
 		}
 
+		// A-07: kiểm "giờ bắt đầu ở quá khứ" để BE làm (ngưỡng theo cấu hình), lỗi hiện qua setFormError ở catch
 		const start = getStartDateTime();
 		const end = getEndDateTime();
-		const nowBuffer = new Date(Date.now() - 5 * 60 * 1000);
-
-		if (start < nowBuffer) {
-			setFormError("Thời gian bắt đầu không được ở trong quá khứ.");
-			return;
-		}
 
 		let cleanMemberCodes = [];
 		if (requestType === "GROUP") {
-			if (
-				currentArea?.areaLevel === "HIGHLY_CONFIDENTIAL" ||
-				currentArea?.areaLevel === "PRIVATE"
-			) {
+			if (groupBlocked) {
 				setFormError(
 					`Khu vực ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name} chỉ cho phép đăng ký cá nhân.`,
 				);
@@ -598,7 +589,9 @@ export default function AccessRequestPage() {
 											</div>
 											<div>
 												{isHighlyConf
-													? `Khu vực ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name}. Chỉ áp dụng hình thức đăng ký truy cập Cá nhân (không hỗ trợ đăng ký theo nhóm).`
+													? groupBlocked
+														? `Khu vực ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name}. Chỉ áp dụng hình thức đăng ký truy cập Cá nhân (không hỗ trợ đăng ký theo nhóm).`
+														: `Khu vực ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name}. Đơn nhóm được phép theo cấu hình hệ thống; thành viên cần đáp ứng điều kiện cấp độ truy cập của khu vực.`
 													: currentArea?.areaLevel === "CONFIDENTIAL_CONTACT_REQUIRED"
 													? "Khu vực yêu cầu liên hệ trước. Người tạo đơn đủ cấp độ truy cập có thể bảo lãnh cho các thành viên trong nhóm tham gia cùng thời gian đăng ký."
 													: "Khu vực yêu cầu phê duyệt trước khi vào."}
@@ -636,15 +629,13 @@ export default function AccessRequestPage() {
 								type="button"
 								className={`arp-type-btn ${requestType === "GROUP" ? "arp-type-btn--selected" : ""}`}
 								onClick={() => {
-									if (currentArea?.areaLevel !== "HIGHLY_CONFIDENTIAL") {
+									if (!groupBlocked) {
 										setRequestType("GROUP");
 									}
 								}}
-								disabled={
-									currentArea?.areaLevel === "HIGHLY_CONFIDENTIAL" || submitting
-								}
+								disabled={groupBlocked || submitting}
 								title={
-									currentArea?.areaLevel === "HIGHLY_CONFIDENTIAL"
+									groupBlocked
 										? `Khu vực ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name} chỉ cho phép đăng ký cá nhân`
 										: ""
 								}
@@ -1116,40 +1107,6 @@ export default function AccessRequestPage() {
 																title="Hủy yêu cầu truy cập này"
 															>
 																Hủy
-															</button>
-														)}
-														{isFacilityManager && req.status === "APPROVED" && (
-															<button
-																type="button"
-																className="arp-btn arp-btn--secondary arp-btn--sm"
-																onClick={async () => {
-																	try {
-																		await accessRequestService.finishRequest(
-																			req.id,
-																		);
-																		setFormSuccess(
-																			"Chuyển trạng thái sang Hoàn thành!",
-																		);
-																		loadMyRequests(
-																			historyPage,
-																			historyStatusFilter,
-																			historyAreaFilter,
-																		);
-																		setTimeout(
-																			() => setFormSuccess(null),
-																			4000,
-																		);
-																	} catch (err) {
-																		setFormError(
-																			err.message ||
-																				"Không thể cập nhật trạng thái.",
-																		);
-																		setTimeout(() => setFormError(null), 4000);
-																	}
-																}}
-																title="Chuyển sang Hoàn thành"
-															>
-																Hoàn thành
 															</button>
 														)}
 														{req.status === "REJECTED" && (

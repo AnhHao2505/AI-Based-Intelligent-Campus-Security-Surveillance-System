@@ -165,7 +165,7 @@ class UserListScopeForFacilityManagerTest {
 
         @BeforeEach
         void setUpMvc() {
-            mockMvc = MockMvcBuilders.standaloneSetup(new UserController(mockUserService)).build();
+            mockMvc = MockMvcBuilders.standaloneSetup(new UserController(mockUserService, null)).build(); // BR-AL-28: bulk service không dùng ở test này
             when(mockUserService.getUsers(any(), any(), any(), any(), any()))
                     .thenReturn(UserPageResponse.builder().build());
         }

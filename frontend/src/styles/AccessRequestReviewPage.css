@@ -457,6 +457,16 @@
   color: var(--theme-text-primary);
 }
 
+/* BR-RQ-46: nút Hoàn thành khoá khi đơn chưa bắt đầu */
+.arr-btn-icon:disabled,
+.arr-btn-icon:disabled:hover {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: var(--theme-bg-surface);
+  border-color: var(--theme-border);
+  color: var(--theme-text-muted);
+}
+
 .arr-btn-icon--approve {
   color: #22c55e;
   border-color: var(--theme-success-border);

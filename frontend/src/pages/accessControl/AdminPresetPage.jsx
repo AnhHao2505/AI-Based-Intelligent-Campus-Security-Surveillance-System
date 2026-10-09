@@ -122,7 +122,7 @@ export default function AdminPresetPage() {
     <div className="admin-preset-page">
       <PageHeader
         title="Mặc định theo loại khu vực"
-        subtitle="Quản lý cấp độ truy cập mặc định cho từng loại khu vực trong toàn bộ khuôn viên."
+        description="Quản lý cấp độ truy cập mặc định cho từng loại khu vực trong toàn bộ khuôn viên."
         actions={
           <Button
             variant="outline"

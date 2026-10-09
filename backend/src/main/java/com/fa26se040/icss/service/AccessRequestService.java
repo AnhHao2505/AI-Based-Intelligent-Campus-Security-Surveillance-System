@@ -151,7 +151,7 @@ public class AccessRequestService {
         validateCommonRules(area, request.startTime(), request.endTime());
 
         boolean groupAllowedInPrivate = systemConfigService.getBoolean(ConfigKey.ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE);
-        if (!groupAllowedInPrivate && area.getAreaLevel() == AreaLevel.HIGHLY_CONFIDENTIAL) {
+        if (!AreaService.isGroupRequestAllowed(area.getAreaLevel(), groupAllowedInPrivate)) {
             throw new IllegalArgumentException("Khu vực bảo mật cao (HIGHLY_CONFIDENTIAL) chỉ cho phép đăng ký truy cập cá nhân (INDIVIDUAL)");
         }
 
@@ -931,7 +931,7 @@ public class AccessRequestService {
     }
 
     @Transactional
-    public AccessRequestResponse finishRequest(UUID id, String actorEmail) {
+    public AccessRequestResponse finishRequest(UUID id, String reason, String actorEmail) {
         log.info("Finishing access request {} by user {}", id, actorEmail);
 
         AccessRequest accessRequest = accessRequestRepository.findByIdWithDetails(id)
@@ -949,10 +949,18 @@ public class AccessRequestService {
             throw new AccessDeniedException("Bạn không có quyền chuyển yêu cầu truy cập này sang Hoàn thành.");
         }
 
+        // BR-RQ-46: chỉ hoàn thành đơn đã tới giờ bắt đầu (now >= startTime); chưa bắt đầu thì không phải "kết thúc"
+        OffsetDateTime now = OffsetDateTime.now();
+        if (accessRequest.getStartTime() != null && now.isBefore(accessRequest.getStartTime())) {
+            throw new AccessControlException(AccessControlErrorCode.ERR_AC_007,
+                    (Object) accessRequest.getStartTime().atZoneSameInstant(VN_ZONE).format(VN_DATE_TIME_FORMATTER));
+        }
+        String finishReason = reason != null ? reason.trim() : null;
+
         AccessRequestSnapshot beforeSnapshot = AccessRequestSnapshot.from(accessRequest);
 
         accessRequest.setStatus(RequestStatus.FINISHED);
-        accessRequest.setUpdatedAt(OffsetDateTime.now());
+        accessRequest.setUpdatedAt(now);
 
         AccessRequest updated = accessRequestRepository.save(accessRequest);
         log.info("Access request {} marked as FINISHED", updated.getId());
@@ -965,11 +973,121 @@ public class AccessRequestService {
                 updated.getRequester(),
                 beforeSnapshot,
                 AccessRequestSnapshot.from(updated),
-                null,
+                finishReason,
                 actor
         );
 
+        // BR-RQ-46: báo người tạo đơn + thành viên nhóm (đơn hết hiệu lực sớm, họ không còn vào được theo đơn này).
+        // Lỗi gửi thông báo không làm hỏng thao tác hoàn thành (InAppNotificationService chạy REQUIRES_NEW).
+        try {
+            List<User> recipients = new ArrayList<>();
+            if (updated.getRequester() != null) {
+                recipients.add(updated.getRequester());
+            }
+            if (updated.getMembers() != null) {
+                for (var member : updated.getMembers()) {
+                    if (member.getUser() != null) {
+                        recipients.add(member.getUser());
+                    }
+                }
+            }
+            String areaName = updated.getArea() != null ? updated.getArea().getName() : "khu vực";
+            String timeRange = InAppNotificationService.formatTimeRange(updated.getStartTime(), updated.getEndTime());
+            String title = "Yêu cầu truy cập đã được kết thúc";
+            String message = "Yêu cầu vào " + areaName + " (" + timeRange + ") đã được " + actor.getFullName()
+                    + " chuyển sang Hoàn thành, không còn hiệu lực để ra vào. Lý do: " + finishReason;
+            inAppNotificationService.createForUsers(recipients, NotificationType.REQUEST_FINISHED, title, message, updated.getId());
+        } catch (Exception e) {
+            log.error("Failed to send finish notification for request {}", updated.getId(), e);
+        }
+
         return mapToResponse(updated);
+    }
+
+    /**
+     * BR-RQ-47: FM huỷ đơn APPROVED chưa tới giờ bắt đầu (bổ sung B-03: chưa bắt đầu thì không "Hoàn thành" mà huỷ).
+     * Conditional UPDATE nguyên tử (status = APPROVED AND startTime > now) là nguồn chân lý duy nhất, không pre-check.
+     * Nguồn huỷ ghi USER (CHECK V56 chỉ có USER / SYSTEM) với cancelled_by = FM và cancel_reason = lý do.
+     */
+    @Transactional
+    public AccessRequestResponse cancelApprovedRequest(UUID id, String reason, String actorEmail) {
+        log.info("Staff cancelling approved access request {} by user {}", id, actorEmail);
+
+        AccessRequest accessRequest = accessRequestRepository.findByIdWithDetails(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu truy cập với mã: " + id));
+
+        User actor = userRepository.findByEmail(actorEmail)
+                .orElseThrow(() -> new UnauthorizedException("Không tìm thấy thông tin người dùng"));
+        // Khớp @PreAuthorize của controller: chỉ FACILITY_MANAGER
+        if (actor.getRole() != Role.FACILITY_MANAGER) {
+            throw new AccessDeniedException("Bạn không có quyền huỷ yêu cầu truy cập đã được duyệt.");
+        }
+
+        AccessRequestSnapshot beforeSnapshot = AccessRequestSnapshot.from(accessRequest);
+        String cancelReason = reason != null ? reason.trim() : null;
+        OffsetDateTime now = OffsetDateTime.now();
+
+        int updatedCount = accessRequestRepository.cancelIfApprovedNotStarted(
+                id, RequestStatus.CANCELLED, now, RequestStatus.APPROVED);
+
+        if (updatedCount == 1) {
+            // [RÀNG BUỘC NOTIFICATION / SIDE-EFFECTS]: chỉ ở nhánh 1 dòng
+            accessRequestRepository.recordCancellation(
+                    id, com.fa26se040.icss.enums.CancelSource.USER, actor, cancelReason, RequestStatus.CANCELLED);
+            AccessRequest updated = accessRequestRepository.findByIdWithDetails(id)
+                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu truy cập với mã: " + id));
+            log.info("Approved access request {} cancelled by FM {}", updated.getId(), actor.getId());
+
+            auditService.record(
+                    AuditTargetType.ACCESS_REQUEST,
+                    AuditAction.CANCEL,
+                    updated.getId().toString(),
+                    updated.getArea(),
+                    updated.getRequester(),
+                    beforeSnapshot,
+                    AccessRequestSnapshot.from(updated),
+                    cancelReason,
+                    actor
+            );
+
+            try {
+                List<User> recipients = new ArrayList<>();
+                if (updated.getRequester() != null) {
+                    recipients.add(updated.getRequester());
+                }
+                if (updated.getMembers() != null) {
+                    for (var member : updated.getMembers()) {
+                        if (member.getUser() != null) {
+                            recipients.add(member.getUser());
+                        }
+                    }
+                }
+                String areaName = updated.getArea() != null ? updated.getArea().getName() : "khu vực";
+                String timeRange = InAppNotificationService.formatTimeRange(updated.getStartTime(), updated.getEndTime());
+                String title = "Yêu cầu truy cập đã duyệt bị huỷ";
+                String message = "Yêu cầu vào " + areaName + " (" + timeRange + ") đã được " + actor.getFullName()
+                        + " huỷ trước giờ bắt đầu. Lý do: " + cancelReason;
+                inAppNotificationService.createForUsers(recipients, NotificationType.REQUEST_CANCELLED, title, message, updated.getId());
+            } catch (Exception e) {
+                log.error("Failed to send staff-cancel notification for request {}", updated.getId(), e);
+            }
+
+            return mapToResponse(updated);
+        }
+
+        // 0 dòng: đọc lại để báo đúng nguyên nhân
+        AccessRequest current = accessRequestRepository.findByIdWithDetails(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu truy cập với mã: " + id));
+        if (current.getStatus() == RequestStatus.APPROVED) {
+            String start = current.getStartTime() != null
+                    ? current.getStartTime().atZoneSameInstant(VN_ZONE).format(VN_DATE_TIME_FORMATTER)
+                    : "";
+            throw new AccessControlException(AccessControlErrorCode.ERR_AC_008, (Object) start);
+        }
+        if (current.getStatus() == RequestStatus.PENDING) {
+            throw new IllegalArgumentException("Chỉ huỷ được yêu cầu đã được duyệt; yêu cầu đang chờ duyệt hãy dùng Từ chối.");
+        }
+        throw new ConcurrentReviewException("Yêu cầu này đã ở trạng thái " + current.getStatus() + ", không thể huỷ.");
     }
 
     private void validateCommonRules(Area area, OffsetDateTime startTime, OffsetDateTime endTime) {

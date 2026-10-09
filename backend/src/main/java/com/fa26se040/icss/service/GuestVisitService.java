@@ -188,6 +188,14 @@ public class GuestVisitService {
                 .toList();
     }
 
+    /** B-04: điều kiện mời khách của người gọi — cùng GuestRules.hostEligible mà bước tạo lượt dùng (ERR_GUEST_002). */
+    @Transactional(readOnly = true)
+    public com.fa26se040.icss.dto.guest.GuestHostEligibilityResponse eligibility(String actorEmail) {
+        User me = currentUser(actorEmail);
+        return new com.fa26se040.icss.dto.guest.GuestHostEligibilityResponse(
+                rules.hostEligible(me), me.getAccessLevel(), rules.hostMinLevel());
+    }
+
     // ================================================================== xem
 
     @Transactional(readOnly = true)
