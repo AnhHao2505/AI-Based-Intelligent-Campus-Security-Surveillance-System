@@ -27,6 +27,8 @@ import PageHeader from "../../components/ui/PageHeader";
 import { formatLocation } from "../../utils/formatLocation";
 import { formatDateTime, formatRange } from "../../utils/formatDateTime";
 import MemberCodeCombobox from "../../components/accessRequest/MemberCodeCombobox";
+import { useSearchParams } from "react-router-dom";
+import { toast } from "sonner";
 
 export default function AccessRequestPage() {
 	const { user } = useAuth();
@@ -66,6 +68,11 @@ export default function AccessRequestPage() {
 	const [historyTotalPages, setHistoryTotalPages] = useState(1);
 	const [historyTotalElements, setHistoryTotalElements] = useState(0);
 	const [selectedDetail, setSelectedDetail] = useState(null);
+	// Bấm thông báo -> ?requestId: tô sáng dòng đơn hoặc mở popup chi tiết
+	const [searchParams, setSearchParams] = useSearchParams();
+	const [historyLoaded, setHistoryLoaded] = useState(false);
+	const [highlightRequestId, setHighlightRequestId] = useState(null);
+	const handledRequestIdRef = useRef(null);
 
 	// Expandable Rejection Reason rows in table (Set of request IDs)
 	const [expandedRejectIds, setExpandedRejectIds] = useState(new Set());
@@ -195,6 +202,7 @@ export default function AccessRequestPage() {
 				console.error("Lỗi khi tải lịch sử yêu cầu:", err);
 			} finally {
 				setLoadingHistory(false);
+				setHistoryLoaded(true);
 			}
 		},
 		[historyStatusFilter, historyAreaFilter],
@@ -208,6 +216,44 @@ export default function AccessRequestPage() {
 	useEffect(() => {
 		loadMyRequests(0, historyStatusFilter, historyAreaFilter);
 	}, [historyStatusFilter, historyAreaFilter, loadMyRequests]);
+
+	// ?requestId (từ thông báo): đơn có trong danh sách đang hiện -> cuộn tới + tô sáng;
+	// không có (khác trang / bộ lọc) -> GET /api/access-requests/{id} mở popup chi tiết; 403/404 -> toast.
+	useEffect(() => {
+		const requestId = searchParams.get("requestId");
+		if (!requestId || !historyLoaded || loadingHistory) return;
+		if (handledRequestIdRef.current === requestId) return;
+		handledRequestIdRef.current = requestId;
+		setSearchParams(
+			(prev) => {
+				const next = new URLSearchParams(prev);
+				next.delete("requestId");
+				return next;
+			},
+			{ replace: true },
+		);
+		if (historyList.some((r) => r.id === requestId)) {
+			setHighlightRequestId(requestId);
+			requestAnimationFrame(() => {
+				document
+					.querySelector(`[data-request-id="${requestId}"]`)
+					?.scrollIntoView({ behavior: "smooth", block: "center" });
+			});
+			return;
+		}
+		accessRequestService
+			.getRequestById(requestId)
+			.then((detail) => {
+				if (detail) setSelectedDetail(detail);
+			})
+			.catch(() => toast.error("Không xem được đơn này"));
+	}, [searchParams, setSearchParams, historyLoaded, loadingHistory, historyList]);
+
+	useEffect(() => {
+		if (!highlightRequestId) return;
+		const timer = setTimeout(() => setHighlightRequestId(null), 2000);
+		return () => clearTimeout(timer);
+	}, [highlightRequestId]);
 
 	// Selected area object
 	const areaList = Array.isArray(areas) ? areas : areas?.content || [];
@@ -970,7 +1016,10 @@ export default function AccessRequestPage() {
 								<tbody>
 									{historyList.map((req) => (
 										<React.Fragment key={req.id}>
-											<tr>
+											<tr
+												data-request-id={req.id}
+												className={highlightRequestId === req.id ? "arp-row--highlight" : undefined}
+											>
 												<td>
 													<div style={{ fontWeight: 600 }}>{req.areaName}</div>
 													{formatLocation(req.building, req.floor) && (
