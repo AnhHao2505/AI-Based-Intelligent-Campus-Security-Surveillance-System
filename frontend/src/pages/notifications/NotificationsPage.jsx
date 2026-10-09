@@ -32,6 +32,7 @@ import '../../styles/NotificationsPage.css';
 import PageHeader from '../../components/ui/PageHeader';
 import '../../components/ui/Button.css';
 import { formatDateTime } from '../../utils/formatDateTime';
+import { toast } from 'sonner';
 
 export default function NotificationsPage() {
   const { user } = useAuth();
@@ -81,6 +82,15 @@ export default function NotificationsPage() {
       } catch (err) {
         console.error('Lỗi khi đánh dấu đã đọc thông báo:', err);
       }
+    }
+
+    // BR-NT-26: thông báo đơn truy cập / lượt khách cũ đã lỡ gửi cho ADMIN (ADMIN không duyệt đơn, không duyệt / làm host khách)
+    // -> chỉ đánh dấu đã đọc, không chuyển trang. GUEST_PHOTO_REQUIRED vẫn dẫn tới trang Ảnh khách.
+    const notifRefType = notif.referenceType || notif.reference_type;
+    if ((user?.role || user?.role_type) === 'ADMIN' && notif.type !== 'GUEST_PHOTO_REQUIRED'
+      && (notifRefType === 'ACCESS_REQUEST' || notifRefType === 'GUEST_VISIT' || notif.type?.startsWith('GUEST_'))) {
+      toast.info('Thông báo này dành cho Quản lý cơ sở vật chất');
+      return;
     }
 
     if (notif.referenceType === 'ACCESS_REQUEST' || notif.reference_type === 'ACCESS_REQUEST') {
