@@ -260,6 +260,11 @@ export default function AreaAccessRulesModal({
 			if (isAdmin && rulesChanged) {
 				const payload = {
 					areaAccessLevel: Number(accessLevel),
+					// A-09: DTO bắt buộc cờ này (@NotNull) và BE chỉ nhận đúng giá trị suy ra từ loại khu vực
+					// (AreaService.updateAccessRules: CONTACT / HIGHLY_CONFIDENTIAL = true, còn lại false; sai -> ERR_AREA_056)
+					explicitAuthorizationRequired:
+						areaLevelKey === "CONFIDENTIAL_CONTACT_REQUIRED" ||
+						areaLevelKey === "HIGHLY_CONFIDENTIAL",
 					reason: reason.trim(),
 					version,
 				};
