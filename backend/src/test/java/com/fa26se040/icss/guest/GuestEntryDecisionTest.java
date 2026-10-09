@@ -27,7 +27,8 @@ public class GuestEntryDecisionTest extends GuestTestSupport {
     private Guest activeGuest(Area area) {
         now = OffsetDateTime.now();
         GuestVisit v = newVisit(hostL2, GuestVisitStatus.APPROVED, now.minusHours(1), now.plusHours(1), List.of(area), "Khách đang trong lượt");
-        return guestsOf(v.getId()).get(0);
+        // BR-GV-38: chỉ khách PHOTO_READY mới được vào -> khách "đang trong lượt" mặc định đã đăng ký khuôn mặt
+        return withPhoto(guestsOf(v.getId()).get(0), now.plusDays(1));
     }
 
     private void assertDenied(GuestAccessDecision d, GuestEntryDenyReason reason) {
@@ -126,7 +127,7 @@ public class GuestEntryDecisionTest extends GuestTestSupport {
         User host3 = newUser("h2d", Role.NORMAL_USER, 2, true);
         AreaAssignedPersonnel ap = newAp(contactArea, host3, t.minusDays(1), t.plusDays(1));
         GuestVisit v3 = newVisit(host3, GuestVisitStatus.APPROVED, t.minusHours(1), t.plusHours(1), List.of(contactArea), "Khách host mất AP");
-        Guest g3 = guestsOf(v3.getId()).get(0);
+        Guest g3 = withPhoto(guestsOf(v3.getId()).get(0), t.plusDays(1)); // BR-GV-38: cần PHOTO_READY để "còn AP thì cho vào"
         assertTrue(decisionService.checkGuestEntry(g3.getId(), contactArea.getId(), t).allowed(), "còn AP thì cho vào");
         ap.setRevokedAt(t);
         ap.setRevokedBy(fm);
@@ -143,9 +144,47 @@ public class GuestEntryDecisionTest extends GuestTestSupport {
             Guest x = guestRepository.findById(g.getId()).orElseThrow();
             x.setBiometricStatus(GuestBiometricStatus.DELETED);
             x.setBiometricDeletedAt(OffsetDateTime.now());
+            x.setPhotoObjectKey(null); // chk_guests_deleted: khách giờ có ảnh (BR-GV-38) -> xoá sinh trắc bỏ luôn khoá ảnh
             guestRepository.save(x);
         });
         assertDenied(decisionService.checkGuestEntry(g.getId(), internalArea.getId(), now), GuestEntryDenyReason.BIOMETRIC_DELETED);
+    }
+
+    @Test
+    @DisplayName("GV-38 BIOMETRIC_NOT_READY: khách NO_PHOTO / PHOTO_ONLY bị từ chối; PHOTO_READY cho vào; DELETED vẫn là BIOMETRIC_DELETED")
+    void biometricNotReady() {
+        OffsetDateTime t = OffsetDateTime.now();
+        GuestVisit v = newVisit(hostL2, GuestVisitStatus.APPROVED, t.minusHours(1), t.plusHours(1), List.of(internalArea), "Khách chưa có ảnh");
+        Guest g = guestsOf(v.getId()).get(0);
+        assertEquals(GuestBiometricStatus.NO_PHOTO, g.getBiometricStatus(), "tiền đề: khách mới tạo chưa có ảnh");
+        assertDenied(decisionService.checkGuestEntry(g.getId(), internalArea.getId(), t), GuestEntryDenyReason.BIOMETRIC_NOT_READY);
+
+        // PHOTO_ONLY: có ảnh + đồng ý nhưng chưa có embedding (chk_guests_photo_consent cần đủ trường ảnh / đồng ý)
+        withPhoto(g, t.plusDays(1));
+        setStatus(g, GuestBiometricStatus.PHOTO_ONLY);
+        assertDenied(decisionService.checkGuestEntry(g.getId(), internalArea.getId(), t), GuestEntryDenyReason.BIOMETRIC_NOT_READY);
+
+        setStatus(g, GuestBiometricStatus.PHOTO_READY);
+        GuestAccessDecision ready = decisionService.checkGuestEntry(g.getId(), internalArea.getId(), t);
+        assertTrue(ready.allowed(), ready.toString());
+        assertEquals("GUEST_VISIT", ready.source());
+
+        transactionTemplate.executeWithoutResult(tx -> {
+            Guest x = guestRepository.findById(g.getId()).orElseThrow();
+            x.setBiometricStatus(GuestBiometricStatus.DELETED);
+            x.setBiometricDeletedAt(OffsetDateTime.now());
+            x.setPhotoObjectKey(null);
+            guestRepository.save(x);
+        });
+        assertDenied(decisionService.checkGuestEntry(g.getId(), internalArea.getId(), t), GuestEntryDenyReason.BIOMETRIC_DELETED);
+    }
+
+    private void setStatus(Guest g, GuestBiometricStatus status) {
+        transactionTemplate.executeWithoutResult(tx -> {
+            Guest x = guestRepository.findById(g.getId()).orElseThrow();
+            x.setBiometricStatus(status);
+            guestRepository.save(x);
+        });
     }
 
     @Test
