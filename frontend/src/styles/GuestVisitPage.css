@@ -324,3 +324,18 @@
     background-color: transparent;
   }
 }
+
+/* BR-GV-38: nhãn "Chưa có ảnh (x/y khách)" trên lượt đã duyệt (Badge warning dùng token theme, có sẵn sáng / tối) */
+.guest-visit__photo-missing {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.guest-visit__photo-missing-hint {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--theme-warning-text);
+}

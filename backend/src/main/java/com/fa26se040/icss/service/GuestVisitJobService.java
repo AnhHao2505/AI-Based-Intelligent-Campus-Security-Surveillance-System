@@ -43,6 +43,10 @@ public class GuestVisitJobService {
     private final AuditService auditService;
     private final SystemConfigService systemConfigService;
     private final PlatformTransactionManager transactionManager;
+    // BR-GV-39: nhắc gắn ảnh khách (ObjectProvider như GuestVisitService để không tạo vòng phụ thuộc bean)
+    private final com.fa26se040.icss.repository.NotificationRepository notificationRepository;
+    private final com.fa26se040.icss.repository.UserRepository userRepository;
+    private final org.springframework.beans.factory.ObjectProvider<InAppNotificationService> notificationServiceProvider;
 
     /** Chạy đủ các bước theo thứ tự; một bước lỗi không chặn bước sau. */
     public void runAll(OffsetDateTime now) {
@@ -51,6 +55,58 @@ public class GuestVisitJobService {
         safely("delete-biometrics", () -> deleteDueBiometrics(now));
         safely("retry-photo-deletion", this::retryPendingPhotoDeletions);
         safely("anonymize", () -> anonymizeGuests(now));
+        safely("photo-reminder", () -> remindMissingPhotos(now));
+    }
+
+    /**
+     * BR-GV-39: lượt APPROVED còn khách chưa PHOTO_READY, now trong [start − GUEST_PHOTO_REMINDER_MINUTES_BEFORE, start)
+     * -> nhắc ADMIN 1 lần (GUEST_PHOTO_REQUIRED, dùng lại loại có sẵn). Chống trùng không thêm cột: bỏ qua nếu đã có
+     * GUEST_PHOTO_REQUIRED cho lượt tạo từ đầu cửa sổ trở đi (kể cả thông báo lúc duyệt nếu duyệt trong cửa sổ).
+     * Host không có loại thông báo phù hợp (GUEST_PHOTO_REQUIRED dẫn tới trang ADMIN) -> chỉ gửi ADMIN.
+     * Không ghi tên khách vào nội dung (tối thiểu dữ liệu cá nhân); theo mẫu thông báo lúc duyệt: người mời, khu vực, khung giờ.
+     */
+    public int remindMissingPhotos(OffsetDateTime now) {
+        int minutes = systemConfigService.getInt(com.fa26se040.icss.enums.ConfigKey.GUEST_PHOTO_REMINDER_MINUTES_BEFORE);
+        int n = 0;
+        for (UUID id : guestVisitRepository.findIdsByStatusAndStartTimeBetweenExclusive(GuestVisitStatus.APPROVED, now, now.plusMinutes(minutes))) {
+            n += inNewTx(() -> {
+                GuestVisit v = guestVisitRepository.findById(id).orElse(null);
+                if (v == null || v.getStatus() != GuestVisitStatus.APPROVED || !v.getStartTime().isAfter(now)) {
+                    return false;
+                }
+                OffsetDateTime windowStart = v.getStartTime().minusMinutes(minutes);
+                if (now.isBefore(windowStart)) {
+                    return false;
+                }
+                long missing = v.getGuests().stream()
+                        .filter(g -> g.getBiometricStatus() != com.fa26se040.icss.enums.GuestBiometricStatus.PHOTO_READY)
+                        .count();
+                if (missing == 0) {
+                    return false;
+                }
+                if (notificationRepository.existsByReferenceIdAndTypeAndCreatedAtGreaterThanEqual(
+                        v.getId(), NotificationType.GUEST_PHOTO_REQUIRED, windowStart)) {
+                    return false;
+                }
+                InAppNotificationService service = notificationServiceProvider.getIfAvailable();
+                if (service == null) {
+                    return false;
+                }
+                String purpose = v.getPurpose() == null ? "" : v.getPurpose().trim();
+                if (purpose.length() > 120) {
+                    purpose = purpose.substring(0, 117) + "...";
+                }
+                service.createForUsers(userRepository.findActiveUsersByRole(com.fa26se040.icss.enums.Role.ADMIN),
+                        NotificationType.GUEST_PHOTO_REQUIRED, "Nhắc gắn ảnh khách",
+                        "Lượt khách của " + v.getHost().getFullName() + " vào " + GuestVisitService.areaNames(v) + " ("
+                                + InAppNotificationService.formatTimeRange(v.getStartTime(), v.getEndTime())
+                                + ") sắp bắt đầu, còn " + missing + "/" + v.getGuests().size()
+                                + " khách chưa có ảnh nhận diện. Mục đích: " + purpose + ".",
+                        v.getId(), GuestVisitService.REF_TYPE_GUEST_VISIT);
+                return true;
+            }) ? 1 : 0;
+        }
+        return n;
     }
 
     /** BR-GV-12: PENDING khi now ≥ start -> EXPIRED, báo host. */

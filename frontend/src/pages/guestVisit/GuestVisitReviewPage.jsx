@@ -22,6 +22,7 @@ import {
   getGuestVisitStatus,
   getGuestBiometricStatus,
   formatDateTime,
+  getMissingPhotoInfo,
 } from '../../utils/guestHelpers';
 import '../../styles/GuestVisitPage.css';
 import { useSearchParams } from 'react-router-dom';
@@ -379,6 +380,14 @@ export default function GuestVisitReviewPage() {
                     </td>
                     <td>
                       <Badge variant={statusMeta.variant}>{statusMeta.label}</Badge>
+                      {/* BR-GV-38: lượt đã duyệt còn khách chưa đăng ký khuôn mặt */}
+                      {getMissingPhotoInfo(v) && (
+                        <div className="guest-visit__photo-missing">
+                          <Badge variant="warning">
+                            Chưa có ảnh ({getMissingPhotoInfo(v).missing}/{getMissingPhotoInfo(v).total} khách)
+                          </Badge>
+                        </div>
+                      )}
                     </td>
                     <td className="guest-visit__actions">
                       <Button

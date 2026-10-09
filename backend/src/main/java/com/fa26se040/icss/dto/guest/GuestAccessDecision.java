@@ -6,6 +6,7 @@ import java.util.UUID;
 
 /**
  * Kết quả checkGuestEntry (BR-GV-20). source = GUEST_VISIT khi cho vào, NONE khi từ chối (kèm mã lý do).
+ * Chỉ cho vào khi sinh trắc của khách PHOTO_READY (BR-GV-38); chưa có ảnh -> BIOMETRIC_NOT_READY, đã xoá -> BIOMETRIC_DELETED.
  */
 public record GuestAccessDecision(boolean allowed, String source, GuestEntryDenyReason reason, UUID visitId) {
 
