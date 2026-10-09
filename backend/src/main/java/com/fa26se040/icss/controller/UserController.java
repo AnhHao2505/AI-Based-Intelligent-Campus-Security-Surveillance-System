@@ -11,6 +11,8 @@ import com.fa26se040.icss.dto.user.ImportBatchSummaryResponse;
 import com.fa26se040.icss.dto.user.BatchUserResponse;
 import com.fa26se040.icss.dto.user.BatchDeleteResponse;
 import com.fa26se040.icss.dto.user.BatchRestoreResponse;
+import com.fa26se040.icss.dto.user.UserAccessLevelBulkUpdateRequest;
+import com.fa26se040.icss.dto.user.UserAccessLevelBulkUpdateResponse;
 import com.fa26se040.icss.dto.user.UserAccessLevelUpdateRequest;
 import com.fa26se040.icss.dto.user.UserSearchResponse;
 import com.fa26se040.icss.enums.Role;
@@ -41,6 +43,7 @@ import java.util.UUID;
 public class UserController {
 
     private final UserService userService;
+    private final com.fa26se040.icss.service.UserAccessLevelBulkService userAccessLevelBulkService;
 
     @PostMapping(value = "/normal/bulk-import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('ADMIN')")
@@ -196,13 +199,31 @@ public class UserController {
     @PreAuthorize("hasAnyRole('FACILITY_MANAGER', 'ADMIN')")
     public ResponseEntity<ApiResponse<Page<UserSearchResponse>>> searchUsers(
             @RequestParam String q,
+            @RequestParam(required = false) Integer accessLevel,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
         int cappedSize = Math.min(Math.max(1, size), 20);
         Pageable pageable = PageRequest.of(Math.max(0, page), cappedSize);
-        Page<UserSearchResponse> result = userService.searchUsers(q, pageable);
+        // BR-AL-28: accessLevel tuỳ chọn — lọc theo cấp hiện tại ở màn Cấp truy cập
+        Page<UserSearchResponse> result = accessLevel == null
+                ? userService.searchUsers(q, pageable)
+                : userService.searchUsers(q, accessLevel, pageable);
         return ResponseEntity.ok(ApiResponse.success(result, "Tìm kiếm người dùng thành công"));
+    }
+
+    /** BR-AL-28: FM đổi cấp cho nhiều người; mỗi người theo đúng logic đổi cấp lẻ, trả kết quả từng người. */
+    @PatchMapping("/bulk-access-level")
+    @PreAuthorize("hasRole('FACILITY_MANAGER')")
+    public ResponseEntity<ApiResponse<UserAccessLevelBulkUpdateResponse>> bulkUpdateAccessLevel(
+            @Valid @RequestBody UserAccessLevelBulkUpdateRequest request,
+            Authentication authentication
+    ) {
+        String actorEmail = authentication != null ? authentication.getName() : null;
+        log.info("Facility Manager [{}] bulk updating access level of {} users to {}", actorEmail, request.userIds().size(), request.accessLevel());
+        UserAccessLevelBulkUpdateResponse response = userAccessLevelBulkService.updateAccessLevels(
+                request.userIds(), request.accessLevel(), request.reason(), actorEmail);
+        return ResponseEntity.ok(ApiResponse.success(response, "Đã xử lý đổi cấp truy cập cho " + response.total() + " người"));
     }
 
     @PatchMapping("/{id}/access-level")

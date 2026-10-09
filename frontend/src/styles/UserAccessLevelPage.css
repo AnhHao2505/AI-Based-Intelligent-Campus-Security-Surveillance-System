@@ -205,6 +205,88 @@
   background: var(--theme-border);
 }
 
+/* BR-AL-28: tìm kiếm + lọc theo cấp, thanh thao tác chọn nhiều người */
+.access-level-search-card {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.access-level-filter {
+  height: 40px;
+  font-size: 13px;
+}
+
+.access-level-bulk-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  border-radius: 10px;
+  background: var(--theme-info-bg);
+  border: 1px solid var(--theme-info-border);
+  color: var(--theme-info-text);
+  font-size: 13px;
+}
+
+.access-level-bulk-bar__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.access-level-cell--check {
+  width: 40px;
+  text-align: center;
+}
+
+.access-level-bulk-list {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  max-height: 180px;
+  overflow-y: auto;
+  font-size: 13px;
+  color: var(--theme-text-primary);
+}
+
+.access-level-bulk-summary {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--theme-text-primary);
+  margin: 0 0 10px;
+}
+
+.access-level-outcome {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.access-level-outcome--UPDATED {
+  background: var(--theme-success-bg);
+  border-color: var(--theme-success-border);
+  color: var(--theme-success-text);
+}
+
+.access-level-outcome--UNCHANGED {
+  background: var(--theme-warning-bg);
+  border-color: var(--theme-warning-border);
+  color: var(--theme-warning-text);
+}
+
+.access-level-outcome--FAILED {
+  background: var(--theme-danger-bg);
+  border-color: var(--theme-danger-border);
+  color: var(--theme-danger-text);
+}
+
 /* Table Card */
 .access-level-table-card {
   border-radius: 12px;
