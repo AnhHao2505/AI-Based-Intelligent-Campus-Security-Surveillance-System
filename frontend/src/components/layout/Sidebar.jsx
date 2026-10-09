@@ -344,6 +344,18 @@ export default function Sidebar({ user, onLogout }) {
 												<span>Duyệt lượt khách</span>
 											</NavLink>
 											<NavLink
+												to="/admin/accounts"
+												className={({ isActive }) =>
+													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
+												}
+												title={
+													sidebarCollapsed ? "Quản lý tài khoản" : undefined
+												}
+											>
+												<Users size={18} />
+												<span>Quản lý tài khoản</span>
+											</NavLink>
+											<NavLink
 												to="/admin/guard-teams"
 												className={({ isActive }) =>
 													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`

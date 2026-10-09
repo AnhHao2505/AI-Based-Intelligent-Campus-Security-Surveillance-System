@@ -72,9 +72,13 @@ const validateCreateField = (field, rawValue, isNormal) => {
 
 export default function ManageAccountPage() {
 	const { user: currentUser } = useAuth();
+	const isAdmin = currentUser?.role === ROLES.ADMIN;
+	const isFM = currentUser?.role === ROLES.FACILITY_MANAGER;
 
-	// Tab State: 'NORMAL' (default) | 'SYSTEM'
-	const [activeTab, setActiveTab] = useState("NORMAL");
+	// Tab State: 'NORMAL' (default for ADMIN) | 'SYSTEM' (default for FM)
+	const [activeTab, setActiveTab] = useState(() =>
+		currentUser?.role === ROLES.FACILITY_MANAGER ? "SYSTEM" : "NORMAL"
+	);
 
 	// Count Summary for Tab Badges (Populated automatically by getUsers)
 	const [counts, setCounts] = useState({ normalCount: 0, systemCount: 0 });
@@ -626,11 +630,13 @@ export default function ManageAccountPage() {
 			<PageHeader
 				title="Quản lý tài khoản"
 				description={
-					activeTab === "NORMAL"
+					isFM
+						? `${totalElements.toLocaleString("vi-VN")} tài khoản bảo vệ trong hệ thống`
+						: activeTab === "NORMAL"
 						? `${totalElements.toLocaleString("vi-VN")} người dùng thường trong hệ thống`
 						: `${totalElements.toLocaleString("vi-VN")} tài khoản hệ thống`
 				}
-				actions={
+				actions={isAdmin ? (
 					<>
 						{activeTab === "NORMAL" && (
 							<div className="account-toolbar__actions">
@@ -698,7 +704,7 @@ export default function ManageAccountPage() {
 							</div>
 						)}
 					</>
-				}
+				) : null}
 			/>
 
 			{/* Tab Navigation (Người dùng thường / Tài khoản hệ thống) */}
@@ -706,23 +712,25 @@ export default function ManageAccountPage() {
 				className="account-tabs"
 				aria-label="Phân nhóm tài khoản"
 			>
-				<button
-					type="button"
-					className={`account-tab-btn ${activeTab === "NORMAL" ? "account-tab-btn--active" : ""}`}
-					onClick={() => handleTabChange("NORMAL")}
-				>
-					<span>Người dùng thường</span>
-					<span className="account-tab-badge">
-						{counts.normalCount.toLocaleString("vi-VN")}
-					</span>
-				</button>
+				{!isFM && (
+					<button
+						type="button"
+						className={`account-tab-btn ${activeTab === "NORMAL" ? "account-tab-btn--active" : ""}`}
+						onClick={() => handleTabChange("NORMAL")}
+					>
+						<span>Người dùng thường</span>
+						<span className="account-tab-badge">
+							{counts.normalCount.toLocaleString("vi-VN")}
+						</span>
+					</button>
+				)}
 
 				<button
 					type="button"
 					className={`account-tab-btn ${activeTab === "SYSTEM" ? "account-tab-btn--active" : ""}`}
 					onClick={() => handleTabChange("SYSTEM")}
 				>
-					<span>Tài khoản hệ thống</span>
+					<span>{isFM ? "Đội bảo vệ" : "Tài khoản hệ thống"}</span>
 					<span className="account-tab-badge">
 						{counts.systemCount.toLocaleString("vi-VN")}
 					</span>
@@ -790,7 +798,7 @@ export default function ManageAccountPage() {
 								<th>Email</th>
 								{activeTab === "SYSTEM" && <th>Quyền</th>}
 								<th>Trạng thái</th>
-								<th style={{ textAlign: "center" }}>Thao tác</th>
+								{isAdmin && <th style={{ textAlign: "center" }}>Thao tác</th>}
 							</tr>
 						</thead>
 						<tbody>
@@ -832,17 +840,19 @@ export default function ManageAccountPage() {
 												style={{ width: "90px", borderRadius: "9999px" }}
 											/>
 										</td>
-										<td style={{ textAlign: "center" }}>
-											<div
-												className="account-skeleton-block"
-												style={{ width: "80px", margin: "0 auto" }}
-											/>
-										</td>
+										{isAdmin && (
+											<td style={{ textAlign: "center" }}>
+												<div
+													className="account-skeleton-block"
+													style={{ width: "80px", margin: "0 auto" }}
+												/>
+											</td>
+										)}
 									</tr>
 								))
 							) : error ? (
 								<tr>
-									<td colSpan={activeTab === "NORMAL" ? 5 : 6}>
+									<td colSpan={(activeTab === "NORMAL" ? 4 : 5) + (isAdmin ? 1 : 0)}>
 										<div className="account-empty-state">
 											<div className="account-empty-state__icon">
 												<AlertCircle size={28} />
@@ -864,7 +874,7 @@ export default function ManageAccountPage() {
 								</tr>
 							) : users.length === 0 ? (
 								<tr>
-									<td colSpan={activeTab === "NORMAL" ? 5 : 6}>
+									<td colSpan={(activeTab === "NORMAL" ? 4 : 5) + (isAdmin ? 1 : 0)}>
 										<div className="account-empty-state">
 											<div className="account-empty-state__icon">
 												<Users size={28} />
@@ -872,18 +882,22 @@ export default function ManageAccountPage() {
 											<h3 className="account-empty-state__title">
 												{debouncedKeyword || statusFilter !== ""
 													? "Không tìm thấy tài khoản phù hợp"
-													: activeTab === "NORMAL"
+													: isFM
+														? "Chưa có tài khoản bảo vệ"
+														: activeTab === "NORMAL"
 														? "Chưa có người dùng thường"
 														: "Chưa có tài khoản hệ thống"}
 											</h3>
 											<p className="account-empty-state__desc">
 												{debouncedKeyword || statusFilter !== ""
 													? "Không có kết quả nào khớp với bộ lọc hiện tại. Thử kiểm tra lại từ khóa hoặc xóa bộ lọc."
-													: activeTab === "NORMAL"
+													: isFM
+														? "Hệ thống hiện chưa có tài khoản bảo vệ nào."
+														: activeTab === "NORMAL"
 														? "Người dùng thường sẽ được tự động đồng bộ khi tương tác với hệ thống."
 														: "Hệ thống hiện chưa có tài khoản cán bộ nào. Hãy nhấn nút bên dưới để tạo tài khoản đầu tiên."}
 											</p>
-											{activeTab === "SYSTEM" && !debouncedKeyword && (
+											{activeTab === "SYSTEM" && isAdmin && !debouncedKeyword && (
 												<button
 													type="button"
 													className="account-empty-state__btn"
@@ -953,50 +967,52 @@ export default function ManageAccountPage() {
 												</span>
 											</td>
 
-											<td style={{ textAlign: "center" }}>
-												<div
-													className="account-actions"
-													style={{ justifyContent: "center" }}
-												>
-													<button
-														type="button"
-														className={`account-action-btn ${
-															item.isActive
-																? "account-action-btn--toggle-disable"
-																: "account-action-btn--toggle-activate"
-														}`}
-														title={
-															isSelf
-																? "Không thể tự thay đổi trạng thái của chính mình"
-																: item.isActive
-																	? "Vô hiệu hóa tài khoản"
-																	: "Kích hoạt tài khoản"
-														}
-														disabled={isSelf}
-														onClick={() => handleOpenToggle(item)}
+											{isAdmin && (
+												<td style={{ textAlign: "center" }}>
+													<div
+														className="account-actions"
+														style={{ justifyContent: "center" }}
 													>
-														{item.isActive ? (
-															<UserX size={15} />
-														) : (
-															<UserCheck size={15} />
-														)}
-													</button>
+														<button
+															type="button"
+															className={`account-action-btn ${
+																item.isActive
+																	? "account-action-btn--toggle-disable"
+																	: "account-action-btn--toggle-activate"
+															}`}
+															title={
+																isSelf
+																	? "Không thể tự thay đổi trạng thái của chính mình"
+																	: item.isActive
+																		? "Vô hiệu hóa tài khoản"
+																		: "Kích hoạt tài khoản"
+															}
+															disabled={isSelf}
+															onClick={() => handleOpenToggle(item)}
+														>
+															{item.isActive ? (
+																<UserX size={15} />
+															) : (
+																<UserCheck size={15} />
+															)}
+														</button>
 
-													<button
-														type="button"
-														className="account-action-btn account-action-btn--delete"
-														title={
-															isSelf
-																? "Không thể tự xóa tài khoản của chính mình"
-																: "Xóa tài khoản"
-														}
-														disabled={isSelf}
-														onClick={() => handleOpenDelete(item)}
-													>
-														<Trash2 size={15} />
-													</button>
-												</div>
-											</td>
+														<button
+															type="button"
+															className="account-action-btn account-action-btn--delete"
+															title={
+																isSelf
+																	? "Không thể tự xóa tài khoản của chính mình"
+																	: "Xóa tài khoản"
+															}
+															disabled={isSelf}
+															onClick={() => handleOpenDelete(item)}
+														>
+															<Trash2 size={15} />
+														</button>
+													</div>
+												</td>
+											)}
 										</tr>
 									);
 								})
