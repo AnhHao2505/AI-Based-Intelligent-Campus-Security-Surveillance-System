@@ -208,6 +208,16 @@ export default function AccessRequestPage() {
 		[historyStatusFilter, historyAreaFilter],
 	);
 
+	// Esc đóng popup chi tiết giống nút X (popup huỷ dùng Modal chung đã tự xử lý Esc)
+	useEffect(() => {
+		if (!selectedDetail || cancelItem) return undefined;
+		const handleKeyDown = (e) => {
+			if (e.key === "Escape" || e.key === "Esc") setSelectedDetail(null);
+		};
+		document.addEventListener("keydown", handleKeyDown);
+		return () => document.removeEventListener("keydown", handleKeyDown);
+	}, [selectedDetail, cancelItem]);
+
 	useEffect(() => {
 		loadAreas();
 		initDefaultTimes();
