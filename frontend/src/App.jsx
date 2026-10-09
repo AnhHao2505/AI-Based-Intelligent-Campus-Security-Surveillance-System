@@ -220,11 +220,11 @@ function App() {
 								element={<Navigate to="/cameras" replace />}
 							/>
 
-							{/* Account management - Admin & Facility Manager */}
+							{/* Account management - Admin only */}
 							<Route
 								path="/admin/accounts"
 								element={
-									<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.FACILITY_MANAGER]}>
+									<ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
 										<ManageAccountPage />
 									</ProtectedRoute>
 								}
