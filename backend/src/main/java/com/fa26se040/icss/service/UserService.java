@@ -535,10 +535,7 @@ public class UserService {
 
     @Transactional(readOnly = true)
     public Page<UserSearchResponse> searchUsers(String q, Pageable pageable) {
-        if (q == null || q.trim().length() < 2) {
-            throw new IllegalArgumentException("Từ khoá tìm kiếm phải có tối thiểu 2 ký tự");
-        }
-        String cleanQ = q.trim();
+        String cleanQ = (q != null && !q.trim().isEmpty()) ? q.trim() : null;
         int cappedSize = Math.min(Math.max(1, pageable.getPageSize()), 20);
         Pageable cappedPageable = PageRequest.of(pageable.getPageNumber(), cappedSize, pageable.getSort());
         Page<User> page = userRepository.searchActiveUsers(cleanQ, cappedPageable);
@@ -557,12 +554,10 @@ public class UserService {
         if (accessLevel == null) {
             return searchUsers(q, pageable);
         }
-        if (q == null || q.trim().length() < 2) {
-            throw new IllegalArgumentException("Từ khoá tìm kiếm phải có tối thiểu 2 ký tự");
-        }
+        String cleanQ = (q != null && !q.trim().isEmpty()) ? q.trim() : null;
         int cappedSize = Math.min(Math.max(1, pageable.getPageSize()), 20);
         Pageable cappedPageable = PageRequest.of(pageable.getPageNumber(), cappedSize, pageable.getSort());
-        return userRepository.searchActiveUsersByAccessLevel(q.trim(), accessLevel, cappedPageable)
+        return userRepository.searchActiveUsersByAccessLevel(cleanQ, accessLevel, cappedPageable)
                 .map(u -> new UserSearchResponse(u.getId(), u.getUserCode(), u.getFullName(), u.getRole(), u.getAccessLevel()));
     }
 
