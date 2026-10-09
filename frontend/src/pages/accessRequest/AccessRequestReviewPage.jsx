@@ -820,14 +820,6 @@ export default function AccessRequestReviewPage() {
             <div className="arr-modal__footer">
               <button
                 type="button"
-                className="arr-filter-btn"
-                onClick={() => setStaffCancelItem(null)}
-                disabled={actionLoading}
-              >
-                Đóng
-              </button>
-              <button
-                type="button"
                 className="arr-filter-btn arr-btn--reject-modal"
                 onClick={handleConfirmStaffCancel}
                 disabled={actionLoading}

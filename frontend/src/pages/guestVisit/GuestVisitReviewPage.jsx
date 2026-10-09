@@ -286,6 +286,7 @@ export default function GuestVisitReviewPage() {
   // A-08 (BR-GV-10): FM không tự duyệt / từ chối / thu hồi lượt mình là người mời (BE trả 403 ERR_GUEST_022).
   // GuestVisitResponse không có hostId nên so theo mã người dùng.
   const isOwnVisit = Boolean(detail && user?.userCode && detail.hostCode === user.userCode);
+  const hasDetailActions = !isOwnVisit && (detail?.status === 'PENDING' || isDetailApprovedAndActive);
 
   return (
     <div className="guest-visit">
@@ -459,9 +460,12 @@ export default function GuestVisitReviewPage() {
                 Thu hồi
               </Button>
             )}
-            <Button variant="secondary" onClick={() => setDetail(null)}>
-              Đóng
-            </Button>
+            {/* Popup có nút hành động thì bỏ "Đóng" (còn X + Esc); chỉ để xem thì giữ "Đóng" */}
+            {!hasDetailActions && (
+              <Button variant="secondary" onClick={() => setDetail(null)}>
+                Đóng
+              </Button>
+            )}
           </>
         }
       >
