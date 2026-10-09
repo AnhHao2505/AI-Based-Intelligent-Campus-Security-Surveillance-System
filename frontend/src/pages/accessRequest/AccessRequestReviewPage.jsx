@@ -1,11 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  ClipboardCheck,
-  Clock,
   CheckCircle2,
-  XCircle,
   Ban,
-  CalendarX,
   CheckCheck,
   Calendar,
   Search,
@@ -22,6 +18,7 @@ import { getLevelConfig, AREA_LEVEL_CONFIG } from '../../utils/areaHelpers';
 import '../../styles/AccessRequestReviewPage.css';
 import PageHeader from '../../components/ui/PageHeader';
 import ReasonTextarea from '../../components/ui/ReasonTextarea';
+import StatusTabs from '../../components/ui/StatusTabs';
 import '../../components/ui/Button.css';
 import { formatLocation } from '../../utils/formatLocation';
 import { formatDateTime } from '../../utils/formatDateTime';
@@ -362,104 +359,26 @@ export default function AccessRequestReviewPage() {
         </div>
       )}
 
-      {/* Stats Cards */}
-      <div className="arr-stats-grid">
-        <div className="arr-stat-card">
-          <div className="arr-stat-card__icon arr-stat-card__icon--total">
-            <ClipboardCheck size={22} />
-          </div>
-          <div className="arr-stat-card__content">
-            <span className="arr-stat-card__label">Tổng yêu cầu</span>
-            <span className="arr-stat-card__value">{stats.total}</span>
-          </div>
-        </div>
-
-        <div className="arr-stat-card">
-          <div className="arr-stat-card__icon arr-stat-card__icon--pending">
-            <Clock size={22} />
-          </div>
-          <div className="arr-stat-card__content">
-            <span className="arr-stat-card__label">Chờ phê duyệt</span>
-            <span className="arr-stat-card__value">{stats.pending}</span>
-          </div>
-        </div>
-
-        <div className="arr-stat-card">
-          <div className="arr-stat-card__icon arr-stat-card__icon--approved">
-            <CheckCircle2 size={22} />
-          </div>
-          <div className="arr-stat-card__content">
-            <span className="arr-stat-card__label">Đã phê duyệt</span>
-            <span className="arr-stat-card__value">{stats.approved}</span>
-          </div>
-        </div>
-
-        <div className="arr-stat-card">
-          <div className="arr-stat-card__icon arr-stat-card__icon--rejected">
-            <XCircle size={22} />
-          </div>
-          <div className="arr-stat-card__content">
-            <span className="arr-stat-card__label">Đã từ chối</span>
-            <span className="arr-stat-card__value">{stats.rejected}</span>
-          </div>
-        </div>
-
-        <div className="arr-stat-card">
-          <div className="arr-stat-card__icon arr-stat-card__icon--cancelled">
-            <Ban size={22} />
-          </div>
-          <div className="arr-stat-card__content">
-            <span className="arr-stat-card__label">Đã hủy</span>
-            <span className="arr-stat-card__value">{stats.cancelled}</span>
-          </div>
-        </div>
-
-        <div className="arr-stat-card">
-          <div className="arr-stat-card__icon arr-stat-card__icon--expired">
-            <CalendarX size={22} />
-          </div>
-          <div className="arr-stat-card__content">
-            <span className="arr-stat-card__label">Hết hạn</span>
-            <span className="arr-stat-card__value">{stats.expired}</span>
-          </div>
-        </div>
-
-        <div className="arr-stat-card">
-          <div className="arr-stat-card__icon arr-stat-card__icon--finished">
-            <CheckCheck size={22} />
-          </div>
-          <div className="arr-stat-card__content">
-            <span className="arr-stat-card__label">Hoàn thành</span>
-            <span className="arr-stat-card__value">{stats.finished}</span>
-          </div>
-        </div>
-      </div>
-
       {/* Filter Toolbar */}
       <div className="arr-toolbar">
-        <div className="arr-filter-group">
-          {[
-            { label: 'Tất cả', val: '' },
-            { label: 'Chờ duyệt', val: 'PENDING' },
-            { label: 'Đã duyệt', val: 'APPROVED' },
-            { label: 'Đã từ chối', val: 'REJECTED' },
-            { label: 'Đã hủy', val: 'CANCELLED' },
-            { label: 'Hết hạn', val: 'EXPIRED' },
-            { label: 'Hoàn thành', val: 'FINISHED' }
-          ].map(f => (
-            <button
-              key={f.val}
-              type="button"
-              className={`arr-filter-btn ${statusFilter === f.val ? 'arr-filter-btn--active' : ''}`}
-              onClick={() => {
-                setStatusFilter(f.val);
-                setPage(0);
-              }}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
+        {/* Số đếm nằm trên tab (thay dãy ô thống kê); cùng nguồn loadStats */}
+        <StatusTabs
+          items={[
+            { key: '', label: 'Tất cả', count: stats.total },
+            { key: 'PENDING', label: 'Chờ duyệt', count: stats.pending, tone: 'attention' },
+            { key: 'APPROVED', label: 'Đã duyệt', count: stats.approved },
+            { key: 'REJECTED', label: 'Đã từ chối', count: stats.rejected },
+            { key: 'CANCELLED', label: 'Đã hủy', count: stats.cancelled },
+            { key: 'EXPIRED', label: 'Hết hạn', count: stats.expired },
+            { key: 'FINISHED', label: 'Hoàn thành', count: stats.finished }
+          ]}
+          value={statusFilter}
+          onChange={(key) => {
+            setStatusFilter(key);
+            setPage(0);
+          }}
+          ariaLabel="Lọc yêu cầu theo trạng thái"
+        />
 
         <div className="arr-toolbar-right">
           <select
