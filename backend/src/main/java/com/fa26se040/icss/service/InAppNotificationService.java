@@ -48,6 +48,20 @@ public class InAppNotificationService {
     private final AccessRequestRepository accessRequestRepository;
     private final SystemConfigService systemConfigService;
 
+    /**
+     * BR-NT-26: thông báo chỉ gửi cho role xử lý được. ADMIN không duyệt đơn truy cập, không duyệt / làm host lượt khách
+     * -> bỏ ADMIN khỏi người nhận của thông báo ACCESS_REQUEST và GUEST_VISIT; GUEST_PHOTO_REQUIRED (ADMIN gắn ảnh khách) vẫn gửi.
+     */
+    static boolean adminExcluded(User recipient, NotificationType type, String referenceType) {
+        if (recipient == null || recipient.getRole() != Role.ADMIN) {
+            return false;
+        }
+        if (REF_TYPE_ACCESS_REQUEST.equals(referenceType)) {
+            return true;
+        }
+        return "GUEST_VISIT".equals(referenceType) && type != NotificationType.GUEST_PHOTO_REQUIRED;
+    }
+
     public static String formatTimeRange(OffsetDateTime startTime, OffsetDateTime endTime) {
         if (startTime == null || endTime == null) {
             return "";
@@ -73,6 +87,10 @@ public class InAppNotificationService {
     public Notification createForUser(User recipient, NotificationType type, String title, String message, UUID referenceId, String referenceType) {
         if (recipient == null) {
             log.warn("Cannot create notification {}: recipient is null", type);
+            return null;
+        }
+        if (adminExcluded(recipient, type, referenceType)) {
+            log.info("Skip notification {} ({}) for ADMIN {} (BR-NT-26)", type, referenceType, recipient.getId());
             return null;
         }
 
@@ -107,7 +125,7 @@ public class InAppNotificationService {
         // Deduplicate recipients by user ID
         Map<UUID, User> uniqueRecipients = new LinkedHashMap<>();
         for (User user : recipients) {
-            if (user != null && user.getId() != null) {
+            if (user != null && user.getId() != null && !adminExcluded(user, type, referenceType)) {
                 uniqueRecipients.putIfAbsent(user.getId(), user);
             }
         }
