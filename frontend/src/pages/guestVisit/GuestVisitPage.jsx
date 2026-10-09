@@ -27,6 +27,8 @@ import {
 	canHostCancel,
 } from "../../utils/guestHelpers";
 import "../../styles/GuestVisitPage.css";
+import { useSearchParams } from "react-router-dom";
+import { toast } from "sonner";
 
 const PAGE_SIZE = 10;
 const EMPTY_GUEST = { fullName: "", organization: "" };
@@ -68,6 +70,11 @@ export default function GuestVisitPage() {
 
 	// Chi tiết / huỷ
 	const [detail, setDetail] = useState(null);
+	// Bấm thông báo -> ?visitId: tô sáng dòng lượt khách hoặc mở popup chi tiết
+	const [searchParams, setSearchParams] = useSearchParams();
+	const [visitsLoaded, setVisitsLoaded] = useState(false);
+	const [highlightVisitId, setHighlightVisitId] = useState(null);
+	const handledVisitIdRef = useRef(null);
 	const [cancelTarget, setCancelTarget] = useState(null);
 	const [cancelReason, setCancelReason] = useState("");
 	const [cancelReasonError, setCancelReasonError] = useState(null);
@@ -87,12 +94,51 @@ export default function GuestVisitPage() {
 			setListError(err?.message || "Không tải được danh sách lượt khách.");
 		} finally {
 			setLoading(false);
+			setVisitsLoaded(true);
 		}
 	}, []);
 
 	useEffect(() => {
 		loadVisits(0);
 	}, [loadVisits]);
+
+	// ?visitId (từ thông báo): lượt có trong danh sách đang hiện -> cuộn tới + tô sáng;
+	// không có (khác trang) -> GET /api/guest-visits/{id} mở popup chi tiết; lỗi quyền / không thấy -> toast.
+	useEffect(() => {
+		const visitId = searchParams.get("visitId");
+		if (!visitId || !visitsLoaded || loading) return;
+		if (handledVisitIdRef.current === visitId) return;
+		handledVisitIdRef.current = visitId;
+		setSearchParams(
+			(prev) => {
+				const next = new URLSearchParams(prev);
+				next.delete("visitId");
+				return next;
+			},
+			{ replace: true },
+		);
+		if (visits.some((v) => v.id === visitId)) {
+			setHighlightVisitId(visitId);
+			requestAnimationFrame(() => {
+				document
+					.querySelector(`[data-visit-id="${visitId}"]`)
+					?.scrollIntoView({ behavior: "smooth", block: "center" });
+			});
+			return;
+		}
+		guestVisitService
+			.getVisit(visitId)
+			.then((data) => {
+				if (data) setDetail(data);
+			})
+			.catch(() => toast.error("Không xem được lượt khách này"));
+	}, [searchParams, setSearchParams, visitsLoaded, loading, visits]);
+
+	useEffect(() => {
+		if (!highlightVisitId) return;
+		const timer = setTimeout(() => setHighlightVisitId(null), 2000);
+		return () => clearTimeout(timer);
+	}, [highlightVisitId]);
 
 	// B-04: điều kiện mời khách (cấp ≥ GUEST_HOST_MIN_LEVEL). Lỗi tải -> để null, vẫn hiện nút (BE vẫn chặn ERR_GUEST_002)
 	const [eligibility, setEligibility] = useState(null);
@@ -283,7 +329,11 @@ export default function GuestVisitPage() {
 						</thead>
 						<tbody>
 							{visits.map((v) => (
-								<tr key={v.id}>
+								<tr
+									key={v.id}
+									data-visit-id={v.id}
+									className={highlightVisitId === v.id ? "guest-visit__row--highlight" : undefined}
+								>
 									<td>
 										<div>{formatDateTime(v.startTime)}</div>
 										<div className="guest-visit__muted">→ {formatDateTime(v.endTime)}</div>

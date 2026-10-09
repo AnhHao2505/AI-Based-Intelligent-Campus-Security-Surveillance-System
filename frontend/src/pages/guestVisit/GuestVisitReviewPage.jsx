@@ -24,6 +24,8 @@ import {
   formatDateTime,
 } from '../../utils/guestHelpers';
 import '../../styles/GuestVisitPage.css';
+import { useSearchParams } from 'react-router-dom';
+import { toast } from 'sonner';
 
 const PAGE_SIZE = 10;
 
@@ -65,6 +67,11 @@ export default function GuestVisitReviewPage() {
 
   // Detail Modal
   const [detail, setDetail] = useState(null);
+  // Bấm thông báo -> ?visitId: tô sáng dòng lượt khách hoặc mở popup chi tiết
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [visitsLoaded, setVisitsLoaded] = useState(false);
+  const [highlightVisitId, setHighlightVisitId] = useState(null);
+  const handledVisitIdRef = useRef(null);
 
   // Action Modals
   const [approveTarget, setApproveTarget] = useState(null);
@@ -100,12 +107,43 @@ export default function GuestVisitReviewPage() {
       setError(err?.message || 'Không thể tải danh sách lượt khách.');
     } finally {
       setLoading(false);
+      setVisitsLoaded(true);
     }
   }, [statusFilter]);
 
   useEffect(() => {
     loadVisits(0);
   }, [loadVisits]);
+
+  // ?visitId (từ thông báo): lượt có trong danh sách đang hiện -> cuộn tới + tô sáng;
+  // không có (khác trạng thái / trang) -> GET /api/guest-visits/{id} mở popup chi tiết; lỗi -> toast.
+  useEffect(() => {
+    const visitId = searchParams.get('visitId');
+    if (!visitId || !visitsLoaded || loading) return;
+    if (handledVisitIdRef.current === visitId) return;
+    handledVisitIdRef.current = visitId;
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('visitId');
+      return next;
+    }, { replace: true });
+    if (visits.some((v) => v.id === visitId)) {
+      setHighlightVisitId(visitId);
+      requestAnimationFrame(() => {
+        document.querySelector(`[data-visit-id="${visitId}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+      return;
+    }
+    guestVisitService.getVisit(visitId)
+      .then((data) => { if (data) setDetail(data); })
+      .catch(() => toast.error('Không xem được lượt khách này'));
+  }, [searchParams, setSearchParams, visitsLoaded, loading, visits]);
+
+  useEffect(() => {
+    if (!highlightVisitId) return;
+    const timer = setTimeout(() => setHighlightVisitId(null), 2000);
+    return () => clearTimeout(timer);
+  }, [highlightVisitId]);
 
   // Open Approve Modal
   const openApprove = (item) => {
@@ -315,7 +353,11 @@ export default function GuestVisitReviewPage() {
                 const statusMeta = getGuestVisitStatus(v.status);
                 const areaNames = (v.areas || []).map((a) => a.name).join(', ');
                 return (
-                  <tr key={v.id}>
+                  <tr
+                    key={v.id}
+                    data-visit-id={v.id}
+                    className={highlightVisitId === v.id ? 'guest-visit__row--highlight' : undefined}
+                  >
                     <td>
                       <div style={{ fontWeight: 600 }}>{v.hostName || '—'}</div>
                       <div className="guest-visit__muted">{v.hostCode || '—'}</div>

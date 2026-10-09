@@ -309,3 +309,18 @@
 	margin-top: 1px;
 	color: var(--theme-warning-text);
 }
+
+/* Bấm thông báo -> ?visitId: tô sáng dòng lượt khách ~2 giây (token theme, có sẵn cả sáng và tối) */
+.guest-visit__row--highlight > td {
+  animation: guest-visit-row-flash 2s ease-out;
+}
+
+@keyframes guest-visit-row-flash {
+  0%,
+  60% {
+    background-color: var(--theme-primary-light);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
