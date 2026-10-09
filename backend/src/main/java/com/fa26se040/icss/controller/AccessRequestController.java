@@ -3,6 +3,7 @@ package com.fa26se040.icss.controller;
 import com.fa26se040.icss.dto.accessrequest.AccessRequestCreateRequest;
 import com.fa26se040.icss.dto.accessrequest.AccessRequestFinishRequest;
 import com.fa26se040.icss.dto.accessrequest.AccessRequestResponse;
+import com.fa26se040.icss.dto.accessrequest.AccessRequestStaffCancelRequest;
 import com.fa26se040.icss.dto.accessrequest.AccessRequestReviewRequest;
 import com.fa26se040.icss.dto.accessrequest.AreaSimpleResponse;
 import com.fa26se040.icss.dto.accessrequest.GroupAccessRequestCreateRequest;
@@ -172,6 +173,19 @@ public class AccessRequestController {
         String actorEmail = authentication.getName();
         AccessRequestResponse result = accessRequestService.cancelRequest(id, actorEmail);
         return ResponseEntity.ok(ApiResponse.success(result, "Hủy yêu cầu truy cập thành công"));
+    }
+
+    /** BR-RQ-47: FM huỷ đơn đã duyệt chưa bắt đầu (endpoint riêng — /cancel là luồng người tạo huỷ đơn PENDING). */
+    @PatchMapping("/{id}/cancel-approved")
+    @PreAuthorize("hasRole('FACILITY_MANAGER')")
+    public ResponseEntity<ApiResponse<AccessRequestResponse>> cancelApprovedRequest(
+            @PathVariable UUID id,
+            @Valid @RequestBody AccessRequestStaffCancelRequest cancelRequest,
+            Authentication authentication
+    ) {
+        String actorEmail = authentication.getName();
+        AccessRequestResponse result = accessRequestService.cancelApprovedRequest(id, cancelRequest.reason(), actorEmail);
+        return ResponseEntity.ok(ApiResponse.success(result, "Huỷ yêu cầu truy cập đã duyệt thành công"));
     }
 
     @PatchMapping("/{id}/finish")

@@ -115,6 +115,15 @@ export const accessRequestService = {
   async finishRequest(id, reason) {
     return await apiPatch(`/api/access-requests/${id}/finish`, { reason });
   },
+
+  /**
+   * FM huỷ yêu cầu đã duyệt nhưng chưa tới giờ bắt đầu (BR-RQ-47)
+   * @param {string} id - UUID của yêu cầu
+   * @param {string} reason - Lý do huỷ (10–500 ký tự), gửi kèm thông báo cho người tạo + thành viên
+   */
+  async cancelApprovedRequest(id, reason) {
+    return await apiPatch(`/api/access-requests/${id}/cancel-approved`, { reason });
+  },
 };
 
 export default accessRequestService;

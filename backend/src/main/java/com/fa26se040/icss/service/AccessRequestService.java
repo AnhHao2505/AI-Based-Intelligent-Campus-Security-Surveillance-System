@@ -1004,6 +1004,92 @@ public class AccessRequestService {
         return mapToResponse(updated);
     }
 
+    /**
+     * BR-RQ-47: FM huỷ đơn APPROVED chưa tới giờ bắt đầu (bổ sung B-03: chưa bắt đầu thì không "Hoàn thành" mà huỷ).
+     * Conditional UPDATE nguyên tử (status = APPROVED AND startTime > now) là nguồn chân lý duy nhất, không pre-check.
+     * Nguồn huỷ ghi USER (CHECK V56 chỉ có USER / SYSTEM) với cancelled_by = FM và cancel_reason = lý do.
+     */
+    @Transactional
+    public AccessRequestResponse cancelApprovedRequest(UUID id, String reason, String actorEmail) {
+        log.info("Staff cancelling approved access request {} by user {}", id, actorEmail);
+
+        AccessRequest accessRequest = accessRequestRepository.findByIdWithDetails(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu truy cập với mã: " + id));
+
+        User actor = userRepository.findByEmail(actorEmail)
+                .orElseThrow(() -> new UnauthorizedException("Không tìm thấy thông tin người dùng"));
+        // Khớp @PreAuthorize của controller: chỉ FACILITY_MANAGER
+        if (actor.getRole() != Role.FACILITY_MANAGER) {
+            throw new AccessDeniedException("Bạn không có quyền huỷ yêu cầu truy cập đã được duyệt.");
+        }
+
+        AccessRequestSnapshot beforeSnapshot = AccessRequestSnapshot.from(accessRequest);
+        String cancelReason = reason != null ? reason.trim() : null;
+        OffsetDateTime now = OffsetDateTime.now();
+
+        int updatedCount = accessRequestRepository.cancelIfApprovedNotStarted(
+                id, RequestStatus.CANCELLED, now, RequestStatus.APPROVED);
+
+        if (updatedCount == 1) {
+            // [RÀNG BUỘC NOTIFICATION / SIDE-EFFECTS]: chỉ ở nhánh 1 dòng
+            accessRequestRepository.recordCancellation(
+                    id, com.fa26se040.icss.enums.CancelSource.USER, actor, cancelReason, RequestStatus.CANCELLED);
+            AccessRequest updated = accessRequestRepository.findByIdWithDetails(id)
+                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu truy cập với mã: " + id));
+            log.info("Approved access request {} cancelled by FM {}", updated.getId(), actor.getId());
+
+            auditService.record(
+                    AuditTargetType.ACCESS_REQUEST,
+                    AuditAction.CANCEL,
+                    updated.getId().toString(),
+                    updated.getArea(),
+                    updated.getRequester(),
+                    beforeSnapshot,
+                    AccessRequestSnapshot.from(updated),
+                    cancelReason,
+                    actor
+            );
+
+            try {
+                List<User> recipients = new ArrayList<>();
+                if (updated.getRequester() != null) {
+                    recipients.add(updated.getRequester());
+                }
+                if (updated.getMembers() != null) {
+                    for (var member : updated.getMembers()) {
+                        if (member.getUser() != null) {
+                            recipients.add(member.getUser());
+                        }
+                    }
+                }
+                String areaName = updated.getArea() != null ? updated.getArea().getName() : "khu vực";
+                String timeRange = InAppNotificationService.formatTimeRange(updated.getStartTime(), updated.getEndTime());
+                String title = "Yêu cầu truy cập đã duyệt bị huỷ";
+                String message = "Yêu cầu vào " + areaName + " (" + timeRange + ") đã được " + actor.getFullName()
+                        + " huỷ trước giờ bắt đầu. Lý do: " + cancelReason;
+                inAppNotificationService.createForUsers(recipients, NotificationType.REQUEST_CANCELLED, title, message, updated.getId());
+            } catch (Exception e) {
+                log.error("Failed to send staff-cancel notification for request {}", updated.getId(), e);
+            }
+
+            return mapToResponse(updated);
+        }
+
+        // 0 dòng: đọc lại để báo đúng nguyên nhân
+        AccessRequest current = accessRequestRepository.findByIdWithDetails(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu truy cập với mã: " + id));
+        if (current.getStatus() == RequestStatus.APPROVED) {
+            String start = current.getStartTime() != null
+                    ? current.getStartTime().atZoneSameInstant(VN_ZONE).format(VN_DATE_TIME_FORMATTER)
+                    : "";
+            throw new AccessControlException(AccessControlErrorCode.ERR_AC_008, (Object) start);
+        }
+        if (current.getStatus() == RequestStatus.PENDING) {
+            throw new IllegalArgumentException("Chỉ huỷ được yêu cầu đã được duyệt; yêu cầu đang chờ duyệt hãy dùng Từ chối.");
+        }
+        throw new ConcurrentReviewException("Yêu cầu này đã ở trạng thái " + current.getStatus() + ", không thể huỷ.");
+    }
+
     private void validateCommonRules(Area area, OffsetDateTime startTime, OffsetDateTime endTime) {
         if (area.getAreaLevel() == AreaLevel.PUBLIC) {
             throw new IllegalArgumentException("Khu vực công cộng (PUBLIC) không cần tạo yêu cầu truy cập.");
