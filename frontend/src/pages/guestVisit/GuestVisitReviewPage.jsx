@@ -17,6 +17,7 @@ import PageHeader from '../../components/ui/PageHeader';
 import Pagination from '../../components/ui/Pagination';
 import ReasonTextarea from '../../components/ui/ReasonTextarea';
 import guestVisitService from '../../services/guestVisitService';
+import { useAuth } from '../../context/AuthContext';
 import {
   getGuestVisitStatus,
   getGuestBiometricStatus,
@@ -53,6 +54,7 @@ function ReasonBlock({ label, value, author, time, variant = 'default' }) {
 }
 
 export default function GuestVisitReviewPage() {
+  const { user } = useAuth();
   const [statusFilter, setStatusFilter] = useState('PENDING');
   const [page, setPage] = useState(0);
   const [visits, setVisits] = useState([]);
@@ -242,6 +244,10 @@ export default function GuestVisitReviewPage() {
     return new Date(detail.endTime) > new Date();
   }, [detail]);
 
+  // A-08 (BR-GV-10): FM không tự duyệt / từ chối / thu hồi lượt mình là người mời (BE trả 403 ERR_GUEST_022).
+  // GuestVisitResponse không có hostId nên so theo mã người dùng.
+  const isOwnVisit = Boolean(detail && user?.userCode && detail.hostCode === user.userCode);
+
   return (
     <div className="guest-visit">
       <PageHeader
@@ -370,7 +376,12 @@ export default function GuestVisitReviewPage() {
         size="lg"
         footer={
           <>
-            {detail?.status === 'PENDING' && (
+            {isOwnVisit && (detail?.status === 'PENDING' || isDetailApprovedAndActive) && (
+              <span className="guest-visit__muted" role="note">
+                Bạn là người mời lượt này nên không được tự duyệt, từ chối hoặc thu hồi.
+              </span>
+            )}
+            {detail?.status === 'PENDING' && !isOwnVisit && (
               <>
                 <Button
                   variant="danger"
@@ -388,7 +399,7 @@ export default function GuestVisitReviewPage() {
                 </Button>
               </>
             )}
-            {isDetailApprovedAndActive && (
+            {isDetailApprovedAndActive && !isOwnVisit && (
               <Button
                 variant="danger"
                 icon={Ban}
