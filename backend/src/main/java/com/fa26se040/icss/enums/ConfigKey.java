@@ -42,6 +42,8 @@ public enum ConfigKey {
     GUEST_RECORD_RETENTION_DAYS("GUEST_RECORD_RETENTION_DAYS", "90"),
     GUEST_PHOTO_URL_TTL_SECONDS("GUEST_PHOTO_URL_TTL_SECONDS", "60"),
     GUEST_CONSENT_NOTICE_VERSION("GUEST_CONSENT_NOTICE_VERSION", "v1"),
+    // BR-GV-39 (V71): nhắc ADMIN gắn ảnh khách trước giờ bắt đầu lượt bao nhiêu phút
+    GUEST_PHOTO_REMINDER_MINUTES_BEFORE("GUEST_PHOTO_REMINDER_MINUTES_BEFORE", "60"),
     // UI-19 (V69): số dòng tối đa mỗi lần nạp tài khoản theo lô (cả luồng người dùng thường và cán bộ)
     USER_BULK_IMPORT_MAX_ROWS("USER_BULK_IMPORT_MAX_ROWS", "200");
 
