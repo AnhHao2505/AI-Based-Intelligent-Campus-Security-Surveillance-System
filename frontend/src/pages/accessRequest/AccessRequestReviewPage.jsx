@@ -25,6 +25,8 @@ import ReasonTextarea from '../../components/ui/ReasonTextarea';
 import '../../components/ui/Button.css';
 import { formatLocation } from '../../utils/formatLocation';
 import { formatDateTime } from '../../utils/formatDateTime';
+import { useSearchParams } from 'react-router-dom';
+import { toast } from 'sonner';
 
 export default function AccessRequestReviewPage() {
   const [requests, setRequests] = useState([]);
@@ -52,6 +54,11 @@ export default function AccessRequestReviewPage() {
 
   // Modals state
   const [detailItem, setDetailItem] = useState(null);
+  // Bấm thông báo -> ?requestId: tô sáng dòng đơn hoặc mở popup chi tiết
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [requestsLoaded, setRequestsLoaded] = useState(false);
+  const [highlightRequestId, setHighlightRequestId] = useState(null);
+  const handledRequestIdRef = useRef(null);
   const [approveItem, setApproveItem] = useState(null);
   const [rejectItem, setRejectItem] = useState(null);
   // BR-RQ-44: FM chuyển đơn APPROVED sang FINISHED; BR-RQ-46: chỉ khi đã bắt đầu, bắt buộc lý do
@@ -101,8 +108,39 @@ export default function AccessRequestReviewPage() {
       console.error('Lỗi khi tải danh sách phê duyệt:', err);
     } finally {
       setLoading(false);
+      setRequestsLoaded(true);
     }
   }, [statusFilter, selectedAreaId]);
+
+  // ?requestId (từ thông báo): đơn có trong danh sách đang hiện -> cuộn tới + tô sáng;
+  // không có (khác trang / bộ lọc) -> GET /api/access-requests/{id} mở popup chi tiết; 403/404 -> toast.
+  useEffect(() => {
+    const requestId = searchParams.get('requestId');
+    if (!requestId || !requestsLoaded || loading) return;
+    if (handledRequestIdRef.current === requestId) return;
+    handledRequestIdRef.current = requestId;
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('requestId');
+      return next;
+    }, { replace: true });
+    if (requests.some((r) => r.id === requestId)) {
+      setHighlightRequestId(requestId);
+      requestAnimationFrame(() => {
+        document.querySelector(`[data-request-id="${requestId}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+      return;
+    }
+    accessRequestService.getRequestById(requestId)
+      .then((detail) => { if (detail) setDetailItem(detail); })
+      .catch(() => toast.error('Không xem được đơn này'));
+  }, [searchParams, setSearchParams, requestsLoaded, loading, requests]);
+
+  useEffect(() => {
+    if (!highlightRequestId) return;
+    const timer = setTimeout(() => setHighlightRequestId(null), 2000);
+    return () => clearTimeout(timer);
+  }, [highlightRequestId]);
 
   // Load Stats counts
   const loadStats = useCallback(async () => {
@@ -484,7 +522,11 @@ export default function AccessRequestReviewPage() {
               </thead>
               <tbody>
                 {filteredRequests.map(req => (
-                  <tr key={req.id}>
+                  <tr
+                    key={req.id}
+                    data-request-id={req.id}
+                    className={highlightRequestId === req.id ? 'arr-row--highlight' : undefined}
+                  >
                     {/* Requester */}
                     <td>
                       <div className="arr-user-cell">

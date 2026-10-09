@@ -85,10 +85,13 @@ export default function NotificationsPage() {
 
     if (notif.referenceType === 'ACCESS_REQUEST' || notif.reference_type === 'ACCESS_REQUEST') {
       const role = user?.role || user?.role_type || '';
+      // Mở đúng đơn: trang đích đọc ?requestId (tô sáng dòng hoặc mở popup chi tiết)
+      const refId = notif.referenceId || notif.reference_id;
+      const query = refId ? `?requestId=${encodeURIComponent(refId)}` : '';
       if (role === 'FACILITY_MANAGER' || role === 'ADMIN') {
-        navigate('/admin/access-requests');
+        navigate(`/admin/access-requests${query}`);
       } else {
-        navigate('/access-requests');
+        navigate(`/access-requests${query}`);
       }
     }
 
@@ -114,15 +117,18 @@ export default function NotificationsPage() {
     }
 
     if (notif.referenceType === 'GUEST_VISIT' || notif.reference_type === 'GUEST_VISIT' || notif.type?.startsWith('GUEST_')) {
+      // Mở đúng lượt khách: trang đích đọc ?visitId (tô sáng dòng hoặc mở popup chi tiết)
+      const visitRef = notif.referenceId || notif.reference_id;
+      const visitQuery = visitRef ? `?visitId=${encodeURIComponent(visitRef)}` : '';
       if (notif.type === 'GUEST_VISIT_PENDING') {
-        navigate('/admin/guest-visits');
+        navigate(`/admin/guest-visits${visitQuery}`);
       } else if (notif.type === 'GUEST_PHOTO_REQUIRED') {
         navigate('/admin/guest-photos');
       } else if ((user?.role || user?.role_type) === 'ADMIN') {
         // B-04: ADMIN không có trang "Khách của tôi"
-        navigate('/admin/guest-visits');
+        navigate(`/admin/guest-visits${visitQuery}`);
       } else {
-        navigate('/guest-visits');
+        navigate(`/guest-visits${visitQuery}`);
       }
     }
   };
