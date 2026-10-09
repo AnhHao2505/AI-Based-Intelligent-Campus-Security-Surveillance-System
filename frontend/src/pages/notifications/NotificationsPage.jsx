@@ -85,10 +85,13 @@ export default function NotificationsPage() {
 
     if (notif.referenceType === 'ACCESS_REQUEST' || notif.reference_type === 'ACCESS_REQUEST') {
       const role = user?.role || user?.role_type || '';
+      // Mở đúng đơn: trang đích đọc ?requestId (tô sáng dòng hoặc mở popup chi tiết)
+      const refId = notif.referenceId || notif.reference_id;
+      const query = refId ? `?requestId=${encodeURIComponent(refId)}` : '';
       if (role === 'FACILITY_MANAGER' || role === 'ADMIN') {
-        navigate('/admin/access-requests');
+        navigate(`/admin/access-requests${query}`);
       } else {
-        navigate('/access-requests');
+        navigate(`/access-requests${query}`);
       }
     }
 
