@@ -127,6 +127,58 @@ class UserAccessLevelBulkTest extends AbstractIntegrationTest {
         return null;
     }
 
+    private User deactivated(String tag, int level) {
+        User u = user(tag, Role.NORMAL_USER, level);
+        u.setIsActive(false);
+        return userRepository.save(u);
+    }
+
+    private MvcResult single(User actor, User target, int level) throws Exception {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("accessLevel", level);
+        body.put("reason", REASON);
+        return mockMvc.perform(patch("/api/users/{id}/access-level", target.getId())
+                .header("Authorization", "Bearer " + jwtTokenProvider.generateToken(actor))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(body))).andReturn();
+    }
+
+    @Test
+    @DisplayName("BR-AL-29: đổi cấp lẻ tài khoản đã vô hiệu hoá -> 409 ERR_AC_009 nêu mã người dùng, cấp giữ nguyên, không audit (kể cả cấp mới trùng cấp cũ)")
+    void single_deactivatedUser_rejected() throws Exception {
+        User off = deactivated("off1", 1);
+
+        MvcResult r = single(fm, off, 3);
+        String body = r.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        assertEquals(409, r.getResponse().getStatus(), body);
+        assertTrue(body.contains("ERR_AC_009"), body);
+        assertTrue(body.contains(off.getUserCode()), body);
+        assertEquals(1, level(off));
+        assertEquals(0, audits(off));
+
+        assertEquals(409, single(fm, off, 1).getResponse().getStatus());
+        assertEquals(0, audits(off));
+    }
+
+    @Test
+    @DisplayName("BR-AL-29: đổi nhiều người có tài khoản đã vô hiệu hoá -> người đó FAILED kèm lý do, người khác vẫn UPDATED")
+    void bulk_deactivatedUser_failedOthersOk() throws Exception {
+        User off = deactivated("off2", 1);
+
+        MvcResult r = bulk(fm, List.of(off.getId(), s1.getId()), 2, REASON);
+
+        assertEquals(200, r.getResponse().getStatus());
+        JsonNode d = data(r);
+        assertEquals(1, d.path("updated").asInt());
+        assertEquals(1, d.path("failed").asInt());
+        JsonNode offItem = item(d, off);
+        assertEquals("FAILED", offItem.path("outcome").asText());
+        assertTrue(offItem.path("message").asText().contains("vô hiệu hoá"), offItem.toString());
+        assertEquals(1, level(off));
+        assertEquals(0, audits(off));
+        assertEquals(2, level(s1));
+    }
+
     @Test
     @DisplayName("Nhiều người hợp lệ -> UPDATED từng người, cấp mới lưu, mỗi người 1 audit có lý do, cùng correlation_id")
     void validUsers_allUpdated() throws Exception {
