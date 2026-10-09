@@ -17,12 +17,15 @@ import PageHeader from '../../components/ui/PageHeader';
 import Pagination from '../../components/ui/Pagination';
 import ReasonTextarea from '../../components/ui/ReasonTextarea';
 import guestVisitService from '../../services/guestVisitService';
+import { useAuth } from '../../context/AuthContext';
 import {
   getGuestVisitStatus,
   getGuestBiometricStatus,
   formatDateTime,
 } from '../../utils/guestHelpers';
 import '../../styles/GuestVisitPage.css';
+import { useSearchParams } from 'react-router-dom';
+import { toast } from 'sonner';
 
 const PAGE_SIZE = 10;
 
@@ -53,6 +56,7 @@ function ReasonBlock({ label, value, author, time, variant = 'default' }) {
 }
 
 export default function GuestVisitReviewPage() {
+  const { user } = useAuth();
   const [statusFilter, setStatusFilter] = useState('PENDING');
   const [page, setPage] = useState(0);
   const [visits, setVisits] = useState([]);
@@ -63,6 +67,11 @@ export default function GuestVisitReviewPage() {
 
   // Detail Modal
   const [detail, setDetail] = useState(null);
+  // Bấm thông báo -> ?visitId: tô sáng dòng lượt khách hoặc mở popup chi tiết
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [visitsLoaded, setVisitsLoaded] = useState(false);
+  const [highlightVisitId, setHighlightVisitId] = useState(null);
+  const handledVisitIdRef = useRef(null);
 
   // Action Modals
   const [approveTarget, setApproveTarget] = useState(null);
@@ -98,12 +107,43 @@ export default function GuestVisitReviewPage() {
       setError(err?.message || 'Không thể tải danh sách lượt khách.');
     } finally {
       setLoading(false);
+      setVisitsLoaded(true);
     }
   }, [statusFilter]);
 
   useEffect(() => {
     loadVisits(0);
   }, [loadVisits]);
+
+  // ?visitId (từ thông báo): lượt có trong danh sách đang hiện -> cuộn tới + tô sáng;
+  // không có (khác trạng thái / trang) -> GET /api/guest-visits/{id} mở popup chi tiết; lỗi -> toast.
+  useEffect(() => {
+    const visitId = searchParams.get('visitId');
+    if (!visitId || !visitsLoaded || loading) return;
+    if (handledVisitIdRef.current === visitId) return;
+    handledVisitIdRef.current = visitId;
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('visitId');
+      return next;
+    }, { replace: true });
+    if (visits.some((v) => v.id === visitId)) {
+      setHighlightVisitId(visitId);
+      requestAnimationFrame(() => {
+        document.querySelector(`[data-visit-id="${visitId}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+      return;
+    }
+    guestVisitService.getVisit(visitId)
+      .then((data) => { if (data) setDetail(data); })
+      .catch(() => toast.error('Không xem được lượt khách này'));
+  }, [searchParams, setSearchParams, visitsLoaded, loading, visits]);
+
+  useEffect(() => {
+    if (!highlightVisitId) return;
+    const timer = setTimeout(() => setHighlightVisitId(null), 2000);
+    return () => clearTimeout(timer);
+  }, [highlightVisitId]);
 
   // Open Approve Modal
   const openApprove = (item) => {
@@ -242,6 +282,10 @@ export default function GuestVisitReviewPage() {
     return new Date(detail.endTime) > new Date();
   }, [detail]);
 
+  // A-08 (BR-GV-10): FM không tự duyệt / từ chối / thu hồi lượt mình là người mời (BE trả 403 ERR_GUEST_022).
+  // GuestVisitResponse không có hostId nên so theo mã người dùng.
+  const isOwnVisit = Boolean(detail && user?.userCode && detail.hostCode === user.userCode);
+
   return (
     <div className="guest-visit">
       <PageHeader
@@ -309,7 +353,11 @@ export default function GuestVisitReviewPage() {
                 const statusMeta = getGuestVisitStatus(v.status);
                 const areaNames = (v.areas || []).map((a) => a.name).join(', ');
                 return (
-                  <tr key={v.id}>
+                  <tr
+                    key={v.id}
+                    data-visit-id={v.id}
+                    className={highlightVisitId === v.id ? 'guest-visit__row--highlight' : undefined}
+                  >
                     <td>
                       <div style={{ fontWeight: 600 }}>{v.hostName || '—'}</div>
                       <div className="guest-visit__muted">{v.hostCode || '—'}</div>
@@ -370,7 +418,12 @@ export default function GuestVisitReviewPage() {
         size="lg"
         footer={
           <>
-            {detail?.status === 'PENDING' && (
+            {isOwnVisit && (detail?.status === 'PENDING' || isDetailApprovedAndActive) && (
+              <span className="guest-visit__muted" role="note">
+                Bạn là người mời lượt này nên không được tự duyệt, từ chối hoặc thu hồi.
+              </span>
+            )}
+            {detail?.status === 'PENDING' && !isOwnVisit && (
               <>
                 <Button
                   variant="danger"
@@ -388,7 +441,7 @@ export default function GuestVisitReviewPage() {
                 </Button>
               </>
             )}
-            {isDetailApprovedAndActive && (
+            {isDetailApprovedAndActive && !isOwnVisit && (
               <Button
                 variant="danger"
                 icon={Ban}

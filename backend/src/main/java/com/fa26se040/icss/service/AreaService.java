@@ -512,33 +512,84 @@ public class AreaService {
 
     @Transactional(readOnly = true)
     public List<AreaSimpleResponse> getAvailableAreasForRequest(String actorEmail) {
-        List<Area> areas = areaRepository.findAvailableForRequest();
+        User caller = actorEmail != null ? userRepository.findByEmail(actorEmail).orElse(null) : null;
 
-        if (actorEmail != null) {
-            User caller = userRepository.findByEmail(actorEmail).orElse(null);
-            if (caller != null && caller.getRole() == Role.NORMAL_USER) {
-                int callerLevel = caller.getAccessLevel() != null ? caller.getAccessLevel() : 1;
-                areas = areas.stream()
-                        .filter(a -> {
-                            if (a.getAreaAccessLevel() == null) {
-                                log.warn("Excluding area {} from request dropdown: areaAccessLevel is null", a.getId());
-                                return false;
-                            }
-                            return callerLevel >= a.getAreaAccessLevel();
-                        })
-                        .toList();
+        // Ứng viên: khu vực cờ explicit = true + khu vực INTERNAL (chỉ được xin khi bật bảo lãnh INTERNAL)
+        List<Area> areas = areaRepository.findAvailableForRequest();
+        Set<AreaLevel> sponsorLevels = Set.of();
+        List<Area> internalCandidates = areaRepository.findAvailableForRequest(Set.of(AreaLevel.INTERNAL_CONFIDENTIAL));
+        if (!internalCandidates.isEmpty()) {
+            // Cấu hình bảo lãnh chỉ quyết định khu vực INTERNAL nên chỉ đọc khi có khu vực INTERNAL để xét
+            sponsorLevels = systemConfigService.getSponsorAllowedAreaLevels();
+            if (sponsorLevels.contains(AreaLevel.INTERNAL_CONFIDENTIAL)) {
+                java.util.Map<UUID, Area> merged = new java.util.LinkedHashMap<>();
+                areas.forEach(a -> merged.put(a.getId(), a));
+                internalCandidates.forEach(a -> merged.putIfAbsent(a.getId(), a));
+                areas = merged.values().stream().sorted(AVAILABLE_AREA_ORDER).toList();
             }
         }
 
-        return areas.stream()
+        Set<AreaLevel> sponsorAllowedLevels = sponsorLevels;
+        List<Area> available = areas.stream()
+                .filter(a -> isAvailableForRequest(a, caller, sponsorAllowedLevels))
+                .toList();
+        // A-06: cấu hình đơn nhóm chỉ quyết định khu vực HIGHLY_CONFIDENTIAL nên chỉ đọc khi danh sách có khu vực đó
+        boolean groupAllowedInHighlyConfidential = available.stream().anyMatch(a -> a.getAreaLevel() == AreaLevel.HIGHLY_CONFIDENTIAL)
+                && systemConfigService.getBoolean(com.fa26se040.icss.enums.ConfigKey.ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE);
+        return available.stream()
                 .map(a -> new AreaSimpleResponse(
                         a.getId(),
                         a.getName(),
                         a.getAreaLevel(),
                         a.getBuilding(),
-                        a.getFloor()
+                        a.getFloor(),
+                        isGroupRequestAllowed(a.getAreaLevel(), groupAllowedInHighlyConfidential)
                 ))
                 .toList();
+    }
+
+    /**
+     * BR-RQ-28: khu vực HIGHLY_CONFIDENTIAL chỉ nhận đơn cá nhân, trừ khi ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE = true.
+     * Dùng chung cho kiểm tra khi tạo đơn nhóm (AccessRequestService) và cờ groupRequestAllowed của available-areas (A-06).
+     */
+    public static boolean isGroupRequestAllowed(AreaLevel areaLevel, boolean groupAllowedInHighlyConfidential) {
+        return areaLevel != AreaLevel.HIGHLY_CONFIDENTIAL || groupAllowedInHighlyConfidential;
+    }
+
+    /** Cùng thứ tự với query findAvailableForRequest (toà, tầng, tên). */
+    private static final java.util.Comparator<Area> AVAILABLE_AREA_ORDER = java.util.Comparator
+            .comparing(Area::getBuilding, java.util.Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER))
+            .thenComparing(Area::getFloor, java.util.Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER))
+            .thenComparing(Area::getName, java.util.Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER));
+
+    /**
+     * BR-RQ-33: tiêu chí "khu vực được xin" — nguồn duy nhất cho danh sách available-areas và kiểm tra khi tạo đơn
+     * (AccessRequestService), để gọi API thẳng không vượt được danh sách.
+     * - Chưa xoá mềm, đang hoạt động.
+     * - Cờ explicitAuthorizationRequired = true, HOẶC khu vực INTERNAL khi INTERNAL nằm trong
+     *   ACCESS_REQUEST_SPONSOR_ALLOWED_AREA_TYPES (Lucas 08/10, phương án A: đơn bảo lãnh vào khu vực Nội bộ).
+     * - NORMAL_USER: cấp khu vực khác null (fail-closed) và không vượt cấp người gọi. FM / ADMIN / caller null không lọc theo cấp.
+     */
+    public static boolean isAvailableForRequest(Area area, User caller, Set<AreaLevel> sponsorAllowedLevels) {
+        if (area == null || area.getDeletedAt() != null || !Boolean.TRUE.equals(area.getIsActive())) {
+            return false;
+        }
+        boolean requestableType = Boolean.TRUE.equals(area.getExplicitAuthorizationRequired())
+                || (area.getAreaLevel() == AreaLevel.INTERNAL_CONFIDENTIAL
+                        && sponsorAllowedLevels != null
+                        && sponsorAllowedLevels.contains(AreaLevel.INTERNAL_CONFIDENTIAL));
+        if (!requestableType) {
+            return false;
+        }
+        if (caller == null || caller.getRole() != Role.NORMAL_USER) {
+            return true;
+        }
+        if (area.getAreaAccessLevel() == null) {
+            log.warn("Excluding area {} from request dropdown: areaAccessLevel is null", area.getId());
+            return false;
+        }
+        int callerLevel = caller.getAccessLevel() != null ? caller.getAccessLevel() : 1;
+        return callerLevel >= area.getAreaAccessLevel();
     }
 
     @Transactional(readOnly = true)
@@ -865,6 +916,55 @@ public class AreaService {
                 com.fa26se040.icss.context.AuditContext.clearCorrelationId();
             }
         }
+    }
+
+    /**
+     * Step 6 (BR-AD-07): ADMIN khôi phục khu vực đã vô hiệu hoá. Không tự khôi phục AP / đơn / lượt khách / camera.
+     * Chặn 409 khi khu vực chưa vô hiệu hoá (054), tầng / toà không còn hoạt động (055),
+     * trùng tên với khu vực đang hoạt động cùng tầng (020).
+     */
+    @Transactional
+    public AreaResponse restore(UUID id, com.fa26se040.icss.dto.area.AreaRestoreRequest req, String actorEmail) {
+        String reason = normalizeReason(req != null ? req.reason() : null, true);
+        Long version = req != null ? req.version() : null;
+        requireVersion(version);
+        User actor = userRepository.findByEmail(actorEmail)
+                .orElseThrow(() -> new UnauthorizedException("Phiên đăng nhập không hợp lệ"));
+
+        Area area = areaRepository.findByIdWithLock(id)
+                .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
+        checkVersion(area, version);
+        if (area.getDeletedAt() == null) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_054);
+        }
+        com.fa26se040.icss.entity.Floor floorEntity = area.getFloorEntity();
+        if (floorEntity == null || !Boolean.TRUE.equals(floorEntity.getIsActive())
+                || floorEntity.getBuilding() == null || !Boolean.TRUE.equals(floorEntity.getBuilding().getIsActive())) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_055);
+        }
+        if (areaRepository.existsByFloorIdAndNameIgnoreCaseExcludingId(area.getId(), floorEntity.getId(), area.getName())) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_020);
+        }
+
+        AreaSnapshot beforeSnapshot = AreaSnapshot.from(area);
+        AreaRowState before = AreaRowState.of(area);
+        area.setIsActive(true);
+        area.setDeletedAt(null);
+        bumpVersionIfChanged(area, before);
+        Area savedArea = areaRepository.save(area);
+
+        auditService.record(
+                AuditTargetType.AREA,
+                AuditAction.RESTORE,
+                savedArea.getId().toString(),
+                savedArea,
+                null,
+                beforeSnapshot,
+                AreaSnapshot.from(savedArea),
+                reason,
+                actor
+        );
+        return mapToAreaResponse(savedArea);
     }
 
     /** BR-AD-04: "Khu vực bị vô hiệu hoá: <lý do>", cắt còn 500 ký tự (giới hạn cột lý do + audit). */

@@ -15,6 +15,7 @@ import Modal from '../../components/ui/Modal';
 import PageHeader from '../../components/ui/PageHeader';
 import ReasonTextarea from '../../components/ui/ReasonTextarea';
 import '../../styles/UserAccessLevelPage.css';
+import '../../styles/AdminPresetPage.css';
 
 const ACCESS_LEVELS = [
   { level: 1, name: 'Cấp 1 — Mọi người dùng' },
@@ -118,10 +119,10 @@ export default function AdminPresetPage() {
   };
 
   return (
-    <div className="user-access-level-page">
+    <div className="admin-preset-page">
       <PageHeader
         title="Mặc định theo loại khu vực"
-        subtitle="Quản lý cấp độ truy cập mặc định cho từng loại khu vực trong toàn bộ khuôn viên."
+        description="Quản lý cấp độ truy cập mặc định cho từng loại khu vực trong toàn bộ khuôn viên."
         actions={
           <Button
             variant="outline"
@@ -327,7 +328,8 @@ export default function AdminPresetPage() {
                     label="Lý do thay đổi"
                     required
                     value={editPresetModal.reason}
-                    onChange={(val) =>
+                    onChange={(e) => {
+                      const val = e.target.value;
                       setEditPresetModal((prev) => ({
                         ...prev,
                         reason: val,
@@ -335,8 +337,8 @@ export default function AdminPresetPage() {
                           prev.reasonError && val.trim().length >= 10 && val.trim().length <= 500
                             ? ''
                             : prev.reasonError,
-                      }))
-                    }
+                      }));
+                    }}
                     minLength={10}
                     maxLength={500}
                     placeholder="Nhập lý do điều chỉnh cấu hình mặc định (từ 10 đến 500 ký tự)..."

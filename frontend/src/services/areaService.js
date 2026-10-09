@@ -72,11 +72,13 @@ export async function deactivateArea(id, data) {
 }
 
 /**
- * Lấy danh sách floor plan
- * GET /api/floor-plans
+ * Khôi phục khu vực đã vô hiệu hoá (ADMIN) — Step 6 BR-AD-07.
+ * Không tự khôi phục nhân sự chỉ định, đơn, lượt khách, camera.
+ * POST /api/areas/{id}/restore
+ * @param {Object} data { reason, version }
  */
-export async function getFloorPlans() {
-	return apiGet("/api/floor-plans");
+export async function restoreArea(id, data) {
+	return apiPost(`/api/areas/${id}/restore`, data);
 }
 
 /**

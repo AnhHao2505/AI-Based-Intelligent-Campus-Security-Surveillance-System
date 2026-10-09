@@ -166,6 +166,22 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, UU
     );
 
     /**
+     * BR-RQ-47: FM huỷ đơn APPROVED chưa bắt đầu — conditional UPDATE nguyên tử (cùng cách cancelIfPending):
+     * 1 dòng = giành được quyền huỷ; 0 dòng = đơn đã đổi trạng thái hoặc đã tới giờ bắt đầu.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE AccessRequest r " +
+           "SET r.status = :newStatus, " +
+           "    r.updatedAt = :now " +
+           "WHERE r.id = :id AND r.status = :expectedStatus AND r.startTime > :now")
+    int cancelIfApprovedNotStarted(
+            @Param("id") UUID id,
+            @Param("newStatus") RequestStatus newStatus,
+            @Param("now") OffsetDateTime now,
+            @Param("expectedStatus") RequestStatus expectedStatus
+    );
+
+    /**
      * Step 5b (BR-TC-15): ghi nguồn huỷ sau khi cancelIfPending đã thành công (chỉ chạm đơn đã CANCELLED).
      */
     @Modifying(clearAutomatically = true, flushAutomatically = true)

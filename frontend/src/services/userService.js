@@ -40,40 +40,6 @@ export async function createStaffAccount(data) {
 }
 
 /**
- * Tải file CSV mẫu để import người dùng
- * GET /api/users/csv-template
- */
-export async function downloadUserTemplate() {
-  const token = localStorage.getItem('accessToken');
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
-  const response = await fetch(`${API_BASE_URL}/api/users/csv-template`, {
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-  });
-  if (!response.ok) {
-    throw new Error('Không thể tải file mẫu. Vui lòng thử lại sau.');
-  }
-  const blob = await response.blob();
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'sample_users.csv';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  window.URL.revokeObjectURL(url);
-}
-
-/**
- * Đăng ký/Tạo tài khoản người dùng
- * POST /api/auth/register
- */
-export async function registerUser(data) {
-  return apiPost('/api/auth/register', data);
-}
-
-/**
  * Bật/Tắt trạng thái hoạt động của tài khoản (ADMIN)
  * PATCH /api/users/{id}/toggle-active
  */
@@ -203,15 +169,26 @@ export async function restoreImportBatch(batchId) {
 
 /**
  * Tìm kiếm người dùng theo từ khoá (FACILITY_MANAGER, ADMIN)
- * GET /api/users/search?q=&page=&size=
+ * GET /api/users/search?q=&page=&size=&accessLevel=
+ * @param {number} [accessLevel] - BR-AL-28: lọc theo cấp hiện tại (bỏ trống = mọi cấp)
  */
-export async function searchUsers(q, page = 0, size = 20) {
+export async function searchUsers(q, page = 0, size = 20, accessLevel) {
   const query = new URLSearchParams({
     q: q || '',
     page: String(page),
     size: String(size),
   });
+  if (accessLevel) query.append('accessLevel', String(accessLevel));
   return apiGet(`/api/users/search?${query.toString()}`);
+}
+
+/**
+ * Đổi cấp truy cập cho nhiều người (FACILITY_MANAGER) — BR-AL-28
+ * PATCH /api/users/bulk-access-level
+ * @returns {{ total, updated, unchanged, failed, results: Array<{userId, userCode, fullName, outcome, oldLevel, newLevel, message}> }}
+ */
+export async function bulkUpdateUserAccessLevel(userIds, accessLevel, reason) {
+  return apiPatch('/api/users/bulk-access-level', { userIds, accessLevel, reason });
 }
 
 /**

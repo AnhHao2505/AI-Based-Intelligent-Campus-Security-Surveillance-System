@@ -2,6 +2,7 @@ package com.fa26se040.icss.guest;
 
 import com.fa26se040.icss.entity.*;
 import com.fa26se040.icss.enums.*;
+import com.fa26se040.icss.service.GuestRules;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -65,11 +66,21 @@ public class GuestVisitHostTest extends GuestTestSupport {
     }
 
     @Test
-    @DisplayName("GV-01 đúng: FM cấp 2 và ADMIN cấp 3 cũng làm host được")
-    void create_ok_fmAndAdmin() throws Exception {
+    @DisplayName("GV-01 đúng: FM cấp 2 cũng làm host được")
+    void create_ok_fm() throws Exception {
         User fmL2 = newUser("fm2l", Role.FACILITY_MANAGER, 2, true);
         createdId(create(fmL2, validBody()));
-        createdId(create(admin, validBody()));
+    }
+
+    @Test
+    @DisplayName("B-04: ADMIN (kể cả cấp 3) không làm host — tạo lượt / danh sách khu vực form / lượt của tôi / huỷ -> 403")
+    void admin_notHost_forbidden() throws Exception {
+        assertEquals(403, status(create(admin, validBody())));
+        assertEquals(403, status(send(get("/api/guest-visits/selectable-areas"), admin, null).andReturn()));
+        assertEquals(403, status(send(get("/api/guest-visits/my"), admin, null).andReturn()));
+        UUID id = createdId(create(hostL2, validBody()));
+        assertEquals(403, status(send(patch("/api/guest-visits/" + id + "/cancel"), admin, Map.of("version", 0)).andReturn()));
+        assertFalse(GuestRules.HOST_ROLES.contains(Role.ADMIN));
     }
 
     @Test
@@ -369,5 +380,40 @@ public class GuestVisitHostTest extends GuestTestSupport {
         Collections.sort(codes);
         assertEquals(List.of(200, 409), codes);
         assertEquals(1, audits(id.toString(), AuditTargetType.GUEST_VISIT, AuditAction.CANCEL).size());
+    }
+
+    // ================================================================== B-04 điều kiện mời khách (FE)
+
+    @Test
+    @DisplayName("B-04: GET /eligibility — host cấp 2 canHost=true; cấp 1 canHost=false (myLevel 1, minLevel 2); nâng GUEST_HOST_MIN_LEVEL = 3 thì cấp 2 false, minLevel 3")
+    void eligibility_followsConfig() throws Exception {
+        JsonNode ok = json(send(get("/api/guest-visits/eligibility"), hostL2, null).andReturn()).path("data");
+        assertTrue(ok.path("canHost").asBoolean());
+        assertEquals(2, ok.path("myLevel").asInt());
+        assertEquals(2, ok.path("minLevel").asInt());
+
+        JsonNode low = json(send(get("/api/guest-visits/eligibility"), hostL1, null).andReturn()).path("data");
+        assertFalse(low.path("canHost").asBoolean());
+        assertEquals(1, low.path("myLevel").asInt());
+        assertEquals(2, low.path("minLevel").asInt());
+
+        setConfig(ConfigKey.GUEST_HOST_MIN_LEVEL, "3");
+        JsonNode raised = json(send(get("/api/guest-visits/eligibility"), hostL2, null).andReturn()).path("data");
+        assertFalse(raised.path("canHost").asBoolean());
+        assertEquals(3, raised.path("minLevel").asInt());
+    }
+
+    @Test
+    @DisplayName("B-04: /eligibility cùng quyền với tạo lượt — ADMIN / GUARD -> 403")
+    void eligibility_forbiddenForAdminAndGuard() throws Exception {
+        assertEquals(403, status(send(get("/api/guest-visits/eligibility"), admin, null).andReturn()));
+        assertEquals(403, status(send(get("/api/guest-visits/eligibility"), guard, null).andReturn()));
+    }
+
+    @Test
+    @DisplayName("B-04: GET /api/auth/me trả accessLevel của người đăng nhập")
+    void authMe_returnsAccessLevel() throws Exception {
+        assertEquals(2, json(send(get("/api/auth/me"), hostL2, null).andReturn()).path("data").path("accessLevel").asInt());
+        assertEquals(1, json(send(get("/api/auth/me"), hostL1, null).andReturn()).path("data").path("accessLevel").asInt());
     }
 }

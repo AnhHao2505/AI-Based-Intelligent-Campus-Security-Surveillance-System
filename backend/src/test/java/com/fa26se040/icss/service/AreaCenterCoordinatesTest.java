@@ -27,6 +27,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 class AreaCenterCoordinatesTest extends Step5bTestSupport {
 
     private static final String PAIR_MESSAGE = "Phải nhập đủ cả vĩ độ và kinh độ, hoặc để trống cả hai.";
+    private static final String LAT_MESSAGE = "Vĩ độ phải từ -90 đến 90";
+    private static final String LNG_MESSAGE = "Kinh độ phải từ -180 đến 180";
 
     @BeforeEach
     void useShortFloorName() {
@@ -149,6 +151,42 @@ class AreaCenterCoordinatesTest extends Step5bTestSupport {
 
         assertEquals(400, status(r), describe(r));
         assertFalse(areaNameExists(name));
+    }
+
+    @Test
+    @DisplayName("BR-AR-23: tạo / sửa khu vực với vĩ độ 91 hoặc kinh độ 181 -> 400 VALIDATION_ERROR, không lưu")
+    void coordinateOutOfRange_createAndUpdate_validationError() throws Exception {
+        String latName = "Vi do 91 " + suffix;
+        MvcResult createLat = create(91.0, 106.81, latName);
+        assertEquals(400, status(createLat), describe(createLat));
+        assertEquals("VALIDATION_ERROR", errorCode(createLat));
+        assertEquals(LAT_MESSAGE, json(createLat).path("data").path("centerLatitude").asText());
+        assertFalse(areaNameExists(latName));
+
+        String lngName = "Kinh do 181 " + suffix;
+        MvcResult createLng = create(10.84, 181.0, lngName);
+        assertEquals(400, status(createLng), describe(createLng));
+        assertEquals("VALIDATION_ERROR", errorCode(createLng));
+        assertEquals(LNG_MESSAGE, json(createLng).path("data").path("centerLongitude").asText());
+        assertFalse(areaNameExists(lngName));
+
+        Area area = areaWithCoordinates();
+        Double latBefore = area.getCenterLatitude();
+        Double lngBefore = area.getCenterLongitude();
+
+        MvcResult updateLat = send(put("/api/areas/{id}", area.getId()), admin, updateBody(area, 91.0, 106.81)).andReturn();
+        assertEquals(400, status(updateLat), describe(updateLat));
+        assertEquals("VALIDATION_ERROR", errorCode(updateLat));
+        assertEquals(LAT_MESSAGE, json(updateLat).path("data").path("centerLatitude").asText());
+
+        MvcResult updateLng = send(put("/api/areas/{id}", area.getId()), admin, updateBody(area, 10.84, 181.0)).andReturn();
+        assertEquals(400, status(updateLng), describe(updateLng));
+        assertEquals("VALIDATION_ERROR", errorCode(updateLng));
+        assertEquals(LNG_MESSAGE, json(updateLng).path("data").path("centerLongitude").asText());
+
+        Area after = reload(area);
+        assertEquals(latBefore, after.getCenterLatitude());
+        assertEquals(lngBefore, after.getCenterLongitude());
     }
 
     @Test

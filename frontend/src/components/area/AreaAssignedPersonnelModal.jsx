@@ -450,7 +450,8 @@ export default function AreaAssignedPersonnelModal({
 										label="Lý do gán"
 										required
 										value={addReasonInput}
-										onChange={(val) => {
+										onChange={(e) => {
+											const val = e.target.value;
 											setAddReasonInput(val);
 											if (addReasonError && val.trim().length >= 10 && val.trim().length <= 500) {
 												setAddReasonError("");
@@ -706,7 +707,8 @@ export default function AreaAssignedPersonnelModal({
 								label="Lý do điều chỉnh"
 								required
 								value={editReasonInput}
-								onChange={(val) => {
+								onChange={(e) => {
+									const val = e.target.value;
 									setEditReasonInput(val);
 									if (editReasonError && val.trim().length >= 10 && val.trim().length <= 500) {
 										setEditReasonError("");
@@ -774,7 +776,8 @@ export default function AreaAssignedPersonnelModal({
 								label="Lý do thu hồi"
 								required
 								value={revokeReason}
-								onChange={(val) => {
+								onChange={(e) => {
+									const val = e.target.value;
 									setRevokeReason(val);
 									if (revokeReasonError && val.trim().length >= 10 && val.trim().length <= 500) {
 										setRevokeReasonError("");

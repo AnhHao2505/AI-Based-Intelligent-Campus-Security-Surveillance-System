@@ -73,7 +73,7 @@ function getDemoResponse(path) {
     };
   }
   if (path.includes('/areas')) return { content: [], totalElements: 0, totalPages: 0 };
-  if (path.includes('/floor-plans') || path.includes('/notifications')) return [];
+  if (path.includes('/notifications')) return [];
   if (path.includes('/access-requests/available-areas')) return [];
   if (path.includes('/guard-shifts') || path.includes('/guard-schedules')) return [];
   if (path.includes('/api/users')) {

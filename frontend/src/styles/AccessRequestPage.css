@@ -1105,3 +1105,18 @@
   max-width: none;
   white-space: normal;
 }
+
+/* Bấm thông báo -> ?requestId: tô sáng dòng đơn ~2 giây (token theme, có sẵn cả sáng và tối) */
+.arp-row--highlight > td {
+  animation: arp-row-flash 2s ease-out;
+}
+
+@keyframes arp-row-flash {
+  0%,
+  60% {
+    background-color: var(--theme-primary-light);
+  }
+  100% {
+    background-color: transparent;
+  }
+}

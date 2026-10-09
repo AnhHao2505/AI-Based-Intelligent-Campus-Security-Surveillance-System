@@ -21,7 +21,9 @@ import {
   Camera,
   UserCheck,
   UserMinus,
-  CalendarOff
+  CalendarOff,
+  CheckCheck,
+  ShieldCheck
 } from 'lucide-react';
 import { notificationService } from '../../services/notificationService';
 import { useAuth } from '../../context/AuthContext';
@@ -83,11 +85,24 @@ export default function NotificationsPage() {
 
     if (notif.referenceType === 'ACCESS_REQUEST' || notif.reference_type === 'ACCESS_REQUEST') {
       const role = user?.role || user?.role_type || '';
+      // Mở đúng đơn: trang đích đọc ?requestId (tô sáng dòng hoặc mở popup chi tiết)
+      const refId = notif.referenceId || notif.reference_id;
+      const query = refId ? `?requestId=${encodeURIComponent(refId)}` : '';
       if (role === 'FACILITY_MANAGER' || role === 'ADMIN') {
-        navigate('/admin/access-requests');
+        navigate(`/admin/access-requests${query}`);
       } else {
-        navigate('/access-requests');
+        navigate(`/access-requests${query}`);
       }
+    }
+
+    // A-05: thông báo khu vực / chế độ sự kiện (BE gắn referenceType = "AREA") -> màn Quản lý khu vực.
+    // GUARD (nhận EVENT_MODE_CHANGED) không có màn này nên chỉ đánh dấu đã đọc.
+    if (notif.referenceType === 'AREA' || notif.reference_type === 'AREA') {
+      const role = user?.role || user?.role_type || '';
+      if (role === 'FACILITY_MANAGER' || role === 'ADMIN') {
+        navigate('/admin/areas');
+      }
+      return;
     }
 
     // Step 6 (H1): quyền chỉ định ra vào bị thu hồi khi khu vực bị vô hiệu hoá
@@ -102,12 +117,18 @@ export default function NotificationsPage() {
     }
 
     if (notif.referenceType === 'GUEST_VISIT' || notif.reference_type === 'GUEST_VISIT' || notif.type?.startsWith('GUEST_')) {
+      // Mở đúng lượt khách: trang đích đọc ?visitId (tô sáng dòng hoặc mở popup chi tiết)
+      const visitRef = notif.referenceId || notif.reference_id;
+      const visitQuery = visitRef ? `?visitId=${encodeURIComponent(visitRef)}` : '';
       if (notif.type === 'GUEST_VISIT_PENDING') {
-        navigate('/admin/guest-visits');
+        navigate(`/admin/guest-visits${visitQuery}`);
       } else if (notif.type === 'GUEST_PHOTO_REQUIRED') {
         navigate('/admin/guest-photos');
+      } else if ((user?.role || user?.role_type) === 'ADMIN') {
+        // B-04: ADMIN không có trang "Khách của tôi"
+        navigate(`/admin/guest-visits${visitQuery}`);
       } else {
-        navigate('/guest-visits');
+        navigate(`/guest-visits${visitQuery}`);
       }
     }
   };
@@ -184,6 +205,13 @@ export default function NotificationsPage() {
             <SlidersHorizontal size={16} />
           </div>
         );
+      // A-05: gửi Guard mỗi lần bật / tắt / đổi giờ kết thúc chế độ sự kiện
+      case 'EVENT_MODE_CHANGED':
+        return (
+          <div className="notif-icon-box notif-icon-box--schedule" title="Chế độ sự kiện thay đổi">
+            <ShieldCheck size={16} />
+          </div>
+        );
       case 'EVENT_MODE_SCHEDULED':
         return (
           <div className="notif-icon-box notif-icon-box--schedule" title="Đã đặt lịch sự kiện">
@@ -213,6 +241,13 @@ export default function NotificationsPage() {
         return (
           <div className="notif-icon-box notif-icon-box--cancelled" title="Đơn bị hệ thống hủy">
             <XCircle size={16} />
+          </div>
+        );
+      // B-03 (BR-RQ-46): FM chuyển đơn đã duyệt sang Hoàn thành, kèm lý do
+      case 'REQUEST_FINISHED':
+        return (
+          <div className="notif-icon-box notif-icon-box--cancelled" title="Đơn đã được kết thúc">
+            <CheckCheck size={16} />
           </div>
         );
       // Guest visits & photos notifications (U5)

@@ -2,13 +2,13 @@ import { apiGet, apiPost, apiPut, apiPatch } from "../api/apiClient";
 
 /**
  * Lấy danh sách danh mục lý do (chỉ ADMIN)
- * GET /api/reason-catalogs?actionType=&isActive=
+ * GET /api/reason-catalogs?actionType=&active= (A-01: tên tham số khớp @RequestParam Boolean active của backend)
  */
 export async function getReasonCatalogs(params = {}) {
 	const searchParams = new URLSearchParams();
 	if (params.actionType) searchParams.append("actionType", params.actionType);
-	if (params.isActive !== undefined && params.isActive !== null && params.isActive !== "") {
-		searchParams.append("isActive", params.isActive);
+	if (params.active !== undefined && params.active !== null && params.active !== "") {
+		searchParams.append("active", params.active);
 	}
 	const qs = searchParams.toString();
 	return apiGet(`/api/reason-catalogs${qs ? `?${qs}` : ""}`);

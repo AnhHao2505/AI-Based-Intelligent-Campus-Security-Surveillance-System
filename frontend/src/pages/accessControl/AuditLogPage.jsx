@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Search,
   Loader2,
   History,
   RotateCcw,
@@ -14,11 +13,14 @@ import { getAuditLogs } from '../../services/accessControlService';
 import { getAreas } from '../../services/areaService';
 import { ROLES } from '../../constants/roles';
 import { formatDisplayDateTime } from '../../utils/areaHelpers';
+import { formatDate, formatTime } from '../../utils/formatDateTime';
+import { formatLocation } from '../../utils/formatLocation';
 import Button from '../../components/ui/Button';
 import PageHeader from '../../components/ui/PageHeader';
 import UserSearchCombobox from '../../components/user/UserSearchCombobox';
+// UserAccessLevelPage.css: badge / ô người dùng / nội dung thay đổi / banner correlation (audit-*) dùng chung với trang cũ
 import '../../styles/UserAccessLevelPage.css';
-import { formatLocation } from '../../utils/formatLocation';
+import '../../styles/AuditLogPage.css';
 
 const SYSTEM_ACTOR_LABELS = {
   EXPIRE_OVERDUE_REQUESTS_JOB: 'Tự động hết hạn đơn quá giờ',
@@ -37,6 +39,7 @@ const MODULE_OPTIONS_ADMIN = [
   { value: 'ACCESS_CONTROL', label: 'Phân quyền' },
   { value: 'ACCESS_REQUEST', label: 'Yêu cầu truy cập' },
   { value: 'SYSTEM', label: 'Hệ thống' },
+  { value: 'GUEST', label: 'Khách' },
 ];
 
 const MODULE_OPTIONS_FM = [
@@ -46,6 +49,7 @@ const MODULE_OPTIONS_FM = [
   { value: 'ACCESS_REQUEST', label: 'Yêu cầu truy cập' },
 ];
 
+// Chỉ các giá trị có trong enum AuditTargetType của backend (giá trị khác -> API trả 400)
 const TARGET_TYPE_OPTIONS = [
   { value: '', label: 'Tất cả loại đối tượng' },
   { value: 'USER_ACCESS_LEVEL', label: 'Cấp truy cập người dùng' },
@@ -56,12 +60,96 @@ const TARGET_TYPE_OPTIONS = [
   { value: 'AREA_EVENT_SCHEDULE', label: 'Lịch sự kiện' },
   { value: 'REASON_CATALOG', label: 'Danh mục lý do' },
   { value: 'AREA', label: 'Khu vực' },
-  { value: 'AREA_GEOMETRY', label: 'Tọa độ khu vực' },
-  { value: 'AREA_CAMERAS', label: 'Camera khu vực' },
   { value: 'ACCESS_REQUEST', label: 'Yêu cầu truy cập' },
-  { value: 'SYSTEM_CONFIG', label: 'Cấu hình hệ thống' },
-  { value: 'SYSTEM', label: 'Hệ thống' },
 ];
+
+// Đối tượng của phân hệ GUEST — chỉ ADMIN được đọc (audit_module_roles, V60)
+const TARGET_TYPE_OPTIONS_GUEST = [
+  { value: 'GUEST_VISIT', label: 'Lượt khách' },
+  { value: 'GUEST', label: 'Khách' },
+];
+
+const TARGET_TYPE_LABELS = {
+  USER_ACCESS_LEVEL: 'Cấp người dùng',
+  AREA_ACCESS_RULES: 'Quy tắc khu vực',
+  AREA_ASSIGNMENT: 'Nhân sự chỉ định',
+  LEVEL_PRESET: 'Mặc định loại',
+  AREA_EVENT_MODE: 'Chế độ sự kiện',
+  AREA_EVENT_SCHEDULE: 'Lịch sự kiện',
+  REASON_CATALOG: 'Danh mục lý do',
+  AREA: 'Khu vực',
+  AREA_GEOMETRY: 'Tọa độ khu vực',
+  AREA_CAMERAS: 'Camera khu vực',
+  ACCESS_REQUEST: 'Yêu cầu truy cập',
+  SYSTEM_CONFIG: 'Cấu hình hệ thống',
+  SYSTEM: 'Hệ thống',
+  GUEST_VISIT: 'Lượt khách',
+  GUEST: 'Khách',
+};
+
+// Màu badge "Loại sự kiện" theo bảng màu của thiết kế (category-badge--*)
+const TARGET_TYPE_CATEGORY = {
+  USER_ACCESS_LEVEL: 'purple',
+  AREA_ACCESS_RULES: 'purple',
+  AREA_ASSIGNMENT: 'purple',
+  LEVEL_PRESET: 'purple',
+  AREA: 'success',
+  AREA_GEOMETRY: 'success',
+  AREA_CAMERAS: 'success',
+  AREA_EVENT_MODE: 'success',
+  AREA_EVENT_SCHEDULE: 'success',
+  ACCESS_REQUEST: 'warning',
+};
+
+const getActionLabel = (targetType, action) => {
+  let actionLabel = action;
+  if (action === 'UPDATE') actionLabel = 'Cập nhật';
+  else if (action === 'ASSIGN') actionLabel = 'Gán mới';
+  else if (action === 'UPDATE_VALIDITY') actionLabel = 'Gia hạn';
+  else if (action === 'REVOKE') actionLabel = 'Thu hồi';
+  else if (action === 'ENABLE_EVENT_MODE') actionLabel = 'Bật chế độ sự kiện';
+  else if (action === 'DISABLE_EVENT_MODE') actionLabel = 'Tắt chế độ sự kiện';
+  else if (action === 'EXTEND_EVENT_MODE') actionLabel = 'Điều chỉnh giờ kết thúc';
+  else if (action === 'CREATE') actionLabel = 'Tạo mới';
+  else if (action === 'DEACTIVATE') actionLabel = 'Ngừng dùng';
+  else if (action === 'REACTIVATE') actionLabel = 'Dùng lại';
+  else if (action === 'UPDATE_RULES') actionLabel = 'Cập nhật quy tắc';
+  else if (action === 'UPDATE_PRESET') actionLabel = 'Cập nhật mặc định';
+  else if (action === 'UPDATE_GEOMETRY') actionLabel = 'Cập nhật tọa độ';
+  else if (action === 'DELETE_GEOMETRY') actionLabel = 'Xóa tọa độ';
+  else if (action === 'UPDATE_CAMERAS') actionLabel = 'Cập nhật camera';
+  else if (action === 'SUBMIT') actionLabel = 'Gửi yêu cầu';
+  else if (action === 'APPROVE') actionLabel = 'Phê duyệt';
+  else if (action === 'REJECT') actionLabel = 'Từ chối';
+  else if (action === 'CANCEL') actionLabel = 'Hủy bỏ';
+  else if (action === 'FINISH') actionLabel = 'Kết thúc';
+  else if (action === 'EXPIRE') actionLabel = 'Hết hạn';
+  else if (action === 'AUTO_EXPIRE') actionLabel = 'Tự động hết hạn';
+  else if (action === 'EXPIRE_EVENT_MODE') actionLabel = 'Sự kiện hết hạn';
+  else if (action === 'CHANGE_TYPE') actionLabel = 'Đổi loại khu vực';
+  else if (action === 'COMPLETE') actionLabel = 'Hoàn thành';
+  else if (action === 'ATTACH_PHOTO') actionLabel = 'Đính kèm ảnh';
+  else if (action === 'VIEW_PHOTO') actionLabel = 'Xem ảnh';
+  else if (action === 'DELETE_BIOMETRIC') actionLabel = 'Xóa dữ liệu sinh trắc';
+  else if (action === 'ANONYMIZE') actionLabel = 'Ẩn danh hóa';
+  else if (action === 'FAIL') actionLabel = 'Thất bại';
+  else if (action === 'RESTORE') actionLabel = 'Khôi phục';
+
+  if (targetType === 'AREA_EVENT_SCHEDULE') {
+    if (action === 'CREATE') actionLabel = 'Đặt lịch';
+    else if (action === 'UPDATE') actionLabel = 'Sửa lịch';
+    else if (action === 'CANCEL') actionLabel = 'Huỷ lịch';
+    else if (action === 'FAIL') actionLabel = 'Lịch thất bại';
+  }
+  return actionLabel;
+};
+
+// "yyyy-MM-dd" theo giờ máy, dùng cho ô ngày và nút "Hôm nay"
+const todayInputValue = () => {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
 
 export default function AuditLogPage() {
   const { user: currentUser } = useAuth();
@@ -113,8 +201,9 @@ export default function AuditLogPage() {
         if (filterAreaId) params.areaId = filterAreaId;
         if (filterSubjectUser?.id) params.subjectUserId = filterSubjectUser.id;
         if (filterChangedByUser?.id) params.changedBy = filterChangedByUser.id;
-        if (filterFrom) params.from = `${filterFrom}T00:00:00Z`;
-        if (filterTo) params.to = `${filterTo}T23:59:59Z`;
+        // Ngày lọc là ngày theo giờ Việt Nam (UTC+7), không phải UTC
+        if (filterFrom) params.from = `${filterFrom}T00:00:00+07:00`;
+        if (filterTo) params.to = `${filterTo}T23:59:59+07:00`;
 
         const res = await getAuditLogs(params);
         setLogs(res?.content || []);
@@ -173,88 +262,25 @@ export default function AuditLogPage() {
     setFilterChangedByUser(null);
   };
 
-  const renderAuditTargetType = (targetType, action) => {
-    let label = targetType;
-    let badgeClass = 'audit-type--default';
+  // Nút "Tất cả / Hôm nay": chỉ đặt khoảng ngày (from / to) gửi lên API
+  const today = todayInputValue();
+  const isTodayRange = filterFrom === today && filterTo === today;
+  const isAllRange = !filterFrom && !filterTo;
+  const handleSelectAllTime = () => {
+    setFilterFrom('');
+    setFilterTo('');
+  };
+  const handleSelectToday = () => {
+    setFilterFrom(today);
+    setFilterTo(today);
+  };
 
-    if (targetType === 'USER_ACCESS_LEVEL') {
-      label = 'Cấp người dùng';
-      badgeClass = 'audit-type--user';
-    } else if (targetType === 'AREA_ACCESS_RULES') {
-      label = 'Quy tắc khu vực';
-      badgeClass = 'audit-type--area';
-    } else if (targetType === 'AREA_ASSIGNMENT') {
-      label = 'Nhân sự chỉ định';
-      badgeClass = 'audit-type--personnel';
-    } else if (targetType === 'LEVEL_PRESET') {
-      label = 'Mặc định loại';
-      badgeClass = 'audit-type--preset';
-    } else if (targetType === 'AREA_EVENT_MODE') {
-      label = 'Chế độ sự kiện';
-      badgeClass = 'audit-type--event';
-    } else if (targetType === 'AREA_EVENT_SCHEDULE') {
-      label = 'Lịch sự kiện';
-      badgeClass = 'audit-type--event';
-    } else if (targetType === 'REASON_CATALOG') {
-      label = 'Danh mục lý do';
-      badgeClass = 'audit-type--catalog';
-    } else if (targetType === 'AREA') {
-      label = 'Khu vực';
-      badgeClass = 'audit-type--area';
-    } else if (targetType === 'AREA_GEOMETRY') {
-      label = 'Tọa độ khu vực';
-      badgeClass = 'audit-type--area';
-    } else if (targetType === 'AREA_CAMERAS') {
-      label = 'Camera khu vực';
-      badgeClass = 'audit-type--area';
-    } else if (targetType === 'ACCESS_REQUEST') {
-      label = 'Yêu cầu truy cập';
-      badgeClass = 'audit-type--request';
-    } else if (targetType === 'SYSTEM_CONFIG') {
-      label = 'Cấu hình hệ thống';
-      badgeClass = 'audit-type--system';
-    } else if (targetType === 'SYSTEM') {
-      label = 'Hệ thống';
-      badgeClass = 'audit-type--system';
-    }
-
-    let actionLabel = action;
-    if (action === 'UPDATE') actionLabel = 'Cập nhật';
-    else if (action === 'ASSIGN') actionLabel = 'Gán mới';
-    else if (action === 'UPDATE_VALIDITY') actionLabel = 'Gia hạn';
-    else if (action === 'REVOKE') actionLabel = 'Thu hồi';
-    else if (action === 'ENABLE_EVENT_MODE') actionLabel = 'Bật chế độ sự kiện';
-    else if (action === 'DISABLE_EVENT_MODE') actionLabel = 'Tắt chế độ sự kiện';
-    else if (action === 'EXTEND_EVENT_MODE') actionLabel = 'Điều chỉnh giờ kết thúc';
-    else if (action === 'CREATE') actionLabel = 'Tạo mới';
-    else if (action === 'DEACTIVATE') actionLabel = 'Ngừng dùng';
-    else if (action === 'REACTIVATE') actionLabel = 'Dùng lại';
-    else if (action === 'UPDATE_RULES') actionLabel = 'Cập nhật quy tắc';
-    else if (action === 'UPDATE_PRESET') actionLabel = 'Cập nhật mặc định';
-    else if (action === 'UPDATE_GEOMETRY') actionLabel = 'Cập nhật tọa độ';
-    else if (action === 'DELETE_GEOMETRY') actionLabel = 'Xóa tọa độ';
-    else if (action === 'UPDATE_CAMERAS') actionLabel = 'Cập nhật camera';
-    else if (action === 'SUBMIT') actionLabel = 'Gửi yêu cầu';
-    else if (action === 'APPROVE') actionLabel = 'Phê duyệt';
-    else if (action === 'REJECT') actionLabel = 'Từ chối';
-    else if (action === 'CANCEL') actionLabel = 'Hủy bỏ';
-    else if (action === 'FINISH') actionLabel = 'Kết thúc';
-    else if (action === 'EXPIRE') actionLabel = 'Hết hạn';
-    else if (action === 'AUTO_EXPIRE') actionLabel = 'Tự động hết hạn';
-    else if (action === 'EXPIRE_EVENT_MODE') actionLabel = 'Sự kiện hết hạn';
-
-    if (targetType === 'AREA_EVENT_SCHEDULE') {
-      if (action === 'CREATE') actionLabel = 'Đặt lịch';
-      else if (action === 'UPDATE') actionLabel = 'Sửa lịch';
-      else if (action === 'CANCEL') actionLabel = 'Huỷ lịch';
-      else if (action === 'FAIL') actionLabel = 'Lịch thất bại';
-    }
-
+  const renderCategoryBadge = (targetType) => {
+    const variant = TARGET_TYPE_CATEGORY[targetType] || 'default';
     return (
-      <div className="audit-target-col">
-        <span className={`audit-badge ${badgeClass}`}>{label}</span>
-        <span className="audit-action-label">{actionLabel}</span>
-      </div>
+      <span className={`category-badge category-badge--${variant}`}>
+        {TARGET_TYPE_LABELS[targetType] || targetType}
+      </span>
     );
   };
 
@@ -402,7 +428,7 @@ export default function AuditLogPage() {
 
     // Default JSON fallback summary
     const snap = newValue || oldValue;
-    if (!snap) return <span className="audit-cell--empty">—</span>;
+    if (!snap) return null;
     return (
       <div className="audit-detail-rules">
         <span className="audit-val--json-summary">
@@ -413,53 +439,59 @@ export default function AuditLogPage() {
   };
 
   return (
-    <div className="user-access-level-page">
+    <div className="audit-log-page">
       <PageHeader
         title="Nhật ký Kiểm toán & Phân quyền"
-        subtitle="Theo dõi toàn bộ lịch sử thay đổi phân quyền, quy tắc khu vực và các thao tác trong hệ thống."
-        actions={
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => loadAuditLogs(currentPage)}
-            disabled={loadingLogs}
-            leftIcon={<RotateCcw size={16} className={loadingLogs ? 'animate-spin' : ''} />}
-          >
-            Làm mới
-          </Button>
-        }
+        description="Theo dõi toàn bộ lịch sử thay đổi phân quyền, quy tắc khu vực và các thao tác trong hệ thống."
       />
 
-      <div className="tab-pane">
-        {filterCorrelationId && (
-          <div className="audit-correlation-banner">
-            <div className="audit-correlation-banner__content">
-              <Link size={15} />
-              <span>Đang lọc theo mã thao tác (Correlation ID):</span>
-              <span className="audit-correlation-banner__id">{filterCorrelationId}</span>
-            </div>
-            <button
-              type="button"
-              className="audit-correlation-clear-btn"
-              onClick={handleClearCorrelationFilter}
-            >
-              <X size={13} />
-              <span>Xóa lọc</span>
-            </button>
+      {filterCorrelationId && (
+        <div className="audit-correlation-banner">
+          <div className="audit-correlation-banner__content">
+            <Link size={15} />
+            <span>Đang lọc theo mã thao tác (Correlation ID):</span>
+            <span className="audit-correlation-banner__id">{filterCorrelationId}</span>
           </div>
-        )}
+          <button
+            type="button"
+            className="audit-correlation-clear-btn"
+            onClick={handleClearCorrelationFilter}
+          >
+            <X size={13} />
+            <span>Xóa lọc</span>
+          </button>
+        </div>
+      )}
 
-        {/* Audit Filters Toolbar */}
-        <div className="audit-filters-card">
-          <div className="audit-filters-header">
-            <Filter size={16} />
-            <span>Bộ lọc nhật ký</span>
+      <div className="section-card">
+        {/* Filter Bar */}
+        <div className="audit-filter-bar">
+          <div className="audit-user-filters">
+            <div className="audit-user-filter">
+              <span className="audit-user-filter__label">Người thực hiện</span>
+              <UserSearchCombobox
+                selectedUser={filterChangedByUser}
+                onSelect={(u) => setFilterChangedByUser(u)}
+                onClear={() => setFilterChangedByUser(null)}
+                placeholder="Tìm theo tên/mã người thực hiện..."
+              />
+            </div>
+            <div className="audit-user-filter">
+              <span className="audit-user-filter__label">Người bị tác động</span>
+              <UserSearchCombobox
+                selectedUser={filterSubjectUser}
+                onSelect={(u) => setFilterSubjectUser(u)}
+                onClear={() => setFilterSubjectUser(null)}
+                placeholder="Tìm theo tên/mã người bị tác động..."
+              />
+            </div>
           </div>
-          <div className="audit-filters-grid">
-            <div className="audit-filter-item">
-              <label className="audit-filter-label">Phân hệ</label>
+
+          <div className="audit-filter-controls">
+            <div className="audit-select-wrapper">
+              <Filter size={14} className="audit-select-icon" />
               <select
-                className="audit-filter-select"
+                aria-label="Phân hệ"
                 value={filterModule}
                 onChange={(e) => setFilterModule(e.target.value)}
               >
@@ -471,14 +503,13 @@ export default function AuditLogPage() {
               </select>
             </div>
 
-            <div className="audit-filter-item">
-              <label className="audit-filter-label">Loại đối tượng</label>
+            <div className="audit-select-wrapper no-icon">
               <select
-                className="audit-filter-select"
+                aria-label="Loại đối tượng"
                 value={filterTargetType}
                 onChange={(e) => setFilterTargetType(e.target.value)}
               >
-                {TARGET_TYPE_OPTIONS.map((opt) => (
+                {(isAdmin ? [...TARGET_TYPE_OPTIONS, ...TARGET_TYPE_OPTIONS_GUEST] : TARGET_TYPE_OPTIONS).map((opt) => (
                   <option key={opt.value} value={opt.value}>
                     {opt.label}
                   </option>
@@ -486,10 +517,9 @@ export default function AuditLogPage() {
               </select>
             </div>
 
-            <div className="audit-filter-item">
-              <label className="audit-filter-label">Khu vực</label>
+            <div className="audit-select-wrapper no-icon">
               <select
-                className="audit-filter-select"
+                aria-label="Khu vực"
                 value={filterAreaId}
                 onChange={(e) => setFilterAreaId(e.target.value)}
               >
@@ -505,152 +535,155 @@ export default function AuditLogPage() {
               </select>
             </div>
 
-            <div className="audit-filter-item">
-              <label className="audit-filter-label">Từ ngày</label>
+            <div className="audit-date-range">
+              <label className="audit-date-label" htmlFor="audit-filter-from">Từ</label>
               <input
+                id="audit-filter-from"
                 type="date"
-                className="audit-filter-input"
+                className="audit-date-input"
                 value={filterFrom}
                 onChange={(e) => setFilterFrom(e.target.value)}
               />
-            </div>
-
-            <div className="audit-filter-item">
-              <label className="audit-filter-label">Đến ngày</label>
+              <label className="audit-date-label" htmlFor="audit-filter-to">Đến</label>
               <input
+                id="audit-filter-to"
                 type="date"
-                className="audit-filter-input"
+                className="audit-date-input"
                 value={filterTo}
                 onChange={(e) => setFilterTo(e.target.value)}
               />
             </div>
 
-            <div className="audit-filter-item audit-filter-item--wide">
-              <label className="audit-filter-label">Người bị tác động</label>
-              <UserSearchCombobox
-                selectedUser={filterSubjectUser}
-                onSelect={(u) => setFilterSubjectUser(u)}
-                onClear={() => setFilterSubjectUser(null)}
-                placeholder="Tìm theo tên/mã người bị tác động..."
-              />
+            <div className="audit-time-toggle">
+              <button
+                type="button"
+                className={`toggle-btn ${isAllRange ? 'active' : ''}`}
+                onClick={handleSelectAllTime}
+              >
+                Tất cả
+              </button>
+              <button
+                type="button"
+                className={`toggle-btn ${isTodayRange ? 'active' : ''}`}
+                onClick={handleSelectToday}
+              >
+                Hôm nay
+              </button>
             </div>
 
-            <div className="audit-filter-item audit-filter-item--wide">
-              <label className="audit-filter-label">Người thực hiện</label>
-              <UserSearchCombobox
-                selectedUser={filterChangedByUser}
-                onSelect={(u) => setFilterChangedByUser(u)}
-                onClear={() => setFilterChangedByUser(null)}
-                placeholder="Tìm theo tên/mã người thực hiện..."
-              />
-            </div>
-          </div>
-
-          <div className="audit-filters-actions">
-            <Button
-              variant="secondary"
-              size="sm"
-              leftIcon={<RotateCcw size={15} />}
+            <button
+              type="button"
+              className="audit-refresh-btn"
+              aria-label="Đặt lại bộ lọc"
+              title="Đặt lại bộ lọc"
               onClick={handleResetFilters}
             >
-              Đặt lại
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              leftIcon={<Search size={15} />}
-              onClick={() => loadAuditLogs(0)}
+              <X size={16} />
+            </button>
+
+            <button
+              type="button"
+              className="audit-refresh-btn"
+              aria-label="Làm mới"
+              title="Làm mới"
+              onClick={() => loadAuditLogs(currentPage)}
+              disabled={loadingLogs}
             >
-              Áp dụng lọc
-            </Button>
+              <RotateCcw size={16} className={loadingLogs ? 'animate-spin' : ''} />
+            </button>
           </div>
         </div>
 
-        {/* Audit Logs Table */}
-        <div className="section-card">
-          {loadingLogs ? (
-            <div className="loading-state">
-              <Loader2 size={28} className="animate-spin" />
-              <span>Đang tải nhật ký thay đổi...</span>
-            </div>
-          ) : logs.length === 0 ? (
-            <div className="empty-state">
-              <History size={32} />
-              <p className="empty-state__title">Không tìm thấy bản ghi nhật ký phù hợp</p>
-              <span className="empty-state__desc">
-                Thử thay đổi bộ lọc tìm kiếm để xem kết quả khác.
-              </span>
-            </div>
-          ) : (
-            <>
-              <div className="table-wrapper">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th className="ui-col-time">Thời gian</th>
-                      <th>Thao tác & Đối tượng</th>
-                      <th>Khu vực</th>
-                      <th>Người bị tác động</th>
-                      <th>Người thực hiện</th>
-                      <th>Nội dung thay đổi</th>
-                      <th>Lý do</th>
-                      <th>Liên kết</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {logs.map((log) => (
+        {/* Table */}
+        {loadingLogs ? (
+          <div className="loading-state">
+            <Loader2 size={28} className="animate-spin" />
+            <span>Đang tải nhật ký thay đổi...</span>
+          </div>
+        ) : logs.length === 0 ? (
+          <div className="empty-state">
+            <History size={32} />
+            <p className="empty-state__title">Không tìm thấy bản ghi nhật ký phù hợp</p>
+            <span className="empty-state__desc">
+              Thử thay đổi bộ lọc tìm kiếm để xem kết quả khác.
+            </span>
+          </div>
+        ) : (
+          <>
+            <div className="table-wrapper">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>THỜI GIAN</th>
+                    <th>NGƯỜI THỰC HIỆN</th>
+                    <th>LOẠI SỰ KIỆN</th>
+                    <th>HÀNH ĐỘNG & CHI TIẾT</th>
+                    <th>ĐỐI TƯỢNG TÁC ĐỘNG</th>
+                    <th>LIÊN KẾT</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {logs.map((log) => {
+                    const reasonText = getAuditReasonText(log);
+                    const changeDetail = renderAuditChange(log);
+                    const isSystemActor = log.actorType === 'SYSTEM' || !log.changedByName;
+                    return (
                       <tr key={log.id}>
-                        <td className="audit-cell--time">
-                          {formatDisplayDateTime(log.changedAt)}
+                        <td>
+                          <div className="flex-col-stack">
+                            <span className="text-muted">{formatDate(log.changedAt)}</span>
+                            <span>{formatTime(log.changedAt)}</span>
+                          </div>
                         </td>
                         <td>
-                          {renderAuditTargetType(log.targetType, log.action)}
-                        </td>
-                        <td>
-                          {log.areaName ? (
-                            <div className="audit-area-cell">
-                              <span className="audit-area-name">{log.areaName}</span>
-                            </div>
-                          ) : (
-                            <span className="audit-cell--empty">—</span>
-                          )}
-                        </td>
-                        <td>
-                          {log.subjectUserName ? (
-                            <div className="audit-user-cell">
-                              <span className="audit-user-name">{log.subjectUserName}</span>
-                              <span className="audit-user-code">{log.subjectUserCode}</span>
-                            </div>
-                          ) : (
-                            <span className="audit-cell--empty">—</span>
-                          )}
-                        </td>
-                        <td>
-                          {log.actorType === 'SYSTEM' || !log.changedByName ? (
-                            <div className="audit-user-cell">
-                              <span className="audit-user-name audit-system-actor">
+                          {isSystemActor ? (
+                            <div className="flex-col-stack">
+                              <span className="font-semibold audit-system-actor">
                                 {renderSystemActor(log.actorSource)}
                               </span>
                             </div>
                           ) : (
-                            <div className="audit-user-cell">
-                              <span className="audit-user-name">{log.changedByName}</span>
+                            <div className="flex-col-stack">
+                              <span className="font-semibold">{log.changedByName}</span>
                               {log.changedByUserCode && (
-                                <span className="audit-user-code">{log.changedByUserCode}</span>
+                                <span className="text-muted">{log.changedByUserCode}</span>
                               )}
                             </div>
                           )}
                         </td>
+                        <td>{renderCategoryBadge(log.targetType)}</td>
                         <td>
-                          {renderAuditChange(log)}
+                          <div className="flex-col-stack">
+                            <span className="font-semibold">{getActionLabel(log.targetType, log.action)}</span>
+                            {changeDetail}
+                            {reasonText && (
+                              <span className="text-muted-wrap" title={reasonText}>
+                                Lý do: {reasonText}
+                              </span>
+                            )}
+                          </div>
                         </td>
-                        <td className="audit-cell--reason">
-                          {getAuditReasonText(log) ? (
-                            <span className="audit-reason-text" title={getAuditReasonText(log)}>
-                              {getAuditReasonText(log)}
-                            </span>
+                        <td>
+                          {log.areaName || log.subjectUserName ? (
+                            <div className="flex-col-stack">
+                              {log.areaName && (
+                                <>
+                                  <span className="font-semibold">Khu vực:</span>
+                                  <span className="text-muted-wrap">{log.areaName}</span>
+                                </>
+                              )}
+                              {log.subjectUserName && (
+                                <>
+                                  <span className="font-semibold">Người dùng:</span>
+                                  <span className="text-muted-wrap">
+                                    {log.subjectUserName}
+                                    {log.subjectUserCode ? ` (${log.subjectUserCode})` : ''}
+                                  </span>
+                                </>
+                              )}
+                            </div>
                           ) : (
-                            <span className="audit-cell--empty">—</span>
+                            <span className="text-muted">—</span>
                           )}
                         </td>
                         <td>
@@ -665,43 +698,43 @@ export default function AuditLogPage() {
                               <span>Cùng thao tác</span>
                             </button>
                           ) : (
-                            <span className="audit-cell--empty">—</span>
+                            <span className="text-muted">—</span>
                           )}
                         </td>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
 
-              {totalPages > 1 && (
-                <div className="pagination-bar">
-                  <span className="pagination-info">
-                    Trang {currentPage + 1} / {totalPages} ({totalElements} bản ghi)
-                  </span>
-                  <div className="pagination-actions">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={currentPage === 0 || loadingLogs}
-                      onClick={() => loadAuditLogs(currentPage - 1)}
-                    >
-                      Trang trước
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={currentPage >= totalPages - 1 || loadingLogs}
-                      onClick={() => loadAuditLogs(currentPage + 1)}
-                    >
-                      Trang sau
-                    </Button>
-                  </div>
+            {totalPages > 1 && (
+              <div className="pagination-bar">
+                <span className="pagination-info">
+                  Trang {currentPage + 1} / {totalPages} ({totalElements} bản ghi)
+                </span>
+                <div className="pagination-actions">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage === 0 || loadingLogs}
+                    onClick={() => loadAuditLogs(currentPage - 1)}
+                  >
+                    Trang trước
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage >= totalPages - 1 || loadingLogs}
+                    onClick={() => loadAuditLogs(currentPage + 1)}
+                  >
+                    Trang sau
+                  </Button>
                 </div>
-              )}
-            </>
-          )}
-        </div>
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
