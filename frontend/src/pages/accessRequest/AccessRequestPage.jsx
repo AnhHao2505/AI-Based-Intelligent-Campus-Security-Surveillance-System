@@ -28,6 +28,7 @@ import { formatLocation } from "../../utils/formatLocation";
 import { formatDateTime, formatRange } from "../../utils/formatDateTime";
 import MemberCodeCombobox from "../../components/accessRequest/MemberCodeCombobox";
 import { useSearchParams } from "react-router-dom";
+import { safeJsonParse } from "../../utils/jsonUtils";
 import { toast } from "sonner";
 
 export default function AccessRequestPage() {
@@ -417,7 +418,7 @@ export default function AccessRequestPage() {
 			}
 
 			// Deduplicate and silently exclude requester
-			const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+			const currentUser = safeJsonParse(localStorage.getItem("user"), {});
 			const myCode = (currentUser.userCode || "").trim().toLowerCase();
 			const seen = new Set();
 			for (const m of memberList) {

@@ -1,4 +1,5 @@
 import { DEMO_LOGIN_ENABLED } from '../config/demoConfig';
+import { safeJsonParse } from '../utils/jsonUtils';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
@@ -16,7 +17,7 @@ function toSystemErrorMessage(rawMessage) {
 }
 
 function getDemoResponse(path) {
-  if (path.includes('/auth/me')) return JSON.parse(localStorage.getItem('user') || 'null');
+  if (path.includes('/auth/me')) return safeJsonParse(localStorage.getItem('user'), null);
   if (path.includes('/notifications/unread-count')) return { count: 2 };
   if (path.includes('/notifications')) {
     return {

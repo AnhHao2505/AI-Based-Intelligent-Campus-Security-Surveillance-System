@@ -1,13 +1,13 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import * as authService from '../services/authService';
 import { DEMO_LOGIN_ENABLED } from '../config/demoConfig';
+import { safeJsonParse } from '../utils/jsonUtils';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
-    const savedUser = localStorage.getItem('user');
-    return savedUser ? JSON.parse(savedUser) : null;
+    return safeJsonParse(localStorage.getItem('user'), null);
   });
 
   const [token, setToken] = useState(() => {
@@ -39,9 +39,13 @@ export function AuthProvider({ children }) {
 
       try {
         const userData = await authService.getCurrentUser();
-        setUser(userData);
-        setToken(storedToken);
-        localStorage.setItem('user', JSON.stringify(userData));
+        if (userData) {
+          setUser(userData);
+          setToken(storedToken);
+          localStorage.setItem('user', JSON.stringify(userData));
+        } else {
+          logout();
+        }
       } catch (err) {
         console.warn('Session verification failed on mount:', err.message);
         // If stored user exists and is valid, keep offline session if not 401
