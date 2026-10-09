@@ -1287,14 +1287,6 @@ public class AreaService {
         return val;
     }
 
-    public int getEventModeGraceMinutes() {
-        int val = systemConfigService.getInt(com.fa26se040.icss.enums.ConfigKey.EVENT_MODE_GRACE_MINUTES);
-        if (val < 0 || val > 240) {
-            return 15;
-        }
-        return val;
-    }
-
     public int getEventModeExpiryReminderMinutes() {
         int val = systemConfigService.getInt(com.fa26se040.icss.enums.ConfigKey.EVENT_MODE_EXPIRY_REMINDER_MINUTES);
         if (val < 0 || val > 240) {
