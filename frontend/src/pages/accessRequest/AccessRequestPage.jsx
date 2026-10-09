@@ -417,7 +417,7 @@ export default function AccessRequestPage() {
 			}
 
 			// Deduplicate and silently exclude requester
-			const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+			const currentUser = user || {};
 			const myCode = (currentUser.userCode || "").trim().toLowerCase();
 			const seen = new Set();
 			for (const m of memberList) {
