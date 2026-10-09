@@ -22,6 +22,9 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
 
     boolean existsByReferenceIdAndType(UUID referenceId, NotificationType type);
 
+    /** BR-GV-39: đã có thông báo loại này cho đối tượng, tạo từ thời điểm from trở đi (chống nhắc trùng không thêm cột). */
+    boolean existsByReferenceIdAndTypeAndCreatedAtGreaterThanEqual(UUID referenceId, NotificationType type, java.time.OffsetDateTime from);
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE Notification n SET n.isRead = true, n.readAt = :now " +
            "WHERE n.recipient.id = :recipientId AND n.isRead = false")

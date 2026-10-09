@@ -25,6 +25,7 @@ import {
 	GUEST_ALLOWED_AREA_LEVELS,
 	formatDateTime,
 	canHostCancel,
+	getMissingPhotoInfo,
 } from "../../utils/guestHelpers";
 import "../../styles/GuestVisitPage.css";
 import { useSearchParams } from "react-router-dom";
@@ -344,7 +345,20 @@ export default function GuestVisitPage() {
 											<Users size={14} /> {(v.guests || []).length}
 										</span>
 									</td>
-									<td>{renderStatus(v.status)}</td>
+									<td>
+										{renderStatus(v.status)}
+										{/* BR-GV-38: lượt đã duyệt còn khách chưa đăng ký khuôn mặt */}
+										{getMissingPhotoInfo(v) && (
+											<div className="guest-visit__photo-missing">
+												<Badge variant="warning">
+													Chưa có ảnh ({getMissingPhotoInfo(v).missing}/{getMissingPhotoInfo(v).total} khách)
+												</Badge>
+												<span className="guest-visit__photo-missing-hint">
+													Khách cần đăng ký khuôn mặt tại quầy trước giờ vào
+												</span>
+											</div>
+										)}
+									</td>
 									<td className="guest-visit__actions">
 										<Button variant="ghost" size="sm" icon={Eye} onClick={() => setDetail(v)}>
 											Chi tiết
