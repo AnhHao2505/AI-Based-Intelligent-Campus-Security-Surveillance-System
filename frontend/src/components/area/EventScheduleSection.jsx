@@ -138,7 +138,8 @@ export default function EventScheduleSection({ area, onSchedulesChanged }) {
 				startAt: toLocalInput(schedule.startAt),
 				endAt: toLocalInput(schedule.endAt),
 				reasonCode: schedule.reasonCode || "",
-				note: schedule.note || "",
+				// B-05 (phương án b): BE giữ ghi chú gốc khi sửa (R2) — ô này là lý do lần sửa, để trống
+				note: "",
 			});
 		} else {
 			setForm(EMPTY_FORM);
@@ -164,7 +165,10 @@ export default function EventScheduleSection({ area, onSchedulesChanged }) {
 		if (!form.reasonCode) return { type: "reason", msg: "Vui lòng chọn lý do từ danh mục." };
 		const note = form.note.trim();
 		if (note.length < 10 || note.length > 500) {
-			return { type: "note", msg: `Ghi chú phải từ 10 đến 500 ký tự (hiện có ${note.length}).` };
+			return {
+				type: "note",
+				msg: `${mode === "edit" ? "Lý do sửa lịch" : "Ghi chú"} phải từ 10 đến 500 ký tự (hiện có ${note.length}).`,
+			};
 		}
 		return null;
 	};
@@ -299,8 +303,13 @@ export default function EventScheduleSection({ area, onSchedulesChanged }) {
 				</label>
 				<ReasonTextarea
 					ref={noteRef}
-					label="Ghi chú"
-					placeholder="Nêu tên sự kiện hoặc đơn vị tổ chức (10–500 ký tự)..."
+					label={mode === "edit" ? "Lý do sửa lịch" : "Ghi chú"}
+					placeholder={
+						mode === "edit"
+							? "Nêu lý do đổi giờ của lịch sự kiện (10–500 ký tự)..."
+							: "Nêu tên sự kiện hoặc đơn vị tổ chức (10–500 ký tự)..."
+					}
+					hint={mode === "edit" ? "Ghi chú gốc được giữ nguyên" : undefined}
 					value={form.note}
 					onChange={(e) => {
 						const val = e.target.value;
