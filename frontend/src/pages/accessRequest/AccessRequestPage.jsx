@@ -24,6 +24,7 @@ import { getLevelConfig, AREA_LEVEL_CONFIG } from "../../utils/areaHelpers";
 import { useAuth } from "../../context/AuthContext";
 import "../../styles/AccessRequestPage.css";
 import PageHeader from "../../components/ui/PageHeader";
+import { LoadingState, EmptyState, ErrorState } from "../../components/ui";
 import { formatLocation } from "../../utils/formatLocation";
 import { formatDateTime, formatRange } from "../../utils/formatDateTime";
 import MemberCodeCombobox from "../../components/accessRequest/MemberCodeCombobox";
@@ -35,7 +36,9 @@ export default function AccessRequestPage() {
 
 	// Available Areas
 	const [areas, setAreas] = useState([]);
-	const [loadingAreas, setLoadingAreas] = useState(false);
+	// Bắt đầu ở trạng thái đang tải để không hiện form rồi mới ẩn khi danh sách rỗng
+	const [loadingAreas, setLoadingAreas] = useState(true);
+	const [areasError, setAreasError] = useState(null);
 
 	// Form State
 	const [selectedAreaId, setSelectedAreaId] = useState("");
@@ -172,12 +175,15 @@ export default function AccessRequestPage() {
 	// Load available areas
 	const loadAreas = useCallback(async () => {
 		setLoadingAreas(true);
+		setAreasError(null);
 		try {
 			const data = await accessRequestService.getAvailableAreas();
 			const list = Array.isArray(data) ? data : data?.content || [];
 			setAreas(list);
 		} catch (err) {
 			console.error("Lỗi khi tải danh sách khu vực:", err);
+			// Lỗi tải không được hiểu là "không có khu" — hiện lỗi + Thử lại
+			setAreasError(err?.message || "Không tải được danh sách khu vực.");
 		} finally {
 			setLoadingAreas(false);
 		}
@@ -541,7 +547,32 @@ export default function AccessRequestPage() {
 				title="Yêu cầu truy cập"
 				description="Gửi yêu cầu ra vào khu vực cần cấp phép và theo dõi trạng thái các yêu cầu của bạn."
 			/>
-			{/* THẺ 1: YÊU CẦU TRUY CẬP MỚI */}
+			{/* THẺ 1: YÊU CẦU TRUY CẬP MỚI
+			    Hiện hay ẩn dựa trên kết quả available-areas (BE quyết khu nào tự xin được),
+			    không dựa trên role hay cấp người dùng. */}
+			{loadingAreas ? (
+				<div className="arp-card">
+					<LoadingState size="sm" text="Đang tải danh sách khu vực..." />
+				</div>
+			) : areasError ? (
+				<div className="arp-card">
+					<ErrorState
+						size="sm"
+						title="Không tải được danh sách khu vực"
+						message={areasError}
+						onRetry={loadAreas}
+					/>
+				</div>
+			) : areas.length === 0 ? (
+				<div className="arp-card">
+					<EmptyState
+						size="sm"
+						icon={KeyRound}
+						title="Hiện không có khu vực nào bạn có thể tự xin quyền truy cập"
+						description="Nếu cần vào phòng Lab hoặc khu hạn chế, hãy nhờ giảng viên thêm bạn vào đơn nhóm."
+					/>
+				</div>
+			) : (
 			<div className="arp-card">
 				{/* 2a. Đầu thẻ */}
 				<div className="arp-card__header">
@@ -910,6 +941,7 @@ export default function AccessRequestPage() {
 					</div>
 				</form>
 			</div>
+			)}
 
 			{/* THẺ 2: YÊU CẦU CỦA TÔI */}
 			<div
