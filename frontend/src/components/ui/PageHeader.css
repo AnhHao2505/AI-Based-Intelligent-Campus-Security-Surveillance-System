@@ -22,6 +22,7 @@
   font-weight: 700;
   line-height: 1.3;
   color: var(--theme-text-primary);
+  overflow-wrap: anywhere; /* tên dài không làm tràn ngang màn 390px */
 }
 
 .ui-page-header__description {

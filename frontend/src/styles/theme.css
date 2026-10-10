@@ -15,6 +15,10 @@
   --theme-bg-panel-right: #ffffff;
   --theme-bg-input: #ffffff;
   --theme-bg-desc: #f8fafc;
+  /* Nền hover / nền phụ: trước đây các trang dùng nhưng chưa khai báo (rơi về giá trị dự phòng hoặc trong suốt) */
+  --theme-bg-hover: #f1f5f9;
+  --theme-bg-surface-hover: #f1f5f9;
+  --theme-bg-subtle: #f1f5f9;
 
   /* Borders & Dividers */
   --theme-border: #e2e8f0;
@@ -27,6 +31,8 @@
   --theme-text-secondary: #475569;
   --theme-text-muted: #64748b;
   --theme-text-disabled: #94a3b8;
+  /* Bí danh của --theme-text-primary (AreaListPage dùng tên này, trước đây chưa khai báo) */
+  --theme-text: var(--theme-text-primary);
 
   /* Primary Brand Accents (Standard Blue) */
   --theme-primary: #2563eb;
@@ -50,6 +56,7 @@
   --theme-danger-bg: #fef2f2;
   --theme-danger-border: #fca5a5;
   --theme-danger-text: #991b1b;
+  --theme-danger-subtle: rgba(239, 68, 68, 0.08);
 
   --theme-info: #0284c7;
   --theme-info-bg: #f0f9ff;
@@ -90,7 +97,7 @@
      - --theme-warning (#f59e0b light, #fbbf24 dark): #0d1117 đạt 8.81:1 (light) và 11.34:1 (dark).
      - --theme-info (#0284c7 light, #38bdf8 dark): #0d1117 đạt 4.62:1 (light) và 8.83:1 (dark).
      - --theme-on-brand: Chữ trên nền brand solid/gradient (tự đảo qua --brand-on-gradient).
-     Vì các nền solid đều sáng hơn đáng kể so với #0d1117 ở cả 2 mode, nhóm token này chỉ cần khai báo tại :root.
+     Vì các nền solid đều sáng hơn đáng kể so với #0d1117 ở cả 2 mode, giá trị giống nhau ở 2 mode (khối dark khai báo lại cho đủ cặp).
   */
   --theme-on-success: #0d1117;
   --theme-on-danger: #0d1117;
@@ -174,6 +181,9 @@
   --theme-bg-panel-right: #0f172a;
   --theme-bg-input: #1e293b;
   --theme-bg-desc: #1e293b;
+  --theme-bg-hover: rgba(255, 255, 255, 0.04);
+  --theme-bg-surface-hover: rgba(255, 255, 255, 0.04);
+  --theme-bg-subtle: rgba(255, 255, 255, 0.06);
 
   /* Borders & Dividers */
   --theme-border: #1e293b;
@@ -186,6 +196,7 @@
   --theme-text-secondary: #cbd5e1;
   --theme-text-muted: #94a3b8;
   --theme-text-disabled: #64748b;
+  --theme-text: var(--theme-text-primary);
 
   /* Primary Brand Accents (Standard Blue Variant) */
   --theme-primary: #3b82f6;
@@ -209,6 +220,7 @@
   --theme-danger-bg: rgba(239, 68, 68, 0.12);
   --theme-danger-border: rgba(248, 113, 113, 0.35);
   --theme-danger-text: #fca5a5;
+  --theme-danger-subtle: rgba(248, 113, 113, 0.12);
 
   --theme-info: #38bdf8;
   --theme-info-bg: rgba(2, 132, 199, 0.12);
@@ -295,6 +307,17 @@
   --access-level-3-border: #7c3aed;
 
   --theme-card-bg: var(--theme-bg-surface);
+
+  /* Khai báo lại cho đủ cặp sáng / tối. Chữ trên nền solid: giữ #0d1117 như :root (đạt >= 6.84:1 trên các nền
+     solid của dark mode, xem chú thích tương phản ở khối sáng). Vòng focus không đổi theo mode.
+     KHÔNG khai báo lại --page-max-width / --page-padding-*: components.css đổi --page-padding-* ở :root cho màn ≤ 768px;
+     khai báo ở đây (cùng độ ưu tiên) sẽ đè mất lề màn hẹp khi bật dark mode. */
+  --theme-on-success: #0d1117;
+  --theme-on-danger: #0d1117;
+  --theme-on-warning: #0d1117;
+  --theme-on-info: #0d1117;
+  --theme-on-brand: var(--brand-on-gradient);
+  --focus-ring: 0 0 0 2px var(--brand-glow);
 }
 
 /* ==========================================================================
