@@ -18,7 +18,17 @@ import {
 	updateSystemConfig,
 	getSystemConfigHistory,
 } from "../../services/systemConfigService";
-import { Button, Input, Card, Modal, PageHeader, ReasonTextarea } from "../../components/ui";
+import {
+	Button,
+	Input,
+	Card,
+	Modal,
+	PageHeader,
+	ReasonTextarea,
+	LoadingState,
+	EmptyState,
+	ErrorState,
+} from "../../components/ui";
 import "../../styles/SystemConfigPage.css";
 
 export default function SystemConfigPage() {
@@ -27,6 +37,7 @@ export default function SystemConfigPage() {
 	const [loading, setLoading] = useState(true);
 	const [savingKey, setSavingKey] = useState(null);
 	const [errorMsg, setErrorMsg] = useState(null);
+	const [loadError, setLoadError] = useState(null);
 	const [successMsg, setSuccessMsg] = useState(null);
 
 	// Tab state: active groupKey (no 'ALL' tab)
@@ -53,6 +64,7 @@ export default function SystemConfigPage() {
 	const fetchConfigs = async () => {
 		setLoading(true);
 		setErrorMsg(null);
+		setLoadError(null);
 		try {
 			const data = await getSystemConfigs();
 			const list = data || [];
@@ -75,7 +87,7 @@ export default function SystemConfigPage() {
 			}
 		} catch (err) {
 			console.error("Lỗi khi tải cấu hình hệ thống:", err);
-			setErrorMsg(
+			setLoadError(
 				err.message ||
 					"Không thể kết nối đến máy chủ để lấy cấu hình hệ thống.",
 			);
@@ -289,10 +301,11 @@ export default function SystemConfigPage() {
 
 			{/* Main Content */}
 			{loading ? (
-				<div className="syscfg-loading">
-					<div className="syscfg-spinner" />
-					<p>Đang tải cấu hình hệ thống...</p>
-				</div>
+				<LoadingState text="Đang tải cấu hình hệ thống..." />
+			) : loadError ? (
+				<ErrorState message={loadError} onRetry={fetchConfigs} />
+			) : configs.length === 0 ? (
+				<EmptyState title="Chưa có tham số cấu hình nào" />
 			) : (
 				<>
 					{/* Tabs Navigation (No 'ALL' tab) */}
@@ -581,7 +594,7 @@ export default function SystemConfigPage() {
 								onClick={() => setConfirmModalConfig(null)}
 								disabled={savingKey != null}
 							>
-								Huỷ
+								Hủy
 							</Button>
 							<Button
 								variant="primary"

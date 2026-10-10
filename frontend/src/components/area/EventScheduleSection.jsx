@@ -45,7 +45,7 @@ const EMPTY_FORM = { startAt: "", endAt: "", reasonCode: "", note: "" };
 
 /**
  * Mục "Lịch sự kiện" trong modal quy tắc truy cập.
- * FACILITY_MANAGER được đặt / sửa / huỷ lịch; vai trò khác chỉ xem.
+ * FACILITY_MANAGER được đặt / sửa / hủy lịch; vai trò khác chỉ xem.
  * Mọi giới hạn nghiệp vụ (số lịch, thời lượng, đặt trước, ngân sách, chồng giờ) do backend quyết.
  */
 export default function EventScheduleSection({ area, onSchedulesChanged }) {

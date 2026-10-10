@@ -263,7 +263,7 @@
   gap: 5px;
   background: rgba(239, 68, 68, 0.1);
   border: 1px solid rgba(239, 68, 68, 0.3);
-  color: #ef4444;
+  color: var(--theme-danger);
   font-size: 0.7rem;
   font-weight: 800;
   padding: 3px 8px;
@@ -314,7 +314,7 @@
 
 .btn-theater-mode:hover {
   background: var(--theme-primary, #2563eb);
-  color: #ffffff;
+  color: var(--action-primary-text);
 }
 
 /* Nút Tự động chuyển camera */
@@ -345,7 +345,7 @@
 }
 
 .icon-bolt-active {
-  color: #16a34a;
+  color: var(--theme-success);
   filter: drop-shadow(0 0 5px rgba(22, 163, 74, 0.5));
 }
 
@@ -401,8 +401,8 @@
 }
 
 .btn-sim-alert:hover {
-  background: #f59e0b;
-  color: #ffffff;
+  background: var(--theme-warning);
+  color: var(--theme-on-warning);
 }
 
 .btn-sim-multi-alert {
@@ -421,8 +421,8 @@
 }
 
 .btn-sim-multi-alert:hover {
-  background: #ef4444;
-  color: #ffffff;
+  background: var(--theme-danger);
+  color: var(--theme-on-danger);
 }
 
 /* --------------------------------------------------------------------------
@@ -540,8 +540,8 @@
 
 .cam-sort-toggle-btn.priority-active {
   background: rgba(239, 68, 68, 0.12);
-  border-color: #ef4444;
-  color: #ef4444;
+  border-color: var(--theme-danger);
+  color: var(--theme-danger);
 }
 
 /* Dải Camera Quick Switcher */
@@ -610,12 +610,12 @@
 }
 
 .status-indicator-dot.online {
-  background: #16a34a;
-  box-shadow: 0 0 5px #16a34a;
+  background: var(--theme-success);
+  box-shadow: 0 0 5px var(--theme-success);
 }
 
 .status-indicator-dot.standby {
-  background: #94a3b8;
+  background: var(--theme-text-disabled);
 }
 
 .cam-chip-code {
@@ -626,18 +626,18 @@
 .cam-chip-btn.has-incident {
   border-color: rgba(239, 68, 68, 0.6);
   background: rgba(239, 68, 68, 0.1);
-  color: #ef4444;
+  color: var(--theme-danger);
 }
 
 /* 1. Mức độ NGUY CẤP (Critical - Đỏ) cho Chip Camera */
 .cam-chip-btn.has-incident.severity-critical {
   border-color: rgba(239, 68, 68, 0.8);
   background: rgba(239, 68, 68, 0.14);
-  color: #ef4444;
+  color: var(--theme-danger);
 }
 
 .cam-chip-btn.has-incident.severity-critical .cam-chip-incident-badge {
-  background: #ef4444;
+  background: var(--theme-danger);
 }
 
 .cam-chip-btn.flashing.severity-critical {
@@ -652,7 +652,7 @@
 }
 
 .cam-chip-btn.has-incident.severity-high .cam-chip-incident-badge {
-  background: #f59e0b;
+  background: var(--theme-warning);
 }
 
 .cam-chip-btn.flashing.severity-high {
@@ -663,11 +663,11 @@
 .cam-chip-btn.has-incident.severity-warning {
   border-color: rgba(2, 132, 199, 0.8);
   background: rgba(2, 132, 199, 0.14);
-  color: #0284c7;
+  color: var(--theme-info);
 }
 
 .cam-chip-btn.has-incident.severity-warning .cam-chip-incident-badge {
-  background: #0284c7;
+  background: var(--theme-info);
 }
 
 .cam-chip-btn.flashing.severity-warning {
@@ -678,8 +678,8 @@
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  background: #ef4444;
-  color: #ffffff;
+  background: var(--theme-danger);
+  color: var(--theme-on-danger);
   font-size: 0.62rem;
   font-weight: 800;
   padding: 1px 4px;
@@ -695,12 +695,12 @@
   0%,
   100% {
     box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
-    border-color: #ef4444;
+    border-color: var(--theme-danger);
   }
 
   50% {
     box-shadow: 0 0 0 5px rgba(239, 68, 68, 0);
-    border-color: #ef4444;
+    border-color: var(--theme-danger);
   }
 }
 
@@ -709,12 +709,12 @@
   0%,
   100% {
     box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7);
-    border-color: #f59e0b;
+    border-color: var(--theme-warning);
   }
 
   50% {
     box-shadow: 0 0 0 5px rgba(245, 158, 11, 0);
-    border-color: #f59e0b;
+    border-color: var(--theme-warning);
   }
 }
 
@@ -723,12 +723,12 @@
   0%,
   100% {
     box-shadow: 0 0 0 0 rgba(2, 132, 199, 0.7);
-    border-color: #0284c7;
+    border-color: var(--theme-info);
   }
 
   50% {
     box-shadow: 0 0 0 5px rgba(2, 132, 199, 0);
-    border-color: #0284c7;
+    border-color: var(--theme-info);
   }
 }
 
@@ -787,55 +787,55 @@
 
 /* 1. Mức độ NGUY CẤP (Critical - Đỏ) */
 .video-viewport-card.card-has-incident.severity-critical {
-  border-color: #ef4444 !important;
+  border-color: var(--theme-danger) !important;
   box-shadow: 0 0 16px rgba(239, 68, 68, 0.45) !important;
 }
 
 .video-viewport-card.card-has-incident.severity-critical .cctv-player-wrapper,
 .video-viewport-card.card-flashing.severity-critical .cctv-player-wrapper {
-  border-color: #ef4444 !important;
+  border-color: var(--theme-danger) !important;
   animation: cctvRedAlertFlash 1s infinite alternate !important;
 }
 
 /* 2. Mức độ CAO (High - Cam / Vàng hổ phách) */
 .video-viewport-card.card-has-incident.severity-high {
-  border-color: #f59e0b !important;
+  border-color: var(--theme-warning) !important;
   box-shadow: 0 0 16px rgba(245, 158, 11, 0.45) !important;
 }
 
 .video-viewport-card.card-has-incident.severity-high .cctv-player-wrapper,
 .video-viewport-card.card-flashing.severity-high .cctv-player-wrapper {
-  border-color: #f59e0b !important;
+  border-color: var(--theme-warning) !important;
   animation: cctvAmberAlertFlash 1s infinite alternate !important;
 }
 
 /* 3. Mức độ CẢNH BÁO (Warning - Xanh lam / Cyan) */
 .video-viewport-card.card-has-incident.severity-warning {
-  border-color: #0284c7 !important;
+  border-color: var(--theme-info) !important;
   box-shadow: 0 0 16px rgba(2, 132, 199, 0.45) !important;
 }
 
 .video-viewport-card.card-has-incident.severity-warning .cctv-player-wrapper,
 .video-viewport-card.card-flashing.severity-warning .cctv-player-wrapper {
-  border-color: #0284c7 !important;
+  border-color: var(--theme-info) !important;
   animation: cctvBlueAlertFlash 1s infinite alternate !important;
 }
 
 /* Fallback chung */
 .video-viewport-card.card-has-incident {
-  border-color: #ef4444 !important;
+  border-color: var(--theme-danger) !important;
   box-shadow: 0 0 16px rgba(239, 68, 68, 0.4) !important;
 }
 
 .video-viewport-card.card-has-incident .cctv-player-wrapper,
 .video-viewport-card.card-flashing .cctv-player-wrapper {
-  border-color: #ef4444 !important;
+  border-color: var(--theme-danger) !important;
   animation: cctvRedAlertFlash 1s infinite alternate !important;
 }
 
 @keyframes cctvRedAlertFlash {
   0% {
-    border-color: #ef4444;
+    border-color: var(--theme-danger);
     box-shadow: 0 0 25px rgba(239, 68, 68, 0.85), inset 0 0 22px rgba(239, 68, 68, 0.35);
   }
 
@@ -847,7 +847,7 @@
 
 @keyframes cctvAmberAlertFlash {
   0% {
-    border-color: #f59e0b;
+    border-color: var(--theme-warning);
     box-shadow: 0 0 25px rgba(245, 158, 11, 0.85), inset 0 0 22px rgba(245, 158, 11, 0.35);
   }
 
@@ -859,7 +859,7 @@
 
 @keyframes cctvBlueAlertFlash {
   0% {
-    border-color: #0284c7;
+    border-color: var(--theme-info);
     box-shadow: 0 0 25px rgba(2, 132, 199, 0.85), inset 0 0 22px rgba(2, 132, 199, 0.35);
   }
 
@@ -1070,7 +1070,7 @@
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: #16a34a;
+  background: var(--theme-success);
   box-shadow: 0 0 16px rgba(22, 163, 74, 0.45);
   animation: safeRadarGlow 2s infinite alternate;
 }
@@ -1129,15 +1129,15 @@
 }
 
 .soc-incident-card.pending.severity-critical {
-  border-left: 4px solid #ef4444;
+  border-left: 4px solid var(--theme-danger);
 }
 
 .soc-incident-card.pending.severity-high {
-  border-left: 4px solid #f59e0b;
+  border-left: 4px solid var(--theme-warning);
 }
 
 .soc-incident-card.pending.severity-warning {
-  border-left: 4px solid #0284c7;
+  border-left: 4px solid var(--theme-info);
 }
 
 .soc-incident-card.resolved {
@@ -1163,7 +1163,7 @@
 }
 
 .severity-critical .soc-incident-tag {
-  color: #ef4444;
+  color: var(--theme-danger);
 }
 
 .severity-high .soc-incident-tag {
@@ -1171,7 +1171,7 @@
 }
 
 .severity-warning .soc-incident-tag {
-  color: #0284c7;
+  color: var(--theme-info);
 }
 
 .soc-incident-time {
@@ -1233,7 +1233,7 @@
 
 .btn-soc-jump-cam:hover {
   background: var(--theme-primary, #2563eb);
-  color: #ffffff;
+  color: var(--action-primary-text);
 }
 
 .btn-soc-ack {
@@ -1252,8 +1252,8 @@
 }
 
 .btn-soc-ack:hover {
-  background: #2563eb;
-  color: #ffffff;
+  background: var(--action-primary-bg);
+  color: var(--action-primary-text);
 }
 
 .soc-ack-badge {
@@ -1273,7 +1273,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: #f59e0b;
+  color: var(--theme-warning);
   font-size: 0.7rem;
   font-weight: 700;
 }

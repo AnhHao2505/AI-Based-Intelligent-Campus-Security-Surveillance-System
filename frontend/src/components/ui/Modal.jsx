@@ -1,6 +1,18 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useId, useRef } from 'react';
 import { X } from 'lucide-react';
 import './Modal.css';
+
+// Các Modal đang mở theo thứ tự mở: Esc / bẫy Tab chỉ áp cho Modal trên cùng (Modal lồng Modal không đóng cả hai).
+const openModalStack = [];
+
+const FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled]):not([type="hidden"])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',');
 
 /**
  * Standard Modal component
@@ -30,13 +42,47 @@ export default function Modal({
   className = '',
   children,
 }) {
-  // Lock body scroll and listen for Escape key
+  const titleId = useId();
+  const dialogRef = useRef(null);
+  // onClose thường là hàm viết tại chỗ (đổi mỗi lần render) -> giữ bằng ref để effect chỉ chạy khi mở / đóng
+  const onCloseRef = useRef(onClose);
   useEffect(() => {
-    if (!isOpen) return;
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  // Khoá cuộn trang, Esc đóng, giữ focus trong popup, trả focus về chỗ cũ khi đóng
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    const token = {};
+    openModalStack.push(token);
+    const isTopmost = () => openModalStack[openModalStack.length - 1] === token;
+    const previouslyFocused = document.activeElement;
 
     const handleKeyDown = (e) => {
+      if (!isTopmost() || e.defaultPrevented) return;
       if (e.key === 'Escape' || e.key === 'Esc') {
-        onClose?.();
+        onCloseRef.current?.();
+        return;
+      }
+      if (e.key === 'Tab' && dialogRef.current) {
+        const focusable = Array.from(dialogRef.current.querySelectorAll(FOCUSABLE_SELECTOR))
+          .filter((el) => el.offsetParent !== null || el === document.activeElement);
+        if (focusable.length === 0) {
+          e.preventDefault();
+          dialogRef.current.focus();
+          return;
+        }
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        const active = document.activeElement;
+        if (e.shiftKey && (active === first || !dialogRef.current.contains(active))) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && (active === last || !dialogRef.current.contains(active))) {
+          e.preventDefault();
+          first.focus();
+        }
       }
     };
 
@@ -44,11 +90,21 @@ export default function Modal({
     document.body.style.overflow = 'hidden';
     window.addEventListener('keydown', handleKeyDown);
 
+    // Đưa focus vào popup, trừ khi nội dung đã tự focus (autoFocus)
+    if (dialogRef.current && !dialogRef.current.contains(document.activeElement)) {
+      dialogRef.current.focus({ preventScroll: true });
+    }
+
     return () => {
       document.body.style.overflow = originalOverflow;
       window.removeEventListener('keydown', handleKeyDown);
+      const index = openModalStack.indexOf(token);
+      if (index !== -1) openModalStack.splice(index, 1);
+      if (previouslyFocused && typeof previouslyFocused.focus === 'function' && document.contains(previouslyFocused)) {
+        previouslyFocused.focus({ preventScroll: true });
+      }
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -71,10 +127,15 @@ export default function Modal({
     <div
       className="ui-modal-backdrop"
       onClick={handleBackdropClick}
-      role="dialog"
-      aria-modal="true"
     >
-      <div className={`ui-modal ui-modal--${size} ${className}`.trim()}>
+      <div
+        ref={dialogRef}
+        className={`ui-modal ui-modal--${size} ${className}`.trim()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={title ? titleId : undefined}
+        tabIndex={-1}
+      >
         {/* Header */}
         <div className="ui-modal__header">
           <div className="ui-modal__header-left">
@@ -84,7 +145,7 @@ export default function Modal({
               </div>
             )}
             <div className="ui-modal__title-wrap">
-              <h3 className="ui-modal__title">{title}</h3>
+              <h3 className="ui-modal__title" id={titleId}>{title}</h3>
               {subtitle && <p className="ui-modal__subtitle">{subtitle}</p>}
             </div>
           </div>

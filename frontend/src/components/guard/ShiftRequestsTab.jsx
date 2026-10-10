@@ -23,6 +23,7 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { guardScheduleApi } from '../../api/guardScheduleApi';
+import { ErrorState } from '../../components/ui';
 
 const formatDateVN = (dateStr) => {
   if (!dateStr) return '';
@@ -725,10 +726,7 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
 
       {/* Error alert */}
       {error && (
-        <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800 rounded-xl text-rose-800 dark:text-rose-200 text-xs flex items-center gap-2">
-          <AlertCircle size={15} />
-          <span>{error}</span>
-        </div>
+        <ErrorState size="sm" message={error} onRetry={fetchRequests} retrying={loading} />
       )}
 
       {/* 3. REQUESTS LIST */}
@@ -736,7 +734,7 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
         <div className="text-center py-16 text-slate-500 text-xs">
           Đang tải danh sách yêu cầu ca trực...
         </div>
-      ) : filteredRequests.length === 0 ? (
+      ) : error && requests.length === 0 ? null : filteredRequests.length === 0 ? (
         <div className="schedule-empty-state">
           <div
             className={`schedule-empty-state__icon ${

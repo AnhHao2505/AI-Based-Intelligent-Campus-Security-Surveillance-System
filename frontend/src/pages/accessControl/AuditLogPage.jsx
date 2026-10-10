@@ -1,13 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Loader2,
   History,
   RotateCcw,
   Filter,
   Link,
   X,
 } from 'lucide-react';
-import { toast } from 'sonner';
 import { useAuth } from '../../context/AuthContext';
 import { getAuditLogs } from '../../services/accessControlService';
 import { getAreas } from '../../services/areaService';
@@ -17,6 +15,7 @@ import { formatDate, formatTime } from '../../utils/formatDateTime';
 import { formatLocation } from '../../utils/formatLocation';
 import Button from '../../components/ui/Button';
 import PageHeader from '../../components/ui/PageHeader';
+import { LoadingState, EmptyState, ErrorState } from '../../components/ui';
 import UserSearchCombobox from '../../components/user/UserSearchCombobox';
 // UserAccessLevelPage.css: badge / ô người dùng / nội dung thay đổi / banner correlation (audit-*) dùng chung với trang cũ
 import '../../styles/UserAccessLevelPage.css';
@@ -138,7 +137,7 @@ const getActionLabel = (targetType, action) => {
   if (targetType === 'AREA_EVENT_SCHEDULE') {
     if (action === 'CREATE') actionLabel = 'Đặt lịch';
     else if (action === 'UPDATE') actionLabel = 'Sửa lịch';
-    else if (action === 'CANCEL') actionLabel = 'Huỷ lịch';
+    else if (action === 'CANCEL') actionLabel = 'Hủy lịch';
     else if (action === 'FAIL') actionLabel = 'Lịch thất bại';
   }
   return actionLabel;
@@ -157,6 +156,7 @@ export default function AuditLogPage() {
 
   const [logs, setLogs] = useState([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
+  const [loadError, setLoadError] = useState(null);
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
@@ -189,6 +189,7 @@ export default function AuditLogPage() {
   const loadAuditLogs = useCallback(
     async (page = 0, overrideCorrelationId = undefined) => {
       setLoadingLogs(true);
+      setLoadError(null);
       try {
         const corrId = overrideCorrelationId !== undefined ? overrideCorrelationId : filterCorrelationId;
         const params = {
@@ -214,9 +215,9 @@ export default function AuditLogPage() {
         console.error('Lỗi tải nhật ký thay đổi:', err);
         const httpStatus = err?.status ?? err?.response?.status;
         if (httpStatus === 403) {
-          toast.error('Bạn không có quyền xem nhật ký của phân hệ này');
+          setLoadError('Bạn không có quyền xem nhật ký của phân hệ này');
         } else {
-          toast.error(err?.message || 'Không thể tải nhật ký phân quyền');
+          setLoadError(err?.message || 'Không thể tải nhật ký phân quyền');
         }
         setLogs([]);
       } finally {
@@ -325,7 +326,7 @@ export default function AuditLogPage() {
         STARTED: 'Đã bắt đầu',
         COMPLETED: 'Đã kết thúc',
         ENDED_EARLY: 'Kết thúc sớm',
-        CANCELLED: 'Đã huỷ',
+        CANCELLED: 'Đã hủy',
         FAILED: 'Thất bại',
       };
       const oldStatus = oldValue?.status;
@@ -596,18 +597,15 @@ export default function AuditLogPage() {
 
         {/* Table */}
         {loadingLogs ? (
-          <div className="loading-state">
-            <Loader2 size={28} className="animate-spin" />
-            <span>Đang tải nhật ký thay đổi...</span>
-          </div>
+          <LoadingState text="Đang tải nhật ký thay đổi..." />
+        ) : loadError ? (
+          <ErrorState message={loadError} onRetry={() => loadAuditLogs(currentPage)} />
         ) : logs.length === 0 ? (
-          <div className="empty-state">
-            <History size={32} />
-            <p className="empty-state__title">Không tìm thấy bản ghi nhật ký phù hợp</p>
-            <span className="empty-state__desc">
-              Thử thay đổi bộ lọc tìm kiếm để xem kết quả khác.
-            </span>
-          </div>
+          <EmptyState
+            icon={History}
+            title="Không tìm thấy bản ghi nhật ký phù hợp"
+            description="Thử thay đổi bộ lọc tìm kiếm để xem kết quả khác."
+          />
         ) : (
           <>
             <div className="table-wrapper">
