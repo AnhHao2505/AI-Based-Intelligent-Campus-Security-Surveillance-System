@@ -215,7 +215,9 @@
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
   border-radius: 14px;
-  overflow: hidden;
+  /* 390px: bảng cuộn ngang, không cắt cột Hành động */
+  overflow-x: auto;
+  overflow-y: hidden;
   box-shadow: var(--theme-card-shadow);
 }
 
@@ -448,7 +450,7 @@
 
 .btn-delete:hover:not(:disabled) {
   background: var(--theme-danger, #ef4444);
-  color: #ffffff;
+  color: var(--theme-on-danger);
   border-color: var(--theme-danger, #ef4444);
   transform: translateY(-1px);
 }
@@ -517,5 +519,25 @@
 
   .btn-action {
     padding: 0.45rem;
+  }
+}
+
+/* 390px: bộ lọc xếp 1 cột, bảng giữ bề rộng tối thiểu để cuộn ngang trong khung */
+@media (max-width: 640px) {
+  .filter-form,
+  .filter-dropdowns {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .search-box,
+  .filter-dropdowns select,
+  .btn-search {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .camera-table {
+    min-width: 640px;
   }
 }

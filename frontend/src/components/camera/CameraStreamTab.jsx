@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   HelpCircle,
   CheckCircle2,
@@ -8,6 +8,12 @@ import {
   Save,
   Loader2,
 } from "lucide-react";
+
+// UI-00: che "user:pass@" trong URL luồng khi hiển thị (giá trị gửi API giữ nguyên)
+// tham lam tới "@" cuối cùng trước đường dẫn: mật khẩu có chứa "@" cũng bị che hết
+const CREDENTIALS_IN_URL = /^([a-z][a-z0-9+.-]*:\/\/)[^/\s]*@/i;
+const maskStreamCredentials = (value) =>
+  typeof value === "string" ? value.replace(CREDENTIALS_IN_URL, "$1••••@") : value;
 
 export default function CameraStreamTab({
   camera,
@@ -20,6 +26,10 @@ export default function CameraStreamTab({
   onTestConnection,
   onCloseTestResult,
 }) {
+  const [editingPath, setEditingPath] = useState(false);
+  const pathHasCredentials = CREDENTIALS_IN_URL.test(streamForm.mainStreamPath || "");
+  const showMaskedPath = pathHasCredentials && !editingPath;
+
   return (
     <form onSubmit={onSubmit} className="tab-form">
       <div className="form-grid">
@@ -113,18 +123,38 @@ export default function CameraStreamTab({
 
         <div className="form-group col-span-2">
           <label>Main Stream Path *</label>
-          <input
-            type="text"
-            placeholder="/Streaming/Channels/101"
-            value={streamForm.mainStreamPath}
-            onChange={(e) =>
-              setStreamForm({
-                ...streamForm,
-                mainStreamPath: e.target.value,
-              })
-            }
-            required
-          />
+          {showMaskedPath ? (
+            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+              <input
+                type="text"
+                value={maskStreamCredentials(streamForm.mainStreamPath)}
+                readOnly
+                aria-label="Main Stream Path (đã che tài khoản)"
+                style={{ flex: 1, minWidth: 0 }}
+              />
+              <button
+                type="button"
+                className="btn-test-stream"
+                onClick={() => setEditingPath(true)}
+                title="Hiện đường dẫn đầy đủ để sửa"
+              >
+                Sửa
+              </button>
+            </div>
+          ) : (
+            <input
+              type="text"
+              placeholder="/Streaming/Channels/101"
+              value={streamForm.mainStreamPath}
+              onChange={(e) =>
+                setStreamForm({
+                  ...streamForm,
+                  mainStreamPath: e.target.value,
+                })
+              }
+              required
+            />
+          )}
         </div>
       </div>
 

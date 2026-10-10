@@ -3,6 +3,7 @@ import { X, Loader } from "lucide-react";
 import { createCamera } from "../services/cameraService";
 import { getAreas } from "../services/areaService";
 import "../styles/CameraCreateModal.css";
+import { formatLocation } from "../utils/formatLocation";
 
 export default function CameraCreateModal({ isOpen, onClose, onSuccess }) {
 	const [loading, setLoading] = useState(false);
@@ -122,8 +123,8 @@ export default function CameraCreateModal({ isOpen, onClose, onSuccess }) {
 										value={area.id}
 									>
 										{area.name}{" "}
-										{area.building
-											? `(${area.building}${area.floor ? ` - Tầng ${area.floor}` : ""})`
+										{formatLocation(area.building, area.floor, " - ")
+											? `(${formatLocation(area.building, area.floor, " - ")})`
 											: ""}
 									</option>
 								))}
