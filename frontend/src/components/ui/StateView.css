@@ -1,0 +1,101 @@
+/* ==========================================================================
+   UI Kit — Trạng thái tải / rỗng / lỗi (LoadingState, EmptyState, ErrorState)
+   Chỉ dùng token theme.css; vòng quay dùng lại keyframes ui-btn-spin của Button.css.
+   ========================================================================== */
+
+.ui-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 40px 16px;
+  box-sizing: border-box;
+  text-align: center;
+  color: var(--theme-text-muted);
+}
+
+.ui-state--compact {
+  padding: 16px 12px;
+  gap: 8px;
+}
+
+.ui-state--inline {
+  flex-direction: row;
+  justify-content: flex-start;
+  padding: 8px 0;
+  text-align: left;
+}
+
+.ui-state__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  background: var(--theme-bg-surface-elevated);
+  border: 1px solid var(--theme-border);
+  color: var(--theme-text-muted);
+  flex-shrink: 0;
+}
+
+.ui-state--compact .ui-state__icon {
+  width: 36px;
+  height: 36px;
+}
+
+.ui-state--error .ui-state__icon {
+  background: var(--theme-danger-bg);
+  border-color: var(--theme-danger-border);
+  color: var(--theme-danger-text);
+}
+
+.ui-state__spinner {
+  color: var(--theme-primary);
+  animation: ui-btn-spin 0.85s linear infinite;
+  flex-shrink: 0;
+}
+
+.ui-state__title {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--theme-text-primary);
+}
+
+.ui-state__text {
+  margin: 0;
+  max-width: 480px;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--theme-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.ui-state--error .ui-state__text {
+  color: var(--theme-text-secondary);
+}
+
+.ui-state__action {
+  margin-top: 6px;
+}
+
+@media (max-width: 480px) {
+  .ui-state {
+    padding: 28px 12px;
+  }
+
+  .ui-state__action,
+  .ui-state__action .ui-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-state__spinner {
+    animation-duration: 2.4s;
+  }
+}
