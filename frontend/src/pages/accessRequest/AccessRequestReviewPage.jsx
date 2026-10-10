@@ -171,6 +171,25 @@ export default function AccessRequestReviewPage() {
     loadStats();
   }, [loadRequests, loadStats, statusFilter, selectedAreaId]);
 
+  // Esc đóng popup đang mở giống nút X (popup thao tác không đóng khi đang gửi); popup thao tác trước, chi tiết sau
+  useEffect(() => {
+    if (!approveItem && !finishItem && !staffCancelItem && !rejectItem && !detailItem) return undefined;
+    const handleKeyDown = (e) => {
+      if (e.key !== 'Escape' && e.key !== 'Esc') return;
+      if (approveItem || finishItem || staffCancelItem || rejectItem) {
+        if (actionLoading) return;
+        if (approveItem) setApproveItem(null);
+        else if (finishItem) setFinishItem(null);
+        else if (staffCancelItem) setStaffCancelItem(null);
+        else setRejectItem(null);
+        return;
+      }
+      setDetailItem(null);
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [approveItem, finishItem, staffCancelItem, rejectItem, detailItem, actionLoading]);
+
   // Handle Approve
   const handleConfirmApprove = async () => {
     if (!approveItem) return;
@@ -500,6 +519,12 @@ export default function AccessRequestReviewPage() {
                       {req.status === 'CANCELLED' && req.cancelSource === 'SYSTEM' && (
                         <div className="arr-cancel-system" title={req.cancelReason || ''}>
                           Hủy bởi hệ thống: {req.cancelReason}
+                        </div>
+                      )}
+                      {/* BR-RQ-47: FM huỷ đơn đã duyệt (cancel_source STAFF) */}
+                      {req.status === 'CANCELLED' && req.cancelSource === 'STAFF' && (
+                        <div className="arr-cancel-system" title={req.cancelReason || ''}>
+                          Quản lý huỷ: {req.cancelReason}
                         </div>
                       )}
                     </td>
@@ -942,6 +967,11 @@ export default function AccessRequestReviewPage() {
                     {detailItem.status === 'CANCELLED' && detailItem.cancelSource === 'SYSTEM' && (
                       <div className="arr-cancel-system arr-cancel-system--detail">
                         Hủy bởi hệ thống: {detailItem.cancelReason}
+                      </div>
+                    )}
+                    {detailItem.status === 'CANCELLED' && detailItem.cancelSource === 'STAFF' && (
+                      <div className="arr-cancel-system arr-cancel-system--detail">
+                        Quản lý huỷ: {detailItem.cancelReason}
                       </div>
                     )}
                   </div>

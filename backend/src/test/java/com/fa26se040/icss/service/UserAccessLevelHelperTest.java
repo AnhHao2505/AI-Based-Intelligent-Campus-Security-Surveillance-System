@@ -14,6 +14,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -74,5 +77,39 @@ class UserAccessLevelHelperTest {
     @DisplayName("resolveConfigKey(null) trả null")
     void resolveConfigKey_nullRole_returnsNull() {
         assertNull(userAccessLevelHelper.resolveConfigKey(null));
+    }
+
+    // ------------------------------------------------------------------ BR-AL-24: nhánh dự phòng
+
+    @Test
+    @DisplayName("BR-AL-24: role không có key cấu hình cấp mặc định -> cấp 1, không đọc cấu hình")
+    void roleWithoutConfigKey_returns1_withoutReadingConfig() {
+        // Mọi Role hiện có đều có key (everyRole_mapsToOwnConfigKey) nên giả lập role chưa có key bằng spy
+        UserAccessLevelHelper helper = spy(new UserAccessLevelHelper(systemConfigService));
+        doReturn(null).when(helper).resolveConfigKey(Role.GUARD);
+
+        assertEquals(1, helper.resolveDefaultAccessLevel(Role.GUARD));
+        verifyNoInteractions(systemConfigService);
+    }
+
+    @Test
+    @DisplayName("BR-AL-24: key có trong code nhưng thiếu dòng trong system_configurations -> lấy giá trị mặc định khai trong ConfigKey (không phải luôn 1)")
+    void configRowMissing_fallsBackToEnumDefault() {
+        // SystemConfigService thật, chưa nạp cache (không có dòng nào) -> getInt trả defaultValue của ConfigKey
+        SystemConfigService emptyConfig = new SystemConfigService(
+                mock(com.fa26se040.icss.repository.SystemConfigurationRepository.class),
+                mock(com.fa26se040.icss.repository.SystemConfigurationChangeLogRepository.class),
+                mock(com.fa26se040.icss.repository.UserRepository.class),
+                null, null);
+        UserAccessLevelHelper helper = new UserAccessLevelHelper(emptyConfig);
+
+        for (Role role : Role.values()) {
+            ConfigKey key = helper.resolveConfigKey(role);
+            assertEquals(Integer.parseInt(key.getDefaultValue()), helper.resolveDefaultAccessLevel(role), role.name());
+        }
+        assertEquals(1, helper.resolveDefaultAccessLevel(Role.NORMAL_USER));
+        assertEquals(2, helper.resolveDefaultAccessLevel(Role.GUARD));
+        assertEquals(2, helper.resolveDefaultAccessLevel(Role.FACILITY_MANAGER));
+        assertEquals(1, helper.resolveDefaultAccessLevel(Role.ADMIN));
     }
 }

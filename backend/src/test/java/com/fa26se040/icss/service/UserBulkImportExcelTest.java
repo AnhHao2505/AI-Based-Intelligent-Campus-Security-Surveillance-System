@@ -139,4 +139,110 @@ class UserBulkImportExcelTest {
         assertEquals("XLS001", res.getResults().get(0).getUserCode());
         assertEquals("Từ Excel", res.getResults().get(0).getFullName());
     }
+
+    // ------------------------------------------------------------------ BR-AU-26: cột bắt buộc, file không có dữ liệu
+
+    /** metadata.xlsx với header tuỳ chọn (để thử thiếu cột) + các dòng dữ liệu. */
+    private static byte[] xlsxWithHeader(String[] cols, List<String[]> dataRows) throws Exception {
+        try (Workbook wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            Sheet sheet = wb.createSheet("users");
+            if (cols != null) {
+                Row header = sheet.createRow(0);
+                for (int c = 0; c < cols.length; c++) {
+                    header.createCell(c).setCellValue(cols[c]);
+                }
+                int r = 1;
+                for (String[] data : dataRows) {
+                    Row row = sheet.createRow(r++);
+                    for (int c = 0; c < data.length; c++) {
+                        row.createCell(c).setCellValue(data[c]);
+                    }
+                }
+            }
+            wb.write(out);
+            return out.toByteArray();
+        }
+    }
+
+    private static MockMultipartFile metadataZip(byte[] xlsx) throws Exception {
+        return zip(new String[]{"metadata.xlsx"}, new byte[][]{xlsx});
+    }
+
+    @Test
+    @DisplayName("BR-AU-26: luồng người dùng thường thiếu cột email -> lỗi nêu 3 cột bắt buộc, không tạo ai")
+    void normal_missingRequiredColumn_rejected() throws Exception {
+        byte[] file = xlsxWithHeader(new String[]{"user_code", "full_name"},
+                List.<String[]>of(new String[]{"SV900", "Thiếu Email"}));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> service.bulkImportNormalUsers(metadataZip(file)));
+
+        assertTrue(ex.getMessage().contains("thiếu cột bắt buộc"), ex.getMessage());
+        assertTrue(ex.getMessage().contains("user_code, full_name, email"), ex.getMessage());
+        verifyNoInteractions(helper);
+    }
+
+    @Test
+    @DisplayName("BR-AU-26: luồng cán bộ thiếu cột role -> lỗi nêu 4 cột bắt buộc, không tạo ai")
+    void staff_missingRoleColumn_rejected() throws Exception {
+        byte[] file = xlsxWithHeader(new String[]{"user_code", "full_name", "email"},
+                List.<String[]>of(new String[]{"GU900", "Thiếu Vai Trò", "gu900@fpt.edu.vn"}));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> service.bulkImportStaffUsers(metadataZip(file)));
+
+        assertTrue(ex.getMessage().contains("thiếu cột bắt buộc"), ex.getMessage());
+        assertTrue(ex.getMessage().contains("user_code, full_name, email, role"), ex.getMessage());
+        verifyNoInteractions(helper);
+    }
+
+    @Test
+    @DisplayName("BR-AU-26: metadata chỉ có dòng tiêu đề (xlsx và csv) -> lỗi không có bản ghi, cả hai luồng")
+    void headerOnly_noDataRow_rejected() throws Exception {
+        byte[] headerOnlyXlsx = xlsxWithHeader(new String[]{"user_code", "full_name", "email", "role"}, List.of());
+        byte[] headerOnlyCsv = "user_code,full_name,email,role\n".getBytes(StandardCharsets.UTF_8);
+
+        IllegalArgumentException normalXlsx = assertThrows(IllegalArgumentException.class,
+                () -> service.bulkImportNormalUsers(metadataZip(headerOnlyXlsx)));
+        assertEquals("File dữ liệu không có bản ghi người dùng nào.", normalXlsx.getMessage());
+
+        IllegalArgumentException staffXlsx = assertThrows(IllegalArgumentException.class,
+                () -> service.bulkImportStaffUsers(metadataZip(headerOnlyXlsx)));
+        assertEquals("File dữ liệu không có bản ghi cán bộ nào.", staffXlsx.getMessage());
+
+        IllegalArgumentException normalCsv = assertThrows(IllegalArgumentException.class,
+                () -> service.bulkImportNormalUsers(zip(new String[]{"metadata.csv"}, new byte[][]{headerOnlyCsv})));
+        assertEquals("File dữ liệu không có bản ghi người dùng nào.", normalCsv.getMessage());
+        verifyNoInteractions(helper);
+    }
+
+    @Test
+    @DisplayName("BR-AU-26: sheet Excel không có dòng nào -> lỗi file rỗng")
+    void emptySheet_rejected() throws Exception {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> service.bulkImportNormalUsers(metadataZip(xlsxWithHeader(null, List.of()))));
+
+        assertTrue(ex.getMessage().contains("rỗng"), ex.getMessage());
+        verifyNoInteractions(helper);
+    }
+
+    @Test
+    @DisplayName("BR-AU-26: ZIP không có metadata.xlsx / metadata.csv; file không phải .zip; file rỗng -> lỗi tương ứng")
+    void zipAndMetadataPresence_rejected() throws Exception {
+        MockMultipartFile noMetadata = zip(new String[]{"images/SV900.jpg"}, new byte[][]{new byte[]{1, 2, 3}});
+        IllegalArgumentException missing = assertThrows(IllegalArgumentException.class,
+                () -> service.bulkImportNormalUsers(noMetadata));
+        assertTrue(missing.getMessage().contains("Không tìm thấy file dữ liệu"), missing.getMessage());
+
+        MockMultipartFile notZip = new MockMultipartFile("file", "users.xlsx", "application/octet-stream", new byte[]{1});
+        IllegalArgumentException wrongType = assertThrows(IllegalArgumentException.class,
+                () -> service.bulkImportNormalUsers(notZip));
+        assertTrue(wrongType.getMessage().contains(".zip"), wrongType.getMessage());
+
+        MockMultipartFile empty = new MockMultipartFile("file", "import.zip", "application/zip", new byte[0]);
+        IllegalArgumentException emptyFile = assertThrows(IllegalArgumentException.class,
+                () -> service.bulkImportStaffUsers(empty));
+        assertEquals("Vui lòng chọn file ZIP để nạp dữ liệu.", emptyFile.getMessage());
+        verifyNoInteractions(helper);
+    }
 }

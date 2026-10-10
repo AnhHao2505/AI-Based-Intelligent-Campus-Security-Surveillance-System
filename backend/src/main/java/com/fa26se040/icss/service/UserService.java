@@ -585,6 +585,12 @@ public class UserService {
         if (user.getDeletedAt() != null) {
             throw new ResourceNotFoundException("Không tìm thấy người dùng");
         }
+        // BR-AL-29: tài khoản đã vô hiệu hoá -> không đổi cấp (kể cả khi cấp mới trùng cấp cũ). Đổi nhiều người
+        // (UserAccessLevelBulkService) gọi lại hàm này nên người đó FAILED kèm thông báo, người khác vẫn chạy.
+        if (!Boolean.TRUE.equals(user.getIsActive())) {
+            throw new com.fa26se040.icss.exception.AccessControlException(
+                    com.fa26se040.icss.exception.AccessControlErrorCode.ERR_AC_009, (Object) user.getUserCode());
+        }
 
         // BR-AL-06: Thao tác không làm thay đổi giá trị (new == old) -> không ghi log, trả về trạng thái hiện tại
         if (Objects.equals(user.getAccessLevel(), accessLevel)) {
