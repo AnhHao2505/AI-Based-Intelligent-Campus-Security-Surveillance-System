@@ -5,13 +5,13 @@ import {
 	CalendarClock,
 	UserX,
 	AlertCircle,
-	Clock,
 	X,
 } from "lucide-react";
 import { toast } from "sonner";
 import Modal from "../ui/Modal";
 import Button from "../ui/Button";
 import ReasonTextarea from "../ui/ReasonTextarea";
+import { LoadingState, EmptyState, ErrorState } from "../ui";
 import UserSearchCombobox from "../user/UserSearchCombobox";
 import {
 	getAssignedPersonnel,
@@ -72,16 +72,20 @@ export default function AreaAssignedPersonnelModal({
 	const revokeReasonRef = useRef(null);
 	const [submittingRevoke, setSubmittingRevoke] = useState(false);
 
+	const [loadError, setLoadError] = useState(null);
+
 	// Load danh sách nhân sự đã gán
 	const loadData = useCallback(async () => {
 		if (!area?.id) return;
 		setLoading(true);
+		setLoadError(null);
 		try {
 			const data = await getAssignedPersonnel(area.id, null);
 			setAllPersonnel(Array.isArray(data) ? data : []);
 		} catch (err) {
 			console.error("Lỗi khi tải danh sách nhân sự gán:", err);
-			toast.error(err?.message || "Không thể tải danh sách nhân sự gán");
+			setAllPersonnel([]);
+			setLoadError(err?.message || "Không thể tải danh sách nhân sự gán");
 		} finally {
 			setLoading(false);
 		}
@@ -492,25 +496,20 @@ export default function AreaAssignedPersonnelModal({
 					{/* Table List */}
 					<div className="ap-table-container">
 						{loading ? (
-							<div className="ap-table-empty">
-								<Clock
-									size={24}
-									className="animate-spin"
-								/>
-								<span>Đang tải danh sách nhân sự...</span>
-							</div>
+							<LoadingState size="sm" text="Đang tải danh sách nhân sự..." />
+						) : loadError ? (
+							<ErrorState size="sm" message={loadError} onRetry={loadData} />
 						) : displayedList.length === 0 ? (
-							<div className="ap-table-empty">
-								<Users size={32} />
-								<p className="ap-table-empty__title">
-									Không có nhân sự nào trong danh mục này
-								</p>
-								<span className="ap-table-empty__desc">
-									{statusFilter === "ALL"
+							<EmptyState
+								size="sm"
+								icon={Users}
+								title="Không có nhân sự nào trong danh mục này"
+								description={
+									statusFilter === "ALL"
 										? "Khu vực này hiện chưa có nhân sự nào được gán cố định."
-										: `Không tìm thấy bản ghi nào với trạng thái ${statusFilter}.`}
-								</span>
-							</div>
+										: "Không có bản ghi nào với trạng thái đã chọn."
+								}
+							/>
 						) : (
 							<table className="ap-table">
 								<thead>
