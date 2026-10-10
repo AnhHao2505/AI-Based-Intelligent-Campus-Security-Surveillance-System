@@ -27,6 +27,8 @@ import AreaAssignedPersonnelModal from "../../components/area/AreaAssignedPerson
 import AreaListView from "../../components/area/AreaListView";
 import AreaTypeChangePreviewModal from "../../components/area/AreaTypeChangePreviewModal";
 import PageHeader from "../../components/ui/PageHeader";
+import { LoadingState, EmptyState, ErrorState } from "../../components/ui";
+import { formatLocation } from "../../utils/formatLocation";
 import ReasonTextarea from "../../components/ui/ReasonTextarea";
 import "../../components/ui/Button.css";
 import { getLevelPresets } from "../../services/accessControlService";
@@ -173,13 +175,13 @@ export default function AreaListPage() {
 	const [modalError, setModalError] = useState(null);
 	const [nameError, setNameError] = useState(null);
 	const [dependencies, setDependencies] = useState(null);
-	// Step 6 (BR-AD-01, 08): khu vực đang mở modal vô hiệu hoá + lý do. Giữ riêng với selectedArea vì sau 409 045
+	// Step 6 (BR-AD-01, 08): khu vực đang mở modal vô hiệu hóa + lý do. Giữ riêng với selectedArea vì sau 409 045
 	// danh sách được tải lại và khu vực có thể không còn trong danh sách đang hoạt động.
 	const [deactivateTarget, setDeactivateTarget] = useState(null);
 	const [deactivateReason, setDeactivateReason] = useState("");
 	const [deactivateReasonError, setDeactivateReasonError] = useState(null);
 	const deactivateReasonRef = useRef(null);
-	// Step 6 (BR-AD-07): bộ lọc "Đã vô hiệu hoá" + khôi phục — chỉ ADMIN
+	// Step 6 (BR-AD-07): bộ lọc "Đã vô hiệu hóa" + khôi phục — chỉ ADMIN
 	const [showDeactivated, setShowDeactivated] = useState(false);
 	const [deactivatedAreas, setDeactivatedAreas] = useState([]);
 	const [deactivatedLoading, setDeactivatedLoading] = useState(false);
@@ -822,7 +824,7 @@ export default function AreaListPage() {
 		}
 	};
 
-	// ------------------------------------------------------------------ Step 6: đã vô hiệu hoá + khôi phục
+	// ------------------------------------------------------------------ Step 6: đã vô hiệu hóa + khôi phục
 
 	const fetchDeactivatedAreas = useCallback(async () => {
 		setDeactivatedLoading(true);
@@ -886,22 +888,6 @@ export default function AreaListPage() {
 
 	return (
 		<div className="zone-page">
-			{/* Inline Page Error Banner */}
-			{pageError && (
-				<div className="zone-alert zone-alert--error">
-					<AlertCircle size={18} />
-					<span>{pageError}</span>
-					<button
-						type="button"
-						className="zone-alert__close"
-						onClick={() => setPageError(null)}
-						title="Đóng thông báo"
-					>
-						<X size={16} />
-					</button>
-				</div>
-			)}
-
 			<PageHeader
 				title="Quản lý khu vực"
 				description={
@@ -1022,20 +1008,20 @@ export default function AreaListPage() {
 			</div>
 
 			{/* Loading state */}
-			{loading && (
-				<div className="zone-page__loading">
-					<Loader2
-						className="animate-spin"
-						size={32}
-					/>
-					<span>Đang nạp dữ liệu khu vực...</span>
-				</div>
+			{loading && <LoadingState text="Đang tải dữ liệu khu vực..." />}
+
+			{/* Lỗi tải danh sách: hiện lỗi + Thử lại, không hiện như danh sách rỗng */}
+			{!loading && pageError && !showDeactivated && (
+				<ErrorState
+					message={pageError}
+					onRetry={() => fetchData(selectedAreaId)}
+				/>
 			)}
 
 			{/* ============================================================ */}
 			{/* 2. MAIN CONTENT (LIST VIEW)                                 */}
 			{/* ============================================================ */}
-			{/* Step 6 (BR-AD-07): danh sách khu vực đã vô hiệu hoá + khôi phục — chỉ ADMIN */}
+			{/* Step 6 (BR-AD-07): danh sách khu vực đã vô hiệu hóa + khôi phục — chỉ ADMIN */}
 			{isAdmin && showDeactivated && (
 				<section
 					className="zone-deactivated"
@@ -1057,30 +1043,30 @@ export default function AreaListPage() {
 					</div>
 
 					{deactivatedLoading && (
-						<div className="zone-page__loading">
-							<Loader2
-								className="animate-spin"
-								size={24}
-							/>
-							<span>Đang tải khu vực đã vô hiệu hóa...</span>
-						</div>
+						<LoadingState
+							size="sm"
+							text="Đang tải khu vực đã vô hiệu hóa..."
+						/>
 					)}
 					{!deactivatedLoading && deactivatedError && (
-						<div className="zone-modal-alert">
-							<AlertCircle size={15} />
-							<span>{deactivatedError}</span>
-						</div>
+						<ErrorState
+							size="sm"
+							message={deactivatedError}
+							onRetry={fetchDeactivatedAreas}
+						/>
 					)}
 					{!deactivatedLoading &&
 						!deactivatedError &&
 						deactivatedAreas.length === 0 && (
-							<p className="zone-deactivated__empty">
-								Không có khu vực nào đã vô hiệu hóa.
-							</p>
+							<EmptyState
+								size="sm"
+								title="Không có khu vực nào đã vô hiệu hóa"
+							/>
 						)}
 					{!deactivatedLoading &&
 						!deactivatedError &&
 						deactivatedAreas.length > 0 && (
+							<div className="zone-deactivated__table-wrap">
 							<table className="zone-deactivated__table">
 								<thead>
 									<tr>
@@ -1095,7 +1081,7 @@ export default function AreaListPage() {
 										<tr key={a.id}>
 											<td className="zone-deactivated__name">{a.name}</td>
 											<td>
-												{a.building || "—"} / {a.floor || "—"}
+												{formatLocation(a.building, a.floor) || "—"}
 											</td>
 											<td>
 												{AREA_LEVEL_CONFIG[a.areaLevel]?.name || a.areaLevel}
@@ -1114,11 +1100,12 @@ export default function AreaListPage() {
 									))}
 								</tbody>
 							</table>
+							</div>
 						)}
 				</section>
 			)}
 
-			{!loading && !showDeactivated && (
+			{!loading && !pageError && !showDeactivated && (
 				<AreaListView
 					floorAreas={floorAreas}
 					selectedFloor={selectedFloor}
@@ -2216,7 +2203,7 @@ export default function AreaListPage() {
 							>
 								<Info
 									size={14}
-									style={{ color: "#38bdf8", flexShrink: 0 }}
+									style={{ color: "var(--theme-info)", flexShrink: 0 }}
 								/>
 								<span>
 									{isFacilityManager

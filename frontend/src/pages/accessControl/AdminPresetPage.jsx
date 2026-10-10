@@ -13,6 +13,7 @@ import { getLevelConfig, getAccessLevelConfig } from '../../utils/areaHelpers';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import PageHeader from '../../components/ui/PageHeader';
+import { LoadingState, EmptyState, ErrorState } from '../../components/ui';
 import ReasonTextarea from '../../components/ui/ReasonTextarea';
 import '../../styles/UserAccessLevelPage.css';
 import '../../styles/AdminPresetPage.css';
@@ -26,6 +27,7 @@ const ACCESS_LEVELS = [
 export default function AdminPresetPage() {
   const [presets, setPresets] = useState([]);
   const [loadingPresets, setLoadingPresets] = useState(false);
+  const [loadError, setLoadError] = useState(null);
 
   const [editPresetModal, setEditPresetModal] = useState({
     isOpen: false,
@@ -40,12 +42,13 @@ export default function AdminPresetPage() {
 
   const loadPresets = useCallback(async () => {
     setLoadingPresets(true);
+    setLoadError(null);
     try {
       const data = await getLevelPresets();
       setPresets(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Lỗi tải danh sách cấu hình mặc định:', err);
-      toast.error(err?.message || 'Không thể tải cấu hình mặc định');
+      setLoadError(err?.message || 'Không thể tải cấu hình mặc định');
     } finally {
       setLoadingPresets(false);
     }
@@ -149,10 +152,11 @@ export default function AdminPresetPage() {
           </div>
 
           {loadingPresets ? (
-            <div className="loading-state">
-              <Loader2 size={32} className="animate-spin" />
-              <span>Đang tải cấu hình mặc định...</span>
-            </div>
+            <LoadingState text="Đang tải cấu hình mặc định..." />
+          ) : loadError ? (
+            <ErrorState message={loadError} onRetry={loadPresets} />
+          ) : presets.length === 0 ? (
+            <EmptyState title="Chưa có cấu hình mặc định" />
           ) : (
             <div className="table-wrapper">
               <table className="data-table">
@@ -229,13 +233,6 @@ export default function AdminPresetPage() {
                       </tr>
                     );
                   })}
-                  {presets.length === 0 && (
-                    <tr>
-                      <td colSpan={5} className="empty-state-cell">
-                        Không có dữ liệu cấu hình mặc định nào.
-                      </td>
-                    </tr>
-                  )}
                 </tbody>
               </table>
             </div>

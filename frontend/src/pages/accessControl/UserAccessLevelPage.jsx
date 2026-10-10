@@ -15,6 +15,7 @@ import { getAccessLevelConfig } from '../../utils/areaHelpers';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import PageHeader from '../../components/ui/PageHeader';
+import { LoadingState, EmptyState, ErrorState } from '../../components/ui';
 import Pagination from '../../components/ui/Pagination';
 import ReasonTextarea from '../../components/ui/ReasonTextarea';
 import '../../styles/UserAccessLevelPage.css';
@@ -51,6 +52,7 @@ export default function UserAccessLevelPage() {
   const [keyword, setKeyword] = useState('');
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
+  const [loadError, setLoadError] = useState(null);
   const [selectedLevels, setSelectedLevels] = useState({});
   const debounceRef = useRef(null);
   const userReasonRef = useRef(null);
@@ -77,6 +79,7 @@ export default function UserAccessLevelPage() {
   const handleSearchUsers = useCallback(async (q = '', pageNo = 0, level = '') => {
     const clean = (q || '').trim();
     setLoadingUsers(true);
+    setLoadError(null);
     try {
       const res = await searchUsers(clean, pageNo, PAGE_SIZE, level ? Number(level) : undefined);
       const items = res?.content || [];
@@ -92,7 +95,7 @@ export default function UserAccessLevelPage() {
       setSelectedLevels(initialMap);
     } catch (err) {
       console.error('Lỗi tải danh sách người dùng:', err);
-      toast.error(err?.message || 'Không thể tải danh sách người dùng');
+      setLoadError(err?.message || 'Không thể tải danh sách người dùng');
       setUsers([]);
     } finally {
       setLoadingUsers(false);
@@ -314,20 +317,22 @@ export default function UserAccessLevelPage() {
         {/* Table Card */}
         <div className="access-level-table-card">
           {loadingUsers ? (
-            <div className="access-level-empty">
-              <Loader2 size={28} className="animate-spin" />
-              <p>Đang tải danh sách người dùng...</p>
-            </div>
+            <LoadingState text="Đang tải danh sách người dùng..." />
+          ) : loadError ? (
+            <ErrorState
+              message={loadError}
+              onRetry={() => handleSearchUsers(keyword, page, levelFilter)}
+            />
           ) : users.length === 0 ? (
-            <div className="access-level-empty">
-              <Users size={32} />
-              <p className="access-level-empty__title">Không tìm thấy người dùng phù hợp</p>
-              <span className="access-level-empty__desc">
-                {keyword || levelFilter
+            <EmptyState
+              icon={Users}
+              title="Không tìm thấy người dùng phù hợp"
+              description={
+                keyword || levelFilter
                   ? "Không có kết quả nào khớp với bộ lọc hiện tại. Thử kiểm tra lại từ khóa hoặc xóa bộ lọc."
-                  : "Chưa có người dùng nào trong hệ thống."}
-              </span>
-            </div>
+                  : "Chưa có người dùng nào trong hệ thống."
+              }
+            />
           ) : (
             <div className="access-level-table-wrapper">
               <table className="access-level-table">

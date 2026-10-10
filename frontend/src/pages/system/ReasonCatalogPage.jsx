@@ -16,7 +16,16 @@ import {
 	deactivateReasonCatalog,
 	reactivateReasonCatalog,
 } from "../../services/reasonCatalogService";
-import { Button, Input, Modal, Badge, PageHeader } from "../../components/ui";
+import {
+	Button,
+	Input,
+	Modal,
+	Badge,
+	PageHeader,
+	LoadingState,
+	EmptyState,
+	ErrorState,
+} from "../../components/ui";
 import "../../styles/SystemConfigPage.css";
 
 const ACTION_TYPES = [
@@ -35,6 +44,7 @@ export default function ReasonCatalogPage() {
 	const [filterAction, setFilterAction] = useState("");
 	const [filterActive, setFilterActive] = useState("");
 	const [errorMsg, setErrorMsg] = useState(null);
+	const [loadError, setLoadError] = useState(null);
 	const [successMsg, setSuccessMsg] = useState(null);
 
 	// Create Modal
@@ -61,10 +71,14 @@ export default function ReasonCatalogPage() {
 		sortOrder: 0,
 	});
 	const [updating, setUpdating] = useState(false);
+	// Xác nhận trước khi ngừng dùng một lý do
+	const [deactivateTarget, setDeactivateTarget] = useState(null);
+	const [deactivating, setDeactivating] = useState(false);
 
 	const fetchReasons = useCallback(async () => {
 		setLoading(true);
 		setErrorMsg(null);
+		setLoadError(null);
 		try {
 			const data = await getReasonCatalogs({
 				actionType: filterAction || undefined,
@@ -73,7 +87,7 @@ export default function ReasonCatalogPage() {
 			setReasons(data || []);
 		} catch (err) {
 			console.error("Lỗi khi tải danh mục lý do:", err);
-			setErrorMsg(err.message || "Không thể tải danh mục lý do.");
+			setLoadError(err.message || "Không thể tải danh mục lý do.");
 		} finally {
 			setLoading(false);
 		}
@@ -185,6 +199,7 @@ export default function ReasonCatalogPage() {
 			return;
 		}
 		setErrorMsg(null);
+		if (item.isActive) setDeactivating(true);
 		try {
 			if (item.isActive) {
 				await deactivateReasonCatalog(item.id);
@@ -196,6 +211,9 @@ export default function ReasonCatalogPage() {
 			fetchReasons();
 		} catch (err) {
 			setErrorMsg(err.message || "Lỗi khi thay đổi trạng thái lý do.");
+		} finally {
+			setDeactivating(false);
+			setDeactivateTarget(null);
 		}
 	};
 
@@ -277,8 +295,8 @@ export default function ReasonCatalogPage() {
 			</div>
 
 			{/* Table */}
-			<div className="syscfg-card" style={{ padding: 0, overflow: "hidden" }}>
-				<table className="reason-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+			<div className="syscfg-card" style={{ padding: 0, overflowX: "auto" }}>
+				<table className="reason-table" style={{ width: "100%", minWidth: "720px", borderCollapse: "collapse", fontSize: "13px" }}>
 					<thead>
 						<tr style={{ background: "var(--theme-bg-surface-elevated)", borderBottom: "1px solid var(--theme-border)", textAlign: "left" }}>
 							<th style={{ padding: "12px 16px" }}>Loại thao tác</th>
@@ -293,14 +311,20 @@ export default function ReasonCatalogPage() {
 					<tbody>
 						{loading ? (
 							<tr>
-								<td colSpan={7} style={{ textAlign: "center", padding: "32px", color: "var(--theme-text-muted)" }}>
-									Đang tải danh mục lý do...
+								<td colSpan={7}>
+									<LoadingState size="sm" text="Đang tải danh mục lý do..." />
+								</td>
+							</tr>
+						) : loadError ? (
+							<tr>
+								<td colSpan={7}>
+									<ErrorState size="sm" message={loadError} onRetry={fetchReasons} />
 								</td>
 							</tr>
 						) : reasons.length === 0 ? (
 							<tr>
-								<td colSpan={7} style={{ textAlign: "center", padding: "32px", color: "var(--theme-text-muted)" }}>
-									Không tìm thấy lý do nào phù hợp bộ lọc.
+								<td colSpan={7}>
+									<EmptyState size="sm" title="Không tìm thấy lý do nào phù hợp bộ lọc" />
 								</td>
 							</tr>
 						) : (
@@ -345,9 +369,9 @@ export default function ReasonCatalogPage() {
 													size="sm"
 													icon={PowerOff}
 													disabled={item.isOther}
-													onClick={() => handleToggleStatus(item)}
+													onClick={() => setDeactivateTarget(item)}
 													title={item.isOther ? "Không thể ngừng dùng mục Khác" : "Ngừng dùng"}
-													style={{ color: item.isOther ? "#cbd5e1" : "var(--theme-danger, #ef4444)" }}
+													style={{ color: item.isOther ? "var(--theme-text-disabled)" : "var(--theme-danger)" }}
 												/>
 											) : (
 												<Button
@@ -356,7 +380,7 @@ export default function ReasonCatalogPage() {
 													icon={Power}
 													onClick={() => handleToggleStatus(item)}
 													title="Kích hoạt lại"
-													style={{ color: "var(--theme-success, #10b981)" }}
+													style={{ color: "var(--theme-success)" }}
 												/>
 											)}
 										</div>
@@ -514,6 +538,40 @@ export default function ReasonCatalogPage() {
 						</Button>
 					</div>
 				</form>
+			</Modal>
+
+			<Modal
+				isOpen={Boolean(deactivateTarget)}
+				onClose={() => !deactivating && setDeactivateTarget(null)}
+				title="Ngừng dùng lý do này?"
+				subtitle="Lý do sẽ không còn hiện trong danh sách chọn. Các bản ghi cũ đã dùng lý do này vẫn giữ nguyên."
+				icon={PowerOff}
+				iconVariant="danger"
+				size="sm"
+				footer={
+					<>
+						<Button
+							variant="secondary"
+							onClick={() => setDeactivateTarget(null)}
+							disabled={deactivating}
+						>
+							Hủy
+						</Button>
+						<Button
+							variant="danger"
+							onClick={() => handleToggleStatus(deactivateTarget)}
+							loading={deactivating}
+						>
+							Ngừng dùng
+						</Button>
+					</>
+				}
+			>
+				{deactivateTarget && (
+					<p style={{ margin: 0 }}>
+						<strong>{deactivateTarget.code}</strong> — {deactivateTarget.label}
+					</p>
+				)}
 			</Modal>
 		</div>
 	);
