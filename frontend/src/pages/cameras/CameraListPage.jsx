@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { fetchCameras, decommissionCamera, reactivateCamera, deleteCamera } from '../../services/cameraService';
 import CameraCreateModal from '../../components/CameraCreateModal';
+import { Modal, Button } from '../../components/ui';
 import '../../styles/CameraListPage.css';
 
 const STATUS_LABELS = {
@@ -43,6 +44,8 @@ export default function CameraListPage() {
   // Modal state
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState(null);
+  // Xác nhận trước khi tắt camera (trước đây bấm "Tắt" là gọi API ngay)
+  const [decommissionTarget, setDecommissionTarget] = useState(null);
 
   const loadCameras = async () => {
     setLoading(true);
@@ -266,7 +269,11 @@ export default function CameraListPage() {
                         </button>
                         <button
                           className={`btn-action ${isDecommissioned ? 'btn-activate' : 'btn-decommission'}`}
-                          onClick={() => handleToggleDecommission(cam.id, isDecommissioned)}
+                          onClick={() =>
+                            isDecommissioned
+                              ? handleToggleDecommission(cam.id, true)
+                              : setDecommissionTarget(cam)
+                          }
                           disabled={actionLoadingId === cam.id}
                           title={isDecommissioned ? 'Kích hoạt lại' : 'Tắt camera'}
                         >
@@ -328,6 +335,44 @@ export default function CameraListPage() {
         onClose={() => setIsCreateOpen(false)}
         onSuccess={handleCreateSuccess}
       />
+
+      <Modal
+        isOpen={Boolean(decommissionTarget)}
+        onClose={() => actionLoadingId !== decommissionTarget?.id && setDecommissionTarget(null)}
+        title="Tắt camera"
+        icon={PowerOff}
+        iconVariant="danger"
+        size="sm"
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              onClick={() => setDecommissionTarget(null)}
+              disabled={actionLoadingId === decommissionTarget?.id}
+            >
+              Hủy bỏ
+            </Button>
+            <Button
+              variant="danger"
+              icon={PowerOff}
+              loading={actionLoadingId === decommissionTarget?.id}
+              onClick={async () => {
+                await handleToggleDecommission(decommissionTarget.id, false);
+                setDecommissionTarget(null);
+              }}
+            >
+              Tắt camera
+            </Button>
+          </>
+        }
+      >
+        {decommissionTarget && (
+          <p>
+            Tắt camera <strong>{decommissionTarget.cameraCode} - {decommissionTarget.name}</strong>?
+            Camera sẽ ngừng giám sát cho tới khi được bật lại.
+          </p>
+        )}
+      </Modal>
     </div>
   );
 }

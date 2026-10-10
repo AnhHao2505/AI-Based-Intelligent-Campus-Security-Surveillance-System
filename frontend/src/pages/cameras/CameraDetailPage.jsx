@@ -30,6 +30,7 @@ import CameraSurveillanceTab, {
 } from "../../components/camera/CameraSurveillanceTab";
 import CameraHealthLogs from "../../components/camera/CameraHealthLogs";
 import "../../styles/CameraDetailPage.css";
+import { Modal, Button } from "../../components/ui";
 
 export default function CameraDetailPage() {
   const { id } = useParams();
@@ -38,6 +39,8 @@ export default function CameraDetailPage() {
   const [activeTab, setActiveTab] = useState("general");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // Xác nhận trước khi tắt camera (trước đây bấm "Tắt camera" là gọi API ngay)
+  const [confirmDecommissionOpen, setConfirmDecommissionOpen] = useState(false);
   const [error, setError] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
 
@@ -491,7 +494,7 @@ export default function CameraDetailPage() {
         <button
           className={`btn-toggle-status ${isDecommissioned ? "btn-status-active" : "btn-status-decommission"
             }`}
-          onClick={handleToggleStatus}
+          onClick={() => (isDecommissioned ? handleToggleStatus() : setConfirmDecommissionOpen(true))}
           disabled={saving}
         >
           {isDecommissioned ? <Power size={18} /> : <PowerOff size={18} />}
@@ -592,6 +595,38 @@ export default function CameraDetailPage() {
         availableAreas={camera?.assignedAreas || []}
         onSave={handleSaveRoi}
       />
+
+      <Modal
+        isOpen={confirmDecommissionOpen}
+        onClose={() => !saving && setConfirmDecommissionOpen(false)}
+        title="Tắt camera"
+        icon={PowerOff}
+        iconVariant="danger"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setConfirmDecommissionOpen(false)} disabled={saving}>
+              Hủy bỏ
+            </Button>
+            <Button
+              variant="danger"
+              icon={PowerOff}
+              loading={saving}
+              onClick={async () => {
+                await handleToggleStatus();
+                setConfirmDecommissionOpen(false);
+              }}
+            >
+              Tắt camera
+            </Button>
+          </>
+        }
+      >
+        <p>
+          Tắt camera <strong>{camera.cameraCode} - {camera.name}</strong>? Camera sẽ ngừng giám sát cho tới khi
+          được bật lại.
+        </p>
+      </Modal>
     </div>
   );
 }
