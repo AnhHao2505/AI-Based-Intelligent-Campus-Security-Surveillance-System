@@ -35,7 +35,7 @@
   height: 34px;
   border-radius: 9px;
   background: rgba(56, 189, 248, 0.12);
-  color: #38bdf8;
+  color: var(--theme-info);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -78,7 +78,7 @@
 }
 
 .logs-loading-spinner {
-  color: #38bdf8;
+  color: var(--theme-info);
   animation: spin 1s linear infinite;
 }
 
@@ -258,18 +258,18 @@
 
 .log-metric-chip--latency-medium {
   background: rgba(245, 158, 11, 0.08);
-  color: #f59e0b;
+  color: var(--theme-warning);
   border-color: rgba(245, 158, 11, 0.2);
 }
 
 .log-metric-chip--latency-slow {
   background: rgba(239, 68, 68, 0.08);
-  color: #ef4444;
+  color: var(--theme-danger);
   border-color: rgba(239, 68, 68, 0.2);
 }
 
 .log-metric-chip--fps {
-  color: #38bdf8;
+  color: var(--theme-info);
   background: rgba(56, 189, 248, 0.08);
   border-color: rgba(56, 189, 248, 0.2);
 }
@@ -319,8 +319,8 @@
 
 .pagination-nav-btn:hover:not(:disabled) {
   background: var(--theme-bg-surface-elevated);
-  border-color: #38bdf8;
-  color: #38bdf8;
+  border-color: var(--theme-info);
+  color: var(--theme-info);
 }
 
 .pagination-nav-btn:disabled {

@@ -1,6 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { MapPin, Save, Loader2, ExternalLink } from "lucide-react";
+import { formatLocation } from "../../utils/formatLocation";
 
 export default function CameraGeneralTab({
 	camera,
@@ -82,8 +83,8 @@ export default function CameraGeneralTab({
 									value={area.id}
 								>
 									{area.name}{" "}
-									{area.building
-										? `(${area.building}${area.floor ? ` - Tầng ${area.floor}` : ""})`
+									{formatLocation(area.building, area.floor, " - ")
+										? `(${formatLocation(area.building, area.floor, " - ")})`
 										: ""}
 								</option>
 							))}
@@ -95,7 +96,7 @@ export default function CameraGeneralTab({
 							style={{
 								background: "transparent",
 								border: "1px solid var(--theme-border)",
-								color: "#38bdf8",
+								color: "var(--theme-info)",
 								borderRadius: "8px",
 								padding: "0.6rem 1rem",
 								fontSize: "0.85rem",
