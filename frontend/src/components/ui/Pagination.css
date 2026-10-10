@@ -61,6 +61,11 @@
   box-sizing: border-box;
 }
 
+.ui-pagination__btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
 .ui-pagination__btn:hover:not(:disabled) {
   background-color: var(--theme-bg-surface-elevated);
   border-color: var(--theme-border-hover);

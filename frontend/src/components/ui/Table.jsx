@@ -101,6 +101,15 @@ export default function Table({
                   key={getRowKey(record, index)}
                   className={`ui-table__row ${isClickable ? 'ui-table__row--clickable' : ''}`}
                   onClick={() => onRowClick?.(record, index)}
+                  // Dòng bấm được thì cũng chọn được bằng bàn phím (Tab + Enter / Space)
+                  tabIndex={isClickable ? 0 : undefined}
+                  onKeyDown={isClickable ? (e) => {
+                    if (e.target !== e.currentTarget) return; // phím trong nút / ô nhập con không mở dòng
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      onRowClick(record, index);
+                    }
+                  } : undefined}
                 >
                   {columns.map((col) => {
                     const rawValue = record[col.key];
