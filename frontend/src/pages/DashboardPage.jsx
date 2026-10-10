@@ -22,24 +22,41 @@ import {
 import { useAuth } from "../context/AuthContext";
 import { getAreas } from "../services/areaService";
 import { DataTable } from "../components/ui/data-table";
+import { ErrorState } from "../components/ui";
 import "../styles/DashboardPage.css";
 
 export default function DashboardPage() {
 	const { user } = useAuth();
 	const isAreaAuthorized =
 		user?.role === "ADMIN" || user?.role === "FACILITY_MANAGER";
-	const { data: areaResponse, isLoading: areaLoading } = useQuery({
+	const {
+		data: areaResponse,
+		isLoading: areaLoading,
+		isError: areaError,
+		error: areaErrorObj,
+		refetch: refetchAreas,
+		isFetching: areaFetching,
+	} = useQuery({
 		queryKey: ["areas", { page: 0, size: 100 }],
 		queryFn: () => getAreas({ page: 0, size: 100 }),
 		enabled: isAreaAuthorized,
 	});
 	const areas = areaResponse?.content || [];
+	// Lỗi tải -> null (hiện "—" + ErrorState), không coi là 0 khu vực
 	const areaCount =
 		typeof areaResponse?.totalElements === "number"
 			? areaResponse.totalElements
-			: isAreaAuthorized
+			: isAreaAuthorized && !areaError
 				? areas.length
 				: null;
+	// Trước đây: GUARD (truy vấn bị tắt) và lỗi API đều hiện mãi "Đang tải dữ liệu..."
+	const areaSubtext = !isAreaAuthorized
+		? "Không thuộc phạm vi vai trò của bạn"
+		: areaLoading
+			? "Đang tải dữ liệu..."
+			: areaError
+				? "Không tải được số liệu"
+				: "Khu vực quản lý an ninh";
 
 	// Per-card connection flags (FIX 1)
 	const [kpiConnection] = useState({
@@ -162,8 +179,7 @@ export default function DashboardPage() {
 			icon: MapPin,
 			isConnected: kpiConnection.areas.isConnected,
 			value: areaLoading ? "..." : areaCount !== null ? areaCount : "—",
-			subtext:
-				areaCount !== null ? "Khu vực quản lý an ninh" : "Đang tải dữ liệu...",
+			subtext: areaSubtext,
 			disconnectedReason: "",
 		},
 		{
@@ -220,6 +236,16 @@ export default function DashboardPage() {
 						</div>
 					</div>
 				</header>
+
+				{isAreaAuthorized && areaError && (
+					<ErrorState
+						size="sm"
+						title="Không tải được số liệu khu vực"
+						message={areaErrorObj?.message}
+						onRetry={() => refetchAreas()}
+						retrying={areaFetching}
+					/>
+				)}
 
 				{/* 4 KPI Cards (FIX 1) */}
 				<section className="dashboard-kpis">
