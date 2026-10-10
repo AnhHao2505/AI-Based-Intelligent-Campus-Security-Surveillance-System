@@ -1002,7 +1002,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 
 .roi-preview-poly--drift {
   fill: rgba(245, 158, 11, 0.2);
-  stroke: #f59e0b;
+  stroke: var(--theme-warning);
   stroke-width: 2.5px;
   stroke-dasharray: 5 3;
 }
