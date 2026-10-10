@@ -28,8 +28,6 @@ import {
 } from "../../services/incidentService";
 import "../../styles/GuardDashboardPage.css";
 import { LoadingState, ErrorState } from "../../components/ui";
-import { useAuth } from "../../context/AuthContext";
-import { ROLES } from "../../constants/roles";
 
 // Trọng số phân cấp mức độ nghiêm trọng của sự kiện an ninh (Chuẩn hóa 3 loại sự cố chính)
 // 1. UNAUTHORIZED_ACCESS: Mức độ CRITICAL (weight: 3) - Màu Đỏ (#ef4444)
@@ -108,9 +106,6 @@ export function SecuritySurveillancePage() {
 	const [soundEnabled, setSoundEnabled] = useState(true);
 	const [wsConnected, setWsConnected] = useState(false);
 	const [activeAlerts, setActiveAlerts] = useState([]);
-	// Nút "Test sự cố" (giả lập) chỉ cho ADMIN; trước đây hiện cho mọi người vào /guard (route chỉ GUARD)
-	const { user } = useAuth();
-	const canSimulateAlerts = user?.role === ROLES.ADMIN;
 	// Lỗi / đang tải danh sách sự cố ban đầu: không được hiện "HỆ THỐNG AN TOÀN" khi chưa tải được
 	const [incidentsLoading, setIncidentsLoading] = useState(true);
 	const [incidentsError, setIncidentsError] = useState(null);
@@ -716,8 +711,7 @@ export function SecuritySurveillancePage() {
 							<span>{soundEnabled ? "Âm thanh" : "Tắt tiếng"}</span>
 						</button>
 
-						{/* Nhóm nút TEST mô phỏng — chỉ ADMIN */}
-						{canSimulateAlerts && (
+						{/* Nhóm nút TEST mô phỏng */}
 						<div className="test-btn-group">
 							<button
 								type="button"
@@ -739,7 +733,6 @@ export function SecuritySurveillancePage() {
 								<span>Test đa sự cố (Ưu tiên)</span>
 							</button>
 						</div>
-						)}
 					</div>
 				</div>
 			)}
@@ -835,8 +828,6 @@ export function SecuritySurveillancePage() {
 									{soundEnabled ? <Volume2 size={12} /> : <VolumeX size={12} />}
 									<span>{soundEnabled ? "Âm thanh" : "Tắt tiếng"}</span>
 								</button>
-								{canSimulateAlerts && (
-								<>
 								<button
 									type="button"
 									className="btn-theater-test"
@@ -855,8 +846,6 @@ export function SecuritySurveillancePage() {
 									<Flame size={12} />
 									<span>Test đa sự cố</span>
 								</button>
-								</>
-								)}
 								<button
 									type="button"
 									className="soc-exit-theater-btn"
