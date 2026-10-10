@@ -14,7 +14,8 @@ import {
 } from 'lucide-react';
 import { fetchCameras, decommissionCamera, reactivateCamera, deleteCamera } from '../../services/cameraService';
 import CameraCreateModal from '../../components/CameraCreateModal';
-import { Modal, Button } from '../../components/ui';
+import { Modal, Button, PageHeader, LoadingState, EmptyState, ErrorState } from '../../components/ui';
+import { formatLocation } from '../../utils/formatLocation';
 import '../../styles/CameraListPage.css';
 
 const STATUS_LABELS = {
@@ -127,16 +128,15 @@ export default function CameraListPage() {
         <div className="camera-ambient__orb camera-ambient__orb--2" />
       </div>
 
-      <div className="page-header">
-        <div>
-          <h1>Hệ thống camera giám sát</h1>
-          <p className="subtitle">Quản lý và cấu hình thiết bị camera trong khuôn viên trường</p>
-        </div>
-        <button className="btn-add-camera" onClick={() => setIsCreateOpen(true)}>
-          <Plus size={18} />
-          <span>Thêm camera</span>
-        </button>
-      </div>
+      <PageHeader
+        title="Hệ thống camera giám sát"
+        description="Quản lý và cấu hình thiết bị camera trong khuôn viên trường"
+        actions={
+          <Button variant="primary" icon={Plus} onClick={() => setIsCreateOpen(true)}>
+            Thêm camera
+          </Button>
+        }
+      />
 
       {/* Filters Form */}
       <div className="filter-card">
@@ -183,21 +183,18 @@ export default function CameraListPage() {
         </form>
       </div>
 
-      {error && <div className="error-banner">{error}</div>}
-
-      {/* Main Table */}
+      {/* Main Table — thứ tự: đang tải -> lỗi (Thử lại) -> rỗng -> dữ liệu */}
       <div className="table-container">
         {loading ? (
-          <div className="table-loading">
-            <Loader2 className="animate-spin text-blue" size={36} />
-            <span>Đang tải danh sách camera...</span>
-          </div>
+          <LoadingState text="Đang tải danh sách camera..." />
+        ) : error ? (
+          <ErrorState title="Không tải được danh sách camera" message={error} onRetry={loadCameras} />
         ) : cameras.length === 0 ? (
-          <div className="empty-state">
-            <Video size={48} className="empty-icon" />
-            <h3>Không tìm thấy camera nào</h3>
-            <p>Thử điều chỉnh bộ lọc hoặc thêm camera mới để bắt đầu giám sát</p>
-          </div>
+          <EmptyState
+            icon={Video}
+            title="Không tìm thấy camera nào"
+            description="Thử điều chỉnh bộ lọc hoặc thêm camera mới để bắt đầu giám sát"
+          />
         ) : (
           <>
             <table className="camera-table">
@@ -239,7 +236,7 @@ export default function CameraListPage() {
                             }}
                           >
                             {areaName}
-                            {areaBuilding ? ` (${areaBuilding}${areaFloor ? ` - ${areaFloor}` : ""})` : ""}
+                            {formatLocation(areaBuilding, areaFloor) ? ` (${formatLocation(areaBuilding, areaFloor)})` : ""}
                           </span>
                         ) : (
                           <span style={{ color: "var(--theme-text-muted)", fontSize: "0.85rem" }}>
