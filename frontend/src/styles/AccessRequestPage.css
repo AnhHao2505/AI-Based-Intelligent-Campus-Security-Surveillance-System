@@ -161,7 +161,7 @@
 }
 
 .arp-required {
-  color: #ef4444;
+  color: var(--theme-danger);
 }
 
 .arp-input,
@@ -196,8 +196,8 @@
 }
 
 .arp-select option {
-  background: #1e293b;
-  color: #f8fafc;
+  background: var(--theme-bg-surface);
+  color: var(--theme-text-primary);
   padding: 8px;
 }
 
@@ -292,7 +292,7 @@
 }
 
 .arp-type-btn--selected .arp-type-btn__name {
-  color: #60a5fa;
+  color: var(--theme-primary);
 }
 
 .arp-type-btn--selected .arp-type-btn__desc {
@@ -361,7 +361,7 @@
   border-radius: 6px;
   background: rgba(59, 130, 246, 0.08);
   border: 1px solid rgba(59, 130, 246, 0.2);
-  color: #60a5fa;
+  color: var(--theme-primary);
   font-weight: 500;
   display: inline-flex;
   align-items: center;
@@ -371,7 +371,7 @@
 .arp-time-summary--error {
   background: rgba(239, 68, 68, 0.08);
   border-color: rgba(239, 68, 68, 0.25);
-  color: #fca5a5;
+  color: var(--theme-danger-text);
 }
 
 /* ==========================================================================
@@ -473,7 +473,7 @@
 
 .arp-member-chip__remove:hover {
   background: rgba(239, 68, 68, 0.2);
-  color: #ef4444;
+  color: var(--theme-danger);
 }
 
 /* ==========================================================================
@@ -514,13 +514,13 @@
 .arp-btn--danger-ghost {
   background: transparent;
   border-color: rgba(248, 113, 113, 0.3);
-  color: #f87171;
+  color: var(--theme-danger);
 }
 
 .arp-btn--danger-ghost:hover:not(:disabled) {
   background: rgba(248, 113, 113, 0.12);
   border-color: rgba(248, 113, 113, 0.5);
-  color: #fca5a5;
+  color: var(--theme-danger-text);
 }
 
 .arp-btn:disabled {
@@ -568,7 +568,7 @@
 .arp-link-btn {
   background: transparent;
   border: none;
-  color: #60a5fa;
+  color: var(--theme-primary);
   cursor: pointer;
   font-size: 12px;
   padding: 2px 4px;
@@ -580,7 +580,7 @@
 }
 
 .arp-link-btn:hover {
-  color: #93c5fd;
+  color: var(--theme-primary);
 }
 
 /* ==========================================================================
@@ -600,19 +600,19 @@
 .arp-banner--success {
   background: rgba(34, 197, 94, 0.1);
   border: 1px solid rgba(34, 197, 94, 0.3);
-  color: #4ade80;
+  color: var(--theme-success-text);
 }
 
 .arp-banner--warning {
   background: rgba(245, 158, 11, 0.1);
   border: 1px solid rgba(245, 158, 11, 0.3);
-  color: #fbbf24;
+  color: var(--theme-warning-text);
 }
 
 .arp-banner--error {
   background: rgba(239, 68, 68, 0.1);
   border: 1px solid rgba(239, 68, 68, 0.3);
-  color: #fca5a5;
+  color: var(--theme-danger-text);
 }
 
 /* ==========================================================================
@@ -645,7 +645,7 @@
 
 .arp-filter-btn--active {
   background: rgba(59, 130, 246, 0.12);
-  color: #60a5fa;
+  color: var(--theme-primary);
   border-color: var(--brand-blue, #3b82f6);
   font-weight: 600;
 }
@@ -768,7 +768,7 @@
   font-size: 10.5px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: #fca5a5;
+  color: var(--theme-danger-text);
   font-weight: 700;
 }
 
@@ -793,37 +793,37 @@
 
 .arp-status-badge--pending {
   background: rgba(245, 158, 11, 0.12);
-  color: #fbbf24;
+  color: var(--theme-warning-text);
   border: 1px solid rgba(245, 158, 11, 0.25);
 }
 
 .arp-status-badge--approved {
   background: rgba(34, 197, 94, 0.12);
-  color: #4ade80;
+  color: var(--theme-success-text);
   border: 1px solid rgba(34, 197, 94, 0.25);
 }
 
 .arp-status-badge--finished {
   background: rgba(56, 189, 248, 0.12);
-  color: #38bdf8;
+  color: var(--theme-info-text);
   border: 1px solid rgba(56, 189, 248, 0.25);
 }
 
 .arp-status-badge--rejected {
   background: rgba(239, 68, 68, 0.12);
-  color: #fca5a5;
+  color: var(--theme-danger-text);
   border: 1px solid rgba(239, 68, 68, 0.25);
 }
 
 .arp-status-badge--cancelled {
   background: rgba(148, 163, 184, 0.12);
-  color: #94a3b8;
+  color: var(--theme-text-muted);
   border: 1px solid rgba(148, 163, 184, 0.25);
 }
 
 .arp-status-badge--expired {
   background: rgba(217, 119, 6, 0.12);
-  color: #f59e0b;
+  color: var(--theme-warning-text);
   border: 1px solid rgba(217, 119, 6, 0.25);
 }
 
@@ -844,7 +844,7 @@
 
 .arp-badge--group {
   background: rgba(59, 130, 246, 0.12);
-  color: #60a5fa;
+  color: var(--theme-primary);
   border: 1px solid rgba(59, 130, 246, 0.25);
 }
 
@@ -891,7 +891,7 @@
 
 .arp-page-btn:hover:not(:disabled) {
   border-color: var(--brand-blue, #3b82f6);
-  color: #60a5fa;
+  color: var(--theme-primary);
 }
 
 .arp-page-btn--active {
@@ -994,7 +994,7 @@
   height: 36px;
   border-radius: 10px;
   background: rgba(59, 130, 246, 0.12);
-  color: #60a5fa;
+  color: var(--theme-primary);
   display: flex;
   align-items: center;
   justify-content: center;

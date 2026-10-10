@@ -14,6 +14,7 @@ import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import PageHeader from '../../components/ui/PageHeader';
+import { LoadingState, EmptyState, ErrorState } from '../../components/ui';
 import Pagination from '../../components/ui/Pagination';
 import ReasonTextarea from '../../components/ui/ReasonTextarea';
 import guestVisitService from '../../services/guestVisitService';
@@ -106,6 +107,7 @@ export default function GuestVisitReviewPage() {
       setTotalElements(res?.totalElements || 0);
       setPage(res?.number ?? targetPage);
     } catch (err) {
+      setVisits([]);
       setError(err?.message || 'Không thể tải danh sách lượt khách.');
     } finally {
       setLoading(false);
@@ -309,12 +311,6 @@ export default function GuestVisitReviewPage() {
         }
       />
 
-      {error && (
-        <div className="guest-visit__alert guest-visit__alert--danger">
-          <AlertCircle size={16} />
-          <span>{error}</span>
-        </div>
-      )}
 
       {/* Filter Tabs */}
       <div className="guest-visit__filters">
@@ -333,15 +329,11 @@ export default function GuestVisitReviewPage() {
       {/* Table Card */}
       <div className="guest-visit__card">
         {loading && visits.length === 0 ? (
-          <div className="guest-visit__empty">
-            <RefreshCw size={24} className="guest-visit__spin" />
-            <span>Đang tải danh sách lượt khách...</span>
-          </div>
+          <LoadingState size="sm" text="Đang tải danh sách lượt khách..." />
+        ) : error ? (
+          <ErrorState size="sm" message={error} onRetry={() => loadVisits(page)} />
         ) : visits.length === 0 ? (
-          <div className="guest-visit__empty">
-            <Users size={32} />
-            <span>Không có lượt khách nào phù hợp.</span>
-          </div>
+          <EmptyState size="sm" icon={Users} title="Không có lượt khách nào phù hợp" />
         ) : (
           <table className="guest-visit__table">
             <thead>

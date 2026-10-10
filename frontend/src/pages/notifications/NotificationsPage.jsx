@@ -7,7 +7,6 @@ import {
   ShieldX,
   CircleCheck,
   CircleX,
-  RefreshCw,
   Users,
   Inbox,
   XCircle,
@@ -30,6 +29,7 @@ import { useAuth } from '../../context/AuthContext';
 import Pagination from '../../components/ui/Pagination';
 import '../../styles/NotificationsPage.css';
 import PageHeader from '../../components/ui/PageHeader';
+import { LoadingState, EmptyState, ErrorState } from '../../components/ui';
 import '../../components/ui/Button.css';
 import { formatDateTime } from '../../utils/formatDateTime';
 import { toast } from 'sonner';
@@ -39,7 +39,9 @@ export default function NotificationsPage() {
   const navigate = useNavigate();
 
   const [notifications, setNotifications] = useState([]);
-  const [loading, setLoading] = useState(false);
+  // Bắt đầu ở trạng thái đang tải để không nháy "Chưa có thông báo nào" khi mở trang
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [totalElements, setTotalElements] = useState(0);
@@ -48,6 +50,7 @@ export default function NotificationsPage() {
   const fetchNotifications = async (pageIndex = page) => {
     try {
       setLoading(true);
+      setLoadError(null);
       const res = await notificationService.getMyNotifications({ page: pageIndex, size: pageSize });
       setNotifications(res.content || []);
       setPage(res.number ?? pageIndex);
@@ -55,6 +58,8 @@ export default function NotificationsPage() {
       setTotalElements(res.totalElements ?? (res.content?.length || 0));
     } catch (err) {
       console.error('Lỗi khi tải thông báo:', err);
+      setNotifications([]);
+      setLoadError(err?.message || 'Không tải được danh sách thông báo.');
     } finally {
       setLoading(false);
     }
@@ -67,6 +72,7 @@ export default function NotificationsPage() {
       window.dispatchEvent(new CustomEvent('notification-updated'));
     } catch (err) {
       console.error('Lỗi khi đánh dấu đã đọc tất cả:', err);
+      toast.error(err?.message || 'Không đánh dấu được tất cả là đã đọc.');
     }
   };
 
@@ -340,18 +346,16 @@ export default function NotificationsPage() {
 
         {/* List / Empty State */}
         {loading && notifications.length === 0 ? (
-          <div className="notif-empty">
-            <RefreshCw size={24} className="notif-spin notif-empty__icon" />
-            <div className="notif-empty__title">Đang tải thông báo...</div>
-          </div>
+          <LoadingState size="sm" text="Đang tải thông báo..." />
+        ) : loadError ? (
+          <ErrorState size="sm" message={loadError} onRetry={() => fetchNotifications(page)} />
         ) : notifications.length === 0 ? (
-          <div className="notif-empty">
-            <BellOff size={32} strokeWidth={1.5} className="notif-empty__icon" />
-            <div className="notif-empty__title">Chưa có thông báo nào</div>
-            <div className="notif-empty__subtitle">
-              Bạn sẽ nhận được thông báo khi yêu cầu truy cập được xử lý
-            </div>
-          </div>
+          <EmptyState
+            size="sm"
+            icon={BellOff}
+            title="Chưa có thông báo nào"
+            description="Thông báo về yêu cầu truy cập, lượt khách và các việc cần bạn xử lý sẽ hiện ở đây."
+          />
         ) : (
           <>
             <div className="notif-list">

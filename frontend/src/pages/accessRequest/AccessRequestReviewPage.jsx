@@ -17,6 +17,7 @@ import accessRequestService from '../../services/accessRequestService';
 import { getLevelConfig, AREA_LEVEL_CONFIG } from '../../utils/areaHelpers';
 import '../../styles/AccessRequestReviewPage.css';
 import PageHeader from '../../components/ui/PageHeader';
+import { LoadingState, EmptyState, ErrorState } from '../../components/ui';
 import ReasonTextarea from '../../components/ui/ReasonTextarea';
 import StatusTabs from '../../components/ui/StatusTabs';
 import '../../components/ui/Button.css';
@@ -28,6 +29,7 @@ import { toast } from 'sonner';
 export default function AccessRequestReviewPage() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(null);
   const [statusFilter, setStatusFilter] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedAreaId, setSelectedAreaId] = useState('');
@@ -90,6 +92,7 @@ export default function AccessRequestReviewPage() {
   // Load Requests
   const loadRequests = useCallback(async (targetPage = 0, status = statusFilter, areaId = selectedAreaId) => {
     setLoading(true);
+    setLoadError(null);
     try {
       const res = await accessRequestService.getAllRequests({
         status: status || undefined,
@@ -103,6 +106,9 @@ export default function AccessRequestReviewPage() {
       setPage(targetPage);
     } catch (err) {
       console.error('Lỗi khi tải danh sách phê duyệt:', err);
+      // Không hiện "Không tìm thấy yêu cầu" khi thực ra là tải lỗi
+      setRequests([]);
+      setLoadError(err?.message || 'Không tải được danh sách yêu cầu.');
     } finally {
       setLoading(false);
       setRequestsLoaded(true);
@@ -435,15 +441,11 @@ export default function AccessRequestReviewPage() {
       {/* Table Card */}
       <div className="arr-table-card">
         {loading ? (
-          <div className="arr-table-empty">
-            <RefreshCw size={24} className="spin" style={{ marginBottom: '0.5rem' }} />
-            <div>Đang tải dữ liệu yêu cầu...</div>
-          </div>
+          <LoadingState size="sm" text="Đang tải dữ liệu yêu cầu..." />
+        ) : loadError ? (
+          <ErrorState size="sm" message={loadError} onRetry={() => loadRequests(page)} />
         ) : filteredRequests.length === 0 ? (
-          <div className="arr-table-empty">
-            <Calendar size={32} style={{ opacity: 0.4, marginBottom: '0.5rem' }} />
-            <div>Không tìm thấy yêu cầu truy cập nào</div>
-          </div>
+          <EmptyState size="sm" icon={Calendar} title="Không tìm thấy yêu cầu truy cập nào" />
         ) : (
           <div className="arr-table-container">
             <table className="arr-table">

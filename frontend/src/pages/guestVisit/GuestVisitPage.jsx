@@ -16,6 +16,7 @@ import Modal from "../../components/ui/Modal";
 import Button from "../../components/ui/Button";
 import Badge from "../../components/ui/Badge";
 import PageHeader from "../../components/ui/PageHeader";
+import { LoadingState, EmptyState, ErrorState } from "../../components/ui";
 import ReasonTextarea from "../../components/ui/ReasonTextarea";
 import guestVisitService from "../../services/guestVisitService";
 import { getLevelConfig } from "../../utils/areaHelpers";
@@ -98,6 +99,7 @@ export default function GuestVisitPage() {
 			setTotalPages(data?.totalPages || 0);
 			setPage(data?.number ?? targetPage);
 		} catch (err) {
+			setVisits([]);
 			setListError(err?.message || "Không tải được danh sách lượt khách.");
 		} finally {
 			setLoading(false);
@@ -335,12 +337,6 @@ export default function GuestVisitPage() {
 					</span>
 				</div>
 			)}
-			{listError && (
-				<div className="guest-visit__alert guest-visit__alert--danger">
-					<AlertCircle size={16} />
-					<span>{listError}</span>
-				</div>
-			)}
 			{cancelError && !cancelTarget && (
 				<div className="guest-visit__alert guest-visit__alert--warning">
 					<AlertCircle size={16} />
@@ -349,11 +345,12 @@ export default function GuestVisitPage() {
 			)}
 
 			<div className="guest-visit__card">
-				{visits.length === 0 && !loading ? (
-					<div className="guest-visit__empty">
-						<Inbox size={28} />
-						<span>Bạn chưa có lượt khách nào.</span>
-					</div>
+				{loading && visits.length === 0 ? (
+					<LoadingState size="sm" text="Đang tải danh sách lượt khách..." />
+				) : listError ? (
+					<ErrorState size="sm" message={listError} onRetry={() => loadVisits(page)} />
+				) : visits.length === 0 ? (
+					<EmptyState size="sm" icon={Inbox} title="Bạn chưa có lượt khách nào" />
 				) : (
 					<table className="guest-visit__table">
 						<thead>

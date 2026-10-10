@@ -193,6 +193,8 @@
 
 .arr-table {
   width: 100%;
+  /* Màn hẹp: giữ đủ cột (trạng thái, thao tác) và cuộn ngang thay vì bóp cột */
+  min-width: 860px;
   border-collapse: collapse;
   font-size: 0.875rem;
   text-align: left;
@@ -304,13 +306,13 @@
 
 .arr-badge--cancelled {
   background: rgba(148, 163, 184, 0.12);
-  color: #94a3b8;
+  color: var(--theme-text-muted);
   border: 1px solid rgba(148, 163, 184, 0.25);
 }
 
 .arr-badge--expired {
   background: rgba(245, 158, 11, 0.12);
-  color: #fbbf24;
+  color: var(--theme-warning-text);
   border: 1px solid rgba(245, 158, 11, 0.25);
 }
 
@@ -370,25 +372,25 @@
 }
 
 .arr-btn-icon--approve {
-  color: #22c55e;
+  color: var(--theme-success);
   border-color: var(--theme-success-border);
   background: var(--theme-success-bg);
 }
 
 .arr-btn-icon--approve:hover {
   background: rgba(34, 197, 94, 0.15);
-  color: #22c55e;
+  color: var(--theme-success);
 }
 
 .arr-btn-icon--reject {
-  color: #f87171;
+  color: var(--theme-danger);
   border-color: var(--theme-danger-border);
   background: var(--theme-danger-bg);
 }
 
 .arr-btn-icon--reject:hover {
   background: rgba(248, 113, 113, 0.15);
-  color: #f87171;
+  color: var(--theme-danger);
 }
 
 /* Modals */
