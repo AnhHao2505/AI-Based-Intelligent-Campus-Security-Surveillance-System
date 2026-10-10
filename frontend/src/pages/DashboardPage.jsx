@@ -255,7 +255,6 @@ export default function DashboardPage() {
 						);
 					})}
 				</section>
-				<p> Để đây, khi có thêm thông tin rồi, thì thiết kế lại</p>
 			</div>
 		</div>
 	);
