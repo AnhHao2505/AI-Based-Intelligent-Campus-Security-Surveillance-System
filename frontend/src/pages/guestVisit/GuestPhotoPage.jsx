@@ -11,6 +11,7 @@ import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import PageHeader from '../../components/ui/PageHeader';
+import { LoadingState, EmptyState, ErrorState } from '../../components/ui';
 import Pagination from '../../components/ui/Pagination';
 import guestVisitService from '../../services/guestVisitService';
 import systemConfigService from '../../services/systemConfigService';
@@ -90,6 +91,7 @@ export default function GuestPhotoPage() {
       setTotalElements(res?.totalElements || 0);
       setPage(res?.number ?? targetPage);
     } catch (err) {
+      setVisits([]);
       setError(err?.message || 'Không thể tải danh sách lượt khách đã duyệt.');
     } finally {
       setLoading(false);
@@ -230,12 +232,6 @@ export default function GuestPhotoPage() {
         }
       />
 
-      {error && (
-        <div className="guest-visit__alert guest-visit__alert--danger">
-          <AlertCircle size={16} />
-          <span>{error}</span>
-        </div>
-      )}
 
       {configError && (
         <div className="guest-visit__alert guest-visit__alert--warning">
@@ -249,15 +245,11 @@ export default function GuestPhotoPage() {
       {/* List of Visits */}
       <div className="guest-visit__card">
         {loading && visits.length === 0 ? (
-          <div className="guest-visit__empty">
-            <RefreshCw size={24} className="guest-visit__spin" />
-            <span>Đang tải danh sách lượt khách...</span>
-          </div>
+          <LoadingState size="sm" text="Đang tải danh sách lượt khách..." />
+        ) : error ? (
+          <ErrorState size="sm" message={error} onRetry={() => loadVisits(page)} />
         ) : visits.length === 0 ? (
-          <div className="guest-visit__empty">
-            <Users size={32} />
-            <span>Không có lượt khách đã duyệt nào đang hoạt động.</span>
-          </div>
+          <EmptyState size="sm" icon={Users} title="Không có lượt khách đã duyệt nào đang hoạt động" />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             {visits.map((v) => {

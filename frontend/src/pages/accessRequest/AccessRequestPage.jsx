@@ -67,6 +67,7 @@ export default function AccessRequestPage() {
 	const [historyStatusFilter, setHistoryStatusFilter] = useState("");
 	const [historyAreaFilter, setHistoryAreaFilter] = useState("");
 	const [loadingHistory, setLoadingHistory] = useState(false);
+	const [historyError, setHistoryError] = useState(null);
 	const [historyPage, setHistoryPage] = useState(0);
 	const [historyTotalPages, setHistoryTotalPages] = useState(1);
 	const [historyTotalElements, setHistoryTotalElements] = useState(0);
@@ -193,6 +194,7 @@ export default function AccessRequestPage() {
 	const loadMyRequests = useCallback(
 		async (page = 0, status = historyStatusFilter, areaId = historyAreaFilter) => {
 			setLoadingHistory(true);
+			setHistoryError(null);
 			try {
 				const res = await accessRequestService.getMyRequests({
 					status: status || undefined,
@@ -206,6 +208,9 @@ export default function AccessRequestPage() {
 				setHistoryPage(page);
 			} catch (err) {
 				console.error("Lỗi khi tải lịch sử yêu cầu:", err);
+				// Không giữ danh sách cũ và không hiện "Chưa có yêu cầu nào" khi tải lỗi
+				setHistoryList([]);
+				setHistoryError(err?.message || "Không tải được danh sách yêu cầu.");
 			} finally {
 				setLoadingHistory(false);
 				setHistoryLoaded(true);
@@ -1024,24 +1029,15 @@ export default function AccessRequestPage() {
 				{/* 3b. Bảng & 3d. Bảng rỗng */}
 				<div className="arp-card__table-wrapper">
 					{loadingHistory ? (
-						<div className="arp-empty">
-							<RefreshCw
-								size={24}
-								className="arp-spin"
-								style={{ marginBottom: "8px" }}
-							/>
-							<div className="arp-empty__text">
-								Đang tải danh sách yêu cầu...
-							</div>
-						</div>
+						<LoadingState size="sm" text="Đang tải danh sách yêu cầu..." />
+					) : historyError ? (
+						<ErrorState
+							size="sm"
+							message={historyError}
+							onRetry={() => loadMyRequests(historyPage)}
+						/>
 					) : historyList.length === 0 ? (
-						<div className="arp-empty">
-							<Inbox
-								size={28}
-								className="arp-empty__icon"
-							/>
-							<div className="arp-empty__text">Chưa có yêu cầu nào</div>
-						</div>
+						<EmptyState size="sm" icon={Inbox} title="Chưa có yêu cầu nào" />
 					) : (
 						<div className="arp-table-container">
 							<table className="arp-table">
