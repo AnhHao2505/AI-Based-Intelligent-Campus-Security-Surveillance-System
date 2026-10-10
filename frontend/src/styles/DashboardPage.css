@@ -338,15 +338,15 @@
 }
 
 .area-stacked-bar__segment--public {
-  background-color: #22c55e;
+  background-color: var(--theme-success);
 }
 
 .area-stacked-bar__segment--semi {
-  background-color: #fbbf24;
+  background-color: var(--theme-warning);
 }
 
 .area-stacked-bar__segment--private {
-  background-color: #f87171;
+  background-color: var(--theme-danger);
 }
 
 .area-level-stats {
@@ -370,15 +370,15 @@
 }
 
 .area-level-stat__dot--public {
-  background-color: #22c55e;
+  background-color: var(--theme-success);
 }
 
 .area-level-stat__dot--semi {
-  background-color: #fbbf24;
+  background-color: var(--theme-warning);
 }
 
 .area-level-stat__dot--private {
-  background-color: #f87171;
+  background-color: var(--theme-danger);
 }
 
 .area-level-stat__name {
@@ -485,7 +485,7 @@
 }
 
 .system-health-collapsed__dot--connected {
-  background-color: #22c55e;
+  background-color: var(--theme-success);
 }
 
 .system-health-collapsed__dot--not_connected {
@@ -493,7 +493,7 @@
 }
 
 .system-health-collapsed__dot--error {
-  background-color: #f87171;
+  background-color: var(--theme-danger);
 }
 
 .system-health-collapsed__name {

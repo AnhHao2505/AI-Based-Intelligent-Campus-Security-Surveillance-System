@@ -22,7 +22,7 @@ import {
 import { useAuth } from "../context/AuthContext";
 import { getAreas } from "../services/areaService";
 import { DataTable } from "../components/ui/data-table";
-import { ErrorState } from "../components/ui";
+import { ErrorState, PageHeader } from "../components/ui";
 import "../styles/DashboardPage.css";
 
 export default function DashboardPage() {
@@ -61,14 +61,14 @@ export default function DashboardPage() {
 	// Per-card connection flags (FIX 1)
 	const [kpiConnection] = useState({
 		areas: { isConnected: true },
-		cameras: { isConnected: false, reason: "Cần kết nối module Camera" },
+		cameras: { isConnected: false, reason: "Chưa có dữ liệu từ hệ thống camera" },
 		faceProfiles: {
 			isConnected: false,
-			reason: "Cần kết nối module Nhận diện",
+			reason: "Chưa có dữ liệu nhận diện khuôn mặt",
 		},
 		incidents: {
 			isConnected: false,
-			reason: "Cần kết nối module Camera và AI",
+			reason: "Chưa có dữ liệu sự cố từ camera và AI",
 		},
 	});
 
@@ -218,24 +218,16 @@ export default function DashboardPage() {
 		<div className="dashboard-page">
 			<div className="dashboard-container">
 				{/* Header Section */}
-				<header className="dashboard-header">
-					<div className="dashboard-header__left">
-						<div className="dashboard-header__badge">
-							<span className="dashboard-header__badge-dot" />
-							CAMPUS SURVEILLANCE
-						</div>
-						<h1 className="dashboard-header__title">Dashboard</h1>
-						<p className="dashboard-header__subtitle">
-							Tổng quan hệ thống an ninh Campus
-						</p>
-					</div>
-					<div className="dashboard-header__right">
+				<PageHeader
+					title="Dashboard"
+					description="Tổng quan hệ thống an ninh Campus"
+					actions={
 						<div className="dashboard-date-badge">
 							<Calendar size={14} />
 							<span>{currentDateStr}</span>
 						</div>
-					</div>
-				</header>
+					}
+				/>
 
 				{isAreaAuthorized && areaError && (
 					<ErrorState
