@@ -72,14 +72,6 @@ export async function deactivateArea(id, data) {
 }
 
 /**
- * Lấy danh sách floor plan
- * GET /api/floor-plans
- */
-export async function getFloorPlans() {
-	return apiGet("/api/floor-plans");
-}
-
-/**
  * Lấy danh sách camera đã được gán vào Khu vực
  * GET /api/areas/{id}/cameras
  */
