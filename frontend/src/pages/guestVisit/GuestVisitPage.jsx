@@ -16,6 +16,7 @@ import Modal from "../../components/ui/Modal";
 import Button from "../../components/ui/Button";
 import Badge from "../../components/ui/Badge";
 import PageHeader from "../../components/ui/PageHeader";
+import { LoadingState, EmptyState, ErrorState } from "../../components/ui";
 import ReasonTextarea from "../../components/ui/ReasonTextarea";
 import guestVisitService from "../../services/guestVisitService";
 import { getLevelConfig } from "../../utils/areaHelpers";
@@ -25,8 +26,11 @@ import {
 	GUEST_ALLOWED_AREA_LEVELS,
 	formatDateTime,
 	canHostCancel,
+	getMissingPhotoInfo,
 } from "../../utils/guestHelpers";
 import "../../styles/GuestVisitPage.css";
+import { useSearchParams } from "react-router-dom";
+import { toast } from "sonner";
 
 const PAGE_SIZE = 10;
 const EMPTY_GUEST = { fullName: "", organization: "" };
@@ -35,6 +39,12 @@ function toIso(localValue) {
 	// datetime-local (giờ máy người dùng) -> ISO UTC; backend nhận OffsetDateTime
 	return localValue ? new Date(localValue).toISOString() : null;
 }
+
+// BR-GV-06: lý do khu vực không mời được trong khung giờ đã chọn (reasonCode của selectable-areas)
+const AREA_BLOCK_REASONS = {
+	ERR_GUEST_014: "Bạn không vào được khu này trong suốt khung giờ đã chọn",
+	ERR_GUEST_002: "Tài khoản chưa đủ điều kiện mời khách",
+};
 
 function ReasonBlock({ label, value }) {
 	if (!value) return null;
@@ -68,6 +78,11 @@ export default function GuestVisitPage() {
 
 	// Chi tiết / huỷ
 	const [detail, setDetail] = useState(null);
+	// Bấm thông báo -> ?visitId: tô sáng dòng lượt khách hoặc mở popup chi tiết
+	const [searchParams, setSearchParams] = useSearchParams();
+	const [visitsLoaded, setVisitsLoaded] = useState(false);
+	const [highlightVisitId, setHighlightVisitId] = useState(null);
+	const handledVisitIdRef = useRef(null);
 	const [cancelTarget, setCancelTarget] = useState(null);
 	const [cancelReason, setCancelReason] = useState("");
 	const [cancelReasonError, setCancelReasonError] = useState(null);
@@ -84,15 +99,65 @@ export default function GuestVisitPage() {
 			setTotalPages(data?.totalPages || 0);
 			setPage(data?.number ?? targetPage);
 		} catch (err) {
+			setVisits([]);
 			setListError(err?.message || "Không tải được danh sách lượt khách.");
 		} finally {
 			setLoading(false);
+			setVisitsLoaded(true);
 		}
 	}, []);
 
 	useEffect(() => {
 		loadVisits(0);
 	}, [loadVisits]);
+
+	// ?visitId (từ thông báo): lượt có trong danh sách đang hiện -> cuộn tới + tô sáng;
+	// không có (khác trang) -> GET /api/guest-visits/{id} mở popup chi tiết; lỗi quyền / không thấy -> toast.
+	useEffect(() => {
+		const visitId = searchParams.get("visitId");
+		if (!visitId || !visitsLoaded || loading) return;
+		if (handledVisitIdRef.current === visitId) return;
+		handledVisitIdRef.current = visitId;
+		setSearchParams(
+			(prev) => {
+				const next = new URLSearchParams(prev);
+				next.delete("visitId");
+				return next;
+			},
+			{ replace: true },
+		);
+		if (visits.some((v) => v.id === visitId)) {
+			setHighlightVisitId(visitId);
+			requestAnimationFrame(() => {
+				document
+					.querySelector(`[data-visit-id="${visitId}"]`)
+					?.scrollIntoView({ behavior: "smooth", block: "center" });
+			});
+			return;
+		}
+		guestVisitService
+			.getVisit(visitId)
+			.then((data) => {
+				if (data) setDetail(data);
+			})
+			.catch(() => toast.error("Không xem được lượt khách này"));
+	}, [searchParams, setSearchParams, visitsLoaded, loading, visits]);
+
+	useEffect(() => {
+		if (!highlightVisitId) return;
+		const timer = setTimeout(() => setHighlightVisitId(null), 2000);
+		return () => clearTimeout(timer);
+	}, [highlightVisitId]);
+
+	// B-04: điều kiện mời khách (cấp ≥ GUEST_HOST_MIN_LEVEL). Lỗi tải -> để null, vẫn hiện nút (BE vẫn chặn ERR_GUEST_002)
+	const [eligibility, setEligibility] = useState(null);
+	useEffect(() => {
+		guestVisitService
+			.getEligibility()
+			.then((data) => setEligibility(data || null))
+			.catch((err) => console.error("Lỗi tải điều kiện mời khách:", err));
+	}, []);
+	const cannotHost = eligibility?.canHost === false;
 
 	const selectableAreas = useMemo(
 		() => areas.filter((a) => GUEST_ALLOWED_AREA_LEVELS.includes(a.areaLevel)),
@@ -117,6 +182,37 @@ export default function GuestVisitPage() {
 			setLoadingAreas(false);
 		}
 	};
+
+	// BR-GV-06: đã chọn đủ giờ (bắt đầu < kết thúc) thì hỏi lại BE khu nào mời được trong khung giờ đó; đổi giờ thì tính lại.
+	// Khu không mời được: hiện mờ, không tick được, bỏ tick nếu đang tick. Chưa đủ giờ thì bỏ đánh dấu.
+	const areaWindowSeq = useRef(0);
+	useEffect(() => {
+		if (!createOpen) return undefined;
+		const startIso = toIso(startTime);
+		const endIso = toIso(endTime);
+		const seq = ++areaWindowSeq.current;
+		if (!startIso || !endIso || new Date(startIso) >= new Date(endIso)) {
+			setAreas((prev) =>
+				prev.some((a) => a.hostCanInvite !== undefined)
+					? prev.map(({ hostCanInvite: _h, reasonCode: _r, ...rest }) => rest)
+					: prev,
+			);
+			return undefined;
+		}
+		const timer = setTimeout(() => {
+			guestVisitService
+				.getSelectableAreas({ startTime: startIso, endTime: endIso })
+				.then((data) => {
+					if (seq !== areaWindowSeq.current) return;
+					const list = Array.isArray(data) ? data : [];
+					setAreas(list);
+					const blocked = new Set(list.filter((a) => a.hostCanInvite === false).map((a) => a.id));
+					setAreaIds((prev) => (prev.some((id) => blocked.has(id)) ? prev.filter((id) => !blocked.has(id)) : prev));
+				})
+				.catch((err) => console.error("Lỗi kiểm tra khu vực theo khung giờ:", err));
+		}, 300);
+		return () => clearTimeout(timer);
+	}, [createOpen, startTime, endTime]);
 
 	const toggleArea = (id) => {
 		setAreaIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -224,17 +320,21 @@ export default function GuestVisitPage() {
 						<Button variant="secondary" icon={RefreshCw} onClick={() => loadVisits(page)} loading={loading}>
 							Tải lại
 						</Button>
-						<Button icon={UserPlus} onClick={openCreate}>
-							Tạo lượt khách
-						</Button>
+						{!cannotHost && (
+							<Button icon={UserPlus} onClick={openCreate}>
+								Tạo lượt khách
+							</Button>
+						)}
 					</>
 				}
 			/>
 
-			{listError && (
-				<div className="guest-visit__alert guest-visit__alert--danger">
+			{cannotHost && (
+				<div className="guest-visit__alert guest-visit__alert--warning" role="status">
 					<AlertCircle size={16} />
-					<span>{listError}</span>
+					<span>
+						Cần cấp truy cập ≥ {eligibility.minLevel} để mời khách (cấp hiện tại: {eligibility.myLevel ?? "—"})
+					</span>
 				</div>
 			)}
 			{cancelError && !cancelTarget && (
@@ -245,11 +345,12 @@ export default function GuestVisitPage() {
 			)}
 
 			<div className="guest-visit__card">
-				{visits.length === 0 && !loading ? (
-					<div className="guest-visit__empty">
-						<Inbox size={28} />
-						<span>Bạn chưa có lượt khách nào.</span>
-					</div>
+				{loading && visits.length === 0 ? (
+					<LoadingState size="sm" text="Đang tải danh sách lượt khách..." />
+				) : listError ? (
+					<ErrorState size="sm" message={listError} onRetry={() => loadVisits(page)} />
+				) : visits.length === 0 ? (
+					<EmptyState size="sm" icon={Inbox} title="Bạn chưa có lượt khách nào" />
 				) : (
 					<table className="guest-visit__table">
 						<thead>
@@ -263,7 +364,11 @@ export default function GuestVisitPage() {
 						</thead>
 						<tbody>
 							{visits.map((v) => (
-								<tr key={v.id}>
+								<tr
+									key={v.id}
+									data-visit-id={v.id}
+									className={highlightVisitId === v.id ? "guest-visit__row--highlight" : undefined}
+								>
 									<td>
 										<div>{formatDateTime(v.startTime)}</div>
 										<div className="guest-visit__muted">→ {formatDateTime(v.endTime)}</div>
@@ -274,7 +379,20 @@ export default function GuestVisitPage() {
 											<Users size={14} /> {(v.guests || []).length}
 										</span>
 									</td>
-									<td>{renderStatus(v.status)}</td>
+									<td>
+										{renderStatus(v.status)}
+										{/* BR-GV-38: lượt đã duyệt còn khách chưa đăng ký khuôn mặt */}
+										{getMissingPhotoInfo(v) && (
+											<div className="guest-visit__photo-missing">
+												<Badge variant="warning">
+													Chưa có ảnh ({getMissingPhotoInfo(v).missing}/{getMissingPhotoInfo(v).total} khách)
+												</Badge>
+												<span className="guest-visit__photo-missing-hint">
+													Khách cần đăng ký khuôn mặt tại quầy trước giờ vào
+												</span>
+											</div>
+										)}
+									</td>
 									<td className="guest-visit__actions">
 										<Button variant="ghost" size="sm" icon={Eye} onClick={() => setDetail(v)}>
 											Chi tiết
@@ -335,9 +453,6 @@ export default function GuestVisitPage() {
 								<span>Cần {createBlockers.join("; ")} để gửi duyệt.</span>
 							</div>
 						)}
-						<Button variant="secondary" onClick={() => setCreateOpen(false)} disabled={creating}>
-							Đóng
-						</Button>
 						<Button
 							onClick={submitCreate}
 							loading={creating}
@@ -391,10 +506,26 @@ export default function GuestVisitPage() {
 							<div className="guest-visit__areas">
 								{selectableAreas.map((a) => {
 									const level = getLevelConfig(a.areaLevel);
+									const blocked = a.hostCanInvite === false;
+									const blockReason = blocked
+										? AREA_BLOCK_REASONS[a.reasonCode] || "Không mời được khách vào khu này trong khung giờ đã chọn"
+										: null;
 									return (
-										<label key={a.id} className="guest-visit__area">
-											<input type="checkbox" checked={areaIds.includes(a.id)} onChange={() => toggleArea(a.id)} />
-											<span>{a.name}</span>
+										<label
+											key={a.id}
+											className={`guest-visit__area${blocked ? " guest-visit__area--blocked" : ""}`}
+											title={blockReason || undefined}
+										>
+											<input
+												type="checkbox"
+												checked={!blocked && areaIds.includes(a.id)}
+												disabled={blocked}
+												onChange={() => toggleArea(a.id)}
+											/>
+											<span className="guest-visit__area-name">
+												{a.name}
+												{blockReason && <span className="guest-visit__area-reason">{blockReason}</span>}
+											</span>
 											<span className="guest-visit__muted">{level.name}</span>
 										</label>
 									);
@@ -455,9 +586,12 @@ export default function GuestVisitPage() {
 								Hủy lượt
 							</Button>
 						)}
-						<Button variant="secondary" onClick={() => setDetail(null)}>
-							Đóng
-						</Button>
+						{/* Có nút hành động thì bỏ "Đóng" (còn X + Esc); chỉ để xem thì giữ "Đóng" */}
+						{!(detail && canHostCancel(detail)) && (
+							<Button variant="secondary" onClick={() => setDetail(null)}>
+								Đóng
+							</Button>
+						)}
 					</>
 				}
 			>
@@ -532,16 +666,6 @@ export default function GuestVisitPage() {
 				closeOnBackdrop={!cancelling}
 				footer={
 					<>
-						<Button
-							variant="secondary"
-							onClick={() => {
-								setCancelTarget(null);
-								setCancelReasonError(null);
-							}}
-							disabled={cancelling}
-						>
-							Đóng
-						</Button>
 						<Button variant="danger" onClick={submitCancel} loading={cancelling} disabled={cancelling}>
 							Xác nhận hủy
 						</Button>

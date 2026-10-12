@@ -101,6 +101,7 @@ public class AuthService {
                 .email(user.getEmail())
                 .role(user.getRole().name())
                 .userCode(user.getUserCode())
+                .accessLevel(user.getAccessLevel())
                 .build();
 
         return AuthResponse.builder()
@@ -137,6 +138,7 @@ public class AuthService {
                     .email(user.getEmail())
                     .role(user.getRole().name())
                     .userCode(user.getUserCode())
+                    .accessLevel(user.getAccessLevel())
                     .build();
 
             return AuthResponse.builder()
@@ -165,6 +167,7 @@ public class AuthService {
                 .email(user.getEmail())
                 .role(user.getRole().name())
                 .userCode(user.getUserCode())
+                .accessLevel(user.getAccessLevel())
                 .build();
     }
 }

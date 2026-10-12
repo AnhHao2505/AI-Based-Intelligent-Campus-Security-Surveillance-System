@@ -1177,7 +1177,7 @@
   color: #86efac;
 }
 [data-theme="light"] .area-level-btn--public.is-selected .area-level-btn__name {
-  color: #166534;
+  color: var(--theme-success-text);
 }
 .area-level-btn--public.is-selected .area-level-btn__sub {
   color: rgba(134, 239, 172, 0.8);
@@ -1188,7 +1188,7 @@
 
 .area-level-btn--internal.is-selected {
   background: rgba(59, 130, 246, 0.1);
-  border: 1px solid #3b82f6;
+  border: 1px solid var(--theme-border-focus);
 }
 .area-level-btn--internal.is-selected .area-level-btn__name {
   color: #93c5fd;
@@ -1214,7 +1214,7 @@
 }
 [data-theme="light"] .area-level-btn--contact.is-selected .area-level-btn__name,
 [data-theme="light"] .area-level-btn--semi.is-selected .area-level-btn__name {
-  color: #92400e;
+  color: var(--theme-warning-text);
 }
 .area-level-btn--contact.is-selected .area-level-btn__sub,
 .area-level-btn--semi.is-selected .area-level-btn__sub {
@@ -1233,7 +1233,7 @@
   color: #fca5a5;
 }
 [data-theme="light"] .area-level-btn--private.is-selected .area-level-btn__name {
-  color: #991b1b;
+  color: var(--theme-danger-text);
 }
 .area-level-btn--private.is-selected .area-level-btn__sub {
   color: rgba(252, 165, 165, 0.8);
@@ -1257,7 +1257,7 @@
   color: var(--theme-text-secondary);
 }
 [data-theme="light"] .area-edit-info-box {
-  background: #eff6ff;
+  background: var(--theme-primary-light);
   border-color: #bfdbfe;
   color: #1e3a8a;
 }
@@ -1620,6 +1620,48 @@
   flex-shrink: 0;
 }
 
+/* View Toggle (Bản đồ / Danh sách) */
+.zone-view-toggle {
+  display: inline-flex;
+  align-items: center;
+  background: var(--theme-bg-surface);
+  border: 0.5px solid var(--theme-border);
+  border-radius: 8px;
+  padding: 3px;
+  height: 36px;
+  box-sizing: border-box;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.zone-view-toggle__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  height: 28px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--theme-text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.zone-view-toggle__btn:hover {
+  color: var(--theme-text-primary);
+}
+
+.zone-view-toggle__btn--active {
+  background: var(--theme-bg-surface-elevated) !important;
+  color: var(--theme-text-primary) !important;
+  font-weight: 600;
+  box-shadow: var(--theme-card-shadow);
+}
+
 /* Add Area Button */
 .zone-toolbar__add-btn {
   display: inline-flex;
@@ -1760,17 +1802,17 @@
 
 .zone-polygon--contact {
   fill: rgba(245, 158, 11, 0.25);
-  stroke: #F59E0B;
+  stroke: var(--theme-warning);
 }
 
 .zone-polygon--private {
   fill: rgba(239, 68, 68, 0.25);
-  stroke: #EF4444;
+  stroke: var(--theme-danger);
 }
 
 .zone-polygon--semi {
   fill: rgba(245, 158, 11, 0.25);
-  stroke: #F59E0B;
+  stroke: var(--theme-warning);
 }
 
 .zone-polygon--default {
@@ -2488,7 +2530,7 @@
 
 .area-camera-status-pill--offline {
   background: rgba(239, 68, 68, 0.12);
-  color: #ef4444;
+  color: var(--theme-danger);
   border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
@@ -2656,7 +2698,7 @@
 
 .area-camera-item__remove-btn:hover {
   background: rgba(239, 68, 68, 0.12);
-  color: #ef4444;
+  color: var(--theme-danger);
   border-color: rgba(239, 68, 68, 0.3);
 }
 
@@ -2736,7 +2778,7 @@
 .area-camera-add-btn--offline:hover {
   background: rgba(239, 68, 68, 0.1);
   border-color: rgba(239, 68, 68, 0.4);
-  color: #ef4444;
+  color: var(--theme-danger);
 }
 
 .area-camera-item--disabled {
@@ -2844,7 +2886,7 @@
 }
 
 .zone-list-info-banner__card--internal {
-  border-left: 4px solid #3b82f6;
+  border-left: 4px solid var(--theme-border-focus);
 }
 
 .zone-list-info-banner__card--contact {
@@ -2914,7 +2956,7 @@
 
 .zone-list-info-banner__personnel-tag--has {
   background: rgba(59, 130, 246, 0.12);
-  color: #2563eb;
+  color: var(--theme-primary);
 }
 
 .zone-list-info-banner__footer {
@@ -2978,4 +3020,93 @@
 
 .area-form-hint--error {
   color: var(--theme-danger-text);
+}
+
+.zone-deactivated {
+  background: var(--theme-bg-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: 10px;
+  padding: 16px;
+  margin-top: 12px;
+}
+
+.zone-deactivated__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.zone-deactivated__title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--theme-text-primary);
+  margin: 0 0 4px;
+}
+
+.zone-deactivated__subtitle {
+  font-size: 12px;
+  color: var(--theme-text-muted);
+  margin: 0;
+}
+
+.zone-deactivated__count {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--theme-text-secondary);
+  background: var(--theme-bg-input);
+  border: 1px solid var(--theme-border);
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+
+.zone-deactivated__empty {
+  font-size: 13px;
+  color: var(--theme-text-muted);
+  margin: 8px 0 0;
+}
+
+.zone-deactivated__table-wrap {
+  overflow-x: auto;
+}
+
+.zone-deactivated__table {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.zone-deactivated__table th {
+  text-align: left;
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--theme-text-secondary);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--theme-border);
+}
+
+.zone-deactivated__table td {
+  padding: 10px;
+  color: var(--theme-text-primary);
+  border-bottom: 1px solid var(--theme-border);
+}
+
+.zone-deactivated__table tr:last-child td {
+  border-bottom: none;
+}
+
+.zone-deactivated__name {
+  font-weight: 500;
+}
+
+.zone-deactivated__actions {
+  text-align: right;
+}
+
+.zone-deactivated__restore-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }

@@ -21,7 +21,8 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class GuestRules {
 
-    public static final Set<Role> HOST_ROLES = Set.of(Role.NORMAL_USER, Role.FACILITY_MANAGER, Role.ADMIN);
+    /** B-04 (Lucas 08/10): ADMIN không làm host khách — chỉ NORMAL_USER và FACILITY_MANAGER mời khách. */
+    public static final Set<Role> HOST_ROLES = Set.of(Role.NORMAL_USER, Role.FACILITY_MANAGER);
     public static final Set<AreaLevel> GUEST_AREA_LEVELS = Set.of(AreaLevel.INTERNAL_CONFIDENTIAL, AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED);
 
     private final SystemConfigService systemConfigService;

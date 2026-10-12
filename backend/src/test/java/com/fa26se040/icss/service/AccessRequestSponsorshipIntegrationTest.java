@@ -375,9 +375,10 @@ class AccessRequestSponsorshipIntegrationTest extends AbstractIntegrationTest {
                 List.of(memberL1.getUserCode())
         );
 
+        // BR-RQ-33 (phương án A): cấu hình mặc định không bảo lãnh INTERNAL -> khu vực INTERNAL không được xin
         assertThatThrownBy(() -> accessRequestService.createGroupRequest(req, creatorL2.getEmail()))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Thành viên không đủ cấp độ truy cập vào khu vực");
+                .hasMessageContaining("Khu vực này không nằm trong danh sách khu vực được phép xin truy cập");
     }
 
     @Test

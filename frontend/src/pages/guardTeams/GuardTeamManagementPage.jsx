@@ -29,6 +29,7 @@ import { getUsers } from '../../services/userService';
 import { getAreas } from '../../services/areaService';
 import { getBuildings } from '../../services/buildingService';
 import { ROLES } from '../../constants/roles';
+import { ErrorState } from '../../components/ui';
 import StaffingWizardModal from '../../components/guard/StaffingWizardModal';
 import ExportTimesheetModal from '../../components/guard/ExportTimesheetModal';
 import GuardTeamsTab from '../../components/guard/GuardTeamsTab';
@@ -130,6 +131,8 @@ export default function GuardTeamManagementPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
+    // Ghi lại phần nào tải lỗi để báo cho người dùng, không im lặng hiện lịch trống
+    const failedParts = [];
 
     // 1. Fetch guard teams & active dispatches for the week
     let teamList = [];
@@ -146,6 +149,7 @@ export default function GuardTeamManagementPage() {
       }
     } catch (e) {
       console.warn('Lỗi tải danh sách đội bảo vệ:', e);
+      failedParts.push('đội bảo vệ');
     }
 
     let dispatchList = [];
@@ -158,6 +162,7 @@ export default function GuardTeamManagementPage() {
       setDispatches(dispatchList);
     } catch (e) {
       console.warn('Lỗi tải danh sách điều động tăng cường:', e);
+      failedParts.push('điều động tăng cường');
     }
 
     const guardTeamMap = new Map();
@@ -227,6 +232,7 @@ export default function GuardTeamManagementPage() {
       setGuards(guardList);
     } catch (e) {
       console.warn('Lỗi tải danh sách nhân viên bảo vệ:', e);
+      failedParts.push('nhân viên bảo vệ');
     }
 
     // 3. Fetch areas & buildings
@@ -255,6 +261,7 @@ export default function GuardTeamManagementPage() {
       setBuildings(Array.isArray(buildingsRes) ? buildingsRes : []);
     } catch (e) {
       console.warn('Lỗi tải khu vực / tòa nhà:', e);
+      failedParts.push('khu vực / tòa nhà');
     }
 
     // 4. Fetch shifts for this week
@@ -268,6 +275,7 @@ export default function GuardTeamManagementPage() {
       setShifts(parsedShifts);
     } catch (e) {
       console.warn('Lỗi tải ca trực tuần:', e);
+      failedParts.push('ca trực tuần');
     }
 
     // 5. Fetch shift requests
@@ -276,8 +284,12 @@ export default function GuardTeamManagementPage() {
       setShiftRequests(Array.isArray(requestsRes) ? requestsRes : []);
     } catch (e) {
       console.warn('Lỗi tải yêu cầu ca trực:', e);
+      failedParts.push('yêu cầu ca trực');
     }
 
+    if (failedParts.length > 0) {
+      setError(`Không tải được: ${failedParts.join(', ')}. Dữ liệu hiển thị có thể chưa đầy đủ.`);
+    }
     setLoading(false);
   }, [startDateStr, endDateStr, selectedBuilding]);
 
@@ -867,6 +879,14 @@ export default function GuardTeamManagementPage() {
 
   return (
     <div className="guard-schedule-page space-y-6">
+      {error && !loading && (
+        <ErrorState
+          size="sm"
+          title="Một phần dữ liệu không tải được"
+          message={error}
+          onRetry={fetchData}
+        />
+      )}
       {/* 1. Header & Command Bar */}
       <div className="schedule-header">
         <div className="min-w-0">

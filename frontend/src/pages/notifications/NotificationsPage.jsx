@@ -7,7 +7,6 @@ import {
   ShieldX,
   CircleCheck,
   CircleX,
-  RefreshCw,
   Users,
   Inbox,
   XCircle,
@@ -21,22 +20,28 @@ import {
   Camera,
   UserCheck,
   UserMinus,
-  CalendarOff
+  CalendarOff,
+  CheckCheck,
+  ShieldCheck
 } from 'lucide-react';
 import { notificationService } from '../../services/notificationService';
 import { useAuth } from '../../context/AuthContext';
 import Pagination from '../../components/ui/Pagination';
 import '../../styles/NotificationsPage.css';
 import PageHeader from '../../components/ui/PageHeader';
+import { LoadingState, EmptyState, ErrorState } from '../../components/ui';
 import '../../components/ui/Button.css';
 import { formatDateTime } from '../../utils/formatDateTime';
+import { toast } from 'sonner';
 
 export default function NotificationsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
   const [notifications, setNotifications] = useState([]);
-  const [loading, setLoading] = useState(false);
+  // Bắt đầu ở trạng thái đang tải để không nháy "Chưa có thông báo nào" khi mở trang
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [totalElements, setTotalElements] = useState(0);
@@ -45,6 +50,7 @@ export default function NotificationsPage() {
   const fetchNotifications = async (pageIndex = page) => {
     try {
       setLoading(true);
+      setLoadError(null);
       const res = await notificationService.getMyNotifications({ page: pageIndex, size: pageSize });
       setNotifications(res.content || []);
       setPage(res.number ?? pageIndex);
@@ -52,6 +58,8 @@ export default function NotificationsPage() {
       setTotalElements(res.totalElements ?? (res.content?.length || 0));
     } catch (err) {
       console.error('Lỗi khi tải thông báo:', err);
+      setNotifications([]);
+      setLoadError(err?.message || 'Không tải được danh sách thông báo.');
     } finally {
       setLoading(false);
     }
@@ -64,6 +72,7 @@ export default function NotificationsPage() {
       window.dispatchEvent(new CustomEvent('notification-updated'));
     } catch (err) {
       console.error('Lỗi khi đánh dấu đã đọc tất cả:', err);
+      toast.error(err?.message || 'Không đánh dấu được tất cả là đã đọc.');
     }
   };
 
@@ -81,13 +90,36 @@ export default function NotificationsPage() {
       }
     }
 
+    // BR-NT-26: thông báo đơn truy cập / lượt khách cũ đã lỡ gửi cho ADMIN (ADMIN không duyệt đơn, không duyệt / làm host khách)
+    // -> chỉ đánh dấu đã đọc, không chuyển trang. GUEST_PHOTO_REQUIRED vẫn dẫn tới trang Ảnh khách.
+    const notifRefType = notif.referenceType || notif.reference_type;
+    if ((user?.role || user?.role_type) === 'ADMIN' && notif.type !== 'GUEST_PHOTO_REQUIRED'
+      && (notifRefType === 'ACCESS_REQUEST' || notifRefType === 'GUEST_VISIT' || notif.type?.startsWith('GUEST_'))) {
+      toast.info('Thông báo này dành cho Quản lý cơ sở vật chất');
+      return;
+    }
+
     if (notif.referenceType === 'ACCESS_REQUEST' || notif.reference_type === 'ACCESS_REQUEST') {
       const role = user?.role || user?.role_type || '';
-      if (role === 'FACILITY_MANAGER' || role === 'ADMIN') {
-        navigate('/admin/access-requests');
+      // Mở đúng đơn: trang đích đọc ?requestId (tô sáng dòng hoặc mở popup chi tiết)
+      const refId = notif.referenceId || notif.reference_id;
+      const query = refId ? `?requestId=${encodeURIComponent(refId)}` : '';
+      // ADMIN đã dừng ở nhánh BR-NT-26 phía trên
+      if (role === 'FACILITY_MANAGER') {
+        navigate(`/admin/access-requests${query}`);
       } else {
-        navigate('/access-requests');
+        navigate(`/access-requests${query}`);
       }
+    }
+
+    // A-05: thông báo khu vực / chế độ sự kiện (BE gắn referenceType = "AREA") -> màn Quản lý khu vực.
+    // GUARD (nhận EVENT_MODE_CHANGED) không có màn này nên chỉ đánh dấu đã đọc.
+    if (notif.referenceType === 'AREA' || notif.reference_type === 'AREA') {
+      const role = user?.role || user?.role_type || '';
+      if (role === 'FACILITY_MANAGER' || role === 'ADMIN') {
+        navigate('/admin/areas');
+      }
+      return;
     }
 
     // Step 6 (H1): quyền chỉ định ra vào bị thu hồi khi khu vực bị vô hiệu hoá
@@ -102,12 +134,16 @@ export default function NotificationsPage() {
     }
 
     if (notif.referenceType === 'GUEST_VISIT' || notif.reference_type === 'GUEST_VISIT' || notif.type?.startsWith('GUEST_')) {
+      // Mở đúng lượt khách: trang đích đọc ?visitId (tô sáng dòng hoặc mở popup chi tiết)
+      const visitRef = notif.referenceId || notif.reference_id;
+      const visitQuery = visitRef ? `?visitId=${encodeURIComponent(visitRef)}` : '';
       if (notif.type === 'GUEST_VISIT_PENDING') {
-        navigate('/admin/guest-visits');
+        navigate(`/admin/guest-visits${visitQuery}`);
       } else if (notif.type === 'GUEST_PHOTO_REQUIRED') {
         navigate('/admin/guest-photos');
       } else {
-        navigate('/guest-visits');
+        // ADMIN không tới nhánh này: GUEST_PHOTO_REQUIRED đi nhánh trên, loại khác dừng ở BR-NT-26
+        navigate(`/guest-visits${visitQuery}`);
       }
     }
   };
@@ -184,6 +220,13 @@ export default function NotificationsPage() {
             <SlidersHorizontal size={16} />
           </div>
         );
+      // A-05: gửi Guard mỗi lần bật / tắt / đổi giờ kết thúc chế độ sự kiện
+      case 'EVENT_MODE_CHANGED':
+        return (
+          <div className="notif-icon-box notif-icon-box--schedule" title="Chế độ sự kiện thay đổi">
+            <ShieldCheck size={16} />
+          </div>
+        );
       case 'EVENT_MODE_SCHEDULED':
         return (
           <div className="notif-icon-box notif-icon-box--schedule" title="Đã đặt lịch sự kiện">
@@ -213,6 +256,13 @@ export default function NotificationsPage() {
         return (
           <div className="notif-icon-box notif-icon-box--cancelled" title="Đơn bị hệ thống hủy">
             <XCircle size={16} />
+          </div>
+        );
+      // B-03 (BR-RQ-46): FM chuyển đơn đã duyệt sang Hoàn thành, kèm lý do
+      case 'REQUEST_FINISHED':
+        return (
+          <div className="notif-icon-box notif-icon-box--cancelled" title="Đơn đã được kết thúc">
+            <CheckCheck size={16} />
           </div>
         );
       // Guest visits & photos notifications (U5)
@@ -296,18 +346,16 @@ export default function NotificationsPage() {
 
         {/* List / Empty State */}
         {loading && notifications.length === 0 ? (
-          <div className="notif-empty">
-            <RefreshCw size={24} className="notif-spin notif-empty__icon" />
-            <div className="notif-empty__title">Đang tải thông báo...</div>
-          </div>
+          <LoadingState size="sm" text="Đang tải thông báo..." />
+        ) : loadError ? (
+          <ErrorState size="sm" message={loadError} onRetry={() => fetchNotifications(page)} />
         ) : notifications.length === 0 ? (
-          <div className="notif-empty">
-            <BellOff size={32} strokeWidth={1.5} className="notif-empty__icon" />
-            <div className="notif-empty__title">Chưa có thông báo nào</div>
-            <div className="notif-empty__subtitle">
-              Bạn sẽ nhận được thông báo khi yêu cầu truy cập được xử lý
-            </div>
-          </div>
+          <EmptyState
+            size="sm"
+            icon={BellOff}
+            title="Chưa có thông báo nào"
+            description="Thông báo về yêu cầu truy cập, lượt khách và các việc cần bạn xử lý sẽ hiện ở đây."
+          />
         ) : (
           <>
             <div className="notif-list">

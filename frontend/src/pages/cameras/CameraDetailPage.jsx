@@ -8,7 +8,6 @@ import {
   PowerOff,
   MapPin,
   Layers,
-  Loader2,
 } from "lucide-react";
 import {
   fetchCameraDetail,
@@ -30,6 +29,8 @@ import CameraSurveillanceTab, {
 } from "../../components/camera/CameraSurveillanceTab";
 import CameraHealthLogs from "../../components/camera/CameraHealthLogs";
 import "../../styles/CameraDetailPage.css";
+import { Modal, Button, LoadingState, EmptyState, ErrorState } from "../../components/ui";
+import { formatLocation } from "../../utils/formatLocation";
 
 export default function CameraDetailPage() {
   const { id } = useParams();
@@ -38,6 +39,8 @@ export default function CameraDetailPage() {
   const [activeTab, setActiveTab] = useState("general");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // Xác nhận trước khi tắt camera (trước đây bấm "Tắt camera" là gọi API ngay)
+  const [confirmDecommissionOpen, setConfirmDecommissionOpen] = useState(false);
   const [error, setError] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
 
@@ -45,6 +48,9 @@ export default function CameraDetailPage() {
   const [logPage, setLogPage] = useState(0);
   const [logTotalPages, setLogTotalPages] = useState(0);
   const [logsLoading, setLogsLoading] = useState(false);
+  // Lỗi tải: tách khỏi `error` (thông báo thao tác) để không hiện "Không tìm thấy camera" khi chỉ là lỗi mạng / 500
+  const [loadError, setLoadError] = useState(null);
+  const [logsError, setLogsError] = useState(null);
 
   const [testingConnection, setTestingConnection] = useState(false);
   const [testResult, setTestResult] = useState(null);
@@ -84,6 +90,7 @@ export default function CameraDetailPage() {
   const loadCameraDetails = async () => {
     setLoading(true);
     setError(null);
+    setLoadError(null);
     try {
       const data = await fetchCameraDetail(id);
       setCamera(data);
@@ -109,6 +116,7 @@ export default function CameraDetailPage() {
     } catch (err) {
       console.error("Failed to load camera details:", err);
       setError("Lỗi tải thông tin chi tiết camera.");
+      setLoadError({ status: err?.status, message: err?.message || "Lỗi tải thông tin chi tiết camera." });
     } finally {
       setLoading(false);
     }
@@ -116,12 +124,14 @@ export default function CameraDetailPage() {
 
   const loadLogs = async () => {
     setLogsLoading(true);
+    setLogsError(null);
     try {
       const data = await fetchHealthLogs(id, { page: logPage, size: 5 });
       setLogs(data.content || []);
       setLogTotalPages(data.totalPages || 0);
     } catch (err) {
       console.error("Failed to load health logs:", err);
+      setLogsError(err?.message || "Không tải được nhật ký kết nối.");
     } finally {
       setLogsLoading(false);
     }
@@ -363,24 +373,37 @@ export default function CameraDetailPage() {
 
   if (loading) {
     return (
-      <div className="detail-loading-state">
-        <Loader2 className="animate-spin" size={40} />
-        <p>Đang tải thông tin chi tiết camera...</p>
+      <div className="camera-detail-page">
+        <LoadingState text="Đang tải thông tin chi tiết camera..." />
       </div>
     );
   }
 
   if (!camera) {
+    // Lỗi mạng / 500 -> ErrorState + Thử lại; chỉ 404 (hoặc không có lỗi) mới là "không tìm thấy"
+    const isLoadFailure = loadError && loadError.status !== 404 && loadError.status !== 403;
     return (
-      <div className="detail-error-state">
-        <h2>Không tìm thấy camera</h2>
-        <p>Camera này không tồn tại hoặc bạn không có quyền truy cập.</p>
-        <button
-          className="btn-back"
-          onClick={() => navigate("/admin/cameras")}
-        >
-          <ArrowLeft size={16} /> Quay lại danh sách
-        </button>
+      <div className="camera-detail-page">
+        {isLoadFailure ? (
+          <ErrorState
+            title="Không tải được thông tin camera"
+            message={loadError.message}
+            onRetry={loadCameraDetails}
+          />
+        ) : (
+          <EmptyState
+            title="Không tìm thấy camera"
+            description="Camera này không tồn tại hoặc bạn không có quyền truy cập."
+          />
+        )}
+        <div style={{ display: "flex", justifyContent: "center" }}>
+          <button
+            className="btn-back"
+            onClick={() => navigate("/admin/cameras")}
+          >
+            <ArrowLeft size={16} /> Quay lại danh sách
+          </button>
+        </div>
       </div>
     );
   }
@@ -476,7 +499,8 @@ export default function CameraDetailPage() {
                         marginRight: "4px",
                       }}
                     />
-                    {area.name} ({area.building} - {area.floor})
+                    {area.name}
+                    {formatLocation(area.building, area.floor) ? ` (${formatLocation(area.building, area.floor)})` : ""}
                   </span>
                 ))
               ) : (
@@ -491,7 +515,7 @@ export default function CameraDetailPage() {
         <button
           className={`btn-toggle-status ${isDecommissioned ? "btn-status-active" : "btn-status-decommission"
             }`}
-          onClick={handleToggleStatus}
+          onClick={() => (isDecommissioned ? handleToggleStatus() : setConfirmDecommissionOpen(true))}
           disabled={saving}
         >
           {isDecommissioned ? <Power size={18} /> : <PowerOff size={18} />}
@@ -579,6 +603,7 @@ export default function CameraDetailPage() {
           totalPages={logTotalPages}
           onPageChange={setLogPage}
           onRefresh={loadLogs}
+          error={logsError}
         />
       </div>
 
@@ -592,6 +617,38 @@ export default function CameraDetailPage() {
         availableAreas={camera?.assignedAreas || []}
         onSave={handleSaveRoi}
       />
+
+      <Modal
+        isOpen={confirmDecommissionOpen}
+        onClose={() => !saving && setConfirmDecommissionOpen(false)}
+        title="Tắt camera"
+        icon={PowerOff}
+        iconVariant="danger"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setConfirmDecommissionOpen(false)} disabled={saving}>
+              Hủy bỏ
+            </Button>
+            <Button
+              variant="danger"
+              icon={PowerOff}
+              loading={saving}
+              onClick={async () => {
+                await handleToggleStatus();
+                setConfirmDecommissionOpen(false);
+              }}
+            >
+              Tắt camera
+            </Button>
+          </>
+        }
+      >
+        <p>
+          Tắt camera <strong>{camera.cameraCode} - {camera.name}</strong>? Camera sẽ ngừng giám sát cho tới khi
+          được bật lại.
+        </p>
+      </Modal>
     </div>
   );
 }

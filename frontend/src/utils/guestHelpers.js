@@ -45,3 +45,14 @@ export function canHostCancel(visit, now = new Date()) {
   if (visit.status !== 'PENDING' && visit.status !== 'APPROVED') return false;
   return new Date(visit.endTime) > now;
 }
+
+/**
+ * BR-GV-38: lượt ĐÃ DUYỆT còn khách chưa PHOTO_READY (chưa đăng ký khuôn mặt tại quầy -> camera chưa nhận diện được).
+ * Trả { missing, total } để hiện nhãn "Chưa có ảnh (x/y khách)"; null nếu không cần nhãn.
+ */
+export function getMissingPhotoInfo(visit) {
+  if (!visit || visit.status !== 'APPROVED') return null;
+  const guests = visit.guests || [];
+  const missing = guests.filter((g) => g.biometricStatus !== 'PHOTO_READY').length;
+  return missing > 0 ? { missing, total: guests.length } : null;
+}

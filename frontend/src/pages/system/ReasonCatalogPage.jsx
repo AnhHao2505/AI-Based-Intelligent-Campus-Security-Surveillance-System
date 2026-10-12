@@ -16,7 +16,16 @@ import {
 	deactivateReasonCatalog,
 	reactivateReasonCatalog,
 } from "../../services/reasonCatalogService";
-import { Button, Input, Modal, Badge, PageHeader } from "../../components/ui";
+import {
+	Button,
+	Input,
+	Modal,
+	Badge,
+	PageHeader,
+	LoadingState,
+	EmptyState,
+	ErrorState,
+} from "../../components/ui";
 import "../../styles/SystemConfigPage.css";
 
 const ACTION_TYPES = [
@@ -35,6 +44,7 @@ export default function ReasonCatalogPage() {
 	const [filterAction, setFilterAction] = useState("");
 	const [filterActive, setFilterActive] = useState("");
 	const [errorMsg, setErrorMsg] = useState(null);
+	const [loadError, setLoadError] = useState(null);
 	const [successMsg, setSuccessMsg] = useState(null);
 
 	// Create Modal
@@ -46,6 +56,10 @@ export default function ReasonCatalogPage() {
 		sortOrder: 0,
 	});
 	const [creating, setCreating] = useState(false);
+	// B-01: lỗi gửi form hiện trong popup (banner của trang nằm sau lớp phủ). Trùng mã -> ngay dưới ô Mã lý do.
+	const [createSubmitError, setCreateSubmitError] = useState(null);
+	const [createCodeServerError, setCreateCodeServerError] = useState(null);
+	const [editSubmitError, setEditSubmitError] = useState(null);
 
 	// Edit Modal
 	const [editModalOpen, setEditModalOpen] = useState(false);
@@ -57,19 +71,23 @@ export default function ReasonCatalogPage() {
 		sortOrder: 0,
 	});
 	const [updating, setUpdating] = useState(false);
+	// Xác nhận trước khi ngừng dùng một lý do
+	const [deactivateTarget, setDeactivateTarget] = useState(null);
+	const [deactivating, setDeactivating] = useState(false);
 
 	const fetchReasons = useCallback(async () => {
 		setLoading(true);
 		setErrorMsg(null);
+		setLoadError(null);
 		try {
 			const data = await getReasonCatalogs({
 				actionType: filterAction || undefined,
-				isActive: filterActive !== "" ? filterActive === "true" : undefined,
+				active: filterActive !== "" ? filterActive === "true" : undefined,
 			});
 			setReasons(data || []);
 		} catch (err) {
 			console.error("Lỗi khi tải danh mục lý do:", err);
-			setErrorMsg(err.message || "Không thể tải danh mục lý do.");
+			setLoadError(err.message || "Không thể tải danh mục lý do.");
 		} finally {
 			setLoading(false);
 		}
@@ -86,6 +104,8 @@ export default function ReasonCatalogPage() {
 			label: "",
 			sortOrder: reasons.length + 1,
 		});
+		setCreateSubmitError(null);
+		setCreateCodeServerError(null);
 		setCreateModalOpen(true);
 	};
 
@@ -104,12 +124,15 @@ export default function ReasonCatalogPage() {
 	const handleCreateSubmit = async (e) => {
 		e.preventDefault();
 		if (!createForm.code?.trim() || !createForm.label?.trim()) {
-			setErrorMsg("Vui lòng điền đầy đủ mã và nhãn lý do.");
+			setCreateSubmitError("Vui lòng điền đầy đủ mã và nhãn lý do.");
 			return;
 		}
 		if (createCodeError || createLabelError) return;
 		setCreating(true);
 		setErrorMsg(null);
+		setSuccessMsg(null);
+		setCreateSubmitError(null);
+		setCreateCodeServerError(null);
 		try {
 			await createReasonCatalog({
 				actionType: createForm.actionType,
@@ -121,7 +144,13 @@ export default function ReasonCatalogPage() {
 			setCreateModalOpen(false);
 			fetchReasons();
 		} catch (err) {
-			setErrorMsg(err.message || "Không thể tạo lý do mới.");
+			const msg = err.message || "Không thể tạo lý do mới.";
+			// BE (ReasonCatalogService) báo trùng mã bằng câu "Mã lý do '…' đã tồn tại cho loại thao tác …"
+			if (/đã tồn tại/i.test(msg)) {
+				setCreateCodeServerError(msg);
+			} else {
+				setCreateSubmitError(msg);
+			}
 		} finally {
 			setCreating(false);
 		}
@@ -135,17 +164,20 @@ export default function ReasonCatalogPage() {
 			label: item.label,
 			sortOrder: item.sortOrder ?? 0,
 		});
+		setEditSubmitError(null);
 		setEditModalOpen(true);
 	};
 
 	const handleUpdateSubmit = async (e) => {
 		e.preventDefault();
 		if (!editForm.label?.trim()) {
-			setErrorMsg("Nhãn lý do không được để trống.");
+			setEditSubmitError("Nhãn lý do không được để trống.");
 			return;
 		}
 		setUpdating(true);
 		setErrorMsg(null);
+		setSuccessMsg(null);
+		setEditSubmitError(null);
 		try {
 			await updateReasonCatalog(editForm.id, {
 				label: editForm.label.trim(),
@@ -155,7 +187,7 @@ export default function ReasonCatalogPage() {
 			setEditModalOpen(false);
 			fetchReasons();
 		} catch (err) {
-			setErrorMsg(err.message || "Không thể cập nhật lý do.");
+			setEditSubmitError(err.message || "Không thể cập nhật lý do.");
 		} finally {
 			setUpdating(false);
 		}
@@ -167,6 +199,7 @@ export default function ReasonCatalogPage() {
 			return;
 		}
 		setErrorMsg(null);
+		if (item.isActive) setDeactivating(true);
 		try {
 			if (item.isActive) {
 				await deactivateReasonCatalog(item.id);
@@ -178,6 +211,9 @@ export default function ReasonCatalogPage() {
 			fetchReasons();
 		} catch (err) {
 			setErrorMsg(err.message || "Lỗi khi thay đổi trạng thái lý do.");
+		} finally {
+			setDeactivating(false);
+			setDeactivateTarget(null);
 		}
 	};
 
@@ -259,8 +295,8 @@ export default function ReasonCatalogPage() {
 			</div>
 
 			{/* Table */}
-			<div className="syscfg-card" style={{ padding: 0, overflow: "hidden" }}>
-				<table className="reason-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+			<div className="syscfg-card" style={{ padding: 0, overflowX: "auto" }}>
+				<table className="reason-table" style={{ width: "100%", minWidth: "720px", borderCollapse: "collapse", fontSize: "13px" }}>
 					<thead>
 						<tr style={{ background: "var(--theme-bg-surface-elevated)", borderBottom: "1px solid var(--theme-border)", textAlign: "left" }}>
 							<th style={{ padding: "12px 16px" }}>Loại thao tác</th>
@@ -275,14 +311,20 @@ export default function ReasonCatalogPage() {
 					<tbody>
 						{loading ? (
 							<tr>
-								<td colSpan={7} style={{ textAlign: "center", padding: "32px", color: "var(--theme-text-muted)" }}>
-									Đang tải danh mục lý do...
+								<td colSpan={7}>
+									<LoadingState size="sm" text="Đang tải danh mục lý do..." />
+								</td>
+							</tr>
+						) : loadError ? (
+							<tr>
+								<td colSpan={7}>
+									<ErrorState size="sm" message={loadError} onRetry={fetchReasons} />
 								</td>
 							</tr>
 						) : reasons.length === 0 ? (
 							<tr>
-								<td colSpan={7} style={{ textAlign: "center", padding: "32px", color: "var(--theme-text-muted)" }}>
-									Không tìm thấy lý do nào phù hợp bộ lọc.
+								<td colSpan={7}>
+									<EmptyState size="sm" title="Không tìm thấy lý do nào phù hợp bộ lọc" />
 								</td>
 							</tr>
 						) : (
@@ -327,9 +369,9 @@ export default function ReasonCatalogPage() {
 													size="sm"
 													icon={PowerOff}
 													disabled={item.isOther}
-													onClick={() => handleToggleStatus(item)}
+													onClick={() => setDeactivateTarget(item)}
 													title={item.isOther ? "Không thể ngừng dùng mục Khác" : "Ngừng dùng"}
-													style={{ color: item.isOther ? "#cbd5e1" : "var(--theme-danger, #ef4444)" }}
+													style={{ color: item.isOther ? "var(--theme-text-disabled)" : "var(--theme-danger)" }}
 												/>
 											) : (
 												<Button
@@ -338,7 +380,7 @@ export default function ReasonCatalogPage() {
 													icon={Power}
 													onClick={() => handleToggleStatus(item)}
 													title="Kích hoạt lại"
-													style={{ color: "var(--theme-success, #10b981)" }}
+													style={{ color: "var(--theme-success)" }}
 												/>
 											)}
 										</div>
@@ -358,6 +400,12 @@ export default function ReasonCatalogPage() {
 				icon={Tag}
 			>
 				<form onSubmit={handleCreateSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+					{createSubmitError && (
+						<div className="syscfg-alert syscfg-alert--danger" role="alert">
+							<AlertCircle size={18} className="syscfg-alert__icon" />
+							<span className="syscfg-alert__text">{createSubmitError}</span>
+						</div>
+					)}
 					<div>
 						<label style={{ display: "block", fontSize: "13px", fontWeight: 600, marginBottom: "4px" }}>
 							Loại thao tác <span style={{ color: "red" }}>*</span>
@@ -387,9 +435,12 @@ export default function ReasonCatalogPage() {
 						</label>
 						<Input
 							value={createForm.code}
-							onChange={(e) => setCreateForm({ ...createForm, code: e.target.value.toUpperCase() })}
+							onChange={(e) => {
+								setCreateForm({ ...createForm, code: e.target.value.toUpperCase() });
+								setCreateCodeServerError(null);
+							}}
 							placeholder="VD: TECH_TALK"
-							error={createCodeError}
+							error={createCodeError || createCodeServerError}
 							hint="Chữ hoa, số, gạch dưới. Không thể sửa sau khi tạo."
 							required
 						/>
@@ -443,6 +494,12 @@ export default function ReasonCatalogPage() {
 				icon={Edit2}
 			>
 				<form onSubmit={handleUpdateSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+					{editSubmitError && (
+						<div className="syscfg-alert syscfg-alert--danger" role="alert">
+							<AlertCircle size={18} className="syscfg-alert__icon" />
+							<span className="syscfg-alert__text">{editSubmitError}</span>
+						</div>
+					)}
 					<div>
 						<label style={{ display: "block", fontSize: "13px", fontWeight: 600, marginBottom: "4px" }}>
 							Mã lý do
@@ -481,6 +538,40 @@ export default function ReasonCatalogPage() {
 						</Button>
 					</div>
 				</form>
+			</Modal>
+
+			<Modal
+				isOpen={Boolean(deactivateTarget)}
+				onClose={() => !deactivating && setDeactivateTarget(null)}
+				title="Ngừng dùng lý do này?"
+				subtitle="Lý do sẽ không còn hiện trong danh sách chọn. Các bản ghi cũ đã dùng lý do này vẫn giữ nguyên."
+				icon={PowerOff}
+				iconVariant="danger"
+				size="sm"
+				footer={
+					<>
+						<Button
+							variant="secondary"
+							onClick={() => setDeactivateTarget(null)}
+							disabled={deactivating}
+						>
+							Hủy
+						</Button>
+						<Button
+							variant="danger"
+							onClick={() => handleToggleStatus(deactivateTarget)}
+							loading={deactivating}
+						>
+							Ngừng dùng
+						</Button>
+					</>
+				}
+			>
+				{deactivateTarget && (
+					<p style={{ margin: 0 }}>
+						<strong>{deactivateTarget.code}</strong> — {deactivateTarget.label}
+					</p>
+				)}
 			</Modal>
 		</div>
 	);

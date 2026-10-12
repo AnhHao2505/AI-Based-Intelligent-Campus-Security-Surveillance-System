@@ -24,17 +24,21 @@ import { getLevelConfig, AREA_LEVEL_CONFIG } from "../../utils/areaHelpers";
 import { useAuth } from "../../context/AuthContext";
 import "../../styles/AccessRequestPage.css";
 import PageHeader from "../../components/ui/PageHeader";
+import { LoadingState, EmptyState, ErrorState } from "../../components/ui";
 import { formatLocation } from "../../utils/formatLocation";
 import { formatDateTime, formatRange } from "../../utils/formatDateTime";
 import MemberCodeCombobox from "../../components/accessRequest/MemberCodeCombobox";
+import { useSearchParams } from "react-router-dom";
+import { toast } from "sonner";
 
 export default function AccessRequestPage() {
 	const { user } = useAuth();
-	const isFacilityManager = user?.role === "FACILITY_MANAGER";
 
 	// Available Areas
 	const [areas, setAreas] = useState([]);
-	const [loadingAreas, setLoadingAreas] = useState(false);
+	// Bắt đầu ở trạng thái đang tải để không hiện form rồi mới ẩn khi danh sách rỗng
+	const [loadingAreas, setLoadingAreas] = useState(true);
+	const [areasError, setAreasError] = useState(null);
 
 	// Form State
 	const [selectedAreaId, setSelectedAreaId] = useState("");
@@ -63,10 +67,16 @@ export default function AccessRequestPage() {
 	const [historyStatusFilter, setHistoryStatusFilter] = useState("");
 	const [historyAreaFilter, setHistoryAreaFilter] = useState("");
 	const [loadingHistory, setLoadingHistory] = useState(false);
+	const [historyError, setHistoryError] = useState(null);
 	const [historyPage, setHistoryPage] = useState(0);
 	const [historyTotalPages, setHistoryTotalPages] = useState(1);
 	const [historyTotalElements, setHistoryTotalElements] = useState(0);
 	const [selectedDetail, setSelectedDetail] = useState(null);
+	// Bấm thông báo -> ?requestId: tô sáng dòng đơn hoặc mở popup chi tiết
+	const [searchParams, setSearchParams] = useSearchParams();
+	const [historyLoaded, setHistoryLoaded] = useState(false);
+	const [highlightRequestId, setHighlightRequestId] = useState(null);
+	const handledRequestIdRef = useRef(null);
 
 	// Expandable Rejection Reason rows in table (Set of request IDs)
 	const [expandedRejectIds, setExpandedRejectIds] = useState(new Set());
@@ -127,13 +137,8 @@ export default function AccessRequestPage() {
 			};
 		}
 
-		const nowBuffer = new Date(Date.now() - 5 * 60 * 1000);
-		if (startDateTime < nowBuffer) {
-			return {
-				isError: true,
-				text: "Thời gian bắt đầu không được ở trong quá khứ",
-			};
-		}
+		// A-07: không tự kiểm "giờ bắt đầu ở quá khứ" với ngưỡng viết cứng — ngưỡng là
+		// ACCESS_REQUEST_PAST_START_BUFFER_MINUTES (BE đọc cấu hình, NORMAL_USER không đọc được); BE trả lỗi khi gửi.
 
 		const diffMin = Math.round((endDateTime - startDateTime) / 60000);
 		const hours = Math.floor(diffMin / 60);
@@ -171,12 +176,15 @@ export default function AccessRequestPage() {
 	// Load available areas
 	const loadAreas = useCallback(async () => {
 		setLoadingAreas(true);
+		setAreasError(null);
 		try {
 			const data = await accessRequestService.getAvailableAreas();
 			const list = Array.isArray(data) ? data : data?.content || [];
 			setAreas(list);
 		} catch (err) {
 			console.error("Lỗi khi tải danh sách khu vực:", err);
+			// Lỗi tải không được hiểu là "không có khu" — hiện lỗi + Thử lại
+			setAreasError(err?.message || "Không tải được danh sách khu vực.");
 		} finally {
 			setLoadingAreas(false);
 		}
@@ -186,6 +194,7 @@ export default function AccessRequestPage() {
 	const loadMyRequests = useCallback(
 		async (page = 0, status = historyStatusFilter, areaId = historyAreaFilter) => {
 			setLoadingHistory(true);
+			setHistoryError(null);
 			try {
 				const res = await accessRequestService.getMyRequests({
 					status: status || undefined,
@@ -199,12 +208,26 @@ export default function AccessRequestPage() {
 				setHistoryPage(page);
 			} catch (err) {
 				console.error("Lỗi khi tải lịch sử yêu cầu:", err);
+				// Không giữ danh sách cũ và không hiện "Chưa có yêu cầu nào" khi tải lỗi
+				setHistoryList([]);
+				setHistoryError(err?.message || "Không tải được danh sách yêu cầu.");
 			} finally {
 				setLoadingHistory(false);
+				setHistoryLoaded(true);
 			}
 		},
 		[historyStatusFilter, historyAreaFilter],
 	);
+
+	// Esc đóng popup chi tiết giống nút X (popup huỷ dùng Modal chung đã tự xử lý Esc)
+	useEffect(() => {
+		if (!selectedDetail || cancelItem) return undefined;
+		const handleKeyDown = (e) => {
+			if (e.key === "Escape" || e.key === "Esc") setSelectedDetail(null);
+		};
+		document.addEventListener("keydown", handleKeyDown);
+		return () => document.removeEventListener("keydown", handleKeyDown);
+	}, [selectedDetail, cancelItem]);
 
 	useEffect(() => {
 		loadAreas();
@@ -215,20 +238,63 @@ export default function AccessRequestPage() {
 		loadMyRequests(0, historyStatusFilter, historyAreaFilter);
 	}, [historyStatusFilter, historyAreaFilter, loadMyRequests]);
 
+	// ?requestId (từ thông báo): đơn có trong danh sách đang hiện -> cuộn tới + tô sáng;
+	// không có (khác trang / bộ lọc) -> GET /api/access-requests/{id} mở popup chi tiết; 403/404 -> toast.
+	useEffect(() => {
+		const requestId = searchParams.get("requestId");
+		if (!requestId || !historyLoaded || loadingHistory) return;
+		if (handledRequestIdRef.current === requestId) return;
+		handledRequestIdRef.current = requestId;
+		setSearchParams(
+			(prev) => {
+				const next = new URLSearchParams(prev);
+				next.delete("requestId");
+				return next;
+			},
+			{ replace: true },
+		);
+		if (historyList.some((r) => r.id === requestId)) {
+			setHighlightRequestId(requestId);
+			requestAnimationFrame(() => {
+				document
+					.querySelector(`[data-request-id="${requestId}"]`)
+					?.scrollIntoView({ behavior: "smooth", block: "center" });
+			});
+			return;
+		}
+		accessRequestService
+			.getRequestById(requestId)
+			.then((detail) => {
+				if (detail) setSelectedDetail(detail);
+			})
+			.catch(() => toast.error("Không xem được đơn này"));
+	}, [searchParams, setSearchParams, historyLoaded, loadingHistory, historyList]);
+
+	useEffect(() => {
+		if (!highlightRequestId) return;
+		const timer = setTimeout(() => setHighlightRequestId(null), 2000);
+		return () => clearTimeout(timer);
+	}, [highlightRequestId]);
+
 	// Selected area object
 	const areaList = Array.isArray(areas) ? areas : areas?.content || [];
 	const currentArea = areaList.find((a) => a.id === selectedAreaId);
 
-	// When area changes, if area is HIGHLY_CONFIDENTIAL, force INDIVIDUAL
+	// A-06 (BR-RQ-28): khu vực có nhận đơn nhóm hay không do BE quyết (cờ groupRequestAllowed của available-areas,
+	// theo ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE). Thiếu cờ thì giữ luật mặc định: Tuyệt mật chỉ nhận đơn cá nhân.
+	const isGroupBlocked = (area) => {
+		if (!area) return false;
+		if (typeof area.groupRequestAllowed === "boolean") return !area.groupRequestAllowed;
+		return area.areaLevel === "HIGHLY_CONFIDENTIAL" || area.areaLevel === "PRIVATE";
+	};
+	const groupBlocked = isGroupBlocked(currentArea);
+
+	// When area changes, if area does not accept group requests, force INDIVIDUAL
 	const handleAreaChange = (e) => {
 		const areaId = e.target.value;
 		setSelectedAreaId(areaId);
 		const found = areaList.find((a) => a.id === areaId);
-		if (
-			found &&
-			(found.areaLevel === "HIGHLY_CONFIDENTIAL" ||
-				found.areaLevel === "PRIVATE")
-		) {
+		if (isGroupBlocked(found)) {
 			setRequestType("INDIVIDUAL");
 			setMemberList([]);
 		}
@@ -351,21 +417,13 @@ export default function AccessRequestPage() {
 			return;
 		}
 
+		// A-07: kiểm "giờ bắt đầu ở quá khứ" để BE làm (ngưỡng theo cấu hình), lỗi hiện qua setFormError ở catch
 		const start = getStartDateTime();
 		const end = getEndDateTime();
-		const nowBuffer = new Date(Date.now() - 5 * 60 * 1000);
-
-		if (start < nowBuffer) {
-			setFormError("Thời gian bắt đầu không được ở trong quá khứ.");
-			return;
-		}
 
 		let cleanMemberCodes = [];
 		if (requestType === "GROUP") {
-			if (
-				currentArea?.areaLevel === "HIGHLY_CONFIDENTIAL" ||
-				currentArea?.areaLevel === "PRIVATE"
-			) {
+			if (groupBlocked) {
 				setFormError(
 					`Khu vực ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name} chỉ cho phép đăng ký cá nhân.`,
 				);
@@ -380,7 +438,7 @@ export default function AccessRequestPage() {
 			}
 
 			// Deduplicate and silently exclude requester
-			const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+			const currentUser = user || {};
 			const myCode = (currentUser.userCode || "").trim().toLowerCase();
 			const seen = new Set();
 			for (const m of memberList) {
@@ -494,7 +552,32 @@ export default function AccessRequestPage() {
 				title="Yêu cầu truy cập"
 				description="Gửi yêu cầu ra vào khu vực cần cấp phép và theo dõi trạng thái các yêu cầu của bạn."
 			/>
-			{/* THẺ 1: YÊU CẦU TRUY CẬP MỚI */}
+			{/* THẺ 1: YÊU CẦU TRUY CẬP MỚI
+			    Hiện hay ẩn dựa trên kết quả available-areas (BE quyết khu nào tự xin được),
+			    không dựa trên role hay cấp người dùng. */}
+			{loadingAreas ? (
+				<div className="arp-card">
+					<LoadingState size="sm" text="Đang tải danh sách khu vực..." />
+				</div>
+			) : areasError ? (
+				<div className="arp-card">
+					<ErrorState
+						size="sm"
+						title="Không tải được danh sách khu vực"
+						message={areasError}
+						onRetry={loadAreas}
+					/>
+				</div>
+			) : areas.length === 0 ? (
+				<div className="arp-card">
+					<EmptyState
+						size="sm"
+						icon={KeyRound}
+						title="Hiện không có khu vực nào bạn có thể tự xin quyền truy cập"
+						description="Nếu cần vào phòng Lab hoặc khu hạn chế, hãy nhờ giảng viên thêm bạn vào đơn nhóm."
+					/>
+				</div>
+			) : (
 			<div className="arp-card">
 				{/* 2a. Đầu thẻ */}
 				<div className="arp-card__header">
@@ -598,7 +681,9 @@ export default function AccessRequestPage() {
 											</div>
 											<div>
 												{isHighlyConf
-													? `Khu vực ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name}. Chỉ áp dụng hình thức đăng ký truy cập Cá nhân (không hỗ trợ đăng ký theo nhóm).`
+													? groupBlocked
+														? `Khu vực ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name}. Chỉ áp dụng hình thức đăng ký truy cập Cá nhân (không hỗ trợ đăng ký theo nhóm).`
+														: `Khu vực ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name}. Đơn nhóm được phép theo cấu hình hệ thống; thành viên cần đáp ứng điều kiện cấp độ truy cập của khu vực.`
 													: currentArea?.areaLevel === "CONFIDENTIAL_CONTACT_REQUIRED"
 													? "Khu vực yêu cầu liên hệ trước. Người tạo đơn đủ cấp độ truy cập có thể bảo lãnh cho các thành viên trong nhóm tham gia cùng thời gian đăng ký."
 													: "Khu vực yêu cầu phê duyệt trước khi vào."}
@@ -636,15 +721,13 @@ export default function AccessRequestPage() {
 								type="button"
 								className={`arp-type-btn ${requestType === "GROUP" ? "arp-type-btn--selected" : ""}`}
 								onClick={() => {
-									if (currentArea?.areaLevel !== "HIGHLY_CONFIDENTIAL") {
+									if (!groupBlocked) {
 										setRequestType("GROUP");
 									}
 								}}
-								disabled={
-									currentArea?.areaLevel === "HIGHLY_CONFIDENTIAL" || submitting
-								}
+								disabled={groupBlocked || submitting}
 								title={
-									currentArea?.areaLevel === "HIGHLY_CONFIDENTIAL"
+									groupBlocked
 										? `Khu vực ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name} chỉ cho phép đăng ký cá nhân`
 										: ""
 								}
@@ -863,6 +946,7 @@ export default function AccessRequestPage() {
 					</div>
 				</form>
 			</div>
+			)}
 
 			{/* THẺ 2: YÊU CẦU CỦA TÔI */}
 			<div
@@ -945,24 +1029,15 @@ export default function AccessRequestPage() {
 				{/* 3b. Bảng & 3d. Bảng rỗng */}
 				<div className="arp-card__table-wrapper">
 					{loadingHistory ? (
-						<div className="arp-empty">
-							<RefreshCw
-								size={24}
-								className="arp-spin"
-								style={{ marginBottom: "8px" }}
-							/>
-							<div className="arp-empty__text">
-								Đang tải danh sách yêu cầu...
-							</div>
-						</div>
+						<LoadingState size="sm" text="Đang tải danh sách yêu cầu..." />
+					) : historyError ? (
+						<ErrorState
+							size="sm"
+							message={historyError}
+							onRetry={() => loadMyRequests(historyPage)}
+						/>
 					) : historyList.length === 0 ? (
-						<div className="arp-empty">
-							<Inbox
-								size={28}
-								className="arp-empty__icon"
-							/>
-							<div className="arp-empty__text">Chưa có yêu cầu nào</div>
-						</div>
+						<EmptyState size="sm" icon={Inbox} title="Chưa có yêu cầu nào" />
 					) : (
 						<div className="arp-table-container">
 							<table className="arp-table">
@@ -979,7 +1054,10 @@ export default function AccessRequestPage() {
 								<tbody>
 									{historyList.map((req) => (
 										<React.Fragment key={req.id}>
-											<tr>
+											<tr
+												data-request-id={req.id}
+												className={highlightRequestId === req.id ? "arp-row--highlight" : undefined}
+											>
 												<td>
 													<div style={{ fontWeight: 600 }}>{req.areaName}</div>
 													{formatLocation(req.building, req.floor) && (
@@ -1086,6 +1164,12 @@ export default function AccessRequestPage() {
 															Hủy bởi hệ thống: {req.cancelReason}
 														</div>
 													)}
+													{/* BR-RQ-47: FM huỷ đơn đã duyệt (cancel_source STAFF) */}
+													{req.status === "CANCELLED" && req.cancelSource === "STAFF" && (
+														<div className="arp-cancel-system" title={req.cancelReason || ""}>
+															Quản lý huỷ: {req.cancelReason}
+														</div>
+													)}
 												</td>
 												<td
 													style={{
@@ -1116,40 +1200,6 @@ export default function AccessRequestPage() {
 																title="Hủy yêu cầu truy cập này"
 															>
 																Hủy
-															</button>
-														)}
-														{isFacilityManager && req.status === "APPROVED" && (
-															<button
-																type="button"
-																className="arp-btn arp-btn--secondary arp-btn--sm"
-																onClick={async () => {
-																	try {
-																		await accessRequestService.finishRequest(
-																			req.id,
-																		);
-																		setFormSuccess(
-																			"Chuyển trạng thái sang Hoàn thành!",
-																		);
-																		loadMyRequests(
-																			historyPage,
-																			historyStatusFilter,
-																			historyAreaFilter,
-																		);
-																		setTimeout(
-																			() => setFormSuccess(null),
-																			4000,
-																		);
-																	} catch (err) {
-																		setFormError(
-																			err.message ||
-																				"Không thể cập nhật trạng thái.",
-																		);
-																		setTimeout(() => setFormError(null), 4000);
-																	}
-																}}
-																title="Chuyển sang Hoàn thành"
-															>
-																Hoàn thành
 															</button>
 														)}
 														{req.status === "REJECTED" && (
@@ -1362,6 +1412,11 @@ export default function AccessRequestPage() {
 												Hủy bởi hệ thống: {selectedDetail.cancelReason}
 											</div>
 										)}
+										{selectedDetail.status === "CANCELLED" && selectedDetail.cancelSource === "STAFF" && (
+											<div className="arp-cancel-system arp-cancel-system--detail">
+												Quản lý huỷ: {selectedDetail.cancelReason}
+											</div>
+										)}
 									</div>
 								</div>
 
@@ -1526,13 +1581,6 @@ export default function AccessRequestPage() {
 							width: "100%",
 						}}
 					>
-						<Button
-							variant="secondary"
-							onClick={() => setCancelItem(null)}
-							disabled={cancelling}
-						>
-							Đóng
-						</Button>
 						<Button
 							variant="danger"
 							onClick={handleConfirmCancel}

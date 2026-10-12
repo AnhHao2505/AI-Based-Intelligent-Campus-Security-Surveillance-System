@@ -89,7 +89,7 @@
 
 .ui-btn--danger:hover:not(:disabled) {
   background: var(--theme-danger);
-  color: #ffffff;
+  color: var(--theme-on-danger); /* trắng trên nền đỏ chỉ ~3.8:1 (sáng) / ~2.8:1 (tối); token đạt >= 5:1 */
   border-color: var(--theme-danger);
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25);

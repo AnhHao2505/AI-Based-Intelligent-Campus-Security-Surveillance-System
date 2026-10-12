@@ -280,9 +280,9 @@ function App() {
 								element={
 									<ProtectedRoute
 										allowedRoles={[
+											// B-04: ADMIN không làm host khách (BE GuestVisitController create/my/cancel)
 											ROLES.NORMAL_USER,
-											ROLES.FACILITY_MANAGER,
-											ROLES.ADMIN
+											ROLES.FACILITY_MANAGER
 										]}
 									>
 										<GuestVisitPage />

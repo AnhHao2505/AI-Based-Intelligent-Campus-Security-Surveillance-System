@@ -788,6 +788,79 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
     }
 
     // =========================================================================
+    // TC-AA-07: Vô hiệu hoá thành công thu hồi AP, huỷ đơn PENDING/APPROVED; khôi phục không làm sống lại; vô hiệu hoá lần 2 -> 053; khôi phục khu vực đang active -> 054
+    // =========================================================================
+    @Test
+    @DisplayName("TC-AA-07: Vô hiệu hoá thành công thu hồi AP, huỷ đơn PENDING/APPROVED; khôi phục không làm sống lại; vô hiệu hoá lần 2 -> 053; khôi phục khu vực đang active -> 054")
+    void tc_aa_07() {
+        OffsetDateTime now = OffsetDateTime.now();
+
+        // Tạo AP và đơn PENDING, APPROVED
+        AreaAssignedPersonnel aap = assignedPersonnelRepository.save(AreaAssignedPersonnel.builder()
+                .area(contactArea)
+                .user(normalUserL1)
+                .validFrom(now.minusHours(1))
+                .validTo(now.plusHours(5))
+                .createdBy(fmUser)
+                .build());
+
+        AccessRequest pendingReq = accessRequestRepository.save(AccessRequest.builder()
+                .requestType(RequestType.INDIVIDUAL)
+                .area(contactArea)
+                .requester(normalUserL2)
+                .status(RequestStatus.PENDING)
+                .startTime(now.plusHours(1))
+                .endTime(now.plusHours(3))
+                .purpose("Pending req")
+                .build());
+
+        AccessRequest approvedReq = accessRequestRepository.save(AccessRequest.builder()
+                .requestType(RequestType.INDIVIDUAL)
+                .area(contactArea)
+                .requester(normalUserL3)
+                .status(RequestStatus.APPROVED)
+                .startTime(now.plusHours(1))
+                .endTime(now.plusHours(3))
+                .purpose("Approved req")
+                .reviewer(fmUser)
+                .reviewedAt(now)
+                .build());
+
+        // 1. Vô hiệu hoá thành công
+        areaService.deactivate(contactArea.getId(), new AreaDeactivateRequest("Vo hieu hoa contactArea", contactArea.getVersion()), adminUser.getEmail());
+        Area deactivatedArea = areaRepository.findById(contactArea.getId()).orElseThrow();
+        assertFalse(deactivatedArea.getIsActive());
+        assertNotNull(deactivatedArea.getDeletedAt());
+
+        // Kiểm tra AP bị thu hồi / đơn bị huỷ
+        assertEquals(0, assignedPersonnelRepository.countNotRevokedNotExpired(contactArea.getId(), OffsetDateTime.now()));
+        assertEquals(RequestStatus.CANCELLED, accessRequestRepository.findById(pendingReq.getId()).orElseThrow().getStatus());
+        assertEquals(RequestStatus.CANCELLED, accessRequestRepository.findById(approvedReq.getId()).orElseThrow().getStatus());
+
+        // 2. Vô hiệu hoá lần 2 -> ERR_AREA_053
+        AreaException exDeactTwice = assertThrows(AreaException.class, () ->
+                areaService.deactivate(contactArea.getId(), new AreaDeactivateRequest("Vo hieu hoa lan 2", deactivatedArea.getVersion()), adminUser.getEmail())
+        );
+        assertEquals(AreaErrorCode.ERR_AREA_053, exDeactTwice.getErrorCode());
+
+        // 3. Khôi phục khu vực
+        areaService.restore(contactArea.getId(), new AreaRestoreRequest("Khoi phuc contactArea", deactivatedArea.getVersion()), adminUser.getEmail());
+        Area restoredArea = areaRepository.findById(contactArea.getId()).orElseThrow();
+        assertTrue(restoredArea.getIsActive());
+        assertNull(restoredArea.getDeletedAt());
+
+        // Khôi phục không làm sống lại AP hoặc đơn đã huỷ
+        assertEquals(0, assignedPersonnelRepository.countNotRevokedNotExpired(contactArea.getId(), OffsetDateTime.now()));
+        assertEquals(RequestStatus.CANCELLED, accessRequestRepository.findById(pendingReq.getId()).orElseThrow().getStatus());
+
+        // 4. Khôi phục khu vực đang active -> ERR_AREA_054
+        AreaException exRestoreActive = assertThrows(AreaException.class, () ->
+                areaService.restore(contactArea.getId(), new AreaRestoreRequest("Khoi phuc lan nua", restoredArea.getVersion()), adminUser.getEmail())
+        );
+        assertEquals(AreaErrorCode.ERR_AREA_054, exRestoreActive.getErrorCode());
+    }
+
+    // =========================================================================
     // TC-AA-08: FM sửa access-rules/preset/đổi loại -> 403; ADMIN đổi loại Nội bộ -> Liên hệ trước: cờ bật, khu vực xuất hiện trong dropdown; đổi lại: biến mất; gửi cờ lệch loại -> lỗi mã riêng
     // =========================================================================
     @Test

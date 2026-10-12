@@ -97,7 +97,7 @@
 }
 
 .ap-form-required {
-  color: #ef4444;
+  color: var(--theme-danger);
 }
 
 .ap-form-hint {
@@ -309,7 +309,7 @@
 }
 
 .ap-revoke-note {
-  color: #ef4444;
+  color: var(--theme-danger);
   font-style: italic;
 }
 
@@ -345,7 +345,7 @@
 
 .ap-badge--revoked {
   background: rgba(239, 68, 68, 0.12);
-  color: #ef4444;
+  color: var(--theme-danger);
 }
 
 /* Role Pills */
@@ -425,7 +425,7 @@
 
 .ap-action-btn--revoke:hover {
   border-color: rgba(239, 68, 68, 0.4);
-  color: #ef4444;
+  color: var(--theme-danger);
   background: rgba(239, 68, 68, 0.1);
 }
 
@@ -442,7 +442,7 @@
   border-radius: 8px;
   background: rgba(239, 68, 68, 0.1);
   border: 1px solid rgba(239, 68, 68, 0.25);
-  color: #ef4444;
+  color: var(--theme-danger);
   font-size: 12px;
   line-height: 1.45;
 }
@@ -453,7 +453,7 @@
 }
 
 .ap-revoke-warning__text strong {
-  color: #ef4444;
+  color: var(--theme-danger);
 }
 
 .ap-modal__footer {

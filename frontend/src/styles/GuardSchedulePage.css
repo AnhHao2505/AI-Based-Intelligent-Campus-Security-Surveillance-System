@@ -166,7 +166,7 @@
 }
 
 .schedule-kpi-card.is-active-amber {
-  background: #fffbeb !important;
+  background: var(--theme-warning-bg) !important;
   border: 1.5px solid #f59e0b !important;
   box-shadow: 0 4px 12px rgba(245, 158, 11, 0.16) !important;
 }
@@ -178,7 +178,7 @@
 }
 
 .schedule-kpi-card.is-active-blue {
-  background: #f0f9ff !important;
+  background: var(--theme-info-bg) !important;
   border: 1.5px solid #0284c7 !important;
   box-shadow: 0 4px 12px rgba(2, 132, 199, 0.16) !important;
 }
@@ -202,7 +202,7 @@
 }
 
 .schedule-kpi-card.is-active-emerald {
-  background: #f0fdf4 !important;
+  background: var(--theme-success-bg) !important;
   border: 1.5px solid #059669 !important;
   box-shadow: 0 4px 12px rgba(5, 150, 105, 0.16) !important;
 }
@@ -226,7 +226,7 @@
 
 .kpi-icon-blue {
   background: rgba(37, 99, 235, 0.1);
-  color: #2563eb;
+  color: var(--theme-primary);
 }
 
 .kpi-icon-emerald {
@@ -638,19 +638,19 @@
 
 /* Shift color schemes */
 .shift-morning {
-  background: #f0f9ff;
+  background: var(--theme-info-bg);
   border-color: #bae6fd;
-  color: #0369a1;
+  color: var(--theme-info-text);
 }
 
 [data-theme="dark"] .shift-morning {
   background: rgba(14, 116, 144, 0.22);
   border-color: rgba(56, 189, 248, 0.35);
-  color: #7dd3fc;
+  color: var(--theme-info-text);
 }
 
 .shift-afternoon {
-  background: #fffbeb;
+  background: var(--theme-warning-bg);
   border-color: #fde68a;
   color: #b45309;
 }
@@ -1394,7 +1394,7 @@
 
 .schedule-request-avatar--swap {
   background: rgba(37, 99, 235, 0.1);
-  color: #2563eb;
+  color: var(--theme-primary);
 }
 :root.dark .schedule-request-avatar--swap {
   background: rgba(37, 99, 235, 0.2);
@@ -1416,7 +1416,7 @@
 }
 :root.dark .schedule-request-avatar--leave {
   background: rgba(245, 158, 11, 0.2);
-  color: #fcd34d;
+  color: var(--theme-warning-text);
 }
 
 .schedule-request-user-info {
@@ -1456,7 +1456,7 @@
   padding: 2px 8px;
   border-radius: 5px;
   background: rgba(37, 99, 235, 0.08);
-  color: #2563eb;
+  color: var(--theme-primary);
   border: 1px solid rgba(37, 99, 235, 0.2);
 }
 :root.dark .schedule-request-badge-team {
@@ -1489,7 +1489,7 @@
 
 .schedule-type-pill--swap {
   background: rgba(59, 130, 246, 0.1);
-  color: #2563eb;
+  color: var(--theme-primary);
   border: 1px solid rgba(59, 130, 246, 0.25);
 }
 :root.dark .schedule-type-pill--swap {
@@ -1516,7 +1516,7 @@
 }
 :root.dark .schedule-type-pill--leave {
   background: rgba(245, 158, 11, 0.2);
-  color: #fcd34d;
+  color: var(--theme-warning-text);
   border-color: rgba(245, 158, 11, 0.4);
 }
 
@@ -1538,7 +1538,7 @@
 }
 :root.dark .schedule-status-pill--pending {
   background: rgba(245, 158, 11, 0.2);
-  color: #fbbf24;
+  color: var(--theme-warning);
   border-color: rgba(245, 158, 11, 0.4);
 }
 
@@ -1549,7 +1549,7 @@
 }
 :root.dark .schedule-status-pill--approved {
   background: rgba(16, 185, 129, 0.2);
-  color: #6ee7b7;
+  color: var(--theme-success-text);
   border-color: rgba(16, 185, 129, 0.4);
 }
 
@@ -1661,7 +1661,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #2563eb;
+  color: var(--theme-primary);
 }
 :root.dark .schedule-shift-swap-circle {
   background: rgba(37, 99, 235, 0.2);
@@ -1683,7 +1683,7 @@
 }
 :root.dark .schedule-substitute-assigned {
   background: rgba(16, 185, 129, 0.2);
-  color: #6ee7b7;
+  color: var(--theme-success-text);
   border-color: rgba(16, 185, 129, 0.4);
 }
 
@@ -1701,7 +1701,7 @@
 }
 :root.dark .schedule-substitute-pending {
   background: rgba(245, 158, 11, 0.2);
-  color: #fbbf24;
+  color: var(--theme-warning);
   border-color: rgba(245, 158, 11, 0.4);
 }
 
@@ -1748,7 +1748,7 @@
 :root.dark .schedule-review-feedback.is-approved {
   background: rgba(16, 185, 129, 0.15);
   border-color: rgba(16, 185, 129, 0.35);
-  color: #6ee7b7;
+  color: var(--theme-success-text);
 }
 
 .schedule-review-feedback.is-rejected {

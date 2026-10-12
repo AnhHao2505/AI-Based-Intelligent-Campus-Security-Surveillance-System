@@ -1,17 +1,15 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import * as authService from '../services/authService';
 import { DEMO_LOGIN_ENABLED } from '../config/demoConfig';
+import { getStoredUser, setStoredUser, clearStoredAuth } from '../utils/authStorage';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => {
-    const savedUser = localStorage.getItem('user');
-    return savedUser ? JSON.parse(savedUser) : null;
-  });
+  const [user, setUser] = useState(() => getStoredUser());
 
   const [token, setToken] = useState(() => {
-    return localStorage.getItem('accessToken') || null;
+    return authService.getAccessToken() || null;
   });
 
   const [loading, setLoading] = useState(true);
@@ -19,13 +17,13 @@ export function AuthProvider({ children }) {
   const logout = useCallback(() => {
     setUser(null);
     setToken(null);
-    authService.clearAuth();
+    clearStoredAuth();
   }, []);
 
   // On mount: if accessToken exists in localStorage, verify session with GET /api/auth/me
   useEffect(() => {
     const initAuth = async () => {
-      const storedToken = localStorage.getItem('accessToken');
+      const storedToken = authService.getAccessToken();
       if (!storedToken) {
         setLoading(false);
         return;
@@ -39,18 +37,30 @@ export function AuthProvider({ children }) {
 
       try {
         const userData = await authService.getCurrentUser();
+        if (!userData || typeof userData !== 'object' || Object.keys(userData).length === 0) {
+          clearStoredAuth();
+          setUser(null);
+          setToken(null);
+          if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+            window.location.href = '/login';
+          }
+          return;
+        }
         setUser(userData);
         setToken(storedToken);
-        localStorage.setItem('user', JSON.stringify(userData));
+        setStoredUser(userData);
       } catch (err) {
         console.warn('Session verification failed on mount:', err.message);
         // If stored user exists and is valid, keep offline session if not 401
-        const storedUser = authService.getStoredUser();
+        const storedUser = getStoredUser();
         if (storedUser) {
           setUser(storedUser);
           setToken(storedToken);
         } else {
           logout();
+          if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+            window.location.href = '/login';
+          }
         }
       } finally {
         setLoading(false);

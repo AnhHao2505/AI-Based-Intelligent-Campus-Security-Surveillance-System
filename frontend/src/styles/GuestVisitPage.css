@@ -3,6 +3,11 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+  width: 100%;
+  max-width: var(--page-max-width);
+  margin: 0 auto;
+  padding: var(--page-padding-y) var(--page-padding-x);
+  box-sizing: border-box;
 }
 
 .guest-visit__card {
@@ -186,6 +191,23 @@
   font-size: 12px;
 }
 
+/* BR-GV-06: khu không mời được trong khung giờ đã chọn */
+.guest-visit__area--blocked {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.guest-visit__area-name {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.guest-visit__area-reason {
+  font-size: 12px;
+  color: var(--theme-warning-text);
+}
+
 .guest-visit__guest-row {
   display: grid;
   grid-template-columns: 1.2fr 1fr auto;
@@ -303,4 +325,34 @@
 	flex-shrink: 0;
 	margin-top: 1px;
 	color: var(--theme-warning-text);
+}
+
+/* Bấm thông báo -> ?visitId: tô sáng dòng lượt khách ~2 giây (token theme, có sẵn cả sáng và tối) */
+.guest-visit__row--highlight > td {
+  animation: guest-visit-row-flash 2s ease-out;
+}
+
+@keyframes guest-visit-row-flash {
+  0%,
+  60% {
+    background-color: var(--theme-primary-light);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+/* BR-GV-38: nhãn "Chưa có ảnh (x/y khách)" trên lượt đã duyệt (Badge warning dùng token theme, có sẵn sáng / tối) */
+.guest-visit__photo-missing {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.guest-visit__photo-missing-hint {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--theme-warning-text);
 }

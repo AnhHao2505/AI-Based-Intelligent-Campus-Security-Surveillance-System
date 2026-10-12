@@ -42,7 +42,7 @@ class GroupMemberGenericReasonTest extends Step5bTestSupport {
     }
 
     private MvcResult createGroup(String memberCode) throws Exception {
-        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        Area area = newArea(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED, 2, true);
         OffsetDateTime start = OffsetDateTime.now().plusHours(3).truncatedTo(ChronoUnit.MINUTES);
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("areaId", area.getId());

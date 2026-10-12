@@ -535,10 +535,7 @@ public class UserService {
 
     @Transactional(readOnly = true)
     public Page<UserSearchResponse> searchUsers(String q, Pageable pageable) {
-        if (q == null || q.trim().length() < 2) {
-            throw new IllegalArgumentException("Từ khoá tìm kiếm phải có tối thiểu 2 ký tự");
-        }
-        String cleanQ = q.trim();
+        String cleanQ = (q != null && !q.trim().isEmpty()) ? q.trim() : null;
         int cappedSize = Math.min(Math.max(1, pageable.getPageSize()), 20);
         Pageable cappedPageable = PageRequest.of(pageable.getPageNumber(), cappedSize, pageable.getSort());
         Page<User> page = userRepository.searchActiveUsers(cleanQ, cappedPageable);
@@ -549,6 +546,19 @@ public class UserService {
                 u.getRole(),
                 u.getAccessLevel()
         ));
+    }
+
+    /** BR-AL-23 + BR-AL-28: cùng quy tắc tìm kiếm, lọc thêm theo cấp hiện tại khi accessLevel khác null. */
+    @Transactional(readOnly = true)
+    public Page<UserSearchResponse> searchUsers(String q, Integer accessLevel, Pageable pageable) {
+        if (accessLevel == null) {
+            return searchUsers(q, pageable);
+        }
+        String cleanQ = (q != null && !q.trim().isEmpty()) ? q.trim() : null;
+        int cappedSize = Math.min(Math.max(1, pageable.getPageSize()), 20);
+        Pageable cappedPageable = PageRequest.of(pageable.getPageNumber(), cappedSize, pageable.getSort());
+        return userRepository.searchActiveUsersByAccessLevel(cleanQ, accessLevel, cappedPageable)
+                .map(u -> new UserSearchResponse(u.getId(), u.getUserCode(), u.getFullName(), u.getRole(), u.getAccessLevel()));
     }
 
     public int resolveDefaultAccessLevel(Role role) {
@@ -574,6 +584,12 @@ public class UserService {
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng"));
         if (user.getDeletedAt() != null) {
             throw new ResourceNotFoundException("Không tìm thấy người dùng");
+        }
+        // BR-AL-29: tài khoản đã vô hiệu hoá -> không đổi cấp (kể cả khi cấp mới trùng cấp cũ). Đổi nhiều người
+        // (UserAccessLevelBulkService) gọi lại hàm này nên người đó FAILED kèm thông báo, người khác vẫn chạy.
+        if (!Boolean.TRUE.equals(user.getIsActive())) {
+            throw new com.fa26se040.icss.exception.AccessControlException(
+                    com.fa26se040.icss.exception.AccessControlErrorCode.ERR_AC_009, (Object) user.getUserCode());
         }
 
         // BR-AL-06: Thao tác không làm thay đổi giá trị (new == old) -> không ghi log, trả về trạng thái hiện tại

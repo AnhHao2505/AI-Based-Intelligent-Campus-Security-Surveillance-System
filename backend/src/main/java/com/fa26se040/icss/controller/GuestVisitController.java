@@ -1,6 +1,7 @@
 package com.fa26se040.icss.controller;
 
 import com.fa26se040.icss.dto.common.ApiResponse;
+import com.fa26se040.icss.dto.guest.GuestHostEligibilityResponse;
 import com.fa26se040.icss.dto.guest.GuestVisitCancelRequest;
 import com.fa26se040.icss.dto.guest.GuestVisitCreateRequest;
 import com.fa26se040.icss.dto.guest.GuestVisitResponse;
@@ -41,15 +42,34 @@ public class GuestVisitController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('NORMAL_USER', 'FACILITY_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('NORMAL_USER', 'FACILITY_MANAGER')")
     public ResponseEntity<ApiResponse<GuestVisitResponse>> create(@RequestBody JsonNode body, Authentication authentication) {
         GuestVisitCreateRequest req = readStrict(body, GuestVisitCreateRequest.class);
         GuestVisitResponse data = guestVisitService.create(req, authentication.getName());
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(data, "Đã tạo lượt khách, chờ duyệt"));
     }
 
+    /** BR-GV-04: khu vực chọn được trong form lượt khách (INTERNAL / CONTACT đang hoạt động). Cùng quyền với tạo lượt (B-04: không có ADMIN). */
+    @GetMapping("/selectable-areas")
+    @PreAuthorize("hasAnyRole('NORMAL_USER', 'FACILITY_MANAGER')")
+    public ResponseEntity<ApiResponse<java.util.List<com.fa26se040.icss.dto.guest.GuestSelectableAreaResponse>>> selectableAreas(
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE_TIME) java.time.OffsetDateTime startTime,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE_TIME) java.time.OffsetDateTime endTime,
+            Authentication authentication) {
+        // BR-GV-06: đủ startTime + endTime thì mỗi khu vực kèm hostCanInvite / reasonCode (không bắt buộc, giữ tương thích)
+        return ResponseEntity.ok(ApiResponse.success(
+                guestVisitService.listSelectableAreas(authentication.getName(), startTime, endTime), "Danh sách khu vực nhận khách"));
+    }
+
+    /** B-04: {canHost, myLevel, minLevel} để FE ẩn form tạo lượt khi không đủ điều kiện. Cùng quyền với tạo lượt. */
+    @GetMapping("/eligibility")
+    @PreAuthorize("hasAnyRole('NORMAL_USER', 'FACILITY_MANAGER')")
+    public ResponseEntity<ApiResponse<GuestHostEligibilityResponse>> eligibility(Authentication authentication) {
+        return ResponseEntity.ok(ApiResponse.success(guestVisitService.eligibility(authentication.getName()), "Điều kiện mời khách"));
+    }
+
     @GetMapping("/my")
-    @PreAuthorize("hasAnyRole('NORMAL_USER', 'FACILITY_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('NORMAL_USER', 'FACILITY_MANAGER')")
     public ResponseEntity<ApiResponse<Page<GuestVisitResponse>>> listMine(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -66,7 +86,7 @@ public class GuestVisitController {
     }
 
     @PatchMapping("/{id}/cancel")
-    @PreAuthorize("hasAnyRole('NORMAL_USER', 'FACILITY_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('NORMAL_USER', 'FACILITY_MANAGER')")
     public ResponseEntity<ApiResponse<GuestVisitResponse>> cancel(@PathVariable UUID id,
                                                                   @RequestBody(required = false) GuestVisitCancelRequest body,
                                                                   Authentication authentication) {

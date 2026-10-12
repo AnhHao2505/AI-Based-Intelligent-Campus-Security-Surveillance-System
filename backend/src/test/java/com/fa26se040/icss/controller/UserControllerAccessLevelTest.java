@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -51,15 +52,24 @@ class UserControllerAccessLevelTest {
     }
 
     @Test
-    @DisplayName("GET /api/users/search với q 1 ký tự -> 400 Bad Request")
-    void searchUsers_ShortQuery_Returns400() throws Exception {
-        when(userService.searchUsers(eq("a"), any())).thenThrow(new IllegalArgumentException("Từ khoá tìm kiếm phải có tối thiểu 2 ký tự"));
+    @DisplayName("GET /api/users/search không có q -> 200 OK trả trang 1")
+    void searchUsers_NoQuery_ReturnsPage1() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UserSearchResponse userDto = new UserSearchResponse(
+                userId,
+                "SV001",
+                "Sinh Viên 1",
+                Role.NORMAL_USER,
+                1
+        );
 
-        mockMvc.perform(get("/api/users/search")
-                        .param("q", "a"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.message").value("Từ khoá tìm kiếm phải có tối thiểu 2 ký tự"));
+        when(userService.searchUsers(isNull(), any()))
+                .thenReturn(new PageImpl<>(List.of(userDto), PageRequest.of(0, 10), 1));
+
+        mockMvc.perform(get("/api/users/search"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].id").value(userId.toString()))
+                .andExpect(jsonPath("$.data.content[0].userCode").value("SV001"));
     }
 
     @Test

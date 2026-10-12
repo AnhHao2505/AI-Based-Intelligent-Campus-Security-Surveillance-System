@@ -295,12 +295,12 @@ export default function CameraSurveillanceTab({
 						<div className="roi-preview-meta">
 							<span
 								className="roi-meta-badge"
-								style={{ color: "#34d399" }}
+								style={{ color: "var(--theme-success)" }}
 							>
 								Độ phân giải: {liveSnapshot.width || 1920}x
 								{liveSnapshot.height || 1080}
 							</span>
-							<span style={{ color: "#f59e0b", fontWeight: 600 }}>
+							<span style={{ color: "var(--theme-warning)", fontWeight: 600 }}>
 								Đang kiểm tra sai lệch
 							</span>
 						</div>

@@ -11,13 +11,24 @@ import {
 	SlidersHorizontal,
 	Info,
 	Cpu,
+	UserPlus,
 } from "lucide-react";
 import {
 	getSystemConfigs,
 	updateSystemConfig,
 	getSystemConfigHistory,
 } from "../../services/systemConfigService";
-import { Button, Input, Card, Modal, PageHeader, ReasonTextarea } from "../../components/ui";
+import {
+	Button,
+	Input,
+	Card,
+	Modal,
+	PageHeader,
+	ReasonTextarea,
+	LoadingState,
+	EmptyState,
+	ErrorState,
+} from "../../components/ui";
 import "../../styles/SystemConfigPage.css";
 
 export default function SystemConfigPage() {
@@ -26,6 +37,7 @@ export default function SystemConfigPage() {
 	const [loading, setLoading] = useState(true);
 	const [savingKey, setSavingKey] = useState(null);
 	const [errorMsg, setErrorMsg] = useState(null);
+	const [loadError, setLoadError] = useState(null);
 	const [successMsg, setSuccessMsg] = useState(null);
 
 	// Tab state: active groupKey (no 'ALL' tab)
@@ -52,6 +64,7 @@ export default function SystemConfigPage() {
 	const fetchConfigs = async () => {
 		setLoading(true);
 		setErrorMsg(null);
+		setLoadError(null);
 		try {
 			const data = await getSystemConfigs();
 			const list = data || [];
@@ -74,7 +87,7 @@ export default function SystemConfigPage() {
 			}
 		} catch (err) {
 			console.error("Lỗi khi tải cấu hình hệ thống:", err);
-			setErrorMsg(
+			setLoadError(
 				err.message ||
 					"Không thể kết nối đến máy chủ để lấy cấu hình hệ thống.",
 			);
@@ -209,6 +222,9 @@ export default function SystemConfigPage() {
 				return "An ninh";
 			case "ACCOUNT":
 				return "Tài khoản";
+			// B-02: nhóm tham số khách (V60)
+			case "GUEST":
+				return "Khách";
 			default:
 				return groupKey;
 		}
@@ -233,6 +249,13 @@ export default function SystemConfigPage() {
 			case "AI_CONFIG":
 				return (
 					<Cpu
+						size={18}
+						className="syscfg-group-icon"
+					/>
+				);
+			case "GUEST":
+				return (
+					<UserPlus
 						size={18}
 						className="syscfg-group-icon"
 					/>
@@ -278,10 +301,11 @@ export default function SystemConfigPage() {
 
 			{/* Main Content */}
 			{loading ? (
-				<div className="syscfg-loading">
-					<div className="syscfg-spinner" />
-					<p>Đang tải cấu hình hệ thống...</p>
-				</div>
+				<LoadingState text="Đang tải cấu hình hệ thống..." />
+			) : loadError ? (
+				<ErrorState message={loadError} onRetry={fetchConfigs} />
+			) : configs.length === 0 ? (
+				<EmptyState title="Chưa có tham số cấu hình nào" />
 			) : (
 				<>
 					{/* Tabs Navigation (No 'ALL' tab) */}
@@ -570,7 +594,7 @@ export default function SystemConfigPage() {
 								onClick={() => setConfirmModalConfig(null)}
 								disabled={savingKey != null}
 							>
-								Huỷ
+								Hủy
 							</Button>
 							<Button
 								variant="primary"
@@ -591,11 +615,11 @@ export default function SystemConfigPage() {
 						)}
 						<div
 							style={{
-								background: "var(--theme-bg, #f8fafc)",
+								background: "var(--theme-bg-page)",
 								padding: "12px",
 								borderRadius: "8px",
 								fontSize: "13.5px",
-								border: "1px solid var(--theme-border, #e2e8f0)",
+								border: "1px solid var(--theme-border)",
 							}}
 						>
 							<div><strong>Tham số:</strong> {confirmModalConfig.configKey}</div>
@@ -612,7 +636,8 @@ export default function SystemConfigPage() {
 								label="Lý do thay đổi cấu hình"
 								required
 								value={confirmReason}
-								onChange={(val) => {
+								onChange={(e) => {
+									const val = e.target.value;
 									setConfirmReason(val);
 									if (confirmReasonError && val.trim().length >= 10 && val.trim().length <= 500) {
 										setConfirmReasonError("");

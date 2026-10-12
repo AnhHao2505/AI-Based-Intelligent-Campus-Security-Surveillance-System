@@ -37,36 +37,36 @@
   align-items: center;
 }
 
-/* 1. Security Level: PUBLIC (#22c55e) */
+/* 1. Security Level: PUBLIC (chấm màu --theme-success) */
 .ui-badge--public {
   background: var(--theme-level-pub-bg);
   border: 1px solid var(--theme-level-pub-border);
   color: var(--theme-level-pub-text);
 }
 .ui-badge--public .ui-badge__dot {
-  background: #22c55e;
+  background: var(--theme-success);
   box-shadow: 0 0 4px rgba(34, 197, 94, 0.4);
 }
 
-/* 2. Security Level: SEMI_PRIVATE (#fbbf24) */
+/* 2. Security Level: SEMI_PRIVATE (chấm màu --theme-warning) */
 .ui-badge--semiPrivate {
   background: var(--theme-level-semi-bg);
   border: 1px solid var(--theme-level-semi-border);
   color: var(--theme-level-semi-text);
 }
 .ui-badge--semiPrivate .ui-badge__dot {
-  background: #fbbf24;
+  background: var(--theme-warning);
   box-shadow: 0 0 4px rgba(251, 191, 36, 0.4);
 }
 
-/* 3. Security Level: PRIVATE (#f87171) */
+/* 3. Security Level: PRIVATE (chấm màu --theme-danger) */
 .ui-badge--private {
   background: var(--theme-level-priv-bg);
   border: 1px solid var(--theme-level-priv-border);
   color: var(--theme-level-priv-text);
 }
 .ui-badge--private .ui-badge__dot {
-  background: #f87171;
+  background: var(--theme-danger);
   box-shadow: 0 0 4px rgba(248, 113, 113, 0.4);
 }
 

@@ -29,7 +29,8 @@ public class GuestAccessDecisionService {
 
     /**
      * Cho vào ⇔ lượt APPROVED ∧ start ≤ at < end ∧ khu vực thuộc lượt ∧ khu vực đang hoạt động ∧ loại khu vực nhận khách tại at
-     * ∧ host vẫn thoả BR-GV-01 + 06 tại at ∧ sinh trắc chưa DELETED. Thứ tự kiểm = thứ tự mã lý do.
+     * ∧ host vẫn thoả BR-GV-01 + 06 tại at ∧ sinh trắc PHOTO_READY (BR-GV-38: đã đăng ký khuôn mặt tại quầy).
+     * Sinh trắc: DELETED -> BIOMETRIC_DELETED; NO_PHOTO / PHOTO_ONLY / null -> BIOMETRIC_NOT_READY. Thứ tự kiểm = thứ tự mã lý do.
      */
     @Transactional(readOnly = true)
     public GuestAccessDecision checkGuestEntry(UUID guestId, UUID areaId, OffsetDateTime at) {
@@ -65,6 +66,10 @@ public class GuestAccessDecisionService {
         }
         if (guest.getBiometricStatus() == GuestBiometricStatus.DELETED) {
             return GuestAccessDecision.deny(GuestEntryDenyReason.BIOMETRIC_DELETED, visitId);
+        }
+        // BR-GV-38: chỉ khách đã có ảnh + embedding (PHOTO_READY) mới nhận diện được
+        if (guest.getBiometricStatus() != GuestBiometricStatus.PHOTO_READY) {
+            return GuestAccessDecision.deny(GuestEntryDenyReason.BIOMETRIC_NOT_READY, visitId);
         }
         return GuestAccessDecision.allow(visitId);
     }

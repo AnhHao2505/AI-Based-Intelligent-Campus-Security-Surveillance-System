@@ -4,12 +4,30 @@ import { apiGet, apiPost, apiPatch, apiFetch } from "../api/apiClient";
  * Lượt khách (BR-GV v2). Backend: GuestVisitController (/api/guest-visits).
  */
 export const guestVisitService = {
-  /** Khu vực có thể chọn cho lượt khách: lấy danh sách khu vực hạn chế rồi lọc INTERNAL / CONTACT ở phía gọi. */
-  async getSelectableAreas() {
-    return await apiGet("/api/areas/available-for-request");
+  /**
+   * Khu vực có thể chọn cho lượt khách (BR-GV-04): khu vực INTERNAL / CONTACT đang hoạt động, gồm cả khu vực
+   * INTERNAL (danh sách xin truy cập /api/areas/available-for-request không có loại này).
+   * GET /api/guest-visits/selectable-areas
+   * Gửi kèm đủ { startTime, endTime } (ISO) thì mỗi khu vực có thêm hostCanInvite + reasonCode (BR-GV-06):
+   * người gọi có vào được khu vực trong trọn khung giờ không (cấp truy cập hoặc nhân sự chỉ định).
+   */
+  async getSelectableAreas({ startTime, endTime } = {}) {
+    if (startTime && endTime) {
+      const query = new URLSearchParams({ startTime, endTime });
+      return await apiGet(`/api/guest-visits/selectable-areas?${query.toString()}`);
+    }
+    return await apiGet("/api/guest-visits/selectable-areas");
   },
 
   /** Host tạo lượt: { purpose, startTime, endTime, areaIds[], guests[{ fullName, organization }] } */
+  /**
+   * Điều kiện mời khách của người đang đăng nhập (B-04): { canHost, myLevel, minLevel }
+   * GET /api/guest-visits/eligibility
+   */
+  async getEligibility() {
+    return await apiGet("/api/guest-visits/eligibility");
+  },
+
   async createVisit(data) {
     return await apiPost("/api/guest-visits", data);
   },

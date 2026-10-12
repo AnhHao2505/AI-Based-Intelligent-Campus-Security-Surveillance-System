@@ -13,8 +13,10 @@ import { getLevelConfig, getAccessLevelConfig } from '../../utils/areaHelpers';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import PageHeader from '../../components/ui/PageHeader';
+import { LoadingState, EmptyState, ErrorState } from '../../components/ui';
 import ReasonTextarea from '../../components/ui/ReasonTextarea';
 import '../../styles/UserAccessLevelPage.css';
+import '../../styles/AdminPresetPage.css';
 
 const ACCESS_LEVELS = [
   { level: 1, name: 'Cấp 1 — Mọi người dùng' },
@@ -25,6 +27,7 @@ const ACCESS_LEVELS = [
 export default function AdminPresetPage() {
   const [presets, setPresets] = useState([]);
   const [loadingPresets, setLoadingPresets] = useState(false);
+  const [loadError, setLoadError] = useState(null);
 
   const [editPresetModal, setEditPresetModal] = useState({
     isOpen: false,
@@ -39,12 +42,13 @@ export default function AdminPresetPage() {
 
   const loadPresets = useCallback(async () => {
     setLoadingPresets(true);
+    setLoadError(null);
     try {
       const data = await getLevelPresets();
       setPresets(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Lỗi tải danh sách cấu hình mặc định:', err);
-      toast.error(err?.message || 'Không thể tải cấu hình mặc định');
+      setLoadError(err?.message || 'Không thể tải cấu hình mặc định');
     } finally {
       setLoadingPresets(false);
     }
@@ -118,10 +122,10 @@ export default function AdminPresetPage() {
   };
 
   return (
-    <div className="user-access-level-page">
+    <div className="admin-preset-page">
       <PageHeader
         title="Mặc định theo loại khu vực"
-        subtitle="Quản lý cấp độ truy cập mặc định cho từng loại khu vực trong toàn bộ khuôn viên."
+        description="Quản lý cấp độ truy cập mặc định cho từng loại khu vực trong toàn bộ khuôn viên."
         actions={
           <Button
             variant="outline"
@@ -148,10 +152,11 @@ export default function AdminPresetPage() {
           </div>
 
           {loadingPresets ? (
-            <div className="loading-state">
-              <Loader2 size={32} className="animate-spin" />
-              <span>Đang tải cấu hình mặc định...</span>
-            </div>
+            <LoadingState text="Đang tải cấu hình mặc định..." />
+          ) : loadError ? (
+            <ErrorState message={loadError} onRetry={loadPresets} />
+          ) : presets.length === 0 ? (
+            <EmptyState title="Chưa có cấu hình mặc định" />
           ) : (
             <div className="table-wrapper">
               <table className="data-table">
@@ -228,13 +233,6 @@ export default function AdminPresetPage() {
                       </tr>
                     );
                   })}
-                  {presets.length === 0 && (
-                    <tr>
-                      <td colSpan={5} className="empty-state-cell">
-                        Không có dữ liệu cấu hình mặc định nào.
-                      </td>
-                    </tr>
-                  )}
                 </tbody>
               </table>
             </div>
@@ -327,7 +325,8 @@ export default function AdminPresetPage() {
                     label="Lý do thay đổi"
                     required
                     value={editPresetModal.reason}
-                    onChange={(val) =>
+                    onChange={(e) => {
+                      const val = e.target.value;
                       setEditPresetModal((prev) => ({
                         ...prev,
                         reason: val,
@@ -335,8 +334,8 @@ export default function AdminPresetPage() {
                           prev.reasonError && val.trim().length >= 10 && val.trim().length <= 500
                             ? ''
                             : prev.reasonError,
-                      }))
-                    }
+                      }));
+                    }}
                     minLength={10}
                     maxLength={500}
                     placeholder="Nhập lý do điều chỉnh cấu hình mặc định (từ 10 đến 500 ký tự)..."

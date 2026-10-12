@@ -128,7 +128,7 @@ public class GuestSchemaTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("P1: seed 8 config khách + hằng trong ConfigKey khớp mặc định")
+    @DisplayName("P1: seed 9 config khách (8 của V60 + GUEST_PHOTO_REMINDER_MINUTES_BEFORE của V71) + hằng trong ConfigKey khớp mặc định")
     void configsSeeded() {
         Map<String, String> rows = jdbc.queryForList(
                         "SELECT config_key, data_type || ':' || config_value AS v FROM system_configurations WHERE config_group = 'GUEST'")
@@ -141,7 +141,8 @@ public class GuestSchemaTest extends AbstractIntegrationTest {
                 "GUEST_FACE_RETENTION_HOURS", "INTEGER:24",
                 "GUEST_RECORD_RETENTION_DAYS", "INTEGER:90",
                 "GUEST_PHOTO_URL_TTL_SECONDS", "INTEGER:60",
-                "GUEST_CONSENT_NOTICE_VERSION", "STRING:v1");
+                "GUEST_CONSENT_NOTICE_VERSION", "STRING:v1",
+                "GUEST_PHOTO_REMINDER_MINUTES_BEFORE", "INTEGER:60"); // BR-GV-39 (V71)
         assertEquals(expected, rows);
         for (Map.Entry<String, String> e : expected.entrySet()) {
             ConfigKey key = ConfigKey.valueOf(e.getKey());

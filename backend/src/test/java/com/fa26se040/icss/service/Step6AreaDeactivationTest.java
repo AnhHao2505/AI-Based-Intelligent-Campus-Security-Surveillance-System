@@ -23,18 +23,19 @@ import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 
 /**
- * Step 6 — vô hiệu hoá khu vực (BR-AD-01..09).
+ * Step 6 — vô hiệu hoá / khôi phục khu vực (BR-AD-01..09).
  *
  * Hợp đồng API:
- * - POST /api/areas/{id}/deactivate: body {reason, version}, chỉ ADMIN, trả AreaResponse.
+ * - POST /api/areas/{id}/deactivate, POST /api/areas/{id}/restore: body {reason, version}, chỉ ADMIN, trả AreaResponse.
  * - GET /api/areas/{id}/dependencies: {areaId, version, canDeactivate, blockers[{errorCode,count,message}],
  *   apToRevoke, requestsToCancel, guestVisitsToCancel, guestVisitsToRevoke}.
- * - Mã: 051 sự cố mở, 052 sự kiện đang bật, 053 đã vô hiệu hoá.
+ * - Mã: 051 sự cố mở, 052 sự kiện đang bật, 053 đã vô hiệu hoá, 054 chưa vô hiệu hoá, 055 tầng/toà không còn.
  * Dựng trên GuestTestSupport: kho ảnh MinIO mock, user fixture bị vô hiệu hoá và sự kiện được đóng sau mỗi test.
  */
 class Step6AreaDeactivationTest extends GuestTestSupport {
 
     static final String REASON = "Khu vực sửa chữa, ngừng sử dụng theo quyết định";
+    static final String RESTORE_REASON = "Đã sửa chữa xong, mở lại khu vực";
     static final String PREFIX = "Khu vực bị vô hiệu hoá: ";
 
     @Autowired JdbcTemplate jdbc;
@@ -150,6 +151,10 @@ class Step6AreaDeactivationTest extends GuestTestSupport {
         return send(post("/api/areas/{id}/deactivate", area.getId()), actor, body(reason, version)).andReturn();
     }
 
+    MvcResult restore(User actor, Area area, String reason, Long version) throws Exception {
+        return send(post("/api/areas/{id}/restore", area.getId()), actor, body(reason, version)).andReturn();
+    }
+
     MvcResult preview(User actor, Area area) throws Exception {
         return send(get("/api/areas/{id}/dependencies", area.getId()), actor, null).andReturn();
     }
@@ -199,6 +204,7 @@ class Step6AreaDeactivationTest extends GuestTestSupport {
         Long v0 = dbVersion(area);
         for (User u : List.of(fm, guard, hostL2)) {
             assertEquals(403, status(deactivate(u, area, REASON, v0)), u.getRole().name());
+            assertEquals(403, status(restore(u, area, RESTORE_REASON, v0)), u.getRole().name());
         }
         assertUntouched(area, v0);
     }
@@ -525,6 +531,85 @@ class Step6AreaDeactivationTest extends GuestTestSupport {
         assertEquals("APPROVED", visitRow(otherVisit).get("status"), "lượt chỉ ở khu vực khác giữ nguyên");
         assertEquals("CANCELLED", visitRow(cancelled).get("status"));
         assertTrue(audits(cancelled.getId().toString(), AuditTargetType.GUEST_VISIT, AuditAction.CANCEL).isEmpty());
+    }
+
+    // ================================================================== BR-AD-07
+
+    @Test
+    @DisplayName("BR-AD-07: ADMIN khôi phục -> hoạt động lại, version +1, audit AREA/RESTORE kèm lý do; AP/đơn/khách KHÔNG tự hồi phục")
+    void ad07_restore() throws Exception {
+        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        AreaAssignedPersonnel ap = newAp(area, hostL2, OffsetDateTime.now().minusDays(1), OffsetDateTime.now().plusDays(3));
+        AccessRequest pending = newRequest(area, hostL2, RequestStatus.PENDING, future(0), future(60));
+        GuestVisit visit = newVisit(hostL2, GuestVisitStatus.APPROVED, future(0), future(120), List.of(area), "Khách A");
+        assertEquals(200, status(deactivate(admin, area, REASON, dbVersion(area))));
+        Long v1 = dbVersion(area);
+
+        MvcResult r = restore(admin, area, "  " + RESTORE_REASON + " ", v1);
+
+        assertEquals(200, status(r), describe(r));
+        Map<String, Object> row = areaRow(area);
+        assertEquals(true, row.get("is_active"));
+        assertNull(row.get("deleted_at"));
+        assertEquals(v1 + 1, ((Number) row.get("version")).longValue());
+        List<Map<String, Object>> audits = auditRows("AREA", "RESTORE", area.getId().toString());
+        assertEquals(1, audits.size());
+        assertEquals(RESTORE_REASON, audits.get(0).get("reason"));
+        assertNotNull(apRow(ap).get("revoked_at"), "AP không tự hồi phục");
+        assertEquals("CANCELLED", requestRow(pending).get("status"), "đơn không tự hồi phục");
+        assertEquals("REVOKED", visitRow(visit).get("status"), "lượt khách không tự hồi phục");
+    }
+
+    @Test
+    @DisplayName("BR-AD-07: khôi phục khu vực chưa vô hiệu hoá -> 409 ERR_AREA_054; lý do sai 050; thiếu version 044; lệch 045")
+    void ad07_restore_validation() throws Exception {
+        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        Long v0 = dbVersion(area);
+        MvcResult notDeactivated = restore(admin, area, RESTORE_REASON, v0);
+        assertEquals(409, status(notDeactivated), describe(notDeactivated));
+        assertEquals("ERR_AREA_054", errorCode(notDeactivated));
+
+        assertEquals(200, status(deactivate(admin, area, REASON, v0)));
+        Long v1 = dbVersion(area);
+        assertEquals("ERR_AREA_050", errorCode(restore(admin, area, "ngắn quá", v1)));
+        assertEquals("ERR_AREA_044", errorCode(restore(admin, area, RESTORE_REASON, null)));
+        MvcResult stale = restore(admin, area, RESTORE_REASON, v0);
+        assertEquals(409, status(stale));
+        assertEquals("ERR_AREA_045", errorCode(stale));
+        assertEquals(false, areaRow(area).get("is_active"));
+        assertEquals(v1, dbVersion(area));
+        assertTrue(auditRows("AREA", "RESTORE", area.getId().toString()).isEmpty());
+    }
+
+    @Test
+    @DisplayName("BR-AD-07: trùng tên với khu vực đang hoạt động cùng tầng -> 409 ERR_AREA_020; tầng ngừng hoạt động -> 409 ERR_AREA_055")
+    void ad07_restore_conflicts() throws Exception {
+        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        assertEquals(200, status(deactivate(admin, area, REASON, dbVersion(area))));
+        Area twin = areaRepository.save(Area.builder()
+                .name(area.getName()).areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL).areaAccessLevel(2)
+                .explicitAuthorizationRequired(false).floorEntity(floor).building(building.getName()).floor(floor.getName())
+                .centerLatitude(LAT).centerLongitude(LNG).isActive(true).openToMembers(false).build());
+        Long v1 = dbVersion(area);
+
+        MvcResult clash = restore(admin, area, RESTORE_REASON, v1);
+        assertEquals(409, status(clash), describe(clash));
+        assertEquals("ERR_AREA_020", errorCode(clash));
+        assertEquals(false, areaRow(area).get("is_active"));
+
+        // tầng ngừng hoạt động: khu vực thứ hai trên tầng này
+        Area lone = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        assertEquals(200, status(deactivate(admin, lone, REASON, dbVersion(lone))));
+        jdbc.update("UPDATE floors SET is_active = false WHERE id = ?", floor.getId());
+        try {
+            MvcResult noFloor = restore(admin, lone, RESTORE_REASON, dbVersion(lone));
+            assertEquals(409, status(noFloor), describe(noFloor));
+            assertEquals("ERR_AREA_055", errorCode(noFloor));
+            assertEquals(false, areaRow(lone).get("is_active"));
+        } finally {
+            jdbc.update("UPDATE floors SET is_active = true WHERE id = ?", floor.getId());
+        }
+        assertNotNull(twin.getId());
     }
 
     // ================================================================== BR-AD-08
