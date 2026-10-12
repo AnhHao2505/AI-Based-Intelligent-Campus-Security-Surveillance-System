@@ -161,12 +161,12 @@ export default function AreaListView({
 											return count > 0 ? (
 												<span className="zone-card__camera-status--has">
 													<Cctv size={13} />
-													<span>Camera: {count}</span>
+													<span>{count}</span>
 												</span>
 											) : (
 												<span className="zone-card__camera-status--none">
 													<VideoOff size={13} />
-													<span>Camera: 0</span>
+													<span>0</span>
 												</span>
 											);
 										})()}
@@ -196,8 +196,16 @@ export default function AreaListView({
 													e.stopPropagation();
 													onOpenAccessRulesModal(area);
 												}}
-												title={isAdmin ? "Đổi cấp truy cập khu vực" : "Chế độ sự kiện và lịch"}
-												aria-label={isAdmin ? "Đổi cấp truy cập khu vực" : "Chế độ sự kiện và lịch"}
+												title={
+													isAdmin
+														? "Đổi cấp truy cập khu vực"
+														: "Chế độ sự kiện và lịch"
+												}
+												aria-label={
+													isAdmin
+														? "Đổi cấp truy cập khu vực"
+														: "Chế độ sự kiện và lịch"
+												}
 											>
 												<ShieldCheck size={13} />
 											</button>

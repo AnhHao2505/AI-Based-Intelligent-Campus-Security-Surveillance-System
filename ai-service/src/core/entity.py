@@ -33,6 +33,9 @@ class BoundingBox:
         """Điểm chân người - dùng chuẩn xác nhất khi tính toán nằm trong Polygon/đường ranh ROI"""
         return Point((self.x1 + self.x2) / 2.0, self.y2)
 
+    def to_int_xyxy(self) -> Tuple[int, int, int, int]:
+        return (int(self.x1), int(self.y1), int(self.x2), int(self.y2))
+
 @dataclass
 class FaceDetectionResult:
     bbox: BoundingBox
