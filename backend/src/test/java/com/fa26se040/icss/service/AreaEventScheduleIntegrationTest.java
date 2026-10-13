@@ -237,6 +237,18 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
                 .toList();
     }
 
+    /** Đếm audit của khu vực do chính test tạo — không đếm toàn bảng vì job xử lý cả lịch sót của test khác. */
+    private long countAuditsOfArea(UUID areaId) {
+        return auditLogRepository.count((root, query, cb) -> cb.equal(root.get("area").get("id"), areaId));
+    }
+
+    /** Đếm audit theo đối tượng + hành động, giới hạn trong dữ liệu của chính test. */
+    private long countAudits(String targetId, AuditAction action) {
+        return auditLogRepository.count((root, query, cb) -> cb.and(
+                cb.equal(root.get("targetId"), targetId),
+                cb.equal(root.get("action"), action)));
+    }
+
     /** Step 5b (BR-EV-A1, BR-TC-13): yêu cầu chế độ sự kiện theo hợp đồng mới — action tường minh + version hiện tại của khu vực. */
     private AreaEventModeUpdateRequest eventReq(UUID areaId, EventModeAction action, OffsetDateTime openUntil,
                                                 String reasonCode, String note) {
@@ -256,7 +268,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         OffsetDateTime start = now.plusDays(1).withNano(0);
         OffsetDateTime end = start.plusHours(3);
 
-        long auditCountBefore = auditLogRepository.count();
+        long auditCountBefore = countAuditsOfArea(internalArea.getId());
 
         EventScheduleResponse res = areaService.createSchedule(
                 internalArea.getId(),
@@ -273,7 +285,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         assertEquals(fmUser.getFullName(), res.createdByName());
 
         // Check 1 audit log AREA_EVENT_SCHEDULE / CREATE
-        assertEquals(auditCountBefore + 1, auditLogRepository.count());
+        assertEquals(auditCountBefore + 1, countAuditsOfArea(internalArea.getId()));
         List<AuditLog> logs = auditLogRepository.findAll().stream()
                 .filter(l -> l.getTargetId().equals(res.id().toString()) && l.getTargetType() == AuditTargetType.AREA_EVENT_SCHEDULE)
                 .toList();
@@ -599,7 +611,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
                 .createdAt(now.minusHours(1))
                 .build());
 
-        long auditCountBefore = auditLogRepository.count();
+        long auditCountBefore = countAudits(internalArea.getId().toString(), AuditAction.ENABLE_EVENT_MODE);
 
         // Kích hoạt qua job
         areaService.processScheduledEventActivations(now);
@@ -619,7 +631,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         assertEquals(fmUser.getId(), createdSession.getStartedBy().getId());
 
         // Kiểm tra 1 audit log ENABLE_EVENT_MODE với actor SYSTEM "EVENT_SCHEDULE_ACTIVATION"
-        assertEquals(auditCountBefore + 1, auditLogRepository.count());
+        assertEquals(auditCountBefore + 1, countAudits(internalArea.getId().toString(), AuditAction.ENABLE_EVENT_MODE));
         List<AuditLog> logs = auditLogRepository.findAll().stream()
                 .filter(l -> l.getTargetId().equals(internalArea.getId().toString()) && l.getAction() == AuditAction.ENABLE_EVENT_MODE)
                 .sorted(java.util.Comparator.comparing(AuditLog::getChangedAt))
