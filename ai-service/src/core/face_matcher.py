@@ -51,7 +51,18 @@ class FaceMatcher:
                        fd.embedding_front::text,
                        COALESCE(u.is_active, true) AS is_active
                 FROM face_data fd 
-                LEFT JOIN users u ON fd.user_id = u.id OR (fd.code = u.user_code AND u.deleted_at IS NULL);
+                LEFT JOIN users u ON fd.user_id = u.id OR (fd.code = u.user_code AND u.deleted_at IS NULL)
+                UNION ALL
+                SELECT g.id::text AS code,
+                       (g.full_name || ' (Khách)') AS full_name,
+                       gfe.embedding::text,
+                       true AS is_active
+                FROM guest_face_embeddings gfe
+                JOIN guests g ON g.id = gfe.guest_id
+                JOIN guest_visits gv ON gv.id = g.visit_id
+                WHERE gv.status = 'APPROVED'
+                  AND g.biometric_status = 'PHOTO_READY'
+                  AND gfe.expires_at > NOW();
             """)
             rows = cur.fetchall()
             

@@ -43,6 +43,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -76,6 +77,12 @@ class AccessDecisionServiceTest {
 
     @Mock
     private com.fa26se040.icss.repository.AreaEventScheduleRepository areaEventScheduleRepository;
+
+    @Mock
+    private com.fa26se040.icss.repository.GuestRepository guestRepository;
+
+    @Mock
+    private com.fa26se040.icss.service.GuestAccessDecisionService guestAccessDecisionService;
 
     @InjectMocks
     private AccessDecisionService accessDecisionService;
@@ -823,5 +830,54 @@ class AccessDecisionServiceTest {
         assertEquals("Phòng Lab 01", res.getAreaName());
         assertEquals("GV001", res.getUserCode());
         assertEquals(AccessSource.ASSIGNED_PERSONNEL, res.getSource());
+    }
+
+    @Test
+    @DisplayName("checkCameraEntry: Khách tham quan hợp lệ -> ALLOWED")
+    void checkCameraEntry_GuestAllowed() {
+        UUID guestId = UUID.randomUUID();
+        com.fa26se040.icss.entity.Guest guest = com.fa26se040.icss.entity.Guest.builder()
+                .id(guestId)
+                .fullName("Khách Thăm Quan A")
+                .build();
+        Camera cam = Camera.builder().cameraCode("CAM-01").area(lab).build();
+
+        when(cameraRepository.findByCameraCodeAndDeletedAtIsNull("CAM-01")).thenReturn(Optional.of(cam));
+        when(userRepository.findByUserCodeAndDeletedAtIsNull(guestId.toString())).thenReturn(Optional.empty());
+        when(guestRepository.findById(guestId)).thenReturn(Optional.of(guest));
+        when(guestAccessDecisionService.checkGuestEntry(eq(guestId), eq(lab.getId()), any()))
+                .thenReturn(com.fa26se040.icss.dto.guest.GuestAccessDecision.allow(UUID.randomUUID()));
+
+        var res = accessDecisionService.checkCameraEntry("CAM-01", guestId.toString(), at(9));
+        assertTrue(res.isAllowed());
+        assertEquals("CAM-01", res.getCameraCode());
+        assertEquals("Phòng Lab 01", res.getAreaName());
+        assertEquals(AccessSource.GUEST_VISIT, res.getSource());
+        assertTrue(res.getFullName().contains("Khách Thăm Quan A"));
+        assertTrue(res.getReason().contains("Khách tham quan hợp lệ"));
+    }
+
+    @Test
+    @DisplayName("checkCameraEntry: Khách tham quan đi sai khu vực -> DENIED")
+    void checkCameraEntry_GuestDenied_WrongArea() {
+        UUID guestId = UUID.randomUUID();
+        com.fa26se040.icss.entity.Guest guest = com.fa26se040.icss.entity.Guest.builder()
+                .id(guestId)
+                .fullName("Khách Thăm Quan B")
+                .build();
+        Camera cam = Camera.builder().cameraCode("CAM-01").area(lab).build();
+
+        when(cameraRepository.findByCameraCodeAndDeletedAtIsNull("CAM-01")).thenReturn(Optional.of(cam));
+        when(userRepository.findByUserCodeAndDeletedAtIsNull(guestId.toString())).thenReturn(Optional.empty());
+        when(guestRepository.findById(guestId)).thenReturn(Optional.of(guest));
+        when(guestAccessDecisionService.checkGuestEntry(eq(guestId), eq(lab.getId()), any()))
+                .thenReturn(com.fa26se040.icss.dto.guest.GuestAccessDecision.deny(
+                        com.fa26se040.icss.enums.GuestEntryDenyReason.AREA_NOT_IN_VISIT, UUID.randomUUID()));
+
+        var res = accessDecisionService.checkCameraEntry("CAM-01", guestId.toString(), at(9));
+        assertFalse(res.isAllowed());
+        assertEquals("CAM-01", res.getCameraCode());
+        assertEquals(AccessSource.NONE, res.getSource());
+        assertTrue(res.getReason().contains("không nằm trong danh sách tiếp đón"));
     }
 }

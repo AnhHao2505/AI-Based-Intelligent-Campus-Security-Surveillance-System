@@ -8,5 +8,6 @@ public enum AccessSource {
     ACCESS_LEVEL,
     OPEN_EVENT,
     ACCESS_REQUEST,
+    GUEST_VISIT,
     NONE
 }
