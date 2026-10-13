@@ -178,3 +178,169 @@
   color: var(--theme-text-muted);
   font-size: 14px;
 }
+
+/* ── Modal chỉnh sửa preset ──
+   Mọi selector nằm dưới .preset-modal-content: .modal-field, .form-control, .modal-actions là tên chung
+   (UserAccessLevelPage.jsx, CameraCreateModal.css) nên không được khai báo ở cấp toàn cục. */
+
+.preset-modal-content {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.preset-modal-content .modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.preset-modal-content .modal-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--theme-text-secondary);
+}
+
+/* Loại khu vực: màu nền / chữ / viền lấy từ style inline theo loại */
+.preset-modal-content .area-type-badge-preview {
+  padding: 12px 14px;
+  border: 1px solid;
+  border-left-width: 4px;
+  border-radius: 10px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* Dropdown cấp độ: ô chọn rõ ràng, mũi tên vẽ bằng gradient theo token màu chữ */
+.preset-modal-content select.form-control {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 40px;
+  padding: 9px 38px 9px 12px;
+  border: 1px solid var(--theme-input-border);
+  border-radius: 8px;
+  background-color: var(--theme-bg-input);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--theme-text-muted) 50%),
+    linear-gradient(135deg, var(--theme-text-muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 19px) 50%,
+    calc(100% - 14px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  color: var(--theme-text-primary);
+  font-size: 14px;
+  line-height: 1.4;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.preset-modal-content select.form-control:hover:not(:disabled) {
+  border-color: var(--theme-primary-border);
+}
+
+.preset-modal-content select.form-control:focus {
+  outline: none;
+  border-color: var(--theme-border-focus);
+  box-shadow: 0 0 0 3px var(--theme-primary-subtle);
+}
+
+.preset-modal-content select.form-control:disabled {
+  background-color: var(--theme-bg-subtle);
+  color: var(--theme-text-disabled);
+  cursor: not-allowed;
+}
+
+.preset-modal-content select.form-control option {
+  background-color: var(--theme-bg-input);
+  color: var(--theme-text-primary);
+}
+
+[data-theme="dark"] .preset-modal-content select.form-control {
+  color-scheme: dark;
+}
+
+.preset-modal-content .field-hint {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--theme-text-muted);
+}
+
+/* Yêu cầu chỉ định: công tắc khoá, chỉ đọc (suy ra từ loại khu vực) */
+.preset-modal-content .explicit-toggle-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px dashed var(--theme-border);
+  border-radius: 8px;
+  background: var(--theme-bg-subtle);
+  cursor: not-allowed;
+}
+
+.preset-modal-content .switch-disabled {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  width: 38px;
+  height: 22px;
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.preset-modal-content .switch-disabled input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.preset-modal-content .switch-slider {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--theme-border-hover);
+}
+
+.preset-modal-content .switch-slider::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  box-sizing: border-box;
+  border: 1px solid var(--theme-border);
+  background: var(--theme-bg-surface);
+  transition: transform 0.15s ease;
+}
+
+.preset-modal-content .switch-disabled input:checked + .switch-slider {
+  background: var(--theme-primary);
+}
+
+.preset-modal-content .switch-disabled input:checked + .switch-slider::before {
+  transform: translateX(16px);
+}
+
+.preset-modal-content .explicit-status-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--theme-text-secondary);
+}
+
+/* Nút Huỷ / Lưu: căn phải, ngăn với phần trên bằng đường kẻ mảnh */
+.preset-modal-content .modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+  padding-top: 16px;
+  border-top: 1px solid var(--theme-border);
+}
