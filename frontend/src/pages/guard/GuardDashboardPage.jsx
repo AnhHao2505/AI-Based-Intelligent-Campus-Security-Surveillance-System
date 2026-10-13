@@ -1122,26 +1122,6 @@ export function SecuritySurveillancePage() {
 								</div>
 							)}
 						</div>
-
-						{/* ──────────────────────────── (Đường phân cách) */}
-						<div className="soc-panel-divider" />
-
-						{/* ┌──────────────────────────────┐
-						    │ Camera online          3/4   │
-						    │ Đang ghi hình           3    │
-						    └──────────────────────────────┘ */}
-						<div className="soc-system-status-footer">
-							<div className="soc-stat-row">
-								<span className="soc-stat-label">Camera online</span>
-								<span className="soc-stat-value">
-									{onlineCameraCount}/{totalCameraCount}
-								</span>
-							</div>
-							<div className="soc-stat-row">
-								<span className="soc-stat-label">Đang ghi hình</span>
-								<span className="soc-stat-value">{recordingCameraCount}</span>
-							</div>
-						</div>
 					</div>
 				)}
 			</div>
