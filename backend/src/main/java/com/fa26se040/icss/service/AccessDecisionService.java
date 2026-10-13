@@ -208,6 +208,8 @@ public class AccessDecisionService {
                                 case AREA_TYPE_NOT_ALLOWED -> "Loại khu vực không tiếp nhận khách";
                                 case HOST_LOST_ACCESS -> "Người tiếp đón (Host) không còn quyền truy cập khu vực";
                                 case BIOMETRIC_DELETED -> "Dữ liệu sinh trắc học của khách đã bị xoá";
+                                case BIOMETRIC_NOT_READY -> "Dữ liệu sinh trắc học của khách chưa sẵn sàng";
+                                default -> "Khách không có quyền vào khu vực này";
                             } : "Khách không có quyền vào khu vực này");
 
                     return CheckCameraEntryResponse.builder()
