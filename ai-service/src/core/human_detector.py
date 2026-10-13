@@ -5,10 +5,10 @@ from .entity import BoundingBox
 
 class HumanDetector:
     """
-    Module phát hiện & theo dõi con người sử dụng YOLOv8 và thuật toán ByteTrack.
+    Module phát hiện & theo dõi con người sử dụng YOLO11 và thuật toán ByteTrack.
     Chỉ kích hoạt class 0 (Person) nhằm tối đa hóa hiệu năng và tốc độ xử lý Realtime.
     """
-    def __init__(self, model_path: str = "yolov8n.pt", conf_threshold: float = 0.5):
+    def __init__(self, model_path: str = "yolo11n.pt", conf_threshold: float = 0.5):
         self.model_path = model_path
         self.conf_threshold = conf_threshold
         self.model = YOLO(model_path)
@@ -21,7 +21,7 @@ class HumanDetector:
         if frame is None or frame.size == 0:
             return []
 
-        # Chạy YOLOv8 tracking chỉ với class=0 (person)
+        # Chạy YOLO11 tracking chỉ với class=0 (person)
         # tracker="bytetrack.yaml" được tích hợp sẵn trong Ultralytics
         results = self.model.track(
             source=frame,

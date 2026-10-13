@@ -1,17 +1,10 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useImperativeHandle, forwardRef } from "react";
 import "../../styles/WebRtcPlayer.css";
 
 /**
  * WebRtcPlayer: Component phát luồng video WebRTC (WHEP) từ MediaMTX với chuẩn giao diện OSD CCTV chuyên nghiệp.
- *
- * Bố cục OSD theo yêu cầu:
- * - Góc trái trên: Tên camera đứng 1 mình (ví dụ "Cổng chính")
- * - Phía trên (giữa/phải): ● LIVE   ● REC   [Đồng hồ thời gian thực HH:mm:ss]
- * - Góc trái dưới: Mã camera kèm thông số: [CAM-001 • 1080p • 30 FPS]
- * - Góc phải dưới: [Đồng hồ thời gian thực HH:mm:ss]
- * - Khi mất kết nối: Màn hình đen thuần (#000000) chuẩn màn hình CCTV giám sát an ninh
  */
-export default function WebRtcPlayer({
+const WebRtcPlayer = forwardRef(function WebRtcPlayer({
 	streamPath = "cam01",
 	cameraCode = "CAM-001",
 	cameraName = "Cổng chính",
@@ -23,11 +16,32 @@ export default function WebRtcPlayer({
 	muted = true,
 	onStatusChange = null,
 	onToggleMaximize = null,
-}) {
+}, ref) {
 	const videoRef = useRef(null);
 	const pcRef = useRef(null);
 	const [status, setStatus] = useState("connecting"); // 'connecting' | 'live' | 'error' | 'offline'
 	const [errorMsg, setErrorMsg] = useState("");
+
+	useImperativeHandle(ref, () => ({
+		captureFrame: () => {
+			if (!videoRef.current || videoRef.current.videoWidth === 0) return null;
+			const v = videoRef.current;
+			const w = v.videoWidth || 1920;
+			const h = v.videoHeight || 1080;
+			const canvas = document.createElement("canvas");
+			canvas.width = w;
+			canvas.height = h;
+			const ctx = canvas.getContext("2d");
+			ctx.drawImage(v, 0, 0, w, h);
+			return {
+				base64: canvas.toDataURL("image/jpeg", 0.95),
+				width: w,
+				height: h,
+			};
+		},
+		getVideoElement: () => videoRef.current,
+		getStatus: () => status,
+	}));
 	const [retryCount, setRetryCount] = useState(0);
 
 	// Đồng hồ số chạy thời gian thực mỗi 1 giây chuẩn CCTV (HH:mm:ss)
@@ -52,7 +66,10 @@ export default function WebRtcPlayer({
 
 			try {
 				peerConnection = new RTCPeerConnection({
-					iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+					iceServers: [
+						{ urls: "stun:stun.l.google.com:19302" },
+						{ urls: "stun:stun1.l.google.com:19302" },
+					],
 				});
 				pcRef.current = peerConnection;
 
@@ -60,8 +77,12 @@ export default function WebRtcPlayer({
 				peerConnection.addTransceiver("video", { direction: "recvonly" });
 
 				peerConnection.ontrack = (event) => {
-					if (videoRef.current && event.streams && event.streams[0]) {
-						videoRef.current.srcObject = event.streams[0];
+					if (videoRef.current) {
+						if (event.streams && event.streams[0]) {
+							videoRef.current.srcObject = event.streams[0];
+						} else if (event.track) {
+							videoRef.current.srcObject = new MediaStream([event.track]);
+						}
 						if (isMounted) {
 							setStatus("live");
 							if (onStatusChange) onStatusChange("live");
@@ -74,11 +95,13 @@ export default function WebRtcPlayer({
 					const state = peerConnection.connectionState;
 					if (state === "connected") {
 						setStatus("live");
+						if (onStatusChange) onStatusChange("live");
 					} else if (state === "disconnected" || state === "failed") {
 						setStatus("offline");
+						if (onStatusChange) onStatusChange("offline");
 						setTimeout(() => {
 							if (isMounted) setRetryCount((prev) => prev + 1);
-						}, 3000);
+						}, 1500); // Giảm từ 3s → 1.5s để tái kết nối nhanh hơn trên LAN
 					}
 				};
 
@@ -115,7 +138,7 @@ export default function WebRtcPlayer({
 					if (onStatusChange) onStatusChange("offline");
 					setTimeout(() => {
 						if (isMounted) setRetryCount((prev) => prev + 1);
-					}, 4000);
+					}, 2000); // Giảm từ 4s → 2s để tái kết nối nhanh hơn trên LAN
 				}
 			}
 		}
@@ -144,6 +167,14 @@ export default function WebRtcPlayer({
 				muted={muted}
 				playsInline
 				className={`cctv-video-element ${status === "live" ? "active" : ""}`}
+				onPlaying={() => {
+					setStatus("live");
+					if (onStatusChange) onStatusChange("live");
+				}}
+				onLoadedMetadata={() => {
+					setStatus("live");
+					if (onStatusChange) onStatusChange("live");
+				}}
 			/>
 
 			{/* ┌──────────────────────────────────────────────────────────────┐
@@ -225,4 +256,6 @@ export default function WebRtcPlayer({
 			)}
 		</div>
 	);
-}
+});
+
+export default WebRtcPlayer;

@@ -113,14 +113,23 @@ class FrameVisualizer:
         for p in persons:
             x1, y1, x2, y2 = p.bbox.to_int_xyxy()
 
-            if p.alert_unauthorized_sent:
-                box_color = (0, 0, 255) # Đỏ: Báo động vi phạm
-                status_text = "XAM NHAP TRAI PHEP!"
+            # 1. Neu da xac dinh danh tinh trong DB va HOP LE
+            if p.face_detected and p.face_info and p.face_info.matched_code and p.face_info.is_authorized:
+                box_color = (0, 255, 0)  # Xanh la: Hop le
+                status_text = "[HOP LE]"
+            # 2. Neu khong co quyen (UNAUTHORIZED)
+            elif p.alert_unauthorized_sent or (p.face_detected and p.face_info and p.face_info.matched_code and not p.face_info.is_authorized):
+                box_color = (0, 0, 255)  # Do: Khong phep
+                status_text = "[NGOAI GIO] [KHONG PHEP]" if getattr(p, "alert_after_hours_sent", False) else "[KHONG PHEP]"
+            # 3. Neu la nguoi la / chua ro mat trong vung cam (UNKNOWN)
+            elif getattr(p, "alert_unknown_sent", False):
+                box_color = (0, 0, 255) if getattr(p, "alert_after_hours_sent", False) else (0, 140, 255)  # Do ban dem, Cam ban ngay
+                status_text = "[NGOAI GIO] [UNKNOWN]" if getattr(p, "alert_after_hours_sent", False) else "[TRONG GIO] [UNKNOWN]"
             elif p.is_in_roi:
-                box_color = (0, 165, 255) # Cam: Đang trong vùng cấm
+                box_color = (0, 165, 255)  # Cam: Dang trong vung cam (chua xac minh mat)
                 status_text = "Trong ROI"
             else:
-                box_color = (0, 255, 0) # Xanh lá: Bình thường
+                box_color = (0, 255, 0)  # Xanh la: Binh thuong
                 status_text = "Binh thuong"
 
             cv2.rectangle(frame, (x1, y1), (x2, y2), box_color, 2)
@@ -128,9 +137,10 @@ class FrameVisualizer:
             face_str = "Chua ro mat"
             if p.face_detected and p.face_info:
                 if p.face_info.matched_name:
-                    face_str = f"Mat: {p.face_info.matched_name}"
+                    perm_tag = "HOP LE" if p.face_info.is_authorized else "KHONG PHEP"
+                    face_str = f"Mat: {p.face_info.matched_name} [{perm_tag}]"
                 else:
-                    face_str = f"Mat ({int(p.face_info.score * 100)}%)"
+                    face_str = f"NGUOI LA ({int(p.face_info.score * 100)}%)"
 
             label = f"ID:#{p.track_id} | {status_text} | {face_str}"
             (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.45, 1)

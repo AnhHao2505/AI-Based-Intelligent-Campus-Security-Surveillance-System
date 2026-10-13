@@ -59,6 +59,8 @@ class VideoPipeline:
         self.analysis_engine = FrameAnalysisEngine(after_hour_start=ah_start, after_hour_end=ah_end)
 
         # Khởi tạo các module tích hợp
+        from concurrent.futures import ThreadPoolExecutor
+        self.executor = ThreadPoolExecutor(max_workers=2)
         self.kafka_producer = SecurityKafkaProducer()
         self.storage_service = StorageService()
         self.visualizer = FrameVisualizer()
@@ -122,6 +124,12 @@ class VideoPipeline:
             if track_id < 0:
                 continue
 
+            # Tối ưu hiệu năng: Nếu Track ID này đã nhận diện được danh tính trong active_tracks,
+            # ByteTrack tiếp tục bám theo mượt mà mà không cần chạy lại YuNet + ArcFace + pgvector mỗi frame!
+            existing = self.analysis_engine.active_tracks.get(track_id)
+            if existing and existing.face_detected and existing.face_info and existing.face_info.matched_code:
+                continue
+
             x1, y1, x2, y2 = bbox.to_int_xyxy()
             x1, y1 = max(0, x1), max(0, y1)
             x2, y2 = min(w, x2), min(h, y2)
@@ -141,12 +149,27 @@ class VideoPipeline:
                         fx2, fy2 = min(w, fx2), min(h, fy2)
                         face_crop = frame[fy1:fy2, fx1:fx2]
                         if face_crop.size > 0:
-                            match = self.face_matcher.match_face(face_crop, threshold=settings.FACE_MATCH_THRESHOLD)
+                            crop_landmarks = None
+                            if face_result.landmarks:
+                                crop_landmarks = [(pt[0] - fx1, pt[1] - fy1) for pt in face_result.landmarks]
+                            match = self.face_matcher.match_face(
+                                face_crop,
+                                threshold=settings.FACE_MATCH_THRESHOLD,
+                                landmarks=crop_landmarks
+                            )
                             if match:
-                                code, name, score = match
+                                code, name, score, is_active = match
                                 face_result.matched_code = code
                                 face_result.matched_name = name
-                                face_result.is_authorized = True
+                                face_result.is_active = is_active
+
+                                # Thẩm định quyền ra vào thực tế tại camera này qua Backend checkEntry
+                                is_allowed, access_reason, area_name = self.face_matcher.check_camera_access(
+                                    self.camera_code, code
+                                )
+                                face_result.is_authorized = is_allowed
+                                face_result.access_reason = access_reason
+                                face_result.area_name = area_name
 
                         self.analysis_engine.associate_face(track_id, face_result)
 
@@ -160,26 +183,19 @@ class VideoPipeline:
             frame_size=(w, h)
         )
 
-        # 5. Xử lý lưu bằng chứng và gửi cảnh báo tự động
-        for alert in alerts:
-            snapshot_frame = frame.copy()
-            snapshot_frame = FrameVisualizer.draw_all_rois(
-                snapshot_frame,
-                polygons=self.roi_polygons if self.roi_polygons else (self.roi_polygon if self.roi_polygon else None)
-            )
-            snapshot_frame = self.visualizer.draw_tracked_persons(
-                snapshot_frame,
-                active_persons
-            )
-            
-            evidence_url = self.storage_service.upload_frame_evidence(
-                snapshot_frame,
-                self.camera_code,
-                alert.track_id
-            )
-            alert.image_url = evidence_url
-
-            self.kafka_producer.send_alert(alert)
+        # 5. Xử lý lưu bằng chứng và gửi cảnh báo tự động ngầm (Async không chặn luồng video)
+        if alerts:
+            for alert in alerts:
+                snapshot_frame = frame.copy()
+                snapshot_frame = FrameVisualizer.draw_all_rois(
+                    snapshot_frame,
+                    polygons=self.roi_polygons if self.roi_polygons else (self.roi_polygon if self.roi_polygon else None)
+                )
+                snapshot_frame = self.visualizer.draw_tracked_persons(
+                    snapshot_frame,
+                    active_persons
+                )
+                self.executor.submit(self._dispatch_alert_async, alert, snapshot_frame)
 
         # 6. Render các lớp đồ họa lên khung hình hiển thị (Overlay Annotations)
         annotated_frame = frame.copy()
@@ -193,4 +209,18 @@ class VideoPipeline:
         )
         
         return annotated_frame, active_persons, alerts
+
+    def _dispatch_alert_async(self, alert: SecurityAlertEvent, snapshot_frame: np.ndarray):
+        try:
+            evidence_url = self.storage_service.upload_frame_evidence(
+                snapshot_frame,
+                self.camera_code,
+                alert.track_id,
+                event_type=alert.event_type
+            )
+            alert.image_url = evidence_url
+            self.kafka_producer.send_alert(alert)
+        except Exception as e:
+            logger.error(f"Lỗi gửi cảnh báo ngầm sang Kafka/MinIO: {e}")
+
 

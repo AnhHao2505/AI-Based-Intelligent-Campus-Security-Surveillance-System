@@ -1,5 +1,6 @@
 package com.fa26se040.icss.dto.camera;
 
+import com.fa26se040.icss.enums.OperationalStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -24,4 +25,5 @@ public class CameraStreamConfigResponse {
     private Integer retryTimeBeforeAlerting;
     private Integer timeoutMs;
     private OffsetDateTime updatedAt;
+    private OperationalStatus operationalStatus;
 }

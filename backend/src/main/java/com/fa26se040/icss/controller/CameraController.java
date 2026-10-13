@@ -126,9 +126,11 @@ public class CameraController {
 
     @PostMapping("/{id}/test-connection")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<TestConnectionResponse>> testConnection(@PathVariable UUID id) {
+    public ResponseEntity<ApiResponse<TestConnectionResponse>> testConnection(
+            @PathVariable UUID id,
+            @RequestBody(required = false) CameraStreamConfigRequest req) {
         log.info("REST request to test RTSP stream connection for camera: {}", id);
-        TestConnectionResponse response = cameraSnapshotService.testConnection(id);
+        TestConnectionResponse response = cameraSnapshotService.testConnection(id, req);
         return ResponseEntity.ok(ApiResponse.success(response, "Kiểm tra kết nối camera hoàn tất"));
     }
 

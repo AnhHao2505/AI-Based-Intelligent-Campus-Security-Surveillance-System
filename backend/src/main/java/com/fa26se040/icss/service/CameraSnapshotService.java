@@ -1,5 +1,6 @@
 package com.fa26se040.icss.service;
 
+import com.fa26se040.icss.dto.camera.CameraStreamConfigRequest;
 import com.fa26se040.icss.dto.camera.ConnectStreamResponse;
 import com.fa26se040.icss.dto.camera.TestConnectionResponse;
 import com.fa26se040.icss.entity.Camera;
@@ -95,6 +96,19 @@ public class CameraSnapshotService {
             // Đồng bộ sang MediaMTX Gateway để đảm bảo path đã được đăng ký
             mediaMtxService.syncCameraPath(camera.getCameraCode(), rtspUrl);
 
+            // Kích hoạt AI Stream Worker phân tích người & khuôn mặt theo thời gian thực
+            try {
+                String streamStartUrl = aiServiceUrl + "/api/v1/stream/start";
+                String workerRtspUrl = rtspUrl;
+                restTemplate.postForObject(streamStartUrl, Map.of(
+                        "camera_code", camera.getCameraCode(),
+                        "rtsp_url", workerRtspUrl
+                ), Map.class);
+                log.info("✅ Đã kích hoạt AI Stream Worker cho camera [{}] tại luồng {}", camera.getCameraCode(), workerRtspUrl);
+            } catch (Exception ex) {
+                log.warn("⚠️ Không thể tự động kích hoạt AI Stream Worker cho camera [{}]: {}", camera.getCameraCode(), ex.getMessage());
+            }
+
             // Cập nhật operationalStatus = ONLINE
             camera.setOperationalStatus(OperationalStatus.ONLINE);
             camera.setUpdatedAt(OffsetDateTime.now());
@@ -148,16 +162,49 @@ public class CameraSnapshotService {
     }
 
     /**
-     * "Thử kết nối": Chỉ kiểm tra kết nối luồng RTSP qua AI-service.
-     * KHÔNG thay đổi operationalStatus, KHÔNG ghi health log, KHÔNG lưu snapshot.
+     * "Thử kết nối": Kiểm tra kết nối luồng RTSP qua AI-service.
+     * Cập nhật operationalStatus (ONLINE/OFFLINE) và ghi CameraHealthLog tương ứng.
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public TestConnectionResponse testConnection(UUID cameraId) {
+        return testConnection(cameraId, null);
+    }
 
-        CameraStreamConfiguration config = streamConfigRepo.findByCameraId(cameraId)
-                .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_STREAM_001));
+    @Transactional
+    public TestConnectionResponse testConnection(UUID cameraId, CameraStreamConfigRequest customReq) {
+        Camera camera = cameraRepository.findById(cameraId)
+                .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_CAM_002));
 
-        String rtspUrl = cameraService.buildRtspUrl(config);
+        CameraStreamConfiguration config = streamConfigRepo.findByCameraId(cameraId).orElse(null);
+
+        String rtspUrl = null;
+        int timeout = 5000;
+
+        if (customReq != null && customReq.getHost() != null && !customReq.getHost().isBlank()) {
+            String password = customReq.getEffectivePassword();
+            if ((password == null || password.isBlank()) && config != null && config.getCredentialRef() != null) {
+                password = cameraService.decryptCredential(config.getCredentialRef());
+            }
+            rtspUrl = cameraService.buildRtspUrlWithCredentials(
+                    customReq.getHost(),
+                    customReq.getPort(),
+                    customReq.getUsername(),
+                    password,
+                    customReq.getMainStreamPath()
+            );
+            if (customReq.getTimeoutMs() != null && customReq.getTimeoutMs() > 0) {
+                timeout = customReq.getTimeoutMs();
+            }
+        } else {
+            if (config == null) {
+                throw new CameraException(CameraErrorCode.ERR_STREAM_001);
+            }
+            rtspUrl = cameraService.buildRtspUrl(config);
+            if (config.getTimeoutMs() != null && config.getTimeoutMs() > 0) {
+                timeout = config.getTimeoutMs();
+            }
+        }
+
         if (rtspUrl == null || rtspUrl.isBlank()) {
             throw new CameraException(CameraErrorCode.ERR_STREAM_001);
         }
@@ -167,7 +214,6 @@ public class CameraSnapshotService {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
 
-            int timeout = (config.getTimeoutMs() != null && config.getTimeoutMs() > 0) ? config.getTimeoutMs() : 5000;
             Map<String, Object> body = Map.of(
                     "rtsp_url", rtspUrl,
                     "timeout_ms", timeout
@@ -177,17 +223,44 @@ public class CameraSnapshotService {
             Map<String, Object> response = restTemplate.postForObject(aiEndpoint, request, Map.class);
 
             if (response == null || !Boolean.TRUE.equals(response.get("success"))) {
+                camera.setOperationalStatus(OperationalStatus.OFFLINE);
+                camera.setUpdatedAt(OffsetDateTime.now());
+                cameraRepository.save(camera);
+
+                CameraHealthLog healthLog = CameraHealthLog.builder()
+                        .camera(camera)
+                        .status(OperationalStatus.OFFLINE)
+                        .checkedAt(OffsetDateTime.now())
+                        .errorMessage("Kiểm tra kết nối RTSP thất bại: Không nhận được phản hồi từ camera")
+                        .build();
+                healthLogRepo.save(healthLog);
+
                 return TestConnectionResponse.builder()
                         .success(false)
+                        .operationalStatus(OperationalStatus.OFFLINE)
                         .message("Không thể kết nối đến luồng RTSP của camera")
                         .build();
             }
 
+            camera.setOperationalStatus(OperationalStatus.ONLINE);
+            camera.setUpdatedAt(OffsetDateTime.now());
+            cameraRepository.save(camera);
+
             Number latencyNumber = (Number) response.get("latency_ms");
             Long latency = latencyNumber != null ? latencyNumber.longValue() : null;
 
+            CameraHealthLog healthLog = CameraHealthLog.builder()
+                    .camera(camera)
+                    .status(OperationalStatus.ONLINE)
+                    .checkedAt(OffsetDateTime.now())
+                    .latencyMs(latency != null ? latency.intValue() : null)
+                    .errorMessage("Kiểm tra kết nối luồng RTSP thành công")
+                    .build();
+            healthLogRepo.save(healthLog);
+
             return TestConnectionResponse.builder()
                     .success(true)
+                    .operationalStatus(OperationalStatus.ONLINE)
                     .latencyMs(latency)
                     .message("Kết nối thành công tới luồng RTSP (Độ trễ: " + (latency != null ? latency + "ms" : "N/A") + ")")
                     .build();
@@ -196,8 +269,21 @@ public class CameraSnapshotService {
             throw ce;
         } catch (Exception e) {
             log.error("AI-service test connection failed for camera [{}]: {}", cameraId, e.getMessage());
+            camera.setOperationalStatus(OperationalStatus.OFFLINE);
+            camera.setUpdatedAt(OffsetDateTime.now());
+            cameraRepository.save(camera);
+
+            CameraHealthLog healthLog = CameraHealthLog.builder()
+                    .camera(camera)
+                    .status(OperationalStatus.OFFLINE)
+                    .checkedAt(OffsetDateTime.now())
+                    .errorMessage("Kiểm tra kết nối RTSP thất bại: " + e.getMessage())
+                    .build();
+            healthLogRepo.save(healthLog);
+
             return TestConnectionResponse.builder()
                     .success(false)
+                    .operationalStatus(OperationalStatus.OFFLINE)
                     .message("Kiểm tra kết nối thất bại: " + e.getMessage())
                     .build();
         }

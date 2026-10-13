@@ -78,6 +78,7 @@ export default function CameraStreamTab({
           <input
             type="text"
             placeholder="admin"
+            autoComplete="off"
             value={streamForm.username}
             onChange={(e) =>
               setStreamForm({
@@ -106,6 +107,7 @@ export default function CameraStreamTab({
           </label>
           <input
             type="password"
+            autoComplete="new-password"
             placeholder={
               camera?.streamConfig?.isPasswordConfigured
                 ? "•••••••• (Đã mã hóa và lưu bảo mật)"
@@ -190,7 +192,7 @@ export default function CameraStreamTab({
           className="btn-test-stream"
           onClick={onTestConnection}
           disabled={testingConnection || saving}
-          title="Kiểm tra tín hiệu luồng RTSP mà không thay đổi trạng thái hoạt động"
+          title="Kiểm tra tín hiệu luồng RTSP và cập nhật trạng thái hoạt động của camera"
         >
           {testingConnection ? (
             <>

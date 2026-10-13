@@ -28,6 +28,7 @@ class FrameAnalysisEngine:
         self.after_hour_start = after_hour_start or settings.DEFAULT_AFTER_HOUR_START
         self.after_hour_end = after_hour_end or settings.DEFAULT_AFTER_HOUR_END
         self.active_tracks: Dict[int, TrackedPerson] = {}
+        self.pending_faces: Dict[int, FaceDetectionResult] = {}
 
     def process_frame(
         self,
@@ -51,8 +52,13 @@ class FrameAnalysisEngine:
         try:
             start = datetime.strptime(self.after_hour_start, "%H:%M").time()
             end = datetime.strptime(self.after_hour_end, "%H:%M").time()
-            after_hours = (start <= now < end) if start < end else (now >= start or now < end)
-        except ValueError:
+            if start == end:
+                after_hours = False
+            elif start < end:
+                after_hours = (start <= now < end)
+            else:
+                after_hours = (now >= start or now < end)
+        except (ValueError, TypeError):
             after_hours = False
 
         generated_alerts: List[SecurityAlertEvent] = []
@@ -102,10 +108,16 @@ class FrameAnalysisEngine:
                     first_seen_time=current_time,
                     last_seen_time=current_time
                 )
+                if track_id in self.pending_faces:
+                    person.face_detected = True
+                    person.face_info = self.pending_faces.pop(track_id)
                 self.active_tracks[track_id] = person
             else:
                 person = self.active_tracks[track_id]
                 person.update_position(bbox, current_time)
+                if track_id in self.pending_faces:
+                    person.face_detected = True
+                    person.face_info = self.pending_faces.pop(track_id)
 
             # Kiểm tra nằm trong Surveillance Polygons
             in_roi = False
@@ -128,33 +140,84 @@ class FrameAnalysisEngine:
 
             if person.is_in_roi:
                 loc_info = {"label": matched_label} if matched_label else None
+                target_area_name = getattr(person.face_info, "area_name", None) if person.face_info else None
+                area_display = target_area_name or matched_label or "khu vực giám sát"
 
-                # Sự cố 1: AFTER_HOURS
-                if after_hours and not person.alert_after_hours_sent:
-                    generated_alerts.append(SecurityAlertEvent(
-                        camera_code=camera_code,
-                        event_type="AFTER_HOURS_PRESENCE",
-                        track_id=person.track_id,
-                        confidence=person.bbox.confidence,
-                        details=f"Phát hiện người trong khu vực {matched_label or 'giám sát'} ngoài giờ hoạt động.",
-                        location=loc_info
-                    ))
-                    person.alert_after_hours_sent = True
+                # 1. TRƯỜNG HỢP CÓ TRONG DATABASE (Đã xác định được danh tính)
+                if person.face_detected and person.face_info and person.face_info.matched_code:
+                    matched_code = person.face_info.matched_code
+                    matched_name = person.face_info.matched_name
+                    is_active = getattr(person.face_info, "is_active", True)
+                    is_authorized = person.face_info.is_authorized
+                    reason_str = getattr(person.face_info, "access_reason", None) or "Không có quyền ra vào khu vực này."
 
-                # Sự cố 2: UNAUTHORIZED hoặc UNKNOWN
-                if person.face_detected and person.face_info:
-                    if not person.face_info.is_authorized:
+                    # Kiểm tra ngoại lệ trực đêm / làm ngoài giờ:
+                    is_night_authorized = False
+                    if is_authorized:
+                        reason_lower = (reason_str or "").lower()
+                        # Ban đêm chỉ được phép nếu có phân công trực ca hoặc có đơn duyệt ngoài giờ
+                        if after_hours:
+                            if "gán" in reason_lower or "đơn" in reason_lower or "phân công" in reason_lower or "lịch trực" in reason_lower:
+                                is_night_authorized = True
+                        else:
+                            is_night_authorized = True
+
+                    if is_night_authorized:
+                        # Người có thẩm quyền hợp lệ: Không sinh sự cố vi phạm
+                        pass
+                    else:
+                        # Vi phạm không có quyền (UNAUTHORIZED_ACCESS)
                         if not person.alert_unauthorized_sent:
+                            if after_hours:
+                                tag_prefix = "[AFTER_HOURS_PRESENCE] [UNAUTHORIZED_ACCESS]"
+                                if not is_active:
+                                    detail_msg = f"{tag_prefix} Phát hiện tài khoản bị vô hiệu hóa ngoài giờ quy định: {matched_name} ({matched_code}) tại {area_display}."
+                                else:
+                                    detail_msg = f"{tag_prefix} Phát hiện người trong trường không có quyền ngoài giờ: {matched_name} ({matched_code}) tại {area_display}. Lý do: {reason_str}"
+                            else:
+                                tag_prefix = "[TRONG_GIO] [UNAUTHORIZED_ACCESS]"
+                                if not is_active:
+                                    detail_msg = f"{tag_prefix} Phát hiện tài khoản bị vô hiệu hóa: {matched_name} ({matched_code}) tại {area_display}."
+                                else:
+                                    detail_msg = f"{tag_prefix} Phát hiện đối tượng không được phép: {matched_name} ({matched_code}) tại {area_display}. Lý do: {reason_str}"
+
                             alert = SecurityAlertEvent(
                                 camera_code=camera_code,
-                                event_type="UNAUTHORIZED",
+                                event_type="UNAUTHORIZED_ACCESS",
                                 track_id=person.track_id,
                                 confidence=person.bbox.confidence,
-                                details=f"Phát hiện đối tượng không được phép {person.face_info.matched_name or 'Chưa rõ'} tại vùng {matched_label or 'giám sát'}.",
+                                details=detail_msg,
                                 location=loc_info
                             )
                             generated_alerts.append(alert)
                             person.alert_unauthorized_sent = True
+                            person.alert_after_hours_sent = True  # Đã ghi nhận cờ ngoài giờ
+
+                # 2. TẤT CẢ CÁC TRƯỜNG HỢP CÒN LẠI (Người lạ ngoài hệ thống HOẶC Chưa rõ mặt / Che mặt)
+                # Theo quy tắc: Chưa rõ mặt hoặc không có trong DB đều gán UNKNOWN_PERSON
+                else:
+                    if not getattr(person, "alert_unknown_sent", False):
+                        is_face_clear = person.face_detected and person.face_info
+                        face_note = "người lạ ngoài hệ thống" if is_face_clear else "chưa rõ mặt"
+                        if after_hours:
+                            tag_prefix = "[AFTER_HOURS_PRESENCE] [UNKNOWN_PERSON]"
+                            detail_msg = f"{tag_prefix} Phát hiện đối tượng chưa rõ danh tính / người lạ ({face_note}) ngoài giờ hoạt động tại {area_display}."
+                        else:
+                            tag_prefix = "[TRONG_GIO] [UNKNOWN_PERSON]"
+                            detail_msg = f"{tag_prefix} Phát hiện đối tượng chưa đăng ký / người lạ ({face_note}) tại {area_display}."
+
+                        alert = SecurityAlertEvent(
+                            camera_code=camera_code,
+                            event_type="UNKNOWN_PERSON",
+                            track_id=person.track_id,
+                            confidence=person.bbox.confidence,
+                            details=detail_msg,
+                            location=loc_info
+                        )
+                        generated_alerts.append(alert)
+                        person.alert_unknown_sent = True
+                        if after_hours:
+                            person.alert_after_hours_sent = True
 
         inactive_ids = []
         for tid, p in self.active_tracks.items():
@@ -164,11 +227,16 @@ class FrameAnalysisEngine:
 
         for tid in inactive_ids:
             del self.active_tracks[tid]
+            if tid in self.pending_faces:
+                del self.pending_faces[tid]
 
         return list(self.active_tracks.values()), generated_alerts
 
     def associate_face(self, track_id: int, face_result: FaceDetectionResult):
-        if track_id in self.active_tracks and face_result is not None:
+        if face_result is None:
+            return
+        if track_id in self.active_tracks:
             self.active_tracks[track_id].face_detected = True
             self.active_tracks[track_id].face_info = face_result
-
+        else:
+            self.pending_faces[track_id] = face_result

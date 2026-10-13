@@ -1,9 +1,11 @@
 package com.fa26se040.icss.service;
 
 import com.fa26se040.icss.dto.accessdecision.AccessDecision;
+import com.fa26se040.icss.dto.accessdecision.CheckCameraEntryResponse;
 import com.fa26se040.icss.entity.AccessRequest;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.AreaAssignedPersonnel;
+import com.fa26se040.icss.entity.Camera;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.AccessSource;
 import com.fa26se040.icss.enums.AreaLevel;
@@ -11,8 +13,12 @@ import com.fa26se040.icss.enums.RequestStatus;
 import com.fa26se040.icss.repository.AccessRequestRepository;
 import com.fa26se040.icss.repository.AreaAssignedPersonnelRepository;
 import com.fa26se040.icss.repository.AreaRepository;
+import com.fa26se040.icss.repository.CameraRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import com.fa26se040.icss.dto.guest.GuestAccessDecision;
+import com.fa26se040.icss.entity.Guest;
+import com.fa26se040.icss.repository.GuestRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,9 +30,8 @@ import java.util.UUID;
 /**
  * Điểm xét quyền ra vào DUY NHẤT của hệ thống.
  *
- * <p>Đây là điểm bàn giao cho module AI (làm sau): hiện CHƯA có endpoint nào gọi, và không nơi nào
- * khác trong backend được tự xét quyền ra vào. Module nào cần biết "user X có được vào area Y lúc T
- * không" thì gọi {@link #checkEntry(UUID, UUID, OffsetDateTime)}.</p>
+ * <p>Đây là điểm bàn giao cho module AI: phục vụ xét quyền ra vào khuôn viên trường học
+ * thông qua phương thức {@link #checkEntry(UUID, UUID, OffsetDateTime)} và {@link #checkCameraEntry(String, String, OffsetDateTime)}.</p>
  */
 @Service
 @RequiredArgsConstructor
@@ -34,9 +39,12 @@ public class AccessDecisionService {
 
     private final UserRepository userRepository;
     private final AreaRepository areaRepository;
+    private final CameraRepository cameraRepository;
     private final AreaAssignedPersonnelRepository assignedPersonnelRepository;
     private final AccessRequestRepository accessRequestRepository;
     private final com.fa26se040.icss.repository.AreaEventScheduleRepository areaEventScheduleRepository;
+    private final GuestRepository guestRepository;
+    private final GuestAccessDecisionService guestAccessDecisionService;
 
     /**
      * Xét user có được vào area tại thời điểm at hay không. Thứ tự kiểm:
@@ -135,5 +143,92 @@ public class AccessDecisionService {
 
         // 6. Không có nguồn cấp quyền nào -> deny NONE
         return AccessDecision.denied("Không có quyền ra vào khu vực tại thời điểm này");
+    }
+
+    /**
+     * Xét quyền ra vào dựa trên mã Camera và mã Người dùng (phục vụ module AI Face Recognition).
+     */
+    @Transactional(readOnly = true)
+    public CheckCameraEntryResponse checkCameraEntry(String cameraCode, String userCode, OffsetDateTime at) {
+        if (at == null) {
+            at = OffsetDateTime.now();
+        }
+        if (cameraCode == null || cameraCode.isBlank()) {
+            return CheckCameraEntryResponse.denied(cameraCode, userCode, "Mã camera không được để trống");
+        }
+        if (userCode == null || userCode.isBlank()) {
+            return CheckCameraEntryResponse.denied(cameraCode, userCode, "Mã người dùng không được để trống");
+        }
+
+        // 1. Tìm Camera và Khu vực tương ứng
+        Optional<Camera> cameraOpt = cameraRepository.findByCameraCodeAndDeletedAtIsNull(cameraCode);
+        if (cameraOpt.isEmpty()) {
+            return CheckCameraEntryResponse.denied(cameraCode, userCode, "Camera không tồn tại hoặc đã bị xoá");
+        }
+        Camera camera = cameraOpt.get();
+        Area area = camera.getArea();
+        if (area == null || !Boolean.TRUE.equals(area.getIsActive()) || area.getDeletedAt() != null) {
+            return CheckCameraEntryResponse.denied(cameraCode, userCode, "Camera chưa được gán vào khu vực hoạt động nào");
+        }
+
+        // 2. Tìm người dùng theo userCode
+        Optional<User> userOpt = userRepository.findByUserCodeAndDeletedAtIsNull(userCode);
+        if (userOpt.isPresent()) {
+            User user = userOpt.get();
+            AccessDecision decision = checkEntry(user.getId(), area.getId(), at);
+            return CheckCameraEntryResponse.builder()
+                    .allowed(decision.allowed())
+                    .source(decision.source())
+                    .reason(decision.reason())
+                    .cameraCode(camera.getCameraCode())
+                    .areaId(area.getId())
+                    .areaName(area.getName())
+                    .userId(user.getId())
+                    .userCode(user.getUserCode())
+                    .fullName(user.getFullName())
+                    .build();
+        }
+
+        // 3. Nếu không phải người dùng nội bộ, kiểm tra xem có phải Khách tham quan (Guest) không
+        if (guestRepository != null && guestAccessDecisionService != null) {
+            try {
+                String guestIdStr = userCode.startsWith("GUEST-") ? userCode.substring(6) : userCode;
+                UUID guestId = UUID.fromString(guestIdStr);
+                Optional<Guest> guestOpt = guestRepository.findById(guestId);
+                if (guestOpt.isPresent()) {
+                    Guest guest = guestOpt.get();
+                    GuestAccessDecision guestDecision = guestAccessDecisionService.checkGuestEntry(guestId, area.getId(), at);
+                    String reasonText = guestDecision.allowed()
+                            ? "Khách tham quan hợp lệ trong lượt tiếp khách"
+                            : (guestDecision.reason() != null ? switch (guestDecision.reason()) {
+                                case VISIT_NOT_ACTIVE -> "Lượt tiếp khách chưa được duyệt hoặc không còn hiệu lực";
+                                case OUTSIDE_WINDOW -> "Khách vào ngoài khung giờ được tiếp đón";
+                                case AREA_NOT_IN_VISIT -> "Khu vực này không nằm trong danh sách tiếp đón của khách";
+                                case AREA_INACTIVE -> "Khu vực đang tạm dừng hoạt động";
+                                case AREA_TYPE_NOT_ALLOWED -> "Loại khu vực không tiếp nhận khách";
+                                case HOST_LOST_ACCESS -> "Người tiếp đón (Host) không còn quyền truy cập khu vực";
+                                case BIOMETRIC_DELETED -> "Dữ liệu sinh trắc học của khách đã bị xoá";
+                                case BIOMETRIC_NOT_READY -> "Dữ liệu sinh trắc học của khách chưa sẵn sàng";
+                                default -> "Khách không có quyền vào khu vực này";
+                            } : "Khách không có quyền vào khu vực này");
+
+                    return CheckCameraEntryResponse.builder()
+                            .allowed(guestDecision.allowed())
+                            .source(guestDecision.allowed() ? AccessSource.GUEST_VISIT : AccessSource.NONE)
+                            .reason(reasonText)
+                            .cameraCode(camera.getCameraCode())
+                            .areaId(area.getId())
+                            .areaName(area.getName())
+                            .userId(guest.getId())
+                            .userCode("GUEST-" + guest.getId().toString().substring(0, 8))
+                            .fullName(guest.getFullName() + " (Khách)")
+                            .build();
+                }
+            } catch (IllegalArgumentException ignored) {
+                // userCode không phải định dạng UUID của khách
+            }
+        }
+
+        return CheckCameraEntryResponse.denied(cameraCode, userCode, "Người dùng không tồn tại hoặc đã bị xoá");
     }
 }

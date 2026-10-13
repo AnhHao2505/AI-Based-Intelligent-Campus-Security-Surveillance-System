@@ -268,6 +268,18 @@ public class CameraService {
                     if (rtspUrl != null) {
                         mediaMtxService.syncCameraPath(cfg.getCamera().getCameraCode(), rtspUrl);
                         syncedCount++;
+                        if (cfg.getCamera().getOperationalStatus() == OperationalStatus.ONLINE) {
+                            try {
+                                String streamStartUrl = aiServiceUrl + "/api/v1/stream/start";
+                                String workerRtspUrl = rtspUrl;
+                                restTemplate.postForObject(streamStartUrl, Map.of(
+                                        "camera_code", cfg.getCamera().getCameraCode(),
+                                        "rtsp_url", workerRtspUrl
+                                ), Map.class);
+                            } catch (Exception ex) {
+                                log.debug("Không thể auto-start stream worker on startup cho {}: {}", cfg.getCamera().getCameraCode(), ex.getMessage());
+                            }
+                        }
                     }
                 }
             }
@@ -325,7 +337,67 @@ public class CameraService {
         config.setTimeoutMs(req.getTimeoutMs() != null ? req.getTimeoutMs() : 5000);
 
         CameraStreamConfiguration saved = cameraStreamConfigurationRepository.save(config);
-        return mapToStreamResponse(saved);
+
+        // Tự động kiểm tra kết nối ngay sau khi lưu cấu hình luồng
+        OperationalStatus finalOpStatus = OperationalStatus.OFFLINE;
+        String connMessage = null;
+        Integer latency = null;
+        try {
+            String aiEndpoint = aiServiceUrl + "/api/v1/cameras/snapshot";
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            int timeout = (config.getTimeoutMs() != null && config.getTimeoutMs() > 0) ? config.getTimeoutMs() : 5000;
+            Map<String, Object> body = Map.of(
+                    "rtsp_url", rtspUrl != null ? rtspUrl : "",
+                    "timeout_ms", timeout
+            );
+            HttpEntity<Map<String, Object>> snapshotReq = new HttpEntity<>(body, headers);
+            Map<String, Object> response = restTemplate.postForObject(aiEndpoint, snapshotReq, Map.class);
+            if (response != null && Boolean.TRUE.equals(response.get("success"))) {
+                finalOpStatus = OperationalStatus.ONLINE;
+                Number latencyNumber = (Number) response.get("latency_ms");
+                latency = latencyNumber != null ? latencyNumber.intValue() : null;
+                connMessage = "Cấu hình luồng và kết nối RTSP thành công (Độ trễ: " + (latency != null ? latency + "ms" : "N/A") + ")";
+            } else {
+                finalOpStatus = OperationalStatus.OFFLINE;
+                connMessage = "Cấu hình luồng thành công nhưng không thể trích xuất khung hình từ camera";
+            }
+        } catch (Exception e) {
+            log.warn("Không thể kết nối thử sau khi lưu cấu hình stream cho camera [{}]: {}", camera.getCameraCode(), e.getMessage());
+            finalOpStatus = OperationalStatus.OFFLINE;
+            connMessage = "Cấu hình luồng thành công nhưng kiểm tra kết nối thất bại: " + e.getMessage();
+        }
+
+        camera.setOperationalStatus(finalOpStatus);
+        camera.setUpdatedAt(OffsetDateTime.now());
+        cameraRepository.save(camera);
+
+        if (finalOpStatus == OperationalStatus.ONLINE) {
+            try {
+                String streamStartUrl = aiServiceUrl + "/api/v1/stream/start";
+                String workerRtspUrl = buildRtspUrl(config);
+                restTemplate.postForObject(streamStartUrl, Map.of(
+                        "camera_code", camera.getCameraCode(),
+                        "rtsp_url", workerRtspUrl
+                ), Map.class);
+                log.info("✅ Đã kích hoạt AI Stream Worker cho camera [{}] sau khi lưu stream config", camera.getCameraCode());
+            } catch (Exception ex) {
+                log.warn("⚠️ Không thể tự động kích hoạt AI Stream Worker cho camera [{}]: {}", camera.getCameraCode(), ex.getMessage());
+            }
+        }
+
+        CameraHealthLog healthLog = CameraHealthLog.builder()
+                .camera(camera)
+                .status(finalOpStatus)
+                .checkedAt(OffsetDateTime.now())
+                .latencyMs(latency)
+                .errorMessage(connMessage)
+                .build();
+        cameraHealthLogRepository.save(healthLog);
+
+        CameraStreamConfigResponse streamResponse = mapToStreamResponse(saved);
+        streamResponse.setOperationalStatus(finalOpStatus);
+        return streamResponse;
     }
 
     // === Health Logs ===
@@ -514,6 +586,7 @@ public class CameraService {
                 .retryTimeBeforeAlerting(config.getRetryTimeBeforeAlerting())
                 .timeoutMs(config.getTimeoutMs())
                 .updatedAt(config.getCamera() != null ? config.getCamera().getUpdatedAt() : null)
+                .operationalStatus(config.getCamera() != null ? config.getCamera().getOperationalStatus() : null)
                 .build();
     }
 
@@ -527,6 +600,13 @@ public class CameraService {
                 .errorCode(log.getErrorCode())
                 .errorMessage(log.getErrorMessage())
                 .build();
+    }
+
+    public String decryptCredential(String credentialRef) {
+        if (credentialRef == null || credentialRef.isBlank()) {
+            return null;
+        }
+        return aesEncryptionUtil.decrypt(credentialRef);
     }
 
     public String buildRtspUrl(CameraStreamConfiguration config) {
@@ -546,7 +626,7 @@ public class CameraService {
         );
     }
 
-    private String buildRtspUrlWithCredentials(String host, Integer port, String username, String password, String path) {
+    public String buildRtspUrlWithCredentials(String host, Integer port, String username, String password, String path) {
         if (path != null && (path.startsWith("rtsp://") || path.startsWith("rtsps://"))) {
             return path;
         }

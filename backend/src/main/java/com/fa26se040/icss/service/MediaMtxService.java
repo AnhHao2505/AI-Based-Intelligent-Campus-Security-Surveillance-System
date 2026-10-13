@@ -40,8 +40,7 @@ public class MediaMtxService {
         Map<String, Object> payload = new HashMap<>();
         payload.put("source", rtspSourceUrl);
         payload.put("sourceProtocol", "tcp");
-        payload.put("sourceOnDemand", true);
-        payload.put("sourceOnDemandCloseAfter", "10s");
+        payload.put("sourceOnDemand", false);  // Luôn kết nối sẵn, không chờ viewer
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -81,8 +80,7 @@ public class MediaMtxService {
         Map<String, Object> payload = new HashMap<>();
         payload.put("source", rtspSourceUrl);
         payload.put("sourceProtocol", "tcp");
-        payload.put("sourceOnDemand", true);
-        payload.put("sourceOnDemandCloseAfter", "10s");
+        payload.put("sourceOnDemand", false);  // Luôn kết nối sẵn, không chờ viewer
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);

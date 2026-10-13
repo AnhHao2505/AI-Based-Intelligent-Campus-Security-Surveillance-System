@@ -13,12 +13,29 @@ export default class ErrorBoundary extends React.Component {
 
 	componentDidCatch(error, errorInfo) {
 		console.error("Uncaught Error in Component:", error, errorInfo);
+		if (error?.message?.includes("JSON") || error?.message?.includes("undefined")) {
+			try {
+				const u = localStorage.getItem("user");
+				if (!u || u === "undefined" || u === "null") {
+					localStorage.removeItem("user");
+				}
+			} catch (_) {}
+		}
 		this.setState({ errorInfo });
 	}
 
 	handleReload = () => {
 		this.setState({ hasError: false, error: null, errorInfo: null });
 		window.location.reload();
+	};
+
+	handleResetAuth = () => {
+		try {
+			localStorage.removeItem("user");
+			localStorage.removeItem("accessToken");
+		} catch (_) {}
+		this.setState({ hasError: false, error: null, errorInfo: null });
+		window.location.href = "/login";
 	};
 
 	render() {
@@ -78,26 +95,47 @@ export default class ErrorBoundary extends React.Component {
 						{this.state.error?.message ||
 							"Có sự cố không mong muốn trong quá trình nạp giao diện."}
 					</p>
-					<button
-						type="button"
-						onClick={this.handleReload}
-						style={{
-							display: "inline-flex",
-							alignItems: "center",
-							gap: "8px",
-							padding: "8px 18px",
-							fontSize: "13px",
-							fontWeight: "600",
-							color: "#ffffff",
-							background: "var(--theme-primary, #2563eb)",
-							border: "none",
-							borderRadius: "8px",
-							cursor: "pointer",
-						}}
-					>
-						<RefreshCw size={14} />
-						Tải lại trang
-					</button>
+					<div style={{ display: "flex", gap: "10px", flexWrap: "wrap", justifyContent: "center" }}>
+						<button
+							type="button"
+							onClick={this.handleReload}
+							style={{
+								display: "inline-flex",
+								alignItems: "center",
+								gap: "8px",
+								padding: "8px 18px",
+								fontSize: "13px",
+								fontWeight: "600",
+								color: "#ffffff",
+								background: "var(--theme-primary, #2563eb)",
+								border: "none",
+								borderRadius: "8px",
+								cursor: "pointer",
+							}}
+						>
+							<RefreshCw size={14} />
+							Tải lại trang
+						</button>
+						<button
+							type="button"
+							onClick={this.handleResetAuth}
+							style={{
+								display: "inline-flex",
+								alignItems: "center",
+								gap: "8px",
+								padding: "8px 18px",
+								fontSize: "13px",
+								fontWeight: "600",
+								color: "#374151",
+								background: "#f3f4f6",
+								border: "1px solid #d1d5db",
+								borderRadius: "8px",
+								cursor: "pointer",
+							}}
+						>
+							Đăng nhập lại
+						</button>
+					</div>
 				</div>
 			);
 		}

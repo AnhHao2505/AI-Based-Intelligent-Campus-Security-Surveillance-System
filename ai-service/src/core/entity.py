@@ -34,7 +34,10 @@ class BoundingBox:
         return Point((self.x1 + self.x2) / 2.0, self.y2)
 
     def to_int_xyxy(self) -> Tuple[int, int, int, int]:
-        return (int(self.x1), int(self.y1), int(self.x2), int(self.y2))
+        return int(round(self.x1)), int(round(self.y1)), int(round(self.x2)), int(round(self.y2))
+
+    def to_xyxy(self) -> Tuple[float, float, float, float]:
+        return self.x1, self.y1, self.x2, self.y2
 
 @dataclass
 class FaceDetectionResult:
@@ -45,6 +48,9 @@ class FaceDetectionResult:
     matched_code: Optional[str] = None
     matched_name: Optional[str] = None
     is_authorized: bool = False
+    is_active: bool = True
+    access_reason: Optional[str] = None
+    area_name: Optional[str] = None
 
 @dataclass
 class TrackedPerson:
@@ -62,6 +68,7 @@ class TrackedPerson:
     
     # Cờ trạng thái đã bắn thông báo
     alert_unauthorized_sent: bool = False
+    alert_unknown_sent: bool = False
     alert_after_hours_sent: bool = False
 
     def update_position(self, new_bbox: BoundingBox, current_time: float):
@@ -72,7 +79,7 @@ class TrackedPerson:
 class SecurityAlertEvent:
     event_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     camera_code: str = "CAM-001"
-    event_type: str = "UNKNOWN"  # AFTER_HOURS_PRESENCE, UNAUTHORIZED_ACCESS, UNKNOWN_PERSON
+    event_type: str = "UNKNOWN_PERSON"  # AFTER_HOURS_PRESENCE, UNAUTHORIZED_ACCESS, UNKNOWN_PERSON
     track_id: int = -1
     duration_seconds: float = 0.0
     confidence: float = 1.0

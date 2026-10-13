@@ -18,6 +18,8 @@ import java.util.UUID;
 @Repository
 public interface CameraRepository extends JpaRepository<Camera, UUID> {
     boolean existsByCameraCode(String cameraCode);
+    Optional<Camera> findByCameraCode(String cameraCode);
+    Optional<Camera> findByCameraCodeAndDeletedAtIsNull(String cameraCode);
 
     Optional<Camera> findTopByCameraCodeStartingWithOrderByCameraCodeDesc(String prefix);
 
