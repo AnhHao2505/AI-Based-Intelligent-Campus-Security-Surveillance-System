@@ -367,13 +367,13 @@
 
 .account-badge--role-GUARD {
   background-color: #e0f2fe;
-  color: #0369a1;
+  color: var(--theme-info-text);
   border-color: #bae6fd;
 }
 
 .account-badge--role-NORMAL_USER {
-  background-color: #eff6ff;
-  color: #2563eb;
+  background-color: var(--theme-primary-light);
+  color: var(--theme-primary);
   border-color: #dbeafe;
 }
 
@@ -392,7 +392,7 @@
 
 [data-theme="dark"] .account-badge--role-GUARD {
   background-color: rgba(14, 165, 233, 0.18);
-  color: #7dd3fc;
+  color: var(--theme-info-text);
   border-color: rgba(14, 165, 233, 0.35);
 }
 
@@ -442,7 +442,7 @@
 
 [data-theme="dark"] .account-badge--inactive {
   background-color: rgba(148, 163, 184, 0.12);
-  color: #94a3b8;
+  color: var(--theme-text-muted);
   border-color: rgba(148, 163, 184, 0.25);
 }
 
@@ -480,9 +480,9 @@
 }
 
 .account-action-btn--edit:hover {
-  color: #2563eb;
+  color: var(--theme-primary);
   border-color: #bfdbfe;
-  background-color: #eff6ff;
+  background-color: var(--theme-primary-light);
 }
 
 .account-action-btn--toggle-disable:hover {
@@ -492,15 +492,15 @@
 }
 
 .account-action-btn--toggle-activate:hover {
-  color: #16a34a;
+  color: var(--theme-success);
   border-color: #bbf7d0;
-  background-color: #f0fdf4;
+  background-color: var(--theme-success-bg);
 }
 
 .account-action-btn--delete:hover {
   color: #dc2626;
   border-color: #fecaca;
-  background-color: #fef2f2;
+  background-color: var(--theme-danger-bg);
 }
 
 .account-action-btn:disabled {
@@ -545,7 +545,7 @@
 
 /* Kích hoạt: Positive/primary text treatment */
 .account-action-link--activate {
-  color: #16a34a;
+  color: var(--theme-success);
 }
 
 .account-action-link--activate:hover {
@@ -555,11 +555,11 @@
 
 /* Dark mode for action links */
 [data-theme="dark"] .account-action-link--disable {
-  color: #f87171;
+  color: var(--theme-danger);
 }
 
 [data-theme="dark"] .account-action-link--disable:hover {
-  color: #fca5a5;
+  color: var(--theme-danger-text);
   background-color: rgba(248, 113, 113, 0.12);
 }
 
@@ -944,7 +944,7 @@
 }
 
 .account-import-stat--success .account-import-stat__num {
-  color: #16a34a;
+  color: var(--theme-success);
 }
 
 .account-import-stat--failed .account-import-stat__num {
@@ -1020,8 +1020,8 @@
 }
 
 .account-modal__icon-badge--primary {
-  background-color: #eff6ff;
-  color: #2563eb;
+  background-color: var(--theme-primary-light);
+  color: var(--theme-primary);
 }
 
 .account-modal__icon-badge--warning {
@@ -1030,12 +1030,12 @@
 }
 
 .account-modal__icon-badge--success {
-  background-color: #f0fdf4;
-  color: #16a34a;
+  background-color: var(--theme-success-bg);
+  color: var(--theme-success);
 }
 
 .account-modal__icon-badge--danger {
-  background-color: #fef2f2;
+  background-color: var(--theme-danger-bg);
   color: #dc2626;
 }
 
@@ -1309,7 +1309,7 @@
 }
 
 .account-toast--success .account-toast__icon {
-  color: #16a34a;
+  color: var(--theme-success);
 }
 
 .account-toast--error {
@@ -1510,6 +1510,7 @@
 .account-bulk-table-wrapper {
   max-height: 280px;
   overflow-y: auto;
+  overflow-x: auto;
   border: 1px solid var(--theme-border);
   border-radius: 8px;
   background-color: var(--theme-bg-surface);
@@ -1546,4 +1547,11 @@
   .account-table {
     min-width: 720px;
   }
+}
+
+/* Bảng trong popup lô import (lớp .account-bulk-table-wrap trước đây chưa có CSS):
+   cuộn ngang ở màn hẹp thay vì bị cắt cột */
+.account-bulk-table-wrap {
+  overflow-x: auto;
+  max-width: 100%;
 }

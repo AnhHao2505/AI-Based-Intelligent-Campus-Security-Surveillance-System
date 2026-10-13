@@ -174,10 +174,10 @@ export async function restoreImportBatch(batchId) {
  */
 export async function searchUsers(q, page = 0, size = 20, accessLevel) {
   const query = new URLSearchParams({
-    q: q || '',
     page: String(page),
     size: String(size),
   });
+  if (q && q.trim()) query.append('q', q.trim());
   if (accessLevel) query.append('accessLevel', String(accessLevel));
   return apiGet(`/api/users/search?${query.toString()}`);
 }

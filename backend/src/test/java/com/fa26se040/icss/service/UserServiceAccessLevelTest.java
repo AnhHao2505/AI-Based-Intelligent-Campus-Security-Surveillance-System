@@ -134,12 +134,48 @@ class UserServiceAccessLevelTest {
     }
 
     @Test
-    @DisplayName("searchUsers: q ít hơn 2 ký tự sau khi trim -> ném IllegalArgumentException")
-    void searchUsers_ShortQuery_ThrowsIllegalArgumentException() {
-        assertThrows(IllegalArgumentException.class, () -> userService.searchUsers("a", PageRequest.of(0, 10)));
-        assertThrows(IllegalArgumentException.class, () -> userService.searchUsers("  b  ", PageRequest.of(0, 10)));
-        assertThrows(IllegalArgumentException.class, () -> userService.searchUsers(null, PageRequest.of(0, 10)));
-        assertThrows(IllegalArgumentException.class, () -> userService.searchUsers("", PageRequest.of(0, 10)));
+    @DisplayName("searchUsers: không có keyword (null hoặc rỗng) -> gọi repository với null để trả trang 1")
+    void searchUsers_NoKeyword_CallsRepositoryWithNull() {
+        User u = User.builder()
+                .id(UUID.randomUUID())
+                .userCode("SV001")
+                .fullName("Sinh Viên 1")
+                .role(Role.NORMAL_USER)
+                .accessLevel(1)
+                .isActive(true)
+                .build();
+
+        when(userRepository.searchActiveUsers(org.mockito.ArgumentMatchers.isNull(), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(u)));
+
+        Page<UserSearchResponse> resNull = userService.searchUsers(null, PageRequest.of(0, 10));
+        assertNotNull(resNull);
+        assertEquals(1, resNull.getTotalElements());
+
+        Page<UserSearchResponse> resEmpty = userService.searchUsers("   ", PageRequest.of(0, 10));
+        assertNotNull(resEmpty);
+        assertEquals(1, resEmpty.getTotalElements());
+    }
+
+    @Test
+    @DisplayName("searchUsers: có keyword -> lọc đúng theo keyword")
+    void searchUsers_WithKeyword_FiltersCorrectly() {
+        User u = User.builder()
+                .id(UUID.randomUUID())
+                .userCode("SV001")
+                .fullName("Sinh Viên 1")
+                .role(Role.NORMAL_USER)
+                .accessLevel(1)
+                .isActive(true)
+                .build();
+
+        when(userRepository.searchActiveUsers(eq("SV"), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(u)));
+
+        Page<UserSearchResponse> res = userService.searchUsers("  SV  ", PageRequest.of(0, 10));
+        assertNotNull(res);
+        assertEquals(1, res.getTotalElements());
+        assertEquals("SV001", res.getContent().get(0).userCode());
     }
 
     @Test

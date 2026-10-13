@@ -1,16 +1,21 @@
 package com.fa26se040.icss.guest;
 
+import com.fa26se040.icss.dto.guest.GuestSelectableAreaResponse;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.enums.AreaLevel;
+import com.fa26se040.icss.service.GuestVisitService;
+import org.springframework.beans.factory.annotation.Autowired;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.time.OffsetDateTime;
+import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -23,6 +28,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 class GuestSelectableAreasTest extends GuestTestSupport {
 
     private static final String URL = "/api/guest-visits/selectable-areas";
+
+    @Autowired private GuestVisitService guestVisitService;
+
+    private GuestSelectableAreaResponse find(List<GuestSelectableAreaResponse> list, Area area) {
+        UUID id = area.getId();
+        return list.stream().filter(a -> a.id().equals(id)).findFirst().orElseThrow();
+    }
 
     private Set<String> ids(MvcResult r) throws Exception {
         Set<String> ids = new HashSet<>();
@@ -74,5 +86,87 @@ class GuestSelectableAreasTest extends GuestTestSupport {
         assertEquals(201, status(created), created.getResponse().getContentAsString());
 
         assertEquals(403, status(send(get(URL), guard, null).andReturn()));
+    }
+
+    // ------------------------------------------------------------------ BR-GV-06 theo khung giờ (hostCanInvite)
+
+    @Test
+    @DisplayName("GV-06: khu INTERNAL cấp 2, host cấp 2 -> hostCanInvite true, không reasonCode")
+    void window_internalEnoughLevel_canInvite() {
+        var list = guestVisitService.listSelectableAreas(hostL2.getEmail(), future(0), future(120));
+
+        GuestSelectableAreaResponse a = find(list, internalArea);
+        assertEquals(Boolean.TRUE, a.hostCanInvite());
+        assertNull(a.reasonCode());
+    }
+
+    @Test
+    @DisplayName("GV-06: khu CONTACT (bắt buộc chỉ định), host không có AP -> false + ERR_GUEST_014 (đủ cấp vẫn không tính)")
+    void window_contactWithoutAp_cannotInvite() {
+        var list = guestVisitService.listSelectableAreas(hostL2.getEmail(), future(0), future(120));
+
+        GuestSelectableAreaResponse a = find(list, contactArea);
+        assertEquals(Boolean.FALSE, a.hostCanInvite());
+        assertEquals("ERR_GUEST_014", a.reasonCode());
+    }
+
+    @Test
+    @DisplayName("GV-06: AP chỉ phủ một phần khung giờ -> false; AP phủ trọn khung giờ -> true; đổi khung giờ thì kết quả đổi theo")
+    void window_apCoverage_followsWindow() {
+        newAp(contactArea, hostL2, future(0), future(60));
+
+        var partial = guestVisitService.listSelectableAreas(hostL2.getEmail(), future(0), future(120));
+        assertEquals(Boolean.FALSE, find(partial, contactArea).hostCanInvite());
+        assertEquals("ERR_GUEST_014", find(partial, contactArea).reasonCode());
+
+        var covered = guestVisitService.listSelectableAreas(hostL2.getEmail(), future(0), future(60));
+        assertEquals(Boolean.TRUE, find(covered, contactArea).hostCanInvite());
+        assertNull(find(covered, contactArea).reasonCode());
+    }
+
+    @Test
+    @DisplayName("GV-01: host dưới cấp tối thiểu -> mọi khu false + ERR_GUEST_002")
+    void window_hostNotEligible_allBlocked() {
+        var list = guestVisitService.listSelectableAreas(hostL1.getEmail(), future(0), future(120));
+
+        assertFalse(list.isEmpty());
+        for (GuestSelectableAreaResponse a : list) {
+            assertEquals(Boolean.FALSE, a.hostCanInvite(), a.name());
+            assertEquals("ERR_GUEST_002", a.reasonCode(), a.name());
+        }
+    }
+
+    @Test
+    @DisplayName("API: không gửi giờ / gửi thiếu một mốc -> không có hostCanInvite, reasonCode (tương thích); đủ hai mốc -> có; kết thúc ≤ bắt đầu -> 400 ERR_GUEST_011")
+    void api_windowParams_compatibleAndValidated() throws Exception {
+        String start = future(0).toString();
+        String end = future(120).toString();
+
+        MvcResult none = send(get(URL), hostL2, null).andReturn();
+        MvcResult onlyStart = send(get(URL).param("startTime", start), hostL2, null).andReturn();
+        for (MvcResult r : List.of(none, onlyStart)) {
+            assertEquals(200, status(r), r.getResponse().getContentAsString());
+            for (JsonNode a : json(r).path("data")) {
+                assertFalse(a.has("hostCanInvite"), a.toString());
+                assertFalse(a.has("reasonCode"), a.toString());
+            }
+        }
+
+        MvcResult withWindow = send(get(URL).param("startTime", start).param("endTime", end), hostL2, null).andReturn();
+        assertEquals(200, status(withWindow), withWindow.getResponse().getContentAsString());
+        boolean sawContact = false;
+        for (JsonNode a : json(withWindow).path("data")) {
+            assertTrue(a.has("hostCanInvite"), a.toString());
+            if (contactArea.getId().toString().equals(a.path("id").asText())) {
+                sawContact = true;
+                assertFalse(a.path("hostCanInvite").asBoolean());
+                assertEquals("ERR_GUEST_014", a.path("reasonCode").asText());
+            }
+        }
+        assertTrue(sawContact);
+
+        MvcResult reversed = send(get(URL).param("startTime", end).param("endTime", start), hostL2, null).andReturn();
+        assertEquals(400, status(reversed), reversed.getResponse().getContentAsString());
+        assertTrue(reversed.getResponse().getContentAsString(StandardCharsets.UTF_8).contains("ERR_GUEST_011"));
     }
 }

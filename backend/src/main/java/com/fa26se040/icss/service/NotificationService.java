@@ -41,7 +41,7 @@ public class NotificationService {
             log.info("Reset password email successfully sent to {}", toEmail);
         } catch (Exception e) {
             log.error("Failed to send reset password email to {}", toEmail, e);
-            log.warn("=== LOCAL DEVELOPMENT FALLBACK - RESET LINK: {} ===", resetLink);
+            // 6.4: không ghi link đặt lại mật khẩu ra log (ai đọc log cũng chiếm được tài khoản)
         }
     }
 
@@ -72,7 +72,7 @@ public class NotificationService {
             log.info("Staff account setup email successfully sent to {}", toEmail);
         } catch (Exception e) {
             log.error("Failed to send staff account setup email to {}", toEmail, e);
-            log.warn("=== LOCAL DEVELOPMENT FALLBACK - USER CODE: {}, TEMP PASSWORD: {} ===", userCode, temporaryPassword);
+            // 6.4: không ghi mật khẩu tạm ra log; người dùng dùng "Quên mật khẩu" khi email không tới
         }
     }
 }

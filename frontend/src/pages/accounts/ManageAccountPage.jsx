@@ -40,6 +40,7 @@ import { ROLES, ROLE_LABELS } from "../../constants/roles";
 import { useAuth } from "../../context/AuthContext";
 import "../../styles/ManageAccountPage.css";
 import PageHeader from "../../components/ui/PageHeader";
+import { LoadingState, EmptyState, ErrorState } from "../../components/ui";
 import { formatDateTime } from "../../utils/formatDateTime";
 
 const DEFAULT_PAGE_SIZE = 10;
@@ -130,6 +131,8 @@ export default function ManageAccountPage() {
 
 	// Batch Action Confirmation States
 	const [batchToDelete, setBatchToDelete] = useState(null);
+	const [batchesError, setBatchesError] = useState(null);
+	const [batchDetailsError, setBatchDetailsError] = useState(null);
 	const [isDeletingBatch, setIsDeletingBatch] = useState(false);
 	const [batchToRestore, setBatchToRestore] = useState(null);
 	const [isRestoringBatch, setIsRestoringBatch] = useState(false);
@@ -137,6 +140,7 @@ export default function ManageAccountPage() {
 
 	const fetchBatches = async (page = 0) => {
 		setIsBatchesLoading(true);
+		setBatchesError(null);
 		try {
 			const res = await getImportBatches(page, 10);
 			setBatches(res?.content || []);
@@ -145,7 +149,7 @@ export default function ManageAccountPage() {
 			setBatchPage(res?.number || 0);
 		} catch (err) {
 			console.error("Error fetching import batches:", err);
-			showToast(err.message || "Không thể tải danh sách lô import", "error");
+			setBatchesError(err.message || "Không thể tải danh sách lô import");
 		} finally {
 			setIsBatchesLoading(false);
 		}
@@ -160,12 +164,15 @@ export default function ManageAccountPage() {
 		setSelectedBatchId(batchId);
 		setShowBatchDetailsModal(true);
 		setIsBatchDetailsLoading(true);
+		setBatchDetailsError(null);
+		// Xoá dữ liệu lô trước để không hiện nhầm chi tiết của lô đã xem lần trước khi tải lỗi
+		setBatchDetails([]);
 		try {
 			const details = await getImportBatchDetails(batchId);
 			setBatchDetails(details || []);
 		} catch (err) {
 			console.error("Error fetching batch details:", err);
-			showToast(err.message || "Không thể tải chi tiết lô", "error");
+			setBatchDetailsError(err.message || "Không thể tải chi tiết lô");
 		} finally {
 			setIsBatchDetailsLoading(false);
 		}
@@ -1095,10 +1102,10 @@ export default function ManageAccountPage() {
 										style={{
 											padding: "10px 14px",
 											borderRadius: "6px",
-											backgroundColor: "#fef2f2",
-											color: "#dc2626",
+											backgroundColor: "var(--theme-danger-bg)",
+											color: "var(--theme-danger)",
 											fontSize: "0.8125rem",
-											border: "1px solid #fecaca",
+											border: "1px solid var(--theme-danger-border)",
 										}}
 									>
 										{formErrors.general}
@@ -1302,10 +1309,10 @@ export default function ManageAccountPage() {
 												alignItems: "center",
 												justifyContent: "center",
 												padding: "20px",
-												border: "2px dashed #cbd5e1",
+												border: "2px dashed var(--theme-border-hover)",
 												borderRadius: "8px",
 												cursor: "pointer",
-												backgroundColor: "#f8fafc",
+												backgroundColor: "var(--theme-bg-page)",
 												marginTop: "4px",
 											}}
 										>
@@ -1317,7 +1324,7 @@ export default function ManageAccountPage() {
 												style={{
 													fontSize: "0.875rem",
 													marginTop: "8px",
-													color: "#475569",
+													color: "var(--theme-text-secondary)",
 												}}
 											>
 												Tải lên ảnh chân dung chính diện
@@ -1325,7 +1332,7 @@ export default function ManageAccountPage() {
 											<span
 												style={{
 													fontSize: "0.75rem",
-													color: "#94a3b8",
+													color: "var(--theme-text-disabled)",
 													marginTop: "2px",
 												}}
 											>
@@ -1717,10 +1724,10 @@ export default function ManageAccountPage() {
 											style={{
 												padding: "10px 14px",
 												borderRadius: "6px",
-												backgroundColor: "#fef2f2",
-												color: "#dc2626",
+												backgroundColor: "var(--theme-danger-bg)",
+												color: "var(--theme-danger)",
 												fontSize: "0.8125rem",
-												border: "1px solid #fecaca",
+												border: "1px solid var(--theme-danger-border)",
 											}}
 										>
 											{formErrors.general}
@@ -1812,10 +1819,10 @@ export default function ManageAccountPage() {
 												padding: "24px",
 												border: bulkZipFile
 													? "2px solid var(--theme-primary, #3b82f6)"
-													: "2px dashed #cbd5e1",
+													: "2px dashed var(--theme-border-hover)",
 												borderRadius: "8px",
 												cursor: "pointer",
-												backgroundColor: bulkZipFile ? "#eff6ff" : "#f8fafc",
+												backgroundColor: bulkZipFile ? "var(--theme-primary-light)" : "var(--theme-bg-page)",
 												marginTop: "4px",
 											}}
 										>
@@ -1838,7 +1845,7 @@ export default function ManageAccountPage() {
 											<span
 												style={{
 													fontSize: "0.75rem",
-													color: "#94a3b8",
+													color: "var(--theme-text-disabled)",
 													marginTop: "2px",
 												}}
 											>
@@ -2086,40 +2093,20 @@ export default function ManageAccountPage() {
 							}}
 						>
 							{isBatchesLoading ? (
-								<div
-									style={{
-										textAlign: "center",
-										padding: "40px 0",
-										color: "var(--theme-text-muted, #64748b)",
-									}}
-								>
-									<RotateCw
-										size={24}
-										className="spin"
-										style={{ margin: "0 auto 12px" }}
-									/>
-									<p>Đang tải danh sách lô import...</p>
-								</div>
+								<LoadingState size="sm" text="Đang tải danh sách lô import..." />
+							) : batchesError ? (
+								<ErrorState
+									size="sm"
+									message={batchesError}
+									onRetry={() => fetchBatches(batchPage)}
+								/>
 							) : batches.length === 0 ? (
-								<div
-									style={{
-										textAlign: "center",
-										padding: "48px 0",
-										color: "var(--theme-text-muted, #64748b)",
-									}}
-								>
-									<Layers
-										size={40}
-										style={{ opacity: 0.3, display: "block", margin: "0 auto 12px" }}
-									/>
-									<p style={{ fontWeight: 500, fontSize: "0.9375rem" }}>
-										Chưa có lô nạp nào trong hệ thống
-									</p>
-									<p style={{ fontSize: "0.8125rem" }}>
-										Các tài khoản được nạp qua file ZIP sẽ tự động nhóm theo
-										từng lô tại đây.
-									</p>
-								</div>
+								<EmptyState
+									size="sm"
+									icon={Layers}
+									title="Chưa có lô nạp nào trong hệ thống"
+									description="Các tài khoản được nạp qua file ZIP sẽ tự động nhóm theo từng lô tại đây."
+								/>
 							) : (
 								<>
 									<div className="account-bulk-table-wrap">
@@ -2163,8 +2150,8 @@ export default function ManageAccountPage() {
 																	<span
 																		className="account-badge account-badge--inactive"
 																		style={{
-																			background: "#fef2f2",
-																			color: "#b91c1c",
+																			background: "var(--theme-danger-bg)",
+																			color: "var(--theme-danger-text)",
 																		}}
 																	>
 																		Đã gỡ ({batch.deletedCount})
@@ -2376,30 +2363,15 @@ export default function ManageAccountPage() {
 							}}
 						>
 							{isBatchDetailsLoading ? (
-								<div
-									style={{
-										textAlign: "center",
-										padding: "36px 0",
-										color: "var(--theme-text-muted, #64748b)",
-									}}
-								>
-									<RotateCw
-										size={24}
-										className="spin"
-										style={{ margin: "0 auto 12px" }}
-									/>
-									<p>Đang tải chi tiết tài khoản...</p>
-								</div>
+								<LoadingState size="sm" text="Đang tải chi tiết tài khoản..." />
+							) : batchDetailsError ? (
+								<ErrorState
+									size="sm"
+									message={batchDetailsError}
+									onRetry={() => handleViewBatchDetails(selectedBatchId)}
+								/>
 							) : batchDetails.length === 0 ? (
-								<p
-									style={{
-										textAlign: "center",
-										padding: "24px 0",
-										color: "var(--theme-text-muted, #64748b)",
-									}}
-								>
-									Không có tài khoản nào trong lô này.
-								</p>
+								<EmptyState size="sm" title="Không có tài khoản nào trong lô này" />
 							) : (
 								<div className="account-bulk-table-wrap">
 									<table className="account-bulk-table">
@@ -2426,8 +2398,8 @@ export default function ManageAccountPage() {
 															<span
 																className="account-badge account-badge--inactive"
 																style={{
-																	background: "#fef2f2",
-																	color: "#b91c1c",
+																	background: "var(--theme-danger-bg)",
+																	color: "var(--theme-danger-text)",
 																}}
 															>
 																Đã gỡ
@@ -2511,14 +2483,14 @@ export default function ManageAccountPage() {
 								</div>
 								<div style={{ marginBottom: "8px" }}>
 									<strong>Số tài khoản sẽ bị gỡ:</strong>{" "}
-									<span style={{ color: "#b91c1c", fontWeight: 600 }}>
+									<span style={{ color: "var(--theme-danger-text)", fontWeight: 600 }}>
 										{batchToDelete.activeCount} tài khoản
 									</span>
 								</div>
 								<div
 									style={{
 										padding: "8px 12px",
-										background: "#eff6ff",
+										background: "var(--theme-primary-light)",
 										borderRadius: "6px",
 										fontSize: "0.8125rem",
 										color: "#1e40af",
@@ -2607,7 +2579,7 @@ export default function ManageAccountPage() {
 								</div>
 								<div style={{ marginBottom: "8px" }}>
 									<strong>Số tài khoản cần khôi phục:</strong>{" "}
-									<span style={{ color: "#2563eb", fontWeight: 600 }}>
+									<span style={{ color: "var(--theme-primary)", fontWeight: 600 }}>
 										{batchToRestore.deletedCount} tài khoản
 									</span>
 								</div>
@@ -2693,11 +2665,11 @@ export default function ManageAccountPage() {
 						>
 							<div style={{ marginBottom: "14px", fontSize: "0.875rem" }}>
 								Đã khôi phục thành công{" "}
-								<strong style={{ color: "#16a34a" }}>
+								<strong style={{ color: "var(--theme-success)" }}>
 									{restoreResult.restoredCount}
 								</strong>{" "}
 								tài khoản. Có{" "}
-								<strong style={{ color: "#dc2626" }}>
+								<strong style={{ color: "var(--theme-danger)" }}>
 									{restoreResult.skippedCount}
 								</strong>{" "}
 								tài khoản bị bỏ qua do xung đột định danh:
@@ -2719,7 +2691,7 @@ export default function ManageAccountPage() {
 											<tr key={idx}>
 												<td style={{ fontWeight: 600 }}>{item.userCode}</td>
 												<td style={{ fontSize: "0.8125rem" }}>{item.email}</td>
-												<td style={{ fontSize: "0.8125rem", color: "#b91c1c" }}>
+												<td style={{ fontSize: "0.8125rem", color: "var(--theme-danger-text)" }}>
 													{item.reason}
 												</td>
 											</tr>

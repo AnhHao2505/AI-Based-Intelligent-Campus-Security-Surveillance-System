@@ -1186,7 +1186,7 @@ export default function CampusMapView({
 								onClick={handleCancelEditCoords}
 								disabled={savingCoords}
 							>
-								Huỷ
+								Hủy
 							</button>
 							<button
 								type="button"

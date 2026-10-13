@@ -1177,7 +1177,7 @@
   color: #86efac;
 }
 [data-theme="light"] .area-level-btn--public.is-selected .area-level-btn__name {
-  color: #166534;
+  color: var(--theme-success-text);
 }
 .area-level-btn--public.is-selected .area-level-btn__sub {
   color: rgba(134, 239, 172, 0.8);
@@ -1188,7 +1188,7 @@
 
 .area-level-btn--internal.is-selected {
   background: rgba(59, 130, 246, 0.1);
-  border: 1px solid #3b82f6;
+  border: 1px solid var(--theme-border-focus);
 }
 .area-level-btn--internal.is-selected .area-level-btn__name {
   color: #93c5fd;
@@ -1214,7 +1214,7 @@
 }
 [data-theme="light"] .area-level-btn--contact.is-selected .area-level-btn__name,
 [data-theme="light"] .area-level-btn--semi.is-selected .area-level-btn__name {
-  color: #92400e;
+  color: var(--theme-warning-text);
 }
 .area-level-btn--contact.is-selected .area-level-btn__sub,
 .area-level-btn--semi.is-selected .area-level-btn__sub {
@@ -1233,7 +1233,7 @@
   color: #fca5a5;
 }
 [data-theme="light"] .area-level-btn--private.is-selected .area-level-btn__name {
-  color: #991b1b;
+  color: var(--theme-danger-text);
 }
 .area-level-btn--private.is-selected .area-level-btn__sub {
   color: rgba(252, 165, 165, 0.8);
@@ -1257,7 +1257,7 @@
   color: var(--theme-text-secondary);
 }
 [data-theme="light"] .area-edit-info-box {
-  background: #eff6ff;
+  background: var(--theme-primary-light);
   border-color: #bfdbfe;
   color: #1e3a8a;
 }
@@ -1802,17 +1802,17 @@
 
 .zone-polygon--contact {
   fill: rgba(245, 158, 11, 0.25);
-  stroke: #F59E0B;
+  stroke: var(--theme-warning);
 }
 
 .zone-polygon--private {
   fill: rgba(239, 68, 68, 0.25);
-  stroke: #EF4444;
+  stroke: var(--theme-danger);
 }
 
 .zone-polygon--semi {
   fill: rgba(245, 158, 11, 0.25);
-  stroke: #F59E0B;
+  stroke: var(--theme-warning);
 }
 
 .zone-polygon--default {
@@ -2530,7 +2530,7 @@
 
 .area-camera-status-pill--offline {
   background: rgba(239, 68, 68, 0.12);
-  color: #ef4444;
+  color: var(--theme-danger);
   border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
@@ -2698,7 +2698,7 @@
 
 .area-camera-item__remove-btn:hover {
   background: rgba(239, 68, 68, 0.12);
-  color: #ef4444;
+  color: var(--theme-danger);
   border-color: rgba(239, 68, 68, 0.3);
 }
 
@@ -2778,7 +2778,7 @@
 .area-camera-add-btn--offline:hover {
   background: rgba(239, 68, 68, 0.1);
   border-color: rgba(239, 68, 68, 0.4);
-  color: #ef4444;
+  color: var(--theme-danger);
 }
 
 .area-camera-item--disabled {
@@ -2886,7 +2886,7 @@
 }
 
 .zone-list-info-banner__card--internal {
-  border-left: 4px solid #3b82f6;
+  border-left: 4px solid var(--theme-border-focus);
 }
 
 .zone-list-info-banner__card--contact {
@@ -2956,7 +2956,7 @@
 
 .zone-list-info-banner__personnel-tag--has {
   background: rgba(59, 130, 246, 0.12);
-  color: #2563eb;
+  color: var(--theme-primary);
 }
 
 .zone-list-info-banner__footer {
@@ -3067,8 +3067,13 @@
   margin: 8px 0 0;
 }
 
+.zone-deactivated__table-wrap {
+  overflow-x: auto;
+}
+
 .zone-deactivated__table {
   width: 100%;
+  min-width: 520px;
   border-collapse: collapse;
   font-size: 13px;
 }

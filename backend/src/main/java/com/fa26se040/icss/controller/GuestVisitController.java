@@ -52,8 +52,13 @@ public class GuestVisitController {
     /** BR-GV-04: khu vực chọn được trong form lượt khách (INTERNAL / CONTACT đang hoạt động). Cùng quyền với tạo lượt (B-04: không có ADMIN). */
     @GetMapping("/selectable-areas")
     @PreAuthorize("hasAnyRole('NORMAL_USER', 'FACILITY_MANAGER')")
-    public ResponseEntity<ApiResponse<java.util.List<com.fa26se040.icss.dto.accessrequest.AreaSimpleResponse>>> selectableAreas() {
-        return ResponseEntity.ok(ApiResponse.success(guestVisitService.listSelectableAreas(), "Danh sách khu vực nhận khách"));
+    public ResponseEntity<ApiResponse<java.util.List<com.fa26se040.icss.dto.guest.GuestSelectableAreaResponse>>> selectableAreas(
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE_TIME) java.time.OffsetDateTime startTime,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE_TIME) java.time.OffsetDateTime endTime,
+            Authentication authentication) {
+        // BR-GV-06: đủ startTime + endTime thì mỗi khu vực kèm hostCanInvite / reasonCode (không bắt buộc, giữ tương thích)
+        return ResponseEntity.ok(ApiResponse.success(
+                guestVisitService.listSelectableAreas(authentication.getName(), startTime, endTime), "Danh sách khu vực nhận khách"));
     }
 
     /** B-04: {canHost, myLevel, minLevel} để FE ẩn form tạo lượt khi không đủ điều kiện. Cùng quyền với tạo lượt. */

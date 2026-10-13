@@ -14,14 +14,17 @@ import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import PageHeader from '../../components/ui/PageHeader';
+import { LoadingState, EmptyState, ErrorState } from '../../components/ui';
 import Pagination from '../../components/ui/Pagination';
 import ReasonTextarea from '../../components/ui/ReasonTextarea';
 import guestVisitService from '../../services/guestVisitService';
 import { useAuth } from '../../context/AuthContext';
+import { ROLES } from '../../constants/roles';
 import {
   getGuestVisitStatus,
   getGuestBiometricStatus,
   formatDateTime,
+  getMissingPhotoInfo,
 } from '../../utils/guestHelpers';
 import '../../styles/GuestVisitPage.css';
 import { useSearchParams } from 'react-router-dom';
@@ -104,6 +107,7 @@ export default function GuestVisitReviewPage() {
       setTotalElements(res?.totalElements || 0);
       setPage(res?.number ?? targetPage);
     } catch (err) {
+      setVisits([]);
       setError(err?.message || 'Không thể tải danh sách lượt khách.');
     } finally {
       setLoading(false);
@@ -285,6 +289,10 @@ export default function GuestVisitReviewPage() {
   // A-08 (BR-GV-10): FM không tự duyệt / từ chối / thu hồi lượt mình là người mời (BE trả 403 ERR_GUEST_022).
   // GuestVisitResponse không có hostId nên so theo mã người dùng.
   const isOwnVisit = Boolean(detail && user?.userCode && detail.hostCode === user.userCode);
+  // Duyệt / từ chối / thu hồi chỉ FM (BE @PreAuthorize FACILITY_MANAGER); ADMIN và role khác chỉ xem
+  const isFacilityManager = user?.role === ROLES.FACILITY_MANAGER;
+  const hasDetailActions =
+    isFacilityManager && !isOwnVisit && (detail?.status === 'PENDING' || isDetailApprovedAndActive);
 
   return (
     <div className="guest-visit">
@@ -303,12 +311,6 @@ export default function GuestVisitReviewPage() {
         }
       />
 
-      {error && (
-        <div className="guest-visit__alert guest-visit__alert--danger">
-          <AlertCircle size={16} />
-          <span>{error}</span>
-        </div>
-      )}
 
       {/* Filter Tabs */}
       <div className="guest-visit__filters">
@@ -327,15 +329,11 @@ export default function GuestVisitReviewPage() {
       {/* Table Card */}
       <div className="guest-visit__card">
         {loading && visits.length === 0 ? (
-          <div className="guest-visit__empty">
-            <RefreshCw size={24} className="guest-visit__spin" />
-            <span>Đang tải danh sách lượt khách...</span>
-          </div>
+          <LoadingState size="sm" text="Đang tải danh sách lượt khách..." />
+        ) : error ? (
+          <ErrorState size="sm" message={error} onRetry={() => loadVisits(page)} />
         ) : visits.length === 0 ? (
-          <div className="guest-visit__empty">
-            <Users size={32} />
-            <span>Không có lượt khách nào phù hợp.</span>
-          </div>
+          <EmptyState size="sm" icon={Users} title="Không có lượt khách nào phù hợp" />
         ) : (
           <table className="guest-visit__table">
             <thead>
@@ -379,6 +377,14 @@ export default function GuestVisitReviewPage() {
                     </td>
                     <td>
                       <Badge variant={statusMeta.variant}>{statusMeta.label}</Badge>
+                      {/* BR-GV-38: lượt đã duyệt còn khách chưa đăng ký khuôn mặt */}
+                      {getMissingPhotoInfo(v) && (
+                        <div className="guest-visit__photo-missing">
+                          <Badge variant="warning">
+                            Chưa có ảnh ({getMissingPhotoInfo(v).missing}/{getMissingPhotoInfo(v).total} khách)
+                          </Badge>
+                        </div>
+                      )}
                     </td>
                     <td className="guest-visit__actions">
                       <Button
@@ -418,12 +424,12 @@ export default function GuestVisitReviewPage() {
         size="lg"
         footer={
           <>
-            {isOwnVisit && (detail?.status === 'PENDING' || isDetailApprovedAndActive) && (
+            {isFacilityManager && isOwnVisit && (detail?.status === 'PENDING' || isDetailApprovedAndActive) && (
               <span className="guest-visit__muted" role="note">
                 Bạn là người mời lượt này nên không được tự duyệt, từ chối hoặc thu hồi.
               </span>
             )}
-            {detail?.status === 'PENDING' && !isOwnVisit && (
+            {hasDetailActions && detail?.status === 'PENDING' && (
               <>
                 <Button
                   variant="danger"
@@ -441,7 +447,7 @@ export default function GuestVisitReviewPage() {
                 </Button>
               </>
             )}
-            {isDetailApprovedAndActive && !isOwnVisit && (
+            {hasDetailActions && isDetailApprovedAndActive && (
               <Button
                 variant="danger"
                 icon={Ban}
@@ -450,9 +456,12 @@ export default function GuestVisitReviewPage() {
                 Thu hồi
               </Button>
             )}
-            <Button variant="secondary" onClick={() => setDetail(null)}>
-              Đóng
-            </Button>
+            {/* Popup có nút hành động thì bỏ "Đóng" (còn X + Esc); chỉ để xem thì giữ "Đóng" */}
+            {!hasDetailActions && (
+              <Button variant="secondary" onClick={() => setDetail(null)}>
+                Đóng
+              </Button>
+            )}
           </>
         }
       >

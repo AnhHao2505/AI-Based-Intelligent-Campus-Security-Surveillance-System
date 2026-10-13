@@ -24,11 +24,11 @@ import { getLevelConfig, AREA_LEVEL_CONFIG } from "../../utils/areaHelpers";
 import { useAuth } from "../../context/AuthContext";
 import "../../styles/AccessRequestPage.css";
 import PageHeader from "../../components/ui/PageHeader";
+import { LoadingState, EmptyState, ErrorState } from "../../components/ui";
 import { formatLocation } from "../../utils/formatLocation";
 import { formatDateTime, formatRange } from "../../utils/formatDateTime";
 import MemberCodeCombobox from "../../components/accessRequest/MemberCodeCombobox";
 import { useSearchParams } from "react-router-dom";
-import { safeJsonParse } from "../../utils/jsonUtils";
 import { toast } from "sonner";
 
 export default function AccessRequestPage() {
@@ -36,7 +36,9 @@ export default function AccessRequestPage() {
 
 	// Available Areas
 	const [areas, setAreas] = useState([]);
-	const [loadingAreas, setLoadingAreas] = useState(false);
+	// Bắt đầu ở trạng thái đang tải để không hiện form rồi mới ẩn khi danh sách rỗng
+	const [loadingAreas, setLoadingAreas] = useState(true);
+	const [areasError, setAreasError] = useState(null);
 
 	// Form State
 	const [selectedAreaId, setSelectedAreaId] = useState("");
@@ -65,6 +67,7 @@ export default function AccessRequestPage() {
 	const [historyStatusFilter, setHistoryStatusFilter] = useState("");
 	const [historyAreaFilter, setHistoryAreaFilter] = useState("");
 	const [loadingHistory, setLoadingHistory] = useState(false);
+	const [historyError, setHistoryError] = useState(null);
 	const [historyPage, setHistoryPage] = useState(0);
 	const [historyTotalPages, setHistoryTotalPages] = useState(1);
 	const [historyTotalElements, setHistoryTotalElements] = useState(0);
@@ -173,12 +176,15 @@ export default function AccessRequestPage() {
 	// Load available areas
 	const loadAreas = useCallback(async () => {
 		setLoadingAreas(true);
+		setAreasError(null);
 		try {
 			const data = await accessRequestService.getAvailableAreas();
 			const list = Array.isArray(data) ? data : data?.content || [];
 			setAreas(list);
 		} catch (err) {
 			console.error("Lỗi khi tải danh sách khu vực:", err);
+			// Lỗi tải không được hiểu là "không có khu" — hiện lỗi + Thử lại
+			setAreasError(err?.message || "Không tải được danh sách khu vực.");
 		} finally {
 			setLoadingAreas(false);
 		}
@@ -188,6 +194,7 @@ export default function AccessRequestPage() {
 	const loadMyRequests = useCallback(
 		async (page = 0, status = historyStatusFilter, areaId = historyAreaFilter) => {
 			setLoadingHistory(true);
+			setHistoryError(null);
 			try {
 				const res = await accessRequestService.getMyRequests({
 					status: status || undefined,
@@ -201,6 +208,9 @@ export default function AccessRequestPage() {
 				setHistoryPage(page);
 			} catch (err) {
 				console.error("Lỗi khi tải lịch sử yêu cầu:", err);
+				// Không giữ danh sách cũ và không hiện "Chưa có yêu cầu nào" khi tải lỗi
+				setHistoryList([]);
+				setHistoryError(err?.message || "Không tải được danh sách yêu cầu.");
 			} finally {
 				setLoadingHistory(false);
 				setHistoryLoaded(true);
@@ -208,6 +218,16 @@ export default function AccessRequestPage() {
 		},
 		[historyStatusFilter, historyAreaFilter],
 	);
+
+	// Esc đóng popup chi tiết giống nút X (popup huỷ dùng Modal chung đã tự xử lý Esc)
+	useEffect(() => {
+		if (!selectedDetail || cancelItem) return undefined;
+		const handleKeyDown = (e) => {
+			if (e.key === "Escape" || e.key === "Esc") setSelectedDetail(null);
+		};
+		document.addEventListener("keydown", handleKeyDown);
+		return () => document.removeEventListener("keydown", handleKeyDown);
+	}, [selectedDetail, cancelItem]);
 
 	useEffect(() => {
 		loadAreas();
@@ -418,7 +438,7 @@ export default function AccessRequestPage() {
 			}
 
 			// Deduplicate and silently exclude requester
-			const currentUser = safeJsonParse(localStorage.getItem("user"), {});
+			const currentUser = user || {};
 			const myCode = (currentUser.userCode || "").trim().toLowerCase();
 			const seen = new Set();
 			for (const m of memberList) {
@@ -532,7 +552,32 @@ export default function AccessRequestPage() {
 				title="Yêu cầu truy cập"
 				description="Gửi yêu cầu ra vào khu vực cần cấp phép và theo dõi trạng thái các yêu cầu của bạn."
 			/>
-			{/* THẺ 1: YÊU CẦU TRUY CẬP MỚI */}
+			{/* THẺ 1: YÊU CẦU TRUY CẬP MỚI
+			    Hiện hay ẩn dựa trên kết quả available-areas (BE quyết khu nào tự xin được),
+			    không dựa trên role hay cấp người dùng. */}
+			{loadingAreas ? (
+				<div className="arp-card">
+					<LoadingState size="sm" text="Đang tải danh sách khu vực..." />
+				</div>
+			) : areasError ? (
+				<div className="arp-card">
+					<ErrorState
+						size="sm"
+						title="Không tải được danh sách khu vực"
+						message={areasError}
+						onRetry={loadAreas}
+					/>
+				</div>
+			) : areas.length === 0 ? (
+				<div className="arp-card">
+					<EmptyState
+						size="sm"
+						icon={KeyRound}
+						title="Hiện không có khu vực nào bạn có thể tự xin quyền truy cập"
+						description="Nếu cần vào phòng Lab hoặc khu hạn chế, hãy nhờ giảng viên thêm bạn vào đơn nhóm."
+					/>
+				</div>
+			) : (
 			<div className="arp-card">
 				{/* 2a. Đầu thẻ */}
 				<div className="arp-card__header">
@@ -901,6 +946,7 @@ export default function AccessRequestPage() {
 					</div>
 				</form>
 			</div>
+			)}
 
 			{/* THẺ 2: YÊU CẦU CỦA TÔI */}
 			<div
@@ -983,24 +1029,15 @@ export default function AccessRequestPage() {
 				{/* 3b. Bảng & 3d. Bảng rỗng */}
 				<div className="arp-card__table-wrapper">
 					{loadingHistory ? (
-						<div className="arp-empty">
-							<RefreshCw
-								size={24}
-								className="arp-spin"
-								style={{ marginBottom: "8px" }}
-							/>
-							<div className="arp-empty__text">
-								Đang tải danh sách yêu cầu...
-							</div>
-						</div>
+						<LoadingState size="sm" text="Đang tải danh sách yêu cầu..." />
+					) : historyError ? (
+						<ErrorState
+							size="sm"
+							message={historyError}
+							onRetry={() => loadMyRequests(historyPage)}
+						/>
 					) : historyList.length === 0 ? (
-						<div className="arp-empty">
-							<Inbox
-								size={28}
-								className="arp-empty__icon"
-							/>
-							<div className="arp-empty__text">Chưa có yêu cầu nào</div>
-						</div>
+						<EmptyState size="sm" icon={Inbox} title="Chưa có yêu cầu nào" />
 					) : (
 						<div className="arp-table-container">
 							<table className="arp-table">
@@ -1125,6 +1162,12 @@ export default function AccessRequestPage() {
 													{req.status === "CANCELLED" && req.cancelSource === "SYSTEM" && (
 														<div className="arp-cancel-system" title={req.cancelReason || ""}>
 															Hủy bởi hệ thống: {req.cancelReason}
+														</div>
+													)}
+													{/* BR-RQ-47: FM huỷ đơn đã duyệt (cancel_source STAFF) */}
+													{req.status === "CANCELLED" && req.cancelSource === "STAFF" && (
+														<div className="arp-cancel-system" title={req.cancelReason || ""}>
+															Quản lý huỷ: {req.cancelReason}
 														</div>
 													)}
 												</td>
@@ -1369,6 +1412,11 @@ export default function AccessRequestPage() {
 												Hủy bởi hệ thống: {selectedDetail.cancelReason}
 											</div>
 										)}
+										{selectedDetail.status === "CANCELLED" && selectedDetail.cancelSource === "STAFF" && (
+											<div className="arp-cancel-system arp-cancel-system--detail">
+												Quản lý huỷ: {selectedDetail.cancelReason}
+											</div>
+										)}
 									</div>
 								</div>
 
@@ -1533,13 +1581,6 @@ export default function AccessRequestPage() {
 							width: "100%",
 						}}
 					>
-						<Button
-							variant="secondary"
-							onClick={() => setCancelItem(null)}
-							disabled={cancelling}
-						>
-							Đóng
-						</Button>
 						<Button
 							variant="danger"
 							onClick={handleConfirmCancel}

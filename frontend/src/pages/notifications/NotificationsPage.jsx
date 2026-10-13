@@ -7,7 +7,6 @@ import {
   ShieldX,
   CircleCheck,
   CircleX,
-  RefreshCw,
   Users,
   Inbox,
   XCircle,
@@ -30,15 +29,19 @@ import { useAuth } from '../../context/AuthContext';
 import Pagination from '../../components/ui/Pagination';
 import '../../styles/NotificationsPage.css';
 import PageHeader from '../../components/ui/PageHeader';
+import { LoadingState, EmptyState, ErrorState } from '../../components/ui';
 import '../../components/ui/Button.css';
 import { formatDateTime } from '../../utils/formatDateTime';
+import { toast } from 'sonner';
 
 export default function NotificationsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
   const [notifications, setNotifications] = useState([]);
-  const [loading, setLoading] = useState(false);
+  // Bắt đầu ở trạng thái đang tải để không nháy "Chưa có thông báo nào" khi mở trang
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [totalElements, setTotalElements] = useState(0);
@@ -47,6 +50,7 @@ export default function NotificationsPage() {
   const fetchNotifications = async (pageIndex = page) => {
     try {
       setLoading(true);
+      setLoadError(null);
       const res = await notificationService.getMyNotifications({ page: pageIndex, size: pageSize });
       setNotifications(res.content || []);
       setPage(res.number ?? pageIndex);
@@ -54,6 +58,8 @@ export default function NotificationsPage() {
       setTotalElements(res.totalElements ?? (res.content?.length || 0));
     } catch (err) {
       console.error('Lỗi khi tải thông báo:', err);
+      setNotifications([]);
+      setLoadError(err?.message || 'Không tải được danh sách thông báo.');
     } finally {
       setLoading(false);
     }
@@ -66,6 +72,7 @@ export default function NotificationsPage() {
       window.dispatchEvent(new CustomEvent('notification-updated'));
     } catch (err) {
       console.error('Lỗi khi đánh dấu đã đọc tất cả:', err);
+      toast.error(err?.message || 'Không đánh dấu được tất cả là đã đọc.');
     }
   };
 
@@ -83,12 +90,22 @@ export default function NotificationsPage() {
       }
     }
 
+    // BR-NT-26: thông báo đơn truy cập / lượt khách cũ đã lỡ gửi cho ADMIN (ADMIN không duyệt đơn, không duyệt / làm host khách)
+    // -> chỉ đánh dấu đã đọc, không chuyển trang. GUEST_PHOTO_REQUIRED vẫn dẫn tới trang Ảnh khách.
+    const notifRefType = notif.referenceType || notif.reference_type;
+    if ((user?.role || user?.role_type) === 'ADMIN' && notif.type !== 'GUEST_PHOTO_REQUIRED'
+      && (notifRefType === 'ACCESS_REQUEST' || notifRefType === 'GUEST_VISIT' || notif.type?.startsWith('GUEST_'))) {
+      toast.info('Thông báo này dành cho Quản lý cơ sở vật chất');
+      return;
+    }
+
     if (notif.referenceType === 'ACCESS_REQUEST' || notif.reference_type === 'ACCESS_REQUEST') {
       const role = user?.role || user?.role_type || '';
       // Mở đúng đơn: trang đích đọc ?requestId (tô sáng dòng hoặc mở popup chi tiết)
       const refId = notif.referenceId || notif.reference_id;
       const query = refId ? `?requestId=${encodeURIComponent(refId)}` : '';
-      if (role === 'FACILITY_MANAGER' || role === 'ADMIN') {
+      // ADMIN đã dừng ở nhánh BR-NT-26 phía trên
+      if (role === 'FACILITY_MANAGER') {
         navigate(`/admin/access-requests${query}`);
       } else {
         navigate(`/access-requests${query}`);
@@ -124,10 +141,8 @@ export default function NotificationsPage() {
         navigate(`/admin/guest-visits${visitQuery}`);
       } else if (notif.type === 'GUEST_PHOTO_REQUIRED') {
         navigate('/admin/guest-photos');
-      } else if ((user?.role || user?.role_type) === 'ADMIN') {
-        // B-04: ADMIN không có trang "Khách của tôi"
-        navigate(`/admin/guest-visits${visitQuery}`);
       } else {
+        // ADMIN không tới nhánh này: GUEST_PHOTO_REQUIRED đi nhánh trên, loại khác dừng ở BR-NT-26
         navigate(`/guest-visits${visitQuery}`);
       }
     }
@@ -331,18 +346,16 @@ export default function NotificationsPage() {
 
         {/* List / Empty State */}
         {loading && notifications.length === 0 ? (
-          <div className="notif-empty">
-            <RefreshCw size={24} className="notif-spin notif-empty__icon" />
-            <div className="notif-empty__title">Đang tải thông báo...</div>
-          </div>
+          <LoadingState size="sm" text="Đang tải thông báo..." />
+        ) : loadError ? (
+          <ErrorState size="sm" message={loadError} onRetry={() => fetchNotifications(page)} />
         ) : notifications.length === 0 ? (
-          <div className="notif-empty">
-            <BellOff size={32} strokeWidth={1.5} className="notif-empty__icon" />
-            <div className="notif-empty__title">Chưa có thông báo nào</div>
-            <div className="notif-empty__subtitle">
-              Bạn sẽ nhận được thông báo khi yêu cầu truy cập được xử lý
-            </div>
-          </div>
+          <EmptyState
+            size="sm"
+            icon={BellOff}
+            title="Chưa có thông báo nào"
+            description="Thông báo về yêu cầu truy cập, lượt khách và các việc cần bạn xử lý sẽ hiện ở đây."
+          />
         ) : (
           <>
             <div className="notif-list">

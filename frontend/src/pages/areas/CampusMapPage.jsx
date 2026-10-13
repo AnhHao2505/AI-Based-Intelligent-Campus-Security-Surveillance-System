@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-import { Compass, Building2, AlertCircle, Loader2, Layers } from "lucide-react";
+import { Compass, Building2, Layers } from "lucide-react";
 import CampusMapView from "../../components/area/CampusMapView";
 import ErrorBoundary from "../../components/common/ErrorBoundary";
 import PageHeader from "../../components/ui/PageHeader";
+import { LoadingState, ErrorState } from "../../components/ui";
 import "../../components/ui/Button.css";
 import { getAreas, getAreaCameras } from "../../services/areaService";
 import { getBuildings } from "../../services/buildingService";
@@ -174,13 +175,6 @@ export default function CampusMapPage() {
 				description="Bản đồ an ninh toàn diện và giám sát khu vực theo toạ độ địa lý."
 			/>
 
-			{/* Global Error Banner */}
-			{pageError && (
-				<div className="zone-page__alert zone-page__alert--danger">
-					<AlertCircle size={18} />
-					<span>{pageError}</span>
-				</div>
-			)}
 
 			{/* Toolbar */}
 			<div className="zone-toolbar">
@@ -242,18 +236,17 @@ export default function CampusMapPage() {
 			</div>
 
 			{/* Loading */}
-			{loading && (
-				<div className="zone-page__loading">
-					<Loader2
-						className="animate-spin"
-						size={32}
-					/>
-					<span>Đang nạp dữ liệu bản đồ...</span>
-				</div>
+			{loading && <LoadingState text="Đang tải dữ liệu bản đồ..." />}
+
+			{!loading && pageError && (
+				<ErrorState
+					message={pageError}
+					onRetry={() => fetchData(selectedAreaId)}
+				/>
 			)}
 
 			{/* OUTDOOR CAMPUS MAP */}
-			{!loading && (
+			{!loading && !pageError && (
 				<ErrorBoundary>
 					<CampusMapView
 						areas={filteredAreas}
@@ -266,11 +259,17 @@ export default function CampusMapPage() {
 					/>
 				</ErrorBoundary>
 			)}
-			<p>
-				Lưu ý, các ghim vị trí trên bản đồ chỉ mang tính chất tương đối, nó có
-				thể bị lệch khi view để đảm bảo các ghim vị trí không chồng lên nhau,
-				nhưng tọa độ tuyệt đối bạn đã lưu cho khu vực vẫn sẽ được dùng để điều
-				hướng bảo vệ tới khu vực xảy ra sự cố
+			<p
+				style={{
+					margin: "12px 0 0",
+					fontSize: "0.8125rem",
+					lineHeight: 1.5,
+					color: "var(--theme-text-muted)",
+				}}
+			>
+				Lưu ý: ghim trên bản đồ có thể được dịch nhẹ để không chồng lên nhau.
+				Hệ thống vẫn dùng toạ độ chính xác đã lưu của khu vực để điều hướng
+				bảo vệ tới nơi xảy ra sự cố.
 			</p>
 		</div>
 	);

@@ -177,14 +177,36 @@ public class GuestVisitService {
     /**
      * BR-GV-04: khu vực chọn được trong form lượt khách — cùng điều kiện với checkArea (đang hoạt động, chưa xoá mềm,
      * loại INTERNAL / CONTACT). Không lọc theo cờ explicit nên có cả khu vực INTERNAL.
-     * BR-GV-06 (host phủ khu vực) phụ thuộc khung giờ nên vẫn kiểm lúc tạo lượt (ERR_GUEST_014).
+     * BR-GV-06 (host phủ khu vực) phụ thuộc khung giờ: khi có đủ startTime và endTime thì mỗi khu vực kèm hostCanInvite
+     * và reasonCode, tính bằng đúng GuestRules.hostEligible + hostCoversArea mà bước tạo lượt dùng (ERR_GUEST_002 /
+     * ERR_GUEST_014). Thiếu một trong hai thì không tính (giữ như trước). Bước tạo lượt vẫn kiểm lại.
      */
     @Transactional(readOnly = true)
-    public List<com.fa26se040.icss.dto.accessrequest.AreaSimpleResponse> listSelectableAreas() {
+    public List<com.fa26se040.icss.dto.guest.GuestSelectableAreaResponse> listSelectableAreas(
+            String actorEmail, OffsetDateTime startTime, OffsetDateTime endTime) {
+        boolean withWindow = startTime != null && endTime != null;
+        if (withWindow && !startTime.isBefore(endTime)) {
+            throw new GuestException(GuestErrorCode.ERR_GUEST_011);
+        }
+        User host = withWindow ? currentUser(actorEmail) : null;
+        boolean eligible = withWindow && rules.hostEligible(host);
         return areaRepository.findAvailableForRequest(GuestRules.GUEST_AREA_LEVELS).stream()
                 .filter(a -> rules.areaActive(a) && rules.areaTypeAllowed(a))
-                .map(a -> new com.fa26se040.icss.dto.accessrequest.AreaSimpleResponse(
-                        a.getId(), a.getName(), a.getAreaLevel(), a.getBuilding(), a.getFloor()))
+                .map(a -> {
+                    Boolean canInvite = null;
+                    String reasonCode = null;
+                    if (withWindow) {
+                        if (!eligible) {
+                            canInvite = false;
+                            reasonCode = GuestErrorCode.ERR_GUEST_002.getCode();
+                        } else {
+                            canInvite = rules.hostCoversArea(host, a, startTime, endTime);
+                            reasonCode = canInvite ? null : GuestErrorCode.ERR_GUEST_014.getCode();
+                        }
+                    }
+                    return new com.fa26se040.icss.dto.guest.GuestSelectableAreaResponse(
+                            a.getId(), a.getName(), a.getAreaLevel(), a.getBuilding(), a.getFloor(), canInvite, reasonCode);
+                })
                 .toList();
     }
 

@@ -15,6 +15,7 @@ import { getAccessLevelConfig } from '../../utils/areaHelpers';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import PageHeader from '../../components/ui/PageHeader';
+import { LoadingState, EmptyState, ErrorState } from '../../components/ui';
 import Pagination from '../../components/ui/Pagination';
 import ReasonTextarea from '../../components/ui/ReasonTextarea';
 import '../../styles/UserAccessLevelPage.css';
@@ -51,7 +52,7 @@ export default function UserAccessLevelPage() {
   const [keyword, setKeyword] = useState('');
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false);
+  const [loadError, setLoadError] = useState(null);
   const [selectedLevels, setSelectedLevels] = useState({});
   const debounceRef = useRef(null);
   const userReasonRef = useRef(null);
@@ -75,17 +76,10 @@ export default function UserAccessLevelPage() {
     isSaving: false,
   });
 
-  const handleSearchUsers = useCallback(async (q, pageNo = 0, level = '') => {
-    const clean = q.trim();
-    if (clean.length < 2) {
-      setUsers([]);
-      setLoadingUsers(false);
-      setHasSearched(false);
-      return;
-    }
-
+  const handleSearchUsers = useCallback(async (q = '', pageNo = 0, level = '') => {
+    const clean = (q || '').trim();
     setLoadingUsers(true);
-    setHasSearched(true);
+    setLoadError(null);
     try {
       const res = await searchUsers(clean, pageNo, PAGE_SIZE, level ? Number(level) : undefined);
       const items = res?.content || [];
@@ -100,13 +94,18 @@ export default function UserAccessLevelPage() {
       });
       setSelectedLevels(initialMap);
     } catch (err) {
-      console.error('Lỗi tìm kiếm người dùng:', err);
-      toast.error(err?.message || 'Không thể tìm kiếm người dùng');
+      console.error('Lỗi tải danh sách người dùng:', err);
+      setLoadError(err?.message || 'Không thể tải danh sách người dùng');
       setUsers([]);
     } finally {
       setLoadingUsers(false);
     }
   }, []);
+
+  // Tự động tải trang 1 của toàn bộ danh sách khi mở trang
+  React.useEffect(() => {
+    handleSearchUsers('', 0, '');
+  }, [handleSearchUsers]);
 
   const handleKeywordChange = (e) => {
     const val = e.target.value;
@@ -116,16 +115,10 @@ export default function UserAccessLevelPage() {
       clearTimeout(debounceRef.current);
     }
 
-    if (val.trim().length >= 2) {
-      setLoadingUsers(true);
-      debounceRef.current = setTimeout(() => {
-        handleSearchUsers(val, 0, levelFilter);
-      }, 300);
-    } else {
-      setUsers([]);
-      setLoadingUsers(false);
-      setHasSearched(false);
-    }
+    setLoadingUsers(true);
+    debounceRef.current = setTimeout(() => {
+      handleSearchUsers(val, 0, levelFilter);
+    }, 300);
   };
 
   const handleLevelChange = (userId, newLevel) => {
@@ -268,7 +261,7 @@ export default function UserAccessLevelPage() {
             <input
               type="text"
               className="access-level-search-box__input"
-              placeholder="Tìm kiếm người dùng theo họ tên hoặc mã số (tối thiểu 2 ký tự)..."
+              placeholder="Tìm kiếm người dùng theo họ tên hoặc mã số..."
               value={keyword}
               onChange={handleKeywordChange}
             />
@@ -278,8 +271,7 @@ export default function UserAccessLevelPage() {
                 className="access-level-search-box__clear"
                 onClick={() => {
                   setKeyword('');
-                  setUsers([]);
-                  setHasSearched(false);
+                  handleSearchUsers('', 0, levelFilter);
                 }}
                 title="Xóa từ khóa"
               >
@@ -293,7 +285,7 @@ export default function UserAccessLevelPage() {
             onChange={(e) => {
               const val = e.target.value;
               setLevelFilter(val);
-              if (keyword.trim().length >= 2) handleSearchUsers(keyword, 0, val);
+              handleSearchUsers(keyword, 0, val);
             }}
             aria-label="Lọc theo cấp hiện tại"
           >
@@ -325,26 +317,22 @@ export default function UserAccessLevelPage() {
         {/* Table Card */}
         <div className="access-level-table-card">
           {loadingUsers ? (
-            <div className="access-level-empty">
-              <Loader2 size={28} className="animate-spin" />
-              <p>Đang tìm kiếm người dùng...</p>
-            </div>
-          ) : !hasSearched ? (
-            <div className="access-level-empty">
-              <Search size={32} />
-              <p className="access-level-empty__title">Tra cứu người dùng để điều chỉnh cấp độ</p>
-              <span className="access-level-empty__desc">
-                Nhập tối thiểu 2 ký tự vào ô tìm kiếm bên trên để xem kết quả.
-              </span>
-            </div>
+            <LoadingState text="Đang tải danh sách người dùng..." />
+          ) : loadError ? (
+            <ErrorState
+              message={loadError}
+              onRetry={() => handleSearchUsers(keyword, page, levelFilter)}
+            />
           ) : users.length === 0 ? (
-            <div className="access-level-empty">
-              <Users size={32} />
-              <p className="access-level-empty__title">Không tìm thấy người dùng phù hợp</p>
-              <span className="access-level-empty__desc">
-                Vui lòng kiểm tra lại từ khóa tìm kiếm (tên hoặc mã số người dùng).
-              </span>
-            </div>
+            <EmptyState
+              icon={Users}
+              title="Không tìm thấy người dùng phù hợp"
+              description={
+                keyword || levelFilter
+                  ? "Không có kết quả nào khớp với bộ lọc hiện tại. Thử kiểm tra lại từ khóa hoặc xóa bộ lọc."
+                  : "Chưa có người dùng nào trong hệ thống."
+              }
+            />
           ) : (
             <div className="access-level-table-wrapper">
               <table className="access-level-table">

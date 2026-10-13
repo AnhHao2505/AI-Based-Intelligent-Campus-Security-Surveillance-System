@@ -198,7 +198,7 @@ public class UserController {
     @GetMapping("/search")
     @PreAuthorize("hasAnyRole('FACILITY_MANAGER', 'ADMIN')")
     public ResponseEntity<ApiResponse<Page<UserSearchResponse>>> searchUsers(
-            @RequestParam String q,
+            @RequestParam(required = false) String q,
             @RequestParam(required = false) Integer accessLevel,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size

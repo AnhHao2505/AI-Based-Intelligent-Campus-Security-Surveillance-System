@@ -27,6 +27,7 @@ import {
 	getActiveIncidents,
 } from "../../services/incidentService";
 import "../../styles/GuardDashboardPage.css";
+import { LoadingState, ErrorState } from "../../components/ui";
 
 // Trọng số phân cấp mức độ nghiêm trọng của sự kiện an ninh (Chuẩn hóa 3 loại sự cố chính)
 // 1. UNAUTHORIZED_ACCESS: Mức độ CRITICAL (weight: 3) - Màu Đỏ (#ef4444)
@@ -105,6 +106,10 @@ export function SecuritySurveillancePage() {
 	const [soundEnabled, setSoundEnabled] = useState(true);
 	const [wsConnected, setWsConnected] = useState(false);
 	const [activeAlerts, setActiveAlerts] = useState([]);
+	// Lỗi / đang tải danh sách sự cố ban đầu: không được hiện "HỆ THỐNG AN TOÀN" khi chưa tải được
+	const [incidentsLoading, setIncidentsLoading] = useState(true);
+	const [incidentsError, setIncidentsError] = useState(null);
+	const [incidentsReloadKey, setIncidentsReloadKey] = useState(0);
 	const [cameraList, setCameraList] = useState([]);
 	const [camerasLoading, setCamerasLoading] = useState(true);
 	const [alertFilter, setAlertFilter] = useState("ALL"); // 'ALL' | 'PENDING'
@@ -422,8 +427,10 @@ export function SecuritySurveillancePage() {
 	// Nạp danh sách sự cố chưa xử lý ban đầu từ Backend REST API khi tải trang
 	useEffect(() => {
 		async function loadInitialActiveIncidents() {
+			setIncidentsLoading(true);
 			try {
 				const active = await getActiveIncidents();
+				setIncidentsError(null);
 				if (Array.isArray(active) && active.length > 0) {
 					const mapped = active.map((incident) => {
 						const camCodeClean = (
@@ -468,10 +475,13 @@ export function SecuritySurveillancePage() {
 				}
 			} catch (e) {
 				console.warn("Không thể tải danh sách sự cố ban đầu:", e);
+				setIncidentsError(e?.message || "Không tải được danh sách sự cố.");
+			} finally {
+				setIncidentsLoading(false);
 			}
 		}
 		loadInitialActiveIncidents();
-	}, []);
+	}, [incidentsReloadKey]);
 
 	// Nghiệp vụ SOC: Xác nhận đã xem & tắt còi báo động tại phòng trực điều hành
 	const handleAcknowledge = (id) => {
@@ -986,7 +996,18 @@ export function SecuritySurveillancePage() {
 
 						{/* Khu Vực Hiển Thị Sự Kiện Hoặc Trạng Thái An Toàn */}
 						<div className="soc-alert-feed-body">
-							{filteredAlerts.length === 0 ? (
+							{incidentsError && (
+								<ErrorState
+									size="sm"
+									title="Không tải được danh sách sự cố"
+									message={incidentsError}
+									onRetry={() => setIncidentsReloadKey((k) => k + 1)}
+									retrying={incidentsLoading}
+								/>
+							)}
+							{filteredAlerts.length === 0 && (incidentsError || incidentsLoading) ? (
+								incidentsError ? null : <LoadingState size="sm" text="Đang tải danh sách sự cố..." />
+							) : filteredAlerts.length === 0 ? (
 								/* ┌──────────────────────────────┐
                    │        🟢                    │
                    │    HỆ THỐNG AN TOÀN          │
@@ -1101,26 +1122,6 @@ export function SecuritySurveillancePage() {
 									})}
 								</div>
 							)}
-						</div>
-
-						{/* ──────────────────────────── (Đường phân cách) */}
-						<div className="soc-panel-divider" />
-
-						{/* ┌──────────────────────────────┐
-						    │ Camera online          3/4   │
-						    │ Đang ghi hình           3    │
-						    └──────────────────────────────┘ */}
-						<div className="soc-system-status-footer">
-							<div className="soc-stat-row">
-								<span className="soc-stat-label">Camera online</span>
-								<span className="soc-stat-value">
-									{onlineCameraCount}/{totalCameraCount}
-								</span>
-							</div>
-							<div className="soc-stat-row">
-								<span className="soc-stat-label">Đang ghi hình</span>
-								<span className="soc-stat-value">{recordingCameraCount}</span>
-							</div>
 						</div>
 					</div>
 				)}

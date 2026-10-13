@@ -5,13 +5,13 @@ import {
 	Zap,
 	Video,
 	AlertCircle,
-	Loader2,
 	ChevronLeft,
 	ChevronRight,
 	ShieldCheck,
 	RefreshCw,
 } from "lucide-react";
 import "../../styles/CameraHealthLogs.css";
+import { LoadingState, ErrorState } from "../ui";
 
 export default function CameraHealthLogs({
 	logs = [],
@@ -20,6 +20,7 @@ export default function CameraHealthLogs({
 	totalPages = 0,
 	onPageChange,
 	onRefresh,
+	error = null,
 }) {
 	const formatTime = (isoString) => {
 		if (!isoString) return "";
@@ -79,13 +80,14 @@ export default function CameraHealthLogs({
 			{/* Body */}
 			<div className="health-logs-body">
 				{loading ? (
-					<div className="logs-loading">
-						<Loader2
-							size={24}
-							className="logs-loading-spinner"
-						/>
-						<span>Đang tải nhật ký kết nối...</span>
-					</div>
+					<LoadingState size="sm" text="Đang tải nhật ký kết nối..." />
+				) : error ? (
+					<ErrorState
+						size="sm"
+						title="Không tải được nhật ký kết nối"
+						message={error}
+						onRetry={onRefresh}
+					/>
 				) : logs.length === 0 ? (
 					<div className="logs-empty-state">
 						<div className="logs-empty-icon">

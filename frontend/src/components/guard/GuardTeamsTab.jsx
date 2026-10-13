@@ -25,6 +25,7 @@ import {
 import { guardScheduleApi } from '../../api/guardScheduleApi';
 import { getUsers } from '../../services/userService';
 import { ROLES } from '../../constants/roles';
+import { ErrorState } from '../../components/ui';
 
 // Helper chuẩn hóa tên đội hiển thị (VD: "1" -> "Đội 1")
 const formatTeamName = (name) => {
@@ -375,6 +376,10 @@ export default function GuardTeamsTab({
         guardScheduleApi.getTeams(),
         guardScheduleApi.getDispatches()
       ]);
+      if (teamsRes.status === 'rejected') {
+        // Trước đây lỗi tải đội bị bỏ qua và hiện "Chưa có đội bảo vệ nào"
+        setError(teamsRes.reason?.message || 'Không thể tải danh sách đội bảo vệ');
+      }
       const list = teamsRes.status === 'fulfilled' && Array.isArray(teamsRes.value) ? teamsRes.value : [];
       setTeams(list);
       if (dispatchesRes.status === 'fulfilled' && Array.isArray(dispatchesRes.value)) {
@@ -1003,10 +1008,7 @@ export default function GuardTeamsTab({
 
       {/* Error alert */}
       {error && (
-        <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800 rounded-xl text-rose-800 dark:text-rose-200 text-xs flex items-center gap-2">
-          <AlertCircle size={15} />
-          <span>{error}</span>
-        </div>
+        <ErrorState size="sm" message={error} onRetry={fetchTeams} retrying={loading} />
       )}
 
       {/* 3. Teams Grid */}
@@ -1014,7 +1016,7 @@ export default function GuardTeamsTab({
         <div className="text-center py-16 text-slate-500 text-xs">
           Đang tải danh sách các đội bảo vệ...
         </div>
-      ) : filteredTeams.length === 0 ? (
+      ) : error && teams.length === 0 ? null : filteredTeams.length === 0 ? (
         <div className="schedule-empty-state">
           <div className="schedule-empty-state__icon schedule-empty-state__icon--primary">
             <Users size={28} />
