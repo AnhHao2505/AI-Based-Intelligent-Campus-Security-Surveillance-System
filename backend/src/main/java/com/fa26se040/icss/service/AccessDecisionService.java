@@ -45,6 +45,7 @@ public class AccessDecisionService {
     private final com.fa26se040.icss.repository.AreaEventScheduleRepository areaEventScheduleRepository;
     private final GuestRepository guestRepository;
     private final GuestAccessDecisionService guestAccessDecisionService;
+    private final CameraAccessLogService cameraAccessLogService;
 
     /**
      * Xét user có được vào area tại thời điểm at hay không. Thứ tự kiểm:
@@ -176,7 +177,7 @@ public class AccessDecisionService {
         if (userOpt.isPresent()) {
             User user = userOpt.get();
             AccessDecision decision = checkEntry(user.getId(), area.getId(), at);
-            return CheckCameraEntryResponse.builder()
+            CheckCameraEntryResponse response = CheckCameraEntryResponse.builder()
                     .allowed(decision.allowed())
                     .source(decision.source())
                     .reason(decision.reason())
@@ -187,6 +188,10 @@ public class AccessDecisionService {
                     .userCode(user.getUserCode())
                     .fullName(user.getFullName())
                     .build();
+            if (cameraAccessLogService != null) {
+                cameraAccessLogService.recordAccessLog(response, at);
+            }
+            return response;
         }
 
         // 3. Nếu không phải người dùng nội bộ, kiểm tra xem có phải Khách tham quan (Guest) không
@@ -212,7 +217,7 @@ public class AccessDecisionService {
                                 default -> "Khách không có quyền vào khu vực này";
                             } : "Khách không có quyền vào khu vực này");
 
-                    return CheckCameraEntryResponse.builder()
+                    CheckCameraEntryResponse response = CheckCameraEntryResponse.builder()
                             .allowed(guestDecision.allowed())
                             .source(guestDecision.allowed() ? AccessSource.GUEST_VISIT : AccessSource.NONE)
                             .reason(reasonText)
@@ -223,12 +228,20 @@ public class AccessDecisionService {
                             .userCode("GUEST-" + guest.getId().toString().substring(0, 8))
                             .fullName(guest.getFullName() + " (Khách)")
                             .build();
+                    if (cameraAccessLogService != null) {
+                        cameraAccessLogService.recordAccessLog(response, at);
+                    }
+                    return response;
                 }
             } catch (IllegalArgumentException ignored) {
                 // userCode không phải định dạng UUID của khách
             }
         }
 
-        return CheckCameraEntryResponse.denied(cameraCode, userCode, "Người dùng không tồn tại hoặc đã bị xoá");
+        CheckCameraEntryResponse denied = CheckCameraEntryResponse.denied(cameraCode, userCode, "Người dùng không tồn tại hoặc đã bị xoá");
+        if (cameraAccessLogService != null) {
+            cameraAccessLogService.recordAccessLog(denied, at);
+        }
+        return denied;
     }
 }

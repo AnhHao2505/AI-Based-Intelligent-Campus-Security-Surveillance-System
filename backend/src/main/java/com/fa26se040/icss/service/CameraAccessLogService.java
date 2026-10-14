@@ -1,0 +1,190 @@
+package com.fa26se040.icss.service;
+
+import com.fa26se040.icss.dto.accessdecision.CheckCameraEntryResponse;
+import com.fa26se040.icss.dto.accesslog.CameraAccessLogResponse;
+import com.fa26se040.icss.dto.accesslog.CameraAccessLogStatsResponse;
+import com.fa26se040.icss.entity.Area;
+import com.fa26se040.icss.entity.CameraAccessLog;
+import com.fa26se040.icss.entity.User;
+import com.fa26se040.icss.enums.AccessResult;
+import com.fa26se040.icss.repository.AreaRepository;
+import com.fa26se040.icss.repository.CameraAccessLogRepository;
+import com.fa26se040.icss.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class CameraAccessLogService {
+
+    private final CameraAccessLogRepository cameraAccessLogRepository;
+    private final AreaRepository areaRepository;
+    private final UserRepository userRepository;
+    private final SimpMessagingTemplate messagingTemplate;
+
+    // Bộ nhớ đệm in-memory Debounce (Key: cameraCode:userCode -> Expire Epoch Seconds)
+    private final Map<String, Long> debounceCache = new ConcurrentHashMap<>();
+    private static final long DEBOUNCE_SECONDS = 30;
+
+    /**
+     * Ghi nhận lượt quét ra vào từ camera (có cơ chế debounce 30s chống spam).
+     */
+    @Transactional
+    public CameraAccessLogResponse recordAccessLog(CheckCameraEntryResponse entryResponse, OffsetDateTime at) {
+        if (entryResponse == null || entryResponse.getCameraCode() == null) {
+            return null;
+        }
+
+        if (at == null) {
+            at = OffsetDateTime.now();
+        }
+
+        String cameraCode = entryResponse.getCameraCode();
+        String userCode = entryResponse.getUserCode() != null ? entryResponse.getUserCode() : "UNKNOWN";
+
+        // 1. Kiểm tra Debounce chống spam
+        String cacheKey = cameraCode + ":" + userCode;
+        long nowEpoch = at.toEpochSecond();
+        Long lastSeen = debounceCache.get(cacheKey);
+        if (lastSeen != null && (nowEpoch - lastSeen) < DEBOUNCE_SECONDS) {
+            log.debug("Debounce: Bỏ qua ghi log trùng lặp cho [{}] tại [{}] trong vòng 30s", userCode, cameraCode);
+            return null;
+        }
+        debounceCache.put(cacheKey, nowEpoch);
+
+        // 2. Tìm Area và User
+        Area area = null;
+        if (entryResponse.getAreaId() != null) {
+            area = areaRepository.findById(entryResponse.getAreaId()).orElse(null);
+        }
+
+        User user = null;
+        if (entryResponse.getUserCode() != null) {
+            user = userRepository.findByUserCodeAndDeletedAtIsNull(entryResponse.getUserCode()).orElse(null);
+        }
+
+        // 3. Phân loại kết quả theo 5 nhóm chuẩn Ma trận
+        AccessResult result = classifyResult(entryResponse, at, user != null);
+
+        String fullName = entryResponse.getFullName();
+        if (fullName == null && user != null) {
+            fullName = user.getFullName();
+        }
+        Integer userAccessLevel = user != null ? user.getAccessLevel() : null;
+
+        // 4. Lưu Entity vào CSDL
+        CameraAccessLog logEntity = CameraAccessLog.builder()
+                .cameraCode(cameraCode)
+                .area(area)
+                .user(user)
+                .userCode(userCode)
+                .fullName(fullName)
+                .userAccessLevel(userAccessLevel)
+                .accessResult(result)
+                .accessSource(entryResponse.getSource())
+                .reasonDetails(entryResponse.getReason())
+                .loggedAt(at)
+                .build();
+
+        CameraAccessLog saved = cameraAccessLogRepository.save(logEntity);
+        CameraAccessLogResponse responseDto = CameraAccessLogResponse.from(saved);
+
+        // 5. Phát WebSocket sự kiện thời gian thực cho Tab Timeline
+        try {
+            String topic = "/topic/cameras/" + cameraCode + "/access-logs";
+            messagingTemplate.convertAndSend(topic, responseDto);
+            log.info("Broadcasted access log [{}] to [{}] with result [{}]", userCode, topic, result);
+        } catch (Exception e) {
+            log.warn("Không thể gửi thông điệp WebSocket cho access log: {}", e.getMessage());
+        }
+
+        return responseDto;
+    }
+
+    /**
+     * Phân loại kết quả chuẩn theo Ma trận kiểm soát an ninh.
+     */
+    public AccessResult classifyResult(CheckCameraEntryResponse entryResponse, OffsetDateTime at, boolean userExists) {
+        if (entryResponse.isAllowed()) {
+            return AccessResult.AUTHORIZED_ACCESS;
+        }
+
+        // Kiểm tra ban đêm (22:00 - 06:00) -> INTRUSION
+        int hour = at.getHour();
+        if (hour >= 22 || hour < 6) {
+            return AccessResult.INTRUSION;
+        }
+
+        String reason = entryResponse.getReason() != null ? entryResponse.getReason().toLowerCase() : "";
+
+        // Kiểm tra người lạ ngoài hệ thống -> UNKNOWN_PERSON
+        if (!userExists || reason.contains("người dùng không tồn tại") || (entryResponse.getUserCode() != null && entryResponse.getUserCode().startsWith("UNKNOWN"))) {
+            return AccessResult.UNKNOWN_PERSON;
+        }
+
+        // Kiểm tra sai khung giờ (đến sớm, trễ, quá hạn) -> ACCESS_OUT_OF_TIME
+        if (reason.contains("ngoài khung giờ") || reason.contains("hết hạn") || reason.contains("chưa tới giờ") || reason.contains("thời gian")) {
+            return AccessResult.ACCESS_OUT_OF_TIME;
+        }
+
+        // Mặc định còn lại: không có quyền, vượt cấp, tài khoản bị khoá -> UNAUTHORIZED_ACCESS
+        return AccessResult.UNAUTHORIZED_ACCESS;
+    }
+
+    @Transactional(readOnly = true)
+    public Page<CameraAccessLogResponse> getLogs(
+            String cameraCode,
+            AccessResult accessResult,
+            String search,
+            OffsetDateTime from,
+            OffsetDateTime to,
+            Pageable pageable
+    ) {
+        String cleanSearch = (search != null && !search.trim().isEmpty()) ? "%" + search.trim().toLowerCase() + "%" : null;
+        return cameraAccessLogRepository.findFiltered(cameraCode, accessResult, cleanSearch, from, to, pageable)
+                .map(CameraAccessLogResponse::from);
+    }
+
+    @Transactional(readOnly = true)
+    public CameraAccessLogStatsResponse getStatsToday(String cameraCode) {
+        ZoneOffset offset = ZoneOffset.ofHours(7);
+        LocalDate today = LocalDate.now(offset);
+        OffsetDateTime startOfDay = today.atStartOfDay().atOffset(offset);
+        OffsetDateTime endOfDay = today.atTime(LocalTime.MAX).atOffset(offset);
+
+        long total = cameraAccessLogRepository.countByCameraCodeAndLoggedAtBetween(cameraCode, startOfDay, endOfDay);
+        long authorized = cameraAccessLogRepository.countByCameraCodeAndLoggedAtBetweenAndAccessResult(cameraCode, startOfDay, endOfDay, AccessResult.AUTHORIZED_ACCESS);
+        long unauthorized = cameraAccessLogRepository.countByCameraCodeAndLoggedAtBetweenAndAccessResult(cameraCode, startOfDay, endOfDay, AccessResult.UNAUTHORIZED_ACCESS);
+        long outOfTime = cameraAccessLogRepository.countByCameraCodeAndLoggedAtBetweenAndAccessResult(cameraCode, startOfDay, endOfDay, AccessResult.ACCESS_OUT_OF_TIME);
+        long unknown = cameraAccessLogRepository.countByCameraCodeAndLoggedAtBetweenAndAccessResult(cameraCode, startOfDay, endOfDay, AccessResult.UNKNOWN_PERSON);
+        long intrusion = cameraAccessLogRepository.countByCameraCodeAndLoggedAtBetweenAndAccessResult(cameraCode, startOfDay, endOfDay, AccessResult.INTRUSION);
+
+        return CameraAccessLogStatsResponse.builder()
+                .cameraCode(cameraCode)
+                .totalToday(total)
+                .authorizedToday(authorized)
+                .unauthorizedToday(unauthorized)
+                .outOfTimeToday(outOfTime)
+                .unknownToday(unknown)
+                .intrusionToday(intrusion)
+                .build();
+    }
+
+    public void clearDebounceCache() {
+        debounceCache.clear();
+    }
+}

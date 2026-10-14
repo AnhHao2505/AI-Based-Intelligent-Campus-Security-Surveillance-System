@@ -8,6 +8,7 @@ import {
   PowerOff,
   MapPin,
   Layers,
+  Activity,
 } from "lucide-react";
 import {
   fetchCameraDetail,
@@ -27,6 +28,7 @@ import CameraStreamTab from "../../components/camera/CameraStreamTab";
 import CameraSurveillanceTab, {
   formatImageUrl,
 } from "../../components/camera/CameraSurveillanceTab";
+import CameraAccessLogsTab from "../../components/camera/CameraAccessLogsTab";
 import CameraHealthLogs from "../../components/camera/CameraHealthLogs";
 import "../../styles/CameraDetailPage.css";
 import { Modal, Button, LoadingState, EmptyState, ErrorState } from "../../components/ui";
@@ -601,6 +603,14 @@ export default function CameraDetailPage() {
               <Layers size={16} />
               <span>Vùng Giám Sát</span>
             </button>
+            <button
+              className={`tab-btn ${activeTab === "access-logs" ? "tab-btn--active" : ""
+                }`}
+              onClick={() => setActiveTab("access-logs")}
+            >
+              <Activity size={16} />
+              <span>Nhật ký ra vào</span>
+            </button>
           </div>
 
           <div className="tab-content">
@@ -647,6 +657,10 @@ export default function CameraDetailPage() {
                 onViewModeChange={setSurveillanceViewMode}
                 onError={showError}
               />
+            )}
+
+            {activeTab === "access-logs" && (
+              <CameraAccessLogsTab camera={camera} />
             )}
           </div>
         </div>
