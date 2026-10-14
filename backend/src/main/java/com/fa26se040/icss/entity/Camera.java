@@ -66,8 +66,8 @@ public class Camera {
     @OneToMany(mappedBy = "camera", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<CameraHealthLog> healthLogs;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "area_id")
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "area_id", nullable = false)
     private Area area;
 
     @PrePersist

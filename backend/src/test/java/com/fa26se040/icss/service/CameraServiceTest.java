@@ -80,7 +80,7 @@ class CameraServiceTest {
                 .name("Camera Cổng Chính")
                 .status(CameraStatus.ACTIVE)
                 .operationalStatus(OperationalStatus.ONLINE)
-                .area(null)
+                .area(Area.builder().id(UUID.randomUUID()).name("Cổng chính").build())
                 .build();
     }
 

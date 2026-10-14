@@ -61,7 +61,7 @@ export default function GuestPhotoPage() {
       if (cfg && cfg.configValue && cfg.configValue.trim()) {
         setConsentVersion(cfg.configValue.trim());
       } else {
-        setConfigError('Chưa cấu hình phiên bản thông báo đồng ý (GUEST_CONSENT_NOTICE_VERSION).');
+        setConfigError('Chưa cấu hình thông báo đồng ý (GUEST_CONSENT_NOTICE_VERSION).');
         setConsentVersion(null);
       }
     } catch (err) {

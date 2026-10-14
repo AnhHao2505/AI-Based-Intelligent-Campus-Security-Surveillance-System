@@ -11,7 +11,8 @@ import com.fa26se040.icss.enums.IncidentOutcome;
 import com.fa26se040.icss.enums.IncidentResolutionCategory;
 import com.fa26se040.icss.enums.IncidentStatus;
 import com.fa26se040.icss.enums.Role;
-import com.fa26se040.icss.repository.AreaRepository;
+import com.fa26se040.icss.entity.Camera;
+import com.fa26se040.icss.repository.CameraRepository;
 import com.fa26se040.icss.repository.SecurityIncidentRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,7 +26,6 @@ import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.time.OffsetDateTime;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -40,7 +40,7 @@ class SecurityIncidentServiceTest {
     private SecurityIncidentRepository incidentRepository;
 
     @Mock
-    private AreaRepository areaRepository;
+    private CameraRepository cameraRepository;
 
     @Mock
     private UserRepository userRepository;
@@ -95,7 +95,8 @@ class SecurityIncidentServiceTest {
                 .imageUrl("http://minio:9000/security-evidence/snap.jpg")
                 .build();
 
-        when(areaRepository.findAreasByCameraCode("CAM-001")).thenReturn(List.of(area));
+        when(cameraRepository.findByCameraCodeAndDeletedAtIsNull("CAM-001"))
+                .thenReturn(Optional.of(Camera.builder().cameraCode("CAM-001").area(area).build()));
         when(incidentRepository.save(any())).thenReturn(incident);
 
         IncidentDetailResponse result = incidentService.ingestIncident(eventDto);
@@ -118,7 +119,8 @@ class SecurityIncidentServiceTest {
                 .imageUrl("http://minio:9000/security-evidence/snap.jpg")
                 .build();
 
-        when(areaRepository.findAreasByCameraCode("CAM-UNASSIGNED")).thenReturn(List.of());
+        when(cameraRepository.findByCameraCodeAndDeletedAtIsNull("CAM-UNASSIGNED"))
+                .thenReturn(Optional.of(Camera.builder().cameraCode("CAM-UNASSIGNED").area(null).build()));
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> incidentService.ingestIncident(eventDto));
