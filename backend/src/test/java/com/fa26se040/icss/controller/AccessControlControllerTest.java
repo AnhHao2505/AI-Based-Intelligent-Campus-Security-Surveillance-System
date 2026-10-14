@@ -229,6 +229,8 @@ class AccessControlControllerTest {
                 .andExpect(jsonPath("$.data.allowed").value(true))
                 .andExpect(jsonPath("$.data.cameraCode").value("CAM-01"))
                 .andExpect(jsonPath("$.data.areaName").value("Phòng Lab 01"))
-                .andExpect(jsonPath("$.data.userCode").value("GV001"));
+                .andExpect(jsonPath("$.data.userCode").value("GV001"))
+                .andExpect(jsonPath("$.data.fullName").doesNotExist())
+                .andExpect(jsonPath("$.data.userId").doesNotExist());
     }
 }

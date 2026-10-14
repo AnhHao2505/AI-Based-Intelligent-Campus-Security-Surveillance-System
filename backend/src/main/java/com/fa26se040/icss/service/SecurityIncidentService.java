@@ -1,5 +1,6 @@
 package com.fa26se040.icss.service;
 
+import com.fa26se040.icss.dto.accessdecision.CheckCameraEntryResponse;
 import com.fa26se040.icss.dto.incident.IncidentClaimResponse;
 import com.fa26se040.icss.dto.incident.IncidentDetailResponse;
 import com.fa26se040.icss.dto.incident.IncidentEventDto;
@@ -9,6 +10,7 @@ import com.fa26se040.icss.entity.Camera;
 import com.fa26se040.icss.entity.GuardLocation;
 import com.fa26se040.icss.entity.SecurityIncident;
 import com.fa26se040.icss.entity.User;
+import com.fa26se040.icss.enums.AccessSource;
 import com.fa26se040.icss.enums.IncidentOutcome;
 import com.fa26se040.icss.enums.IncidentStatus;
 import com.fa26se040.icss.repository.CameraRepository;
@@ -26,6 +28,7 @@ import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -39,17 +42,22 @@ public class SecurityIncidentService {
     private final UserRepository userRepository;
     private final SimpMessagingTemplate messagingTemplate;
     private final GuardLocationService guardLocationService;
+    private final CameraAccessLogService cameraAccessLogService;
 
     @Transactional
     public IncidentDetailResponse ingestIncident(IncidentEventDto eventDto) {
         log.info("Processing incoming incident for camera [{}] type [{}]",
                 eventDto.getCameraCode(), eventDto.getEventType());
 
-        // Each camera is assigned to exactly one area when it is created.
+        // 1. Resolve camera and its assigned area
         Camera camera = cameraRepository.findByCameraCodeAndDeletedAtIsNull(eventDto.getCameraCode())
-                .orElseThrow(() -> new IllegalStateException(
+                .orElseThrow(() -> new IllegalArgumentException(
                         "Không tìm thấy camera với mã: " + eventDto.getCameraCode()));
         Area area = camera.getArea();
+        if (area == null) {
+            log.warn("Không tìm thấy khu vực hoạt động nào liên kết với camera [{}] để ghi nhận sự cố", eventDto.getCameraCode());
+            throw new IllegalArgumentException("Camera " + eventDto.getCameraCode() + " chưa được gán vào khu vực hoạt động nào!");
+        }
 
         String building = (area.getBuilding() != null && !area.getBuilding().isBlank())
                 ? area.getBuilding()
@@ -63,21 +71,72 @@ public class SecurityIncidentService {
 
         OffsetDateTime detectedAt = OffsetDateTime.now();
 
+        String rawEventType = eventDto.getEventType() != null ? eventDto.getEventType() : "SECURITY_ALERT";
+        String normalizedEventType = switch (rawEventType) {
+            case "AFTER_HOURS", "AFTER_HOURS_PRESENCE", "AFTER_HOURS_ACCESS" -> "INTRUSION";
+            case "UNAUTHORIZED" -> "UNAUTHORIZED_ACCESS";
+            case "UNKNOWN" -> "UNKNOWN_PERSON";
+            case "OUT_OF_TIME" -> "ACCESS_OUT_OF_TIME";
+            default -> rawEventType;
+        };
+
+        String cleanDetails = eventDto.getDetails() != null ? eventDto.getDetails() : "";
+        cleanDetails = cleanDetails.replace("[TRONG_GIO] ", "").replace("[TRONG_GIO]", "")
+                .replace("[AFTER_HOURS_PRESENCE] ", "[INTRUSION] ").replace("[AFTER_HOURS_PRESENCE]", "[INTRUSION]");
+
         SecurityIncident incident = SecurityIncident.builder()
                 .eventId(eventDto.getEventId())
                 .cameraCode(eventDto.getCameraCode() != null ? eventDto.getCameraCode() : "CAM-UNKNOWN")
                 .area(area)
                 .building(building)
-                .eventType(eventDto.getEventType() != null ? eventDto.getEventType() : "SECURITY_ALERT")
+                .eventType(normalizedEventType)
                 .imageUrl(imageUrl)
                 .detectedAt(detectedAt)
                 .status(IncidentStatus.NEW)
-                .resolutionNotes(eventDto.getDetails())
+                .resolutionNotes(cleanDetails)
                 .version(0)
                 .build();
 
         SecurityIncident saved = incidentRepository.save(incident);
         IncidentDetailResponse response = mapToDetailResponse(saved);
+
+        // 1b. Tự động đồng bộ sự cố người lạ / vi phạm / sai giờ / ngoài giờ sang Nhật ký ra vào của Camera (Tab 4 Camera Detail)
+        if (cameraAccessLogService != null && eventDto.getCameraCode() != null) {
+            try {
+                boolean isUnknown = normalizedEventType.contains("UNKNOWN") || cleanDetails.contains("UNKNOWN") || cleanDetails.contains("chưa rõ mặt");
+
+                String userCode = isUnknown ? "UNKNOWN" : "VIOLATION";
+                String fullName = isUnknown ? "Người lạ / Chưa rõ mặt" : "Đối tượng chưa cấp quyền";
+
+                // Trích xuất mã người dùng nếu AI đã nhận diện được mặt (ví dụ: SE194249 hoặc GUEST-xxx)
+                java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\((SE\\d+|GUEST-[a-zA-Z0-9-]+|[A-Z]{2,}\\d{4,})\\)").matcher(cleanDetails);
+                if (m.find()) {
+                    String extractedCode = m.group(1);
+                    Optional<User> uOpt = userRepository.findByUserCodeAndDeletedAtIsNull(extractedCode);
+                    if (uOpt.isPresent()) {
+                        userCode = uOpt.get().getUserCode();
+                        fullName = uOpt.get().getFullName();
+                    } else {
+                        userCode = extractedCode;
+                        fullName = "Đối tượng nhận diện (" + extractedCode + ")";
+                    }
+                }
+
+                CheckCameraEntryResponse logEntry = CheckCameraEntryResponse.builder()
+                        .cameraCode(eventDto.getCameraCode())
+                        .areaId(area.getId())
+                        .areaName(area.getName())
+                        .userCode(userCode)
+                        .fullName(fullName)
+                        .allowed(false)
+                        .source(AccessSource.NONE)
+                        .reason(cleanDetails.isBlank() ? "Phát hiện sự cố an ninh: " + normalizedEventType : cleanDetails)
+                        .build();
+                cameraAccessLogService.recordAccessLog(logEntry, detectedAt);
+            } catch (Exception ex) {
+                log.warn("Không thể đồng bộ sự cố sang nhật ký camera: {}", ex.getMessage());
+            }
+        }
 
         // 2. Real-time WebSocket dispatching
         // A. Dispatch targeted alerts only to guards currently inside the campus geofence

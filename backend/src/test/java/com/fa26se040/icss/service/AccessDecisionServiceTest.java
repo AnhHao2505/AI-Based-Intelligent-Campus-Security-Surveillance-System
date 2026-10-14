@@ -84,6 +84,9 @@ class AccessDecisionServiceTest {
     @Mock
     private com.fa26se040.icss.service.GuestAccessDecisionService guestAccessDecisionService;
 
+    @Mock
+    private CameraAccessLogService cameraAccessLogService;
+
     @InjectMocks
     private AccessDecisionService accessDecisionService;
 

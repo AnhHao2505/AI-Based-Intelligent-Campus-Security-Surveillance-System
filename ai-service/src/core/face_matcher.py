@@ -174,20 +174,14 @@ class FaceMatcher:
                 allowed = bool(data.get("allowed", False))
                 reason = data.get("reason", "Xét duyệt từ Backend")
                 area_name = data.get("areaName")
-                self.access_cache[cache_key] = (allowed, reason, area_name, now + self.access_cache_ttl)
+                ttl = self.access_cache_ttl if allowed else min(self.access_cache_ttl, 5.0)
+                self.access_cache[cache_key] = (allowed, reason, area_name, now + ttl)
                 logger.info(f"🔑 [FaceMatcher] Quyền ra vào [{user_code}] tại [{camera_code}] ({area_name or 'N/A'}): {'HỢP LỆ' if allowed else 'TỪ CHỐI'} ({reason})")
                 return allowed, reason, area_name
             else:
                 logger.warning(f"⚠️ [FaceMatcher] Backend trả về status {resp.status_code} khi checkEntry cho {user_code}")
         except Exception as e:
-            logger.debug(f"⚠️ [FaceMatcher] Không thể kết nối Backend để xét checkEntry: {e}. Áp dụng chế độ Safe Offline.")
+            logger.warning(f"⚠️ [FaceMatcher] Không thể kết nối Backend để xét checkEntry cho {user_code}: {e}")
 
-        # 3. Fallback Offline: Nếu backend tắt, dùng trạng thái tài khoản active làm fallback tạm thời
-        for item in self.cached_faces:
-            if item["code"] == user_code:
-                if item.get("is_active", True):
-                    return True, "Safe Offline Mode (Tài khoản đang hoạt động)", None
-                else:
-                    return False, "Safe Offline Mode: Tài khoản bị vô hiệu hóa", None
-
-        return False, "Đối tượng chưa được cấp quyền", None
+        # 3. Fallback Offline: Luôn Fail-closed để đảm bảo an ninh (không tự ý cho phép vào khu vực bảo mật)
+        return False, "Không thể kết nối máy chủ xét quyền (Fail-closed)", None

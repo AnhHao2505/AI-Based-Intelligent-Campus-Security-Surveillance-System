@@ -9,11 +9,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 
+import logging
 from .config import settings
 from .pipeline.video_pipeline import VideoPipeline
+from .pipeline.stream_worker import CameraStreamWorker
 from .integration.storage_service import StorageService
 
+logger = logging.getLogger("ai_service")
 storage_service = StorageService()
+active_workers: Dict[str, CameraStreamWorker] = {}
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -94,6 +98,47 @@ async def update_after_hour_config(req: AfterHourConfigRequest):
         worker.pipeline.analysis_engine.after_hour_start = req.start
         worker.pipeline.analysis_engine.after_hour_end = req.end
     return {"success": True, "start": req.start, "end": req.end}
+
+class AIRuntimeConfigRequest(BaseModel):
+    max_inactive_seconds: Optional[float] = None
+    unknown_alert_cooldown: Optional[float] = None
+    face_match_threshold: Optional[float] = None
+
+@app.post("/api/v1/system-config/ai-runtime")
+async def update_ai_runtime_config(req: AIRuntimeConfigRequest):
+    if req.max_inactive_seconds is not None:
+        if req.max_inactive_seconds < 1.0 or req.max_inactive_seconds > 60.0:
+            raise HTTPException(status_code=400, detail="max_inactive_seconds must be between 1.0 and 60.0")
+        settings.DEFAULT_TRACK_MAX_INACTIVE_SECONDS = req.max_inactive_seconds
+        if default_pipeline:
+            default_pipeline.analysis_engine.max_inactive_seconds = req.max_inactive_seconds
+        for worker in active_workers.values():
+            worker.update_runtime_config(max_inactive_seconds=req.max_inactive_seconds)
+
+    if req.unknown_alert_cooldown is not None:
+        if req.unknown_alert_cooldown < 5.0 or req.unknown_alert_cooldown > 300.0:
+            raise HTTPException(status_code=400, detail="unknown_alert_cooldown must be between 5.0 and 300.0")
+        settings.DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS = req.unknown_alert_cooldown
+        if default_pipeline:
+            default_pipeline.analysis_engine.unknown_alert_cooldown = req.unknown_alert_cooldown
+        for worker in active_workers.values():
+            worker.update_runtime_config(unknown_alert_cooldown=req.unknown_alert_cooldown)
+
+    if req.face_match_threshold is not None:
+        if req.face_match_threshold < 0.1 or req.face_match_threshold > 1.0:
+            raise HTTPException(status_code=400, detail="face_match_threshold must be between 0.1 and 1.0")
+        settings.FACE_MATCH_THRESHOLD = req.face_match_threshold
+
+    logger.info(
+        f"✅ Cập nhật cấu hình runtime AI: max_inactive_seconds={settings.DEFAULT_TRACK_MAX_INACTIVE_SECONDS}s, "
+        f"cooldown={settings.DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS}s, threshold={settings.FACE_MATCH_THRESHOLD}"
+    )
+    return {
+        "success": True,
+        "max_inactive_seconds": settings.DEFAULT_TRACK_MAX_INACTIVE_SECONDS,
+        "unknown_alert_cooldown": settings.DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS,
+        "face_match_threshold": settings.FACE_MATCH_THRESHOLD
+    }
 
 @app.post("/api/v1/cameras/configure")
 async def configure_camera(req: ROIConfigRequest):
@@ -235,9 +280,6 @@ async def process_face_registration(
         "face_count": face_count,
         "embedding_front": vector_512
     }
-
-from .pipeline.stream_worker import CameraStreamWorker
-active_workers: Dict[str, CameraStreamWorker] = {}
 
 class StreamStartRequest(BaseModel):
     camera_code: str

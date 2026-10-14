@@ -45,6 +45,7 @@ public class AccessDecisionService {
     private final com.fa26se040.icss.repository.AreaEventScheduleRepository areaEventScheduleRepository;
     private final GuestRepository guestRepository;
     private final GuestAccessDecisionService guestAccessDecisionService;
+    private final CameraAccessLogService cameraAccessLogService;
 
     /**
      * Xét user có được vào area tại thời điểm at hay không. Thứ tự kiểm:
@@ -141,14 +142,56 @@ public class AccessDecisionService {
             );
         }
 
-        // 6. Không có nguồn cấp quyền nào -> deny NONE
-        return AccessDecision.denied("Không có quyền ra vào khu vực tại thời điểm này");
+        // 6. Phân tích nguyên nhân từ chối chi tiết (Hỗ trợ phân biệt Sai giờ vs Sai quyền)
+        // A. Kiểm tra có đơn APPROVED cho khu vực này nhưng không đúng khung thời gian (đến sớm hoặc quá hạn)
+        if (accessRequestRepository != null) {
+            List<AccessRequest> approvedRequests = accessRequestRepository.findAnyApprovedRequestsForUser(
+                    userId, areaId, RequestStatus.APPROVED);
+            if (approvedRequests != null && !approvedRequests.isEmpty()) {
+                AccessRequest ar = approvedRequests.get(0);
+                if (ar.getStartTime() != null && at.isBefore(ar.getStartTime())) {
+                    return AccessDecision.denied("Chưa tới khung giờ được cấp phép theo đơn (Bắt đầu lúc: "
+                            + ar.getStartTime().toLocalTime() + ")");
+                } else if (ar.getEndTime() != null && !at.isBefore(ar.getEndTime())) {
+                    return AccessDecision.denied("Đơn xin quyền đã hết hạn sử dụng (Đã kết thúc lúc: "
+                            + ar.getEndTime().toLocalTime() + ")");
+                }
+            }
+        }
+
+        // B. Kiểm tra phân công nhân sự nhưng chưa tới hoặc đã hết hạn
+        if (assignedPersonnelRepository != null) {
+            List<AreaAssignedPersonnel> assignmentsAll = assignedPersonnelRepository.findByAreaIdWithDetails(areaId);
+            if (assignmentsAll != null) {
+                for (AreaAssignedPersonnel ap : assignmentsAll) {
+                    if (ap.getUser() != null && ap.getUser().getId().equals(userId) && ap.getRevokedAt() == null) {
+                        if (ap.getValidFrom() != null && at.isBefore(ap.getValidFrom())) {
+                            return AccessDecision.denied("Phân công nhân sự chưa tới ngày hiệu lực (Bắt đầu: " + ap.getValidFrom().toLocalDate() + ")");
+                        }
+                        if (ap.getValidTo() != null && !at.isBefore(ap.getValidTo())) {
+                            return AccessDecision.denied("Phân công nhân sự đã hết hạn hiệu lực (Đã kết thúc: " + ap.getValidTo().toLocalDate() + ")");
+                        }
+                    }
+                }
+            }
+        }
+
+        // C. Phân biệt sai quyền do cấp độ hoặc do yêu cầu đích danh
+        if (explicitRequired) {
+            return AccessDecision.denied("Khu vực yêu cầu chỉ định đích danh (cần đơn xin quyền hoặc được phân công)");
+        }
+        if (user.getAccessLevel() != null && area.getAreaAccessLevel() != null && user.getAccessLevel() < area.getAreaAccessLevel()) {
+            return AccessDecision.denied("Cấp độ truy cập không đủ (Khu vực Cấp " + area.getAreaAccessLevel() + ", người dùng Cấp " + user.getAccessLevel() + ")");
+        }
+
+        // 7. Mặc định: Không có nguồn cấp quyền nào -> deny NONE
+        return AccessDecision.denied("Không có quyền ra vào khu vực này");
     }
 
     /**
      * Xét quyền ra vào dựa trên mã Camera và mã Người dùng (phục vụ module AI Face Recognition).
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public CheckCameraEntryResponse checkCameraEntry(String cameraCode, String userCode, OffsetDateTime at) {
         if (at == null) {
             at = OffsetDateTime.now();
@@ -167,13 +210,16 @@ public class AccessDecisionService {
         }
         Camera camera = cameraOpt.get();
         Area area = camera.getArea();
+        if (area == null || !Boolean.TRUE.equals(area.getIsActive()) || area.getDeletedAt() != null) {
+            return CheckCameraEntryResponse.denied(cameraCode, userCode, "Camera chưa được gán vào khu vực hoạt động nào");
+        }
 
         // 2. Tìm người dùng theo userCode
         Optional<User> userOpt = userRepository.findByUserCodeAndDeletedAtIsNull(userCode);
         if (userOpt.isPresent()) {
             User user = userOpt.get();
             AccessDecision decision = checkEntry(user.getId(), area.getId(), at);
-            return CheckCameraEntryResponse.builder()
+            CheckCameraEntryResponse response = CheckCameraEntryResponse.builder()
                     .allowed(decision.allowed())
                     .source(decision.source())
                     .reason(decision.reason())
@@ -184,6 +230,10 @@ public class AccessDecisionService {
                     .userCode(user.getUserCode())
                     .fullName(user.getFullName())
                     .build();
+            if (cameraAccessLogService != null) {
+                cameraAccessLogService.recordAccessLog(response, at);
+            }
+            return response;
         }
 
         // 3. Nếu không phải người dùng nội bộ, kiểm tra xem có phải Khách tham quan (Guest) không
@@ -209,7 +259,7 @@ public class AccessDecisionService {
                                 default -> "Khách không có quyền vào khu vực này";
                             } : "Khách không có quyền vào khu vực này");
 
-                    return CheckCameraEntryResponse.builder()
+                    CheckCameraEntryResponse response = CheckCameraEntryResponse.builder()
                             .allowed(guestDecision.allowed())
                             .source(guestDecision.allowed() ? AccessSource.GUEST_VISIT : AccessSource.NONE)
                             .reason(reasonText)
@@ -220,12 +270,20 @@ public class AccessDecisionService {
                             .userCode("GUEST-" + guest.getId().toString().substring(0, 8))
                             .fullName(guest.getFullName() + " (Khách)")
                             .build();
+                    if (cameraAccessLogService != null) {
+                        cameraAccessLogService.recordAccessLog(response, at);
+                    }
+                    return response;
                 }
             } catch (IllegalArgumentException ignored) {
                 // userCode không phải định dạng UUID của khách
             }
         }
 
-        return CheckCameraEntryResponse.denied(cameraCode, userCode, "Người dùng không tồn tại hoặc đã bị xoá");
+        CheckCameraEntryResponse denied = CheckCameraEntryResponse.denied(cameraCode, userCode, "Người dùng không tồn tại hoặc đã bị xoá");
+        if (cameraAccessLogService != null) {
+            cameraAccessLogService.recordAccessLog(denied, at);
+        }
+        return denied;
     }
 }

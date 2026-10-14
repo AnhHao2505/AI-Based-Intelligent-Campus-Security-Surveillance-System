@@ -245,4 +245,19 @@ class SystemConfigServiceTest {
             TransactionSynchronizationManager.clearSynchronization();
         }
     }
+
+    @Test
+    @DisplayName("getDouble returns parsed double value from cache or default fallback")
+    void testGetDouble_ValidAndDefault() {
+        SystemConfiguration config = SystemConfiguration.builder()
+                .configKey(ConfigKey.AI_TRACK_MAX_INACTIVE_SECONDS.getKey())
+                .configValue("12.5")
+                .dataType("DECIMAL")
+                .build();
+        when(systemConfigurationRepository.findAll()).thenReturn(List.of(config));
+        systemConfigService.initCache();
+
+        assertEquals(12.5, systemConfigService.getDouble(ConfigKey.AI_TRACK_MAX_INACTIVE_SECONDS));
+        assertEquals(30, systemConfigService.getInt(ConfigKey.AI_UNKNOWN_ALERT_COOLDOWN_SECONDS));
+    }
 }

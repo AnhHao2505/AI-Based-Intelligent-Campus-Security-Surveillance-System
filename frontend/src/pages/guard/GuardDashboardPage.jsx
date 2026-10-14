@@ -29,53 +29,80 @@ import {
 import "../../styles/GuardDashboardPage.css";
 import { LoadingState, ErrorState } from "../../components/ui";
 
-// Trọng số phân cấp mức độ nghiêm trọng của sự kiện an ninh (Chuẩn hóa 3 loại sự cố chính)
-// 1. UNAUTHORIZED_ACCESS: Mức độ CRITICAL (weight: 3) - Màu Đỏ (#ef4444)
-// 2. UNKNOWN_PERSON:       Mức độ HIGH     (weight: 2) - Màu Vàng Cam (#f59e0b)
-// 3. AFTER_HOURS_ACCESS:   Mức độ WARNING  (weight: 1) - Màu Tím/Xanh (#8b5cf6)
+// Chuẩn hóa 5 nhóm sự kiện an ninh:
+// 1. AUTHORIZED_ACCESS: Hợp lệ (#10b981)
+// 2. UNAUTHORIZED_ACCESS: Sai quyền (#ef4444)
+// 3. ACCESS_OUT_OF_TIME: Sai giờ (#f59e0b)
+// 4. UNKNOWN_PERSON: Người lạ (#8b5cf6)
+// 5. INTRUSION: Ngoài giờ (#eab308)
 const EVENT_SEVERITY_CONFIG = {
+	AUTHORIZED_ACCESS: {
+		weight: 0,
+		label: "Hợp lệ",
+		badgeClass: "severity-success",
+		color: "#10b981",
+	},
 	UNAUTHORIZED_ACCESS: {
 		weight: 3,
-		label: "Xâm nhập trái phép",
+		label: "Sai quyền",
 		badgeClass: "severity-critical",
 		color: "#ef4444",
 	},
 	UNAUTHORIZED: {
 		weight: 3,
-		label: "Xâm nhập trái phép",
+		label: "Sai quyền",
 		badgeClass: "severity-critical",
 		color: "#ef4444",
 	},
-	UNKNOWN_PERSON: {
+	ACCESS_OUT_OF_TIME: {
 		weight: 2,
-		label: "Người lạ chưa xác minh",
+		label: "Sai giờ",
 		badgeClass: "severity-high",
 		color: "#f59e0b",
+	},
+	UNKNOWN_PERSON: {
+		weight: 2,
+		label: "Người lạ",
+		badgeClass: "severity-high",
+		color: "#8b5cf6",
 	},
 	UNKNOWN: {
 		weight: 2,
-		label: "Người lạ chưa xác minh",
+		label: "Người lạ",
 		badgeClass: "severity-high",
-		color: "#f59e0b",
-	},
-	AFTER_HOURS_ACCESS: {
-		weight: 1,
-		label: "Có người ngoài giờ",
-		badgeClass: "severity-warning",
 		color: "#8b5cf6",
+	},
+	INTRUSION: {
+		weight: 3,
+		label: "Ngoài giờ",
+		badgeClass: "severity-critical",
+		color: "#eab308",
 	},
 	AFTER_HOURS_PRESENCE: {
-		weight: 1,
-		label: "Có người ngoài giờ",
-		badgeClass: "severity-warning",
-		color: "#8b5cf6",
+		weight: 3,
+		label: "Ngoài giờ",
+		badgeClass: "severity-critical",
+		color: "#eab308",
+	},
+	AFTER_HOURS_ACCESS: {
+		weight: 3,
+		label: "Ngoài giờ",
+		badgeClass: "severity-critical",
+		color: "#eab308",
 	},
 	AFTER_HOURS: {
-		weight: 1,
-		label: "Có người ngoài giờ",
-		badgeClass: "severity-warning",
-		color: "#8b5cf6",
+		weight: 3,
+		label: "Ngoài giờ",
+		badgeClass: "severity-critical",
+		color: "#eab308",
 	},
+};
+
+const cleanIncidentMessage = (msg) => {
+	if (!msg) return "Phát hiện sự cố an ninh trong vùng cấm";
+	return String(msg)
+		.replace(/\[TRONG_GIO\]\s*/gi, "")
+		.replace(/\[AFTER_HOURS_PRESENCE\]\s*/gi, "[INTRUSION] ");
 };
 
 const isAlertPending = (status) => {
@@ -332,11 +359,11 @@ export function SecuritySurveillancePage() {
 				"Khu vực camera",
 			eventType:
 				incident.event_type || incident.eventType || "UNAUTHORIZED_ACCESS",
-			message:
+			message: cleanIncidentMessage(
 				incident.details ||
 				incident.resolutionNotes ||
-				incident.message ||
-				"Phát hiện sự cố an ninh trong vùng cấm",
+				incident.message
+			),
 			duration: incident.duration_seconds
 				? `${incident.duration_seconds}s`
 				: incident.duration || "Vừa phát hiện",
@@ -453,11 +480,11 @@ export function SecuritySurveillancePage() {
 							cameraName:
 								incident.areaName || incident.cameraName || "Khu vực camera",
 							eventType: incident.eventType || "UNAUTHORIZED_ACCESS",
-							message:
+							message: cleanIncidentMessage(
 								incident.details ||
 								incident.resolutionNotes ||
-								incident.message ||
-								"Phát hiện sự cố an ninh trong vùng cấm",
+								incident.message
+							),
 							duration: incident.duration_seconds
 								? `${incident.duration_seconds}s`
 								: "Vừa phát hiện",

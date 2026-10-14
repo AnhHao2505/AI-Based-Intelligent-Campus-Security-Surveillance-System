@@ -92,6 +92,22 @@ public class SystemConfigService {
         return value == null || value.isBlank() ? configKey.getDefaultValue() : value.trim();
     }
 
+    public double getDouble(ConfigKey configKey) {
+        String raw = cache.get(configKey.getKey());
+        if (raw == null) {
+            log.warn("Config key [{}] not found in cache. Using default value: {}",
+                    configKey.getKey(), configKey.getDefaultValue());
+            return Double.parseDouble(configKey.getDefaultValue());
+        }
+        try {
+            return Double.parseDouble(raw.trim());
+        } catch (NumberFormatException e) {
+            log.warn("Invalid double value [{}] for config key [{}]. Using default: {}",
+                    raw, configKey.getKey(), configKey.getDefaultValue());
+            return Double.parseDouble(configKey.getDefaultValue());
+        }
+    }
+
     public boolean getBoolean(ConfigKey configKey) {
         String raw = cache.get(configKey.getKey());
         if (raw == null) {
@@ -176,6 +192,8 @@ public class SystemConfigService {
                 public void afterCommit() {
                     if ("AI_AFTER_HOUR_START".equals(key) || "AI_AFTER_HOUR_END".equals(key)) {
                         syncAfterHourToAi();
+                    } else if ("AI_TRACK_MAX_INACTIVE_SECONDS".equals(key) || "AI_UNKNOWN_ALERT_COOLDOWN_SECONDS".equals(key) || "AI_FACE_MATCH_THRESHOLD".equals(key)) {
+                        syncAiRuntimeConfig();
                     }
                     checkEventModeLimitsAndNotifyFm(key);
                 }
@@ -194,6 +212,8 @@ public class SystemConfigService {
         } else {
             if ("AI_AFTER_HOUR_START".equals(key) || "AI_AFTER_HOUR_END".equals(key)) {
                 syncAfterHourToAi();
+            } else if ("AI_TRACK_MAX_INACTIVE_SECONDS".equals(key) || "AI_UNKNOWN_ALERT_COOLDOWN_SECONDS".equals(key) || "AI_FACE_MATCH_THRESHOLD".equals(key)) {
+                syncAiRuntimeConfig();
             }
             checkEventModeLimitsAndNotifyFm(key);
         }
@@ -276,6 +296,23 @@ public class SystemConfigService {
                     new HttpEntity<>(body, headers), Map.class);
         } catch (Exception e) {
             log.warn("Could not sync after-hour configuration to AI service: {}", e.getMessage());
+        }
+    }
+
+    private void syncAiRuntimeConfig() {
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            Map<String, Object> body = Map.of(
+                    "max_inactive_seconds", getDouble(ConfigKey.AI_TRACK_MAX_INACTIVE_SECONDS),
+                    "unknown_alert_cooldown", getInt(ConfigKey.AI_UNKNOWN_ALERT_COOLDOWN_SECONDS),
+                    "face_match_threshold", getDouble(ConfigKey.AI_FACE_MATCH_THRESHOLD)
+            );
+            aiRestTemplate.postForObject(aiServiceUrl + "/api/v1/system-config/ai-runtime",
+                    new HttpEntity<>(body, headers), Map.class);
+            log.info("Synced AI runtime config to AI service: {}", body);
+        } catch (Exception e) {
+            log.warn("Could not sync AI runtime configuration to AI service: {}", e.getMessage());
         }
     }
 

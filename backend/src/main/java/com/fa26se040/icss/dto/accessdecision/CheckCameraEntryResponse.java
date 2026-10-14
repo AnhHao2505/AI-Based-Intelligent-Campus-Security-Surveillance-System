@@ -1,5 +1,6 @@
 package com.fa26se040.icss.dto.accessdecision;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fa26se040.icss.enums.AccessSource;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -22,8 +23,13 @@ public class CheckCameraEntryResponse {
     private String cameraCode;
     private UUID areaId;
     private String areaName;
+
+    @JsonIgnore
     private UUID userId;
+
     private String userCode;
+
+    @JsonIgnore
     private String fullName;
 
     public static CheckCameraEntryResponse denied(String cameraCode, String userCode, String reason) {

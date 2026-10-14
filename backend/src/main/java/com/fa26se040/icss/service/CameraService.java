@@ -363,7 +363,7 @@ public class CameraService {
         } catch (Exception e) {
             log.warn("Không thể kết nối thử sau khi lưu cấu hình stream cho camera [{}]: {}", camera.getCameraCode(), e.getMessage());
             finalOpStatus = OperationalStatus.OFFLINE;
-            connMessage = "Cấu hình luồng thành công nhưng kiểm tra kết nối thất bại: " + e.getMessage();
+            connMessage = "Cấu hình luồng thành công nhưng kiểm tra kết nối thất bại: " + cleanErrorMessage(e);
         }
 
         camera.setOperationalStatus(finalOpStatus);
@@ -657,5 +657,17 @@ public class CameraService {
             sb.append(path.trim());
         }
         return sb.toString();
+    }
+
+    private String cleanErrorMessage(Exception e) {
+        if (e instanceof org.springframework.web.client.HttpStatusCodeException hs) {
+            return hs.getStatusCode().value() + " " + hs.getStatusText();
+        }
+        String msg = e.getMessage();
+        if (msg != null) {
+            return msg.replaceAll("(?i):\\s*\"Internal Server Error\"", "")
+                      .replaceAll("(?i)500 Internal Server Error: \"Internal Server Error\"", "500 Internal Server Error");
+        }
+        return "Lỗi kết nối không xác định";
     }
 }

@@ -9,6 +9,7 @@ import {
 	ChevronRight,
 	ShieldCheck,
 	RefreshCw,
+	CheckCircle2,
 } from "lucide-react";
 import "../../styles/CameraHealthLogs.css";
 import { LoadingState, ErrorState } from "../ui";
@@ -43,6 +44,18 @@ export default function CameraHealthLogs({
 		if (latency < 100) return "log-metric-chip--latency-fast";
 		if (latency <= 300) return "log-metric-chip--latency-medium";
 		return "log-metric-chip--latency-slow";
+	};
+
+	const formatHealthMessage = (message) => {
+		if (!message) return "";
+		let text = String(message).trim();
+		// Loại bỏ lỗi 500 bị lặp: 500 Internal Server Error: "Internal Server Error"
+		text = text.replace(
+			/500\s+Internal\s+Server\s+Error:\s*"?Internal\s+Server\s+Error"?/gi,
+			"500 Internal Server Error (Lỗi máy chủ)"
+		);
+		text = text.replace(/:\s*"Internal\s+Server\s+Error"/gi, "");
+		return text;
 	};
 
 	return (
@@ -162,14 +175,26 @@ export default function CameraHealthLogs({
 										</div>
 									) : null}
 
-									{/* Error Callout */}
+									{/* Status / Error Message Callout */}
 									{log.errorMessage && (
 										<div
-											className="log-error-callout"
-											title="Thông tin chi tiết lỗi kết nối"
+											className={`log-message-callout ${
+												isOnline
+													? "log-message-callout--success"
+													: "log-message-callout--error"
+											}`}
+											title={
+												isOnline
+													? "Trạng thái kết nối"
+													: "Thông tin chi tiết lỗi kết nối"
+											}
 										>
-											<AlertCircle size={14} />
-											<span>{log.errorMessage}</span>
+											{isOnline ? (
+												<CheckCircle2 size={14} />
+											) : (
+												<AlertCircle size={14} />
+											)}
+											<span>{formatHealthMessage(log.errorMessage)}</span>
 										</div>
 									)}
 								</div>

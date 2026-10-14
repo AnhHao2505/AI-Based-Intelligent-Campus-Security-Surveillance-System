@@ -242,7 +242,7 @@ def run_auto_test():
         is_active=True
     )
     engine.associate_face(track_id=104, face_result=face_stranger)
-    persons, alerts = engine.process_frame([(104, bbox_inside)], roi, current_time=1004.0)
+    persons, alerts = engine.process_frame([(104, bbox_inside)], roi, current_time=1035.0)
     assert len(alerts) == 1
     assert alerts[0].event_type == "UNKNOWN_PERSON"
     assert "người lạ" in alerts[0].details

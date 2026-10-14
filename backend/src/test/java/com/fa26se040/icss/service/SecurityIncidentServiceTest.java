@@ -22,6 +22,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.time.OffsetDateTime;
@@ -46,6 +47,9 @@ class SecurityIncidentServiceTest {
 
     @Mock
     private SimpMessagingTemplate messagingTemplate;
+
+    @Mock
+    private CameraAccessLogService cameraAccessLogService;
 
     @InjectMocks
     private SecurityIncidentService incidentService;
@@ -103,6 +107,26 @@ class SecurityIncidentServiceTest {
         // Verify WebSocket dispatch
         verify(messagingTemplate, times(1)).convertAndSend(eq("/topic/buildings/TOA_ALPHA/alerts"), any(Object.class));
         verify(messagingTemplate, times(1)).convertAndSend(eq("/topic/security-alerts"), any(Object.class));
+    }
+
+    @Test
+    @DisplayName("Ingest sự cố ném lỗi IllegalArgumentException khi camera chưa được gán khu vực")
+    void testIngestIncident_ThrowsException_WhenCameraHasNoArea() {
+        IncidentEventDto eventDto = IncidentEventDto.builder()
+                .eventId("EVT-101")
+                .cameraCode("CAM-UNASSIGNED")
+                .eventType("UNAUTHORIZED_ENTRY")
+                .imageUrl("http://minio:9000/security-evidence/snap.jpg")
+                .build();
+
+        when(cameraRepository.findByCameraCodeAndDeletedAtIsNull("CAM-UNASSIGNED"))
+                .thenReturn(Optional.of(Camera.builder().cameraCode("CAM-UNASSIGNED").area(null).build()));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> incidentService.ingestIncident(eventDto));
+
+        assertTrue(ex.getMessage().contains("chưa được gán vào khu vực hoạt động"));
+        verify(incidentRepository, never()).save(any());
     }
 
     @Test
@@ -201,9 +225,12 @@ class SecurityIncidentServiceTest {
         when(incidentRepository.findById(incident.getId()))
                 .thenReturn(Optional.of(incident));
 
+        java.util.concurrent.atomic.AtomicBoolean claimed = new java.util.concurrent.atomic.AtomicBoolean(false);
         when(incidentRepository.saveAndFlush(any())).thenAnswer(inv -> {
-            SecurityIncident inc = inv.getArgument(0);
-            return inc;
+            if (!claimed.compareAndSet(false, true)) {
+                throw new OptimisticLockingFailureException("Row was updated by another transaction");
+            }
+            return inv.getArgument(0);
         });
 
         java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newFixedThreadPool(2);
