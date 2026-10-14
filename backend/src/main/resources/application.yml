@@ -107,6 +107,8 @@ icss:
     notification-pending-overdue-cron: ${NOTIFICATION_PENDING_OVERDUE_CRON:0 0 * * * *}
     event-mode-tick-cron: ${EVENT_MODE_TICK_CRON:0 */1 * * * *}
     guest-visit-tick-cron: ${GUEST_VISIT_TICK_CRON:0 */1 * * * *}
+    # Dọn nhật ký ra vào tại camera (số ngày giữ: ENTRY_LOG_RETENTION_DAYS trong system_configurations)
+    access-log-retention-cron: ${ACCESS_LOG_RETENTION_CRON:0 30 2 * * *}
   guest:
     # Giới hạn kích thước ảnh khách (KB), tham số vận hành
     photo-max-kb: ${GUEST_PHOTO_MAX_KB:2048}

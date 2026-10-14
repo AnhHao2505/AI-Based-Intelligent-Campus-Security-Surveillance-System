@@ -8,6 +8,7 @@ import com.fa26se040.icss.entity.CameraAccessLog;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.AccessResult;
 import com.fa26se040.icss.enums.AccessSource;
+import com.fa26se040.icss.enums.ConfigKey;
 import com.fa26se040.icss.repository.AreaRepository;
 import com.fa26se040.icss.repository.CameraAccessLogRepository;
 import com.fa26se040.icss.repository.UserRepository;
@@ -49,6 +50,9 @@ class CameraAccessLogServiceTest {
     @Mock
     private SimpMessagingTemplate messagingTemplate;
 
+    @Mock
+    private SystemConfigService systemConfigService;
+
     @InjectMocks
     private CameraAccessLogService cameraAccessLogService;
 
@@ -64,6 +68,8 @@ class CameraAccessLogServiceTest {
         area = Area.builder().id(areaId).name("Phòng Lab AI").build();
         user = User.builder().id(userId).userCode("SE170123").fullName("Nguyễn Văn Minh").accessLevel(1).build();
         cameraAccessLogService.clearDebounceCache();
+        // ENTRY_LOG_DEBOUNCE_SECONDS mặc định (V77) = 30 giây
+        lenient().when(systemConfigService.getInt(ConfigKey.ENTRY_LOG_DEBOUNCE_SECONDS)).thenReturn(30);
     }
 
     @Test

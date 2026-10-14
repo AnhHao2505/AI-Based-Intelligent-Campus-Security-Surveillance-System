@@ -8,6 +8,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -49,4 +50,11 @@ public interface CameraAccessLogRepository extends JpaRepository<CameraAccessLog
     @Override
     @EntityGraph(attributePaths = "area")
     Page<CameraAccessLog> findAll(Specification<CameraAccessLog> spec, Pageable pageable);
+
+    /**
+     * Job dọn nhật ký: xoá bản ghi có loggedAt trước mốc cutoff. Trả số dòng đã xoá.
+     */
+    @Modifying
+    @Query("DELETE FROM CameraAccessLog l WHERE l.loggedAt < :cutoff")
+    int deleteByLoggedAtBefore(@Param("cutoff") OffsetDateTime cutoff);
 }
