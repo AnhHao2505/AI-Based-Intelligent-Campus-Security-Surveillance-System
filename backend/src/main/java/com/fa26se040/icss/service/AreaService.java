@@ -9,17 +9,13 @@ import com.fa26se040.icss.dto.area.AreaResponse;
 import com.fa26se040.icss.dto.area.AreaUpdateRequest;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.enums.AreaLevel;
-import com.fa26se040.icss.enums.CameraStatus;
 import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.exception.AreaErrorCode;
 import com.fa26se040.icss.exception.AreaException;
-import com.fa26se040.icss.exception.CameraErrorCode;
-import com.fa26se040.icss.exception.CameraException;
 import com.fa26se040.icss.exception.UnauthorizedException;
 import com.fa26se040.icss.dto.area.AreaAccessRulesUpdateRequest;
 import com.fa26se040.icss.dto.area.AreaEventModeUpdateRequest;
-import com.fa26se040.icss.dto.accesscontrol.snapshot.AreaCamerasSnapshot;
 import com.fa26se040.icss.dto.accesscontrol.snapshot.AreaSnapshot;
 import com.fa26se040.icss.enums.AuditAction;
 import com.fa26se040.icss.enums.AuditTargetType;
@@ -1086,72 +1082,6 @@ public class AreaService {
                 .areaName(area.getName())
                 .cameras(cameraResponses)
                 .build();
-    }
-
-    @Transactional
-    public AreaCameraResponse updateCamerasForArea(UUID areaId, List<UUID> cameraIds) {
-        // Step 6: khoá dòng areas (tuần tự với vô hiệu hoá). Khu vực đã vô hiệu hoá -> ERR_AREA_017, không ghi cameras
-        Area area = areaRepository.findByIdWithLock(areaId)
-                .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
-
-        // BR-CAM-02: Khu vực phải đang hoạt động
-        if (!Boolean.TRUE.equals(area.getIsActive()) || area.getDeletedAt() != null) {
-            throw new AreaException(AreaErrorCode.ERR_AREA_017);
-        }
-
-        List<Camera> camerasToAssign;
-        if (cameraIds == null || cameraIds.isEmpty()) {
-            camerasToAssign = List.of();
-        } else {
-            camerasToAssign = cameraRepository.findAllById(cameraIds);
-            if (camerasToAssign.size() != cameraIds.size()) {
-                throw new CameraException(CameraErrorCode.ERR_CAM_002);
-            }
-            // BR-CAM-03: Không thể gán camera DECOMMISSIONED
-            boolean hasDecommissioned = camerasToAssign.stream()
-                    .anyMatch(c -> c.getStatus() != CameraStatus.ACTIVE);
-            if (hasDecommissioned) {
-                throw new CameraException(CameraErrorCode.ERR_MAP_002);
-            }
-        }
-
-        // BR-CAM-04: Lấy danh sách camera hiện đang gán cho khu vực này
-        List<Camera> currentlyAssigned = cameraRepository.findByAreaIdAndDeletedAtIsNull(areaId);
-        Set<UUID> newCameraIdSet = (cameraIds != null) ? new HashSet<>(cameraIds) : Set.of();
-        AreaCamerasSnapshot beforeSnapshot = AreaCamerasSnapshot.from(currentlyAssigned.stream().map(Camera::getId).toList());
-
-        List<Camera> toUpdate = new ArrayList<>();
-        // 1. Unassign camera cũ không còn trong danh sách mới
-        for (Camera currentCam : currentlyAssigned) {
-            if (!newCameraIdSet.contains(currentCam.getId())) {
-                currentCam.setArea(null);
-                toUpdate.add(currentCam);
-            }
-        }
-
-        // 2. Gán camera mới (tự động chuyển khu vực nếu trước đó thuộc khu vực khác)
-        for (Camera cam : camerasToAssign) {
-            cam.setArea(area);
-            toUpdate.add(cam);
-        }
-
-        if (!toUpdate.isEmpty()) {
-            cameraRepository.saveAll(toUpdate);
-        }
-
-        AreaCamerasSnapshot afterSnapshot = AreaCamerasSnapshot.from(cameraIds != null ? cameraIds : List.of());
-        auditService.record(
-                AuditTargetType.AREA,
-                AuditAction.UPDATE_CAMERAS,
-                area.getId().toString(),
-                area,
-                null,
-                beforeSnapshot,
-                afterSnapshot,
-                null
-        );
-
-        return getCamerasForArea(area.getId());
     }
 
     private UUID resolveActorId(String email) {

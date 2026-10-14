@@ -167,9 +167,6 @@ public class AccessDecisionService {
         }
         Camera camera = cameraOpt.get();
         Area area = camera.getArea();
-        if (area == null || !Boolean.TRUE.equals(area.getIsActive()) || area.getDeletedAt() != null) {
-            return CheckCameraEntryResponse.denied(cameraCode, userCode, "Camera chưa được gán vào khu vực hoạt động nào");
-        }
 
         // 2. Tìm người dùng theo userCode
         Optional<User> userOpt = userRepository.findByUserCodeAndDeletedAtIsNull(userCode);

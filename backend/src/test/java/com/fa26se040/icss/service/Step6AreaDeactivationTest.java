@@ -51,7 +51,6 @@ class Step6AreaDeactivationTest extends GuestTestSupport {
     void cleanupStep6Fixtures() {
         transactionTemplate.executeWithoutResult(tx -> {
             for (Camera c : cameraRepository.findAllById(createdCameras)) {
-                c.setArea(null);
                 c.setDeletedAt(OffsetDateTime.now());
                 cameraRepository.save(c);
             }
@@ -351,7 +350,7 @@ class Step6AreaDeactivationTest extends GuestTestSupport {
     }
 
     @Test
-    @DisplayName("BR-AD-06: còn camera gán -> 409 ERR_AREA_009 liệt kê mã + tên, 'Gỡ camera khỏi khu vực trước'; không ghi bảng cameras")
+    @DisplayName("BR-AD-06: còn camera gán -> 409 ERR_AREA_009 liệt kê mã + tên, 'Chuyển camera sang khu vực khác trước'; không ghi bảng cameras")
     void ad06_camera_blocks() throws Exception {
         Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
         Camera c1 = newCamera(area, "Cổng A step6");
@@ -374,7 +373,7 @@ class Step6AreaDeactivationTest extends GuestTestSupport {
         assertTrue(msg.contains(c2.getCameraCode()) && msg.contains(c2.getName()), msg);
         assertFalse(msg.contains(removed.getCameraCode()), "camera đã xoá không tính: " + msg);
         assertTrue(msg.contains("2"), msg);
-        assertTrue(msg.contains("Gỡ camera khỏi khu vực trước"), msg);
+        assertTrue(msg.contains("Chuyển camera sang khu vực khác trước"), msg);
         assertEquals(camBefore, jdbc.queryForMap("SELECT area_id, updated_at FROM cameras WHERE id = ?", c1.getId()));
         assertUntouched(area, v0);
     }
@@ -672,22 +671,7 @@ class Step6AreaDeactivationTest extends GuestTestSupport {
     // ================================================================== đường ghi khác
 
     @Test
-    @DisplayName("PUT /{id}/cameras trên khu vực đã vô hiệu hoá -> 400 ERR_AREA_017, không ghi cameras")
-    void cameras_onDeactivatedArea_rejected() throws Exception {
-        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
-        assertEquals(200, status(deactivate(admin, area, REASON, dbVersion(area))));
-        Area other = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
-        Camera cam = newCamera(other, "Camera khu khác");
-
-        MvcResult r = send(put("/api/areas/{id}/cameras", area.getId()), admin, Map.of("cameraIds", List.of(cam.getId()))).andReturn();
-
-        assertEquals(400, status(r), describe(r));
-        assertEquals("ERR_AREA_017", errorCode(r));
-        assertEquals(other.getId(), jdbc.queryForObject("SELECT area_id FROM cameras WHERE id = ?", UUID.class, cam.getId()));
-    }
-
-    @Test
-    @DisplayName("Sau vô hiệu hoá: access-rules, event-mode, lịch, PUT, geometry, tạo đơn, tạo lượt khách vào khu vực đều bị chặn")
+    @DisplayName("Sau vô hiệu hoá: access-rules, event-mode, lịch, geometry, tạo đơn, tạo lượt khách vào khu vực đều bị chặn")
     void otherWritePaths_blockedAfterDeactivation() throws Exception {
         Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
         assertEquals(200, status(deactivate(admin, area, REASON, dbVersion(area))));

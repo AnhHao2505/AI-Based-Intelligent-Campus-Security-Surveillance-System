@@ -97,7 +97,7 @@ public class AreaEndpointAuthorizationTest extends AbstractIntegrationTest {
     }
 
     // =========================================================================
-    // NHÓM CHỈ ADMIN (8 endpoint)
+    // NHÓM CHỈ ADMIN (7 endpoint)
     // =========================================================================
 
     @Test
@@ -177,14 +177,6 @@ public class AreaEndpointAuthorizationTest extends AbstractIntegrationTest {
         assertAdminOnly(() -> post("/api/areas/{id}/restore", randomAreaId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"reason\": \"Mở lại khu vực sau khi sửa chữa\", \"version\": 0}"));
-    }
-
-    @Test
-    @DisplayName("T3 [ADMIN ONLY]: PUT /api/areas/{id}/cameras -> 401 không token, 403 cho FM/USER/GUARD")
-    void updateCameras_adminOnly() throws Exception {
-        assertAdminOnly(() -> put("/api/areas/{id}/cameras", randomAreaId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{}"));
     }
 
     // =========================================================================
