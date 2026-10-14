@@ -157,15 +157,6 @@ public class AreaController {
         return ResponseEntity.ok(ApiResponse.success(areaService.getCamerasForArea(id), "Lấy danh sách camera của khu vực thành công"));
     }
 
-    @PutMapping("/{id}/cameras")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<AreaCameraResponse>> updateCameras(
-            @PathVariable UUID id,
-            @RequestBody AreaCameraUpdateRequest request
-    ) {
-        return ResponseEntity.ok(ApiResponse.success(areaService.updateCamerasForArea(id, request.getCameraIds()), "Cập nhật danh sách camera cho khu vực thành công"));
-    }
-
     @PatchMapping("/{id}/access-rules")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<AreaResponse>> updateAccessRules(

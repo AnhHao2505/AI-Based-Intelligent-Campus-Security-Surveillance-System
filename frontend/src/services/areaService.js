@@ -90,14 +90,6 @@ export async function getAreaCameras(areaId) {
 }
 
 /**
- * Cập nhật danh sách camera gán vào Khu vực (ADMIN)
- * PUT /api/areas/{id}/cameras
- */
-export async function updateAreaCameras(areaId, cameraIds) {
-	return apiPut(`/api/areas/${areaId}/cameras`, { cameraIds });
-}
-
-/**
  * Cập nhật quy tắc truy cập khu vực (FACILITY_MANAGER)
  * PATCH /api/areas/{id}/access-rules
  * @param {Object} data { areaAccessLevel, explicitAuthorizationRequired, reason, version }

@@ -5,12 +5,13 @@ import com.fa26se040.icss.dto.incident.IncidentDetailResponse;
 import com.fa26se040.icss.dto.incident.IncidentEventDto;
 import com.fa26se040.icss.dto.incident.IncidentResolveRequest;
 import com.fa26se040.icss.entity.Area;
+import com.fa26se040.icss.entity.Camera;
 import com.fa26se040.icss.entity.GuardLocation;
 import com.fa26se040.icss.entity.SecurityIncident;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.IncidentOutcome;
 import com.fa26se040.icss.enums.IncidentStatus;
-import com.fa26se040.icss.repository.AreaRepository;
+import com.fa26se040.icss.repository.CameraRepository;
 import com.fa26se040.icss.repository.SecurityIncidentRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -34,7 +35,7 @@ import java.util.stream.Collectors;
 public class SecurityIncidentService {
 
     private final SecurityIncidentRepository incidentRepository;
-    private final AreaRepository areaRepository;
+    private final CameraRepository cameraRepository;
     private final UserRepository userRepository;
     private final SimpMessagingTemplate messagingTemplate;
     private final GuardLocationService guardLocationService;
@@ -44,21 +45,11 @@ public class SecurityIncidentService {
         log.info("Processing incoming incident for camera [{}] type [{}]",
                 eventDto.getCameraCode(), eventDto.getEventType());
 
-        // 1. Resolve area by camera code
-        List<Area> areas = areaRepository.findAreasByCameraCode(eventDto.getCameraCode());
-        Area area = areas.isEmpty() ? null : areas.get(0);
-
-        if (area == null) {
-            // Fallback to any active area or create a virtual one if DB has areas
-            List<Area> allAreas = areaRepository.findAll();
-            if (!allAreas.isEmpty()) {
-                area = allAreas.get(0);
-            }
-        }
-
-        if (area == null) {
-            throw new IllegalStateException("Không tìm thấy khu vực nào trong hệ thống để gán sự cố!");
-        }
+        // Each camera is assigned to exactly one area when it is created.
+        Camera camera = cameraRepository.findByCameraCodeAndDeletedAtIsNull(eventDto.getCameraCode())
+                .orElseThrow(() -> new IllegalStateException(
+                        "Không tìm thấy camera với mã: " + eventDto.getCameraCode()));
+        Area area = camera.getArea();
 
         String building = (area.getBuilding() != null && !area.getBuilding().isBlank())
                 ? area.getBuilding()

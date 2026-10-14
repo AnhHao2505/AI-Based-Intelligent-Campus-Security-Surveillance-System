@@ -217,7 +217,6 @@ public class CameraService {
 
         camera.setStatus(CameraStatus.DECOMMISSIONED);
         camera.setOperationalStatus(OperationalStatus.OFFLINE);
-        camera.setArea(null); // BR-CAM-06: Tự động hủy gán khỏi khu vực khi decommission
 
         Camera saved = cameraRepository.save(camera);
         mediaMtxService.deleteCameraPath(camera.getCameraCode());
@@ -232,7 +231,6 @@ public class CameraService {
         camera.setStatus(CameraStatus.DECOMMISSIONED);
         camera.setOperationalStatus(OperationalStatus.OFFLINE);
         camera.setDeletedAt(OffsetDateTime.now());
-        camera.setArea(null);
 
         cameraRepository.save(camera);
         mediaMtxService.deleteCameraPath(camera.getCameraCode());

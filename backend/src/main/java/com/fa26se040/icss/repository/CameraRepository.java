@@ -40,5 +40,4 @@ public interface CameraRepository extends JpaRepository<Camera, UUID> {
 
     int countByAreaIdAndDeletedAtIsNull(UUID areaId);
 
-    List<Camera> findByAreaIsNullAndDeletedAtIsNullAndStatus(CameraStatus status);
 }

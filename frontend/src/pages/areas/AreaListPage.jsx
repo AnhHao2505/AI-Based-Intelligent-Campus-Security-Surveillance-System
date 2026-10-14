@@ -15,7 +15,6 @@ import {
 	MapPinPlus,
 	Search,
 	AlertTriangle,
-	CheckCircle2,
 	Compass,
 	Info,
 	ExternalLink,
@@ -40,7 +39,6 @@ import {
 	deactivateArea,
 	restoreArea,
 	getAreaCameras,
-	updateAreaCameras,
 	getTypeChangePreview,
 } from "../../services/areaService";
 import { getBuildings } from "../../services/buildingService";
@@ -212,7 +210,6 @@ export default function AreaListPage() {
 
 	// Search & camera inspection modal states
 	const [cameraSearchQuery, setCameraSearchQuery] = useState("");
-	const [cameraNotification, setCameraNotification] = useState(null);
 
 	// Access rules modal states (Facility Manager)
 	const [accessRulesModalOpen, setAccessRulesModalOpen] = useState(false);
@@ -254,7 +251,6 @@ export default function AreaListPage() {
 		setAreaCamerasError(null);
 		setAreaCamerasList([]);
 		setCameraSearchQuery("");
-		setCameraNotification(null);
 
 		try {
 			const res = await getAreaCameras(area.id);
@@ -308,42 +304,6 @@ export default function AreaListPage() {
 			setLoading(false);
 		}
 	}, []);
-
-	const handleRemoveCameraFromArea = useCallback(
-		async (camId) => {
-			if (!camerasModalArea) return;
-			setCameraNotification(null);
-
-			try {
-				const newIds = areaCamerasList
-					.filter((c) => c.id !== camId)
-					.map((c) => c.id);
-				await updateAreaCameras(camerasModalArea.id, newIds);
-
-				setCameraNotification({
-					type: "success",
-					message: "Đã hủy gán camera khỏi khu vực.",
-				});
-
-				const res = await getAreaCameras(camerasModalArea.id);
-				const updatedList = res?.cameras || (Array.isArray(res) ? res : []);
-				setAreaCamerasList(updatedList);
-				// Update card count immediately
-				setCameraCounts((prev) => ({
-					...prev,
-					[camerasModalArea.id]: updatedList.length,
-				}));
-				fetchData();
-			} catch (err) {
-				console.error("Error removing camera from area:", err);
-				setCameraNotification({
-					type: "error",
-					message: getErrorMessage(err) || "Lỗi khi hủy gán camera.",
-				});
-			}
-		},
-		[camerasModalArea, areaCamerasList, fetchData],
-	);
 
 	useEffect(() => {
 		fetchData();
@@ -1974,16 +1934,8 @@ export default function AreaListPage() {
 								</div>
 								<div className="area-modal__header-text">
 									<h3 className="area-modal__title">
-										Danh sách Camera — {camerasModalArea.name}
+										Danh sách Camera
 									</h3>
-									<p className="area-modal__subtitle">
-										Vị trí:{" "}
-										<strong>
-											{camerasModalArea.building || "—"} -{" "}
-											{camerasModalArea.floor || "—"}
-										</strong>{" "}
-										• <span>{areaCamerasList.length} camera thuộc khu vực</span>
-									</p>
 								</div>
 							</div>
 							<button
@@ -2000,35 +1952,6 @@ export default function AreaListPage() {
 							className="area-modal__body"
 							style={{ maxHeight: "480px", overflowY: "auto" }}
 						>
-							{/* Notification Alert Banner */}
-							{cameraNotification && (
-								<div
-									className={`area-modal-notification area-modal-notification--${cameraNotification.type}`}
-								>
-									{cameraNotification.type === "error" ? (
-										<AlertTriangle
-											size={16}
-											className="area-modal-notification__icon"
-										/>
-									) : (
-										<CheckCircle2
-											size={16}
-											className="area-modal-notification__icon"
-										/>
-									)}
-									<span className="area-modal-notification__text">
-										{cameraNotification.message}
-									</span>
-									<button
-										type="button"
-										className="area-modal-notification__close"
-										onClick={() => setCameraNotification(null)}
-									>
-										<X size={13} />
-									</button>
-								</div>
-							)}
-
 							{/* Search Bar for filtering cameras in this area */}
 							<div className="area-camera-search-box">
 								<Search
@@ -2155,25 +2078,6 @@ export default function AreaListPage() {
 																<ExternalLink size={13} />
 															</button>
 														)}
-
-														{isAdmin && (
-															<button
-																type="button"
-																className="area-camera-item__remove-btn"
-																onClick={() => {
-																	if (
-																		window.confirm(
-																			`Bạn có chắc muốn hủy gán camera "${cam.name || cam.cameraCode}" khỏi khu vực này?`,
-																		)
-																	) {
-																		handleRemoveCameraFromArea(cam.id);
-																	}
-																}}
-																title="Hủy gán camera khỏi khu vực"
-															>
-																<Trash2 size={13} />
-															</button>
-														)}
 													</div>
 												</div>
 											);
@@ -2208,7 +2112,7 @@ export default function AreaListPage() {
 								<span>
 									{isFacilityManager
 										? "Danh sách các thiết bị camera giám sát thuộc khu vực này."
-										: "Có thể hủy gán camera khỏi khu vực ngay tại đây. Gán camera mới hoặc chuyển sang khu vực khác thực hiện tại trang Quản lý Camera."}
+										: "Camera được gán hoặc chuyển khu vực trong trang Quản lý Camera."}
 								</span>
 							</div>
 
