@@ -142,8 +142,50 @@ public class AccessDecisionService {
             );
         }
 
-        // 6. Không có nguồn cấp quyền nào -> deny NONE
-        return AccessDecision.denied("Không có quyền ra vào khu vực tại thời điểm này");
+        // 6. Phân tích nguyên nhân từ chối chi tiết (Hỗ trợ phân biệt Sai giờ vs Sai quyền)
+        // A. Kiểm tra có đơn APPROVED cho khu vực này nhưng không đúng khung thời gian (đến sớm hoặc quá hạn)
+        if (accessRequestRepository != null) {
+            List<AccessRequest> approvedRequests = accessRequestRepository.findAnyApprovedRequestsForUser(
+                    userId, areaId, RequestStatus.APPROVED);
+            if (approvedRequests != null && !approvedRequests.isEmpty()) {
+                AccessRequest ar = approvedRequests.get(0);
+                if (ar.getStartTime() != null && at.isBefore(ar.getStartTime())) {
+                    return AccessDecision.denied("Chưa tới khung giờ được cấp phép theo đơn (Bắt đầu lúc: "
+                            + ar.getStartTime().toLocalTime() + ")");
+                } else if (ar.getEndTime() != null && !at.isBefore(ar.getEndTime())) {
+                    return AccessDecision.denied("Đơn xin quyền đã hết hạn sử dụng (Đã kết thúc lúc: "
+                            + ar.getEndTime().toLocalTime() + ")");
+                }
+            }
+        }
+
+        // B. Kiểm tra phân công nhân sự nhưng chưa tới hoặc đã hết hạn
+        if (assignedPersonnelRepository != null) {
+            List<AreaAssignedPersonnel> assignmentsAll = assignedPersonnelRepository.findByAreaIdWithDetails(areaId);
+            if (assignmentsAll != null) {
+                for (AreaAssignedPersonnel ap : assignmentsAll) {
+                    if (ap.getUser() != null && ap.getUser().getId().equals(userId) && ap.getRevokedAt() == null) {
+                        if (ap.getValidFrom() != null && at.isBefore(ap.getValidFrom())) {
+                            return AccessDecision.denied("Phân công nhân sự chưa tới ngày hiệu lực (Bắt đầu: " + ap.getValidFrom().toLocalDate() + ")");
+                        }
+                        if (ap.getValidTo() != null && !at.isBefore(ap.getValidTo())) {
+                            return AccessDecision.denied("Phân công nhân sự đã hết hạn hiệu lực (Đã kết thúc: " + ap.getValidTo().toLocalDate() + ")");
+                        }
+                    }
+                }
+            }
+        }
+
+        // C. Phân biệt sai quyền do cấp độ hoặc do yêu cầu đích danh
+        if (explicitRequired) {
+            return AccessDecision.denied("Khu vực yêu cầu chỉ định đích danh (cần đơn xin quyền hoặc được phân công)");
+        }
+        if (user.getAccessLevel() != null && area.getAreaAccessLevel() != null && user.getAccessLevel() < area.getAreaAccessLevel()) {
+            return AccessDecision.denied("Cấp độ truy cập không đủ (Khu vực Cấp " + area.getAreaAccessLevel() + ", người dùng Cấp " + user.getAccessLevel() + ")");
+        }
+
+        // 7. Mặc định: Không có nguồn cấp quyền nào -> deny NONE
+        return AccessDecision.denied("Không có quyền ra vào khu vực này");
     }
 
     /**

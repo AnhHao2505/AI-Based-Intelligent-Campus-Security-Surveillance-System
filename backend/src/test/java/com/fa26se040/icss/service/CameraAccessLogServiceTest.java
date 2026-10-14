@@ -206,4 +206,73 @@ class CameraAccessLogServiceTest {
         assertEquals(2L, stats.getUnauthorizedToday());
         assertEquals(1L, stats.getOutOfTimeToday());
     }
+
+    @Test
+    @DisplayName("Phân loại ACCESS_OUT_OF_TIME (Sai giờ) khi người dùng có đơn nhưng đến sớm hoặc hết hạn")
+    void testRecordAccessLog_OutOfTime() {
+        OffsetDateTime daytime = OffsetDateTime.of(2026, 10, 14, 14, 0, 0, 0, ZoneOffset.ofHours(7));
+        CheckCameraEntryResponse entryResponse = CheckCameraEntryResponse.builder()
+                .allowed(false)
+                .source(AccessSource.NONE)
+                .reason("Chưa tới khung giờ được cấp phép theo đơn (Bắt đầu lúc: 18:00)")
+                .cameraCode("CAM-001")
+                .areaId(areaId)
+                .userCode("SE170123")
+                .build();
+
+        when(areaRepository.findById(areaId)).thenReturn(Optional.of(area));
+        when(userRepository.findByUserCodeAndDeletedAtIsNull("SE170123")).thenReturn(Optional.of(user));
+        when(cameraAccessLogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        CameraAccessLogResponse result = cameraAccessLogService.recordAccessLog(entryResponse, daytime);
+
+        assertNotNull(result);
+        assertEquals(AccessResult.ACCESS_OUT_OF_TIME, result.getAccessResult());
+    }
+
+    @Test
+    @DisplayName("Phân loại INTRUSION (Ngoài giờ) khi có sự cố gắn nhãn ngoài giờ kể cả trong giờ giả lập")
+    void testRecordAccessLog_AfterHoursReason_ClassifiesAsIntrusion() {
+        OffsetDateTime testTime = OffsetDateTime.of(2026, 10, 14, 15, 0, 0, 0, ZoneOffset.ofHours(7));
+        CheckCameraEntryResponse entryResponse = CheckCameraEntryResponse.builder()
+                .allowed(false)
+                .source(AccessSource.NONE)
+                .reason("[AFTER_HOURS_PRESENCE] Phát hiện đối tượng ngoài giờ quy định tại Lab AI")
+                .cameraCode("CAM-001")
+                .areaId(areaId)
+                .userCode("SE170123")
+                .build();
+
+        when(areaRepository.findById(areaId)).thenReturn(Optional.of(area));
+        when(userRepository.findByUserCodeAndDeletedAtIsNull("SE170123")).thenReturn(Optional.of(user));
+        when(cameraAccessLogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        CameraAccessLogResponse result = cameraAccessLogService.recordAccessLog(entryResponse, testTime);
+
+        assertNotNull(result);
+        assertEquals(AccessResult.INTRUSION, result.getAccessResult());
+    }
+
+    @Test
+    @DisplayName("Phân loại UNAUTHORIZED_ACCESS (Sai quyền) khi tài khoản không đủ cấp độ vào khu vực")
+    void testRecordAccessLog_UnauthorizedAccess_InsufficientLevel() {
+        OffsetDateTime daytime = OffsetDateTime.of(2026, 10, 14, 14, 0, 0, 0, ZoneOffset.ofHours(7));
+        CheckCameraEntryResponse entryResponse = CheckCameraEntryResponse.builder()
+                .allowed(false)
+                .source(AccessSource.NONE)
+                .reason("Cấp độ truy cập không đủ (Khu vực Cấp 2, người dùng Cấp 1)")
+                .cameraCode("CAM-001")
+                .areaId(areaId)
+                .userCode("SE170123")
+                .build();
+
+        when(areaRepository.findById(areaId)).thenReturn(Optional.of(area));
+        when(userRepository.findByUserCodeAndDeletedAtIsNull("SE170123")).thenReturn(Optional.of(user));
+        when(cameraAccessLogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        CameraAccessLogResponse result = cameraAccessLogService.recordAccessLog(entryResponse, daytime);
+
+        assertNotNull(result);
+        assertEquals(AccessResult.UNAUTHORIZED_ACCESS, result.getAccessResult());
+    }
 }

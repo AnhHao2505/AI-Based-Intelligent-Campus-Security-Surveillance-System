@@ -125,25 +125,27 @@ public class CameraAccessLogService {
             return AccessResult.AUTHORIZED_ACCESS;
         }
 
-        // Kiểm tra ban đêm (22:00 - 06:00) -> INTRUSION
+        String reason = entryResponse.getReason() != null ? entryResponse.getReason().toLowerCase() : "";
+        String userCode = entryResponse.getUserCode() != null ? entryResponse.getUserCode() : "";
+
+        // 1. Kiểm tra Ngoài giờ (INTRUSION): Ban đêm (22:00 - 06:00) hoặc sự cố ngoài giờ / đột nhập
         int hour = at.getHour();
-        if (hour >= 22 || hour < 6) {
+        if (hour >= 22 || hour < 6 || reason.contains("ngoài giờ") || reason.contains("after_hours") || reason.contains("đột nhập") || reason.contains("intrusion")) {
             return AccessResult.INTRUSION;
         }
 
-        String reason = entryResponse.getReason() != null ? entryResponse.getReason().toLowerCase() : "";
-
-        // Kiểm tra người lạ ngoài hệ thống -> UNKNOWN_PERSON
-        if (!userExists || reason.contains("người dùng không tồn tại") || (entryResponse.getUserCode() != null && entryResponse.getUserCode().startsWith("UNKNOWN"))) {
-            return AccessResult.UNKNOWN_PERSON;
-        }
-
-        // Kiểm tra sai khung giờ (đến sớm, trễ, quá hạn) -> ACCESS_OUT_OF_TIME
-        if (reason.contains("ngoài khung giờ") || reason.contains("hết hạn") || reason.contains("chưa tới giờ") || reason.contains("thời gian")) {
+        // 2. Kiểm tra Sai giờ (ACCESS_OUT_OF_TIME): Đến sớm, trễ, quá hạn, ngoài khung giờ quy định
+        if (reason.contains("ngoài khung giờ") || reason.contains("hết hạn") || reason.contains("chưa tới giờ") || reason.contains("chưa đến giờ") || reason.contains("khung giờ") || reason.contains("thời gian") || reason.contains("out_of_time")) {
             return AccessResult.ACCESS_OUT_OF_TIME;
         }
 
-        // Mặc định còn lại: không có quyền, vượt cấp, tài khoản bị khoá -> UNAUTHORIZED_ACCESS
+        // 3. Kiểm tra Người lạ (UNKNOWN_PERSON): Chưa rõ mặt, không có tài khoản, hoặc gắn cờ UNKNOWN
+        boolean isGuest = userCode.startsWith("GUEST-");
+        if ((!userExists && !isGuest) || reason.contains("người dùng không tồn tại") || userCode.startsWith("UNKNOWN") || reason.contains("chưa rõ mặt") || reason.contains("người lạ")) {
+            return AccessResult.UNKNOWN_PERSON;
+        }
+
+        // 4. Mặc định: Sai quyền (UNAUTHORIZED_ACCESS) - Cấp độ không đủ, không có đơn, tài khoản bị khoá
         return AccessResult.UNAUTHORIZED_ACCESS;
     }
 

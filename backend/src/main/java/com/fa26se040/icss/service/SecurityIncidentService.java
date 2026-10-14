@@ -27,6 +27,7 @@ import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -84,20 +85,39 @@ public class SecurityIncidentService {
         SecurityIncident saved = incidentRepository.save(incident);
         IncidentDetailResponse response = mapToDetailResponse(saved);
 
-        // 1b. Tự động đồng bộ sự cố người lạ / vi phạm sang Nhật ký ra vào của Camera (Tab 4 Camera Detail)
+        // 1b. Tự động đồng bộ sự cố người lạ / vi phạm / sai giờ / ngoài giờ sang Nhật ký ra vào của Camera (Tab 4 Camera Detail)
         if (cameraAccessLogService != null && eventDto.getCameraCode() != null) {
             try {
                 String eventType = eventDto.getEventType() != null ? eventDto.getEventType() : "";
-                boolean isUnknown = eventType.contains("UNKNOWN");
+                String details = eventDto.getDetails() != null ? eventDto.getDetails() : "";
+                boolean isUnknown = eventType.contains("UNKNOWN") || details.contains("UNKNOWN") || details.contains("chưa rõ mặt");
+
+                String userCode = isUnknown ? "UNKNOWN" : "VIOLATION";
+                String fullName = isUnknown ? "Người lạ / Chưa rõ mặt" : "Đối tượng chưa cấp quyền";
+
+                // Trích xuất mã người dùng nếu AI đã nhận diện được mặt (ví dụ: SE194249 hoặc GUEST-xxx)
+                java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\((SE\\d+|GUEST-[a-zA-Z0-9-]+|[A-Z]{2,}\\d{4,})\\)").matcher(details);
+                if (m.find()) {
+                    String extractedCode = m.group(1);
+                    Optional<User> uOpt = userRepository.findByUserCodeAndDeletedAtIsNull(extractedCode);
+                    if (uOpt.isPresent()) {
+                        userCode = uOpt.get().getUserCode();
+                        fullName = uOpt.get().getFullName();
+                    } else {
+                        userCode = extractedCode;
+                        fullName = "Đối tượng nhận diện (" + extractedCode + ")";
+                    }
+                }
+
                 CheckCameraEntryResponse logEntry = CheckCameraEntryResponse.builder()
                         .cameraCode(eventDto.getCameraCode())
                         .areaId(area.getId())
                         .areaName(area.getName())
-                        .userCode(isUnknown ? "UNKNOWN" : "VIOLATION")
-                        .fullName(isUnknown ? "Người lạ / Chưa rõ mặt" : "Đối tượng chưa cấp quyền")
+                        .userCode(userCode)
+                        .fullName(fullName)
                         .allowed(false)
                         .source(AccessSource.NONE)
-                        .reason(eventDto.getDetails() != null ? eventDto.getDetails() : "Phát hiện đối tượng chưa rõ danh tính / vi phạm an ninh")
+                        .reason(details.isBlank() ? "Phát hiện sự cố an ninh: " + eventType : details)
                         .build();
                 cameraAccessLogService.recordAccessLog(logEntry, detectedAt);
             } catch (Exception ex) {

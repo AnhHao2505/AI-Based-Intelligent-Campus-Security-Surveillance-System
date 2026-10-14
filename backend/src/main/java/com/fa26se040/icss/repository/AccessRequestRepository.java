@@ -272,4 +272,22 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, UU
             @Param("at") OffsetDateTime at,
             @Param("status") RequestStatus status
     );
+
+    /**
+     * Dùng để phân biệt Sai giờ (ACCESS_OUT_OF_TIME) với Sai quyền (UNAUTHORIZED_ACCESS):
+     * Tìm tất cả các đơn APPROVED của user tại khu vực này bất kể thời gian.
+     */
+    @Query("SELECT ar FROM AccessRequest ar " +
+           "WHERE ar.area.id = :areaId " +
+           "AND ar.status = :status " +
+           "AND (ar.requester.id = :userId OR EXISTS (" +
+           "    SELECT 1 FROM AccessRequestMember arm " +
+           "    WHERE arm.accessRequest.id = ar.id AND arm.user.id = :userId" +
+           ")) " +
+           "ORDER BY ar.startTime DESC")
+    List<AccessRequest> findAnyApprovedRequestsForUser(
+            @Param("userId") UUID userId,
+            @Param("areaId") UUID areaId,
+            @Param("status") RequestStatus status
+    );
 }
