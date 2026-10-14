@@ -56,6 +56,15 @@ class CameraStreamWorker:
             poly_count = len(polygons) if polygons else 0
             logger.info(f"Đã cập nhật ROI ({poly_count} polygons) cho Stream Worker [{self.camera_code}].")
 
+    def update_runtime_config(self, max_inactive_seconds: Optional[float] = None, unknown_alert_cooldown: Optional[float] = None):
+        """Cập nhật cấu hình runtime tracking và cooldown cho worker đang chạy"""
+        if self.pipeline and self.pipeline.analysis_engine:
+            if max_inactive_seconds is not None:
+                self.pipeline.analysis_engine.max_inactive_seconds = max_inactive_seconds
+            if unknown_alert_cooldown is not None:
+                self.pipeline.analysis_engine.unknown_alert_cooldown = unknown_alert_cooldown
+            logger.info(f"Đã cập nhật runtime config cho Stream Worker [{self.camera_code}]: max_inactive={self.pipeline.analysis_engine.max_inactive_seconds}s, cooldown={self.pipeline.analysis_engine.unknown_alert_cooldown}s")
+
     def start(self):
         """Bắt đầu worker đọc luồng và phân tích AI trên 2 luồng độc lập"""
         if self.is_running:

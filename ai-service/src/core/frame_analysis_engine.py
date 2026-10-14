@@ -20,15 +20,18 @@ class FrameAnalysisEngine:
     """
     def __init__(
         self,
-        max_inactive_seconds: float = 3.0,
+        max_inactive_seconds: Optional[float] = None,
         after_hour_start: Optional[str] = None,
-        after_hour_end: Optional[str] = None
+        after_hour_end: Optional[str] = None,
+        unknown_alert_cooldown: Optional[float] = None
     ):
-        self.max_inactive_seconds = max_inactive_seconds
+        self.max_inactive_seconds = max_inactive_seconds if max_inactive_seconds is not None else settings.DEFAULT_TRACK_MAX_INACTIVE_SECONDS
         self.after_hour_start = after_hour_start or settings.DEFAULT_AFTER_HOUR_START
         self.after_hour_end = after_hour_end or settings.DEFAULT_AFTER_HOUR_END
+        self.unknown_alert_cooldown = unknown_alert_cooldown if unknown_alert_cooldown is not None else settings.DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS
         self.active_tracks: Dict[int, TrackedPerson] = {}
         self.pending_faces: Dict[int, FaceDetectionResult] = {}
+        self.last_unknown_alert_time: Dict[str, float] = {}  # camera_code -> timestamp
 
     def process_frame(
         self,
@@ -197,27 +200,30 @@ class FrameAnalysisEngine:
                 # Theo quy tắc: Chưa rõ mặt hoặc không có trong DB đều gán UNKNOWN_PERSON
                 else:
                     if not getattr(person, "alert_unknown_sent", False):
-                        is_face_clear = person.face_detected and person.face_info
-                        face_note = "người lạ ngoài hệ thống" if is_face_clear else "chưa rõ mặt"
-                        if after_hours:
-                            tag_prefix = "[AFTER_HOURS_PRESENCE] [UNKNOWN_PERSON]"
-                            detail_msg = f"{tag_prefix} Phát hiện đối tượng chưa rõ danh tính / người lạ ({face_note}) ngoài giờ hoạt động tại {area_display}."
-                        else:
-                            tag_prefix = "[TRONG_GIO] [UNKNOWN_PERSON]"
-                            detail_msg = f"{tag_prefix} Phát hiện đối tượng chưa đăng ký / người lạ ({face_note}) tại {area_display}."
+                        last_alert_ts = self.last_unknown_alert_time.get(camera_code, 0.0)
+                        if (current_time - last_alert_ts) >= self.unknown_alert_cooldown:
+                            is_face_clear = person.face_detected and person.face_info
+                            face_note = "người lạ ngoài hệ thống" if is_face_clear else "chưa rõ mặt"
+                            if after_hours:
+                                tag_prefix = "[AFTER_HOURS_PRESENCE] [UNKNOWN_PERSON]"
+                                detail_msg = f"{tag_prefix} Phát hiện đối tượng chưa rõ danh tính / người lạ ({face_note}) ngoài giờ hoạt động tại {area_display}."
+                            else:
+                                tag_prefix = "[TRONG_GIO] [UNKNOWN_PERSON]"
+                                detail_msg = f"{tag_prefix} Phát hiện đối tượng chưa đăng ký / người lạ ({face_note}) tại {area_display}."
 
-                        alert = SecurityAlertEvent(
-                            camera_code=camera_code,
-                            event_type="UNKNOWN_PERSON",
-                            track_id=person.track_id,
-                            confidence=person.bbox.confidence,
-                            details=detail_msg,
-                            location=loc_info
-                        )
-                        generated_alerts.append(alert)
-                        person.alert_unknown_sent = True
-                        if after_hours:
-                            person.alert_after_hours_sent = True
+                            alert = SecurityAlertEvent(
+                                camera_code=camera_code,
+                                event_type="UNKNOWN_PERSON",
+                                track_id=person.track_id,
+                                confidence=person.bbox.confidence,
+                                details=detail_msg,
+                                location=loc_info
+                            )
+                            generated_alerts.append(alert)
+                            person.alert_unknown_sent = True
+                            self.last_unknown_alert_time[camera_code] = current_time
+                            if after_hours:
+                                person.alert_after_hours_sent = True
 
         inactive_ids = []
         for tid, p in self.active_tracks.items():

@@ -21,6 +21,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.time.OffsetDateTime;
@@ -219,9 +220,12 @@ class SecurityIncidentServiceTest {
         when(incidentRepository.findById(incident.getId()))
                 .thenReturn(Optional.of(incident));
 
+        java.util.concurrent.atomic.AtomicBoolean claimed = new java.util.concurrent.atomic.AtomicBoolean(false);
         when(incidentRepository.saveAndFlush(any())).thenAnswer(inv -> {
-            SecurityIncident inc = inv.getArgument(0);
-            return inc;
+            if (!claimed.compareAndSet(false, true)) {
+                throw new OptimisticLockingFailureException("Row was updated by another transaction");
+            }
+            return inv.getArgument(0);
         });
 
         java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newFixedThreadPool(2);
