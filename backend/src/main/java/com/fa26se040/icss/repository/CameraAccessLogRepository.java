@@ -4,7 +4,10 @@ import com.fa26se040.icss.entity.CameraAccessLog;
 import com.fa26se040.icss.enums.AccessResult;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -13,7 +16,7 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Repository
-public interface CameraAccessLogRepository extends JpaRepository<CameraAccessLog, UUID> {
+public interface CameraAccessLogRepository extends JpaRepository<CameraAccessLog, UUID>, JpaSpecificationExecutor<CameraAccessLog> {
 
     @Query("SELECT l FROM CameraAccessLog l " +
            "WHERE l.cameraCode = :cameraCode " +
@@ -39,4 +42,11 @@ public interface CameraAccessLogRepository extends JpaRepository<CameraAccessLog
             OffsetDateTime to,
             AccessResult accessResult
     );
+
+    /**
+     * Lịch sử ra vào (AccessHistoryService): lọc động, nạp sẵn area để map tên khu vực không phát sinh N+1.
+     */
+    @Override
+    @EntityGraph(attributePaths = "area")
+    Page<CameraAccessLog> findAll(Specification<CameraAccessLog> spec, Pageable pageable);
 }

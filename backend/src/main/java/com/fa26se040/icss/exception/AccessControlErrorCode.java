@@ -15,7 +15,9 @@ public enum AccessControlErrorCode {
     // BR-RQ-47: FM chỉ huỷ đơn đã duyệt khi chưa tới giờ bắt đầu; đã bắt đầu thì dùng Hoàn thành
     ERR_AC_008("ERR_AC_008", HttpStatus.BAD_REQUEST, "Đơn truy cập đã bắt đầu ({startTime}) nên không thể huỷ, hãy dùng Hoàn thành"),
     // BR-AL-29: không đổi cấp truy cập của tài khoản đã vô hiệu hoá (đổi lẻ và đổi nhiều người)
-    ERR_AC_009("ERR_AC_009", HttpStatus.CONFLICT, "Tài khoản {userCode} đã bị vô hiệu hoá nên không thể đổi cấp truy cập");
+    ERR_AC_009("ERR_AC_009", HttpStatus.CONFLICT, "Tài khoản {userCode} đã bị vô hiệu hoá nên không thể đổi cấp truy cập"),
+    // Lịch sử ra vào: khoảng thời gian lọc phải có from <= to
+    ERR_AC_010("ERR_AC_010", HttpStatus.BAD_REQUEST, "Thời điểm bắt đầu ({from}) phải trước hoặc bằng thời điểm kết thúc ({to})");
 
     private final String code;
     private final HttpStatus httpStatus;
