@@ -7,6 +7,7 @@ import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.CameraAccessLog;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.AccessResult;
+import com.fa26se040.icss.enums.ConfigKey;
 import com.fa26se040.icss.repository.AreaRepository;
 import com.fa26se040.icss.repository.CameraAccessLogRepository;
 import com.fa26se040.icss.repository.UserRepository;
@@ -36,13 +37,13 @@ public class CameraAccessLogService {
     private final AreaRepository areaRepository;
     private final UserRepository userRepository;
     private final SimpMessagingTemplate messagingTemplate;
+    private final SystemConfigService systemConfigService;
 
     // Bộ nhớ đệm in-memory Debounce (Key: cameraCode:userCode -> Expire Epoch Seconds)
     private final Map<String, Long> debounceCache = new ConcurrentHashMap<>();
-    private static final long DEBOUNCE_SECONDS = 30;
 
     /**
-     * Ghi nhận lượt quét ra vào từ camera (có cơ chế debounce 30s chống spam).
+     * Ghi nhận lượt quét ra vào từ camera (có cơ chế debounce chống spam, số giây đọc từ ENTRY_LOG_DEBOUNCE_SECONDS).
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public CameraAccessLogResponse recordAccessLog(CheckCameraEntryResponse entryResponse, OffsetDateTime at) {
@@ -61,8 +62,9 @@ public class CameraAccessLogService {
         String cacheKey = cameraCode + ":" + userCode;
         long nowEpoch = at.toEpochSecond();
         Long lastSeen = debounceCache.get(cacheKey);
-        if (lastSeen != null && (nowEpoch - lastSeen) < DEBOUNCE_SECONDS) {
-            log.info("Debounce: Bỏ qua ghi log trùng lặp cho [{}] tại [{}] trong vòng 30s", userCode, cameraCode);
+        int debounceSeconds = systemConfigService.getInt(ConfigKey.ENTRY_LOG_DEBOUNCE_SECONDS);
+        if (lastSeen != null && (nowEpoch - lastSeen) < debounceSeconds) {
+            log.info("Debounce: Bỏ qua ghi log trùng lặp cho [{}] tại [{}] trong vòng {}s", userCode, cameraCode, debounceSeconds);
             return null;
         }
         debounceCache.put(cacheKey, nowEpoch);

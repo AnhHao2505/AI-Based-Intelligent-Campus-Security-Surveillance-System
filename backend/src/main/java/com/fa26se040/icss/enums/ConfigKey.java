@@ -45,7 +45,10 @@ public enum ConfigKey {
     // BR-GV-39 (V71): nhắc ADMIN gắn ảnh khách trước giờ bắt đầu lượt bao nhiêu phút
     GUEST_PHOTO_REMINDER_MINUTES_BEFORE("GUEST_PHOTO_REMINDER_MINUTES_BEFORE", "60"),
     // UI-19 (V69): số dòng tối đa mỗi lần nạp tài khoản theo lô (cả luồng người dùng thường và cán bộ)
-    USER_BULK_IMPORT_MAX_ROWS("USER_BULK_IMPORT_MAX_ROWS", "200");
+    USER_BULK_IMPORT_MAX_ROWS("USER_BULK_IMPORT_MAX_ROWS", "200"),
+    // Nhật ký ra vào tại camera (V77): khoảng chống ghi trùng cùng người + cùng camera, và số ngày giữ log
+    ENTRY_LOG_DEBOUNCE_SECONDS("ENTRY_LOG_DEBOUNCE_SECONDS", "30"),
+    ENTRY_LOG_RETENTION_DAYS("ENTRY_LOG_RETENTION_DAYS", "90");
 
     private final String key;
     private final String defaultValue;

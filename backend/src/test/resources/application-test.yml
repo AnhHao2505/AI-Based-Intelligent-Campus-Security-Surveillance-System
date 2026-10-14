@@ -24,3 +24,5 @@ icss:
     rate-limiter-cleanup-cron: "-"
     # Job lượt khách (GuestVisitJobService)
     guest-visit-tick-cron: "-"
+    # Job dọn nhật ký ra vào (AccessLogRetentionService)
+    access-log-retention-cron: "-"
