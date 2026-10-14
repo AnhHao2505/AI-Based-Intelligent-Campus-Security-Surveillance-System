@@ -1,11 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Client } from "@stomp/stompjs";
 import {
-  ShieldCheck,
-  ShieldAlert,
-  Clock,
-  UserX,
-  AlertTriangle,
   Search,
   RefreshCw,
   ChevronLeft,
@@ -18,16 +13,18 @@ import {
 } from "lucide-react";
 import { fetchCameraAccessLogs, fetchCameraAccessLogStats } from "../../services/cameraAccessLogService";
 import { LoadingState, EmptyState } from "../ui";
+import { ACCESS_RESULT_META } from "../../utils/accessHistoryHelpers";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
 const FILTER_CONFIG = [
   { key: "ALL", label: "Tất cả", color: "#64748b", icon: null },
-  { key: "AUTHORIZED_ACCESS", label: "Hợp lệ", color: "#10b981", icon: ShieldCheck },
-  { key: "UNAUTHORIZED_ACCESS", label: "Sai quyền", color: "#ef4444", icon: ShieldAlert },
-  { key: "ACCESS_OUT_OF_TIME", label: "Sai giờ", color: "#f59e0b", icon: Clock },
-  { key: "UNKNOWN_PERSON", label: "Người lạ", color: "#8b5cf6", icon: UserX },
-  { key: "INTRUSION", label: "Ngoài giờ", color: "#eab308", icon: AlertTriangle },
+  // Nhãn + icon dùng chung với trang lịch sử ra vào (utils/accessHistoryHelpers); màu giữ nguyên của tab
+  { key: "AUTHORIZED_ACCESS", label: ACCESS_RESULT_META.AUTHORIZED_ACCESS.label, color: "#10b981", icon: ACCESS_RESULT_META.AUTHORIZED_ACCESS.icon },
+  { key: "UNAUTHORIZED_ACCESS", label: ACCESS_RESULT_META.UNAUTHORIZED_ACCESS.label, color: "#ef4444", icon: ACCESS_RESULT_META.UNAUTHORIZED_ACCESS.icon },
+  { key: "ACCESS_OUT_OF_TIME", label: ACCESS_RESULT_META.ACCESS_OUT_OF_TIME.label, color: "#f59e0b", icon: ACCESS_RESULT_META.ACCESS_OUT_OF_TIME.icon },
+  { key: "UNKNOWN_PERSON", label: ACCESS_RESULT_META.UNKNOWN_PERSON.label, color: "#8b5cf6", icon: ACCESS_RESULT_META.UNKNOWN_PERSON.icon },
+  { key: "INTRUSION", label: ACCESS_RESULT_META.INTRUSION.label, color: "#eab308", icon: ACCESS_RESULT_META.INTRUSION.icon },
 ];
 
 export default function CameraAccessLogsTab({ camera }) {
