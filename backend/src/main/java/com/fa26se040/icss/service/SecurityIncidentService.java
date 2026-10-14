@@ -49,15 +49,8 @@ public class SecurityIncidentService {
         Area area = areas.isEmpty() ? null : areas.get(0);
 
         if (area == null) {
-            // Fallback to any active area or create a virtual one if DB has areas
-            List<Area> allAreas = areaRepository.findAll();
-            if (!allAreas.isEmpty()) {
-                area = allAreas.get(0);
-            }
-        }
-
-        if (area == null) {
-            throw new IllegalStateException("Không tìm thấy khu vực nào trong hệ thống để gán sự cố!");
+            log.warn("Không tìm thấy khu vực hoạt động nào liên kết với camera [{}] để ghi nhận sự cố", eventDto.getCameraCode());
+            throw new IllegalArgumentException("Camera " + eventDto.getCameraCode() + " chưa được gán vào khu vực hoạt động nào!");
         }
 
         String building = (area.getBuilding() != null && !area.getBuilding().isBlank())

@@ -105,6 +105,25 @@ class SecurityIncidentServiceTest {
     }
 
     @Test
+    @DisplayName("Ingest sự cố ném lỗi IllegalArgumentException khi camera chưa được gán khu vực")
+    void testIngestIncident_ThrowsException_WhenCameraHasNoArea() {
+        IncidentEventDto eventDto = IncidentEventDto.builder()
+                .eventId("EVT-101")
+                .cameraCode("CAM-UNASSIGNED")
+                .eventType("UNAUTHORIZED_ENTRY")
+                .imageUrl("http://minio:9000/security-evidence/snap.jpg")
+                .build();
+
+        when(areaRepository.findAreasByCameraCode("CAM-UNASSIGNED")).thenReturn(List.of());
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> incidentService.ingestIncident(eventDto));
+
+        assertTrue(ex.getMessage().contains("chưa được gán vào khu vực hoạt động"));
+        verify(incidentRepository, never()).save(any());
+    }
+
+    @Test
     @DisplayName("Tiếp nhận (Claim) sự cố thành công khi còn trạng thái NEW")
     void testClaimIncident_Success() {
         when(incidentRepository.findById(incident.getId())).thenReturn(Optional.of(incident));
