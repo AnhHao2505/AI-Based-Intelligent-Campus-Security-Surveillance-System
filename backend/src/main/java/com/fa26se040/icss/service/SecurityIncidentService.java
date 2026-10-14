@@ -69,16 +69,29 @@ public class SecurityIncidentService {
 
         OffsetDateTime detectedAt = OffsetDateTime.now();
 
+        String rawEventType = eventDto.getEventType() != null ? eventDto.getEventType() : "SECURITY_ALERT";
+        String normalizedEventType = switch (rawEventType) {
+            case "AFTER_HOURS", "AFTER_HOURS_PRESENCE", "AFTER_HOURS_ACCESS" -> "INTRUSION";
+            case "UNAUTHORIZED" -> "UNAUTHORIZED_ACCESS";
+            case "UNKNOWN" -> "UNKNOWN_PERSON";
+            case "OUT_OF_TIME" -> "ACCESS_OUT_OF_TIME";
+            default -> rawEventType;
+        };
+
+        String cleanDetails = eventDto.getDetails() != null ? eventDto.getDetails() : "";
+        cleanDetails = cleanDetails.replace("[TRONG_GIO] ", "").replace("[TRONG_GIO]", "")
+                .replace("[AFTER_HOURS_PRESENCE] ", "[INTRUSION] ").replace("[AFTER_HOURS_PRESENCE]", "[INTRUSION]");
+
         SecurityIncident incident = SecurityIncident.builder()
                 .eventId(eventDto.getEventId())
                 .cameraCode(eventDto.getCameraCode() != null ? eventDto.getCameraCode() : "CAM-UNKNOWN")
                 .area(area)
                 .building(building)
-                .eventType(eventDto.getEventType() != null ? eventDto.getEventType() : "SECURITY_ALERT")
+                .eventType(normalizedEventType)
                 .imageUrl(imageUrl)
                 .detectedAt(detectedAt)
                 .status(IncidentStatus.NEW)
-                .resolutionNotes(eventDto.getDetails())
+                .resolutionNotes(cleanDetails)
                 .version(0)
                 .build();
 
@@ -88,15 +101,13 @@ public class SecurityIncidentService {
         // 1b. Tự động đồng bộ sự cố người lạ / vi phạm / sai giờ / ngoài giờ sang Nhật ký ra vào của Camera (Tab 4 Camera Detail)
         if (cameraAccessLogService != null && eventDto.getCameraCode() != null) {
             try {
-                String eventType = eventDto.getEventType() != null ? eventDto.getEventType() : "";
-                String details = eventDto.getDetails() != null ? eventDto.getDetails() : "";
-                boolean isUnknown = eventType.contains("UNKNOWN") || details.contains("UNKNOWN") || details.contains("chưa rõ mặt");
+                boolean isUnknown = normalizedEventType.contains("UNKNOWN") || cleanDetails.contains("UNKNOWN") || cleanDetails.contains("chưa rõ mặt");
 
                 String userCode = isUnknown ? "UNKNOWN" : "VIOLATION";
                 String fullName = isUnknown ? "Người lạ / Chưa rõ mặt" : "Đối tượng chưa cấp quyền";
 
                 // Trích xuất mã người dùng nếu AI đã nhận diện được mặt (ví dụ: SE194249 hoặc GUEST-xxx)
-                java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\((SE\\d+|GUEST-[a-zA-Z0-9-]+|[A-Z]{2,}\\d{4,})\\)").matcher(details);
+                java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\((SE\\d+|GUEST-[a-zA-Z0-9-]+|[A-Z]{2,}\\d{4,})\\)").matcher(cleanDetails);
                 if (m.find()) {
                     String extractedCode = m.group(1);
                     Optional<User> uOpt = userRepository.findByUserCodeAndDeletedAtIsNull(extractedCode);
@@ -117,7 +128,7 @@ public class SecurityIncidentService {
                         .fullName(fullName)
                         .allowed(false)
                         .source(AccessSource.NONE)
-                        .reason(details.isBlank() ? "Phát hiện sự cố an ninh: " + eventType : details)
+                        .reason(cleanDetails.isBlank() ? "Phát hiện sự cố an ninh: " + normalizedEventType : cleanDetails)
                         .build();
                 cameraAccessLogService.recordAccessLog(logEntry, detectedAt);
             } catch (Exception ex) {
