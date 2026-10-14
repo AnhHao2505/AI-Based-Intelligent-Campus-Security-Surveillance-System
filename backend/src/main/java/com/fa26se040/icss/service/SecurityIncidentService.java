@@ -1,5 +1,6 @@
 package com.fa26se040.icss.service;
 
+import com.fa26se040.icss.dto.accessdecision.CheckCameraEntryResponse;
 import com.fa26se040.icss.dto.incident.IncidentClaimResponse;
 import com.fa26se040.icss.dto.incident.IncidentDetailResponse;
 import com.fa26se040.icss.dto.incident.IncidentEventDto;
@@ -8,6 +9,7 @@ import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.GuardLocation;
 import com.fa26se040.icss.entity.SecurityIncident;
 import com.fa26se040.icss.entity.User;
+import com.fa26se040.icss.enums.AccessSource;
 import com.fa26se040.icss.enums.IncidentOutcome;
 import com.fa26se040.icss.enums.IncidentStatus;
 import com.fa26se040.icss.repository.AreaRepository;
@@ -38,6 +40,7 @@ public class SecurityIncidentService {
     private final UserRepository userRepository;
     private final SimpMessagingTemplate messagingTemplate;
     private final GuardLocationService guardLocationService;
+    private final CameraAccessLogService cameraAccessLogService;
 
     @Transactional
     public IncidentDetailResponse ingestIncident(IncidentEventDto eventDto) {
@@ -80,6 +83,27 @@ public class SecurityIncidentService {
 
         SecurityIncident saved = incidentRepository.save(incident);
         IncidentDetailResponse response = mapToDetailResponse(saved);
+
+        // 1b. Tự động đồng bộ sự cố người lạ / vi phạm sang Nhật ký ra vào của Camera (Tab 4 Camera Detail)
+        if (cameraAccessLogService != null && eventDto.getCameraCode() != null) {
+            try {
+                String eventType = eventDto.getEventType() != null ? eventDto.getEventType() : "";
+                boolean isUnknown = eventType.contains("UNKNOWN");
+                CheckCameraEntryResponse logEntry = CheckCameraEntryResponse.builder()
+                        .cameraCode(eventDto.getCameraCode())
+                        .areaId(area.getId())
+                        .areaName(area.getName())
+                        .userCode(isUnknown ? "UNKNOWN" : "VIOLATION")
+                        .fullName(isUnknown ? "Người lạ / Chưa rõ mặt" : "Đối tượng chưa cấp quyền")
+                        .allowed(false)
+                        .source(AccessSource.NONE)
+                        .reason(eventDto.getDetails() != null ? eventDto.getDetails() : "Phát hiện đối tượng chưa rõ danh tính / vi phạm an ninh")
+                        .build();
+                cameraAccessLogService.recordAccessLog(logEntry, detectedAt);
+            } catch (Exception ex) {
+                log.warn("Không thể đồng bộ sự cố sang nhật ký camera: {}", ex.getMessage());
+            }
+        }
 
         // 2. Real-time WebSocket dispatching
         // A. Dispatch targeted alerts only to guards currently inside the campus geofence

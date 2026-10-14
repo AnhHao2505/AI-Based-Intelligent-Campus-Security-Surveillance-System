@@ -48,6 +48,9 @@ class SecurityIncidentServiceTest {
     @Mock
     private SimpMessagingTemplate messagingTemplate;
 
+    @Mock
+    private CameraAccessLogService cameraAccessLogService;
+
     @InjectMocks
     private SecurityIncidentService incidentService;
 
