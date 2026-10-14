@@ -273,19 +273,32 @@ public class CameraSnapshotService {
             camera.setUpdatedAt(OffsetDateTime.now());
             cameraRepository.save(camera);
 
+            String errorDetail = cleanErrorMessage(e);
             CameraHealthLog healthLog = CameraHealthLog.builder()
                     .camera(camera)
                     .status(OperationalStatus.OFFLINE)
                     .checkedAt(OffsetDateTime.now())
-                    .errorMessage("Kiểm tra kết nối RTSP thất bại: " + e.getMessage())
+                    .errorMessage("Kiểm tra kết nối RTSP thất bại: " + errorDetail)
                     .build();
             healthLogRepo.save(healthLog);
 
             return TestConnectionResponse.builder()
                     .success(false)
                     .operationalStatus(OperationalStatus.OFFLINE)
-                    .message("Kiểm tra kết nối thất bại: " + e.getMessage())
+                    .message("Kiểm tra kết nối thất bại: " + errorDetail)
                     .build();
         }
+    }
+
+    private String cleanErrorMessage(Exception e) {
+        if (e instanceof org.springframework.web.client.HttpStatusCodeException hs) {
+            return hs.getStatusCode().value() + " " + hs.getStatusText();
+        }
+        String msg = e.getMessage();
+        if (msg != null) {
+            return msg.replaceAll("(?i):\\s*\"Internal Server Error\"", "")
+                      .replaceAll("(?i)500 Internal Server Error: \"Internal Server Error\"", "500 Internal Server Error");
+        }
+        return "Lỗi kết nối không xác định";
     }
 }

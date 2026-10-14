@@ -274,23 +274,38 @@
   border-color: rgba(56, 189, 248, 0.2);
 }
 
-/* Error Callout */
+/* Message Callout */
+.log-message-callout,
 .log-error-callout {
   display: flex;
   align-items: flex-start;
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
   border-radius: 8px;
-  background: rgba(244, 63, 94, 0.08);
-  border: 1px solid rgba(244, 63, 94, 0.2);
-  color: #fb7185;
   font-size: 0.775rem;
   line-height: 1.35;
+  transition: all 0.2s ease;
 }
 
+.log-message-callout svg,
 .log-error-callout svg {
   flex-shrink: 0;
   margin-top: 1px;
+}
+
+/* Error Callout (Red/Rose) */
+.log-message-callout--error,
+.log-error-callout {
+  background: rgba(244, 63, 94, 0.08);
+  border: 1px solid rgba(244, 63, 94, 0.25);
+  color: #fb7185;
+}
+
+/* Success Callout (Green) */
+.log-message-callout--success {
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  color: #10b981;
 }
 
 /* Pagination */
