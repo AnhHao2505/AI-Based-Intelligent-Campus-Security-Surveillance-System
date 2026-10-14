@@ -16,6 +16,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
@@ -43,7 +44,7 @@ public class CameraAccessLogService {
     /**
      * Ghi nhận lượt quét ra vào từ camera (có cơ chế debounce 30s chống spam).
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public CameraAccessLogResponse recordAccessLog(CheckCameraEntryResponse entryResponse, OffsetDateTime at) {
         if (entryResponse == null || entryResponse.getCameraCode() == null) {
             return null;
@@ -61,10 +62,11 @@ public class CameraAccessLogService {
         long nowEpoch = at.toEpochSecond();
         Long lastSeen = debounceCache.get(cacheKey);
         if (lastSeen != null && (nowEpoch - lastSeen) < DEBOUNCE_SECONDS) {
-            log.debug("Debounce: Bỏ qua ghi log trùng lặp cho [{}] tại [{}] trong vòng 30s", userCode, cameraCode);
+            log.info("Debounce: Bỏ qua ghi log trùng lặp cho [{}] tại [{}] trong vòng 30s", userCode, cameraCode);
             return null;
         }
         debounceCache.put(cacheKey, nowEpoch);
+        log.info("Recording access log for camera [{}], user [{}]", cameraCode, userCode);
 
         // 2. Tìm Area và User
         Area area = null;

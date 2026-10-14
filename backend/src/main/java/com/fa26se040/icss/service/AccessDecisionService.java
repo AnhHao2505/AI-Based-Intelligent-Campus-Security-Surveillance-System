@@ -149,7 +149,7 @@ public class AccessDecisionService {
     /**
      * Xét quyền ra vào dựa trên mã Camera và mã Người dùng (phục vụ module AI Face Recognition).
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public CheckCameraEntryResponse checkCameraEntry(String cameraCode, String userCode, OffsetDateTime at) {
         if (at == null) {
             at = OffsetDateTime.now();

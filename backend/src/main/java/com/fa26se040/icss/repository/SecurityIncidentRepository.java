@@ -19,21 +19,71 @@ public interface SecurityIncidentRepository extends JpaRepository<SecurityIncide
             "LEFT JOIN FETCH i.claimedBy " +
             "LEFT JOIN FETCH i.resolvedBy " +
             "WHERE i.status IN ('NEW', 'CLAIMED') " +
-            "AND (:building IS NULL OR LOWER(i.building) = LOWER(:building)) " +
             "ORDER BY i.detectedAt DESC")
-    List<SecurityIncident> findActiveIncidents(@Param("building") String building);
+    List<SecurityIncident> findActiveIncidents();
 
     @Query("SELECT i FROM SecurityIncident i " +
             "LEFT JOIN FETCH i.area " +
             "LEFT JOIN FETCH i.claimedBy " +
             "LEFT JOIN FETCH i.resolvedBy " +
-            "WHERE (:building IS NULL OR LOWER(i.building) = LOWER(:building)) AND " +
-            "(:status IS NULL OR i.status = :status) " +
+            "WHERE i.status IN ('NEW', 'CLAIMED') " +
+            "AND LOWER(i.building) = LOWER(:building) " +
             "ORDER BY i.detectedAt DESC")
-    List<SecurityIncident> findIncidents(
+    List<SecurityIncident> findActiveIncidentsByBuilding(@Param("building") String building);
+
+    default List<SecurityIncident> findActiveIncidents(String building) {
+        if (building == null || building.isBlank()) {
+            return findActiveIncidents();
+        }
+        return findActiveIncidentsByBuilding(building.trim());
+    }
+
+    @Query("SELECT i FROM SecurityIncident i " +
+            "LEFT JOIN FETCH i.area " +
+            "LEFT JOIN FETCH i.claimedBy " +
+            "LEFT JOIN FETCH i.resolvedBy " +
+            "ORDER BY i.detectedAt DESC")
+    List<SecurityIncident> findAllIncidents();
+
+    @Query("SELECT i FROM SecurityIncident i " +
+            "LEFT JOIN FETCH i.area " +
+            "LEFT JOIN FETCH i.claimedBy " +
+            "LEFT JOIN FETCH i.resolvedBy " +
+            "WHERE LOWER(i.building) = LOWER(:building) " +
+            "ORDER BY i.detectedAt DESC")
+    List<SecurityIncident> findIncidentsByBuilding(@Param("building") String building);
+
+    @Query("SELECT i FROM SecurityIncident i " +
+            "LEFT JOIN FETCH i.area " +
+            "LEFT JOIN FETCH i.claimedBy " +
+            "LEFT JOIN FETCH i.resolvedBy " +
+            "WHERE i.status = :status " +
+            "ORDER BY i.detectedAt DESC")
+    List<SecurityIncident> findIncidentsByStatus(@Param("status") IncidentStatus status);
+
+    @Query("SELECT i FROM SecurityIncident i " +
+            "LEFT JOIN FETCH i.area " +
+            "LEFT JOIN FETCH i.claimedBy " +
+            "LEFT JOIN FETCH i.resolvedBy " +
+            "WHERE LOWER(i.building) = LOWER(:building) AND i.status = :status " +
+            "ORDER BY i.detectedAt DESC")
+    List<SecurityIncident> findIncidentsByBuildingAndStatus(
             @Param("building") String building,
             @Param("status") IncidentStatus status
     );
+
+    default List<SecurityIncident> findIncidents(String building, IncidentStatus status) {
+        boolean hasBuilding = building != null && !building.isBlank();
+        if (hasBuilding && status != null) {
+            return findIncidentsByBuildingAndStatus(building.trim(), status);
+        } else if (hasBuilding) {
+            return findIncidentsByBuilding(building.trim());
+        } else if (status != null) {
+            return findIncidentsByStatus(status);
+        } else {
+            return findAllIncidents();
+        }
+    }
 
     Optional<SecurityIncident> findByEventId(String eventId);
 }
