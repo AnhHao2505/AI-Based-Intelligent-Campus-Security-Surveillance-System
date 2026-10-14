@@ -20,6 +20,7 @@ import com.fa26se040.icss.dto.guest.GuestAccessDecision;
 import com.fa26se040.icss.entity.Guest;
 import com.fa26se040.icss.repository.GuestRepository;
 import org.springframework.stereotype.Service;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
@@ -33,6 +34,7 @@ import java.util.UUID;
  * <p>Đây là điểm bàn giao cho module AI: phục vụ xét quyền ra vào khuôn viên trường học
  * thông qua phương thức {@link #checkEntry(UUID, UUID, OffsetDateTime)} và {@link #checkCameraEntry(String, String, OffsetDateTime)}.</p>
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AccessDecisionService {
@@ -210,8 +212,14 @@ public class AccessDecisionService {
         }
         Camera camera = cameraOpt.get();
         Area area = camera.getArea();
-        if (area == null || !Boolean.TRUE.equals(area.getIsActive()) || area.getDeletedAt() != null) {
+        if (area == null) {
             return CheckCameraEntryResponse.denied(cameraCode, userCode, "Camera chưa được gán vào khu vực hoạt động nào");
+        }
+        // Từ đây đã xác định được camera + khu: mọi kết quả DENIED đều gắn khu để ghi được nhật ký ra vào
+        if (!Boolean.TRUE.equals(area.getIsActive()) || area.getDeletedAt() != null) {
+            CheckCameraEntryResponse inactive = deniedAtCamera(camera, area, userCode, "Camera chưa được gán vào khu vực hoạt động nào");
+            recordAccessLogSafely(inactive, at);
+            return inactive;
         }
 
         // 2. Tìm người dùng theo userCode
@@ -230,9 +238,7 @@ public class AccessDecisionService {
                     .userCode(user.getUserCode())
                     .fullName(user.getFullName())
                     .build();
-            if (cameraAccessLogService != null) {
-                cameraAccessLogService.recordAccessLog(response, at);
-            }
+            recordAccessLogSafely(response, at);
             return response;
         }
 
@@ -270,9 +276,7 @@ public class AccessDecisionService {
                             .userCode("GUEST-" + guest.getId().toString().substring(0, 8))
                             .fullName(guest.getFullName() + " (Khách)")
                             .build();
-                    if (cameraAccessLogService != null) {
-                        cameraAccessLogService.recordAccessLog(response, at);
-                    }
+                    recordAccessLogSafely(response, at);
                     return response;
                 }
             } catch (IllegalArgumentException ignored) {
@@ -280,10 +284,39 @@ public class AccessDecisionService {
             }
         }
 
-        CheckCameraEntryResponse denied = CheckCameraEntryResponse.denied(cameraCode, userCode, "Người dùng không tồn tại hoặc đã bị xoá");
-        if (cameraAccessLogService != null) {
-            cameraAccessLogService.recordAccessLog(denied, at);
-        }
+        CheckCameraEntryResponse denied = deniedAtCamera(camera, area, userCode, "Người dùng không tồn tại hoặc đã bị xoá");
+        recordAccessLogSafely(denied, at);
         return denied;
+    }
+
+    /**
+     * DENIED tại một camera đã xác định được khu: gắn areaId / areaName / cameraCode để nhật ký ghi được (area_id NOT NULL).
+     */
+    private static CheckCameraEntryResponse deniedAtCamera(Camera camera, Area area, String userCode, String reason) {
+        return CheckCameraEntryResponse.builder()
+                .allowed(false)
+                .source(AccessSource.NONE)
+                .reason(reason)
+                .cameraCode(camera.getCameraCode())
+                .areaId(area.getId())
+                .areaName(area.getName())
+                .userCode(userCode)
+                .build();
+    }
+
+    /**
+     * Ghi nhật ký ra vào không được làm hỏng quyết định: lỗi ghi log (ràng buộc DB, mất kết nối...) chỉ log.error,
+     * quyết định vẫn trả về cho AI. recordAccessLog chạy REQUIRES_NEW nên lỗi của nó không đánh dấu rollback giao dịch này.
+     */
+    private void recordAccessLogSafely(CheckCameraEntryResponse response, OffsetDateTime at) {
+        if (cameraAccessLogService == null) {
+            return;
+        }
+        try {
+            cameraAccessLogService.recordAccessLog(response, at);
+        } catch (RuntimeException e) {
+            log.error("Không ghi được nhật ký ra vào tại camera [{}] cho [{}]: {}",
+                    response.getCameraCode(), response.getUserCode(), e.getMessage(), e);
+        }
     }
 }
