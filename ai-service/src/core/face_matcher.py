@@ -31,6 +31,7 @@ class FaceMatcher:
         }
         self.embedder = FaceEmbedder(embedding_dim=512)
         self.cached_faces: List[Dict] = []
+        self.public_camera_codes: set = set()
         self.last_cache_time = 0
         self.cache_ttl = 30.0 # Tự động làm mới cache mỗi 30 giây
         self.access_cache: Dict[str, Tuple[bool, str, Optional[str], float]] = {}
@@ -49,14 +50,16 @@ class FaceMatcher:
                 SELECT fd.code, 
                        COALESCE(u.full_name, fd.code) AS full_name, 
                        fd.embedding_front::text,
-                       COALESCE(u.is_active, true) AS is_active
+                       COALESCE(u.is_active, true) AS is_active,
+                       COALESCE(u.role, 'NORMAL_USER') AS role
                 FROM face_data fd 
                 LEFT JOIN users u ON fd.user_id = u.id OR (fd.code = u.user_code AND u.deleted_at IS NULL)
                 UNION ALL
                 SELECT g.id::text AS code,
                        (g.full_name || ' (Khách)') AS full_name,
                        gfe.embedding::text,
-                       true AS is_active
+                       true AS is_active,
+                       'GUEST' AS role
                 FROM guest_face_embeddings gfe
                 JOIN guests g ON g.id = gfe.guest_id
                 JOIN guest_visits gv ON gv.id = g.visit_id
@@ -67,7 +70,7 @@ class FaceMatcher:
             rows = cur.fetchall()
             
             new_cache = []
-            for code, full_name, emb_str, is_active in rows:
+            for code, full_name, emb_str, is_active, role in rows:
                 if emb_str:
                     clean_str = emb_str.strip("[]")
                     vec = np.array([float(x) for x in clean_str.split(",")], dtype=np.float32)
@@ -78,17 +81,40 @@ class FaceMatcher:
                         "code": code,
                         "full_name": full_name,
                         "vector": vec,
-                        "is_active": bool(is_active)
+                        "is_active": bool(is_active),
+                        "role": str(role)
                     })
             
             self.cached_faces = new_cache
+
+            # Nạp danh sách mã camera thuộc khu vực Công cộng (Cấp 1 - PUBLIC)
+            try:
+                cur.execute("""
+                    SELECT UPPER(c.camera_code)
+                    FROM cameras c
+                    JOIN areas a ON c.area_id = a.id
+                    WHERE c.deleted_at IS NULL
+                      AND (a.area_level = 'PUBLIC' OR a.area_access_level <= 1);
+                """)
+                self.public_camera_codes = {r[0] for r in cur.fetchall()}
+            except Exception as e_cam:
+                logger.debug(f"Không thể nạp danh sách camera công cộng: {e_cam}")
+
             self.last_cache_time = time.time()
-            logger.info(f"✅ [FaceMatcher] Đã nạp {len(self.cached_faces)} hồ sơ khuôn mặt từ Database vào RAM cache.")
+            logger.info(f"✅ [FaceMatcher] Đã nạp {len(self.cached_faces)} hồ sơ khuôn mặt và {len(self.public_camera_codes)} camera công cộng vào RAM cache.")
             cur.close()
             conn.close()
         except Exception as e:
             logger.warning(f"⚠️ [FaceMatcher] Không thể kết nối Database để nạp face cache: {e}")
             self.last_cache_time = time.time()
+
+    def is_camera_public(self, camera_code: str) -> bool:
+        """Kiểm tra camera có thuộc khu vực Cấp 1 (Công cộng - PUBLIC) hay không"""
+        if not camera_code:
+            return False
+        if time.time() - self.last_cache_time > self.cache_ttl:
+            self.refresh_cache()
+        return camera_code.strip().upper() in getattr(self, "public_camera_codes", set())
 
     def match_face(
         self,
@@ -133,8 +159,9 @@ class FaceMatcher:
 
         if best_match and best_score >= threshold:
             is_active = bool(best_match.get("is_active", True))
-            logger.info(f"🎯 [FaceMatcher] NHẬN DIỆN KHUÔN MẶT: {best_match['code']} - {best_match['full_name']} (Khớp: {best_score:.1%}, Hoạt động: {is_active})")
-            return (best_match["code"], best_match["full_name"], best_score, is_active)
+            role = str(best_match.get("role", "NORMAL_USER"))
+            logger.info(f"🎯 [FaceMatcher] NHẬN DIỆN KHUÔN MẶT: {best_match['code']} - {best_match['full_name']} (Khớp: {best_score:.1%}, Hoạt động: {is_active}, Role: {role})")
+            return (best_match["code"], best_match["full_name"], best_score, is_active, role)
 
         return None
 

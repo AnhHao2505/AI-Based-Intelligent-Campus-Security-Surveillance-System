@@ -6,14 +6,19 @@ import com.fa26se040.icss.entity.AccessRequest;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.AreaAssignedPersonnel;
 import com.fa26se040.icss.entity.Camera;
+import com.fa26se040.icss.entity.GuardShift;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.AccessSource;
 import com.fa26se040.icss.enums.AreaLevel;
+import com.fa26se040.icss.enums.CameraStatus;
 import com.fa26se040.icss.enums.RequestStatus;
+import com.fa26se040.icss.enums.Role;
+import com.fa26se040.icss.enums.ShiftStatus;
 import com.fa26se040.icss.repository.AccessRequestRepository;
 import com.fa26se040.icss.repository.AreaAssignedPersonnelRepository;
 import com.fa26se040.icss.repository.AreaRepository;
 import com.fa26se040.icss.repository.CameraRepository;
+import com.fa26se040.icss.repository.GuardShiftRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import com.fa26se040.icss.dto.guest.GuestAccessDecision;
@@ -23,6 +28,8 @@ import org.springframework.stereotype.Service;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -48,6 +55,7 @@ public class AccessDecisionService {
     private final GuestRepository guestRepository;
     private final GuestAccessDecisionService guestAccessDecisionService;
     private final CameraAccessLogService cameraAccessLogService;
+    private final GuardShiftRepository guardShiftRepository;
 
     /**
      * Xét user có được vào area tại thời điểm at hay không. Thứ tự kiểm:
@@ -94,6 +102,17 @@ public class AccessDecisionService {
                     assignments.get(0).getId(),
                     "Người dùng được gán vào khu vực"
             );
+        }
+
+        // 3b. Bảo vệ đang trong ca trực hợp lệ (Guard Shift)
+        if (user.getRole() == Role.GUARD && guardShiftRepository != null) {
+            if (isGuardOnShift(user.getId(), at, area)) {
+                return AccessDecision.allowed(
+                        AccessSource.ASSIGNED_PERSONNEL,
+                        null,
+                        "Bảo vệ đang trong ca trực hợp lệ"
+                );
+            }
         }
 
         // 4. Access Level (khi khu vực không yêu cầu chỉ định đích danh)
@@ -211,6 +230,9 @@ public class AccessDecisionService {
             return CheckCameraEntryResponse.denied(cameraCode, userCode, "Camera không tồn tại hoặc đã bị xoá");
         }
         Camera camera = cameraOpt.get();
+        if (camera.getStatus() == CameraStatus.DECOMMISSIONED) {
+            return CheckCameraEntryResponse.denied(cameraCode, userCode, "Camera đã ngừng hoạt động (DECOMMISSIONED)");
+        }
         Area area = camera.getArea();
         if (area == null) {
             return CheckCameraEntryResponse.denied(cameraCode, userCode, "Camera chưa được gán vào khu vực hoạt động nào");
@@ -318,5 +340,48 @@ public class AccessDecisionService {
             log.error("Không ghi được nhật ký ra vào tại camera [{}] cho [{}]: {}",
                     response.getCameraCode(), response.getUserCode(), e.getMessage(), e);
         }
+    }
+
+    private boolean isGuardOnShift(UUID guardId, OffsetDateTime at, Area area) {
+        if (guardShiftRepository == null || guardId == null || at == null) {
+            return false;
+        }
+        LocalDate date = at.toLocalDate();
+        LocalTime time = at.toLocalTime();
+
+        List<GuardShift> candidateShifts = guardShiftRepository
+                .findByGuardIdAndShiftDateBetweenOrderByShiftDateAscStartTimeAsc(
+                        guardId, date.minusDays(1), date);
+
+        for (GuardShift shift : candidateShifts) {
+            if (shift.getStatus() == ShiftStatus.SCHEDULED || shift.getStatus() == ShiftStatus.CHECKED_IN) {
+                if (shift.getArea() != null && area != null && !shift.getArea().getId().equals(area.getId())) {
+                    boolean isPublic = area.getAreaLevel() == AreaLevel.PUBLIC
+                            || (area.getAreaAccessLevel() != null && area.getAreaAccessLevel() <= 1);
+                    if (!isPublic) {
+                        continue;
+                    }
+                }
+
+                LocalTime start = shift.getStartTime();
+                LocalTime end = shift.getEndTime();
+                LocalDate shiftDate = shift.getShiftDate();
+
+                if (start != null && end != null) {
+                    if (!start.isAfter(end)) {
+                        if (shiftDate.equals(date) && !time.isBefore(start) && !time.isAfter(end)) {
+                            return true;
+                        }
+                    } else {
+                        if (shiftDate.equals(date) && !time.isBefore(start)) {
+                            return true;
+                        } else if (shiftDate.equals(date.minusDays(1)) && !time.isAfter(end)) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        return false;
     }
 }
