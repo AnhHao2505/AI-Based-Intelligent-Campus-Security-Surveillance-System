@@ -83,6 +83,12 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer({
 						} else if (event.track) {
 							videoRef.current.srcObject = new MediaStream([event.track]);
 						}
+						const playPromise = videoRef.current.play();
+						if (playPromise !== undefined) {
+							playPromise.catch((e) => {
+								console.debug("Tự động phát video đang chờ sẵn:", e);
+							});
+						}
 						if (isMounted) {
 							setStatus("live");
 							if (onStatusChange) onStatusChange("live");
@@ -243,8 +249,16 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer({
 			{status !== "live" && (
 				<div className="cctv-blackout-screen">
 					<div className="cctv-offline-telemetry">
-						<div className="cctv-no-signal-badge">
-							{status === "connecting" ? "[ ĐANG KẾT NỐI]" : "[ MẤT TÍN HIỆU ]"}
+						<div
+							className={
+								status === "connecting"
+									? "cctv-connecting-badge"
+									: "cctv-no-signal-badge"
+							}
+						>
+							{status === "connecting"
+								? "[ ĐANG KẾT NỐI VÀ CHỜ KHUNG HÌNH... ]"
+								: "[ MẤT TÍN HIỆU ]"}
 						</div>
 						<div className="cctv-offline-details">
 							<span>SOURCE: {displayCamCode}</span>

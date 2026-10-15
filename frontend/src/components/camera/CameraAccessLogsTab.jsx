@@ -10,6 +10,7 @@ import {
   BadgeCheck,
   UserCheck,
   KeyRound,
+  Calendar,
 } from "lucide-react";
 import { fetchCameraAccessLogs, fetchCameraAccessLogStats } from "../../services/cameraAccessLogService";
 import { LoadingState, EmptyState } from "../ui";
@@ -191,6 +192,8 @@ export default function CameraAccessLogsTab({ camera }) {
         return { label: "Khách ghé thăm", icon: UserCheck, bg: "rgba(245, 158, 11, 0.12)", color: "#f59e0b" };
       case "ASSIGNED_PERSONNEL":
         return { label: "Nhân sự phụ trách", icon: BadgeCheck, bg: "rgba(139, 92, 246, 0.12)", color: "#8b5cf6" };
+      case "OPEN_EVENT":
+        return { label: "Chế độ sự kiện", icon: Calendar, bg: "rgba(236, 72, 153, 0.12)", color: "#ec4899" };
       default:
         return { label: "Quét thông thường", icon: Radio, bg: "rgba(100, 116, 139, 0.12)", color: "#64748b" };
     }
@@ -217,58 +220,48 @@ export default function CameraAccessLogsTab({ camera }) {
 
   return (
     <div className="camera-access-logs-tab">
-      {/* Live Monitoring & Control Bar */}
-      <div className="access-logs-topbar">
-        <div className="live-status-pill">
-          <span className={`live-pulse-indicator ${wsConnected ? "live-pulse-active" : "live-pulse-offline"}`} />
-          <span className="live-status-text">
-            {wsConnected ? "AI Live Monitoring (Trực tiếp)" : "Mất kết nối thời gian thực"}
-          </span>
-        </div>
-
-        <div className="topbar-actions">
-          <button
-            type="button"
-            className="btn-refresh-logs"
-            onClick={() => {
-              loadLogs(true);
-              loadStats();
-            }}
-            disabled={refreshing}
-            title="Làm mới dữ liệu"
-          >
-            <RefreshCw size={15} className={refreshing ? "spin-icon" : ""} />
-            <span>Làm mới</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Filter Pills with Counts */}
+      {/* Filter Pills with Counts & Reload Button */}
       <div className="access-filter-pills-row">
-        {FILTER_CONFIG.map((filter) => {
-          const Icon = filter.icon;
-          const count = getStatCount(filter.key);
-          const isActive = activeFilter === filter.key;
+        <div className="access-filter-pills-group">
+          {FILTER_CONFIG.map((filter) => {
+            const Icon = filter.icon;
+            const count = getStatCount(filter.key);
+            const isActive = activeFilter === filter.key;
 
-          return (
-            <button
-              key={filter.key}
-              type="button"
-              className={`access-filter-pill ${isActive ? "access-filter-pill--active" : ""}`}
-              onClick={() => {
-                setActiveFilter(filter.key);
-                setPage(0);
-              }}
-              style={{
-                "--filter-color": filter.color,
-              }}
-            >
-              {Icon && <Icon size={14} className="filter-pill-icon" />}
-              <span className="filter-pill-label">{filter.label}</span>
-              <span className="filter-pill-badge">{count}</span>
-            </button>
-          );
-        })}
+            return (
+              <button
+                key={filter.key}
+                type="button"
+                className={`access-filter-pill ${isActive ? "access-filter-pill--active" : ""}`}
+                onClick={() => {
+                  setActiveFilter(filter.key);
+                  setPage(0);
+                }}
+                style={{
+                  "--filter-color": filter.color,
+                }}
+              >
+                {Icon && <Icon size={14} className="filter-pill-icon" />}
+                <span className="filter-pill-label">{filter.label}</span>
+                <span className="filter-pill-badge">{count}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <button
+          type="button"
+          className="btn-refresh-logs"
+          onClick={() => {
+            loadLogs(true);
+            loadStats();
+          }}
+          disabled={refreshing}
+          title="Làm mới dữ liệu"
+          aria-label="Làm mới dữ liệu"
+        >
+          <RefreshCw size={15} className={refreshing ? "spin-icon" : ""} />
+        </button>
       </div>
 
       {/* Search Input Bar */}
