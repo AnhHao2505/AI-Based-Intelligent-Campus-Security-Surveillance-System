@@ -85,6 +85,13 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer({
 				// Chỉ yêu cầu nhận Video (không nhận Audio) để tránh lỗi lệch clock rate
 				peerConnection.addTransceiver("video", { direction: "recvonly" });
 
+				const markLive = () => {
+					if (!isMounted) return;
+					setStatus("live");
+					setRetryCount(0);
+					if (onStatusChange) onStatusChange("live");
+				};
+
 				peerConnection.ontrack = (event) => {
 					if (videoRef.current) {
 						if (event.streams && event.streams[0]) {
@@ -94,14 +101,15 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer({
 						}
 						const playPromise = videoRef.current.play();
 						if (playPromise !== undefined) {
-							playPromise.catch((e) => {
-								console.debug("Tự động phát video đang chờ sẵn:", e);
-							});
-						}
-						if (isMounted) {
-							setStatus("live");
-							setRetryCount(0);
-							if (onStatusChange) onStatusChange("live");
+							playPromise
+								.then(() => {
+									if (videoRef.current && videoRef.current.videoWidth > 0) {
+										markLive();
+									}
+								})
+								.catch((e) => {
+									console.debug("Tự động phát video đang chờ sẵn:", e);
+								});
 						}
 					}
 				};
@@ -110,9 +118,17 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer({
 					if (!isMounted) return;
 					const state = peerConnection.connectionState;
 					if (state === "connected") {
-						setStatus("live");
-						setRetryCount(0);
-						if (onStatusChange) onStatusChange("live");
+						// Nếu video đã có frame hoặc đang play thì kích hoạt live ngay
+						if (videoRef.current && (videoRef.current.videoWidth > 0 || !videoRef.current.paused)) {
+							markLive();
+						} else {
+							// Đợi I-Frame từ camera, nếu quá 1.5s chưa có event onPlaying thì fallback sang live
+							setTimeout(() => {
+								if (isMounted && peerConnection?.connectionState === "connected") {
+									markLive();
+								}
+							}, 1500);
+						}
 					} else if (state === "disconnected" || state === "failed") {
 						setStatus("offline");
 						if (onStatusChange) onStatusChange("offline");
@@ -186,10 +202,12 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer({
 				className={`cctv-video-element ${status === "live" ? "active" : ""}`}
 				onPlaying={() => {
 					setStatus("live");
+					setRetryCount(0);
 					if (onStatusChange) onStatusChange("live");
 				}}
-				onLoadedMetadata={() => {
+				onLoadedData={() => {
 					setStatus("live");
+					setRetryCount(0);
 					if (onStatusChange) onStatusChange("live");
 				}}
 			/>
