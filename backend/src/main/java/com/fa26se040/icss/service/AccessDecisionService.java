@@ -170,18 +170,30 @@ public class AccessDecisionService {
         }
 
         // 6. Phân tích nguyên nhân từ chối chi tiết (Hỗ trợ phân biệt Sai giờ vs Sai quyền)
-        // A. Kiểm tra có đơn APPROVED cho khu vực này nhưng không đúng khung thời gian (đến sớm hoặc quá hạn)
+        // A. Kiểm tra có đơn APPROVED cho khu vực này trong CÙNG NGÀY nhưng không đúng khung thời gian (đến sớm hoặc quá hạn)
         if (accessRequestRepository != null) {
+            LocalDate accessDate = at.atZoneSameInstant(VN_ZONE).toLocalDate();
             List<AccessRequest> approvedRequests = accessRequestRepository.findAnyApprovedRequestsForUser(
                     userId, areaId, RequestStatus.APPROVED);
-            if (approvedRequests != null && !approvedRequests.isEmpty()) {
-                AccessRequest ar = approvedRequests.get(0);
-                if (ar.getStartTime() != null && at.isBefore(ar.getStartTime())) {
-                    return AccessDecision.denied("Chưa tới khung giờ được cấp phép theo đơn (Bắt đầu lúc: "
-                            + TIME_DATE_FORMATTER.format(ar.getStartTime()) + ")");
-                } else if (ar.getEndTime() != null && !at.isBefore(ar.getEndTime())) {
-                    return AccessDecision.denied("Đơn xin quyền đã hết hạn sử dụng (Đã kết thúc lúc: "
-                            + TIME_DATE_FORMATTER.format(ar.getEndTime()) + ")");
+            if (approvedRequests != null) {
+                for (AccessRequest ar : approvedRequests) {
+                    if (ar.getStartTime() == null || ar.getEndTime() == null) {
+                        continue;
+                    }
+                    LocalDate reqStartDate = ar.getStartTime().atZoneSameInstant(VN_ZONE).toLocalDate();
+                    LocalDate reqEndDate = ar.getEndTime().atZoneSameInstant(VN_ZONE).toLocalDate();
+
+                    // Chỉ áp dụng tag sai giờ khi đơn và thời điểm truy cập diễn ra trong cùng ngày
+                    boolean isSameDay = !accessDate.isBefore(reqStartDate) && !accessDate.isAfter(reqEndDate);
+                    if (isSameDay) {
+                        if (at.isBefore(ar.getStartTime())) {
+                            return AccessDecision.denied("Chưa tới khung giờ được cấp phép theo đơn (Bắt đầu lúc: "
+                                    + TIME_DATE_FORMATTER.format(ar.getStartTime()) + ")");
+                        } else if (!at.isBefore(ar.getEndTime())) {
+                            return AccessDecision.denied("Đơn xin quyền đã hết hạn sử dụng trong ngày (Đã kết thúc lúc: "
+                                    + TIME_DATE_FORMATTER.format(ar.getEndTime()) + ")");
+                        }
+                    }
                 }
             }
         }
