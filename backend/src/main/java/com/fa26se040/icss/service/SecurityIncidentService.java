@@ -33,6 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -358,8 +359,8 @@ public class SecurityIncidentService {
         if (guardShiftRepository == null || guardId == null || at == null) {
             return false;
         }
-        LocalDate date = at.toLocalDate();
-        LocalTime time = at.toLocalTime();
+        LocalDate date = at.atZoneSameInstant(ZoneId.of("Asia/Ho_Chi_Minh")).toLocalDate();
+        LocalTime time = at.atZoneSameInstant(ZoneId.of("Asia/Ho_Chi_Minh")).toLocalTime();
 
         List<GuardShift> candidateShifts = guardShiftRepository
                 .findByGuardIdAndShiftDateBetweenOrderByShiftDateAscStartTimeAsc(

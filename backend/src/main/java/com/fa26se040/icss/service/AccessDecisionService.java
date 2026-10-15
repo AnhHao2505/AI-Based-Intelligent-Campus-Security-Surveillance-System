@@ -31,6 +31,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -45,6 +47,10 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class AccessDecisionService {
+
+    private static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+    private static final DateTimeFormatter TIME_DATE_FORMATTER = DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy").withZone(VN_ZONE);
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy").withZone(VN_ZONE);
 
     private final UserRepository userRepository;
     private final AreaRepository areaRepository;
@@ -172,10 +178,10 @@ public class AccessDecisionService {
                 AccessRequest ar = approvedRequests.get(0);
                 if (ar.getStartTime() != null && at.isBefore(ar.getStartTime())) {
                     return AccessDecision.denied("Chưa tới khung giờ được cấp phép theo đơn (Bắt đầu lúc: "
-                            + ar.getStartTime().toLocalTime() + ")");
+                            + TIME_DATE_FORMATTER.format(ar.getStartTime()) + ")");
                 } else if (ar.getEndTime() != null && !at.isBefore(ar.getEndTime())) {
                     return AccessDecision.denied("Đơn xin quyền đã hết hạn sử dụng (Đã kết thúc lúc: "
-                            + ar.getEndTime().toLocalTime() + ")");
+                            + TIME_DATE_FORMATTER.format(ar.getEndTime()) + ")");
                 }
             }
         }
@@ -187,10 +193,10 @@ public class AccessDecisionService {
                 for (AreaAssignedPersonnel ap : assignmentsAll) {
                     if (ap.getUser() != null && ap.getUser().getId().equals(userId) && ap.getRevokedAt() == null) {
                         if (ap.getValidFrom() != null && at.isBefore(ap.getValidFrom())) {
-                            return AccessDecision.denied("Phân công nhân sự chưa tới ngày hiệu lực (Bắt đầu: " + ap.getValidFrom().toLocalDate() + ")");
+                            return AccessDecision.denied("Phân công nhân sự chưa tới ngày hiệu lực (Bắt đầu: " + DATE_FORMATTER.format(ap.getValidFrom()) + ")");
                         }
                         if (ap.getValidTo() != null && !at.isBefore(ap.getValidTo())) {
-                            return AccessDecision.denied("Phân công nhân sự đã hết hạn hiệu lực (Đã kết thúc: " + ap.getValidTo().toLocalDate() + ")");
+                            return AccessDecision.denied("Phân công nhân sự đã hết hạn hiệu lực (Đã kết thúc: " + DATE_FORMATTER.format(ap.getValidTo()) + ")");
                         }
                     }
                 }
@@ -346,8 +352,8 @@ public class AccessDecisionService {
         if (guardShiftRepository == null || guardId == null || at == null) {
             return false;
         }
-        LocalDate date = at.toLocalDate();
-        LocalTime time = at.toLocalTime();
+        LocalDate date = at.atZoneSameInstant(VN_ZONE).toLocalDate();
+        LocalTime time = at.atZoneSameInstant(VN_ZONE).toLocalTime();
 
         List<GuardShift> candidateShifts = guardShiftRepository
                 .findByGuardIdAndShiftDateBetweenOrderByShiftDateAscStartTimeAsc(
