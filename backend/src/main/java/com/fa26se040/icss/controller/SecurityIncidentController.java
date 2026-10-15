@@ -92,6 +92,10 @@ public class SecurityIncidentController {
     ) {
         log.info("Triggering single test alert for camera [{}] type [{}]", testEvent.getCameraCode(), testEvent.getEventType());
         IncidentDetailResponse response = securityIncidentService.ingestIncident(testEvent);
+        if (response == null) {
+            return ResponseEntity.status(HttpStatus.OK)
+                    .body(ApiResponse.success(null, "Camera đã ngừng hoạt động (DECOMMISSIONED), sự cố được bỏ qua"));
+        }
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(response, "Test alert broadcast thành công"));
     }
@@ -104,6 +108,7 @@ public class SecurityIncidentController {
         log.info("Triggering batch test alerts: count [{}]", testEvents.size());
         List<IncidentDetailResponse> results = testEvents.stream()
                 .map(securityIncidentService::ingestIncident)
+                .filter(java.util.Objects::nonNull)
                 .collect(Collectors.toList());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(results, results.size() + " test alerts broadcast thành công"));
@@ -120,6 +125,10 @@ public class SecurityIncidentController {
     ) {
         log.info("Direct ingest incident from AI Service for camera [{}] type [{}]", event.getCameraCode(), event.getEventType());
         IncidentDetailResponse response = securityIncidentService.ingestIncident(event);
+        if (response == null) {
+            return ResponseEntity.status(HttpStatus.OK)
+                    .body(ApiResponse.success(null, "Camera đã ngừng hoạt động (DECOMMISSIONED), sự cố được bỏ qua"));
+        }
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(response, "Sự cố an ninh đã được tiếp nhận và phát sóng toàn hệ thống"));
     }
