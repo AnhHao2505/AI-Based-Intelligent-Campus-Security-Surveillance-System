@@ -44,6 +44,11 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer({
 	}));
 	const [retryCount, setRetryCount] = useState(0);
 
+	// Reset retryCount về 0 khi đổi kênh stream hoặc host
+	useEffect(() => {
+		setRetryCount(0);
+	}, [streamPath, host]);
+
 	// Đồng hồ số chạy thời gian thực mỗi 1 giây chuẩn CCTV (HH:mm:ss)
 	const [liveClock, setLiveClock] = useState(() => {
 		return new Date().toLocaleTimeString("vi-VN", { hour12: false });
@@ -61,7 +66,11 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer({
 		let peerConnection = null;
 
 		async function startWebRTC() {
-			setStatus("connecting");
+			// Chỉ chuyển sang "connecting" ở lần kết nối ban đầu
+			// Ở các lần tự động thử lại sau đó, giữ nguyên "offline" để chạy ngầm êm ái, tránh chớp nháy OSD
+			if (retryCount === 0) {
+				setStatus("connecting");
+			}
 			setErrorMsg("");
 
 			try {
@@ -91,6 +100,7 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer({
 						}
 						if (isMounted) {
 							setStatus("live");
+							setRetryCount(0);
 							if (onStatusChange) onStatusChange("live");
 						}
 					}
@@ -101,6 +111,7 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer({
 					const state = peerConnection.connectionState;
 					if (state === "connected") {
 						setStatus("live");
+						setRetryCount(0);
 						if (onStatusChange) onStatusChange("live");
 					} else if (state === "disconnected" || state === "failed") {
 						setStatus("offline");
