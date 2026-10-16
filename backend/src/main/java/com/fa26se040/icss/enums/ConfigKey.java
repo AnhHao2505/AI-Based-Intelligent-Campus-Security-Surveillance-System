@@ -48,7 +48,11 @@ public enum ConfigKey {
     USER_BULK_IMPORT_MAX_ROWS("USER_BULK_IMPORT_MAX_ROWS", "200"),
     // Nhật ký ra vào tại camera (V77): khoảng chống ghi trùng cùng người + cùng camera, và số ngày giữ log
     ENTRY_LOG_DEBOUNCE_SECONDS("ENTRY_LOG_DEBOUNCE_SECONDS", "30"),
-    ENTRY_LOG_RETENTION_DAYS("ENTRY_LOG_RETENTION_DAYS", "90");
+    ENTRY_LOG_RETENTION_DAYS("ENTRY_LOG_RETENTION_DAYS", "90"),
+    // BR-GD-02 / BR-GD-03 (V79): bảo vệ đã tiếp nhận sự cố được vào khu có sự cố trong N phút kể từ lúc tiếp nhận;
+    // xử lý xong thì còn thời gian ân hạn để rời khu (không vượt quá N phút)
+    GUARD_INCIDENT_ACCESS_MINUTES("GUARD_INCIDENT_ACCESS_MINUTES", "30"),
+    GUARD_INCIDENT_EXIT_GRACE_MINUTES("GUARD_INCIDENT_EXIT_GRACE_MINUTES", "5");
 
     private final String key;
     private final String defaultValue;

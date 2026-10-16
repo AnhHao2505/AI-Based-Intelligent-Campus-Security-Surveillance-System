@@ -10,6 +10,7 @@ import {
   BadgeCheck,
   UserCheck,
   KeyRound,
+  ShieldAlert,
 } from "lucide-react";
 import { fetchCameraAccessLogs, fetchCameraAccessLogStats } from "../../services/cameraAccessLogService";
 import { LoadingState, EmptyState } from "../ui";
@@ -191,6 +192,8 @@ export default function CameraAccessLogsTab({ camera }) {
         return { label: "Khách ghé thăm", icon: UserCheck, bg: "rgba(245, 158, 11, 0.12)", color: "#f59e0b" };
       case "ASSIGNED_PERSONNEL":
         return { label: "Nhân sự phụ trách", icon: BadgeCheck, bg: "rgba(139, 92, 246, 0.12)", color: "#8b5cf6" };
+      case "INCIDENT_RESPONSE":
+        return { label: "Xử lý sự cố", icon: ShieldAlert, bg: "rgba(239, 68, 68, 0.12)", color: "#ef4444" };
       default:
         return { label: "Quét thông thường", icon: Radio, bg: "rgba(100, 116, 139, 0.12)", color: "#64748b" };
     }
