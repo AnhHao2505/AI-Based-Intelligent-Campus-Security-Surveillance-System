@@ -19,6 +19,63 @@ const SYSTEM_ACTOR_LABELS = {
 	EXPIRE_OVERDUE_REQUESTS_JOB: "Tự động hết hạn đơn quá giờ",
 	EVENT_MODE_EXPIRY: "Tự động kết thúc sự kiện hết hạn",
 	EVENT_SCHEDULE_ACTIVATION: "Tự động kích hoạt lịch sự kiện",
+	GUEST_VISIT_JOB: "Tự động xử lý lượt khách",
+};
+
+// Nhãn tiếng Việt cho tên trường trong snapshot audit (cột nội dung thay đổi, nhánh mặc định).
+// Trường không có nhãn (id, version, ...) không hiện tên kỹ thuật.
+const AUDIT_FIELD_LABELS = {
+	status: "Trạng thái",
+	name: "Tên",
+	code: "Mã",
+	label: "Tên",
+	note: "Ghi chú",
+	reason: "Lý do",
+	reasonCode: "Lý do",
+	reasonLabel: "Lý do",
+	rejectionReason: "Lý do từ chối",
+	actionType: "Loại thao tác",
+	isOther: "Lý do khác",
+	isActive: "Trạng thái hoạt động",
+	accessLevel: "Cấp truy cập",
+	areaAccessLevel: "Cấp truy cập khu vực",
+	areaLevel: "Loại khu vực",
+	explicitAuthorizationRequired: "Yêu cầu chỉ định đích danh",
+	building: "Tòa nhà",
+	floor: "Tầng",
+	centerLatitude: "Tọa độ",
+	centerLongitude: "Tọa độ",
+	areaId: "Khu vực",
+	areaIds: "Khu vực",
+	requestType: "Hình thức",
+	requesterId: "Người yêu cầu",
+	validFrom: "Hiệu lực từ",
+	validTo: "Hiệu lực đến",
+	startTime: "Giờ bắt đầu",
+	endTime: "Giờ kết thúc",
+	startAt: "Giờ bắt đầu",
+	endAt: "Giờ kết thúc",
+	scheduleId: "Lịch sự kiện",
+	sessionId: "Phiên sự kiện",
+	openToMembers: "Mở cho thành viên",
+	openUntil: "Mở đến",
+	plannedEnd: "Dự kiến kết thúc",
+	hostCode: "Người tiếp đón",
+	guestCount: "Số khách",
+	guestId: "Khách",
+	visitId: "Lượt khách",
+	biometricStatus: "Trạng thái sinh trắc",
+	consentNoticeVersion: "Phiên bản thông báo đồng ý",
+	photoDeletionScheduled: "Lịch xóa ảnh",
+	anonymized: "Ẩn danh hóa",
+};
+
+const summarizeSnapshotFields = (snap) => {
+	const labels = [
+		...new Set(Object.keys(snap).map((key) => AUDIT_FIELD_LABELS[key]).filter(Boolean)),
+	];
+	if (labels.length === 0) return "Xem chi tiết";
+	return labels.length > 3 ? `${labels.slice(0, 3).join(", ")}, …` : labels.join(", ");
 };
 
 const renderSystemActor = (source) => {
@@ -461,9 +518,7 @@ export default function AuditLogPage() {
 		return (
 			<div className="audit-detail-rules">
 				<span className="audit-val--json-summary">
-					{typeof snap === "object"
-						? Object.keys(snap).slice(0, 3).join(", ")
-						: String(snap)}
+					{typeof snap === "object" ? summarizeSnapshotFields(snap) : String(snap)}
 				</span>
 			</div>
 		);
