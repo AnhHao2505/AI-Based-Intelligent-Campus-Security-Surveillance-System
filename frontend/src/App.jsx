@@ -29,6 +29,7 @@ import ReasonCatalogPage from "./pages/system/ReasonCatalogPage";
 import UserAccessLevelPage from "./pages/accessControl/UserAccessLevelPage";
 import AdminPresetPage from "./pages/accessControl/AdminPresetPage";
 import AuditLogPage from "./pages/accessControl/AuditLogPage";
+import AccessLevelsRedirect from "./pages/accessControl/AccessLevelsRedirect";
 import DemoModeBanner from "./components/common/DemoModeBanner";
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
@@ -357,7 +358,13 @@ function App() {
 
 							<Route
 								path="/admin/access-levels"
-								element={<Navigate to="/admin/level-presets" replace />}
+								element={
+									<ProtectedRoute
+										allowedRoles={[ROLES.ADMIN, ROLES.FACILITY_MANAGER]}
+									>
+										<AccessLevelsRedirect />
+									</ProtectedRoute>
+								}
 							/>
 
 							<Route
