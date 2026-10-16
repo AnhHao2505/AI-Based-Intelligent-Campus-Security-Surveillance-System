@@ -29,6 +29,8 @@
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  /* UI-AUDIT #15: mục active cuộn vào tầm nhìn dừng phía trên bóng mờ (cao 28px) của .sidebar__bottom */
+  scroll-padding-bottom: 28px;
   scrollbar-width: thin;
   scrollbar-color: var(--theme-border) transparent;
 }
