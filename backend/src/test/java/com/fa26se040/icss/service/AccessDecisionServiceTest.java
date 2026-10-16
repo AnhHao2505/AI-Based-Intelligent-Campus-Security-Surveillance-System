@@ -87,9 +87,6 @@ class AccessDecisionServiceTest {
     @Mock
     private CameraAccessLogService cameraAccessLogService;
 
-    @Mock
-    private com.fa26se040.icss.repository.GuardShiftRepository guardShiftRepository;
-
     @InjectMocks
     private AccessDecisionService accessDecisionService;
 
