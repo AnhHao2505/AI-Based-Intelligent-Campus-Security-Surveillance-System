@@ -28,6 +28,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.nio.charset.StandardCharsets;
+import java.sql.Timestamp;
+import java.time.OffsetDateTime;
 import java.util.Map;
 import java.util.UUID;
 
@@ -52,6 +54,12 @@ class CheckEntryAccessLogIntegrationTest extends AbstractIntegrationTest {
     @Autowired private CameraRepository cameraRepository;
     @Autowired private JdbcTemplate jdbc;
     @SpyBean private CameraAccessLogRepository cameraAccessLogRepository;
+
+    /**
+     * Thời điểm cố định 10:00 giờ VN gửi trong trường timestamp của request: CameraAccessLogService xếp mọi lượt
+     * bị từ chối trong khung 22:00–06:00 vào INTRUSION, nên không ghim giờ thì test đổi kết quả theo giờ chạy.
+     */
+    private static final String FIXED_ENTRY_TIME = "2026-10-14T10:00:00+07:00";
 
     private String suffix;
     private Area area;
@@ -97,7 +105,8 @@ class CheckEntryAccessLogIntegrationTest extends AbstractIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "cameraCode", camera.getCameraCode(),
-                                "userCode", userCode))))
+                                "userCode", userCode,
+                                "timestamp", FIXED_ENTRY_TIME))))
                 .andReturn();
     }
 
@@ -127,12 +136,15 @@ class CheckEntryAccessLogIntegrationTest extends AbstractIntegrationTest {
 
         assertThat(logCount()).isEqualTo(1);
         Map<String, Object> row = jdbc.queryForMap(
-                "SELECT area_id, user_id, user_code, access_result FROM camera_access_logs WHERE camera_code = ?",
+                "SELECT area_id, user_id, user_code, access_result, logged_at FROM camera_access_logs WHERE camera_code = ?",
                 camera.getCameraCode());
         assertThat(row.get("area_id")).isEqualTo(area.getId());
         assertThat(row.get("user_id")).isNull();
         assertThat(row.get("user_code")).isEqualTo(unknownCode);
         assertThat(row.get("access_result")).isEqualTo("UNKNOWN_PERSON");
+        // Log ghi đúng thời điểm gửi trong request, không phải giờ máy chạy test
+        assertThat(((Timestamp) row.get("logged_at")).toInstant())
+                .isEqualTo(OffsetDateTime.parse(FIXED_ENTRY_TIME).toInstant());
     }
 
     @Test
