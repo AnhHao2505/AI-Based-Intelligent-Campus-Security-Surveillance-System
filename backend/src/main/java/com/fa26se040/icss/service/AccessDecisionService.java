@@ -82,22 +82,22 @@ public class AccessDecisionService {
 
         // 1. User
         Optional<User> userOpt = userRepository.findById(userId);
-        if (userOpt.isEmpty()) {
+        if (userOpt.isEmpty() || userOpt.get().getDeletedAt() != null) {
             return AccessDecision.denied("Người dùng không tồn tại");
         }
         User user = userOpt.get();
-        if (!Boolean.TRUE.equals(user.getIsActive()) || user.getDeletedAt() != null) {
-            return AccessDecision.denied("Người dùng đã bị vô hiệu hoá hoặc đã bị xoá");
+        if (!Boolean.TRUE.equals(user.getIsActive())) {
+            return AccessDecision.denied("Tài khoản đã bị vô hiệu hoá");
         }
 
         // 2. Area
         Optional<Area> areaOpt = areaRepository.findById(areaId);
-        if (areaOpt.isEmpty()) {
+        if (areaOpt.isEmpty() || areaOpt.get().getDeletedAt() != null) {
             return AccessDecision.denied("Khu vực không tồn tại");
         }
         Area area = areaOpt.get();
-        if (!Boolean.TRUE.equals(area.getIsActive()) || area.getDeletedAt() != null) {
-            return AccessDecision.denied("Khu vực đã ngừng hoạt động hoặc đã bị xoá");
+        if (!Boolean.TRUE.equals(area.getIsActive())) {
+            return AccessDecision.denied("Khu vực đã ngừng hoạt động");
         }
 
         // 3. Assigned Personnel còn hiệu lực tại at (validTo NULL = không hạn)
@@ -245,7 +245,7 @@ public class AccessDecisionService {
         // 1. Tìm Camera và Khu vực tương ứng
         Optional<Camera> cameraOpt = cameraRepository.findByCameraCodeAndDeletedAtIsNull(cameraCode);
         if (cameraOpt.isEmpty()) {
-            return CheckCameraEntryResponse.denied(cameraCode, userCode, "Camera không tồn tại hoặc đã bị xoá");
+            return CheckCameraEntryResponse.denied(cameraCode, userCode, "Camera không tồn tại");
         }
         Camera camera = cameraOpt.get();
         if (camera.getStatus() == CameraStatus.DECOMMISSIONED) {
@@ -257,7 +257,7 @@ public class AccessDecisionService {
         }
         // Từ đây đã xác định được camera + khu: mọi kết quả DENIED đều gắn khu để ghi được nhật ký ra vào
         if (!Boolean.TRUE.equals(area.getIsActive()) || area.getDeletedAt() != null) {
-            CheckCameraEntryResponse inactive = deniedAtCamera(camera, area, userCode, "Camera chưa được gán vào khu vực hoạt động nào");
+            CheckCameraEntryResponse inactive = deniedAtCamera(camera, area, userCode, "Khu vực đã ngừng hoạt động");
             recordAccessLogSafely(inactive, at);
             return inactive;
         }
@@ -324,7 +324,7 @@ public class AccessDecisionService {
             }
         }
 
-        CheckCameraEntryResponse denied = deniedAtCamera(camera, area, userCode, "Người dùng không tồn tại hoặc đã bị xoá");
+        CheckCameraEntryResponse denied = deniedAtCamera(camera, area, userCode, "Người dùng không tồn tại");
         recordAccessLogSafely(denied, at);
         return denied;
     }

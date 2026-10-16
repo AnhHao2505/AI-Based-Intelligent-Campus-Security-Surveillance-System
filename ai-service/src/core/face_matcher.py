@@ -53,7 +53,8 @@ class FaceMatcher:
                        COALESCE(u.is_active, true) AS is_active,
                        COALESCE(u.role, 'NORMAL_USER') AS role
                 FROM face_data fd 
-                LEFT JOIN users u ON fd.user_id = u.id OR (fd.code = u.user_code AND u.deleted_at IS NULL)
+                JOIN users u ON (fd.user_id = u.id OR fd.code = u.user_code)
+                WHERE u.deleted_at IS NULL
                 UNION ALL
                 SELECT g.id::text AS code,
                        (g.full_name || ' (Khách)') AS full_name,

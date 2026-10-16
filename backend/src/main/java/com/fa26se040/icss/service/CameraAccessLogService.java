@@ -144,9 +144,9 @@ public class CameraAccessLogService {
             return AccessResult.ACCESS_OUT_OF_TIME;
         }
 
-        // 3. Kiểm tra Người lạ (UNKNOWN_PERSON): Chưa rõ mặt, không có tài khoản, hoặc gắn cờ UNKNOWN
+        // 3. Kiểm tra Người lạ (UNKNOWN_PERSON): Chưa rõ mặt, không có tài khoản, đã bị xoá, hoặc gắn cờ UNKNOWN
         boolean isGuest = userCode.startsWith("GUEST-");
-        if ((!userExists && !isGuest) || reason.contains("người dùng không tồn tại") || userCode.startsWith("UNKNOWN") || reason.contains("chưa rõ mặt") || reason.contains("người lạ")) {
+        if ((!userExists && !isGuest) || reason.contains("người dùng không tồn tại") || reason.contains("đã bị xoá") || userCode.startsWith("UNKNOWN") || reason.contains("chưa rõ mặt") || reason.contains("người lạ")) {
             return AccessResult.UNKNOWN_PERSON;
         }
 
