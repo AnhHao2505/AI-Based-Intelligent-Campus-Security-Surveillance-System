@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { NavLink } from "react-router-dom";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { NavLink, useLocation } from "react-router-dom";
 import {
 	LayoutDashboard,
 	MapPin,
@@ -35,6 +35,36 @@ export default function Sidebar({ user, onLogout }) {
 	const { sidebarCollapsed, toggleSidebar } = useUiStore();
 
 	const [unreadCount, setUnreadCount] = useState(0);
+	const { pathname } = useLocation();
+	// Vùng menu cuộn được (.sidebar__header): mục active tự hiện ra, bóng mờ báo còn mục bên dưới (UI-AUDIT #15)
+	const menuRef = useRef(null);
+	const [hasMoreBelow, setHasMoreBelow] = useState(false);
+
+	const updateMoreBelow = useCallback(() => {
+		const el = menuRef.current;
+		if (!el) return;
+		setHasMoreBelow(el.scrollHeight - el.scrollTop - el.clientHeight > 1);
+	}, []);
+
+	useEffect(() => {
+		const active = menuRef.current?.querySelector(".sidebar__link--active");
+		active?.scrollIntoView({ block: "nearest" });
+		updateMoreBelow();
+	}, [pathname, sidebarCollapsed, updateMoreBelow]);
+
+	useEffect(() => {
+		const el = menuRef.current;
+		if (!el) return undefined;
+		el.addEventListener("scroll", updateMoreBelow, { passive: true });
+		const observer = new ResizeObserver(updateMoreBelow);
+		observer.observe(el);
+		const nav = el.querySelector(".sidebar__nav");
+		if (nav) observer.observe(nav);
+		return () => {
+			el.removeEventListener("scroll", updateMoreBelow);
+			observer.disconnect();
+		};
+	}, [updateMoreBelow]);
 
 	useEffect(() => {
 		let isMounted = true;
@@ -86,9 +116,9 @@ export default function Sidebar({ user, onLogout }) {
 
 	return (
 		<aside
-			className={`sidebar ${sidebarCollapsed ? "sidebar--collapsed" : ""}`}
+			className={`sidebar ${sidebarCollapsed ? "sidebar--collapsed" : ""} ${hasMoreBelow ? "sidebar--more-below" : ""}`}
 		>
-			<div className="sidebar__header">
+			<div className="sidebar__header" ref={menuRef}>
 				<NavLink
 					to={isNormalUser ? "/access-requests" : "/dashboard"}
 					className="sidebar__brand"
