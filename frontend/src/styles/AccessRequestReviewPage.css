@@ -226,6 +226,8 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  /* UI-AUDIT #3: đủ chỗ cho họ tên + chức danh, không vỡ từng chữ ở 1280 */
+  min-width: 200px;
 }
 
 .arr-user-avatar {
@@ -617,6 +619,25 @@
   width: 132px;
   min-width: 132px;
   text-align: right;
+}
+
+/* UI-AUDIT #3: ghim cột Thao tác bên phải, bảng cuộn ngang vẫn thấy nút duyệt / xem chi tiết */
+.arr-table th.arr-col-actions,
+.arr-table td.arr-col-actions {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  background: var(--theme-bg-surface);
+  box-shadow: inset 1px 0 0 var(--theme-border);
+}
+
+.arr-table th.arr-col-actions {
+  background: var(--theme-bg-page);
+  white-space: nowrap;
+}
+
+.arr-table tr:hover td.arr-col-actions {
+  background: linear-gradient(var(--brand-subtle), var(--brand-subtle)), var(--theme-bg-surface);
 }
 
 .arr-col-actions .arr-actions {
