@@ -848,6 +848,40 @@
   border: 1px solid rgba(59, 130, 246, 0.25);
 }
 
+/* UI-AUDIT #21: cột Hình thức đủ rộng cho badge "Thành viên nhóm", badge không vỡ chữ ở 1280 */
+.arp-col-type {
+  min-width: 150px;
+}
+
+.arp-badge,
+.arp-member-badge {
+  white-space: nowrap;
+}
+
+/* Đơn nhóm mà người xem là thành viên (không phải người tạo đơn) */
+.arp-member-info {
+  margin-top: 4px;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.arp-member-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  color: var(--brand-blue, #3b82f6);
+  font-weight: 600;
+}
+
+.arp-member-requester {
+  color: var(--theme-text-muted, #94a3b8);
+}
+
 /* ==========================================================================
    Pagination Controls
    ========================================================================== */
@@ -1092,7 +1126,8 @@
 /* BR-TC-15 (Step 5b): đơn bị hệ thống huỷ hiện nguồn + lý do; người dùng tự huỷ giữ như cũ */
 .arp-cancel-system {
   margin-top: 4px;
-  max-width: 260px;
+  /* UI-AUDIT #21: 180px (cắt "…", đủ lý do ở title) để bảng vừa khung 1280 cùng cột Hình thức */
+  max-width: 180px;
   font-size: 12px;
   line-height: 1.4;
   color: var(--theme-text-secondary);
