@@ -7,7 +7,6 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import {
 	MapPin,
 	Camera,
-	Users,
 	AlertTriangle,
 	Activity,
 	Bell,
@@ -20,6 +19,8 @@ import {
 	Info,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { ROLES } from "../constants/roles";
+import { apiGet } from "../api/apiClient";
 import { getAreas } from "../services/areaService";
 import { DataTable } from "../components/ui/data-table";
 import { ErrorState, PageHeader } from "../components/ui";
@@ -58,19 +59,27 @@ export default function DashboardPage() {
 				? "Không tải được số liệu"
 				: "Khu vực quản lý an ninh";
 
-	// Per-card connection flags (FIX 1)
-	const [kpiConnection] = useState({
-		areas: { isConnected: true },
-		cameras: { isConnected: false, reason: "Chưa có dữ liệu từ hệ thống camera" },
-		faceProfiles: {
-			isConnected: false,
-			reason: "Chưa có dữ liệu nhận diện khuôn mặt",
-		},
-		incidents: {
-			isConnected: false,
-			reason: "Chưa có dữ liệu sự cố từ camera và AI",
-		},
+	// UI-AUDIT #4: thẻ chỉ hiện khi có API sẵn MÀ role được gọi (theo @PreAuthorize backend); không thì ẩn.
+	// Gọi thẳng apiClient, không dùng service của module camera / sự cố.
+	const role = user?.role;
+	const canCountCameras = [ROLES.ADMIN, ROLES.FACILITY_MANAGER, ROLES.GUARD].includes(role);
+	const canCountIncidents = [ROLES.ADMIN, ROLES.GUARD].includes(role);
+	// GET /api/cameras (ADMIN, FM, GUARD): trang 1 phần tử, chỉ lấy totalElements
+	const cameraQuery = useQuery({
+		queryKey: ["dashboard", "active-camera-count"],
+		queryFn: () => apiGet("/api/cameras?status=ACTIVE&page=0&size=1"),
+		enabled: canCountCameras,
 	});
+	// GET /api/incidents/active (ADMIN, GUARD): sự cố mới hoặc đã tiếp nhận, chưa xử lý xong
+	const incidentQuery = useQuery({
+		queryKey: ["dashboard", "active-incidents"],
+		queryFn: () => apiGet("/api/incidents/active"),
+		enabled: canCountIncidents,
+	});
+	const kpiValue = (query, count) =>
+		query.isLoading ? "..." : query.isError || typeof count !== "number" ? "—" : count;
+	const kpiSubtext = (query, text) =>
+		query.isLoading ? "Đang tải dữ liệu..." : query.isError ? "Không tải được số liệu" : text;
 
 	// Subsystem statuses (FIX 2)
 	const [subsystems] = useState([
@@ -170,49 +179,39 @@ export default function DashboardPage() {
 	const hasEventsData = Boolean(securityLogs && securityLogs.length > 0);
 	const allThreeEmpty = !hasMiniMapData && !hasAttentionData && !hasEventsData;
 
-	// KPI card configs (FIX 1)
+	// KPI card configs. Thẻ "Hồ sơ khuôn mặt" bỏ: backend chưa có API đếm hồ sơ khuôn mặt cho role nào.
 	const kpiCards = [
 		{
 			id: "areas",
+			visible: isAreaAuthorized,
 			label: "Tổng số khu vực",
 			badge: "Khu vực",
 			icon: MapPin,
-			isConnected: kpiConnection.areas.isConnected,
 			value: areaLoading ? "..." : areaCount !== null ? areaCount : "—",
 			subtext: areaSubtext,
-			disconnectedReason: "",
 		},
 		{
 			id: "cameras",
+			visible: canCountCameras,
 			label: "Camera đang hoạt động",
 			badge: "Camera",
 			icon: Camera,
-			isConnected: kpiConnection.cameras.isConnected,
-			value: null,
-			subtext: "",
-			disconnectedReason: kpiConnection.cameras.reason,
-		},
-		{
-			id: "faceProfiles",
-			label: "Hồ sơ khuôn mặt",
-			badge: "Khuôn mặt",
-			icon: Users,
-			isConnected: kpiConnection.faceProfiles.isConnected,
-			value: null,
-			subtext: "",
-			disconnectedReason: kpiConnection.faceProfiles.reason,
+			value: kpiValue(cameraQuery, cameraQuery.data?.totalElements),
+			subtext: kpiSubtext(cameraQuery, "Camera ở trạng thái hoạt động"),
 		},
 		{
 			id: "incidents",
+			visible: canCountIncidents,
 			label: "Sự cố đang xử lý",
 			badge: "Sự cố",
 			icon: AlertTriangle,
-			isConnected: kpiConnection.incidents.isConnected,
-			value: null,
-			subtext: "",
-			disconnectedReason: kpiConnection.incidents.reason,
+			value: kpiValue(
+				incidentQuery,
+				Array.isArray(incidentQuery.data) ? incidentQuery.data.length : null,
+			),
+			subtext: kpiSubtext(incidentQuery, "Mới hoặc đã tiếp nhận, chưa xử lý xong"),
 		},
-	];
+	].filter((card) => card.visible);
 
 	return (
 		<div className="dashboard-page">
@@ -244,10 +243,7 @@ export default function DashboardPage() {
 					{kpiCards.map((card) => {
 						const IconComponent = card.icon;
 						return (
-							<article
-								key={card.id}
-								className={`kpi-card ${!card.isConnected ? "kpi-card--disconnected" : ""}`}
-							>
+							<article key={card.id} className="kpi-card">
 								<div className="kpi-card__top">
 									<span className="kpi-card__icon">
 										<IconComponent size={20} />
@@ -256,18 +252,10 @@ export default function DashboardPage() {
 								</div>
 								<div className="kpi-card__body">
 									<span className="kpi-card__label">{card.label}</span>
-									{card.isConnected ? (
-										<span className="kpi-card__value">{card.value}</span>
-									) : (
-										<span className="kpi-card__value kpi-card__value--disconnected">
-											Chưa kết nối
-										</span>
-									)}
+									<span className="kpi-card__value">{card.value}</span>
 								</div>
 								<div className="kpi-card__footer">
-									<span className="kpi-card__subtext">
-										{card.isConnected ? card.subtext : card.disconnectedReason}
-									</span>
+									<span className="kpi-card__subtext">{card.subtext}</span>
 								</div>
 							</article>
 						);
