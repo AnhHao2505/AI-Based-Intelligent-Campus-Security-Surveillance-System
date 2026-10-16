@@ -93,15 +93,16 @@
 .syscfg-tabs-nav {
   display: flex;
   align-items: center;
+  /* UI-AUDIT #12: tab xuống dòng thay vì tràn ngang mất tab ở màn hẹp */
+  flex-wrap: wrap;
   gap: 8px;
   border-bottom: 1px solid var(--theme-border);
   padding-bottom: 12px;
-  overflow-x: auto;
-  scroll-behavior: smooth;
 }
 
 .syscfg-tab-btn {
   display: flex;
+  white-space: nowrap;
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
