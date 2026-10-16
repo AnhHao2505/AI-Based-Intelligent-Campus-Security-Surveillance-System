@@ -102,7 +102,6 @@
 
 .syscfg-tab-btn {
   display: flex;
-  white-space: nowrap;
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
