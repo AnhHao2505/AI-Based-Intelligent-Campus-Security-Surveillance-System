@@ -6,9 +6,12 @@ import com.fa26se040.icss.entity.AccessRequestMember;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.AreaAssignedPersonnel;
 import com.fa26se040.icss.entity.Camera;
+import com.fa26se040.icss.entity.SecurityIncident;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.AccessSource;
 import com.fa26se040.icss.enums.AreaLevel;
+import com.fa26se040.icss.enums.ConfigKey;
+import com.fa26se040.icss.enums.IncidentStatus;
 import com.fa26se040.icss.enums.CameraStatus;
 import com.fa26se040.icss.enums.RequestStatus;
 import com.fa26se040.icss.enums.RequestType;
@@ -17,6 +20,7 @@ import com.fa26se040.icss.repository.AccessRequestRepository;
 import com.fa26se040.icss.repository.AreaAssignedPersonnelRepository;
 import com.fa26se040.icss.repository.AreaRepository;
 import com.fa26se040.icss.repository.CameraRepository;
+import com.fa26se040.icss.repository.GuardIncidentAccessRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -28,6 +32,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Pageable;
 
 import java.util.stream.Stream;
 
@@ -48,6 +53,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -89,6 +95,12 @@ class AccessDecisionServiceTest {
     @Mock
     private CameraAccessLogService cameraAccessLogService;
 
+    @Mock
+    private GuardIncidentAccessRepository guardIncidentAccessRepository;
+
+    @Mock
+    private SystemConfigService systemConfigService;
+
     @InjectMocks
     private AccessDecisionService accessDecisionService;
 
@@ -98,6 +110,7 @@ class AccessDecisionServiceTest {
     private Area lab;
     private List<AreaAssignedPersonnel> assignments;
     private List<AccessRequest> requests;
+    private List<SecurityIncident> incidents;
 
     @BeforeEach
     void setUp() {
@@ -114,6 +127,7 @@ class AccessDecisionServiceTest {
 
         assignments = new ArrayList<>();
         requests = new ArrayList<>();
+        incidents = new ArrayList<>();
 
         for (User u : List.of(lecturer, student, stranger)) {
             lenient().when(userRepository.findById(u.getId())).thenReturn(Optional.of(u));
@@ -147,6 +161,23 @@ class AccessDecisionServiceTest {
                             || r.getMembers().stream().anyMatch(m -> m.getUser().getId().equals(userId)))
                     .toList();
         });
+
+        // Giả lập đúng điều kiện JPQL findLatestClaimedByUserInArea (mới nhất theo claimedAt, giới hạn theo Pageable)
+        lenient().when(guardIncidentAccessRepository.findLatestClaimedByUserInArea(any(), any(), any())).thenAnswer(inv -> {
+            UUID userId = inv.getArgument(0);
+            UUID areaId = inv.getArgument(1);
+            Pageable pageable = inv.getArgument(2);
+            return incidents.stream()
+                    .filter(i -> i.getArea().getId().equals(areaId))
+                    .filter(i -> i.getClaimedBy() != null && i.getClaimedBy().getId().equals(userId))
+                    .filter(i -> i.getStatus() != IncidentStatus.NEW)
+                    .filter(i -> i.getClaimedAt() != null)
+                    .sorted(Comparator.comparing(SecurityIncident::getClaimedAt).reversed())
+                    .limit(pageable.getPageSize())
+                    .toList();
+        });
+        lenient().when(systemConfigService.getInt(ConfigKey.GUARD_INCIDENT_ACCESS_MINUTES)).thenReturn(INCIDENT_ACCESS_MINUTES);
+        lenient().when(systemConfigService.getInt(ConfigKey.GUARD_INCIDENT_EXIT_GRACE_MINUTES)).thenReturn(INCIDENT_EXIT_GRACE_MINUTES);
     }
 
     private User user(String code, String name) {
@@ -884,6 +915,215 @@ class AccessDecisionServiceTest {
         assertEquals("CAM-01", res.getCameraCode());
         assertEquals(AccessSource.NONE, res.getSource());
         assertTrue(res.getReason().contains("không nằm trong danh sách tiếp đón"));
+    }
+
+    // ===================== BR-GD-02 / BR-GD-03: bảo vệ xử lý sự cố (INCIDENT_RESPONSE) =====================
+
+    private static final int INCIDENT_ACCESS_MINUTES = 30;
+    private static final int INCIDENT_EXIT_GRACE_MINUTES = 5;
+    private static final OffsetDateTime CLAIMED_AT = DAY.withHour(10);
+
+    private User guard(String code, String name) {
+        User g = user(code, name);
+        g.setRole(Role.GUARD);
+        g.setAccessLevel(2);
+        lenient().when(userRepository.findById(g.getId())).thenReturn(Optional.of(g));
+        return g;
+    }
+
+    private Area area(String name, AreaLevel level, int areaAccessLevel, boolean explicitRequired) {
+        Area a = Area.builder()
+                .id(UUID.randomUUID())
+                .name(name)
+                .areaLevel(level)
+                .areaAccessLevel(areaAccessLevel)
+                .explicitAuthorizationRequired(explicitRequired)
+                .isActive(true)
+                .build();
+        lenient().when(areaRepository.findById(a.getId())).thenReturn(Optional.of(a));
+        return a;
+    }
+
+    private SecurityIncident incident(Area area, User claimedBy, IncidentStatus status,
+                                      OffsetDateTime claimedAt, OffsetDateTime resolvedAt) {
+        SecurityIncident i = SecurityIncident.builder()
+                .id(UUID.randomUUID())
+                .cameraCode("CAM-01")
+                .area(area)
+                .building("A")
+                .eventType("INTRUSION")
+                .detectedAt(claimedAt.minusMinutes(2))
+                .status(status)
+                .claimedBy(claimedBy)
+                .claimedAt(claimedAt)
+                .resolvedAt(resolvedAt)
+                .build();
+        incidents.add(i);
+        return i;
+    }
+
+    @Test
+    @DisplayName("GD-01: GUARD cấp 2 vào khu cấp 2 cờ tắt, có sự cố CLAIMED tại khu → allow ACCESS_LEVEL (hành vi cũ)")
+    void gd01_guardLevel2_Level2FlagOff_WithClaimedIncident_StillAccessLevel() {
+        User g = guard("BV001", "Bảo Vệ A");
+        Area hall = area("Sảnh Tầng 2", AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        incident(hall, g, IncidentStatus.CLAIMED, CLAIMED_AT, null);
+
+        AccessDecision d = accessDecisionService.checkEntry(g.getId(), hall.getId(), CLAIMED_AT.plusMinutes(10));
+
+        assertTrue(d.allowed());
+        assertEquals(AccessSource.ACCESS_LEVEL, d.source());
+        assertNull(d.sourceRefId());
+        verify(guardIncidentAccessRepository, never()).findLatestClaimedByUserInArea(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("GD-02: Khu cấp 3, GUARD đã tiếp nhận, at = claimedAt + 10' → allow INCIDENT_RESPONSE, sourceRefId = id sự cố")
+    void gd02_level3Area_ClaimedIncident_AllowedIncidentResponse() {
+        User g = guard("BV001", "Bảo Vệ A");
+        Area serverRoom = area("Phòng Máy Chủ", AreaLevel.HIGHLY_CONFIDENTIAL, 3, false);
+        SecurityIncident i = incident(serverRoom, g, IncidentStatus.CLAIMED, CLAIMED_AT, null);
+
+        AccessDecision d = accessDecisionService.checkEntry(g.getId(), serverRoom.getId(), CLAIMED_AT.plusMinutes(10));
+
+        assertTrue(d.allowed());
+        assertEquals(AccessSource.INCIDENT_RESPONSE, d.source());
+        assertEquals(i.getId(), d.sourceRefId());
+        assertEquals("Bảo vệ đang xử lý sự cố tại khu vực", d.reason());
+    }
+
+    @Test
+    @DisplayName("GD-03: Khu cấp 2 có cờ explicit, GUARD đã tiếp nhận → allow INCIDENT_RESPONSE")
+    void gd03_explicitFlagLevel2Area_ClaimedIncident_AllowedIncidentResponse() {
+        User g = guard("BV001", "Bảo Vệ A");
+        Area office = area("Văn Phòng Khoa", AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED, 2, true);
+        SecurityIncident i = incident(office, g, IncidentStatus.CLAIMED, CLAIMED_AT, null);
+
+        AccessDecision d = accessDecisionService.checkEntry(g.getId(), office.getId(), CLAIMED_AT.plusMinutes(10));
+
+        assertTrue(d.allowed());
+        assertEquals(AccessSource.INCIDENT_RESPONSE, d.source());
+        assertEquals(i.getId(), d.sourceRefId());
+    }
+
+    @Test
+    @DisplayName("GD-04: claimedAt + 30' (mốc loại trừ) → deny; claimedAt + 29' → allow; đúng claimedAt → allow, trước đó → deny")
+    void gd04_accessWindowBoundaries() {
+        User g = guard("BV001", "Bảo Vệ A");
+        Area serverRoom = area("Phòng Máy Chủ", AreaLevel.HIGHLY_CONFIDENTIAL, 3, true);
+        incident(serverRoom, g, IncidentStatus.CLAIMED, CLAIMED_AT, null);
+
+        AccessDecision atEnd = accessDecisionService.checkEntry(g.getId(), serverRoom.getId(), CLAIMED_AT.plusMinutes(30));
+        assertFalse(atEnd.allowed());
+        assertEquals(AccessSource.NONE, atEnd.source());
+
+        AccessDecision beforeEnd = accessDecisionService.checkEntry(g.getId(), serverRoom.getId(), CLAIMED_AT.plusMinutes(29));
+        assertTrue(beforeEnd.allowed());
+        assertEquals(AccessSource.INCIDENT_RESPONSE, beforeEnd.source());
+
+        assertTrue(accessDecisionService.checkEntry(g.getId(), serverRoom.getId(), CLAIMED_AT).allowed());
+        assertFalse(accessDecisionService.checkEntry(g.getId(), serverRoom.getId(), CLAIMED_AT.minusMinutes(1)).allowed());
+    }
+
+    @Test
+    @DisplayName("GD-05: Sự cố đã xử lý xong, at = resolvedAt + 3' (ân hạn 5') → allow; resolvedAt + 5' → deny")
+    void gd05_resolvedIncident_ExitGrace() {
+        User g = guard("BV001", "Bảo Vệ A");
+        Area serverRoom = area("Phòng Máy Chủ", AreaLevel.HIGHLY_CONFIDENTIAL, 3, true);
+        OffsetDateTime resolvedAt = CLAIMED_AT.plusMinutes(10);
+        SecurityIncident i = incident(serverRoom, g, IncidentStatus.RESOLVED_VERIFIED, CLAIMED_AT, resolvedAt);
+
+        AccessDecision inGrace = accessDecisionService.checkEntry(g.getId(), serverRoom.getId(), resolvedAt.plusMinutes(3));
+        assertTrue(inGrace.allowed());
+        assertEquals(AccessSource.INCIDENT_RESPONSE, inGrace.source());
+        assertEquals(i.getId(), inGrace.sourceRefId());
+
+        AccessDecision graceEnd = accessDecisionService.checkEntry(g.getId(), serverRoom.getId(), resolvedAt.plusMinutes(5));
+        assertFalse(graceEnd.allowed());
+        assertEquals(AccessSource.NONE, graceEnd.source());
+    }
+
+    @Test
+    @DisplayName("GD-06: resolvedAt + ân hạn vượt claimedAt + 30' → lấy mốc sớm hơn (claimedAt + 30')")
+    void gd06_resolvedIncident_GraceCappedByAccessWindow() {
+        User g = guard("BV001", "Bảo Vệ A");
+        Area serverRoom = area("Phòng Máy Chủ", AreaLevel.HIGHLY_CONFIDENTIAL, 3, true);
+        OffsetDateTime resolvedAt = CLAIMED_AT.plusMinutes(28); // resolvedAt + 5' = claimedAt + 33'
+        incident(serverRoom, g, IncidentStatus.RESOLVED_DISMISSED, CLAIMED_AT, resolvedAt);
+
+        assertTrue(accessDecisionService.checkEntry(g.getId(), serverRoom.getId(), CLAIMED_AT.plusMinutes(29)).allowed());
+
+        AccessDecision atCap = accessDecisionService.checkEntry(g.getId(), serverRoom.getId(), CLAIMED_AT.plusMinutes(30));
+        assertFalse(atCap.allowed(), "Mốc claimedAt + 30' sớm hơn resolvedAt + 5' nên là mốc kết thúc");
+
+        AccessDecision stillInGrace = accessDecisionService.checkEntry(g.getId(), serverRoom.getId(), resolvedAt.plusMinutes(3));
+        assertFalse(stillInGrace.allowed(), "Còn trong ân hạn nhưng đã quá claimedAt + 30' → deny");
+        assertEquals(AccessSource.NONE, stillInGrace.source());
+    }
+
+    @Test
+    @DisplayName("GD-07: GUARD tiếp nhận sự cố ở khu Y nhưng vào khu X cấp 3 → deny")
+    void gd07_incidentInOtherArea_Denied() {
+        User g = guard("BV001", "Bảo Vệ A");
+        Area areaX = area("Phòng Máy Chủ X", AreaLevel.HIGHLY_CONFIDENTIAL, 3, true);
+        Area areaY = area("Phòng Máy Chủ Y", AreaLevel.HIGHLY_CONFIDENTIAL, 3, true);
+        incident(areaY, g, IncidentStatus.CLAIMED, CLAIMED_AT, null);
+
+        AccessDecision d = accessDecisionService.checkEntry(g.getId(), areaX.getId(), CLAIMED_AT.plusMinutes(10));
+
+        assertFalse(d.allowed());
+        assertEquals(AccessSource.NONE, d.source());
+        assertNull(d.sourceRefId());
+    }
+
+    @Test
+    @DisplayName("GD-08: GUARD khác (không phải người tiếp nhận) vào khu X → deny")
+    void gd08_otherGuard_Denied() {
+        User claimer = guard("BV001", "Bảo Vệ A");
+        User otherGuard = guard("BV002", "Bảo Vệ B");
+        Area serverRoom = area("Phòng Máy Chủ", AreaLevel.HIGHLY_CONFIDENTIAL, 3, true);
+        incident(serverRoom, claimer, IncidentStatus.CLAIMED, CLAIMED_AT, null);
+
+        AccessDecision d = accessDecisionService.checkEntry(otherGuard.getId(), serverRoom.getId(), CLAIMED_AT.plusMinutes(10));
+
+        assertFalse(d.allowed());
+        assertEquals(AccessSource.NONE, d.source());
+    }
+
+    @Test
+    @DisplayName("GD-09: NORMAL_USER, có sự cố tại khu X (kể cả claimedBy là chính user) → rule không áp, deny")
+    void gd09_normalUser_RuleNotApplied() {
+        User normal = user("SE170555", "Sinh Viên C");
+        normal.setAccessLevel(1);
+        lenient().when(userRepository.findById(normal.getId())).thenReturn(Optional.of(normal));
+        Area serverRoom = area("Phòng Máy Chủ", AreaLevel.HIGHLY_CONFIDENTIAL, 3, true);
+        incident(serverRoom, normal, IncidentStatus.CLAIMED, CLAIMED_AT, null);
+
+        AccessDecision d = accessDecisionService.checkEntry(normal.getId(), serverRoom.getId(), CLAIMED_AT.plusMinutes(10));
+
+        assertFalse(d.allowed());
+        assertEquals(AccessSource.NONE, d.source());
+        verify(guardIncidentAccessRepository, never()).findLatestClaimedByUserInArea(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("GD-10: Đổi GUARD_INCIDENT_ACCESS_MINUTES từ 30 xuống 5 giữa 2 lần gọi → lần sau dùng 5")
+    void gd10_configChangeTakesEffectOnNextCall() {
+        User g = guard("BV001", "Bảo Vệ A");
+        Area serverRoom = area("Phòng Máy Chủ", AreaLevel.HIGHLY_CONFIDENTIAL, 3, true);
+        incident(serverRoom, g, IncidentStatus.CLAIMED, CLAIMED_AT, null);
+        OffsetDateTime at = CLAIMED_AT.plusMinutes(10);
+
+        AccessDecision before = accessDecisionService.checkEntry(g.getId(), serverRoom.getId(), at);
+        assertTrue(before.allowed());
+        assertEquals(AccessSource.INCIDENT_RESPONSE, before.source());
+
+        when(systemConfigService.getInt(ConfigKey.GUARD_INCIDENT_ACCESS_MINUTES)).thenReturn(5);
+
+        AccessDecision after = accessDecisionService.checkEntry(g.getId(), serverRoom.getId(), at);
+        assertFalse(after.allowed(), "claimedAt + 10' đã quá cửa sổ 5'");
+        assertEquals(AccessSource.NONE, after.source());
+        verify(systemConfigService, times(2)).getInt(ConfigKey.GUARD_INCIDENT_ACCESS_MINUTES);
     }
 
     // ===================== Sai giờ chỉ xét đơn cùng ngày (giờ VN) + camera DECOMMISSIONED =====================
