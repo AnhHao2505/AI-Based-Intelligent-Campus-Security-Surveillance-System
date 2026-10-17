@@ -110,6 +110,33 @@
   width: fit-content;
 }
 
+/* UI-AUDIT #18: chữ badge loại khu dùng token *-text của theme (>= 4.5 cả sáng và tối);
+   nền + viền vẫn theo màu loại khu (style inline từ AREA_LEVEL_CONFIG) */
+.admin-preset-page .area-type-badge,
+.preset-modal-content .area-type-badge-preview {
+  color: var(--theme-text-primary);
+}
+
+.admin-preset-page .area-type-badge[data-level="PUBLIC"],
+.preset-modal-content .area-type-badge-preview[data-level="PUBLIC"] {
+  color: var(--theme-success-text);
+}
+
+.admin-preset-page .area-type-badge[data-level="INTERNAL_CONFIDENTIAL"],
+.preset-modal-content .area-type-badge-preview[data-level="INTERNAL_CONFIDENTIAL"] {
+  color: var(--theme-info-text);
+}
+
+.admin-preset-page .area-type-badge[data-level="CONFIDENTIAL_CONTACT_REQUIRED"],
+.preset-modal-content .area-type-badge-preview[data-level="CONFIDENTIAL_CONTACT_REQUIRED"] {
+  color: var(--theme-warning-text);
+}
+
+.admin-preset-page .area-type-badge[data-level="HIGHLY_CONFIDENTIAL"],
+.preset-modal-content .area-type-badge-preview[data-level="HIGHLY_CONFIDENTIAL"] {
+  color: var(--theme-danger-text);
+}
+
 .admin-preset-page .area-type-desc {
   font-size: 13px;
   color: var(--theme-text-muted);

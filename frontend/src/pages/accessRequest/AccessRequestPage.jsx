@@ -1044,7 +1044,7 @@ export default function AccessRequestPage() {
 								<thead>
 									<tr>
 										<th>Khu vực</th>
-										<th>Hình thức</th>
+										<th className="arp-col-type">Hình thức</th>
 										<th className="ui-col-time-range">Thời gian truy cập</th>
 										<th>Trạng thái</th>
 										<th className="ui-col-time">Ngày tạo</th>
@@ -1066,7 +1066,7 @@ export default function AccessRequestPage() {
 														</div>
 													)}
 												</td>
-												<td>
+												<td className="arp-col-type">
 													<span
 														className={`arp-badge ${
 															req.requestType === "GROUP"
@@ -1077,34 +1077,11 @@ export default function AccessRequestPage() {
 														{req.requestType === "GROUP" ? "Nhóm" : "Cá nhân"}
 													</span>
 													{req.isRequester === false && (
-														<div
-															style={{
-																marginTop: "4px",
-																fontSize: "11px",
-																display: "flex",
-																alignItems: "center",
-																flexWrap: "wrap",
-																gap: "4px",
-															}}
-														>
-															<span
-																style={{
-																	display: "inline-block",
-																	padding: "1px 6px",
-																	borderRadius: "4px",
-																	background: "rgba(59, 130, 246, 0.12)",
-																	border: "1px solid rgba(59, 130, 246, 0.25)",
-																	color: "var(--brand-blue, #3b82f6)",
-																	fontWeight: 600,
-																}}
-															>
-																Thành viên nhóm
-															</span>
+														<div className="arp-member-info">
+															<span className="arp-member-badge">Thành viên nhóm</span>
 															{req.requesterName && (
 																<span
-																	style={{
-																		color: "var(--theme-text-muted, #94a3b8)",
-																	}}
+																	className="arp-member-requester"
 																	title={`Người tạo đơn: ${req.requesterName}`}
 																>
 																	({req.requesterName})

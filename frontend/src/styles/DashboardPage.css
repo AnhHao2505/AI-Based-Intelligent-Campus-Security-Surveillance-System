@@ -86,7 +86,8 @@
 /* KPI Cards Grid */
 .dashboard-kpis {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  /* UI-AUDIT #4: số thẻ đổi theo role (2–3 thẻ) -> chia đều theo số thẻ thật */
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 1.25rem;
 }
 
