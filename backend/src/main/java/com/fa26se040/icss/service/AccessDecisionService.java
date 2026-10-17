@@ -6,30 +6,31 @@ import com.fa26se040.icss.entity.AccessRequest;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.AreaAssignedPersonnel;
 import com.fa26se040.icss.entity.Camera;
-import com.fa26se040.icss.entity.GuardShift;
+import com.fa26se040.icss.entity.SecurityIncident;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.AccessSource;
 import com.fa26se040.icss.enums.AreaLevel;
+import com.fa26se040.icss.enums.ConfigKey;
+import com.fa26se040.icss.enums.IncidentStatus;
 import com.fa26se040.icss.enums.CameraStatus;
 import com.fa26se040.icss.enums.RequestStatus;
 import com.fa26se040.icss.enums.Role;
-import com.fa26se040.icss.enums.ShiftStatus;
 import com.fa26se040.icss.repository.AccessRequestRepository;
 import com.fa26se040.icss.repository.AreaAssignedPersonnelRepository;
 import com.fa26se040.icss.repository.AreaRepository;
 import com.fa26se040.icss.repository.CameraRepository;
-import com.fa26se040.icss.repository.GuardShiftRepository;
+import com.fa26se040.icss.repository.GuardIncidentAccessRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import com.fa26se040.icss.dto.guest.GuestAccessDecision;
 import com.fa26se040.icss.entity.Guest;
 import com.fa26se040.icss.repository.GuestRepository;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -61,7 +62,8 @@ public class AccessDecisionService {
     private final GuestRepository guestRepository;
     private final GuestAccessDecisionService guestAccessDecisionService;
     private final CameraAccessLogService cameraAccessLogService;
-    private final GuardShiftRepository guardShiftRepository;
+    private final GuardIncidentAccessRepository guardIncidentAccessRepository;
+    private final SystemConfigService systemConfigService;
 
     /**
      * Xét user có được vào area tại thời điểm at hay không. Thứ tự kiểm:
@@ -70,6 +72,7 @@ public class AccessDecisionService {
      *   <li>Area không tồn tại / inactive / xoá mềm → denied, NONE</li>
      *   <li>Có Assigned Personnel chưa thu hồi, validFrom &lt;= at &lt; validTo (NULL = vô hạn) → allowed, ASSIGNED_PERSONNEL</li>
      *   <li>explicit_authorization_required = false VÀ user.accessLevel &gt;= area.areaAccessLevel → allowed, ACCESS_LEVEL</li>
+     *   <li>GUARD đã tiếp nhận sự cố tại area, at nằm trong cửa sổ xử lý sự cố → allowed, INCIDENT_RESPONSE (BR-GD-02/03)</li>
      *   <li>Có đơn APPROVED của area, startTime &lt;= at &lt; endTime, user là requester hoặc member → allowed, ACCESS_REQUEST</li>
      *   <li>Còn lại → denied, NONE</li>
      * </ol>
@@ -110,17 +113,6 @@ public class AccessDecisionService {
             );
         }
 
-        // 3b. Bảo vệ đang trong ca trực hợp lệ (Guard Shift)
-        if (user.getRole() == Role.GUARD && guardShiftRepository != null) {
-            if (isGuardOnShift(user.getId(), at, area)) {
-                return AccessDecision.allowed(
-                        AccessSource.ASSIGNED_PERSONNEL,
-                        null,
-                        "Bảo vệ đang trong ca trực hợp lệ"
-                );
-            }
-        }
-
         // 4. Access Level (khi khu vực không yêu cầu chỉ định đích danh)
         // Khi explicit == true thì level KHÔNG bao giờ cho vào, kể cả level cao nhất.
         boolean explicitRequired = Boolean.TRUE.equals(area.getExplicitAuthorizationRequired());
@@ -155,6 +147,20 @@ public class AccessDecisionService {
                     null,
                     "Khu vực trong khung lịch sự kiện"
             );
+        }
+
+        // 4d. Bảo vệ đang xử lý sự cố mình đã tiếp nhận tại khu (BR-GD-02 / BR-GD-03), không cần đơn.
+        // Đặt sau bước 4/4b/4c: khu GUARD đã vào được bằng cấp độ vẫn ghi nguồn ACCESS_LEVEL như cũ,
+        // rule này chỉ mở khu GUARD không tự vào được (cấp 3, khu có cờ explicit kể cả cấp 2).
+        if (user.getRole() == Role.GUARD) {
+            Optional<SecurityIncident> incident = findIncidentCoveringGuard(userId, areaId, at);
+            if (incident.isPresent()) {
+                return AccessDecision.allowed(
+                        AccessSource.INCIDENT_RESPONSE,
+                        incident.get().getId(),
+                        "Bảo vệ đang xử lý sự cố tại khu vực"
+                );
+            }
         }
 
         // 5. Đơn access_requests đã APPROVED (requester hoặc member đơn nhóm)
@@ -225,6 +231,40 @@ public class AccessDecisionService {
 
         // 7. Mặc định: Không có nguồn cấp quyền nào -> deny NONE
         return AccessDecision.denied("Không có quyền ra vào khu vực này");
+    }
+
+    /**
+     * BR-GD-02 / BR-GD-03: sự cố mới nhất tại khu do bảo vệ này tiếp nhận, nếu at nằm trong cửa sổ [claimedAt, end).
+     * <ul>
+     *   <li>Chưa xử lý xong: end = claimedAt + GUARD_INCIDENT_ACCESS_MINUTES</li>
+     *   <li>Đã xử lý xong: end = min(claimedAt + GUARD_INCIDENT_ACCESS_MINUTES, resolvedAt + GUARD_INCIDENT_EXIT_GRACE_MINUTES)</li>
+     * </ul>
+     * Số phút đọc qua SystemConfigService mỗi lần gọi nên đổi cấu hình có hiệu lực ngay.
+     */
+    private Optional<SecurityIncident> findIncidentCoveringGuard(UUID userId, UUID areaId, OffsetDateTime at) {
+        if (guardIncidentAccessRepository == null || systemConfigService == null) {
+            return Optional.empty();
+        }
+        List<SecurityIncident> latest = guardIncidentAccessRepository.findLatestClaimedByUserInArea(
+                userId, areaId, PageRequest.of(0, 1));
+        if (latest.isEmpty()) {
+            return Optional.empty();
+        }
+        SecurityIncident incident = latest.get(0);
+        OffsetDateTime start = incident.getClaimedAt();
+        OffsetDateTime end = start.plusMinutes(systemConfigService.getInt(ConfigKey.GUARD_INCIDENT_ACCESS_MINUTES));
+        if (incident.getStatus() != IncidentStatus.CLAIMED) {
+            // Đã xử lý xong mà thiếu resolvedAt thì không tính được ân hạn → không cấp quyền
+            if (incident.getResolvedAt() == null) {
+                return Optional.empty();
+            }
+            OffsetDateTime graceEnd = incident.getResolvedAt()
+                    .plusMinutes(systemConfigService.getInt(ConfigKey.GUARD_INCIDENT_EXIT_GRACE_MINUTES));
+            if (graceEnd.isBefore(end)) {
+                end = graceEnd;
+            }
+        }
+        return !at.isBefore(start) && at.isBefore(end) ? Optional.of(incident) : Optional.empty();
     }
 
     /**
@@ -358,48 +398,5 @@ public class AccessDecisionService {
             log.error("Không ghi được nhật ký ra vào tại camera [{}] cho [{}]: {}",
                     response.getCameraCode(), response.getUserCode(), e.getMessage(), e);
         }
-    }
-
-    private boolean isGuardOnShift(UUID guardId, OffsetDateTime at, Area area) {
-        if (guardShiftRepository == null || guardId == null || at == null) {
-            return false;
-        }
-        LocalDate date = at.atZoneSameInstant(VN_ZONE).toLocalDate();
-        LocalTime time = at.atZoneSameInstant(VN_ZONE).toLocalTime();
-
-        List<GuardShift> candidateShifts = guardShiftRepository
-                .findByGuardIdAndShiftDateBetweenOrderByShiftDateAscStartTimeAsc(
-                        guardId, date.minusDays(1), date);
-
-        for (GuardShift shift : candidateShifts) {
-            if (shift.getStatus() == ShiftStatus.SCHEDULED || shift.getStatus() == ShiftStatus.CHECKED_IN) {
-                if (shift.getArea() != null && area != null && !shift.getArea().getId().equals(area.getId())) {
-                    boolean isPublic = area.getAreaLevel() == AreaLevel.PUBLIC
-                            || (area.getAreaAccessLevel() != null && area.getAreaAccessLevel() <= 1);
-                    if (!isPublic) {
-                        continue;
-                    }
-                }
-
-                LocalTime start = shift.getStartTime();
-                LocalTime end = shift.getEndTime();
-                LocalDate shiftDate = shift.getShiftDate();
-
-                if (start != null && end != null) {
-                    if (!start.isAfter(end)) {
-                        if (shiftDate.equals(date) && !time.isBefore(start) && !time.isAfter(end)) {
-                            return true;
-                        }
-                    } else {
-                        if (shiftDate.equals(date) && !time.isBefore(start)) {
-                            return true;
-                        } else if (shiftDate.equals(date.minusDays(1)) && !time.isAfter(end)) {
-                            return true;
-                        }
-                    }
-                }
-            }
-        }
-        return false;
     }
 }

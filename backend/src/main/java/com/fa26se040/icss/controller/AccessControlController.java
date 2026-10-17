@@ -53,6 +53,7 @@ public class AccessControlController {
         ));
     }
 
+    // Endpoint nội bộ cho AI service: bảo vệ bằng header X-Service-Key (InternalServiceKeyFilter), không dùng JWT
     @PostMapping("/check-entry")
     public ResponseEntity<ApiResponse<CheckCameraEntryResponse>> checkCameraEntry(
             @Valid @RequestBody CheckCameraEntryRequest request

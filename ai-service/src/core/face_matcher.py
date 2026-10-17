@@ -5,7 +5,7 @@ import numpy as np
 import psycopg2
 
 from .face_embedder import FaceEmbedder
-from ..config import settings
+from ..config import settings, INTERNAL_SERVICE_KEY_HEADER
 
 logger = logging.getLogger(__name__)
 
@@ -195,6 +195,7 @@ class FaceMatcher:
             resp = requests.post(
                 endpoint,
                 json={"cameraCode": camera_code, "userCode": user_code},
+                headers={INTERNAL_SERVICE_KEY_HEADER: settings.INTERNAL_SERVICE_KEY},
                 timeout=1.5
             )
             if resp.status_code == 200:

@@ -70,6 +70,9 @@ class CameraAccessLogServiceTest {
         cameraAccessLogService.clearDebounceCache();
         // ENTRY_LOG_DEBOUNCE_SECONDS mặc định (V77) = 30 giây
         lenient().when(systemConfigService.getInt(ConfigKey.ENTRY_LOG_DEBOUNCE_SECONDS)).thenReturn(30);
+        // Khung ngoài giờ AI_AFTER_HOUR_START / AI_AFTER_HOUR_END mặc định (V48) = 22:00–06:00
+        lenient().when(systemConfigService.getString(ConfigKey.AI_AFTER_HOUR_START)).thenReturn("22:00");
+        lenient().when(systemConfigService.getString(ConfigKey.AI_AFTER_HOUR_END)).thenReturn("06:00");
     }
 
     @Test
@@ -309,5 +312,76 @@ class CameraAccessLogServiceTest {
 
         assertNotNull(result);
         assertEquals(AccessResult.UNAUTHORIZED_ACCESS, result.getAccessResult());
+    }
+
+    // ===================== Khung ngoài giờ đọc từ cấu hình (AI_AFTER_HOUR_START / AI_AFTER_HOUR_END) =====================
+
+    private static OffsetDateTime vn(int hour, int minute) {
+        return OffsetDateTime.of(2026, 10, 14, hour, minute, 0, 0, ZoneOffset.ofHours(7));
+    }
+
+    private static CheckCameraEntryResponse deniedNoTimeHint() {
+        return CheckCameraEntryResponse.builder()
+                .allowed(false)
+                .source(AccessSource.NONE)
+                .reason("Cấp độ truy cập không đủ (Khu vực Cấp 3, người dùng Cấp 1)")
+                .cameraCode("CAM-001")
+                .areaId(UUID.randomUUID())
+                .userCode("SE170123")
+                .build();
+    }
+
+    private void afterHours(String start, String end) {
+        lenient().when(systemConfigService.getString(ConfigKey.AI_AFTER_HOUR_START)).thenReturn(start);
+        lenient().when(systemConfigService.getString(ConfigKey.AI_AFTER_HOUR_END)).thenReturn(end);
+    }
+
+    @Test
+    @DisplayName("AH-01: Cấu hình 23:00–05:00, bị từ chối lúc 22:30 → không phải INTRUSION")
+    void ah01_before23_NotIntrusion() {
+        afterHours("23:00", "05:00");
+
+        AccessResult result = cameraAccessLogService.classifyResult(deniedNoTimeHint(), vn(22, 30), true);
+
+        assertEquals(AccessResult.UNAUTHORIZED_ACCESS, result);
+    }
+
+    @Test
+    @DisplayName("AH-02: Cấu hình 23:00–05:00, lúc 23:30 → INTRUSION; mốc 23:00 tính, 05:00 không tính; giờ quy về VN")
+    void ah02_overnightWindow_Intrusion() {
+        afterHours("23:00", "05:00");
+
+        assertEquals(AccessResult.INTRUSION, cameraAccessLogService.classifyResult(deniedNoTimeHint(), vn(23, 30), true));
+        assertEquals(AccessResult.INTRUSION, cameraAccessLogService.classifyResult(deniedNoTimeHint(), vn(23, 0), true));
+        assertEquals(AccessResult.INTRUSION, cameraAccessLogService.classifyResult(deniedNoTimeHint(), vn(4, 59), true));
+        assertEquals(AccessResult.UNAUTHORIZED_ACCESS, cameraAccessLogService.classifyResult(deniedNoTimeHint(), vn(5, 0), true));
+
+        // 16:30 UTC = 23:30 giờ VN → INTRUSION; 14:30 UTC = 21:30 giờ VN → không
+        OffsetDateTime utc1630 = OffsetDateTime.of(2026, 10, 14, 16, 30, 0, 0, ZoneOffset.UTC);
+        OffsetDateTime utc1430 = OffsetDateTime.of(2026, 10, 14, 14, 30, 0, 0, ZoneOffset.UTC);
+        assertEquals(AccessResult.INTRUSION, cameraAccessLogService.classifyResult(deniedNoTimeHint(), utc1630, true));
+        assertEquals(AccessResult.UNAUTHORIZED_ACCESS, cameraAccessLogService.classifyResult(deniedNoTimeHint(), utc1430, true));
+    }
+
+    @Test
+    @DisplayName("AH-03: Đổi cấu hình giữa 2 lần gọi → lần sau áp giá trị mới")
+    void ah03_configChangeTakesEffectOnNextCall() {
+        afterHours("23:00", "05:00");
+        assertEquals(AccessResult.UNAUTHORIZED_ACCESS, cameraAccessLogService.classifyResult(deniedNoTimeHint(), vn(22, 30), true));
+
+        afterHours("22:00", "05:00");
+        assertEquals(AccessResult.INTRUSION, cameraAccessLogService.classifyResult(deniedNoTimeHint(), vn(22, 30), true));
+    }
+
+    @Test
+    @DisplayName("AH-04: Khung trong ngày 12:00–13:00 → 12:30 INTRUSION; 11:59, 13:00, 23:30 thì không")
+    void ah04_sameDayWindow() {
+        afterHours("12:00", "13:00");
+
+        assertEquals(AccessResult.INTRUSION, cameraAccessLogService.classifyResult(deniedNoTimeHint(), vn(12, 30), true));
+        assertEquals(AccessResult.INTRUSION, cameraAccessLogService.classifyResult(deniedNoTimeHint(), vn(12, 0), true));
+        assertEquals(AccessResult.UNAUTHORIZED_ACCESS, cameraAccessLogService.classifyResult(deniedNoTimeHint(), vn(11, 59), true));
+        assertEquals(AccessResult.UNAUTHORIZED_ACCESS, cameraAccessLogService.classifyResult(deniedNoTimeHint(), vn(13, 0), true));
+        assertEquals(AccessResult.UNAUTHORIZED_ACCESS, cameraAccessLogService.classifyResult(deniedNoTimeHint(), vn(23, 30), true));
     }
 }

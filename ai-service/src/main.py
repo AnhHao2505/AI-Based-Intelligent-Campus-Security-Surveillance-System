@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 
 import logging
-from .config import settings
+from .config import settings, INTERNAL_SERVICE_KEY_HEADER
 from .pipeline.video_pipeline import VideoPipeline
 from .pipeline.stream_worker import CameraStreamWorker
 from .integration.storage_service import StorageService
@@ -43,11 +43,13 @@ async def sync_ai_config_from_backend(max_retries: int = 10, retry_delay: float 
     Tránh lệch ngưỡng giữa AI service và Database khi restart hoặc demo sau khi bật máy.
     """
     backend_url = getattr(settings, "BACKEND_API_URL", "http://localhost:8080").rstrip("/")
-    endpoint = f"{backend_url}/api/access-control/ai-runtime-config"
+    endpoint = f"{backend_url}/api/internal/ai/runtime-config"
     for attempt in range(1, max_retries + 1):
         try:
             import requests
-            resp = requests.get(endpoint, timeout=3.0)
+            resp = requests.get(endpoint, headers={INTERNAL_SERVICE_KEY_HEADER: settings.INTERNAL_SERVICE_KEY}, timeout=3.0)
+            if resp.status_code == 401:
+                logger.warning("⚠️ Backend từ chối X-Service-Key khi kéo cấu hình AI: kiểm tra INTERNAL_SERVICE_KEY hai bên có trùng nhau")
             if resp.status_code == 200:
                 body = resp.json()
                 data = body.get("data", {})
