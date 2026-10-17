@@ -27,6 +27,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.time.OffsetDateTime;
+import com.fa26se040.icss.dto.accessdecision.CheckCameraEntryRequest;
+import com.fa26se040.icss.dto.accessdecision.CheckCameraEntryResponse;
+import com.fa26se040.icss.service.AccessDecisionService;
+
 import java.util.List;
 import java.util.UUID;
 
@@ -35,6 +39,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -48,6 +53,12 @@ class AccessControlControllerTest {
     @Mock
     private AuditService auditService;
 
+    @Mock
+    private AccessDecisionService accessDecisionService;
+
+    @Mock
+    private com.fa26se040.icss.service.SystemConfigService systemConfigService;
+
     @InjectMocks
     private AccessControlController controller;
 
@@ -56,7 +67,7 @@ class AccessControlControllerTest {
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(controller)
+        mockMvc = MockMvcBuilders.standaloneSetup(controller, new InternalAiController(systemConfigService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setCustomArgumentResolvers(new org.springframework.data.web.PageableHandlerMethodArgumentResolver())
                 .build();
@@ -192,5 +203,59 @@ class AccessControlControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content.length()").value(1))
                 .andExpect(jsonPath("$.data.content[0].targetType").value("USER_ACCESS_LEVEL"));
+    }
+
+    @Test
+    void checkCameraEntry_Success() throws Exception {
+        CheckCameraEntryRequest request = CheckCameraEntryRequest.builder()
+                .cameraCode("CAM-01")
+                .userCode("GV001")
+                .build();
+
+        CheckCameraEntryResponse response = CheckCameraEntryResponse.builder()
+                .allowed(true)
+                .source(com.fa26se040.icss.enums.AccessSource.ASSIGNED_PERSONNEL)
+                .reason("Người dùng được gán vào khu vực")
+                .cameraCode("CAM-01")
+                .areaName("Phòng Lab 01")
+                .userCode("GV001")
+                .fullName("Nguyễn Văn Thầy")
+                .build();
+
+        when(accessDecisionService.checkCameraEntry(eq("CAM-01"), eq("GV001"), any()))
+                .thenReturn(response);
+
+        mockMvc.perform(post("/api/access-control/check-entry")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.allowed").value(true))
+                .andExpect(jsonPath("$.data.cameraCode").value("CAM-01"))
+                .andExpect(jsonPath("$.data.areaName").value("Phòng Lab 01"))
+                .andExpect(jsonPath("$.data.userCode").value("GV001"))
+                .andExpect(jsonPath("$.data.fullName").doesNotExist())
+                .andExpect(jsonPath("$.data.userId").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("GET /api/internal/ai/runtime-config -> 200 OK với cấu hình AI runtime")
+    void getAiRuntimeConfig_Success() throws Exception {
+        java.util.Map<String, Object> configMap = java.util.Map.of(
+                "face_match_threshold", 0.75,
+                "after_hour_start", "22:00",
+                "after_hour_end", "06:00",
+                "max_inactive_seconds", 10.0,
+                "unknown_alert_cooldown", 30
+        );
+
+        when(systemConfigService.getAiRuntimeConfigMap()).thenReturn(configMap);
+
+        mockMvc.perform(get("/api/internal/ai/runtime-config"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.face_match_threshold").value(0.75))
+                .andExpect(jsonPath("$.data.after_hour_start").value("22:00"))
+                .andExpect(jsonPath("$.data.after_hour_end").value("06:00"))
+                .andExpect(jsonPath("$.data.max_inactive_seconds").value(10.0))
+                .andExpect(jsonPath("$.data.unknown_alert_cooldown").value(30));
     }
 }

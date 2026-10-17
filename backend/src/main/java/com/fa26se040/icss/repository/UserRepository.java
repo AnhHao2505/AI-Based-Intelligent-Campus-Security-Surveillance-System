@@ -32,7 +32,8 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     @Query("SELECT UPPER(u.userCode) FROM User u WHERE u.deletedAt IS NULL AND UPPER(u.userCode) IN :userCodes")
     Set<String> findExistingUserCodes(@Param("userCodes") Collection<String> userCodes);
 
-    List<User> findAllByUserCodeIn(Collection<String> userCodes);
+    @Query("SELECT u FROM User u WHERE u.deletedAt IS NULL AND (u.userCode IN :userCodes OR UPPER(u.userCode) IN :userCodes)")
+    List<User> findAllByUserCodeIn(@Param("userCodes") Collection<String> userCodes);
 
     /**
      * Gợi ý mã thành viên: mã bắt đầu bằng tiền tố (không phân biệt hoa thường), đúng role, đang hoạt động, chưa xoá,

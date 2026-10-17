@@ -62,6 +62,7 @@ env/
 ai-service/evidence_snapshots/
 ai-service/runs/
 ai-service/face_storage/
+ai-service/models/w600k_r50.onnx
 
 # local only
 Claude outputs/

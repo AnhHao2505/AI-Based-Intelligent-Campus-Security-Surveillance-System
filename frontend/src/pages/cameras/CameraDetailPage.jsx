@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
   Video,
@@ -8,6 +8,7 @@ import {
   PowerOff,
   MapPin,
   Layers,
+  Activity,
 } from "lucide-react";
 import {
   fetchCameraDetail,
@@ -27,6 +28,7 @@ import CameraStreamTab from "../../components/camera/CameraStreamTab";
 import CameraSurveillanceTab, {
   formatImageUrl,
 } from "../../components/camera/CameraSurveillanceTab";
+import CameraAccessLogsTab from "../../components/camera/CameraAccessLogsTab";
 import CameraHealthLogs from "../../components/camera/CameraHealthLogs";
 import "../../styles/CameraDetailPage.css";
 import { Modal, Button, LoadingState, EmptyState, ErrorState } from "../../components/ui";
@@ -35,8 +37,30 @@ import { formatLocation } from "../../utils/formatLocation";
 export default function CameraDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const [activeTab, setActiveTabState] = useState(
+    ["general", "stream", "surveillance", "access-logs"].includes(tabParam)
+      ? tabParam
+      : "general"
+  );
 
-  const [activeTab, setActiveTab] = useState("general");
+  const setActiveTab = (tab) => {
+    setActiveTabState(tab);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set("tab", tab);
+      return next;
+    }, { replace: true });
+  };
+
+  useEffect(() => {
+    const currentTab = searchParams.get("tab");
+    if (currentTab && ["general", "stream", "surveillance", "access-logs"].includes(currentTab)) {
+      setActiveTabState(currentTab);
+    }
+  }, [searchParams]);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   // Xác nhận trước khi tắt camera (trước đây bấm "Tắt camera" là gọi API ngay)
@@ -62,6 +86,7 @@ export default function CameraDetailPage() {
   const [compareMode, setCompareMode] = useState(false);
   const [roiModalOpen, setRoiModalOpen] = useState(false);
   const [activeSnapshotForModal, setActiveSnapshotForModal] = useState(null);
+  const [surveillanceViewMode, setSurveillanceViewMode] = useState("snapshot");
 
   const [camera, setCamera] = useState(null);
   const [availableAreas, setAvailableAreas] = useState([]);
@@ -159,21 +184,47 @@ export default function CameraDetailPage() {
     setTestingConnection(true);
     setTestResult(null);
     try {
-      const res = await testConnection(id);
+      const payload = {
+        host: streamForm.host ? streamForm.host.trim() : "",
+        port: streamForm.port ? parseInt(streamForm.port, 10) : 554,
+        username: streamForm.username ? streamForm.username.trim() : "",
+        mainStreamPath: streamForm.mainStreamPath ? streamForm.mainStreamPath.trim() : "",
+      };
+      if (streamForm.credentialRef && streamForm.credentialRef.trim()) {
+        payload.credentialRef = streamForm.credentialRef.trim();
+      }
+      const res = await testConnection(id, payload);
       if (res && res.success) {
         setTestResult({
           success: true,
           message: res.message || "Kết nối RTSP thành công!",
           latencyMs: res.latencyMs,
         });
+        setCamera((prev) => ({
+          ...prev,
+          operationalStatus: res.operationalStatus || "ONLINE",
+        }));
+        showNotification("Kiểm tra kết nối thành công! Camera đang hoạt động (ONLINE).");
       } else {
         const msg = res?.message || "Không thể kết nối đến camera.";
         setTestResult({ success: false, message: msg });
+        setCamera((prev) => ({
+          ...prev,
+          operationalStatus: res?.operationalStatus || "OFFLINE",
+        }));
+        showError(msg);
       }
+      loadLogs();
     } catch (err) {
       console.error("Failed to test connection:", err);
       const msg = err.message || "Lỗi kiểm tra kết nối stream.";
       setTestResult({ success: false, message: msg });
+      setCamera((prev) => ({
+        ...prev,
+        operationalStatus: "OFFLINE",
+      }));
+      showError(msg);
+      loadLogs();
     } finally {
       setTestingConnection(false);
     }
@@ -231,6 +282,20 @@ export default function CameraDetailPage() {
     } finally {
       setCapturingSnapshot(false);
     }
+  };
+
+  const handleCaptureFromLiveStream = (snapshotData) => {
+    if (!snapshotData || !snapshotData.base64) {
+      handleCaptureNewSnapshot();
+      return;
+    }
+    showNotification("Đã chụp khung hình trực tiếp thành công!");
+    setActiveSnapshotForModal({
+      data: snapshotData.base64,
+      width: snapshotData.width || 1920,
+      height: snapshotData.height || 1080,
+    });
+    setRoiModalOpen(true);
   };
 
   const handleEditCurrentRoi = () => {
@@ -300,7 +365,9 @@ export default function CameraDetailPage() {
     }));
     setCompareMode(false);
     setLiveSnapshot(null);
+    setSurveillanceViewMode("snapshot");
     showNotification("Cấu hình vùng giám sát (ROI) đã được lưu thành công!");
+    loadCameraDetails();
   };
 
   const handleToggleStatus = async () => {
@@ -355,15 +422,23 @@ export default function CameraDetailPage() {
         payload.credentialRef = streamForm.credentialRef;
       }
       const updated = await upsertStreamConfig(id, payload);
+      const newStatus = updated?.operationalStatus || "OFFLINE";
       setCamera((prev) => ({
         ...prev,
         streamConfig: updated,
+        operationalStatus: newStatus,
       }));
       setStreamForm((prev) => ({
         ...prev,
         credentialRef: "",
       }));
-      showNotification("Cập nhật cấu hình stream thành công!");
+      if (newStatus === "ONLINE") {
+        showNotification("Đã lưu cấu hình và kết nối camera thành công (ONLINE)!");
+      } else {
+        showError("Đã lưu cấu hình nhưng kiểm tra kết nối thất bại! Camera đang chuyển sang OFFLINE.");
+      }
+      loadCameraDetails();
+      loadLogs();
     } catch (err) {
       showError(err.message || "Cập nhật cấu hình stream thất bại.");
     } finally {
@@ -550,10 +625,18 @@ export default function CameraDetailPage() {
               <Layers size={16} />
               <span>Vùng Giám Sát</span>
             </button>
+            <button
+              className={`tab-btn ${activeTab === "access-logs" ? "tab-btn--active" : ""
+                }`}
+              onClick={() => setActiveTab("access-logs")}
+            >
+              <Activity size={16} />
+              <span>Nhật ký ra vào</span>
+            </button>
           </div>
 
           <div className="tab-content">
-            {activeTab === "general" && (
+            <div style={{ display: activeTab === "general" ? "block" : "none" }}>
               <CameraGeneralTab
                 camera={camera}
                 generalForm={generalForm}
@@ -562,9 +645,9 @@ export default function CameraDetailPage() {
                 saving={saving}
                 onSubmit={handleGeneralSubmit}
               />
-            )}
+            </div>
 
-            {activeTab === "stream" && (
+            <div style={{ display: activeTab === "stream" ? "block" : "none" }}>
               <CameraStreamTab
                 camera={camera}
                 streamForm={streamForm}
@@ -576,9 +659,9 @@ export default function CameraDetailPage() {
                 onTestConnection={handleTestConnection}
                 onCloseTestResult={() => setTestResult(null)}
               />
-            )}
+            </div>
 
-            {activeTab === "surveillance" && (
+            <div style={{ display: activeTab === "surveillance" ? "block" : "none" }}>
               <CameraSurveillanceTab
                 camera={camera}
                 connecting={connecting}
@@ -591,8 +674,16 @@ export default function CameraDetailPage() {
                 onEditCurrentRoi={handleEditCurrentRoi}
                 onCheckDrift={handleCheckDrift}
                 onCloseCompare={handleCloseCompare}
+                onCaptureFromLiveStream={handleCaptureFromLiveStream}
+                viewMode={surveillanceViewMode}
+                onViewModeChange={setSurveillanceViewMode}
+                onError={showError}
               />
-            )}
+            </div>
+
+            <div style={{ display: activeTab === "access-logs" ? "block" : "none" }}>
+              <CameraAccessLogsTab camera={camera} />
+            </div>
           </div>
         </div>
 

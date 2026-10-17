@@ -12,12 +12,12 @@ import {
 	Flame,
 	ArrowRight,
 	RotateCcw,
-	Sparkles,
 	Maximize2,
 	Minimize2,
 	AlertTriangle,
 	BellOff,
 	Eye,
+	CheckCheck,
 } from "lucide-react";
 import WebRtcPlayer from "../../components/video/WebRtcPlayer";
 import { fetchCameras } from "../../services/cameraService";
@@ -29,53 +29,80 @@ import {
 import "../../styles/GuardDashboardPage.css";
 import { LoadingState, ErrorState } from "../../components/ui";
 
-// Trọng số phân cấp mức độ nghiêm trọng của sự kiện an ninh (Chuẩn hóa 3 loại sự cố chính)
-// 1. UNAUTHORIZED_ACCESS: Mức độ CRITICAL (weight: 3) - Màu Đỏ (#ef4444)
-// 2. UNKNOWN_PERSON:       Mức độ HIGH     (weight: 2) - Màu Vàng Cam (#f59e0b)
-// 3. AFTER_HOURS_ACCESS:   Mức độ WARNING  (weight: 1) - Màu Tím/Xanh (#8b5cf6)
+// Chuẩn hóa 5 nhóm sự kiện an ninh:
+// 1. AUTHORIZED_ACCESS: Hợp lệ (#10b981)
+// 2. UNAUTHORIZED_ACCESS: Sai quyền (#ef4444)
+// 3. ACCESS_OUT_OF_TIME: Sai giờ (#f59e0b)
+// 4. UNKNOWN_PERSON: Người lạ (#8b5cf6)
+// 5. INTRUSION: Ngoài giờ (#eab308)
 const EVENT_SEVERITY_CONFIG = {
+	AUTHORIZED_ACCESS: {
+		weight: 0,
+		label: "Hợp lệ",
+		badgeClass: "severity-success",
+		color: "#10b981",
+	},
 	UNAUTHORIZED_ACCESS: {
 		weight: 3,
-		label: "Xâm nhập trái phép",
+		label: "Sai quyền",
 		badgeClass: "severity-critical",
 		color: "#ef4444",
 	},
 	UNAUTHORIZED: {
 		weight: 3,
-		label: "Xâm nhập trái phép",
+		label: "Sai quyền",
 		badgeClass: "severity-critical",
 		color: "#ef4444",
 	},
-	UNKNOWN_PERSON: {
+	ACCESS_OUT_OF_TIME: {
 		weight: 2,
-		label: "Người lạ chưa xác minh",
+		label: "Sai giờ",
 		badgeClass: "severity-high",
 		color: "#f59e0b",
+	},
+	UNKNOWN_PERSON: {
+		weight: 2,
+		label: "Người lạ",
+		badgeClass: "severity-high",
+		color: "#8b5cf6",
 	},
 	UNKNOWN: {
 		weight: 2,
-		label: "Người lạ chưa xác minh",
+		label: "Người lạ",
 		badgeClass: "severity-high",
-		color: "#f59e0b",
-	},
-	AFTER_HOURS_ACCESS: {
-		weight: 1,
-		label: "Có người ngoài giờ",
-		badgeClass: "severity-warning",
 		color: "#8b5cf6",
+	},
+	INTRUSION: {
+		weight: 3,
+		label: "Ngoài giờ",
+		badgeClass: "severity-critical",
+		color: "#eab308",
 	},
 	AFTER_HOURS_PRESENCE: {
-		weight: 1,
-		label: "Có người ngoài giờ",
-		badgeClass: "severity-warning",
-		color: "#8b5cf6",
+		weight: 3,
+		label: "Ngoài giờ",
+		badgeClass: "severity-critical",
+		color: "#eab308",
+	},
+	AFTER_HOURS_ACCESS: {
+		weight: 3,
+		label: "Ngoài giờ",
+		badgeClass: "severity-critical",
+		color: "#eab308",
 	},
 	AFTER_HOURS: {
-		weight: 1,
-		label: "Có người ngoài giờ",
-		badgeClass: "severity-warning",
-		color: "#8b5cf6",
+		weight: 3,
+		label: "Ngoài giờ",
+		badgeClass: "severity-critical",
+		color: "#eab308",
 	},
+};
+
+const cleanIncidentMessage = (msg) => {
+	if (!msg) return "Phát hiện sự cố an ninh trong vùng cấm";
+	return String(msg)
+		.replace(/\[TRONG_GIO\]\s*/gi, "")
+		.replace(/\[AFTER_HOURS_PRESENCE\]\s*/gi, "[INTRUSION] ");
 };
 
 const isAlertPending = (status) => {
@@ -94,6 +121,30 @@ function getSeverityMeta(eventType) {
 		}
 	);
 }
+
+const SOC_ACK_STORAGE_KEY = "soc_acknowledged_incident_ids";
+const SOC_CLEARED_STORAGE_KEY = "soc_cleared_incident_ids";
+
+const getStoredSet = (key) => {
+	try {
+		const raw = localStorage.getItem(key);
+		if (!raw) return new Set();
+		const arr = JSON.parse(raw);
+		return Array.isArray(arr) ? new Set(arr.map(String)) : new Set();
+	} catch (e) {
+		console.warn(`Lỗi đọc ${key} từ localStorage:`, e);
+		return new Set();
+	}
+};
+
+const saveStoredSet = (key, set) => {
+	try {
+		const arr = Array.from(set).slice(-1000);
+		localStorage.setItem(key, JSON.stringify(arr));
+	} catch (e) {
+		console.warn(`Lỗi lưu ${key} vào localStorage:`, e);
+	}
+};
 
 /**
  * Trung tâm Giám sát An ninh (SOC) — Security Surveillance Center
@@ -172,8 +223,9 @@ export function SecuritySurveillancePage() {
 
 				setCameraList(list);
 				if (list.length > 0) {
+					const firstOnline = list.find((c) => c.status === "ONLINE") || list[0];
 					setSelectedCamera((prev) =>
-						prev && list.some((c) => c.code === prev) ? prev : list[0].code,
+						prev && list.some((c) => c.code === prev) ? prev : firstOnline.code,
 					);
 				}
 			} catch (err) {
@@ -199,7 +251,7 @@ export function SecuritySurveillancePage() {
 		}
 
 		for (const alert of activeAlerts) {
-			if (isAlertPending(alert.status)) {
+			if (!alert.socAcknowledged && isAlertPending(alert.status)) {
 				const cCode = (alert.cameraCode || "")
 					.toLowerCase()
 					.replace(/[^a-z0-9_-]/g, "")
@@ -307,6 +359,8 @@ export function SecuritySurveillancePage() {
 	// Nhận diện và tiếp nhận cảnh báo mới (dùng chung cho WebSocket & Nút Test)
 	const processNewIncident = (incident) => {
 		const incidentId = incident.id || incident.event_id || Date.now();
+		const ackSet = getStoredSet(SOC_ACK_STORAGE_KEY);
+		const isAck = ackSet.has(String(incidentId));
 		const camCodeClean = (
 			incident.camera_code ||
 			incident.cameraCode ||
@@ -331,17 +385,18 @@ export function SecuritySurveillancePage() {
 				"Khu vực camera",
 			eventType:
 				incident.event_type || incident.eventType || "UNAUTHORIZED_ACCESS",
-			message:
+			message: cleanIncidentMessage(
 				incident.details ||
 				incident.resolutionNotes ||
-				incident.message ||
-				"Phát hiện sự cố an ninh trong vùng cấm",
+				incident.message
+			),
 			duration: incident.duration_seconds
 				? `${incident.duration_seconds}s`
 				: incident.duration || "Vừa phát hiện",
 			timestamp: new Date().toLocaleTimeString("vi-VN"),
 			rawTime: Date.now(),
 			status: incident.status || "NEW",
+			socAcknowledged: isAck,
 			claimedByName: incident.claimedByName || incident.claimed_by_name,
 		};
 
@@ -431,45 +486,55 @@ export function SecuritySurveillancePage() {
 				const active = await getActiveIncidents();
 				setIncidentsError(null);
 				if (Array.isArray(active) && active.length > 0) {
-					const mapped = active.map((incident) => {
-						const camCodeClean = (
-							incident.camera_code ||
-							incident.cameraCode ||
-							"CAM-001"
-						)
-							.toLowerCase()
-							.replace(/[^a-z0-9_-]/g, "")
-							.trim();
+					const ackSet = getStoredSet(SOC_ACK_STORAGE_KEY);
+					const clearedSet = getStoredSet(SOC_CLEARED_STORAGE_KEY);
 
-						return {
-							id: incident.id || incident.eventId,
-							cameraCode: (
+					const mapped = active
+						.filter((incident) => {
+							const idStr = String(incident.id || incident.eventId);
+							return !clearedSet.has(idStr);
+						})
+						.map((incident) => {
+							const incId = incident.id || incident.eventId;
+							const camCodeClean = (
 								incident.camera_code ||
 								incident.cameraCode ||
 								"CAM-001"
-							).toUpperCase(),
-							camCodeClean,
-							cameraName:
-								incident.areaName || incident.cameraName || "Khu vực camera",
-							eventType: incident.eventType || "UNAUTHORIZED_ACCESS",
-							message:
-								incident.details ||
-								incident.resolutionNotes ||
-								incident.message ||
-								"Phát hiện sự cố an ninh trong vùng cấm",
-							duration: incident.duration_seconds
-								? `${incident.duration_seconds}s`
-								: "Vừa phát hiện",
-							timestamp: incident.detectedAt
-								? new Date(incident.detectedAt).toLocaleTimeString("vi-VN")
-								: new Date().toLocaleTimeString("vi-VN"),
-							rawTime: incident.detectedAt
-								? new Date(incident.detectedAt).getTime()
-								: Date.now(),
-							status: incident.status || "NEW",
-							claimedByName: incident.claimedByName || incident.claimed_by_name,
-						};
-					});
+							)
+								.toLowerCase()
+								.replace(/[^a-z0-9_-]/g, "")
+								.trim();
+
+							return {
+								id: incId,
+								cameraCode: (
+									incident.camera_code ||
+									incident.cameraCode ||
+									"CAM-001"
+								).toUpperCase(),
+								camCodeClean,
+								cameraName:
+									incident.areaName || incident.cameraName || "Khu vực camera",
+								eventType: incident.eventType || "UNAUTHORIZED_ACCESS",
+								message: cleanIncidentMessage(
+									incident.details ||
+									incident.resolutionNotes ||
+									incident.message
+								),
+								duration: incident.duration_seconds
+									? `${incident.duration_seconds}s`
+									: "Vừa phát hiện",
+								timestamp: incident.detectedAt
+									? new Date(incident.detectedAt).toLocaleTimeString("vi-VN")
+									: new Date().toLocaleTimeString("vi-VN"),
+								rawTime: incident.detectedAt
+									? new Date(incident.detectedAt).getTime()
+									: Date.now(),
+								status: incident.status || "NEW",
+								socAcknowledged: ackSet.has(String(incId)),
+								claimedByName: incident.claimedByName || incident.claimed_by_name,
+							};
+						});
 					setActiveAlerts(mapped);
 				}
 			} catch (e) {
@@ -484,17 +549,50 @@ export function SecuritySurveillancePage() {
 
 	// Nghiệp vụ SOC: Xác nhận đã xem & tắt còi báo động tại phòng trực điều hành
 	const handleAcknowledge = (id) => {
+		const strId = String(id);
+		const ackSet = getStoredSet(SOC_ACK_STORAGE_KEY);
+		ackSet.add(strId);
+		saveStoredSet(SOC_ACK_STORAGE_KEY, ackSet);
+
 		setActiveAlerts((prev) =>
-			prev.map((a) => (a.id === id ? { ...a, socAcknowledged: true } : a)),
+			prev.map((a) => (String(a.id) === strId ? { ...a, socAcknowledged: true } : a)),
 		);
 		setFlashAlertCamera(null);
 	};
 
+	// Nghiệp vụ SOC: Xác nhận đã xem toàn bộ sự cố đang chờ xử lý
+	const handleAcknowledgeAll = () => {
+		const ackSet = getStoredSet(SOC_ACK_STORAGE_KEY);
+		activeAlerts.forEach((a) => {
+			if (isAlertPending(a.status)) {
+				ackSet.add(String(a.id));
+			}
+		});
+		saveStoredSet(SOC_ACK_STORAGE_KEY, ackSet);
+
+		setActiveAlerts((prev) =>
+			prev.map((a) =>
+				isAlertPending(a.status) ? { ...a, socAcknowledged: true } : a,
+			),
+		);
+		setFlashAlertCamera(null);
+		triggerNotification("Đã xác nhận xem tất cả sự cố đang chờ");
+	};
+
 	// Xóa các sự cố đã tắt còi (SOC đã xem) hoặc đã được hiện trường đóng khỏi bảng trực
 	const handleClearResolved = () => {
+		const clearedSet = getStoredSet(SOC_CLEARED_STORAGE_KEY);
+		activeAlerts.forEach((a) => {
+			if (a.socAcknowledged || !isAlertPending(a.status)) {
+				clearedSet.add(String(a.id));
+			}
+		});
+		saveStoredSet(SOC_CLEARED_STORAGE_KEY, clearedSet);
+
 		setActiveAlerts((prev) =>
 			prev.filter((a) => !a.socAcknowledged && isAlertPending(a.status)),
 		);
+		triggerNotification("Đã dọn dẹp các sự cố đã xem/đã đóng");
 	};
 
 	// Chuyển trực tiếp video sang camera cụ thể
@@ -669,7 +767,6 @@ export function SecuritySurveillancePage() {
 			{/* Toast Notification */}
 			{statusNotification && (
 				<div className="soc-floating-toast">
-					<Sparkles size={16} />
 					<span>{statusNotification}</span>
 				</div>
 			)}
@@ -978,6 +1075,18 @@ export function SecuritySurveillancePage() {
 							>
 								Cần xử lý {pendingAlertCount}
 							</button>
+
+							{pendingAlertCount > 1 && (
+								<button
+									type="button"
+									className="soc-btn-ack-all"
+									onClick={handleAcknowledgeAll}
+									title="Xác nhận đã xem tất cả sự cố chưa xử lý"
+								>
+									<CheckCheck size={13} />
+									<span>Xem hết</span>
+								</button>
+							)}
 
 							{activeAlerts.some(
 								(a) => a.socAcknowledged || !isAlertPending(a.status),

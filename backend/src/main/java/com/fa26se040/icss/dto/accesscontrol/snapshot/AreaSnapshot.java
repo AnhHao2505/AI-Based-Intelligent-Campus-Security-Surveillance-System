@@ -14,7 +14,6 @@ public record AreaSnapshot(
         String building,
         String floor,
         Boolean isActive,
-        // Chốt P2 (Step 5b): toạ độ tâm có trong snapshot để audit UPDATE thấy đổi toạ độ
         Double centerLatitude,
         Double centerLongitude
 ) implements AuditSnapshot {

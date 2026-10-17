@@ -307,7 +307,10 @@ public class AccessRequestService {
         Map<String, User> userMap = new HashMap<>();
         for (User user : foundUsers) {
             if (user.getUserCode() != null) {
-                userMap.put(StringNormalizer.normCode(user.getUserCode()), user);
+                String key = StringNormalizer.normCode(user.getUserCode());
+                if (!userMap.containsKey(key) || isEligibleMember(user)) {
+                    userMap.put(key, user);
+                }
             }
         }
 
@@ -1171,7 +1174,8 @@ public class AccessRequestService {
         for (String code : cleanCodes) {
             // Không tồn tại / vô hiệu hoá / đã xoá / role khác NORMAL_USER (BR-RQ-MEM-01): CÙNG mã lỗi (400) và CÙNG câu
             // với resolve-members, không để lộ mã nào tồn tại hay tồn tại nhưng bị khoá (CLAUDE.md 9a)
-            User memberUser = userRepository.findByUserCode(code).orElse(null);
+            User memberUser = userRepository.findByUserCodeAndDeletedAtIsNull(code)
+                    .orElseGet(() -> userRepository.findByUserCode(code).orElse(null));
             if (!isEligibleMember(memberUser)) {
                 throw new IllegalArgumentException(code + ": " + INVALID_MEMBER_REASON);
             }

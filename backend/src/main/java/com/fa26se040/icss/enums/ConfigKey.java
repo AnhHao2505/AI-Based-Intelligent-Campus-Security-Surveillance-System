@@ -23,6 +23,8 @@ public enum ConfigKey {
     AI_FACE_MATCH_THRESHOLD("AI_FACE_MATCH_THRESHOLD", "0.75"),
     AI_AFTER_HOUR_START("AI_AFTER_HOUR_START", "22:00"),
     AI_AFTER_HOUR_END("AI_AFTER_HOUR_END", "06:00"),
+    AI_TRACK_MAX_INACTIVE_SECONDS("AI_TRACK_MAX_INACTIVE_SECONDS", "10.0"),
+    AI_UNKNOWN_ALERT_COOLDOWN_SECONDS("AI_UNKNOWN_ALERT_COOLDOWN_SECONDS", "30"),
     EVENT_MODE_MAX_HOURS("EVENT_MODE_MAX_HOURS", "12"),
     EVENT_MODE_WINDOW_DAYS("EVENT_MODE_WINDOW_DAYS", "7"),
     EVENT_MODE_BUDGET_HOURS("EVENT_MODE_BUDGET_HOURS", "48"),
@@ -43,7 +45,14 @@ public enum ConfigKey {
     // BR-GV-39 (V71): nhắc ADMIN gắn ảnh khách trước giờ bắt đầu lượt bao nhiêu phút
     GUEST_PHOTO_REMINDER_MINUTES_BEFORE("GUEST_PHOTO_REMINDER_MINUTES_BEFORE", "60"),
     // UI-19 (V69): số dòng tối đa mỗi lần nạp tài khoản theo lô (cả luồng người dùng thường và cán bộ)
-    USER_BULK_IMPORT_MAX_ROWS("USER_BULK_IMPORT_MAX_ROWS", "200");
+    USER_BULK_IMPORT_MAX_ROWS("USER_BULK_IMPORT_MAX_ROWS", "200"),
+    // Nhật ký ra vào tại camera (V77): khoảng chống ghi trùng cùng người + cùng camera, và số ngày giữ log
+    ENTRY_LOG_DEBOUNCE_SECONDS("ENTRY_LOG_DEBOUNCE_SECONDS", "30"),
+    ENTRY_LOG_RETENTION_DAYS("ENTRY_LOG_RETENTION_DAYS", "90"),
+    // BR-GD-02 / BR-GD-03 (V79): bảo vệ đã tiếp nhận sự cố được vào khu có sự cố trong N phút kể từ lúc tiếp nhận;
+    // xử lý xong thì còn thời gian ân hạn để rời khu (không vượt quá N phút)
+    GUARD_INCIDENT_ACCESS_MINUTES("GUARD_INCIDENT_ACCESS_MINUTES", "30"),
+    GUARD_INCIDENT_EXIT_GRACE_MINUTES("GUARD_INCIDENT_EXIT_GRACE_MINUTES", "5");
 
     private final String key;
     private final String defaultValue;

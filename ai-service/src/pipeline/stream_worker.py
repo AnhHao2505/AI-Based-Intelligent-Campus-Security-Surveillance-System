@@ -14,7 +14,7 @@ class CameraStreamWorker:
     """
     Worker xử lý ngầm luồng video RTSP từ MediaMTX:
     - Kéo frame liên tục từ RTSP stream theo từng camera
-    - Phân tích qua VideoPipeline (YOLOv8 + YuNet)
+    - Phân tích qua VideoPipeline (YOLO11 + YuNet)
     - Gửi Incident Event sang Kafka khi phát hiện vi phạm
     """
     def __init__(
@@ -36,7 +36,10 @@ class CameraStreamWorker:
             self.pipeline.set_roi_config(polygons=polys)
         
         self.is_running = False
-        self.thread: Optional[threading.Thread] = None
+        self.capture_thread: Optional[threading.Thread] = None
+        self.analysis_thread: Optional[threading.Thread] = None
+        self.raw_frame = None
+        self.raw_frame_lock = threading.Lock()
         self.latest_frame = None
         self.processed_fps = 0.0
         self.lock = threading.Lock()
@@ -53,47 +56,83 @@ class CameraStreamWorker:
             poly_count = len(polygons) if polygons else 0
             logger.info(f"Đã cập nhật ROI ({poly_count} polygons) cho Stream Worker [{self.camera_code}].")
 
+    def update_runtime_config(self, max_inactive_seconds: Optional[float] = None, unknown_alert_cooldown: Optional[float] = None):
+        """Cập nhật cấu hình runtime tracking và cooldown cho worker đang chạy"""
+        if self.pipeline and self.pipeline.analysis_engine:
+            if max_inactive_seconds is not None:
+                self.pipeline.analysis_engine.max_inactive_seconds = max_inactive_seconds
+            if unknown_alert_cooldown is not None:
+                self.pipeline.analysis_engine.unknown_alert_cooldown = unknown_alert_cooldown
+            logger.info(f"Đã cập nhật runtime config cho Stream Worker [{self.camera_code}]: max_inactive={self.pipeline.analysis_engine.max_inactive_seconds}s, cooldown={self.pipeline.analysis_engine.unknown_alert_cooldown}s")
+
     def start(self):
-        """Bắt đầu worker đọc luồng trong luồng riêng (Thread)"""
+        """Bắt đầu worker đọc luồng và phân tích AI trên 2 luồng độc lập"""
         if self.is_running:
             logger.info(f"Worker camera [{self.camera_code}] đang chạy rồi.")
             return
 
         self.is_running = True
-        self.thread = threading.Thread(target=self._run_loop, daemon=True)
-        self.thread.start()
-        logger.info(f"Đã khởi động Stream Worker cho Camera [{self.camera_code}] từ: {self.rtsp_url}")
+        self.capture_thread = threading.Thread(target=self._capture_loop, daemon=True)
+        self.capture_thread.start()
+        self.analysis_thread = threading.Thread(target=self._analysis_loop, daemon=True)
+        self.analysis_thread.start()
+        logger.info(f"Đã khởi động Stream Worker (Threaded Grabber) cho Camera [{self.camera_code}] từ: {self.rtsp_url}")
 
     def stop(self):
         """Dừng worker"""
         self.is_running = False
-        if self.thread:
-            self.thread.join(timeout=3.0)
-            self.thread = None
+        if self.capture_thread:
+            self.capture_thread.join(timeout=2.0)
+            self.capture_thread = None
+        if self.analysis_thread:
+            self.analysis_thread.join(timeout=2.0)
+            self.analysis_thread = None
         logger.info(f"Đã dừng Stream Worker cho Camera [{self.camera_code}].")
 
-    def _run_loop(self):
-        """Vòng lặp đọc frame và phân tích AI"""
-        logger.info(f"Bắt đầu kết nối luồng RTSP: {self.rtsp_url}")
-        
+    def _capture_loop(self):
+        """Luồng chuyên biệt kéo frame RTSP liên tục (không nghẽn buffer, zero lag)"""
+        logger.info(f"Khởi động Capture Thread cho camera [{self.camera_code}]: {self.rtsp_url}")
         os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp"
         cap = cv2.VideoCapture(self.rtsp_url, cv2.CAP_FFMPEG)
         cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-
-        fps_timer = time.time()
-        frame_counter = 0
+        fail_count = 0
 
         while self.is_running:
             ret, frame = cap.read()
             if not ret or frame is None:
-                time.sleep(1.0)
-                if not cap.isOpened():
-                    cap.open(self.rtsp_url)
+                fail_count += 1
+                time.sleep(0.3)
+                if fail_count >= 10:
+                    logger.warning(f"RTSP stream [{self.camera_code}] gián đoạn, đang kết nối lại VideoCapture...")
+                    cap.release()
+                    time.sleep(1.0)
+                    cap = cv2.VideoCapture(self.rtsp_url, cv2.CAP_FFMPEG)
+                    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                    fail_count = 0
+                continue
+            fail_count = 0
+            with self.raw_frame_lock:
+                self.raw_frame = frame
+
+        cap.release()
+        logger.info(f"Đã đóng Capture Thread cho camera [{self.camera_code}].")
+
+    def _analysis_loop(self):
+        """Luồng phân tích AI: Luôn lấy frame mới nhất (Fresh Frame) để xử lý"""
+        logger.info(f"Khởi động Analysis Thread cho camera [{self.camera_code}]")
+        fps_timer = time.time()
+        frame_counter = 0
+
+        while self.is_running:
+            with self.raw_frame_lock:
+                frame = self.raw_frame.copy() if self.raw_frame is not None else None
+
+            if frame is None:
+                time.sleep(0.02)
                 continue
 
             try:
                 annotated_frame, tracked_persons, alerts = self.pipeline.process_frame(frame)
-                
                 with self.lock:
                     self.latest_frame = annotated_frame
 
@@ -105,10 +144,9 @@ class CameraStreamWorker:
 
             except Exception as e:
                 logger.error(f"Lỗi phân tích frame camera [{self.camera_code}]: {e}")
-                time.sleep(0.1)
+                time.sleep(0.05)
 
-        cap.release()
-        logger.info(f"Đã giải phóng luồng VideoCapture cho camera [{self.camera_code}].")
+        logger.info(f"Đã đóng Analysis Thread cho camera [{self.camera_code}].")
 
     def get_status(self) -> Dict[str, Any]:
         return {

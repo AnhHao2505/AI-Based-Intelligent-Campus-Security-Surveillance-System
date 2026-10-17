@@ -1,9 +1,10 @@
 # AI Service — Campus Security Surveillance (FA26SE040)
 
 Microservice xử lý AI thời gian thực cho hệ thống giám sát an ninh:
-- **Phát hiện người (Human Detection):** YOLOv8 (Class 0: `person`).
+- **Phát hiện người (Human Detection):** YOLO11 (Class 0: `person`).
 - **Theo dõi đối tượng (Human Tracking):** ByteTrack (Gán và duy trì `track_id` liên tục).
-- **Phát hiện khuôn mặt (Face Detection):** OpenCV YuNet ONNX.
+- **Phát hiện khuôn mặt (Face Detection):** OpenCV YuNet ONNX (kèm 5 điểm Landmarks căn chỉnh).
+- **Trích xuất đặc trưng khuôn mặt (Face Recognition):** Deep Learning ArcFace ResNet-50 ONNX (vector 512D chuẩn hóa L2).
 - **Phân tích khung hình & Xâm nhập vùng cấm (Frame Analysis Engine):** Kiểm tra đối tượng trong vùng ROI, đối soát danh tính khuôn mặt và cảnh báo ngoài giờ hoạt động.
 - **Tích hợp cảnh báo:** Apache Kafka (Real-time Event Stream) & MinIO (Lưu trữ ảnh bằng chứng vi phạm).
 
@@ -15,15 +16,16 @@ Microservice xử lý AI thời gian thực cho hệ thống giám sát an ninh:
 ai-service/
 ├── models/
 │   ├── face_detection_yunet.onnx   # Model YuNet phát hiện khuôn mặt
-│   └── yolov8n.pt                  # Model YOLOv8 phát hiện người
+│   ├── w600k_r50.onnx              # Model ArcFace ResNet-50 trích xuất vector 512D
+│   └── yolo11n.pt                  # Model YOLO11 phát hiện người
 ├── src/
 │   ├── config.py                   # Cấu hình biến môi trường
 │   ├── main.py                     # FastAPI REST API
 │   ├── core/
 │   │   ├── entity.py               # Các cấu trúc dữ liệu (Point, BBox, TrackedPerson, Alert)
-│   │   ├── human_detector.py       # Module YOLOv8 Person Detection
+│   │   ├── human_detector.py       # Module YOLO11 Person Detection + ByteTrack
 │   │   ├── face_detector.py        # Module YuNet Face Detection
-│   │   ├── face_embedder.py        # Trích xuất đặc trưng khuôn mặt 512D
+│   │   ├── face_embedder.py        # Trích xuất đặc trưng khuôn mặt ArcFace 512D
 │   │   ├── face_matcher.py         # So khớp khuôn mặt Cosine Similarity In-Memory RAM
 │   │   └── frame_analysis_engine.py# Logic phân tích vi phạm an ninh ROI & Time Rules
 │   ├── pipeline/

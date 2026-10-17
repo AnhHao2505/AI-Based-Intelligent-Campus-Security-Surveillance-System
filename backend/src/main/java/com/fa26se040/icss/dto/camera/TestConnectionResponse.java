@@ -1,5 +1,6 @@
 package com.fa26se040.icss.dto.camera;
 
+import com.fa26se040.icss.enums.OperationalStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -13,4 +14,5 @@ public class TestConnectionResponse {
     private boolean success;
     private Long latencyMs;
     private String message;
+    private OperationalStatus operationalStatus;
 }

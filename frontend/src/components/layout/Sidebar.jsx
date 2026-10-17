@@ -288,6 +288,17 @@ export default function Sidebar({ user, onLogout }) {
 										<span>Quản lý khu vực</span>
 									</NavLink>
 
+									<NavLink
+										to="/admin/access-history"
+										className={({ isActive }) =>
+											`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
+										}
+										title={sidebarCollapsed ? "Lịch sử ra vào" : undefined}
+									>
+										<History size={18} />
+										<span>Lịch sử ra vào</span>
+									</NavLink>
+
 									{/* B-04: ADMIN không làm host khách — chỉ FM thấy "Khách của tôi" trong khối này */}
 									{isFacilityManager && (
 										<NavLink

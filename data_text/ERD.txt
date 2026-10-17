@@ -59,6 +59,7 @@ Table cameras {
   id UUID [pk, default: `gen_random_uuid()`]
   camera_code VARCHAR(50) [not null, unique, note: 'CAM-001']
   name VARCHAR(100) [not null, note: 'Tên camera']
+  area_id UUID [not null, note: 'FK to areas — mỗi camera thuộc đúng một khu vực']
   status VARCHAR(50) [not null, note: 'ACTIVE | DECOMMISSIONED']
   operational_status VARCHAR(50) [not null, note: 'ONLINE | OFFLINE']
   installed_at TIMESTAMPTZ
@@ -98,16 +99,6 @@ Table camera_health_logs {
   fps NUMERIC(5,2) [note: 'Số frame/s thực tế']
   error_code VARCHAR(100) [note: 'Mã lỗi camera']
   error_message VARCHAR(255) [note: 'Mô tả lỗi camera']
-}
-
-// Bảng trung gian Area N-N Camera
-Table area_cameras {
-  area_id UUID [not null, note: 'FK to areas']
-  camera_id UUID [not null, note: 'FK to cameras']
-  
-  indexes {
-    (area_id, camera_id) [pk]
-  }
 }
 
 Table access_requests {
@@ -178,9 +169,8 @@ Ref: camera_stream_configurations.camera_id - cameras.id
 Ref: face_data.user_id - users.id
 Ref: camera_health_logs.camera_id > cameras.id
 
-// Area - Camera N-N Relationships
-Ref: area_cameras.area_id > areas.id
-Ref: area_cameras.camera_id > cameras.id
+// Area - Camera 1:N Relationship
+Ref: cameras.area_id > areas.id
 
 // Access Request & Scheduling Relationships
 Ref: access_requests.area_id > areas.id

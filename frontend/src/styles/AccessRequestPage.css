@@ -980,7 +980,7 @@
   justify-content: space-between;
   padding: 18px 24px;
   border-bottom: 1px solid var(--theme-border, rgba(255, 255, 255, 0.08));
-  background: rgba(15, 23, 42, 0.4);
+  background: var(--theme-bg-subtle);
 }
 
 .arp-modal__header-title {
@@ -1083,7 +1083,7 @@
 
 .arp-modal__footer {
   padding: 16px 24px;
-  background: rgba(15, 23, 42, 0.4);
+  background: var(--theme-bg-subtle);
   border-top: 1px solid var(--theme-border, rgba(255, 255, 255, 0.08));
   display: flex;
   justify-content: flex-end;

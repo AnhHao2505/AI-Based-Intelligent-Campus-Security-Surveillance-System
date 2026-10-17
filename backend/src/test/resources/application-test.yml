@@ -24,3 +24,8 @@ icss:
     rate-limiter-cleanup-cron: "-"
     # Job lượt khách (GuestVisitJobService)
     guest-visit-tick-cron: "-"
+    # Job dọn nhật ký ra vào (AccessLogRetentionService)
+    access-log-retention-cron: "-"
+  internal:
+    # Khoá giả chỉ dùng cho test (>= 32 ký tự), không phải khoá thật
+    service-key: test-only-internal-service-key-0123456789

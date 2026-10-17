@@ -21,6 +21,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -90,6 +92,22 @@ public class SystemConfigService {
     public String getString(ConfigKey configKey) {
         String value = cache.get(configKey.getKey());
         return value == null || value.isBlank() ? configKey.getDefaultValue() : value.trim();
+    }
+
+    public double getDouble(ConfigKey configKey) {
+        String raw = cache.get(configKey.getKey());
+        if (raw == null) {
+            log.warn("Config key [{}] not found in cache. Using default value: {}",
+                    configKey.getKey(), configKey.getDefaultValue());
+            return Double.parseDouble(configKey.getDefaultValue());
+        }
+        try {
+            return Double.parseDouble(raw.trim());
+        } catch (NumberFormatException e) {
+            log.warn("Invalid double value [{}] for config key [{}]. Using default: {}",
+                    raw, configKey.getKey(), configKey.getDefaultValue());
+            return Double.parseDouble(configKey.getDefaultValue());
+        }
     }
 
     public boolean getBoolean(ConfigKey configKey) {
@@ -176,6 +194,8 @@ public class SystemConfigService {
                 public void afterCommit() {
                     if ("AI_AFTER_HOUR_START".equals(key) || "AI_AFTER_HOUR_END".equals(key)) {
                         syncAfterHourToAi();
+                    } else if ("AI_TRACK_MAX_INACTIVE_SECONDS".equals(key) || "AI_UNKNOWN_ALERT_COOLDOWN_SECONDS".equals(key) || "AI_FACE_MATCH_THRESHOLD".equals(key)) {
+                        syncAiRuntimeConfig();
                     }
                     checkEventModeLimitsAndNotifyFm(key);
                 }
@@ -194,6 +214,8 @@ public class SystemConfigService {
         } else {
             if ("AI_AFTER_HOUR_START".equals(key) || "AI_AFTER_HOUR_END".equals(key)) {
                 syncAfterHourToAi();
+            } else if ("AI_TRACK_MAX_INACTIVE_SECONDS".equals(key) || "AI_UNKNOWN_ALERT_COOLDOWN_SECONDS".equals(key) || "AI_FACE_MATCH_THRESHOLD".equals(key)) {
+                syncAiRuntimeConfig();
             }
             checkEventModeLimitsAndNotifyFm(key);
         }
@@ -277,6 +299,40 @@ public class SystemConfigService {
         } catch (Exception e) {
             log.warn("Could not sync after-hour configuration to AI service: {}", e.getMessage());
         }
+    }
+
+    private void syncAiRuntimeConfig() {
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            Map<String, Object> body = Map.of(
+                    "max_inactive_seconds", getDouble(ConfigKey.AI_TRACK_MAX_INACTIVE_SECONDS),
+                    "unknown_alert_cooldown", getInt(ConfigKey.AI_UNKNOWN_ALERT_COOLDOWN_SECONDS),
+                    "face_match_threshold", getDouble(ConfigKey.AI_FACE_MATCH_THRESHOLD)
+            );
+            aiRestTemplate.postForObject(aiServiceUrl + "/api/v1/system-config/ai-runtime",
+                    new HttpEntity<>(body, headers), Map.class);
+            log.info("Synced AI runtime config to AI service: {}", body);
+        } catch (Exception e) {
+            log.warn("Could not sync AI runtime configuration to AI service: {}", e.getMessage());
+        }
+    }
+
+    @EventListener(ApplicationReadyEvent.class)
+    public void onApplicationReady() {
+        log.info("Application ready - synchronizing initial AI configurations to AI service...");
+        syncAfterHourToAi();
+        syncAiRuntimeConfig();
+    }
+
+    public Map<String, Object> getAiRuntimeConfigMap() {
+        return Map.of(
+                "face_match_threshold", getDouble(ConfigKey.AI_FACE_MATCH_THRESHOLD),
+                "after_hour_start", getString(ConfigKey.AI_AFTER_HOUR_START),
+                "after_hour_end", getString(ConfigKey.AI_AFTER_HOUR_END),
+                "max_inactive_seconds", getDouble(ConfigKey.AI_TRACK_MAX_INACTIVE_SECONDS),
+                "unknown_alert_cooldown", getInt(ConfigKey.AI_UNKNOWN_ALERT_COOLDOWN_SECONDS)
+        );
     }
 
     @Transactional(readOnly = true)

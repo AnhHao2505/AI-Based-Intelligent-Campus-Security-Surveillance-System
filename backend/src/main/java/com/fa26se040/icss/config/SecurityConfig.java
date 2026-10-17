@@ -1,5 +1,6 @@
 package com.fa26se040.icss.config;
 
+import com.fa26se040.icss.security.InternalServiceKeyFilter;
 import com.fa26se040.icss.security.JwtAuthenticationFilter;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +30,7 @@ import java.util.Collections;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final InternalServiceKeyFilter internalServiceKeyFilter;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -51,10 +53,13 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
+                        // Endpoint nội bộ AI → backend: không dùng JWT, InternalServiceKeyFilter kiểm header X-Service-Key
+                        .requestMatchers("/api/access-control/check-entry", "/api/internal/**").permitAll()
                         .requestMatchers("/ws-security/**").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                         .anyRequest().authenticated()
                 )
+                .addFilterBefore(internalServiceKeyFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

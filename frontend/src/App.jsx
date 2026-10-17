@@ -20,6 +20,7 @@ import GuestVisitPage from "./pages/guestVisit/GuestVisitPage";
 import GuestVisitReviewPage from "./pages/guestVisit/GuestVisitReviewPage";
 import GuestPhotoPage from "./pages/guestVisit/GuestPhotoPage";
 import AccessHistoryPage from "./pages/accessHistory/AccessHistoryPage";
+import AccessHistoryAdminPage from "./pages/accessHistory/AccessHistoryAdminPage";
 import NotificationsPage from "./pages/notifications/NotificationsPage";
 import ManageAccountPage from "./pages/accounts/ManageAccountPage";
 import SystemConfigPage from "./pages/system/SystemConfigPage";
@@ -45,6 +46,7 @@ const ROUTE_TITLES = {
 	"/guard": "Trung tâm Giám sát",
 	"/access-requests": "Yêu cầu truy cập",
 	"/access-history": "Lịch sử truy cập",
+	"/admin/access-history": "Lịch sử ra vào",
 	"/notifications": "Thông báo",
 	"/admin/access-requests": "Phê duyệt yêu cầu truy cập",
 	"/guest-visits": "Khách của tôi",
@@ -295,6 +297,15 @@ function App() {
 								element={
 									<ProtectedRoute allowedRoles={[ROLES.NORMAL_USER]}>
 										<AccessHistoryPage />
+									</ProtectedRoute>
+								}
+							/>
+
+							<Route
+								path="/admin/access-history"
+								element={
+									<ProtectedRoute allowedRoles={[ROLES.FACILITY_MANAGER, ROLES.ADMIN]}>
+										<AccessHistoryAdminPage />
 									</ProtectedRoute>
 								}
 							/>
