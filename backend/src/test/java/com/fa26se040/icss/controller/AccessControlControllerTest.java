@@ -67,7 +67,7 @@ class AccessControlControllerTest {
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(controller)
+        mockMvc = MockMvcBuilders.standaloneSetup(controller, new InternalAiController(systemConfigService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setCustomArgumentResolvers(new org.springframework.data.web.PageableHandlerMethodArgumentResolver())
                 .build();
@@ -238,7 +238,7 @@ class AccessControlControllerTest {
     }
 
     @Test
-    @DisplayName("GET /api/access-control/ai-runtime-config -> 200 OK với cấu hình AI runtime")
+    @DisplayName("GET /api/internal/ai/runtime-config -> 200 OK với cấu hình AI runtime")
     void getAiRuntimeConfig_Success() throws Exception {
         java.util.Map<String, Object> configMap = java.util.Map.of(
                 "face_match_threshold", 0.75,
@@ -250,7 +250,7 @@ class AccessControlControllerTest {
 
         when(systemConfigService.getAiRuntimeConfigMap()).thenReturn(configMap);
 
-        mockMvc.perform(get("/api/access-control/ai-runtime-config"))
+        mockMvc.perform(get("/api/internal/ai/runtime-config"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.face_match_threshold").value(0.75))
                 .andExpect(jsonPath("$.data.after_hour_start").value("22:00"))
