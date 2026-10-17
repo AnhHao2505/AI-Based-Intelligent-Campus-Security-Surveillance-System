@@ -33,11 +33,17 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -242,6 +248,7 @@ public class UserService {
         }
 
         log.info("Toggled active state for user {}: now {}", userId, updatedUser.getIsActive());
+        notifyAiServiceRefreshCache();
         return UserListResponse.fromEntity(updatedUser);
     }
 
@@ -264,6 +271,29 @@ public class UserService {
         accessRequestService.cancelActiveRequestsOfRequester(userId, AccessRequestService.REQUESTER_INACTIVE_CANCEL_REASON);
 
         log.info("Soft-deleted user {}", userId);
+        notifyAiServiceRefreshCache();
+    }
+
+    /**
+     * Thông báo cho AI Service làm mới cache khuôn mặt và quyền truy cập ngay lập tức
+     */
+    private void notifyAiServiceRefreshCache() {
+        CompletableFuture.runAsync(() -> {
+            try {
+                HttpClient client = HttpClient.newBuilder()
+                        .connectTimeout(Duration.ofMillis(1000))
+                        .build();
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(URI.create("http://localhost:8000/api/v1/faces/refresh-cache"))
+                        .POST(HttpRequest.BodyPublishers.noBody())
+                        .timeout(Duration.ofMillis(2000))
+                        .build();
+                client.send(request, HttpResponse.BodyHandlers.discarding());
+                log.info("Notified AI Service to refresh face cache.");
+            } catch (Exception e) {
+                log.warn("Could not notify AI Service to refresh face cache: {}", e.getMessage());
+            }
+        });
     }
 
     @Transactional(readOnly = true)
@@ -297,6 +327,9 @@ public class UserService {
         }
         int deletedCount = userRepository.softDeleteByImportBatchId(batchId);
         log.info("Soft-deleted import batch {}: {} users affected", batchId, deletedCount);
+        if (deletedCount > 0) {
+            notifyAiServiceRefreshCache();
+        }
         return new BatchDeleteResponse(batchId, deletedCount, "Đã gỡ " + deletedCount + " tài khoản trong lô.");
     }
 
@@ -363,6 +396,9 @@ public class UserService {
         }
 
         log.info("Restored import batch {}: {} restored, {} skipped", batchId, restoredCount, skippedUsers.size());
+        if (restoredCount > 0) {
+            notifyAiServiceRefreshCache();
+        }
         return new BatchRestoreResponse(batchId, restoredCount, skippedUsers.size(), skippedUsers);
     }
 

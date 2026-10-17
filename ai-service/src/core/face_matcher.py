@@ -43,6 +43,7 @@ class FaceMatcher:
 
     def refresh_cache(self):
         """Tải toàn bộ vector khuôn mặt từ PostgreSQL vào bộ nhớ RAM để tìm kiếm cực nhanh"""
+        self.access_cache.clear()
         try:
             conn = self._get_connection()
             cur = conn.cursor()
@@ -202,6 +203,15 @@ class FaceMatcher:
                 allowed = bool(data.get("allowed", False))
                 reason = data.get("reason", "Xét duyệt từ Backend")
                 area_name = data.get("areaName")
+
+                # Tự động loại bỏ khỏi Face RAM Cache nếu Backend phản hồi người dùng không tồn tại / đã bị xoá
+                reason_lower = (reason or "").lower()
+                if "không tồn tại" in reason_lower or "đã bị xoá" in reason_lower:
+                    logger.info(f"🗑️ [FaceMatcher] Tài khoản [{user_code}] đã bị xoá hoặc không tồn tại trên hệ thống -> Loại bỏ ngay khỏi Face RAM Cache.")
+                    self.cached_faces = [f for f in self.cached_faces if f.get("code") != user_code]
+                    if cache_key in self.access_cache:
+                        del self.access_cache[cache_key]
+
                 ttl = self.access_cache_ttl if allowed else min(self.access_cache_ttl, 5.0)
                 self.access_cache[cache_key] = (allowed, reason, area_name, now + ttl)
                 logger.info(f"🔑 [FaceMatcher] Quyền ra vào [{user_code}] tại [{camera_code}] ({area_name or 'N/A'}): {'HỢP LỆ' if allowed else 'TỪ CHỐI'} ({reason})")

@@ -162,17 +162,17 @@ class TestAccessDecisionIntegration(unittest.TestCase):
 
         self.assertEqual(len(alerts), 1)
         self.assertEqual(alerts[0].event_type, "UNKNOWN_PERSON")
-        self.assertIn("[TRONG_GIO] [UNKNOWN_PERSON]", alerts[0].details)
+        self.assertIn("[UNKNOWN_PERSON]", alerts[0].details)
         self.assertIn("chưa rõ mặt", alerts[0].details)
         self.assertTrue(persons[0].alert_unknown_sent)
 
     def test_frame_analysis_engine_after_hours_unclear_face(self):
-        """Test Ngoài giờ hoạt động nhưng chưa rõ mặt -> Gán UNKNOWN_PERSON kèm tag [AFTER_HOURS_PRESENCE]"""
+        """Test Ngoài giờ hoạt động nhưng chưa rõ mặt -> Gán INTRUSION kèm tag [INTRUSION]"""
         engine = FrameAnalysisEngine(after_hour_start="00:00", after_hour_end="23:59")
         roi = [Point(100, 100), Point(400, 100), Point(400, 400), Point(100, 400)]
         bbox = BoundingBox(x1=200, y1=200, x2=300, y2=300)
 
-        # Chưa phát hiện mặt (quay lưng / che mặt ban đêm) -> Gán UNKNOWN_PERSON
+        # Chưa phát hiện mặt (quay lưng / che mặt ban đêm) -> Gán INTRUSION
         persons, alerts = engine.process_frame(
             detected_tracks=[(3, bbox)],
             roi_polygon=roi,
@@ -181,8 +181,8 @@ class TestAccessDecisionIntegration(unittest.TestCase):
         )
 
         self.assertEqual(len(alerts), 1)
-        self.assertEqual(alerts[0].event_type, "UNKNOWN_PERSON")
-        self.assertIn("[AFTER_HOURS_PRESENCE] [UNKNOWN_PERSON]", alerts[0].details)
+        self.assertEqual(alerts[0].event_type, "INTRUSION")
+        self.assertIn("[INTRUSION]", alerts[0].details)
         self.assertIn("chưa rõ mặt", alerts[0].details)
         self.assertTrue(persons[0].alert_unknown_sent)
 
@@ -239,12 +239,12 @@ class TestAccessDecisionIntegration(unittest.TestCase):
         )
 
         self.assertEqual(len(alerts), 1)
-        self.assertEqual(alerts[0].event_type, "UNAUTHORIZED_ACCESS")
-        self.assertIn("[AFTER_HOURS_PRESENCE] [UNAUTHORIZED_ACCESS]", alerts[0].details)
+        self.assertEqual(alerts[0].event_type, "INTRUSION")
+        self.assertIn("[INTRUSION]", alerts[0].details)
         self.assertTrue(persons[0].alert_unauthorized_sent)
 
     def test_frame_analysis_engine_after_hours_unknown_intruder(self):
-        """Test Ngoài giờ và là người lạ ngoài hệ thống -> Sinh UNKNOWN_PERSON kèm tag [AFTER_HOURS_PRESENCE]"""
+        """Test Ngoài giờ và là người lạ ngoài hệ thống -> Sinh INTRUSION kèm tag [INTRUSION]"""
         engine = FrameAnalysisEngine(after_hour_start="00:00", after_hour_end="23:59")
         roi = [Point(100, 100), Point(400, 100), Point(400, 400), Point(100, 400)]
         bbox = BoundingBox(x1=200, y1=200, x2=300, y2=300)
@@ -267,10 +267,40 @@ class TestAccessDecisionIntegration(unittest.TestCase):
         )
 
         self.assertEqual(len(alerts), 1)
-        self.assertEqual(alerts[0].event_type, "UNKNOWN_PERSON")
-        self.assertIn("[AFTER_HOURS_PRESENCE] [UNKNOWN_PERSON]", alerts[0].details)
+        self.assertEqual(alerts[0].event_type, "INTRUSION")
+        self.assertIn("[INTRUSION]", alerts[0].details)
         self.assertIn("ngoài giờ hoạt động", alerts[0].details)
         self.assertTrue(persons[0].alert_unknown_sent)
+
+    def test_frame_analysis_engine_soft_deleted_user_classified_as_unknown_person(self):
+        """Test Người dùng đã bị xoá mềm trong DB khi Backend phản hồi 'Người dùng không tồn tại' -> Gán UNKNOWN_PERSON"""
+        engine = FrameAnalysisEngine(after_hour_start="23:59", after_hour_end="23:59")
+        roi = [Point(100, 100), Point(400, 100), Point(400, 400), Point(100, 400)]
+        bbox = BoundingBox(x1=200, y1=200, x2=300, y2=300)
+
+        face_info = FaceDetectionResult(
+            bbox=bbox,
+            score=0.91,
+            matched_code="SE194249",
+            matched_name="Đặng Nguyễn Gia Minh",
+            is_authorized=False,
+            is_active=True,
+            access_reason="Người dùng không tồn tại"
+        )
+        engine.associate_face(track_id=8, face_result=face_info)
+
+        persons, alerts = engine.process_frame(
+            detected_tracks=[(8, bbox)],
+            roi_polygon=roi,
+            camera_code="CAM-SERVER-01",
+            current_time=time.time()
+        )
+
+        self.assertEqual(len(alerts), 1)
+        self.assertEqual(alerts[0].event_type, "UNKNOWN_PERSON")
+        self.assertIn("[UNKNOWN_PERSON]", alerts[0].details)
+        self.assertNotIn("SE194249", alerts[0].details)
+        self.assertNotIn("Đặng Nguyễn Gia Minh", alerts[0].details)
 
 if __name__ == "__main__":
     unittest.main()

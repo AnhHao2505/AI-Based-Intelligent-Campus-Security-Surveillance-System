@@ -92,6 +92,25 @@ public class CameraAccessLogService {
             fullName = user.getFullName();
         }
         Integer userAccessLevel = user != null ? user.getAccessLevel() : null;
+        String reasonDetails = entryResponse.getReason();
+
+        // 3b. Chuẩn hóa danh tính khi là Người lạ (UNKNOWN_PERSON) hoặc Đột nhập ngoài giờ của người lạ
+        // Nếu người dùng đã bị xoá mềm hoặc không có trong hệ thống: BẮT BUỘC hiển thị là Người lạ / Chưa rõ mặt [UNKNOWN]
+        boolean isGuest = userCode.startsWith("GUEST-");
+        if (result == AccessResult.UNKNOWN_PERSON || (result == AccessResult.INTRUSION && user == null && !isGuest)) {
+            user = null;
+            userCode = "UNKNOWN";
+            fullName = "Người lạ / Chưa rõ mặt";
+            userAccessLevel = null;
+            if (result == AccessResult.UNKNOWN_PERSON) {
+                if (reasonDetails == null || reasonDetails.isBlank()
+                        || reasonDetails.contains("người dùng không tồn tại")
+                        || reasonDetails.contains("không tồn tại")
+                        || reasonDetails.contains("đã bị xoá")) {
+                    reasonDetails = "[UNKNOWN_PERSON] Phát hiện đối tượng chưa đăng ký / người lạ (chưa rõ mặt) tại khu vực giám sát.";
+                }
+            }
+        }
 
         // 4. Lưu Entity vào CSDL
         CameraAccessLog logEntity = CameraAccessLog.builder()
@@ -103,7 +122,7 @@ public class CameraAccessLogService {
                 .userAccessLevel(userAccessLevel)
                 .accessResult(result)
                 .accessSource(entryResponse.getSource())
-                .reasonDetails(entryResponse.getReason())
+                .reasonDetails(reasonDetails)
                 .loggedAt(at)
                 .build();
 

@@ -347,6 +347,23 @@ async def process_face_registration(
         "embedding_front": vector_512
     }
 
+@app.post("/api/v1/faces/refresh-cache")
+async def refresh_faces_cache():
+    """
+    Xóa và làm mới cache khuôn mặt cùng quyền truy cập ngay lập tức trong RAM AI.
+    Được gọi khi tài khoản bị vô hiệu hóa, kích hoạt lại hoặc xóa mềm.
+    """
+    count = 0
+    if default_pipeline and getattr(default_pipeline, "face_matcher", None):
+        default_pipeline.face_matcher.refresh_cache()
+        count += 1
+    for worker in active_workers.values():
+        if getattr(worker, "pipeline", None) and getattr(worker.pipeline, "face_matcher", None):
+            worker.pipeline.face_matcher.refresh_cache()
+            count += 1
+    logger.info(f"🔄 [FaceCache] Đã làm mới face cache tức thì cho {count} pipeline(s).")
+    return {"success": True, "pipelines_refreshed": count}
+
 class StreamStartRequest(BaseModel):
     camera_code: str
     rtsp_url: str

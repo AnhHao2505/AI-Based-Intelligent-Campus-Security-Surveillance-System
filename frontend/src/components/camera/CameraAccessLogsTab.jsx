@@ -373,13 +373,13 @@ export default function CameraAccessLogsTab({ camera }) {
                     <div className="timeline-card-body">
                       <div className="person-identity">
                         <h4 className="person-name">
-                          {item.fullName || (item.userCode?.startsWith("UNKNOWN") ? "Người lạ" : "Chưa xác định")}
+                          {item.accessResult === "UNKNOWN_PERSON"
+                            ? (item.fullName && item.fullName !== "Chưa xác định" ? item.fullName : "Người lạ / Chưa rõ mặt")
+                            : (item.fullName || (item.userCode?.startsWith("UNKNOWN") ? "Người lạ / Chưa rõ mặt" : "Chưa xác định"))}
                         </h4>
-                        {item.userCode && (
-                          <span className="person-code font-mono">
-                            [{item.userCode}]
-                          </span>
-                        )}
+                        <span className="person-code font-mono">
+                          [{item.accessResult === "UNKNOWN_PERSON" ? "UNKNOWN" : (item.userCode || "N/A")}]
+                        </span>
                         {item.areaName && (
                           <span className="person-area-tag">
                             Khu vực: {item.areaName}
@@ -389,7 +389,9 @@ export default function CameraAccessLogsTab({ camera }) {
 
                       {item.reasonDetails && (
                         <p className="timeline-card-reason">
-                          {item.reasonDetails}
+                          {item.accessResult === "UNKNOWN_PERSON" && (item.reasonDetails.includes("không tồn tại") || item.reasonDetails.includes("đã bị xoá"))
+                            ? "[UNKNOWN_PERSON] Phát hiện đối tượng chưa đăng ký / người lạ (chưa rõ mặt) tại khu vực giám sát."
+                            : item.reasonDetails}
                         </p>
                       )}
                     </div>

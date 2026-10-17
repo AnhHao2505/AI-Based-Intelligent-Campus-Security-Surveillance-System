@@ -188,7 +188,19 @@ class FrameAnalysisEngine:
                         # Vi phạm: Phân loại chuẩn theo 5 nhóm (INTRUSION, ACCESS_OUT_OF_TIME, UNAUTHORIZED_ACCESS)
                         if not person.alert_unauthorized_sent:
                             reason_lower = (reason_str or "").lower()
-                            if after_hours:
+                            if "không tồn tại" in reason_lower or "đã bị xoá" in reason_lower:
+                                # Người dùng đã bị xoá -> Phân loại là UNKNOWN_PERSON (hoặc INTRUSION ngoài giờ)
+                                is_face_clear = person.face_detected and person.face_info
+                                face_note = "người lạ ngoài hệ thống" if is_face_clear else "chưa rõ mặt"
+                                if after_hours:
+                                    event_type = "INTRUSION"
+                                    tag_prefix = "[INTRUSION]"
+                                    detail_msg = f"{tag_prefix} Phát hiện đối tượng chưa rõ danh tính / người lạ ({face_note}) ngoài giờ hoạt động tại {area_display}."
+                                else:
+                                    event_type = "UNKNOWN_PERSON"
+                                    tag_prefix = "[UNKNOWN_PERSON]"
+                                    detail_msg = f"{tag_prefix} Phát hiện đối tượng chưa đăng ký / người lạ ({face_note}) tại {area_display}."
+                            elif after_hours:
                                 event_type = "INTRUSION"
                                 tag_prefix = "[INTRUSION]"
                                 if not is_active:

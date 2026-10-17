@@ -186,6 +186,35 @@ class CameraAccessLogServiceTest {
 
         assertNotNull(result);
         assertEquals(AccessResult.UNKNOWN_PERSON, result.getAccessResult());
+        assertEquals("UNKNOWN", result.getUserCode());
+        assertEquals("Người lạ / Chưa rõ mặt", result.getFullName());
+        assertEquals("[UNKNOWN_PERSON] Phát hiện đối tượng chưa đăng ký / người lạ (chưa rõ mặt) tại khu vực giám sát.", result.getReasonDetails());
+    }
+
+    @Test
+    @DisplayName("Tài khoản đã bị xoá mềm (deleted_at != null) khi quét camera được chuẩn hóa hoàn toàn về UNKNOWN_PERSON")
+    void testRecordAccessLog_SoftDeletedUser_NormalizedToUnknownPerson() {
+        OffsetDateTime daytime = OffsetDateTime.of(2026, 10, 16, 10, 41, 42, 0, ZoneOffset.ofHours(7));
+        CheckCameraEntryResponse entryResponse = CheckCameraEntryResponse.builder()
+                .allowed(false)
+                .source(AccessSource.NONE)
+                .reason("Người dùng không tồn tại")
+                .cameraCode("CAM-001")
+                .areaId(areaId)
+                .userCode("SE194249")
+                .build();
+
+        when(areaRepository.findById(areaId)).thenReturn(Optional.of(area));
+        when(userRepository.findByUserCodeAndDeletedAtIsNull("SE194249")).thenReturn(Optional.empty());
+        when(cameraAccessLogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        CameraAccessLogResponse result = cameraAccessLogService.recordAccessLog(entryResponse, daytime);
+
+        assertNotNull(result);
+        assertEquals(AccessResult.UNKNOWN_PERSON, result.getAccessResult());
+        assertEquals("UNKNOWN", result.getUserCode());
+        assertEquals("Người lạ / Chưa rõ mặt", result.getFullName());
+        assertEquals("[UNKNOWN_PERSON] Phát hiện đối tượng chưa đăng ký / người lạ (chưa rõ mặt) tại khu vực giám sát.", result.getReasonDetails());
     }
 
     @Test
