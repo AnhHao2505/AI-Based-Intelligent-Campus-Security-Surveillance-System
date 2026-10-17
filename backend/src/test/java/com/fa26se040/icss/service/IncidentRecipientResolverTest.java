@@ -128,6 +128,22 @@ class IncidentRecipientResolverTest {
     }
 
     @Test
+    @DisplayName("Bảo vệ bị vô hiệu hoá / xoá mềm còn ca CHECKED_IN trong khung giờ -> không")
+    void inactiveOrSoftDeletedGuard_excluded() {
+        User active = guard("Đang hoạt động");
+        User disabled = guard("Bị vô hiệu hoá");
+        disabled.setIsActive(false);
+        User softDeleted = guard("Đã xoá mềm");
+        softDeleted.setDeletedAt(vnTime(YESTERDAY, "09:00"));
+        givenCheckedInShifts(
+                shift(disabled, TODAY, "08:00", "12:00", ShiftStatus.CHECKED_IN),
+                shift(active, TODAY, "08:00", "12:00", ShiftStatus.CHECKED_IN),
+                shift(softDeleted, TODAY, "08:00", "12:00", ShiftStatus.CHECKED_IN));
+
+        assertEquals(List.of(active), resolver.findOnDutyGuards(vnTime(TODAY, "10:00")));
+    }
+
+    @Test
     @DisplayName("2 ca trùng của cùng bảo vệ -> 1 lần")
     void overlappingShiftsOfSameGuard_once() {
         User a = guard("A");

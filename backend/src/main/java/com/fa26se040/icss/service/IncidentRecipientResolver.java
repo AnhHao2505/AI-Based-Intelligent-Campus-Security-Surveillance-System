@@ -31,7 +31,8 @@ public class IncidentRecipientResolver {
     /**
      * BR-IE-02: bảo vệ đang trực = có ca CHECKED_IN mà {@code now} (giờ Việt Nam) nằm trong [start, end).
      * Ca qua đêm (end &lt; start) kết thúc vào ngày hôm sau, nên chỉ cần xét ca của hôm nay và hôm qua.
-     * Ca CHECKED_IN đã quá giờ kết thúc (quên trả ca) bị loại. Nhiều ca khớp -> mỗi bảo vệ một lần, giữ thứ tự ca.
+     * Ca CHECKED_IN đã quá giờ kết thúc (quên trả ca) bị loại. Tài khoản bị vô hiệu hoá hoặc đã xoá mềm bị loại
+     * dù còn ca CHECKED_IN. Nhiều ca khớp -> mỗi bảo vệ một lần, giữ thứ tự ca.
      */
     public List<User> findOnDutyGuards(OffsetDateTime now) {
         LocalDateTime nowLocal = now.atZoneSameInstant(VN_ZONE).toLocalDateTime();
@@ -43,12 +44,17 @@ public class IncidentRecipientResolver {
         Map<UUID, User> guards = new LinkedHashMap<>();
         for (GuardShift shift : shifts) {
             User guard = shift.getGuard();
-            if (guard == null || guard.getId() == null || !isWithinShift(shift, nowLocal)) {
+            if (guard == null || guard.getId() == null || !isActiveAccount(guard) || !isWithinShift(shift, nowLocal)) {
                 continue;
             }
             guards.putIfAbsent(guard.getId(), guard);
         }
         return new ArrayList<>(guards.values());
+    }
+
+    /** isActive = true và chưa xoá mềm (deletedAt IS NULL). */
+    static boolean isActiveAccount(User guard) {
+        return Boolean.TRUE.equals(guard.getIsActive()) && guard.getDeletedAt() == null;
     }
 
     /** [shiftDate start, end); end &lt; start -> end thuộc ngày hôm sau. */

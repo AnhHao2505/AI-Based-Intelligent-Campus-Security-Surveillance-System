@@ -41,6 +41,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -162,6 +163,41 @@ class IncidentEscalationJobTest {
         assertEquals(e.getIncident().getCreatedAt(), payload.getValue().get("createdAt"));
         assertEquals(6L, payload.getValue().get("minutesElapsed"));
         verify(escalationRepository).updateFmRecipientCount(e.getId(), 1);
+    }
+
+    @ParameterizedTest(name = "{0} -> {1}")
+    @CsvSource({
+            "INTRUSION,Xâm nhập ngoài giờ",
+            "AFTER_HOURS,Xâm nhập ngoài giờ",
+            "AFTER_HOURS_PRESENCE,Xâm nhập ngoài giờ",
+            "AFTER_HOURS_ACCESS,Xâm nhập ngoài giờ",
+            "UNAUTHORIZED_ACCESS,Xâm nhập trái phép",
+            "UNAUTHORIZED,Xâm nhập trái phép",
+            "UNKNOWN_PERSON,Người lạ chưa xác minh",
+            "UNKNOWN,Người lạ chưa xác minh",
+            "ACCESS_OUT_OF_TIME,ACCESS_OUT_OF_TIME",
+            "SECURITY_ALERT,SECURITY_ALERT"})
+    @DisplayName("Nhãn tiếng Việt của loại sự cố; loại khác giữ mã")
+    void eventTypeLabel_mapping(String eventType, String expected) {
+        assertEquals(expected, IncidentEscalationJob.eventTypeLabel(eventType));
+    }
+
+    @Test
+    @DisplayName("Nội dung INCIDENT_ESCALATED dùng nhãn tiếng Việt, không lộ mã INTRUSION")
+    void notificationMessage_usesVietnameseLabel() {
+        IncidentEscalation e = escalation(IncidentStatus.NEW, 6, 2);
+        givenEscalation(e);
+        givenFmMinutes(5);
+        givenEscalationWins(e);
+
+        job.processEscalation(e.getId(), NOW);
+
+        ArgumentCaptor<String> message = ArgumentCaptor.forClass(String.class);
+        verify(inAppNotificationService).createForUsers(anyList(), eq(NotificationType.INCIDENT_ESCALATED),
+                anyString(), message.capture(), any(), anyString());
+        assertTrue(message.getValue().contains("Sự cố \"Xâm nhập ngoài giờ\" tại khu vực Phòng server (TOA_ALPHA)"), message.getValue());
+        assertTrue(message.getValue().contains("đã chờ 6 phút"), message.getValue());
+        assertFalse(message.getValue().contains("INTRUSION"), message.getValue());
     }
 
     @Test

@@ -207,7 +207,7 @@ public class IncidentEscalationJob implements SchedulingConfigurer {
                     ? "chưa có bảo vệ tiếp nhận vì không có bảo vệ nào đang trực khi sự cố xảy ra"
                     : "đã chờ " + minutesElapsed + " phút nhưng chưa có bảo vệ tiếp nhận";
             String title = "Sự cố an ninh chưa được tiếp nhận";
-            String message = "Sự cố " + incident.getEventType() + " tại khu vực " + areaName + " (" + building + ") lúc "
+            String message = "Sự cố \"" + eventTypeLabel(incident.getEventType()) + "\" tại khu vực " + areaName + " (" + building + ") lúc "
                     + createdAtText + " " + reason + ". Vui lòng liên hệ trực tiếp bảo vệ qua bộ đàm hoặc điện thoại.";
             List<Notification> created = inAppNotificationService.createForUsers(
                     fms, NotificationType.INCIDENT_ESCALATED, title, message, incident.getId(), REF_TYPE_SECURITY_INCIDENT);
@@ -227,6 +227,24 @@ public class IncidentEscalationJob implements SchedulingConfigurer {
             log.error("[INCIDENT-ESCALATION] incident={}: gửi real-time {} lỗi: {}", incident.getId(), FM_TOPIC, ex.getMessage(), ex);
         }
         return fmRecipientCount;
+    }
+
+    /**
+     * Nhãn tiếng Việt của loại sự cố trong nội dung thông báo. ingestIncident đã đổi AFTER_HOURS_* thành INTRUSION
+     * trước khi lưu nên INTRUSION chính là "ngoài giờ". Loại khác giữ nguyên mã.
+     */
+    static String eventTypeLabel(String eventType) {
+        if (eventType == null) {
+            return "";
+        }
+        if ("INTRUSION".equals(eventType) || eventType.startsWith("AFTER_HOURS")) {
+            return "Xâm nhập ngoài giờ";
+        }
+        return switch (eventType) {
+            case "UNAUTHORIZED_ACCESS", "UNAUTHORIZED" -> "Xâm nhập trái phép";
+            case "UNKNOWN_PERSON", "UNKNOWN" -> "Người lạ chưa xác minh";
+            default -> eventType;
+        };
     }
 
     /** IncidentStatus -> close_reason: CLAIMED / RESOLVED_VERIFIED -> RESOLVED / RESOLVED_DISMISSED -> DISMISSED. */

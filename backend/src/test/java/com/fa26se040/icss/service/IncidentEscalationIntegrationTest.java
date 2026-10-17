@@ -29,6 +29,7 @@ import com.fa26se040.icss.scheduler.IncidentEscalationJob;
 import com.fa26se040.icss.scheduler.IncidentEscalationJob.Outcome;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -42,6 +43,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -63,6 +65,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Leo thang sự cố trên DB test thật (V80): migration, conditional UPDATE (BR-IE-07), job đầu-cuối, resolver (BR-IE-02).
  * Job nền tắt ở profile test (icss.scheduler.incident-escalation-enabled=false); test gọi thẳng processEscalation theo id
  * nên không đụng bản ghi leo thang của test khác.
+ *
+ * <p>Không phụ thuộc số FM có sẵn trong DB test: chỉ assert trên FM / ADMIN do test tạo. Sau mỗi test dọn notification
+ * gắn với sự cố test tạo (kể cả thông báo job gửi cho FM có sẵn trong DB) và user test tạo (kèm ca trực của họ).</p>
  */
 class IncidentEscalationIntegrationTest extends AbstractIntegrationTest {
 
@@ -95,6 +100,8 @@ class IncidentEscalationIntegrationTest extends AbstractIntegrationTest {
     private Area area;
     private User fmUser;
     private User adminUser;
+    private final List<UUID> createdUserIds = new ArrayList<>();
+    private final List<UUID> createdIncidentIds = new ArrayList<>();
 
     @BeforeEach
     void setUp() {
@@ -118,15 +125,43 @@ class IncidentEscalationIntegrationTest extends AbstractIntegrationTest {
         adminUser = saveUser("ADIE", Role.ADMIN);
     }
 
+    @AfterEach
+    void cleanUp() {
+        inTx(() -> {
+            if (!createdIncidentIds.isEmpty()) {
+                entityManager.createQuery("DELETE FROM Notification n WHERE n.referenceId IN :ids")
+                        .setParameter("ids", createdIncidentIds).executeUpdate();
+            }
+            if (!createdUserIds.isEmpty()) {
+                entityManager.createQuery("DELETE FROM Notification n WHERE n.recipient.id IN :ids")
+                        .setParameter("ids", createdUserIds).executeUpdate();
+                entityManager.createQuery("DELETE FROM GuardShift s WHERE s.guard.id IN :ids")
+                        .setParameter("ids", createdUserIds).executeUpdate();
+                entityManager.createQuery("DELETE FROM User u WHERE u.id IN :ids")
+                        .setParameter("ids", createdUserIds).executeUpdate();
+            }
+            return null;
+        });
+        createdIncidentIds.clear();
+        createdUserIds.clear();
+    }
+
     private User saveUser(String prefix, Role role) {
-        return userRepository.save(User.builder()
+        return saveUser(prefix, role, true, null);
+    }
+
+    private User saveUser(String prefix, Role role, boolean active, OffsetDateTime deletedAt) {
+        User user = userRepository.save(User.builder()
                 .userCode(prefix + "-" + suffix)
                 .fullName(prefix + " " + suffix)
                 .email(prefix.toLowerCase() + "-" + suffix + "@fpt.edu.vn")
                 .role(role)
                 .accessLevel(2)
-                .isActive(true)
+                .isActive(active)
+                .deletedAt(deletedAt)
                 .build());
+        createdUserIds.add(user.getId());
+        return user;
     }
 
     private IncidentEscalation saveIncidentWithEscalation(IncidentStatus status, int guardRecipientCount) {
@@ -139,6 +174,7 @@ class IncidentEscalationIntegrationTest extends AbstractIntegrationTest {
                 .status(status)
                 .version(0)
                 .build());
+        createdIncidentIds.add(incident.getId());
         return escalationRepository.save(IncidentEscalation.builder()
                 .incident(incident)
                 .guardsNotifiedAt(OffsetDateTime.now())
@@ -228,8 +264,8 @@ class IncidentEscalationIntegrationTest extends AbstractIntegrationTest {
 
         IncidentEscalation reloaded = escalationRepository.findById(saved.getId()).orElseThrow();
         assertEquals(EscalationCloseReason.ESCALATED, reloaded.getCloseReason());
+        // Giá trị phụ thuộc số FM đang có trong DB test -> chỉ kiểm đã ghi; người nhận kiểm qua FM do test tạo
         assertNotNull(reloaded.getFmRecipientCount());
-        assertTrue(reloaded.getFmRecipientCount() >= 1);
 
         List<Notification> fmInbox = notificationRepository
                 .findByRecipientIdOrderByCreatedAtDesc(fmUser.getId(), PageRequest.of(0, 50)).getContent();
@@ -258,7 +294,8 @@ class IncidentEscalationIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("BR-IE-02 trên DB thật: chỉ ca CHECKED_IN trong khung giờ; SCHEDULED, ca kẹt hôm qua bị loại; ca qua đêm lúc 02:00 có")
+    @DisplayName("BR-IE-02 trên DB thật: chỉ ca CHECKED_IN trong khung giờ của tài khoản đang hoạt động; SCHEDULED, ca kẹt hôm qua, "
+            + "bảo vệ bị vô hiệu hoá / xoá mềm bị loại; ca qua đêm lúc 02:00 có")
     void resolver_realShifts() {
         // Ngày xa trong tương lai để không lẫn ca của test khác
         LocalDate day = LocalDate.of(2031, 3, 12);
@@ -266,15 +303,22 @@ class IncidentEscalationIntegrationTest extends AbstractIntegrationTest {
         User scheduled = saveUser("GIEB", Role.GUARD);
         User stuck = saveUser("GIEC", Role.GUARD);
         User overnight = saveUser("GIED", Role.GUARD);
+        User disabled = saveUser("GIEE", Role.GUARD, false, null);
+        User softDeleted = saveUser("GIEF", Role.GUARD, true, OffsetDateTime.now());
         inTx(() -> {
             persistShift(onShift, day, "08:00", "12:00", ShiftStatus.CHECKED_IN);
             persistShift(onShift, day, "09:00", "11:00", ShiftStatus.CHECKED_IN);
             persistShift(scheduled, day, "08:00", "12:00", ShiftStatus.SCHEDULED);
             persistShift(stuck, day.minusDays(1), "08:00", "16:00", ShiftStatus.CHECKED_IN);
             persistShift(overnight, day.minusDays(1), "22:00", "06:00", ShiftStatus.CHECKED_IN);
+            persistShift(disabled, day, "08:00", "12:00", ShiftStatus.CHECKED_IN);
+            persistShift(softDeleted, day, "08:00", "12:00", ShiftStatus.CHECKED_IN);
+            persistShift(disabled, day.minusDays(1), "22:00", "06:00", ShiftStatus.CHECKED_IN);
+            persistShift(softDeleted, day.minusDays(1), "22:00", "06:00", ShiftStatus.CHECKED_IN);
             return null;
         });
-        Set<UUID> ours = Set.of(onShift.getId(), scheduled.getId(), stuck.getId(), overnight.getId());
+        Set<UUID> ours = Set.of(onShift.getId(), scheduled.getId(), stuck.getId(), overnight.getId(),
+                disabled.getId(), softDeleted.getId());
 
         List<UUID> at1000 = resolver.findOnDutyGuards(OffsetDateTime.of(day, LocalTime.of(10, 0), ZoneOffset.ofHours(7)))
                 .stream().map(User::getId).filter(ours::contains).collect(Collectors.toList());
