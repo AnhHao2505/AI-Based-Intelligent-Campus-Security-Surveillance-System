@@ -2,6 +2,9 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart' show WidgetsBinding;
+import 'package:intl/intl.dart';
+import '../../../core/notifications/local_notification_service.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/utils/storage_helper.dart';
 import '../models/incident_model.dart';
@@ -73,6 +76,8 @@ class IncidentProvider extends ChangeNotifier {
   // ═══════════════ WEBSOCKET INITIALIZATION ═══════════════
 
   void initStomp({String? building}) async {
+    // Đã đăng nhập và bắt đầu nhận cảnh báo → xin quyền hiển thị thông báo hệ thống (Android 13+ / iOS).
+    LocalNotificationService.instance.requestPermission();
     final currentUser = await StorageHelper.getUser();
     stompService.connect(
       building: building,
@@ -117,6 +122,8 @@ class IncidentProvider extends ChangeNotifier {
   // ═══════════════ STOMP EVENT HANDLERS ═══════════════
 
   void _onNewIncidentReceived(IncidentModel incident) {
+    debugPrint('[IncidentProvider] received incident ${incident.id} (${incident.eventType}), '
+        'lifecycle=${WidgetsBinding.instance.lifecycleState}');
     // Tránh trùng lặp ID
     if (_alertQueue.any((i) => i.id == incident.id)) return;
     if (_activeIncident?.id == incident.id) return;
@@ -135,7 +142,31 @@ class IncidentProvider extends ChangeNotifier {
       HapticFeedback.heavyImpact();
     } catch (_) {}
 
+    _showSystemNotification(incident);
+
     notifyListeners();
+  }
+
+  /// Luôn hiện thông báo hệ thống (kể cả khi app đang mở): banner trong app chỉ có ở màn bản đồ,
+  /// bảo vệ đang ở màn khác (Lịch Trực…) sẽ không thấy gì nếu chỉ dựa vào banner.
+  /// Chỉ hiện khi còn phiên đăng nhập.
+  Future<void> _showSystemNotification(IncidentModel incident) async {
+    final user = await StorageHelper.getUser();
+    if (user == null) {
+      debugPrint('[IncidentProvider] skip system notification: no session');
+      return;
+    }
+
+    final parts = <String>[
+      incident.eventTypeDisplay,
+      incident.areaName ?? 'Khu vực chưa rõ',
+      if (incident.detectedAt != null) DateFormat('HH:mm').format(incident.detectedAt!.toLocal()),
+    ];
+    await LocalNotificationService.instance.showIncident(
+      incidentId: incident.id,
+      title: 'Sự cố an ninh mới',
+      body: parts.join(' · '),
+    );
   }
 
   void _onIncidentUpdateReceived(Map<String, dynamic> update) async {
@@ -144,6 +175,11 @@ class IncidentProvider extends ChangeNotifier {
 
     final newStatus = (update['status'] ?? '').toString();
     final currentUser = await StorageHelper.getUser();
+
+    // Sự cố đã có người tiếp nhận hoặc đã xử lý xong → gỡ thông báo hệ thống của sự cố đó.
+    if (newStatus == 'CLAIMED' || newStatus.startsWith('RESOLVED')) {
+      LocalNotificationService.instance.cancelIncident(incidentId);
+    }
 
     // 1. Nếu có người khác Claim
     if (newStatus == 'CLAIMED') {

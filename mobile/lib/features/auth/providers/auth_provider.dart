@@ -4,6 +4,7 @@ import '../../../core/constants/api_endpoints.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/utils/storage_helper.dart';
 import '../models/user_model.dart';
+import '../../../core/notifications/local_notification_service.dart';
 
 class AuthProvider with ChangeNotifier {
   final ApiClient _apiClient;
@@ -139,6 +140,8 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
 
     await StorageHelper.clearAuth();
+    // Không để lại thông báo sự cố của phiên trước trên thiết bị.
+    await LocalNotificationService.instance.cancelAll();
     _user = null;
     _errorMessage = null;
     _isLoading = false;
