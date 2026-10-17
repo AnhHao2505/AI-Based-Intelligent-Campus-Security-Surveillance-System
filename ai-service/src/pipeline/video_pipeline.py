@@ -172,9 +172,17 @@ class VideoPipeline:
                                 is_allowed, access_reason, area_name = self.face_matcher.check_camera_access(
                                     self.camera_code, code
                                 )
-                                face_result.is_authorized = is_allowed
-                                face_result.access_reason = access_reason
-                                face_result.area_name = area_name
+                                reason_lower = (access_reason or "").lower()
+                                if "không tồn tại" in reason_lower or "đã bị xoá" in reason_lower:
+                                    # Người dùng đã bị xoá khỏi hệ thống -> Trở thành người lạ UNKNOWN_PERSON
+                                    face_result.matched_code = None
+                                    face_result.matched_name = None
+                                    face_result.is_authorized = False
+                                    face_result.access_reason = "Đối tượng không xác định"
+                                else:
+                                    face_result.is_authorized = is_allowed
+                                    face_result.access_reason = access_reason
+                                    face_result.area_name = area_name
 
                         self.analysis_engine.associate_face(track_id, face_result)
 

@@ -43,6 +43,15 @@ public class AccessControlController {
     private final AreaLevelPresetService areaLevelPresetService;
     private final AuditService auditService;
     private final AccessDecisionService accessDecisionService;
+    private final com.fa26se040.icss.service.SystemConfigService systemConfigService;
+
+    @GetMapping("/ai-runtime-config")
+    public ResponseEntity<ApiResponse<java.util.Map<String, Object>>> getAiRuntimeConfig() {
+        return ResponseEntity.ok(ApiResponse.success(
+                systemConfigService.getAiRuntimeConfigMap(),
+                "Lấy cấu hình runtime AI thành công"
+        ));
+    }
 
     // Endpoint nội bộ cho AI service: bảo vệ bằng header X-Service-Key (InternalServiceKeyFilter), không dùng JWT
     @PostMapping("/check-entry")

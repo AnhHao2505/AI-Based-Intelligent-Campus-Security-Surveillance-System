@@ -29,7 +29,7 @@ import { getUsers } from '../../services/userService';
 import { getAreas } from '../../services/areaService';
 import { getBuildings } from '../../services/buildingService';
 import { ROLES } from '../../constants/roles';
-import { ErrorState } from '../../components/ui';
+import { ErrorState, LoadingState } from '../../components/ui';
 import StaffingWizardModal from '../../components/guard/StaffingWizardModal';
 import ExportTimesheetModal from '../../components/guard/ExportTimesheetModal';
 import GuardTeamsTab from '../../components/guard/GuardTeamsTab';
@@ -1198,7 +1198,35 @@ export default function GuardTeamManagementPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredGuards.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={8} className="py-12">
+                    <LoadingState size="md" text="Đang tải dữ liệu ca trực tuần..." />
+                  </td>
+                </tr>
+              ) : error && guards.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="py-12">
+                    <div className="schedule-empty-card">
+                      <div className="schedule-empty-icon text-rose-500">
+                        <AlertCircle size={32} />
+                      </div>
+                      <h3 className="text-base font-bold text-slate-800 dark:text-white mb-1">
+                        Không thể tải dữ liệu ca trực
+                      </h3>
+                      <p className="text-xs text-rose-500 dark:text-rose-400 max-w-md mb-4">
+                        {error}
+                      </p>
+                      <button
+                        onClick={fetchData}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-2 mx-auto"
+                      >
+                        <RefreshCw size={14} /> Thử lại
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ) : filteredGuards.length === 0 ? (
                 <tr>
                   <td colSpan={8}>
                     <div className="schedule-empty-card">
