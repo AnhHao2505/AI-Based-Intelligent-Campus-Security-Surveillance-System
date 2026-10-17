@@ -4,6 +4,9 @@ from pydantic import Field
 
 AI_SERVICE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+# Header mang khoá dùng chung khi gọi endpoint nội bộ của Backend (check-entry, /api/internal/**)
+INTERNAL_SERVICE_KEY_HEADER = "X-Service-Key"
+
 class Settings(BaseSettings):
     APP_NAME: str = "Campus Security AI Service"
     DEBUG: bool = True
@@ -48,7 +51,7 @@ class Settings(BaseSettings):
     DEFAULT_DETECTION_CONFIDENCE: float = 0.50
     DEFAULT_FACE_CONFIDENCE: float = 0.60
     DEFAULT_FACE_NMS_THRESHOLD: float = 0.30
-    FACE_MATCH_THRESHOLD: float = 0.50
+    FACE_MATCH_THRESHOLD: float = 0.75
     UPPER_BODY_CROP_RATIO: float = 0.60
     DEFAULT_AFTER_HOUR_START: str = "22:00"
     DEFAULT_AFTER_HOUR_END: str = "06:00"
@@ -59,9 +62,14 @@ class Settings(BaseSettings):
     # Backend Access Decision Service Integration
     BACKEND_API_URL: str = Field(default="http://localhost:8080", validation_alias="BACKEND_API_URL")
     ACCESS_DECISION_CACHE_TTL: float = 30.0
+    # Khoá dùng chung với Backend (cùng giá trị INTERNAL_SERVICE_KEY của Backend). Bắt buộc, không có mặc định:
+    # thiếu hoặc ngắn hơn 32 ký tự thì service không khởi động.
+    INTERNAL_SERVICE_KEY: str = Field(..., min_length=32, validation_alias="INTERNAL_SERVICE_KEY")
     
     class Config:
         env_file = (".env", "../.env")
         extra = "ignore"
+        # Không in giá trị đầu vào (khoá, mật khẩu) trong thông báo lỗi validate
+        hide_input_in_errors = True
 
 settings = Settings()

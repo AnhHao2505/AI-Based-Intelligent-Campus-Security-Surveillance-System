@@ -261,6 +261,19 @@
   padding: 12px;
 }
 
+.cctv-connecting-badge {
+  font-family: 'JetBrains Mono', 'Consolas', monospace;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  padding: 5px 14px;
+  border-radius: 4px;
+  animation: cctv-blink-signal 1.4s infinite;
+}
+
 .cctv-no-signal-badge {
   font-family: 'JetBrains Mono', 'Consolas', monospace;
   font-size: 0.85rem;

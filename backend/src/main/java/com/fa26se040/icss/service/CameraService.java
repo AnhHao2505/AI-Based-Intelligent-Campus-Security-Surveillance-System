@@ -220,6 +220,7 @@ public class CameraService {
 
         Camera saved = cameraRepository.save(camera);
         mediaMtxService.deleteCameraPath(camera.getCameraCode());
+        stopAiStreamWorkerSafely(camera.getCameraCode());
         return mapToDetailResponse(saved);
     }
 
@@ -234,6 +235,7 @@ public class CameraService {
 
         cameraRepository.save(camera);
         mediaMtxService.deleteCameraPath(camera.getCameraCode());
+        stopAiStreamWorkerSafely(camera.getCameraCode());
     }
 
     public CameraDetailResponse reactivateCamera(UUID id) {
@@ -492,6 +494,19 @@ public class CameraService {
             log.info("Successfully synced ROI geometry to AI Service for camera [{}]", cameraCode);
         } catch (Exception e) {
             log.warn("Could not sync ROI geometry to AI Service for camera [{}]: {}", cameraCode, e.getMessage());
+        }
+    }
+
+    private void stopAiStreamWorkerSafely(String cameraCode) {
+        if (cameraCode == null || cameraCode.isBlank() || aiServiceUrl == null || aiServiceUrl.isBlank()) {
+            return;
+        }
+        try {
+            String streamStopUrl = aiServiceUrl + "/api/v1/stream/stop?camera_code=" + cameraCode;
+            restTemplate.postForObject(streamStopUrl, null, Map.class);
+            log.info("✅ Đã dừng AI Stream Worker cho camera [{}]", cameraCode);
+        } catch (Exception ex) {
+            log.debug("Không thể dừng AI stream worker cho camera [{}] (có thể worker chưa chạy): {}", cameraCode, ex.getMessage());
         }
     }
 

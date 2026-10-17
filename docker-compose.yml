@@ -121,6 +121,7 @@ services:
   #     SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD:-mock_password}
   #     AI_SERVICE_HOST: ai-service
   #     AI_SERVICE_PORT: 8000
+  #     INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY}
   #     TZ: Asia/Ho_Chi_Minh
   #   depends_on:
   #     postgres:
@@ -151,6 +152,8 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
       MODEL_YOLO_PATH: /app/yolov8n.pt
       MODEL_YUNET_PATH: /app/models/face_detection_yunet.onnx
+      # Khoá dùng chung với Backend (header X-Service-Key); giá trị chỉ đặt trong .env
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY}
       TZ: Asia/Ho_Chi_Minh
     depends_on:
       postgres:

@@ -21,6 +21,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -314,6 +316,23 @@ public class SystemConfigService {
         } catch (Exception e) {
             log.warn("Could not sync AI runtime configuration to AI service: {}", e.getMessage());
         }
+    }
+
+    @EventListener(ApplicationReadyEvent.class)
+    public void onApplicationReady() {
+        log.info("Application ready - synchronizing initial AI configurations to AI service...");
+        syncAfterHourToAi();
+        syncAiRuntimeConfig();
+    }
+
+    public Map<String, Object> getAiRuntimeConfigMap() {
+        return Map.of(
+                "face_match_threshold", getDouble(ConfigKey.AI_FACE_MATCH_THRESHOLD),
+                "after_hour_start", getString(ConfigKey.AI_AFTER_HOUR_START),
+                "after_hour_end", getString(ConfigKey.AI_AFTER_HOUR_END),
+                "max_inactive_seconds", getDouble(ConfigKey.AI_TRACK_MAX_INACTIVE_SECONDS),
+                "unknown_alert_cooldown", getInt(ConfigKey.AI_UNKNOWN_ALERT_COOLDOWN_SECONDS)
+        );
     }
 
     @Transactional(readOnly = true)

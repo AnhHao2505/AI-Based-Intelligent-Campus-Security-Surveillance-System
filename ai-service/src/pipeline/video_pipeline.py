@@ -158,10 +158,15 @@ class VideoPipeline:
                                 landmarks=crop_landmarks
                             )
                             if match:
-                                code, name, score, is_active = match
+                                if len(match) >= 5:
+                                    code, name, score, is_active, role = match
+                                else:
+                                    code, name, score, is_active = match[:4]
+                                    role = "NORMAL_USER"
                                 face_result.matched_code = code
                                 face_result.matched_name = name
                                 face_result.is_active = is_active
+                                face_result.role = role
 
                                 # Thẩm định quyền ra vào thực tế tại camera này qua Backend checkEntry
                                 is_allowed, access_reason, area_name = self.face_matcher.check_camera_access(
@@ -174,13 +179,15 @@ class VideoPipeline:
                         self.analysis_engine.associate_face(track_id, face_result)
 
         # 4. Phân tích Xâm nhập vùng cấm
+        is_public = self.face_matcher.is_camera_public(self.camera_code) if self.face_matcher else False
         active_persons, alerts = self.analysis_engine.process_frame(
             detected_tracks=detected_tracks,
             roi_polygon=self.roi_polygon,
             camera_code=self.camera_code,
             current_time=current_time,
             roi_polygons=self.roi_polygons,
-            frame_size=(w, h)
+            frame_size=(w, h),
+            is_public_area=is_public
         )
 
         # 5. Xử lý lưu bằng chứng và gửi cảnh báo tự động ngầm (Async không chặn luồng video)

@@ -112,3 +112,7 @@ icss:
   guest:
     # Giới hạn kích thước ảnh khách (KB), tham số vận hành
     photo-max-kb: ${GUEST_PHOTO_MAX_KB:2048}
+  internal:
+    # Khoá dùng chung AI service ↔ backend (header X-Service-Key) cho check-entry và /api/internal/**.
+    # Bắt buộc, tối thiểu 32 ký tự: thiếu thì backend không khởi động. Giá trị chỉ đặt trong .env, không commit.
+    service-key: ${INTERNAL_SERVICE_KEY:}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
   Video,
@@ -37,8 +37,30 @@ import { formatLocation } from "../../utils/formatLocation";
 export default function CameraDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const [activeTab, setActiveTabState] = useState(
+    ["general", "stream", "surveillance", "access-logs"].includes(tabParam)
+      ? tabParam
+      : "general"
+  );
 
-  const [activeTab, setActiveTab] = useState("general");
+  const setActiveTab = (tab) => {
+    setActiveTabState(tab);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set("tab", tab);
+      return next;
+    }, { replace: true });
+  };
+
+  useEffect(() => {
+    const currentTab = searchParams.get("tab");
+    if (currentTab && ["general", "stream", "surveillance", "access-logs"].includes(currentTab)) {
+      setActiveTabState(currentTab);
+    }
+  }, [searchParams]);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   // Xác nhận trước khi tắt camera (trước đây bấm "Tắt camera" là gọi API ngay)
@@ -614,7 +636,7 @@ export default function CameraDetailPage() {
           </div>
 
           <div className="tab-content">
-            {activeTab === "general" && (
+            <div style={{ display: activeTab === "general" ? "block" : "none" }}>
               <CameraGeneralTab
                 camera={camera}
                 generalForm={generalForm}
@@ -623,9 +645,9 @@ export default function CameraDetailPage() {
                 saving={saving}
                 onSubmit={handleGeneralSubmit}
               />
-            )}
+            </div>
 
-            {activeTab === "stream" && (
+            <div style={{ display: activeTab === "stream" ? "block" : "none" }}>
               <CameraStreamTab
                 camera={camera}
                 streamForm={streamForm}
@@ -637,9 +659,9 @@ export default function CameraDetailPage() {
                 onTestConnection={handleTestConnection}
                 onCloseTestResult={() => setTestResult(null)}
               />
-            )}
+            </div>
 
-            {activeTab === "surveillance" && (
+            <div style={{ display: activeTab === "surveillance" ? "block" : "none" }}>
               <CameraSurveillanceTab
                 camera={camera}
                 connecting={connecting}
@@ -657,11 +679,11 @@ export default function CameraDetailPage() {
                 onViewModeChange={setSurveillanceViewMode}
                 onError={showError}
               />
-            )}
+            </div>
 
-            {activeTab === "access-logs" && (
+            <div style={{ display: activeTab === "access-logs" ? "block" : "none" }}>
               <CameraAccessLogsTab camera={camera} />
-            )}
+            </div>
           </div>
         </div>
 

@@ -12,6 +12,7 @@ import com.fa26se040.icss.enums.AccessSource;
 import com.fa26se040.icss.enums.AreaLevel;
 import com.fa26se040.icss.enums.ConfigKey;
 import com.fa26se040.icss.enums.IncidentStatus;
+import com.fa26se040.icss.enums.CameraStatus;
 import com.fa26se040.icss.enums.RequestStatus;
 import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.repository.AccessRequestRepository;
@@ -29,7 +30,10 @@ import org.springframework.stereotype.Service;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -44,6 +48,10 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class AccessDecisionService {
+
+    private static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+    private static final DateTimeFormatter TIME_DATE_FORMATTER = DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy").withZone(VN_ZONE);
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy").withZone(VN_ZONE);
 
     private final UserRepository userRepository;
     private final AreaRepository areaRepository;
@@ -77,22 +85,22 @@ public class AccessDecisionService {
 
         // 1. User
         Optional<User> userOpt = userRepository.findById(userId);
-        if (userOpt.isEmpty()) {
+        if (userOpt.isEmpty() || userOpt.get().getDeletedAt() != null) {
             return AccessDecision.denied("Người dùng không tồn tại");
         }
         User user = userOpt.get();
-        if (!Boolean.TRUE.equals(user.getIsActive()) || user.getDeletedAt() != null) {
-            return AccessDecision.denied("Người dùng đã bị vô hiệu hoá hoặc đã bị xoá");
+        if (!Boolean.TRUE.equals(user.getIsActive())) {
+            return AccessDecision.denied("Tài khoản đã bị vô hiệu hoá");
         }
 
         // 2. Area
         Optional<Area> areaOpt = areaRepository.findById(areaId);
-        if (areaOpt.isEmpty()) {
+        if (areaOpt.isEmpty() || areaOpt.get().getDeletedAt() != null) {
             return AccessDecision.denied("Khu vực không tồn tại");
         }
         Area area = areaOpt.get();
-        if (!Boolean.TRUE.equals(area.getIsActive()) || area.getDeletedAt() != null) {
-            return AccessDecision.denied("Khu vực đã ngừng hoạt động hoặc đã bị xoá");
+        if (!Boolean.TRUE.equals(area.getIsActive())) {
+            return AccessDecision.denied("Khu vực đã ngừng hoạt động");
         }
 
         // 3. Assigned Personnel còn hiệu lực tại at (validTo NULL = không hạn)
@@ -168,18 +176,30 @@ public class AccessDecisionService {
         }
 
         // 6. Phân tích nguyên nhân từ chối chi tiết (Hỗ trợ phân biệt Sai giờ vs Sai quyền)
-        // A. Kiểm tra có đơn APPROVED cho khu vực này nhưng không đúng khung thời gian (đến sớm hoặc quá hạn)
+        // A. Kiểm tra có đơn APPROVED cho khu vực này trong CÙNG NGÀY nhưng không đúng khung thời gian (đến sớm hoặc quá hạn)
         if (accessRequestRepository != null) {
+            LocalDate accessDate = at.atZoneSameInstant(VN_ZONE).toLocalDate();
             List<AccessRequest> approvedRequests = accessRequestRepository.findAnyApprovedRequestsForUser(
                     userId, areaId, RequestStatus.APPROVED);
-            if (approvedRequests != null && !approvedRequests.isEmpty()) {
-                AccessRequest ar = approvedRequests.get(0);
-                if (ar.getStartTime() != null && at.isBefore(ar.getStartTime())) {
-                    return AccessDecision.denied("Chưa tới khung giờ được cấp phép theo đơn (Bắt đầu lúc: "
-                            + ar.getStartTime().toLocalTime() + ")");
-                } else if (ar.getEndTime() != null && !at.isBefore(ar.getEndTime())) {
-                    return AccessDecision.denied("Đơn xin quyền đã hết hạn sử dụng (Đã kết thúc lúc: "
-                            + ar.getEndTime().toLocalTime() + ")");
+            if (approvedRequests != null) {
+                for (AccessRequest ar : approvedRequests) {
+                    if (ar.getStartTime() == null || ar.getEndTime() == null) {
+                        continue;
+                    }
+                    LocalDate reqStartDate = ar.getStartTime().atZoneSameInstant(VN_ZONE).toLocalDate();
+                    LocalDate reqEndDate = ar.getEndTime().atZoneSameInstant(VN_ZONE).toLocalDate();
+
+                    // Chỉ áp dụng tag sai giờ khi đơn và thời điểm truy cập diễn ra trong cùng ngày
+                    boolean isSameDay = !accessDate.isBefore(reqStartDate) && !accessDate.isAfter(reqEndDate);
+                    if (isSameDay) {
+                        if (at.isBefore(ar.getStartTime())) {
+                            return AccessDecision.denied("Chưa tới khung giờ được cấp phép theo đơn (Bắt đầu lúc: "
+                                    + TIME_DATE_FORMATTER.format(ar.getStartTime()) + ")");
+                        } else if (!at.isBefore(ar.getEndTime())) {
+                            return AccessDecision.denied("Đơn xin quyền đã hết hạn sử dụng trong ngày (Đã kết thúc lúc: "
+                                    + TIME_DATE_FORMATTER.format(ar.getEndTime()) + ")");
+                        }
+                    }
                 }
             }
         }
@@ -191,10 +211,10 @@ public class AccessDecisionService {
                 for (AreaAssignedPersonnel ap : assignmentsAll) {
                     if (ap.getUser() != null && ap.getUser().getId().equals(userId) && ap.getRevokedAt() == null) {
                         if (ap.getValidFrom() != null && at.isBefore(ap.getValidFrom())) {
-                            return AccessDecision.denied("Phân công nhân sự chưa tới ngày hiệu lực (Bắt đầu: " + ap.getValidFrom().toLocalDate() + ")");
+                            return AccessDecision.denied("Phân công nhân sự chưa tới ngày hiệu lực (Bắt đầu: " + DATE_FORMATTER.format(ap.getValidFrom()) + ")");
                         }
                         if (ap.getValidTo() != null && !at.isBefore(ap.getValidTo())) {
-                            return AccessDecision.denied("Phân công nhân sự đã hết hạn hiệu lực (Đã kết thúc: " + ap.getValidTo().toLocalDate() + ")");
+                            return AccessDecision.denied("Phân công nhân sự đã hết hạn hiệu lực (Đã kết thúc: " + DATE_FORMATTER.format(ap.getValidTo()) + ")");
                         }
                     }
                 }
@@ -265,16 +285,19 @@ public class AccessDecisionService {
         // 1. Tìm Camera và Khu vực tương ứng
         Optional<Camera> cameraOpt = cameraRepository.findByCameraCodeAndDeletedAtIsNull(cameraCode);
         if (cameraOpt.isEmpty()) {
-            return CheckCameraEntryResponse.denied(cameraCode, userCode, "Camera không tồn tại hoặc đã bị xoá");
+            return CheckCameraEntryResponse.denied(cameraCode, userCode, "Camera không tồn tại");
         }
         Camera camera = cameraOpt.get();
+        if (camera.getStatus() == CameraStatus.DECOMMISSIONED) {
+            return CheckCameraEntryResponse.denied(cameraCode, userCode, "Camera đã ngừng hoạt động (DECOMMISSIONED)");
+        }
         Area area = camera.getArea();
         if (area == null) {
             return CheckCameraEntryResponse.denied(cameraCode, userCode, "Camera chưa được gán vào khu vực hoạt động nào");
         }
         // Từ đây đã xác định được camera + khu: mọi kết quả DENIED đều gắn khu để ghi được nhật ký ra vào
         if (!Boolean.TRUE.equals(area.getIsActive()) || area.getDeletedAt() != null) {
-            CheckCameraEntryResponse inactive = deniedAtCamera(camera, area, userCode, "Camera chưa được gán vào khu vực hoạt động nào");
+            CheckCameraEntryResponse inactive = deniedAtCamera(camera, area, userCode, "Khu vực đã ngừng hoạt động");
             recordAccessLogSafely(inactive, at);
             return inactive;
         }
@@ -341,7 +364,7 @@ public class AccessDecisionService {
             }
         }
 
-        CheckCameraEntryResponse denied = deniedAtCamera(camera, area, userCode, "Người dùng không tồn tại hoặc đã bị xoá");
+        CheckCameraEntryResponse denied = deniedAtCamera(camera, area, userCode, "Người dùng không tồn tại");
         recordAccessLogSafely(denied, at);
         return denied;
     }
