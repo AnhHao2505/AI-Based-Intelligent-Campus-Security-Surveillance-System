@@ -8,12 +8,18 @@ import com.fa26se040.icss.dto.incident.IncidentResolveRequest;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.Camera;
 import com.fa26se040.icss.entity.GuardLocation;
+import com.fa26se040.icss.entity.GuardShift;
 import com.fa26se040.icss.entity.SecurityIncident;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.AccessSource;
+import com.fa26se040.icss.enums.AreaLevel;
+import com.fa26se040.icss.enums.CameraStatus;
 import com.fa26se040.icss.enums.IncidentOutcome;
 import com.fa26se040.icss.enums.IncidentStatus;
+import com.fa26se040.icss.enums.Role;
+import com.fa26se040.icss.enums.ShiftStatus;
 import com.fa26se040.icss.repository.CameraRepository;
+import com.fa26se040.icss.repository.GuardShiftRepository;
 import com.fa26se040.icss.repository.SecurityIncidentRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +30,10 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +52,7 @@ public class SecurityIncidentService {
     private final SimpMessagingTemplate messagingTemplate;
     private final GuardLocationService guardLocationService;
     private final CameraAccessLogService cameraAccessLogService;
+    private final GuardShiftRepository guardShiftRepository;
 
     @Transactional
     public IncidentDetailResponse ingestIncident(IncidentEventDto eventDto) {
@@ -53,6 +63,14 @@ public class SecurityIncidentService {
         Camera camera = cameraRepository.findByCameraCodeAndDeletedAtIsNull(eventDto.getCameraCode())
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Không tìm thấy camera với mã: " + eventDto.getCameraCode()));
+
+        // Kiểm tra trạng thái camera: Nếu camera đã ngừng hoạt động (DECOMMISSIONED) hoặc đã bị xoá mềm -> bỏ qua
+        if (camera.getStatus() == CameraStatus.DECOMMISSIONED || camera.getDeletedAt() != null) {
+            log.warn("Bỏ qua sự cố vì camera [{}] đã ngừng hoạt động (status={}, deletedAt={})",
+                    camera.getCameraCode(), camera.getStatus(), camera.getDeletedAt());
+            return null;
+        }
+
         Area area = camera.getArea();
         if (area == null) {
             log.warn("Không tìm thấy khu vực hoạt động nào liên kết với camera [{}] để ghi nhận sự cố", eventDto.getCameraCode());
@@ -80,9 +98,36 @@ public class SecurityIncidentService {
             default -> rawEventType;
         };
 
+        // Quy chuẩn an ninh khuôn viên: Khu vực Cấp 1 (PUBLIC) cho phép tự do ra vào trong giờ hoạt động
+        // -> Không tạo cảnh báo sự cố đối với người lạ (UNKNOWN_PERSON) và không cảnh báo truy cập trái phép (UNAUTHORIZED_ACCESS) trong giờ
+        boolean isPublicArea = area.getAreaLevel() == AreaLevel.PUBLIC
+                || (area.getAreaAccessLevel() != null && area.getAreaAccessLevel() <= 1);
+
+        if (isPublicArea && ("UNKNOWN_PERSON".equals(normalizedEventType) || "UNAUTHORIZED_ACCESS".equals(normalizedEventType))) {
+            log.info("Khu vực [{}] thuộc Cấp 1 (PUBLIC) - Bỏ qua cảnh báo [{}] trong giờ hoạt động bình thường.",
+                    area.getName(), normalizedEventType);
+            return null;
+        }
+
         String cleanDetails = eventDto.getDetails() != null ? eventDto.getDetails() : "";
         cleanDetails = cleanDetails.replace("[TRONG_GIO] ", "").replace("[TRONG_GIO]", "")
                 .replace("[AFTER_HOURS_PRESENCE] ", "[INTRUSION] ").replace("[AFTER_HOURS_PRESENCE]", "[INTRUSION]");
+
+        // Ngoại lệ cho cảnh báo ban đêm (INTRUSION): Trừ bảo vệ trong ca trực
+        if ("INTRUSION".equals(normalizedEventType)) {
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\((SE\\d+|GU\\d+|SEC-\\d+|[A-Z0-9_-]+)\\)").matcher(cleanDetails);
+            if (m.find()) {
+                String extractedCode = m.group(1);
+                Optional<User> uOpt = userRepository.findByUserCodeAndDeletedAtIsNull(extractedCode);
+                if (uOpt.isPresent() && uOpt.get().getRole() == Role.GUARD) {
+                    if (isGuardOnShift(uOpt.get().getId(), detectedAt, area)) {
+                        log.info("Bỏ qua cảnh báo INTRUSION ngoài giờ vì [{}] ({}) là bảo vệ đang trong ca trực.",
+                                uOpt.get().getFullName(), uOpt.get().getUserCode());
+                        return null;
+                    }
+                }
+            }
+        }
 
         SecurityIncident incident = SecurityIncident.builder()
                 .eventId(eventDto.getEventId())
@@ -308,5 +353,48 @@ public class SecurityIncidentService {
                 .evidenceImageUrl(i.getEvidenceImageUrl())
                 .radioChannel("Kênh " + (i.getBuilding() != null ? i.getBuilding() : "Chính"))
                 .build();
+    }
+
+    private boolean isGuardOnShift(UUID guardId, OffsetDateTime at, Area area) {
+        if (guardShiftRepository == null || guardId == null || at == null) {
+            return false;
+        }
+        LocalDate date = at.atZoneSameInstant(ZoneId.of("Asia/Ho_Chi_Minh")).toLocalDate();
+        LocalTime time = at.atZoneSameInstant(ZoneId.of("Asia/Ho_Chi_Minh")).toLocalTime();
+
+        List<GuardShift> candidateShifts = guardShiftRepository
+                .findByGuardIdAndShiftDateBetweenOrderByShiftDateAscStartTimeAsc(
+                        guardId, date.minusDays(1), date);
+
+        for (GuardShift shift : candidateShifts) {
+            if (shift.getStatus() == ShiftStatus.SCHEDULED || shift.getStatus() == ShiftStatus.CHECKED_IN) {
+                if (shift.getArea() != null && area != null && !shift.getArea().getId().equals(area.getId())) {
+                    boolean isPublic = area.getAreaLevel() == AreaLevel.PUBLIC
+                            || (area.getAreaAccessLevel() != null && area.getAreaAccessLevel() <= 1);
+                    if (!isPublic) {
+                        continue;
+                    }
+                }
+
+                LocalTime start = shift.getStartTime();
+                LocalTime end = shift.getEndTime();
+                LocalDate shiftDate = shift.getShiftDate();
+
+                if (start != null && end != null) {
+                    if (!start.isAfter(end)) {
+                        if (shiftDate.equals(date) && !time.isBefore(start) && !time.isAfter(end)) {
+                            return true;
+                        }
+                    } else {
+                        if (shiftDate.equals(date) && !time.isBefore(start)) {
+                            return true;
+                        } else if (shiftDate.equals(date.minusDays(1)) && !time.isAfter(end)) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        return false;
     }
 }

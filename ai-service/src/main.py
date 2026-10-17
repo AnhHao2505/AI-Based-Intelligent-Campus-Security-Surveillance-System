@@ -37,6 +37,71 @@ app.add_middleware(
 # Pipeline mặc định cho Camera 1
 default_pipeline: Optional[VideoPipeline] = None
 
+async def sync_ai_config_from_backend(max_retries: int = 10, retry_delay: float = 3.0):
+    """
+    Tự động kéo cấu hình an ninh và runtime mới nhất từ Backend CSDL khi khởi động.
+    Tránh lệch ngưỡng giữa AI service và Database khi restart hoặc demo sau khi bật máy.
+    """
+    backend_url = getattr(settings, "BACKEND_API_URL", "http://localhost:8080").rstrip("/")
+    endpoint = f"{backend_url}/api/access-control/ai-runtime-config"
+    for attempt in range(1, max_retries + 1):
+        try:
+            import requests
+            resp = requests.get(endpoint, timeout=3.0)
+            if resp.status_code == 200:
+                body = resp.json()
+                data = body.get("data", {})
+                if data:
+                    threshold = data.get("face_match_threshold")
+                    ah_start = data.get("after_hour_start")
+                    ah_end = data.get("after_hour_end")
+                    max_inactive = data.get("max_inactive_seconds")
+                    cooldown = data.get("unknown_alert_cooldown")
+
+                    if threshold is not None:
+                        settings.FACE_MATCH_THRESHOLD = float(threshold)
+                    if ah_start:
+                        settings.DEFAULT_AFTER_HOUR_START = str(ah_start)
+                    if ah_end:
+                        settings.DEFAULT_AFTER_HOUR_END = str(ah_end)
+                    if max_inactive is not None:
+                        settings.DEFAULT_TRACK_MAX_INACTIVE_SECONDS = float(max_inactive)
+                    if cooldown is not None:
+                        settings.DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS = float(cooldown)
+
+                    if default_pipeline:
+                        if ah_start:
+                            default_pipeline.analysis_engine.after_hour_start = settings.DEFAULT_AFTER_HOUR_START
+                        if ah_end:
+                            default_pipeline.analysis_engine.after_hour_end = settings.DEFAULT_AFTER_HOUR_END
+                        if max_inactive is not None:
+                            default_pipeline.analysis_engine.max_inactive_seconds = settings.DEFAULT_TRACK_MAX_INACTIVE_SECONDS
+                        if cooldown is not None:
+                            default_pipeline.analysis_engine.unknown_alert_cooldown = settings.DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS
+
+                    for worker in active_workers.values():
+                        worker.update_runtime_config(
+                            max_inactive_seconds=settings.DEFAULT_TRACK_MAX_INACTIVE_SECONDS,
+                            unknown_alert_cooldown=settings.DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS
+                        )
+                        if ah_start or ah_end:
+                            worker.update_roi(
+                                after_hour_start=settings.DEFAULT_AFTER_HOUR_START,
+                                after_hour_end=settings.DEFAULT_AFTER_HOUR_END
+                            )
+
+                    logger.info(
+                        f"✅ Đồng bộ cấu hình AI thành công từ Backend: threshold={settings.FACE_MATCH_THRESHOLD}, "
+                        f"after_hours={settings.DEFAULT_AFTER_HOUR_START}-{settings.DEFAULT_AFTER_HOUR_END}, "
+                        f"max_inactive={settings.DEFAULT_TRACK_MAX_INACTIVE_SECONDS}s, cooldown={settings.DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS}s"
+                    )
+                    return True
+        except Exception as e:
+            logger.debug(f"Thử kéo cấu hình từ Backend (lần {attempt}/{max_retries}) chưa thành công: {e}")
+        await asyncio.sleep(retry_delay)
+    logger.warning("⚠️ Không thể kết nối Backend để lấy cấu hình runtime, sử dụng cấu hình mặc định cục bộ.")
+    return False
+
 @app.on_event("startup")
 async def startup_event():
     global default_pipeline
@@ -47,6 +112,7 @@ async def startup_event():
         )
     except Exception as e:
         print(f"[!] Cảnh báo khi khởi tạo pipeline: {e}")
+    asyncio.create_task(sync_ai_config_from_backend())
 
 @app.get("/")
 async def root():

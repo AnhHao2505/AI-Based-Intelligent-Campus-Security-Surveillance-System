@@ -15,6 +15,7 @@ import com.fa26se040.icss.entity.Camera;
 import com.fa26se040.icss.repository.CameraRepository;
 import com.fa26se040.icss.repository.SecurityIncidentRepository;
 import com.fa26se040.icss.repository.UserRepository;
+import com.fa26se040.icss.repository.GuardShiftRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -50,6 +51,12 @@ class SecurityIncidentServiceTest {
 
     @Mock
     private CameraAccessLogService cameraAccessLogService;
+
+    @Mock
+    private GuardLocationService guardLocationService;
+
+    @Mock
+    private GuardShiftRepository guardShiftRepository;
 
     @InjectMocks
     private SecurityIncidentService incidentService;

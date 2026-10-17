@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.Optional;
@@ -32,6 +33,8 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 @Slf4j
 public class CameraAccessLogService {
+
+    private static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     private final CameraAccessLogRepository cameraAccessLogRepository;
     private final AreaRepository areaRepository;
@@ -131,7 +134,7 @@ public class CameraAccessLogService {
         String userCode = entryResponse.getUserCode() != null ? entryResponse.getUserCode() : "";
 
         // 1. Kiểm tra Ngoài giờ (INTRUSION): Ban đêm (22:00 - 06:00) hoặc sự cố ngoài giờ / đột nhập
-        int hour = at.getHour();
+        int hour = at.atZoneSameInstant(VN_ZONE).getHour();
         if (hour >= 22 || hour < 6 || reason.contains("ngoài giờ") || reason.contains("after_hours") || reason.contains("đột nhập") || reason.contains("intrusion")) {
             return AccessResult.INTRUSION;
         }
@@ -141,9 +144,9 @@ public class CameraAccessLogService {
             return AccessResult.ACCESS_OUT_OF_TIME;
         }
 
-        // 3. Kiểm tra Người lạ (UNKNOWN_PERSON): Chưa rõ mặt, không có tài khoản, hoặc gắn cờ UNKNOWN
+        // 3. Kiểm tra Người lạ (UNKNOWN_PERSON): Chưa rõ mặt, không có tài khoản, đã bị xoá, hoặc gắn cờ UNKNOWN
         boolean isGuest = userCode.startsWith("GUEST-");
-        if ((!userExists && !isGuest) || reason.contains("người dùng không tồn tại") || userCode.startsWith("UNKNOWN") || reason.contains("chưa rõ mặt") || reason.contains("người lạ")) {
+        if ((!userExists && !isGuest) || reason.contains("người dùng không tồn tại") || reason.contains("đã bị xoá") || userCode.startsWith("UNKNOWN") || reason.contains("chưa rõ mặt") || reason.contains("người lạ")) {
             return AccessResult.UNKNOWN_PERSON;
         }
 
