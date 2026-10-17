@@ -5,14 +5,21 @@ import com.fa26se040.icss.dto.incident.IncidentDetailResponse;
 import com.fa26se040.icss.dto.incident.IncidentEventDto;
 import com.fa26se040.icss.dto.incident.IncidentResolveRequest;
 import com.fa26se040.icss.entity.Area;
+import com.fa26se040.icss.entity.GuardLocation;
+import com.fa26se040.icss.entity.GuardShift;
+import com.fa26se040.icss.entity.IncidentEscalation;
 import com.fa26se040.icss.entity.SecurityIncident;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.IncidentOutcome;
 import com.fa26se040.icss.enums.IncidentResolutionCategory;
 import com.fa26se040.icss.enums.IncidentStatus;
 import com.fa26se040.icss.enums.Role;
+import com.fa26se040.icss.enums.ShiftStatus;
+import com.fa26se040.icss.enums.ShiftType;
 import com.fa26se040.icss.entity.Camera;
 import com.fa26se040.icss.repository.CameraRepository;
+import com.fa26se040.icss.repository.IncidentEscalationRepository;
+import com.fa26se040.icss.repository.OnDutyGuardQueryRepository;
 import com.fa26se040.icss.repository.SecurityIncidentRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import com.fa26se040.icss.repository.GuardShiftRepository;
@@ -20,13 +27,17 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -52,11 +63,18 @@ class SecurityIncidentServiceTest {
     @Mock
     private CameraAccessLogService cameraAccessLogService;
 
+    // Không còn là dependency của SecurityIncidentService (BR-IE-02 bỏ geofence); giữ mock để chứng minh không được gọi
     @Mock
     private GuardLocationService guardLocationService;
 
     @Mock
     private GuardShiftRepository guardShiftRepository;
+
+    @Mock
+    private IncidentRecipientResolver incidentRecipientResolver;
+
+    @Mock
+    private IncidentEscalationRepository incidentEscalationRepository;
 
     @InjectMocks
     private SecurityIncidentService incidentService;
@@ -134,6 +152,162 @@ class SecurityIncidentServiceTest {
 
         assertTrue(ex.getMessage().contains("chưa được gán vào khu vực hoạt động"));
         verify(incidentRepository, never()).save(any());
+    }
+
+    // ===== BR-IE-01 / BR-IE-02 / BR-IE-03: gửi bảo vệ đang trực + tạo bản ghi leo thang =====
+
+    private static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+
+    private IncidentEventDto alertEvent() {
+        return IncidentEventDto.builder()
+                .eventId("EVT-IE")
+                .cameraCode("CAM-001")
+                .eventType("UNAUTHORIZED_ENTRY")
+                .imageUrl("http://minio:9000/security-evidence/snap.jpg")
+                .build();
+    }
+
+    private void stubCameraAndSave() {
+        when(cameraRepository.findByCameraCodeAndDeletedAtIsNull("CAM-001"))
+                .thenReturn(Optional.of(Camera.builder().cameraCode("CAM-001").area(area).build()));
+        when(incidentRepository.save(any())).thenReturn(incident);
+    }
+
+    private static User guard(String name) {
+        return User.builder().id(UUID.randomUUID()).fullName(name).email(UUID.randomUUID() + "@fpt.edu.vn").role(Role.GUARD).build();
+    }
+
+    /** Ca CHECKED_IN từ start tới end (giờ Việt Nam); qua nửa đêm thì end &lt; start như dữ liệu thật. */
+    private static GuardShift checkedInShift(User guard, LocalDateTime start, LocalDateTime end) {
+        return GuardShift.builder()
+                .id(UUID.randomUUID())
+                .guard(guard)
+                .shiftDate(start.toLocalDate())
+                .shiftType(ShiftType.SHIFT_MORNING)
+                .startTime(start.toLocalTime())
+                .endTime(end.toLocalTime())
+                .status(ShiftStatus.CHECKED_IN)
+                .build();
+    }
+
+    private static String guardTopic(User guard) {
+        return "/topic/guards/" + guard.getId() + "/alerts";
+    }
+
+    @Test
+    @DisplayName("BR-IE-01: gửi kênh riêng của từng bảo vệ đang trực, payload giữ nguyên")
+    void ingest_dispatchesToEveryOnDutyGuardTopic() {
+        stubCameraAndSave();
+        User guardA = guard("Bảo vệ A");
+        User guardB = guard("Bảo vệ B");
+        when(incidentRecipientResolver.findOnDutyGuards(any())).thenReturn(List.of(guardA, guardB));
+
+        IncidentDetailResponse result = incidentService.ingestIncident(alertEvent());
+
+        verify(messagingTemplate).convertAndSend(eq(guardTopic(guardA)), same((Object) result));
+        verify(messagingTemplate).convertAndSend(eq(guardTopic(guardB)), same((Object) result));
+    }
+
+    @Test
+    @DisplayName("BR-IE-03: tạo đúng 1 bản ghi leo thang, guard_recipient_count = số bảo vệ đã gửi")
+    void ingest_createsOneEscalationWithRecipientCount() {
+        stubCameraAndSave();
+        when(incidentRecipientResolver.findOnDutyGuards(any())).thenReturn(List.of(guard("A"), guard("B")));
+
+        incidentService.ingestIncident(alertEvent());
+
+        ArgumentCaptor<IncidentEscalation> captor = ArgumentCaptor.forClass(IncidentEscalation.class);
+        verify(incidentEscalationRepository, times(1)).save(captor.capture());
+        IncidentEscalation escalation = captor.getValue();
+        assertSame(incident, escalation.getIncident());
+        assertEquals(2, escalation.getGuardRecipientCount());
+        assertNotNull(escalation.getGuardsNotifiedAt());
+        assertNull(escalation.getClosedAt());
+        assertNull(escalation.getFmEscalatedAt());
+    }
+
+    @Test
+    @DisplayName("BR-IE-02: bảo vệ hết ca (quên trả ca) nhưng còn vị trí trong geofence -> KHÔNG nhận")
+    void ingest_guardOffShiftInsideGeofence_notNotified() {
+        stubCameraAndSave();
+        User onDuty = guard("Bảo vệ đang trực");
+        User offShift = guard("Bảo vệ hết ca");
+        LocalDateTime nowVn = LocalDateTime.now(VN_ZONE);
+        OnDutyGuardQueryRepository shiftQuery = mock(OnDutyGuardQueryRepository.class);
+        when(shiftQuery.findByStatusAndShiftDateBetween(eq(ShiftStatus.CHECKED_IN), any(), any())).thenReturn(List.of(
+                checkedInShift(onDuty, nowVn.minusHours(1), nowVn.plusHours(1)),
+                checkedInShift(offShift, nowVn.minusHours(3), nowVn.minusHours(1))));
+        // Geofence vẫn thấy cả hai trong khuôn viên — không còn được dùng để chọn người nhận
+        lenient().when(guardLocationService.findGuardsInsideCampus()).thenReturn(List.of(
+                GuardLocation.builder().guard(onDuty).build(),
+                GuardLocation.builder().guard(offShift).build()));
+        SecurityIncidentService service = new SecurityIncidentService(incidentRepository, cameraRepository, userRepository,
+                messagingTemplate, cameraAccessLogService, guardShiftRepository,
+                new IncidentRecipientResolver(shiftQuery), incidentEscalationRepository);
+
+        IncidentDetailResponse result = service.ingestIncident(alertEvent());
+
+        verify(messagingTemplate).convertAndSend(eq(guardTopic(onDuty)), same((Object) result));
+        verify(messagingTemplate, never()).convertAndSend(eq(guardTopic(offShift)), any(Object.class));
+        verifyNoInteractions(guardLocationService);
+        ArgumentCaptor<IncidentEscalation> captor = ArgumentCaptor.forClass(IncidentEscalation.class);
+        verify(incidentEscalationRepository).save(captor.capture());
+        assertEquals(1, captor.getValue().getGuardRecipientCount());
+    }
+
+    @Test
+    @DisplayName("BR-IE-01: topic toà nhà và /topic/security-alerts vẫn gửi như cũ")
+    void ingest_buildingAndGlobalTopicsUnchanged() {
+        stubCameraAndSave();
+        when(incidentRecipientResolver.findOnDutyGuards(any())).thenReturn(List.of(guard("A")));
+
+        IncidentDetailResponse result = incidentService.ingestIncident(alertEvent());
+
+        verify(messagingTemplate, times(1)).convertAndSend(eq("/topic/buildings/TOA_ALPHA/alerts"), same((Object) result));
+        verify(messagingTemplate, times(1)).convertAndSend(eq("/topic/security-alerts"), same((Object) result));
+    }
+
+    @Test
+    @DisplayName("Không có bảo vệ đang trực -> vẫn tạo bản ghi leo thang với 0 người nhận (BR-IE-05)")
+    void ingest_noOnDutyGuard_escalationWithZeroRecipients() {
+        stubCameraAndSave();
+        when(incidentRecipientResolver.findOnDutyGuards(any())).thenReturn(List.of());
+
+        incidentService.ingestIncident(alertEvent());
+
+        ArgumentCaptor<IncidentEscalation> captor = ArgumentCaptor.forClass(IncidentEscalation.class);
+        verify(incidentEscalationRepository).save(captor.capture());
+        assertEquals(0, captor.getValue().getGuardRecipientCount());
+        verify(messagingTemplate, never()).convertAndSend(startsWith("/topic/guards/"), any(Object.class));
+    }
+
+    @Test
+    @DisplayName("Resolver lỗi -> sự cố vẫn tạo, bản ghi leo thang 0 người nhận để FM nhận ở lần chạy kế")
+    void ingest_resolverFails_incidentStillCreated() {
+        stubCameraAndSave();
+        when(incidentRecipientResolver.findOnDutyGuards(any())).thenThrow(new IllegalStateException("resolver hỏng"));
+
+        IncidentDetailResponse result = incidentService.ingestIncident(alertEvent());
+
+        assertNotNull(result);
+        ArgumentCaptor<IncidentEscalation> captor = ArgumentCaptor.forClass(IncidentEscalation.class);
+        verify(incidentEscalationRepository).save(captor.capture());
+        assertEquals(0, captor.getValue().getGuardRecipientCount());
+        verify(messagingTemplate).convertAndSend(eq("/topic/security-alerts"), same((Object) result));
+    }
+
+    @Test
+    @DisplayName("Lưu bản ghi leo thang lỗi (tầng Java) -> sự cố vẫn trả về, topic toà nhà / toàn cục vẫn gửi")
+    void ingest_escalationSaveFails_incidentStillReturned() {
+        stubCameraAndSave();
+        when(incidentRecipientResolver.findOnDutyGuards(any())).thenReturn(List.of(guard("A")));
+        when(incidentEscalationRepository.save(any())).thenThrow(new IllegalStateException("lưu lỗi"));
+
+        IncidentDetailResponse result = incidentService.ingestIncident(alertEvent());
+
+        assertNotNull(result);
+        verify(messagingTemplate).convertAndSend(eq("/topic/buildings/TOA_ALPHA/alerts"), same((Object) result));
+        verify(messagingTemplate).convertAndSend(eq("/topic/security-alerts"), same((Object) result));
     }
 
     @Test
