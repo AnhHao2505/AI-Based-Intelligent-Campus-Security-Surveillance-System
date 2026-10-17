@@ -13,6 +13,7 @@ import com.fa26se040.icss.repository.BuildingRepository;
 import com.fa26se040.icss.repository.CameraAccessLogRepository;
 import com.fa26se040.icss.repository.CameraRepository;
 import com.fa26se040.icss.repository.FloorRepository;
+import com.fa26se040.icss.security.InternalServiceKeyFilter;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
@@ -20,6 +21,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
@@ -54,6 +56,7 @@ class CheckEntryAccessLogIntegrationTest extends AbstractIntegrationTest {
     @Autowired private CameraRepository cameraRepository;
     @Autowired private JdbcTemplate jdbc;
     @SpyBean private CameraAccessLogRepository cameraAccessLogRepository;
+    @Value("${icss.internal.service-key}") private String serviceKey;
 
     /**
      * Thời điểm cố định 10:00 giờ VN gửi trong trường timestamp của request: CameraAccessLogService xếp mọi lượt
@@ -102,6 +105,7 @@ class CheckEntryAccessLogIntegrationTest extends AbstractIntegrationTest {
 
     private MvcResult checkEntry(String userCode) throws Exception {
         return mockMvc.perform(post("/api/access-control/check-entry")
+                        .header(InternalServiceKeyFilter.HEADER, serviceKey)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "cameraCode", camera.getCameraCode(),

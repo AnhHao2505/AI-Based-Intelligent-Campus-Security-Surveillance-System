@@ -9,6 +9,7 @@ import com.fa26se040.icss.entity.Camera;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.AccessSource;
 import com.fa26se040.icss.enums.AreaLevel;
+import com.fa26se040.icss.enums.CameraStatus;
 import com.fa26se040.icss.enums.RequestStatus;
 import com.fa26se040.icss.enums.RequestType;
 import com.fa26se040.icss.enums.Role;
@@ -33,6 +34,7 @@ import java.util.stream.Stream;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -86,9 +88,6 @@ class AccessDecisionServiceTest {
 
     @Mock
     private CameraAccessLogService cameraAccessLogService;
-
-    @Mock
-    private com.fa26se040.icss.repository.GuardShiftRepository guardShiftRepository;
 
     @InjectMocks
     private AccessDecisionService accessDecisionService;
@@ -885,5 +884,112 @@ class AccessDecisionServiceTest {
         assertEquals("CAM-01", res.getCameraCode());
         assertEquals(AccessSource.NONE, res.getSource());
         assertTrue(res.getReason().contains("không nằm trong danh sách tiếp đón"));
+    }
+
+    // ===================== Sai giờ chỉ xét đơn cùng ngày (giờ VN) + camera DECOMMISSIONED =====================
+
+    private static final String EXPLICIT_DENY = "Khu vực yêu cầu chỉ định đích danh (cần đơn xin quyền hoặc được phân công)";
+
+    // Giả lập đúng điều kiện JPQL findAnyApprovedRequestsForUser (mọi đơn APPROVED của user tại khu, startTime giảm dần)
+    private void stubAnyApprovedRequests() {
+        lenient().when(accessRequestRepository.findAnyApprovedRequestsForUser(any(), any(), any())).thenAnswer(inv -> {
+            UUID userId = inv.getArgument(0);
+            UUID areaId = inv.getArgument(1);
+            RequestStatus status = inv.getArgument(2);
+            return requests.stream()
+                    .filter(r -> r.getArea().getId().equals(areaId))
+                    .filter(r -> r.getStatus() == status)
+                    .filter(r -> r.getRequester().getId().equals(userId)
+                            || r.getMembers().stream().anyMatch(m -> m.getUser().getId().equals(userId)))
+                    .sorted(Comparator.comparing(AccessRequest::getStartTime).reversed())
+                    .toList();
+        });
+    }
+
+    @Test
+    @DisplayName("SD-01: Đơn APPROVED 08:00–10:00 hôm nay, lúc 07:00 → deny \"Chưa tới khung giờ…\"")
+    void sd01_sameDayBeforeStart_NotYetStarted() {
+        stubAnyApprovedRequests();
+        request(student, RequestStatus.APPROVED, at(8), at(10));
+
+        AccessDecision d = accessDecisionService.checkEntry(student.getId(), lab.getId(), at(7));
+
+        assertFalse(d.allowed());
+        assertEquals(AccessSource.NONE, d.source());
+        assertEquals("Chưa tới khung giờ được cấp phép theo đơn (Bắt đầu lúc: 08:00 05/10/2026)", d.reason());
+    }
+
+    @Test
+    @DisplayName("SD-02: Đơn APPROVED 08:00–10:00 hôm nay, lúc 11:00 → deny \"…hết hạn sử dụng trong ngày…\"")
+    void sd02_sameDayAfterEnd_ExpiredToday() {
+        stubAnyApprovedRequests();
+        request(student, RequestStatus.APPROVED, at(8), at(10));
+
+        AccessDecision d = accessDecisionService.checkEntry(student.getId(), lab.getId(), at(11));
+
+        assertFalse(d.allowed());
+        assertEquals("Đơn xin quyền đã hết hạn sử dụng trong ngày (Đã kết thúc lúc: 10:00 05/10/2026)", d.reason());
+    }
+
+    @Test
+    @DisplayName("SD-03: Đơn APPROVED của hôm qua, vào hôm nay → deny thường, không gắn nhãn sai giờ")
+    void sd03_yesterdayRequest_PlainDeny() {
+        stubAnyApprovedRequests();
+        request(student, RequestStatus.APPROVED, at(8).minusDays(1), at(10).minusDays(1));
+
+        AccessDecision d = accessDecisionService.checkEntry(student.getId(), lab.getId(), at(11));
+
+        assertFalse(d.allowed());
+        assertEquals(AccessSource.NONE, d.source());
+        assertEquals(EXPLICIT_DENY, d.reason());
+    }
+
+    @Test
+    @DisplayName("SD-04: Đơn hôm qua + đơn hôm nay 14:00–16:00, lúc 13:00 → chọn đơn hôm nay, \"Chưa tới khung giờ\"")
+    void sd04_picksTodayRequest() {
+        stubAnyApprovedRequests();
+        request(student, RequestStatus.APPROVED, at(8).minusDays(1), at(10).minusDays(1));
+        request(student, RequestStatus.APPROVED, at(14), at(16));
+
+        AccessDecision d = accessDecisionService.checkEntry(student.getId(), lab.getId(), at(13));
+        assertEquals("Chưa tới khung giờ được cấp phép theo đơn (Bắt đầu lúc: 14:00 05/10/2026)", d.reason());
+
+        // Thêm đơn ngày mai (đứng đầu theo startTime giảm dần) → vẫn chọn đơn hôm nay
+        request(student, RequestStatus.APPROVED, at(8).plusDays(1), at(10).plusDays(1));
+        AccessDecision withTomorrow = accessDecisionService.checkEntry(student.getId(), lab.getId(), at(13));
+        assertEquals("Chưa tới khung giờ được cấp phép theo đơn (Bắt đầu lúc: 14:00 05/10/2026)", withTomorrow.reason());
+    }
+
+    @Test
+    @DisplayName("SD-05: at = 23:30 UTC (= 06:30 VN hôm sau) → xét theo ngày VN")
+    void sd05_vietnamCalendarDay() {
+        stubAnyApprovedRequests();
+        OffsetDateTime utc2330 = OffsetDateTime.of(2026, 10, 5, 23, 30, 0, 0, ZoneOffset.UTC); // 06/10 06:30 giờ VN
+
+        // Đơn 06/10 08:00–10:00 giờ VN: cùng ngày VN với at (khác ngày UTC) → "Chưa tới khung giờ"
+        request(student, RequestStatus.APPROVED, at(8).plusDays(1), at(10).plusDays(1));
+        AccessDecision d = accessDecisionService.checkEntry(student.getId(), lab.getId(), utc2330);
+        assertEquals("Chưa tới khung giờ được cấp phép theo đơn (Bắt đầu lúc: 08:00 06/10/2026)", d.reason());
+
+        // Đơn 05/10 20:00–22:00 giờ VN: cùng ngày UTC với at nhưng khác ngày VN → không gắn nhãn sai giờ
+        requests.clear();
+        request(student, RequestStatus.APPROVED, at(20), at(22));
+        AccessDecision other = accessDecisionService.checkEntry(student.getId(), lab.getId(), utc2330);
+        assertEquals(EXPLICIT_DENY, other.reason());
+    }
+
+    @Test
+    @DisplayName("DC-01: Camera DECOMMISSIONED → deny, không xét người dùng, không ghi nhật ký")
+    void dc01_decommissionedCamera_DeniedWithoutLog() {
+        Camera cam = Camera.builder().cameraCode("CAM-01").status(CameraStatus.DECOMMISSIONED).area(lab).build();
+        when(cameraRepository.findByCameraCodeAndDeletedAtIsNull("CAM-01")).thenReturn(Optional.of(cam));
+
+        var res = accessDecisionService.checkCameraEntry("CAM-01", "GV001", at(9));
+
+        assertFalse(res.isAllowed());
+        assertEquals(AccessSource.NONE, res.getSource());
+        assertEquals("Camera đã ngừng hoạt động (DECOMMISSIONED)", res.getReason());
+        verify(userRepository, never()).findByUserCodeAndDeletedAtIsNull(any());
+        verify(cameraAccessLogService, never()).recordAccessLog(any(), any());
     }
 }
