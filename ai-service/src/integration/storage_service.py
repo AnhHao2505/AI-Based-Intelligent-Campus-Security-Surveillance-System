@@ -151,10 +151,9 @@ class StorageService:
                     length=len(file_bytes),
                     content_type="image/jpeg"
                 )
-                schema = "https" if settings.MINIO_SECURE else "http"
-                minio_url = f"{schema}://{settings.MINIO_ENDPOINT}/{self.bucket_evidence}/{object_name}"
-                logger.info(f"[MINIO] Đã lưu ảnh bằng chứng vi phạm: {minio_url}")
-                return minio_url
+                object_key = f"{self.bucket_evidence}/{object_name}"
+                logger.info(f"[MINIO] Đã lưu ảnh bằng chứng vi phạm: {object_key}")
+                return object_key
             except Exception as e:
                 logger.error(f"[MINIO LỖI] Upload bằng chứng thất bại: {e}")
 
