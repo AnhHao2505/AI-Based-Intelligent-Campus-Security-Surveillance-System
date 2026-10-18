@@ -52,7 +52,11 @@ public enum ConfigKey {
     // BR-GD-02 / BR-GD-03 (V79): bảo vệ đã tiếp nhận sự cố được vào khu có sự cố trong N phút kể từ lúc tiếp nhận;
     // xử lý xong thì còn thời gian ân hạn để rời khu (không vượt quá N phút)
     GUARD_INCIDENT_ACCESS_MINUTES("GUARD_INCIDENT_ACCESS_MINUTES", "30"),
-    GUARD_INCIDENT_EXIT_GRACE_MINUTES("GUARD_INCIDENT_EXIT_GRACE_MINUTES", "5");
+    GUARD_INCIDENT_EXIT_GRACE_MINUTES("GUARD_INCIDENT_EXIT_GRACE_MINUTES", "5"),
+    // BR-IE-04 / BR-IE-08 / BR-IE-09 (V80): sự cố còn NEW sau N phút kể từ lúc tạo thì báo FM;
+    // chu kỳ job kiểm tra leo thang, đọc lại trước mỗi lần chạy
+    INCIDENT_ESCALATE_FM_MINUTES("INCIDENT_ESCALATE_FM_MINUTES", "5"),
+    INCIDENT_ESCALATION_CHECK_SECONDS("INCIDENT_ESCALATION_CHECK_SECONDS", "30");
 
     private final String key;
     private final String defaultValue;

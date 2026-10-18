@@ -7,8 +7,8 @@ import com.fa26se040.icss.dto.incident.IncidentEventDto;
 import com.fa26se040.icss.dto.incident.IncidentResolveRequest;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.Camera;
-import com.fa26se040.icss.entity.GuardLocation;
 import com.fa26se040.icss.entity.GuardShift;
+import com.fa26se040.icss.entity.IncidentEscalation;
 import com.fa26se040.icss.entity.SecurityIncident;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.AccessSource;
@@ -20,6 +20,7 @@ import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.enums.ShiftStatus;
 import com.fa26se040.icss.repository.CameraRepository;
 import com.fa26se040.icss.repository.GuardShiftRepository;
+import com.fa26se040.icss.repository.IncidentEscalationRepository;
 import com.fa26se040.icss.repository.SecurityIncidentRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -50,9 +51,10 @@ public class SecurityIncidentService {
     private final CameraRepository cameraRepository;
     private final UserRepository userRepository;
     private final SimpMessagingTemplate messagingTemplate;
-    private final GuardLocationService guardLocationService;
     private final CameraAccessLogService cameraAccessLogService;
     private final GuardShiftRepository guardShiftRepository;
+    private final IncidentRecipientResolver incidentRecipientResolver;
+    private final IncidentEscalationRepository incidentEscalationRepository;
 
     @Transactional
     public IncidentDetailResponse ingestIncident(IncidentEventDto eventDto) {
@@ -185,24 +187,40 @@ public class SecurityIncidentService {
         }
 
         // 2. Real-time WebSocket dispatching
-        // A. Dispatch targeted alerts only to guards currently inside the campus geofence
-        if (guardLocationService != null) {
-            try {
-                List<GuardLocation> guardsInCampus = guardLocationService.findGuardsInsideCampus();
-                log.info("Incident [{}] in area [{}] (Building: [{}]): Found [{}] guards inside campus geofence to notify",
-                        saved.getId(), area.getName(), building, guardsInCampus.size());
+        // A. BR-IE-01 / BR-IE-02: gửi riêng mọi bảo vệ đang trực (ca CHECKED_IN, trong khung giờ), không dùng geofence.
+        //    BR-IE-03: tạo 1 bản ghi leo thang cùng transaction, đếm số bảo vệ đã gửi được.
+        //    Resolver lỗi -> vẫn tạo bản ghi với 0 người nhận để job báo FM ở lần chạy kế (BR-IE-05).
+        //    Lỗi SQL trong transaction này làm cả transaction rollback (kể cả sự cố) — try/catch chỉ chặn lỗi tầng Java.
+        List<User> onDutyGuards = List.of();
+        try {
+            onDutyGuards = incidentRecipientResolver.findOnDutyGuards(detectedAt);
+        } catch (Exception e) {
+            log.error("Lỗi khi tìm bảo vệ đang trực cho sự cố [{}]: {}", saved.getId(), e.getMessage(), e);
+        }
+        log.info("Incident [{}] in area [{}] (Building: [{}]): Found [{}] on-duty guards to notify",
+                saved.getId(), area.getName(), building, onDutyGuards.size());
 
-                for (GuardLocation guardLoc : guardsInCampus) {
-                    if (guardLoc.getGuard() != null && guardLoc.getGuard().getId() != null) {
-                        String guardTopic = "/topic/guards/" + guardLoc.getGuard().getId() + "/alerts";
-                        messagingTemplate.convertAndSend(guardTopic, response);
-                        log.info("Dispatched incident [{}] to guard [{}] ({}) at topic [{}]",
-                                saved.getId(), guardLoc.getGuard().getFullName(), guardLoc.getGuard().getEmail(), guardTopic);
-                    }
-                }
+        int guardRecipientCount = 0;
+        for (User guard : onDutyGuards) {
+            String guardTopic = "/topic/guards/" + guard.getId() + "/alerts";
+            try {
+                messagingTemplate.convertAndSend(guardTopic, response);
+                guardRecipientCount++;
+                log.info("Dispatched incident [{}] to guard [{}] ({}) at topic [{}]",
+                        saved.getId(), guard.getFullName(), guard.getEmail(), guardTopic);
             } catch (Exception e) {
-                log.error("Lỗi khi điều phối cảnh báo tới các bảo vệ trong geofence: {}", e.getMessage(), e);
+                log.error("Lỗi khi gửi cảnh báo sự cố [{}] tới [{}]: {}", saved.getId(), guardTopic, e.getMessage(), e);
             }
+        }
+
+        try {
+            incidentEscalationRepository.save(IncidentEscalation.builder()
+                    .incident(saved)
+                    .guardsNotifiedAt(OffsetDateTime.now())
+                    .guardRecipientCount(guardRecipientCount)
+                    .build());
+        } catch (Exception e) {
+            log.error("Không tạo được bản ghi leo thang cho sự cố [{}]: {}", saved.getId(), e.getMessage(), e);
         }
 
         // B. Building-scoped topic (for web dashboard & monitoring)

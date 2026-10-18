@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
  * <ul>
  *   <li>/topic/security-alerts — SecurityIncidentService.createIncident (sự cố mới, broadcast toàn cục)</li>
  *   <li>/topic/buildings/{BUILDING}/alerts — SecurityIncidentService.createIncident (sự cố mới theo toà nhà)</li>
- *   <li>/topic/guards/{guardUserId}/alerts — SecurityIncidentService.createIncident (gửi riêng bảo vệ đang trong geofence)</li>
+ *   <li>/topic/guards/{guardUserId}/alerts — SecurityIncidentService.createIncident (gửi riêng bảo vệ đang trực — on-duty guards, BR-IE-02)</li>
  *   <li>/topic/incidents/updates — SecurityIncidentService (claim / resolve sự cố)</li>
  *   <li>/topic/guards/locations — GuardLocationService (vị trí bảo vệ realtime)</li>
  *   <li>/topic/campus/geofence — CampusGeofenceService (cập nhật geofence)</li>

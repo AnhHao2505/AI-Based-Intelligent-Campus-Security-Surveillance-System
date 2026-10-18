@@ -29,5 +29,7 @@ public enum NotificationType {
     ACCESS_PERMISSION_REVOKED,
     GUEST_VISIT_CANCELLED_BY_SYSTEM,
     // B-03 (BR-RQ-46, V70): FM chuyển đơn đã duyệt sang Hoàn thành
-    REQUEST_FINISHED
+    REQUEST_FINISHED,
+    // BR-IE-04 (V80): sự cố quá hạn chưa bảo vệ nào tiếp nhận -> báo FM
+    INCIDENT_ESCALATED
 }

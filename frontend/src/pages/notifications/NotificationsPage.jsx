@@ -22,7 +22,8 @@ import {
   UserMinus,
   CalendarOff,
   CheckCheck,
-  ShieldCheck
+  ShieldCheck,
+  ShieldAlert
 } from 'lucide-react';
 import { notificationService } from '../../services/notificationService';
 import { useAuth } from '../../context/AuthContext';
@@ -88,6 +89,11 @@ export default function NotificationsPage() {
       } catch (err) {
         console.error('Lỗi khi đánh dấu đã đọc thông báo:', err);
       }
+    }
+
+    // BR-IE-04: FM chưa có màn sự cố -> INCIDENT_ESCALATED chỉ đánh dấu đã đọc, không chuyển trang
+    if (notif.type === 'INCIDENT_ESCALATED') {
+      return;
     }
 
     // BR-NT-26: thông báo đơn truy cập / lượt khách cũ đã lỡ gửi cho ADMIN (ADMIN không duyệt đơn, không duyệt / làm host khách)
@@ -313,6 +319,13 @@ export default function NotificationsPage() {
         return (
           <div className="notif-icon-box notif-icon-box--schedule" title="Cần gắn ảnh khách">
             <Camera size={16} />
+          </div>
+        );
+      // BR-IE-04: sự cố quá hạn chưa bảo vệ nào tiếp nhận (FM)
+      case 'INCIDENT_ESCALATED':
+        return (
+          <div className="notif-icon-box notif-icon-box--denied" title="Sự cố chưa được tiếp nhận">
+            <ShieldAlert size={16} />
           </div>
         );
       default:

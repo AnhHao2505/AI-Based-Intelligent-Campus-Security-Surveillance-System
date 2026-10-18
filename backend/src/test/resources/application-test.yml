@@ -26,6 +26,8 @@ icss:
     guest-visit-tick-cron: "-"
     # Job dọn nhật ký ra vào (AccessLogRetentionService)
     access-log-retention-cron: "-"
+    # Job leo thang sự cố (IncidentEscalationJob, Trigger động nên không tắt bằng cron "-")
+    incident-escalation-enabled: false
   internal:
     # Khoá giả chỉ dùng cho test (>= 32 ký tự), không phải khoá thật
     service-key: test-only-internal-service-key-0123456789
