@@ -16,8 +16,12 @@ import WebRtcPlayer from "../video/WebRtcPlayer";
 
 export function formatImageUrl(url) {
 	if (!url) return "";
-	if (url.includes("minio:9000")) {
-		return url.replace("minio:9000", "localhost:9000");
+	// Khi MinIO bucket là private, tự động định tuyến qua Backend Media Proxy (/api/media/...)
+	const minioMatch = url.match(/^https?:\/\/[^/]+:9000\/([^/]+)\/(.+)$/);
+	if (minioMatch) {
+		const bucket = minioMatch[1];
+		const path = minioMatch[2];
+		return `/api/media/${bucket}/${path}`;
 	}
 	return url;
 }
