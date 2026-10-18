@@ -58,9 +58,9 @@
 
 | Dịch vụ                 | Tên đăng nhập (User) | Mật khẩu (Password) | Ghi chú                                        |
 | :---------------------- | :------------------- | :------------------ | :--------------------------------------------- |
-| **PostgreSQL Database** | `sep`                | `123456`            | Tên CSDL: `campus_security`, Port `5432`       |
-| **MinIO S3 Storage**    | `minioadmin`         | `12345678abc`     | Tên Bucket chính: `security-evidence`          |
-| **pgAdmin 4 Web**       | `admin@example.com`  | `admin123`          | Server host: `postgres`, DB: `campus_security` |
+| **PostgreSQL Database** | xem .env (POSTGRES_USER) | xem .env (POSTGRES_PASSWORD) | Tên CSDL: `campus_security`, Port `5432`       |
+| **MinIO S3 Storage**    | xem .env (MINIO_ROOT_USER) | xem .env (MINIO_ROOT_PASSWORD) | Tên Bucket chính: `security-evidence`          |
+| **pgAdmin 4 Web**       | xem .env (PGADMIN_DEFAULT_EMAIL) | xem .env (PGADMIN_DEFAULT_PASSWORD) | Server host: `postgres`, DB: `campus_security` |
 
 ---
 
@@ -141,20 +141,20 @@ AI-Based Intelligent Campus Security Surveillance System (ICSS)
 ---
 
 MinIO là hệ thống Object Storage tương thích với Amazon S3, được sử dụng trong hệ
-thống ICSS để lưu trữ ảnh hồ sơ khuôn mặt (`face-profiles`) và ảnh bằng chứng vi
-phạm an ninh (`security-evidence`).
+thống ICSS để lưu trữ ảnh hồ sơ khuôn mặt (`face-profiles`), ảnh bằng chứng vi
+phạm an ninh (`security-evidence`) và ảnh tham chiếu ROI của camera (`camera-snapshots`).
 
 Theo kiến trúc chuẩn của dự án:
 
-- MinIO CHỈ KẾT NỐI VỚI BACKEND (Spring Boot).
-- AI-Service không kết nối trực tiếp với MinIO.
+- Backend (Spring Boot) và AI-Service kết nối MinIO bằng tài khoản trong .env; trình duyệt và app KHÔNG truy cập MinIO trực tiếp — ảnh được xem qua API backend có kiểm quyền.
+- AI-Service ghi ảnh bằng chứng vào MinIO (bucket `security-evidence`).
 
 Cấu hình tài khoản mặc định của dự án:
 
 - Endpoint API : http://localhost:9000
 - Console Web UI : http://localhost:9001
-- Root Username : minioadmin
-- Root Password : 12345678abc
+- Root Username : giá trị MINIO_ROOT_USER trong .env
+- Root Password : giá trị MINIO_ROOT_PASSWORD trong .env
 
 ================================================================================ 2. CÁCH 1: CHẠY MINIO BẰNG DOCKER (KHUYÊN DÙNG)
 
@@ -184,8 +184,8 @@ docker run -d \
  --name minio-server \
  -p 9000:9000 \
  -p 9001:9001 \
- -e "MINIO_ROOT_USER=minioadmin" \
- -e "MINIO_ROOT_PASSWORD=12345678abc" \
+ -e "MINIO_ROOT_USER=${MINIO_ROOT_USER}" \
+ -e "MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}" \
  -v minio_data:/data \
  minio/minio server /data --console-address ":9001"
 
@@ -196,17 +196,18 @@ docker run -d \
 4.1. Truy cập Giao diện MinIO Console (Web Dashboard)
 
 - Mở trình duyệt web và truy cập địa chỉ: http://localhost:9001
-- Tên đăng nhập : minioadmin
-- Mật khẩu : 12345678abc
-- Sau khi đăng nhập, Backend (Spring Boot) sẽ TỰ ĐỘNG tạo 2 Buckets khi khởi chạy:
+- Tên đăng nhập : MINIO_ROOT_USER trong .env
+- Mật khẩu : MINIO_ROOT_PASSWORD trong .env
+- Sau khi đăng nhập, Backend (Spring Boot) sẽ TỰ ĐỘNG tạo 3 Buckets khi khởi chạy:
   1. `face-profiles` : Chứa ảnh hồ sơ cán bộ / nhân viên / sinh viên.
   2. `security-evidence`: Chứa ảnh snapshot bằng chứng vi phạm an ninh.
+  3. `camera-snapshots` : Ảnh tham chiếu ROI của camera.
 
   4.2. Cấu hình file `.env` của Backend
   Đảm bảo file `.env` ở thư mục gốc dự án hoặc trong thư mục `backend/` có các thông số:
   MINIO_ENDPOINT=http://localhost:9000
-  MINIO_ROOT_USER=minioadmin
-  MINIO_ROOT_PASSWORD=12345678abc
+  MINIO_ROOT_USER=<đặt user của bạn>
+  MINIO_ROOT_PASSWORD=<đặt mật khẩu ≥ 8 ký tự>
 
   4.3. Kiểm tra kết nối từ Backend
   Khi khởi chạy Backend (Spring Boot), kiểm tra dòng log sau để xác nhận kết nối MinIO thành công:
