@@ -84,10 +84,11 @@ class IncidentModel {
       case 'UNKNOWN_PERSON':
       case 'UNKNOWN':
         return 'Người lạ chưa xác minh';
+      case 'INTRUSION': // backend lưu AFTER_HOURS_* thành INTRUSION (SecurityIncidentService.ingestIncident)
       case 'AFTER_HOURS_ACCESS':
       case 'AFTER_HOURS_PRESENCE':
       case 'AFTER_HOURS':
-        return 'Có người ngoài giờ';
+        return 'Xâm nhập ngoài giờ';
       default:
         return eventType;
     }
