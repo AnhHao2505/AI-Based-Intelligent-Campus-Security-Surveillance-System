@@ -22,6 +22,7 @@ import com.fa26se040.icss.repository.UserRepository;
 import com.fa26se040.icss.util.StringNormalizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -29,15 +30,23 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -80,6 +89,35 @@ public class UserService {
     private final UserBulkImportService userBulkImportService;
     // BR-RQ-SP-05: vô hiệu hoá / xoá tài khoản -> hệ thống huỷ đơn truy cập người đó đứng tên (cùng transaction)
     private final AccessRequestService accessRequestService;
+
+    @Value("${ai.service.url:http://localhost:8000}")
+    private String aiServiceUrl = "http://localhost:8000";
+
+    // Cho phép mock/override HTTP caller trong unit test
+    private java.util.function.Consumer<String> refreshHttpCaller = url -> {
+        try {
+            HttpClient client = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofMillis(1000))
+                    .build();
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .POST(HttpRequest.BodyPublishers.noBody())
+                    .timeout(Duration.ofMillis(2000))
+                    .build();
+            client.send(request, HttpResponse.BodyHandlers.discarding());
+            log.info("Notified AI Service to refresh face cache via {}", url);
+        } catch (Exception e) {
+            log.warn("Could not notify AI Service to refresh face cache: {}", e.getMessage());
+        }
+    };
+
+    void setAiServiceUrl(String aiServiceUrl) {
+        this.aiServiceUrl = aiServiceUrl;
+    }
+
+    void setRefreshHttpCaller(java.util.function.Consumer<String> refreshHttpCaller) {
+        this.refreshHttpCaller = refreshHttpCaller;
+    }
 
     @Transactional
     public StaffAccountCreateResponse createStaffAccount(StaffAccountCreateRequest request) {
@@ -242,6 +280,7 @@ public class UserService {
         }
 
         log.info("Toggled active state for user {}: now {}", userId, updatedUser.getIsActive());
+        notifyAiServiceRefreshCache();
         return UserListResponse.fromEntity(updatedUser);
     }
 
@@ -264,6 +303,34 @@ public class UserService {
         accessRequestService.cancelActiveRequestsOfRequester(userId, AccessRequestService.REQUESTER_INACTIVE_CANCEL_REASON);
 
         log.info("Soft-deleted user {}", userId);
+        notifyAiServiceRefreshCache();
+    }
+
+    /**
+     * Thông báo cho AI Service làm mới cache khuôn mặt và quyền truy cập sau khi giao dịch DB đã commit thành công.
+     */
+    void notifyAiServiceRefreshCache() {
+        Runnable task = () -> CompletableFuture.runAsync(() -> {
+            String baseUrl = (aiServiceUrl != null && !aiServiceUrl.isBlank()) ? aiServiceUrl.trim() : "http://localhost:8000";
+            if (baseUrl.endsWith("/")) {
+                baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
+            }
+            String targetUrl = baseUrl + "/api/v1/faces/refresh-cache";
+            if (refreshHttpCaller != null) {
+                refreshHttpCaller.accept(targetUrl);
+            }
+        });
+
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    task.run();
+                }
+            });
+        } else {
+            task.run();
+        }
     }
 
     @Transactional(readOnly = true)
@@ -297,6 +364,9 @@ public class UserService {
         }
         int deletedCount = userRepository.softDeleteByImportBatchId(batchId);
         log.info("Soft-deleted import batch {}: {} users affected", batchId, deletedCount);
+        if (deletedCount > 0) {
+            notifyAiServiceRefreshCache();
+        }
         return new BatchDeleteResponse(batchId, deletedCount, "Đã gỡ " + deletedCount + " tài khoản trong lô.");
     }
 
@@ -363,6 +433,9 @@ public class UserService {
         }
 
         log.info("Restored import batch {}: {} restored, {} skipped", batchId, restoredCount, skippedUsers.size());
+        if (restoredCount > 0) {
+            notifyAiServiceRefreshCache();
+        }
         return new BatchRestoreResponse(batchId, restoredCount, skippedUsers.size(), skippedUsers);
     }
 

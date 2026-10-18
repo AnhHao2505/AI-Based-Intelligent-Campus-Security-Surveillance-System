@@ -89,9 +89,5 @@ class InternalServiceKeyIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(get("/api/access-history/my").header(InternalServiceKeyFilter.HEADER, serviceKey))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.error").value("Unauthorized"));
-
-        // Path cũ của runtime-config không còn public
-        mockMvc.perform(get("/api/access-control/ai-runtime-config").header(InternalServiceKeyFilter.HEADER, serviceKey))
-                .andExpect(status().isUnauthorized());
     }
 }

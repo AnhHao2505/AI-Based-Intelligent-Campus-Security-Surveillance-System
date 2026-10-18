@@ -162,8 +162,9 @@ public class SecurityIncidentService {
                         userCode = uOpt.get().getUserCode();
                         fullName = uOpt.get().getFullName();
                     } else {
-                        userCode = extractedCode;
-                        fullName = "Đối tượng nhận diện (" + extractedCode + ")";
+                        // Người dùng đã bị xoá mềm hoặc không tồn tại trong hệ thống -> Bắt buộc gán về UNKNOWN
+                        userCode = "UNKNOWN";
+                        fullName = "Người lạ / Chưa rõ mặt";
                     }
                 }
 

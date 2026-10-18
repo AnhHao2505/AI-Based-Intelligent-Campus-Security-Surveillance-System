@@ -1,6 +1,6 @@
 import os
 from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import Field, AliasChoices
 
 AI_SERVICE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -24,10 +24,10 @@ class Settings(BaseSettings):
     KAFKA_TOPIC_HEALTH: str = "campus.camera.health"
     KAFKA_ENABLED: bool = True
     
-    # MinIO Storage Configuration (Đồng bộ credentials với Backend & .env: minioadmin / 12345678abc)
+    # MinIO Storage Configuration (Bắt buộc đọc credentials từ biến môi trường, không để default trong source)
     MINIO_ENDPOINT: str = Field(default="localhost:9000", validation_alias="MINIO_ENDPOINT")
-    MINIO_ACCESS_KEY: str = Field(default="minioadmin", validation_alias="MINIO_ROOT_USER")
-    MINIO_SECRET_KEY: str = Field(default="12345678abc", validation_alias="MINIO_ROOT_PASSWORD")
+    MINIO_ACCESS_KEY: str = Field(..., validation_alias=AliasChoices("MINIO_ROOT_USER", "MINIO_ACCESS_KEY"))
+    MINIO_SECRET_KEY: str = Field(..., min_length=8, validation_alias=AliasChoices("MINIO_ROOT_PASSWORD", "MINIO_SECRET_KEY"))
     MINIO_BUCKET_FACES: str = "face-profiles"
     MINIO_BUCKET_EVIDENCE: str = "security-evidence"
     MINIO_SECURE: bool = False
