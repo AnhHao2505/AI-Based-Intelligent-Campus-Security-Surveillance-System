@@ -53,6 +53,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/media/**").permitAll()
                         // Endpoint nội bộ AI → backend: không dùng JWT, InternalServiceKeyFilter kiểm header X-Service-Key
                         .requestMatchers("/api/access-control/check-entry", "/api/internal/**").permitAll()
                         .requestMatchers("/ws-security/**").permitAll()

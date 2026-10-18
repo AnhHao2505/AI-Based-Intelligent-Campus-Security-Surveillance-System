@@ -1,13 +1,15 @@
 package com.fa26se040.icss.service;
 
 import io.minio.BucketExistsArgs;
+import io.minio.GetObjectArgs;
+import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.ListObjectsArgs;
 import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
 import io.minio.Result;
-import io.minio.SetBucketPolicyArgs;
+import io.minio.http.Method;
 import io.minio.messages.Item;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,6 +18,7 @@ import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
 import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
@@ -51,40 +54,42 @@ public class MinioStorageService {
         }
     }
 
+    /**
+     * Tạo bucket nếu chưa tồn tại.
+     * Cố ý giữ mặc định Private cho toàn bộ bucket (không gán public read policy).
+     */
     private void ensureBucketExists(String bucketName) throws Exception {
         boolean exists = minioClient.bucketExists(BucketExistsArgs.builder().bucket(bucketName).build());
         if (!exists) {
             minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucketName).build());
-            log.info("Created MinIO bucket: {}", bucketName);
+            log.info("Created private MinIO bucket: {}", bucketName);
         }
-        setBucketPublicReadPolicy(bucketName);
     }
 
-    private void setBucketPublicReadPolicy(String bucketName) {
-        String policyJson = String.format("""
-            {
-              "Version": "2012-10-17",
-              "Statement": [
-                {
-                  "Effect": "Allow",
-                  "Principal": {"AWS": ["*"]},
-                  "Action": ["s3:GetObject"],
-                  "Resource": ["arn:aws:s3:::%s/*"]
-                }
-              ]
-            }
-            """, bucketName);
-        try {
-            minioClient.setBucketPolicy(
-                    SetBucketPolicyArgs.builder()
-                            .bucket(bucketName)
-                            .config(policyJson)
-                            .build()
-            );
-            log.info("[MINIO] Set public read policy for bucket: {}", bucketName);
-        } catch (Exception e) {
-            log.warn("[MINIO] Could not set public read policy for bucket {}: {}", bucketName, e.getMessage());
-        }
+    /**
+     * Sinh Presigned GET URL cho object với thời hạn (TTL tính theo giây).
+     */
+    public String presignedGetUrl(String bucketName, String objectName, int ttlSeconds) throws Exception {
+        return minioClient.getPresignedObjectUrl(
+                GetPresignedObjectUrlArgs.builder()
+                        .method(Method.GET)
+                        .bucket(bucketName)
+                        .object(objectName)
+                        .expiry(ttlSeconds)
+                        .build()
+        );
+    }
+
+    /**
+     * Đọc trực tiếp InputStream của object từ MinIO để backend phục vụ media streaming an toàn.
+     */
+    public InputStream getObject(String bucketName, String objectName) throws Exception {
+        return minioClient.getObject(
+                GetObjectArgs.builder()
+                        .bucket(bucketName)
+                        .object(objectName)
+                        .build()
+        );
     }
 
     /**
