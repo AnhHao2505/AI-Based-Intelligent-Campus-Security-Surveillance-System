@@ -11,6 +11,8 @@ import {
 	Move,
 } from "lucide-react";
 import "../../styles/RoiEditorModal.css";
+import { formatImageUrl } from "./CameraSurveillanceTab";
+import { useAuthorizedImage } from "../../hooks/useAuthorizedImage";
 
 const MAX_POLYGONS = 10;
 const MIN_VERTICES = 3;
@@ -47,17 +49,17 @@ export default function RoiEditorModal({
 	const svgRef = useRef(null);
 	const imgRef = useRef(null);
 
-	const formattedSnapshot =
-		snapshotBase64 && snapshotBase64.includes("minio:9000")
-			? snapshotBase64.replace("minio:9000", "localhost:9000")
-			: snapshotBase64;
+	// URL MinIO (http://host:9000/bucket/key) -> /api/media/bucket/key; ảnh /api/media tải kèm JWT qua useAuthorizedImage
+	const formattedSnapshot = snapshotBase64 ? formatImageUrl(snapshotBase64) : null;
 
-	const imageSrc = formattedSnapshot
+	const rawImageSrc = formattedSnapshot
 		? formattedSnapshot.startsWith("data:") ||
-			formattedSnapshot.startsWith("http")
+			formattedSnapshot.startsWith("http") ||
+			formattedSnapshot.startsWith("/api/media/")
 			? formattedSnapshot
 			: `data:image/jpeg;base64,${formattedSnapshot}`
 		: null;
+	const { url: imageSrc, loading: imageLoading, error: imageError } = useAuthorizedImage(rawImageSrc);
 
 	// Initialize from initialRoiGeometry
 	useEffect(() => {
@@ -526,6 +528,14 @@ export default function RoiEditorModal({
 										className="roi-snapshot-img"
 										onLoad={handleImageLoad}
 									/>
+								) : imageError ? (
+									<div className="roi-no-image">
+										<p>Không tải được ảnh</p>
+									</div>
+								) : imageLoading ? (
+									<div className="roi-no-image">
+										<p>Đang tải ảnh...</p>
+									</div>
 								) : (
 									<div className="roi-no-image">
 										<p>Không có ảnh chụp tham chiếu từ camera.</p>

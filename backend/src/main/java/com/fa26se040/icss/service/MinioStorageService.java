@@ -1,6 +1,8 @@
 package com.fa26se040.icss.service;
 
 import io.minio.BucketExistsArgs;
+import io.minio.DeleteBucketPolicyArgs;
+import io.minio.GetBucketPolicyArgs;
 import io.minio.GetObjectArgs;
 import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.ListObjectsArgs;
@@ -9,6 +11,9 @@ import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
 import io.minio.Result;
+import io.minio.StatObjectArgs;
+import io.minio.StatObjectResponse;
+import io.minio.errors.ErrorResponseException;
 import io.minio.http.Method;
 import io.minio.messages.Item;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +28,9 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 
 @Service
 @Slf4j
@@ -43,6 +51,9 @@ public class MinioStorageService {
     @Value("${minio.bucket.snapshots:camera-snapshots}")
     private String bucketSnapshots;
 
+    /** Mã lỗi MinIO khi object không tồn tại. */
+    private static final Set<String> OBJECT_NOT_FOUND_CODES = Set.of("NoSuchKey", "NoSuchObject");
+
     @PostConstruct
     public void initBuckets() {
         try {
@@ -51,7 +62,47 @@ public class MinioStorageService {
             ensureBucketExists(bucketSnapshots);
         } catch (Exception e) {
             log.warn("Could not verify/create MinIO buckets at startup (Endpoint: {}): {}", minioEndpoint, e.getMessage());
+            // Không kết nối được MinIO -> bỏ qua bước gỡ policy (mỗi lệnh sẽ lại chờ timeout)
+            return;
         }
+        // M2: bucket tạo trước đây có thể còn policy public-read -> gỡ để mọi truy cập phải qua /api/media
+        for (String bucket : List.of(bucketFaces, bucketEvidence, bucketSnapshots)) {
+            removeBucketPolicyIfPresent(bucket);
+        }
+    }
+
+    /**
+     * Gỡ policy của bucket nếu có. Không có policy (minio 8.5.12 trả "" hoặc ném NoSuchBucketPolicy) -> bỏ qua.
+     * Lỗi khác chỉ WARN, không chặn khởi động.
+     */
+    void removeBucketPolicyIfPresent(String bucket) {
+        try {
+            String policy = minioClient.getBucketPolicy(GetBucketPolicyArgs.builder().bucket(bucket).build());
+            if (policy == null || policy.isEmpty()) {
+                return;
+            }
+            minioClient.deleteBucketPolicy(DeleteBucketPolicyArgs.builder().bucket(bucket).build());
+            log.info("[MINIO] removed bucket policy: {}", bucket);
+        } catch (ErrorResponseException e) {
+            if (e.errorResponse() != null && "NoSuchBucketPolicy".equals(e.errorResponse().code())) {
+                return;
+            }
+            log.warn("[MINIO] could not check/remove bucket policy of {}: {}", bucket, e.getMessage());
+        } catch (Exception e) {
+            log.warn("[MINIO] could not check/remove bucket policy of {}: {}", bucket, e.getMessage());
+        }
+    }
+
+    public String getFacesBucket() {
+        return bucketFaces;
+    }
+
+    public String getEvidenceBucket() {
+        return bucketEvidence;
+    }
+
+    public String getSnapshotsBucket() {
+        return bucketSnapshots;
     }
 
     /**
@@ -78,6 +129,25 @@ public class MinioStorageService {
                         .expiry(ttlSeconds)
                         .build()
         );
+    }
+
+    /**
+     * Metadata của object (content-type, kích thước). Object không tồn tại -> Optional.empty(); lỗi khác ném ra.
+     */
+    public Optional<StatObjectResponse> statObject(String bucketName, String objectName) throws Exception {
+        try {
+            return Optional.of(minioClient.statObject(
+                    StatObjectArgs.builder()
+                            .bucket(bucketName)
+                            .object(objectName)
+                            .build()
+            ));
+        } catch (ErrorResponseException e) {
+            if (e.errorResponse() != null && OBJECT_NOT_FOUND_CODES.contains(e.errorResponse().code())) {
+                return Optional.empty();
+            }
+            throw e;
+        }
     }
 
     /**

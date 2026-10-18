@@ -13,6 +13,7 @@ import {
 	ArrowLeft,
 } from "lucide-react";
 import WebRtcPlayer from "../video/WebRtcPlayer";
+import { useAuthorizedImage } from "../../hooks/useAuthorizedImage";
 
 export function formatImageUrl(url) {
 	if (!url) return "";
@@ -24,6 +25,22 @@ export function formatImageUrl(url) {
 		return `/api/media/${bucket}/${path}`;
 	}
 	return url;
+}
+
+// Ảnh /api/media cần JWT -> tải qua useAuthorizedImage; lỗi chỉ hiện thông báo, không vỡ trang
+function AuthorizedImg({ src, alt, className }) {
+	const { url, loading, error } = useAuthorizedImage(src);
+	if (error) {
+		return <div className="roi-preview-img-state">Không tải được ảnh</div>;
+	}
+	if (loading || !url) {
+		return (
+			<div className="roi-preview-img-state">
+				<Loader2 size={18} className="animate-spin" />
+			</div>
+		);
+	}
+	return <img src={url} alt={alt} className={className} />;
 }
 
 export function computePolygonCentroid(vertices) {
@@ -353,7 +370,7 @@ export default function CameraSurveillanceTab({
 
 								<div className="roi-preview-wrapper">
 									<div className="roi-preview-stage">
-										<img
+										<AuthorizedImg
 											src={refUrl}
 											alt="Reference Snapshot"
 											className="roi-preview-img"
@@ -419,7 +436,7 @@ export default function CameraSurveillanceTab({
 								<>
 									<div className="roi-preview-wrapper">
 										<div className="roi-preview-stage">
-											<img
+											<AuthorizedImg
 												src={refUrl}
 												alt="Current Reference Snapshot"
 												className="roi-preview-img"
