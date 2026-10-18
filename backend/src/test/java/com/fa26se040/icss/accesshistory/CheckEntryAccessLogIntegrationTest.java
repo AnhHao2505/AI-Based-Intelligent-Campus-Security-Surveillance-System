@@ -144,7 +144,7 @@ class CheckEntryAccessLogIntegrationTest extends AbstractIntegrationTest {
                 camera.getCameraCode());
         assertThat(row.get("area_id")).isEqualTo(area.getId());
         assertThat(row.get("user_id")).isNull();
-        assertThat(row.get("user_code")).isEqualTo(unknownCode);
+        assertThat(row.get("user_code")).isEqualTo("UNKNOWN");
         assertThat(row.get("access_result")).isEqualTo("UNKNOWN_PERSON");
         // Log ghi đúng thời điểm gửi trong request, không phải giờ máy chạy test
         assertThat(((Timestamp) row.get("logged_at")).toInstant())
