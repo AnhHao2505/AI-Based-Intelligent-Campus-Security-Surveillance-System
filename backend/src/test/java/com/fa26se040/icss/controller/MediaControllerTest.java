@@ -202,7 +202,7 @@ class MediaControllerTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("B3: quy tắc objectName (rỗng, '..', bắt đầu '/', ký tự điều khiển, > 512) -> IllegalArgumentException (400)")
+    @DisplayName("B3: quy tắc objectName (rỗng, '..', bắt đầu '/', ký tự điều khiển, > 100) -> IllegalArgumentException (400)")
     void validateObjectName_rules() {
         assertThrows(IllegalArgumentException.class, () -> MediaController.validateObjectName(null));
         assertThrows(IllegalArgumentException.class, () -> MediaController.validateObjectName(" "));
@@ -210,9 +210,28 @@ class MediaControllerTest extends AbstractIntegrationTest {
         assertThrows(IllegalArgumentException.class, () -> MediaController.validateObjectName("/abs.jpg"));
         assertThrows(IllegalArgumentException.class, () -> MediaController.validateObjectName("a\nb.jpg"));
         assertThrows(IllegalArgumentException.class, () -> MediaController.validateObjectName("a\u0000b.jpg"));
-        assertThrows(IllegalArgumentException.class, () -> MediaController.validateObjectName("a".repeat(513)));
-        MediaController.validateObjectName("a".repeat(512));
+        assertThrows(IllegalArgumentException.class, () -> MediaController.validateObjectName("a".repeat(101)));
+        MediaController.validateObjectName("a".repeat(100));
         MediaController.validateObjectName("SV-1/SV-1_front.jpg");
+    }
+
+    @Test
+    @DisplayName("B3: objectName đúng 100 ký tự -> không bị chặn (200, ghi audit đủ targetId); 101 ký tự -> 400")
+    void objectNameLengthLimit_100() throws Exception {
+        String prefix = "2026-10-18/CAM-" + suffix + "/";
+        String exactly100 = prefix + "e".repeat(100 - prefix.length() - 4) + ".jpg";
+        String length101 = prefix + "e".repeat(101 - prefix.length() - 4) + ".jpg";
+        assertEquals(100, exactly100.length());
+        assertEquals(101, length101.length());
+        givenObject(EVIDENCE, exactly100, "image/jpeg");
+
+        mockMvc.perform(getAs(admin, "/api/media/security-evidence/" + exactly100))
+                .andExpect(status().isOk())
+                .andExpect(content().bytes(IMAGE));
+        assertEquals(1, auditCount(AuditTargetType.SECURITY_EVIDENCE, exactly100, admin));
+
+        mockMvc.perform(getAs(admin, "/api/media/security-evidence/" + length101)).andExpect(status().isBadRequest());
+        verify(minioStorageService, never()).statObject(EVIDENCE, length101);
     }
 
     @Test
@@ -296,6 +315,24 @@ class MediaControllerTest extends AbstractIntegrationTest {
 
         assertEquals(1, auditCount(AuditTargetType.SECURITY_EVIDENCE, evidence, guard));
         assertEquals(1, auditCountByTargetId(evidence));
+    }
+
+    @Test
+    @DisplayName("V81_1: ADMIN xem được nhật ký module SECURITY (có dòng VIEW_PHOTO vừa ghi); FACILITY_MANAGER -> 403")
+    void securityAuditModule_visibleToAdminOnly() throws Exception {
+        String userCode = "FACE-" + suffix;
+        String face = userCode + "/" + userCode + "_front.jpg";
+        givenObject(FACES, face, "image/jpeg");
+        mockMvc.perform(getAs(admin, "/api/media/face-profiles/" + face)).andExpect(status().isOk());
+
+        MvcResult result = mockMvc.perform(getAs(admin, "/api/access-control/audit-logs?module=SECURITY&changedBy=" + admin.getId()))
+                .andExpect(status().isOk())
+                .andReturn();
+        String body = result.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertTrue(body.contains("\"targetId\":\"" + userCode + "\""), body);
+        assertTrue(body.contains("FACE_PROFILE") && body.contains("VIEW_PHOTO"), body);
+
+        mockMvc.perform(getAs(fm, "/api/access-control/audit-logs?module=SECURITY")).andExpect(status().isForbidden());
     }
 
     @Test

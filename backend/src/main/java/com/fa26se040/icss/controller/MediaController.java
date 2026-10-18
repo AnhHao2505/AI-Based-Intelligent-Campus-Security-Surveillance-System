@@ -52,7 +52,8 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class MediaController {
 
-    static final int MAX_OBJECT_NAME_LENGTH = 512;
+    // Khớp audit_logs.target_id VARCHAR(100): targetId của security-evidence là cả objectName
+    static final int MAX_OBJECT_NAME_LENGTH = 100;
     static final String CACHE_CONTROL_VALUE = "private, no-store";
 
     private final MinioStorageService minioStorageService;
@@ -144,7 +145,7 @@ public class MediaController {
                 null, null, null, AuditActor.user(actor));
     }
 
-    /** B3: không rỗng, không "..", không bắt đầu "/", không ký tự điều khiển, ≤ 512 ký tự -> sai thì 400. */
+    /** B3: không rỗng, không "..", không bắt đầu "/", không ký tự điều khiển, ≤ 100 ký tự -> sai thì 400. */
     static void validateObjectName(String objectName) {
         boolean invalid = objectName == null
                 || objectName.isBlank()
