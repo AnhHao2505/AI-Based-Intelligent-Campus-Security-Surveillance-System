@@ -8,6 +8,7 @@ import com.fa26se040.icss.entity.Building;
 import com.fa26se040.icss.entity.Floor;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.AreaLevel;
+import com.fa26se040.icss.enums.CancelSource;
 import com.fa26se040.icss.enums.RequestStatus;
 import com.fa26se040.icss.enums.RequestType;
 import com.fa26se040.icss.enums.Role;
@@ -19,6 +20,7 @@ import com.fa26se040.icss.repository.BuildingRepository;
 import com.fa26se040.icss.repository.FloorRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import com.fa26se040.icss.security.JwtTokenProvider;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -29,13 +31,22 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -57,6 +68,8 @@ class AccessRequestFinishTest extends AbstractIntegrationTest {
     @Autowired private BuildingRepository buildingRepository;
     @Autowired private FloorRepository floorRepository;
     @Autowired private AccessRequestRepository accessRequestRepository;
+    @Autowired private PlatformTransactionManager transactionManager;
+    @Autowired private ObjectMapper objectMapper;
 
     private final List<UUID> createdUsers = new ArrayList<>();
     private String suffix;
@@ -170,16 +183,78 @@ class AccessRequestFinishTest extends AbstractIntegrationTest {
         return r.getResponse().getContentAsString(StandardCharsets.UTF_8);
     }
 
+    private static final Duration RACE_TIMEOUT = Duration.ofSeconds(10);
+
+    /** Số phiên đang chờ khoá do phiên {@code blockerPid} giữ (không lẫn với phiên của suite khác dùng chung DB test). */
+    private int sessionsBlockedBy(int blockerPid) {
+        return jdbc.queryForObject(
+                "SELECT count(*) FROM pg_stat_activity WHERE ? = ANY(pg_blocking_pids(pid))",
+                Integer.class, blockerPid);
+    }
+
+    private static boolean waitUntil(BooleanSupplier condition) throws InterruptedException {
+        long deadline = System.nanoTime() + RACE_TIMEOUT.toNanos();
+        while (System.nanoTime() < deadline) {
+            if (condition.getAsBoolean()) {
+                return true;
+            }
+            Thread.sleep(50);
+        }
+        return condition.getAsBoolean();
+    }
+
+    /**
+     * Race giữa đọc-kiểm tra và ghi: một giao dịch khác ({@code otherWriter}) đã đổi dòng đơn nhưng CHƯA commit
+     * khi {@code actor} gửi lệnh hoàn thành. Lệnh hoàn thành đọc đơn (vẫn APPROVED vì giao dịch kia chưa commit),
+     * qua mọi kiểm tra rồi bị khoá dòng chặn ở câu UPDATE. Giao dịch kia commit xong thì lệnh hoàn thành chạy tiếp.
+     */
+    private MvcResult finishWhileAnotherTransactionHoldsTheRow(User actor, AccessRequest r, Runnable otherWriter)
+            throws Exception {
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        CountDownLatch rowChanged = new CountDownLatch(1);
+        CountDownLatch commitOther = new CountDownLatch(1);
+        int[] otherPid = new int[1];
+        try {
+            Future<?> other = pool.submit(() -> new TransactionTemplate(transactionManager).executeWithoutResult(tx -> {
+                otherWriter.run();
+                // JdbcTemplate dùng chung kết nối của giao dịch đang mở -> pid của phiên đang giữ khoá dòng đơn
+                otherPid[0] = jdbc.queryForObject("SELECT pg_backend_pid()", Integer.class);
+                rowChanged.countDown();
+                try {
+                    assertTrue(commitOther.await(RACE_TIMEOUT.toSeconds(), TimeUnit.SECONDS));
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(e);
+                }
+            }));
+            assertTrue(rowChanged.await(RACE_TIMEOUT.toSeconds(), TimeUnit.SECONDS), "giao dịch khác chưa đổi được dòng đơn");
+
+            Future<MvcResult> finishing = pool.submit(() -> finish(actor, r));
+            boolean blocked = waitUntil(() -> sessionsBlockedBy(otherPid[0]) > 0);
+
+            commitOther.countDown();
+            other.get(RACE_TIMEOUT.toSeconds(), TimeUnit.SECONDS);
+            MvcResult res = finishing.get(RACE_TIMEOUT.toSeconds(), TimeUnit.SECONDS);
+            assertTrue(blocked, "lệnh hoàn thành không chờ khoá dòng ở câu UPDATE (status " + res.getResponse().getStatus() + ")");
+            return res;
+        } finally {
+            commitOther.countDown();
+            pool.shutdownNow();
+        }
+    }
+
     @Test
-    @DisplayName("FM hoàn thành đơn APPROVED -> 200, FINISHED, 1 audit ACCESS_REQUEST / FINISH")
+    @DisplayName("FM hoàn thành đơn APPROVED -> 200, response FINISHED, 1 audit ACCESS_REQUEST / FINISH, 1 thông báo REQUEST_FINISHED")
     void fm_finishApproved_ok() throws Exception {
         AccessRequest r = request(RequestStatus.APPROVED);
 
         MvcResult res = finish(fm, r);
 
         assertEquals(200, res.getResponse().getStatus(), body(res));
+        assertEquals("FINISHED", objectMapper.readTree(body(res)).path("data").path("status").asText(), body(res));
         assertEquals("FINISHED", status(r));
         assertEquals(1, finishAudits(r));
+        assertEquals(1, finishNotifications(r));
     }
 
     @Test
@@ -272,5 +347,56 @@ class AccessRequestFinishTest extends AbstractIntegrationTest {
                     String.class, r.getId(), u.getId());
             assertTrue(msg.contains(REASON), msg);
         }
+    }
+
+    @Test
+    @DisplayName("Race: hai FM hoàn thành cùng lúc -> FM chậm hơn nhận 409, chỉ 1 audit FINISH và 1 thông báo REQUEST_FINISHED")
+    void race_twoFmsFinishAtOnce_secondGetsConflict() throws Exception {
+        AccessRequest r = request(RequestStatus.APPROVED);
+        User otherFm = user("fm2", Role.FACILITY_MANAGER);
+
+        MvcResult res = finishWhileAnotherTransactionHoldsTheRow(fm, r,
+                () -> accessRequestService.finishRequest(r.getId(), REASON, otherFm.getEmail()));
+
+        assertEquals(409, res.getResponse().getStatus(), body(res));
+        assertTrue(body(res).contains("FINISHED"), body(res));
+        assertEquals("FINISHED", status(r));
+        assertEquals(1, finishAudits(r));
+        assertEquals(1, finishNotifications(r));
+        assertEquals(otherFm.getId(), jdbc.queryForObject(
+                "SELECT changed_by FROM audit_logs WHERE target_type = 'ACCESS_REQUEST' AND action = 'FINISH' AND target_id = ?",
+                UUID.class, r.getId().toString()));
+    }
+
+    @Test
+    @DisplayName("Race: hệ thống huỷ đơn (vô hiệu hoá khu vực / người tạo) xen giữa -> 409, đơn giữ CANCELLED nguồn SYSTEM, không audit FINISH, không thông báo")
+    void race_systemCancelInBetween_conflictAndNoOverwrite() throws Exception {
+        AccessRequest r = request(RequestStatus.APPROVED);
+
+        MvcResult res = finishWhileAnotherTransactionHoldsTheRow(fm, r, () -> assertEquals(1,
+                accessRequestRepository.cancelBySystemIfStatus(r.getId(), RequestStatus.APPROVED, RequestStatus.CANCELLED,
+                        CancelSource.SYSTEM, "Khu vực bị vô hiệu hoá", OffsetDateTime.now())));
+
+        assertEquals(409, res.getResponse().getStatus(), body(res));
+        assertTrue(body(res).contains("CANCELLED"), body(res));
+        assertEquals("CANCELLED", status(r));
+        assertEquals("SYSTEM", jdbc.queryForObject(
+                "SELECT cancel_source FROM access_requests WHERE id = ?", String.class, r.getId()));
+        assertEquals(0, finishAudits(r));
+        assertEquals(0, finishNotifications(r));
+    }
+
+    @Test
+    @DisplayName("Hoàn thành 2 lần liên tiếp -> lần 2 bị chặn (400 theo kiểm tra trạng thái giữ nguyên), vẫn chỉ 1 audit FINISH và 1 thông báo")
+    void fm_finishTwice_secondRejected_singleAudit() throws Exception {
+        AccessRequest r = request(RequestStatus.APPROVED);
+
+        assertEquals(200, finish(fm, r).getResponse().getStatus());
+        MvcResult second = finish(fm, r);
+
+        assertEquals(400, second.getResponse().getStatus(), body(second));
+        assertEquals("FINISHED", status(r));
+        assertEquals(1, finishAudits(r));
+        assertEquals(1, finishNotifications(r));
     }
 }
