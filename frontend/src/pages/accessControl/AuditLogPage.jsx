@@ -319,6 +319,17 @@ export default function AuditLogPage() {
 		loadAuditLogs(0, "");
 	};
 
+	const hasActiveFilters = Boolean(
+		filterModule ||
+			filterCorrelationId ||
+			filterTargetType ||
+			filterAreaId ||
+			filterFrom ||
+			filterTo ||
+			filterSubjectUser ||
+			filterChangedByUser,
+	);
+
 	const handleResetFilters = () => {
 		setFilterModule("");
 		setFilterCorrelationId("");
@@ -698,29 +709,32 @@ export default function AuditLogPage() {
 							</button>
 						</div>
 
-						<button
-							type="button"
-							className="audit-refresh-btn"
-							aria-label="Đặt lại bộ lọc"
-							title="Đặt lại bộ lọc"
-							onClick={handleResetFilters}
-						>
-							<X size={16} />
-						</button>
+						<div className="audit-filter-actions">
+							<button
+								type="button"
+								className="audit-clear-btn"
+								onClick={handleResetFilters}
+								disabled={!hasActiveFilters}
+								title={hasActiveFilters ? "Xóa tất cả bộ lọc đang chọn" : "Chưa có bộ lọc nào"}
+							>
+								<X size={16} />
+								<span>Xóa bộ lọc</span>
+							</button>
 
-						<button
-							type="button"
-							className="audit-refresh-btn"
-							aria-label="Làm mới"
-							title="Làm mới"
-							onClick={() => loadAuditLogs(currentPage)}
-							disabled={loadingLogs}
-						>
-							<RotateCcw
-								size={16}
-								className={loadingLogs ? "animate-spin" : ""}
-							/>
-						</button>
+							<button
+								type="button"
+								className="audit-refresh-btn"
+								aria-label="Làm mới"
+								title="Làm mới"
+								onClick={() => loadAuditLogs(currentPage)}
+								disabled={loadingLogs}
+							>
+								<RotateCcw
+									size={16}
+									className={loadingLogs ? "animate-spin" : ""}
+								/>
+							</button>
+						</div>
 					</div>
 				</div>
 
