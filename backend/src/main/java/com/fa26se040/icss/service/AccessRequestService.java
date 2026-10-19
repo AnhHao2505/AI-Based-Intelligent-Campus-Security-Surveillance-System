@@ -928,7 +928,7 @@ public class AccessRequestService {
 
     /** BR-RQ-33: cùng tiêu chí với danh sách available-areas (AreaService.isAvailableForRequest) -> 400. */
     private void requireAreaAvailableForRequest(Area area, User requester) {
-        if (!AreaService.isAvailableForRequest(area, requester, systemConfigService.getSponsorAllowedAreaLevels())) {
+        if (!AreaService.isAvailableForRequest(area, requester)) {
             throw new IllegalArgumentException(AREA_NOT_REQUESTABLE_MESSAGE);
         }
     }

@@ -173,7 +173,7 @@ public class GuestVisitHostTest extends GuestTestSupport {
         assertRejected(create(host3, createBody(future(0), future(60), List.of(highlyArea), List.of(guestInput("Khách một", null)))), 400, "ERR_GUEST_009");
         assertRejected(create(host3, createBody(future(0), future(60), List.of(publicArea), List.of(guestInput("Khách một", null)))), 400, "ERR_GUEST_009");
 
-        Area inactive = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        Area inactive = newArea(AreaLevel.CONFIDENTIAL);
         inactive.setIsActive(false);
         areaRepository.save(inactive);
         assertRejected(create(hostL2, createBody(future(0), future(60), List.of(inactive), List.of(guestInput("Khách một", null)))), 400, "ERR_GUEST_008");
@@ -205,63 +205,77 @@ public class GuestVisitHostTest extends GuestTestSupport {
 
     // ================================================================== BR-GV-06
 
-    @Test
-    @DisplayName("GV-06: khu vực CONTACT (bắt buộc chỉ định) mà host không có AP -> 403 ERR_GUEST_014; AP phủ trọn khung -> 201")
-    void create_hostAccess_ap() throws Exception {
-        List<Map<String, Object>> g = List.of(guestInput("Khách một", null));
-        OffsetDateTime s = future(0), e = future(120);
-        assertRejected(create(hostL2, createBody(s, e, List.of(contactArea), g)), 403, "ERR_GUEST_014");
-        newAp(contactArea, hostL2, s, e);
-        createdId(create(hostL2, createBody(s, e, List.of(contactArea), g)));
+    /** V83: cho chủ nhà cấp 1 (thiếu cấp với khu Bảo mật) để kiểm đường AP của BR-GV-06. */
+    private void allowLevel1Hosts() {
+        setConfig(ConfigKey.GUEST_HOST_MIN_LEVEL, "1");
     }
 
     @Test
-    @DisplayName("GV-06: AP không phủ trọn khung (hết trước end / bắt đầu sau start / đã thu hồi) -> 403 ERR_GUEST_014")
-    void create_hostAccess_apNotCovering() throws Exception {
+    @DisplayName("GV-06 (V83): host cấp 2 mời vào khu Bảo mật (Liên hệ trước cũ) không cần AP -> 201; host cấp 1 không AP -> 403 ERR_GUEST_014, AP phủ trọn khung -> 201")
+    void create_hostAccess_ap() throws Exception {
         List<Map<String, Object>> g = List.of(guestInput("Khách một", null));
         OffsetDateTime s = future(0), e = future(120);
-        Area a1 = newArea(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED, 2, true);
-        newAp(a1, hostL2, s.minusDays(1), e.minusMinutes(1));
-        assertRejected(create(hostL2, createBody(s, e, List.of(a1), g)), 403, "ERR_GUEST_014");
+        createdId(create(hostL2, createBody(s, e, List.of(contactArea), g)));
 
-        Area a2 = newArea(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED, 2, true);
-        newAp(a2, hostL2, s.plusMinutes(1), e.plusDays(1));
-        assertRejected(create(hostL2, createBody(s, e, List.of(a2), g)), 403, "ERR_GUEST_014");
+        allowLevel1Hosts();
+        assertRejected(create(hostL1, createBody(s, e, List.of(contactArea), g)), 403, "ERR_GUEST_014");
+        newAp(contactArea, hostL1, s, e);
+        createdId(create(hostL1, createBody(s, e, List.of(contactArea), g)));
+    }
 
-        Area a3 = newArea(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED, 2, true);
-        AreaAssignedPersonnel ap = newAp(a3, hostL2, s.minusDays(1), null);
+    @Test
+    @DisplayName("GV-06: host thiếu cấp, AP không phủ trọn khung (hết trước end / bắt đầu sau start / đã thu hồi) -> 403 ERR_GUEST_014")
+    void create_hostAccess_apNotCovering() throws Exception {
+        allowLevel1Hosts();
+        List<Map<String, Object>> g = List.of(guestInput("Khách một", null));
+        OffsetDateTime s = future(0), e = future(120);
+        Area a1 = newArea(AreaLevel.CONFIDENTIAL);
+        newAp(a1, hostL1, s.minusDays(1), e.minusMinutes(1));
+        assertRejected(create(hostL1, createBody(s, e, List.of(a1), g)), 403, "ERR_GUEST_014");
+
+        Area a2 = newArea(AreaLevel.CONFIDENTIAL);
+        newAp(a2, hostL1, s.plusMinutes(1), e.plusDays(1));
+        assertRejected(create(hostL1, createBody(s, e, List.of(a2), g)), 403, "ERR_GUEST_014");
+
+        Area a3 = newArea(AreaLevel.CONFIDENTIAL);
+        AreaAssignedPersonnel ap = newAp(a3, hostL1, s.minusDays(1), null);
         ap.setRevokedAt(OffsetDateTime.now().minusMinutes(1));
         ap.setRevokedBy(fm);
         ap.setRevokeReason("Thu hồi AP để thử BR-GV-06");
         assignedPersonnelRepository.save(ap);
-        assertRejected(create(hostL2, createBody(s, e, List.of(a3), g)), 403, "ERR_GUEST_014");
+        assertRejected(create(hostL1, createBody(s, e, List.of(a3), g)), 403, "ERR_GUEST_014");
     }
 
     @Test
-    @DisplayName("GV-06: chỉ có đơn truy cập APPROVED / khu vực đang mở sự kiện -> không tính, 403 ERR_GUEST_014; cấp host < cấp khu vực -> 403")
+    @DisplayName("GV-06: host thiếu cấp chỉ có đơn truy cập APPROVED / khu vực đang mở sự kiện -> không tính, 403 ERR_GUEST_014; cấp host < cấp khu vực -> 403")
     void create_hostAccess_notAcceptedSources() throws Exception {
+        allowLevel1Hosts();
         List<Map<String, Object>> g = List.of(guestInput("Khách một", null));
         OffsetDateTime s = future(0), e = future(120);
-        Area viaRequest = newArea(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED, 2, true);
-        newApprovedRequest(viaRequest, hostL2, s.minusHours(1), e.plusHours(1));
-        assertRejected(create(hostL2, createBody(s, e, List.of(viaRequest), g)), 403, "ERR_GUEST_014");
+        Area viaRequest = newArea(AreaLevel.CONFIDENTIAL);
+        newApprovedRequest(viaRequest, hostL1, s.minusHours(1), e.plusHours(1));
+        assertRejected(create(hostL1, createBody(s, e, List.of(viaRequest), g)), 403, "ERR_GUEST_014");
 
         // sự kiện phủ trọn khung lượt khách nhưng vẫn không tính là quyền của host (trong giới hạn 12h của chế độ sự kiện)
         OffsetDateTime now = OffsetDateTime.now();
-        Area eventArea = newArea(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED, 2, true);
+        Area eventArea = newArea(AreaLevel.CONFIDENTIAL);
         openEvent(eventArea, now.minusMinutes(5), now.plusHours(1));
-        assertRejected(create(hostL2, createBody(now.plusMinutes(10), now.plusMinutes(40), List.of(eventArea), g)), 403, "ERR_GUEST_014");
+        assertRejected(create(hostL1, createBody(now.plusMinutes(10), now.plusMinutes(40), List.of(eventArea), g)), 403, "ERR_GUEST_014");
 
-        Area level3 = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 3, false);
-        assertRejected(create(hostL2, createBody(s, e, List.of(level3), g)), 403, "ERR_GUEST_014");
+        Area noSource = newArea(AreaLevel.CONFIDENTIAL);
+        assertRejected(create(hostL1, createBody(s, e, List.of(noSource), g)), 403, "ERR_GUEST_014");
     }
 
     @Test
     @DisplayName("GV-06: nhiều khu vực — một khu vực không đủ quyền thì cả lượt bị chặn, câu nêu tên khu vực đó")
     void create_hostAccess_eachArea() throws Exception {
-        MvcResult r = create(hostL2, createBody(future(0), future(60), List.of(internalArea, contactArea), List.of(guestInput("Khách một", null))));
+        allowLevel1Hosts();
+        OffsetDateTime s = future(0), e = future(60);
+        newAp(internalArea, hostL1, s.minusHours(1), e.plusHours(1));
+        MvcResult r = create(hostL1, createBody(s, e, List.of(internalArea, contactArea), List.of(guestInput("Khách một", null))));
         assertRejected(r, 403, "ERR_GUEST_014");
         assertTrue(message(r).contains(contactArea.getName()), message(r));
+        assertFalse(message(r).contains(internalArea.getName()), message(r));
     }
 
     // ================================================================== xem

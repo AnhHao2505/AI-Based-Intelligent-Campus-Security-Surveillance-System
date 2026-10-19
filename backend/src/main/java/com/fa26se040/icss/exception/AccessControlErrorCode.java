@@ -7,7 +7,8 @@ import org.springframework.http.HttpStatus;
 public enum AccessControlErrorCode {
     ERR_AC_003("ERR_AC_003", HttpStatus.CONFLICT, "Dữ liệu cấu hình đã bị thay đổi bởi người khác. Vui lòng tải lại và thử lại."),
     ERR_AC_004("ERR_AC_004", HttpStatus.NOT_FOUND, "Không tìm thấy cấu hình mặc định cho loại khu vực này"),
-    ERR_AC_005("ERR_AC_005", HttpStatus.BAD_REQUEST, "Cờ yêu cầu chỉ định (explicitAuthorizationRequired) của preset được suy ra từ loại khu vực ({areaLevel}) và không được thay đổi độc lập"),
+    // V83 (D2): bảng cấp theo loại chỉ để xem; PUT/PATCH /api/access-control/level-presets/{areaLevel} luôn trả lỗi này
+    ERR_AC_005("ERR_AC_005", HttpStatus.BAD_REQUEST, "Cấp khu vực cố định theo loại (Công khai: cấp 1, Bảo mật: cấp 2, Tuyệt mật: cấp 3), không sửa được"),
     // BR-RQ-06: người duyệt đơn truy cập phải khác người tạo đơn
     ERR_AC_006("ERR_AC_006", HttpStatus.FORBIDDEN, "Người tạo đơn không được tự duyệt hoặc tự từ chối đơn truy cập của chính mình"),
     // BR-RQ-46: chỉ chuyển sang Hoàn thành khi khung giờ của đơn đã bắt đầu; trước đó dùng Huỷ

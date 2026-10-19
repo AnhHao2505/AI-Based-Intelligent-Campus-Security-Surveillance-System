@@ -556,7 +556,7 @@ class AreaAssignedPersonnelServiceTest {
         Area internalArea = Area.builder()
                 .id(UUID.randomUUID())
                 .name("Phòng ban nội bộ")
-                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
+                .areaLevel(AreaLevel.CONFIDENTIAL)
                 .isActive(true)
                 .build();
         when(areaRepository.findById(internalArea.getId())).thenReturn(Optional.of(internalArea));
@@ -579,7 +579,7 @@ class AreaAssignedPersonnelServiceTest {
         Area contactArea = Area.builder()
                 .id(UUID.randomUUID())
                 .name("Phòng cần xác nhận")
-                .areaLevel(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
+                .areaLevel(AreaLevel.CONFIDENTIAL)
                 .isActive(true)
                 .build();
         when(areaRepository.findById(contactArea.getId())).thenReturn(Optional.of(contactArea));

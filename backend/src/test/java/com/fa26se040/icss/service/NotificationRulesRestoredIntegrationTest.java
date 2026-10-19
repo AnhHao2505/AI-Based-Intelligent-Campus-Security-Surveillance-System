@@ -36,8 +36,8 @@ class NotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
 
     @BeforeEach
     void setUpAreas() {
-        internalArea = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
-        contactArea = newArea(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED, 2, true);
+        internalArea = newArea(AreaLevel.CONFIDENTIAL);
+        contactArea = newArea(AreaLevel.CONFIDENTIAL);
     }
 
     @AfterEach

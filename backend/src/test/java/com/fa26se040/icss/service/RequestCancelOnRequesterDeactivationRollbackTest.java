@@ -100,7 +100,7 @@ class RequestCancelOnRequesterDeactivationRollbackTest extends AbstractIntegrati
         User member = user(suffix, "mem", Role.NORMAL_USER, 2);
         Area area = areaRepository.save(Area.builder()
                 .name("BR4 rollback " + suffix).building(building.getName()).floor(floor.getName()).floorEntity(floor)
-                .areaLevel(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED).areaAccessLevel(2).explicitAuthorizationRequired(true)
+                .areaLevel(AreaLevel.CONFIDENTIAL).areaAccessLevel(2)
                 .isActive(true).build());
         OffsetDateTime now = OffsetDateTime.now().truncatedTo(ChronoUnit.SECONDS);
         AccessRequest req = AccessRequest.builder()

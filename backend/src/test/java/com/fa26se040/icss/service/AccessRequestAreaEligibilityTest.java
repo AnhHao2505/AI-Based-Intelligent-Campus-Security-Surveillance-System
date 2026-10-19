@@ -37,9 +37,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 /**
- * BR-RQ-33 (phương án A, Lucas 08/10): endpoint tạo đơn (cá nhân + nhóm) dùng CHUNG tiêu chí với danh sách
- * available-areas (AreaService.isAvailableForRequest). Khu vực INTERNAL (cờ explicit = false) chỉ "được xin" khi
- * INTERNAL_CONFIDENTIAL nằm trong ACCESS_REQUEST_SPONSOR_ALLOWED_AREA_TYPES.
+ * BR-RQ-33: endpoint tạo đơn (cá nhân + nhóm) dùng CHUNG tiêu chí với danh sách available-areas
+ * (AreaService.isAvailableForRequest). V83: không còn phân biệt Nội bộ / Liên hệ trước (cùng là Bảo mật, cho bảo lãnh).
  * Không @Transactional: thông báo NEW_REQUEST_PENDING chạy REQUIRES_NEW, cập nhật cấu hình ghi cache sau commit.
  */
 class AccessRequestAreaEligibilityTest extends AbstractIntegrationTest {
@@ -81,8 +80,8 @@ class AccessRequestAreaEligibilityTest extends AbstractIntegrationTest {
         requester = user("req", Role.NORMAL_USER, 3);
         member = user("mem", Role.NORMAL_USER, 3);
         memberL1 = user("m1", Role.NORMAL_USER, 1);
-        contactArea = area("contact", AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED, 2, true);
-        internalArea = area("internal", AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        contactArea = area("contact", AreaLevel.CONFIDENTIAL);
+        internalArea = area("internal", AreaLevel.CONFIDENTIAL);
     }
 
     @AfterEach
@@ -114,15 +113,14 @@ class AccessRequestAreaEligibilityTest extends AbstractIntegrationTest {
         return u;
     }
 
-    private Area area(String tag, AreaLevel level, int accessLevel, boolean explicit) {
+    /** V83: cấp của khu theo loại. */
+    private Area area(String tag, AreaLevel level) {
         return areaRepository.save(Area.builder()
                 .name("RQ33 " + tag + " " + suffix)
                 .building(buildingName)
                 .floor(floor.getName())
                 .floorEntity(floor)
                 .areaLevel(level)
-                .areaAccessLevel(accessLevel)
-                .explicitAuthorizationRequired(explicit)
                 .isActive(true)
                 .build());
     }
@@ -166,29 +164,12 @@ class AccessRequestAreaEligibilityTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("Cấu hình mặc định (không bảo lãnh INTERNAL): INTERNAL không có trong available-areas, tạo đơn cá nhân / nhóm -> 400")
-    void internalArea_defaultConfig_notListed_createRejected() throws Exception {
+    @DisplayName("V83: khu Bảo mật (Nội bộ cũ) có trong available-areas; đơn nhóm có thành viên L1 -> 201, L1 được bảo lãnh (cấu hình mặc định CONFIDENTIAL)")
+    void confidentialArea_listedAndGroupWithSponsoredMemberAccepted() throws Exception {
+        assertEquals(java.util.Set.of(AreaLevel.CONFIDENTIAL), systemConfigService.getSponsorAllowedAreaLevels());
         String list = availableAreas(requester);
-        assertFalse(list.contains(internalArea.getId().toString()), "INTERNAL không có trong danh sách");
-        assertTrue(list.contains(contactArea.getId().toString()), "CONTACT có trong danh sách");
-
-        MvcResult individual = create("/api/access-requests/individual", internalArea, null);
-        assertEquals(400, individual.getResponse().getStatus(), body(individual));
-        assertTrue(body(individual).contains(AccessRequestService.AREA_NOT_REQUESTABLE_MESSAGE), body(individual));
-
-        MvcResult group = create("/api/access-requests/group", internalArea, List.of(member.getUserCode()));
-        assertEquals(400, group.getResponse().getStatus(), body(group));
-        assertTrue(body(group).contains(AccessRequestService.AREA_NOT_REQUESTABLE_MESSAGE), body(group));
-    }
-
-    @Test
-    @DisplayName("Bật bảo lãnh INTERNAL: INTERNAL xuất hiện trong available-areas (đúng cấp) và tạo đơn nhóm có thành viên L1 -> 201")
-    void internalArea_sponsorEnabled_listedAndCreateAccepted() throws Exception {
-        systemConfigService.update(SPONSOR_KEY, "CONFIDENTIAL_CONTACT_REQUIRED,INTERNAL_CONFIDENTIAL",
-                "Bật bảo lãnh INTERNAL cho test BR-RQ-33", admin.getEmail());
-
-        assertTrue(availableAreas(requester).contains(internalArea.getId().toString()), "INTERNAL có trong danh sách");
-        assertFalse(availableAreas(memberL1).contains(internalArea.getId().toString()), "L1 không thấy INTERNAL cấp 2");
+        assertTrue(list.contains(internalArea.getId().toString()), "khu Bảo mật (Nội bộ cũ) có trong danh sách");
+        assertTrue(list.contains(contactArea.getId().toString()), "khu Bảo mật (Liên hệ trước cũ) có trong danh sách");
 
         MvcResult group = create("/api/access-requests/group", internalArea, List.of(memberL1.getUserCode()));
         assertEquals(201, group.getResponse().getStatus(), body(group));
@@ -209,12 +190,12 @@ class AccessRequestAreaEligibilityTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("Khu vực CONTACT có trong available-areas: tạo đơn cá nhân / nhóm -> 201")
+    @DisplayName("Khu vực Bảo mật có trong available-areas: tạo đơn cá nhân / nhóm -> 201")
     void contactArea_inAvailableList_createAccepted() throws Exception {
         MvcResult individual = create("/api/access-requests/individual", contactArea, null);
         assertEquals(201, individual.getResponse().getStatus(), body(individual));
 
-        Area otherContact = area("contact2", AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED, 2, true);
+        Area otherContact = area("contact2", AreaLevel.CONFIDENTIAL);
         MvcResult group = create("/api/access-requests/group", otherContact, List.of(member.getUserCode()));
         assertEquals(201, group.getResponse().getStatus(), body(group));
     }
@@ -222,10 +203,10 @@ class AccessRequestAreaEligibilityTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("A-06 (BR-RQ-28): available-areas trả groupRequestAllowed theo ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE; bật cấu hình -> đơn nhóm Tuyệt mật 201")
     void highlyConfidential_groupFlagFollowsConfig() throws Exception {
-        Area hcArea = area("hc", AreaLevel.HIGHLY_CONFIDENTIAL, 3, true);
+        Area hcArea = area("hc", AreaLevel.HIGHLY_CONFIDENTIAL);
 
         assertEquals(Boolean.FALSE, groupRequestAllowed(requester, hcArea), "mặc định: Tuyệt mật không nhận đơn nhóm");
-        assertEquals(Boolean.TRUE, groupRequestAllowed(requester, contactArea), "CONTACT luôn nhận đơn nhóm");
+        assertEquals(Boolean.TRUE, groupRequestAllowed(requester, contactArea), "Bảo mật luôn nhận đơn nhóm");
         MvcResult rejected = create("/api/access-requests/group", hcArea, List.of(member.getUserCode()));
         assertEquals(400, rejected.getResponse().getStatus(), body(rejected));
 

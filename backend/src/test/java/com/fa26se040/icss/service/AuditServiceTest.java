@@ -88,7 +88,7 @@ class AuditServiceTest {
         area = Area.builder()
                 .id(UUID.randomUUID())
                 .name("Phòng Lab Máy Tính")
-                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
+                .areaLevel(AreaLevel.CONFIDENTIAL)
                 .build();
 
         lenient().when(auditLogRepository.saveAndFlush(any(AuditLog.class)))

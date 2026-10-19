@@ -426,10 +426,10 @@ public class SystemConfigService {
                 throw new IllegalArgumentException("Loại khu vực không hợp lệ: " + token);
             }
             if (level == com.fa26se040.icss.enums.AreaLevel.PUBLIC) {
-                throw new IllegalArgumentException("Không cho phép bảo lãnh đối với khu vực công khai (PUBLIC)");
+                throw new IllegalArgumentException("Không cho phép bảo lãnh đối với khu vực Công khai (PUBLIC)");
             }
             if (level == com.fa26se040.icss.enums.AreaLevel.HIGHLY_CONFIDENTIAL) {
-                throw new IllegalArgumentException("Không cho phép bảo lãnh đối với khu vực bảo mật cao (HIGHLY_CONFIDENTIAL)");
+                throw new IllegalArgumentException("Không cho phép bảo lãnh đối với khu vực Tuyệt mật (HIGHLY_CONFIDENTIAL)");
             }
             hasValid = true;
         }
@@ -441,7 +441,7 @@ public class SystemConfigService {
     public java.util.Set<com.fa26se040.icss.enums.AreaLevel> getSponsorAllowedAreaLevels() {
         String raw = getString(ConfigKey.ACCESS_REQUEST_SPONSOR_ALLOWED_AREA_TYPES);
         if (raw == null || raw.isBlank()) {
-            return java.util.Set.of(com.fa26se040.icss.enums.AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED);
+            return java.util.Set.of(com.fa26se040.icss.enums.AreaLevel.CONFIDENTIAL);
         }
         java.util.Set<com.fa26se040.icss.enums.AreaLevel> levels = new java.util.HashSet<>();
         for (String part : raw.split(",")) {
@@ -456,7 +456,7 @@ public class SystemConfigService {
                 }
             }
         }
-        return levels.isEmpty() ? java.util.Set.of(com.fa26se040.icss.enums.AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED) : levels;
+        return levels.isEmpty() ? java.util.Set.of(com.fa26se040.icss.enums.AreaLevel.CONFIDENTIAL) : levels;
     }
 
     private SystemConfigResponse mapToResponse(SystemConfiguration config) {

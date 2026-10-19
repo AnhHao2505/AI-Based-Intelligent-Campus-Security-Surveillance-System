@@ -22,8 +22,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 /**
- * BR-GV-04: nguồn khu vực cho form lượt khách (GET /api/guest-visits/selectable-areas) — khu vực INTERNAL / CONTACT
- * đang hoạt động, GỒM khu vực INTERNAL (cờ explicit = false, không có trong /api/areas/available-for-request).
+ * BR-GV-04 (V83): nguồn khu vực cho form lượt khách (GET /api/guest-visits/selectable-areas) — khu vực Bảo mật
+ * (CONFIDENTIAL, gộp Nội bộ + Liên hệ trước) đang hoạt động.
  */
 class GuestSelectableAreasTest extends GuestTestSupport {
 
@@ -45,12 +45,12 @@ class GuestSelectableAreasTest extends GuestTestSupport {
     }
 
     @Test
-    @DisplayName("GV-04: danh sách có INTERNAL + CONTACT đang hoạt động; không có HIGHLY, PUBLIC, khu vực tắt, khu vực đã xoá mềm")
+    @DisplayName("GV-04 (V83): danh sách có mọi khu Bảo mật đang hoạt động; không có HIGHLY, PUBLIC, khu vực tắt, khu vực đã xoá mềm")
     void selectableAreas_followBrGv04() throws Exception {
-        Area inactiveInternal = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        Area inactiveInternal = newArea(AreaLevel.CONFIDENTIAL);
         inactiveInternal.setIsActive(false);
         areaRepository.save(inactiveInternal);
-        Area deletedContact = newArea(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED, 2, true);
+        Area deletedContact = newArea(AreaLevel.CONFIDENTIAL);
         deletedContact.setIsActive(false);
         deletedContact.setDeletedAt(OffsetDateTime.now());
         areaRepository.save(deletedContact);
@@ -59,25 +59,19 @@ class GuestSelectableAreasTest extends GuestTestSupport {
 
         assertEquals(200, status(r), r.getResponse().getContentAsString());
         Set<String> ids = ids(r);
-        assertTrue(ids.contains(internalArea.getId().toString()), "INTERNAL phải xuất hiện");
-        assertTrue(ids.contains(contactArea.getId().toString()), "CONTACT phải xuất hiện");
+        assertTrue(ids.contains(internalArea.getId().toString()), "khu Bảo mật (Nội bộ cũ) phải xuất hiện");
+        assertTrue(ids.contains(contactArea.getId().toString()), "khu Bảo mật (Liên hệ trước cũ) phải xuất hiện");
         assertFalse(ids.contains(highlyArea.getId().toString()), "HIGHLY không nhận khách");
         assertFalse(ids.contains(publicArea.getId().toString()), "PUBLIC không nhận khách");
         assertFalse(ids.contains(inactiveInternal.getId().toString()), "khu vực tắt không xuất hiện");
         assertFalse(ids.contains(deletedContact.getId().toString()), "khu vực đã xoá mềm không xuất hiện");
         for (JsonNode a : json(r).path("data")) {
-            String level = a.path("areaLevel").asText();
-            assertTrue(level.equals("INTERNAL_CONFIDENTIAL") || level.equals("CONFIDENTIAL_CONTACT_REQUIRED"), level);
+            assertEquals("CONFIDENTIAL", a.path("areaLevel").asText());
         }
-
-        // Đối chiếu: danh sách xin truy cập không có INTERNAL (lý do form khách trước đây thiếu khu vực này)
-        MvcResult requestList = send(get("/api/areas/available-for-request"), hostL2, null).andReturn();
-        assertEquals(200, status(requestList));
-        assertFalse(ids(requestList).contains(internalArea.getId().toString()));
     }
 
     @Test
-    @DisplayName("GV-04: khu vực INTERNAL lấy từ danh sách tạo được lượt khách (201); cùng quyền với tạo lượt — GUARD 403")
+    @DisplayName("GV-04: khu vực Bảo mật lấy từ danh sách tạo được lượt khách (201); cùng quyền với tạo lượt — GUARD 403")
     void internalAreaFromList_canCreateVisit_guardForbidden() throws Exception {
         assertTrue(ids(send(get(URL), hostL2, null).andReturn()).contains(internalArea.getId().toString()));
 
@@ -91,7 +85,7 @@ class GuestSelectableAreasTest extends GuestTestSupport {
     // ------------------------------------------------------------------ BR-GV-06 theo khung giờ (hostCanInvite)
 
     @Test
-    @DisplayName("GV-06: khu INTERNAL cấp 2, host cấp 2 -> hostCanInvite true, không reasonCode")
+    @DisplayName("GV-06: khu Bảo mật cấp 2, host cấp 2 -> hostCanInvite true, không reasonCode")
     void window_internalEnoughLevel_canInvite() {
         var list = guestVisitService.listSelectableAreas(hostL2.getEmail(), future(0), future(120));
 
@@ -100,26 +94,35 @@ class GuestSelectableAreasTest extends GuestTestSupport {
         assertNull(a.reasonCode());
     }
 
-    @Test
-    @DisplayName("GV-06: khu CONTACT (bắt buộc chỉ định), host không có AP -> false + ERR_GUEST_014 (đủ cấp vẫn không tính)")
-    void window_contactWithoutAp_cannotInvite() {
-        var list = guestVisitService.listSelectableAreas(hostL2.getEmail(), future(0), future(120));
-
-        GuestSelectableAreaResponse a = find(list, contactArea);
-        assertEquals(Boolean.FALSE, a.hostCanInvite());
-        assertEquals("ERR_GUEST_014", a.reasonCode());
+    /** V83: chủ nhà cấp 1 (thiếu cấp với khu Bảo mật) chỉ có khi hạ GUEST_HOST_MIN_LEVEL xuống 1; dùng để kiểm đường AP. */
+    private void allowLevel1Hosts() {
+        setConfig(com.fa26se040.icss.enums.ConfigKey.GUEST_HOST_MIN_LEVEL, "1");
     }
 
     @Test
-    @DisplayName("GV-06: AP chỉ phủ một phần khung giờ -> false; AP phủ trọn khung giờ -> true; đổi khung giờ thì kết quả đổi theo")
-    void window_apCoverage_followsWindow() {
-        newAp(contactArea, hostL2, future(0), future(60));
+    @DisplayName("GV-06 (V83): khu Bảo mật (Liên hệ trước cũ): host cấp 2 không AP -> true (đủ cấp là đủ); host cấp 1 không AP -> false + ERR_GUEST_014")
+    void window_contactWithoutAp_levelDecides() {
+        var level2 = guestVisitService.listSelectableAreas(hostL2.getEmail(), future(0), future(120));
+        assertEquals(Boolean.TRUE, find(level2, contactArea).hostCanInvite());
+        assertNull(find(level2, contactArea).reasonCode());
 
-        var partial = guestVisitService.listSelectableAreas(hostL2.getEmail(), future(0), future(120));
+        allowLevel1Hosts();
+        var level1 = guestVisitService.listSelectableAreas(hostL1.getEmail(), future(0), future(120));
+        assertEquals(Boolean.FALSE, find(level1, contactArea).hostCanInvite());
+        assertEquals("ERR_GUEST_014", find(level1, contactArea).reasonCode());
+    }
+
+    @Test
+    @DisplayName("GV-06: host thiếu cấp, AP chỉ phủ một phần khung giờ -> false; AP phủ trọn khung giờ -> true; đổi khung giờ thì kết quả đổi theo")
+    void window_apCoverage_followsWindow() {
+        allowLevel1Hosts();
+        newAp(contactArea, hostL1, future(0), future(60));
+
+        var partial = guestVisitService.listSelectableAreas(hostL1.getEmail(), future(0), future(120));
         assertEquals(Boolean.FALSE, find(partial, contactArea).hostCanInvite());
         assertEquals("ERR_GUEST_014", find(partial, contactArea).reasonCode());
 
-        var covered = guestVisitService.listSelectableAreas(hostL2.getEmail(), future(0), future(60));
+        var covered = guestVisitService.listSelectableAreas(hostL1.getEmail(), future(0), future(60));
         assertEquals(Boolean.TRUE, find(covered, contactArea).hostCanInvite());
         assertNull(find(covered, contactArea).reasonCode());
     }
@@ -152,7 +155,9 @@ class GuestSelectableAreasTest extends GuestTestSupport {
             }
         }
 
-        MvcResult withWindow = send(get(URL).param("startTime", start).param("endTime", end), hostL2, null).andReturn();
+        // host thiếu cấp (V83: chỉ có khi GUEST_HOST_MIN_LEVEL = 1) để thấy reasonCode
+        allowLevel1Hosts();
+        MvcResult withWindow = send(get(URL).param("startTime", start).param("endTime", end), hostL1, null).andReturn();
         assertEquals(200, status(withWindow), withWindow.getResponse().getContentAsString());
         boolean sawContact = false;
         for (JsonNode a : json(withWindow).path("data")) {
