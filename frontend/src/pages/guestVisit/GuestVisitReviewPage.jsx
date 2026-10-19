@@ -333,7 +333,12 @@ export default function GuestVisitReviewPage() {
         ) : error ? (
           <ErrorState size="sm" message={error} onRetry={() => loadVisits(page)} />
         ) : visits.length === 0 ? (
-          <EmptyState size="sm" icon={Users} title="Không có lượt khách nào phù hợp" />
+          <EmptyState
+            size="sm"
+            icon={Users}
+            title="Không có lượt khách nào phù hợp"
+            description="Chọn trạng thái khác ở bộ lọc phía trên để xem các lượt khách còn lại."
+          />
         ) : (
           <table className="guest-visit__table">
             <thead>
@@ -611,6 +616,7 @@ export default function GuestVisitReviewPage() {
       {/* REJECT MODAL */}
       <Modal
         isOpen={!!rejectTarget}
+        initialFocus="field"
         onClose={() => {
           if (!actionLoading) {
             setRejectTarget(null);
@@ -680,6 +686,7 @@ export default function GuestVisitReviewPage() {
       {/* REVOKE MODAL */}
       <Modal
         isOpen={!!revokeTarget}
+        initialFocus="field"
         onClose={() => {
           if (!actionLoading) {
             setRevokeTarget(null);
