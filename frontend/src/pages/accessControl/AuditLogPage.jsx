@@ -4,8 +4,7 @@ import { useAuth } from "../../context/AuthContext";
 import { getAuditLogs } from "../../services/accessControlService";
 import { getAreas } from "../../services/areaService";
 import { ROLES } from "../../constants/roles";
-import { formatDisplayDateTime } from "../../utils/areaHelpers";
-import { formatDate, formatTime } from "../../utils/formatDateTime";
+import { formatDate, formatTime, formatDateTime } from "../../utils/formatDateTime";
 import { formatLocation } from "../../utils/formatLocation";
 import Button from "../../components/ui/Button";
 import PageHeader from "../../components/ui/PageHeader";
@@ -394,7 +393,7 @@ export default function AuditLogPage() {
 					<div className="audit-detail-row">
 						<span className="audit-row-label">Kết thúc dự kiến:</span>
 						<strong className="audit-val--new">
-							{plannedEnd ? formatDisplayDateTime(plannedEnd) : "—"}
+							{plannedEnd ? formatDateTime(plannedEnd) : "—"}
 						</strong>
 					</div>
 				</div>
@@ -405,7 +404,7 @@ export default function AuditLogPage() {
 			const snap = newValue || oldValue || {};
 			const formatRange = (v) =>
 				v?.startAt || v?.endAt
-					? `${v?.startAt ? formatDisplayDateTime(v.startAt) : "—"} → ${v?.endAt ? formatDisplayDateTime(v.endAt) : "—"}`
+					? `${v?.startAt ? formatDateTime(v.startAt) : "—"} → ${v?.endAt ? formatDateTime(v.endAt) : "—"}`
 					: "—";
 			const oldRange = formatRange(oldValue);
 			const newRange = formatRange(newValue);
@@ -548,7 +547,7 @@ export default function AuditLogPage() {
 	return (
 		<div className="audit-log-page">
 			<PageHeader
-				title="Nhật ký Kiểm toán"
+				title="Nhật ký kiểm toán"
 				description="Theo dõi toàn bộ lịch sử thay đổi phân quyền, quy tắc khu vực và các thao tác trong hệ thống."
 			/>
 
@@ -583,6 +582,7 @@ export default function AuditLogPage() {
 								onSelect={(u) => setFilterChangedByUser(u)}
 								onClear={() => setFilterChangedByUser(null)}
 								placeholder="Tìm theo tên/mã người thực hiện..."
+								ariaLabel="Lọc theo người thực hiện"
 							/>
 						</div>
 						<div className="audit-user-filter">
@@ -594,6 +594,7 @@ export default function AuditLogPage() {
 								onSelect={(u) => setFilterSubjectUser(u)}
 								onClear={() => setFilterSubjectUser(null)}
 								placeholder="Tìm theo tên/mã người bị tác động..."
+								ariaLabel="Lọc theo người bị tác động"
 							/>
 						</div>
 					</div>

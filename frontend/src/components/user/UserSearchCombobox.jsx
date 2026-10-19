@@ -12,6 +12,7 @@ export default function UserSearchCombobox({
   disabled = false,
   selectedUser = null,
   onClear = null,
+  ariaLabel,
 }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
@@ -121,6 +122,7 @@ export default function UserSearchCombobox({
               className="user-combobox__clear-btn"
               onClick={handleClearSelection}
               title="Bỏ chọn người dùng"
+              aria-label="Bỏ chọn người dùng"
             >
               <X size={14} />
             </button>
@@ -138,6 +140,7 @@ export default function UserSearchCombobox({
               if (query.trim().length >= 2) setIsOpen(true);
             }}
             placeholder={placeholder}
+            aria-label={ariaLabel || placeholder}
             disabled={disabled}
           />
           {loading && (
@@ -147,6 +150,8 @@ export default function UserSearchCombobox({
             <button
               type="button"
               className="user-combobox__input-clear"
+              title="Xóa từ khóa"
+              aria-label="Xóa từ khóa"
               onClick={() => {
                 setQuery('');
                 setResults([]);
