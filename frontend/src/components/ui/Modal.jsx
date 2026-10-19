@@ -88,6 +88,7 @@ export default function Modal({
             className="ui-modal__close-btn"
             onClick={onClose}
             aria-label="Đóng"
+            title="Đóng"
           >
             <X size={18} />
           </button>
