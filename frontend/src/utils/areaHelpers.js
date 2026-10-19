@@ -14,8 +14,7 @@ export const AREA_LEVEL_CONFIG = {
     icon: 'globe',
     description: 'Khu vực tự do ra vào cho tất cả người dùng trong khuôn viên (ai cũng vào).'
   },
-  // Gộp loại 19/10 (V83): INTERNAL_CONFIDENTIAL + CONFIDENTIAL_CONTACT_REQUIRED -> CONFIDENTIAL.
-  // Hai key cũ vẫn giữ để đọc được dữ liệu cũ (audit, backend chưa cập nhật) mà không trắng trang.
+  // Gộp loại 19/10 (V83): INTERNAL_CONFIDENTIAL + CONFIDENTIAL_CONTACT_REQUIRED -> CONFIDENTIAL. Loại ⇔ cấp (1/2/3).
   CONFIDENTIAL: {
     code: 'CONFIDENTIAL',
     name: 'Bảo mật',
@@ -26,31 +25,7 @@ export const AREA_LEVEL_CONFIG = {
     bgColor: 'rgba(59, 130, 246, 0.08)',
     borderColor: 'rgba(59, 130, 246, 0.35)',
     icon: 'shield',
-    description: 'Khu vực Bảo mật. Người dùng cấp 2 trở lên vào được bằng cấp; người khác vào qua đơn được duyệt, nhân sự chỉ định, khách hoặc chế độ sự kiện.'
-  },
-  INTERNAL_CONFIDENTIAL: {
-    code: 'INTERNAL_CONFIDENTIAL',
-    name: 'Bảo mật nội bộ',
-    badgeLabel: 'Bảo mật nội bộ',
-    badgeClass: 'level-badge--internal',
-    cardClass: 'zone-card--internal',
-    color: '#3b82f6',
-    bgColor: 'rgba(59, 130, 246, 0.08)',
-    borderColor: 'rgba(59, 130, 246, 0.35)',
-    icon: 'shield',
-    description: 'Khu vực nội bộ campus. Người dùng đủ cấp độ truy cập (level) là được vào.'
-  },
-  CONFIDENTIAL_CONTACT_REQUIRED: {
-    code: 'CONFIDENTIAL_CONTACT_REQUIRED',
-    name: 'Bảo mật - liên hệ trước',
-    badgeLabel: 'Liên hệ trước',
-    badgeClass: 'level-badge--contact',
-    cardClass: 'zone-card--contact',
-    color: '#f59e0b',
-    bgColor: 'rgba(245, 158, 11, 0.08)',
-    borderColor: 'rgba(245, 158, 11, 0.35)',
-    icon: 'alert-triangle',
-    description: 'Mọi cấp đều cần được chỉ định hoặc có đơn được duyệt'
+    description: 'Cấp 2. Người dùng cấp 2 trở lên vào thẳng; người khác vào qua đơn được duyệt, nhân sự chỉ định, khách hoặc chế độ sự kiện.'
   },
   HIGHLY_CONFIDENTIAL: {
     code: 'HIGHLY_CONFIDENTIAL',
@@ -62,9 +37,22 @@ export const AREA_LEVEL_CONFIG = {
     bgColor: 'rgba(239, 68, 68, 0.08)',
     borderColor: 'rgba(239, 68, 68, 0.35)',
     icon: 'lock',
-    description: 'Tuyệt mật – người được chỉ định hoặc có đơn cá nhân được duyệt'
+    description: 'Cấp 3. Người dùng cấp 3 vào thẳng; người khác vào qua đơn cá nhân được duyệt, nhân sự chỉ định hoặc bảo vệ đang xử lý sự cố.'
   }
 };
+
+/**
+ * Tên loại trước V83 (còn trong audit, thông báo, dữ liệu cũ): hiển thị như Bảo mật, kèm tên cũ.
+ * Không nằm trong AREA_LEVEL_CONFIG để mọi danh sách chọn loại chỉ có 3 loại.
+ */
+const LEGACY_AREA_LEVELS = {
+  INTERNAL_CONFIDENTIAL: 'Nội bộ',
+  CONFIDENTIAL_CONTACT_REQUIRED: 'Liên hệ trước',
+  SEMI_PRIVATE: 'Nội bộ',
+};
+
+/** Ba loại khu vực theo thứ tự cấp, dùng cho danh sách chọn / bộ lọc / chú thích. */
+export const AREA_LEVEL_OPTIONS = ['PUBLIC', 'CONFIDENTIAL', 'HIGHLY_CONFIDENTIAL'].map((k) => AREA_LEVEL_CONFIG[k]);
 
 /**
  * Lấy config hiển thị cho Level
@@ -75,8 +63,12 @@ export function getLevelConfig(level) {
     key = level.code || level.areaLevel || level.areaType || level.level;
   }
   if (key === 1 || key === '1') key = 'PUBLIC';
-  if (key === 2 || key === '2' || key === 'SEMI_PRIVATE') key = 'CONFIDENTIAL';
+  if (key === 2 || key === '2') key = 'CONFIDENTIAL';
   if (key === 3 || key === '3' || key === 'PRIVATE') key = 'HIGHLY_CONFIDENTIAL';
+  if (LEGACY_AREA_LEVELS[key]) {
+    const label = `${AREA_LEVEL_CONFIG.CONFIDENTIAL.name} (cũ: ${LEGACY_AREA_LEVELS[key]})`;
+    return { ...AREA_LEVEL_CONFIG.CONFIDENTIAL, code: key, name: label, badgeLabel: label };
+  }
 
   return AREA_LEVEL_CONFIG[key] || {
     code: key || 'UNKNOWN',
@@ -137,8 +129,7 @@ export function getLevelPolygonClass(level) {
     key = level.code || level.areaLevel || level.areaType || level.level;
   }
   if (key === 'PUBLIC' || key === 1 || key === '1') return 'zone-polygon--public';
-  if (key === 'CONFIDENTIAL' || key === 'INTERNAL_CONFIDENTIAL' || key === 'SEMI_PRIVATE' || key === 2 || key === '2') return 'zone-polygon--internal';
-  if (key === 'CONFIDENTIAL_CONTACT_REQUIRED') return 'zone-polygon--contact';
+  if (key === 'CONFIDENTIAL' || LEGACY_AREA_LEVELS[key] || key === 2 || key === '2') return 'zone-polygon--internal';
   if (key === 'HIGHLY_CONFIDENTIAL' || key === 'PRIVATE' || key === 3 || key === '3') return 'zone-polygon--private';
   return 'zone-polygon--default';
 }

@@ -43,6 +43,8 @@ export default function AccessRequestPage() {
 	// Form State
 	const [selectedAreaId, setSelectedAreaId] = useState("");
 	const [requestType, setRequestType] = useState("INDIVIDUAL"); // 'INDIVIDUAL' | 'GROUP'
+	// V83: khu xin được theo từng loại đơn (available-areas?type=INDIVIDUAL|GROUP)
+	const [areasByType, setAreasByType] = useState({ INDIVIDUAL: [], GROUP: [] });
 	const [requestDate, setRequestDate] = useState("");
 	// UI-15: ngày kết thúc riêng để đặt được đơn qua nửa đêm (mặc định = ngày bắt đầu)
 	const [endDate, setEndDate] = useState("");
@@ -178,9 +180,19 @@ export default function AccessRequestPage() {
 		setLoadingAreas(true);
 		setAreasError(null);
 		try {
-			const data = await accessRequestService.getAvailableAreas();
-			const list = Array.isArray(data) ? data : data?.content || [];
-			setAreas(list);
+			// V83: danh sách theo loại đơn (BE dùng cùng điều kiện với API tạo đơn)
+			const [individual, group] = await Promise.all([
+				accessRequestService.getAvailableAreas("INDIVIDUAL"),
+				accessRequestService.getAvailableAreas("GROUP"),
+			]);
+			const asList = (d) => (Array.isArray(d) ? d : d?.content || []);
+			const byType = { INDIVIDUAL: asList(individual), GROUP: asList(group) };
+			setAreasByType(byType);
+			const union = new Map();
+			[...byType.INDIVIDUAL, ...byType.GROUP].forEach((a) => union.set(a.id, a));
+			setAreas([...union.values()]);
+			// Tab mặc định: cá nhân nếu có khu, không thì nhóm
+			setRequestType((prev) => (byType[prev].length > 0 ? prev : byType.INDIVIDUAL.length > 0 ? "INDIVIDUAL" : "GROUP"));
 		} catch (err) {
 			console.error("Lỗi khi tải danh sách khu vực:", err);
 			// Lỗi tải không được hiểu là "không có khu" — hiện lỗi + Thử lại
@@ -277,25 +289,25 @@ export default function AccessRequestPage() {
 	}, [highlightRequestId]);
 
 	// Selected area object
-	const areaList = Array.isArray(areas) ? areas : areas?.content || [];
+	// V83: mỗi tab một danh sách (cá nhân: khu cấp cao hơn bạn trong khoảng cho phép; nhóm: khu bạn tự vào được
+	// bằng cấp để bảo lãnh thành viên). BE kiểm lại đúng điều kiện này khi tạo đơn.
+	const areaList = areasByType[requestType] || [];
 	const currentArea = areaList.find((a) => a.id === selectedAreaId);
+	const noIndividualAreas = areasByType.INDIVIDUAL.length === 0;
+	const noGroupAreas = areasByType.GROUP.length === 0;
 
-	// A-06 (BR-RQ-28): khu vực có nhận đơn nhóm hay không do BE quyết (cờ groupRequestAllowed của available-areas,
-	// theo ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE). Thiếu cờ thì giữ luật mặc định: Tuyệt mật chỉ nhận đơn cá nhân.
-	const isGroupBlocked = (area) => {
-		if (!area) return false;
-		if (typeof area.groupRequestAllowed === "boolean") return !area.groupRequestAllowed;
-		return area.areaLevel === "HIGHLY_CONFIDENTIAL" || area.areaLevel === "PRIVATE";
-	};
-	const groupBlocked = isGroupBlocked(currentArea);
-
-	// When area changes, if area does not accept group requests, force INDIVIDUAL
 	const handleAreaChange = (e) => {
-		const areaId = e.target.value;
-		setSelectedAreaId(areaId);
-		const found = areaList.find((a) => a.id === areaId);
-		if (isGroupBlocked(found)) {
-			setRequestType("INDIVIDUAL");
+		setSelectedAreaId(e.target.value);
+	};
+
+	// Đổi tab: khu đang chọn không có trong danh sách của tab mới thì bỏ chọn; sang cá nhân thì bỏ danh sách thành viên
+	const handleRequestTypeChange = (type) => {
+		if (type === requestType) return;
+		setRequestType(type);
+		if (!(areasByType[type] || []).some((a) => a.id === selectedAreaId)) {
+			setSelectedAreaId("");
+		}
+		if (type === "INDIVIDUAL") {
 			setMemberList([]);
 		}
 	};
@@ -423,13 +435,6 @@ export default function AccessRequestPage() {
 
 		let cleanMemberCodes = [];
 		if (requestType === "GROUP") {
-			if (groupBlocked) {
-				setFormError(
-					`Khu vực ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name} chỉ cho phép đăng ký cá nhân.`,
-				);
-				return;
-			}
-
 			if (memberList.length === 0) {
 				setFormError(
 					"Yêu cầu theo nhóm bắt buộc phải thêm ít nhất một mã số thành viên",
@@ -620,7 +625,55 @@ export default function AccessRequestPage() {
 					onSubmit={handleSubmit}
 					className="arp-card__body"
 				>
-					{/* TRƯỜNG 1: Khu vực cần truy cập */}
+					{/* TRƯỜNG 1: Hình thức đăng ký (V83: chọn trước, danh sách khu theo loại đơn) */}
+					<div className="arp-form-group">
+						<label className="arp-label">
+							<span>Hình thức đăng ký</span>
+							<span className="arp-required">*</span>
+						</label>
+						<div className="arp-type-grid">
+							<button
+								type="button"
+								className={`arp-type-btn ${requestType === "INDIVIDUAL" ? "arp-type-btn--selected" : ""}`}
+								onClick={() => handleRequestTypeChange("INDIVIDUAL")}
+								disabled={noIndividualAreas || submitting}
+								title={noIndividualAreas ? "Không có khu vực nào cấp cao hơn cấp của bạn trong phạm vi được xin" : ""}
+							>
+								<User
+									size={18}
+									className="arp-type-btn__icon"
+								/>
+								<div className="arp-type-btn__name">Cá nhân</div>
+								<div className="arp-type-btn__desc">
+									Đăng ký quyền ra vào khu vực cho chính bạn.
+								</div>
+							</button>
+
+							<button
+								type="button"
+								className={`arp-type-btn ${requestType === "GROUP" ? "arp-type-btn--selected" : ""}`}
+								onClick={() => handleRequestTypeChange("GROUP")}
+								disabled={noGroupAreas || submitting}
+								title={
+									noGroupAreas
+										? "Đơn nhóm dành cho người tự vào được khu vực Bảo mật bằng cấp truy cập để bảo lãnh thành viên"
+										: ""
+								}
+							>
+								<Users
+									size={18}
+									className="arp-type-btn__icon"
+								/>
+								<div className="arp-type-btn__name">Nhóm nội bộ</div>
+								<div className="arp-type-btn__desc">
+									Đăng ký quyền ra vào cho một nhóm thành viên theo danh sách mã
+									số.
+								</div>
+							</button>
+						</div>
+					</div>
+
+					{/* TRƯỜNG 2: Khu vực cần truy cập */}
 					<div className="arp-form-group">
 						<label className="arp-label">
 							<span>Khu vực cần truy cập</span>
@@ -634,7 +687,7 @@ export default function AccessRequestPage() {
 							required
 						>
 							<option value="">-- Chọn khu vực cần đăng ký truy cập --</option>
-							{areas.map((a) => {
+							{areaList.map((a) => {
 								const loc = formatLocation(a.building, a.floor);
 								return (
 									<option
@@ -680,71 +733,18 @@ export default function AccessRequestPage() {
 												</span>
 											</div>
 											<div>
-												{isHighlyConf
-													? groupBlocked
-														? `Khu vực ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name}. Chỉ áp dụng hình thức đăng ký truy cập Cá nhân (không hỗ trợ đăng ký theo nhóm).`
-														: `Khu vực ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name}. Đơn nhóm được phép theo cấu hình hệ thống; thành viên cần đáp ứng điều kiện cấp độ truy cập của khu vực.`
-													: currentArea?.areaLevel === "CONFIDENTIAL"
-													? "Khu vực Bảo mật. Người tạo đơn nhóm đủ cấp độ truy cập có thể bảo lãnh cho thành viên chưa đủ cấp tham gia cùng thời gian đăng ký."
-													: currentArea?.areaLevel === "CONFIDENTIAL_CONTACT_REQUIRED"
-													? "Khu vực yêu cầu liên hệ trước. Người tạo đơn đủ cấp độ truy cập có thể bảo lãnh cho các thành viên trong nhóm tham gia cùng thời gian đăng ký."
-													: "Khu vực yêu cầu phê duyệt trước khi vào."}
+												{requestType === "GROUP"
+													? isHighlyConf
+														? `Khu vực ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name}. Đơn nhóm được phép theo cấu hình hệ thống; thành viên cần đủ cấp truy cập của khu vực.`
+														: "Khu vực Bảo mật. Bạn vào được bằng cấp truy cập và có thể bảo lãnh thành viên chưa đủ cấp tham gia cùng thời gian đăng ký."
+													: isHighlyConf
+														? `Khu vực ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name}. Đơn cá nhân vào khu vực cấp cao hơn cấp của bạn, cần Ban quản lý duyệt.`
+														: "Khu vực Bảo mật. Đơn cá nhân vào khu vực cấp cao hơn cấp của bạn, cần Ban quản lý duyệt."}
 											</div>
 										</div>
 									</div>
 								);
 							})()}
-					</div>
-
-					{/* TRƯỜNG 2: Hình thức đăng ký */}
-					<div className="arp-form-group">
-						<label className="arp-label">
-							<span>Hình thức đăng ký</span>
-							<span className="arp-required">*</span>
-						</label>
-						<div className="arp-type-grid">
-							<button
-								type="button"
-								className={`arp-type-btn ${requestType === "INDIVIDUAL" ? "arp-type-btn--selected" : ""}`}
-								onClick={() => setRequestType("INDIVIDUAL")}
-								disabled={submitting}
-							>
-								<User
-									size={18}
-									className="arp-type-btn__icon"
-								/>
-								<div className="arp-type-btn__name">Cá nhân</div>
-								<div className="arp-type-btn__desc">
-									Đăng ký quyền ra vào khu vực cho chính bạn.
-								</div>
-							</button>
-
-							<button
-								type="button"
-								className={`arp-type-btn ${requestType === "GROUP" ? "arp-type-btn--selected" : ""}`}
-								onClick={() => {
-									if (!groupBlocked) {
-										setRequestType("GROUP");
-									}
-								}}
-								disabled={groupBlocked || submitting}
-								title={
-									groupBlocked
-										? `Khu vực ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name} chỉ cho phép đăng ký cá nhân`
-										: ""
-								}
-							>
-								<Users
-									size={18}
-									className="arp-type-btn__icon"
-								/>
-								<div className="arp-type-btn__name">Nhóm nội bộ</div>
-								<div className="arp-type-btn__desc">
-									Đăng ký quyền ra vào cho một nhóm thành viên theo danh sách mã
-									số.
-								</div>
-							</button>
-						</div>
 					</div>
 
 					{/* TRƯỜNG 3: Khung thời gian */}

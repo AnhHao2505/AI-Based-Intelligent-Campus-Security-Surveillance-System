@@ -3,42 +3,17 @@ import {
 	ShieldCheck,
 	AlertCircle,
 	Info,
-	Lock,
-	Users,
-	Shield,
 } from "lucide-react";
 import { toast } from "sonner";
 import Modal from "../ui/Modal";
 import Button from "../ui/Button";
 import ReasonTextarea from "../ui/ReasonTextarea";
 import EventScheduleSection from "./EventScheduleSection";
-import { getAreaById, updateAreaAccessRules, updateAreaEventMode } from "../../services/areaService";
+import { getAreaById, updateAreaEventMode } from "../../services/areaService";
 import { getActiveReasons } from "../../services/reasonCatalogService";
 import { formatDisplayDateTime, getLevelConfig } from "../../utils/areaHelpers";
-import { useAuth } from "../../context/AuthContext";
 import "../../styles/AreaAccessRulesModal.css";
 import { formatLocation } from "../../utils/formatLocation";
-
-const ACCESS_LEVEL_OPTIONS = [
-	{
-		level: 1,
-		title: "Cấp 1 — Mọi người",
-		desc: "Sinh viên, giảng viên, nhân viên, cộng tác viên và quản trị viên.",
-		icon: Users,
-	},
-	{
-		level: 2,
-		title: "Cấp 2 — Nhân viên vận hành",
-		desc: "Bảo vệ, nhân sự hỗ trợ vận hành và quản lý cơ sở vật chất.",
-		icon: Shield,
-	},
-	{
-		level: 3,
-		title: "Cấp 3 — Quản lý cấp cao",
-		desc: "Khu vực nhạy cảm, phòng máy chủ, phòng ban lãnh đạo và vị trí có ràng buộc an ninh cao.",
-		icon: Lock,
-	},
-];
 
 // Step 5b (BR-EV-A1): ý định gửi lên server thay cho trường enabled cũ
 const EVENT_ACTION_TO_API = {
@@ -52,17 +27,10 @@ export default function AreaAccessRulesModal({
 	onClose,
 	area,
 	onSuccess,
-	levelPresets,
 }) {
-	const { user } = useAuth();
-	const isAdmin = user?.role === "ADMIN";
-
-	const [accessLevel, setAccessLevel] = useState(1);
+	// V83 (D4): cấp khu cố định theo loại, ADMIN không còn sửa cấp ở đây; modal chỉ còn chế độ sự kiện + lịch của FM
 	const [eventModeEnabled, setEventModeEnabled] = useState(false);
 	const [openUntil, setOpenUntil] = useState("");
-	const [reason, setReason] = useState("");
-	const [reasonError, setReasonError] = useState(null);
-	const reasonRef = useRef(null);
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState(null);
 
@@ -118,11 +86,8 @@ export default function AreaAccessRulesModal({
 	};
 
 	const areaLevelKey = area?.areaLevel || area?.level?.code;
-	// Chế độ sự kiện chỉ áp cho khu Bảo mật (CONFIDENTIAL; hai tên cũ trước V83)
-	const isEventModeApplicable =
-		areaLevelKey === "CONFIDENTIAL" ||
-		areaLevelKey === "INTERNAL_CONFIDENTIAL" ||
-		areaLevelKey === "CONFIDENTIAL_CONTACT_REQUIRED";
+	// BR-EV-22 (V83): chế độ sự kiện chỉ áp cho khu Bảo mật
+	const isEventModeApplicable = areaLevelKey === "CONFIDENTIAL";
 
 	const isEventExpired = Boolean(area?.openToMembers) && !Boolean(area?.eventActive);
 
@@ -133,11 +98,9 @@ export default function AreaAccessRulesModal({
 		initialOpenUntilLocal = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 	}
 
-	const rulesChanged = Boolean(isAdmin) && Number(accessLevel) !== (area?.areaAccessLevel ?? 1);
-
 	const isEventOpenChanged = Boolean(eventModeEnabled) !== Boolean(area?.eventActive);
 	const isTimeChanged = Boolean(eventModeEnabled) && openUntil !== initialOpenUntilLocal;
-	const eventModeChanged = !isAdmin && isEventModeApplicable && (isEventOpenChanged || isTimeChanged);
+	const eventModeChanged = isEventModeApplicable && (isEventOpenChanged || isTimeChanged);
 
 	let currentEventAction = null;
 	if (eventModeChanged) {
@@ -153,7 +116,6 @@ export default function AreaAccessRulesModal({
 	useEffect(() => {
 		if (area) {
 			setAreaVersion(area.version ?? null);
-			setAccessLevel(area.areaAccessLevel ?? 1);
 			setEventModeEnabled(Boolean(area.eventActive));
 			if (area.openUntil) {
 				const d = new Date(area.openUntil);
@@ -163,7 +125,6 @@ export default function AreaAccessRulesModal({
 			} else {
 				setOpenUntil("");
 			}
-			setReason("");
 			setEventNote("");
 			setError(null);
 		}
@@ -204,27 +165,12 @@ export default function AreaAccessRulesModal({
 	const loc = formatLocation(area.building, area.floor);
 	const areaDisplay = [area.name, loc].filter(Boolean).join(" · ");
 
-	const preset = levelPresets?.[areaLevelKey];
-
 	const handleSubmit = async (e) => {
 		e?.preventDefault();
 		if (loadingArea) return;
 		setError(null);
 
-		if (isAdmin) {
-			if (!rulesChanged) {
-				toast.info("Không có thay đổi nào cần lưu.");
-				handleClose();
-				return;
-			}
-			const trimmedRuleReason = reason.trim();
-			if (!trimmedRuleReason || trimmedRuleReason.length < 10 || trimmedRuleReason.length > 500) {
-				setReasonError(`Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmedRuleReason.length}).`);
-				reasonRef.current?.focus();
-				return;
-			}
-			setReasonError(null);
-		} else {
+		{
 			if (!eventModeChanged) {
 				toast.info("Không có thay đổi nào cần lưu.");
 				handleClose();
@@ -259,23 +205,7 @@ export default function AreaAccessRulesModal({
 		try {
 			let latestUpdated = null;
 			let version = areaVersion;
-			if (isAdmin && rulesChanged) {
-				const payload = {
-					areaAccessLevel: Number(accessLevel),
-					// A-09: DTO bắt buộc cờ này (@NotNull) và BE chỉ nhận đúng giá trị suy ra từ loại khu vực
-					// (AreaService.updateAccessRules: CONTACT / HIGHLY_CONFIDENTIAL = true, còn lại false; sai -> ERR_AREA_056)
-					explicitAuthorizationRequired:
-						areaLevelKey === "CONFIDENTIAL_CONTACT_REQUIRED" ||
-						areaLevelKey === "HIGHLY_CONFIDENTIAL",
-					reason: reason.trim(),
-					version,
-				};
-				latestUpdated = await updateAreaAccessRules(area.id, payload);
-				version = latestUpdated?.version ?? version;
-				setAreaVersion(version);
-			}
-
-			if (!isAdmin && eventModeChanged) {
+			if (eventModeChanged) {
 				const action = EVENT_ACTION_TO_API[currentEventAction];
 				const eventPayload = {
 					action,
@@ -334,11 +264,11 @@ export default function AreaAccessRulesModal({
 	};
 
 	// UX-03: lý do nút "Lưu thay đổi" đang khoá — cùng điều kiện với thuộc tính disabled trước đây
-	const noChanges = isAdmin ? !rulesChanged : !eventModeChanged;
+	const noChanges = !eventModeChanged;
 	const saveBlockers = [];
 	if (noChanges) {
 		saveBlockers.push("chưa có thay đổi nào để lưu");
-	} else if (!isAdmin) {
+	} else {
 		if (eventModeEnabled && !openUntil) saveBlockers.push("chọn thời điểm kết thúc sự kiện");
 		if (!eventReasonCode) saveBlockers.push("chọn lý do sự kiện");
 	}
@@ -404,108 +334,6 @@ export default function AreaAccessRulesModal({
 					</div>
 				)}
 
-				{preset && (
-					<div
-						style={{
-							padding: "10px 14px",
-							borderRadius: "8px",
-							background: "rgba(59, 130, 246, 0.08)",
-							border: "1px solid rgba(59, 130, 246, 0.2)",
-							marginBottom: "16px",
-							fontSize: "12.5px",
-							display: "flex",
-							alignItems: "center",
-							gap: "8px",
-							color: "var(--theme-text-primary, #0f172a)",
-						}}
-					>
-						<Info
-							size={16}
-							style={{ color: "var(--brand-blue, #3b82f6)", flexShrink: 0 }}
-						/>
-						<div>
-							<strong>Giá trị mặc định của loại {getLevelConfig(areaLevelKey).name}:</strong>{" "}
-							Cấp {preset.areaAccessLevel} · Yêu cầu chỉ định:{" "}
-							{preset.explicitAuthorizationRequired ? "Có" : "Không"}
-						</div>
-					</div>
-				)}
-
-				{isAdmin ? (
-					<>
-						{/* Section 1: areaAccessLevel (ADMIN ONLY) */}
-						<div className="access-rules-group">
-							<label className="access-rules-label">
-								Mức độ bảo mật của khu vực
-							</label>
-							<p className="access-rules-hint">
-								Người dùng có cấp độ quyền hạn lớn hơn hoặc bằng mức này sẽ được phép
-								truy cập tự do khi chế độ xác thực cụ thể không được kích hoạt.
-							</p>
-
-							<div className="access-rules-options">
-								{ACCESS_LEVEL_OPTIONS.map((opt) => {
-									const isSelected = accessLevel === opt.level;
-									const IconComponent = opt.icon;
-									return (
-										<label
-											key={opt.level}
-											className={`access-rules-option ${isSelected ? "access-rules-option--selected" : ""}`}
-										>
-											<input
-												type="radio"
-												name="areaAccessLevel"
-												value={opt.level}
-												checked={isSelected}
-												onChange={() => setAccessLevel(opt.level)}
-												className="access-rules-option__radio"
-											/>
-											<div className="access-rules-option__content">
-												<div className="access-rules-option__header">
-													<IconComponent
-														size={16}
-														className="access-rules-option__icon"
-													/>
-													<span className="access-rules-option__title">
-														{opt.title}
-													</span>
-												</div>
-												<span className="access-rules-option__desc">
-													{opt.desc}
-												</span>
-											</div>
-										</label>
-									);
-								})}
-							</div>
-						</div>
-
-						{/* Section 3: Lý do cập nhật quy tắc (ADMIN ONLY - khi có thay đổi cấp độ) */}
-						{rulesChanged && (
-							<div className="access-rules-group" style={{ marginTop: "16px" }}>
-								<ReasonTextarea
-									ref={reasonRef}
-									id="access-rules-reason"
-									label="Lý do cập nhật quy tắc khu vực"
-									placeholder="Nhập lý do điều chỉnh quy tắc truy cập khu vực (từ 10 đến 500 ký tự)..."
-									value={reason}
-									onChange={(e) => {
-										const val = e.target.value;
-										setReason(val);
-										if (reasonError && val.trim().length >= 10 && val.trim().length <= 500) {
-											setReasonError(null);
-										}
-									}}
-									error={reasonError}
-									min={10}
-									max={500}
-									required
-								/>
-							</div>
-						)}
-					</>
-				) : (
-					<>
 						{/* Read-only Security Level Info for FM */}
 						<div
 							style={{
@@ -518,10 +346,10 @@ export default function AreaAccessRulesModal({
 							}}
 						>
 							<div style={{ fontWeight: 600, color: "var(--theme-text-primary, #0f172a)", marginBottom: "4px" }}>
-								Mức độ bảo mật: Cấp {area?.areaAccessLevel ?? 1} · {area?.explicitAuthorizationRequired ? "Cần chỉ định hoặc đơn duyệt" : "Tự do theo cấp"}
+								Loại {getLevelConfig(areaLevelKey).name} · Cấp {area?.areaAccessLevel ?? 1}: người dùng từ cấp này trở lên vào thẳng
 							</div>
 							<div style={{ fontSize: "12px", color: "var(--theme-text-muted, #64748b)" }}>
-								Định nghĩa loại và cấp độ bảo mật khu vực do Quản trị viên (ADMIN) cấu hình.
+								Cấp cố định theo loại khu vực; muốn đổi cấp, Quản trị viên (ADMIN) đổi loại khu vực.
 							</div>
 						</div>
 
@@ -541,7 +369,7 @@ export default function AreaAccessRulesModal({
 										color: "var(--theme-text-muted, #64748b)",
 									}}
 								>
-									Chế độ sự kiện chỉ áp dụng cho khu vực <strong>Bảo mật nội bộ</strong> hoặc <strong>Bảo mật - liên hệ trước</strong> (không áp dụng cho khu vực Công khai và Tuyệt mật).
+									Chế độ sự kiện chỉ áp dụng cho khu vực <strong>Bảo mật</strong> (không áp dụng cho khu vực Công khai và Tuyệt mật).
 								</div>
 							) : (
 								<div
@@ -778,8 +606,6 @@ export default function AreaAccessRulesModal({
 								</div>
 							)}
 						</div>
-					</>
-				)}
 				</fieldset>
 			</form>
 		</Modal>

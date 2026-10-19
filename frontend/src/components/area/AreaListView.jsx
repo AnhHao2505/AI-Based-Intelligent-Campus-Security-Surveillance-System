@@ -32,9 +32,7 @@ const formatEventUntil = (openUntil) => {
 const TYPE_PRIORITY = {
 	PUBLIC: 1,
 	CONFIDENTIAL: 2,
-	INTERNAL_CONFIDENTIAL: 2,
-	CONFIDENTIAL_CONTACT_REQUIRED: 3,
-	HIGHLY_CONFIDENTIAL: 4,
+	HIGHLY_CONFIDENTIAL: 3,
 };
 
 const LEVEL_SECTIONS = [
@@ -52,17 +50,13 @@ const LEVEL_SECTIONS = [
 	{
 		key: "LEVEL_2",
 		levelNumber: 2,
-		title: "Khu vực Bảo mật nội bộ & Cần liên hệ",
+		title: "Khu vực Bảo mật",
 		badgeLabel: "Cấp 2",
 		dotColor: "var(--theme-info)",
 		badgeColor: "var(--theme-info-text)",
 		badgeBg: "var(--theme-info-bg)",
 		badgeBorder: "var(--theme-info-border)",
-		filter: (a) =>
-			a.areaAccessLevel === 2 ||
-			a.areaLevel === "CONFIDENTIAL" ||
-			a.areaLevel === "INTERNAL_CONFIDENTIAL" ||
-			a.areaLevel === "CONFIDENTIAL_CONTACT_REQUIRED",
+		filter: (a) => a.areaAccessLevel === 2 || a.areaLevel === "CONFIDENTIAL",
 	},
 	{
 		key: "LEVEL_3",
@@ -86,7 +80,6 @@ export default function AreaListView({
 	cameraCounts,
 	isAdmin,
 	isFacilityManager,
-	levelPresets,
 	onSelectArea,
 	onOpenCreateModal,
 	onOpenCamerasModal,
@@ -189,7 +182,8 @@ export default function AreaListView({
 							<Cctv size={13} />
 						</button>
 
-						{(isAdmin || isFacilityManager) && (
+						{/* V83 (D4): cấp cố định theo loại, ADMIN không còn sửa cấp riêng từng khu */}
+						{isFacilityManager && (
 							<button
 								type="button"
 								className="zone-card__quick-btn"
@@ -197,16 +191,8 @@ export default function AreaListView({
 									e.stopPropagation();
 									onOpenAccessRulesModal(area);
 								}}
-								title={
-									isAdmin
-										? "Đổi cấp truy cập khu vực"
-										: "Chế độ sự kiện và lịch"
-								}
-								aria-label={
-									isAdmin
-										? "Đổi cấp truy cập khu vực"
-										: "Chế độ sự kiện và lịch"
-								}
+								title="Chế độ sự kiện và lịch"
+								aria-label="Chế độ sự kiện và lịch"
 							>
 								<ShieldCheck size={13} />
 							</button>

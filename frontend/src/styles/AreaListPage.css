@@ -463,6 +463,12 @@
   border-left: 3px solid #22c55e;
 }
 
+/* V83: khu Bảo mật (cardClass zone-card--internal); trước đây thiếu rule nên rơi về viền xanh lá của .zone-card */
+.zone-card--internal {
+  background: var(--theme-bg-surface);
+  border-left: 3px solid var(--theme-info);
+}
+
 .zone-card--semi-private {
   background: var(--theme-bg-surface);
   border-left: 3px solid #fbbf24;

@@ -1,21 +1,4 @@
-import { apiGet, apiPut } from '../api/apiClient';
-
-/**
- * Lấy danh sách 4 preset mặc định theo loại khu vực (ADMIN, FACILITY_MANAGER)
- * GET /api/access-control/level-presets
- */
-export async function getLevelPresets() {
-  return apiGet('/api/access-control/level-presets');
-}
-
-/**
- * Cập nhật preset mặc định của một loại khu vực (chỉ FACILITY_MANAGER)
- * PUT /api/access-control/level-presets/{areaLevel}
- * Body: { areaAccessLevel, explicitAuthorizationRequired, reason, version }
- */
-export async function updateLevelPreset(areaLevel, data) {
-  return apiPut(`/api/access-control/level-presets/${areaLevel}`, data);
-}
+import { apiGet } from '../api/apiClient';
 
 /**
  * Tra cứu danh sách nhật ký kiểm toán phân quyền (ADMIN, FACILITY_MANAGER)

@@ -4,7 +4,7 @@ import { useAuth } from "../../context/AuthContext";
 import { getAuditLogs } from "../../services/accessControlService";
 import { getAreas } from "../../services/areaService";
 import { ROLES } from "../../constants/roles";
-import { formatDisplayDateTime } from "../../utils/areaHelpers";
+import { formatDisplayDateTime, getLevelConfig } from "../../utils/areaHelpers";
 import { formatDate, formatTime } from "../../utils/formatDateTime";
 import { formatLocation } from "../../utils/formatLocation";
 import Button from "../../components/ui/Button";
@@ -492,9 +492,28 @@ export default function AuditLogPage() {
 			const newLvl = newValue?.areaAccessLevel ?? newValue?.accessLevel;
 			const oldExp = oldValue?.explicitAuthorizationRequired;
 			const newExp = newValue?.explicitAuthorizationRequired;
+			// V83: cờ chỉ định đã bỏ; chỉ bản ghi cũ còn trường này
+			const hasExplicit = oldExp !== undefined || newExp !== undefined;
+			// Bản ghi gộp loại V83 có areaLevel (tên loại cũ hiển thị "Bảo mật (cũ: ...)")
+			const oldType = oldValue?.areaLevel;
+			const newType = newValue?.areaLevel;
 
 			return (
 				<div className="audit-detail-rules">
+					{(oldType || newType) && (
+						<div className="audit-detail-row">
+							<span className="audit-row-label">Loại khu vực:</span>
+							{oldType && newType && oldType !== newType ? (
+								<>
+									<span>{getLevelConfig(oldType).name}</span>
+									<span className="audit-arrow">→</span>
+									<strong className="audit-val--new">{getLevelConfig(newType).name}</strong>
+								</>
+							) : (
+								<strong className="audit-val--new">{getLevelConfig(newType || oldType).name}</strong>
+							)}
+						</div>
+					)}
 					<div className="audit-detail-row">
 						<span className="audit-row-label">Cấp truy cập:</span>
 						{oldLvl !== undefined &&
@@ -511,6 +530,7 @@ export default function AuditLogPage() {
 							</strong>
 						)}
 					</div>
+					{hasExplicit && (
 					<div className="audit-detail-row">
 						<span className="audit-row-label">Yêu cầu chỉ định:</span>
 						{oldExp !== undefined &&
@@ -529,6 +549,7 @@ export default function AuditLogPage() {
 							</strong>
 						)}
 					</div>
+					)}
 				</div>
 			);
 		}

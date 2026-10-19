@@ -90,13 +90,6 @@ export async function getAreaCameras(areaId) {
 }
 
 /**
- * Cập nhật quy tắc truy cập khu vực (FACILITY_MANAGER)
- * PATCH /api/areas/{id}/access-rules
- * @param {Object} data { areaAccessLevel, explicitAuthorizationRequired, reason, version }
- */
-export async function updateAreaAccessRules(areaId, data) {
-	return apiPatch(`/api/areas/${areaId}/access-rules`, data);
-}
 
 /**
  * Lấy danh sách nhân sự được gán vào khu vực (FACILITY_MANAGER, ADMIN)
@@ -188,7 +181,7 @@ export async function cancelEventSchedule(areaId, scheduleId, data) {
  * Xem trước tác động khi ADMIN đổi loại khu vực (chỉ đọc, BR-TC-03)
  * GET /api/areas/{id}/type-change-preview?newAreaLevel=
  * @param {string} id
- * @param {string} newAreaLevel PUBLIC | INTERNAL_CONFIDENTIAL | CONFIDENTIAL_CONTACT_REQUIRED | HIGHLY_CONFIDENTIAL
+ * @param {string} newAreaLevel PUBLIC | CONFIDENTIAL | HIGHLY_CONFIDENTIAL
  * @returns {Promise<Object>} AreaTypeChangePreviewResponse
  */
 export async function getTypeChangePreview(id, newAreaLevel) {

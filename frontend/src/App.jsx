@@ -27,7 +27,6 @@ import SystemConfigPage from "./pages/system/SystemConfigPage";
 import GuardTeamManagementPage from "./pages/guardTeams/GuardTeamManagementPage";
 import ReasonCatalogPage from "./pages/system/ReasonCatalogPage";
 import UserAccessLevelPage from "./pages/accessControl/UserAccessLevelPage";
-import AdminPresetPage from "./pages/accessControl/AdminPresetPage";
 import AuditLogPage from "./pages/accessControl/AuditLogPage";
 import AccessLevelsRedirect from "./pages/accessControl/AccessLevelsRedirect";
 import DemoModeBanner from "./components/common/DemoModeBanner";
@@ -55,7 +54,6 @@ const ROUTE_TITLES = {
 	"/admin/guest-photos": "Ảnh khách",
 	"/fm/access-levels": "Cấp truy cập người dùng",
 	"/admin/access-levels": "Cấp truy cập người dùng",
-	"/admin/level-presets": "Mặc định theo loại khu vực",
 	"/admin/audit-logs": "Nhật ký Kiểm toán",
 	"/admin/system-configurations": "Cấu hình Hệ thống",
 	"/login": "Đăng nhập",
@@ -367,15 +365,10 @@ function App() {
 								}
 							/>
 
+							{/* V83 (D2): cấp cố định theo loại, bỏ trang sửa preset; link cũ về danh sách khu vực */}
 							<Route
 								path="/admin/level-presets"
-								element={
-									<ProtectedRoute
-										allowedRoles={[ROLES.ADMIN]}
-									>
-										<AdminPresetPage />
-									</ProtectedRoute>
-								}
+								element={<Navigate to="/admin/areas" replace />}
 							/>
 
 							<Route

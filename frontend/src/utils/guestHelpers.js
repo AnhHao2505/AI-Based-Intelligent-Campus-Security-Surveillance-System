@@ -27,8 +27,8 @@ export function getGuestBiometricStatus(status) {
   return GUEST_BIOMETRIC_STATUS[status] || { label: status || '—', variant: 'neutral' };
 }
 
-/** Loại khu vực nhận khách (BR-GV-04): Bảo mật. Hai tên cũ (trước V83) giữ để chạy được với dữ liệu chưa gộp. */
-export const GUEST_ALLOWED_AREA_LEVELS = ['CONFIDENTIAL', 'INTERNAL_CONFIDENTIAL', 'CONFIDENTIAL_CONTACT_REQUIRED'];
+/** Loại khu vực nhận khách (BR-GV-04, V83): chỉ Bảo mật. */
+export const GUEST_ALLOWED_AREA_LEVELS = ['CONFIDENTIAL'];
 
 export function formatDateTime(value) {
   if (!value) return '—';
