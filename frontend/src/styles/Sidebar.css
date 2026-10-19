@@ -392,8 +392,11 @@
   .sidebar__link span,
   .sidebar__theme-toggle span,
   .sidebar__user-info,
-  .sidebar__badge-soon,
-  .sidebar__unread-badge {
+  .sidebar__badge-soon {
+    display: none;
+  }
+  /* Ở khổ này sidebar luôn rộng 72px nên nút thu gọn không có tác dụng và đè lên logo */
+  .sidebar__collapse-button {
     display: none;
   }
   .sidebar__brand {
@@ -401,8 +404,22 @@
     padding: 0;
   }
   .sidebar__link {
+    position: relative;
     justify-content: center;
     padding: 10px 0;
+  }
+  /* Badge chưa đọc thành số nhỏ ở góc icon (thắng luật ẩn ".sidebar__link span" phía trên) */
+  .sidebar__link .sidebar__unread-badge {
+    display: inline-flex;
+    position: absolute;
+    top: 2px;
+    right: calc(50% - 20px);
+    margin-left: 0;
+    min-width: 15px;
+    height: 15px;
+    padding: 0 3px;
+    font-size: 9px;
+    box-shadow: 0 0 0 2px var(--theme-bg-sidebar);
   }
   .sidebar__footer {
     flex-direction: column;
