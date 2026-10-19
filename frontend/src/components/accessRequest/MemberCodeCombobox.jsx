@@ -23,6 +23,8 @@ export default function MemberCodeCombobox({
 	placeholder,
 	// id của dòng lỗi bên ngoài (vd lỗi tra cứu) để gắn aria-describedby
 	describedBy,
+	// id cho ô nhập để <label htmlFor> bên ngoài gắn được
+	id,
 }) {
 	const [open, setOpen] = useState(false);
 	const [items, setItems] = useState([]);
@@ -137,6 +139,7 @@ export default function MemberCodeCombobox({
 	return (
 		<div className="arp-member-combobox" ref={containerRef}>
 			<input
+				id={id}
 				type="text"
 				className="arp-input"
 				role="combobox"
