@@ -197,10 +197,10 @@ export default function Sidebar({ user, onLogout }) {
 								className={({ isActive }) =>
 									`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
 								}
-								title={sidebarCollapsed ? "Lịch sử truy cập" : undefined}
+								title={sidebarCollapsed ? "Lịch sử ra vào của tôi" : undefined}
 							>
 								<History size={18} />
-								<span>Lịch sử truy cập</span>
+								<span>Lịch sử ra vào của tôi</span>
 							</NavLink>
 
 							<NavLink
@@ -238,10 +238,10 @@ export default function Sidebar({ user, onLogout }) {
 									className={({ isActive }) =>
 										`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
 									}
-									title={sidebarCollapsed ? "Dashboard" : undefined}
+									title={sidebarCollapsed ? "Tổng quan" : undefined}
 								>
 									<LayoutDashboard size={18} />
-									<span>Dashboard</span>
+									<span>Tổng quan</span>
 								</NavLink>
 
 								{isGuard && (
@@ -530,19 +530,19 @@ export default function Sidebar({ user, onLogout }) {
 					onClick={toggleTheme}
 					title={
 						theme === "light"
-							? "Chuyển sang Dark Mode"
-							: "Chuyển sang Light Mode"
+							? "Chuyển sang giao diện tối"
+							: "Chuyển sang giao diện sáng"
 					}
 				>
 					{theme === "light" ? (
 						<>
 							<Moon size={16} />
-							<span>Dark Mode</span>
+							<span>Giao diện tối</span>
 						</>
 					) : (
 						<>
 							<Sun size={16} />
-							<span>Light Mode</span>
+							<span>Giao diện sáng</span>
 						</>
 					)}
 				</button>

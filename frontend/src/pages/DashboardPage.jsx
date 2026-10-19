@@ -219,7 +219,7 @@ export default function DashboardPage() {
 			<div className="dashboard-container">
 				{/* Header Section */}
 				<PageHeader
-					title="Dashboard"
+					title="Tổng quan"
 					description="Tổng quan hệ thống an ninh Campus"
 					actions={
 						<div className="dashboard-date-badge">

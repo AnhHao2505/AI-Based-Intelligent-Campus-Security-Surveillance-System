@@ -213,7 +213,7 @@ export default function SystemConfigPage() {
 			case "ACCESS_REQUEST":
 				return "Yêu cầu vào khu vực";
 			case "NOTIFICATION":
-				return "Thông báo In-App";
+				return "Thông báo trong ứng dụng";
 			case "AI_CONFIG":
 				return "AI";
 			case "ACCESS_LEVEL":

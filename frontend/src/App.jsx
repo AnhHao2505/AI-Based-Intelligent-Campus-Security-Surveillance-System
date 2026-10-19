@@ -36,7 +36,7 @@ const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
 
 const ROUTE_TITLES = {
 	"/": "FPTU SecureVision",
-	"/dashboard": "Dashboard",
+	"/dashboard": "Tổng quan",
 	"/admin/areas": "Quản lý khu vực",
 	"/admin/areas/map": "Bản đồ Vùng",
 	"/cameras": "Quản lý Camera",
@@ -46,7 +46,7 @@ const ROUTE_TITLES = {
 	"/admin/guard-schedules": "Quản lý Đội bảo vệ",
 	"/guard": "Trung tâm Giám sát",
 	"/access-requests": "Yêu cầu truy cập",
-	"/access-history": "Lịch sử truy cập",
+	"/access-history": "Lịch sử ra vào của tôi",
 	"/admin/access-history": "Lịch sử ra vào",
 	"/notifications": "Thông báo",
 	"/admin/access-requests": "Phê duyệt yêu cầu truy cập",
