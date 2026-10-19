@@ -25,8 +25,10 @@ import { formatLocation } from '../../utils/formatLocation';
 import { formatDateTime } from '../../utils/formatDateTime';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
+import { useReasonLimits } from '../../hooks/useReasonLimits';
 
 export default function AccessRequestReviewPage() {
+  const reasonLimits = useReasonLimits();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(null);
@@ -225,12 +227,12 @@ export default function AccessRequestReviewPage() {
     }
   };
 
-  // Handle Finish (BR-RQ-44, BR-RQ-46) — bắt buộc lý do 10–500 ký tự; backend chặn đơn chưa bắt đầu (ERR_AC_007)
+  // Handle Finish (BR-RQ-44, BR-RQ-46) — bắt buộc lý do, độ dài theo cấu hình (useReasonLimits); backend chặn đơn chưa bắt đầu (ERR_AC_007)
   const handleConfirmFinish = async () => {
     if (!finishItem) return;
     const trimmed = finishReason.trim();
-    if (trimmed.length < 10 || trimmed.length > 500) {
-      setFinishReasonError(`Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmed.length}).`);
+    if (!reasonLimits.isValid(trimmed)) {
+      setFinishReasonError(reasonLimits.error(trimmed));
       finishReasonInputRef.current?.focus();
       return;
     }
@@ -252,12 +254,12 @@ export default function AccessRequestReviewPage() {
     }
   };
 
-  // Handle Staff Cancel (BR-RQ-47) — bắt buộc lý do 10–500 ký tự; backend chặn đơn đã bắt đầu (ERR_AC_008)
+  // Handle Staff Cancel (BR-RQ-47) — bắt buộc lý do, độ dài theo cấu hình (useReasonLimits); backend chặn đơn đã bắt đầu (ERR_AC_008)
   const handleConfirmStaffCancel = async () => {
     if (!staffCancelItem) return;
     const trimmed = staffCancelReason.trim();
-    if (trimmed.length < 10 || trimmed.length > 500) {
-      setStaffCancelReasonError(`Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmed.length}).`);
+    if (!reasonLimits.isValid(trimmed)) {
+      setStaffCancelReasonError(reasonLimits.error(trimmed));
       staffCancelReasonInputRef.current?.focus();
       return;
     }
@@ -291,8 +293,8 @@ export default function AccessRequestReviewPage() {
   const handleConfirmReject = async () => {
     if (!rejectItem) return;
     const trimmed = rejectionReason.trim();
-    if (!trimmed || trimmed.length < 10 || trimmed.length > 500) {
-      setRejectionReasonError(`Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmed.length}).`);
+    if (!reasonLimits.isValid(trimmed)) {
+      setRejectionReasonError(reasonLimits.error(trimmed));
       rejectReasonInputRef.current?.focus();
       return;
     }
@@ -757,13 +759,11 @@ export default function AccessRequestReviewPage() {
                 onChange={(e) => {
                   const val = e.target.value;
                   setFinishReason(val);
-                  if (finishReasonError && val.trim().length >= 10 && val.trim().length <= 500) {
+                  if (finishReasonError && reasonLimits.isValid(val)) {
                     setFinishReasonError(null);
                   }
                 }}
                 error={finishReasonError}
-                min={10}
-                max={500}
                 disabled={actionLoading}
                 required
               />
@@ -832,13 +832,11 @@ export default function AccessRequestReviewPage() {
                 onChange={(e) => {
                   const val = e.target.value;
                   setStaffCancelReason(val);
-                  if (staffCancelReasonError && val.trim().length >= 10 && val.trim().length <= 500) {
+                  if (staffCancelReasonError && reasonLimits.isValid(val)) {
                     setStaffCancelReasonError(null);
                   }
                 }}
                 error={staffCancelReasonError}
-                min={10}
-                max={500}
                 disabled={actionLoading}
                 required
               />
@@ -892,13 +890,11 @@ export default function AccessRequestReviewPage() {
                 value={rejectionReason}
                 onChange={(e) => {
                   setRejectionReason(e.target.value);
-                  if (rejectionReasonError && e.target.value.trim().length >= 10 && e.target.value.trim().length <= 500) {
+                  if (rejectionReasonError && reasonLimits.isValid(e.target.value)) {
                     setRejectionReasonError(null);
                   }
                 }}
                 error={rejectionReasonError}
-                min={10}
-                max={500}
                 disabled={actionLoading}
                 required
               />

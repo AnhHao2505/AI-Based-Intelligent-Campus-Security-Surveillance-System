@@ -25,6 +25,7 @@ import {
 	formatDisplayDateTime,
 } from "../../utils/areaHelpers";
 import "../../styles/AreaAssignedPersonnelModal.css";
+import { useReasonLimits } from "../../hooks/useReasonLimits";
 
 const STATUS_FILTERS = [
 	{ key: "ALL", label: "Tất cả" },
@@ -40,6 +41,7 @@ export default function AreaAssignedPersonnelModal({
 	area,
 	isFacilityManager,
 }) {
+	const reasonLimits = useReasonLimits();
 	const [allPersonnel, setAllPersonnel] = useState([]);
 	const [loading, setLoading] = useState(false);
 	const [statusFilter, setStatusFilter] = useState("ALL");
@@ -143,8 +145,8 @@ export default function AreaAssignedPersonnelModal({
 			return;
 		}
 		const trimmedAddReason = addReasonInput.trim();
-		if (trimmedAddReason.length < 10 || trimmedAddReason.length > 500) {
-			setAddReasonError(`Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmedAddReason.length}).`);
+		if (!reasonLimits.isValid(trimmedAddReason)) {
+			setAddReasonError(reasonLimits.error(trimmedAddReason));
 			addReasonRef.current?.focus();
 			return;
 		}
@@ -212,8 +214,8 @@ export default function AreaAssignedPersonnelModal({
 		e?.preventDefault();
 		if (!editItem) return;
 		const trimmedEditReason = editReasonInput.trim();
-		if (trimmedEditReason.length < 10 || trimmedEditReason.length > 500) {
-			setEditReasonError(`Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmedEditReason.length}).`);
+		if (!reasonLimits.isValid(trimmedEditReason)) {
+			setEditReasonError(reasonLimits.error(trimmedEditReason));
 			editReasonRef.current?.focus();
 			return;
 		}
@@ -253,8 +255,8 @@ export default function AreaAssignedPersonnelModal({
 		e?.preventDefault();
 		if (!revokeItem) return;
 		const trimmedRevokeReason = revokeReason.trim();
-		if (trimmedRevokeReason.length < 10 || trimmedRevokeReason.length > 500) {
-			setRevokeReasonError(`Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmedRevokeReason.length}).`);
+		if (!reasonLimits.isValid(trimmedRevokeReason)) {
+			setRevokeReasonError(reasonLimits.error(trimmedRevokeReason));
 			revokeReasonRef.current?.focus();
 			return;
 		}
@@ -447,7 +449,7 @@ export default function AreaAssignedPersonnelModal({
 									/>
 								</div>
 
-								{/* Reason (Mandatory 10-500 chars) */}
+								{/* Lý do bắt buộc, độ dài theo cấu hình (useReasonLimits) */}
 								<div className="ap-form-group ap-form-group--full">
 									<ReasonTextarea
 										ref={addReasonRef}
@@ -457,13 +459,13 @@ export default function AreaAssignedPersonnelModal({
 										onChange={(e) => {
 											const val = e.target.value;
 											setAddReasonInput(val);
-											if (addReasonError && val.trim().length >= 10 && val.trim().length <= 500) {
+											if (addReasonError && reasonLimits.isValid(val)) {
 												setAddReasonError("");
 											}
 										}}
-										minLength={10}
-										maxLength={500}
-										placeholder="Nhập lý do phân quyền chỉ định (tối thiểu 10 ký tự, tối đa 500 ký tự)..."
+										minLength={reasonLimits.min}
+										maxLength={reasonLimits.max}
+										placeholder={`Nhập lý do phân quyền chỉ định (tối thiểu ${reasonLimits.min} ký tự, tối đa ${reasonLimits.max} ký tự)...`}
 										rows={3}
 										error={addReasonError}
 									/>
@@ -709,13 +711,13 @@ export default function AreaAssignedPersonnelModal({
 								onChange={(e) => {
 									const val = e.target.value;
 									setEditReasonInput(val);
-									if (editReasonError && val.trim().length >= 10 && val.trim().length <= 500) {
+									if (editReasonError && reasonLimits.isValid(val)) {
 										setEditReasonError("");
 									}
 								}}
-								minLength={10}
-								maxLength={500}
-								placeholder="Ví dụ: Gia hạn theo yêu cầu trưởng bộ môn (tối thiểu 10 ký tự, tối đa 500 ký tự)..."
+								minLength={reasonLimits.min}
+								maxLength={reasonLimits.max}
+								placeholder={`Ví dụ: Gia hạn theo yêu cầu trưởng bộ môn (tối thiểu ${reasonLimits.min} ký tự, tối đa ${reasonLimits.max} ký tự)...`}
 								rows={3}
 								error={editReasonError}
 							/>
@@ -778,13 +780,13 @@ export default function AreaAssignedPersonnelModal({
 								onChange={(e) => {
 									const val = e.target.value;
 									setRevokeReason(val);
-									if (revokeReasonError && val.trim().length >= 10 && val.trim().length <= 500) {
+									if (revokeReasonError && reasonLimits.isValid(val)) {
 										setRevokeReasonError("");
 									}
 								}}
-								minLength={10}
-								maxLength={500}
-								placeholder="Nhập lý do thu hồi (tối thiểu 10 ký tự, tối đa 500 ký tự)..."
+								minLength={reasonLimits.min}
+								maxLength={reasonLimits.max}
+								placeholder={`Nhập lý do thu hồi (tối thiểu ${reasonLimits.min} ký tự, tối đa ${reasonLimits.max} ký tự)...`}
 								rows={3}
 								error={revokeReasonError}
 							/>

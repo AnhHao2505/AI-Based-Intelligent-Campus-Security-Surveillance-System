@@ -18,6 +18,7 @@ import { formatDisplayDateTime, getLevelConfig } from "../../utils/areaHelpers";
 import { useAuth } from "../../context/AuthContext";
 import "../../styles/AreaAccessRulesModal.css";
 import { formatLocation } from "../../utils/formatLocation";
+import { useReasonLimits } from "../../hooks/useReasonLimits";
 
 const ACCESS_LEVEL_OPTIONS = [
 	{
@@ -54,6 +55,7 @@ export default function AreaAccessRulesModal({
 	onSuccess,
 	levelPresets,
 }) {
+	const reasonLimits = useReasonLimits();
 	const { user } = useAuth();
 	const isAdmin = user?.role === "ADMIN";
 
@@ -216,8 +218,8 @@ export default function AreaAccessRulesModal({
 				return;
 			}
 			const trimmedRuleReason = reason.trim();
-			if (!trimmedRuleReason || trimmedRuleReason.length < 10 || trimmedRuleReason.length > 500) {
-				setReasonError(`Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmedRuleReason.length}).`);
+			if (!reasonLimits.isValid(trimmedRuleReason)) {
+				setReasonError(reasonLimits.error(trimmedRuleReason));
 				reasonRef.current?.focus();
 				return;
 			}
@@ -244,8 +246,8 @@ export default function AreaAccessRulesModal({
 				return;
 			}
 			const trimmedEventNote = eventNote.trim();
-			if (!trimmedEventNote || trimmedEventNote.length < 10 || trimmedEventNote.length > 500) {
-				setEventNoteError(`Ghi chú phải từ 10 đến 500 ký tự (hiện có ${trimmedEventNote.length}).`);
+			if (!reasonLimits.isValid(trimmedEventNote)) {
+				setEventNoteError(reasonLimits.error(trimmedEventNote, "Ghi chú"));
 				eventNoteRef.current?.focus();
 				return;
 			}
@@ -485,18 +487,16 @@ export default function AreaAccessRulesModal({
 									ref={reasonRef}
 									id="access-rules-reason"
 									label="Lý do cập nhật quy tắc khu vực"
-									placeholder="Nhập lý do điều chỉnh quy tắc truy cập khu vực (từ 10 đến 500 ký tự)..."
+									placeholder={`Nhập lý do điều chỉnh quy tắc truy cập khu vực (từ ${reasonLimits.min} đến ${reasonLimits.max} ký tự)...`}
 									value={reason}
 									onChange={(e) => {
 										const val = e.target.value;
 										setReason(val);
-										if (reasonError && val.trim().length >= 10 && val.trim().length <= 500) {
+										if (reasonError && reasonLimits.isValid(val)) {
 											setReasonError(null);
 										}
 									}}
 									error={reasonError}
-									min={10}
-									max={500}
 									required
 								/>
 							</div>
@@ -741,19 +741,17 @@ export default function AreaAccessRulesModal({
 													ref={eventNoteRef}
 													id="event-mode-note"
 													label="Ghi chú thao tác sự kiện"
-													placeholder="Nêu tên sự kiện hoặc đơn vị tổ chức (10–500 ký tự)..."
+													placeholder={`Nêu tên sự kiện hoặc đơn vị tổ chức (${reasonLimits.range} ký tự)...`}
 													value={eventNote}
 													onChange={(e) => {
 														const val = e.target.value;
 														setEventNote(val);
-														if (eventNoteError && val.trim().length >= 10 && val.trim().length <= 500) {
+														if (eventNoteError && reasonLimits.isValid(val)) {
 															setEventNoteError(null);
 														}
 													}}
 													error={eventNoteError}
 													rows={2}
-													min={10}
-													max={500}
 													required
 												/>
 											</div>

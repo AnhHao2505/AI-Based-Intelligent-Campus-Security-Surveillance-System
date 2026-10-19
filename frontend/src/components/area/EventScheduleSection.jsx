@@ -14,6 +14,7 @@ import {
 import { getActiveReasons } from "../../services/reasonCatalogService";
 import { formatDisplayDateTime, getScheduleStatusView } from "../../utils/areaHelpers";
 import "../../styles/EventScheduleSection.css";
+import { useReasonLimits } from "../../hooks/useReasonLimits";
 
 // Nhóm lý do riêng cho từng thao tác với lịch (Step 5b, BR-ES-L1/L2)
 const REASON_ACTION = {
@@ -49,6 +50,7 @@ const EMPTY_FORM = { startAt: "", endAt: "", reasonCode: "", note: "" };
  * Mọi giới hạn nghiệp vụ (số lịch, thời lượng, đặt trước, ngân sách, chồng giờ) do backend quyết.
  */
 export default function EventScheduleSection({ area, onSchedulesChanged }) {
+	const reasonLimits = useReasonLimits();
 	const { user } = useAuth();
 	const canManage = user?.role === "FACILITY_MANAGER";
 	const areaId = area?.id;
@@ -163,12 +165,9 @@ export default function EventScheduleSection({ area, onSchedulesChanged }) {
 			if (end <= start) return { type: "time", msg: "Giờ kết thúc phải sau giờ bắt đầu." };
 		}
 		if (!form.reasonCode) return { type: "reason", msg: "Vui lòng chọn lý do từ danh mục." };
-		const note = form.note.trim();
-		if (note.length < 10 || note.length > 500) {
-			return {
-				type: "note",
-				msg: `${mode === "edit" ? "Lý do sửa lịch" : "Ghi chú"} phải từ 10 đến 500 ký tự (hiện có ${note.length}).`,
-			};
+		const noteLengthError = reasonLimits.error(form.note, mode === "edit" ? "Lý do sửa lịch" : "Ghi chú");
+		if (noteLengthError) {
+			return { type: "note", msg: noteLengthError };
 		}
 		return null;
 	};
@@ -232,8 +231,7 @@ export default function EventScheduleSection({ area, onSchedulesChanged }) {
 	};
 
 	const nowLocal = toLocalInput(new Date().toISOString());
-	const noteLength = form.note.trim().length;
-	const noteValid = noteLength >= 10 && noteLength <= 500;
+	const noteValid = reasonLimits.isValid(form.note);
 
 	const renderForm = () => {
 		const title =
@@ -306,22 +304,20 @@ export default function EventScheduleSection({ area, onSchedulesChanged }) {
 					label={mode === "edit" ? "Lý do sửa lịch" : "Ghi chú"}
 					placeholder={
 						mode === "edit"
-							? "Nêu lý do đổi giờ của lịch sự kiện (10–500 ký tự)..."
-							: "Nêu tên sự kiện hoặc đơn vị tổ chức (10–500 ký tự)..."
+							? `Nêu lý do đổi giờ của lịch sự kiện (${reasonLimits.range} ký tự)...`
+							: `Nêu tên sự kiện hoặc đơn vị tổ chức (${reasonLimits.range} ký tự)...`
 					}
 					hint={mode === "edit" ? "Ghi chú gốc được giữ nguyên" : undefined}
 					value={form.note}
 					onChange={(e) => {
 						const val = e.target.value;
 						setForm((p) => ({ ...p, note: val }));
-						if (noteError && val.trim().length >= 10 && val.trim().length <= 500) {
+						if (noteError && reasonLimits.isValid(val)) {
 							setNoteError(null);
 						}
 					}}
 					error={noteError}
 					rows={2}
-					min={10}
-					max={500}
 					required
 				/>
 				<div className="evs-form__actions">
