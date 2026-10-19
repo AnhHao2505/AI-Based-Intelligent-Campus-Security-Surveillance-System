@@ -611,7 +611,7 @@ export default function SystemConfigPage() {
 											</span>
 										</td>
 										<td>
-											<span style={{ fontSize: "12.5px", color: "var(--theme-text-primary, #0f172a)" }}>
+											<span style={{ fontSize: "12.5px", color: "var(--theme-text-primary)" }}>
 												{log.reason || "—"}
 											</span>
 										</td>
