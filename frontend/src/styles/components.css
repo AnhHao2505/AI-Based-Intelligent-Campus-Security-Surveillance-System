@@ -142,3 +142,80 @@
 .preset-explicit-badge {
   white-space: nowrap;
 }
+
+/* --------------------------------------------------------------------------
+   Bảng dạng thẻ trên điện thoại (≤ 640px): mỗi dòng là một thẻ, mỗi ô là một
+   cặp "nhãn — giá trị". Nhãn lấy từ data-label của <td>; ô không có data-label
+   (nút thao tác, dòng mở rộng colSpan) chiếm trọn chiều ngang.
+   Dùng: <Table mobileCard /> hoặc gắn class ui-table--mobile-card cho <table>
+   tự viết và data-label cho từng <td>.
+   -------------------------------------------------------------------------- */
+@media (max-width: 640px) {
+  .ui-table-wrapper--mobile-card {
+    overflow-x: visible;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+  }
+
+  table.ui-table--mobile-card {
+    min-width: 0;
+  }
+
+  table.ui-table--mobile-card,
+  table.ui-table--mobile-card tbody,
+  table.ui-table--mobile-card tr,
+  table.ui-table--mobile-card td {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  table.ui-table--mobile-card thead {
+    display: none;
+  }
+
+  table.ui-table--mobile-card tbody tr {
+    margin-bottom: 12px;
+    padding: 4px 0;
+    background-color: var(--theme-bg-surface);
+    border: 1px solid var(--theme-border);
+    border-radius: 10px;
+  }
+
+  table.ui-table--mobile-card tbody tr:last-child {
+    margin-bottom: 0;
+  }
+
+  table.ui-table--mobile-card td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--theme-border);
+    white-space: normal !important;
+  }
+
+  table.ui-table--mobile-card td:last-child {
+    border-bottom: none;
+  }
+
+  /* Nhãn đặt tuyệt đối bên trái để nội dung ô (nhiều phần tử con) giữ luồng block bình thường */
+  table.ui-table--mobile-card td[data-label] {
+    position: relative;
+    min-height: 40px;
+    padding-left: calc(32% + 24px);
+    text-align: left !important;
+  }
+
+  table.ui-table--mobile-card td[data-label]::before {
+    content: attr(data-label);
+    position: absolute;
+    top: 10px;
+    left: 14px;
+    width: 32%;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.6;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--theme-text-muted);
+  }
+}

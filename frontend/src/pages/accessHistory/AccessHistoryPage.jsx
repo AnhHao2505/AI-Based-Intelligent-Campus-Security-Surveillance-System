@@ -90,7 +90,7 @@ export default function AccessHistoryPage() {
 		}
 		return (
 			<>
-				<Table columns={columns} data={logs} />
+				<Table columns={columns} data={logs} mobileCard />
 				<Pagination
 					currentPage={page}
 					totalPages={totalPages}

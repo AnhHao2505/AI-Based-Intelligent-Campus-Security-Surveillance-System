@@ -11,6 +11,7 @@ import './Table.css';
  *   align?: 'left'|'center'|'right',
  *   width?: string|number,
  *   isCode?: boolean,
+ *   mobileLabel?: string|false,
  *   render?: (value: any, record: any, index: number) => React.ReactNode
  * }>} props.columns
  * @param {Array<Object>} [props.data=[]]
@@ -20,6 +21,9 @@ import './Table.css';
  * @param {string|((record: Object, index: number) => string|number)} [props.rowKey='id']
  * @param {(record: Object, index: number) => void} [props.onRowClick]
  * @param {string} [props.className='']
+ * @param {boolean} [props.mobileCard=false] Trên điện thoại (≤ 640px) hiện mỗi dòng thành một thẻ
+ *   "nhãn — giá trị". Nhãn là `col.title` nếu là chuỗi, hoặc `col.mobileLabel`;
+ *   `mobileLabel: false` thì ô chiếm trọn chiều ngang (ví dụ cột nút thao tác).
  */
 export default function Table({
   columns = [],
@@ -30,10 +34,17 @@ export default function Table({
   rowKey = 'id',
   onRowClick,
   className = '',
+  mobileCard = false,
 }) {
   const getRowKey = (record, index) => {
     if (typeof rowKey === 'function') return rowKey(record, index);
     return record?.[rowKey] ?? index;
+  };
+
+  const getMobileLabel = (col) => {
+    if (!mobileCard || col.mobileLabel === false) return undefined;
+    if (col.mobileLabel) return col.mobileLabel;
+    return typeof col.title === 'string' ? col.title : undefined;
   };
 
   const renderEmptyIcon = () => {
@@ -43,8 +54,8 @@ export default function Table({
   };
 
   return (
-    <div className={`ui-table-wrapper ${className}`.trim()}>
-      <table className="ui-table">
+    <div className={`ui-table-wrapper ${mobileCard ? 'ui-table-wrapper--mobile-card' : ''} ${className}`.trim()}>
+      <table className={`ui-table ${mobileCard ? 'ui-table--mobile-card' : ''}`.trim()}>
         <thead>
           <tr>
             {columns.map((col) => (
@@ -120,6 +131,7 @@ export default function Table({
                     return (
                       <td
                         key={col.key}
+                        data-label={getMobileLabel(col)}
                         style={{ textAlign: col.align || 'left' }}
                         className={`ui-table__td ${col.align ? `ui-table__cell--${col.align}` : ''} ${col.isCode ? 'ui-table__cell--code' : ''}`}
                       >
