@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
@@ -707,6 +708,34 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isUnauthorized());
     }
 
+    @Test
+    @DisplayName("BR-EV-22 (V83): FM bật chế độ sự kiện: khu Bảo mật -> 200; Tuyệt mật / Công khai -> 400 ERR_AREA_022 \"chỉ áp dụng cho khu vực Bảo mật\"")
+    void eventMode_onlyConfidentialArea() throws Exception {
+        OffsetDateTime until = OffsetDateTime.now().plusHours(2);
+        for (Area area : List.of(highlyConfidentialArea, publicArea)) {
+            String json = String.format(
+                    "{\"action\":\"ENABLE\",\"openUntil\":\"%s\",\"reasonCode\":\"SEMINAR\",\"note\":\"Hoi thao khu vuc khong ho tro su kien\",\"version\":%d}",
+                    until, areaService.getAreaById(area.getId()).version());
+            mockMvc.perform(patch("/api/areas/{id}/event-mode", area.getId())
+                            .header("Authorization", bearer(fmUser))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(json))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("ERR_AREA_022"))
+                    .andExpect(jsonPath("$.message").value("Chế độ sự kiện chỉ áp dụng cho khu vực Bảo mật"));
+        }
+        String ok = String.format(
+                "{\"action\":\"ENABLE\",\"openUntil\":\"%s\",\"reasonCode\":\"SEMINAR\",\"note\":\"Hoi thao tai khu vuc Bao mat\",\"version\":%d}",
+                until, areaService.getAreaById(contactArea.getId()).version());
+        mockMvc.perform(patch("/api/areas/{id}/event-mode", contactArea.getId())
+                        .header("Authorization", bearer(fmUser))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(ok))
+                .andExpect(status().isOk());
+        assertTrue(accessDecisionService.checkEntry(normalUserL1.getId(), contactArea.getId(), OffsetDateTime.now()).allowed(),
+                "L1 vào khu Bảo mật đang mở sự kiện");
+    }
+
     // =========================================================================
     // TC-AA-05: Sửa khu vực thiếu version -> ERR_AREA_044; version cũ -> ERR_AREA_045
     // =========================================================================
@@ -964,7 +993,7 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
                 now.plusHours(15),
                 "Don 14 tieng"
         );
-        AccessRequestResponse resp14h = accessRequestService.createIndividualRequest(req14h, normalUserL2.getEmail());
+        AccessRequestResponse resp14h = accessRequestService.createIndividualRequest(req14h, normalUserL1.getEmail());
         assertNotNull(resp14h);
 
         // Đổi max duration hours về 4
@@ -976,7 +1005,7 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
                 "Don 5 tieng"
         );
         IllegalArgumentException exDur = assertThrows(IllegalArgumentException.class, () ->
-                accessRequestService.createIndividualRequest(req5h, normalUserL2.getEmail())
+                accessRequestService.createIndividualRequest(req5h, normalUserL1.getEmail())
         );
         assertTrue(exDur.getMessage().contains("4"), "Thông báo lỗi phải chứa giới hạn '4': " + exDur.getMessage());
 
@@ -992,7 +1021,7 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
                 "Don 7 ngay toi"
         );
         IllegalArgumentException exDays = assertThrows(IllegalArgumentException.class, () ->
-                accessRequestService.createIndividualRequest(req7d, normalUserL2.getEmail())
+                accessRequestService.createIndividualRequest(req7d, normalUserL1.getEmail())
         );
         assertTrue(exDays.getMessage().contains("5"), "Thông báo lỗi phải chứa giới hạn '5': " + exDays.getMessage());
 
@@ -1056,7 +1085,7 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
     // TC-AR-09: Liên hệ trước: L2 tạo nhóm có 2 L1 -> chấp nhận, sponsored=true cho cả hai; FM duyệt OK; người tạo bị hạ cấp trước khi duyệt -> duyệt bị từ chối
     // =========================================================================
     @Test
-    @DisplayName("TC-AR-09: Liên hệ trước: L2 tạo nhóm có 2 L1 -> chấp nhận, sponsored=true cho cả hai; FM duyệt OK; người tạo bị hạ cấp trước khi duyệt -> duyệt bị từ chối")
+    @DisplayName("TC-AR-09 (V83): Bảo mật: L2 tạo nhóm có 2 L1 -> chấp nhận, sponsored=true cho cả hai; FM duyệt OK; người tạo bị hạ cấp trước khi duyệt -> FM vẫn duyệt được (BR-RQ-02 không kiểm lại cấp người tạo)")
     void tc_ar_09() {
         OffsetDateTime now = OffsetDateTime.now();
         OffsetDateTime start = now.plusHours(1);
@@ -1104,17 +1133,15 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
         normalUserL2.setAccessLevel(1);
         userRepository.save(normalUserL2);
 
-        IllegalArgumentException exLowered = assertThrows(IllegalArgumentException.class, () ->
-                accessRequestService.reviewRequest(resp2.id(), approveDTO, fmUser.getEmail())
-        );
-        assertTrue(exLowered.getMessage().contains(normalUserL2.getFullName()));
+        AccessRequestResponse approvedLowered = accessRequestService.reviewRequest(resp2.id(), approveDTO, fmUser.getEmail());
+        assertEquals(RequestStatus.APPROVED, approvedLowered.status());
     }
 
     // =========================================================================
     // TC-AR-10: Nội bộ/Tuyệt mật: nhóm có L1 -> từ chối; L1 tạo đơn cá nhân -> từ chối; key cấu hình: giá trị lạ/rỗng/chứa PUBLIC hoặc HIGHLY -> từ chối; thêm INTERNAL hợp lệ -> có hiệu lực ngay
     // =========================================================================
     @Test
-    @DisplayName("TC-AR-10 (V83): Bảo mật: nhóm có L1 -> nhận, sponsored; Tuyệt mật: nhóm -> từ chối; L1 tạo đơn cá nhân vào Bảo mật -> từ chối; key bảo lãnh: giá trị lạ/rỗng/PUBLIC/HIGHLY/tên loại cũ -> từ chối, chỉ còn CONFIDENTIAL")
+    @DisplayName("TC-AR-10 (V83): Bảo mật: nhóm có L1 -> nhận, sponsored; Tuyệt mật: nhóm -> từ chối; đơn cá nhân L1 vào Bảo mật -> nhận, L1 vào Tuyệt mật / L2 vào Bảo mật -> từ chối; key bảo lãnh: giá trị lạ/rỗng/PUBLIC/HIGHLY/tên loại cũ -> từ chối, chỉ còn CONFIDENTIAL")
     void tc_ar_10() {
         OffsetDateTime now = OffsetDateTime.now();
         OffsetDateTime start = now.plusHours(1);
@@ -1136,13 +1163,22 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
                 accessRequestService.createGroupRequest(groupHighly, normalUserL3.getEmail())
         );
 
-        // 3. L1 tạo đơn cá nhân vào Bảo mật -> Từ chối
+        // 3. V83 (BR-RQ-01): L1 tạo đơn cá nhân vào Bảo mật -> nhận; L1 vào Tuyệt mật -> 400 vượt khoảng cách cấp;
+        //    L2 vào Bảo mật -> 400 đã đủ cấp
         IndividualAccessRequestCreateRequest indInternal = new IndividualAccessRequestCreateRequest(
                 internalArea.getId(), start.plusHours(4), end.plusHours(4), "L1 ca nhan vao Bao mat"
         );
-        assertThrows(IllegalArgumentException.class, () ->
-                accessRequestService.createIndividualRequest(indInternal, normalUserL1.getEmail())
+        assertEquals(RequestStatus.PENDING, accessRequestService.createIndividualRequest(indInternal, normalUserL1.getEmail()).status());
+        IllegalArgumentException exGap = assertThrows(IllegalArgumentException.class, () ->
+                accessRequestService.createIndividualRequest(new IndividualAccessRequestCreateRequest(
+                        highlyConfidentialArea.getId(), start.plusHours(8), end.plusHours(8), "L1 ca nhan vao Tuyet mat"), normalUserL1.getEmail())
         );
+        assertEquals("Chỉ được xin vào khu vực cao hơn cấp của bạn tối đa 1 cấp (khu vực cấp 3, bạn cấp 1)", exGap.getMessage());
+        IllegalArgumentException exEnough = assertThrows(IllegalArgumentException.class, () ->
+                accessRequestService.createIndividualRequest(new IndividualAccessRequestCreateRequest(
+                        internalArea.getId(), start.plusHours(8), end.plusHours(8), "L2 ca nhan vao Bao mat"), normalUserL2.getEmail())
+        );
+        assertEquals("Bạn đã đủ cấp vào khu vực này, không cần tạo yêu cầu truy cập (khu vực cấp 2, bạn cấp 2)", exEnough.getMessage());
 
         // 4. Validate key cấu hình ACCESS_REQUEST_SPONSOR_ALLOWED_AREA_TYPES
         // Giá trị lạ
@@ -1178,40 +1214,44 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
     // Dropdown: Khu vực cờ tắt, vô hiệu hoá, cấp cao hơn người gửi không xuất hiện; L1 không thấy khu vực Nội bộ nào
     // =========================================================================
     @Test
-    @DisplayName("Dropdown: khu vô hiệu hoá, cấp cao hơn người gửi không xuất hiện; L2 thấy mọi khu Bảo mật đang hoạt động")
+    @DisplayName("Dropdown (V83): ?type=INDIVIDUAL chỉ khu cao hơn cấp người gửi trong khoảng cách cấp; ?type=GROUP chỉ khu người gửi tự vào được (Tuyệt mật không nhận đơn nhóm); khu vô hiệu hoá không xuất hiện")
     void testDropdown_AvailableAreasFiltering() throws Exception {
-        // 1. L1 (level 1): hai khu Bảo mật (cấp 2) -> L1 không thấy vì level < 2
-        mockMvc.perform(get("/api/areas/available-for-request")
-                        .header("Authorization", bearer(normalUserL1)))
-                .andExpect(status().isOk())
-                .andExpect(result -> {
-                    String content = result.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
-                    assertFalse(content.contains(contactArea.getName()), "L1 không thấy contactArea");
-                    assertFalse(content.contains(internalArea.getName()), "L1 không thấy internalArea");
-                });
+        // 1. Đơn cá nhân: L1 thấy hai khu Bảo mật, không thấy Tuyệt mật (cách 2 cấp); L2 chỉ thấy Tuyệt mật; L3 không thấy khu nào
+        String l1Individual = dropdown(normalUserL1, "INDIVIDUAL");
+        assertTrue(l1Individual.contains(contactArea.getName()) && l1Individual.contains(internalArea.getName()), "L1 thấy khu Bảo mật");
+        assertFalse(l1Individual.contains(highlyConfidentialArea.getName()), "L1 không thấy Tuyệt mật");
+        String l2Individual = dropdown(normalUserL2, "INDIVIDUAL");
+        assertTrue(l2Individual.contains(highlyConfidentialArea.getName()), "L2 thấy Tuyệt mật");
+        assertFalse(l2Individual.contains(contactArea.getName()) || l2Individual.contains(internalArea.getName()), "L2 đã vào thẳng Bảo mật");
+        String l3Individual = dropdown(normalUserL3, "INDIVIDUAL");
+        assertFalse(l3Individual.contains(contactArea.getName()) || l3Individual.contains(highlyConfidentialArea.getName()), "L3 vào thẳng mọi khu");
+        assertFalse(l1Individual.contains(publicArea.getName()), "Công khai không cần đơn");
 
-        // 2. L2 (level 2): hai khu Bảo mật -> THẤY (V83 không còn cờ); highlyConfidentialArea (level 3) -> KHÔNG thấy
-        mockMvc.perform(get("/api/areas/available-for-request")
-                        .header("Authorization", bearer(normalUserL2)))
-                .andExpect(status().isOk())
-                .andExpect(result -> {
-                    String content = result.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
-                    assertTrue(content.contains(contactArea.getName()), "L2 phải thấy contactArea");
-                    assertFalse(content.contains(highlyConfidentialArea.getName()), "L2 không thấy highlyArea");
-                    assertTrue(content.contains(internalArea.getName()), "L2 thấy cả khu Bảo mật (Nội bộ cũ)");
-                });
+        // 2. Đơn nhóm: L2 thấy khu Bảo mật, không thấy Tuyệt mật; L1 không thấy khu nào
+        String l2Group = dropdown(normalUserL2, "GROUP");
+        assertTrue(l2Group.contains(contactArea.getName()) && l2Group.contains(internalArea.getName()));
+        assertFalse(l2Group.contains(highlyConfidentialArea.getName()), "Tuyệt mật không nhận đơn nhóm (mặc định)");
+        String l1Group = dropdown(normalUserL1, "GROUP");
+        assertFalse(l1Group.contains(contactArea.getName()) || l1Group.contains(internalArea.getName()), "L1 không tự vào được khu Bảo mật");
 
-        // 3. Vô hiệu hoá contactArea -> không còn xuất hiện trong dropdown của L2
+        // 3. Không gửi type (client cũ): hợp của hai danh sách, kèm cờ từng loại
+        String l2All = dropdown(normalUserL2, null);
+        assertTrue(l2All.contains(contactArea.getName()) && l2All.contains(highlyConfidentialArea.getName()));
+
+        // 4. Vô hiệu hoá contactArea -> không còn xuất hiện
         contactArea.setIsActive(false);
         areaRepository.save(contactArea);
+        assertFalse(dropdown(normalUserL1, "INDIVIDUAL").contains(contactArea.getName()), "Khu vực vô hiệu hoá không được xuất hiện");
+        assertFalse(dropdown(normalUserL2, "GROUP").contains(contactArea.getName()), "Khu vực vô hiệu hoá không được xuất hiện");
+    }
 
-        mockMvc.perform(get("/api/areas/available-for-request")
-                        .header("Authorization", bearer(normalUserL2)))
-                .andExpect(status().isOk())
-                .andExpect(result -> {
-                    String content = result.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
-                    assertFalse(content.contains(contactArea.getName()), "Khu vực vô hiệu hoá không được xuất hiện");
-                });
+    private String dropdown(User caller, String type) throws Exception {
+        var req = get("/api/areas/available-for-request").header("Authorization", bearer(caller));
+        if (type != null) {
+            req = req.param("type", type);
+        }
+        MvcResult r = mockMvc.perform(req).andExpect(status().isOk()).andReturn();
+        return r.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
     }
 
     // =========================================================================

@@ -170,7 +170,9 @@ public class GuestVisitHostTest extends GuestTestSupport {
     void create_areaTypeAndActive() throws Exception {
         User host3 = newUser("h3", Role.NORMAL_USER, 3, true);
         newAp(highlyArea, host3, OffsetDateTime.now().minusDays(1), OffsetDateTime.now().plusDays(30));
-        assertRejected(create(host3, createBody(future(0), future(60), List.of(highlyArea), List.of(guestInput("Khách một", null)))), 400, "ERR_GUEST_009");
+        MvcResult highly = create(host3, createBody(future(0), future(60), List.of(highlyArea), List.of(guestInput("Khách một", null))));
+        assertRejected(highly, 400, "ERR_GUEST_009");
+        assertEquals("Khu vực " + highlyArea.getName() + " không nhận khách (chỉ loại Bảo mật)", message(highly));
         assertRejected(create(host3, createBody(future(0), future(60), List.of(publicArea), List.of(guestInput("Khách một", null)))), 400, "ERR_GUEST_009");
 
         Area inactive = newArea(AreaLevel.CONFIDENTIAL);

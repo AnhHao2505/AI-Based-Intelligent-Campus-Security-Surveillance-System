@@ -159,11 +159,14 @@ class AccessRequestServiceTest {
         org.mockito.Mockito.lenient().when(systemConfigService.getInt(ConfigKey.ACCESS_REQUEST_MAX_ADVANCE_DAYS)).thenReturn(30);
         org.mockito.Mockito.lenient().when(systemConfigService.getInt(ConfigKey.ACCESS_REQUEST_PAST_START_BUFFER_MINUTES)).thenReturn(5);
         org.mockito.Mockito.lenient().when(systemConfigService.getBoolean(ConfigKey.ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE)).thenReturn(false);
+        org.mockito.Mockito.lenient().when(systemConfigService.getInt(ConfigKey.ACCESS_REQUEST_MAX_LEVEL_GAP)).thenReturn(1);
     }
 
     @Test
     @DisplayName("Tạo yêu cầu cá nhân thành công với dữ liệu hợp lệ")
     void createIndividualRequest_Success() {
+        // V83 (BR-RQ-01): đơn cá nhân dành cho người thiếu cấp -> người tạo cấp 1 xin khu Bảo mật (cấp 2)
+        requester.setAccessLevel(1);
         OffsetDateTime startTime = OffsetDateTime.now().plusHours(1);
         OffsetDateTime endTime = startTime.plusHours(2);
         IndividualAccessRequestCreateRequest request = new IndividualAccessRequestCreateRequest(
@@ -297,8 +300,10 @@ class AccessRequestServiceTest {
     }
 
     @Test
-    @DisplayName("Tạo yêu cầu thành công khi khu vực là INTERNAL_CONFIDENTIAL")
+    @DisplayName("Tạo yêu cầu cá nhân thành công: người tạo cấp 1 xin khu Bảo mật (Nội bộ cũ)")
     void createIndividualRequest_InternalConfidentialArea_Success() {
+        // V83 (BR-RQ-01): đơn cá nhân dành cho người thiếu cấp -> người tạo cấp 1 xin khu Bảo mật (cấp 2)
+        requester.setAccessLevel(1);
         Area internalArea = Area.builder()
                 .id(UUID.randomUUID())
                 .name("Khu vực nội bộ")
@@ -335,6 +340,8 @@ class AccessRequestServiceTest {
     @Test
     @DisplayName("Chặn trùng lịch yêu cầu cá nhân trả về DuplicateResourceException (409 Conflict)")
     void createIndividualRequest_OverlapDetected_ThrowsDuplicateResourceException() {
+        // V83 (BR-RQ-01): đơn cá nhân dành cho người thiếu cấp -> người tạo cấp 1 xin khu Bảo mật (cấp 2)
+        requester.setAccessLevel(1);
         OffsetDateTime startTime = OffsetDateTime.now().plusHours(1);
         OffsetDateTime endTime = startTime.plusHours(2);
         IndividualAccessRequestCreateRequest request = new IndividualAccessRequestCreateRequest(

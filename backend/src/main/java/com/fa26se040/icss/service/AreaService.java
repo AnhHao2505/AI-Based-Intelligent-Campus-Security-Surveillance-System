@@ -226,6 +226,8 @@ public class AreaService {
         // Q1 (BR-RQ-03/04): cùng nguồn cấu hình bảo lãnh với luồng duyệt đơn
         boolean sponsorAllowedForNewLevel = !requests.isEmpty()
                 && systemConfigService.getSponsorAllowedAreaLevels().contains(newLevel);
+        int maxLevelGap = requests.isEmpty() ? 0
+                : systemConfigService.getInt(com.fa26se040.icss.enums.ConfigKey.ACCESS_REQUEST_MAX_LEVEL_GAP);
         for (com.fa26se040.icss.entity.AccessRequest r : requests) {
             boolean approved = r.getStatus() == com.fa26se040.icss.enums.RequestStatus.APPROVED;
             if (newLevel == AreaLevel.PUBLIC) {
@@ -233,7 +235,9 @@ public class AreaService {
                 (approved ? approvedToCancel : pendingToCancel).add(new CancelCandidate(r, PUBLIC_CANCEL_REASON));
                 continue;
             }
-            String violation = describeRuleViolation(r, newLevel, newAccessLevel, groupAllowedInPrivate, sponsorAllowedForNewLevel);
+            // PENDING chỉ tính vi phạm mà bước FM duyệt cũng chặn (V83: duyệt không kiểm lại cấp người tạo)
+            String violation = describeRuleViolation(r, newLevel, newAccessLevel, groupAllowedInPrivate, sponsorAllowedForNewLevel,
+                    maxLevelGap, approved);
             if (violation == null) {
                 continue;
             }
@@ -252,18 +256,24 @@ public class AreaService {
     }
 
     /**
-     * Quy tắc FM kiểm khi duyệt đơn (BR-RQ-02) áp lên loại mới; trả null nếu đơn vẫn thoả loại mới.
-     * Q1 (BR-RQ-03/04): người tạo đơn luôn phải đủ cấp; thành viên sponsored được miễn kiểm cấp khi loại mới
-     * cho phép bảo lãnh; loại mới không cho bảo lãnh → kiểm cấp như thành viên thường, giống reviewRequest
-     * (thiếu cấp thì lý do nêu "loại mới không cho phép bảo lãnh"); thành viên thường kiểm cấp như cũ.
+     * BR-TC-08 (V83): đơn còn thoả loại mới không; trả null nếu còn thoả. Áp điều kiện lúc tạo đơn lên loại mới:
+     * <ul>
+     *   <li>Đơn cá nhân: cấp khu mới − cấp người tạo ≤ ACCESS_REQUEST_MAX_LEVEL_GAP (người tạo đã đủ cấp thì đơn thừa
+     *       nhưng vô hại, giữ).</li>
+     *   <li>Đơn nhóm: Tuyệt mật chỉ khi bật đơn nhóm; người tạo phải tự vào được khu mới bằng cấp.</li>
+     *   <li>checkRequester = false (đơn PENDING, BR-TC-09): bỏ hai điều kiện về người tạo, giống reviewRequest.</li>
+     *   <li>Q1 (BR-RQ-03/04): thành viên sponsored được miễn kiểm cấp khi loại mới cho phép bảo lãnh; loại mới không cho
+     *       bảo lãnh → kiểm cấp như thành viên thường, giống reviewRequest; thành viên thường kiểm cấp như cũ.</li>
+     * </ul>
      * Không dùng chung hàm với reviewRequest: luồng duyệt còn chặn thành viên bị vô hiệu hoá — gộp sẽ thêm
      * điều kiện đó vào đổi loại khu vực.
      */
     private static String describeRuleViolation(com.fa26se040.icss.entity.AccessRequest r, AreaLevel newLevel,
                                                 int newAccessLevel, boolean groupAllowedInPrivate,
-                                                boolean sponsorAllowedForNewLevel) {
-        if (r.getRequestType() == com.fa26se040.icss.enums.RequestType.GROUP
-                && newLevel == AreaLevel.HIGHLY_CONFIDENTIAL && !groupAllowedInPrivate) {
+                                                boolean sponsorAllowedForNewLevel, int maxLevelGap,
+                                                boolean checkRequester) {
+        boolean group = r.getRequestType() == com.fa26se040.icss.enums.RequestType.GROUP;
+        if (group && newLevel == AreaLevel.HIGHLY_CONFIDENTIAL && !groupAllowedInPrivate) {
             return "khu vực Tuyệt mật không nhận đơn nhóm";
         }
         List<String> unqualified = new ArrayList<>();
@@ -272,7 +282,11 @@ public class AreaService {
         User requester = r.getRequester();
         if (requester != null) {
             seen.add(requester.getId());
-            if (accessLevelOf(requester) < newAccessLevel) {
+            if (checkRequester && !group && newAccessLevel - accessLevelOf(requester) > maxLevelGap) {
+                return "đơn cá nhân chỉ xin được khu vực cao hơn cấp người tạo tối đa " + maxLevelGap + " cấp: "
+                        + displayName(requester) + " cấp " + accessLevelOf(requester);
+            }
+            if (checkRequester && group && accessLevelOf(requester) < newAccessLevel) {
                 unqualified.add(displayName(requester));
             }
         }
@@ -477,60 +491,96 @@ public class AreaService {
 
     @Transactional(readOnly = true)
     public List<AreaSimpleResponse> getAvailableAreasForRequest() {
-        return getAvailableAreasForRequest(null);
+        return getAvailableAreasForRequest(null, null);
     }
 
     @Transactional(readOnly = true)
     public List<AreaSimpleResponse> getAvailableAreasForRequest(String actorEmail) {
+        return getAvailableAreasForRequest(actorEmail, null);
+    }
+
+    /**
+     * Danh sách khu cho form đơn (BR-RQ-33, V83). type = INDIVIDUAL / GROUP: chỉ khu tạo được loại đơn đó;
+     * type = null: khu tạo được ít nhất một loại (client cũ). Cùng điều kiện với API tạo đơn ({@link #requestIneligibility}).
+     */
+    @Transactional(readOnly = true)
+    public List<AreaSimpleResponse> getAvailableAreasForRequest(String actorEmail, com.fa26se040.icss.enums.RequestType type) {
         User caller = actorEmail != null ? userRepository.findByEmail(actorEmail).orElse(null) : null;
 
         // Ứng viên: khu vực khác Công khai, chưa xoá, đang hoạt động
-        List<Area> available = areaRepository.findAvailableForRequest().stream()
-                .filter(a -> isAvailableForRequest(a, caller))
-                .toList();
+        List<Area> candidates = areaRepository.findAvailableForRequest();
+        if (candidates.isEmpty()) {
+            return List.of();
+        }
+        int maxLevelGap = systemConfigService.getInt(com.fa26se040.icss.enums.ConfigKey.ACCESS_REQUEST_MAX_LEVEL_GAP);
         // A-06: cấu hình đơn nhóm chỉ quyết định khu vực HIGHLY_CONFIDENTIAL nên chỉ đọc khi danh sách có khu vực đó
-        boolean groupAllowedInHighlyConfidential = available.stream().anyMatch(a -> a.getAreaLevel() == AreaLevel.HIGHLY_CONFIDENTIAL)
+        boolean groupAllowedInHighlyConfidential = candidates.stream().anyMatch(a -> a.getAreaLevel() == AreaLevel.HIGHLY_CONFIDENTIAL)
                 && systemConfigService.getBoolean(com.fa26se040.icss.enums.ConfigKey.ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE);
-        return available.stream()
-                .map(a -> new AreaSimpleResponse(
-                        a.getId(),
-                        a.getName(),
-                        a.getAreaLevel(),
-                        a.getBuilding(),
-                        a.getFloor(),
-                        isGroupRequestAllowed(a.getAreaLevel(), groupAllowedInHighlyConfidential)
-                ))
-                .toList();
+        List<AreaSimpleResponse> result = new ArrayList<>();
+        for (Area a : candidates) {
+            boolean individual = requestIneligibility(a, caller, com.fa26se040.icss.enums.RequestType.INDIVIDUAL,
+                    maxLevelGap, groupAllowedInHighlyConfidential) == null;
+            boolean group = requestIneligibility(a, caller, com.fa26se040.icss.enums.RequestType.GROUP,
+                    maxLevelGap, groupAllowedInHighlyConfidential) == null;
+            boolean listed = type == null ? (individual || group)
+                    : type == com.fa26se040.icss.enums.RequestType.GROUP ? group : individual;
+            if (listed) {
+                result.add(new AreaSimpleResponse(a.getId(), a.getName(), a.getAreaLevel(), a.getBuilding(), a.getFloor(),
+                        group, individual));
+            }
+        }
+        return result;
     }
 
     /**
      * BR-RQ-28: khu vực HIGHLY_CONFIDENTIAL chỉ nhận đơn cá nhân, trừ khi ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE = true.
-     * Dùng chung cho kiểm tra khi tạo đơn nhóm (AccessRequestService) và cờ groupRequestAllowed của available-areas (A-06).
      */
     public static boolean isGroupRequestAllowed(AreaLevel areaLevel, boolean groupAllowedInHighlyConfidential) {
         return areaLevel != AreaLevel.HIGHLY_CONFIDENTIAL || groupAllowedInHighlyConfidential;
     }
 
+    /** BR-RQ-33: khu vực không nằm trong danh sách khu vực được xin (available-areas). */
+    public static final String AREA_NOT_REQUESTABLE_MESSAGE = "Khu vực này không nằm trong danh sách khu vực được phép xin truy cập";
+
     /**
-     * BR-RQ-33: tiêu chí "khu vực được xin" — nguồn duy nhất cho danh sách available-areas và kiểm tra khi tạo đơn
-     * (AccessRequestService), để gọi API thẳng không vượt được danh sách.
-     * - Chưa xoá mềm, đang hoạt động, khác Công khai (V83: không còn cờ chỉ định đích danh).
-     * - NORMAL_USER: cấp khu vực khác null (fail-closed) và không vượt cấp người gọi. FM / ADMIN / caller null không lọc theo cấp.
+     * BR-RQ-33, BR-RQ-01, BR-RQ-03 (V83): điều kiện "khu vực được xin" theo loại đơn — nguồn DUY NHẤT cho danh sách
+     * available-areas và kiểm tra khi tạo đơn (AccessRequestService), để gọi API thẳng không vượt được danh sách.
+     * Trả null nếu tạo được, ngược lại là câu báo lỗi (400).
+     * <ul>
+     *   <li>Khu chưa xoá, đang hoạt động, khác Công khai.</li>
+     *   <li>Đơn cá nhân: cấp khu &gt; cấp người tạo và cấp khu − cấp người tạo ≤ ACCESS_REQUEST_MAX_LEVEL_GAP.</li>
+     *   <li>Đơn nhóm: khu Tuyệt mật chỉ khi ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE; người tạo tự vào được khu bằng cấp
+     *       (cấp người ≥ cấp khu) để bảo lãnh thành viên thiếu cấp.</li>
+     *   <li>Chỉ NORMAL_USER tạo đơn; FM / ADMIN / caller null không lọc theo cấp (chỉ lọc khu và quy tắc đơn nhóm).</li>
+     * </ul>
      */
-    public static boolean isAvailableForRequest(Area area, User caller) {
+    public static String requestIneligibility(Area area, User caller, com.fa26se040.icss.enums.RequestType type,
+                                              int maxLevelGap, boolean groupAllowedInHighlyConfidential) {
         if (area == null || area.getDeletedAt() != null || !Boolean.TRUE.equals(area.getIsActive())
                 || area.getAreaLevel() == null || area.getAreaLevel() == AreaLevel.PUBLIC) {
-            return false;
+            return AREA_NOT_REQUESTABLE_MESSAGE;
+        }
+        boolean group = type == com.fa26se040.icss.enums.RequestType.GROUP;
+        if (group && !isGroupRequestAllowed(area.getAreaLevel(), groupAllowedInHighlyConfidential)) {
+            return "Khu vực Tuyệt mật (HIGHLY_CONFIDENTIAL) chỉ cho phép đăng ký truy cập cá nhân (INDIVIDUAL)";
         }
         if (caller == null || caller.getRole() != Role.NORMAL_USER) {
-            return true;
+            return null;
         }
-        if (area.getAreaAccessLevel() == null) {
-            log.warn("Excluding area {} from request dropdown: areaAccessLevel is null", area.getId());
-            return false;
+        int areaLevel = area.getAreaAccessLevel();
+        int callerLevel = accessLevelOf(caller);
+        String levels = " (khu vực cấp " + areaLevel + ", bạn cấp " + callerLevel + ")";
+        if (group) {
+            return callerLevel >= areaLevel ? null
+                    : "Người tạo đơn nhóm phải tự vào được khu vực bằng cấp truy cập để bảo lãnh thành viên" + levels;
         }
-        int callerLevel = caller.getAccessLevel() != null ? caller.getAccessLevel() : 1;
-        return callerLevel >= area.getAreaAccessLevel();
+        if (callerLevel >= areaLevel) {
+            return "Bạn đã đủ cấp vào khu vực này, không cần tạo yêu cầu truy cập" + levels;
+        }
+        if (areaLevel - callerLevel > maxLevelGap) {
+            return "Chỉ được xin vào khu vực cao hơn cấp của bạn tối đa " + maxLevelGap + " cấp" + levels;
+        }
+        return null;
     }
 
     @Transactional(readOnly = true)

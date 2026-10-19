@@ -284,9 +284,12 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
         OffsetDateTime now = OffsetDateTime.now();
         Area area = newArea(AreaLevel.CONFIDENTIAL);
 
-        // Bị huỷ: người tạo cấp 2 < cấp mới 3
-        AccessRequest r1 = newRequest(area, userL2, RequestType.INDIVIDUAL, RequestStatus.APPROVED,
+        // Bị huỷ (V83): đơn cá nhân cấp 1, cấp mới 3 cao hơn 2 cấp > ACCESS_REQUEST_MAX_LEVEL_GAP (1)
+        AccessRequest r1 = newRequest(area, userL1, RequestType.INDIVIDUAL, RequestStatus.APPROVED,
                 now.plusHours(1), now.plusHours(3));
+        // Giữ nguyên (V83): đơn cá nhân cấp 2, cấp mới 3 chỉ cao hơn 1 cấp
+        AccessRequest r6 = newRequest(area, userL2, RequestType.INDIVIDUAL, RequestStatus.APPROVED,
+                now.plusHours(10), now.plusHours(11));
         // Bị huỷ: đơn nhóm đang diễn ra, thành viên cấp 2 thấp hơn cấp mới
         AccessRequest r2 = newRequest(area, userL3, RequestType.GROUP, RequestStatus.APPROVED,
                 now.minusHours(1), now.plusMinutes(50), userL2);
@@ -303,7 +306,8 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
         MvcResult r = changeType(admin, area, AreaLevel.HIGHLY_CONFIDENTIAL, TYPE_CHANGE_REASON, apiVersion(area));
         assertEquals(200, status(r), describe(r));
 
-        assertEquals(RequestStatus.CANCELLED, requestStatus(r1), "r1 (cá nhân cấp 2) phải bị huỷ");
+        assertEquals(RequestStatus.CANCELLED, requestStatus(r1), "r1 (cá nhân cấp 1, vượt khoảng cách cấp) phải bị huỷ");
+        assertEquals(RequestStatus.APPROVED, requestStatus(r6), "r6 (cá nhân cấp 2, trong khoảng cách cấp) phải giữ APPROVED");
         assertEquals(RequestStatus.CANCELLED, requestStatus(r2), "r2 (nhóm có thành viên cấp 2, đang diễn ra) phải bị huỷ");
         assertEquals(RequestStatus.CANCELLED, requestStatus(r5), "r5 (đơn nhóm vào HIGHLY khi config cấm) phải bị huỷ");
         assertEquals(RequestStatus.APPROVED, requestStatus(r3), "r3 đủ cấp phải giữ APPROVED");
@@ -324,7 +328,8 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
         }
         assertTrue(auditsForTarget(r3.getId().toString()).isEmpty(), "Đơn không bị huỷ thì không có audit");
 
-        assertEquals(Set.of(r1.getId(), r2.getId()), referenceIds(userL2, NotificationType.REQUEST_SYSTEM_CANCELLED));
+        assertEquals(Set.of(r1.getId()), referenceIds(userL1, NotificationType.REQUEST_SYSTEM_CANCELLED));
+        assertEquals(Set.of(r2.getId()), referenceIds(userL2, NotificationType.REQUEST_SYSTEM_CANCELLED));
         assertEquals(Set.of(r2.getId(), r5.getId()), referenceIds(userL3, NotificationType.REQUEST_SYSTEM_CANCELLED));
         assertEquals(Set.of(r5.getId()), referenceIds(userL3b, NotificationType.REQUEST_SYSTEM_CANCELLED));
 
@@ -335,12 +340,16 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
 
     /** BR-TC-09 — nguồn: Step5bAreaTypeChangeTest#tc09_BR_TC_09_pendingKept_fmApproveBlockedByNewLevel */
     @Test
-    @DisplayName("TC-09 (BR-TC-09): đơn PENDING không bị huỷ khi đổi loại, không REQUEST_SYSTEM_CANCELLED; FM duyệt sau đó bị chặn, không REQUEST_APPROVED")
+    @DisplayName("TC-09 (BR-TC-09): đơn nhóm PENDING không bị huỷ khi đổi sang Tuyệt mật, không REQUEST_SYSTEM_CANCELLED; FM duyệt sau đó bị chặn (Tuyệt mật không nhận đơn nhóm), không REQUEST_APPROVED")
     void tc09_pendingKept_noCancelNotification_fmApproveBlocked() throws Exception {
         OffsetDateTime now = OffsetDateTime.now();
         Area area = newArea(AreaLevel.CONFIDENTIAL);
-        AccessRequest pending = newRequest(area, userL2, RequestType.INDIVIDUAL, RequestStatus.PENDING,
-                now.plusHours(2), now.plusHours(4));
+        AccessRequest pending = newRequest(area, userL2, RequestType.GROUP, RequestStatus.PENDING,
+                now.plusHours(2), now.plusHours(4), userL3);
+
+        com.fa26se040.icss.dto.area.AreaTypeChangePreviewResponse preview =
+                areaService.previewTypeChange(area.getId(), AreaLevel.HIGHLY_CONFIDENTIAL);
+        assertEquals(1, preview.pendingRequestsNotApprovableCount(), "Xem trước đếm đơn sẽ không duyệt được");
 
         MvcResult r = changeType(admin, area, AreaLevel.HIGHLY_CONFIDENTIAL, TYPE_CHANGE_REASON, apiVersion(area));
         assertEquals(200, status(r), describe(r));
@@ -349,7 +358,7 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
 
         MvcResult review = send(patch("/api/access-requests/{id}/review", pending.getId()), fm,
                 Map.of("status", "APPROVED")).andReturn();
-        assertEquals(400, status(review), "FM duyệt phải bị chặn theo cấp mới: " + describe(review));
+        assertEquals(400, status(review), "FM duyệt phải bị chặn theo loại mới: " + describe(review));
         assertEquals(RequestStatus.PENDING, requestStatus(pending));
         assertTrue(notificationsOf(userL2, NotificationType.REQUEST_APPROVED).isEmpty());
 
@@ -487,9 +496,10 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
     void tc11b_failureMidway_rollsBackEverything_noNotification() throws Exception {
         OffsetDateTime now = OffsetDateTime.now();
         Area area = newArea(AreaLevel.CONFIDENTIAL);
-        AccessRequest r1 = newRequest(area, userL2, RequestType.INDIVIDUAL, RequestStatus.APPROVED,
+        // V83: đơn cá nhân cấp 1 vượt khoảng cách cấp khi khu thành Tuyệt mật -> hệ thống huỷ cả hai
+        AccessRequest r1 = newRequest(area, userL1, RequestType.INDIVIDUAL, RequestStatus.APPROVED,
                 now.plusHours(1), now.plusHours(2));
-        AccessRequest r2 = newRequest(area, userL2, RequestType.INDIVIDUAL, RequestStatus.APPROVED,
+        AccessRequest r2 = newRequest(area, userL1, RequestType.INDIVIDUAL, RequestStatus.APPROVED,
                 now.plusHours(3), now.plusHours(4));
         long auditBefore = auditCountForArea(area);
 

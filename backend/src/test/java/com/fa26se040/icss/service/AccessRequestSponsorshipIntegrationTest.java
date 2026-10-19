@@ -20,6 +20,7 @@ import com.fa26se040.icss.enums.AccessSource;
 import com.fa26se040.icss.enums.AreaLevel;
 import com.fa26se040.icss.enums.NotificationType;
 import com.fa26se040.icss.enums.RequestStatus;
+import com.fa26se040.icss.enums.RequestType;
 import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.repository.AccessRequestMemberRepository;
 import com.fa26se040.icss.repository.AccessRequestRepository;
@@ -432,7 +433,7 @@ class AccessRequestSponsorshipIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("(e) người tạo L1 vào CONTACT (yêu cầu L2) -> từ chối với thông báo người tạo không đủ cấp")
+    @DisplayName("(e) V83: người tạo L1 tạo đơn nhóm vào Bảo mật (cấp 2) -> từ chối: người tạo đơn nhóm phải tự vào được khu bằng cấp")
     void test_e_creatorL1_contact_rejected() {
         OffsetDateTime start = OffsetDateTime.now().plusHours(1);
         OffsetDateTime end = start.plusHours(2);
@@ -447,7 +448,7 @@ class AccessRequestSponsorshipIntegrationTest extends AbstractIntegrationTest {
 
         assertThatThrownBy(() -> accessRequestService.createGroupRequest(req, creatorL1.getEmail()))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Người tạo đơn không đủ cấp độ truy cập vào khu vực");
+                .hasMessageContaining("Người tạo đơn nhóm phải tự vào được khu vực bằng cấp truy cập");
     }
 
     @Test
@@ -467,7 +468,7 @@ class AccessRequestSponsorshipIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("(g) duyệt khi người tạo bị hạ cấp -> từ chối duyệt")
+    @DisplayName("(g) V83 (BR-RQ-02): người tạo bị hạ cấp trước khi duyệt -> FM vẫn duyệt được, không kiểm lại cấp người tạo")
     void test_g_review_when_creator_demoted_rejected() {
         OffsetDateTime start = OffsetDateTime.now().plusHours(1);
         OffsetDateTime end = start.plusHours(2);
@@ -486,11 +487,10 @@ class AccessRequestSponsorshipIntegrationTest extends AbstractIntegrationTest {
         creatorL2.setAccessLevel(1);
         userRepository.save(creatorL2);
 
-        // FM cố duyệt -> ném lỗi người tạo không còn đủ cấp
+        // FM duyệt -> thành công (BR-AL-30 mới chặn đổi cấp qua API khi còn đơn chờ duyệt; ở đây hạ cấp thẳng trong DB)
         AccessRequestReviewRequest reviewReq = new AccessRequestReviewRequest(RequestStatus.APPROVED, null);
-        assertThatThrownBy(() -> accessRequestService.reviewRequest(created.id(), reviewReq, fmUser.getEmail()))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Người tạo đơn không còn đủ cấp độ truy cập");
+        assertThat(accessRequestService.reviewRequest(created.id(), reviewReq, fmUser.getEmail()).status())
+                .isEqualTo(RequestStatus.APPROVED);
     }
 
     @Test
@@ -632,21 +632,20 @@ class AccessRequestSponsorshipIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("(k) available-areas: lọc theo khu hoạt động và cấp người gửi; đổi loại Bảo mật -> Tuyệt mật thì cấp khu theo loại mới")
+    @DisplayName("(k) V83 available-areas theo loại đơn: L1 cá nhân thấy Bảo mật, nhóm không thấy gì; L2 cá nhân thấy Tuyệt mật, nhóm thấy Bảo mật; đổi loại Bảo mật -> Tuyệt mật thì khu chuyển danh sách")
     void test_k_available_areas_filters_and_type_change() {
-        // 1. Caller là creatorL1 (accessLevel=1): không thấy khu nào cấp cao hơn mình
-        List<AreaSimpleResponse> listL1 = areaService.getAvailableAreasForRequest(creatorL1.getEmail());
-        assertThat(listL1.stream().noneMatch(a -> a.id().equals(contactArea.getId()))).isTrue();
-        assertThat(listL1.stream().noneMatch(a -> a.id().equals(internalArea.getId()))).isTrue();
-        assertThat(listL1.stream().noneMatch(a -> a.id().equals(highlyArea.getId()))).isTrue();
+        RequestType ind = RequestType.INDIVIDUAL;
+        RequestType grp = RequestType.GROUP;
+        java.util.function.BiFunction<User, RequestType, java.util.Set<java.util.UUID>> ids = (u, t) ->
+                areaService.getAvailableAreasForRequest(u.getEmail(), t).stream().map(AreaSimpleResponse::id)
+                        .collect(java.util.stream.Collectors.toSet());
 
-        // 2. Caller là creatorL2 (accessLevel=2): thấy cả hai khu Bảo mật, không thấy Tuyệt mật
-        List<AreaSimpleResponse> listL2 = areaService.getAvailableAreasForRequest(creatorL2.getEmail());
-        assertThat(listL2.stream().anyMatch(a -> a.id().equals(contactArea.getId()))).isTrue();
-        assertThat(listL2.stream().anyMatch(a -> a.id().equals(internalArea.getId()))).isTrue();
-        assertThat(listL2.stream().noneMatch(a -> a.id().equals(highlyArea.getId()))).isTrue();
+        assertThat(ids.apply(creatorL1, ind)).contains(contactArea.getId(), internalArea.getId()).doesNotContain(highlyArea.getId());
+        assertThat(ids.apply(creatorL1, grp)).doesNotContain(contactArea.getId(), internalArea.getId(), highlyArea.getId());
+        assertThat(ids.apply(creatorL2, ind)).contains(highlyArea.getId()).doesNotContain(contactArea.getId(), internalArea.getId());
+        assertThat(ids.apply(creatorL2, grp)).contains(contactArea.getId(), internalArea.getId()).doesNotContain(highlyArea.getId());
 
-        // 3. Đổi loại internalArea sang Tuyệt mật: cấp 3, biến mất khỏi danh sách của L2
+        // Đổi loại internalArea sang Tuyệt mật: cấp 3; với L2 chuyển từ danh sách nhóm sang danh sách cá nhân
         areaService.update(internalArea.getId(), AreaUpdateRequest.builder()
                 .name(internalArea.getName())
                 .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
@@ -659,7 +658,8 @@ class AccessRequestSponsorshipIntegrationTest extends AbstractIntegrationTest {
                 .build(), adminUser.getEmail());
 
         assertThat(areaRepository.findById(internalArea.getId()).orElseThrow().getAreaAccessLevel()).isEqualTo(3);
-        List<AreaSimpleResponse> listL2After = areaService.getAvailableAreasForRequest(creatorL2.getEmail());
-        assertThat(listL2After.stream().noneMatch(a -> a.id().equals(internalArea.getId()))).isTrue();
+        assertThat(ids.apply(creatorL2, grp)).doesNotContain(internalArea.getId());
+        assertThat(ids.apply(creatorL2, ind)).contains(internalArea.getId());
+        assertThat(ids.apply(creatorL1, ind)).doesNotContain(internalArea.getId());
     }
 }

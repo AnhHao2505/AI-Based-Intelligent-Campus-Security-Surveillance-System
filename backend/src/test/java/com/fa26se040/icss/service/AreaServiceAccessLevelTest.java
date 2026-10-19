@@ -64,6 +64,9 @@ class AreaServiceAccessLevelTest {
     @Mock
     private FloorRepository floorRepository;
 
+    @Mock
+    private SystemConfigService systemConfigService;
+
     @InjectMocks
     private AreaService areaService;
 
@@ -200,6 +203,7 @@ class AreaServiceAccessLevelTest {
                 .build();
 
         when(areaRepository.findAvailableForRequest()).thenReturn(List.of(validArea, nullTypeArea));
+        when(systemConfigService.getInt(com.fa26se040.icss.enums.ConfigKey.ACCESS_REQUEST_MAX_LEVEL_GAP)).thenReturn(1);
 
         var result = areaService.getAvailableAreasForRequest("user@fpt.edu.vn");
 
