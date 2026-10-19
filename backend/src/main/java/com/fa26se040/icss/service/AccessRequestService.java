@@ -76,6 +76,8 @@ public class AccessRequestService {
     private final SystemConfigService systemConfigService;
     private final MemberLookupRateLimiter memberLookupRateLimiter;
     private final AuditService auditService;
+    // BR-AL-30: khoá dòng users của người tham gia đơn (đọc lại cấp mới nhất sau khi khoá)
+    private final jakarta.persistence.EntityManager entityManager;
 
     @Transactional
     public AccessRequestResponse createIndividualRequest(IndividualAccessRequestCreateRequest request, String actorEmail) {
@@ -83,6 +85,7 @@ public class AccessRequestService {
 
         User requester = getRequester(actorEmail);
         Area area = getArea(request.areaId());
+        lockParticipants(List.of(requester));
 
         validateCommonRules(area, request.startTime(), request.endTime());
 
@@ -143,11 +146,16 @@ public class AccessRequestService {
 
         validateCommonRules(area, request.startTime(), request.endTime());
 
-        // V83 (BR-RQ-03, BR-RQ-28): Tuyệt mật chỉ nhận đơn nhóm khi bật cấu hình; người tạo phải tự vào được khu bằng cấp
+        // Phần chỉ phụ thuộc khu (đang hoạt động, Tuyệt mật không nhận đơn nhóm) báo trước khi tra thành viên
+        requireAreaAvailableForRequest(area, null, RequestType.GROUP);
+        List<User> memberUsers = resolveAndValidateGroupMembers(request.memberUserCodes(), requester);
+        List<User> lockTargets = new ArrayList<>(memberUsers);
+        lockTargets.add(requester);
+        lockParticipants(lockTargets);
+
+        // V83 (BR-RQ-03, BR-RQ-28): người tạo phải tự vào được khu bằng cấp (đọc sau khi khoá)
         requireAreaAvailableForRequest(area, requester, RequestType.GROUP);
         int requiredLevel = area.getAreaAccessLevel();
-
-        List<User> memberUsers = resolveAndValidateGroupMembers(request.memberUserCodes(), requester);
 
         boolean isSponsorshipAllowed = systemConfigService.getSponsorAllowedAreaLevels().contains(area.getAreaLevel());
         if (!isSponsorshipAllowed) {
@@ -895,6 +903,20 @@ public class AccessRequestService {
     private Area getArea(UUID areaId) {
         return areaRepository.findByIdAndDeletedAtIsNull(areaId)
                 .orElseThrow(() -> new ResourceNotFoundException("Khu vực không tồn tại hoặc đã bị vô hiệu hoá"));
+    }
+
+    /**
+     * BR-AL-30: khoá dòng users của người tạo và thành viên (SELECT ... FOR UPDATE) theo thứ tự id tăng dần (cùng thứ tự uuid
+     * của PostgreSQL, tránh deadlock giữa hai đơn nhóm chéo người) và đọc lại dữ liệu sau khi khoá. Đổi cấp đồng thời cho
+     * một trong số họ (UserService.updateAccessLevel khoá cùng dòng) phải chờ giao dịch này xong: đơn tạo trước thì đổi cấp
+     * sau gặp đơn PENDING (409); đổi cấp trước thì đơn kiểm theo cấp mới.
+     */
+    private void lockParticipants(List<User> participants) {
+        participants.stream()
+                .filter(u -> u != null && u.getId() != null)
+                .collect(java.util.stream.Collectors.toMap(u -> u.getId().toString(), u -> u, (a, b) -> a, java.util.TreeMap::new))
+                .values()
+                .forEach(u -> entityManager.refresh(u, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE));
     }
 
     /** BR-RQ-33: cùng tiêu chí với danh sách available-areas (AreaService.requestIneligibility) -> 400 kèm lý do. */

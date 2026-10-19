@@ -18,7 +18,9 @@ public enum AccessControlErrorCode {
     // BR-AL-29: không đổi cấp truy cập của tài khoản đã vô hiệu hoá (đổi lẻ và đổi nhiều người)
     ERR_AC_009("ERR_AC_009", HttpStatus.CONFLICT, "Tài khoản {userCode} đã bị vô hiệu hoá nên không thể đổi cấp truy cập"),
     // Lịch sử ra vào: khoảng thời gian lọc phải có from <= to
-    ERR_AC_010("ERR_AC_010", HttpStatus.BAD_REQUEST, "Thời điểm bắt đầu ({from}) phải trước hoặc bằng thời điểm kết thúc ({to})");
+    ERR_AC_010("ERR_AC_010", HttpStatus.BAD_REQUEST, "Thời điểm bắt đầu ({from}) phải trước hoặc bằng thời điểm kết thúc ({to})"),
+    // BR-AL-30 (V83): không đổi cấp (nâng hay hạ) khi người dùng là người tạo hoặc thành viên của đơn PENDING
+    ERR_AC_011("ERR_AC_011", HttpStatus.CONFLICT, "Người dùng {userCode} – {fullName} đang có {count} yêu cầu chờ duyệt ({areas}). Hãy duyệt hoặc từ chối các yêu cầu này trước khi đổi cấp.");
 
     private final String code;
     private final HttpStatus httpStatus;

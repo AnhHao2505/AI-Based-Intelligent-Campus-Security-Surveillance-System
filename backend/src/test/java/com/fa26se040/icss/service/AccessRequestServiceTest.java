@@ -77,6 +77,10 @@ class AccessRequestServiceTest {
     @Mock
     private AuditService auditService;
 
+    // BR-AL-30: khoá người tham gia đơn (refresh PESSIMISTIC_WRITE), không có tác dụng trong unit test
+    @Mock
+    private jakarta.persistence.EntityManager entityManager;
+
     @InjectMocks
     private AccessRequestService accessRequestService;
 

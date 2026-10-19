@@ -89,6 +89,8 @@ public class UserService {
     private final UserBulkImportService userBulkImportService;
     // BR-RQ-SP-05: vô hiệu hoá / xoá tài khoản -> hệ thống huỷ đơn truy cập người đó đứng tên (cùng transaction)
     private final AccessRequestService accessRequestService;
+    // BR-AL-30: kiểm đơn PENDING trước khi đổi cấp
+    private final com.fa26se040.icss.repository.AccessRequestRepository accessRequestRepository;
 
     @Value("${ai.service.url:http://localhost:8000}")
     private String aiServiceUrl = "http://localhost:8000";
@@ -653,6 +655,8 @@ public class UserService {
                 throw new AccessDeniedException("Bạn không thể tự thay đổi cấp truy cập của chính mình");
             }
         }
+        // BR-AL-30: khoá dòng users trước khi đọc -> tạo đơn đồng thời cho người này phải chờ (hoặc ngược lại)
+        userRepository.lockRowById(id);
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng"));
         if (user.getDeletedAt() != null) {
@@ -675,6 +679,16 @@ public class UserService {
                     user.getRole(),
                     user.getAccessLevel()
             );
+        }
+
+        // BR-AL-30: người tạo / thành viên của đơn PENDING -> 409, không lưu, không audit (cả nâng lẫn hạ; APPROVED không chặn).
+        // Đổi nhiều người gọi lại hàm này nên người đó FAILED kèm thông báo, người khác vẫn chạy.
+        List<String> pendingAreas = accessRequestRepository.findPendingAreaNamesForParticipant(id);
+        if (pendingAreas != null && !pendingAreas.isEmpty()) {
+            throw new com.fa26se040.icss.exception.AccessControlException(
+                    com.fa26se040.icss.exception.AccessControlErrorCode.ERR_AC_011,
+                    user.getUserCode(), user.getFullName(), pendingAreas.size(),
+                    String.join(", ", new java.util.LinkedHashSet<>(pendingAreas)));
         }
 
         Integer oldLevel = user.getAccessLevel();

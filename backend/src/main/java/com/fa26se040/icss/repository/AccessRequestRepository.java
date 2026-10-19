@@ -306,4 +306,13 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, UU
             @Param("areaId") UUID areaId,
             @Param("status") RequestStatus status
     );
+
+    /**
+     * BR-AL-30: tên khu vực của mọi đơn PENDING mà người dùng là người tạo hoặc thành viên (mỗi đơn một dòng, theo giờ bắt đầu).
+     */
+    @Query(value = "SELECT a.name FROM access_requests r JOIN areas a ON a.id = r.area_id "
+            + "WHERE r.status = 'PENDING' AND (r.requester_id = :userId OR EXISTS ("
+            + "SELECT 1 FROM access_request_members m WHERE m.access_request_id = r.id AND m.user_id = :userId)) "
+            + "ORDER BY r.start_time, r.id", nativeQuery = true)
+    List<String> findPendingAreaNamesForParticipant(@Param("userId") UUID userId);
 }
