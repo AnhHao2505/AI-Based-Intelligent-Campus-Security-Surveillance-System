@@ -297,10 +297,11 @@ export default function AdminPresetPage() {
 								</div>
 
 								<div className="modal-field">
-									<label className="modal-label">
+									<label className="modal-label" htmlFor="preset-edit-access-level">
 										Cấp độ truy cập mặc định
 									</label>
 									<select
+										id="preset-edit-access-level"
 										className="form-control"
 										value={editPresetModal.accessLevel}
 										onChange={(e) =>
@@ -327,10 +328,11 @@ export default function AdminPresetPage() {
 								</div>
 
 								<div className="modal-field">
-									<label className="modal-label">Yêu cầu chỉ định</label>
+									<label className="modal-label" htmlFor="preset-edit-explicit">Yêu cầu chỉ định</label>
 									<div className="explicit-toggle-wrapper">
 										<label className="switch-disabled">
 											<input
+												id="preset-edit-explicit"
 												type="checkbox"
 												checked={isExplicitFixed}
 												disabled
@@ -376,6 +378,16 @@ export default function AdminPresetPage() {
 														? ""
 														: prev.reasonError,
 											}));
+										}}
+										// UI-AUDIT #19: rời ô mà lý do chưa hợp lệ thì báo ngay, cùng điều kiện với nút Lưu
+										onBlur={(e) => {
+											const len = e.target.value.trim().length;
+											if (len < 10 || len > 500) {
+												setEditPresetModal((prev) => ({
+													...prev,
+													reasonError: `Lý do phải từ 10 đến 500 ký tự (hiện có ${len}).`,
+												}));
+											}
 										}}
 										minLength={10}
 										maxLength={500}

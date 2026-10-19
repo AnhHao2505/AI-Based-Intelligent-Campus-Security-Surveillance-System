@@ -62,6 +62,7 @@ export default function ReasonCatalogPage() {
 	// UI-AUDIT #19: ô bắt buộc báo lỗi ngay khi rời ô (onBlur) còn để trống
 	const [createTouched, setCreateTouched] = useState({ code: false, label: false });
 	const [editSubmitError, setEditSubmitError] = useState(null);
+	const [editLabelTouched, setEditLabelTouched] = useState(false);
 
 	// Edit Modal
 	const [editModalOpen, setEditModalOpen] = useState(false);
@@ -171,12 +172,16 @@ export default function ReasonCatalogPage() {
 			sortOrder: item.sortOrder ?? 0,
 		});
 		setEditSubmitError(null);
+		setEditLabelTouched(false);
 		setEditModalOpen(true);
 	};
+
+	const editLabelRequiredError = editLabelTouched && !(editForm.label || "").trim() ? "Vui lòng nhập nhãn hiển thị" : null;
 
 	const handleUpdateSubmit = async (e) => {
 		e.preventDefault();
 		if (!editForm.label?.trim()) {
+			setEditLabelTouched(true);
 			setEditSubmitError("Nhãn lý do không được để trống.");
 			return;
 		}
@@ -504,34 +509,26 @@ export default function ReasonCatalogPage() {
 							<span className="syscfg-alert__text">{editSubmitError}</span>
 						</div>
 					)}
-					<div>
-						<label style={{ display: "block", fontSize: "13px", fontWeight: 600, marginBottom: "4px" }}>
-							Mã lý do
-						</label>
-						<Input value={editForm.code} disabled />
-					</div>
+					{/* UI-AUDIT #19: dùng label của components/ui/Input (htmlFor gắn với ô nhập) như modal tạo mới */}
+					<Input id="reason-edit-code" label="Mã lý do" value={editForm.code} disabled />
 
-					<div>
-						<label style={{ display: "block", fontSize: "13px", fontWeight: 600, marginBottom: "4px" }}>
-							Nhãn hiển thị <span style={{ color: "red" }}>*</span>
-						</label>
-						<Input
-							value={editForm.label}
-							onChange={(e) => setEditForm({ ...editForm, label: e.target.value })}
-							required
-						/>
-					</div>
+					<Input
+						id="reason-edit-label"
+						label="Nhãn hiển thị"
+						value={editForm.label}
+						onChange={(e) => setEditForm({ ...editForm, label: e.target.value })}
+						onBlur={() => setEditLabelTouched(true)}
+						error={editLabelRequiredError}
+						required
+					/>
 
-					<div>
-						<label style={{ display: "block", fontSize: "13px", fontWeight: 600, marginBottom: "4px" }}>
-							Thứ tự sắp xếp
-						</label>
-						<Input
-							type="number"
-							value={editForm.sortOrder}
-							onChange={(e) => setEditForm({ ...editForm, sortOrder: parseInt(e.target.value, 10) || 0 })}
-						/>
-					</div>
+					<Input
+						id="reason-edit-sort-order"
+						label="Thứ tự sắp xếp"
+						type="number"
+						value={editForm.sortOrder}
+						onChange={(e) => setEditForm({ ...editForm, sortOrder: parseInt(e.target.value, 10) || 0 })}
+					/>
 
 					<div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "12px" }}>
 						<Button type="button" variant="secondary" onClick={() => setEditModalOpen(false)}>
