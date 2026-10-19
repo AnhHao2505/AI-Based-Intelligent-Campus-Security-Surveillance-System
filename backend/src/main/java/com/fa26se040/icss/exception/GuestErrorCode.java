@@ -26,7 +26,7 @@ public enum GuestErrorCode {
     ERR_GUEST_016("ERR_GUEST_016", HttpStatus.CONFLICT, "Lượt khách đã được người khác cập nhật, vui lòng tải lại"),
     ERR_GUEST_017("ERR_GUEST_017", HttpStatus.CONFLICT, "Lượt khách đang ở trạng thái {status}, không thể {action}"),
     ERR_GUEST_018("ERR_GUEST_018", HttpStatus.CONFLICT, "Lượt khách đã kết thúc, không thể {action}"),
-    ERR_GUEST_019("ERR_GUEST_019", HttpStatus.BAD_REQUEST, "Lý do phải từ 10 đến 500 ký tự"),
+    ERR_GUEST_019("ERR_GUEST_019", HttpStatus.BAD_REQUEST, "Lý do phải từ {min} đến {max} ký tự"),
     ERR_GUEST_020("ERR_GUEST_020", HttpStatus.BAD_REQUEST, "Thiếu dữ liệu bắt buộc: {field}"),
     ERR_GUEST_021("ERR_GUEST_021", HttpStatus.CONFLICT, "Lượt khách không còn thoả điều kiện để duyệt: {reason}"),
     ERR_GUEST_022("ERR_GUEST_022", HttpStatus.FORBIDDEN, "Không được tự duyệt, từ chối hoặc thu hồi lượt khách mà bạn là người mời"),
