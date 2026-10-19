@@ -64,7 +64,8 @@ export default function DashboardPage() {
 	const role = user?.role;
 	const canCountCameras = [ROLES.ADMIN, ROLES.FACILITY_MANAGER, ROLES.GUARD].includes(role);
 	const canCountIncidents = [ROLES.ADMIN, ROLES.GUARD].includes(role);
-	// GET /api/cameras (ADMIN, FM, GUARD): trang 1 phần tử, chỉ lấy totalElements
+	// GET /api/cameras (ADMIN, FM, GUARD): trang 1 phần tử, chỉ lấy totalElements.
+	// status=ACTIVE là camera được bật trong cấu hình, không phải camera đang có hình.
 	const cameraQuery = useQuery({
 		queryKey: ["dashboard", "active-camera-count"],
 		queryFn: () => apiGet("/api/cameras?status=ACTIVE&page=0&size=1"),
@@ -193,11 +194,11 @@ export default function DashboardPage() {
 		{
 			id: "cameras",
 			visible: canCountCameras,
-			label: "Camera đang hoạt động",
+			label: "Camera đang bật",
 			badge: "Camera",
 			icon: Camera,
 			value: kpiValue(cameraQuery, cameraQuery.data?.totalElements),
-			subtext: kpiSubtext(cameraQuery, "Camera ở trạng thái hoạt động"),
+			subtext: kpiSubtext(cameraQuery, "Đang bật trong cấu hình, chưa tính tín hiệu kết nối"),
 		},
 		{
 			id: "incidents",
