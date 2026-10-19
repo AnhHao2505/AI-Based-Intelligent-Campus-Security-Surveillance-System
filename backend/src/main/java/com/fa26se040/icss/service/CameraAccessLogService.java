@@ -60,7 +60,9 @@ public class CameraAccessLogService {
         }
 
         String cameraCode = entryResponse.getCameraCode();
-        String userCode = entryResponse.getUserCode() != null ? entryResponse.getUserCode() : "UNKNOWN";
+        String userCode = (entryResponse.getUserCode() != null && !entryResponse.getUserCode().isBlank())
+                ? entryResponse.getUserCode()
+                : "UNKNOWN";
 
         // 1. Kiểm tra Debounce chống spam
         String cacheKey = cameraCode + ":" + userCode;
@@ -96,11 +98,10 @@ public class CameraAccessLogService {
         String reasonDetails = entryResponse.getReason();
 
         // 3b. Chuẩn hóa danh tính khi là Người lạ (UNKNOWN_PERSON) hoặc Đột nhập ngoài giờ của người lạ
-        // Nếu người dùng đã bị xoá mềm hoặc không có trong hệ thống: BẮT BUỘC hiển thị là Người lạ / Chưa rõ mặt [UNKNOWN]
+        // Giữ nguyên mã AI quét được (userCode) để phục vụ truy vết điều tra; chỉ ẩn thông tin user entity và đặt tên chuẩn hoá
         boolean isGuest = userCode.startsWith("GUEST-");
         if (result == AccessResult.UNKNOWN_PERSON || (result == AccessResult.INTRUSION && user == null && !isGuest)) {
             user = null;
-            userCode = "UNKNOWN";
             fullName = "Người lạ / Chưa rõ mặt";
             userAccessLevel = null;
             if (result == AccessResult.UNKNOWN_PERSON) {

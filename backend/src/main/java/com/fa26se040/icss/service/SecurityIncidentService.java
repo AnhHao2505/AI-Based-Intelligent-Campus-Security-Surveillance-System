@@ -164,8 +164,8 @@ public class SecurityIncidentService {
                         userCode = uOpt.get().getUserCode();
                         fullName = uOpt.get().getFullName();
                     } else {
-                        // Người dùng đã bị xoá mềm hoặc không tồn tại trong hệ thống -> Bắt buộc gán về UNKNOWN
-                        userCode = "UNKNOWN";
+                        // Người dùng đã bị xoá mềm hoặc không tồn tại trong hệ thống -> Giữ nguyên mã AI quét được để phục vụ truy vết điều tra
+                        userCode = extractedCode;
                         fullName = "Người lạ / Chưa rõ mặt";
                     }
                 }

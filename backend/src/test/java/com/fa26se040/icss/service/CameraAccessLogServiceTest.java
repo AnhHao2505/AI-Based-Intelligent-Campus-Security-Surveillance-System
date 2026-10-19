@@ -189,7 +189,7 @@ class CameraAccessLogServiceTest {
 
         assertNotNull(result);
         assertEquals(AccessResult.UNKNOWN_PERSON, result.getAccessResult());
-        assertEquals("UNKNOWN", result.getUserCode());
+        assertEquals("UNKNOWN-FACE", result.getUserCode());
         assertEquals("Người lạ / Chưa rõ mặt", result.getFullName());
         assertEquals("[UNKNOWN_PERSON] Phát hiện đối tượng chưa đăng ký / người lạ (chưa rõ mặt) tại khu vực giám sát.", result.getReasonDetails());
     }
@@ -215,9 +215,33 @@ class CameraAccessLogServiceTest {
 
         assertNotNull(result);
         assertEquals(AccessResult.UNKNOWN_PERSON, result.getAccessResult());
-        assertEquals("UNKNOWN", result.getUserCode());
+        assertEquals("SE194249", result.getUserCode());
         assertEquals("Người lạ / Chưa rõ mặt", result.getFullName());
         assertEquals("[UNKNOWN_PERSON] Phát hiện đối tượng chưa đăng ký / người lạ (chưa rõ mặt) tại khu vực giám sát.", result.getReasonDetails());
+    }
+
+    @Test
+    @DisplayName("Khi AI không phát hiện được mã (userCode null/blank) thì mặc định lưu UNKNOWN")
+    void testRecordAccessLog_NullUserCode_DefaultsToUnknown() {
+        OffsetDateTime daytime = OffsetDateTime.of(2026, 10, 16, 10, 45, 0, 0, ZoneOffset.ofHours(7));
+        CheckCameraEntryResponse entryResponse = CheckCameraEntryResponse.builder()
+                .allowed(false)
+                .source(AccessSource.NONE)
+                .reason("Không nhận diện được khuôn mặt")
+                .cameraCode("CAM-001")
+                .areaId(areaId)
+                .userCode(null)
+                .build();
+
+        when(areaRepository.findById(areaId)).thenReturn(Optional.of(area));
+        when(cameraAccessLogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        CameraAccessLogResponse result = cameraAccessLogService.recordAccessLog(entryResponse, daytime);
+
+        assertNotNull(result);
+        assertEquals(AccessResult.UNKNOWN_PERSON, result.getAccessResult());
+        assertEquals("UNKNOWN", result.getUserCode());
+        assertEquals("Người lạ / Chưa rõ mặt", result.getFullName());
     }
 
     @Test
