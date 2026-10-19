@@ -411,18 +411,18 @@
   border-color: rgba(96, 165, 250, 0.25);
 }
 
-/* Status Badges */
+/* Status Badges — token success/neutral, tự đổi theo theme sáng/tối */
 .account-badge--active {
-  background-color: #dcfce7;
-  color: #15803d;
-  border-color: #bbf7d0;
+  background-color: var(--theme-success-bg);
+  color: var(--theme-success-text);
+  border-color: var(--theme-success-border);
 }
 
 .account-badge--active .account-badge__dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background-color: #16a34a;
+  background-color: var(--theme-success);
 }
 
 .account-badge--inactive {
@@ -435,27 +435,6 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background-color: #94a3b8;
-}
-
-/* Dark Mode Status Badges */
-[data-theme="dark"] .account-badge--active {
-  background-color: rgba(34, 197, 94, 0.15);
-  color: #4ade80;
-  border-color: rgba(34, 197, 94, 0.3);
-}
-
-[data-theme="dark"] .account-badge--active .account-badge__dot {
-  background-color: #22c55e;
-}
-
-[data-theme="dark"] .account-badge--inactive {
-  background-color: rgba(148, 163, 184, 0.12);
-  color: var(--theme-text-muted);
-  border-color: rgba(148, 163, 184, 0.25);
-}
-
-[data-theme="dark"] .account-badge--inactive .account-badge__dot {
   background-color: var(--theme-text-muted);
 }
 
@@ -490,25 +469,25 @@
 
 .account-action-btn--edit:hover {
   color: var(--theme-primary);
-  border-color: #bfdbfe;
+  border-color: var(--theme-primary-border);
   background-color: var(--theme-primary-light);
 }
 
 .account-action-btn--toggle-disable:hover {
-  color: #d97706;
-  border-color: #fde68a;
+  color: var(--theme-warning-text);
+  border-color: var(--theme-warning-border);
   background-color: var(--theme-warning-bg);
 }
 
 .account-action-btn--toggle-activate:hover {
   color: var(--theme-success);
-  border-color: #bbf7d0;
+  border-color: var(--theme-success-border);
   background-color: var(--theme-success-bg);
 }
 
 .account-action-btn--delete:hover {
-  color: #dc2626;
-  border-color: #fecaca;
+  color: var(--theme-danger-text);
+  border-color: var(--theme-danger-border);
   background-color: var(--theme-danger-bg);
 }
 
@@ -544,41 +523,22 @@
 
 /* Vô hiệu hoá: Warning/danger text treatment */
 .account-action-link--disable {
-  color: #dc2626;
+  color: var(--theme-danger-text);
 }
 
 .account-action-link--disable:hover {
-  color: #b91c1c;
-  background-color: rgba(220, 38, 38, 0.08);
+  color: var(--theme-danger-text);
+  background-color: var(--theme-danger-subtle);
 }
 
 /* Kích hoạt: Positive/primary text treatment */
 .account-action-link--activate {
-  color: var(--theme-success);
+  color: var(--theme-success-text);
 }
 
 .account-action-link--activate:hover {
-  color: #15803d;
-  background-color: rgba(22, 163, 74, 0.08);
-}
-
-/* Dark mode for action links */
-[data-theme="dark"] .account-action-link--disable {
-  color: var(--theme-danger);
-}
-
-[data-theme="dark"] .account-action-link--disable:hover {
-  color: var(--theme-danger-text);
-  background-color: rgba(248, 113, 113, 0.12);
-}
-
-[data-theme="dark"] .account-action-link--activate {
-  color: #4ade80;
-}
-
-[data-theme="dark"] .account-action-link--activate:hover {
-  color: #86efac;
-  background-color: rgba(74, 222, 128, 0.12);
+  color: var(--theme-success-text);
+  background-color: var(--theme-success-bg);
 }
 
 /* --------------------------------------------------------------------------
@@ -630,9 +590,9 @@
 }
 
 .account-page-btn--active {
-  background-color: var(--theme-primary) !important;
-  color: #ffffff !important;
-  border-color: var(--theme-primary) !important;
+  background-color: var(--action-primary-bg) !important;
+  color: var(--action-primary-text) !important;
+  border-color: var(--action-primary-bg) !important;
   font-weight: 600;
 }
 
@@ -883,7 +843,7 @@
 }
 
 .account-file-card__remove-btn:hover {
-  color: #dc2626;
+  color: var(--theme-danger-text);
   background-color: rgba(220, 38, 38, 0.1);
 }
 
@@ -957,7 +917,7 @@
 }
 
 .account-import-stat--failed .account-import-stat__num {
-  color: #dc2626;
+  color: var(--theme-danger-text);
 }
 
 .account-import-error-table-container {
@@ -982,7 +942,7 @@
 .account-import-error-table th {
   padding: 8px 12px;
   background-color: rgba(220, 38, 38, 0.1);
-  color: #dc2626;
+  color: var(--theme-danger-text);
   text-align: left;
   font-weight: 600;
 }
@@ -1035,7 +995,7 @@
 
 .account-modal__icon-badge--warning {
   background-color: var(--theme-warning-bg);
-  color: #d97706;
+  color: var(--theme-warning-text);
 }
 
 .account-modal__icon-badge--success {
@@ -1045,7 +1005,7 @@
 
 .account-modal__icon-badge--danger {
   background-color: var(--theme-danger-bg);
-  color: #dc2626;
+  color: var(--theme-danger-text);
 }
 
 .account-modal__title {
@@ -1099,7 +1059,7 @@
 }
 
 .account-form-label__required {
-  color: #dc2626;
+  color: var(--theme-danger-text);
   margin-left: 3px;
 }
 
@@ -1132,7 +1092,7 @@
 }
 
 .account-form-input--error {
-  border-color: #ef4444 !important;
+  border-color: var(--theme-danger) !important;
 }
 
 .account-form-input--error:focus {
@@ -1169,7 +1129,7 @@
 
 .account-form-error {
   font-size: 0.75rem;
-  color: #dc2626;
+  color: var(--theme-danger-text);
   margin-top: 2px;
 }
 
@@ -1241,31 +1201,36 @@
   background-color: var(--theme-bg-surface-elevated);
 }
 
+/* Cùng token với Button dùng chung: chữ trắng trên đỏ/cam chỉ ~3–3.8:1 */
 .account-modal-btn--primary {
-  background-color: var(--theme-primary);
-  color: #ffffff;
+  background-color: var(--action-primary-bg);
+  color: var(--action-primary-text);
 }
 
 .account-modal-btn--primary:hover:not(:disabled) {
-  background-color: var(--theme-primary-hover);
+  background-color: var(--action-primary-bg-hover);
 }
 
 .account-modal-btn--warning {
-  background-color: #d97706;
-  color: #ffffff;
+  background-color: var(--theme-warning-bg);
+  color: var(--theme-warning-text);
+  border-color: var(--theme-warning-border);
 }
 
 .account-modal-btn--warning:hover:not(:disabled) {
-  background-color: #b45309;
+  background-color: var(--theme-warning);
+  color: var(--theme-on-danger);
 }
 
 .account-modal-btn--danger {
-  background-color: #dc2626;
-  color: #ffffff;
+  background-color: var(--theme-danger-bg);
+  color: var(--theme-danger-text);
+  border-color: var(--theme-danger-border);
 }
 
 .account-modal-btn--danger:hover:not(:disabled) {
-  background-color: #b91c1c;
+  background-color: var(--theme-danger);
+  color: var(--theme-on-danger);
 }
 
 .account-modal-btn:disabled {
@@ -1314,7 +1279,7 @@
 }
 
 .account-toast--success {
-  border-left: 4px solid #16a34a;
+  border-left: 4px solid var(--theme-success);
 }
 
 .account-toast--success .account-toast__icon {
@@ -1322,11 +1287,11 @@
 }
 
 .account-toast--error {
-  border-left: 4px solid #dc2626;
+  border-left: 4px solid var(--theme-danger);
 }
 
 .account-toast--error .account-toast__icon {
-  color: #dc2626;
+  color: var(--theme-danger-text);
 }
 
 .account-toast__message {
@@ -1511,9 +1476,9 @@
 }
 
 .account-bulk-pill--active {
-  background-color: var(--theme-primary);
-  border-color: var(--theme-primary);
-  color: #ffffff;
+  background-color: var(--action-primary-bg);
+  border-color: var(--action-primary-bg);
+  color: var(--action-primary-text);
 }
 
 .account-bulk-table-wrapper {
@@ -1530,7 +1495,7 @@
 }
 
 .account-bulk-error-cell {
-  color: #dc2626;
+  color: var(--theme-danger-text);
   max-width: 220px;
   overflow: hidden;
   text-overflow: ellipsis;

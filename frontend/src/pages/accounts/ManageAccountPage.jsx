@@ -1323,7 +1323,7 @@ export default function ManageAccountPage() {
 													height: "140px",
 													objectFit: "cover",
 													borderRadius: "8px",
-													border: "2px solid var(--theme-primary, #3b82f6)",
+													border: "2px solid var(--theme-primary)",
 												}}
 											/>
 											<div style={{ marginTop: "6px" }}>
@@ -1331,7 +1331,7 @@ export default function ManageAccountPage() {
 													htmlFor="input-staff-face"
 													style={{
 														cursor: "pointer",
-														color: "var(--theme-primary, #3b82f6)",
+														color: "var(--theme-primary)",
 														fontSize: "0.8125rem",
 														fontWeight: 500,
 													}}
@@ -1358,7 +1358,7 @@ export default function ManageAccountPage() {
 										>
 											<Camera
 												size={32}
-												color="#64748b"
+												style={{ color: "var(--theme-text-muted)" }}
 											/>
 											<span
 												style={{
@@ -1685,11 +1685,11 @@ export default function ManageAccountPage() {
 									style={{
 										fontWeight: 600,
 										marginBottom: "6px",
-										color: "var(--theme-text-primary, #1e293b)",
+										color: "var(--theme-text-primary)",
 									}}
 								>
 									File được chọn:{" "}
-									<span style={{ color: "var(--primary-color, #2563eb)" }}>
+									<span style={{ color: "var(--theme-primary)" }}>
 										{bulkZipFile.name}
 									</span>
 								</div>
@@ -1698,7 +1698,7 @@ export default function ManageAccountPage() {
 										margin: 0,
 										paddingLeft: "18px",
 										fontSize: "0.8125rem",
-										color: "var(--theme-text-muted, #64748b)",
+										color: "var(--theme-text-muted)",
 										lineHeight: "1.5",
 									}}
 								>
@@ -1884,7 +1884,7 @@ export default function ManageAccountPage() {
 												justifyContent: "center",
 												padding: "24px",
 												border: bulkZipFile
-													? "2px solid var(--theme-primary, #3b82f6)"
+													? "2px solid var(--theme-primary)"
 													: "2px dashed var(--theme-border-hover)",
 												borderRadius: "8px",
 												cursor: "pointer",
@@ -1894,14 +1894,14 @@ export default function ManageAccountPage() {
 										>
 											<Upload
 												size={32}
-												color={bulkZipFile ? "#3b82f6" : "#64748b"}
+												style={{ color: bulkZipFile ? "var(--theme-primary)" : "var(--theme-text-muted)" }}
 											/>
 											<span
 												style={{
 													fontSize: "0.875rem",
 													marginTop: "8px",
 													fontWeight: 500,
-													color: bulkZipFile ? "#1e40af" : "#475569",
+													color: bulkZipFile ? "var(--theme-info-text)" : "var(--theme-text-secondary)",
 												}}
 											>
 												{bulkZipFile
@@ -2000,7 +2000,7 @@ export default function ManageAccountPage() {
 											style={{
 												fontFamily: "monospace",
 												fontSize: "0.8125rem",
-												color: "var(--theme-text-muted, #64748b)",
+												color: "var(--theme-text-muted)",
 												marginBottom: "12px",
 											}}
 										>
@@ -2211,7 +2211,7 @@ export default function ManageAccountPage() {
 															<td
 																style={{
 																	fontSize: "0.8125rem",
-																	color: "var(--theme-text-secondary, #475569)",
+																	color: "var(--theme-text-secondary)",
 																}}
 															>
 																{formatDateTime(batch.createdAt)}
@@ -2411,7 +2411,7 @@ export default function ManageAccountPage() {
 									<div
 										style={{
 											fontSize: "0.75rem",
-											color: "var(--theme-text-muted, #64748b)",
+											color: "var(--theme-text-muted)",
 											fontFamily: "monospace",
 										}}
 									>
@@ -2574,7 +2574,7 @@ export default function ManageAccountPage() {
 										background: "var(--theme-primary-light)",
 										borderRadius: "6px",
 										fontSize: "0.8125rem",
-										color: "#1e40af",
+										color: "var(--theme-info-text)",
 										lineHeight: "1.4",
 									}}
 								>
@@ -2672,10 +2672,10 @@ export default function ManageAccountPage() {
 								<div
 									style={{
 										padding: "8px 12px",
-										background: "#fefce8",
+										background: "var(--theme-warning-bg)",
 										borderRadius: "6px",
 										fontSize: "0.8125rem",
-										color: "#854d0e",
+										color: "var(--theme-warning-text)",
 										lineHeight: "1.4",
 									}}
 								>
