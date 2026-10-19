@@ -26,6 +26,15 @@ import { DataTable } from "../components/ui/data-table";
 import { ErrorState, PageHeader } from "../components/ui";
 import "../styles/DashboardPage.css";
 
+// Phụ đề theo role: nói đúng những thẻ role đó được xem (kpiCards), không lặp lại tiêu đề "Tổng quan".
+// NORMAL_USER không vào trang này (DashboardRoute chuyển sang /access-requests); role khác dùng câu mặc định.
+const DASHBOARD_DESCRIPTIONS = {
+	[ROLES.ADMIN]: "Số liệu khu vực, camera và sự cố hiện tại",
+	[ROLES.FACILITY_MANAGER]: "Số liệu khu vực và camera hiện tại",
+	[ROLES.GUARD]: "Camera và sự cố cần theo dõi trong ca",
+};
+const DEFAULT_DASHBOARD_DESCRIPTION = "Số liệu an ninh trong phạm vi vai trò của bạn";
+
 export default function DashboardPage() {
 	const { user } = useAuth();
 	const isAreaAuthorized =
@@ -220,7 +229,7 @@ export default function DashboardPage() {
 				{/* Header Section */}
 				<PageHeader
 					title="Tổng quan"
-					description="Tổng quan hệ thống an ninh Campus"
+					description={DASHBOARD_DESCRIPTIONS[role] ?? DEFAULT_DASHBOARD_DESCRIPTION}
 					actions={
 						<div className="dashboard-date-badge">
 							<Calendar size={14} />
