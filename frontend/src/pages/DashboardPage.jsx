@@ -26,6 +26,15 @@ import { DataTable } from "../components/ui/data-table";
 import { ErrorState, PageHeader } from "../components/ui";
 import "../styles/DashboardPage.css";
 
+// Phụ đề theo role: nói đúng những thẻ role đó được xem (kpiCards), không lặp lại tiêu đề "Tổng quan".
+// NORMAL_USER không vào trang này (DashboardRoute chuyển sang /access-requests); role khác dùng câu mặc định.
+const DASHBOARD_DESCRIPTIONS = {
+	[ROLES.ADMIN]: "Số liệu khu vực, camera và sự cố hiện tại",
+	[ROLES.FACILITY_MANAGER]: "Số liệu khu vực và camera hiện tại",
+	[ROLES.GUARD]: "Camera và sự cố cần theo dõi trong ca",
+};
+const DEFAULT_DASHBOARD_DESCRIPTION = "Số liệu an ninh trong phạm vi vai trò của bạn";
+
 export default function DashboardPage() {
 	const { user } = useAuth();
 	const isAreaAuthorized =
@@ -64,7 +73,8 @@ export default function DashboardPage() {
 	const role = user?.role;
 	const canCountCameras = [ROLES.ADMIN, ROLES.FACILITY_MANAGER, ROLES.GUARD].includes(role);
 	const canCountIncidents = [ROLES.ADMIN, ROLES.GUARD].includes(role);
-	// GET /api/cameras (ADMIN, FM, GUARD): trang 1 phần tử, chỉ lấy totalElements
+	// GET /api/cameras (ADMIN, FM, GUARD): trang 1 phần tử, chỉ lấy totalElements.
+	// status=ACTIVE là camera được bật trong cấu hình, không phải camera đang có hình.
 	const cameraQuery = useQuery({
 		queryKey: ["dashboard", "active-camera-count"],
 		queryFn: () => apiGet("/api/cameras?status=ACTIVE&page=0&size=1"),
@@ -193,11 +203,11 @@ export default function DashboardPage() {
 		{
 			id: "cameras",
 			visible: canCountCameras,
-			label: "Camera đang hoạt động",
+			label: "Camera đang bật",
 			badge: "Camera",
 			icon: Camera,
 			value: kpiValue(cameraQuery, cameraQuery.data?.totalElements),
-			subtext: kpiSubtext(cameraQuery, "Camera ở trạng thái hoạt động"),
+			subtext: kpiSubtext(cameraQuery, "Đang bật trong cấu hình, chưa tính tín hiệu kết nối"),
 		},
 		{
 			id: "incidents",
@@ -218,8 +228,8 @@ export default function DashboardPage() {
 			<div className="dashboard-container">
 				{/* Header Section */}
 				<PageHeader
-					title="Dashboard"
-					description="Tổng quan hệ thống an ninh Campus"
+					title="Tổng quan"
+					description={DASHBOARD_DESCRIPTIONS[role] ?? DEFAULT_DASHBOARD_DESCRIPTION}
 					actions={
 						<div className="dashboard-date-badge">
 							<Calendar size={14} />

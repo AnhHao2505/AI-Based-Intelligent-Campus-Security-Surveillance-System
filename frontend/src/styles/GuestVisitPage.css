@@ -284,7 +284,8 @@
 
 .guest-visit__filter-btn--active {
   background: var(--theme-primary-subtle);
-  color: var(--theme-primary);
+  /* UI-AUDIT #30: --theme-primary chỉ đạt 4.43 trên nền sáng */
+  color: var(--theme-info-text);
   border-color: var(--theme-primary-border);
   font-weight: 600;
 }

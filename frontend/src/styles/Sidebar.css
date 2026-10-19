@@ -19,6 +19,8 @@
   z-index: 100;
   box-shadow: var(--theme-card-shadow);
   transition: width 0.25s ease, min-width 0.25s ease, padding 0.25s ease, background-color 0.25s ease, border-color 0.25s ease;
+  /* Đo bề rộng thật của sidebar cho luật badge góc icon ở cuối file (@container sidebar) */
+  container: sidebar / inline-size;
 }
 
 .sidebar__header {
@@ -80,12 +82,11 @@
 .sidebar--collapsed .sidebar__title,
 .sidebar--collapsed .sidebar__subtitle,
 .sidebar--collapsed .sidebar__section-title,
-.sidebar--collapsed .sidebar__link span,
+.sidebar--collapsed .sidebar__link span:not(.sidebar__unread-badge),
 .sidebar--collapsed .sidebar__theme-toggle span,
 .sidebar--collapsed .sidebar__user-info,
 .sidebar--collapsed .sidebar__user-actions,
-.sidebar--collapsed .sidebar__badge-soon,
-.sidebar--collapsed .sidebar__unread-badge {
+.sidebar--collapsed .sidebar__badge-soon {
   display: none;
 }
 
@@ -389,11 +390,14 @@
   .sidebar__title,
   .sidebar__subtitle,
   .sidebar__section-title,
-  .sidebar__link span,
+  .sidebar__link span:not(.sidebar__unread-badge),
   .sidebar__theme-toggle span,
   .sidebar__user-info,
-  .sidebar__badge-soon,
-  .sidebar__unread-badge {
+  .sidebar__badge-soon {
+    display: none;
+  }
+  /* Ở khổ này sidebar luôn rộng 72px nên nút thu gọn không có tác dụng và đè lên logo */
+  .sidebar__collapse-button {
     display: none;
   }
   .sidebar__brand {
@@ -411,5 +415,24 @@
   }
   .sidebar__user {
     display: none;
+  }
+}
+
+/* Sidebar hẹp: thu gọn trên desktop (76px) hoặc màn ≤ 768px (luôn 72px). Badge chưa đọc thành số nhỏ ở góc icon.
+   Một luật cho cả hai trường hợp, theo bề rộng thật của sidebar (container khai báo ở .sidebar). */
+@container sidebar (max-width: 120px) {
+  .sidebar__link {
+    position: relative;
+  }
+  .sidebar__link .sidebar__unread-badge {
+    position: absolute;
+    top: 2px;
+    right: calc(50% - 20px);
+    margin-left: 0;
+    min-width: 15px;
+    height: 15px;
+    padding: 0 3px;
+    font-size: 9px;
+    box-shadow: 0 0 0 2px var(--theme-bg-sidebar);
   }
 }

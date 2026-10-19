@@ -1088,8 +1088,11 @@ export default function ManageAccountPage() {
 							<button
 								type="button"
 								className="account-modal__close-btn"
+								// Giữ focus ở ô đang nhập: blur báo lỗi làm modal giãn ra, nút có thể trượt khỏi con trỏ trước khi nhả chuột
+								onMouseDown={(e) => e.preventDefault()}
 								onClick={closeModal}
 								disabled={isSubmitting}
+								aria-label="Đóng"
 							>
 								<X size={18} />
 							</button>
@@ -1113,13 +1116,14 @@ export default function ManageAccountPage() {
 								)}
 
 								<div className="account-form-group">
-									<label className="account-form-label">
+									<label className="account-form-label" htmlFor="account-create-full-name">
 										<span>
 											Họ và tên
 											<span className="account-form-label__required">*</span>
 										</span>
 									</label>
 									<input
+										id="account-create-full-name"
 										type="text"
 										className={`account-form-input ${formErrors.fullName ? "account-form-input--error" : ""}`}
 										placeholder="Ví dụ: Nguyễn Văn An"
@@ -1134,7 +1138,6 @@ export default function ManageAccountPage() {
 											}
 										}}
 										onBlur={(e) => {
-											if (!e.target.value.trim()) return;
 											setFormErrors((prev) => ({
 												...prev,
 												fullName: validateCreateField("fullName", e.target.value, activeTab === "NORMAL"),
@@ -1151,7 +1154,7 @@ export default function ManageAccountPage() {
 								</div>
 
 								<div className="account-form-group">
-									<label className="account-form-label">
+									<label className="account-form-label" htmlFor="account-create-user-code">
 										<span>
 											{activeTab === "NORMAL"
 												? "Mã người dùng"
@@ -1160,6 +1163,7 @@ export default function ManageAccountPage() {
 										</span>
 									</label>
 									<input
+										id="account-create-user-code"
 										type="text"
 										className={`account-form-input ${formErrors.userCode ? "account-form-input--error" : ""}`}
 										placeholder={
@@ -1178,7 +1182,6 @@ export default function ManageAccountPage() {
 											}
 										}}
 										onBlur={(e) => {
-											if (!e.target.value.trim()) return;
 											setFormErrors((prev) => ({
 												...prev,
 												userCode: validateCreateField("userCode", e.target.value, activeTab === "NORMAL"),
@@ -1194,13 +1197,14 @@ export default function ManageAccountPage() {
 								</div>
 
 								<div className="account-form-group">
-									<label className="account-form-label">
+									<label className="account-form-label" htmlFor="account-create-email">
 										<span>
 											Email liên hệ
 											<span className="account-form-label__required">*</span>
 										</span>
 									</label>
 									<input
+										id="account-create-email"
 										type="email"
 										className={`account-form-input ${formErrors.email ? "account-form-input--error" : ""}`}
 										placeholder="Ví dụ: staff@fpt.edu.vn"
@@ -1215,7 +1219,6 @@ export default function ManageAccountPage() {
 											}
 										}}
 										onBlur={(e) => {
-											if (!e.target.value.trim()) return;
 											setFormErrors((prev) => ({
 												...prev,
 												email: validateCreateField("email", e.target.value, activeTab === "NORMAL"),
@@ -1232,13 +1235,14 @@ export default function ManageAccountPage() {
 
 								{activeTab !== "NORMAL" && (
 									<div className="account-form-group">
-										<label className="account-form-label">
+										<label className="account-form-label" htmlFor="account-create-role">
 											<span>
 												Quyền hạn
 												<span className="account-form-label__required">*</span>
 											</span>
 										</label>
 										<select
+											id="account-create-role"
 											className="account-form-select"
 											value={createForm.role}
 											onChange={(e) =>
@@ -1360,6 +1364,7 @@ export default function ManageAccountPage() {
 								<button
 									type="button"
 									className="account-modal-btn account-modal-btn--secondary"
+									onMouseDown={(e) => e.preventDefault()}
 									onClick={closeModal}
 									disabled={isSubmitting}
 								>

@@ -14,6 +14,21 @@ export const ACCESS_RESULT_META = {
 	INTRUSION: { label: "Ngoài giờ", icon: AlertTriangle, badge: "danger" },
 };
 
+/**
+ * Mã giữ chỗ backend ghi vào userCode khi lượt ra vào không gắn được với tài khoản nào.
+ * Đây không phải mã người dùng nên hiển thị bằng nhãn, không hiển thị như mã.
+ */
+export const PLACEHOLDER_USER_CODE_LABELS = {
+	UNKNOWN: "Người lạ",
+	VIOLATION: "Chưa xác định",
+};
+
+/** Nhãn của mã giữ chỗ (UNKNOWN, VIOLATION), null nếu là mã người dùng thật. */
+export function placeholderUserCodeLabel(userCode) {
+	if (typeof userCode !== "string") return null;
+	return PLACEHOLDER_USER_CODE_LABELS[userCode.trim().toUpperCase()] || null;
+}
+
 /** Lựa chọn cho ô lọc kết quả ("" = tất cả). */
 export const ACCESS_RESULT_OPTIONS = [
 	{ value: "", label: "Tất cả kết quả" },

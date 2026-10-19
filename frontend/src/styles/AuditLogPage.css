@@ -307,7 +307,8 @@
 
 .category-badge--purple {
   background: var(--theme-primary-subtle);
-  color: var(--theme-primary);
+  /* UI-AUDIT #30: --theme-primary chỉ đạt 4.17 trên nền tối */
+  color: var(--theme-info-text);
   border-color: var(--theme-primary-border);
 }
 
@@ -372,6 +373,41 @@
 
 .audit-refresh-btn:disabled {
   opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Nhóm nút cuối hàng lọc: Xóa bộ lọc + Làm mới đứng sát nhau */
+.audit-filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.audit-clear-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 42px;
+  padding: 0 14px;
+  background: var(--theme-bg-surface, #FFFFFF);
+  border: 1px solid var(--theme-border, #E5E7EB);
+  border-radius: 8px;
+  color: var(--theme-text-secondary, #6B7280);
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.audit-clear-btn:hover:not(:disabled) {
+  background: var(--theme-bg-page, #F3F4F6);
+  color: var(--theme-text-primary, #111827);
+}
+
+.audit-clear-btn:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
 }
 

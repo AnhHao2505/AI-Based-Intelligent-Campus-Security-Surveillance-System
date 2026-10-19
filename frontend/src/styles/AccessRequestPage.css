@@ -644,8 +644,9 @@
 }
 
 .arp-filter-btn--active {
-  background: rgba(59, 130, 246, 0.12);
-  color: var(--theme-primary);
+  background: var(--theme-primary-subtle);
+  /* UI-AUDIT #30: --theme-primary chỉ đạt 3.43 trên nền tối */
+  color: var(--theme-info-text);
   border-color: var(--brand-blue, #3b82f6);
   font-weight: 600;
 }
@@ -711,23 +712,8 @@
   text-align: left;
 }
 
-/* UI-08: điện thoại — giữ bề rộng tối thiểu cho 6 cột, khung bảng cuộn ngang để
-   cột Trạng thái và Thao tác vẫn truy cập được (không ép cột Khu vực xuống từng chữ) */
-@media (max-width: 640px) {
-  .arp-table-container {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior-x: contain;
-  }
-
-  .arp-table {
-    min-width: 760px;
-  }
-
-  .arp-table th {
-    white-space: nowrap;
-  }
-}
+/* Điện thoại (≤ 640px): bảng hiện dạng thẻ theo class dùng chung ui-table--mobile-card
+   (styles/components.css), mỗi đơn là một thẻ nên nút Chi tiết / Xem lý do luôn nằm trong khung */
 
 .arp-table th {
   background: var(--theme-bg-surface-elevated, rgba(15, 23, 42, 0.5));

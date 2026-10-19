@@ -1040,7 +1040,7 @@ export default function AccessRequestPage() {
 						<EmptyState size="sm" icon={Inbox} title="Chưa có yêu cầu nào" />
 					) : (
 						<div className="arp-table-container">
-							<table className="arp-table">
+							<table className="arp-table ui-table--mobile-card">
 								<thead>
 									<tr>
 										<th>Khu vực</th>
@@ -1058,7 +1058,7 @@ export default function AccessRequestPage() {
 												data-request-id={req.id}
 												className={highlightRequestId === req.id ? "arp-row--highlight" : undefined}
 											>
-												<td>
+												<td data-label="Khu vực">
 													<div style={{ fontWeight: 600 }}>{req.areaName}</div>
 													{formatLocation(req.building, req.floor) && (
 														<div className="arp-table-room-code">
@@ -1066,7 +1066,7 @@ export default function AccessRequestPage() {
 														</div>
 													)}
 												</td>
-												<td className="arp-col-type">
+												<td className="arp-col-type" data-label="Hình thức">
 													<span
 														className={`arp-badge ${
 															req.requestType === "GROUP"
@@ -1090,12 +1090,12 @@ export default function AccessRequestPage() {
 														</div>
 													)}
 												</td>
-												<td>
+												<td data-label="Thời gian truy cập">
 													<div style={{ fontSize: "13px" }}>
 														{formatRange(req.startTime, req.endTime)}
 													</div>
 												</td>
-												<td>
+												<td data-label="Trạng thái">
 													<span
 														className={`arp-status-badge arp-status-badge--${req.status.toLowerCase()}`}
 													>
@@ -1149,6 +1149,7 @@ export default function AccessRequestPage() {
 													)}
 												</td>
 												<td
+													data-label="Ngày tạo"
 													style={{
 														fontSize: "12px",
 														color: "var(--theme-text-muted)",
