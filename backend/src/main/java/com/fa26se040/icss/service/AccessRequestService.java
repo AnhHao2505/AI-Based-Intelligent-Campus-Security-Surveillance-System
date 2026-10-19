@@ -962,49 +962,66 @@ public class AccessRequestService {
 
         AccessRequestSnapshot beforeSnapshot = AccessRequestSnapshot.from(accessRequest);
 
-        accessRequest.setStatus(RequestStatus.FINISHED);
-        accessRequest.setUpdatedAt(now);
+        // Kiểm tra phía trên đọc bản chụp có thể đã cũ: conditional UPDATE nguyên tử (status = APPROVED AND startTime <= now)
+        // mới quyết định ai hoàn thành được. Không dùng save(): save() ghi đè trạng thái mà thao tác khác vừa commit
+        // (FM khác hoàn thành, hệ thống huỷ đơn) và hai FM bấm cùng lúc sẽ cùng ghi audit, cùng gửi thông báo.
+        int updatedCount = accessRequestRepository.finishIfApprovedStarted(
+                id, RequestStatus.FINISHED, now, RequestStatus.APPROVED);
 
-        AccessRequest updated = accessRequestRepository.save(accessRequest);
-        log.info("Access request {} marked as FINISHED", updated.getId());
+        if (updatedCount == 1) {
+            // [RÀNG BUỘC NOTIFICATION / SIDE-EFFECTS]: chỉ ở nhánh 1 dòng
+            AccessRequest updated = accessRequestRepository.findByIdWithDetails(id)
+                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu truy cập với mã: " + id));
+            log.info("Access request {} marked as FINISHED", updated.getId());
 
-        auditService.record(
-                AuditTargetType.ACCESS_REQUEST,
-                AuditAction.FINISH,
-                updated.getId().toString(),
-                updated.getArea(),
-                updated.getRequester(),
-                beforeSnapshot,
-                AccessRequestSnapshot.from(updated),
-                finishReason,
-                actor
-        );
+            auditService.record(
+                    AuditTargetType.ACCESS_REQUEST,
+                    AuditAction.FINISH,
+                    updated.getId().toString(),
+                    updated.getArea(),
+                    updated.getRequester(),
+                    beforeSnapshot,
+                    AccessRequestSnapshot.from(updated),
+                    finishReason,
+                    actor
+            );
 
-        // BR-RQ-46: báo người tạo đơn + thành viên nhóm (đơn hết hiệu lực sớm, họ không còn vào được theo đơn này).
-        // Lỗi gửi thông báo không làm hỏng thao tác hoàn thành (InAppNotificationService chạy REQUIRES_NEW).
-        try {
-            List<User> recipients = new ArrayList<>();
-            if (updated.getRequester() != null) {
-                recipients.add(updated.getRequester());
-            }
-            if (updated.getMembers() != null) {
-                for (var member : updated.getMembers()) {
-                    if (member.getUser() != null) {
-                        recipients.add(member.getUser());
+            // BR-RQ-46: báo người tạo đơn + thành viên nhóm (đơn hết hiệu lực sớm, họ không còn vào được theo đơn này).
+            // Lỗi gửi thông báo không làm hỏng thao tác hoàn thành (InAppNotificationService chạy REQUIRES_NEW).
+            try {
+                List<User> recipients = new ArrayList<>();
+                if (updated.getRequester() != null) {
+                    recipients.add(updated.getRequester());
+                }
+                if (updated.getMembers() != null) {
+                    for (var member : updated.getMembers()) {
+                        if (member.getUser() != null) {
+                            recipients.add(member.getUser());
+                        }
                     }
                 }
+                String areaName = updated.getArea() != null ? updated.getArea().getName() : "khu vực";
+                String timeRange = InAppNotificationService.formatTimeRange(updated.getStartTime(), updated.getEndTime());
+                String title = "Yêu cầu truy cập đã được kết thúc";
+                String message = "Yêu cầu vào " + areaName + " (" + timeRange + ") đã được " + actor.getFullName()
+                        + " chuyển sang Hoàn thành, không còn hiệu lực để ra vào. Lý do: " + finishReason;
+                inAppNotificationService.createForUsers(recipients, NotificationType.REQUEST_FINISHED, title, message, updated.getId());
+            } catch (Exception e) {
+                log.error("Failed to send finish notification for request {}", updated.getId(), e);
             }
-            String areaName = updated.getArea() != null ? updated.getArea().getName() : "khu vực";
-            String timeRange = InAppNotificationService.formatTimeRange(updated.getStartTime(), updated.getEndTime());
-            String title = "Yêu cầu truy cập đã được kết thúc";
-            String message = "Yêu cầu vào " + areaName + " (" + timeRange + ") đã được " + actor.getFullName()
-                    + " chuyển sang Hoàn thành, không còn hiệu lực để ra vào. Lý do: " + finishReason;
-            inAppNotificationService.createForUsers(recipients, NotificationType.REQUEST_FINISHED, title, message, updated.getId());
-        } catch (Exception e) {
-            log.error("Failed to send finish notification for request {}", updated.getId(), e);
+
+            return mapToResponse(updated);
         }
 
-        return mapToResponse(updated);
+        // 0 dòng: đọc lại để báo đúng nguyên nhân; không audit, không thông báo
+        AccessRequest current = accessRequestRepository.findByIdWithDetails(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu truy cập với mã: " + id));
+        if (current.getStatus() == RequestStatus.APPROVED
+                && current.getStartTime() != null && now.isBefore(current.getStartTime())) {
+            throw new AccessControlException(AccessControlErrorCode.ERR_AC_007,
+                    (Object) current.getStartTime().atZoneSameInstant(VN_ZONE).format(VN_DATE_TIME_FORMATTER));
+        }
+        throw new ConcurrentReviewException("Yêu cầu này đã ở trạng thái " + current.getStatus() + ", không thể hoàn thành.");
     }
 
     /**
