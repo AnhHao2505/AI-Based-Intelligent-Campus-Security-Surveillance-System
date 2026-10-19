@@ -29,6 +29,8 @@
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  /* UI-AUDIT #15: mục active cuộn vào tầm nhìn dừng phía trên bóng mờ (cao 28px) của .sidebar__bottom */
+  scroll-padding-bottom: 28px;
   scrollbar-width: thin;
   scrollbar-color: var(--theme-border) transparent;
 }
@@ -266,6 +268,25 @@
   gap: 12px;
   flex-shrink: 0;
   padding-top: 12px;
+  position: relative;
+}
+
+/* UI-AUDIT #15: bóng mờ phía trên vùng dưới khi menu còn mục chưa hiện */
+.sidebar__bottom::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -28px;
+  height: 28px;
+  background: linear-gradient(to bottom, transparent, var(--theme-bg-sidebar));
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.sidebar--more-below .sidebar__bottom::before {
+  opacity: 1;
 }
 
 .sidebar__theme-toggle {

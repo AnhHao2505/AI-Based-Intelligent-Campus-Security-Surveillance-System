@@ -59,6 +59,8 @@ export default function ReasonCatalogPage() {
 	// B-01: lỗi gửi form hiện trong popup (banner của trang nằm sau lớp phủ). Trùng mã -> ngay dưới ô Mã lý do.
 	const [createSubmitError, setCreateSubmitError] = useState(null);
 	const [createCodeServerError, setCreateCodeServerError] = useState(null);
+	// UI-AUDIT #19: ô bắt buộc báo lỗi ngay khi rời ô (onBlur) còn để trống
+	const [createTouched, setCreateTouched] = useState({ code: false, label: false });
 	const [editSubmitError, setEditSubmitError] = useState(null);
 
 	// Edit Modal
@@ -106,6 +108,7 @@ export default function ReasonCatalogPage() {
 		});
 		setCreateSubmitError(null);
 		setCreateCodeServerError(null);
+		setCreateTouched({ code: false, label: false });
 		setCreateModalOpen(true);
 	};
 
@@ -120,10 +123,13 @@ export default function ReasonCatalogPage() {
 				? "Mã lý do tối đa 50 ký tự"
 				: null;
 	const createLabelError = createLabel.length > 255 ? "Nhãn lý do tối đa 255 ký tự" : null;
+	const createCodeRequiredError = createTouched.code && !createCode ? "Vui lòng nhập mã lý do" : null;
+	const createLabelRequiredError = createTouched.label && !createLabel ? "Vui lòng nhập nhãn hiển thị" : null;
 
 	const handleCreateSubmit = async (e) => {
 		e.preventDefault();
 		if (!createForm.code?.trim() || !createForm.label?.trim()) {
+			setCreateTouched({ code: true, label: true });
 			setCreateSubmitError("Vui lòng điền đầy đủ mã và nhãn lý do.");
 			return;
 		}
@@ -407,10 +413,14 @@ export default function ReasonCatalogPage() {
 						</div>
 					)}
 					<div>
-						<label style={{ display: "block", fontSize: "13px", fontWeight: 600, marginBottom: "4px" }}>
+						<label
+							htmlFor="reason-create-action-type"
+							style={{ display: "block", fontSize: "13px", fontWeight: 600, marginBottom: "4px" }}
+						>
 							Loại thao tác <span style={{ color: "red" }}>*</span>
 						</label>
 						<select
+							id="reason-create-action-type"
 							value={createForm.actionType}
 							onChange={(e) => setCreateForm({ ...createForm, actionType: e.target.value })}
 							style={{
@@ -429,46 +439,40 @@ export default function ReasonCatalogPage() {
 						</select>
 					</div>
 
-					<div>
-						<label style={{ display: "block", fontSize: "13px", fontWeight: 600, marginBottom: "4px" }}>
-							Mã lý do <span style={{ color: "red" }}>*</span>
-						</label>
-						<Input
-							value={createForm.code}
-							onChange={(e) => {
-								setCreateForm({ ...createForm, code: e.target.value.toUpperCase() });
-								setCreateCodeServerError(null);
-							}}
-							placeholder="VD: TECH_TALK"
-							error={createCodeError || createCodeServerError}
-							hint="Chữ hoa, số, gạch dưới. Không thể sửa sau khi tạo."
-							required
-						/>
-					</div>
+					{/* UI-AUDIT #19: label của components/ui/Input gắn htmlFor với ô nhập */}
+					<Input
+						id="reason-create-code"
+						label="Mã lý do"
+						value={createForm.code}
+						onChange={(e) => {
+							setCreateForm({ ...createForm, code: e.target.value.toUpperCase() });
+							setCreateCodeServerError(null);
+						}}
+						onBlur={() => setCreateTouched((t) => ({ ...t, code: true }))}
+						placeholder="VD: TECH_TALK"
+						error={createCodeRequiredError || createCodeError || createCodeServerError}
+						hint="Chữ hoa, số, gạch dưới. Không thể sửa sau khi tạo."
+						required
+					/>
 
-					<div>
-						<label style={{ display: "block", fontSize: "13px", fontWeight: 600, marginBottom: "4px" }}>
-							Nhãn hiển thị <span style={{ color: "red" }}>*</span>
-						</label>
-						<Input
-							value={createForm.label}
-							onChange={(e) => setCreateForm({ ...createForm, label: e.target.value })}
-							placeholder="VD: Buổi chia sẻ kỹ thuật"
-							error={createLabelError}
-							required
-						/>
-					</div>
+					<Input
+						id="reason-create-label"
+						label="Nhãn hiển thị"
+						value={createForm.label}
+						onChange={(e) => setCreateForm({ ...createForm, label: e.target.value })}
+						onBlur={() => setCreateTouched((t) => ({ ...t, label: true }))}
+						placeholder="VD: Buổi chia sẻ kỹ thuật"
+						error={createLabelRequiredError || createLabelError}
+						required
+					/>
 
-					<div>
-						<label style={{ display: "block", fontSize: "13px", fontWeight: 600, marginBottom: "4px" }}>
-							Thứ tự sắp xếp
-						</label>
-						<Input
-							type="number"
-							value={createForm.sortOrder}
-							onChange={(e) => setCreateForm({ ...createForm, sortOrder: parseInt(e.target.value, 10) || 0 })}
-						/>
-					</div>
+					<Input
+						id="reason-create-sort-order"
+						label="Thứ tự sắp xếp"
+						type="number"
+						value={createForm.sortOrder}
+						onChange={(e) => setCreateForm({ ...createForm, sortOrder: parseInt(e.target.value, 10) || 0 })}
+					/>
 
 					<div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "12px" }}>
 						<Button type="button" variant="secondary" onClick={() => setCreateModalOpen(false)}>

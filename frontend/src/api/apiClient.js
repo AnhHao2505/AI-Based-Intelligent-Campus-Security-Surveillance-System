@@ -112,6 +112,21 @@ function getDemoResponse(path) {
   return {};
 }
 
+function toApiUrl(path) {
+  return path.startsWith('http') ? path : `${API_BASE_URL}${path.startsWith('/') ? '' : '/'}${path}`;
+}
+
+// 401: xoá phiên, về trang đăng nhập, ném lỗi có status
+function handleUnauthorized() {
+  clearStoredAuth();
+  if (window.location.pathname !== '/login') {
+    window.location.href = '/login';
+  }
+  const err = new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+  err.status = 401;
+  throw err;
+}
+
 /**
  * Native fetch wrapper with automatic Authorization header,
  * 401 auto-logout & redirect, and error handling.
@@ -147,8 +162,7 @@ export async function apiFetch(path, options = {}) {
 
   let response;
   try {
-    const url = path.startsWith('http') ? path : `${API_BASE_URL}${path.startsWith('/') ? '' : '/'}${path}`;
-    response = await fetch(url, {
+    response = await fetch(toApiUrl(path), {
       ...options,
       headers,
     });
@@ -157,13 +171,7 @@ export async function apiFetch(path, options = {}) {
   }
 
   if (response.status === 401) {
-    clearStoredAuth();
-    if (window.location.pathname !== '/login') {
-      window.location.href = '/login';
-    }
-    const err = new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
-    err.status = 401;
-    throw err;
+    handleUnauthorized();
   }
 
   if (response.status === 403) {
@@ -220,6 +228,50 @@ export async function apiFetch(path, options = {}) {
     return { message: json.message, httpCode: json.httpCode, success: true };
   }
   return json;
+}
+
+/**
+ * Tải dữ liệu nhị phân (vd. ảnh /api/media/...) có gắn Bearer token.
+ * Cùng API_BASE_URL và cùng xử lý 401 như apiFetch; lỗi khác ném Error có .status.
+ *
+ * @param {string} path - đường dẫn API, vd. "/api/media/camera-snapshots/CAM-01/roi.jpg"
+ * @returns {Promise<Blob>}
+ */
+export async function apiFetchBlob(path) {
+  const token = localStorage.getItem('accessToken');
+  if (token?.startsWith('frontend-demo-')) {
+    // Token demo không hợp lệ với backend: gửi đi sẽ nhận 401 và bị đăng xuất
+    const err = new Error('Chế độ demo không tải được ảnh từ máy chủ.');
+    err.status = 0;
+    throw err;
+  }
+
+  let response;
+  try {
+    response = await fetch(toApiUrl(path), {
+      method: 'GET',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+  } catch {
+    throw new Error('Không thể kết nối đến máy chủ. Vui lòng kiểm tra lại kết nối mạng hoặc máy chủ Backend.');
+  }
+
+  if (response.status === 401) {
+    handleUnauthorized();
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null);
+    const msg = response.status >= 500
+      ? toSystemErrorMessage(errorData?.message)
+      : errorData?.message || `Yêu cầu thất bại (HTTP ${response.status})`;
+    const err = tagBusinessCode(new Error(msg), errorData?.code);
+    err.status = response.status;
+    err.code = errorData?.code;
+    throw err;
+  }
+
+  return response.blob();
 }
 
 export function apiGet(path, options = {}) {

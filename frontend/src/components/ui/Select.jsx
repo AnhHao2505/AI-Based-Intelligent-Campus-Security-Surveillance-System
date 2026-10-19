@@ -67,7 +67,7 @@ export default function Select({
             </option>
           ))}
         </select>
-        <span className="ui-select__arrow" pointer-events="none">
+        <span className="ui-select__arrow">
           <ChevronDown size={16} />
         </span>
       </div>

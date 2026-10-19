@@ -198,10 +198,10 @@ export default function AdminPresetPage() {
 													<div className="area-type-col">
 														<span
 															className="area-type-badge"
+															data-level={cfg.code}
 															style={{
 																backgroundColor:
 																	cfg.bgColor || "var(--bg-card)",
-																color: cfg.color || "inherit",
 																borderColor: cfg.borderColor || "transparent",
 															}}
 														>
@@ -286,9 +286,9 @@ export default function AdminPresetPage() {
 									<label className="modal-label">Loại khu vực</label>
 									<div
 										className="area-type-badge-preview"
+										data-level={cfg.code}
 										style={{
 											backgroundColor: cfg.bgColor || "var(--bg-card)",
-											color: cfg.color || "inherit",
 											borderColor: cfg.borderColor || "transparent",
 										}}
 									>

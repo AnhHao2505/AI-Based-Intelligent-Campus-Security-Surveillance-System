@@ -3,6 +3,9 @@ import 'package:provider/provider.dart';
 import 'core/constants/app_colors.dart';
 import 'core/constants/app_theme.dart';
 import 'core/network/api_client.dart';
+import 'core/notifications/local_notification_service.dart';
+import 'core/notifications/guard_duty_service.dart';
+import 'features/incident/widgets/guard_duty_watcher.dart';
 import 'core/theme/theme_provider.dart';
 import 'core/utils/storage_helper.dart';
 import 'features/auth/providers/auth_provider.dart';
@@ -11,15 +14,29 @@ import 'features/incident/providers/incident_provider.dart';
 import 'features/incident/services/incident_service.dart';
 import 'features/incident/services/stomp_service.dart';
 import 'features/map/providers/map_provider.dart';
+import 'features/map/screens/guard_map_screen.dart';
 import 'features/shift/providers/shift_provider.dart';
 import 'features/shift/screens/guard_schedule_screen.dart';
 
 import 'package:intl/date_symbol_data_local.dart';
 
+/// Dùng để mở màn bản đồ khi bảo vệ bấm vào thông báo sự cố (không có BuildContext lúc đó).
+final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('vi', null);
   await StorageHelper.loadBaseUrl();
+  LocalNotificationService.instance.onIncidentTap = (_) {
+    final nav = appNavigatorKey.currentState;
+    debugPrint('[NotificationTap] navigator ready=${nav != null}');
+    if (nav == null) return;
+    // Về màn gốc rồi mở bản đồ, tránh chồng nhiều màn bản đồ khi bấm nhiều thông báo.
+    nav.popUntil((route) => route.isFirst);
+    nav.push(MaterialPageRoute(builder: (_) => const GuardMapScreen()));
+  };
+  await LocalNotificationService.instance.init();
+  GuardDutyService.instance.init();
 
   final apiClient = ApiClient();
   final stompService = StompService();
@@ -60,6 +77,7 @@ class GuardMobileApp extends StatelessWidget {
     final themeProvider = context.watch<ThemeProvider>();
 
     return MaterialApp(
+      navigatorKey: appNavigatorKey,
       title: 'Guard Patrol Mobile',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
@@ -105,7 +123,7 @@ class AuthGate extends StatelessWidget {
     }
 
     if (authProvider.isAuthenticated) {
-      return const GuardScheduleScreen();
+      return const GuardDutyWatcher(child: GuardScheduleScreen());
     }
 
     return const LoginScreen();

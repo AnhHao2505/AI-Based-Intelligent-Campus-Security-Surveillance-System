@@ -12,5 +12,8 @@ public enum AuditTargetType {
     AREA_EVENT_SCHEDULE,
     // Khách G-A (BR-GV-30, V60)
     GUEST_VISIT,
-    GUEST
+    GUEST,
+    // Xem ảnh qua /api/media (V81): ảnh khuôn mặt người dùng, ảnh bằng chứng sự cố
+    FACE_PROFILE,
+    SECURITY_EVIDENCE
 }

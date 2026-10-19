@@ -247,7 +247,7 @@ export default function UserAccessLevelPage() {
   };
 
   return (
-    <div className="user-access-level-page">
+    <div className="access-level-page">
       <PageHeader
         title="Cấp truy cập người dùng"
         description="Tra cứu và điều chỉnh cấp độ truy cập (Level 1, Level 2, Level 3) cho người dùng trong khuôn viên."
