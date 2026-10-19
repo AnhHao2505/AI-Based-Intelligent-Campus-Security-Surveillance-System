@@ -92,6 +92,8 @@ const MODULE_OPTIONS_ADMIN = [
 	{ value: "ACCESS_REQUEST", label: "Yêu cầu truy cập" },
 	{ value: "SYSTEM", label: "Hệ thống" },
 	{ value: "GUEST", label: "Khách" },
+	// Xem ảnh qua /api/media — chỉ ADMIN (audit_module_roles, V81_1)
+	{ value: "SECURITY", label: "An ninh" },
 ];
 
 const MODULE_OPTIONS_FM = [
@@ -121,6 +123,12 @@ const TARGET_TYPE_OPTIONS_GUEST = [
 	{ value: "GUEST", label: "Khách" },
 ];
 
+// Đối tượng của phân hệ SECURITY — chỉ ADMIN được đọc (V81, V81_1)
+const TARGET_TYPE_OPTIONS_SECURITY = [
+	{ value: "FACE_PROFILE", label: "Ảnh khuôn mặt" },
+	{ value: "SECURITY_EVIDENCE", label: "Ảnh bằng chứng sự cố" },
+];
+
 const TARGET_TYPE_LABELS = {
 	USER_ACCESS_LEVEL: "Cấp người dùng",
 	AREA_ACCESS_RULES: "Quy tắc khu vực",
@@ -137,6 +145,8 @@ const TARGET_TYPE_LABELS = {
 	SYSTEM: "Hệ thống",
 	GUEST_VISIT: "Lượt khách",
 	GUEST: "Khách",
+	FACE_PROFILE: "Ảnh khuôn mặt",
+	SECURITY_EVIDENCE: "Ảnh bằng chứng sự cố",
 };
 
 // Màu badge "Loại sự kiện" theo bảng màu của thiết kế (category-badge--*)
@@ -608,7 +618,7 @@ export default function AuditLogPage() {
 								onChange={(e) => setFilterTargetType(e.target.value)}
 							>
 								{(isAdmin
-									? [...TARGET_TYPE_OPTIONS, ...TARGET_TYPE_OPTIONS_GUEST]
+									? [...TARGET_TYPE_OPTIONS, ...TARGET_TYPE_OPTIONS_GUEST, ...TARGET_TYPE_OPTIONS_SECURITY]
 									: TARGET_TYPE_OPTIONS
 								).map((opt) => (
 									<option
