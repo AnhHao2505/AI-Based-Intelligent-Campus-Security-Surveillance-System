@@ -811,8 +811,8 @@ export default function AccessRequestPage() {
 									fontSize: "12px",
 									marginTop: "6px",
 									color: timeSummary.isError
-										? "var(--theme-danger, #ef4444)"
-										: "var(--theme-text-secondary, #94a3b8)",
+										? "var(--theme-danger)"
+										: "var(--theme-text-secondary)",
 								}}
 							>
 								{timeSummary.text}
@@ -1446,7 +1446,7 @@ export default function AccessRequestPage() {
 													borderRadius: "4px",
 													background: "rgba(59, 130, 246, 0.12)",
 													border: "1px solid rgba(59, 130, 246, 0.25)",
-													color: "var(--brand-blue, #3b82f6)",
+													color: "var(--brand-blue)",
 													fontSize: "11px",
 													fontWeight: 600,
 												}}
@@ -1493,7 +1493,7 @@ export default function AccessRequestPage() {
 												>
 													<strong>{m.userCode}</strong> · {m.fullName}
 													{m.sponsored && (
-														<span style={{ marginLeft: "6px", fontSize: "11px", padding: "1px 6px", borderRadius: "4px", backgroundColor: "rgba(59, 130, 246, 0.15)", color: "var(--brand-blue, #3b82f6)", fontWeight: 600 }}>
+														<span style={{ marginLeft: "6px", fontSize: "11px", padding: "1px 6px", borderRadius: "4px", backgroundColor: "rgba(59, 130, 246, 0.15)", color: "var(--brand-blue)", fontWeight: 600 }}>
 															Bảo lãnh
 														</span>
 													)}
