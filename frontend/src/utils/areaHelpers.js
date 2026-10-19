@@ -14,6 +14,20 @@ export const AREA_LEVEL_CONFIG = {
     icon: 'globe',
     description: 'Khu vực tự do ra vào cho tất cả người dùng trong khuôn viên (ai cũng vào).'
   },
+  // Gộp loại 19/10 (V83): INTERNAL_CONFIDENTIAL + CONFIDENTIAL_CONTACT_REQUIRED -> CONFIDENTIAL.
+  // Hai key cũ vẫn giữ để đọc được dữ liệu cũ (audit, backend chưa cập nhật) mà không trắng trang.
+  CONFIDENTIAL: {
+    code: 'CONFIDENTIAL',
+    name: 'Bảo mật',
+    badgeLabel: 'Bảo mật',
+    badgeClass: 'level-badge--internal',
+    cardClass: 'zone-card--internal',
+    color: '#3b82f6',
+    bgColor: 'rgba(59, 130, 246, 0.08)',
+    borderColor: 'rgba(59, 130, 246, 0.35)',
+    icon: 'shield',
+    description: 'Khu vực Bảo mật. Người dùng cấp 2 trở lên vào được bằng cấp; người khác vào qua đơn được duyệt, nhân sự chỉ định, khách hoặc chế độ sự kiện.'
+  },
   INTERNAL_CONFIDENTIAL: {
     code: 'INTERNAL_CONFIDENTIAL',
     name: 'Bảo mật nội bộ',
@@ -61,7 +75,7 @@ export function getLevelConfig(level) {
     key = level.code || level.areaLevel || level.areaType || level.level;
   }
   if (key === 1 || key === '1') key = 'PUBLIC';
-  if (key === 2 || key === '2' || key === 'SEMI_PRIVATE') key = 'INTERNAL_CONFIDENTIAL';
+  if (key === 2 || key === '2' || key === 'SEMI_PRIVATE') key = 'CONFIDENTIAL';
   if (key === 3 || key === '3' || key === 'PRIVATE') key = 'HIGHLY_CONFIDENTIAL';
 
   return AREA_LEVEL_CONFIG[key] || {
@@ -123,7 +137,7 @@ export function getLevelPolygonClass(level) {
     key = level.code || level.areaLevel || level.areaType || level.level;
   }
   if (key === 'PUBLIC' || key === 1 || key === '1') return 'zone-polygon--public';
-  if (key === 'INTERNAL_CONFIDENTIAL' || key === 'SEMI_PRIVATE' || key === 2 || key === '2') return 'zone-polygon--internal';
+  if (key === 'CONFIDENTIAL' || key === 'INTERNAL_CONFIDENTIAL' || key === 'SEMI_PRIVATE' || key === 2 || key === '2') return 'zone-polygon--internal';
   if (key === 'CONFIDENTIAL_CONTACT_REQUIRED') return 'zone-polygon--contact';
   if (key === 'HIGHLY_CONFIDENTIAL' || key === 'PRIVATE' || key === 3 || key === '3') return 'zone-polygon--private';
   return 'zone-polygon--default';

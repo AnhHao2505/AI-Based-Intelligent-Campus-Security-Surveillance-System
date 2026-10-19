@@ -684,6 +684,8 @@ export default function AccessRequestPage() {
 													? groupBlocked
 														? `Khu vực ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name}. Chỉ áp dụng hình thức đăng ký truy cập Cá nhân (không hỗ trợ đăng ký theo nhóm).`
 														: `Khu vực ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name}. Đơn nhóm được phép theo cấu hình hệ thống; thành viên cần đáp ứng điều kiện cấp độ truy cập của khu vực.`
+													: currentArea?.areaLevel === "CONFIDENTIAL"
+													? "Khu vực Bảo mật. Người tạo đơn nhóm đủ cấp độ truy cập có thể bảo lãnh cho thành viên chưa đủ cấp tham gia cùng thời gian đăng ký."
 													: currentArea?.areaLevel === "CONFIDENTIAL_CONTACT_REQUIRED"
 													? "Khu vực yêu cầu liên hệ trước. Người tạo đơn đủ cấp độ truy cập có thể bảo lãnh cho các thành viên trong nhóm tham gia cùng thời gian đăng ký."
 													: "Khu vực yêu cầu phê duyệt trước khi vào."}

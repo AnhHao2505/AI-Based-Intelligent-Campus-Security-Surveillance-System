@@ -31,6 +31,7 @@ const formatEventUntil = (openUntil) => {
 
 const TYPE_PRIORITY = {
 	PUBLIC: 1,
+	CONFIDENTIAL: 2,
 	INTERNAL_CONFIDENTIAL: 2,
 	CONFIDENTIAL_CONTACT_REQUIRED: 3,
 	HIGHLY_CONFIDENTIAL: 4,
@@ -59,6 +60,7 @@ const LEVEL_SECTIONS = [
 		badgeBorder: "var(--theme-info-border)",
 		filter: (a) =>
 			a.areaAccessLevel === 2 ||
+			a.areaLevel === "CONFIDENTIAL" ||
 			a.areaLevel === "INTERNAL_CONFIDENTIAL" ||
 			a.areaLevel === "CONFIDENTIAL_CONTACT_REQUIRED",
 	},

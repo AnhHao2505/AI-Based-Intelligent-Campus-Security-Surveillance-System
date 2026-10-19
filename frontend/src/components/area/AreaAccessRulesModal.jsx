@@ -118,7 +118,9 @@ export default function AreaAccessRulesModal({
 	};
 
 	const areaLevelKey = area?.areaLevel || area?.level?.code;
+	// Chế độ sự kiện chỉ áp cho khu Bảo mật (CONFIDENTIAL; hai tên cũ trước V83)
 	const isEventModeApplicable =
+		areaLevelKey === "CONFIDENTIAL" ||
 		areaLevelKey === "INTERNAL_CONFIDENTIAL" ||
 		areaLevelKey === "CONFIDENTIAL_CONTACT_REQUIRED";
 

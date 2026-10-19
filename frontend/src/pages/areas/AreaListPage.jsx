@@ -45,6 +45,7 @@ import { getBuildings } from "../../services/buildingService";
 import {
 	AREA_LEVEL_CONFIG,
 	getErrorMessage,
+	getLevelConfig,
 	normalizeAreaName,
 	validateAreaName,
 } from "../../utils/areaHelpers";
@@ -96,23 +97,23 @@ const coordinateFieldError = (value, min, max, label) => {
 const AREA_LEVEL_CARDS = [
 	{
 		value: "PUBLIC",
-		name: AREA_LEVEL_CONFIG.PUBLIC.name,
-		color: AREA_LEVEL_CONFIG.PUBLIC.color,
+		name: getLevelConfig("PUBLIC").name,
+		color: getLevelConfig("PUBLIC").color,
 	},
 	{
 		value: "INTERNAL_CONFIDENTIAL",
-		name: AREA_LEVEL_CONFIG.INTERNAL_CONFIDENTIAL.name,
-		color: AREA_LEVEL_CONFIG.INTERNAL_CONFIDENTIAL.color,
+		name: getLevelConfig("INTERNAL_CONFIDENTIAL").name,
+		color: getLevelConfig("INTERNAL_CONFIDENTIAL").color,
 	},
 	{
 		value: "CONFIDENTIAL_CONTACT_REQUIRED",
-		name: AREA_LEVEL_CONFIG.CONFIDENTIAL_CONTACT_REQUIRED.name,
-		color: AREA_LEVEL_CONFIG.CONFIDENTIAL_CONTACT_REQUIRED.color,
+		name: getLevelConfig("CONFIDENTIAL_CONTACT_REQUIRED").name,
+		color: getLevelConfig("CONFIDENTIAL_CONTACT_REQUIRED").color,
 	},
 	{
 		value: "HIGHLY_CONFIDENTIAL",
-		name: AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name,
-		color: AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.color,
+		name: getLevelConfig("HIGHLY_CONFIDENTIAL").name,
+		color: getLevelConfig("HIGHLY_CONFIDENTIAL").color,
 	},
 ];
 
@@ -1170,7 +1171,7 @@ export default function AreaListPage() {
 											const levelClass =
 												card.value === "PUBLIC"
 													? "area-level-btn--public"
-													: card.value === "INTERNAL_CONFIDENTIAL"
+													: card.value === "CONFIDENTIAL" || card.value === "INTERNAL_CONFIDENTIAL"
 														? "area-level-btn--internal"
 														: card.value === "CONFIDENTIAL_CONTACT_REQUIRED"
 															? "area-level-btn--contact"
@@ -1445,7 +1446,7 @@ export default function AreaListPage() {
 											const levelClass =
 												card.value === "PUBLIC"
 													? "area-level-btn--public"
-													: card.value === "INTERNAL_CONFIDENTIAL"
+													: card.value === "CONFIDENTIAL" || card.value === "INTERNAL_CONFIDENTIAL"
 														? "area-level-btn--internal"
 														: card.value === "CONFIDENTIAL_CONTACT_REQUIRED"
 															? "area-level-btn--contact"
