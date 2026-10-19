@@ -93,6 +93,8 @@ Tất cả câu lệnh thực hiện từ thư mục gốc của dự án (`d:/D
 
 ### Khởi động & Dừng hệ thống:
 
+> Backend bắt buộc có `JWT_SECRET` và `MINIO_ROOT_PASSWORD` trong `.env`; thiếu một trong hai thì backend không khởi động (lỗi `Could not resolve placeholder`).
+
 ```bash
 # 1. Khởi động toàn bộ 7 container ngầm
 docker compose up -d
