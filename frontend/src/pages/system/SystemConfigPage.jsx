@@ -31,6 +31,17 @@ import {
 } from "../../components/ui";
 import "../../styles/SystemConfigPage.css";
 
+/** Nhóm con trong một tab cấu hình, theo tiền tố config_key (UI-AUDIT #33). */
+const CONFIG_SUBGROUPS = {
+	SECURITY: [
+		{ title: "Leo thang sự cố", prefixes: ["INCIDENT_ESCALATE_", "INCIDENT_ESCALATION_"] },
+		{ title: "Bảo vệ xử lý sự cố", prefixes: ["GUARD_INCIDENT_"] },
+		{ title: "Chế độ sự kiện", prefixes: ["EVENT_MODE_"] },
+		{ title: "Nhật ký ra vào", prefixes: ["ENTRY_LOG_"] },
+		{ title: "Tra cứu thành viên", prefixes: ["SECURITY_MEMBER_LOOKUP_"] },
+	],
+};
+
 export default function SystemConfigPage() {
 	const [configs, setConfigs] = useState([]);
 	const [editedValues, setEditedValues] = useState({});
@@ -208,6 +219,22 @@ export default function SystemConfigPage() {
 		return acc;
 	}, {});
 
+	// UI-AUDIT #33: tab nhiều tham số chia nhóm con theo tiền tố khoá (chỉ hiển thị, không đổi config_group).
+	// Nhóm khai báo trước đứng trước; khoá không khớp tiền tố nào vào nhóm "Khác" ở cuối.
+	const splitIntoSubgroups = (groupKey, items) => {
+		const subgroups = CONFIG_SUBGROUPS[groupKey];
+		if (!subgroups) return [{ title: null, items }];
+		const buckets = subgroups.map((sub) => ({ title: sub.title, items: [] }));
+		const others = { title: "Khác", items: [] };
+		items.forEach((cfg) => {
+			const index = subgroups.findIndex((sub) =>
+				sub.prefixes.some((prefix) => cfg.configKey.startsWith(prefix)),
+			);
+			(index >= 0 ? buckets[index] : others).items.push(cfg);
+		});
+		return [...buckets, others].filter((bucket) => bucket.items.length > 0);
+	};
+
 	const getGroupTitle = (groupKey) => {
 		switch (groupKey) {
 			case "ACCESS_REQUEST":
@@ -332,173 +359,184 @@ export default function SystemConfigPage() {
 									key={groupKey}
 									className="syscfg-group-section"
 								>
-									<div className="syscfg-items-grid">
-										{groupItems.map((cfg) => {
-											const currentValue =
-												editedValues[cfg.configKey] ?? cfg.configValue;
-											const isModified =
-												String(currentValue) !== String(cfg.configValue);
-											const isSaving = savingKey === cfg.configKey;
+									{splitIntoSubgroups(groupKey, groupItems).map((sub) => (
+										<div key={sub.title || "all"} className="syscfg-group-section">
+											{sub.title && (
+												<div className="syscfg-group-header">
+													<h2 className="syscfg-group-header__title">
+														{sub.title} ({sub.items.length})
+													</h2>
+												</div>
+											)}
+											<div className="syscfg-items-grid">
+												{sub.items.map((cfg) => {
+													const currentValue =
+														editedValues[cfg.configKey] ?? cfg.configValue;
+													const isModified =
+														String(currentValue) !== String(cfg.configValue);
+													const isSaving = savingKey === cfg.configKey;
 
-											return (
-												<Card
-													key={cfg.configKey}
-													padding="md"
-													className="syscfg-item-card"
-												>
-													<div className="syscfg-item">
-														{/* Top: Description and Key */}
-														<div className="syscfg-item__top">
-															<div className="syscfg-item__meta">
-																<h3 className="syscfg-item__description">
-																	{cfg.description}
-																</h3>
-															</div>
+													return (
+														<Card
+															key={cfg.configKey}
+															padding="md"
+															className="syscfg-item-card"
+														>
+															<div className="syscfg-item">
+																{/* Top: Description and Key */}
+																<div className="syscfg-item__top">
+																	<div className="syscfg-item__meta">
+																		<h3 className="syscfg-item__description">
+																			{cfg.description}
+																		</h3>
+																	</div>
 
-															<Button
-																variant="ghost"
-																size="sm"
-																icon={<History size={14} />}
-																onClick={() => handleOpenHistory(cfg)}
-																title="Xem lịch sử thay đổi tham số này"
-															>
-																Lịch sử
-															</Button>
-														</div>
-
-														{/* Middle: Input control based on data type */}
-														<div className="syscfg-item__control-row">
-															{cfg.dataType === "BOOLEAN" ? (
-																<div className="syscfg-toggle-wrapper">
-																	<button
-																		type="button"
-																		className={`syscfg-toggle ${currentValue === "true" ? "syscfg-toggle--active" : ""}`}
-																		onClick={() =>
-																			handleValueChange(
-																				cfg.configKey,
-																				currentValue === "true"
-																					? "false"
-																					: "true",
-																			)
-																		}
-																		disabled={!cfg.editable}
-																	>
-																		<span className="syscfg-toggle__switch" />
-																	</button>
-																	<span className="syscfg-toggle__label">
-																		{currentValue === "true"
-																			? "Cho phép"
-																			: "Không cho phép (Cấm)"}
-																	</span>
-																</div>
-															) : (
-																<div className="syscfg-input-wrapper">
-																	<Input
-								type={
-									cfg.unit === "HH:mm"
-										? "time"
-										:
-									cfg.dataType === "INTEGER" ||
-																			cfg.dataType === "DECIMAL"
-																				? "number"
-																				: "text"
-																		}
-																		value={currentValue}
-																		onChange={(e) =>
-																			handleValueChange(
-																				cfg.configKey,
-																				e.target.value,
-																			)
-																		}
-																		disabled={!cfg.editable}
-																		min={cfg.minValue}
-																		max={cfg.maxValue}
-																		className="syscfg-field-input"
-																	/>
-																	{cfg.unit && (
-																		<span className="syscfg-input-unit">
-																			{cfg.unit}
-																		</span>
-																	)}
-																</div>
-															)}
-
-															{/* Action Buttons */}
-															<div className="syscfg-item__actions">
-																{isModified && (
 																	<Button
-																		variant="secondary"
+																		variant="ghost"
 																		size="sm"
-																		icon={<RotateCcw size={14} />}
-																		onClick={() =>
-																			handleResetValue(
-																				cfg.configKey,
-																				cfg.configValue,
-																			)
-																		}
-																		disabled={isSaving}
-																		title="Khôi phục giá trị ban đầu"
+																		icon={<History size={14} />}
+																		onClick={() => handleOpenHistory(cfg)}
+																		title="Xem lịch sử thay đổi tham số này"
 																	>
-																		Hoàn tác
+																		Lịch sử
 																	</Button>
+																</div>
+
+																{/* Middle: Input control based on data type */}
+																<div className="syscfg-item__control-row">
+																	{cfg.dataType === "BOOLEAN" ? (
+																		<div className="syscfg-toggle-wrapper">
+																			<button
+																				type="button"
+																				className={`syscfg-toggle ${currentValue === "true" ? "syscfg-toggle--active" : ""}`}
+																				onClick={() =>
+																					handleValueChange(
+																						cfg.configKey,
+																						currentValue === "true"
+																							? "false"
+																							: "true",
+																					)
+																				}
+																				disabled={!cfg.editable}
+																			>
+																				<span className="syscfg-toggle__switch" />
+																			</button>
+																			<span className="syscfg-toggle__label">
+																				{currentValue === "true"
+																					? "Cho phép"
+																					: "Không cho phép (Cấm)"}
+																			</span>
+																		</div>
+																	) : (
+																		<div className="syscfg-input-wrapper">
+																			<Input
+										type={
+											cfg.unit === "HH:mm"
+												? "time"
+												:
+											cfg.dataType === "INTEGER" ||
+																					cfg.dataType === "DECIMAL"
+																						? "number"
+																						: "text"
+																				}
+																				value={currentValue}
+																				onChange={(e) =>
+																					handleValueChange(
+																						cfg.configKey,
+																						e.target.value,
+																					)
+																				}
+																				disabled={!cfg.editable}
+																				min={cfg.minValue}
+																				max={cfg.maxValue}
+																				className="syscfg-field-input"
+																			/>
+																			{cfg.unit && (
+																				<span className="syscfg-input-unit">
+																					{cfg.unit}
+																				</span>
+																			)}
+																		</div>
+																	)}
+
+																	{/* Action Buttons */}
+																	<div className="syscfg-item__actions">
+																		{isModified && (
+																			<Button
+																				variant="secondary"
+																				size="sm"
+																				icon={<RotateCcw size={14} />}
+																				onClick={() =>
+																					handleResetValue(
+																						cfg.configKey,
+																						cfg.configValue,
+																					)
+																				}
+																				disabled={isSaving}
+																				title="Khôi phục giá trị ban đầu"
+																			>
+																				Hoàn tác
+																			</Button>
+																		)}
+
+																		<Button
+																			variant="primary"
+																			size="sm"
+																			icon={<Save size={14} />}
+																			loading={isSaving}
+																			disabled={
+																				!isModified || isSaving || !cfg.editable
+																			}
+																			onClick={() => handleOpenSaveModal(cfg)}
+																		>
+																			Lưu
+																		</Button>
+																	</div>
+																</div>
+
+																{/* Rules Hint: Min / Max constraints */}
+																{(cfg.minValue != null || cfg.maxValue != null) && (
+																	<div className="syscfg-item__hint">
+																		<Info size={12} />
+																		<span>
+																			Giới hạn cho phép:{" "}
+																			{cfg.minValue != null
+																				? `tối thiểu ${cfg.minValue}`
+																				: ""}
+																			{cfg.minValue != null && cfg.maxValue != null
+																				? " — "
+																				: ""}
+																			{cfg.maxValue != null
+																				? `tối đa ${cfg.maxValue}`
+																				: ""}{" "}
+																			{cfg.unit || ""}
+																		</span>
+																	</div>
 																)}
 
-																<Button
-																	variant="primary"
-																	size="sm"
-																	icon={<Save size={14} />}
-																	loading={isSaving}
-																	disabled={
-																		!isModified || isSaving || !cfg.editable
-																	}
-																	onClick={() => handleOpenSaveModal(cfg)}
-																>
-																	Lưu
-																</Button>
+																{/* Footer: Last updated info */}
+																<div className="syscfg-item__footer">
+																	<div className="syscfg-item__audit-text">
+																		<Clock size={12} />
+																		<span>
+																			Cập nhật lần cuối:{" "}
+																			{formatDateTime(cfg.updatedAt)}
+																			{cfg.updatedByName && (
+																				<>
+																					{" "}
+																					bởi <strong>{cfg.updatedByName}</strong>
+																				</>
+																			)}
+																		</span>
+																	</div>
+																</div>
 															</div>
-														</div>
-
-														{/* Rules Hint: Min / Max constraints */}
-														{(cfg.minValue != null || cfg.maxValue != null) && (
-															<div className="syscfg-item__hint">
-																<Info size={12} />
-																<span>
-																	Giới hạn cho phép:{" "}
-																	{cfg.minValue != null
-																		? `tối thiểu ${cfg.minValue}`
-																		: ""}
-																	{cfg.minValue != null && cfg.maxValue != null
-																		? " — "
-																		: ""}
-																	{cfg.maxValue != null
-																		? `tối đa ${cfg.maxValue}`
-																		: ""}{" "}
-																	{cfg.unit || ""}
-																</span>
-															</div>
-														)}
-
-														{/* Footer: Last updated info */}
-														<div className="syscfg-item__footer">
-															<div className="syscfg-item__audit-text">
-																<Clock size={12} />
-																<span>
-																	Cập nhật lần cuối:{" "}
-																	{formatDateTime(cfg.updatedAt)}
-																	{cfg.updatedByName && (
-																		<>
-																			{" "}
-																			bởi <strong>{cfg.updatedByName}</strong>
-																		</>
-																	)}
-																</span>
-															</div>
-														</div>
-													</div>
-												</Card>
-											);
-										})}
-									</div>
+														</Card>
+													);
+												})}
+											</div>
+										</div>
+									))}
 								</section>
 							))}
 					</div>
