@@ -246,7 +246,17 @@ export default function AccessRequestReviewPage() {
       loadStats();
       setTimeout(() => setActionSuccess(null), 3000);
     } catch (err) {
-      setActionError(err.message || 'Lỗi khi chuyển yêu cầu sang Hoàn thành');
+      if (err.status === 409) {
+        setFinishItem(null);
+        setFinishReason('');
+        setFinishReasonError(null);
+        setActionWarning(err.message || 'Yêu cầu này đã được xử lý bởi người khác. Danh sách đã được làm mới.');
+        loadRequests(page, statusFilter, selectedAreaId);
+        loadStats();
+        setTimeout(() => setActionWarning(null), 7000);
+      } else {
+        setActionError(err.message || 'Lỗi khi chuyển yêu cầu sang Hoàn thành');
+      }
     } finally {
       setActionLoading(false);
     }
