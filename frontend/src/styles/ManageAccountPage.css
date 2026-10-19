@@ -147,16 +147,11 @@
   transition: all 0.15s ease;
 }
 
+/* Token cho cả sáng và tối; --brand-text trên nền xanh nhạt chỉ đạt 4.47 */
 .account-tab-btn--active .account-tab-badge {
-  background-color: rgba(37, 99, 235, 0.1);
-  color: var(--brand-text);
-  border-color: rgba(37, 99, 235, 0.25);
-}
-
-[data-theme="dark"] .account-tab-btn--active .account-tab-badge {
-  background-color: rgba(59, 130, 246, 0.18);
-  color: #60a5fa;
-  border-color: rgba(59, 130, 246, 0.35);
+  background-color: var(--theme-primary-subtle);
+  color: var(--theme-info-text);
+  border-color: var(--theme-primary-border);
 }
 
 /* --------------------------------------------------------------------------
@@ -308,6 +303,20 @@
 
 .account-table tbody tr:hover {
   background-color: var(--theme-primary-light, rgba(239, 246, 255, 0.45));
+}
+
+/* Ghim cột Thao tác bên phải: tab Tài khoản hệ thống có 6 cột, ở 1280 bảng cuộn ngang mà vẫn thấy nút */
+.account-table th.account-col-actions,
+.account-table td.account-col-actions {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  background: var(--theme-bg-surface);
+  box-shadow: inset 1px 0 0 var(--theme-border);
+}
+
+.account-table th.account-col-actions {
+  background: var(--theme-bg-canvas);
 }
 
 .account-table tbody tr:last-child td {
