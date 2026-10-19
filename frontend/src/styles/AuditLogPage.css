@@ -307,7 +307,8 @@
 
 .category-badge--purple {
   background: var(--theme-primary-subtle);
-  color: var(--theme-primary);
+  /* UI-AUDIT #30: --theme-primary chỉ đạt 4.17 trên nền tối */
+  color: var(--theme-info-text);
   border-color: var(--theme-primary-border);
 }
 

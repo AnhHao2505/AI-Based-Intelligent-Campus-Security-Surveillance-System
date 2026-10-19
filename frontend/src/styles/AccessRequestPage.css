@@ -644,8 +644,9 @@
 }
 
 .arp-filter-btn--active {
-  background: rgba(59, 130, 246, 0.12);
-  color: var(--theme-primary);
+  background: var(--theme-primary-subtle);
+  /* UI-AUDIT #30: --theme-primary chỉ đạt 3.43 trên nền tối */
+  color: var(--theme-info-text);
   border-color: var(--brand-blue, #3b82f6);
   font-weight: 600;
 }

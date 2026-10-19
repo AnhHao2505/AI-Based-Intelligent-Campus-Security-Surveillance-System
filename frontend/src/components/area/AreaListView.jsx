@@ -42,8 +42,10 @@ const LEVEL_SECTIONS = [
 		levelNumber: 1,
 		title: "Khu vực Công khai",
 		badgeLabel: "Cấp 1",
-		badgeColor: "#10b981",
-		badgeBg: "rgba(16, 185, 129, 0.12)",
+		dotColor: "var(--theme-success)",
+		badgeColor: "var(--theme-success-text)",
+		badgeBg: "var(--theme-success-bg)",
+		badgeBorder: "var(--theme-success-border)",
 		filter: (a) => a.areaAccessLevel === 1 || a.areaLevel === "PUBLIC",
 	},
 	{
@@ -51,8 +53,10 @@ const LEVEL_SECTIONS = [
 		levelNumber: 2,
 		title: "Khu vực Bảo mật nội bộ & Cần liên hệ",
 		badgeLabel: "Cấp 2",
-		badgeColor: "#3b82f6",
-		badgeBg: "rgba(59, 130, 246, 0.12)",
+		dotColor: "var(--theme-info)",
+		badgeColor: "var(--theme-info-text)",
+		badgeBg: "var(--theme-info-bg)",
+		badgeBorder: "var(--theme-info-border)",
 		filter: (a) =>
 			a.areaAccessLevel === 2 ||
 			a.areaLevel === "INTERNAL_CONFIDENTIAL" ||
@@ -63,8 +67,10 @@ const LEVEL_SECTIONS = [
 		levelNumber: 3,
 		title: "Khu vực Tuyệt mật",
 		badgeLabel: "Cấp 3",
-		badgeColor: "#ef4444",
-		badgeBg: "rgba(239, 68, 68, 0.12)",
+		dotColor: "var(--theme-danger)",
+		badgeColor: "var(--theme-danger-text)",
+		badgeBg: "var(--theme-danger-bg)",
+		badgeBorder: "var(--theme-danger-border)",
 		filter: (a) =>
 			a.areaAccessLevel === 3 || a.areaLevel === "HIGHLY_CONFIDENTIAL",
 	},
@@ -305,7 +311,7 @@ export default function AreaListView({
 									<div className="area-level-section__title-group">
 										<span
 											className="area-level-section__dot"
-											style={{ backgroundColor: section.badgeColor }}
+											style={{ backgroundColor: section.dotColor }}
 										/>
 										<h2 className="area-level-section__title">
 											{section.title}
@@ -315,7 +321,7 @@ export default function AreaListView({
 											style={{
 												color: section.badgeColor,
 												backgroundColor: section.badgeBg,
-												borderColor: section.badgeColor,
+												borderColor: section.badgeBorder,
 											}}
 										>
 											{section.badgeLabel}
