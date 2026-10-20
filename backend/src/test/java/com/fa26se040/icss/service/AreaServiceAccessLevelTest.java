@@ -23,6 +23,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
@@ -66,6 +67,9 @@ class AreaServiceAccessLevelTest {
 
     @Mock
     private SystemConfigService systemConfigService;
+
+    @Spy
+    private ReasonValidator reasonValidator = ReasonValidatorTestSupport.withDefaults();
 
     @InjectMocks
     private AreaService areaService;

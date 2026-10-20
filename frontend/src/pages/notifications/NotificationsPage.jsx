@@ -395,7 +395,9 @@ export default function NotificationsPage() {
                   <div className="notif-item__content">
                     <div className="notif-item__title-row">
                       <span className="notif-item__title">{notif.title}</span>
-                      {!notif.isRead && <span className="notif-item__unread-dot" />}
+                      {!notif.isRead && (
+                        <span className="notif-item__unread-dot" role="img" aria-label="Chưa đọc" title="Chưa đọc" />
+                      )}
                     </div>
                     <div className="notif-item__message">{notif.message}</div>
                   </div>

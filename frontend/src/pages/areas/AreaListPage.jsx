@@ -49,6 +49,7 @@ import {
 	validateAreaName,
 } from "../../utils/areaHelpers";
 import "../../styles/AreaListPage.css";
+import { useReasonLimits } from "../../hooks/useReasonLimits";
 
 // BR-AR-COORD-01..03: toạ độ tuỳ chọn — trống cả hai = "chưa định vị" (null); chỉ nhập một ô thì từ chối
 const COORDINATE_PAIR_ERROR = "Phải nhập đủ cả vĩ độ và kinh độ, hoặc để trống cả hai.";
@@ -108,6 +109,7 @@ const AREA_LEVEL_BTN_CLASS = {
 };
 
 export default function AreaListPage() {
+	const reasonLimits = useReasonLimits();
 	const { user } = useAuth();
 	const isAdmin = user?.role === "ADMIN";
 	const navigate = useNavigate();
@@ -593,13 +595,13 @@ export default function AreaListPage() {
 		const targetId = formData.id || selectedArea?.id;
 		if (!targetId) return;
 
-		// Step 5b (BR-TC-02): đổi loại bắt buộc lý do 10–500 ký tự
+		// Step 5b (BR-TC-02): đổi loại bắt buộc lý do, độ dài theo cấu hình (useReasonLimits)
 		const isTypeChange =
 			Boolean(formData.originalAreaLevel) &&
 			formData.areaLevel !== formData.originalAreaLevel;
 		const trimmedReason = (formData.reason || "").trim();
-		if (isTypeChange && (trimmedReason.length < 10 || trimmedReason.length > 500)) {
-			setEditReasonError(`Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmedReason.length}).`);
+		if (isTypeChange && !reasonLimits.isValid(trimmedReason)) {
+			setEditReasonError(reasonLimits.error(trimmedReason));
 			editReasonRef.current?.focus();
 			return;
 		}
@@ -710,8 +712,8 @@ export default function AreaListPage() {
 	const handleDeactivateSubmit = async () => {
 		if (!deactivateTarget || !dependencies) return;
 		const trimmed = deactivateReason.trim();
-		if (trimmed.length < 10 || trimmed.length > 500) {
-			setDeactivateReasonError(`Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmed.length}).`);
+		if (!reasonLimits.isValid(trimmed)) {
+			setDeactivateReasonError(reasonLimits.error(trimmed));
 			deactivateReasonRef.current?.focus();
 			return;
 		}
@@ -782,8 +784,8 @@ export default function AreaListPage() {
 	const handleRestoreSubmit = async () => {
 		if (!restoreTarget) return;
 		const trimmed = restoreReason.trim();
-		if (trimmed.length < 10 || trimmed.length > 500) {
-			setRestoreReasonError(`Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmed.length}).`);
+		if (!reasonLimits.isValid(trimmed)) {
+			setRestoreReasonError(reasonLimits.error(trimmed));
 			restoreReasonRef.current?.focus();
 			return;
 		}
@@ -1421,26 +1423,24 @@ export default function AreaListPage() {
 									</div>
 								</div>
 
-								{/* Step 5b (BR-TC-02): đổi loại -> bắt buộc lý do 10–500 ký tự, ghi vào audit CHANGE_TYPE */}
+								{/* Step 5b (BR-TC-02): đổi loại -> bắt buộc lý do (độ dài theo cấu hình), ghi vào audit CHANGE_TYPE */}
 								{formData.originalAreaLevel && formData.areaLevel !== formData.originalAreaLevel && (
 									<div className="area-form-group">
 										<ReasonTextarea
 											ref={editReasonRef}
 											id="edit-type-change-reason"
 											label="Lý do đổi loại khu vực"
-											placeholder="Nêu lý do đổi loại (10–500 ký tự)..."
+											placeholder={`Nêu lý do đổi loại (${reasonLimits.range} ký tự)...`}
 											value={formData.reason || ""}
 											onChange={(e) => {
 												const val = e.target.value;
 												setFormData({ ...formData, reason: val });
-												if (editReasonError && val.trim().length >= 10 && val.trim().length <= 500) {
+												if (editReasonError && reasonLimits.isValid(val)) {
 													setEditReasonError(null);
 												}
 											}}
 											error={editReasonError}
 											hint="Đổi loại sẽ áp cấp truy cập theo mặc định của loại mới và có thể hủy các đơn truy cập không còn phù hợp."
-											min={10}
-											max={500}
 											required
 										/>
 									</div>
@@ -1706,18 +1706,16 @@ export default function AreaListPage() {
 										ref={deactivateReasonRef}
 										id="deactivate-reason"
 										label="Lý do vô hiệu hóa"
-										placeholder="Nêu lý do vô hiệu hóa (10–500 ký tự)..."
+										placeholder={`Nêu lý do vô hiệu hóa (${reasonLimits.range} ký tự)...`}
 										value={deactivateReason}
 										onChange={(e) => {
 											const val = e.target.value;
 											setDeactivateReason(val);
-											if (deactivateReasonError && val.trim().length >= 10 && val.trim().length <= 500) {
+											if (deactivateReasonError && reasonLimits.isValid(val)) {
 												setDeactivateReasonError(null);
 											}
 										}}
 										error={deactivateReasonError}
-										min={10}
-										max={500}
 										disabled={modalLoading}
 										required
 									/>
@@ -1816,18 +1814,16 @@ export default function AreaListPage() {
 									ref={restoreReasonRef}
 									id="restore-reason"
 									label="Lý do khôi phục"
-									placeholder="Nêu lý do khôi phục (10–500 ký tự)..."
+									placeholder={`Nêu lý do khôi phục (${reasonLimits.range} ký tự)...`}
 									value={restoreReason}
 									onChange={(e) => {
 										const val = e.target.value;
 										setRestoreReason(val);
-										if (restoreReasonError && val.trim().length >= 10 && val.trim().length <= 500) {
+										if (restoreReasonError && reasonLimits.isValid(val)) {
 											setRestoreReasonError(null);
 										}
 									}}
 									error={restoreReasonError}
-									min={10}
-									max={500}
 									disabled={restoreLoading}
 									required
 								/>

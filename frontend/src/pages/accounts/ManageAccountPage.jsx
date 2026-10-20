@@ -42,6 +42,7 @@ import "../../styles/ManageAccountPage.css";
 import PageHeader from "../../components/ui/PageHeader";
 import { LoadingState, EmptyState, ErrorState } from "../../components/ui";
 import { formatDateTime } from "../../utils/formatDateTime";
+import useDialogA11y from "../../hooks/useDialogA11y";
 
 const DEFAULT_PAGE_SIZE = 10;
 
@@ -419,15 +420,42 @@ export default function ManageAccountPage() {
 		setFrontPreview(null);
 	}, [isSubmitting, frontPreview]);
 
-	useEffect(() => {
-		const handleKeyDown = (e) => {
-			if (e.key === "Escape") closeModal();
-		};
-		if (modalType) {
-			window.addEventListener("keydown", handleKeyDown);
-		}
-		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, [modalType, closeModal]);
+	// Popup: Esc đóng (popup trên cùng), focus ô nhập đầu tiên, giữ Tab trong popup, trả focus khi đóng
+	const accountModalRef = useRef(null);
+	const bulkConfirmRef = useRef(null);
+	const batchListRef = useRef(null);
+	const batchDetailsRef = useRef(null);
+	const batchDeleteRef = useRef(null);
+	const batchRestoreRef = useRef(null);
+	const restoreResultRef = useRef(null);
+	const dialogFocus = { initialFocus: "field" };
+	useDialogA11y(accountModalRef, Boolean(modalType), closeModal, dialogFocus);
+	useDialogA11y(
+		bulkConfirmRef,
+		showBulkConfirmModal && Boolean(bulkZipFile),
+		() => !isSubmitting && setShowBulkConfirmModal(false),
+		dialogFocus,
+	);
+	useDialogA11y(batchListRef, showBatchListModal, () => setShowBatchListModal(false), dialogFocus);
+	useDialogA11y(batchDetailsRef, showBatchDetailsModal, () => setShowBatchDetailsModal(false), dialogFocus);
+	useDialogA11y(
+		batchDeleteRef,
+		Boolean(batchToDelete),
+		() => !isDeletingBatch && setBatchToDelete(null),
+		dialogFocus,
+	);
+	useDialogA11y(
+		batchRestoreRef,
+		Boolean(batchToRestore),
+		() => !isRestoringBatch && setBatchToRestore(null),
+		dialogFocus,
+	);
+	useDialogA11y(
+		restoreResultRef,
+		Boolean(restoreResult && restoreResult.skippedCount > 0),
+		() => setRestoreResult(null),
+		dialogFocus,
+	);
 
 	// Open Create Modal
 	const handleOpenCreate = () => {
@@ -748,6 +776,7 @@ export default function ManageAccountPage() {
 						id="input-search-account"
 						className="account-search__input"
 						placeholder="Tìm theo mã định danh, họ tên hoặc email..."
+						aria-label="Tìm tài khoản theo mã định danh, họ tên hoặc email"
 						value={searchKeyword}
 						onChange={(e) => setSearchKeyword(e.target.value)}
 					/>
@@ -757,6 +786,7 @@ export default function ManageAccountPage() {
 							className="account-search__clear-btn"
 							onClick={() => setSearchKeyword("")}
 							title="Xóa tìm kiếm"
+							aria-label="Xóa tìm kiếm"
 						>
 							<X size={16} />
 						</button>
@@ -797,7 +827,7 @@ export default function ManageAccountPage() {
 								<th>Email</th>
 								{activeTab === "SYSTEM" && <th>Quyền</th>}
 								<th>Trạng thái</th>
-								<th style={{ textAlign: "center" }}>Thao tác</th>
+								<th className="account-col-actions" style={{ textAlign: "center" }}>Thao tác</th>
 							</tr>
 						</thead>
 						<tbody>
@@ -909,6 +939,14 @@ export default function ManageAccountPage() {
 										currentUser?.email &&
 										item.email?.toLowerCase() ===
 											currentUser.email?.toLowerCase();
+									const toggleLabel = isSelf
+										? "Không thể tự thay đổi trạng thái của chính mình"
+										: item.isActive
+											? "Vô hiệu hóa tài khoản"
+											: "Kích hoạt tài khoản";
+									const deleteLabel = isSelf
+										? "Không thể tự xóa tài khoản của chính mình"
+										: "Xóa tài khoản";
 
 									return (
 										<tr key={item.id}>
@@ -960,7 +998,7 @@ export default function ManageAccountPage() {
 												</span>
 											</td>
 
-											<td style={{ textAlign: "center" }}>
+											<td className="account-col-actions" style={{ textAlign: "center" }}>
 												<div
 													className="account-actions"
 													style={{ justifyContent: "center" }}
@@ -972,13 +1010,8 @@ export default function ManageAccountPage() {
 																? "account-action-btn--toggle-disable"
 																: "account-action-btn--toggle-activate"
 														}`}
-														title={
-															isSelf
-																? "Không thể tự thay đổi trạng thái của chính mình"
-																: item.isActive
-																	? "Vô hiệu hóa tài khoản"
-																	: "Kích hoạt tài khoản"
-														}
+														title={toggleLabel}
+														aria-label={toggleLabel}
 														disabled={isSelf}
 														onClick={() => handleOpenToggle(item)}
 													>
@@ -992,11 +1025,8 @@ export default function ManageAccountPage() {
 													<button
 														type="button"
 														className="account-action-btn account-action-btn--delete"
-														title={
-															isSelf
-																? "Không thể tự xóa tài khoản của chính mình"
-																: "Xóa tài khoản"
-														}
+														title={deleteLabel}
+														aria-label={deleteLabel}
 														disabled={isSelf}
 														onClick={() => handleOpenDelete(item)}
 													>
@@ -1027,6 +1057,7 @@ export default function ManageAccountPage() {
 								disabled={currentPage === 0}
 								onClick={() => setCurrentPage((p) => Math.max(0, p - 1))}
 								title="Trang trước"
+								aria-label="Trang trước"
 							>
 								<ChevronLeft size={16} />
 							</button>
@@ -1050,6 +1081,7 @@ export default function ManageAccountPage() {
 									setCurrentPage((p) => Math.min(totalPages - 1, p + 1))
 								}
 								title="Trang tiếp theo"
+								aria-label="Trang tiếp theo"
 							>
 								<ChevronRight size={16} />
 							</button>
@@ -1072,6 +1104,9 @@ export default function ManageAccountPage() {
 						className="account-modal"
 						role="dialog"
 						aria-modal="true"
+						ref={accountModalRef}
+						tabIndex={-1}
+						aria-labelledby="account-modal-title-create"
 						style={{ maxWidth: "520px" }}
 					>
 						<div className="account-modal__header">
@@ -1079,7 +1114,7 @@ export default function ManageAccountPage() {
 								<div className="account-modal__icon-badge account-modal__icon-badge--primary">
 									<UserPlus size={18} />
 								</div>
-								<h2 className="account-modal__title">
+								<h2 id="account-modal-title-create" className="account-modal__title">
 									{activeTab === "NORMAL"
 										? "Tạo tài khoản người dùng"
 										: "Tạo tài khoản cán bộ / nhân viên"}
@@ -1088,6 +1123,7 @@ export default function ManageAccountPage() {
 							<button
 								type="button"
 								className="account-modal__close-btn"
+								title="Đóng"
 								// Giữ focus ở ô đang nhập: blur báo lỗi làm modal giãn ra, nút có thể trượt khỏi con trỏ trước khi nhả chuột
 								onMouseDown={(e) => e.preventDefault()}
 								onClick={closeModal}
@@ -1287,7 +1323,7 @@ export default function ManageAccountPage() {
 													height: "140px",
 													objectFit: "cover",
 													borderRadius: "8px",
-													border: "2px solid var(--theme-primary, #3b82f6)",
+													border: "2px solid var(--theme-primary)",
 												}}
 											/>
 											<div style={{ marginTop: "6px" }}>
@@ -1295,7 +1331,7 @@ export default function ManageAccountPage() {
 													htmlFor="input-staff-face"
 													style={{
 														cursor: "pointer",
-														color: "var(--theme-primary, #3b82f6)",
+														color: "var(--theme-primary)",
 														fontSize: "0.8125rem",
 														fontWeight: 500,
 													}}
@@ -1322,7 +1358,7 @@ export default function ManageAccountPage() {
 										>
 											<Camera
 												size={32}
-												color="#64748b"
+												style={{ color: "var(--theme-text-muted)" }}
 											/>
 											<span
 												style={{
@@ -1400,17 +1436,22 @@ export default function ManageAccountPage() {
 						className="account-modal account-modal--confirm"
 						role="dialog"
 						aria-modal="true"
+						ref={accountModalRef}
+						tabIndex={-1}
+						aria-labelledby="account-modal-title-disable"
 					>
 						<div className="account-modal__header">
 							<div className="account-modal__title-wrap">
 								<div className="account-modal__icon-badge account-modal__icon-badge--warning">
 									<UserX size={18} />
 								</div>
-								<h2 className="account-modal__title">Vô hiệu hóa tài khoản</h2>
+								<h2 id="account-modal-title-disable" className="account-modal__title">Vô hiệu hóa tài khoản</h2>
 							</div>
 							<button
 								type="button"
 								className="account-modal__close-btn"
+								aria-label="Đóng"
+								title="Đóng"
 								onClick={closeModal}
 								disabled={isSubmitting}
 							>
@@ -1465,17 +1506,22 @@ export default function ManageAccountPage() {
 						className="account-modal account-modal--confirm"
 						role="dialog"
 						aria-modal="true"
+						ref={accountModalRef}
+						tabIndex={-1}
+						aria-labelledby="account-modal-title-activate"
 					>
 						<div className="account-modal__header">
 							<div className="account-modal__title-wrap">
 								<div className="account-modal__icon-badge account-modal__icon-badge--success">
 									<UserCheck size={18} />
 								</div>
-								<h2 className="account-modal__title">Kích hoạt tài khoản</h2>
+								<h2 id="account-modal-title-activate" className="account-modal__title">Kích hoạt tài khoản</h2>
 							</div>
 							<button
 								type="button"
 								className="account-modal__close-btn"
+								aria-label="Đóng"
+								title="Đóng"
 								onClick={closeModal}
 								disabled={isSubmitting}
 							>
@@ -1530,17 +1576,22 @@ export default function ManageAccountPage() {
 						className="account-modal account-modal--confirm"
 						role="dialog"
 						aria-modal="true"
+						ref={accountModalRef}
+						tabIndex={-1}
+						aria-labelledby="account-modal-title-delete"
 					>
 						<div className="account-modal__header">
 							<div className="account-modal__title-wrap">
 								<div className="account-modal__icon-badge account-modal__icon-badge--danger">
 									<Trash2 size={18} />
 								</div>
-								<h2 className="account-modal__title">Xóa tài khoản</h2>
+								<h2 id="account-modal-title-delete" className="account-modal__title">Xóa tài khoản</h2>
 							</div>
 							<button
 								type="button"
 								className="account-modal__close-btn"
+								aria-label="Đóng"
+								title="Đóng"
 								onClick={closeModal}
 								disabled={isSubmitting}
 							>
@@ -1599,17 +1650,22 @@ export default function ManageAccountPage() {
 						className="account-modal account-modal--confirm"
 						role="dialog"
 						aria-modal="true"
+						ref={bulkConfirmRef}
+						tabIndex={-1}
+						aria-labelledby="account-modal-title-bulk-confirm"
 					>
 						<div className="account-modal__header">
 							<div className="account-modal__title-wrap">
 								<div className="account-modal__icon-badge account-modal__icon-badge--warning">
 									<AlertCircle size={18} />
 								</div>
-								<h2 className="account-modal__title">Xác nhận nạp danh sách</h2>
+								<h2 id="account-modal-title-bulk-confirm" className="account-modal__title">Xác nhận nạp danh sách</h2>
 							</div>
 							<button
 								type="button"
 								className="account-modal__close-btn"
+								aria-label="Đóng"
+								title="Đóng"
 								onClick={() => setShowBulkConfirmModal(false)}
 								disabled={isSubmitting}
 							>
@@ -1629,11 +1685,11 @@ export default function ManageAccountPage() {
 									style={{
 										fontWeight: 600,
 										marginBottom: "6px",
-										color: "var(--theme-text-primary, #1e293b)",
+										color: "var(--theme-text-primary)",
 									}}
 								>
 									File được chọn:{" "}
-									<span style={{ color: "var(--primary-color, #2563eb)" }}>
+									<span style={{ color: "var(--theme-primary)" }}>
 										{bulkZipFile.name}
 									</span>
 								</div>
@@ -1642,7 +1698,7 @@ export default function ManageAccountPage() {
 										margin: 0,
 										paddingLeft: "18px",
 										fontSize: "0.8125rem",
-										color: "var(--theme-text-muted, #64748b)",
+										color: "var(--theme-text-muted)",
 										lineHeight: "1.5",
 									}}
 								>
@@ -1696,6 +1752,9 @@ export default function ManageAccountPage() {
 						className="account-modal"
 						role="dialog"
 						aria-modal="true"
+						ref={accountModalRef}
+						tabIndex={-1}
+						aria-labelledby="account-modal-title-bulk-import"
 						style={{ maxWidth: bulkImportResult ? "760px" : "520px" }}
 					>
 						<div className="account-modal__header">
@@ -1703,7 +1762,7 @@ export default function ManageAccountPage() {
 								<div className="account-modal__icon-badge account-modal__icon-badge--primary">
 									<Upload size={18} />
 								</div>
-								<h2 className="account-modal__title">
+								<h2 id="account-modal-title-bulk-import" className="account-modal__title">
 									{bulkImportResult
 										? "Kết quả nạp danh sách"
 										: activeTab === "NORMAL"
@@ -1714,6 +1773,8 @@ export default function ManageAccountPage() {
 							<button
 								type="button"
 								className="account-modal__close-btn"
+								aria-label="Đóng"
+								title="Đóng"
 								onClick={closeModal}
 								disabled={isSubmitting}
 							>
@@ -1823,7 +1884,7 @@ export default function ManageAccountPage() {
 												justifyContent: "center",
 												padding: "24px",
 												border: bulkZipFile
-													? "2px solid var(--theme-primary, #3b82f6)"
+													? "2px solid var(--theme-primary)"
 													: "2px dashed var(--theme-border-hover)",
 												borderRadius: "8px",
 												cursor: "pointer",
@@ -1833,14 +1894,14 @@ export default function ManageAccountPage() {
 										>
 											<Upload
 												size={32}
-												color={bulkZipFile ? "#3b82f6" : "#64748b"}
+												style={{ color: bulkZipFile ? "var(--theme-primary)" : "var(--theme-text-muted)" }}
 											/>
 											<span
 												style={{
 													fontSize: "0.875rem",
 													marginTop: "8px",
 													fontWeight: 500,
-													color: bulkZipFile ? "#1e40af" : "#475569",
+													color: bulkZipFile ? "var(--theme-info-text)" : "var(--theme-text-secondary)",
 												}}
 											>
 												{bulkZipFile
@@ -1939,7 +2000,7 @@ export default function ManageAccountPage() {
 											style={{
 												fontFamily: "monospace",
 												fontSize: "0.8125rem",
-												color: "var(--theme-text-muted, #64748b)",
+												color: "var(--theme-text-muted)",
 												marginBottom: "12px",
 											}}
 										>
@@ -2070,19 +2131,24 @@ export default function ManageAccountPage() {
 						className="account-modal account-modal--batches"
 						role="dialog"
 						aria-modal="true"
+						ref={batchListRef}
+						tabIndex={-1}
+						aria-labelledby="account-modal-title-batch-list"
 					>
 						<div className="account-modal__header">
 							<div className="account-modal__title-wrap">
 								<div className="account-modal__icon-badge account-modal__icon-badge--primary">
 									<Layers size={18} />
 								</div>
-								<h2 className="account-modal__title">
+								<h2 id="account-modal-title-batch-list" className="account-modal__title">
 									Lịch sử & Quản lý lô nạp
 								</h2>
 							</div>
 							<button
 								type="button"
 								className="account-modal__close-btn"
+								aria-label="Đóng"
+								title="Đóng"
 								onClick={() => setShowBatchListModal(false)}
 							>
 								<X size={18} />
@@ -2145,7 +2211,7 @@ export default function ManageAccountPage() {
 															<td
 																style={{
 																	fontSize: "0.8125rem",
-																	color: "var(--theme-text-secondary, #475569)",
+																	color: "var(--theme-text-secondary)",
 																}}
 															>
 																{formatDateTime(batch.createdAt)}
@@ -2329,6 +2395,9 @@ export default function ManageAccountPage() {
 						className="account-modal account-modal--batch-details"
 						role="dialog"
 						aria-modal="true"
+						ref={batchDetailsRef}
+						tabIndex={-1}
+						aria-labelledby="account-modal-title-batch-details"
 					>
 						<div className="account-modal__header">
 							<div className="account-modal__title-wrap">
@@ -2336,13 +2405,13 @@ export default function ManageAccountPage() {
 									<Eye size={18} />
 								</div>
 								<div>
-									<h2 className="account-modal__title">
+									<h2 id="account-modal-title-batch-details" className="account-modal__title">
 										Chi tiết lô tài khoản
 									</h2>
 									<div
 										style={{
 											fontSize: "0.75rem",
-											color: "var(--theme-text-muted, #64748b)",
+											color: "var(--theme-text-muted)",
 											fontFamily: "monospace",
 										}}
 									>
@@ -2353,6 +2422,8 @@ export default function ManageAccountPage() {
 							<button
 								type="button"
 								className="account-modal__close-btn"
+								aria-label="Đóng"
+								title="Đóng"
 								onClick={() => setShowBatchDetailsModal(false)}
 							>
 								<X size={18} />
@@ -2452,19 +2523,24 @@ export default function ManageAccountPage() {
 						className="account-modal account-modal--confirm"
 						role="dialog"
 						aria-modal="true"
+						ref={batchDeleteRef}
+						tabIndex={-1}
+						aria-labelledby="account-modal-title-batch-delete"
 					>
 						<div className="account-modal__header">
 							<div className="account-modal__title-wrap">
 								<div className="account-modal__icon-badge account-modal__icon-badge--danger">
 									<Trash2 size={18} />
 								</div>
-								<h2 className="account-modal__title">
+								<h2 id="account-modal-title-batch-delete" className="account-modal__title">
 									Xác nhận gỡ lô tài khoản
 								</h2>
 							</div>
 							<button
 								type="button"
 								className="account-modal__close-btn"
+								aria-label="Đóng"
+								title="Đóng"
 								onClick={() => setBatchToDelete(null)}
 								disabled={isDeletingBatch}
 							>
@@ -2498,7 +2574,7 @@ export default function ManageAccountPage() {
 										background: "var(--theme-primary-light)",
 										borderRadius: "6px",
 										fontSize: "0.8125rem",
-										color: "#1e40af",
+										color: "var(--theme-info-text)",
 										lineHeight: "1.4",
 									}}
 								>
@@ -2549,17 +2625,22 @@ export default function ManageAccountPage() {
 						className="account-modal account-modal--confirm"
 						role="dialog"
 						aria-modal="true"
+						ref={batchRestoreRef}
+						tabIndex={-1}
+						aria-labelledby="account-modal-title-batch-restore"
 					>
 						<div className="account-modal__header">
 							<div className="account-modal__title-wrap">
 								<div className="account-modal__icon-badge account-modal__icon-badge--warning">
 									<RotateCcw size={18} />
 								</div>
-								<h2 className="account-modal__title">Khôi phục lô tài khoản</h2>
+								<h2 id="account-modal-title-batch-restore" className="account-modal__title">Khôi phục lô tài khoản</h2>
 							</div>
 							<button
 								type="button"
 								className="account-modal__close-btn"
+								aria-label="Đóng"
+								title="Đóng"
 								onClick={() => setBatchToRestore(null)}
 								disabled={isRestoringBatch}
 							>
@@ -2591,10 +2672,10 @@ export default function ManageAccountPage() {
 								<div
 									style={{
 										padding: "8px 12px",
-										background: "#fefce8",
+										background: "var(--theme-warning-bg)",
 										borderRadius: "6px",
 										fontSize: "0.8125rem",
-										color: "#854d0e",
+										color: "var(--theme-warning-text)",
 										lineHeight: "1.4",
 									}}
 								>
@@ -2647,17 +2728,22 @@ export default function ManageAccountPage() {
 						className="account-modal account-modal--restore-result"
 						role="dialog"
 						aria-modal="true"
+						ref={restoreResultRef}
+						tabIndex={-1}
+						aria-labelledby="account-modal-title-restore-result"
 					>
 						<div className="account-modal__header">
 							<div className="account-modal__title-wrap">
 								<div className="account-modal__icon-badge account-modal__icon-badge--warning">
 									<AlertCircle size={18} />
 								</div>
-								<h2 className="account-modal__title">Kết quả khôi phục lô</h2>
+								<h2 id="account-modal-title-restore-result" className="account-modal__title">Kết quả khôi phục lô</h2>
 							</div>
 							<button
 								type="button"
 								className="account-modal__close-btn"
+								aria-label="Đóng"
+								title="Đóng"
 								onClick={() => setRestoreResult(null)}
 							>
 								<X size={18} />

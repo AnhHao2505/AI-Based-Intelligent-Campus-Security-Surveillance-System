@@ -351,6 +351,7 @@ public class SystemConfigService {
                 } catch (NumberFormatException e) {
                     throw new IllegalArgumentException("Giá trị cấu hình phải là số nguyên");
                 }
+                validateReasonLengthConfig(config.getConfigKey(), intVal);
                 if (config.getMinValue() != null && intVal < config.getMinValue().intValue()) {
                     throw new IllegalArgumentException("Giá trị không được nhỏ hơn " + config.getMinValue().intValue());
                 }
@@ -405,6 +406,34 @@ public class SystemConfigService {
                 }
             }
             default -> log.warn("Unknown dataType [{}] for config [{}]", dataType, config.getConfigKey());
+        }
+    }
+
+    /**
+     * Checklist 6.1 (V82): độ dài lý do phải thoả 1 ≤ REASON_MIN_LENGTH < REASON_MAX_LENGTH ≤ độ dài cột lưu lý do
+     * ({@link ReasonValidator#STORAGE_MAX_LENGTH}). So với giá trị hiện hành của khoá còn lại. Kiểm trước khoảng min/max
+     * trong metadata để câu báo lỗi nói rõ lý do.
+     */
+    private void validateReasonLengthConfig(String key, int value) {
+        if (ConfigKey.REASON_MIN_LENGTH.getKey().equals(key)) {
+            if (value < 1) {
+                throw new IllegalArgumentException("Độ dài tối thiểu của lý do phải từ 1 ký tự trở lên");
+            }
+            int currentMax = getInt(ConfigKey.REASON_MAX_LENGTH);
+            if (value >= currentMax) {
+                throw new IllegalArgumentException("Độ dài tối thiểu của lý do (" + value
+                        + ") phải nhỏ hơn độ dài tối đa đang cấu hình (" + currentMax + ")");
+            }
+        } else if (ConfigKey.REASON_MAX_LENGTH.getKey().equals(key)) {
+            if (value > ReasonValidator.STORAGE_MAX_LENGTH) {
+                throw new IllegalArgumentException("Độ dài tối đa của lý do không được vượt quá "
+                        + ReasonValidator.STORAGE_MAX_LENGTH + " ký tự (độ dài cột lưu lý do trong cơ sở dữ liệu)");
+            }
+            int currentMin = getInt(ConfigKey.REASON_MIN_LENGTH);
+            if (value <= currentMin) {
+                throw new IllegalArgumentException("Độ dài tối đa của lý do (" + value
+                        + ") phải lớn hơn độ dài tối thiểu đang cấu hình (" + currentMin + ")");
+            }
         }
     }
 

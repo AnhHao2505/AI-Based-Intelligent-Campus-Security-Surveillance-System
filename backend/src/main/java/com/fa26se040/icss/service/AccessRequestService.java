@@ -74,6 +74,7 @@ public class AccessRequestService {
     private final com.fa26se040.icss.repository.AccessRequestMemberRepository accessRequestMemberRepository;
     private final InAppNotificationService inAppNotificationService;
     private final SystemConfigService systemConfigService;
+    private final ReasonValidator reasonValidator;
     private final MemberLookupRateLimiter memberLookupRateLimiter;
     private final AuditService auditService;
     // BR-AL-30: khoá dòng users của người tham gia đơn (đọc lại cấp mới nhất sau khi khoá)
@@ -457,10 +458,8 @@ public class AccessRequestService {
             if (reviewRequest.rejectionReason() == null || reviewRequest.rejectionReason().trim().isEmpty()) {
                 throw new IllegalArgumentException("Vui lòng cung cấp lý do từ chối yêu cầu");
             }
-            int len = reviewRequest.rejectionReason().trim().length();
-            if (len < 10 || len > 500) {
-                throw new IllegalArgumentException("Lý do từ chối phải có từ 10 đến 500 ký tự");
-            }
+            // Checklist 6.1: độ dài theo REASON_MIN_LENGTH..REASON_MAX_LENGTH hiện hành
+            reasonValidator.validate(reviewRequest.rejectionReason(), "Lý do từ chối");
         }
 
         // BR-RQ-06: người duyệt phải khác người tạo đơn — áp cho cả APPROVED và REJECTED, kiểm trước mọi ghi DB nên đơn giữ PENDING.

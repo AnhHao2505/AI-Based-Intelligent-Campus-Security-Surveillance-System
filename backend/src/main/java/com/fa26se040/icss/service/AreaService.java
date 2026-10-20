@@ -1,5 +1,6 @@
 package com.fa26se040.icss.service;
 
+import com.fa26se040.icss.dto.systemconfig.ReasonLimits;
 import com.fa26se040.icss.dto.accessrequest.AreaSimpleResponse;
 import com.fa26se040.icss.dto.area.AreaCreateRequest;
 import com.fa26se040.icss.dto.area.AreaDependencyResponse;
@@ -58,6 +59,7 @@ public class AreaService {
     private final com.fa26se040.icss.repository.AreaEventSessionRepository eventSessionRepository;
     private final com.fa26se040.icss.repository.AreaEventScheduleRepository eventScheduleRepository;
     private final SystemConfigService systemConfigService;
+    private final ReasonValidator reasonValidator;
     private final org.springframework.beans.factory.ObjectProvider<InAppNotificationService> inAppNotificationServiceProvider;
     private final org.springframework.transaction.PlatformTransactionManager transactionManager;
     // Step 5b: đổi loại khu vực cần đánh giá đơn truy cập và AP của khu vực
@@ -129,19 +131,39 @@ public class AreaService {
         }
     }
 
-    /** BR-TC-02, TC-12: lý do 10–500 ký tự sau trim; rỗng coi như không gửi. Sai -> 400 ERR_AREA_050. */
-    private static String normalizeReason(String raw, boolean required) {
+    /** BR-TC-02, TC-12: lý do REASON_MIN_LENGTH..REASON_MAX_LENGTH ký tự sau trim; rỗng coi như không gửi. Sai -> 400 ERR_AREA_050. */
+    private String normalizeReason(String raw, boolean required) {
         String trimmed = raw != null ? raw.trim() : "";
         if (trimmed.isEmpty()) {
             if (required) {
-                throw new AreaException(AreaErrorCode.ERR_AREA_050);
+                throw reasonError();
             }
             return null;
         }
-        if (trimmed.length() < 10 || trimmed.length() > 500) {
-            throw new AreaException(AreaErrorCode.ERR_AREA_050);
+        if (!reasonValidator.isValid(trimmed)) {
+            throw reasonError();
         }
         return trimmed;
+    }
+
+    /** ERR_AREA_050 ghi giới hạn độ dài lý do đang cấu hình (checklist 6.1). */
+    private AreaException reasonError() {
+        ReasonLimits limits = reasonValidator.limits();
+        return new AreaException(AreaErrorCode.ERR_AREA_050, limits.minLength(), limits.maxLength());
+    }
+
+    /** ERR_AREA_024 (ghi chú chế độ / lịch sự kiện) ghi giới hạn độ dài đang cấu hình (checklist 6.1). */
+    private AreaException eventNoteError() {
+        ReasonLimits limits = reasonValidator.limits();
+        return new AreaException(AreaErrorCode.ERR_AREA_024, limits.minLength(), limits.maxLength());
+    }
+
+    /** Ghi chú chế độ / lịch sự kiện: bắt buộc, REASON_MIN_LENGTH..REASON_MAX_LENGTH ký tự sau trim. Sai -> 400 ERR_AREA_024. */
+    private String requireEventNote(String rawNote) {
+        if (rawNote == null || !reasonValidator.isValid(rawNote)) {
+            throw eventNoteError();
+        }
+        return rawNote.trim();
     }
 
     // ===================================================================== Step 5b — đổi loại khu vực (BR-TC-03..16)
@@ -693,7 +715,7 @@ public class AreaService {
 
     @Transactional
     public AreaResponse update(UUID id, AreaUpdateRequest req, String actorEmail) {
-        // 1. Hợp lệ dữ liệu (400) trước khi khoá: loại, version (BR-TC-13), lý do nếu có phải 10–500 (TC-12)
+        // 1. Hợp lệ dữ liệu (400) trước khi khoá: loại, version (BR-TC-13), lý do nếu có theo cấu hình độ dài lý do (TC-12)
         if (req.getAreaLevel() == null) {
             throw new AreaException(AreaErrorCode.ERR_AREA_003);
         }
@@ -703,7 +725,7 @@ public class AreaService {
         // Đổi loại bắt buộc lý do (TC-02): đọc loại hiện tại không khoá, không nạp entity; kiểm lại sau khi khoá
         AreaLevel peekLevel = areaRepository.findAreaLevelById(id).orElse(null);
         if (peekLevel != null && peekLevel != req.getAreaLevel() && reason == null) {
-            throw new AreaException(AreaErrorCode.ERR_AREA_050);
+            throw reasonError();
         }
 
         // 2. Khoá area, so version sau khi khoá (409 ERR_AREA_045)
@@ -715,7 +737,7 @@ public class AreaService {
         OffsetDateTime now = OffsetDateTime.now();
         boolean typeChange = area.getAreaLevel() != req.getAreaLevel();
         if (typeChange && reason == null) {
-            throw new AreaException(AreaErrorCode.ERR_AREA_050);
+            throw reasonError();
         }
 
         AreaSnapshot beforeSnapshot = AreaSnapshot.from(area);
@@ -1432,7 +1454,7 @@ public class AreaService {
 
         // 1. Hợp lệ dữ liệu (400) TRƯỚC khi khoá (BR-EV-A4)
         if (req == null) {
-            throw new AreaException(AreaErrorCode.ERR_AREA_024);
+            throw eventNoteError();
         }
         // EV-A1: có khoá "enabled" (kể cả null) -> 046, kiểm trước action
         if (req.enabled() != null) {
@@ -1442,17 +1464,10 @@ public class AreaService {
         if (eventAction == null) {
             throw new AreaException(AreaErrorCode.ERR_AREA_047);
         }
-        String rawNote = req.note();
-        if (rawNote == null || rawNote.trim().isEmpty()) {
-            throw new AreaException(AreaErrorCode.ERR_AREA_024);
-        }
-        String trimmedNote = rawNote.trim();
-        if (trimmedNote.length() < 10 || trimmedNote.length() > 500) {
-            throw new AreaException(AreaErrorCode.ERR_AREA_024);
-        }
+        String trimmedNote = requireEventNote(req.note());
         String rawReasonCode = req.reasonCode();
         if (rawReasonCode == null || rawReasonCode.trim().isEmpty()) {
-            throw new AreaException(AreaErrorCode.ERR_AREA_024);
+            throw eventNoteError();
         }
         String normReasonCode = rawReasonCode.trim().toUpperCase();
         requireVersion(req.version());
@@ -2009,18 +2024,11 @@ public class AreaService {
             throw new AreaException(AreaErrorCode.ERR_AREA_036, maxHours);
         }
 
-        String rawNote = req.note();
-        if (rawNote == null || rawNote.trim().isEmpty()) {
-            throw new AreaException(AreaErrorCode.ERR_AREA_024);
-        }
-        String trimmedNote = rawNote.trim();
-        if (trimmedNote.length() < 10 || trimmedNote.length() > 500) {
-            throw new AreaException(AreaErrorCode.ERR_AREA_024);
-        }
+        String trimmedNote = requireEventNote(req.note());
 
         String rawReasonCode = req.reasonCode();
         if (rawReasonCode == null || rawReasonCode.trim().isEmpty()) {
-            throw new AreaException(AreaErrorCode.ERR_AREA_024);
+            throw eventNoteError();
         }
         String normReasonCode = rawReasonCode.trim().toUpperCase();
         // BR-ES-L2: lịch chỉ nhận lý do của nhóm lịch tương ứng
@@ -2140,18 +2148,11 @@ public class AreaService {
             throw new AreaException(AreaErrorCode.ERR_AREA_036, maxHours);
         }
 
-        String rawNote = req.note();
-        if (rawNote == null || rawNote.trim().isEmpty()) {
-            throw new AreaException(AreaErrorCode.ERR_AREA_024);
-        }
-        String trimmedNote = rawNote.trim();
-        if (trimmedNote.length() < 10 || trimmedNote.length() > 500) {
-            throw new AreaException(AreaErrorCode.ERR_AREA_024);
-        }
+        String trimmedNote = requireEventNote(req.note());
 
         String rawReasonCode = req.reasonCode();
         if (rawReasonCode == null || rawReasonCode.trim().isEmpty()) {
-            throw new AreaException(AreaErrorCode.ERR_AREA_024);
+            throw eventNoteError();
         }
         String normReasonCode = rawReasonCode.trim().toUpperCase();
         // BR-ES-L2: lịch chỉ nhận lý do của nhóm lịch tương ứng
@@ -2249,20 +2250,13 @@ public class AreaService {
         }
 
         if (req == null) {
-            throw new AreaException(AreaErrorCode.ERR_AREA_024);
+            throw eventNoteError();
         }
-        String rawNote = req.note();
-        if (rawNote == null || rawNote.trim().isEmpty()) {
-            throw new AreaException(AreaErrorCode.ERR_AREA_024);
-        }
-        String trimmedNote = rawNote.trim();
-        if (trimmedNote.length() < 10 || trimmedNote.length() > 500) {
-            throw new AreaException(AreaErrorCode.ERR_AREA_024);
-        }
+        String trimmedNote = requireEventNote(req.note());
 
         String rawReasonCode = req.reasonCode();
         if (rawReasonCode == null || rawReasonCode.trim().isEmpty()) {
-            throw new AreaException(AreaErrorCode.ERR_AREA_024);
+            throw eventNoteError();
         }
         String normReasonCode = rawReasonCode.trim().toUpperCase();
         // BR-ES-L2: lịch chỉ nhận lý do của nhóm lịch tương ứng

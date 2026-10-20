@@ -14,6 +14,7 @@ import { getActiveReasons } from "../../services/reasonCatalogService";
 import { formatDisplayDateTime, getLevelConfig } from "../../utils/areaHelpers";
 import "../../styles/AreaAccessRulesModal.css";
 import { formatLocation } from "../../utils/formatLocation";
+import { useReasonLimits } from "../../hooks/useReasonLimits";
 
 // Step 5b (BR-EV-A1): ý định gửi lên server thay cho trường enabled cũ
 const EVENT_ACTION_TO_API = {
@@ -29,6 +30,7 @@ export default function AreaAccessRulesModal({
 	onSuccess,
 }) {
 	// V83 (D4): cấp khu cố định theo loại, ADMIN không còn sửa cấp ở đây; modal chỉ còn chế độ sự kiện + lịch của FM
+	const reasonLimits = useReasonLimits();
 	const [eventModeEnabled, setEventModeEnabled] = useState(false);
 	const [openUntil, setOpenUntil] = useState("");
 	const [saving, setSaving] = useState(false);
@@ -192,8 +194,8 @@ export default function AreaAccessRulesModal({
 				return;
 			}
 			const trimmedEventNote = eventNote.trim();
-			if (!trimmedEventNote || trimmedEventNote.length < 10 || trimmedEventNote.length > 500) {
-				setEventNoteError(`Ghi chú phải từ 10 đến 500 ký tự (hiện có ${trimmedEventNote.length}).`);
+			if (!reasonLimits.isValid(trimmedEventNote)) {
+				setEventNoteError(reasonLimits.error(trimmedEventNote, "Ghi chú"));
 				eventNoteRef.current?.focus();
 				return;
 			}
@@ -571,19 +573,17 @@ export default function AreaAccessRulesModal({
 													ref={eventNoteRef}
 													id="event-mode-note"
 													label="Ghi chú thao tác sự kiện"
-													placeholder="Nêu tên sự kiện hoặc đơn vị tổ chức (10–500 ký tự)..."
+													placeholder={`Nêu tên sự kiện hoặc đơn vị tổ chức (${reasonLimits.range} ký tự)...`}
 													value={eventNote}
 													onChange={(e) => {
 														const val = e.target.value;
 														setEventNote(val);
-														if (eventNoteError && val.trim().length >= 10 && val.trim().length <= 500) {
+														if (eventNoteError && reasonLimits.isValid(val)) {
 															setEventNoteError(null);
 														}
 													}}
 													error={eventNoteError}
 													rows={2}
-													min={10}
-													max={500}
 													required
 												/>
 											</div>

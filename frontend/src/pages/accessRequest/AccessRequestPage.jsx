@@ -24,7 +24,7 @@ import { getLevelConfig, AREA_LEVEL_CONFIG } from "../../utils/areaHelpers";
 import { useAuth } from "../../context/AuthContext";
 import "../../styles/AccessRequestPage.css";
 import PageHeader from "../../components/ui/PageHeader";
-import { LoadingState, EmptyState, ErrorState } from "../../components/ui";
+import { LoadingState, EmptyState, ErrorState, DialogPanel } from "../../components/ui";
 import { formatLocation } from "../../utils/formatLocation";
 import { formatDateTime, formatRange } from "../../utils/formatDateTime";
 import MemberCodeCombobox from "../../components/accessRequest/MemberCodeCombobox";
@@ -627,14 +627,15 @@ export default function AccessRequestPage() {
 				>
 					{/* TRƯỜNG 1: Hình thức đăng ký (V83: chọn trước, danh sách khu theo loại đơn) */}
 					<div className="arp-form-group">
-						<label className="arp-label">
+						<div className="arp-label" id="arp-type-label">
 							<span>Hình thức đăng ký</span>
 							<span className="arp-required">*</span>
-						</label>
-						<div className="arp-type-grid">
+						</div>
+						<div className="arp-type-grid" role="group" aria-labelledby="arp-type-label">
 							<button
 								type="button"
 								className={`arp-type-btn ${requestType === "INDIVIDUAL" ? "arp-type-btn--selected" : ""}`}
+								aria-pressed={requestType === "INDIVIDUAL"}
 								onClick={() => handleRequestTypeChange("INDIVIDUAL")}
 								disabled={noIndividualAreas || submitting}
 								title={noIndividualAreas ? "Không có khu vực nào cấp cao hơn cấp của bạn trong phạm vi được xin" : ""}
@@ -652,6 +653,7 @@ export default function AccessRequestPage() {
 							<button
 								type="button"
 								className={`arp-type-btn ${requestType === "GROUP" ? "arp-type-btn--selected" : ""}`}
+								aria-pressed={requestType === "GROUP"}
 								onClick={() => handleRequestTypeChange("GROUP")}
 								disabled={noGroupAreas || submitting}
 								title={
@@ -675,11 +677,12 @@ export default function AccessRequestPage() {
 
 					{/* TRƯỜNG 2: Khu vực cần truy cập */}
 					<div className="arp-form-group">
-						<label className="arp-label">
+						<label className="arp-label" htmlFor="arp-area">
 							<span>Khu vực cần truy cập</span>
 							<span className="arp-required">*</span>
 						</label>
 						<select
+							id="arp-area"
 							className="arp-select"
 							value={selectedAreaId}
 							onChange={handleAreaChange}
@@ -755,8 +758,9 @@ export default function AccessRequestPage() {
 						</label>
 						<div className="arp-time-grid arp-time-grid--range">
 							<div>
-								<label className="arp-sub-label">Từ ngày</label>
+								<label className="arp-sub-label" htmlFor="arp-start-date">Từ ngày</label>
 								<input
+									id="arp-start-date"
 									type="date"
 									className="arp-input"
 									value={requestDate}
@@ -766,8 +770,9 @@ export default function AccessRequestPage() {
 								/>
 							</div>
 							<div>
-								<label className="arp-sub-label">Từ giờ</label>
+								<label className="arp-sub-label" htmlFor="arp-start-time">Từ giờ</label>
 								<input
+									id="arp-start-time"
 									type="time"
 									className="arp-input"
 									value={startHour}
@@ -777,8 +782,9 @@ export default function AccessRequestPage() {
 								/>
 							</div>
 							<div>
-								<label className="arp-sub-label">Đến ngày</label>
+								<label className="arp-sub-label" htmlFor="arp-end-date">Đến ngày</label>
 								<input
+									id="arp-end-date"
 									type="date"
 									className="arp-input"
 									value={endDate || requestDate}
@@ -789,8 +795,9 @@ export default function AccessRequestPage() {
 								/>
 							</div>
 							<div>
-								<label className="arp-sub-label">Đến giờ</label>
+								<label className="arp-sub-label" htmlFor="arp-end-time">Đến giờ</label>
 								<input
+									id="arp-end-time"
 									type="time"
 									className="arp-input"
 									value={endHour}
@@ -806,8 +813,8 @@ export default function AccessRequestPage() {
 									fontSize: "12px",
 									marginTop: "6px",
 									color: timeSummary.isError
-										? "var(--theme-danger, #ef4444)"
-										: "var(--theme-text-secondary, #94a3b8)",
+										? "var(--theme-danger)"
+										: "var(--theme-text-secondary)",
 								}}
 							>
 								{timeSummary.text}
@@ -818,12 +825,13 @@ export default function AccessRequestPage() {
 					{/* TRƯỜNG 4: Danh sách thành viên (nếu chọn GROUP) */}
 					{requestType === "GROUP" && (
 						<div className="arp-form-group">
-							<label className="arp-label">
+							<label className="arp-label" htmlFor="arp-member-code">
 								<span>Danh sách mã số thành viên nhóm</span>
 								<span className="arp-required">*</span>
 							</label>
 							<div className="arp-member-lookup">
 								<MemberCodeCombobox
+									id="arp-member-code"
 									placeholder="Nhập mã số thành viên (vd: SV-002, GV-001...) hoặc bấm ↓"
 									value={memberCodeInput}
 									onChange={(text) => {
@@ -886,11 +894,12 @@ export default function AccessRequestPage() {
 
 					{/* TRƯỜNG 5: Mục đích sử dụng */}
 					<div className="arp-form-group">
-						<label className="arp-label">
+						<label className="arp-label" htmlFor="arp-purpose">
 							<span>Mục đích sử dụng khu vực</span>
 							<span className="arp-required">*</span>
 						</label>
 						<textarea
+							id="arp-purpose"
 							className="arp-textarea"
 							rows={3}
 							placeholder="Mô tả cụ thể mục đích truy cập (ví dụ: Họp nhóm đồ án Capstone, nghiên cứu phòng Lab Robotics, chuẩn bị sự kiện...)"
@@ -986,6 +995,7 @@ export default function AccessRequestPage() {
 
 						<select
 							className="arp-select-filter"
+							aria-label="Lọc theo khu vực"
 							value={historyAreaFilter}
 							onChange={(e) => {
 								setHistoryAreaFilter(e.target.value);
@@ -1008,6 +1018,7 @@ export default function AccessRequestPage() {
 							className="arp-refresh-btn"
 							onClick={() => loadMyRequests(historyPage, historyStatusFilter, historyAreaFilter)}
 							title="Làm mới danh sách"
+							aria-label="Làm mới danh sách"
 							disabled={loadingHistory}
 						>
 							<RefreshCw
@@ -1146,7 +1157,7 @@ export default function AccessRequestPage() {
 													{/* BR-RQ-47: FM huỷ đơn đã duyệt (cancel_source STAFF) */}
 													{req.status === "CANCELLED" && req.cancelSource === "STAFF" && (
 														<div className="arp-cancel-system" title={req.cancelReason || ""}>
-															Quản lý huỷ: {req.cancelReason}
+															Quản lý hủy: {req.cancelReason}
 														</div>
 													)}
 												</td>
@@ -1246,6 +1257,7 @@ export default function AccessRequestPage() {
 								}
 								disabled={historyPage === 0 || loadingHistory}
 								title="Trang trước"
+								aria-label="Trang trước"
 							>
 								<ChevronLeft size={14} />
 							</button>
@@ -1293,6 +1305,7 @@ export default function AccessRequestPage() {
 									historyPage >= historyTotalPages - 1 || loadingHistory
 								}
 								title="Trang sau"
+								aria-label="Trang sau"
 							>
 								<ChevronRight size={14} />
 							</button>
@@ -1307,9 +1320,12 @@ export default function AccessRequestPage() {
 					className="arp-modal-overlay"
 					onClick={() => setSelectedDetail(null)}
 				>
-					<div
+					<DialogPanel
 						className="arp-modal"
 						onClick={(e) => e.stopPropagation()}
+						onClose={() => setSelectedDetail(null)}
+						labelledBy="arp-detail-title"
+						initialFocus="dialog"
 					>
 						<div className="arp-modal__header">
 							<div className="arp-modal__header-title">
@@ -1317,7 +1333,7 @@ export default function AccessRequestPage() {
 									<KeyRound size={16} />
 								</div>
 								<div>
-									<h2 className="arp-modal__title">
+									<h2 className="arp-modal__title" id="arp-detail-title">
 										Chi tiết yêu cầu truy cập
 									</h2>
 								</div>
@@ -1326,6 +1342,8 @@ export default function AccessRequestPage() {
 								type="button"
 								className="arp-modal__close"
 								onClick={() => setSelectedDetail(null)}
+								title="Đóng"
+								aria-label="Đóng"
 							>
 								<X size={16} />
 							</button>
@@ -1394,7 +1412,7 @@ export default function AccessRequestPage() {
 										)}
 										{selectedDetail.status === "CANCELLED" && selectedDetail.cancelSource === "STAFF" && (
 											<div className="arp-cancel-system arp-cancel-system--detail">
-												Quản lý huỷ: {selectedDetail.cancelReason}
+												Quản lý hủy: {selectedDetail.cancelReason}
 											</div>
 										)}
 									</div>
@@ -1430,7 +1448,7 @@ export default function AccessRequestPage() {
 													borderRadius: "4px",
 													background: "rgba(59, 130, 246, 0.12)",
 													border: "1px solid rgba(59, 130, 246, 0.25)",
-													color: "var(--brand-blue, #3b82f6)",
+													color: "var(--brand-blue)",
 													fontSize: "11px",
 													fontWeight: 600,
 												}}
@@ -1477,7 +1495,7 @@ export default function AccessRequestPage() {
 												>
 													<strong>{m.userCode}</strong> · {m.fullName}
 													{m.sponsored && (
-														<span style={{ marginLeft: "6px", fontSize: "11px", padding: "1px 6px", borderRadius: "4px", backgroundColor: "rgba(59, 130, 246, 0.15)", color: "var(--brand-blue, #3b82f6)", fontWeight: 600 }}>
+														<span style={{ marginLeft: "6px", fontSize: "11px", padding: "1px 6px", borderRadius: "4px", backgroundColor: "rgba(59, 130, 246, 0.15)", color: "var(--brand-blue)", fontWeight: 600 }}>
 															Bảo lãnh
 														</span>
 													)}
@@ -1522,7 +1540,7 @@ export default function AccessRequestPage() {
 									>
 										Duyệt bởi:{" "}
 										<strong>
-											{selectedDetail.reviewerName || "Quản lý cơ sở"}
+											{selectedDetail.reviewerName || "Quản lý cơ sở vật chất"}
 										</strong>{" "}
 										vào lúc {formatDateTime(selectedDetail.reviewedAt)}
 									</div>
@@ -1539,7 +1557,7 @@ export default function AccessRequestPage() {
 								Đóng
 							</button>
 						</div>
-					</div>
+					</DialogPanel>
 				</div>
 			)}
 

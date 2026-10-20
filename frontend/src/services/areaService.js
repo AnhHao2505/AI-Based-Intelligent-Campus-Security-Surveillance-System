@@ -56,7 +56,7 @@ export async function createArea(data) {
  * Cập nhật thông tin khu vực (ADMIN)
  * PUT /api/areas/{id}
  * @param {Object} data { name, areaLevel, building, floor, floorId, centerLatitude, centerLongitude, reason, version }
- *   reason bắt buộc 10–500 ký tự khi đổi loại khu vực
+ *   reason bắt buộc khi đổi loại khu vực, độ dài theo cấu hình (REASON_MIN_LENGTH / REASON_MAX_LENGTH)
  */
 export async function updateArea(id, data) {
 	return apiPut(`/api/areas/${id}`, data);
@@ -65,7 +65,7 @@ export async function updateArea(id, data) {
 /**
  * Vô hiệu hoá khu vực (ADMIN) — Step 6 BR-AD-01. Thay cho DELETE /api/areas/{id} (đã bỏ).
  * POST /api/areas/{id}/deactivate
- * @param {Object} data { reason, version } — lý do 10–500 ký tự sau trim, version lấy từ xem trước
+ * @param {Object} data { reason, version } — lý do (độ dài theo cấu hình) sau trim, version lấy từ xem trước
  */
 export async function deactivateArea(id, data) {
 	return apiPost(`/api/areas/${id}/deactivate`, data);

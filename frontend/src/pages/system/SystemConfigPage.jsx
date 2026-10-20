@@ -29,7 +29,9 @@ import {
 	EmptyState,
 	ErrorState,
 } from "../../components/ui";
+import { formatDateTime } from "../../utils/formatDateTime";
 import "../../styles/SystemConfigPage.css";
+import { useReasonLimits } from "../../hooks/useReasonLimits";
 
 /** Nhóm con trong một tab cấu hình, theo tiền tố config_key (UI-AUDIT #33). */
 const CONFIG_SUBGROUPS = {
@@ -39,10 +41,12 @@ const CONFIG_SUBGROUPS = {
 		{ title: "Chế độ sự kiện", prefixes: ["EVENT_MODE_"] },
 		{ title: "Nhật ký ra vào", prefixes: ["ENTRY_LOG_"] },
 		{ title: "Tra cứu thành viên", prefixes: ["SECURITY_MEMBER_LOOKUP_"] },
+		{ title: "Lý do thao tác", prefixes: ["REASON_"] },
 	],
 };
 
 export default function SystemConfigPage() {
+	const reasonLimits = useReasonLimits();
 	const [configs, setConfigs] = useState([]);
 	const [editedValues, setEditedValues] = useState({});
 	const [loading, setLoading] = useState(true);
@@ -60,6 +64,7 @@ export default function SystemConfigPage() {
 	const [historyConfigName, setHistoryConfigName] = useState("");
 	const [historyLogs, setHistoryLogs] = useState([]);
 	const [historyLoading, setHistoryLoading] = useState(false);
+	const [historyError, setHistoryError] = useState(null);
 
 	// Confirm reason modal state
 	const [confirmModalConfig, setConfirmModalConfig] = useState(null);
@@ -136,8 +141,8 @@ export default function SystemConfigPage() {
 		const value = editedValues[key];
 		const trimmedReason = confirmReason.trim();
 
-		if (trimmedReason.length < 10 || trimmedReason.length > 500) {
-			setConfirmReasonError(`Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmedReason.length}).`);
+		if (!reasonLimits.isValid(trimmedReason)) {
+			setConfirmReasonError(reasonLimits.error(trimmedReason));
 			confirmReasonRef.current?.focus();
 			return;
 		}
@@ -179,6 +184,7 @@ export default function SystemConfigPage() {
 		setHistoryConfigName(config.description || config.configKey);
 		setHistoryModalOpen(true);
 		setHistoryLoading(true);
+		setHistoryError(null);
 
 		try {
 			const res = await getSystemConfigHistory(config.configKey, {
@@ -188,28 +194,15 @@ export default function SystemConfigPage() {
 			setHistoryLogs(res?.content || []);
 		} catch (err) {
 			console.error("Lỗi tải lịch sử cấu hình:", err);
+			setHistoryLogs([]);
+			setHistoryError(err.message || "Không tải được nhật ký thay đổi.");
 		} finally {
 			setHistoryLoading(false);
 		}
 	};
 
-	const formatDateTime = (ts) => {
-		if (!ts) return "Chưa cập nhật";
-		try {
-			const d = new Date(ts);
-			if (isNaN(d.getTime())) return ts;
-			return d.toLocaleString("vi-VN", {
-				hour: "2-digit",
-				minute: "2-digit",
-				second: "2-digit",
-				day: "2-digit",
-				month: "2-digit",
-				year: "numeric",
-			});
-		} catch {
-			return ts;
-		}
-	};
+	// Định dạng chung HH:mm dd/MM/yyyy (utils/formatDateTime)
+	const formatUpdatedAt = (ts) => (ts ? formatDateTime(ts) : "Chưa cập nhật");
 
 	// Group configurations by configGroup
 	const groupedConfigs = configs.reduce((acc, cfg) => {
@@ -386,7 +379,10 @@ export default function SystemConfigPage() {
 																{/* Top: Description and Key */}
 																<div className="syscfg-item__top">
 																	<div className="syscfg-item__meta">
-																		<h3 className="syscfg-item__description">
+																		<h3
+																			className="syscfg-item__description"
+																			id={`syscfg-desc-${cfg.configKey}`}
+																		>
 																			{cfg.description}
 																		</h3>
 																	</div>
@@ -418,6 +414,10 @@ export default function SystemConfigPage() {
 																					)
 																				}
 																				disabled={!cfg.editable}
+																				role="switch"
+																				aria-checked={currentValue === "true"}
+																				aria-labelledby={`syscfg-desc-${cfg.configKey}`}
+																				title={currentValue === "true" ? "Đang cho phép, bấm để cấm" : "Đang cấm, bấm để cho phép"}
 																			>
 																				<span className="syscfg-toggle__switch" />
 																			</button>
@@ -449,6 +449,7 @@ export default function SystemConfigPage() {
 																				disabled={!cfg.editable}
 																				min={cfg.minValue}
 																				max={cfg.maxValue}
+																				aria-labelledby={`syscfg-desc-${cfg.configKey}`}
 																				className="syscfg-field-input"
 																			/>
 																			{cfg.unit && (
@@ -520,7 +521,7 @@ export default function SystemConfigPage() {
 																		<Clock size={12} />
 																		<span>
 																			Cập nhật lần cuối:{" "}
-																			{formatDateTime(cfg.updatedAt)}
+																			{formatUpdatedAt(cfg.updatedAt)}
 																			{cfg.updatedByName && (
 																				<>
 																					{" "}
@@ -556,6 +557,14 @@ export default function SystemConfigPage() {
 						<div className="syscfg-spinner" />
 						<p>Đang tải nhật ký thay đổi...</p>
 					</div>
+				) : historyError ? (
+					<ErrorState
+						size="sm"
+						message={historyError}
+						onRetry={() =>
+							handleOpenHistory({ configKey: historyConfigKey, description: historyConfigName })
+						}
+					/>
 				) : historyLogs.length === 0 ? (
 					<div className="syscfg-modal-empty">
 						<Clock
@@ -605,7 +614,7 @@ export default function SystemConfigPage() {
 											</span>
 										</td>
 										<td>
-											<span style={{ fontSize: "12.5px", color: "var(--theme-text-primary, #0f172a)" }}>
+											<span style={{ fontSize: "12.5px", color: "var(--theme-text-primary)" }}>
 												{log.reason || "—"}
 											</span>
 										</td>
@@ -677,13 +686,13 @@ export default function SystemConfigPage() {
 								onChange={(e) => {
 									const val = e.target.value;
 									setConfirmReason(val);
-									if (confirmReasonError && val.trim().length >= 10 && val.trim().length <= 500) {
+									if (confirmReasonError && reasonLimits.isValid(val)) {
 										setConfirmReasonError("");
 									}
 								}}
-								minLength={10}
-								maxLength={500}
-								placeholder="Nhập lý do thay đổi cấu hình (tối thiểu 10 ký tự, tối đa 500 ký tự)..."
+								minLength={reasonLimits.min}
+								maxLength={reasonLimits.max}
+								placeholder={`Nhập lý do thay đổi cấu hình (tối thiểu ${reasonLimits.min} ký tự, tối đa ${reasonLimits.max} ký tự)...`}
 								rows={3}
 								error={confirmReasonError}
 							/>

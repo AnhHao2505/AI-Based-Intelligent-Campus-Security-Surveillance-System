@@ -24,7 +24,7 @@ import {
 	UserCheck,
 	Camera,
 } from "lucide-react";
-import { ROLES, ROLE_LABELS } from "../../constants/roles";
+import { ROLES, ROLE_SHORT_LABELS } from "../../constants/roles";
 import { useTheme } from "../../context/ThemeContext";
 import { useUiStore } from "../../store/useUiStore";
 import { notificationService } from "../../services/notificationService";
@@ -282,7 +282,7 @@ export default function Sidebar({ user, onLogout }) {
 											className={({ isActive }) =>
 												`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
 											}
-											title={sidebarCollapsed ? "Quản lý Camera" : undefined}
+											title={sidebarCollapsed ? "Quản lý camera" : undefined}
 										>
 											<Video size={18} />
 											<span>Quản lý camera</span>
@@ -521,6 +521,11 @@ export default function Sidebar({ user, onLogout }) {
 							? "Chuyển sang giao diện tối"
 							: "Chuyển sang giao diện sáng"
 					}
+					aria-label={
+						theme === "light"
+							? "Chuyển sang giao diện tối"
+							: "Chuyển sang giao diện sáng"
+					}
 				>
 					{theme === "light" ? (
 						<>
@@ -540,18 +545,20 @@ export default function Sidebar({ user, onLogout }) {
 					<div className="sidebar__user">
 						<div className="sidebar__avatar">{getInitials(user?.fullName)}</div>
 						<div className="sidebar__user-info">
-							<span className="sidebar__username">
-								{user?.fullName || "User"}
+							<span className="sidebar__username" title={user?.fullName || undefined}>
+								{user?.fullName || "Người dùng"}
 							</span>
 							<span className="sidebar__userrole">
-								{ROLE_LABELS[userRole] || userRole || "Người dùng"}
+								{ROLE_SHORT_LABELS[userRole] || "Người dùng"}
 							</span>
 						</div>
 					</div>
 					<button
+						type="button"
 						className="sidebar__logout-btn"
 						onClick={onLogout}
 						title="Đăng xuất"
+						aria-label="Đăng xuất"
 					>
 						<LogOut size={16} />
 					</button>

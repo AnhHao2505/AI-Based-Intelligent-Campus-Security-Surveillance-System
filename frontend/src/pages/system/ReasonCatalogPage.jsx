@@ -273,11 +273,12 @@ export default function ReasonCatalogPage() {
 				<select
 					value={filterAction}
 					onChange={(e) => setFilterAction(e.target.value)}
+					aria-label="Lọc theo loại thao tác"
 					style={{
 						padding: "6px 12px",
 						borderRadius: "6px",
-						border: "1px solid var(--theme-border, #cbd5e1)",
-						background: "var(--theme-card-bg, #fff)",
+						border: "1px solid var(--theme-border)",
+						background: "var(--theme-card-bg)",
 						fontSize: "13px",
 					}}
 				>
@@ -291,11 +292,12 @@ export default function ReasonCatalogPage() {
 				<select
 					value={filterActive}
 					onChange={(e) => setFilterActive(e.target.value)}
+					aria-label="Lọc theo trạng thái"
 					style={{
 						padding: "6px 12px",
 						borderRadius: "6px",
-						border: "1px solid var(--theme-border, #cbd5e1)",
-						background: "var(--theme-card-bg, #fff)",
+						border: "1px solid var(--theme-border)",
+						background: "var(--theme-card-bg)",
 						fontSize: "13px",
 					}}
 				>
@@ -335,12 +337,16 @@ export default function ReasonCatalogPage() {
 						) : reasons.length === 0 ? (
 							<tr>
 								<td colSpan={7}>
-									<EmptyState size="sm" title="Không tìm thấy lý do nào phù hợp bộ lọc" />
+									<EmptyState
+										size="sm"
+										title="Không tìm thấy lý do nào phù hợp bộ lọc"
+										description="Đổi bộ lọc hoặc bấm “Thêm lý do” để tạo lý do mới."
+									/>
 								</td>
 							</tr>
 						) : (
 							reasons.map((item) => (
-								<tr key={item.id} style={{ borderBottom: "1px solid var(--theme-border, #f1f5f9)" }}>
+								<tr key={item.id} style={{ borderBottom: "1px solid var(--theme-border)" }}>
 									<td style={{ padding: "12px 16px" }}>
 										<span style={{ fontWeight: 600, color: "var(--theme-text-primary)" }}>
 											{getActionLabel(item.actionType)}
@@ -373,6 +379,7 @@ export default function ReasonCatalogPage() {
 												icon={Edit2}
 												onClick={() => handleOpenEdit(item)}
 												title="Sửa nhãn và thứ tự"
+												aria-label="Sửa nhãn và thứ tự"
 											/>
 											{item.isActive ? (
 												<Button
@@ -382,6 +389,7 @@ export default function ReasonCatalogPage() {
 													disabled={item.isOther}
 													onClick={() => setDeactivateTarget(item)}
 													title={item.isOther ? "Không thể ngừng dùng mục Khác" : "Ngừng dùng"}
+													aria-label={item.isOther ? "Không thể ngừng dùng mục Khác" : "Ngừng dùng"}
 													style={{ color: item.isOther ? "var(--theme-text-disabled)" : "var(--theme-danger)" }}
 												/>
 											) : (
@@ -391,6 +399,7 @@ export default function ReasonCatalogPage() {
 													icon={Power}
 													onClick={() => handleToggleStatus(item)}
 													title="Kích hoạt lại"
+													aria-label="Kích hoạt lại"
 													style={{ color: "var(--theme-success)" }}
 												/>
 											)}
@@ -406,6 +415,7 @@ export default function ReasonCatalogPage() {
 			{/* Create Modal */}
 			<Modal
 				isOpen={createModalOpen}
+				initialFocus="field"
 				onClose={() => setCreateModalOpen(false)}
 				title="Thêm lý do sự kiện mới"
 				icon={Tag}
@@ -432,7 +442,7 @@ export default function ReasonCatalogPage() {
 								width: "100%",
 								padding: "8px 12px",
 								borderRadius: "6px",
-								border: "1px solid var(--theme-border, #cbd5e1)",
+								border: "1px solid var(--theme-border)",
 								fontSize: "13.5px",
 							}}
 						>
@@ -498,6 +508,7 @@ export default function ReasonCatalogPage() {
 			{/* Edit Modal */}
 			<Modal
 				isOpen={editModalOpen}
+				initialFocus="field"
 				onClose={() => setEditModalOpen(false)}
 				title="Sửa lý do sự kiện"
 				icon={Edit2}

@@ -31,6 +31,7 @@ import com.fa26se040.icss.security.MemberLookupRateLimiter;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.access.AccessDeniedException;
 
@@ -80,6 +81,9 @@ class AccessRequestServiceTest {
     // BR-AL-30: khoá người tham gia đơn (refresh PESSIMISTIC_WRITE), không có tác dụng trong unit test
     @Mock
     private jakarta.persistence.EntityManager entityManager;
+
+    @Spy
+    private ReasonValidator reasonValidator = ReasonValidatorTestSupport.withDefaults();
 
     @InjectMocks
     private AccessRequestService accessRequestService;
