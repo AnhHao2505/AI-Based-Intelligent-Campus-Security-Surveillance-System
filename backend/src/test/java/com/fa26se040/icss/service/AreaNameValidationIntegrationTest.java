@@ -97,7 +97,8 @@ class AreaNameValidationIntegrationTest extends AbstractIntegrationTest {
         assertEquals(0, nullFloorCount, "Sau V53 không được còn dòng nào có floor_id IS NULL");
 
         Integer indexCount = jdbcTemplate.queryForObject(
-                "SELECT count(*) FROM pg_indexes WHERE indexname = 'ux_areas_floor_name_active'", Integer.class);
+                "SELECT count(*) FROM pg_indexes WHERE indexname = 'ux_areas_floor_name_active'"
+                        + " AND schemaname = current_schema()", Integer.class);
         assertEquals(1, indexCount, "Index ux_areas_floor_name_active phải tồn tại trong DB");
     }
 
