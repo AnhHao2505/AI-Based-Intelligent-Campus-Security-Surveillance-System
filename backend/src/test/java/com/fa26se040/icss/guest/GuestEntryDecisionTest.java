@@ -81,7 +81,7 @@ public class GuestEntryDecisionTest extends GuestTestSupport {
     @DisplayName("GV-20 AREA_NOT_IN_VISIT: khu vực không thuộc lượt")
     void areaNotInVisit() {
         Guest g = activeGuest(internalArea);
-        Area other = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        Area other = newArea(AreaLevel.CONFIDENTIAL);
         assertDenied(decisionService.checkGuestEntry(g.getId(), other.getId(), now), GuestEntryDenyReason.AREA_NOT_IN_VISIT);
     }
 
@@ -124,7 +124,9 @@ public class GuestEntryDecisionTest extends GuestTestSupport {
         userRepository.save(host2);
         assertDenied(decisionService.checkGuestEntry(guestsOf(v2.getId()).get(0).getId(), internalArea.getId(), t), GuestEntryDenyReason.HOST_LOST_ACCESS);
 
-        User host3 = newUser("h2d", Role.NORMAL_USER, 2, true);
+        // V83: host cấp 2 phủ khu Bảo mật bằng cấp; đường AP chỉ còn với host cấp 1 (GUEST_HOST_MIN_LEVEL = 1)
+        setConfig(ConfigKey.GUEST_HOST_MIN_LEVEL, "1");
+        User host3 = newUser("h1d", Role.NORMAL_USER, 1, true);
         AreaAssignedPersonnel ap = newAp(contactArea, host3, t.minusDays(1), t.plusDays(1));
         GuestVisit v3 = newVisit(host3, GuestVisitStatus.APPROVED, t.minusHours(1), t.plusHours(1), List.of(contactArea), "Khách host mất AP");
         Guest g3 = withPhoto(guestsOf(v3.getId()).get(0), t.plusDays(1)); // BR-GV-38: cần PHOTO_READY để "còn AP thì cho vào"
@@ -191,7 +193,7 @@ public class GuestEntryDecisionTest extends GuestTestSupport {
     @DisplayName("GV-21: khu vực đang mở chế độ sự kiện nhưng khách ngoài lượt / ngoài khung -> vẫn từ chối")
     void eventModeNotApplied() {
         OffsetDateTime t = OffsetDateTime.now();
-        Area eventArea = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        Area eventArea = newArea(AreaLevel.CONFIDENTIAL);
         openEvent(eventArea, t.minusMinutes(30), t.plusMinutes(30));
         Guest g = activeGuest(internalArea);
         assertDenied(decisionService.checkGuestEntry(g.getId(), eventArea.getId(), t), GuestEntryDenyReason.AREA_NOT_IN_VISIT);

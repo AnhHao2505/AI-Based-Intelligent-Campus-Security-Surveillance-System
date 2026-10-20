@@ -16,7 +16,7 @@ public enum GuestErrorCode {
     ERR_GUEST_006("ERR_GUEST_006", HttpStatus.BAD_REQUEST, "Mục đích phải từ 10 đến 500 ký tự"),
     ERR_GUEST_007("ERR_GUEST_007", HttpStatus.BAD_REQUEST, "Phải chọn ít nhất 1 khu vực và các khu vực không được trùng nhau"),
     ERR_GUEST_008("ERR_GUEST_008", HttpStatus.BAD_REQUEST, "Khu vực {name} không tồn tại hoặc đã ngừng hoạt động"),
-    ERR_GUEST_009("ERR_GUEST_009", HttpStatus.BAD_REQUEST, "Khu vực {name} không nhận khách (chỉ loại Bảo mật nội bộ hoặc Liên hệ trước)"),
+    ERR_GUEST_009("ERR_GUEST_009", HttpStatus.BAD_REQUEST, "Khu vực {name} không nhận khách (chỉ loại Bảo mật)"),
     ERR_GUEST_010("ERR_GUEST_010", HttpStatus.BAD_REQUEST, "Thời điểm bắt đầu phải ở tương lai"),
     ERR_GUEST_011("ERR_GUEST_011", HttpStatus.BAD_REQUEST, "Thời điểm kết thúc phải sau thời điểm bắt đầu"),
     ERR_GUEST_012("ERR_GUEST_012", HttpStatus.BAD_REQUEST, "Lượt khách dài tối đa {n} giờ"),

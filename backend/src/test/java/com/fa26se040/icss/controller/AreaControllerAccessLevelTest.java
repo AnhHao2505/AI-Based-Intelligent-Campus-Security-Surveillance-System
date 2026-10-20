@@ -1,8 +1,6 @@
 package com.fa26se040.icss.controller;
 
 import com.fa26se040.icss.dto.area.AreaAccessRulesUpdateRequest;
-import com.fa26se040.icss.dto.area.AreaResponse;
-import com.fa26se040.icss.enums.AreaLevel;
 import com.fa26se040.icss.exception.AreaErrorCode;
 import com.fa26se040.icss.exception.AreaException;
 import com.fa26se040.icss.exception.GlobalExceptionHandler;
@@ -19,7 +17,6 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-import java.time.OffsetDateTime;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -30,6 +27,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @ExtendWith(MockitoExtension.class)
+/**
+ * V83 (D4): endpoint access-rules giữ lại nhưng không còn sửa cấp (service luôn ném ERR_AREA_056). Kiểm DTO vẫn chạy trước.
+ * Đã bỏ 3 test của chức năng cũ (thiếu cờ chỉ định -> 400, khu inactive -> ERR_AREA_017, sửa hợp lệ -> 200), thay bằng 1 test.
+ */
 class AreaControllerAccessLevelTest {
 
     @Mock
@@ -66,18 +67,6 @@ class AreaControllerAccessLevelTest {
         mockMvc.perform(patch("/api/areas/{id}/access-rules", areaId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body4))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    @DisplayName("PATCH /api/areas/{id}/access-rules thiếu explicitAuthorizationRequired -> 400 Bad Request")
-    void updateAccessRules_MissingFlag_Returns400() throws Exception {
-        UUID areaId = UUID.randomUUID();
-        String body = "{\"areaAccessLevel\": 2, \"reason\": \"Lý do\"}";
-
-        mockMvc.perform(patch("/api/areas/{id}/access-rules", areaId)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
                 .andExpect(status().isBadRequest());
     }
 
@@ -119,49 +108,19 @@ class AreaControllerAccessLevelTest {
     }
 
     @Test
-    @DisplayName("PATCH /api/areas/{id}/access-rules cho area inactive/đã xoá -> 400 Bad Request")
-    void updateAccessRules_InactiveArea_Returns400() throws Exception {
+    @DisplayName("V83 (D4): PATCH /api/areas/{id}/access-rules hợp lệ về dữ liệu -> 400 ERR_AREA_056 \"Cấp khu vực cố định theo loại\"")
+    void updateAccessRules_FixedByType_Returns400() throws Exception {
         UUID areaId = UUID.randomUUID();
         when(areaService.updateAccessRules(eq(areaId), any(), any()))
-                .thenThrow(new AreaException(AreaErrorCode.ERR_AREA_017));
+                .thenThrow(new AreaException(AreaErrorCode.ERR_AREA_056));
 
-        String body = objectMapper.writeValueAsString(new AreaAccessRulesUpdateRequest(2, false, "Điều chỉnh theo quy định mới"));
+        String body = objectMapper.writeValueAsString(new AreaAccessRulesUpdateRequest(2, false, "Lý do cập nhật cấp khu vực"));
         mockMvc.perform(patch("/api/areas/{id}/access-rules", areaId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("ERR_AREA_017"));
-    }
-
-    @Test
-    @DisplayName("PATCH /api/areas/{id}/access-rules hợp lệ -> 200 OK")
-    void updateAccessRules_Valid_Returns200() throws Exception {
-        UUID areaId = UUID.randomUUID();
-        AreaResponse resp = AreaResponse.builder()
-                .id(areaId)
-                .name("Phòng Lab")
-                .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
-                .areaAccessLevel(2)
-                .explicitAuthorizationRequired(false)
-                .building("Tòa A")
-                .floor("Tầng 1")
-                .isActive(true)
-                .createdAt(OffsetDateTime.now())
-                .updatedAt(OffsetDateTime.now())
-                .differsFromPreset(false)
-                .openToMembers(false)
-                .eventActive(false)
-                .upcomingScheduleCount(0)
-                .build();
-
-        when(areaService.updateAccessRules(eq(areaId), any(), any())).thenReturn(resp);
-
-        String body = objectMapper.writeValueAsString(new AreaAccessRulesUpdateRequest(2, false, "Lý do cập nhật"));
-        mockMvc.perform(patch("/api/areas/{id}/access-rules", areaId)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.areaAccessLevel").value(2))
-                .andExpect(jsonPath("$.data.explicitAuthorizationRequired").value(false));
+                .andExpect(jsonPath("$.code").value("ERR_AREA_056"))
+                .andExpect(jsonPath("$.message").value(
+                        "Cấp khu vực cố định theo loại (Công khai: cấp 1, Bảo mật: cấp 2, Tuyệt mật: cấp 3). Muốn đổi cấp, hãy đổi loại khu vực"));
     }
 }

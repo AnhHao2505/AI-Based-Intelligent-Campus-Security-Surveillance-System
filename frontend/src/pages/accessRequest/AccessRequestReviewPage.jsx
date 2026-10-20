@@ -350,7 +350,7 @@ export default function AccessRequestReviewPage() {
       {/* Header */}
       <PageHeader
         title="Phê duyệt yêu cầu truy cập"
-        description={`Xét duyệt yêu cầu ra vào các khu vực ${AREA_LEVEL_CONFIG.INTERNAL_CONFIDENTIAL.badgeLabel}, ${AREA_LEVEL_CONFIG.CONFIDENTIAL_CONTACT_REQUIRED.badgeLabel} và ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.badgeLabel}.`}
+        description={`Xét duyệt yêu cầu ra vào các khu vực ${AREA_LEVEL_CONFIG.CONFIDENTIAL.badgeLabel} và ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.badgeLabel}.`}
         actions={
           <button
             type="button"

@@ -5,11 +5,14 @@ import { apiGet, apiPost, apiPatch } from '../api/apiClient';
  */
 export const accessRequestService = {
   /**
-   * Lấy danh sách các khu vực khả dụng cho việc yêu cầu (SEMI_PRIVATE & PRIVATE)
-   * Sử dụng API chuyên dụng, nhẹ, không kèm dữ liệu toạ độ hình học nặng.
+   * Lấy danh sách khu vực tạo được đơn (V83): type = 'INDIVIDUAL' (khu cấp cao hơn người gọi, trong khoảng
+   * ACCESS_REQUEST_MAX_LEVEL_GAP) hoặc 'GROUP' (khu người gọi tự vào được bằng cấp); bỏ trống = hợp hai loại,
+   * mỗi khu kèm cờ individualRequestAllowed / groupRequestAllowed.
+   * @param {('INDIVIDUAL'|'GROUP')} [type]
    */
-  async getAvailableAreas() {
-    return await apiGet('/api/access-requests/available-areas');
+  async getAvailableAreas(type) {
+    const query = type ? `?type=${encodeURIComponent(type)}` : '';
+    return await apiGet(`/api/access-requests/available-areas${query}`);
   },
 
   /**

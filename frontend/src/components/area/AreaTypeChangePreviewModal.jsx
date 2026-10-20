@@ -2,12 +2,12 @@ import React from "react";
 import { AlertTriangle, ArrowRight, Ban, CheckCircle2 } from "lucide-react";
 import Modal from "../ui/Modal";
 import Button from "../ui/Button";
-import { AREA_LEVEL_CONFIG, formatDisplayDateTime } from "../../utils/areaHelpers";
+import { getLevelConfig, formatDisplayDateTime } from "../../utils/areaHelpers";
 import "../../styles/AreaTypeChangePreviewModal.css";
 
-const levelName = (level) => AREA_LEVEL_CONFIG[level]?.name || level || "—";
-const accessText = (level, explicit) =>
-	`Cấp ${level ?? "—"} · ${explicit ? "bắt buộc chỉ định / đơn được duyệt" : "không bắt buộc chỉ định"}`;
+const levelName = (level) => (level ? getLevelConfig(level).name : "—");
+// V83: cấp cố định theo loại, không còn cờ chỉ định
+const accessText = (level) => `Cấp ${level ?? "—"}: người dùng từ cấp này trở lên vào thẳng`;
 
 function RequestList({ title, items }) {
 	return (
@@ -72,15 +72,15 @@ export default function AreaTypeChangePreviewModal({ isOpen, areaName, preview, 
 						<div className="atcp-change__label">Hiện tại</div>
 						<div className="atcp-change__level">{levelName(preview.currentAreaLevel)}</div>
 						<div className="atcp-change__meta">
-							{accessText(preview.currentAreaAccessLevel, preview.currentExplicitAuthorizationRequired)}
+							{accessText(preview.currentAreaAccessLevel)}
 						</div>
 					</div>
 					<ArrowRight size={18} className="atcp-change__arrow" />
 					<div className="atcp-change__side">
-						<div className="atcp-change__label">Sau khi đổi (áp mặc định của loại mới)</div>
+						<div className="atcp-change__label">Sau khi đổi (cấp theo loại mới)</div>
 						<div className="atcp-change__level">{levelName(preview.newAreaLevel)}</div>
 						<div className="atcp-change__meta">
-							{accessText(preview.newAreaAccessLevel, preview.newExplicitAuthorizationRequired)}
+							{accessText(preview.newAreaAccessLevel)}
 						</div>
 					</div>
 				</div>

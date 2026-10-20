@@ -99,9 +99,8 @@ class AccessRequestIntegrationTest extends AbstractIntegrationTest {
                 .building("TOA_ALPHA")
                 .floor("1")
                 .floorEntity(floor1)
-                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
+                .areaLevel(AreaLevel.CONFIDENTIAL)
                 .areaAccessLevel(2)
-                .explicitAuthorizationRequired(true)
                 .isActive(true)
                 .build();
         area1 = areaRepository.save(area1);
@@ -111,9 +110,8 @@ class AccessRequestIntegrationTest extends AbstractIntegrationTest {
                 .building("TOA_ALPHA")
                 .floor("2")
                 .floorEntity(floor2)
-                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
+                .areaLevel(AreaLevel.CONFIDENTIAL)
                 .areaAccessLevel(2)
-                .explicitAuthorizationRequired(true)
                 .isActive(true)
                 .build();
         area2 = areaRepository.save(area2);
@@ -244,9 +242,8 @@ class AccessRequestIntegrationTest extends AbstractIntegrationTest {
                 .building("TOA_ALPHA")
                 .floor("1")
                 .floorEntity(floor1)
-                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
+                .areaLevel(AreaLevel.CONFIDENTIAL)
                 .areaAccessLevel(2)
-                .explicitAuthorizationRequired(true)
                 .isActive(true)
                 .build());
 
@@ -255,9 +252,8 @@ class AccessRequestIntegrationTest extends AbstractIntegrationTest {
                 .building("TOA_ALPHA")
                 .floor("2")
                 .floorEntity(floor2)
-                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
+                .areaLevel(AreaLevel.CONFIDENTIAL)
                 .areaAccessLevel(2)
-                .explicitAuthorizationRequired(true)
                 .isActive(true)
                 .build());
 

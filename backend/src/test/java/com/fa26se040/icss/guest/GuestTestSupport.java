@@ -99,10 +99,11 @@ public abstract class GuestTestSupport extends AbstractIntegrationTest {
         otherHost = newUser("h2b", Role.NORMAL_USER, 2, true);
         guard = newUser("grd", Role.GUARD, 2, true);
 
-        internalArea = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
-        contactArea = newArea(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED, 2, true);
-        highlyArea = newArea(AreaLevel.HIGHLY_CONFIDENTIAL, 3, true);
-        publicArea = newArea(AreaLevel.PUBLIC, 1, false);
+        // V83: Nội bộ và Liên hệ trước gộp thành Bảo mật; giữ hai tên field cũ (hai khu Bảo mật khác nhau) để diff nhỏ
+        internalArea = newArea(AreaLevel.CONFIDENTIAL);
+        contactArea = newArea(AreaLevel.CONFIDENTIAL);
+        highlyArea = newArea(AreaLevel.HIGHLY_CONFIDENTIAL);
+        publicArea = newArea(AreaLevel.PUBLIC);
 
         for (ConfigKey k : List.of(ConfigKey.GUEST_HOST_MIN_LEVEL, ConfigKey.GUEST_MAX_PER_VISIT, ConfigKey.GUEST_VISIT_MAX_HOURS,
                 ConfigKey.GUEST_MAX_ADVANCE_DAYS, ConfigKey.GUEST_FACE_RETENTION_HOURS, ConfigKey.GUEST_RECORD_RETENTION_DAYS,
@@ -153,12 +154,12 @@ public abstract class GuestTestSupport extends AbstractIntegrationTest {
                 .build());
     }
 
-    protected Area newArea(AreaLevel level, int accessLevel, boolean explicit) {
+    /** V83: cấp của khu = cấp của loại, không còn cờ chỉ định đích danh. */
+    protected Area newArea(AreaLevel level) {
         return areaRepository.save(Area.builder()
                 .name("Khu khách " + level.name().substring(0, 6).toLowerCase() + " " + UUID.randomUUID().toString().substring(0, 6))
                 .areaLevel(level)
-                .areaAccessLevel(accessLevel)
-                .explicitAuthorizationRequired(explicit)
+                .areaAccessLevel(level.level())
                 .floorEntity(floor)
                 .building(building.getName())
                 .floor(floor.getName())

@@ -28,6 +28,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -441,8 +442,6 @@ class AccessDecisionServiceTest {
                 .id(UUID.randomUUID())
                 .name("Phòng Server")
                 .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
-                .areaAccessLevel(3)
-                .explicitAuthorizationRequired(true)
                 .isActive(true)
                 .build();
         lenient().when(areaRepository.findById(serverRoom.getId())).thenReturn(Optional.of(serverRoom));
@@ -455,8 +454,8 @@ class AccessDecisionServiceTest {
 
 
     @Test
-    @DisplayName("Hiệu trưởng được gán vào phòng hiệu trưởng (cờ true) → allow ASSIGNED_PERSONNEL")
-    void principalAssignedToOffice_FlagTrue_AllowedAssignedPersonnel() {
+    @DisplayName("Hiệu trưởng cấp 3 được gán vào phòng Tuyệt mật → ASSIGNED_PERSONNEL đứng trước ACCESS_LEVEL")
+    void principalAssignedToOffice_AllowedAssignedPersonnel() {
         User principal = user("HT001", "Hiệu Trưởng");
         principal.setAccessLevel(3);
         lenient().when(userRepository.findById(principal.getId())).thenReturn(Optional.of(principal));
@@ -465,8 +464,6 @@ class AccessDecisionServiceTest {
                 .id(UUID.randomUUID())
                 .name("Phòng Hiệu Trưởng")
                 .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
-                .areaAccessLevel(3)
-                .explicitAuthorizationRequired(true)
                 .isActive(true)
                 .build();
         lenient().when(areaRepository.findById(office.getId())).thenReturn(Optional.of(office));
@@ -487,8 +484,8 @@ class AccessDecisionServiceTest {
     }
 
     @Test
-    @DisplayName("FM level 2 vào INTERNAL_CONFIDENTIAL (level 2, cờ false) → allow ACCESS_LEVEL")
-    void facilityManagerLevel2_SemiPrivateAreaLevel2FlagFalse_AllowedAccessLevel() {
+    @DisplayName("FM cấp 2 vào khu Bảo mật (cấp 2) → allow ACCESS_LEVEL")
+    void facilityManagerLevel2_ConfidentialArea_AllowedAccessLevel() {
         User fm = user("FM001", "Quản Lý CSVN");
         fm.setRole(Role.FACILITY_MANAGER);
         fm.setAccessLevel(2);
@@ -497,9 +494,7 @@ class AccessDecisionServiceTest {
         Area meetingRoom = Area.builder()
                 .id(UUID.randomUUID())
                 .name("Phòng Họp Chung")
-                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
-                .areaAccessLevel(2)
-                .explicitAuthorizationRequired(false)
+                .areaLevel(AreaLevel.CONFIDENTIAL)
                 .isActive(true)
                 .build();
         lenient().when(areaRepository.findById(meetingRoom.getId())).thenReturn(Optional.of(meetingRoom));
@@ -511,8 +506,8 @@ class AccessDecisionServiceTest {
     }
 
     @Test
-    @DisplayName("User level 3 vào CONFIDENTIAL_CONTACT_REQUIRED (level 3, cờ false) → allow ACCESS_LEVEL trực tiếp")
-    void userLevel3_ConfidentialContactRequired_AllowedAccessLevel() {
+    @DisplayName("User cấp 3 vào khu Bảo mật (cấp 2) → allow ACCESS_LEVEL: cấp cao hơn vào thẳng")
+    void userLevel3_ConfidentialArea_AllowedAccessLevel() {
         User lv3User = user("LV3_001", "Cán bộ cấp cao");
         lv3User.setAccessLevel(3);
         lenient().when(userRepository.findById(lv3User.getId())).thenReturn(Optional.of(lv3User));
@@ -520,9 +515,7 @@ class AccessDecisionServiceTest {
         Area contactArea = Area.builder()
                 .id(UUID.randomUUID())
                 .name("Phòng Yêu Cầu Xác Nhận")
-                .areaLevel(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
-                .areaAccessLevel(3)
-                .explicitAuthorizationRequired(false)
+                .areaLevel(AreaLevel.CONFIDENTIAL)
                 .isActive(true)
                 .build();
         lenient().when(areaRepository.findById(contactArea.getId())).thenReturn(Optional.of(contactArea));
@@ -533,8 +526,8 @@ class AccessDecisionServiceTest {
     }
 
     @Test
-    @DisplayName("User level 2 vào CONFIDENTIAL_CONTACT_REQUIRED (level 3, cờ false) không đơn/gán → deny")
-    void userLevel2_ConfidentialContactRequired_NoRequest_Denied() {
+    @DisplayName("User cấp 2 vào khu Bảo mật (Liên hệ trước cũ) không đơn / gán → allow ACCESS_LEVEL (V83 bỏ cờ chỉ định)")
+    void userLevel2_ConfidentialArea_NoRequest_AllowedAccessLevel() {
         User lv2User = user("LV2_001", "Giảng viên");
         lv2User.setAccessLevel(2);
         lenient().when(userRepository.findById(lv2User.getId())).thenReturn(Optional.of(lv2User));
@@ -542,29 +535,25 @@ class AccessDecisionServiceTest {
         Area contactArea = Area.builder()
                 .id(UUID.randomUUID())
                 .name("Phòng Yêu Cầu Xác Nhận")
-                .areaLevel(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
-                .areaAccessLevel(3)
-                .explicitAuthorizationRequired(false)
+                .areaLevel(AreaLevel.CONFIDENTIAL)
                 .isActive(true)
                 .build();
         lenient().when(areaRepository.findById(contactArea.getId())).thenReturn(Optional.of(contactArea));
 
         AccessDecision d = accessDecisionService.checkEntry(lv2User.getId(), contactArea.getId(), at(10));
-        assertFalse(d.allowed());
-        assertEquals(AccessSource.NONE, d.source());
+        assertTrue(d.allowed());
+        assertEquals(AccessSource.ACCESS_LEVEL, d.source());
     }
 
     @Test
-    @DisplayName("User level 1 vào khu vực level 2 cờ false, có đơn APPROVED → allow ACCESS_REQUEST")
-    void userLevel1_AreaLevel2FlagFalse_WithApprovedRequest_AllowedAccessRequest() {
+    @DisplayName("User cấp 1 vào khu Bảo mật, có đơn APPROVED → allow ACCESS_REQUEST")
+    void userLevel1_ConfidentialArea_WithApprovedRequest_AllowedAccessRequest() {
         student.setAccessLevel(1);
 
         Area meetingRoom = Area.builder()
                 .id(UUID.randomUUID())
                 .name("Phòng Họp Chung")
-                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
-                .areaAccessLevel(2)
-                .explicitAuthorizationRequired(false)
+                .areaLevel(AreaLevel.CONFIDENTIAL)
                 .isActive(true)
                 .build();
         lenient().when(areaRepository.findById(meetingRoom.getId())).thenReturn(Optional.of(meetingRoom));
@@ -588,16 +577,14 @@ class AccessDecisionServiceTest {
     }
 
     @Test
-    @DisplayName("User level 1 vào khu vực level 2 cờ false, không có gì → deny")
-    void userLevel1_AreaLevel2FlagFalse_NoAssignNoRequest_Denied() {
+    @DisplayName("User cấp 1 vào khu Bảo mật, không có gì → deny, lý do thiếu cấp")
+    void userLevel1_ConfidentialArea_NoAssignNoRequest_Denied() {
         student.setAccessLevel(1);
 
         Area meetingRoom = Area.builder()
                 .id(UUID.randomUUID())
                 .name("Phòng Họp Chung")
-                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
-                .areaAccessLevel(2)
-                .explicitAuthorizationRequired(false)
+                .areaLevel(AreaLevel.CONFIDENTIAL)
                 .isActive(true)
                 .build();
         lenient().when(areaRepository.findById(meetingRoom.getId())).thenReturn(Optional.of(meetingRoom));
@@ -605,12 +592,13 @@ class AccessDecisionServiceTest {
         AccessDecision d = accessDecisionService.checkEntry(student.getId(), meetingRoom.getId(), at(10));
         assertFalse(d.allowed());
         assertEquals(AccessSource.NONE, d.source());
+        assertEquals("Cấp độ truy cập không đủ (Khu vực Cấp 2, người dùng Cấp 1)", d.reason());
     }
 
     @Test
-    @DisplayName("Cờ true, user level 3, có đơn APPROVED → allow ACCESS_REQUEST")
-    void flagTrue_UserLevel3_WithApprovedRequest_AllowedAccessRequest() {
-        lecturer.setAccessLevel(3);
+    @DisplayName("User cấp 2 vào khu Tuyệt mật, có đơn APPROVED → allow ACCESS_REQUEST")
+    void userLevel2_HighlyConfidential_WithApprovedRequest_AllowedAccessRequest() {
+        lecturer.setAccessLevel(2);
 
         AccessRequest req = request(lecturer, RequestStatus.APPROVED, at(8), at(12));
 
@@ -621,8 +609,8 @@ class AccessDecisionServiceTest {
     }
 
     @Test
-    @DisplayName("User level 3 vào HIGHLY_CONFIDENTIAL (cờ true) không có AP và không có đơn → deny NONE")
-    void userLevel3_HighlyConfidential_NoAssign_NoRequest_Denied() {
+    @DisplayName("User cấp 3 vào khu Tuyệt mật, không AP / đơn → allow ACCESS_LEVEL (V83 bỏ cờ chỉ định)")
+    void userLevel3_HighlyConfidential_NoAssignNoRequest_AllowedAccessLevel() {
         User lv3User = user("LV3_SERVER", "Chuyên gia Level 3");
         lv3User.setAccessLevel(3);
         lenient().when(userRepository.findById(lv3User.getId())).thenReturn(Optional.of(lv3User));
@@ -631,15 +619,13 @@ class AccessDecisionServiceTest {
                 .id(UUID.randomUUID())
                 .name("Phòng Máy Chủ Tối Mật")
                 .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
-                .areaAccessLevel(3)
-                .explicitAuthorizationRequired(true)
                 .isActive(true)
                 .build();
         lenient().when(areaRepository.findById(serverRoom.getId())).thenReturn(Optional.of(serverRoom));
 
         AccessDecision d = accessDecisionService.checkEntry(lv3User.getId(), serverRoom.getId(), at(10));
-        assertFalse(d.allowed(), "Cờ explicit == true thì access level không bao giờ cho vào, kể cả level 3");
-        assertEquals(AccessSource.NONE, d.source());
+        assertTrue(d.allowed(), "Cấp người ≥ cấp của loại thì vào thẳng, kể cả Tuyệt mật");
+        assertEquals(AccessSource.ACCESS_LEVEL, d.source());
     }
 
     enum AccessScenario {
@@ -652,30 +638,17 @@ class AccessDecisionServiceTest {
 
     private static Stream<Arguments> provideAccessDecisionMatrix() {
         List<Arguments> args = new ArrayList<>();
-        AreaLevel[] areas = AreaLevel.values();
         int[] userLevels = {1, 2, 3};
-        AccessScenario[] scenarios = AccessScenario.values();
-
-        for (AreaLevel areaLevel : areas) {
-            int areaAccessLevel;
-            boolean explicitRequired;
-            switch (areaLevel) {
-                case PUBLIC -> { areaAccessLevel = 1; explicitRequired = false; }
-                case INTERNAL_CONFIDENTIAL -> { areaAccessLevel = 2; explicitRequired = false; }
-                case CONFIDENTIAL_CONTACT_REQUIRED -> { areaAccessLevel = 2; explicitRequired = true; }
-                case HIGHLY_CONFIDENTIAL -> { areaAccessLevel = 3; explicitRequired = true; }
-                default -> throw new IllegalStateException();
-            }
-
+        for (AreaLevel areaLevel : AreaLevel.values()) {
             for (int userLevel : userLevels) {
-                for (AccessScenario scenario : scenarios) {
+                for (AccessScenario scenario : AccessScenario.values()) {
                     boolean expectedAllowed;
                     AccessSource expectedSource;
 
                     if (scenario == AccessScenario.HAS_AP) {
                         expectedAllowed = true;
                         expectedSource = AccessSource.ASSIGNED_PERSONNEL;
-                    } else if (!explicitRequired && userLevel >= areaAccessLevel) {
+                    } else if (userLevel >= areaLevel.level()) {
                         expectedAllowed = true;
                         expectedSource = AccessSource.ACCESS_LEVEL;
                     } else if (scenario == AccessScenario.APPROVED_IN_WINDOW) {
@@ -695,7 +668,7 @@ class AccessDecisionServiceTest {
 
     @ParameterizedTest(name = "[{index}] {0} | Level {1} | Scenario {2} -> Allowed={3}, Source={4}")
     @MethodSource("provideAccessDecisionMatrix")
-    @DisplayName("Ma trận 4 loại khu vực × 3 cấp độ user × 5 kịch bản")
+    @DisplayName("Ma trận 3 loại khu vực × 3 cấp độ user × 5 kịch bản")
     void checkEntry_MatrixTest(
             AreaLevel areaLevel,
             int userLevel,
@@ -710,22 +683,10 @@ class AccessDecisionServiceTest {
         testUser.setAccessLevel(userLevel);
         lenient().when(userRepository.findById(testUser.getId())).thenReturn(Optional.of(testUser));
 
-        int areaAccessLevel;
-        boolean explicitAuthRequired;
-        switch (areaLevel) {
-            case PUBLIC -> { areaAccessLevel = 1; explicitAuthRequired = false; }
-            case INTERNAL_CONFIDENTIAL -> { areaAccessLevel = 2; explicitAuthRequired = false; }
-            case CONFIDENTIAL_CONTACT_REQUIRED -> { areaAccessLevel = 2; explicitAuthRequired = true; }
-            case HIGHLY_CONFIDENTIAL -> { areaAccessLevel = 3; explicitAuthRequired = true; }
-            default -> throw new IllegalArgumentException("Unknown level: " + areaLevel);
-        }
-
         Area targetArea = Area.builder()
                 .id(UUID.randomUUID())
                 .name("Area " + areaLevel.name())
                 .areaLevel(areaLevel)
-                .areaAccessLevel(areaAccessLevel)
-                .explicitAuthorizationRequired(explicitAuthRequired)
                 .isActive(true)
                 .build();
         lenient().when(areaRepository.findById(targetArea.getId())).thenReturn(Optional.of(targetArea));
@@ -803,6 +764,49 @@ class AccessDecisionServiceTest {
         if (expectedSourceRefId != null) {
             assertEquals(expectedSourceRefId, decision.sourceRefId());
         }
+    }
+
+    @ParameterizedTest(name = "{0} | cấp {1} -> vào thẳng = {2}")
+    @CsvSource({
+            "PUBLIC, 1, true", "PUBLIC, 2, true", "PUBLIC, 3, true",
+            "CONFIDENTIAL, 1, false", "CONFIDENTIAL, 2, true", "CONFIDENTIAL, 3, true",
+            "HIGHLY_CONFIDENTIAL, 1, false", "HIGHLY_CONFIDENTIAL, 2, false", "HIGHLY_CONFIDENTIAL, 3, true"
+    })
+    @DisplayName("BR-AC-24 (V83): ma trận vào thẳng 3×3, không AP / đơn / sự kiện / sự cố")
+    void checkEntry_DirectEntryMatrix3x3(AreaLevel areaLevel, int userLevel, boolean expectedAllowed) {
+        User u = user("USR_3X3", "Người dùng 3x3");
+        u.setAccessLevel(userLevel);
+        lenient().when(userRepository.findById(u.getId())).thenReturn(Optional.of(u));
+        Area target = area("Khu " + areaLevel.label(), areaLevel);
+
+        AccessDecision d = accessDecisionService.checkEntry(u.getId(), target.getId(), at(10));
+
+        assertEquals(expectedAllowed, d.allowed(), areaLevel + " / cấp " + userLevel);
+        assertEquals(expectedAllowed ? AccessSource.ACCESS_LEVEL : AccessSource.NONE, d.source());
+        if (!expectedAllowed) {
+            assertEquals("Cấp độ truy cập không đủ (Khu vực Cấp " + areaLevel.level() + ", người dùng Cấp " + userLevel + ")",
+                    d.reason());
+        }
+    }
+
+    @Test
+    @DisplayName("BR-AC-25 / BR-ES-10 (V83): chế độ sự kiện chỉ mở khu Bảo mật; khu Tuyệt mật có cờ sự kiện vẫn deny")
+    void eventMode_OnlyConfidentialArea() {
+        student.setAccessLevel(1);
+        Area confidential = area("Phòng Lab Sự Kiện", AreaLevel.CONFIDENTIAL);
+        confidential.setOpenToMembers(true);
+        confidential.setOpenUntil(at(12));
+        Area highly = area("Phòng Máy Chủ Sự Kiện", AreaLevel.HIGHLY_CONFIDENTIAL);
+        highly.setOpenToMembers(true);
+        highly.setOpenUntil(at(12));
+
+        AccessDecision inConfidential = accessDecisionService.checkEntry(student.getId(), confidential.getId(), at(10));
+        assertTrue(inConfidential.allowed());
+        assertEquals(AccessSource.OPEN_EVENT, inConfidential.source());
+
+        AccessDecision inHighly = accessDecisionService.checkEntry(student.getId(), highly.getId(), at(10));
+        assertFalse(inHighly.allowed());
+        assertEquals(AccessSource.NONE, inHighly.source());
     }
 
     @Test
@@ -931,13 +935,12 @@ class AccessDecisionServiceTest {
         return g;
     }
 
-    private Area area(String name, AreaLevel level, int areaAccessLevel, boolean explicitRequired) {
+    /** V83: cấp của khu theo loại. */
+    private Area area(String name, AreaLevel level) {
         Area a = Area.builder()
                 .id(UUID.randomUUID())
                 .name(name)
                 .areaLevel(level)
-                .areaAccessLevel(areaAccessLevel)
-                .explicitAuthorizationRequired(explicitRequired)
                 .isActive(true)
                 .build();
         lenient().when(areaRepository.findById(a.getId())).thenReturn(Optional.of(a));
@@ -963,10 +966,10 @@ class AccessDecisionServiceTest {
     }
 
     @Test
-    @DisplayName("GD-01: GUARD cấp 2 vào khu cấp 2 cờ tắt, có sự cố CLAIMED tại khu → allow ACCESS_LEVEL (hành vi cũ)")
-    void gd01_guardLevel2_Level2FlagOff_WithClaimedIncident_StillAccessLevel() {
+    @DisplayName("GD-01: GUARD cấp 2 vào khu Bảo mật, có sự cố CLAIMED tại khu → allow ACCESS_LEVEL, không cần xét sự cố")
+    void gd01_guardLevel2_ConfidentialArea_WithClaimedIncident_StillAccessLevel() {
         User g = guard("BV001", "Bảo Vệ A");
-        Area hall = area("Sảnh Tầng 2", AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        Area hall = area("Sảnh Tầng 2", AreaLevel.CONFIDENTIAL);
         incident(hall, g, IncidentStatus.CLAIMED, CLAIMED_AT, null);
 
         AccessDecision d = accessDecisionService.checkEntry(g.getId(), hall.getId(), CLAIMED_AT.plusMinutes(10));
@@ -978,10 +981,10 @@ class AccessDecisionServiceTest {
     }
 
     @Test
-    @DisplayName("GD-02: Khu cấp 3, GUARD đã tiếp nhận, at = claimedAt + 10' → allow INCIDENT_RESPONSE, sourceRefId = id sự cố")
+    @DisplayName("GD-02: Khu Tuyệt mật, GUARD cấp 2 đã tiếp nhận, at = claimedAt + 10' → allow INCIDENT_RESPONSE, sourceRefId = id sự cố")
     void gd02_level3Area_ClaimedIncident_AllowedIncidentResponse() {
         User g = guard("BV001", "Bảo Vệ A");
-        Area serverRoom = area("Phòng Máy Chủ", AreaLevel.HIGHLY_CONFIDENTIAL, 3, false);
+        Area serverRoom = area("Phòng Máy Chủ", AreaLevel.HIGHLY_CONFIDENTIAL);
         SecurityIncident i = incident(serverRoom, g, IncidentStatus.CLAIMED, CLAIMED_AT, null);
 
         AccessDecision d = accessDecisionService.checkEntry(g.getId(), serverRoom.getId(), CLAIMED_AT.plusMinutes(10));
@@ -993,10 +996,11 @@ class AccessDecisionServiceTest {
     }
 
     @Test
-    @DisplayName("GD-03: Khu cấp 2 có cờ explicit, GUARD đã tiếp nhận → allow INCIDENT_RESPONSE")
-    void gd03_explicitFlagLevel2Area_ClaimedIncident_AllowedIncidentResponse() {
+    @DisplayName("GD-03: GUARD cấp 1 vào khu Bảo mật (thiếu cấp), đã tiếp nhận sự cố → allow INCIDENT_RESPONSE")
+    void gd03_guardBelowAreaLevel_ClaimedIncident_AllowedIncidentResponse() {
         User g = guard("BV001", "Bảo Vệ A");
-        Area office = area("Văn Phòng Khoa", AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED, 2, true);
+        g.setAccessLevel(1);
+        Area office = area("Văn Phòng Khoa", AreaLevel.CONFIDENTIAL);
         SecurityIncident i = incident(office, g, IncidentStatus.CLAIMED, CLAIMED_AT, null);
 
         AccessDecision d = accessDecisionService.checkEntry(g.getId(), office.getId(), CLAIMED_AT.plusMinutes(10));
@@ -1007,10 +1011,32 @@ class AccessDecisionServiceTest {
     }
 
     @Test
+    @DisplayName("GUARD cấp 2 (mặc định): vào Bảo mật bằng cấp; vào Tuyệt mật không sự cố → deny, có sự cố đã tiếp nhận → INCIDENT_RESPONSE")
+    void guardLevel2_ConfidentialByLevel_HighlyConfidentialOnlyByIncident() {
+        User g = guard("BV003", "Bảo Vệ C");
+        Area lab2 = area("Phòng Lab Bảo Mật", AreaLevel.CONFIDENTIAL);
+        Area serverRoom = area("Phòng Máy Chủ Tuyệt Mật", AreaLevel.HIGHLY_CONFIDENTIAL);
+
+        AccessDecision confidential = accessDecisionService.checkEntry(g.getId(), lab2.getId(), CLAIMED_AT.plusMinutes(10));
+        assertTrue(confidential.allowed());
+        assertEquals(AccessSource.ACCESS_LEVEL, confidential.source());
+
+        AccessDecision noIncident = accessDecisionService.checkEntry(g.getId(), serverRoom.getId(), CLAIMED_AT.plusMinutes(10));
+        assertFalse(noIncident.allowed());
+        assertEquals(AccessSource.NONE, noIncident.source());
+
+        SecurityIncident i = incident(serverRoom, g, IncidentStatus.CLAIMED, CLAIMED_AT, null);
+        AccessDecision withIncident = accessDecisionService.checkEntry(g.getId(), serverRoom.getId(), CLAIMED_AT.plusMinutes(10));
+        assertTrue(withIncident.allowed());
+        assertEquals(AccessSource.INCIDENT_RESPONSE, withIncident.source());
+        assertEquals(i.getId(), withIncident.sourceRefId());
+    }
+
+    @Test
     @DisplayName("GD-04: claimedAt + 30' (mốc loại trừ) → deny; claimedAt + 29' → allow; đúng claimedAt → allow, trước đó → deny")
     void gd04_accessWindowBoundaries() {
         User g = guard("BV001", "Bảo Vệ A");
-        Area serverRoom = area("Phòng Máy Chủ", AreaLevel.HIGHLY_CONFIDENTIAL, 3, true);
+        Area serverRoom = area("Phòng Máy Chủ", AreaLevel.HIGHLY_CONFIDENTIAL);
         incident(serverRoom, g, IncidentStatus.CLAIMED, CLAIMED_AT, null);
 
         AccessDecision atEnd = accessDecisionService.checkEntry(g.getId(), serverRoom.getId(), CLAIMED_AT.plusMinutes(30));
@@ -1029,7 +1055,7 @@ class AccessDecisionServiceTest {
     @DisplayName("GD-05: Sự cố đã xử lý xong, at = resolvedAt + 3' (ân hạn 5') → allow; resolvedAt + 5' → deny")
     void gd05_resolvedIncident_ExitGrace() {
         User g = guard("BV001", "Bảo Vệ A");
-        Area serverRoom = area("Phòng Máy Chủ", AreaLevel.HIGHLY_CONFIDENTIAL, 3, true);
+        Area serverRoom = area("Phòng Máy Chủ", AreaLevel.HIGHLY_CONFIDENTIAL);
         OffsetDateTime resolvedAt = CLAIMED_AT.plusMinutes(10);
         SecurityIncident i = incident(serverRoom, g, IncidentStatus.RESOLVED_VERIFIED, CLAIMED_AT, resolvedAt);
 
@@ -1047,7 +1073,7 @@ class AccessDecisionServiceTest {
     @DisplayName("GD-06: resolvedAt + ân hạn vượt claimedAt + 30' → lấy mốc sớm hơn (claimedAt + 30')")
     void gd06_resolvedIncident_GraceCappedByAccessWindow() {
         User g = guard("BV001", "Bảo Vệ A");
-        Area serverRoom = area("Phòng Máy Chủ", AreaLevel.HIGHLY_CONFIDENTIAL, 3, true);
+        Area serverRoom = area("Phòng Máy Chủ", AreaLevel.HIGHLY_CONFIDENTIAL);
         OffsetDateTime resolvedAt = CLAIMED_AT.plusMinutes(28); // resolvedAt + 5' = claimedAt + 33'
         incident(serverRoom, g, IncidentStatus.RESOLVED_DISMISSED, CLAIMED_AT, resolvedAt);
 
@@ -1065,8 +1091,8 @@ class AccessDecisionServiceTest {
     @DisplayName("GD-07: GUARD tiếp nhận sự cố ở khu Y nhưng vào khu X cấp 3 → deny")
     void gd07_incidentInOtherArea_Denied() {
         User g = guard("BV001", "Bảo Vệ A");
-        Area areaX = area("Phòng Máy Chủ X", AreaLevel.HIGHLY_CONFIDENTIAL, 3, true);
-        Area areaY = area("Phòng Máy Chủ Y", AreaLevel.HIGHLY_CONFIDENTIAL, 3, true);
+        Area areaX = area("Phòng Máy Chủ X", AreaLevel.HIGHLY_CONFIDENTIAL);
+        Area areaY = area("Phòng Máy Chủ Y", AreaLevel.HIGHLY_CONFIDENTIAL);
         incident(areaY, g, IncidentStatus.CLAIMED, CLAIMED_AT, null);
 
         AccessDecision d = accessDecisionService.checkEntry(g.getId(), areaX.getId(), CLAIMED_AT.plusMinutes(10));
@@ -1081,7 +1107,7 @@ class AccessDecisionServiceTest {
     void gd08_otherGuard_Denied() {
         User claimer = guard("BV001", "Bảo Vệ A");
         User otherGuard = guard("BV002", "Bảo Vệ B");
-        Area serverRoom = area("Phòng Máy Chủ", AreaLevel.HIGHLY_CONFIDENTIAL, 3, true);
+        Area serverRoom = area("Phòng Máy Chủ", AreaLevel.HIGHLY_CONFIDENTIAL);
         incident(serverRoom, claimer, IncidentStatus.CLAIMED, CLAIMED_AT, null);
 
         AccessDecision d = accessDecisionService.checkEntry(otherGuard.getId(), serverRoom.getId(), CLAIMED_AT.plusMinutes(10));
@@ -1096,7 +1122,7 @@ class AccessDecisionServiceTest {
         User normal = user("SE170555", "Sinh Viên C");
         normal.setAccessLevel(1);
         lenient().when(userRepository.findById(normal.getId())).thenReturn(Optional.of(normal));
-        Area serverRoom = area("Phòng Máy Chủ", AreaLevel.HIGHLY_CONFIDENTIAL, 3, true);
+        Area serverRoom = area("Phòng Máy Chủ", AreaLevel.HIGHLY_CONFIDENTIAL);
         incident(serverRoom, normal, IncidentStatus.CLAIMED, CLAIMED_AT, null);
 
         AccessDecision d = accessDecisionService.checkEntry(normal.getId(), serverRoom.getId(), CLAIMED_AT.plusMinutes(10));
@@ -1110,7 +1136,7 @@ class AccessDecisionServiceTest {
     @DisplayName("GD-10: Đổi GUARD_INCIDENT_ACCESS_MINUTES từ 30 xuống 5 giữa 2 lần gọi → lần sau dùng 5")
     void gd10_configChangeTakesEffectOnNextCall() {
         User g = guard("BV001", "Bảo Vệ A");
-        Area serverRoom = area("Phòng Máy Chủ", AreaLevel.HIGHLY_CONFIDENTIAL, 3, true);
+        Area serverRoom = area("Phòng Máy Chủ", AreaLevel.HIGHLY_CONFIDENTIAL);
         incident(serverRoom, g, IncidentStatus.CLAIMED, CLAIMED_AT, null);
         OffsetDateTime at = CLAIMED_AT.plusMinutes(10);
 
@@ -1128,7 +1154,8 @@ class AccessDecisionServiceTest {
 
     // ===================== Sai giờ chỉ xét đơn cùng ngày (giờ VN) + camera DECOMMISSIONED =====================
 
-    private static final String EXPLICIT_DENY = "Khu vực yêu cầu chỉ định đích danh (cần đơn xin quyền hoặc được phân công)";
+    /** V83: không còn lý do "chỉ định đích danh"; sinh viên cấp 1 vào lab Tuyệt mật bị từ chối vì thiếu cấp. */
+    private static final String LEVEL_DENY = "Cấp độ truy cập không đủ (Khu vực Cấp 3, người dùng Cấp 1)";
 
     // Giả lập đúng điều kiện JPQL findAnyApprovedRequestsForUser (mọi đơn APPROVED của user tại khu, startTime giảm dần)
     private void stubAnyApprovedRequests() {
@@ -1175,13 +1202,14 @@ class AccessDecisionServiceTest {
     @DisplayName("SD-03: Đơn APPROVED của hôm qua, vào hôm nay → deny thường, không gắn nhãn sai giờ")
     void sd03_yesterdayRequest_PlainDeny() {
         stubAnyApprovedRequests();
+        student.setAccessLevel(1);
         request(student, RequestStatus.APPROVED, at(8).minusDays(1), at(10).minusDays(1));
 
         AccessDecision d = accessDecisionService.checkEntry(student.getId(), lab.getId(), at(11));
 
         assertFalse(d.allowed());
         assertEquals(AccessSource.NONE, d.source());
-        assertEquals(EXPLICIT_DENY, d.reason());
+        assertEquals(LEVEL_DENY, d.reason());
     }
 
     @Test
@@ -1204,6 +1232,7 @@ class AccessDecisionServiceTest {
     @DisplayName("SD-05: at = 23:30 UTC (= 06:30 VN hôm sau) → xét theo ngày VN")
     void sd05_vietnamCalendarDay() {
         stubAnyApprovedRequests();
+        student.setAccessLevel(1);
         OffsetDateTime utc2330 = OffsetDateTime.of(2026, 10, 5, 23, 30, 0, 0, ZoneOffset.UTC); // 06/10 06:30 giờ VN
 
         // Đơn 06/10 08:00–10:00 giờ VN: cùng ngày VN với at (khác ngày UTC) → "Chưa tới khung giờ"
@@ -1215,7 +1244,7 @@ class AccessDecisionServiceTest {
         requests.clear();
         request(student, RequestStatus.APPROVED, at(20), at(22));
         AccessDecision other = accessDecisionService.checkEntry(student.getId(), lab.getId(), utc2330);
-        assertEquals(EXPLICIT_DENY, other.reason());
+        assertEquals(LEVEL_DENY, other.reason());
     }
 
     @Test

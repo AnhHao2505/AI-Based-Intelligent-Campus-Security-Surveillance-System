@@ -51,7 +51,7 @@ public class GuestSchemaTest extends AbstractIntegrationTest {
     @DisplayName("P1: đủ 4 bảng khách")
     void tablesExist() {
         List<String> tables = jdbc.queryForList(
-                "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN "
+                "SELECT table_name FROM information_schema.tables WHERE table_schema = current_schema() AND table_name IN "
                         + "('guest_visits','guest_visit_areas','guests','guest_face_embeddings') ORDER BY table_name", String.class);
         assertEquals(List.of("guest_face_embeddings", "guest_visit_areas", "guest_visits", "guests"), tables);
     }
@@ -104,7 +104,8 @@ public class GuestSchemaTest extends AbstractIntegrationTest {
     @DisplayName("P1: CHECK thông báo = 16 loại hiện hành + 6 loại khách")
     void notificationTypeCheck() {
         String def = jdbc.queryForObject(
-                "SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'chk_notifications_type'", String.class);
+                "SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'chk_notifications_type'"
+                        + " AND connamespace = current_schema()::regnamespace", String.class);
         for (String t : List.of("REQUEST_APPROVED", "REQUEST_REJECTED", "EXPIRING_SOON", "ACCESS_DENIED", "ADDED_TO_GROUP",
                 "NEW_REQUEST_PENDING", "REQUEST_CANCELLED", "PENDING_OVERDUE", "EVENT_MODE_LIMIT_CHANGED", "EVENT_MODE_CHANGED",
                 "EVENT_MODE_EXPIRING", "EVENT_MODE_SCHEDULED", "EVENT_MODE_SCHEDULE_STARTING", "EVENT_MODE_SCHEDULE_FAILED",

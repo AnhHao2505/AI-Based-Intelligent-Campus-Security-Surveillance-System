@@ -183,6 +183,11 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     List<User> findByRoleAndDeletedAtIsNullAndIsActiveTrue(Role role);
     List<User> findByTeamIdAndDeletedAtIsNullAndIsActiveTrue(UUID teamId);
     List<User> findByRoleAndTeamIsNullAndDeletedAtIsNullAndIsActiveTrue(Role role);
+
+    /**
+     * BR-AL-30: khoá dòng users (SELECT ... FOR UPDATE) trong giao dịch hiện tại TRƯỚC khi nạp entity, để đổi cấp và tạo đơn
+     * cho cùng người dùng chạy tuần tự. Chỉ trả id dạng chuỗi (không nạp entity nên lần findById sau đọc dữ liệu mới nhất).
+     */
+    @Query(value = "SELECT CAST(id AS text) FROM users WHERE id = :id FOR UPDATE", nativeQuery = true)
+    java.util.Optional<String> lockRowById(@org.springframework.data.repository.query.Param("id") java.util.UUID id);
 }
-
-

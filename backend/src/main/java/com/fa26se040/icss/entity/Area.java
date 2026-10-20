@@ -53,14 +53,19 @@ public class Area {
     @Column(name = "area_level", nullable = false, length = 30)
     private AreaLevel areaLevel;
 
+    /**
+     * V83 (loại ⇔ cấp): cột chỉ là bản sao của {@link AreaLevel#level()} cho FE / mobile / AI đọc, đồng bộ trước mỗi lần
+     * ghi (CHECK chk_areas_level_matches_type). Getter trả cấp theo loại nên mọi nơi xét quyền dùng đúng cấp của loại.
+     */
     @JdbcTypeCode(SqlTypes.SMALLINT)
     @Column(name = "area_access_level", nullable = false)
     @Builder.Default
     private Integer areaAccessLevel = 3;
 
+    /** V83: không còn dùng trong quy tắc xét quyền, luôn false (CHECK chk_areas_explicit_unused). Giữ cột tới khi FE / mobile hết đọc. */
     @Column(name = "explicit_authorization_required", nullable = false)
     @Builder.Default
-    private Boolean explicitAuthorizationRequired = true;
+    private Boolean explicitAuthorizationRequired = false;
 
     @Column(name = "open_to_members", nullable = false)
     @Builder.Default
@@ -125,11 +130,31 @@ public class Area {
         if (version == null) {
             version = 0L;
         }
+        syncTypeRules();
     }
 
     @PreUpdate
     protected void onUpdate() {
         updatedAt = OffsetDateTime.now();
+        syncTypeRules();
+    }
+
+    /** V83: cấp theo loại, cờ explicit luôn false. */
+    private void syncTypeRules() {
+        if (areaLevel != null) {
+            areaAccessLevel = areaLevel.level();
+        }
+        explicitAuthorizationRequired = false;
+    }
+
+    /** Cấp truy cập của khu = cấp của loại (V83); chỉ khi chưa có loại mới trả giá trị cột. */
+    public Integer getAreaAccessLevel() {
+        return areaLevel != null ? areaLevel.level() : areaAccessLevel;
+    }
+
+    /** V83: cờ chỉ định đích danh đã bỏ khỏi quy tắc xét quyền, luôn false. */
+    public Boolean getExplicitAuthorizationRequired() {
+        return false;
     }
 
     @Override

@@ -505,7 +505,7 @@ export default function GuestVisitPage() {
 					</div>
 
 					<div className="guest-visit__field">
-						<span className="guest-visit__label">Khu vực * (chỉ loại Bảo mật nội bộ hoặc Liên hệ trước)</span>
+						<span className="guest-visit__label">Khu vực * (chỉ loại Bảo mật)</span>
 						{loadingAreas ? (
 							<span className="guest-visit__muted">Đang tải khu vực…</span>
 						) : selectableAreas.length === 0 ? (

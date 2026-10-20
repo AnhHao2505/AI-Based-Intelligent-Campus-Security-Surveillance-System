@@ -287,6 +287,21 @@
   color: var(--theme-danger-text);
 }
 
+/* BR-AL-30: lỗi 409 khi người dùng đang có đơn chờ duyệt — giữ trong modal (toast tự tắt) */
+.access-level-submit-error {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--theme-danger-border);
+  background: var(--theme-danger-bg);
+  color: var(--theme-danger-text);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 /* Table Card */
 .access-level-table-card {
   border-radius: 12px;

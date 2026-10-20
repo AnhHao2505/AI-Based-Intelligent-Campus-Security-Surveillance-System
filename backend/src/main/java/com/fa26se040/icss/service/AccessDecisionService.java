@@ -71,7 +71,8 @@ public class AccessDecisionService {
      *   <li>User không tồn tại / inactive / xoá mềm → denied, NONE</li>
      *   <li>Area không tồn tại / inactive / xoá mềm → denied, NONE</li>
      *   <li>Có Assigned Personnel chưa thu hồi, validFrom &lt;= at &lt; validTo (NULL = vô hạn) → allowed, ASSIGNED_PERSONNEL</li>
-     *   <li>explicit_authorization_required = false VÀ user.accessLevel &gt;= area.areaAccessLevel → allowed, ACCESS_LEVEL</li>
+     *   <li>user.accessLevel &gt;= cấp của loại khu vực (V83: Công khai 1, Bảo mật 2, Tuyệt mật 3) → allowed, ACCESS_LEVEL</li>
+     *   <li>Khu Bảo mật đang mở chế độ sự kiện hoặc trong khung lịch sự kiện → allowed, OPEN_EVENT</li>
      *   <li>GUARD đã tiếp nhận sự cố tại area, at nằm trong cửa sổ xử lý sự cố → allowed, INCIDENT_RESPONSE (BR-GD-02/03)</li>
      *   <li>Có đơn APPROVED của area, startTime &lt;= at &lt; endTime, user là requester hoặc member → allowed, ACCESS_REQUEST</li>
      *   <li>Còn lại → denied, NONE</li>
@@ -113,11 +114,8 @@ public class AccessDecisionService {
             );
         }
 
-        // 4. Access Level (khi khu vực không yêu cầu chỉ định đích danh)
-        // Khi explicit == true thì level KHÔNG bao giờ cho vào, kể cả level cao nhất.
-        boolean explicitRequired = Boolean.TRUE.equals(area.getExplicitAuthorizationRequired());
-        if (!explicitRequired
-                && user.getAccessLevel() != null
+        // 4. Access Level: cấp người ≥ cấp của loại khu vực (V83, loại ⇔ cấp, không còn cờ chỉ định đích danh)
+        if (user.getAccessLevel() != null
                 && area.getAreaAccessLevel() != null
                 && user.getAccessLevel() >= area.getAreaAccessLevel()) {
             return AccessDecision.allowed(
@@ -127,10 +125,9 @@ public class AccessDecisionService {
             );
         }
 
-        // 4b. Chế độ sự kiện (Event Mode / open_to_members)
-        boolean isInternalOrContact = area.getAreaLevel() == AreaLevel.INTERNAL_CONFIDENTIAL
-                || area.getAreaLevel() == AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED;
-        if (area.isEventActive(at) && isInternalOrContact) {
+        // 4b. Chế độ sự kiện (Event Mode / open_to_members): chỉ khu Bảo mật
+        boolean eventApplicable = area.getAreaLevel() == AreaLevel.CONFIDENTIAL;
+        if (area.isEventActive(at) && eventApplicable) {
             return AccessDecision.allowed(
                     AccessSource.OPEN_EVENT,
                     null,
@@ -139,7 +136,7 @@ public class AccessDecisionService {
         }
 
         // 4c. Lịch sự kiện đã đặt trước (BR-ES-10, A3)
-        if (isInternalOrContact && areaEventScheduleRepository != null
+        if (eventApplicable && areaEventScheduleRepository != null
                 && areaEventScheduleRepository.existsByAreaIdAndStatusAndStartAtLessThanEqualAndEndAtGreaterThan(
                 areaId, com.fa26se040.icss.enums.AreaEventScheduleStatus.SCHEDULED, at, at)) {
             return AccessDecision.allowed(
@@ -151,7 +148,7 @@ public class AccessDecisionService {
 
         // 4d. Bảo vệ đang xử lý sự cố mình đã tiếp nhận tại khu (BR-GD-02 / BR-GD-03), không cần đơn.
         // Đặt sau bước 4/4b/4c: khu GUARD đã vào được bằng cấp độ vẫn ghi nguồn ACCESS_LEVEL như cũ,
-        // rule này chỉ mở khu GUARD không tự vào được (cấp 3, khu có cờ explicit kể cả cấp 2).
+        // rule này chỉ mở khu GUARD không tự vào được bằng cấp (với cấp mặc định 2 của GUARD: khu Tuyệt mật).
         if (user.getRole() == Role.GUARD) {
             Optional<SecurityIncident> incident = findIncidentCoveringGuard(userId, areaId, at);
             if (incident.isPresent()) {
@@ -221,10 +218,7 @@ public class AccessDecisionService {
             }
         }
 
-        // C. Phân biệt sai quyền do cấp độ hoặc do yêu cầu đích danh
-        if (explicitRequired) {
-            return AccessDecision.denied("Khu vực yêu cầu chỉ định đích danh (cần đơn xin quyền hoặc được phân công)");
-        }
+        // C. Sai quyền do cấp độ
         if (user.getAccessLevel() != null && area.getAreaAccessLevel() != null && user.getAccessLevel() < area.getAreaAccessLevel()) {
             return AccessDecision.denied("Cấp độ truy cập không đủ (Khu vực Cấp " + area.getAreaAccessLevel() + ", người dùng Cấp " + user.getAccessLevel() + ")");
         }

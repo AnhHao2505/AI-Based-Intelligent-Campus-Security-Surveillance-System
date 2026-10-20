@@ -221,7 +221,7 @@ export default function UserAccessLevelPage() {
       return;
     }
 
-    setConfirmUserModal((prev) => ({ ...prev, isSaving: true }));
+    setConfirmUserModal((prev) => ({ ...prev, isSaving: true, submitError: '' }));
     try {
       const updated = await updateUserAccessLevel(user.id, newLevel, trimmedReason);
       toast.success(
@@ -241,6 +241,11 @@ export default function UserAccessLevelPage() {
       });
     } catch (err) {
       console.error('Lỗi cập nhật cấp độ truy cập:', err);
+      // BR-AL-30 (409 ERR_AC_011): người dùng đang có đơn chờ duyệt -> giữ câu lỗi trong modal để FM đọc đủ danh sách khu
+      if (err?.status === 409) {
+        setConfirmUserModal((prev) => ({ ...prev, isSaving: false, submitError: err.message }));
+        return;
+      }
       toast.error(err?.message || 'Không thể cập nhật cấp độ truy cập');
       setConfirmUserModal((prev) => ({ ...prev, isSaving: false }));
     }
@@ -649,6 +654,12 @@ export default function UserAccessLevelPage() {
                 error={confirmUserModal.reasonError}
                 disabled={confirmUserModal.isSaving}
               />
+              {confirmUserModal.submitError && (
+                <div className="access-level-submit-error" role="alert">
+                  <AlertTriangle size={16} />
+                  <span>{confirmUserModal.submitError}</span>
+                </div>
+              )}
             </div>
 
             <div className="modal-actions">

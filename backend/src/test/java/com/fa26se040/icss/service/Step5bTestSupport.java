@@ -171,12 +171,12 @@ public abstract class Step5bTestSupport extends AbstractIntegrationTest {
                 .build());
     }
 
-    protected Area newArea(AreaLevel level, int accessLevel, boolean explicit) {
+    /** V83: cấp của khu = cấp của loại, không còn cờ chỉ định đích danh. */
+    protected Area newArea(AreaLevel level) {
         return areaRepository.save(Area.builder()
                 .name("Khu 5b " + level.name().toLowerCase().substring(0, 6) + " " + UUID.randomUUID().toString().substring(0, 6))
                 .areaLevel(level)
-                .areaAccessLevel(accessLevel)
-                .explicitAuthorizationRequired(explicit)
+                .areaAccessLevel(level.level())
                 .floorEntity(floor)
                 .building(building.getName())
                 .floor(floor.getName())

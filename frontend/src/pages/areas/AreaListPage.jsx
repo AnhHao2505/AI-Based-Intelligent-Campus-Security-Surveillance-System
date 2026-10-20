@@ -30,7 +30,6 @@ import { LoadingState, EmptyState, ErrorState } from "../../components/ui";
 import { formatLocation } from "../../utils/formatLocation";
 import ReasonTextarea from "../../components/ui/ReasonTextarea";
 import "../../components/ui/Button.css";
-import { getLevelPresets } from "../../services/accessControlService";
 import {
 	getAreas,
 	getDependencies,
@@ -43,8 +42,9 @@ import {
 } from "../../services/areaService";
 import { getBuildings } from "../../services/buildingService";
 import {
-	AREA_LEVEL_CONFIG,
+	AREA_LEVEL_OPTIONS,
 	getErrorMessage,
+	getLevelConfig,
 	normalizeAreaName,
 	validateAreaName,
 } from "../../utils/areaHelpers";
@@ -94,28 +94,19 @@ const coordinateFieldError = (value, min, max, label) => {
 	return null;
 };
 
-const AREA_LEVEL_CARDS = [
-	{
-		value: "PUBLIC",
-		name: AREA_LEVEL_CONFIG.PUBLIC.name,
-		color: AREA_LEVEL_CONFIG.PUBLIC.color,
-	},
-	{
-		value: "INTERNAL_CONFIDENTIAL",
-		name: AREA_LEVEL_CONFIG.INTERNAL_CONFIDENTIAL.name,
-		color: AREA_LEVEL_CONFIG.INTERNAL_CONFIDENTIAL.color,
-	},
-	{
-		value: "CONFIDENTIAL_CONTACT_REQUIRED",
-		name: AREA_LEVEL_CONFIG.CONFIDENTIAL_CONTACT_REQUIRED.name,
-		color: AREA_LEVEL_CONFIG.CONFIDENTIAL_CONTACT_REQUIRED.color,
-	},
-	{
-		value: "HIGHLY_CONFIDENTIAL",
-		name: AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name,
-		color: AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.color,
-	},
-];
+// V83: 3 loại, cấp cố định theo loại (Công khai 1, Bảo mật 2, Tuyệt mật 3)
+const AREA_LEVEL_CARDS = AREA_LEVEL_OPTIONS.map((cfg, i) => ({
+	value: cfg.code,
+	name: cfg.name,
+	color: cfg.color,
+	level: i + 1,
+}));
+
+const AREA_LEVEL_BTN_CLASS = {
+	PUBLIC: "area-level-btn--public",
+	CONFIDENTIAL: "area-level-btn--internal",
+	HIGHLY_CONFIDENTIAL: "area-level-btn--private",
+};
 
 export default function AreaListPage() {
 	const reasonLimits = useReasonLimits();
@@ -135,32 +126,6 @@ export default function AreaListPage() {
 	const [selectedFloor, setSelectedFloor] = useState("ALL");
 	const [selectedAreaId, setSelectedAreaId] = useState(null);
 	const [cameraCounts, setCameraCounts] = useState({});
-
-	// Level Presets (ADMIN / FM)
-	const [levelPresets, setLevelPresets] = useState(null);
-
-	useEffect(() => {
-		getLevelPresets()
-			.then((presets) => {
-				if (Array.isArray(presets)) {
-					const map = {};
-					presets.forEach((p) => {
-						map[p.areaLevel] = p;
-					});
-					setLevelPresets(map);
-				}
-			})
-			.catch((err) => {
-				console.warn("Could not load level presets:", err);
-				setLevelPresets(null);
-			});
-	}, []);
-
-	const getPresetSubtitle = (areaLevelValue) => {
-		const preset = levelPresets?.[areaLevelValue];
-		if (!preset) return null;
-		return `Cấp mặc định của loại: ${preset.areaAccessLevel} · Chỉ định: ${preset.explicitAuthorizationRequired ? "có" : "không"}`;
-	};
 
 	// Modal states
 	const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -1046,7 +1011,7 @@ export default function AreaListPage() {
 												{formatLocation(a.building, a.floor) || "—"}
 											</td>
 											<td>
-												{AREA_LEVEL_CONFIG[a.areaLevel]?.name || a.areaLevel}
+												{getLevelConfig(a.areaLevel).name}
 											</td>
 											<td className="zone-deactivated__actions">
 												<button
@@ -1076,7 +1041,6 @@ export default function AreaListPage() {
 					cameraCounts={cameraCounts}
 					isAdmin={isAdmin}
 					isFacilityManager={isFacilityManager}
-					levelPresets={levelPresets}
 					onSelectArea={(id) => handleSelectArea(id, false)}
 					onOpenCreateModal={handleOpenCreateModal}
 					onOpenCamerasModal={handleOpenCamerasModal}
@@ -1169,15 +1133,8 @@ export default function AreaListPage() {
 									<div className="area-level-selector">
 										{AREA_LEVEL_CARDS.map((card) => {
 											const isSelected = formData.areaLevel === card.value;
-											const levelClass =
-												card.value === "PUBLIC"
-													? "area-level-btn--public"
-													: card.value === "INTERNAL_CONFIDENTIAL"
-														? "area-level-btn--internal"
-														: card.value === "CONFIDENTIAL_CONTACT_REQUIRED"
-															? "area-level-btn--contact"
-															: "area-level-btn--private";
-											const subText = getPresetSubtitle(card.value);
+											const levelClass = AREA_LEVEL_BTN_CLASS[card.value];
+											const subText = `Cấp ${card.level}, cố định theo loại`;
 
 											return (
 												<button
@@ -1430,29 +1387,14 @@ export default function AreaListPage() {
 											Loại khu vực <span className="required">*</span>
 										</label>
 										<span style={{ fontSize: "12.5px", color: "var(--theme-text-secondary, #475569)" }}>
-											Cấp hiện tại của khu vực: <strong>{formData.areaAccessLevel ?? 1}</strong>
-											{(() => {
-												const origPreset = levelPresets?.[formData.originalAreaLevel || formData.areaLevel];
-												const presetLvl = origPreset?.areaAccessLevel;
-												if (formData.areaAccessLevel != null && presetLvl != null && Number(formData.areaAccessLevel) !== Number(presetLvl)) {
-													return <span style={{ color: "var(--brand-warning, #d97706)", marginLeft: "4px" }}>(khác mặc định của loại: {presetLvl})</span>;
-												}
-												return null;
-											})()}
+											Cấp theo loại: <strong>{AREA_LEVEL_CARDS.find((c) => c.value === formData.areaLevel)?.level ?? "—"}</strong>
 										</span>
 									</div>
 									<div className="area-level-selector">
 										{AREA_LEVEL_CARDS.map((card) => {
 											const isSelected = formData.areaLevel === card.value;
-											const levelClass =
-												card.value === "PUBLIC"
-													? "area-level-btn--public"
-													: card.value === "INTERNAL_CONFIDENTIAL"
-														? "area-level-btn--internal"
-														: card.value === "CONFIDENTIAL_CONTACT_REQUIRED"
-															? "area-level-btn--contact"
-															: "area-level-btn--private";
-											const subText = getPresetSubtitle(card.value);
+											const levelClass = AREA_LEVEL_BTN_CLASS[card.value];
+											const subText = `Cấp ${card.level}, cố định theo loại`;
 
 											return (
 												<button
@@ -2148,7 +2090,6 @@ export default function AreaListPage() {
 				onClose={() => setAccessRulesModalOpen(false)}
 				area={accessRulesModalArea}
 				onSuccess={handleAccessRulesSuccess}
-				levelPresets={levelPresets}
 			/>
 		</div>
 	);

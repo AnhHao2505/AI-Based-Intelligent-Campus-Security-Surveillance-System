@@ -127,7 +127,7 @@ class ReasonLengthConfigIntegrationTest extends GuestTestSupport {
         assertEquals("REJECTED", jdbc.queryForObject("SELECT status FROM access_requests WHERE id = ?", String.class, request.getId()));
 
         // 3. Kiểm trong service: ADMIN vô hiệu hoá khu vực (ERR_AREA_050)
-        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        Area area = newArea(AreaLevel.CONFIDENTIAL);
         MvcResult deactivateShort = send(post("/api/areas/{id}/deactivate", area.getId()), admin,
                 Map.of("reason", REASON_15, "version", areaVersion(area))).andReturn();
         assertEquals(400, status(deactivateShort));

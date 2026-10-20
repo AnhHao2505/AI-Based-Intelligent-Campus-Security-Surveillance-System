@@ -450,6 +450,7 @@
 }
 
 .campus-level-dot--public { background: #10b981; }
+.campus-level-dot--confidential { background: #3b82f6; }
 .campus-level-dot--internal_confidential { background: #3b82f6; }
 .campus-level-dot--confidential_contact_required { background: #f59e0b; }
 .campus-level-dot--highly_confidential { background: #ef4444; }

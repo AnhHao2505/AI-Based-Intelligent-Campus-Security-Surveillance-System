@@ -23,7 +23,8 @@ public class GuestRules {
 
     /** B-04 (Lucas 08/10): ADMIN không làm host khách — chỉ NORMAL_USER và FACILITY_MANAGER mời khách. */
     public static final Set<Role> HOST_ROLES = Set.of(Role.NORMAL_USER, Role.FACILITY_MANAGER);
-    public static final Set<AreaLevel> GUEST_AREA_LEVELS = Set.of(AreaLevel.INTERNAL_CONFIDENTIAL, AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED);
+    /** BR-GV-04 (V83): chỉ khu Bảo mật nhận khách; Công khai không cần, Tuyệt mật bị chặn. */
+    public static final Set<AreaLevel> GUEST_AREA_LEVELS = Set.of(AreaLevel.CONFIDENTIAL);
 
     private final SystemConfigService systemConfigService;
     private final GuestVisitRepository guestVisitRepository;
@@ -46,18 +47,17 @@ public class GuestRules {
         return area != null && Boolean.TRUE.equals(area.getIsActive()) && area.getDeletedAt() == null;
     }
 
-    /** BR-GV-04: chỉ INTERNAL hoặc CONTACT nhận khách. */
+    /** BR-GV-04: chỉ khu Bảo mật nhận khách. */
     public boolean areaTypeAllowed(Area area) {
         return area != null && GUEST_AREA_LEVELS.contains(area.getAreaLevel());
     }
 
     /**
-     * BR-GV-06: host vào được khu vực trong TRỌN [from, to) bằng ACCESS_LEVEL (khu vực không bắt buộc chỉ định và
-     * cấp host ≥ cấp khu vực) hoặc AP chưa thu hồi phủ trọn khung. Không tính OPEN_EVENT và đơn truy cập.
+     * BR-GV-06: host vào được khu vực trong TRỌN [from, to) bằng ACCESS_LEVEL (cấp host ≥ cấp của loại khu vực)
+     * hoặc AP chưa thu hồi phủ trọn khung. Không tính OPEN_EVENT và đơn truy cập.
      */
     public boolean hostCoversArea(User host, Area area, OffsetDateTime from, OffsetDateTime to) {
-        boolean explicitRequired = Boolean.TRUE.equals(area.getExplicitAuthorizationRequired());
-        if (!explicitRequired && host.getAccessLevel() != null && area.getAreaAccessLevel() != null
+        if (host.getAccessLevel() != null && area.getAreaAccessLevel() != null
                 && host.getAccessLevel() >= area.getAreaAccessLevel()) {
             return true;
         }

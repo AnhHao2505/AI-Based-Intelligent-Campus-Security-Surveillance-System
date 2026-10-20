@@ -31,6 +31,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fa26se040.icss.AbstractIntegrationTest;
@@ -195,32 +196,31 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     @Transactional
-    @DisplayName("E.8: Tính toán động cờ differsFromPreset (true khi khác preset, false khi khớp preset)")
-    void testDiffersFromPreset_DynamicCalculation() {
+    @DisplayName("E.8 (V83): loại ⇔ cấp giữ ở entity: đặt cấp lệch loại rồi lưu -> DB vẫn cấp của loại, differsFromPreset luôn false")
+    void testLevelFixedByType_EntityKeepsTypeLevel_DiffersFromPresetFalse() {
         Floor floor = getOrCreateTestFloor();
         String uniqueCode = "AREA-" + UUID.randomUUID().toString().substring(0, 8);
-        Area area = Area.builder()
-                .name("Khu vực test differsFromPreset " + uniqueCode)
+        Area area = areaRepository.saveAndFlush(Area.builder()
+                .name("Khu vực test cấp theo loại " + uniqueCode)
                 .building("TOA_ALPHA")
                 .floor("1")
                 .floorEntity(floor)
                 .areaLevel(AreaLevel.PUBLIC)
-                .areaAccessLevel(1)
-                .explicitAuthorizationRequired(false)
+                .areaAccessLevel(3)
                 .isActive(true)
-                .build();
-        area = areaRepository.save(area);
+                .build());
+        assertEquals(1, ((Number) entityManager.createNativeQuery("SELECT area_access_level FROM areas WHERE id = :id")
+                .setParameter("id", area.getId()).getSingleResult()).intValue(), "INSERT lấy cấp theo loại, bỏ giá trị lệch");
 
-        // Ban đầu khớp với preset của PUBLIC (1, false) -> differsFromPreset = false
-        AreaResponse resp1 = areaService.getAreaById(area.getId());
-        assertFalse(resp1.differsFromPreset(), "Khớp preset thì differsFromPreset phải là false");
-
-        // Thay đổi quy tắc khác preset (ví dụ đặt level = 2) -> differsFromPreset = true
         area.setAreaAccessLevel(2);
-        areaRepository.save(area);
+        area.setName(area.getName() + " sửa");
+        areaRepository.saveAndFlush(area);
 
-        AreaResponse resp2 = areaService.getAreaById(area.getId());
-        assertTrue(resp2.differsFromPreset(), "Khác preset thì differsFromPreset phải là true");
+        assertEquals(1, ((Number) entityManager.createNativeQuery("SELECT area_access_level FROM areas WHERE id = :id")
+                .setParameter("id", area.getId()).getSingleResult()).intValue(), "UPDATE vẫn giữ cấp theo loại");
+        AreaResponse resp = areaService.getAreaById(area.getId());
+        assertEquals(1, resp.areaAccessLevel());
+        assertFalse(resp.differsFromPreset(), "Loại ⇔ cấp nên không còn khu khác mặc định");
     }
 
     @Test
@@ -256,7 +256,6 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
                 .floorEntity(floor)
                 .areaLevel(AreaLevel.PUBLIC)
                 .areaAccessLevel(1)
-                .explicitAuthorizationRequired(false)
                 .isActive(true)
                 .build();
         testArea = areaRepository.save(testArea);
@@ -342,9 +341,8 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
                 .building("TOA_ALPHA")
                 .floor("1")
                 .floorEntity(floor)
-                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
+                .areaLevel(AreaLevel.CONFIDENTIAL)
                 .areaAccessLevel(2)
-                .explicitAuthorizationRequired(false)
                 .isActive(true)
                 .build();
         testArea = areaRepository.save(testArea);
@@ -391,9 +389,8 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
                 .building("TOA_ALPHA")
                 .floor("1")
                 .floorEntity(floor)
-                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
+                .areaLevel(AreaLevel.CONFIDENTIAL)
                 .areaAccessLevel(2)
-                .explicitAuthorizationRequired(false)
                 .isActive(true)
                 .build();
         testArea = areaRepository.save(testArea);
@@ -468,9 +465,8 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
                 .building("TOA_ALPHA")
                 .floor("1")
                 .floorEntity(floor)
-                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
+                .areaLevel(AreaLevel.CONFIDENTIAL)
                 .areaAccessLevel(2)
-                .explicitAuthorizationRequired(false)
                 .isActive(true)
                 .build();
         testArea = areaRepository.save(testArea);
@@ -537,9 +533,8 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
                 .building("TOA_ALPHA")
                 .floor("1")
                 .floorEntity(floor)
-                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
+                .areaLevel(AreaLevel.CONFIDENTIAL)
                 .areaAccessLevel(2)
-                .explicitAuthorizationRequired(false)
                 .isActive(true)
                 .build();
         testArea = areaRepository.save(testArea);
@@ -636,175 +631,121 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("Hồi quy Lỗi 2 — Thao tác 5 (Cập nhật Area Access Rules): commit thật, dữ liệu nghiệp vụ đổi, 1 dòng log mới, jsonb đúng giá trị")
-    void testCommit_UpdateAreaAccessRules_CreatesAuditLogAndChangesBusinessData() throws Exception {
+    @DisplayName("Thao tác 5 (V83): sửa cấp riêng khu vực -> FM 403, ADMIN 400 ERR_AREA_056; DB không đổi, không audit AREA_ACCESS_RULES")
+    void testAreaAccessRules_FixedByType_NoChangeNoAudit() throws Exception {
         String uniqueSuffix = UUID.randomUUID().toString().substring(0, 8);
-        User adminActor = User.builder()
+        User adminActor = userRepository.save(User.builder()
                 .userCode("ADM-" + uniqueSuffix)
                 .fullName("Admin Rules Commit")
                 .email("admin-" + uniqueSuffix + "@fpt.edu.vn")
                 .role(Role.ADMIN)
                 .isActive(true)
-                .build();
-        adminActor = userRepository.save(adminActor);
+                .build());
         String adminToken = "Bearer " + jwtTokenProvider.generateToken(adminActor);
-
-        User fmActor = User.builder()
+        User fmActor = userRepository.save(User.builder()
                 .userCode("FM-" + uniqueSuffix)
                 .fullName("FM Rules Attempt")
                 .email("fm-" + uniqueSuffix + "@fpt.edu.vn")
                 .role(Role.FACILITY_MANAGER)
                 .isActive(true)
-                .build();
-        fmActor = userRepository.save(fmActor);
+                .build());
         String fmToken = "Bearer " + jwtTokenProvider.generateToken(fmActor);
 
         Floor floor = getOrCreateTestFloor();
-        Area testArea = Area.builder()
+        Area testArea = areaRepository.save(Area.builder()
                 .name("Area Rules Commit " + uniqueSuffix)
                 .building("TOA_ALPHA")
                 .floor("1")
                 .floorEntity(floor)
-                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
-                .areaAccessLevel(2)
-                .explicitAuthorizationRequired(false)
+                .areaLevel(AreaLevel.CONFIDENTIAL)
                 .isActive(true)
-                .build();
-        testArea = areaRepository.save(testArea);
+                .build());
 
         String updateJson = "{\"areaAccessLevel\": 3, \"explicitAuthorizationRequired\": false, \"reason\": \"Thắt chặt an ninh phòng Server\", \"version\": "
                 + testArea.getVersion() + "}";
 
-        // FM gọi access-rules -> 403 Forbidden (Quyết định C5)
+        // FM gọi access-rules -> 403 Forbidden (Quyết định C5, phân quyền không đổi)
         mockMvc.perform(patch("/api/areas/{id}/access-rules", testArea.getId())
                         .header("Authorization", fmToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(updateJson))
                 .andExpect(status().isForbidden());
 
-        // ADMIN gọi access-rules -> 200 OK
+        // ADMIN gọi access-rules -> 400 ERR_AREA_056 (cấp khu cố định theo loại)
         mockMvc.perform(patch("/api/areas/{id}/access-rules", testArea.getId())
                         .header("Authorization", adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(updateJson))
-                .andExpect(status().isOk());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("ERR_AREA_056"));
 
-        // 1. Kiểm tra trực tiếp bảng areas
         Object[] areaData = (Object[]) entityManager.createNativeQuery(
-                "SELECT area_access_level, explicit_authorization_required FROM areas WHERE id = :id"
+                "SELECT area_access_level, explicit_authorization_required, version FROM areas WHERE id = :id"
         ).setParameter("id", testArea.getId()).getSingleResult();
-        assertEquals(3, ((Number) areaData[0]).intValue());
+        assertEquals(2, ((Number) areaData[0]).intValue());
         assertEquals(false, areaData[1]);
+        assertEquals(testArea.getVersion(), ((Number) areaData[2]).longValue());
 
-        // 2. Kiểm tra log
         Number count = (Number) entityManager.createNativeQuery(
                 "SELECT COUNT(*) FROM audit_logs WHERE target_id = :targetId AND target_type = 'AREA_ACCESS_RULES'"
         ).setParameter("targetId", testArea.getId().toString()).getSingleResult();
-        assertEquals(1, count.intValue());
-
-        // 3. Kiểm tra jsonb
-        String newLevel = (String) entityManager.createNativeQuery(
-                "SELECT new_value ->> 'areaAccessLevel' FROM audit_logs WHERE target_id = :targetId AND target_type = 'AREA_ACCESS_RULES'"
-        ).setParameter("targetId", testArea.getId().toString()).getSingleResult();
-        String newExplicit = (String) entityManager.createNativeQuery(
-                "SELECT new_value ->> 'explicitAuthorizationRequired' FROM audit_logs WHERE target_id = :targetId AND target_type = 'AREA_ACCESS_RULES'"
-        ).setParameter("targetId", testArea.getId().toString()).getSingleResult();
-        assertEquals("3", newLevel);
-        assertEquals("false", newExplicit);
+        assertEquals(0, count.intValue());
     }
 
     @Test
-    @DisplayName("Hồi quy Lỗi 2 — Thao tác 6 (Cập nhật Level Preset): commit thật, dữ liệu nghiệp vụ đổi, 1 dòng log mới, jsonb đúng giá trị")
-    void testCommit_UpdateLevelPreset_CreatesAuditLogAndChangesBusinessData() throws Exception {
+    @DisplayName("Thao tác 6 (V83): sửa preset -> FM 403, ADMIN 400 ERR_AC_005; dòng preset Bảo mật giữ cấp 2, không audit LEVEL_PRESET")
+    void testLevelPreset_FixedByType_NoChangeNoAudit() throws Exception {
         String uniqueSuffix = UUID.randomUUID().toString().substring(0, 8);
-        User adminActor = User.builder()
+        User adminActor = userRepository.save(User.builder()
                 .userCode("ADM-" + uniqueSuffix)
                 .fullName("Admin Preset Commit")
                 .email("admin-" + uniqueSuffix + "@fpt.edu.vn")
                 .role(Role.ADMIN)
                 .isActive(true)
-                .build();
-        adminActor = userRepository.save(adminActor);
+                .build());
         String adminToken = "Bearer " + jwtTokenProvider.generateToken(adminActor);
-
-        User fmActor = User.builder()
+        User fmActor = userRepository.save(User.builder()
                 .userCode("FM-" + uniqueSuffix)
                 .fullName("FM Preset Attempt")
                 .email("fm-" + uniqueSuffix + "@fpt.edu.vn")
                 .role(Role.FACILITY_MANAGER)
                 .isActive(true)
-                .build();
-        fmActor = userRepository.save(fmActor);
+                .build());
         String fmToken = "Bearer " + jwtTokenProvider.generateToken(fmActor);
 
-        // Lấy trạng thái hiện tại của CONFIDENTIAL_CONTACT_REQUIRED
-        Object[] currentData = (Object[]) entityManager.createNativeQuery(
-                "SELECT area_access_level, explicit_authorization_required, version FROM area_level_presets WHERE area_level = 'CONFIDENTIAL_CONTACT_REQUIRED'"
+        Object[] before = (Object[]) entityManager.createNativeQuery(
+                "SELECT area_access_level, explicit_authorization_required, version FROM area_level_presets WHERE area_level = 'CONFIDENTIAL'"
         ).getSingleResult();
-        int currentLevel = ((Number) currentData[0]).intValue();
-        boolean currentExplicit = (Boolean) currentData[1];
-        long currentVersion = ((Number) currentData[2]).longValue();
-
-        int targetLevel = (currentLevel == 3) ? 2 : 3;
-        boolean targetExplicit = true;
+        assertEquals(2, ((Number) before[0]).intValue());
+        assertEquals(false, before[1]);
+        long version = ((Number) before[2]).longValue();
         String reason = "Cập nhật preset " + uniqueSuffix;
-
         String updateJson = String.format(
-                "{\"areaAccessLevel\": %d, \"explicitAuthorizationRequired\": %b, \"reason\": \"%s\", \"version\": %d}",
-                targetLevel, targetExplicit, reason, currentVersion
-        );
+                "{\"areaAccessLevel\": 3, \"explicitAuthorizationRequired\": false, \"reason\": \"%s\", \"version\": %d}", reason, version);
 
-        // FM gọi preset -> 403 Forbidden (Quyết định C5)
-        mockMvc.perform(put("/api/access-control/level-presets/{areaLevel}", AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
+        mockMvc.perform(put("/api/access-control/level-presets/{areaLevel}", AreaLevel.CONFIDENTIAL)
                         .header("Authorization", fmToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(updateJson))
                 .andExpect(status().isForbidden());
 
-        try {
-            // ADMIN gọi preset -> 200 OK
-            mockMvc.perform(put("/api/access-control/level-presets/{areaLevel}", AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
-                            .header("Authorization", adminToken)
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(updateJson))
-                    .andExpect(status().isOk());
+        mockMvc.perform(put("/api/access-control/level-presets/{areaLevel}", AreaLevel.CONFIDENTIAL)
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updateJson))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("ERR_AC_005"));
 
-            // 1. Kiểm tra trực tiếp bảng area_level_presets
-            Object[] presetData = (Object[]) entityManager.createNativeQuery(
-                    "SELECT area_access_level, explicit_authorization_required, version FROM area_level_presets WHERE area_level = 'CONFIDENTIAL_CONTACT_REQUIRED'"
-            ).getSingleResult();
-            assertEquals(targetLevel, ((Number) presetData[0]).intValue());
-            assertEquals(targetExplicit, presetData[1]);
-            assertEquals(currentVersion + 1, ((Number) presetData[2]).longValue());
-
-            // 2. Kiểm tra log có target_id = 'CONFIDENTIAL_CONTACT_REQUIRED'
-            Number count = (Number) entityManager.createNativeQuery(
-                    "SELECT COUNT(*) FROM audit_logs WHERE target_id = 'CONFIDENTIAL_CONTACT_REQUIRED' AND target_type = 'LEVEL_PRESET' AND reason = :reason"
-            ).setParameter("reason", reason).getSingleResult();
-            assertEquals(1, count.intValue());
-
-            // 3. Kiểm tra jsonb
-            String explicitInJson = (String) entityManager.createNativeQuery(
-                    "SELECT new_value ->> 'explicitAuthorizationRequired' FROM audit_logs WHERE target_id = 'CONFIDENTIAL_CONTACT_REQUIRED' AND target_type = 'LEVEL_PRESET' AND reason = :reason"
-            ).setParameter("reason", reason).getSingleResult();
-            assertEquals(String.valueOf(targetExplicit), explicitInJson);
-        } finally {
-            // Dọn dữ liệu test: trả preset CONTACT về giá trị trước test (test khác, vd. Step5b TC-04, đọc preset này)
-            Object[] after = (Object[]) entityManager.createNativeQuery(
-                    "SELECT area_access_level, explicit_authorization_required, version FROM area_level_presets WHERE area_level = 'CONFIDENTIAL_CONTACT_REQUIRED'"
-            ).getSingleResult();
-            if (((Number) after[0]).intValue() != currentLevel || !Boolean.valueOf(currentExplicit).equals(after[1])) {
-                String restoreJson = String.format(
-                        "{\"areaAccessLevel\": %d, \"explicitAuthorizationRequired\": %b, \"reason\": \"%s\", \"version\": %d}",
-                        currentLevel, currentExplicit, "Khôi phục preset sau test " + uniqueSuffix, ((Number) after[2]).longValue()
-                );
-                mockMvc.perform(put("/api/access-control/level-presets/{areaLevel}", AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
-                                .header("Authorization", adminToken)
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content(restoreJson))
-                        .andExpect(status().isOk());
-            }
-        }
+        Object[] after = (Object[]) entityManager.createNativeQuery(
+                "SELECT area_access_level, explicit_authorization_required, version FROM area_level_presets WHERE area_level = 'CONFIDENTIAL'"
+        ).getSingleResult();
+        assertEquals(2, ((Number) after[0]).intValue());
+        assertEquals(false, after[1]);
+        assertEquals(version, ((Number) after[2]).longValue());
+        Number count = (Number) entityManager.createNativeQuery(
+                "SELECT COUNT(*) FROM audit_logs WHERE target_type = 'LEVEL_PRESET' AND reason = :reason"
+        ).setParameter("reason", reason).getSingleResult();
+        assertEquals(0, count.intValue());
     }
 
     @Test

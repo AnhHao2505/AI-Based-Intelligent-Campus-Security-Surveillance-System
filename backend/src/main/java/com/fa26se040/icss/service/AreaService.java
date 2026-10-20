@@ -22,9 +22,7 @@ import com.fa26se040.icss.enums.AuditAction;
 import com.fa26se040.icss.enums.AuditTargetType;
 import com.fa26se040.icss.dto.area.AreaCameraResponse;
 import com.fa26se040.icss.dto.camera.CameraSimpleResponse;
-import com.fa26se040.icss.entity.AreaLevelPreset;
 import com.fa26se040.icss.entity.Camera;
-import com.fa26se040.icss.repository.AreaLevelPresetRepository;
 import com.fa26se040.icss.repository.CameraRepository;
 import com.fa26se040.icss.repository.AreaRepository;
 import com.fa26se040.icss.repository.UserRepository;
@@ -52,7 +50,6 @@ public class AreaService {
     private final AreaRepository areaRepository;
     private final CameraRepository cameraRepository;
     private final UserRepository userRepository;
-    private final AreaLevelPresetRepository areaLevelPresetRepository;
     private final com.fa26se040.icss.repository.FloorRepository floorRepository;
     private final AreaValidator areaValidator;
     private final AreaDependencyChecker dependencyChecker;
@@ -80,23 +77,6 @@ public class AreaService {
     public static final String DEACTIVATION_REASON_PREFIX = "Khu vực bị vô hiệu hoá: ";
     /** Lý do huỷ đơn cố định khi khu vực chuyển sang công khai (BR-TC-14). */
     public static final String PUBLIC_CANCEL_REASON = "Khu vực đã chuyển sang công khai, không cần đơn";
-
-    private java.util.Map<AreaLevel, AreaLevelPreset> loadPresetMap() {
-        return areaLevelPresetRepository.findAll().stream()
-                .collect(Collectors.toMap(AreaLevelPreset::getAreaLevel, java.util.function.Function.identity(), (a, b) -> a));
-    }
-
-    private boolean computeDiffersFromPreset(Area area, java.util.Map<AreaLevel, AreaLevelPreset> presetMap) {
-        if (area == null || area.getAreaLevel() == null) {
-            return false;
-        }
-        AreaLevelPreset preset = presetMap.get(area.getAreaLevel());
-        if (preset == null) {
-            return false;
-        }
-        return !java.util.Objects.equals(area.getAreaAccessLevel(), preset.getAreaAccessLevel())
-                || !java.util.Objects.equals(area.getExplicitAuthorizationRequired(), preset.getExplicitAuthorizationRequired());
-    }
 
     // ===================================================================== Step 5b — version khu vực (BR-TC-13, TC-17)
 
@@ -192,16 +172,12 @@ public class AreaService {
         if (level == null) {
             return "—";
         }
-        return switch (level) {
-            case PUBLIC -> "Công khai";
-            case INTERNAL_CONFIDENTIAL -> "Bảo mật nội bộ";
-            case CONFIDENTIAL_CONTACT_REQUIRED -> "Liên hệ trước";
-            case HIGHLY_CONFIDENTIAL -> "Tuyệt mật";
-        };
+        return level.label();
     }
 
+    /** BR-EV-22, BR-ES-20 (V83): chế độ sự kiện và lịch sự kiện chỉ áp cho khu Bảo mật. */
     private static boolean eventModeAllowed(AreaLevel level) {
-        return level == AreaLevel.INTERNAL_CONFIDENTIAL || level == AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED;
+        return level == AreaLevel.CONFIDENTIAL;
     }
 
     /** Một đơn sẽ bị hệ thống huỷ kèm lý do ghi vào cancel_reason. */
@@ -235,11 +211,9 @@ public class AreaService {
     private TypeChangeEvaluation evaluateTypeChange(Area area, AreaLevel newLevel, OffsetDateTime now) {
         AreaLevel currentLevel = area.getAreaLevel();
 
-        // Cấp số lấy theo preset loại mới (thiếu preset -> fail-closed cấp 3).
-        // Cờ explicit LUÔN suy ra trực tiếp từ loại (PUBLIC/INTERNAL=false, CONTACT/HIGHLY=true), không đọc cờ từ preset.
-        AreaLevelPreset preset = areaLevelPresetRepository.findById(newLevel).orElse(null);
-        int newAccessLevel = preset != null && preset.getAreaAccessLevel() != null ? preset.getAreaAccessLevel() : 3;
-        boolean newExplicit = (newLevel == AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED || newLevel == AreaLevel.HIGHLY_CONFIDENTIAL);
+        // V83 (BR-TC-04): cấp = cấp của loại mới; cờ chỉ định đích danh đã bỏ (luôn false)
+        int newAccessLevel = newLevel.level();
+        boolean newExplicit = false;
 
         boolean eventActive = area.isEventActive(now);
         List<com.fa26se040.icss.entity.AreaEventSchedule> pendingSchedules = eventScheduleRepository != null
@@ -273,6 +247,8 @@ public class AreaService {
         // Q1 (BR-RQ-03/04): cùng nguồn cấu hình bảo lãnh với luồng duyệt đơn
         boolean sponsorAllowedForNewLevel = !requests.isEmpty()
                 && systemConfigService.getSponsorAllowedAreaLevels().contains(newLevel);
+        int maxLevelGap = requests.isEmpty() ? 0
+                : systemConfigService.getInt(com.fa26se040.icss.enums.ConfigKey.ACCESS_REQUEST_MAX_LEVEL_GAP);
         for (com.fa26se040.icss.entity.AccessRequest r : requests) {
             boolean approved = r.getStatus() == com.fa26se040.icss.enums.RequestStatus.APPROVED;
             if (newLevel == AreaLevel.PUBLIC) {
@@ -280,7 +256,9 @@ public class AreaService {
                 (approved ? approvedToCancel : pendingToCancel).add(new CancelCandidate(r, PUBLIC_CANCEL_REASON));
                 continue;
             }
-            String violation = describeRuleViolation(r, newLevel, newAccessLevel, groupAllowedInPrivate, sponsorAllowedForNewLevel);
+            // PENDING chỉ tính vi phạm mà bước FM duyệt cũng chặn (V83: duyệt không kiểm lại cấp người tạo)
+            String violation = describeRuleViolation(r, newLevel, newAccessLevel, groupAllowedInPrivate, sponsorAllowedForNewLevel,
+                    maxLevelGap, approved);
             if (violation == null) {
                 continue;
             }
@@ -299,18 +277,24 @@ public class AreaService {
     }
 
     /**
-     * Quy tắc FM kiểm khi duyệt đơn (BR-RQ-02) áp lên loại mới; trả null nếu đơn vẫn thoả loại mới.
-     * Q1 (BR-RQ-03/04): người tạo đơn luôn phải đủ cấp; thành viên sponsored được miễn kiểm cấp khi loại mới
-     * cho phép bảo lãnh; loại mới không cho bảo lãnh → kiểm cấp như thành viên thường, giống reviewRequest
-     * (thiếu cấp thì lý do nêu "loại mới không cho phép bảo lãnh"); thành viên thường kiểm cấp như cũ.
+     * BR-TC-08 (V83): đơn còn thoả loại mới không; trả null nếu còn thoả. Áp điều kiện lúc tạo đơn lên loại mới:
+     * <ul>
+     *   <li>Đơn cá nhân: cấp khu mới − cấp người tạo ≤ ACCESS_REQUEST_MAX_LEVEL_GAP (người tạo đã đủ cấp thì đơn thừa
+     *       nhưng vô hại, giữ).</li>
+     *   <li>Đơn nhóm: Tuyệt mật chỉ khi bật đơn nhóm; người tạo phải tự vào được khu mới bằng cấp.</li>
+     *   <li>checkRequester = false (đơn PENDING, BR-TC-09): bỏ hai điều kiện về người tạo, giống reviewRequest.</li>
+     *   <li>Q1 (BR-RQ-03/04): thành viên sponsored được miễn kiểm cấp khi loại mới cho phép bảo lãnh; loại mới không cho
+     *       bảo lãnh → kiểm cấp như thành viên thường, giống reviewRequest; thành viên thường kiểm cấp như cũ.</li>
+     * </ul>
      * Không dùng chung hàm với reviewRequest: luồng duyệt còn chặn thành viên bị vô hiệu hoá — gộp sẽ thêm
      * điều kiện đó vào đổi loại khu vực.
      */
     private static String describeRuleViolation(com.fa26se040.icss.entity.AccessRequest r, AreaLevel newLevel,
                                                 int newAccessLevel, boolean groupAllowedInPrivate,
-                                                boolean sponsorAllowedForNewLevel) {
-        if (r.getRequestType() == com.fa26se040.icss.enums.RequestType.GROUP
-                && newLevel == AreaLevel.HIGHLY_CONFIDENTIAL && !groupAllowedInPrivate) {
+                                                boolean sponsorAllowedForNewLevel, int maxLevelGap,
+                                                boolean checkRequester) {
+        boolean group = r.getRequestType() == com.fa26se040.icss.enums.RequestType.GROUP;
+        if (group && newLevel == AreaLevel.HIGHLY_CONFIDENTIAL && !groupAllowedInPrivate) {
             return "khu vực Tuyệt mật không nhận đơn nhóm";
         }
         List<String> unqualified = new ArrayList<>();
@@ -319,7 +303,11 @@ public class AreaService {
         User requester = r.getRequester();
         if (requester != null) {
             seen.add(requester.getId());
-            if (accessLevelOf(requester) < newAccessLevel) {
+            if (checkRequester && !group && newAccessLevel - accessLevelOf(requester) > maxLevelGap) {
+                return "đơn cá nhân chỉ xin được khu vực cao hơn cấp người tạo tối đa " + maxLevelGap + " cấp: "
+                        + displayName(requester) + " cấp " + accessLevelOf(requester);
+            }
+            if (checkRequester && group && accessLevelOf(requester) < newAccessLevel) {
                 unqualified.add(displayName(requester));
             }
         }
@@ -524,89 +512,96 @@ public class AreaService {
 
     @Transactional(readOnly = true)
     public List<AreaSimpleResponse> getAvailableAreasForRequest() {
-        return getAvailableAreasForRequest(null);
+        return getAvailableAreasForRequest(null, null);
     }
 
     @Transactional(readOnly = true)
     public List<AreaSimpleResponse> getAvailableAreasForRequest(String actorEmail) {
+        return getAvailableAreasForRequest(actorEmail, null);
+    }
+
+    /**
+     * Danh sách khu cho form đơn (BR-RQ-33, V83). type = INDIVIDUAL / GROUP: chỉ khu tạo được loại đơn đó;
+     * type = null: khu tạo được ít nhất một loại (client cũ). Cùng điều kiện với API tạo đơn ({@link #requestIneligibility}).
+     */
+    @Transactional(readOnly = true)
+    public List<AreaSimpleResponse> getAvailableAreasForRequest(String actorEmail, com.fa26se040.icss.enums.RequestType type) {
         User caller = actorEmail != null ? userRepository.findByEmail(actorEmail).orElse(null) : null;
 
-        // Ứng viên: khu vực cờ explicit = true + khu vực INTERNAL (chỉ được xin khi bật bảo lãnh INTERNAL)
-        List<Area> areas = areaRepository.findAvailableForRequest();
-        Set<AreaLevel> sponsorLevels = Set.of();
-        List<Area> internalCandidates = areaRepository.findAvailableForRequest(Set.of(AreaLevel.INTERNAL_CONFIDENTIAL));
-        if (!internalCandidates.isEmpty()) {
-            // Cấu hình bảo lãnh chỉ quyết định khu vực INTERNAL nên chỉ đọc khi có khu vực INTERNAL để xét
-            sponsorLevels = systemConfigService.getSponsorAllowedAreaLevels();
-            if (sponsorLevels.contains(AreaLevel.INTERNAL_CONFIDENTIAL)) {
-                java.util.Map<UUID, Area> merged = new java.util.LinkedHashMap<>();
-                areas.forEach(a -> merged.put(a.getId(), a));
-                internalCandidates.forEach(a -> merged.putIfAbsent(a.getId(), a));
-                areas = merged.values().stream().sorted(AVAILABLE_AREA_ORDER).toList();
+        // Ứng viên: khu vực khác Công khai, chưa xoá, đang hoạt động
+        List<Area> candidates = areaRepository.findAvailableForRequest();
+        if (candidates.isEmpty()) {
+            return List.of();
+        }
+        int maxLevelGap = systemConfigService.getInt(com.fa26se040.icss.enums.ConfigKey.ACCESS_REQUEST_MAX_LEVEL_GAP);
+        // A-06: cấu hình đơn nhóm chỉ quyết định khu vực HIGHLY_CONFIDENTIAL nên chỉ đọc khi danh sách có khu vực đó
+        boolean groupAllowedInHighlyConfidential = candidates.stream().anyMatch(a -> a.getAreaLevel() == AreaLevel.HIGHLY_CONFIDENTIAL)
+                && systemConfigService.getBoolean(com.fa26se040.icss.enums.ConfigKey.ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE);
+        List<AreaSimpleResponse> result = new ArrayList<>();
+        for (Area a : candidates) {
+            boolean individual = requestIneligibility(a, caller, com.fa26se040.icss.enums.RequestType.INDIVIDUAL,
+                    maxLevelGap, groupAllowedInHighlyConfidential) == null;
+            boolean group = requestIneligibility(a, caller, com.fa26se040.icss.enums.RequestType.GROUP,
+                    maxLevelGap, groupAllowedInHighlyConfidential) == null;
+            boolean listed = type == null ? (individual || group)
+                    : type == com.fa26se040.icss.enums.RequestType.GROUP ? group : individual;
+            if (listed) {
+                result.add(new AreaSimpleResponse(a.getId(), a.getName(), a.getAreaLevel(), a.getBuilding(), a.getFloor(),
+                        group, individual));
             }
         }
-
-        Set<AreaLevel> sponsorAllowedLevels = sponsorLevels;
-        List<Area> available = areas.stream()
-                .filter(a -> isAvailableForRequest(a, caller, sponsorAllowedLevels))
-                .toList();
-        // A-06: cấu hình đơn nhóm chỉ quyết định khu vực HIGHLY_CONFIDENTIAL nên chỉ đọc khi danh sách có khu vực đó
-        boolean groupAllowedInHighlyConfidential = available.stream().anyMatch(a -> a.getAreaLevel() == AreaLevel.HIGHLY_CONFIDENTIAL)
-                && systemConfigService.getBoolean(com.fa26se040.icss.enums.ConfigKey.ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE);
-        return available.stream()
-                .map(a -> new AreaSimpleResponse(
-                        a.getId(),
-                        a.getName(),
-                        a.getAreaLevel(),
-                        a.getBuilding(),
-                        a.getFloor(),
-                        isGroupRequestAllowed(a.getAreaLevel(), groupAllowedInHighlyConfidential)
-                ))
-                .toList();
+        return result;
     }
 
     /**
      * BR-RQ-28: khu vực HIGHLY_CONFIDENTIAL chỉ nhận đơn cá nhân, trừ khi ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE = true.
-     * Dùng chung cho kiểm tra khi tạo đơn nhóm (AccessRequestService) và cờ groupRequestAllowed của available-areas (A-06).
      */
     public static boolean isGroupRequestAllowed(AreaLevel areaLevel, boolean groupAllowedInHighlyConfidential) {
         return areaLevel != AreaLevel.HIGHLY_CONFIDENTIAL || groupAllowedInHighlyConfidential;
     }
 
-    /** Cùng thứ tự với query findAvailableForRequest (toà, tầng, tên). */
-    private static final java.util.Comparator<Area> AVAILABLE_AREA_ORDER = java.util.Comparator
-            .comparing(Area::getBuilding, java.util.Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER))
-            .thenComparing(Area::getFloor, java.util.Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER))
-            .thenComparing(Area::getName, java.util.Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER));
+    /** BR-RQ-33: khu vực không nằm trong danh sách khu vực được xin (available-areas). */
+    public static final String AREA_NOT_REQUESTABLE_MESSAGE = "Khu vực này không nằm trong danh sách khu vực được phép xin truy cập";
 
     /**
-     * BR-RQ-33: tiêu chí "khu vực được xin" — nguồn duy nhất cho danh sách available-areas và kiểm tra khi tạo đơn
-     * (AccessRequestService), để gọi API thẳng không vượt được danh sách.
-     * - Chưa xoá mềm, đang hoạt động.
-     * - Cờ explicitAuthorizationRequired = true, HOẶC khu vực INTERNAL khi INTERNAL nằm trong
-     *   ACCESS_REQUEST_SPONSOR_ALLOWED_AREA_TYPES (Lucas 08/10, phương án A: đơn bảo lãnh vào khu vực Nội bộ).
-     * - NORMAL_USER: cấp khu vực khác null (fail-closed) và không vượt cấp người gọi. FM / ADMIN / caller null không lọc theo cấp.
+     * BR-RQ-33, BR-RQ-01, BR-RQ-03 (V83): điều kiện "khu vực được xin" theo loại đơn — nguồn DUY NHẤT cho danh sách
+     * available-areas và kiểm tra khi tạo đơn (AccessRequestService), để gọi API thẳng không vượt được danh sách.
+     * Trả null nếu tạo được, ngược lại là câu báo lỗi (400).
+     * <ul>
+     *   <li>Khu chưa xoá, đang hoạt động, khác Công khai.</li>
+     *   <li>Đơn cá nhân: cấp khu &gt; cấp người tạo và cấp khu − cấp người tạo ≤ ACCESS_REQUEST_MAX_LEVEL_GAP.</li>
+     *   <li>Đơn nhóm: khu Tuyệt mật chỉ khi ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE; người tạo tự vào được khu bằng cấp
+     *       (cấp người ≥ cấp khu) để bảo lãnh thành viên thiếu cấp.</li>
+     *   <li>Chỉ NORMAL_USER tạo đơn; FM / ADMIN / caller null không lọc theo cấp (chỉ lọc khu và quy tắc đơn nhóm).</li>
+     * </ul>
      */
-    public static boolean isAvailableForRequest(Area area, User caller, Set<AreaLevel> sponsorAllowedLevels) {
-        if (area == null || area.getDeletedAt() != null || !Boolean.TRUE.equals(area.getIsActive())) {
-            return false;
+    public static String requestIneligibility(Area area, User caller, com.fa26se040.icss.enums.RequestType type,
+                                              int maxLevelGap, boolean groupAllowedInHighlyConfidential) {
+        if (area == null || area.getDeletedAt() != null || !Boolean.TRUE.equals(area.getIsActive())
+                || area.getAreaLevel() == null || area.getAreaLevel() == AreaLevel.PUBLIC) {
+            return AREA_NOT_REQUESTABLE_MESSAGE;
         }
-        boolean requestableType = Boolean.TRUE.equals(area.getExplicitAuthorizationRequired())
-                || (area.getAreaLevel() == AreaLevel.INTERNAL_CONFIDENTIAL
-                        && sponsorAllowedLevels != null
-                        && sponsorAllowedLevels.contains(AreaLevel.INTERNAL_CONFIDENTIAL));
-        if (!requestableType) {
-            return false;
+        boolean group = type == com.fa26se040.icss.enums.RequestType.GROUP;
+        if (group && !isGroupRequestAllowed(area.getAreaLevel(), groupAllowedInHighlyConfidential)) {
+            return "Khu vực Tuyệt mật (HIGHLY_CONFIDENTIAL) chỉ cho phép đăng ký truy cập cá nhân (INDIVIDUAL)";
         }
         if (caller == null || caller.getRole() != Role.NORMAL_USER) {
-            return true;
+            return null;
         }
-        if (area.getAreaAccessLevel() == null) {
-            log.warn("Excluding area {} from request dropdown: areaAccessLevel is null", area.getId());
-            return false;
+        int areaLevel = area.getAreaAccessLevel();
+        int callerLevel = accessLevelOf(caller);
+        String levels = " (khu vực cấp " + areaLevel + ", bạn cấp " + callerLevel + ")";
+        if (group) {
+            return callerLevel >= areaLevel ? null
+                    : "Người tạo đơn nhóm phải tự vào được khu vực bằng cấp truy cập để bảo lãnh thành viên" + levels;
         }
-        int callerLevel = caller.getAccessLevel() != null ? caller.getAccessLevel() : 1;
-        return callerLevel >= area.getAreaAccessLevel();
+        if (callerLevel >= areaLevel) {
+            return "Bạn đã đủ cấp vào khu vực này, không cần tạo yêu cầu truy cập" + levels;
+        }
+        if (areaLevel - callerLevel > maxLevelGap) {
+            return "Chỉ được xin vào khu vực cao hơn cấp của bạn tối đa " + maxLevelGap + " cấp" + levels;
+        }
+        return null;
     }
 
     @Transactional(readOnly = true)
@@ -614,16 +609,14 @@ public class AreaService {
         String cleanKeyword = (keyword != null && !keyword.trim().isEmpty()) ? keyword.trim() : null;
         String cleanBuilding = (building != null && !building.trim().isEmpty()) ? building.trim() : null;
         Page<Area> page = areaRepository.searchAreas(cleanKeyword, areaLevel, cleanBuilding, isActive, pageable);
-        java.util.Map<AreaLevel, AreaLevelPreset> presetMap = loadPresetMap();
-        return page.map(a -> mapToAreaListItemResponse(a, computeDiffersFromPreset(a, presetMap)));
+        return page.map(this::mapToAreaListItemResponse);
     }
 
     @Transactional(readOnly = true)
     public AreaResponse getAreaById(UUID id) {
         Area area = areaRepository.findById(id)
                 .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
-        java.util.Map<AreaLevel, AreaLevelPreset> presetMap = loadPresetMap();
-        return mapToAreaResponse(area, computeDiffersFromPreset(area, presetMap));
+        return mapToAreaResponse(area);
     }
 
     @Transactional(readOnly = true)
@@ -656,21 +649,8 @@ public class AreaService {
 
         resolveActorId(actorEmail);
 
-        // Cấp số lấy theo preset (thiếu preset -> fallback fail-closed cấp 3).
-        // Cờ explicit LUÔN suy ra trực tiếp từ loại khu vực (PUBLIC/INTERNAL=false, CONTACT/HIGHLY=true), không đọc cờ từ preset.
-        int areaAccessLevel = 3;
-        boolean explicitAuthRequired = (req.getAreaLevel() == AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED || req.getAreaLevel() == AreaLevel.HIGHLY_CONFIDENTIAL);
-
-        Optional<AreaLevelPreset> presetOpt = areaLevelPresetRepository.findById(req.getAreaLevel());
-        if (presetOpt.isPresent()) {
-            AreaLevelPreset preset = presetOpt.get();
-            if (preset.getAreaAccessLevel() != null) {
-                areaAccessLevel = preset.getAreaAccessLevel();
-            }
-        } else {
-            log.warn("Không tìm thấy preset cho area_level = {}, áp dụng fallback fail-closed (level 3)",
-                    req.getAreaLevel());
-        }
+        // V83 (BR-PR-23): cấp = cấp của loại (Công khai 1, Bảo mật 2, Tuyệt mật 3); cờ chỉ định đích danh luôn false
+        int areaAccessLevel = req.getAreaLevel().level();
 
         com.fa26se040.icss.entity.Floor targetFloor = null;
         if (req.getFloorId() != null) {
@@ -698,7 +678,7 @@ public class AreaService {
                 .name(name)
                 .areaLevel(req.getAreaLevel())
                 .areaAccessLevel(areaAccessLevel)
-                .explicitAuthorizationRequired(explicitAuthRequired)
+                .explicitAuthorizationRequired(false)
                 .floorEntity(targetFloor)
                 .building(buildingVal)
                 .floor(floorVal)
@@ -804,9 +784,9 @@ public class AreaService {
         area.setCenterLatitude(req.getCenterLatitude());
         area.setCenterLongitude(req.getCenterLongitude());
         if (typeChange) {
-            // TC-04: áp lại preset của loại mới (thiếu preset -> 3/true)
+            // TC-04 (V83): cấp theo loại mới, cờ luôn false
             area.setAreaAccessLevel(evaluation.newAccessLevel());
-            area.setExplicitAuthorizationRequired(evaluation.newExplicitAuthorizationRequired());
+            area.setExplicitAuthorizationRequired(false);
         }
         boolean changed = !AreaRowState.of(area).values().equals(before.values());
         bumpVersionIfChanged(area, before);
@@ -1116,69 +1096,13 @@ public class AreaService {
         return updateAccessRules(id, req, null);
     }
 
+    /**
+     * V83 (D4, BR-PR-23): cấp khu = cấp của loại, không còn sửa riêng từng khu; muốn đổi cấp thì đổi loại
+     * (PUT /api/areas/{id}, có xem trước, huỷ đơn và audit). Giữ endpoint để client cũ nhận 400 rõ ràng (ERR_AREA_056).
+     */
     @Transactional
     public AreaResponse updateAccessRules(UUID id, AreaAccessRulesUpdateRequest req, String actorEmail) {
-        requireVersion(req.version());
-        Area area = areaRepository.findByIdWithLock(id)
-                .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
-        checkVersion(area, req.version());
-        AreaRowState before = AreaRowState.of(area);
-
-        if (!Boolean.TRUE.equals(area.getIsActive()) || area.getDeletedAt() != null) {
-            throw new AreaException(AreaErrorCode.ERR_AREA_017);
-        }
-
-        boolean expectedExplicit = (area.getAreaLevel() == AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED || area.getAreaLevel() == AreaLevel.HIGHLY_CONFIDENTIAL);
-        if (req.explicitAuthorizationRequired() != null && req.explicitAuthorizationRequired() != expectedExplicit) {
-            // (Object): gọi constructor varargs để điền {areaLevel}; String trần sẽ rơi vào constructor customMessage và mất câu mẫu
-            throw new AreaException(AreaErrorCode.ERR_AREA_056, (Object) area.getAreaLevel().name());
-        }
-
-        java.util.Map<AreaLevel, AreaLevelPreset> presetMap = loadPresetMap();
-
-        // BR-AL-06: Thao tác không làm thay đổi giá trị (new == old) -> không ghi log, trả về trạng thái hiện tại
-        if (java.util.Objects.equals(area.getAreaAccessLevel(), req.areaAccessLevel()) &&
-                java.util.Objects.equals(area.getExplicitAuthorizationRequired(), expectedExplicit)) {
-            log.info("Area {} access rules unchanged, skipping audit log", id);
-            return mapToAreaResponse(area, computeDiffersFromPreset(area, presetMap));
-        }
-
-        Integer oldAccessLevel = area.getAreaAccessLevel();
-        Boolean oldExplicit = area.getExplicitAuthorizationRequired();
-
-        area.setAreaAccessLevel(req.areaAccessLevel());
-        area.setExplicitAuthorizationRequired(expectedExplicit);
-        area.setUpdatedAt(OffsetDateTime.now());
-        bumpVersionIfChanged(area, before);
-
-        Area savedArea = areaRepository.save(area);
-
-        if (actorEmail != null) {
-            User actor = userRepository.findByEmail(actorEmail)
-                    .orElseThrow(() -> new UnauthorizedException("Phiên đăng nhập không hợp lệ"));
-
-            com.fa26se040.icss.dto.accesscontrol.snapshot.AreaAccessRulesAuditSnapshot oldSnapshot =
-                    new com.fa26se040.icss.dto.accesscontrol.snapshot.AreaAccessRulesAuditSnapshot(oldAccessLevel, oldExplicit);
-            com.fa26se040.icss.dto.accesscontrol.snapshot.AreaAccessRulesAuditSnapshot newSnapshot =
-                    new com.fa26se040.icss.dto.accesscontrol.snapshot.AreaAccessRulesAuditSnapshot(
-                            savedArea.getAreaAccessLevel(),
-                            savedArea.getExplicitAuthorizationRequired()
-                    );
-
-            auditService.record(
-                    com.fa26se040.icss.enums.AuditTargetType.AREA_ACCESS_RULES,
-                    com.fa26se040.icss.enums.AuditAction.UPDATE,
-                    savedArea.getId().toString(),
-                    savedArea,
-                    null,
-                    oldSnapshot,
-                    newSnapshot,
-                    req.reason(),
-                    actor
-            );
-        }
-
-        return mapToAreaResponse(savedArea, computeDiffersFromPreset(savedArea, presetMap));
+        throw new AreaException(AreaErrorCode.ERR_AREA_056);
     }
 
     @Transactional(readOnly = true)
@@ -1594,14 +1518,12 @@ public class AreaService {
             throw new AreaException(AreaErrorCode.ERR_AREA_030, buildEventModeStatusChangedMessage(area, now));
         }
 
-        java.util.Map<AreaLevel, AreaLevelPreset> presetMap = loadPresetMap();
-
         // (BR-EV-11) ADJUST với openUntil lệch giờ hiện tại < 1 giây -> thành công, không đổi, không audit, không thông báo
         if (eventAction == com.fa26se040.icss.enums.EventModeAction.ADJUST
                 && oldOpenUntil != null
                 && Math.abs(java.time.Duration.between(req.openUntil(), oldOpenUntil).toMillis()) < 1000) {
             log.info("Area {} extend event mode unchanged (<1s diff), skipping audit and update", id);
-            return mapToAreaResponse(area, computeDiffersFromPreset(area, presetMap));
+            return mapToAreaResponse(area);
         }
 
         // (BR-EV-03) ENABLE / ADJUST trên khu vực isActive = false -> từ chối (ERR_AREA_017). DISABLE vẫn cho phép.
@@ -1712,7 +1634,7 @@ public class AreaService {
 
         sendGuardEventModeChangedNotification(savedArea, action, actor, savedArea.getOpenUntil());
 
-        return mapToAreaResponse(savedArea, computeDiffersFromPreset(savedArea, presetMap));
+        return mapToAreaResponse(savedArea);
     }
 
     /**
@@ -1752,11 +1674,8 @@ public class AreaService {
         return target.name();
     }
 
+    /** differsFromPreset luôn false từ V83 (loại ⇔ cấp); giữ field cho FE cũ. */
     private AreaResponse mapToAreaResponse(Area area) {
-        return mapToAreaResponse(area, false);
-    }
-
-    private AreaResponse mapToAreaResponse(Area area, boolean differsFromPreset) {
         OffsetDateTime now = OffsetDateTime.now();
         boolean openToMembers = Boolean.TRUE.equals(area.getOpenToMembers());
         OffsetDateTime openUntil = area.getOpenUntil();
@@ -1779,7 +1698,7 @@ public class AreaService {
                 .isActive(area.getIsActive())
                 .createdAt(area.getCreatedAt())
                 .updatedAt(area.getUpdatedAt())
-                .differsFromPreset(differsFromPreset)
+                .differsFromPreset(false)
                 .openToMembers(openToMembers)
                 .openUntil(openUntil)
                 .eventActive(eventActive)
@@ -1792,7 +1711,7 @@ public class AreaService {
                 .build();
     }
 
-    private AreaListItemResponse mapToAreaListItemResponse(Area area, boolean differsFromPreset) {
+    private AreaListItemResponse mapToAreaListItemResponse(Area area) {
         OffsetDateTime now = OffsetDateTime.now();
         boolean openToMembers = Boolean.TRUE.equals(area.getOpenToMembers());
         OffsetDateTime openUntil = area.getOpenUntil();
@@ -1811,7 +1730,7 @@ public class AreaService {
                 .building(area.getBuilding())
                 .floor(area.getFloor())
                 .isActive(area.getIsActive())
-                .differsFromPreset(differsFromPreset)
+                .differsFromPreset(false)
                 .centerLatitude(area.getCenterLatitude())
                 .centerLongitude(area.getCenterLongitude())
                 .openToMembers(openToMembers)
@@ -2080,8 +1999,7 @@ public class AreaService {
         if (!Boolean.TRUE.equals(area.getIsActive()) || area.getDeletedAt() != null) {
             throw new AreaException(AreaErrorCode.ERR_AREA_017);
         }
-        if (area.getAreaLevel() != AreaLevel.INTERNAL_CONFIDENTIAL
-                && area.getAreaLevel() != AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED) {
+        if (!eventModeAllowed(area.getAreaLevel())) {
             throw new AreaException(AreaErrorCode.ERR_AREA_022);
         }
 
@@ -2205,8 +2123,7 @@ public class AreaService {
         if (!Boolean.TRUE.equals(area.getIsActive()) || area.getDeletedAt() != null) {
             throw new AreaException(AreaErrorCode.ERR_AREA_017);
         }
-        if (area.getAreaLevel() != AreaLevel.INTERNAL_CONFIDENTIAL
-                && area.getAreaLevel() != AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED) {
+        if (!eventModeAllowed(area.getAreaLevel())) {
             throw new AreaException(AreaErrorCode.ERR_AREA_022);
         }
 
@@ -2499,8 +2416,7 @@ public class AreaService {
 
             boolean isMissed = !schedule.getEndAt().isAfter(now);
             boolean isAreaActive = Boolean.TRUE.equals(area.getIsActive()) && area.getDeletedAt() == null;
-            boolean isLevelAllowed = area.getAreaLevel() == AreaLevel.INTERNAL_CONFIDENTIAL
-                    || area.getAreaLevel() == AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED;
+            boolean isLevelAllowed = eventModeAllowed(area.getAreaLevel());
 
             if (isMissed || !isAreaActive || !isLevelAllowed) {
                 String failReason;

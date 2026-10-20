@@ -5,8 +5,7 @@ import { apiGet, apiPost, apiPatch, apiFetch } from "../api/apiClient";
  */
 export const guestVisitService = {
   /**
-   * Khu vực có thể chọn cho lượt khách (BR-GV-04): khu vực INTERNAL / CONTACT đang hoạt động, gồm cả khu vực
-   * INTERNAL (danh sách xin truy cập /api/areas/available-for-request không có loại này).
+   * Khu vực có thể chọn cho lượt khách (BR-GV-04, V83): khu vực Bảo mật đang hoạt động.
    * GET /api/guest-visits/selectable-areas
    * Gửi kèm đủ { startTime, endTime } (ISO) thì mỗi khu vực có thêm hostCanInvite + reasonCode (BR-GV-06):
    * người gọi có vào được khu vực trong trọn khung giờ không (cấp truy cập hoặc nhân sự chỉ định).
