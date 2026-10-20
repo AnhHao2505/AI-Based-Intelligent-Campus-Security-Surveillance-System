@@ -41,6 +41,20 @@ public class FaceDataService {
     @Value("${ai.service.url:http://localhost:8000}")
     private String aiServiceUrl;
 
+    /**
+     * S4: gắn user_id cho face_data theo mã người dùng, dùng khi khuôn mặt được đăng ký trước khi lưu User
+     * (tạo tài khoản đơn lẻ). Chạy trong transaction của bên tạo tài khoản.
+     */
+    @Transactional
+    public void linkToUser(String code, User user) {
+        faceDataRepository.findByCode(code).ifPresent(faceData -> {
+            if (faceData.getUser() == null || !user.getId().equals(faceData.getUser().getId())) {
+                faceData.setUser(user);
+                faceDataRepository.save(faceData);
+            }
+        });
+    }
+
     @Transactional
     public FaceDataResponseDto registerFace(
             String code,

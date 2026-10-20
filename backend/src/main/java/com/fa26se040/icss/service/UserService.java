@@ -172,6 +172,8 @@ public class UserService {
                     .build();
 
             User savedUser = userRepository.save(user);
+            // S4: khuôn mặt được đăng ký trước khi có User nên face_data.user_id còn trống -> gắn ngay (cùng transaction)
+            faceDataService.linkToUser(normUserCode, savedUser);
 
             // 6b. Gửi email thông tin tài khoản và mật khẩu khởi tạo
             try {
