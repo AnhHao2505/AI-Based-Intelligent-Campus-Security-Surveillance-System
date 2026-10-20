@@ -94,6 +94,8 @@ Tất cả câu lệnh thực hiện từ thư mục gốc của dự án (`d:/D
 ### Khởi động & Dừng hệ thống:
 
 > Backend bắt buộc có `JWT_SECRET` và `MINIO_ROOT_PASSWORD` trong `.env`; thiếu một trong hai thì backend không khởi động (lỗi `Could not resolve placeholder`).
+>
+> Khi chạy frontend ở địa chỉ khác `http://localhost:5173` (máy chủ demo, tên miền thật), đặt `APP_FRONTEND_BASE_URL` (địa chỉ gắn vào link đặt lại mật khẩu trong e-mail) và `APP_CORS_ALLOWED_ORIGINS` (các origin được gọi API, phân tách bằng dấu phẩy) trong `.env`. Bỏ trống thì dùng cổng dev 5173 / 5174 / 3000.
 
 ```bash
 # 1. Khởi động toàn bộ 7 container ngầm

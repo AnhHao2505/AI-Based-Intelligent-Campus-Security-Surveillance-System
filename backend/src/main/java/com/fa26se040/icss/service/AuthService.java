@@ -36,6 +36,9 @@ public class AuthService {
     @Value("${app.jwt.expiration-ms}")
     private long jwtExpirationMs;
 
+    @Value("${app.frontend-base-url}")
+    private String frontendBaseUrl;
+
     /**
      * S2: không để lộ e-mail nào có tài khoản. Controller luôn trả cùng một câu; chỉ tài khoản tồn tại,
      * đang hoạt động và chưa xoá mới được tạo token và gửi mail. Lỗi gửi mail cũng không lộ ra ngoài.
@@ -61,7 +64,8 @@ public class AuthService {
 
         passwordResetTokenRepository.save(resetToken);
 
-        String resetLink = "http://localhost:5173/?token=" + token;
+        String baseUrl = frontendBaseUrl.endsWith("/") ? frontendBaseUrl.substring(0, frontendBaseUrl.length() - 1) : frontendBaseUrl;
+        String resetLink = baseUrl + "/?token=" + token;
         try {
             notificationService.sendResetPasswordEmail(email, resetLink);
         } catch (Exception e) {

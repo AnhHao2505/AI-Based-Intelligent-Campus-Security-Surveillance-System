@@ -27,6 +27,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.never;
@@ -37,6 +38,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  * S2 (20/10): POST /api/auth/send-reset-link trả cùng status và cùng nội dung dù e-mail có tài khoản,
  * tài khoản bị vô hiệu hoá / xoá mềm hay không tồn tại; chỉ tài khoản hợp lệ mới được gửi mail.
  * Body so sánh sau khi bỏ "timestamp" (ApiResponse luôn có thời điểm tạo).
+ * S3 (20/10): link trong mail lấy từ app.frontend-base-url (profile test đặt http://frontend.test.local/).
  */
 class AuthPasswordResetIntegrationTest extends AbstractIntegrationTest {
 
@@ -136,5 +138,13 @@ class AuthPasswordResetIntegrationTest extends AbstractIntegrationTest {
 
         sendResetLink(active.getEmail());
         verify(notificationService).sendResetPasswordEmail(eq(active.getEmail()), anyString());
+    }
+
+    @Test
+    @DisplayName("S3: link đặt lại mật khẩu dùng app.frontend-base-url, không còn localhost:5173 viết cứng")
+    void resetLinkUsesConfiguredFrontendUrl() throws Exception {
+        sendResetLink(active.getEmail());
+        verify(notificationService).sendResetPasswordEmail(eq(active.getEmail()), argThat(link ->
+                link.matches("http://frontend\\.test\\.local/\\?token=[0-9a-f-]{36}")));
     }
 }
