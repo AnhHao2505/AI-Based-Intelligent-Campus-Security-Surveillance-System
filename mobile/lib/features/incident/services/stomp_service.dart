@@ -34,7 +34,7 @@ class StompService {
           _isConnected = true;
           onConnectionChange?.call();
 
-          // 1. Guard personal alerts topic (only sent when guard is verified inside campus geofence)
+          // 1. Guard personal alerts are routed by duty status.
           if (guardId != null && guardId.isNotEmpty) {
             final guardTopic = '/topic/guards/$guardId/alerts';
             debugPrint('[STOMP] Subscribing to personal guard topic: $guardTopic');

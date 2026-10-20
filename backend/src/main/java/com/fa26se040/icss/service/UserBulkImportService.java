@@ -37,6 +37,11 @@ public class UserBulkImportService {
             Role.GUARD
     );
 
+    public static final List<Role> STAFF_ALLOWED_ROLES = List.of(
+            Role.FACILITY_MANAGER,
+            Role.GUARD
+    );
+
     private static final String DATA_FOR_RANDOM_STRING = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_=+";
     private final SecureRandom random = new SecureRandom();
 
@@ -234,8 +239,8 @@ public class UserBulkImportService {
     /**
      * LUỒNG NẠP RIÊNG CHO TÀI KHOẢN HỆ THỐNG (CÁN BỘ / BẢO VỆ):
      * - Bắt buộc có đủ 4 cột: user_code, full_name, email, role.
-     * - Cột role bắt buộc có giá trị và chỉ chấp nhận: GUARD, FACILITY_MANAGER, ADMIN.
-     * - Từ chối NORMAL_USER hoặc để trống role.
+     * - Cột role bắt buộc có giá trị và chỉ chấp nhận: GUARD, FACILITY_MANAGER.
+     * - Từ chối NORMAL_USER, ADMIN hoặc để trống role.
      * - Hỗ trợ cả file Excel (.xlsx / .xls) và file CSV (.csv) trong file ZIP.
      */
     public BulkImportResponse bulkImportStaffUsers(MultipartFile zipFile) {
@@ -331,7 +336,7 @@ public class UserBulkImportService {
                         targetRole = null;
                     }
 
-                    if (targetRole == null || !SYSTEM_ROLES.contains(targetRole)) {
+                    if (targetRole == Role.ADMIN) {
                         failureCount++;
                         rowResults.add(BulkImportRowResult.builder()
                                 .rowIndex(rowIndex)
@@ -340,7 +345,21 @@ public class UserBulkImportService {
                                 .email(email)
                                 .role(rawRole)
                                 .status("FAILED")
-                                .errorMessage("Vai trò không hợp lệ cho tài khoản hệ thống (chỉ chấp nhận: GUARD, FACILITY_MANAGER, ADMIN). Không chấp nhận NORMAL_USER.")
+                                .errorMessage("Hệ thống chỉ cho phép duy nhất 1 Quản trị viên (ADMIN). Không thể nạp tài khoản Quản trị viên.")
+                                .build());
+                        continue;
+                    }
+
+                    if (targetRole == null || !STAFF_ALLOWED_ROLES.contains(targetRole)) {
+                        failureCount++;
+                        rowResults.add(BulkImportRowResult.builder()
+                                .rowIndex(rowIndex)
+                                .userCode(userCode)
+                                .fullName(fullName)
+                                .email(email)
+                                .role(rawRole)
+                                .status("FAILED")
+                                .errorMessage("Vai trò không hợp lệ cho tài khoản cán bộ (chỉ chấp nhận: GUARD, FACILITY_MANAGER). Không chấp nhận NORMAL_USER hoặc ADMIN.")
                                 .build());
                         continue;
                     }

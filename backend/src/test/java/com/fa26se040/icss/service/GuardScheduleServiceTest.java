@@ -3,7 +3,6 @@ package com.fa26se040.icss.service;
 import com.fa26se040.icss.dto.guard.BulkClearShiftsRequest;
 import com.fa26se040.icss.dto.guard.BulkClearShiftsResponse;
 import com.fa26se040.icss.dto.guard.GuardShiftDto;
-import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.GuardShift;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.Role;
@@ -57,8 +56,6 @@ class GuardScheduleServiceTest {
     private GuardScheduleService guardScheduleService;
 
     private User guardUser;
-    private Area securityRoomArea;
-    private Area gateArea;
 
     @BeforeEach
     void setUp() {
@@ -68,18 +65,6 @@ class GuardScheduleServiceTest {
                 .userCode("SEC-001")
                 .role(Role.GUARD)
                 .email("guard.an@fpt.edu.vn")
-                .build();
-
-        securityRoomArea = Area.builder()
-                .id(UUID.randomUUID())
-                .name("Phòng bảo vệ Tòa Alpha")
-                .building("TOA_ALPHA")
-                .build();
-
-        gateArea = Area.builder()
-                .id(UUID.randomUUID())
-                .name("Sảnh cổng chính")
-                .building("TOA_ALPHA")
                 .build();
     }
 
