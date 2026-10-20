@@ -303,6 +303,57 @@ class IncidentEscalationJobTest {
     }
 
     @Test
+    @DisplayName("S5: không có FM active -> bản ghi giữ mở, ADMIN nhận 1 lần; chạy lại không gửi lặp")
+    void noActiveFm_keepsOpen_notifiesAdminsOnce() {
+        IncidentEscalation e = escalation(IncidentStatus.NEW, 10, 1);
+        User admin = User.builder().id(UUID.randomUUID()).fullName("Admin").role(Role.ADMIN).build();
+        givenEscalation(e);
+        givenFmMinutes(5);
+        when(userRepository.findActiveUsersByRole(Role.FACILITY_MANAGER)).thenReturn(List.of());
+        when(userRepository.findActiveUsersByRole(Role.ADMIN)).thenReturn(List.of(admin));
+        when(escalationRepository.markAdminNoFmNotifiedIfNot(e.getId(), NOW)).thenReturn(1, 0);
+
+        assertEquals(Outcome.WAITING_FOR_FM, job.processEscalation(e.getId(), NOW));
+        assertEquals(Outcome.WAITING_FOR_FM, job.processEscalation(e.getId(), NOW));
+
+        verify(escalationRepository, never()).markEscalatedIfOpen(any(), any());
+        verify(escalationRepository, never()).closeIfOpen(any(), any(), any());
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<User>> recipients = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<String> message = ArgumentCaptor.forClass(String.class);
+        verify(inAppNotificationService, times(1)).createForUsers(recipients.capture(),
+                eq(NotificationType.INCIDENT_ESCALATION_NO_FM), anyString(), message.capture(),
+                eq(e.getIncident().getId()), eq(IncidentEscalationJob.REF_TYPE_SECURITY_INCIDENT));
+        assertEquals(List.of(admin), recipients.getValue());
+        assertTrue(message.getValue().startsWith("Không có Quản lý CSVC nào đang hoạt động để nhận leo thang sự cố"));
+        verify(inAppNotificationService, never()).createForUsers(anyList(), eq(NotificationType.INCIDENT_ESCALATED),
+                anyString(), anyString(), any(), anyString());
+        verifyNoInteractions(messagingTemplate);
+    }
+
+    @Test
+    @DisplayName("S5: lần trước không có FM, nay có FM active -> lần chạy kế báo FM như thường")
+    void fmBecomesActive_escalatedAtNextRun() {
+        IncidentEscalation e = escalation(IncidentStatus.NEW, 10, 1);
+        givenEscalation(e);
+        givenFmMinutes(5);
+        when(userRepository.findActiveUsersByRole(Role.FACILITY_MANAGER)).thenReturn(List.of(), List.of(fm));
+        when(userRepository.findActiveUsersByRole(Role.ADMIN)).thenReturn(List.of());
+        when(escalationRepository.markAdminNoFmNotifiedIfNot(e.getId(), NOW)).thenReturn(1);
+        when(escalationRepository.markEscalatedIfOpen(e.getId(), NOW)).thenReturn(1);
+        when(inAppNotificationService.createForUsers(anyList(), eq(NotificationType.INCIDENT_ESCALATED), anyString(), anyString(), any(), anyString()))
+                .thenReturn(List.of(new Notification()));
+
+        assertEquals(Outcome.WAITING_FOR_FM, job.processEscalation(e.getId(), NOW));
+        assertEquals(Outcome.ESCALATED, job.processEscalation(e.getId(), NOW));
+
+        verify(inAppNotificationService).createForUsers(eq(List.of(fm)), eq(NotificationType.INCIDENT_ESCALATED),
+                anyString(), anyString(), eq(e.getIncident().getId()), eq(IncidentEscalationJob.REF_TYPE_SECURITY_INCIDENT));
+        verify(escalationRepository).updateFmRecipientCount(e.getId(), 1);
+        verify(messagingTemplate).convertAndSend(eq(IncidentEscalationJob.FM_TOPIC), any(Object.class));
+    }
+
+    @Test
     @DisplayName("BR-IE-03: sự cố không có bản ghi leo thang -> job không thấy, không gửi gì")
     void incidentWithoutEscalationRecord_ignored() {
         when(escalationRepository.findOpenIds()).thenReturn(List.of());

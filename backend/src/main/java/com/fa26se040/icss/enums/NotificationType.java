@@ -31,5 +31,7 @@ public enum NotificationType {
     // B-03 (BR-RQ-46, V70): FM chuyển đơn đã duyệt sang Hoàn thành
     REQUEST_FINISHED,
     // BR-IE-04 (V80): sự cố quá hạn chưa bảo vệ nào tiếp nhận -> báo FM
-    INCIDENT_ESCALATED
+    INCIDENT_ESCALATED,
+    // S5 (V84): ADMIN nhận khi sự cố cần leo thang mà không có Quản lý CSVC nào đang hoạt động
+    INCIDENT_ESCALATION_NO_FM
 }

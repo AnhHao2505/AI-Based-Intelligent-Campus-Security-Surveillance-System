@@ -35,6 +35,8 @@ icss:
 app:
   jwt:
     secret: test-only-jwt-62e0fdf877032ac0cf424858761bd9b5083d9097282d4a5525786d4ecde99040 # test-only, not a real secret
+  # S3: khác giá trị mặc định để test chứng minh link đặt lại mật khẩu đọc từ cấu hình
+  frontend-base-url: http://frontend.test.local/
 
 minio:
   secret-key: test-only-minio-88babfda7721fbeb40a6dff0bf28705c # test-only, not a real secret

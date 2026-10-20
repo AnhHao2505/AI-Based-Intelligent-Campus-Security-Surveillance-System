@@ -2,6 +2,7 @@ package com.fa26se040.icss.config;
 
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.Role;
+import com.fa26se040.icss.repository.UserRepository;
 import com.fa26se040.icss.security.JwtTokenProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -17,13 +18,19 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 
 import java.security.Principal;
+import java.time.OffsetDateTime;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class WebSocketAuthChannelInterceptorTest {
 
@@ -34,6 +41,8 @@ class WebSocketAuthChannelInterceptorTest {
     private JwtTokenProvider jwtTokenProvider;
     private WebSocketAuthChannelInterceptor interceptor;
     private final MessageChannel channel = mock(MessageChannel.class);
+    /** "DB" của test: email -> user. User không có ở đây coi như không tồn tại. */
+    private final Map<String, User> usersByEmail = new HashMap<>();
 
     private User guardA;
     private User guardB;
@@ -43,7 +52,10 @@ class WebSocketAuthChannelInterceptorTest {
     @BeforeEach
     void setUp() {
         jwtTokenProvider = new JwtTokenProvider(SECRET, ONE_HOUR_MS);
-        interceptor = new WebSocketAuthChannelInterceptor(jwtTokenProvider);
+        UserRepository userRepository = mock(UserRepository.class);
+        when(userRepository.findByEmail(anyString()))
+                .thenAnswer(inv -> Optional.ofNullable(usersByEmail.get(inv.<String>getArgument(0))));
+        interceptor = new WebSocketAuthChannelInterceptor(jwtTokenProvider, userRepository);
 
         guardA = user("guard.a@fpt.edu.vn", Role.GUARD);
         guardB = user("guard.b@fpt.edu.vn", Role.GUARD);
@@ -205,6 +217,88 @@ class WebSocketAuthChannelInterceptorTest {
         assertThrows(MessagingException.class, () -> interceptor.preSend(subscribe, channel));
     }
 
+    // ───────────── Trạng thái tài khoản trong DB (S1b) ─────────────
+
+    @Test
+    @DisplayName("CONNECT bằng token cũ của tài khoản đã vô hiệu hoá -> lỗi")
+    void connect_DeactivatedUser_Rejected() {
+        String token = jwtTokenProvider.generateToken(guardA);
+        guardA.setIsActive(false);
+
+        assertThrows(MessagingException.class, () -> interceptor.preSend(
+                stomp(StompCommand.CONNECT, null, null, "Bearer " + token), channel));
+    }
+
+    @Test
+    @DisplayName("CONNECT bằng token cũ của tài khoản đã xoá mềm -> lỗi")
+    void connect_SoftDeletedUser_Rejected() {
+        String token = jwtTokenProvider.generateToken(guardA);
+        guardA.setDeletedAt(OffsetDateTime.now());
+
+        assertThrows(MessagingException.class, () -> interceptor.preSend(
+                stomp(StompCommand.CONNECT, null, null, "Bearer " + token), channel));
+    }
+
+    @Test
+    @DisplayName("CONNECT bằng token hợp lệ của user không có trong DB -> lỗi")
+    void connect_UnknownUser_Rejected() {
+        User ghost = User.builder().id(UUID.randomUUID()).email("ghost@fpt.edu.vn").fullName("ghost")
+                .userCode("ghost").role(Role.ADMIN).build();
+        String token = jwtTokenProvider.generateToken(ghost);
+
+        assertThrows(MessagingException.class, () -> interceptor.preSend(
+                stomp(StompCommand.CONNECT, null, null, "Bearer " + token), channel));
+    }
+
+    @Test
+    @DisplayName("CONNECT lấy role từ DB, không lấy role trong token")
+    void connect_RoleFromDatabase() {
+        String token = jwtTokenProvider.generateToken(normalUser);
+        normalUser.setRole(Role.FACILITY_MANAGER);
+
+        Message<?> result = interceptor.preSend(stomp(StompCommand.CONNECT, null, null, "Bearer " + token), channel);
+        Authentication authentication = assertInstanceOf(Authentication.class,
+                SimpMessageHeaderAccessor.getUser(result.getHeaders()));
+        assertEquals("ROLE_FACILITY_MANAGER", authentication.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority).findFirst().orElseThrow());
+    }
+
+    @Test
+    @DisplayName("Tài khoản bị vô hiệu hoá sau khi CONNECT -> SUBSCRIBE tiếp theo bị từ chối")
+    void subscribe_DeactivatedAfterConnect_Rejected() {
+        Principal principal = connectAs(guardA);
+        guardA.setIsActive(false);
+
+        assertThrows(MessagingException.class, () -> interceptor.preSend(
+                stomp(StompCommand.SUBSCRIBE, principal, "/topic/security-alerts", null), channel));
+        assertThrows(MessagingException.class, () -> interceptor.preSend(
+                stomp(StompCommand.SUBSCRIBE, principal, "/topic/guards/" + guardA.getId() + "/alerts", null), channel));
+    }
+
+    @Test
+    @DisplayName("Tài khoản bị xoá mềm sau khi CONNECT -> SUBSCRIBE bị từ chối")
+    void subscribe_SoftDeletedAfterConnect_Rejected() {
+        Principal principal = connectAs(facilityManager);
+        facilityManager.setDeletedAt(OffsetDateTime.now());
+
+        assertThrows(MessagingException.class, () -> interceptor.preSend(
+                stomp(StompCommand.SUBSCRIBE, principal, "/topic/incidents/updates", null), channel));
+    }
+
+    @Test
+    @DisplayName("Đổi role sau khi CONNECT -> SUBSCRIBE dùng role mới ngay (hạ thì mất quyền, nâng thì có quyền)")
+    void subscribe_RoleChangedAfterConnect_UsesDatabaseRole() {
+        Principal guardPrincipal = connectAs(guardA);
+        Principal normalPrincipal = connectAs(normalUser);
+        guardA.setRole(Role.NORMAL_USER);
+        normalUser.setRole(Role.FACILITY_MANAGER);
+
+        assertThrows(MessagingException.class, () -> interceptor.preSend(
+                stomp(StompCommand.SUBSCRIBE, guardPrincipal, "/topic/security-alerts", null), channel));
+        assertDoesNotThrow(() -> interceptor.preSend(
+                stomp(StompCommand.SUBSCRIBE, normalPrincipal, "/topic/security-alerts", null), channel));
+    }
+
     // ───────────── SEND ─────────────
 
     @Test
@@ -262,13 +356,15 @@ class WebSocketAuthChannelInterceptorTest {
         return MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
     }
 
-    private static User user(String email, Role role) {
-        return User.builder()
+    private User user(String email, Role role) {
+        User user = User.builder()
                 .id(UUID.randomUUID())
                 .email(email)
                 .fullName(email)
                 .userCode(email.substring(0, email.indexOf('@')))
                 .role(role)
                 .build();
+        usersByEmail.put(email, user);
+        return user;
     }
 }

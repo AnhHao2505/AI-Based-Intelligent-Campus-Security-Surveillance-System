@@ -20,9 +20,12 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
+import java.util.EnumMap;
+import java.util.Map;
 import java.util.UUID;
 
 import com.fa26se040.icss.AbstractIntegrationTest;
+import com.fa26se040.icss.repository.UserRepository;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -54,15 +57,23 @@ class AccessControlSecurityTest extends AbstractIntegrationTest {
 
     private final UUID sampleId = UUID.randomUUID();
 
+    @Autowired
+    private UserRepository userRepository;
+
+    // S1 (20/10): filter JWT tra user trong DB nên token phải thuộc user có thật, đang hoạt động
+    private final Map<Role, User> usersByRole = new EnumMap<>(Role.class);
+
     private String tokenFor(Role role) {
-        User u = User.builder()
-                .id(UUID.randomUUID())
-                .userCode("TEST-" + role.name().substring(0, 3))
-                .email(role.name().toLowerCase() + "@fpt.edu.vn")
-                .fullName("Test " + role.name())
-                .role(role)
-                .isActive(true)
-                .build();
+        User u = usersByRole.computeIfAbsent(role, r -> {
+            String suffix = UUID.randomUUID().toString().substring(0, 8);
+            return userRepository.save(User.builder()
+                    .userCode("TEST-" + r.name().substring(0, 3) + "-" + suffix)
+                    .email(r.name().toLowerCase() + "." + suffix + "@fpt.edu.vn")
+                    .fullName("Test " + r.name())
+                    .role(r)
+                    .isActive(true)
+                    .build());
+        });
         return "Bearer " + jwtTokenProvider.generateToken(u);
     }
 

@@ -1,5 +1,7 @@
 package com.fa26se040.icss.config;
 
+import com.fa26se040.icss.entity.User;
+import com.fa26se040.icss.repository.UserRepository;
 import com.fa26se040.icss.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +20,7 @@ import org.springframework.stereotype.Component;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
@@ -62,6 +65,7 @@ public class WebSocketAuthChannelInterceptor implements ChannelInterceptor {
             "^/topic/guards/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})(/.*)?$");
 
     private final JwtTokenProvider jwtTokenProvider;
+    private final UserRepository userRepository;
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
@@ -95,29 +99,34 @@ public class WebSocketAuthChannelInterceptor implements ChannelInterceptor {
         }
 
         String email;
-        String role;
-        UUID userId;
         try {
             email = jwtTokenProvider.getEmailFromToken(token);
-            role = jwtTokenProvider.getRoleFromToken(token);
-            userId = jwtTokenProvider.getUserIdFromToken(token);
         } catch (RuntimeException e) {
             log.warn("STOMP CONNECT bị từ chối (session {}): không đọc được claims", accessor.getSessionId());
             throw new MessagingException(message, "Token không hợp lệ hoặc đã hết hạn");
         }
-        if (email == null || role == null) {
+        if (email == null) {
             throw new MessagingException(message, "Token không hợp lệ hoặc đã hết hạn");
         }
 
-        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                email, null, List.of(new SimpleGrantedAuthority("ROLE_" + role)));
-        authentication.setDetails(userId);
-        return authentication;
+        // Như JwtAuthenticationFilter: tài khoản đã xoá / vô hiệu hoá không dùng được token cũ, role và id lấy từ DB
+        User user = findUsableUser(email).orElseThrow(() -> {
+            log.warn("STOMP CONNECT bị từ chối (session {}): tài khoản không tồn tại hoặc không hoạt động",
+                    accessor.getSessionId());
+            return new MessagingException(message, "Token không hợp lệ hoặc đã hết hạn");
+        });
+        return toAuthentication(user);
     }
 
     private void authorizeSubscribe(StompHeaderAccessor accessor, Message<?> message) {
         Authentication authentication = requireAuthenticated(accessor, message);
         String destination = accessor.getDestination();
+        // Tra lại DB mỗi lần SUBSCRIBE: tài khoản bị khoá sau khi CONNECT không subscribe thêm được, đổi role có hiệu lực ngay
+        User user = findUsableUser(authentication.getName()).orElse(null);
+        if (user == null) {
+            throw deny(message, authentication, destination);
+        }
+        authentication = toAuthentication(user);
         if (destination == null || !destination.startsWith(TOPIC_PREFIX)) {
             throw deny(message, authentication, destination);
         }
@@ -161,6 +170,21 @@ public class WebSocketAuthChannelInterceptor implements ChannelInterceptor {
         }
         log.warn("STOMP {} bị từ chối (session {}): chưa xác thực", accessor.getCommand(), accessor.getSessionId());
         throw new MessagingException(message, "Chưa xác thực WebSocket");
+    }
+
+    private Optional<User> findUsableUser(String email) {
+        if (email == null) {
+            return Optional.empty();
+        }
+        return userRepository.findByEmail(email)
+                .filter(u -> u.getDeletedAt() == null && Boolean.TRUE.equals(u.getIsActive()) && u.getRole() != null);
+    }
+
+    private static Authentication toAuthentication(User user) {
+        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                user.getEmail(), null, List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name())));
+        authentication.setDetails(user.getId());
+        return authentication;
     }
 
     private MessagingException deny(Message<?> message, Authentication authentication, String destination) {

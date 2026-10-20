@@ -83,6 +83,9 @@ class IncidentEscalationIntegrationTest extends AbstractIntegrationTest {
     private SystemConfigurationRepository systemConfigurationRepository;
     @Autowired
     private NotificationRepository notificationRepository;
+
+    @Autowired
+    private InAppNotificationService inAppNotificationService;
     @Autowired
     private UserRepository userRepository;
     @Autowired
@@ -235,6 +238,41 @@ class IncidentEscalationIntegrationTest extends AbstractIntegrationTest {
         assertNotNull(reloaded.getFmEscalatedAt());
         assertEquals(reloaded.getFmEscalatedAt().toInstant(), reloaded.getClosedAt().toInstant());
         assertFalse(escalationRepository.findOpenIds().contains(saved.getId()));
+    }
+
+    @Test
+    @DisplayName("V84 / S5: mốc báo ADMIN chỉ giành được 1 lần, bản ghi vẫn mở và sau đó vẫn leo thang FM được")
+    void adminNoFmMark_onceAndRecordStaysOpen() {
+        IncidentEscalation saved = saveIncidentWithEscalation(IncidentStatus.NEW, 1);
+        OffsetDateTime now = OffsetDateTime.now();
+
+        assertEquals(1, inTx(() -> escalationRepository.markAdminNoFmNotifiedIfNot(saved.getId(), now)));
+        assertEquals(0, inTx(() -> escalationRepository.markAdminNoFmNotifiedIfNot(saved.getId(), now.plusSeconds(30))));
+
+        IncidentEscalation reloaded = escalationRepository.findById(saved.getId()).orElseThrow();
+        assertNotNull(reloaded.getAdminNoFmNotifiedAt());
+        assertNull(reloaded.getClosedAt());
+        assertTrue(escalationRepository.findOpenIds().contains(saved.getId()));
+
+        // Khi đã có FM: bản ghi vẫn giành được quyền báo FM như thường
+        assertEquals(1, inTx(() -> escalationRepository.markEscalatedIfOpen(saved.getId(), now.plusSeconds(60))));
+    }
+
+    @Test
+    @DisplayName("V84: CHECK của notifications nhận INCIDENT_ESCALATION_NO_FM, lưu được cho ADMIN (không bị BR-NT-26 lọc)")
+    void noFmNotificationType_storedForAdmin() {
+        IncidentEscalation saved = saveIncidentWithEscalation(IncidentStatus.NEW, 1);
+        UUID incidentId = saved.getIncident().getId();
+
+        inAppNotificationService.createForUsers(List.of(adminUser), NotificationType.INCIDENT_ESCALATION_NO_FM,
+                "Không có Quản lý CSVC nhận leo thang sự cố", "Kiểm thử V84", incidentId,
+                IncidentEscalationJob.REF_TYPE_SECURITY_INCIDENT);
+
+        List<Notification> adminInbox = notificationRepository
+                .findByRecipientIdOrderByCreatedAtDesc(adminUser.getId(), PageRequest.of(0, 50)).getContent();
+        assertEquals(1, adminInbox.stream()
+                .filter(n -> incidentId.equals(n.getReferenceId()) && n.getType() == NotificationType.INCIDENT_ESCALATION_NO_FM)
+                .count());
     }
 
     @Test

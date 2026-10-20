@@ -36,12 +36,24 @@ public class AuthService {
     @Value("${app.jwt.expiration-ms}")
     private long jwtExpirationMs;
 
+    @Value("${app.frontend-base-url}")
+    private String frontendBaseUrl;
+
+    /**
+     * S2: không để lộ e-mail nào có tài khoản. Controller luôn trả cùng một câu; chỉ tài khoản tồn tại,
+     * đang hoạt động và chưa xoá mới được tạo token và gửi mail. Lỗi gửi mail cũng không lộ ra ngoài.
+     */
     public void sendResetLink(ForgotPasswordRequest request) {
         String email = request.getEmail();
         log.info("Sending reset password link to email: {}", email);
 
-        userRepository.findByEmailAndIsActiveTrue(email)
-                .orElseThrow(() -> new UnauthorizedException("Email not found or account is deactivated"));
+        boolean eligible = userRepository.findByEmailAndIsActiveTrue(email)
+                .filter(u -> u.getDeletedAt() == null)
+                .isPresent();
+        if (!eligible) {
+            log.info("Reset link not sent: no active account for the given email");
+            return;
+        }
 
         String token = java.util.UUID.randomUUID().toString();
         PasswordResetToken resetToken = PasswordResetToken.builder()
@@ -52,8 +64,13 @@ public class AuthService {
 
         passwordResetTokenRepository.save(resetToken);
 
-        String resetLink = "http://localhost:5173/?token=" + token;
-        notificationService.sendResetPasswordEmail(email, resetLink);
+        String baseUrl = frontendBaseUrl.endsWith("/") ? frontendBaseUrl.substring(0, frontendBaseUrl.length() - 1) : frontendBaseUrl;
+        String resetLink = baseUrl + "/?token=" + token;
+        try {
+            notificationService.sendResetPasswordEmail(email, resetLink);
+        } catch (Exception e) {
+            log.error("Failed to send reset password email", e);
+        }
     }
 
     public void resetPassword(ResetPasswordRequest request) {

@@ -48,6 +48,16 @@ public interface IncidentEscalationRepository extends JpaRepository<IncidentEsca
                     @Param("reason") EscalationCloseReason reason,
                     @Param("now") OffsetDateTime now);
 
+    /**
+     * S5 (V84): không có FM active -> chỉ một lần chạy giành được quyền báo ADMIN; bản ghi vẫn mở.
+     * 1 dòng -> được gửi; 0 dòng -> đã báo ADMIN trước đó (hoặc bản ghi đã đóng).
+     */
+    @Modifying(clearAutomatically = false, flushAutomatically = true)
+    @Query("UPDATE IncidentEscalation e " +
+           "SET e.adminNoFmNotifiedAt = :now " +
+           "WHERE e.id = :id AND e.closedAt IS NULL AND e.adminNoFmNotifiedAt IS NULL")
+    int markAdminNoFmNotifiedIfNot(@Param("id") UUID id, @Param("now") OffsetDateTime now);
+
     @Modifying(clearAutomatically = false, flushAutomatically = true)
     @Query("UPDATE IncidentEscalation e SET e.fmRecipientCount = :count WHERE e.id = :id")
     int updateFmRecipientCount(@Param("id") UUID id, @Param("count") int count);
