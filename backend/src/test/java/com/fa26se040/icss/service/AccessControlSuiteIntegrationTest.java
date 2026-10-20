@@ -6,7 +6,6 @@ import com.fa26se040.icss.dto.accessrequest.*;
 import com.fa26se040.icss.dto.area.*;
 import com.fa26se040.icss.dto.guest.GuestAccessDecision;
 import com.fa26se040.icss.dto.accesscontrol.LevelPresetUpdateRequest;
-import com.fa26se040.icss.dto.systemconfig.SystemConfigUpdateRequest;
 import com.fa26se040.icss.entity.*;
 import com.fa26se040.icss.enums.*;
 import com.fa26se040.icss.exception.AccessControlErrorCode;
@@ -21,7 +20,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.*;
@@ -72,9 +70,6 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
     private AccessRequestRepository accessRequestRepository;
 
     @Autowired
-    private AccessRequestMemberRepository accessRequestMemberRepository;
-
-    @Autowired
     private GuestVisitRepository guestVisitRepository;
 
     @Autowired
@@ -87,22 +82,13 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
     private SecurityIncidentRepository securityIncidentRepository;
 
     @Autowired
-    private AreaEventSessionRepository sessionRepository;
-
-    @Autowired
     private AreaLevelPresetRepository areaLevelPresetRepository;
-
-    @Autowired
-    private AuditLogRepository auditLogRepository;
 
     @Autowired
     private MockMvc mockMvc;
 
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
-
-    @Autowired
-    private com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
     @Autowired
     private jakarta.persistence.EntityManager entityManager;
@@ -411,7 +397,6 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
     void tc_ce_04() {
         OffsetDateTime now = OffsetDateTime.now();
         OffsetDateTime start = now.plusHours(1);
-        OffsetDateTime end = now.plusHours(3);
 
         // 1. Không AP/đơn -> DENIED
         assertFalse(accessDecisionService.checkEntry(normalUserL3.getId(), highlyConfidentialArea.getId(), now).allowed());
@@ -430,18 +415,6 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
         assertEquals(AccessSource.ASSIGNED_PERSONNEL, dAp.source());
         assignedPersonnelRepository.delete(aap);
 
-        // 3. Đơn cá nhân APPROVED -> ALLOWED
-        AccessRequest req = accessRequestRepository.save(AccessRequest.builder()
-                .requestType(RequestType.INDIVIDUAL)
-                .area(highlyConfidentialArea)
-                .requester(normalUserL3)
-                .status(RequestStatus.APPROVED)
-                .startTime(start)
-                .endTime(end)
-                .purpose("Bao tri he thong")
-                .reviewer(fmUser)
-                .reviewedAt(now)
-                .build());
         AccessDecision dReq = accessDecisionService.checkEntry(normalUserL3.getId(), highlyConfidentialArea.getId(), start.plusMinutes(30));
         assertTrue(dReq.allowed());
         assertEquals(AccessSource.ACCESS_REQUEST, dReq.source());
@@ -794,15 +767,6 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
     @DisplayName("TC-AA-07: Vô hiệu hoá thành công thu hồi AP, huỷ đơn PENDING/APPROVED; khôi phục không làm sống lại; vô hiệu hoá lần 2 -> 053; khôi phục khu vực đang active -> 054")
     void tc_aa_07() {
         OffsetDateTime now = OffsetDateTime.now();
-
-        // Tạo AP và đơn PENDING, APPROVED
-        AreaAssignedPersonnel aap = assignedPersonnelRepository.save(AreaAssignedPersonnel.builder()
-                .area(contactArea)
-                .user(normalUserL1)
-                .validFrom(now.minusHours(1))
-                .validTo(now.plusHours(5))
-                .createdBy(fmUser)
-                .build());
 
         AccessRequest pendingReq = accessRequestRepository.save(AccessRequest.builder()
                 .requestType(RequestType.INDIVIDUAL)

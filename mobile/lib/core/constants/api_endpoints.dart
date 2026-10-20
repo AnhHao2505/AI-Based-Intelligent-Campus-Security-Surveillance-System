@@ -48,8 +48,4 @@ class ApiEndpoints {
   static String get testAlert => '$baseUrl/api/incidents/test-alert';
   static String get testAlertBatch => '$baseUrl/api/incidents/test-alert/batch';
 
-  // Guard Location & Geofence endpoints
-  static String get updateMyLocation => '$baseUrl/api/guards/me/location';
-  static String get activeGuardLocations => '$baseUrl/api/guards/active-locations';
-  static String get campusGeofence => '$baseUrl/api/campus/geofence';
 }
