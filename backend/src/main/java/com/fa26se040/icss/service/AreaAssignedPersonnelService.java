@@ -37,6 +37,11 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AreaAssignedPersonnelService {
 
+    /** BR-AP-24: lý do thu hồi AP khi tài khoản người được gán bị vô hiệu hoá. */
+    public static final String REVOKE_REASON_USER_DEACTIVATED = "Tài khoản người được gán đã bị vô hiệu hoá";
+    /** BR-AP-25: lý do thu hồi AP khi tài khoản người được gán bị xoá (lẻ hoặc theo lô import). */
+    public static final String REVOKE_REASON_USER_DELETED = "Tài khoản người được gán đã bị xoá";
+
     private final AreaAssignedPersonnelRepository assignedPersonnelRepository;
     private final AreaRepository areaRepository;
     private final UserRepository userRepository;
@@ -248,6 +253,44 @@ public class AreaAssignedPersonnelService {
         );
 
         return mapToResponse(saved, now);
+    }
+
+    /**
+     * BR-AP-24/25/26: thu hồi mọi AP ACTIVE + UPCOMING của một user khi tài khoản bị vô hiệu hoá hoặc xoá.
+     * revoked_by = ADMIN đang thao tác, audit từng AP (AREA_ASSIGNMENT / REVOKE) theo correlation của thao tác.
+     * KHÔNG gửi thông báo (tài khoản không còn đăng nhập được). Chạy trong transaction của thao tác gọi, caller
+     * phải khoá dòng users trước (BR-AP-27). Kích hoạt lại / khôi phục tài khoản không trả lại AP.
+     *
+     * @return số AP đã thu hồi
+     */
+    @Transactional
+    public int revokeAllOfUser(UUID userId, User actor, String reason, OffsetDateTime now) {
+        java.util.Objects.requireNonNull(actor, "actor");
+        List<AreaAssignedPersonnel> aps = assignedPersonnelRepository.findNotRevokedNotExpiredByUser(userId, now);
+        for (AreaAssignedPersonnel ap : aps) {
+            AssignedPersonnelStatus oldStatus = computeStatus(ap, now);
+            ap.setRevokedAt(now);
+            ap.setRevokedBy(actor);
+            ap.setRevokeReason(reason);
+            ap.setUpdatedAt(now);
+            assignedPersonnelRepository.save(ap);
+            auditService.record(
+                    com.fa26se040.icss.enums.AuditTargetType.AREA_ASSIGNMENT,
+                    com.fa26se040.icss.enums.AuditAction.REVOKE,
+                    ap.getId().toString(),
+                    ap.getArea(),
+                    ap.getUser(),
+                    new com.fa26se040.icss.dto.accesscontrol.snapshot.AreaAssignmentAuditSnapshot(ap.getValidFrom(), ap.getValidTo(), oldStatus),
+                    new com.fa26se040.icss.dto.accesscontrol.snapshot.AreaAssignmentAuditSnapshot(ap.getValidFrom(), ap.getValidTo(),
+                            AssignedPersonnelStatus.REVOKED),
+                    reason,
+                    actor
+            );
+        }
+        if (!aps.isEmpty()) {
+            log.info("Revoked {} assigned personnel records of user {} by {}: {}", aps.size(), userId, actor.getEmail(), reason);
+        }
+        return aps.size();
     }
 
     /**
