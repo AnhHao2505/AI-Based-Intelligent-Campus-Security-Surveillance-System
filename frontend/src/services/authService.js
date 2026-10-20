@@ -112,6 +112,7 @@ export async function loginWithCredentials(email, password) {
 /**
  * Gửi yêu cầu nhận link reset password qua email
  * Giữ nguyên fetch trực tiếp do gọi khi chưa đăng nhập
+ * Backend luôn trả 200 với cùng một câu dù email có tồn tại hay không; trả về câu đó để hiển thị
  */
 export async function sendResetLink(email) {
   const response = await fetch(`${API_BASE_URL}/api/auth/send-reset-link`, {
@@ -128,6 +129,9 @@ export async function sendResetLink(email) {
       .catch(() => ({ message: 'Gửi yêu cầu thất bại' }));
     throw new Error(error.message || `HTTP ${response.status}`);
   }
+
+  const json = await response.json().catch(() => null);
+  return json?.message;
 }
 
 /**
