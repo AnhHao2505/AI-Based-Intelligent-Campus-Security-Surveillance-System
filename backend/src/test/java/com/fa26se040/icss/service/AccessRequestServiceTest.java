@@ -31,6 +31,7 @@ import com.fa26se040.icss.security.MemberLookupRateLimiter;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.access.AccessDeniedException;
 
@@ -76,6 +77,9 @@ class AccessRequestServiceTest {
 
     @Mock
     private AuditService auditService;
+
+    @Spy
+    private ReasonValidator reasonValidator = ReasonValidatorTestSupport.withDefaults();
 
     @InjectMocks
     private AccessRequestService accessRequestService;

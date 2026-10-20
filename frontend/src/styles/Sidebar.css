@@ -53,7 +53,8 @@
 .sidebar__collapse-button {
   position: absolute;
   top: 18px;
-  right: 14px;
+  /* Nằm trong lề phải của sidebar, cách chữ "FPTU SecureVision" ~8px */
+  right: 6px;
   width: 28px;
   height: 28px;
   border: 1px solid var(--theme-border);
@@ -92,12 +93,16 @@
 
 .sidebar--collapsed .sidebar__brand {
   justify-content: center;
+  gap: 0;
   padding: 0;
 }
 
+/* Sidebar thu gọn chỉ rộng 76px: nút nằm trong luồng, ngay dưới logo, không đè lên logo */
 .sidebar--collapsed .sidebar__collapse-button {
-  top: 14px;
-  right: 6px;
+  position: static;
+  align-self: center;
+  flex-shrink: 0;
+  margin: -16px 0 -8px;
 }
 
 .sidebar--collapsed .sidebar__link {

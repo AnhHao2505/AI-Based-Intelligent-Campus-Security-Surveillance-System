@@ -1,9 +1,11 @@
 package com.fa26se040.icss.controller;
 
 import com.fa26se040.icss.dto.common.ApiResponse;
+import com.fa26se040.icss.dto.systemconfig.ReasonLimits;
 import com.fa26se040.icss.dto.systemconfig.SystemConfigChangeLogResponse;
 import com.fa26se040.icss.dto.systemconfig.SystemConfigResponse;
 import com.fa26se040.icss.dto.systemconfig.SystemConfigUpdateRequest;
+import com.fa26se040.icss.service.ReasonValidator;
 import com.fa26se040.icss.service.SystemConfigService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -30,11 +32,22 @@ import java.util.Map;
 public class SystemConfigController {
 
     private final SystemConfigService systemConfigService;
+    private final ReasonValidator reasonValidator;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
     public ResponseEntity<ApiResponse<List<SystemConfigResponse>>> getAll() {
         return ResponseEntity.ok(ApiResponse.success(systemConfigService.getAll(), "Lấy danh sách cấu hình hệ thống thành công"));
+    }
+
+    /**
+     * Checklist 6.1: độ dài lý do đang hiệu lực (REASON_MIN_LENGTH / REASON_MAX_LENGTH) cho mọi tài khoản đăng nhập,
+     * để form nhập lý do kiểm trước khi gửi. Chỉ trả 2 giá trị này, không mở danh sách cấu hình cho mọi role.
+     */
+    @GetMapping("/reason-limits")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<ReasonLimits>> getReasonLimits() {
+        return ResponseEntity.ok(ApiResponse.success(reasonValidator.limits(), "Lấy giới hạn độ dài lý do thành công"));
     }
 
     @PatchMapping("/{configKey}")
