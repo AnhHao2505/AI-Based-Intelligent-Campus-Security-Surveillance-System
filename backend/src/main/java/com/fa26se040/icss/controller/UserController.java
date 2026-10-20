@@ -178,10 +178,12 @@ public class UserController {
     @DeleteMapping("/import-batches/{batchId}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<BatchDeleteResponse>> deleteBatch(
-            @PathVariable UUID batchId
+            @PathVariable UUID batchId,
+            Authentication authentication
     ) {
-        log.info("Admin soft-deleting import batch: {}", batchId);
-        BatchDeleteResponse response = userService.deleteBatch(batchId);
+        String currentUserEmail = authentication != null ? authentication.getName() : null;
+        log.info("Admin {} soft-deleting import batch: {}", currentUserEmail, batchId);
+        BatchDeleteResponse response = userService.deleteBatch(batchId, currentUserEmail);
         return ResponseEntity.ok(ApiResponse.success(response, "Xóa lô import thành công"));
     }
 

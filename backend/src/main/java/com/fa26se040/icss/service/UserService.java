@@ -88,6 +88,8 @@ public class UserService {
     private final UserBulkImportService userBulkImportService;
     // BR-RQ-SP-05: vô hiệu hoá / xoá tài khoản -> hệ thống huỷ đơn truy cập người đó đứng tên (cùng transaction)
     private final AccessRequestService accessRequestService;
+    // BR-AP-24/25: vô hiệu hoá / xoá tài khoản -> thu hồi Assigned Personnel của người đó (cùng transaction)
+    private final AreaAssignedPersonnelService assignedPersonnelService;
     // BR-AL-30: kiểm đơn PENDING trước khi đổi cấp
     private final com.fa26se040.icss.repository.AccessRequestRepository accessRequestRepository;
 
@@ -267,6 +269,8 @@ public class UserService {
 
     @Transactional
     public UserListResponse toggleActive(UUID userId, String currentAdminEmail) {
+        // BR-AP-27: khoá dòng users trước khi đọc -> gán AP đồng thời cho người này phải chờ (rồi bị BR-AP-04 chặn)
+        userRepository.lockRowById(userId);
         User user = userRepository.findById(userId)
                 .filter(u -> u.getDeletedAt() == null)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với ID: " + userId));
@@ -276,13 +280,18 @@ public class UserService {
         }
 
         boolean deactivating = Boolean.TRUE.equals(user.getIsActive());
+        User actor = deactivating ? resolveAdminActor(currentAdminEmail) : null;
+        OffsetDateTime now = OffsetDateTime.now();
         user.setIsActive(!user.getIsActive());
-        user.setUpdatedAt(OffsetDateTime.now());
+        user.setUpdatedAt(now);
         User updatedUser = userRepository.save(user);
 
-        // BR-RQ-SP-05: chỉ chiều vô hiệu hoá huỷ đơn; kích hoạt lại KHÔNG khôi phục đơn đã huỷ
+        // BR-RQ-SP-05 + BR-AP-24: chỉ chiều vô hiệu hoá huỷ đơn và thu hồi AP; kích hoạt lại KHÔNG khôi phục gì
         if (deactivating) {
-            accessRequestService.cancelActiveRequestsOfRequester(userId, AccessRequestService.REQUESTER_INACTIVE_CANCEL_REASON);
+            withActionCorrelation(() -> {
+                accessRequestService.cancelActiveRequestsOfRequester(userId, AccessRequestService.REQUESTER_INACTIVE_CANCEL_REASON);
+                assignedPersonnelService.revokeAllOfUser(userId, actor, AreaAssignedPersonnelService.REVOKE_REASON_USER_DEACTIVATED, now);
+            });
         }
 
         log.info("Toggled active state for user {}: now {}", userId, updatedUser.getIsActive());
@@ -292,6 +301,8 @@ public class UserService {
 
     @Transactional
     public void softDelete(UUID userId, String currentAdminEmail) {
+        // BR-AP-27: khoá dòng users trước khi đọc
+        userRepository.lockRowById(userId);
         User user = userRepository.findById(userId)
                 .filter(u -> u.getDeletedAt() == null)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với ID: " + userId));
@@ -300,16 +311,48 @@ public class UserService {
             throw new IllegalArgumentException("Không thể tự xóa tài khoản của chính mình.");
         }
 
-        user.setDeletedAt(OffsetDateTime.now());
+        User actor = resolveAdminActor(currentAdminEmail);
+        OffsetDateTime now = OffsetDateTime.now();
+        user.setDeletedAt(now);
         user.setIsActive(false);
-        user.setUpdatedAt(OffsetDateTime.now());
+        user.setUpdatedAt(now);
         userRepository.save(user);
 
-        // BR-RQ-SP-05: xoá tài khoản -> huỷ đơn người đó đứng tên (cùng transaction)
-        accessRequestService.cancelActiveRequestsOfRequester(userId, AccessRequestService.REQUESTER_INACTIVE_CANCEL_REASON);
+        // BR-RQ-SP-05 + BR-AP-25: xoá tài khoản -> huỷ đơn người đó đứng tên và thu hồi AP (cùng transaction)
+        withActionCorrelation(() -> {
+            accessRequestService.cancelActiveRequestsOfRequester(userId, AccessRequestService.REQUESTER_INACTIVE_CANCEL_REASON);
+            assignedPersonnelService.revokeAllOfUser(userId, actor, AreaAssignedPersonnelService.REVOKE_REASON_USER_DELETED, now);
+        });
 
         log.info("Soft-deleted user {}", userId);
         notifyAiServiceRefreshCache();
+    }
+
+    /** BR-AP-24/25: ADMIN đang thao tác, ghi vào revoked_by và audit USER (chk_audit_actor cần changed_by). */
+    private User resolveAdminActor(String currentAdminEmail) {
+        if (currentAdminEmail == null) {
+            throw new UnauthorizedException("Phiên đăng nhập không hợp lệ");
+        }
+        return userRepository.findByEmail(currentAdminEmail)
+                .orElseThrow(() -> new UnauthorizedException("Phiên đăng nhập không hợp lệ"));
+    }
+
+    /**
+     * Mọi audit của một thao tác (huỷ đơn + thu hồi AP) dùng chung một correlation. Request HTTP đã có correlation
+     * từ AuditCorrelationFilter; gọi trực tiếp (test, job) thì tự đặt rồi gỡ, như AreaService.
+     */
+    private void withActionCorrelation(Runnable task) {
+        boolean ownCorrelation = com.fa26se040.icss.context.AuditContext.getCorrelationId() == null;
+        if (ownCorrelation) {
+            com.fa26se040.icss.context.AuditContext.setCorrelationId(UUID.randomUUID());
+        }
+        try {
+            task.run();
+        } finally {
+            if (ownCorrelation) {
+                com.fa26se040.icss.context.AuditContext.clearCorrelationId();
+            }
+        }
     }
 
     /**
@@ -356,18 +399,26 @@ public class UserService {
     }
 
     @Transactional
-    public BatchDeleteResponse deleteBatch(UUID batchId) {
+    public BatchDeleteResponse deleteBatch(UUID batchId, String currentAdminEmail) {
         if (!userRepository.existsByImportBatchId(batchId)) {
             throw new ResourceNotFoundException("Không tìm thấy lô import với mã: " + batchId);
         }
-        // BR-RQ-SP-05: huỷ đơn của từng tài khoản sắp bị gỡ (lấy trước câu UPDATE hàng loạt), cùng transaction
+        User actor = resolveAdminActor(currentAdminEmail);
+        // BR-RQ-SP-05 + BR-AP-25: huỷ đơn và thu hồi AP của từng tài khoản sắp bị gỡ (lấy trước câu UPDATE hàng loạt),
+        // cùng transaction. BR-AP-27: khoá từng dòng users theo thứ tự id (cùng thứ tự với khoá người tham gia đơn).
         List<UUID> usersToDelete = userRepository.findByImportBatchIdOrderByUserCodeAsc(batchId).stream()
                 .filter(u -> u.getDeletedAt() == null)
                 .map(User::getId)
+                .sorted(Comparator.comparing(UUID::toString))
                 .toList();
-        for (UUID uid : usersToDelete) {
-            accessRequestService.cancelActiveRequestsOfRequester(uid, AccessRequestService.REQUESTER_INACTIVE_CANCEL_REASON);
-        }
+        OffsetDateTime now = OffsetDateTime.now();
+        withActionCorrelation(() -> {
+            for (UUID uid : usersToDelete) {
+                userRepository.lockRowById(uid);
+                accessRequestService.cancelActiveRequestsOfRequester(uid, AccessRequestService.REQUESTER_INACTIVE_CANCEL_REASON);
+                assignedPersonnelService.revokeAllOfUser(uid, actor, AreaAssignedPersonnelService.REVOKE_REASON_USER_DELETED, now);
+            }
+        });
         int deletedCount = userRepository.softDeleteByImportBatchId(batchId);
         log.info("Soft-deleted import batch {}: {} users affected", batchId, deletedCount);
         if (deletedCount > 0) {
