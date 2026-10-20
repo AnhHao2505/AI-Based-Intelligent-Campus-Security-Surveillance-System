@@ -6,7 +6,6 @@ import com.fa26se040.icss.dto.accessrequest.*;
 import com.fa26se040.icss.dto.area.*;
 import com.fa26se040.icss.dto.guest.GuestAccessDecision;
 import com.fa26se040.icss.dto.accesscontrol.LevelPresetUpdateRequest;
-import com.fa26se040.icss.dto.systemconfig.SystemConfigUpdateRequest;
 import com.fa26se040.icss.entity.*;
 import com.fa26se040.icss.enums.*;
 import com.fa26se040.icss.exception.AccessControlErrorCode;
@@ -22,7 +21,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.*;
@@ -74,9 +72,6 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
     private AccessRequestRepository accessRequestRepository;
 
     @Autowired
-    private AccessRequestMemberRepository accessRequestMemberRepository;
-
-    @Autowired
     private GuestVisitRepository guestVisitRepository;
 
     @Autowired
@@ -89,13 +84,7 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
     private SecurityIncidentRepository securityIncidentRepository;
 
     @Autowired
-    private AreaEventSessionRepository sessionRepository;
-
-    @Autowired
     private AreaLevelPresetRepository areaLevelPresetRepository;
-
-    @Autowired
-    private AuditLogRepository auditLogRepository;
 
     @Autowired
     private MockMvc mockMvc;
@@ -830,15 +819,6 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
     @DisplayName("TC-AA-07: Vô hiệu hoá thành công thu hồi AP, huỷ đơn PENDING/APPROVED; khôi phục không làm sống lại; vô hiệu hoá lần 2 -> 053; khôi phục khu vực đang active -> 054")
     void tc_aa_07() {
         OffsetDateTime now = OffsetDateTime.now();
-
-        // Tạo AP và đơn PENDING, APPROVED
-        AreaAssignedPersonnel aap = assignedPersonnelRepository.save(AreaAssignedPersonnel.builder()
-                .area(contactArea)
-                .user(normalUserL1)
-                .validFrom(now.minusHours(1))
-                .validTo(now.plusHours(5))
-                .createdBy(fmUser)
-                .build());
 
         AccessRequest pendingReq = accessRequestRepository.save(AccessRequest.builder()
                 .requestType(RequestType.INDIVIDUAL)

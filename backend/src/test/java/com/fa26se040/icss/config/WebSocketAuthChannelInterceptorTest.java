@@ -197,15 +197,6 @@ class WebSocketAuthChannelInterceptorTest {
     }
 
     @Test
-    @DisplayName("SUBSCRIBE /topic/guards/locations (không phải kênh riêng) bởi GUARD -> qua theo luật /topic/** chung")
-    void subscribe_GuardLocations_Guard_Allowed() {
-        Principal principal = connectAs(guardA);
-        Message<byte[]> subscribe = stomp(StompCommand.SUBSCRIBE, principal, "/topic/guards/locations", null);
-
-        assertDoesNotThrow(() -> interceptor.preSend(subscribe, channel));
-    }
-
-    @Test
     @DisplayName("SUBSCRIBE destination ngoài /topic/** -> lỗi")
     void subscribe_NonTopicDestination_Rejected() {
         Principal principal = connectAs(facilityManager);

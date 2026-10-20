@@ -248,19 +248,6 @@ class _GuardMapScreenState extends State<GuardMapScreen>
                     : null,
               ),
 
-              // Campus Geofence Boundary Polygon Layer
-              if (mapProvider.campusGeofence.length >= 3)
-                PolygonLayer(
-                  polygons: [
-                    Polygon(
-                      points: mapProvider.campusGeofence,
-                      color: const Color(0x1F2563EB),
-                      borderColor: const Color(0xFF2563EB),
-                      borderStrokeWidth: 2.0,
-                    ),
-                  ],
-                ),
-
               // Navigation Polyline Route Layer
               if (mapState.currentRoute != null &&
                   mapState.currentRoute!.points.isNotEmpty) ...[
@@ -429,40 +416,6 @@ class _GuardMapScreenState extends State<GuardMapScreen>
                                   style: TextStyle(
                                     fontSize: 11,
                                     color: AppColors.txtSecondary(context),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: (mapProvider.isInsideCampus ? Colors.green : Colors.orange).withAlpha(30),
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(
-                                      color: (mapProvider.isInsideCampus ? Colors.green : Colors.orange).withAlpha(120),
-                                      width: 0.8,
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Container(
-                                        width: 5,
-                                        height: 5,
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          color: mapProvider.isInsideCampus ? Colors.green : Colors.orange,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        mapProvider.isInsideCampus ? 'Trong trường' : 'Ngoài trường',
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w600,
-                                          color: mapProvider.isInsideCampus ? Colors.green : Colors.orange,
-                                        ),
-                                      ),
-                                    ],
                                   ),
                                 ),
                               ],

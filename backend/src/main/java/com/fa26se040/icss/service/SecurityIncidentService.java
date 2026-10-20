@@ -187,7 +187,7 @@ public class SecurityIncidentService {
         }
 
         // 2. Real-time WebSocket dispatching
-        // A. BR-IE-01 / BR-IE-02: gửi riêng mọi bảo vệ đang trực (ca CHECKED_IN, trong khung giờ), không dùng geofence.
+        // A. BR-IE-01 / BR-IE-02: gửi cho bảo vệ đang trực (ca CHECKED_IN, trong khung giờ).
         //    BR-IE-03: tạo 1 bản ghi leo thang cùng transaction, đếm số bảo vệ đã gửi được.
         //    Resolver lỗi -> vẫn tạo bản ghi với 0 người nhận để job báo FM ở lần chạy kế (BR-IE-05).
         //    Lỗi SQL trong transaction này làm cả transaction rollback (kể cả sự cố) — try/catch chỉ chặn lỗi tầng Java.

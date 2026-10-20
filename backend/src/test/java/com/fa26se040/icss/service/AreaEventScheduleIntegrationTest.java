@@ -86,7 +86,6 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
     private User adminUser;
 
     private Area internalArea;
-    private Area contactArea;
     private Area publicArea;
     private Area highlyArea;
 
@@ -150,17 +149,6 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
 
         internalArea = areaRepository.save(Area.builder()
                 .name("Khu Vuc Internal " + suffix)
-                .areaLevel(AreaLevel.CONFIDENTIAL)
-                .areaAccessLevel(2)
-                .floorEntity(testFloor)
-                .building(testBuilding.getName())
-                .floor(testFloor.getName())
-                .isActive(true)
-                .openToMembers(false)
-                .build());
-
-        contactArea = areaRepository.save(Area.builder()
-                .name("Khu Vuc Contact " + suffix)
                 .areaLevel(AreaLevel.CONFIDENTIAL)
                 .areaAccessLevel(2)
                 .floorEntity(testFloor)
