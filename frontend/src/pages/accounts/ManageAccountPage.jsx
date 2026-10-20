@@ -55,13 +55,15 @@ const validateCreateField = (field, rawValue, isNormal) => {
 	const value = (rawValue || "").trim();
 	if (field === "fullName") {
 		if (!value) return "Họ và tên là bắt buộc";
-		if (value.length < 3 || value.length > 100) return "Họ và tên phải có độ dài từ 3 đến 100 ký tự";
+		if (value.length < 3 || value.length > 100)
+			return "Họ và tên phải có độ dài từ 3 đến 100 ký tự";
 	}
 	if (field === "userCode") {
 		const label = isNormal ? "Mã người dùng" : "Mã cán bộ";
 		if (!value) return `${label} là bắt buộc`;
 		if (value.length > 50) return `${label} tối đa 50 ký tự`;
-		if (!USER_CODE_PATTERN.test(value)) return `${label} chỉ chứa chữ cái, chữ số, dấu gạch ngang hoặc gạch dưới`;
+		if (!USER_CODE_PATTERN.test(value))
+			return `${label} chỉ chứa chữ cái, chữ số, dấu gạch ngang hoặc gạch dưới`;
 	}
 	if (field === "email") {
 		if (!value) return "Email là bắt buộc";
@@ -248,17 +250,24 @@ export default function ManageAccountPage() {
 	const loadBulkMaxRows = async () => {
 		try {
 			const list = await getSystemConfigs();
-			const cfg = (list || []).find((c) => c.configKey === "USER_BULK_IMPORT_MAX_ROWS");
+			const cfg = (list || []).find(
+				(c) => c.configKey === "USER_BULK_IMPORT_MAX_ROWS",
+			);
 			const n = cfg ? parseInt(cfg.configValue, 10) : NaN;
 			setBulkMaxRows(Number.isFinite(n) && n > 0 ? n : null);
 		} catch (err) {
-			console.error("Không đọc được cấu hình số dòng tối đa khi nạp theo lô:", err);
+			console.error(
+				"Không đọc được cấu hình số dòng tối đa khi nạp theo lô:",
+				err,
+			);
 			setBulkMaxRows(null);
 		}
 	};
 
 	// Không viết cứng con số: chưa đọc được cấu hình thì chỉ nêu là theo cấu hình hệ thống
-	const bulkMaxRowsText = bulkMaxRows ? `tối đa ${bulkMaxRows} dòng` : "số dòng tối đa theo cấu hình hệ thống";
+	const bulkMaxRowsText = bulkMaxRows
+		? `tối đa ${bulkMaxRows} dòng`
+		: "số dòng tối đa theo cấu hình hệ thống";
 
 	const handleZipFileChange = (e) => {
 		const file = e.target.files?.[0];
@@ -488,7 +497,11 @@ export default function ManageAccountPage() {
 		const errors = {};
 
 		for (const field of ["fullName", "userCode", "email"]) {
-			const fieldError = validateCreateField(field, createForm[field], isNormal);
+			const fieldError = validateCreateField(
+				field,
+				createForm[field],
+				isNormal,
+			);
 			if (fieldError) errors[field] = fieldError;
 		}
 
@@ -632,11 +645,6 @@ export default function ManageAccountPage() {
 			{/* Page Header */}
 			<PageHeader
 				title="Quản lý tài khoản"
-				description={
-					activeTab === "NORMAL"
-						? `${totalElements.toLocaleString("vi-VN")} người dùng thường trong hệ thống`
-						: `${totalElements.toLocaleString("vi-VN")} tài khoản hệ thống`
-				}
 				actions={
 					<>
 						{activeTab === "NORMAL" && (
@@ -658,7 +666,7 @@ export default function ManageAccountPage() {
 									onClick={handleOpenBulkImport}
 								>
 									<Upload size={18} />
-									<span>Nạp người dùng (.zip)</span>
+									<span>Nạp hàng loạt (.zip)</span>
 								</button>
 								<button
 									type="button"
@@ -691,7 +699,7 @@ export default function ManageAccountPage() {
 									onClick={handleOpenBulkImport}
 								>
 									<Upload size={18} />
-									<span>Nạp cán bộ / bảo vệ (.zip)</span>
+									<span>Nạp hàng loạt (.zip)</span>
 								</button>
 								<button
 									type="button"
@@ -700,7 +708,7 @@ export default function ManageAccountPage() {
 									onClick={handleOpenCreate}
 								>
 									<UserPlus size={18} />
-									<span>Tạo tài khoản cán bộ</span>
+									<span>Tạo tài khoản</span>
 								</button>
 							</div>
 						)}
@@ -708,7 +716,7 @@ export default function ManageAccountPage() {
 				}
 			/>
 
-			{/* Tab Navigation (Người dùng thường / Tài khoản hệ thống) */}
+			{/* Tab Navigation (Người dùng thường / ) */}
 			<nav
 				className="account-tabs"
 				aria-label="Phân nhóm tài khoản"
@@ -729,7 +737,7 @@ export default function ManageAccountPage() {
 					className={`account-tab-btn ${activeTab === "SYSTEM" ? "account-tab-btn--active" : ""}`}
 					onClick={() => handleTabChange("SYSTEM")}
 				>
-					<span>Tài khoản hệ thống</span>
+					<span>Tài khoản cán bộ</span>
 					<span className="account-tab-badge">
 						{counts.systemCount.toLocaleString("vi-VN")}
 					</span>
@@ -881,7 +889,7 @@ export default function ManageAccountPage() {
 													? "Không tìm thấy tài khoản phù hợp"
 													: activeTab === "NORMAL"
 														? "Chưa có người dùng thường"
-														: "Chưa có tài khoản hệ thống"}
+														: "Chưa có tài khoản cán bộ"}
 											</h3>
 											<p className="account-empty-state__desc">
 												{debouncedKeyword || statusFilter !== ""
@@ -1082,7 +1090,7 @@ export default function ManageAccountPage() {
 								<h2 className="account-modal__title">
 									{activeTab === "NORMAL"
 										? "Tạo tài khoản người dùng"
-										: "Tạo tài khoản cán bộ / nhân viên"}
+										: "Tạo tài khoản cán bộ"}
 								</h2>
 							</div>
 							<button
@@ -1116,7 +1124,10 @@ export default function ManageAccountPage() {
 								)}
 
 								<div className="account-form-group">
-									<label className="account-form-label" htmlFor="account-create-full-name">
+									<label
+										className="account-form-label"
+										htmlFor="account-create-full-name"
+									>
 										<span>
 											Họ và tên
 											<span className="account-form-label__required">*</span>
@@ -1129,18 +1140,29 @@ export default function ManageAccountPage() {
 										placeholder="Ví dụ: Nguyễn Văn An"
 										value={createForm.fullName}
 										onChange={(e) => {
-											setCreateForm({ ...createForm, fullName: e.target.value });
+											setCreateForm({
+												...createForm,
+												fullName: e.target.value,
+											});
 											if (formErrors.fullName) {
 												setFormErrors((prev) => ({
 													...prev,
-													fullName: validateCreateField("fullName", e.target.value, activeTab === "NORMAL"),
+													fullName: validateCreateField(
+														"fullName",
+														e.target.value,
+														activeTab === "NORMAL",
+													),
 												}));
 											}
 										}}
 										onBlur={(e) => {
 											setFormErrors((prev) => ({
 												...prev,
-												fullName: validateCreateField("fullName", e.target.value, activeTab === "NORMAL"),
+												fullName: validateCreateField(
+													"fullName",
+													e.target.value,
+													activeTab === "NORMAL",
+												),
 											}));
 										}}
 										disabled={isSubmitting}
@@ -1154,7 +1176,10 @@ export default function ManageAccountPage() {
 								</div>
 
 								<div className="account-form-group">
-									<label className="account-form-label" htmlFor="account-create-user-code">
+									<label
+										className="account-form-label"
+										htmlFor="account-create-user-code"
+									>
 										<span>
 											{activeTab === "NORMAL"
 												? "Mã người dùng"
@@ -1173,18 +1198,29 @@ export default function ManageAccountPage() {
 										}
 										value={createForm.userCode}
 										onChange={(e) => {
-											setCreateForm({ ...createForm, userCode: e.target.value });
+											setCreateForm({
+												...createForm,
+												userCode: e.target.value,
+											});
 											if (formErrors.userCode) {
 												setFormErrors((prev) => ({
 													...prev,
-													userCode: validateCreateField("userCode", e.target.value, activeTab === "NORMAL"),
+													userCode: validateCreateField(
+														"userCode",
+														e.target.value,
+														activeTab === "NORMAL",
+													),
 												}));
 											}
 										}}
 										onBlur={(e) => {
 											setFormErrors((prev) => ({
 												...prev,
-												userCode: validateCreateField("userCode", e.target.value, activeTab === "NORMAL"),
+												userCode: validateCreateField(
+													"userCode",
+													e.target.value,
+													activeTab === "NORMAL",
+												),
 											}));
 										}}
 										disabled={isSubmitting}
@@ -1197,7 +1233,10 @@ export default function ManageAccountPage() {
 								</div>
 
 								<div className="account-form-group">
-									<label className="account-form-label" htmlFor="account-create-email">
+									<label
+										className="account-form-label"
+										htmlFor="account-create-email"
+									>
 										<span>
 											Email liên hệ
 											<span className="account-form-label__required">*</span>
@@ -1214,14 +1253,22 @@ export default function ManageAccountPage() {
 											if (formErrors.email) {
 												setFormErrors((prev) => ({
 													...prev,
-													email: validateCreateField("email", e.target.value, activeTab === "NORMAL"),
+													email: validateCreateField(
+														"email",
+														e.target.value,
+														activeTab === "NORMAL",
+													),
 												}));
 											}
 										}}
 										onBlur={(e) => {
 											setFormErrors((prev) => ({
 												...prev,
-												email: validateCreateField("email", e.target.value, activeTab === "NORMAL"),
+												email: validateCreateField(
+													"email",
+													e.target.value,
+													activeTab === "NORMAL",
+												),
 											}));
 										}}
 										disabled={isSubmitting}
@@ -1235,7 +1282,10 @@ export default function ManageAccountPage() {
 
 								{activeTab !== "NORMAL" && (
 									<div className="account-form-group">
-										<label className="account-form-label" htmlFor="account-create-role">
+										<label
+											className="account-form-label"
+											htmlFor="account-create-role"
+										>
 											<span>
 												Quyền hạn
 												<span className="account-form-label__required">*</span>
@@ -1827,7 +1877,9 @@ export default function ManageAccountPage() {
 													: "2px dashed var(--theme-border-hover)",
 												borderRadius: "8px",
 												cursor: "pointer",
-												backgroundColor: bulkZipFile ? "var(--theme-primary-light)" : "var(--theme-bg-page)",
+												backgroundColor: bulkZipFile
+													? "var(--theme-primary-light)"
+													: "var(--theme-bg-page)",
 												marginTop: "4px",
 											}}
 										>
@@ -2098,7 +2150,10 @@ export default function ManageAccountPage() {
 							}}
 						>
 							{isBatchesLoading ? (
-								<LoadingState size="sm" text="Đang tải danh sách lô import..." />
+								<LoadingState
+									size="sm"
+									text="Đang tải danh sách lô import..."
+								/>
 							) : batchesError ? (
 								<ErrorState
 									size="sm"
@@ -2368,7 +2423,10 @@ export default function ManageAccountPage() {
 							}}
 						>
 							{isBatchDetailsLoading ? (
-								<LoadingState size="sm" text="Đang tải chi tiết tài khoản..." />
+								<LoadingState
+									size="sm"
+									text="Đang tải chi tiết tài khoản..."
+								/>
 							) : batchDetailsError ? (
 								<ErrorState
 									size="sm"
@@ -2376,7 +2434,10 @@ export default function ManageAccountPage() {
 									onRetry={() => handleViewBatchDetails(selectedBatchId)}
 								/>
 							) : batchDetails.length === 0 ? (
-								<EmptyState size="sm" title="Không có tài khoản nào trong lô này" />
+								<EmptyState
+									size="sm"
+									title="Không có tài khoản nào trong lô này"
+								/>
 							) : (
 								<div className="account-bulk-table-wrap">
 									<table className="account-bulk-table">
@@ -2488,7 +2549,12 @@ export default function ManageAccountPage() {
 								</div>
 								<div style={{ marginBottom: "8px" }}>
 									<strong>Số tài khoản sẽ bị gỡ:</strong>{" "}
-									<span style={{ color: "var(--theme-danger-text)", fontWeight: 600 }}>
+									<span
+										style={{
+											color: "var(--theme-danger-text)",
+											fontWeight: 600,
+										}}
+									>
 										{batchToDelete.activeCount} tài khoản
 									</span>
 								</div>
@@ -2584,7 +2650,9 @@ export default function ManageAccountPage() {
 								</div>
 								<div style={{ marginBottom: "8px" }}>
 									<strong>Số tài khoản cần khôi phục:</strong>{" "}
-									<span style={{ color: "var(--theme-primary)", fontWeight: 600 }}>
+									<span
+										style={{ color: "var(--theme-primary)", fontWeight: 600 }}
+									>
 										{batchToRestore.deletedCount} tài khoản
 									</span>
 								</div>
@@ -2696,7 +2764,12 @@ export default function ManageAccountPage() {
 											<tr key={idx}>
 												<td style={{ fontWeight: 600 }}>{item.userCode}</td>
 												<td style={{ fontSize: "0.8125rem" }}>{item.email}</td>
-												<td style={{ fontSize: "0.8125rem", color: "var(--theme-danger-text)" }}>
+												<td
+													style={{
+														fontSize: "0.8125rem",
+														color: "var(--theme-danger-text)",
+													}}
+												>
 													{item.reason}
 												</td>
 											</tr>

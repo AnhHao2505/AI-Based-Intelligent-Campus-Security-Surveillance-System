@@ -359,7 +359,7 @@ public class UserBulkImportService {
                                 .email(email)
                                 .role(rawRole)
                                 .status("FAILED")
-                                .errorMessage("Vai trò không hợp lệ cho tài khoản hệ thống (chỉ chấp nhận: GUARD, FACILITY_MANAGER). Không chấp nhận NORMAL_USER hoặc ADMIN.")
+                                .errorMessage("Vai trò không hợp lệ cho tài khoản cán bộ (chỉ chấp nhận: GUARD, FACILITY_MANAGER). Không chấp nhận NORMAL_USER hoặc ADMIN.")
                                 .build());
                         continue;
                     }
