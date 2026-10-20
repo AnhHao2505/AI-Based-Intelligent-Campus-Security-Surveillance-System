@@ -463,18 +463,6 @@ export default function Sidebar({ user, onLogout }) {
 												<span>Ảnh khách</span>
 											</NavLink>
 											<NavLink
-												to="/admin/level-presets"
-												className={({ isActive }) =>
-													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
-												}
-												title={
-													sidebarCollapsed ? "Mặc định theo loại khu vực" : undefined
-												}
-											>
-												<ShieldCheck size={18} />
-												<span>Mặc định theo loại khu vực</span>
-											</NavLink>
-											<NavLink
 												to="/admin/audit-logs"
 												className={({ isActive }) =>
 													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`

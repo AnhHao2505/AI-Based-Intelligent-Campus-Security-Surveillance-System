@@ -178,7 +178,7 @@ public class GuestVisitService {
 
     /**
      * BR-GV-04: khu vực chọn được trong form lượt khách — cùng điều kiện với checkArea (đang hoạt động, chưa xoá mềm,
-     * loại INTERNAL / CONTACT). Không lọc theo cờ explicit nên có cả khu vực INTERNAL.
+     * loại Bảo mật, V83).
      * BR-GV-06 (host phủ khu vực) phụ thuộc khung giờ: khi có đủ startTime và endTime thì mỗi khu vực kèm hostCanInvite
      * và reasonCode, tính bằng đúng GuestRules.hostEligible + hostCoversArea mà bước tạo lượt dùng (ERR_GUEST_002 /
      * ERR_GUEST_014). Thiếu một trong hai thì không tính (giữ như trước). Bước tạo lượt vẫn kiểm lại.

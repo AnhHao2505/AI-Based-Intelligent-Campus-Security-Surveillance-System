@@ -42,7 +42,8 @@ class AdminNotificationScopeTest extends GuestTestSupport {
         body.put("startTime", start.toString());
         body.put("endTime", start.plusHours(1).toString());
         body.put("purpose", "Đơn kiểm BR-NT-26 " + suffix);
-        MvcResult r = send(post("/api/access-requests/individual"), hostL2, body).andReturn();
+        // V83 (BR-RQ-01): đơn cá nhân của người thiếu cấp (cấp 1 xin khu Bảo mật)
+        MvcResult r = send(post("/api/access-requests/individual"), hostL1, body).andReturn();
         assertEquals(201, status(r), r.getResponse().getContentAsString());
         UUID requestId = UUID.fromString(json(r).path("data").path("id").asText());
 

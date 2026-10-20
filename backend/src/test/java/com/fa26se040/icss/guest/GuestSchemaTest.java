@@ -51,7 +51,7 @@ public class GuestSchemaTest extends AbstractIntegrationTest {
     @DisplayName("P1: đủ 4 bảng khách")
     void tablesExist() {
         List<String> tables = jdbc.queryForList(
-                "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN "
+                "SELECT table_name FROM information_schema.tables WHERE table_schema = current_schema() AND table_name IN "
                         + "('guest_visits','guest_visit_areas','guests','guest_face_embeddings') ORDER BY table_name", String.class);
         assertEquals(List.of("guest_face_embeddings", "guest_visit_areas", "guest_visits", "guests"), tables);
     }

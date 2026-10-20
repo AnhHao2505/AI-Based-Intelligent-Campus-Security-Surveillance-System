@@ -98,7 +98,7 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
 
         assertEquals(409, status(r), describe(r));
         assertEquals(expectedCode, errorCode(r));
-        assertEquals(AreaLevel.INTERNAL_CONFIDENTIAL, reload(area).getAreaLevel());
+        assertEquals(AreaLevel.CONFIDENTIAL, reload(area).getAreaLevel());
         assertEquals(requestBefore, requestStatus(request), "Bị chặn thì đơn không đổi");
         assertEquals(auditBefore, auditCountForArea(area), "Bị chặn thì không ghi audit");
         assertTrue(auditsForTarget(request.getId().toString()).isEmpty(), "Bị chặn thì không có audit huỷ đơn");
@@ -127,7 +127,7 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
     @Test
     @DisplayName("TC-02a (BR-TC-02): đổi loại thiếu reason -> 400 ERR_AREA_050, không đổi gì, không audit, không AREA_TYPE_CHANGED")
     void tc02a_changeTypeWithoutReason_noNotification() throws Exception {
-        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        Area area = newArea(AreaLevel.CONFIDENTIAL);
         Long v0 = apiVersion(area);
         long auditBefore = auditCountForArea(area);
 
@@ -135,7 +135,7 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
 
         assertEquals(400, status(r), describe(r));
         assertEquals("ERR_AREA_050", errorCode(r));
-        assertEquals(AreaLevel.INTERNAL_CONFIDENTIAL, reload(area).getAreaLevel());
+        assertEquals(AreaLevel.CONFIDENTIAL, reload(area).getAreaLevel());
         assertEquals(auditBefore, auditCountForArea(area));
         assertEquals(0, notificationsOf(fm, NotificationType.AREA_TYPE_CHANGED).size());
     }
@@ -144,7 +144,7 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
     @Test
     @DisplayName("TC-01 (BR-TC-01): FM / GUARD / NORMAL_USER đổi loại khu vực -> 403, không đổi gì, không audit, không thông báo")
     void tc01_nonAdminChangeType_forbidden_noNotification() throws Exception {
-        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        Area area = newArea(AreaLevel.CONFIDENTIAL);
         long auditBefore = auditCountForArea(area);
 
         for (User actor : List.of(fm, guard, userL2)) {
@@ -153,7 +153,7 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
         }
 
         Area after = reload(area);
-        assertEquals(AreaLevel.INTERNAL_CONFIDENTIAL, after.getAreaLevel());
+        assertEquals(AreaLevel.CONFIDENTIAL, after.getAreaLevel());
         assertEquals(2, after.getAreaAccessLevel());
         assertEquals(auditBefore, auditCountForArea(area), "Bị 403 thì không được ghi audit");
         assertEquals(0, countNotifications(fm, fm2), "Bị 403 thì không có thông báo");
@@ -163,7 +163,7 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
     @Test
     @DisplayName("TC-02b (BR-TC-02): đổi loại với reason 5 ký tự -> 400 ERR_AREA_050, không đổi gì, không AREA_TYPE_CHANGED")
     void tc02b_changeTypeReasonTooShort_noNotification() throws Exception {
-        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        Area area = newArea(AreaLevel.CONFIDENTIAL);
         Long v0 = apiVersion(area);
         long auditBefore = auditCountForArea(area);
 
@@ -171,7 +171,7 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
 
         assertEquals(400, status(r), describe(r));
         assertEquals("ERR_AREA_050", errorCode(r));
-        assertEquals(AreaLevel.INTERNAL_CONFIDENTIAL, reload(area).getAreaLevel());
+        assertEquals(AreaLevel.CONFIDENTIAL, reload(area).getAreaLevel());
         assertEquals(auditBefore, auditCountForArea(area));
         assertEquals(0, notificationsOf(fm, NotificationType.AREA_TYPE_CHANGED).size());
     }
@@ -181,7 +181,7 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
     @DisplayName("TC-05a (BR-TC-05): đang mở sự kiện -> đổi sang HIGHLY -> 409 ERR_AREA_048, không đổi gì, không AREA_TYPE_CHANGED")
     void tc05a_eventActive_toHighly_noNotification() throws Exception {
         OffsetDateTime now = OffsetDateTime.now();
-        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        Area area = newArea(AreaLevel.CONFIDENTIAL);
         openEvent(area, now.minusMinutes(10), now.plusHours(2));
         long auditBefore = auditCountForArea(area);
 
@@ -190,7 +190,7 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
         assertEquals(409, status(r), describe(r));
         assertEquals("ERR_AREA_048", errorCode(r));
         Area after = reload(area);
-        assertEquals(AreaLevel.INTERNAL_CONFIDENTIAL, after.getAreaLevel());
+        assertEquals(AreaLevel.CONFIDENTIAL, after.getAreaLevel());
         assertEquals(2, after.getAreaAccessLevel());
         assertTrue(after.isEventActive(OffsetDateTime.now()), "Sự kiện vẫn phải đang mở");
         assertTrue(sessionRepository.findByAreaIdAndActualEndIsNull(area.getId()).isPresent(), "Phiên sự kiện vẫn mở");
@@ -203,7 +203,7 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
     @DisplayName("TC-05b (BR-TC-05): đang mở sự kiện -> đổi sang PUBLIC -> 409 ERR_AREA_048, không đổi gì, không AREA_TYPE_CHANGED")
     void tc05b_eventActive_toPublic_noNotification() throws Exception {
         OffsetDateTime now = OffsetDateTime.now();
-        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        Area area = newArea(AreaLevel.CONFIDENTIAL);
         openEvent(area, now.minusMinutes(10), now.plusHours(2));
         long auditBefore = auditCountForArea(area);
 
@@ -212,7 +212,7 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
         assertEquals(409, status(r), describe(r));
         assertEquals("ERR_AREA_048", errorCode(r));
         Area after = reload(area);
-        assertEquals(AreaLevel.INTERNAL_CONFIDENTIAL, after.getAreaLevel());
+        assertEquals(AreaLevel.CONFIDENTIAL, after.getAreaLevel());
         assertTrue(after.isEventActive(OffsetDateTime.now()), "Sự kiện vẫn phải đang mở");
         assertEquals(auditBefore, auditCountForArea(area));
         assertEquals(0, notificationsOf(fm, NotificationType.AREA_TYPE_CHANGED).size());
@@ -223,7 +223,7 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
     @DisplayName("TC-06 (BR-TC-06): còn lịch SCHEDULED -> đổi sang HIGHLY / PUBLIC -> 409 ERR_AREA_042, liệt kê lịch, không AREA_TYPE_CHANGED")
     void tc06_pendingSchedule_conflict_noNotification() throws Exception {
         OffsetDateTime start = OffsetDateTime.now().plusDays(2).withHour(9).withMinute(0).withSecond(0).withNano(0);
-        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        Area area = newArea(AreaLevel.CONFIDENTIAL);
         newSchedule(area, start, start.plusHours(2), "SEMINAR", "Hội thảo/sự kiện chuyên môn");
         long auditBefore = auditCountForArea(area);
         String startText = java.time.format.DateTimeFormatter.ofPattern("dd/MM HH:mm")
@@ -236,7 +236,7 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
             assertTrue(message(r).contains(startText), "Thông điệp phải liệt kê lịch " + startText + ": " + message(r));
         }
 
-        assertEquals(AreaLevel.INTERNAL_CONFIDENTIAL, reload(area).getAreaLevel());
+        assertEquals(AreaLevel.CONFIDENTIAL, reload(area).getAreaLevel());
         assertEquals(auditBefore, auditCountForArea(area));
         assertEquals(0, notificationsOf(fm, NotificationType.AREA_TYPE_CHANGED).size());
     }
@@ -245,7 +245,7 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
     @Test
     @DisplayName("TC-07 (BR-TC-07): sang PUBLIC khi còn AP hiệu lực -> 409 ERR_AREA_049 nêu số AP, không AREA_TYPE_CHANGED")
     void tc07_toPublicWithActiveAp_noNotification() throws Exception {
-        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        Area area = newArea(AreaLevel.CONFIDENTIAL);
         newActiveAp(area, userL2);
         newActiveAp(area, userL3);
         newActiveAp(area, userL3b);
@@ -260,7 +260,7 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
         assertEquals(409, status(r), describe(r));
         assertEquals("ERR_AREA_049", errorCode(r));
         assertTrue(message(r).contains("3"), "Thông điệp phải nêu số AP còn hiệu lực (3): " + message(r));
-        assertEquals(AreaLevel.INTERNAL_CONFIDENTIAL, reload(area).getAreaLevel());
+        assertEquals(AreaLevel.CONFIDENTIAL, reload(area).getAreaLevel());
         assertEquals(auditBefore, auditCountForArea(area));
         assertEquals(0, notificationsOf(fm, NotificationType.AREA_TYPE_CHANGED).size());
     }
@@ -270,7 +270,7 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
     @DisplayName("TC-11 (BR-TC-11) + TC-06: bị chặn vì còn lịch chờ -> không audit, không thông báo, version không đổi")
     void tc11_blockedBySchedule_noNotification() throws Exception {
         OffsetDateTime now = OffsetDateTime.now();
-        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        Area area = newArea(AreaLevel.CONFIDENTIAL);
         newSchedule(area, now.plusDays(1), now.plusDays(1).plusHours(2), "SEMINAR", "Hội thảo/sự kiện chuyên môn");
         AccessRequest approved = newRequest(area, userL2, RequestType.INDIVIDUAL, RequestStatus.APPROVED,
                 now.plusHours(3), now.plusHours(4));
@@ -282,11 +282,14 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
     @DisplayName("TC-08 (BR-TC-08, BR-TC-16): đơn APPROVED chưa kết thúc không thoả loại mới -> hệ thống huỷ, audit SYSTEM cùng correlation, báo người tạo + thành viên")
     void tc08_approvedNotEnded_systemCancelled_notifiesParticipants() throws Exception {
         OffsetDateTime now = OffsetDateTime.now();
-        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        Area area = newArea(AreaLevel.CONFIDENTIAL);
 
-        // Bị huỷ: người tạo cấp 2 < cấp mới 3
-        AccessRequest r1 = newRequest(area, userL2, RequestType.INDIVIDUAL, RequestStatus.APPROVED,
+        // Bị huỷ (V83): đơn cá nhân cấp 1, cấp mới 3 cao hơn 2 cấp > ACCESS_REQUEST_MAX_LEVEL_GAP (1)
+        AccessRequest r1 = newRequest(area, userL1, RequestType.INDIVIDUAL, RequestStatus.APPROVED,
                 now.plusHours(1), now.plusHours(3));
+        // Giữ nguyên (V83): đơn cá nhân cấp 2, cấp mới 3 chỉ cao hơn 1 cấp
+        AccessRequest r6 = newRequest(area, userL2, RequestType.INDIVIDUAL, RequestStatus.APPROVED,
+                now.plusHours(10), now.plusHours(11));
         // Bị huỷ: đơn nhóm đang diễn ra, thành viên cấp 2 thấp hơn cấp mới
         AccessRequest r2 = newRequest(area, userL3, RequestType.GROUP, RequestStatus.APPROVED,
                 now.minusHours(1), now.plusMinutes(50), userL2);
@@ -303,7 +306,8 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
         MvcResult r = changeType(admin, area, AreaLevel.HIGHLY_CONFIDENTIAL, TYPE_CHANGE_REASON, apiVersion(area));
         assertEquals(200, status(r), describe(r));
 
-        assertEquals(RequestStatus.CANCELLED, requestStatus(r1), "r1 (cá nhân cấp 2) phải bị huỷ");
+        assertEquals(RequestStatus.CANCELLED, requestStatus(r1), "r1 (cá nhân cấp 1, vượt khoảng cách cấp) phải bị huỷ");
+        assertEquals(RequestStatus.APPROVED, requestStatus(r6), "r6 (cá nhân cấp 2, trong khoảng cách cấp) phải giữ APPROVED");
         assertEquals(RequestStatus.CANCELLED, requestStatus(r2), "r2 (nhóm có thành viên cấp 2, đang diễn ra) phải bị huỷ");
         assertEquals(RequestStatus.CANCELLED, requestStatus(r5), "r5 (đơn nhóm vào HIGHLY khi config cấm) phải bị huỷ");
         assertEquals(RequestStatus.APPROVED, requestStatus(r3), "r3 đủ cấp phải giữ APPROVED");
@@ -324,7 +328,8 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
         }
         assertTrue(auditsForTarget(r3.getId().toString()).isEmpty(), "Đơn không bị huỷ thì không có audit");
 
-        assertEquals(Set.of(r1.getId(), r2.getId()), referenceIds(userL2, NotificationType.REQUEST_SYSTEM_CANCELLED));
+        assertEquals(Set.of(r1.getId()), referenceIds(userL1, NotificationType.REQUEST_SYSTEM_CANCELLED));
+        assertEquals(Set.of(r2.getId()), referenceIds(userL2, NotificationType.REQUEST_SYSTEM_CANCELLED));
         assertEquals(Set.of(r2.getId(), r5.getId()), referenceIds(userL3, NotificationType.REQUEST_SYSTEM_CANCELLED));
         assertEquals(Set.of(r5.getId()), referenceIds(userL3b, NotificationType.REQUEST_SYSTEM_CANCELLED));
 
@@ -335,12 +340,16 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
 
     /** BR-TC-09 — nguồn: Step5bAreaTypeChangeTest#tc09_BR_TC_09_pendingKept_fmApproveBlockedByNewLevel */
     @Test
-    @DisplayName("TC-09 (BR-TC-09): đơn PENDING không bị huỷ khi đổi loại, không REQUEST_SYSTEM_CANCELLED; FM duyệt sau đó bị chặn, không REQUEST_APPROVED")
+    @DisplayName("TC-09 (BR-TC-09): đơn nhóm PENDING không bị huỷ khi đổi sang Tuyệt mật, không REQUEST_SYSTEM_CANCELLED; FM duyệt sau đó bị chặn (Tuyệt mật không nhận đơn nhóm), không REQUEST_APPROVED")
     void tc09_pendingKept_noCancelNotification_fmApproveBlocked() throws Exception {
         OffsetDateTime now = OffsetDateTime.now();
-        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
-        AccessRequest pending = newRequest(area, userL2, RequestType.INDIVIDUAL, RequestStatus.PENDING,
-                now.plusHours(2), now.plusHours(4));
+        Area area = newArea(AreaLevel.CONFIDENTIAL);
+        AccessRequest pending = newRequest(area, userL2, RequestType.GROUP, RequestStatus.PENDING,
+                now.plusHours(2), now.plusHours(4), userL3);
+
+        com.fa26se040.icss.dto.area.AreaTypeChangePreviewResponse preview =
+                areaService.previewTypeChange(area.getId(), AreaLevel.HIGHLY_CONFIDENTIAL);
+        assertEquals(1, preview.pendingRequestsNotApprovableCount(), "Xem trước đếm đơn sẽ không duyệt được");
 
         MvcResult r = changeType(admin, area, AreaLevel.HIGHLY_CONFIDENTIAL, TYPE_CHANGE_REASON, apiVersion(area));
         assertEquals(200, status(r), describe(r));
@@ -349,7 +358,7 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
 
         MvcResult review = send(patch("/api/access-requests/{id}/review", pending.getId()), fm,
                 Map.of("status", "APPROVED")).andReturn();
-        assertEquals(400, status(review), "FM duyệt phải bị chặn theo cấp mới: " + describe(review));
+        assertEquals(400, status(review), "FM duyệt phải bị chặn theo loại mới: " + describe(review));
         assertEquals(RequestStatus.PENDING, requestStatus(pending));
         assertTrue(notificationsOf(userL2, NotificationType.REQUEST_APPROVED).isEmpty());
 
@@ -362,9 +371,10 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
     @Test
     @DisplayName("TC-10 (BR-TC-10): đổi loại thành công -> mọi FM đang hoạt động nhận AREA_TYPE_CHANGED, FM bị vô hiệu hoá và GUARD không nhận")
     void tc10_activeFmsNotified_inactiveFmNot() throws Exception {
-        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        Area area = newArea(AreaLevel.CONFIDENTIAL);
 
-        MvcResult r = changeType(admin, area, AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED, TYPE_CHANGE_REASON, apiVersion(area));
+        // V83: Nội bộ -> Liên hệ trước không còn là đổi loại; dùng Bảo mật -> Tuyệt mật
+        MvcResult r = changeType(admin, area, AreaLevel.HIGHLY_CONFIDENTIAL, TYPE_CHANGE_REASON, apiVersion(area));
         assertEquals(200, status(r), describe(r));
 
         for (User activeFm : List.of(fm, fm2)) {
@@ -372,7 +382,7 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
                     .filter(n -> area.getId().equals(n.getReferenceId()))
                     .toList();
             assertEquals(1, list.size(), "FM " + activeFm.getEmail() + " phải nhận đúng 1 thông báo AREA_TYPE_CHANGED");
-            assertEquals("Khu vực " + area.getName() + ": Bảo mật nội bộ → Liên hệ trước. Lý do: " + TYPE_CHANGE_REASON
+            assertEquals("Khu vực " + area.getName() + ": Bảo mật → Tuyệt mật. Lý do: " + TYPE_CHANGE_REASON
                     + ". Số đơn bị huỷ: 0.", list.get(0).getMessage());
         }
         assertTrue(notificationsOf(fmInactive, NotificationType.AREA_TYPE_CHANGED).isEmpty(), "FM bị vô hiệu hoá không nhận");
@@ -384,7 +394,7 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
     @DisplayName("TC-11 (BR-TC-11) + TC-07: bị chặn vì còn AP hiệu lực -> không audit, không thông báo, version không đổi")
     void tc11_blockedByActiveAp_noNotification() throws Exception {
         OffsetDateTime now = OffsetDateTime.now();
-        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        Area area = newArea(AreaLevel.CONFIDENTIAL);
         newActiveAp(area, userL3);
         AccessRequest pending = newRequest(area, userL2, RequestType.INDIVIDUAL, RequestStatus.PENDING,
                 now.plusHours(3), now.plusHours(4));
@@ -396,7 +406,7 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
     @DisplayName("TC-11 (BR-TC-11) + TC-05: bị chặn vì sự kiện đang mở -> không audit, không thông báo, version không đổi")
     void tc11_blockedByEvent_noNotification() throws Exception {
         OffsetDateTime now = OffsetDateTime.now();
-        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        Area area = newArea(AreaLevel.CONFIDENTIAL);
         openEvent(area, now.minusMinutes(10), now.plusHours(2));
         AccessRequest approved = newRequest(area, userL2, RequestType.INDIVIDUAL, RequestStatus.APPROVED,
                 now.plusHours(3), now.plusHours(4));
@@ -407,11 +417,11 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
     @Test
     @DisplayName("TC-12a (BR-TC-12): chỉ đổi tên -> không cần reason, không CHANGE_TYPE, không AREA_TYPE_CHANGED, version tăng 1")
     void tc12a_renameOnly_noTypeChangeNotification() throws Exception {
-        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        Area area = newArea(AreaLevel.CONFIDENTIAL);
         Long v0 = apiVersion(area);
         String newName = area.getName() + " moi";
 
-        MvcResult r = putArea(admin, area, newName, AreaLevel.INTERNAL_CONFIDENTIAL, null, v0);
+        MvcResult r = putArea(admin, area, newName, AreaLevel.CONFIDENTIAL, null, v0);
 
         assertEquals(200, status(r), describe(r));
         assertEquals(newName, reload(area).getName());
@@ -427,7 +437,7 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
     @DisplayName("TC-14 (BR-TC-14): sang PUBLIC -> huỷ mọi PENDING + APPROVED chưa kết thúc, lý do cố định, báo người gửi + thành viên")
     void tc14_toPublic_cancelsAndNotifies() throws Exception {
         OffsetDateTime now = OffsetDateTime.now();
-        Area area = newArea(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED, 2, true);
+        Area area = newArea(AreaLevel.CONFIDENTIAL);
         AccessRequest p1 = newRequest(area, userL2, RequestType.INDIVIDUAL, RequestStatus.PENDING,
                 now.plusHours(1), now.plusHours(2));
         AccessRequest p2 = newRequest(area, userL3, RequestType.GROUP, RequestStatus.PENDING,
@@ -463,7 +473,7 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
     @DisplayName("TC-16b (BR-TC-16): người gửi cũng là thành viên -> đúng 1 thông báo REQUEST_SYSTEM_CANCELLED / đơn")
     void tc16b_requesterAlsoMember_singleNotification() throws Exception {
         OffsetDateTime now = OffsetDateTime.now();
-        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        Area area = newArea(AreaLevel.CONFIDENTIAL);
         AccessRequest group = newRequest(area, userL2, RequestType.GROUP, RequestStatus.APPROVED,
                 now.plusHours(1), now.plusHours(2), userL2, userL3);
 
@@ -485,10 +495,11 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
     @DisplayName("TC-11b (BR-TC-11): lỗi khi huỷ đơn thứ 2 -> rollback toàn bộ (loại, cấp, đơn thứ 1), không audit, không thông báo")
     void tc11b_failureMidway_rollsBackEverything_noNotification() throws Exception {
         OffsetDateTime now = OffsetDateTime.now();
-        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
-        AccessRequest r1 = newRequest(area, userL2, RequestType.INDIVIDUAL, RequestStatus.APPROVED,
+        Area area = newArea(AreaLevel.CONFIDENTIAL);
+        // V83: đơn cá nhân cấp 1 vượt khoảng cách cấp khi khu thành Tuyệt mật -> hệ thống huỷ cả hai
+        AccessRequest r1 = newRequest(area, userL1, RequestType.INDIVIDUAL, RequestStatus.APPROVED,
                 now.plusHours(1), now.plusHours(2));
-        AccessRequest r2 = newRequest(area, userL2, RequestType.INDIVIDUAL, RequestStatus.APPROVED,
+        AccessRequest r2 = newRequest(area, userL1, RequestType.INDIVIDUAL, RequestStatus.APPROVED,
                 now.plusHours(3), now.plusHours(4));
         long auditBefore = auditCountForArea(area);
 
@@ -509,9 +520,8 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
         assertEquals(2, systemCancelAudits.get(), "Tiền đề: luồng đổi loại phải chạy tới lần huỷ đơn thứ 2");
 
         Area after = reload(area);
-        assertEquals(AreaLevel.INTERNAL_CONFIDENTIAL, after.getAreaLevel(), "Loại khu vực phải rollback");
+        assertEquals(AreaLevel.CONFIDENTIAL, after.getAreaLevel(), "Loại khu vực phải rollback");
         assertEquals(2, after.getAreaAccessLevel(), "Cấp phải rollback");
-        assertFalse(after.getExplicitAuthorizationRequired(), "Cờ cần đơn phải rollback");
         assertEquals(RequestStatus.APPROVED, requestStatus(r1), "Đơn thứ 1 đã huỷ trong transaction phải rollback");
         assertEquals(RequestStatus.APPROVED, requestStatus(r2));
         assertEquals(auditBefore, auditCountForArea(area), "Rollback thì không còn audit nào");
@@ -533,7 +543,7 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
     @DisplayName("EV-A6 (BR-EV-A6): quá open_until, job chưa đóng -> ENABLE -> phiên mới, giờ bắt đầu mới, GUARD nhận EVENT_MODE_CHANGED")
     void evA6_enableAfterOpenUntil_newSession_guardNotified() throws Exception {
         OffsetDateTime now = OffsetDateTime.now();
-        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        Area area = newArea(AreaLevel.CONFIDENTIAL);
         AreaEventSession old = openEvent(area, now.minusHours(2), now.minusMinutes(5));
         OffsetDateTime until = now.plusHours(2).withNano(0);
 
@@ -554,7 +564,7 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
     @Test
     @DisplayName("TC-13 PATCH event-mode (BR-TC-13): thiếu version -> 400 ERR_AREA_044, không mở sự kiện, không audit, không thông báo")
     void tc13_eventModeMissingVersion_noNotification() throws Exception {
-        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        Area area = newArea(AreaLevel.CONFIDENTIAL);
         long auditBefore = auditCountForArea(area);
 
         MvcResult r = patchEventMode(fm, area,
@@ -572,7 +582,7 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
     @Test
     @DisplayName("TC-18 (BR-TC-13): tạo / sửa / huỷ lịch không cần version -> 2xx, 3 audit, GUARD nhận EVENT_MODE_SCHEDULED")
     void tc18_scheduleEndpoints_noVersion_guardNotified() throws Exception {
-        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        Area area = newArea(AreaLevel.CONFIDENTIAL);
         OffsetDateTime start = OffsetDateTime.now().plusDays(1).withNano(0);
 
         MvcResult created = send(post("/api/areas/{id}/event-schedules", area.getId()), fm,
@@ -599,7 +609,7 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
     void esL2_createWithEventEnableCode_noNotification() throws Exception {
         ReasonCatalog enableOnly = newReason("EVENT_ENABLE", code("ESL2EN"), "Lý do bật test 5b");
         try {
-            Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+            Area area = newArea(AreaLevel.CONFIDENTIAL);
             long auditBefore = auditCountForArea(area);
             OffsetDateTime start = OffsetDateTime.now().plusDays(1).withNano(0);
 
@@ -621,7 +631,7 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
     @DisplayName("ES-L3 (BR-ES-L3): lịch tự kích hoạt -> audit ENABLE actor SYSTEM ghi lý do đặt lịch gốc, GUARD nhận EVENT_MODE_CHANGED")
     void esL3_autoActivation_guardNotified() throws Exception {
         OffsetDateTime now = OffsetDateTime.now();
-        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        Area area = newArea(AreaLevel.CONFIDENTIAL);
         String originalCode = code("ESL3");
         String originalLabel = "Lý do đặt lịch gốc " + suffix;
         AreaEventSchedule schedule = newSchedule(area, now.minusMinutes(1), now.plusHours(2), originalCode, originalLabel);

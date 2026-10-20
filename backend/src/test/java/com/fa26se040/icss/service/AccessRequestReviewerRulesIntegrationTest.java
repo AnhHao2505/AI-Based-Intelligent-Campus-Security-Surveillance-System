@@ -62,6 +62,7 @@ class AccessRequestReviewerRulesIntegrationTest extends AbstractIntegrationTest 
     private User requester;
     private User member;
     private Area contactArea;
+    private Area highlyArea;
 
     @BeforeEach
     void setUp() {
@@ -82,9 +83,18 @@ class AccessRequestReviewerRulesIntegrationTest extends AbstractIntegrationTest 
                 .building(building.getName())
                 .floor(floor.getName())
                 .floorEntity(floor)
-                .areaLevel(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
-                .areaAccessLevel(2)
-                .explicitAuthorizationRequired(true)
+                .areaLevel(AreaLevel.CONFIDENTIAL)
+                .centerLatitude(10.8418)
+                .centerLongitude(106.8100)
+                .isActive(true)
+                .build());
+        // V83 (BR-RQ-01): người tạo cấp 2 vào thẳng khu Bảo mật nên đơn cá nhân xin khu Tuyệt mật (cao hơn 1 cấp)
+        highlyArea = areaRepository.save(Area.builder()
+                .name("RQ rules highly " + suffix)
+                .building(building.getName())
+                .floor(floor.getName())
+                .floorEntity(floor)
+                .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
                 .centerLatitude(10.8418)
                 .centerLongitude(106.8100)
                 .isActive(true)
@@ -124,9 +134,13 @@ class AccessRequestReviewerRulesIntegrationTest extends AbstractIntegrationTest 
     }
 
     private Map<String, Object> individualBody() {
+        return body(highlyArea);
+    }
+
+    private Map<String, Object> body(Area area) {
         OffsetDateTime start = OffsetDateTime.now().plusHours(2).truncatedTo(ChronoUnit.MINUTES);
         Map<String, Object> b = new LinkedHashMap<>();
-        b.put("areaId", contactArea.getId());
+        b.put("areaId", area.getId());
         b.put("startTime", start.toString());
         b.put("endTime", start.plusHours(1).toString());
         b.put("purpose", "Đơn thử quy tắc người duyệt " + suffix);
@@ -134,7 +148,7 @@ class AccessRequestReviewerRulesIntegrationTest extends AbstractIntegrationTest 
     }
 
     private Map<String, Object> groupBody() {
-        Map<String, Object> b = individualBody();
+        Map<String, Object> b = body(contactArea);
         b.put("memberUserCodes", List.of(member.getUserCode()));
         return b;
     }

@@ -20,12 +20,14 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 import java.time.OffsetDateTime;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -91,20 +93,13 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
     private JwtTokenProvider jwtTokenProvider;
 
     @Autowired
+    private com.fasterxml.jackson.databind.ObjectMapper objectMapper;
+
+    @Autowired
     private jakarta.persistence.EntityManager entityManager;
 
     @Autowired
     private org.springframework.transaction.PlatformTransactionManager transactionManager;
-
-    @org.junit.jupiter.api.AfterEach
-    void tearDownPresets() {
-        areaLevelPresetRepository.findById(AreaLevel.INTERNAL_CONFIDENTIAL).ifPresent(p -> {
-            if (Boolean.TRUE.equals(p.getExplicitAuthorizationRequired())) {
-                p.setExplicitAuthorizationRequired(false);
-                areaLevelPresetRepository.save(p);
-            }
-        });
-    }
 
     private String suffix;
     private User normalUserL1;
@@ -190,7 +185,6 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
                 .floorEntity(testFloor)
                 .areaLevel(AreaLevel.PUBLIC)
                 .areaAccessLevel(1)
-                .explicitAuthorizationRequired(false)
                 .isActive(true)
                 .version(0L)
                 .build());
@@ -200,9 +194,8 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
                 .building("TOA_BETA")
                 .floor("1")
                 .floorEntity(testFloor)
-                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
+                .areaLevel(AreaLevel.CONFIDENTIAL)
                 .areaAccessLevel(2)
-                .explicitAuthorizationRequired(false)
                 .isActive(true)
                 .version(0L)
                 .build());
@@ -212,9 +205,8 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
                 .building("TOA_BETA")
                 .floor("1")
                 .floorEntity(testFloor)
-                .areaLevel(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
+                .areaLevel(AreaLevel.CONFIDENTIAL)
                 .areaAccessLevel(2)
-                .explicitAuthorizationRequired(true)
                 .isActive(true)
                 .version(0L)
                 .build());
@@ -226,7 +218,6 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
                 .floorEntity(testFloor)
                 .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
                 .areaAccessLevel(3)
-                .explicitAuthorizationRequired(true)
                 .isActive(true)
                 .version(0L)
                 .build());
@@ -314,36 +305,41 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
     // TC-CE-03: Liên hệ trước: L3 không AP/đơn -> DENIED; đơn PENDING/REJECTED/CANCELLED -> DENIED; APPROVED [s,e) chứa t -> ALLOWED; t=e và t=s-1m -> DENIED; thành viên bảo lãnh L1 trong khung -> ALLOWED
     // =========================================================================
     @Test
-    @DisplayName("TC-CE-03: Liên hệ trước: L3 không AP/đơn -> DENIED; đơn PENDING/REJECTED/CANCELLED -> DENIED; APPROVED [s,e) chứa t -> ALLOWED; t=e và t=s-1m -> DENIED; thành viên bảo lãnh L1 trong khung -> ALLOWED")
+    @DisplayName("TC-CE-03 (V83): Bảo mật (Liên hệ trước cũ): L3, L2 vào thẳng; L1 đơn PENDING/REJECTED/CANCELLED -> DENIED; APPROVED [s,e) chứa t -> ALLOWED; t=e và t=s-1m -> DENIED; thành viên bảo lãnh L1 trong khung -> ALLOWED")
     void tc_ce_03() {
         OffsetDateTime now = OffsetDateTime.now();
         OffsetDateTime start = now.plusHours(1);
         OffsetDateTime end = now.plusHours(3);
 
-        // 1. L3 không AP/đơn -> DENIED (cờ explicit = true)
-        AccessDecision dNoDoc = accessDecisionService.checkEntry(normalUserL3.getId(), contactArea.getId(), now);
-        assertFalse(dNoDoc.allowed());
+        // 1. Cấp ≥ cấp của loại (2) -> vào thẳng, không cần đơn (trước V83 Liên hệ trước chặn cả L3)
+        AccessDecision dL3 = accessDecisionService.checkEntry(normalUserL3.getId(), contactArea.getId(), now);
+        assertTrue(dL3.allowed());
+        assertEquals(AccessSource.ACCESS_LEVEL, dL3.source());
+        AccessDecision dL2 = accessDecisionService.checkEntry(normalUserL2.getId(), contactArea.getId(), now);
+        assertTrue(dL2.allowed());
+        assertEquals(AccessSource.ACCESS_LEVEL, dL2.source());
+        assertFalse(accessDecisionService.checkEntry(normalUserL1.getId(), contactArea.getId(), now).allowed());
 
-        // 2. Đơn PENDING/REJECTED/CANCELLED -> DENIED
+        // 2. L1: đơn PENDING/REJECTED/CANCELLED -> DENIED
         AccessRequest req = AccessRequest.builder()
                 .requestType(RequestType.INDIVIDUAL)
                 .area(contactArea)
-                .requester(normalUserL2)
+                .requester(normalUserL1)
                 .status(RequestStatus.PENDING)
                 .startTime(start)
                 .endTime(end)
                 .purpose("Lam viec")
                 .build();
         req = accessRequestRepository.save(req);
-        assertFalse(accessDecisionService.checkEntry(normalUserL2.getId(), contactArea.getId(), start.plusMinutes(30)).allowed());
+        assertFalse(accessDecisionService.checkEntry(normalUserL1.getId(), contactArea.getId(), start.plusMinutes(30)).allowed());
 
         req.setStatus(RequestStatus.REJECTED);
         accessRequestRepository.save(req);
-        assertFalse(accessDecisionService.checkEntry(normalUserL2.getId(), contactArea.getId(), start.plusMinutes(30)).allowed());
+        assertFalse(accessDecisionService.checkEntry(normalUserL1.getId(), contactArea.getId(), start.plusMinutes(30)).allowed());
 
         req.setStatus(RequestStatus.CANCELLED);
         accessRequestRepository.save(req);
-        assertFalse(accessDecisionService.checkEntry(normalUserL2.getId(), contactArea.getId(), start.plusMinutes(30)).allowed());
+        assertFalse(accessDecisionService.checkEntry(normalUserL1.getId(), contactArea.getId(), start.plusMinutes(30)).allowed());
 
         // 3. APPROVED [s, e) chứa t -> ALLOWED (ACCESS_REQUEST)
         req.setStatus(RequestStatus.APPROVED);
@@ -351,17 +347,25 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
         req.setReviewedAt(now);
         accessRequestRepository.save(req);
 
-        AccessDecision dApproved = accessDecisionService.checkEntry(normalUserL2.getId(), contactArea.getId(), start.plusMinutes(30));
+        AccessDecision dApproved = accessDecisionService.checkEntry(normalUserL1.getId(), contactArea.getId(), start.plusMinutes(30));
         assertTrue(dApproved.allowed());
         assertEquals(AccessSource.ACCESS_REQUEST, dApproved.source());
 
         // 4. t = e và t = s - 1 phút -> DENIED
-        AccessDecision dAtEnd = accessDecisionService.checkEntry(normalUserL2.getId(), contactArea.getId(), end);
+        AccessDecision dAtEnd = accessDecisionService.checkEntry(normalUserL1.getId(), contactArea.getId(), end);
         assertFalse(dAtEnd.allowed());
-        AccessDecision dBeforeStart = accessDecisionService.checkEntry(normalUserL2.getId(), contactArea.getId(), start.minusMinutes(1));
+        AccessDecision dBeforeStart = accessDecisionService.checkEntry(normalUserL1.getId(), contactArea.getId(), start.minusMinutes(1));
         assertFalse(dBeforeStart.allowed());
 
-        // 5. Thành viên bảo lãnh L1 trong khung giờ -> ALLOWED
+        // 5. Thành viên bảo lãnh L1 (khác người có đơn cá nhân) trong khung giờ -> ALLOWED
+        User sponsoredL1 = userRepository.save(User.builder()
+                .userCode("SP1-" + suffix)
+                .fullName("Sponsored L1 " + suffix)
+                .email("sp1-" + suffix + "@fpt.edu.vn")
+                .role(Role.NORMAL_USER)
+                .accessLevel(1)
+                .isActive(true)
+                .build());
         AccessRequest groupReq = AccessRequest.builder()
                 .requestType(RequestType.GROUP)
                 .area(contactArea)
@@ -378,13 +382,14 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
 
         AccessRequestMember memberL1 = AccessRequestMember.builder()
                 .accessRequest(groupReq)
-                .user(normalUserL1)
+                .user(sponsoredL1)
                 .sponsored(true)
                 .build();
         groupReq.getMembers().add(memberL1);
         accessRequestRepository.save(groupReq);
 
-        AccessDecision dSponsored = accessDecisionService.checkEntry(normalUserL1.getId(), contactArea.getId(), start.plusMinutes(30));
+        assertFalse(accessDecisionService.checkEntry(sponsoredL1.getId(), contactArea.getId(), start.minusMinutes(1)).allowed());
+        AccessDecision dSponsored = accessDecisionService.checkEntry(sponsoredL1.getId(), contactArea.getId(), start.plusMinutes(30));
         assertTrue(dSponsored.allowed());
         assertEquals(AccessSource.ACCESS_REQUEST, dSponsored.source());
     }
@@ -393,33 +398,51 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
     // TC-CE-04: Tuyệt mật: không AP/đơn -> DENIED; AP -> ALLOWED; đơn cá nhân APPROVED -> ALLOWED; L1 -> DENIED
     // =========================================================================
     @Test
-    @DisplayName("TC-CE-04: Tuyệt mật: không AP/đơn -> DENIED; AP -> ALLOWED; đơn cá nhân APPROVED -> ALLOWED; L1 -> DENIED")
+    @DisplayName("TC-CE-04 (V83): Tuyệt mật: L3 vào thẳng; L2 không AP/đơn -> DENIED; AP -> ALLOWED; đơn cá nhân APPROVED -> ALLOWED; L1 -> DENIED")
     void tc_ce_04() {
         OffsetDateTime now = OffsetDateTime.now();
         OffsetDateTime start = now.plusHours(1);
+        OffsetDateTime end = now.plusHours(3);
 
-        // 1. Không AP/đơn -> DENIED
-        assertFalse(accessDecisionService.checkEntry(normalUserL3.getId(), highlyConfidentialArea.getId(), now).allowed());
+        // 1. L3 = cấp của loại -> vào thẳng (trước V83 cờ chỉ định chặn cả L3)
+        AccessDecision dL3 = accessDecisionService.checkEntry(normalUserL3.getId(), highlyConfidentialArea.getId(), now);
+        assertTrue(dL3.allowed());
+        assertEquals(AccessSource.ACCESS_LEVEL, dL3.source());
 
-        // 2. AP -> ALLOWED
+        // 2. L2 không AP/đơn -> DENIED
+        assertFalse(accessDecisionService.checkEntry(normalUserL2.getId(), highlyConfidentialArea.getId(), now).allowed());
+
+        // 3. AP -> ALLOWED
         AreaAssignedPersonnel aap = assignedPersonnelRepository.save(AreaAssignedPersonnel.builder()
                 .area(highlyConfidentialArea)
-                .user(normalUserL3)
+                .user(normalUserL2)
                 .note("SYSADMIN")
                 .validFrom(now.minusHours(1))
                 .validTo(now.plusHours(4))
                 .createdBy(fmUser)
                 .build());
-        AccessDecision dAp = accessDecisionService.checkEntry(normalUserL3.getId(), highlyConfidentialArea.getId(), now);
+        AccessDecision dAp = accessDecisionService.checkEntry(normalUserL2.getId(), highlyConfidentialArea.getId(), now);
         assertTrue(dAp.allowed());
         assertEquals(AccessSource.ASSIGNED_PERSONNEL, dAp.source());
         assignedPersonnelRepository.delete(aap);
 
-        AccessDecision dReq = accessDecisionService.checkEntry(normalUserL3.getId(), highlyConfidentialArea.getId(), start.plusMinutes(30));
+        // 4. Đơn cá nhân APPROVED -> ALLOWED
+        accessRequestRepository.save(AccessRequest.builder()
+                .requestType(RequestType.INDIVIDUAL)
+                .area(highlyConfidentialArea)
+                .requester(normalUserL2)
+                .status(RequestStatus.APPROVED)
+                .startTime(start)
+                .endTime(end)
+                .purpose("Bao tri he thong")
+                .reviewer(fmUser)
+                .reviewedAt(now)
+                .build());
+        AccessDecision dReq = accessDecisionService.checkEntry(normalUserL2.getId(), highlyConfidentialArea.getId(), start.plusMinutes(30));
         assertTrue(dReq.allowed());
         assertEquals(AccessSource.ACCESS_REQUEST, dReq.source());
 
-        // 4. L1 không AP/đơn -> DENIED
+        // 5. L1 không AP/đơn -> DENIED
         assertFalse(accessDecisionService.checkEntry(normalUserL1.getId(), highlyConfidentialArea.getId(), start.plusMinutes(30)).allowed());
     }
 
@@ -427,7 +450,7 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
     // TC-CE-05: Nhiều nguồn: AP hết hạn + đơn APPROVED -> ALLOWED (REQUEST); AP + đơn -> một quyết định ALLOWED
     // =========================================================================
     @Test
-    @DisplayName("TC-CE-05: Nhiều nguồn: AP hết hạn + đơn APPROVED -> ALLOWED (REQUEST); AP + đơn -> một quyết định ALLOWED")
+    @DisplayName("TC-CE-05: Nhiều nguồn (L1 vào Bảo mật): AP hết hạn + đơn APPROVED -> ALLOWED (REQUEST); AP + đơn -> một quyết định ALLOWED")
     void tc_ce_05() {
         OffsetDateTime now = OffsetDateTime.now();
         OffsetDateTime start = now.plusHours(1);
@@ -436,7 +459,7 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
         // AP hết hạn (trong quá khứ)
         assignedPersonnelRepository.save(AreaAssignedPersonnel.builder()
                 .area(contactArea)
-                .user(normalUserL2)
+                .user(normalUserL1)
                 .note("EXPIRED")
                 .validFrom(now.minusDays(5))
                 .validTo(now.minusDays(1))
@@ -447,7 +470,7 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
         accessRequestRepository.save(AccessRequest.builder()
                 .requestType(RequestType.INDIVIDUAL)
                 .area(contactArea)
-                .requester(normalUserL2)
+                .requester(normalUserL1)
                 .status(RequestStatus.APPROVED)
                 .startTime(start)
                 .endTime(end)
@@ -456,21 +479,21 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
                 .reviewedAt(now)
                 .build());
 
-        AccessDecision d1 = accessDecisionService.checkEntry(normalUserL2.getId(), contactArea.getId(), start.plusMinutes(30));
+        AccessDecision d1 = accessDecisionService.checkEntry(normalUserL1.getId(), contactArea.getId(), start.plusMinutes(30));
         assertTrue(d1.allowed());
         assertEquals(AccessSource.ACCESS_REQUEST, d1.source());
 
         // Thêm AP đang hiệu lực -> vẫn ra quyết định ALLOWED
         assignedPersonnelRepository.save(AreaAssignedPersonnel.builder()
                 .area(contactArea)
-                .user(normalUserL2)
+                .user(normalUserL1)
                 .note("ACTIVE_NOW")
                 .validFrom(now.minusHours(1))
                 .validTo(now.plusDays(1))
                 .createdBy(fmUser)
                 .build());
 
-        AccessDecision d2 = accessDecisionService.checkEntry(normalUserL2.getId(), contactArea.getId(), start.plusMinutes(30));
+        AccessDecision d2 = accessDecisionService.checkEntry(normalUserL1.getId(), contactArea.getId(), start.plusMinutes(30));
         assertTrue(d2.allowed());
     }
 
@@ -609,7 +632,7 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
     // TC-AA-02: Ma trận vai trò ADMIN/FM/NORMAL_USER/GUARD/không token: AP, access-rules, event-mode
     // =========================================================================
     @Test
-    @DisplayName("TC-AA-02: Ma trận vai trò ADMIN/FM/NORMAL_USER/GUARD/không token: AP create/update/list, access-rules, event-mode")
+    @DisplayName("TC-AA-02: Ma trận vai trò ADMIN/FM/NORMAL_USER/GUARD/không token: AP list, access-rules (V83: ADMIN 400), event-mode")
     void tc_aa_02() throws Exception {
         // 1. AP: FM -> 200, NORMAL_USER -> 403, GUARD -> 403, không token -> 401
         mockMvc.perform(get("/api/areas/{id}/assigned-personnel", internalArea.getId())
@@ -627,13 +650,14 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(get("/api/areas/{id}/assigned-personnel", internalArea.getId()))
                 .andExpect(status().isUnauthorized());
 
-        // 2. access-rules: ADMIN -> 200, FM -> 403, NORMAL_USER -> 403, GUARD -> 403, không token -> 401
+        // 2. access-rules: ADMIN -> 400 ERR_AREA_056 (V83: cấp cố định theo loại), FM -> 403, NORMAL_USER -> 403, không token -> 401
         String rulesJson = "{\"areaAccessLevel\": 2, \"explicitAuthorizationRequired\": false, \"reason\": \"Kiem tra quyen phan quyen\", \"version\": " + internalArea.getVersion() + "}";
         mockMvc.perform(patch("/api/areas/{id}/access-rules", internalArea.getId())
                         .header("Authorization", bearer(adminUser))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(rulesJson))
-                .andExpect(status().isOk());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("ERR_AREA_056"));
 
         mockMvc.perform(patch("/api/areas/{id}/access-rules", internalArea.getId())
                         .header("Authorization", bearer(fmUser))
@@ -673,6 +697,34 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isUnauthorized());
     }
 
+    @Test
+    @DisplayName("BR-EV-22 (V83): FM bật chế độ sự kiện: khu Bảo mật -> 200; Tuyệt mật / Công khai -> 400 ERR_AREA_022 \"chỉ áp dụng cho khu vực Bảo mật\"")
+    void eventMode_onlyConfidentialArea() throws Exception {
+        OffsetDateTime until = OffsetDateTime.now().plusHours(2);
+        for (Area area : List.of(highlyConfidentialArea, publicArea)) {
+            String json = String.format(
+                    "{\"action\":\"ENABLE\",\"openUntil\":\"%s\",\"reasonCode\":\"SEMINAR\",\"note\":\"Hoi thao khu vuc khong ho tro su kien\",\"version\":%d}",
+                    until, areaService.getAreaById(area.getId()).version());
+            mockMvc.perform(patch("/api/areas/{id}/event-mode", area.getId())
+                            .header("Authorization", bearer(fmUser))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(json))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("ERR_AREA_022"))
+                    .andExpect(jsonPath("$.message").value("Chế độ sự kiện chỉ áp dụng cho khu vực Bảo mật"));
+        }
+        String ok = String.format(
+                "{\"action\":\"ENABLE\",\"openUntil\":\"%s\",\"reasonCode\":\"SEMINAR\",\"note\":\"Hoi thao tai khu vuc Bao mat\",\"version\":%d}",
+                until, areaService.getAreaById(contactArea.getId()).version());
+        mockMvc.perform(patch("/api/areas/{id}/event-mode", contactArea.getId())
+                        .header("Authorization", bearer(fmUser))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(ok))
+                .andExpect(status().isOk());
+        assertTrue(accessDecisionService.checkEntry(normalUserL1.getId(), contactArea.getId(), OffsetDateTime.now()).allowed(),
+                "L1 vào khu Bảo mật đang mở sự kiện");
+    }
+
     // =========================================================================
     // TC-AA-05: Sửa khu vực thiếu version -> ERR_AREA_044; version cũ -> ERR_AREA_045
     // =========================================================================
@@ -682,7 +734,7 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
         // 1. Thiếu version -> ERR_AREA_044
         AreaUpdateRequest reqNoVersion = AreaUpdateRequest.builder()
                 .name("Khu vuc sua thieu version")
-                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
+                .areaLevel(AreaLevel.CONFIDENTIAL)
                 .floorId(testFloor.getId())
                 .version(null)
                 .build();
@@ -694,7 +746,7 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
         // 2. Version cũ (stale version) -> ERR_AREA_045
         AreaUpdateRequest reqStaleVersion = AreaUpdateRequest.builder()
                 .name("Khu vuc sua version cu")
-                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
+                .areaLevel(AreaLevel.CONFIDENTIAL)
                 .floorId(testFloor.getId())
                 .version(internalArea.getVersion() + 99)
                 .build();
@@ -825,13 +877,14 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
     }
 
     // =========================================================================
-    // TC-AA-08: FM sửa access-rules/preset/đổi loại -> 403; ADMIN đổi loại Nội bộ -> Liên hệ trước: cờ bật, khu vực xuất hiện trong dropdown; đổi lại: biến mất; gửi cờ lệch loại -> lỗi mã riêng
+    // TC-AA-08 (V83): FM sửa access-rules / preset / đổi loại -> 403; ADMIN sửa access-rules / preset -> 400 (cấp cố định theo loại);
+    // ADMIN đổi loại Bảo mật -> Tuyệt mật -> cấp 3, đổi lại -> cấp 2; cờ chỉ định luôn false
     // =========================================================================
     @Test
-    @DisplayName("TC-AA-08: FM sửa access-rules/preset/đổi loại -> 403; ADMIN đổi loại Nội bộ -> Liên hệ trước: cờ bật, khu vực xuất hiện trong dropdown; đổi lại: biến mất; gửi cờ lệch loại -> lỗi mã riêng")
+    @DisplayName("TC-AA-08 (V83): FM sửa access-rules/preset/đổi loại -> 403; ADMIN sửa access-rules -> ERR_AREA_056, preset -> ERR_AC_005; đổi loại Bảo mật <-> Tuyệt mật: cấp theo loại, cờ luôn false")
     void tc_aa_08() throws Exception {
         // 1. FM sửa access-rules -> 403
-        String rulesJson = "{\"areaAccessLevel\": 2, \"explicitAuthorizationRequired\": false, \"reason\": \"FM thu sua rules\", \"version\": " + internalArea.getVersion() + "}";
+        String rulesJson = "{\"areaAccessLevel\": 3, \"explicitAuthorizationRequired\": false, \"reason\": \"FM thu sua rules\", \"version\": " + internalArea.getVersion() + "}";
         mockMvc.perform(patch("/api/areas/{id}/access-rules", internalArea.getId())
                         .header("Authorization", bearer(fmUser))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -839,106 +892,69 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isForbidden());
 
         // 2. FM sửa preset -> 403
-        String presetJson = "{\"areaAccessLevel\": 2, \"explicitAuthorizationRequired\": false, \"reason\": \"FM thu sua preset\", \"version\": 0}";
-        mockMvc.perform(put("/api/access-control/level-presets/{areaLevel}", AreaLevel.INTERNAL_CONFIDENTIAL)
+        String presetJson = "{\"areaAccessLevel\": 3, \"explicitAuthorizationRequired\": false, \"reason\": \"FM thu sua preset\", \"version\": 0}";
+        mockMvc.perform(put("/api/access-control/level-presets/{areaLevel}", AreaLevel.CONFIDENTIAL)
                         .header("Authorization", bearer(fmUser))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(presetJson))
                 .andExpect(status().isForbidden());
 
-        // 3. ADMIN đổi loại Nội bộ -> Liên hệ trước: cờ bật, khu vực xuất hiện trong dropdown
-        AreaUpdateRequest updateToContact = AreaUpdateRequest.builder()
+        // 3. FM đổi loại -> 403
+        String putJson = objectMapper.writeValueAsString(java.util.Map.of(
+                "name", internalArea.getName(), "areaLevel", "HIGHLY_CONFIDENTIAL", "floorId", testFloor.getId(),
+                "reason", "FM thu doi loai khu vuc", "version", internalArea.getVersion()));
+        mockMvc.perform(put("/api/areas/{id}", internalArea.getId())
+                        .header("Authorization", bearer(fmUser))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(putJson))
+                .andExpect(status().isForbidden());
+
+        // 4. ADMIN sửa access-rules / preset -> 400, không đổi gì
+        mockMvc.perform(patch("/api/areas/{id}/access-rules", internalArea.getId())
+                        .header("Authorization", bearer(adminUser))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(rulesJson))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("ERR_AREA_056"));
+        mockMvc.perform(put("/api/access-control/level-presets/{areaLevel}", AreaLevel.CONFIDENTIAL)
+                        .header("Authorization", bearer(adminUser))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(presetJson))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("ERR_AC_005"));
+        Area unchanged = areaRepository.findById(internalArea.getId()).orElseThrow();
+        assertEquals(2, unchanged.getAreaAccessLevel());
+        assertEquals(internalArea.getVersion(), unchanged.getVersion());
+        assertEquals(2, areaLevelPresetRepository.findById(AreaLevel.CONFIDENTIAL).orElseThrow().getAreaAccessLevel());
+
+        // 5. ADMIN đổi loại Bảo mật -> Tuyệt mật: cấp 3, cờ false
+        areaService.update(internalArea.getId(), AreaUpdateRequest.builder()
                 .name(internalArea.getName())
-                .areaLevel(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
+                .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
                 .floorId(testFloor.getId())
                 .version(internalArea.getVersion())
-                .reason("Doi sang loai Lien he truoc")
-                .build();
-        areaService.update(internalArea.getId(), updateToContact, adminUser.getEmail());
+                .reason("Doi sang loai Tuyet mat")
+                .build(), adminUser.getEmail());
+        Area highly = areaRepository.findById(internalArea.getId()).orElseThrow();
+        assertEquals(AreaLevel.HIGHLY_CONFIDENTIAL, highly.getAreaLevel());
+        assertEquals(3, highly.getAreaAccessLevel());
+        assertFalse(highly.getExplicitAuthorizationRequired());
+        assertEquals(3, ((Number) entityManager.createNativeQuery("SELECT area_access_level FROM areas WHERE id = :id")
+                .setParameter("id", internalArea.getId()).getSingleResult()).intValue());
 
-        Area updatedArea = areaRepository.findById(internalArea.getId()).orElseThrow();
-        assertEquals(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED, updatedArea.getAreaLevel());
-        assertTrue(updatedArea.getExplicitAuthorizationRequired(), "Cờ explicit phải tự động bật");
-
-        // L2 kiểm tra dropdown -> thấy internalArea (vì cờ explicit = true)
-        mockMvc.perform(get("/api/areas/available-for-request")
-                        .header("Authorization", bearer(normalUserL2)))
-                .andExpect(status().isOk())
-                .andExpect(res -> assertTrue(res.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8).contains(updatedArea.getName())));
-
-        // Bước 6–7: Giả lập preset INTERNAL_CONFIDENTIAL bị đặt cờ = true trong DB
-        // ADMIN đổi khu vực CONTACT về INTERNAL -> khu vực có cờ = false (không đọc cờ từ preset),
-        // không xuất hiện trong available-areas cho user cấp 1 và cấp 2.
-        // Chạy trong transaction riêng biệt có ROLLBACK để tuyệt đối không để lại preset sửa đổi trong DB nếu test dừng giữa chừng.
-        org.springframework.transaction.support.TransactionTemplate tx =
-                new org.springframework.transaction.support.TransactionTemplate(transactionManager);
-        tx.setPropagationBehavior(org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
-        tx.executeWithoutResult(status -> {
-            try {
-                AreaLevelPreset internalPreset = areaLevelPresetRepository.findById(AreaLevel.INTERNAL_CONFIDENTIAL).orElseThrow();
-                internalPreset.setExplicitAuthorizationRequired(true);
-                areaLevelPresetRepository.saveAndFlush(internalPreset);
-
-                AreaUpdateRequest updateBackToInternal = AreaUpdateRequest.builder()
-                        .name(internalArea.getName())
-                        .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
-                        .floorId(testFloor.getId())
-                        .version(updatedArea.getVersion())
-                        .reason("Doi lai Noi bo khi preset bi set explicit=true")
-                        .build();
-                areaService.update(internalArea.getId(), updateBackToInternal, adminUser.getEmail());
-
-                Area revertedArea = areaRepository.findById(internalArea.getId()).orElseThrow();
-                assertEquals(AreaLevel.INTERNAL_CONFIDENTIAL, revertedArea.getAreaLevel());
-                assertFalse(revertedArea.getExplicitAuthorizationRequired(),
-                        "Cờ explicit phải = false dù preset INTERNAL bị đặt cờ = true");
-
-                // User cấp 1 không thấy trong available-areas
-                mockMvc.perform(get("/api/areas/available-for-request")
-                                .header("Authorization", bearer(normalUserL1)))
-                        .andExpect(status().isOk())
-                        .andExpect(res -> assertFalse(res.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8).contains(revertedArea.getName())));
-
-                // User cấp 2 không thấy trong available-areas
-                mockMvc.perform(get("/api/areas/available-for-request")
-                                .header("Authorization", bearer(normalUserL2)))
-                        .andExpect(status().isOk())
-                        .andExpect(res -> assertFalse(res.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8).contains(revertedArea.getName())));
-            } catch (Exception e) {
-                if (e instanceof RuntimeException re) throw re;
-                throw new RuntimeException(e);
-            } finally {
-                status.setRollbackOnly();
-            }
-        });
-
-        // 4. Gửi cờ lệch loại -> lỗi mã riêng (ERR_AREA_056, ERR_AC_005)
-        // Vì tx trên rollback, ta đổi internalArea về INTERNAL bình thường
-        Area latestArea = areaRepository.findById(internalArea.getId()).orElseThrow();
-        if (latestArea.getAreaLevel() != AreaLevel.INTERNAL_CONFIDENTIAL) {
-            AreaUpdateRequest normalBackToInternal = AreaUpdateRequest.builder()
-                    .name(internalArea.getName())
-                    .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
-                    .floorId(testFloor.getId())
-                    .version(latestArea.getVersion())
-                    .reason("Doi lai Noi bo sau test transaction")
-                    .build();
-            areaService.update(internalArea.getId(), normalBackToInternal, adminUser.getEmail());
-        }
-
-        Area currentInternal = areaRepository.findById(internalArea.getId()).orElseThrow();
-        AreaAccessRulesUpdateRequest badRuleReq = new AreaAccessRulesUpdateRequest(2, true, "Gui co lech loai", currentInternal.getVersion());
-        AreaException exArea = assertThrows(AreaException.class, () ->
-                areaService.updateAccessRules(internalArea.getId(), badRuleReq, adminUser.getEmail())
-        );
-        assertEquals(AreaErrorCode.ERR_AREA_056, exArea.getErrorCode());
-
-        var presetInternal = areaLevelPresetRepository.findById(AreaLevel.INTERNAL_CONFIDENTIAL).orElseThrow();
-        LevelPresetUpdateRequest badPresetReq = new LevelPresetUpdateRequest(2, true, "Preset co lech loai", presetInternal.getVersion());
-        AccessControlException exPreset = assertThrows(AccessControlException.class, () ->
-                areaLevelPresetService.updatePreset(AreaLevel.INTERNAL_CONFIDENTIAL, badPresetReq, adminUser.getEmail())
-        );
-        assertEquals(AccessControlErrorCode.ERR_AC_005, exPreset.getErrorCode());
+        // 6. Đổi lại Bảo mật: cấp 2
+        areaService.update(internalArea.getId(), AreaUpdateRequest.builder()
+                .name(internalArea.getName())
+                .areaLevel(AreaLevel.CONFIDENTIAL)
+                .floorId(testFloor.getId())
+                .version(highly.getVersion())
+                .reason("Doi lai loai Bao mat")
+                .build(), adminUser.getEmail());
+        Area back = areaRepository.findById(internalArea.getId()).orElseThrow();
+        assertEquals(AreaLevel.CONFIDENTIAL, back.getAreaLevel());
+        assertEquals(2, back.getAreaAccessLevel());
+        assertEquals(2, ((Number) entityManager.createNativeQuery("SELECT area_access_level FROM areas WHERE id = :id")
+                .setParameter("id", internalArea.getId()).getSingleResult()).intValue());
     }
 
     // =========================================================================
@@ -957,7 +973,7 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
                 now.plusHours(15),
                 "Don 14 tieng"
         );
-        AccessRequestResponse resp14h = accessRequestService.createIndividualRequest(req14h, normalUserL2.getEmail());
+        AccessRequestResponse resp14h = accessRequestService.createIndividualRequest(req14h, normalUserL1.getEmail());
         assertNotNull(resp14h);
 
         // Đổi max duration hours về 4
@@ -969,7 +985,7 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
                 "Don 5 tieng"
         );
         IllegalArgumentException exDur = assertThrows(IllegalArgumentException.class, () ->
-                accessRequestService.createIndividualRequest(req5h, normalUserL2.getEmail())
+                accessRequestService.createIndividualRequest(req5h, normalUserL1.getEmail())
         );
         assertTrue(exDur.getMessage().contains("4"), "Thông báo lỗi phải chứa giới hạn '4': " + exDur.getMessage());
 
@@ -985,7 +1001,7 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
                 "Don 7 ngay toi"
         );
         IllegalArgumentException exDays = assertThrows(IllegalArgumentException.class, () ->
-                accessRequestService.createIndividualRequest(req7d, normalUserL2.getEmail())
+                accessRequestService.createIndividualRequest(req7d, normalUserL1.getEmail())
         );
         assertTrue(exDays.getMessage().contains("5"), "Thông báo lỗi phải chứa giới hạn '5': " + exDays.getMessage());
 
@@ -1049,7 +1065,7 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
     // TC-AR-09: Liên hệ trước: L2 tạo nhóm có 2 L1 -> chấp nhận, sponsored=true cho cả hai; FM duyệt OK; người tạo bị hạ cấp trước khi duyệt -> duyệt bị từ chối
     // =========================================================================
     @Test
-    @DisplayName("TC-AR-09: Liên hệ trước: L2 tạo nhóm có 2 L1 -> chấp nhận, sponsored=true cho cả hai; FM duyệt OK; người tạo bị hạ cấp trước khi duyệt -> duyệt bị từ chối")
+    @DisplayName("TC-AR-09 (V83): Bảo mật: L2 tạo nhóm có 2 L1 -> chấp nhận, sponsored=true cho cả hai; FM duyệt OK; người tạo bị hạ cấp trước khi duyệt -> FM vẫn duyệt được (BR-RQ-02 không kiểm lại cấp người tạo)")
     void tc_ar_09() {
         OffsetDateTime now = OffsetDateTime.now();
         OffsetDateTime start = now.plusHours(1);
@@ -1097,29 +1113,27 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
         normalUserL2.setAccessLevel(1);
         userRepository.save(normalUserL2);
 
-        IllegalArgumentException exLowered = assertThrows(IllegalArgumentException.class, () ->
-                accessRequestService.reviewRequest(resp2.id(), approveDTO, fmUser.getEmail())
-        );
-        assertTrue(exLowered.getMessage().contains(normalUserL2.getFullName()));
+        AccessRequestResponse approvedLowered = accessRequestService.reviewRequest(resp2.id(), approveDTO, fmUser.getEmail());
+        assertEquals(RequestStatus.APPROVED, approvedLowered.status());
     }
 
     // =========================================================================
     // TC-AR-10: Nội bộ/Tuyệt mật: nhóm có L1 -> từ chối; L1 tạo đơn cá nhân -> từ chối; key cấu hình: giá trị lạ/rỗng/chứa PUBLIC hoặc HIGHLY -> từ chối; thêm INTERNAL hợp lệ -> có hiệu lực ngay
     // =========================================================================
     @Test
-    @DisplayName("TC-AR-10: Nội bộ/Tuyệt mật: nhóm có L1 -> từ chối; L1 tạo đơn cá nhân -> từ chối; key cấu hình: giá trị lạ/rỗng/chứa PUBLIC hoặc HIGHLY -> từ chối; thêm INTERNAL hợp lệ -> có hiệu lực ngay")
+    @DisplayName("TC-AR-10 (V83): Bảo mật: nhóm có L1 -> nhận, sponsored; Tuyệt mật: nhóm -> từ chối; đơn cá nhân L1 vào Bảo mật -> nhận, L1 vào Tuyệt mật / L2 vào Bảo mật -> từ chối; key bảo lãnh: giá trị lạ/rỗng/PUBLIC/HIGHLY/tên loại cũ -> từ chối, chỉ còn CONFIDENTIAL")
     void tc_ar_10() {
         OffsetDateTime now = OffsetDateTime.now();
         OffsetDateTime start = now.plusHours(1);
         OffsetDateTime end = now.plusHours(3);
 
-        // 1. Nhóm có L1 vào Nội bộ (INTERNAL_CONFIDENTIAL) -> Từ chối
+        // 1. V83: Nội bộ gộp vào Bảo mật, Bảo mật cho bảo lãnh -> nhóm có L1 được nhận, L1 sponsored
         GroupAccessRequestCreateRequest groupInternal = new GroupAccessRequestCreateRequest(
-                internalArea.getId(), start, end, "Nhom vao Internal", List.of(normalUserL1.getUserCode())
+                internalArea.getId(), start, end, "Nhom vao Bao mat", List.of(normalUserL1.getUserCode())
         );
-        assertThrows(IllegalArgumentException.class, () ->
-                accessRequestService.createGroupRequest(groupInternal, normalUserL2.getEmail())
-        );
+        AccessRequestResponse groupResp = accessRequestService.createGroupRequest(groupInternal, normalUserL2.getEmail());
+        assertEquals(RequestStatus.PENDING, groupResp.status());
+        assertTrue(groupResp.members().get(0).sponsored());
 
         // 2. Nhóm có L1 vào Tuyệt mật (HIGHLY_CONFIDENTIAL) -> Từ chối
         GroupAccessRequestCreateRequest groupHighly = new GroupAccessRequestCreateRequest(
@@ -1129,13 +1143,22 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
                 accessRequestService.createGroupRequest(groupHighly, normalUserL3.getEmail())
         );
 
-        // 3. L1 tạo đơn cá nhân vào Nội bộ -> Từ chối
+        // 3. V83 (BR-RQ-01): L1 tạo đơn cá nhân vào Bảo mật -> nhận; L1 vào Tuyệt mật -> 400 vượt khoảng cách cấp;
+        //    L2 vào Bảo mật -> 400 đã đủ cấp
         IndividualAccessRequestCreateRequest indInternal = new IndividualAccessRequestCreateRequest(
-                internalArea.getId(), start, end, "L1 ca nhan vao Internal"
+                internalArea.getId(), start.plusHours(4), end.plusHours(4), "L1 ca nhan vao Bao mat"
         );
-        assertThrows(IllegalArgumentException.class, () ->
-                accessRequestService.createIndividualRequest(indInternal, normalUserL1.getEmail())
+        assertEquals(RequestStatus.PENDING, accessRequestService.createIndividualRequest(indInternal, normalUserL1.getEmail()).status());
+        IllegalArgumentException exGap = assertThrows(IllegalArgumentException.class, () ->
+                accessRequestService.createIndividualRequest(new IndividualAccessRequestCreateRequest(
+                        highlyConfidentialArea.getId(), start.plusHours(8), end.plusHours(8), "L1 ca nhan vao Tuyet mat"), normalUserL1.getEmail())
         );
+        assertEquals("Chỉ được xin vào khu vực cao hơn cấp của bạn tối đa 1 cấp (khu vực cấp 3, bạn cấp 1)", exGap.getMessage());
+        IllegalArgumentException exEnough = assertThrows(IllegalArgumentException.class, () ->
+                accessRequestService.createIndividualRequest(new IndividualAccessRequestCreateRequest(
+                        internalArea.getId(), start.plusHours(8), end.plusHours(8), "L2 ca nhan vao Bao mat"), normalUserL2.getEmail())
+        );
+        assertEquals("Bạn đã đủ cấp vào khu vực này, không cần tạo yêu cầu truy cập (khu vực cấp 2, bạn cấp 2)", exEnough.getMessage());
 
         // 4. Validate key cấu hình ACCESS_REQUEST_SPONSOR_ALLOWED_AREA_TYPES
         // Giá trị lạ
@@ -1148,108 +1171,97 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
         );
         // Chứa PUBLIC
         assertThrows(IllegalArgumentException.class, () ->
-                systemConfigService.update(ConfigKey.ACCESS_REQUEST_SPONSOR_ALLOWED_AREA_TYPES.getKey(), "PUBLIC,CONFIDENTIAL_CONTACT_REQUIRED", "Chua PUBLIC", adminUser.getEmail())
+                systemConfigService.update(ConfigKey.ACCESS_REQUEST_SPONSOR_ALLOWED_AREA_TYPES.getKey(), "PUBLIC,CONFIDENTIAL", "Chua PUBLIC", adminUser.getEmail())
         );
         // Chứa HIGHLY_CONFIDENTIAL
         assertThrows(IllegalArgumentException.class, () ->
                 systemConfigService.update(ConfigKey.ACCESS_REQUEST_SPONSOR_ALLOWED_AREA_TYPES.getKey(), "HIGHLY_CONFIDENTIAL", "Chua HIGHLY", adminUser.getEmail())
         );
 
-        // 5. Thêm INTERNAL_CONFIDENTIAL hợp lệ -> có hiệu lực ngay (bảo lãnh được vào Internal)
-        systemConfigService.update(ConfigKey.ACCESS_REQUEST_SPONSOR_ALLOWED_AREA_TYPES.getKey(), "CONFIDENTIAL_CONTACT_REQUIRED,INTERNAL_CONFIDENTIAL", "Cho phep them Internal", adminUser.getEmail());
-        GroupAccessRequestCreateRequest groupInternalAfter = new GroupAccessRequestCreateRequest(
-                internalArea.getId(), start, end, "Nhom vao Internal sau khi bat config", List.of(normalUserL1.getUserCode())
-        );
-        AccessRequestResponse respAfter = accessRequestService.createGroupRequest(groupInternalAfter, normalUserL2.getEmail());
-        assertNotNull(respAfter);
-        assertEquals(RequestStatus.PENDING, respAfter.status());
-        assertTrue(respAfter.members().get(0).sponsored());
+        // Tên loại cũ (V83 đã gộp) -> từ chối
+        for (String retired : List.of("INTERNAL_CONFIDENTIAL", "CONFIDENTIAL_CONTACT_REQUIRED")) {
+            IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                    systemConfigService.update(ConfigKey.ACCESS_REQUEST_SPONSOR_ALLOWED_AREA_TYPES.getKey(), retired, "Ten loai cu", adminUser.getEmail())
+            );
+            assertEquals("Loại khu vực không hợp lệ: " + retired, ex.getMessage());
+        }
 
-        // Khôi phục cấu hình về CONFIDENTIAL_CONTACT_REQUIRED
-        systemConfigService.update(ConfigKey.ACCESS_REQUEST_SPONSOR_ALLOWED_AREA_TYPES.getKey(), "CONFIDENTIAL_CONTACT_REQUIRED", "Restore", adminUser.getEmail());
+        // 5. Giá trị hợp lệ duy nhất sau gộp: CONFIDENTIAL
+        assertEquals(java.util.Set.of(AreaLevel.CONFIDENTIAL), systemConfigService.getSponsorAllowedAreaLevels());
     }
 
     // =========================================================================
     // Dropdown: Khu vực cờ tắt, vô hiệu hoá, cấp cao hơn người gửi không xuất hiện; L1 không thấy khu vực Nội bộ nào
     // =========================================================================
     @Test
-    @DisplayName("Dropdown: Khu vực cờ tắt, vô hiệu hoá, cấp cao hơn người gửi không xuất hiện; L1 không thấy khu vực Nội bộ nào")
+    @DisplayName("Dropdown (V83): ?type=INDIVIDUAL chỉ khu cao hơn cấp người gửi trong khoảng cách cấp; ?type=GROUP chỉ khu người gửi tự vào được (Tuyệt mật không nhận đơn nhóm); khu vô hiệu hoá không xuất hiện")
     void testDropdown_AvailableAreasFiltering() throws Exception {
-        // 1. L1 (level 1):
-        // - contactArea (level 2, explicit=true) -> L1 không thấy vì level < 2
-        // - internalArea (level 2, explicit=false) -> L1 không thấy vì explicit=false
-        mockMvc.perform(get("/api/areas/available-for-request")
-                        .header("Authorization", bearer(normalUserL1)))
-                .andExpect(status().isOk())
-                .andExpect(result -> {
-                    String content = result.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
-                    assertFalse(content.contains(contactArea.getName()), "L1 không thấy contactArea");
-                    assertFalse(content.contains(internalArea.getName()), "L1 không thấy internalArea");
-                });
+        // 1. Đơn cá nhân: L1 thấy hai khu Bảo mật, không thấy Tuyệt mật (cách 2 cấp); L2 chỉ thấy Tuyệt mật; L3 không thấy khu nào
+        String l1Individual = dropdown(normalUserL1, "INDIVIDUAL");
+        assertTrue(l1Individual.contains(contactArea.getName()) && l1Individual.contains(internalArea.getName()), "L1 thấy khu Bảo mật");
+        assertFalse(l1Individual.contains(highlyConfidentialArea.getName()), "L1 không thấy Tuyệt mật");
+        String l2Individual = dropdown(normalUserL2, "INDIVIDUAL");
+        assertTrue(l2Individual.contains(highlyConfidentialArea.getName()), "L2 thấy Tuyệt mật");
+        assertFalse(l2Individual.contains(contactArea.getName()) || l2Individual.contains(internalArea.getName()), "L2 đã vào thẳng Bảo mật");
+        String l3Individual = dropdown(normalUserL3, "INDIVIDUAL");
+        assertFalse(l3Individual.contains(contactArea.getName()) || l3Individual.contains(highlyConfidentialArea.getName()), "L3 vào thẳng mọi khu");
+        assertFalse(l1Individual.contains(publicArea.getName()), "Công khai không cần đơn");
 
-        // 2. L2 (level 2):
-        // - contactArea (level 2, explicit=true) -> L2 THẤY
-        // - highlyConfidentialArea (level 3, explicit=true) -> L2 KHÔNG thấy vì level < 3
-        mockMvc.perform(get("/api/areas/available-for-request")
-                        .header("Authorization", bearer(normalUserL2)))
-                .andExpect(status().isOk())
-                .andExpect(result -> {
-                    String content = result.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
-                    assertTrue(content.contains(contactArea.getName()), "L2 phải thấy contactArea");
-                    assertFalse(content.contains(highlyConfidentialArea.getName()), "L2 không thấy highlyArea");
-                    assertFalse(content.contains(internalArea.getName()), "L2 không thấy internalArea vì explicit=false");
-                });
+        // 2. Đơn nhóm: L2 thấy khu Bảo mật, không thấy Tuyệt mật; L1 không thấy khu nào
+        String l2Group = dropdown(normalUserL2, "GROUP");
+        assertTrue(l2Group.contains(contactArea.getName()) && l2Group.contains(internalArea.getName()));
+        assertFalse(l2Group.contains(highlyConfidentialArea.getName()), "Tuyệt mật không nhận đơn nhóm (mặc định)");
+        String l1Group = dropdown(normalUserL1, "GROUP");
+        assertFalse(l1Group.contains(contactArea.getName()) || l1Group.contains(internalArea.getName()), "L1 không tự vào được khu Bảo mật");
 
-        // 3. Vô hiệu hoá contactArea -> không còn xuất hiện trong dropdown của L2
+        // 3. Không gửi type (client cũ): hợp của hai danh sách, kèm cờ từng loại
+        String l2All = dropdown(normalUserL2, null);
+        assertTrue(l2All.contains(contactArea.getName()) && l2All.contains(highlyConfidentialArea.getName()));
+
+        // 4. Vô hiệu hoá contactArea -> không còn xuất hiện
         contactArea.setIsActive(false);
         areaRepository.save(contactArea);
+        assertFalse(dropdown(normalUserL1, "INDIVIDUAL").contains(contactArea.getName()), "Khu vực vô hiệu hoá không được xuất hiện");
+        assertFalse(dropdown(normalUserL2, "GROUP").contains(contactArea.getName()), "Khu vực vô hiệu hoá không được xuất hiện");
+    }
 
-        mockMvc.perform(get("/api/areas/available-for-request")
-                        .header("Authorization", bearer(normalUserL2)))
-                .andExpect(status().isOk())
-                .andExpect(result -> {
-                    String content = result.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
-                    assertFalse(content.contains(contactArea.getName()), "Khu vực vô hiệu hoá không được xuất hiện");
-                });
+    private String dropdown(User caller, String type) throws Exception {
+        var req = get("/api/areas/available-for-request").header("Authorization", bearer(caller));
+        if (type != null) {
+            req = req.param("type", type);
+        }
+        MvcResult r = mockMvc.perform(req).andExpect(status().isOk()).andReturn();
+        return r.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
     }
 
     // =========================================================================
     // Preset/Audit: FM sửa preset -> 403; ADMIN sửa cấp preset -> 200 + audit; audit-logs: ADMIN, FM -> 200; NORMAL_USER, GUARD -> 403
     // =========================================================================
     @Test
-    @DisplayName("Preset/Audit: FM sửa preset -> 403; ADMIN sửa cấp preset -> 200 + audit; audit-logs: ADMIN, FM -> 200; NORMAL_USER, GUARD -> 403")
+    @DisplayName("Preset/Audit: FM sửa preset -> 403; ADMIN sửa cấp preset -> 400 ERR_AC_005, không audit; audit-logs: ADMIN, FM -> 200; NORMAL_USER, GUARD -> 403")
     void testPresetAndAuditAuthorization() throws Exception {
         // 1. FM sửa preset -> 403
-        var currentPreset = areaLevelPresetRepository.findById(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED).orElseThrow();
-        String presetJson = "{\"areaAccessLevel\": 2, \"explicitAuthorizationRequired\": true, \"reason\": \"FM thu sua preset\", \"version\": " + currentPreset.getVersion() + "}";
-        mockMvc.perform(put("/api/access-control/level-presets/{areaLevel}", AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
+        var currentPreset = areaLevelPresetRepository.findById(AreaLevel.CONFIDENTIAL).orElseThrow();
+        String presetJson = "{\"areaAccessLevel\": 2, \"explicitAuthorizationRequired\": false, \"reason\": \"FM thu sua preset\", \"version\": " + currentPreset.getVersion() + "}";
+        mockMvc.perform(put("/api/access-control/level-presets/{areaLevel}", AreaLevel.CONFIDENTIAL)
                         .header("Authorization", bearer(fmUser))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(presetJson))
                 .andExpect(status().isForbidden());
 
-        // 2. ADMIN sửa cấp preset (2 -> 3) -> 200 + ghi audit log
-        String adminPresetJson = "{\"areaAccessLevel\": 3, \"explicitAuthorizationRequired\": true, \"reason\": \"ADMIN sua preset hop le\", \"version\": " + currentPreset.getVersion() + "}";
-        mockMvc.perform(put("/api/access-control/level-presets/{areaLevel}", AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
+        // 2. ADMIN sửa cấp preset -> 400 ERR_AC_005 (V83: bảng chỉ để xem), không đổi cấp, không audit
+        String adminPresetJson = "{\"areaAccessLevel\": 3, \"explicitAuthorizationRequired\": false, \"reason\": \"ADMIN sua preset " + suffix + "\", \"version\": " + currentPreset.getVersion() + "}";
+        mockMvc.perform(put("/api/access-control/level-presets/{areaLevel}", AreaLevel.CONFIDENTIAL)
                         .header("Authorization", bearer(adminUser))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(adminPresetJson))
-                .andExpect(status().isOk());
-
-        // Kiểm tra audit log LEVEL_PRESET
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("ERR_AC_005"));
+        assertEquals(2, areaLevelPresetRepository.findById(AreaLevel.CONFIDENTIAL).orElseThrow().getAreaAccessLevel());
         Number count = (Number) entityManager.createNativeQuery(
-                "SELECT COUNT(*) FROM audit_logs WHERE target_id = 'CONFIDENTIAL_CONTACT_REQUIRED' AND target_type = 'LEVEL_PRESET'"
-        ).getSingleResult();
-        assertTrue(count.intValue() >= 1, "Phải có ít nhất 1 audit log cho LEVEL_PRESET");
-
-        // Khôi phục lại cấp 2 cho preset
-        var updatedPreset = areaLevelPresetRepository.findById(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED).orElseThrow();
-        String restorePresetJson = "{\"areaAccessLevel\": 2, \"explicitAuthorizationRequired\": true, \"reason\": \"ADMIN khoi phuc preset cap 2\", \"version\": " + updatedPreset.getVersion() + "}";
-        mockMvc.perform(put("/api/access-control/level-presets/{areaLevel}", AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
-                        .header("Authorization", bearer(adminUser))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(restorePresetJson))
-                .andExpect(status().isOk());
+                "SELECT COUNT(*) FROM audit_logs WHERE target_type = 'LEVEL_PRESET' AND reason = :reason"
+        ).setParameter("reason", "ADMIN sua preset " + suffix).getSingleResult();
+        assertEquals(0, count.intValue());
 
         // 3. audit-logs: ADMIN, FM -> 200; NORMAL_USER, GUARD -> 403
         mockMvc.perform(get("/api/access-control/audit-logs")

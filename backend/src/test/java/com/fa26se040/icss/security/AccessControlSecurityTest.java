@@ -19,7 +19,6 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.EnumMap;
 import java.util.Map;
@@ -88,16 +87,17 @@ class AccessControlSecurityTest extends AbstractIntegrationTest {
         private final String putBody = "{\"areaAccessLevel\": 2, \"explicitAuthorizationRequired\": false, \"reason\": \"Bảo mật cao hơn\", \"version\": 0}";
 
         @Test
-        @DisplayName("PUT /level-presets: ADMIN được phép -> 200 OK")
-        void putPreset_Admin_Returns200() throws Exception {
+        @DisplayName("PUT /level-presets: ADMIN qua phân quyền, service trả 400 ERR_AC_005 (V83: cấp cố định theo loại)")
+        void putPreset_Admin_PassesAuthorization_Returns400() throws Exception {
             when(presetService.updatePreset(eq(AreaLevel.PUBLIC), any(), any()))
-                    .thenReturn(new LevelPresetResponse(AreaLevel.PUBLIC, 2, false, OffsetDateTime.now(), "Admin", "ADMIN01", 1L));
+                    .thenThrow(new com.fa26se040.icss.exception.AccessControlException(
+                            com.fa26se040.icss.exception.AccessControlErrorCode.ERR_AC_005));
 
             mockMvc.perform(put("/api/access-control/level-presets/{areaLevel}", AreaLevel.PUBLIC)
                             .header("Authorization", tokenFor(Role.ADMIN))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(putBody))
-                    .andExpect(status().isOk());
+                    .andExpect(status().isBadRequest());
         }
 
         @Test
@@ -280,23 +280,16 @@ class AccessControlSecurityTest extends AbstractIntegrationTest {
         private final String areaRulesBody = "{\"areaAccessLevel\": 2, \"explicitAuthorizationRequired\": false, \"reason\": \"Điều chỉnh quy tắc khu vực\"}";
 
         @Test
-        @DisplayName("PATCH /areas/{id}/access-rules: ADMIN được phép -> 200 OK")
-        void patchAreaRules_Admin_Returns200() throws Exception {
+        @DisplayName("PATCH /areas/{id}/access-rules: ADMIN qua phân quyền, service trả 400 ERR_AREA_056 (V83: cấp cố định theo loại)")
+        void patchAreaRules_Admin_PassesAuthorization_Returns400() throws Exception {
             when(areaService.updateAccessRules(eq(sampleId), any(), any()))
-                    .thenReturn(AreaResponse.builder()
-                            .id(sampleId).name("Khu vực 1").areaLevel(AreaLevel.PUBLIC)
-                            .areaAccessLevel(2).explicitAuthorizationRequired(false)
-                            .building("Tòa A").floor("Tầng 1").isActive(true)
-                            .createdAt(OffsetDateTime.now()).updatedAt(OffsetDateTime.now())
-                            .differsFromPreset(false).openToMembers(false).eventActive(false)
-                            .upcomingScheduleCount(0)
-                            .build());
+                    .thenThrow(new com.fa26se040.icss.exception.AreaException(com.fa26se040.icss.exception.AreaErrorCode.ERR_AREA_056));
 
             mockMvc.perform(patch("/api/areas/{id}/access-rules", sampleId)
                             .header("Authorization", tokenFor(Role.ADMIN))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(areaRulesBody))
-                    .andExpect(status().isOk());
+                    .andExpect(status().isBadRequest());
         }
 
         @Test

@@ -65,6 +65,10 @@ class UserServiceAccessLevelTest {
     @Mock
     private com.fa26se040.icss.service.AuditService auditService;
 
+    // BR-AL-30: không có đơn PENDING (mock trả danh sách rỗng)
+    @Mock
+    private com.fa26se040.icss.repository.AccessRequestRepository accessRequestRepository;
+
     @InjectMocks
     private UserService userService;
 

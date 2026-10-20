@@ -77,6 +77,8 @@ public class AccessRequestService {
     private final ReasonValidator reasonValidator;
     private final MemberLookupRateLimiter memberLookupRateLimiter;
     private final AuditService auditService;
+    // BR-AL-30: khoá dòng users của người tham gia đơn (đọc lại cấp mới nhất sau khi khoá)
+    private final jakarta.persistence.EntityManager entityManager;
 
     @Transactional
     public AccessRequestResponse createIndividualRequest(IndividualAccessRequestCreateRequest request, String actorEmail) {
@@ -84,18 +86,12 @@ public class AccessRequestService {
 
         User requester = getRequester(actorEmail);
         Area area = getArea(request.areaId());
+        lockParticipants(List.of(requester));
 
         validateCommonRules(area, request.startTime(), request.endTime());
-        
-        int requiredLevel = area.getAreaAccessLevel() != null ? area.getAreaAccessLevel() : 1;
-        int requesterLevel = requester.getAccessLevel() != null ? requester.getAccessLevel() : 1;
-        if (requesterLevel < requiredLevel) {
-            throw new IllegalArgumentException(
-                    "Người tạo đơn không đủ cấp độ truy cập vào khu vực (yêu cầu Level " + requiredLevel + "): "
-                            + requester.getFullName() + " (" + requester.getUserCode() + ")"
-            );
-        }
-        requireAreaAvailableForRequest(area, requester);
+
+        // V83 (BR-RQ-01): đơn cá nhân chỉ xin khu cấp cao hơn cấp mình, tối đa ACCESS_REQUEST_MAX_LEVEL_GAP cấp
+        requireAreaAvailableForRequest(area, requester, RequestType.INDIVIDUAL);
 
         // Validate overlap for requester only
         validateNoOverlap(area.getId(), request.startTime(), request.endTime(), List.of(requester));
@@ -151,23 +147,16 @@ public class AccessRequestService {
 
         validateCommonRules(area, request.startTime(), request.endTime());
 
-        boolean groupAllowedInPrivate = systemConfigService.getBoolean(ConfigKey.ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE);
-        if (!AreaService.isGroupRequestAllowed(area.getAreaLevel(), groupAllowedInPrivate)) {
-            throw new IllegalArgumentException("Khu vực bảo mật cao (HIGHLY_CONFIDENTIAL) chỉ cho phép đăng ký truy cập cá nhân (INDIVIDUAL)");
-        }
-
-        // Kiểm tra cấp của người tạo đơn
-        int requiredLevel = area.getAreaAccessLevel() != null ? area.getAreaAccessLevel() : 1;
-        int requesterLevel = requester.getAccessLevel() != null ? requester.getAccessLevel() : 1;
-        if (requesterLevel < requiredLevel) {
-            throw new IllegalArgumentException(
-                    "Người tạo đơn không đủ cấp độ truy cập vào khu vực (yêu cầu Level " + requiredLevel + "): "
-                            + requester.getFullName() + " (" + requester.getUserCode() + ")"
-            );
-        }
-        requireAreaAvailableForRequest(area, requester);
-
+        // Phần chỉ phụ thuộc khu (đang hoạt động, Tuyệt mật không nhận đơn nhóm) báo trước khi tra thành viên
+        requireAreaAvailableForRequest(area, null, RequestType.GROUP);
         List<User> memberUsers = resolveAndValidateGroupMembers(request.memberUserCodes(), requester);
+        List<User> lockTargets = new ArrayList<>(memberUsers);
+        lockTargets.add(requester);
+        lockParticipants(lockTargets);
+
+        // V83 (BR-RQ-03, BR-RQ-28): người tạo phải tự vào được khu bằng cấp (đọc sau khi khoá)
+        requireAreaAvailableForRequest(area, requester, RequestType.GROUP);
+        int requiredLevel = area.getAreaAccessLevel();
 
         boolean isSponsorshipAllowed = systemConfigService.getSponsorAllowedAreaLevels().contains(area.getAreaLevel());
         if (!isSponsorshipAllowed) {
@@ -347,7 +336,7 @@ public class AccessRequestService {
     public static final String REQUESTER_DEACTIVATION_SOURCE = "REQUESTER_DEACTIVATION";
 
     /** BR-RQ-33: khu vực không nằm trong danh sách khu vực được xin (available-areas). */
-    static final String AREA_NOT_REQUESTABLE_MESSAGE = "Khu vực này không nằm trong danh sách khu vực được phép xin truy cập";
+    static final String AREA_NOT_REQUESTABLE_MESSAGE = AreaService.AREA_NOT_REQUESTABLE_MESSAGE;
 
     /**
      * BR-RQ-MEM-01: thành viên đơn nhóm phải là NORMAL_USER, đang hoạt động (isActive khác false), chưa xoá mềm.
@@ -496,22 +485,12 @@ public class AccessRequestService {
                 if (pendingReq.getRequestType() == RequestType.GROUP
                         && currentArea.getAreaLevel() == AreaLevel.HIGHLY_CONFIDENTIAL
                         && !groupAllowedInPrivate) {
-                    throw new IllegalArgumentException("Khu vực bảo mật cao (HIGHLY_CONFIDENTIAL) không cho phép duyệt đơn truy cập nhóm (GROUP)");
+                    throw new IllegalArgumentException("Khu vực Tuyệt mật (HIGHLY_CONFIDENTIAL) không cho phép duyệt đơn truy cập nhóm (GROUP)");
                 }
 
+                // V83 (BR-RQ-02): không kiểm lại cấp người tạo đơn (đơn cá nhân vốn dành cho người thiếu cấp;
+                // BR-AL-30 chặn đổi cấp khi đang có đơn chờ duyệt). Các bước kiểm lại thành viên giữ nguyên.
                 int requiredLevel = currentArea.getAreaAccessLevel() != null ? currentArea.getAreaAccessLevel() : 1;
-
-                if (pendingReq.getRequester() != null) {
-                    User freshRequester = userRepository.findById(pendingReq.getRequester().getId())
-                            .orElse(pendingReq.getRequester());
-                    int requesterLevel = freshRequester.getAccessLevel() != null ? freshRequester.getAccessLevel() : 1;
-                    if (requesterLevel < requiredLevel) {
-                        throw new IllegalArgumentException(
-                                "Người tạo đơn không còn đủ cấp độ truy cập vào khu vực (yêu cầu Level " + requiredLevel + "): "
-                                        + freshRequester.getFullName() + " (" + freshRequester.getUserCode() + ")"
-                        );
-                    }
-                }
 
                 if (pendingReq.getRequestType() == RequestType.GROUP && pendingReq.getMembers() != null) {
                     boolean isSponsorshipAllowed = systemConfigService.getSponsorAllowedAreaLevels().contains(currentArea.getAreaLevel());
@@ -925,10 +904,28 @@ public class AccessRequestService {
                 .orElseThrow(() -> new ResourceNotFoundException("Khu vực không tồn tại hoặc đã bị vô hiệu hoá"));
     }
 
-    /** BR-RQ-33: cùng tiêu chí với danh sách available-areas (AreaService.isAvailableForRequest) -> 400. */
-    private void requireAreaAvailableForRequest(Area area, User requester) {
-        if (!AreaService.isAvailableForRequest(area, requester, systemConfigService.getSponsorAllowedAreaLevels())) {
-            throw new IllegalArgumentException(AREA_NOT_REQUESTABLE_MESSAGE);
+    /**
+     * BR-AL-30: khoá dòng users của người tạo và thành viên (SELECT ... FOR UPDATE) theo thứ tự id tăng dần (cùng thứ tự uuid
+     * của PostgreSQL, tránh deadlock giữa hai đơn nhóm chéo người) và đọc lại dữ liệu sau khi khoá. Đổi cấp đồng thời cho
+     * một trong số họ (UserService.updateAccessLevel khoá cùng dòng) phải chờ giao dịch này xong: đơn tạo trước thì đổi cấp
+     * sau gặp đơn PENDING (409); đổi cấp trước thì đơn kiểm theo cấp mới.
+     */
+    private void lockParticipants(List<User> participants) {
+        participants.stream()
+                .filter(u -> u != null && u.getId() != null)
+                .collect(java.util.stream.Collectors.toMap(u -> u.getId().toString(), u -> u, (a, b) -> a, java.util.TreeMap::new))
+                .values()
+                .forEach(u -> entityManager.refresh(u, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE));
+    }
+
+    /** BR-RQ-33: cùng tiêu chí với danh sách available-areas (AreaService.requestIneligibility) -> 400 kèm lý do. */
+    private void requireAreaAvailableForRequest(Area area, User requester, RequestType type) {
+        boolean groupAllowedInHighly = type == RequestType.GROUP && area.getAreaLevel() == AreaLevel.HIGHLY_CONFIDENTIAL
+                && systemConfigService.getBoolean(ConfigKey.ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE);
+        String reason = AreaService.requestIneligibility(area, requester, type,
+                systemConfigService.getInt(ConfigKey.ACCESS_REQUEST_MAX_LEVEL_GAP), groupAllowedInHighly);
+        if (reason != null) {
+            throw new IllegalArgumentException(reason);
         }
     }
 
@@ -1138,26 +1135,6 @@ public class AccessRequestService {
         if (durationMinutes > (long) maxDurationHours * 60) {
             long inputHours = durationMinutes % 60 == 0 ? durationMinutes / 60 : (durationMinutes + 59) / 60;
             throw new IllegalArgumentException("Thời lượng truy cập tối đa không quá " + maxDurationHours + " giờ (bạn nhập " + inputHours + " giờ)");
-        }
-    }
-
-    private void validateAccessLevels(Area area, List<User> participants) {
-        if (area.getAreaAccessLevel() == null || participants == null || participants.isEmpty()) {
-            return;
-        }
-        int requiredLevel = area.getAreaAccessLevel();
-        List<String> unqualified = new ArrayList<>();
-        for (User user : participants) {
-            int userLevel = user.getAccessLevel() != null ? user.getAccessLevel() : 1;
-            if (userLevel < requiredLevel) {
-                unqualified.add(user.getFullName() + " (" + user.getUserCode() + ")");
-            }
-        }
-        if (!unqualified.isEmpty()) {
-            throw new IllegalArgumentException(
-                    "Người dùng không đủ cấp độ truy cập vào khu vực (yêu cầu Level " + requiredLevel + "): "
-                            + String.join(", ", unqualified)
-            );
         }
     }
 

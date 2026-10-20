@@ -29,9 +29,12 @@ public class AreaController {
 
     @GetMapping("/available-for-request")
     @PreAuthorize("hasAnyRole('NORMAL_USER', 'FACILITY_MANAGER', 'ADMIN')")
-    public ResponseEntity<ApiResponse<List<AreaSimpleResponse>>> getAvailableAreasForRequest(Authentication authentication) {
+    public ResponseEntity<ApiResponse<List<AreaSimpleResponse>>> getAvailableAreasForRequest(
+            // V83: INDIVIDUAL / GROUP theo tab của form đơn; bỏ trống = khu tạo được ít nhất một loại đơn
+            @RequestParam(required = false) com.fa26se040.icss.enums.RequestType type,
+            Authentication authentication) {
         String actorEmail = authentication != null ? authentication.getName() : null;
-        return ResponseEntity.ok(ApiResponse.success(areaService.getAvailableAreasForRequest(actorEmail), "Lấy danh sách khu vực khả dụng thành công"));
+        return ResponseEntity.ok(ApiResponse.success(areaService.getAvailableAreasForRequest(actorEmail, type), "Lấy danh sách khu vực khả dụng thành công"));
     }
 
     @GetMapping("/map-pins")

@@ -49,7 +49,7 @@ class Step6AreaDeactivationRollbackTest extends GuestTestSupport {
     @Test
     @DisplayName("Rollback: lỗi khi thu hồi lượt khách -> khu vực, AP, đơn, lượt khách, ảnh giữ nguyên; không audit, không thông báo")
     void failureMidway_rollsBackEverything() throws Exception {
-        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        Area area = newArea(AreaLevel.CONFIDENTIAL);
         OffsetDateTime now = OffsetDateTime.now();
         AreaAssignedPersonnel ap = newAp(area, otherHost, now.minusDays(1), now.plusDays(3));
         AccessRequest request = accessRequestRepository.save(AccessRequest.builder()

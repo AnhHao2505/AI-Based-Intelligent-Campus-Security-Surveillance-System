@@ -44,7 +44,7 @@ class AreaCenterCoordinatesTest extends Step5bTestSupport {
     private Map<String, Object> createBody(String name, Double lat, Double lng) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("name", name);
-        body.put("areaLevel", AreaLevel.INTERNAL_CONFIDENTIAL.name());
+        body.put("areaLevel", AreaLevel.CONFIDENTIAL.name());
         body.put("building", building.getName());
         body.put("floor", floor.getName());
         body.put("floorId", floor.getId());
@@ -74,7 +74,7 @@ class AreaCenterCoordinatesTest extends Step5bTestSupport {
     }
 
     private Area areaWithCoordinates() {
-        Area a = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        Area a = newArea(AreaLevel.CONFIDENTIAL);
         assertNotNull(a.getCenterLatitude(), "Tiền điều kiện: newArea gán toạ độ");
         return a;
     }

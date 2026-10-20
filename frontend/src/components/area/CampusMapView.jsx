@@ -1012,13 +1012,7 @@ export default function CampusMapView({
 					</div>
 					<div className="campus-map-legend__item">
 						<span className="campus-map-legend__dot campus-map-legend__dot--internal" />
-						<span>{AREA_LEVEL_CONFIG.INTERNAL_CONFIDENTIAL.badgeLabel}</span>
-					</div>
-					<div className="campus-map-legend__item">
-						<span className="campus-map-legend__dot campus-map-legend__dot--contact" />
-						<span>
-							{AREA_LEVEL_CONFIG.CONFIDENTIAL_CONTACT_REQUIRED.badgeLabel}
-						</span>
+						<span>{AREA_LEVEL_CONFIG.CONFIDENTIAL.badgeLabel}</span>
 					</div>
 					<div className="campus-map-legend__item">
 						<span className="campus-map-legend__dot campus-map-legend__dot--private" />
@@ -1148,11 +1142,7 @@ export default function CampusMapView({
 									<span className="campus-detail-meta-label">Cấp truy cập</span>
 									<span
 										className="campus-detail-meta-val"
-										title={
-											selectedArea.explicitAuthorizationRequired
-												? "Cấp tối thiểu để được gửi đơn xin vào (không cho vào tự do)"
-												: "Cấp tối thiểu để được vào tự do"
-										}
+										title="Cấp tối thiểu để được vào thẳng (cấp cố định theo loại khu vực)"
 									>
 										{getAccessLevelConfig(selectedArea.areaAccessLevel).label}
 									</span>

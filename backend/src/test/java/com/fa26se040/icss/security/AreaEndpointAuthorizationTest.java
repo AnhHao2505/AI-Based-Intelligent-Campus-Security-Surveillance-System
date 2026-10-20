@@ -120,7 +120,7 @@ public class AreaEndpointAuthorizationTest extends AbstractIntegrationTest {
                 .content("""
                         {
                             "name": "Test Area Auth",
-                            "areaLevel": "INTERNAL_CONFIDENTIAL",
+                            "areaLevel": "CONFIDENTIAL",
                             "building": "BUILDING_A",
                             "floor": "F1",
                             "centerLatitude": 10.8418,
@@ -150,7 +150,7 @@ public class AreaEndpointAuthorizationTest extends AbstractIntegrationTest {
                 .content("""
                         {
                             "name": "Test Area Auth",
-                            "areaLevel": "INTERNAL_CONFIDENTIAL",
+                            "areaLevel": "CONFIDENTIAL",
                             "building": "BUILDING_A",
                             "floor": "F1",
                             "centerLatitude": 10.8418,

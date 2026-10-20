@@ -98,9 +98,8 @@ class AccessRequestFinishTest extends AbstractIntegrationTest {
                 .building(building.getName())
                 .floor(floor.getName())
                 .floorEntity(floor)
-                .areaLevel(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
+                .areaLevel(AreaLevel.CONFIDENTIAL)
                 .areaAccessLevel(2)
-                .explicitAuthorizationRequired(true)
                 .isActive(true)
                 .build());
     }

@@ -118,9 +118,8 @@ class IncidentEscalationIntegrationTest extends AbstractIntegrationTest {
                 .building("TOA_BETA")
                 .floor("1")
                 .floorEntity(floor)
-                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
+                .areaLevel(AreaLevel.CONFIDENTIAL)
                 .areaAccessLevel(2)
-                .explicitAuthorizationRequired(false)
                 .isActive(true)
                 .version(0L)
                 .build());
