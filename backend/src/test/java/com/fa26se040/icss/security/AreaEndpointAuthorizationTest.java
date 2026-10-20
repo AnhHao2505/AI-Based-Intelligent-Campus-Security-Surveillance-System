@@ -3,6 +3,7 @@ package com.fa26se040.icss.security;
 import com.fa26se040.icss.AbstractIntegrationTest;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.Role;
+import com.fa26se040.icss.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -15,6 +16,8 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import java.util.Set;
 import java.util.EnumSet;
+import java.util.EnumMap;
+import java.util.Map;
 import java.util.Arrays;
 import java.util.function.Supplier;
 
@@ -50,15 +53,24 @@ public class AreaEndpointAuthorizationTest extends AbstractIntegrationTest {
         guardToken = bearer(Role.GUARD);
     }
 
+    @Autowired
+    private UserRepository userRepository;
+
+    // S1 (20/10): filter JWT tra user trong DB nên token phải thuộc user có thật, đang hoạt động
+    private final Map<Role, User> usersByRole = new EnumMap<>(Role.class);
+
     private String bearer(Role role) {
-        User user = User.builder()
-                .id(UUID.randomUUID())
-                .email("auth.test." + role.name().toLowerCase() + "@fpt.edu.vn")
-                .fullName("Auth Test " + role.name())
-                .role(role)
-                .accessLevel(3)
-                .isActive(true)
-                .build();
+        User user = usersByRole.computeIfAbsent(role, r -> {
+            String suffix = UUID.randomUUID().toString().substring(0, 8);
+            return userRepository.save(User.builder()
+                    .userCode("AUTH-" + r.name().substring(0, 3) + "-" + suffix)
+                    .email("auth.test." + r.name().toLowerCase() + "." + suffix + "@fpt.edu.vn")
+                    .fullName("Auth Test " + r.name())
+                    .role(r)
+                    .accessLevel(3)
+                    .isActive(true)
+                    .build());
+        });
         return "Bearer " + jwtTokenProvider.generateToken(user);
     }
 
