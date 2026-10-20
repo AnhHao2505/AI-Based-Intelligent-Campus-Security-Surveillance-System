@@ -1,10 +1,12 @@
 import React, { forwardRef, useId } from 'react';
 import { AlertCircle } from 'lucide-react';
+import { useReasonLimits } from '../../hooks/useReasonLimits';
 import './ReasonTextarea.css';
 
 /**
  * Reusable ReasonTextarea component with standardized inline validation,
  * character count, red error indicators, and ref focusing support (UX-03).
+ * Không truyền min / max thì dùng giới hạn độ dài lý do đang cấu hình (useReasonLimits, checklist 6.1).
  */
 const ReasonTextarea = forwardRef(function ReasonTextarea(
   {
@@ -12,13 +14,13 @@ const ReasonTextarea = forwardRef(function ReasonTextarea(
     label = 'Lý do',
     value = '',
     onChange,
-    placeholder = 'Nhập lý do (tối thiểu 10 ký tự, tối đa 500 ký tự)...',
+    placeholder: placeholderProp,
     error,
     hint,
     required = true,
     disabled = false,
-    min = 10,
-    max = 500,
+    min: minProp,
+    max: maxProp,
     rows = 3,
     className = '',
     style,
@@ -28,6 +30,10 @@ const ReasonTextarea = forwardRef(function ReasonTextarea(
 ) {
   const generatedId = useId();
   const textareaId = id || generatedId;
+  const reasonLimits = useReasonLimits();
+  const min = minProp ?? reasonLimits.min;
+  const max = maxProp ?? reasonLimits.max;
+  const placeholder = placeholderProp ?? `Nhập lý do (tối thiểu ${min} ký tự, tối đa ${max} ký tự)...`;
 
   const currentLength = (value || '').length;
   const trimmedLength = (value || '').trim().length;

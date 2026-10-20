@@ -30,6 +30,7 @@ import {
 	ErrorState,
 } from "../../components/ui";
 import "../../styles/SystemConfigPage.css";
+import { useReasonLimits } from "../../hooks/useReasonLimits";
 
 /** Nhóm con trong một tab cấu hình, theo tiền tố config_key (UI-AUDIT #33). */
 const CONFIG_SUBGROUPS = {
@@ -39,10 +40,12 @@ const CONFIG_SUBGROUPS = {
 		{ title: "Chế độ sự kiện", prefixes: ["EVENT_MODE_"] },
 		{ title: "Nhật ký ra vào", prefixes: ["ENTRY_LOG_"] },
 		{ title: "Tra cứu thành viên", prefixes: ["SECURITY_MEMBER_LOOKUP_"] },
+		{ title: "Lý do thao tác", prefixes: ["REASON_"] },
 	],
 };
 
 export default function SystemConfigPage() {
+	const reasonLimits = useReasonLimits();
 	const [configs, setConfigs] = useState([]);
 	const [editedValues, setEditedValues] = useState({});
 	const [loading, setLoading] = useState(true);
@@ -136,8 +139,8 @@ export default function SystemConfigPage() {
 		const value = editedValues[key];
 		const trimmedReason = confirmReason.trim();
 
-		if (trimmedReason.length < 10 || trimmedReason.length > 500) {
-			setConfirmReasonError(`Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmedReason.length}).`);
+		if (!reasonLimits.isValid(trimmedReason)) {
+			setConfirmReasonError(reasonLimits.error(trimmedReason));
 			confirmReasonRef.current?.focus();
 			return;
 		}
@@ -677,13 +680,13 @@ export default function SystemConfigPage() {
 								onChange={(e) => {
 									const val = e.target.value;
 									setConfirmReason(val);
-									if (confirmReasonError && val.trim().length >= 10 && val.trim().length <= 500) {
+									if (confirmReasonError && reasonLimits.isValid(val)) {
 										setConfirmReasonError("");
 									}
 								}}
-								minLength={10}
-								maxLength={500}
-								placeholder="Nhập lý do thay đổi cấu hình (tối thiểu 10 ký tự, tối đa 500 ký tự)..."
+								minLength={reasonLimits.min}
+								maxLength={reasonLimits.max}
+								placeholder={`Nhập lý do thay đổi cấu hình (tối thiểu ${reasonLimits.min} ký tự, tối đa ${reasonLimits.max} ký tự)...`}
 								rows={3}
 								error={confirmReasonError}
 							/>

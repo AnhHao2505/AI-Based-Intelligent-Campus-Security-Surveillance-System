@@ -31,6 +31,7 @@ import {
 import "../../styles/GuestVisitPage.css";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
+import { useReasonLimits } from "../../hooks/useReasonLimits";
 
 const PAGE_SIZE = 10;
 const EMPTY_GUEST = { fullName: "", organization: "" };
@@ -57,6 +58,7 @@ function ReasonBlock({ label, value }) {
 }
 
 export default function GuestVisitPage() {
+	const reasonLimits = useReasonLimits();
 	// Danh sách
 	const [visits, setVisits] = useState([]);
 	const [page, setPage] = useState(0);
@@ -272,8 +274,8 @@ export default function GuestVisitPage() {
 	const submitCancel = async () => {
 		if (!cancelTarget) return;
 		const trimmed = cancelReason.trim();
-		if (trimmed.length > 0 && (trimmed.length < 10 || trimmed.length > 500)) {
-			setCancelReasonError(`Nếu nhập, lý do phải từ 10 đến 500 ký tự (hiện có ${trimmed.length}).`);
+		if (trimmed.length > 0 && !reasonLimits.isValid(trimmed)) {
+			setCancelReasonError(`Nếu nhập, ${reasonLimits.error(trimmed, "lý do")}`);
 			cancelReasonRef.current?.focus();
 			return;
 		}
@@ -685,14 +687,12 @@ export default function GuestVisitPage() {
 					value={cancelReason}
 					onChange={(e) => {
 						setCancelReason(e.target.value);
-						if (cancelReasonError && (e.target.value.trim().length === 0 || (e.target.value.trim().length >= 10 && e.target.value.trim().length <= 500))) {
+						if (cancelReasonError && (e.target.value.trim().length === 0 || reasonLimits.isValid(e.target.value))) {
 							setCancelReasonError(null);
 						}
 					}}
 					error={cancelReasonError}
 					required={false}
-					min={10}
-					max={500}
 					disabled={cancelling}
 				/>
 			</Modal>

@@ -1,26 +1,17 @@
 package com.fa26se040.icss.dto.accessrequest;
 
 import com.fa26se040.icss.enums.RequestStatus;
-import jakarta.validation.constraints.AssertTrue;
+import com.fa26se040.icss.validation.ValidRejectionReason;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
 
+/**
+ * MF3: FM duyệt / từ chối theo cả nhóm. Từ chối bắt buộc có lý do, kiểm chéo ở DTO qua {@link ValidRejectionReason}
+ * (độ dài theo REASON_MIN_LENGTH..REASON_MAX_LENGTH, tính sau khi trim).
+ */
+@ValidRejectionReason
 public record AccessRequestReviewRequest(
     @NotNull(message = "Trạng thái phê duyệt không được để trống")
     RequestStatus status,
-
-    @Size(max = 500, message = "Lý do từ chối tối đa 500 ký tự")
     String rejectionReason
 ) {
-    @AssertTrue(message = "Lý do từ chối phải có từ 10 đến 500 ký tự khi từ chối yêu cầu")
-    public boolean isRejectionReasonValid() {
-        if (status == RequestStatus.REJECTED) {
-            if (rejectionReason == null || rejectionReason.trim().isEmpty()) {
-                return false;
-            }
-            int len = rejectionReason.trim().length();
-            return len >= 10 && len <= 500;
-        }
-        return true;
-    }
 }
