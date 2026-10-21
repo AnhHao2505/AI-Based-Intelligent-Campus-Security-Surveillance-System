@@ -24,6 +24,10 @@ public class AreaEventSchedule {
     @JoinColumn(name = "area_id", nullable = false)
     private Area area;
 
+    /** V87: tên sự kiện, bắt buộc, 1–150 ký tự sau trim. */
+    @Column(name = "title", nullable = false, length = 150)
+    private String title;
+
     @Column(name = "start_at", nullable = false)
     private OffsetDateTime startAt;
 

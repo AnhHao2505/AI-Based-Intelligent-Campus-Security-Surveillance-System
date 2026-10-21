@@ -165,6 +165,29 @@ public class AreaService {
         return rawNote.trim();
     }
 
+    /**
+     * BR-ES-20 (sửa 21/10): ghi chú khi tạo lịch không bắt buộc; rỗng / chỉ khoảng trắng -> null.
+     * Có nhập thì vẫn REASON_MIN_LENGTH..REASON_MAX_LENGTH ký tự sau trim, sai -> 400 ERR_AREA_024.
+     */
+    private String optionalEventNote(String rawNote) {
+        if (rawNote == null || rawNote.trim().isEmpty()) {
+            return null;
+        }
+        return requireEventNote(rawNote);
+    }
+
+    /** V87: độ dài tối đa của tên sự kiện = độ dài cột area_event_schedules.title (VARCHAR(150)). */
+    static final int EVENT_TITLE_MAX_LENGTH = 150;
+
+    /** V87: tên sự kiện bắt buộc, 1..EVENT_TITLE_MAX_LENGTH ký tự sau trim. Sai -> 400 ERR_AREA_057. */
+    private static String requireEventTitle(String rawTitle) {
+        String trimmed = rawTitle != null ? rawTitle.trim() : "";
+        if (trimmed.isEmpty() || trimmed.length() > EVENT_TITLE_MAX_LENGTH) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_057, EVENT_TITLE_MAX_LENGTH);
+        }
+        return trimmed;
+    }
+
     // ===================================================================== Step 5b — đổi loại khu vực (BR-TC-03..16)
 
     /** Tên loại khu vực hiển thị trong thông báo (BR-TC-10). */
@@ -2023,7 +2046,9 @@ public class AreaService {
             throw new AreaException(AreaErrorCode.ERR_AREA_036, maxHours);
         }
 
-        String trimmedNote = requireEventNote(req.note());
+        String title = requireEventTitle(req.title());
+        // BR-ES-20 (sửa 21/10): ghi chú không bắt buộc
+        String trimmedNote = optionalEventNote(req.note());
 
         String rawReasonCode = req.reasonCode();
         if (rawReasonCode == null || rawReasonCode.trim().isEmpty()) {
@@ -2059,6 +2084,7 @@ public class AreaService {
 
         com.fa26se040.icss.entity.AreaEventSchedule schedule = com.fa26se040.icss.entity.AreaEventSchedule.builder()
                 .area(area)
+                .title(title)
                 .startAt(req.startAt())
                 .endAt(req.endAt())
                 .status(com.fa26se040.icss.enums.AreaEventScheduleStatus.SCHEDULED)
@@ -2073,6 +2099,7 @@ public class AreaService {
         com.fa26se040.icss.dto.accesscontrol.snapshot.AreaEventScheduleAuditSnapshot snapshot =
                 new com.fa26se040.icss.dto.accesscontrol.snapshot.AreaEventScheduleAuditSnapshot(
                         saved.getId(),
+                        saved.getTitle(),
                         saved.getStartAt(),
                         saved.getEndAt(),
                         saved.getStatus().name(),
@@ -2147,6 +2174,7 @@ public class AreaService {
             throw new AreaException(AreaErrorCode.ERR_AREA_036, maxHours);
         }
 
+        String title = requireEventTitle(req.title());
         String trimmedNote = requireEventNote(req.note());
 
         String rawReasonCode = req.reasonCode();
@@ -2182,6 +2210,7 @@ public class AreaService {
         com.fa26se040.icss.dto.accesscontrol.snapshot.AreaEventScheduleAuditSnapshot oldSnapshot =
                 new com.fa26se040.icss.dto.accesscontrol.snapshot.AreaEventScheduleAuditSnapshot(
                         schedule.getId(),
+                        schedule.getTitle(),
                         schedule.getStartAt(),
                         schedule.getEndAt(),
                         schedule.getStatus().name(),
@@ -2190,6 +2219,7 @@ public class AreaService {
                         schedule.getNote()
                 );
 
+        schedule.setTitle(title);
         schedule.setStartAt(req.startAt());
         schedule.setEndAt(req.endAt());
         // KHÔNG gán reasonCode/reasonLabel/note của request vào schedule để giữ lý do gốc lúc đặt (R2)
@@ -2200,6 +2230,7 @@ public class AreaService {
         com.fa26se040.icss.dto.accesscontrol.snapshot.AreaEventScheduleAuditSnapshot newSnapshot =
                 new com.fa26se040.icss.dto.accesscontrol.snapshot.AreaEventScheduleAuditSnapshot(
                         saved.getId(),
+                        saved.getTitle(),
                         saved.getStartAt(),
                         saved.getEndAt(),
                         saved.getStatus().name(),
@@ -2268,6 +2299,7 @@ public class AreaService {
         com.fa26se040.icss.dto.accesscontrol.snapshot.AreaEventScheduleAuditSnapshot oldSnapshot =
                 new com.fa26se040.icss.dto.accesscontrol.snapshot.AreaEventScheduleAuditSnapshot(
                         schedule.getId(),
+                        schedule.getTitle(),
                         schedule.getStartAt(),
                         schedule.getEndAt(),
                         schedule.getStatus().name(),
@@ -2287,6 +2319,7 @@ public class AreaService {
         com.fa26se040.icss.dto.accesscontrol.snapshot.AreaEventScheduleAuditSnapshot newSnapshot =
                 new com.fa26se040.icss.dto.accesscontrol.snapshot.AreaEventScheduleAuditSnapshot(
                         saved.getId(),
+                        saved.getTitle(),
                         saved.getStartAt(),
                         saved.getEndAt(),
                         saved.getStatus().name(),
@@ -2329,13 +2362,16 @@ public class AreaService {
         } else {
             list = eventScheduleRepository.findByAreaIdOrderByStartAtAsc(areaId);
         }
-        return list.stream().map(this::mapToEventScheduleResponse).toList();
+        return list.stream().map(AreaService::mapToEventScheduleResponse).toList();
     }
 
-    private com.fa26se040.icss.dto.area.EventScheduleResponse mapToEventScheduleResponse(com.fa26se040.icss.entity.AreaEventSchedule s) {
+    /** Dùng chung cho API theo khu và API liệt kê mọi lịch (EventScheduleQueryService). */
+    static com.fa26se040.icss.dto.area.EventScheduleResponse mapToEventScheduleResponse(com.fa26se040.icss.entity.AreaEventSchedule s) {
         return new com.fa26se040.icss.dto.area.EventScheduleResponse(
                 s.getId(),
                 s.getArea().getId(),
+                s.getArea().getName(),
+                s.getTitle(),
                 s.getStartAt(),
                 s.getEndAt(),
                 s.getStatus().name(),
@@ -2436,6 +2472,7 @@ public class AreaService {
                 com.fa26se040.icss.dto.accesscontrol.snapshot.AreaEventScheduleAuditSnapshot snap =
                         new com.fa26se040.icss.dto.accesscontrol.snapshot.AreaEventScheduleAuditSnapshot(
                                 schedule.getId(),
+                                schedule.getTitle(),
                                 schedule.getStartAt(),
                                 schedule.getEndAt(),
                                 schedule.getStatus().name(),
