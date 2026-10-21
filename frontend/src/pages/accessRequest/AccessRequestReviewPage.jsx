@@ -27,6 +27,28 @@ import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useReasonLimits } from '../../hooks/useReasonLimits';
 
+/**
+ * Nội dung cột "Lý do" theo trạng thái, chỉ dùng trường có sẵn trong response
+ * (rejectionReason, cancelSource, cancelReason). FINISHED chưa có lý do trong response (chỉ lưu ở audit).
+ * @returns {string|null} null = không có lý do (hiện "—")
+ */
+const getListReason = (req) => {
+  switch (req.status) {
+    case 'REJECTED':
+      return req.rejectionReason || null;
+    case 'CANCELLED':
+      // BR-RQ-47: FM huỷ đơn đã duyệt (cancel_source STAFF); BR-TC-15: hệ thống huỷ
+      if (req.cancelSource === 'STAFF') return req.cancelReason ? `Quản lý hủy: ${req.cancelReason}` : 'Quản lý hủy';
+      if (req.cancelSource === 'SYSTEM') return req.cancelReason ? `Hủy bởi hệ thống: ${req.cancelReason}` : 'Hủy bởi hệ thống';
+      return req.cancelReason || 'Người yêu cầu tự hủy';
+    case 'EXPIRED':
+      // BR-RQ-43
+      return 'Quá giờ bắt đầu nhưng chưa được duyệt';
+    default:
+      return null;
+  }
+};
+
 export default function AccessRequestReviewPage() {
   const reasonLimits = useReasonLimits();
   const [requests, setRequests] = useState([]);
@@ -450,9 +472,9 @@ export default function AccessRequestReviewPage() {
                 <tr>
                   <th>Người yêu cầu</th>
                   <th>Khu vực đăng ký</th>
-                  <th className="ui-col-time-range">Thời gian truy cập</th>
                   <th>Hình thức</th>
                   <th>Trạng thái</th>
+                  <th className="arr-col-reason">Lý do</th>
                   <th className="ui-col-time">Ngày gửi</th>
                   <th className="arr-col-actions">Thao tác</th>
                 </tr>
@@ -490,14 +512,6 @@ export default function AccessRequestReviewPage() {
                       </div>
                     </td>
 
-                    {/* Time */}
-                    <td>
-                      <div style={{ fontSize: '0.8125rem' }}>{formatDateTime(req.startTime)}</div>
-                      <div className="arr-text-muted" style={{ fontSize: '0.75rem' }}>
-                        đến {formatDateTime(req.endTime)}
-                      </div>
-                    </td>
-
                     {/* Type */}
                     <td>
                       <span className={`arr-badge ${req.requestType === 'GROUP' ? 'arr-badge--group' : 'arr-badge--individual'}`}>
@@ -515,17 +529,18 @@ export default function AccessRequestReviewPage() {
                         {req.status === 'EXPIRED' && 'Hết hạn'}
                         {req.status === 'FINISHED' && 'Hoàn thành'}
                       </span>
-                      {req.status === 'CANCELLED' && req.cancelSource === 'SYSTEM' && (
-                        <div className="arr-cancel-system" title={req.cancelReason || ''}>
-                          Hủy bởi hệ thống: {req.cancelReason}
-                        </div>
-                      )}
-                      {/* BR-RQ-47: FM huỷ đơn đã duyệt (cancel_source STAFF) */}
-                      {req.status === 'CANCELLED' && req.cancelSource === 'STAFF' && (
-                        <div className="arr-cancel-system" title={req.cancelReason || ''}>
-                          Quản lý hủy: {req.cancelReason}
-                        </div>
-                      )}
+                    </td>
+
+                    {/* Reason: tối đa 2 dòng, toàn văn ở title và popup chi tiết */}
+                    <td className="arr-col-reason">
+                      {(() => {
+                        const reason = getListReason(req);
+                        return reason ? (
+                          <div className="arr-reason-text" title={reason}>{reason}</div>
+                        ) : (
+                          <span className="arr-reason-empty">—</span>
+                        );
+                      })()}
                     </td>
 
                     {/* Created At */}
@@ -1008,6 +1023,11 @@ export default function AccessRequestReviewPage() {
                     {detailItem.status === 'CANCELLED' && detailItem.cancelSource === 'STAFF' && (
                       <div className="arr-cancel-system arr-cancel-system--detail">
                         Quản lý hủy: {detailItem.cancelReason}
+                      </div>
+                    )}
+                    {detailItem.status === 'CANCELLED' && detailItem.cancelSource === 'USER' && detailItem.cancelReason && (
+                      <div className="arr-cancel-system arr-cancel-system--detail">
+                        Người yêu cầu tự hủy: {detailItem.cancelReason}
                       </div>
                     )}
                   </div>

@@ -202,12 +202,12 @@
 
 .arr-table th {
   background: var(--theme-bg-page);
-  padding: 0.875rem 1rem;
+  padding: 0.875rem 0.75rem;
   border-bottom: 1px solid var(--theme-border);
 }
 
 .arr-table td {
-  padding: 0.875rem 1rem;
+  padding: 0.875rem 0.75rem;
   border-bottom: 1px solid var(--theme-border);
   color: var(--theme-text-primary);
   vertical-align: middle;
@@ -665,6 +665,30 @@
 .arr-cancel-system--detail {
   max-width: none;
   white-space: normal;
+}
+
+/* Cột Lý do: tối đa 2 dòng, phần dư "…", toàn văn ở title và popup chi tiết; không đẩy giãn chiều cao hàng */
+.arr-table th.arr-col-reason {
+  width: 200px;
+}
+
+.arr-reason-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  max-width: 220px;
+  min-width: 160px;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  max-height: 2.8em;
+  color: var(--theme-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.arr-reason-empty {
+  color: var(--theme-text-muted);
 }
 
 /* Bấm thông báo -> ?requestId: tô sáng dòng đơn ~2 giây (token theme, có sẵn cả sáng và tối) */
