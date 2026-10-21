@@ -55,6 +55,9 @@ class UserServiceCacheRefreshTest {
     @Mock
     private AccessRequestService accessRequestService;
 
+    @Mock
+    private AreaAssignedPersonnelService assignedPersonnelService;
+
     @InjectMocks
     private UserService userService;
 
@@ -74,6 +77,9 @@ class UserServiceCacheRefreshTest {
                 .accessLevel(1)
                 .deletedAt(null)
                 .build();
+        // BR-AP-24/25: vô hiệu hoá / xoá cần ADMIN đang thao tác (revoked_by của AP)
+        lenient().when(userRepository.findByEmail("admin@fpt.edu.vn")).thenReturn(Optional.of(User.builder()
+                .id(UUID.randomUUID()).email("admin@fpt.edu.vn").role(Role.ADMIN).isActive(true).build()));
     }
 
     @AfterEach
