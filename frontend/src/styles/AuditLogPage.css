@@ -87,15 +87,13 @@
   align-items: center;
   gap: 8px;
   width: 100%;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
 }
 
 .audit-select-wrapper {
   position: relative;
   display: flex;
   align-items: center;
-  flex: 1 1 0;
-  min-width: 0;
 }
 
 .audit-select-icon {
@@ -106,22 +104,18 @@
 }
 
 .audit-select-wrapper select {
-  width: 100%;
-  height: 38px;
+  height: 42px;
   padding: 0 26px 0 28px;
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
   border-radius: 8px;
   color: var(--theme-text-primary);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   outline: none;
   appearance: none;
   cursor: pointer;
-  min-width: 0;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  overflow: hidden;
+  min-width: 180px;
   transition: all 0.2s;
 }
 
@@ -165,14 +159,13 @@
 }
 
 .audit-date-input {
-  height: 38px;
-  width: 125px;
-  padding: 0 6px;
+  height: 42px;
+  padding: 0 12px;
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
   border-radius: 8px;
   color: var(--theme-text-primary);
-  font-size: 12px;
+  font-size: 14px;
   outline: none;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
@@ -189,7 +182,7 @@
   background: var(--theme-bg-page);
   border-radius: 8px;
   padding: 3px;
-  height: 38px;
+  height: 42px;
   box-sizing: border-box;
   flex-shrink: 0;
 }
@@ -201,7 +194,7 @@
   border-radius: 6px;
   background: transparent;
   color: var(--theme-text-secondary);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
@@ -223,8 +216,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
+  width: 42px;
+  height: 42px;
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
   border-radius: 8px;
@@ -388,20 +381,20 @@
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
-  margin-left: 0;
+  margin-left: auto;
 }
 
 .audit-clear-btn {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  height: 38px;
-  padding: 0 10px;
+  height: 42px;
+  padding: 0 12px;
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
   border-radius: 8px;
   color: var(--theme-text-secondary);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
@@ -417,6 +410,22 @@
 .audit-clear-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.audit-refresh-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Ô chọn người (UserSearchCombobox dùng chung, mặc định 38px): trên màn này cao 42px như các ô lọc khác */
+.audit-user-filter .user-combobox__input {
+  height: 42px;
+  font-size: 14px;
+}
+
+.audit-user-filter .user-combobox__selected {
+  min-height: 42px;
+  box-sizing: border-box;
 }
 
 @media (max-width: 768px) {
