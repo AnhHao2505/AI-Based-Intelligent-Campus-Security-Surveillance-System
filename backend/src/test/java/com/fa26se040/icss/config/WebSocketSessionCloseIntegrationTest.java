@@ -18,6 +18,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.stomp.StompHeaders;
 import org.springframework.messaging.simp.stomp.StompSession;
 import org.springframework.messaging.simp.stomp.StompSessionHandlerAdapter;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.web.socket.WebSocketHttpHeaders;
 import org.springframework.web.socket.client.standard.StandardWebSocketClient;
 import org.springframework.web.socket.messaging.WebSocketStompClient;
@@ -38,8 +39,12 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * KI-1, kiểm bằng STOMP thật: client kết nối và subscribe qua /ws-security, ADMIN vô hiệu hoá tài khoản,
  * phiên bị server đóng, tin phát sau đó không tới nữa, kết nối lại bằng token cũ bị từ chối ở CONNECT (S1b).
+ *
+ * <p>Context RANDOM_PORT chỉ lớp này dùng: đóng sau khi chạy (DirtiesContext) để trả server và pool kết nối DB,
+ * không giữ thêm một bộ kết nối trong cache context suốt cả suite (DB test dùng chung, giới hạn số kết nối).
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class WebSocketSessionCloseIntegrationTest extends AbstractIntegrationTest {
 
     private static final String TOPIC = "/topic/incidents/updates";
