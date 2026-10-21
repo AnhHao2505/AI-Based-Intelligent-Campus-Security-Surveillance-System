@@ -127,3 +127,14 @@
   opacity: 0.7;
   cursor: not-allowed;
 }
+
+/* Modifier bộ lọc (thanh lọc trên các màn danh sách): rộng theo nội dung để mũi tên sát chữ,
+   cao 42px bằng ô lọc toàn hệ thống. Dùng: <Select className="ui-select-group--filter" … /> */
+.ui-select-group--filter {
+  width: auto;
+}
+
+.ui-select-group--filter .ui-select__field {
+  width: auto;
+  height: 42px;
+}
