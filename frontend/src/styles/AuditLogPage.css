@@ -90,59 +90,6 @@
   flex-wrap: wrap;
 }
 
-.audit-select-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.audit-select-icon {
-  position: absolute;
-  left: 10px;
-  color: var(--theme-text-muted);
-  pointer-events: none;
-}
-
-.audit-select-wrapper select {
-  height: 42px;
-  padding: 0 26px 0 28px;
-  background: var(--theme-bg-surface);
-  border: 1px solid var(--theme-border);
-  border-radius: 8px;
-  color: var(--theme-text-primary);
-  font-size: 14px;
-  font-weight: 500;
-  outline: none;
-  appearance: none;
-  cursor: pointer;
-  min-width: 180px;
-  transition: all 0.2s;
-}
-
-.audit-select-wrapper select:hover {
-  border-color: var(--theme-text-muted);
-}
-
-.audit-select-wrapper:not(.no-icon) select {
-  padding-left: 28px;
-}
-
-.audit-select-wrapper.no-icon select {
-  padding-left: 10px;
-}
-
-/* Chevron Down */
-.audit-select-wrapper::after {
-  content: '';
-  position: absolute;
-  right: 10px;
-  width: 8px;
-  height: 5px;
-  background-color: var(--theme-text-muted);
-  clip-path: polygon(100% 0%, 0 0%, 50% 100%);
-  pointer-events: none;
-}
-
 /* Date Range Filter */
 .audit-date-range {
   display: flex;

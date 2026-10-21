@@ -15,7 +15,7 @@ import { getAccessLevelConfig } from '../../utils/areaHelpers';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import PageHeader from '../../components/ui/PageHeader';
-import { LoadingState, EmptyState, ErrorState } from '../../components/ui';
+import { LoadingState, EmptyState, ErrorState, Select } from '../../components/ui';
 import Pagination from '../../components/ui/Pagination';
 import ReasonTextarea from '../../components/ui/ReasonTextarea';
 import '../../styles/UserAccessLevelPage.css';
@@ -284,8 +284,8 @@ export default function UserAccessLevelPage() {
               </button>
             )}
           </div>
-          <select
-            className="access-level-select access-level-filter"
+          <Select
+            className="ui-select-group--filter"
             value={levelFilter}
             onChange={(e) => {
               const val = e.target.value;
@@ -293,14 +293,11 @@ export default function UserAccessLevelPage() {
               handleSearchUsers(keyword, 0, val);
             }}
             aria-label="Lọc theo cấp hiện tại"
-          >
-            <option value="">Mọi cấp hiện tại</option>
-            {ACCESS_LEVELS.map((opt) => (
-              <option key={opt.level} value={opt.level}>
-                Đang ở cấp {opt.level}
-              </option>
-            ))}
-          </select>
+            options={[
+              { value: '', label: 'Mọi cấp hiện tại' },
+              ...ACCESS_LEVELS.map((opt) => ({ value: opt.level, label: `Đang ở cấp ${opt.level}` })),
+            ]}
+          />
         </div>
 
         {isFM && selectedList.length > 0 && (
@@ -411,8 +408,7 @@ export default function UserAccessLevelPage() {
                         </td>
                         <td>
                           <div className="access-level-select-wrap">
-                            <select
-                              className="access-level-select"
+                            <Select
                               value={selectedLevel}
                               onChange={(e) => handleLevelChange(item.id, e.target.value)}
                               disabled={isSelf || (!isFM && !isAdmin)}
@@ -421,13 +417,8 @@ export default function UserAccessLevelPage() {
                                   ? 'Bạn không thể tự thay đổi cấp truy cập của chính mình'
                                   : undefined
                               }
-                            >
-                              {ACCESS_LEVELS.map((opt) => (
-                                <option key={opt.level} value={opt.level}>
-                                  {opt.name}
-                                </option>
-                              ))}
-                            </select>
+                              options={ACCESS_LEVELS.map((opt) => ({ value: opt.level, label: opt.name }))}
+                            />
                           </div>
                         </td>
                         <td style={{ textAlign: 'center' }}>
@@ -480,20 +471,14 @@ export default function UserAccessLevelPage() {
             {!bulkModal.result ? (
               <>
                 <div className="modal-field">
-                  <label className="change-summary-label" htmlFor="bulk-new-level">Cấp mới</label>
-                  <select
+                  <Select
                     id="bulk-new-level"
-                    className="access-level-select"
+                    label="Cấp mới"
                     value={bulkModal.newLevel}
                     onChange={(e) => setBulkModal((prev) => ({ ...prev, newLevel: Number(e.target.value) }))}
                     disabled={bulkModal.isSaving}
-                  >
-                    {ACCESS_LEVELS.map((opt) => (
-                      <option key={opt.level} value={opt.level}>
-                        {opt.name}
-                      </option>
-                    ))}
-                  </select>
+                    options={ACCESS_LEVELS.map((opt) => ({ value: opt.level, label: opt.name }))}
+                  />
                 </div>
 
                 <div className="modal-field">

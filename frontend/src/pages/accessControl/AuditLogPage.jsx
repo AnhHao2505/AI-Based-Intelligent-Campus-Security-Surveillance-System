@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { History, RotateCcw, Filter, Link, X } from "lucide-react";
+import { History, RotateCcw, Link, X } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { getAuditLogs } from "../../services/accessControlService";
 import { getAreas } from "../../services/areaService";
@@ -9,7 +9,7 @@ import { formatDate, formatTime, formatDateTime } from "../../utils/formatDateTi
 import { formatLocation } from "../../utils/formatLocation";
 import Button from "../../components/ui/Button";
 import PageHeader from "../../components/ui/PageHeader";
-import { LoadingState, EmptyState, ErrorState } from "../../components/ui";
+import { LoadingState, EmptyState, ErrorState, Select } from "../../components/ui";
 import UserSearchCombobox from "../../components/user/UserSearchCombobox";
 // UserAccessLevelPage.css: badge / ô người dùng / nội dung thay đổi / banner correlation (audit-*) dùng chung với trang cũ
 import "../../styles/UserAccessLevelPage.css";
@@ -622,69 +622,39 @@ export default function AuditLogPage() {
 					</div>
 
 					<div className="audit-filter-controls">
-						<div className="audit-select-wrapper">
-							<Filter
-								size={14}
-								className="audit-select-icon"
-							/>
-							<select
-								aria-label="Phân hệ"
-								value={filterModule}
-								onChange={(e) => setFilterModule(e.target.value)}
-							>
-								{(isAdmin ? MODULE_OPTIONS_ADMIN : MODULE_OPTIONS_FM).map(
-									(opt) => (
-										<option
-											key={opt.value}
-											value={opt.value}
-										>
-											{opt.label}
-										</option>
-									),
-								)}
-							</select>
-						</div>
+						<Select
+							className="ui-select-group--filter"
+							aria-label="Phân hệ"
+							value={filterModule}
+							onChange={(e) => setFilterModule(e.target.value)}
+							options={isAdmin ? MODULE_OPTIONS_ADMIN : MODULE_OPTIONS_FM}
+						/>
 
-						<div className="audit-select-wrapper no-icon">
-							<select
-								aria-label="Loại đối tượng"
-								value={filterTargetType}
-								onChange={(e) => setFilterTargetType(e.target.value)}
-							>
-								{(isAdmin
+						<Select
+							className="ui-select-group--filter"
+							aria-label="Loại đối tượng"
+							value={filterTargetType}
+							onChange={(e) => setFilterTargetType(e.target.value)}
+							options={
+								isAdmin
 									? [...TARGET_TYPE_OPTIONS, ...TARGET_TYPE_OPTIONS_GUEST, ...TARGET_TYPE_OPTIONS_SECURITY]
 									: TARGET_TYPE_OPTIONS
-								).map((opt) => (
-									<option
-										key={opt.value}
-										value={opt.value}
-									>
-										{opt.label}
-									</option>
-								))}
-							</select>
-						</div>
+							}
+						/>
 
-						<div className="audit-select-wrapper no-icon">
-							<select
-								aria-label="Khu vực"
-								value={filterAreaId}
-								onChange={(e) => setFilterAreaId(e.target.value)}
-							>
-								<option value="">Tất cả khu vực</option>
-								{areasList.map((a) => {
+						<Select
+							className="ui-select-group--filter"
+							aria-label="Khu vực"
+							value={filterAreaId}
+							onChange={(e) => setFilterAreaId(e.target.value)}
+							options={[
+								{ value: "", label: "Tất cả khu vực" },
+								...areasList.map((a) => {
 									const loc = formatLocation(a.building, a.floor);
-									return (
-										<option
-											key={a.id}
-											value={a.id}
-										>
-											{loc ? `${a.name} (${loc})` : a.name}
-										</option>
-									);
-								})}
-							</select>
-						</div>
+									return { value: a.id, label: loc ? `${a.name} (${loc})` : a.name };
+								}),
+							]}
+						/>
 
 						<div className="audit-date-range">
 							<label
