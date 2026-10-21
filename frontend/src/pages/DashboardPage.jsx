@@ -1,204 +1,274 @@
-import { useState } from "react";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { format } from "date-fns";
+import { useQueries, useQuery } from "@tanstack/react-query";
+import { format, formatDistanceToNow } from "date-fns";
 import { vi } from "date-fns/locale";
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import {
 	MapPin,
 	Camera,
 	AlertTriangle,
-	Activity,
-	Bell,
 	Calendar,
-	Clock,
-	HardDrive,
-	Cpu,
-	Map as MapIcon,
-	Shield,
-	Info,
+	Users,
+	Layers,
+	History,
+	ArrowRight,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { ROLES } from "../constants/roles";
 import { apiGet } from "../api/apiClient";
 import { getAreas } from "../services/areaService";
-import { DataTable } from "../components/ui/data-table";
-import { ErrorState, PageHeader } from "../components/ui";
+import { getAuditLogs } from "../services/accessControlService";
+import { AREA_LEVEL_OPTIONS } from "../utils/areaHelpers";
+import { formatDateTime } from "../utils/formatDateTime";
+import { TARGET_TYPE_LABELS, getActionLabel, renderSystemActor } from "../utils/auditLabels";
+import { EmptyState, ErrorState, LoadingState, PageHeader } from "../components/ui";
 import "../styles/DashboardPage.css";
 
-// Phụ đề theo role: nói đúng những thẻ role đó được xem (kpiCards), không lặp lại tiêu đề "Tổng quan".
+// Phụ đề theo role: nói đúng những phần role đó được xem, không lặp lại tiêu đề "Tổng quan".
 // NORMAL_USER không vào trang này (DashboardRoute chuyển sang /access-requests); role khác dùng câu mặc định.
 const DASHBOARD_DESCRIPTIONS = {
-	[ROLES.ADMIN]: "Số liệu khu vực, camera và sự cố hiện tại",
-	[ROLES.FACILITY_MANAGER]: "Số liệu khu vực và camera hiện tại",
+	[ROLES.ADMIN]: "Khu vực, camera, sự cố, tài khoản và hoạt động quản trị gần đây",
+	[ROLES.FACILITY_MANAGER]: "Khu vực, camera và hoạt động quản trị gần đây",
 	[ROLES.GUARD]: "Camera và sự cố cần theo dõi trong ca",
 };
 const DEFAULT_DASHBOARD_DESCRIPTION = "Số liệu an ninh trong phạm vi vai trò của bạn";
 
+// Màu cột theo loại khu vực: token chữ của badge loại khu vực (theme.css), cùng màu với .level-badge--*
+const AREA_TYPE_BAR_CLASS = {
+	PUBLIC: "area-type-bar__fill--public",
+	CONFIDENTIAL: "area-type-bar__fill--confidential",
+	HIGHLY_CONFIDENTIAL: "area-type-bar__fill--highly-confidential",
+};
+
+const RECENT_ACTIVITY_SIZE = 8;
+
+const totalOf = (page) => (typeof page?.totalElements === "number" ? page.totalElements : null);
+
+function DashboardPanel({ icon: Icon, title, subtitle, action, children }) {
+	return (
+		<section className="dash-card">
+			<header className="dash-card__header">
+				<div className="dash-card__title-wrap">
+					<span className="dash-card__icon-box" aria-hidden="true">
+						<Icon size={18} />
+					</span>
+					<div>
+						<h2 className="dash-card__title">{title}</h2>
+						{subtitle && <p className="dash-card__subtitle">{subtitle}</p>}
+					</div>
+				</div>
+				{action}
+			</header>
+			{children}
+		</section>
+	);
+}
+
+function AreaTypePanel({ queries }) {
+	const loading = queries.some((q) => q.isLoading);
+	const failed = queries.find((q) => q.isError);
+	const rows = AREA_LEVEL_OPTIONS.map((level, i) => ({
+		code: level.code,
+		name: level.name,
+		count: totalOf(queries[i].data) ?? 0,
+	}));
+	const total = rows.reduce((sum, r) => sum + r.count, 0);
+	const ready = !loading && !failed;
+
+	let body;
+	if (loading) {
+		body = <LoadingState size="sm" text="Đang tải số khu vực..." />;
+	} else if (failed) {
+		body = (
+			<ErrorState
+				size="sm"
+				title="Không tải được số khu vực theo loại"
+				message={failed.error?.message}
+				onRetry={() => queries.forEach((q) => q.refetch())}
+				retrying={queries.some((q) => q.isFetching)}
+			/>
+		);
+	} else if (total === 0) {
+		body = <EmptyState size="sm" icon={MapPin} title="Chưa có khu vực đang hoạt động" />;
+	} else {
+		body = (
+			<ul className="area-type-bars" aria-label="Số khu vực đang hoạt động theo loại">
+				{rows.map((r) => {
+					const pct = Math.round((r.count / total) * 100);
+					return (
+						<li key={r.code} className="area-type-bar" title={`${r.name}: ${r.count} khu vực (${pct}%)`}>
+							<div className="area-type-bar__meta">
+								<span className="area-type-bar__name">{r.name}</span>
+								<span className="area-type-bar__value">
+									{r.count}
+									<span className="area-type-bar__pct"> · {pct}%</span>
+								</span>
+							</div>
+							<div className="area-type-bar__track" aria-hidden="true">
+								<div
+									className={`area-type-bar__fill ${AREA_TYPE_BAR_CLASS[r.code] ?? ""}`}
+									style={{ width: `${(r.count / total) * 100}%` }}
+								/>
+							</div>
+						</li>
+					);
+				})}
+			</ul>
+		);
+	}
+
+	return (
+		<DashboardPanel
+			icon={Layers}
+			title="Khu vực theo loại"
+			subtitle={ready && total > 0 ? `${total} khu vực đang hoạt động` : "Khu vực đang hoạt động"}
+		>
+			{body}
+		</DashboardPanel>
+	);
+}
+
+function auditActor(log) {
+	return log.actorType === "SYSTEM" ? renderSystemActor(log.actorSource) : log.changedByName || "—";
+}
+
+function auditObject(log) {
+	const type = TARGET_TYPE_LABELS[log.targetType] || log.targetType;
+	const name = log.areaName || log.subjectUserName;
+	return name ? `${type} · ${name}` : type;
+}
+
+function RecentActivityPanel({ query }) {
+	const logs = query.data?.content ?? [];
+
+	let body;
+	if (query.isLoading) {
+		body = <LoadingState size="sm" text="Đang tải hoạt động..." />;
+	} else if (query.isError) {
+		body = (
+			<ErrorState
+				size="sm"
+				title="Không tải được hoạt động gần đây"
+				message={query.error?.message}
+				onRetry={() => query.refetch()}
+				retrying={query.isFetching}
+			/>
+		);
+	} else if (logs.length === 0) {
+		body = <EmptyState size="sm" icon={History} title="Chưa có hoạt động quản trị" />;
+	} else {
+		body = (
+			<ul className="activity-list">
+				{logs.map((log) => (
+					<li key={log.id} className="activity-item">
+						<div className="activity-item__main">
+							<span className="activity-item__action">{getActionLabel(log.targetType, log.action)}</span>
+							<span className="activity-item__object">{auditObject(log)}</span>
+						</div>
+						<div className="activity-item__meta">
+							<span className="activity-item__actor">{auditActor(log)}</span>
+							<time
+								className="activity-item__time"
+								dateTime={log.changedAt}
+								title={formatDateTime(log.changedAt)}
+							>
+								{formatDistanceToNow(new Date(log.changedAt), { addSuffix: true, locale: vi })}
+							</time>
+						</div>
+					</li>
+				))}
+			</ul>
+		);
+	}
+
+	return (
+		<DashboardPanel
+			icon={History}
+			title="Hoạt động quản trị gần đây"
+			subtitle={`${RECENT_ACTIVITY_SIZE} thao tác mới nhất`}
+			action={
+				<Link to="/admin/audit-logs" className="dash-card__link">
+					Xem tất cả
+					<ArrowRight size={14} aria-hidden="true" />
+				</Link>
+			}
+		>
+			{body}
+		</DashboardPanel>
+	);
+}
+
 export default function DashboardPage() {
 	const { user } = useAuth();
-	const isAreaAuthorized =
-		user?.role === "ADMIN" || user?.role === "FACILITY_MANAGER";
-	const {
-		data: areaResponse,
-		isLoading: areaLoading,
-		isError: areaError,
-		error: areaErrorObj,
-		refetch: refetchAreas,
-		isFetching: areaFetching,
-	} = useQuery({
-		queryKey: ["areas", { page: 0, size: 100 }],
-		queryFn: () => getAreas({ page: 0, size: 100 }),
+	const role = user?.role;
+
+	// UI-AUDIT #4: phần nào cũng chỉ hiện khi có API sẵn MÀ role được gọi (theo @PreAuthorize backend); không thì ẩn.
+	const isAreaAuthorized = [ROLES.ADMIN, ROLES.FACILITY_MANAGER].includes(role); // GET /api/areas
+	const canCountCameras = [ROLES.ADMIN, ROLES.FACILITY_MANAGER, ROLES.GUARD].includes(role); // GET /api/cameras
+	const canCountIncidents = [ROLES.ADMIN, ROLES.GUARD].includes(role); // GET /api/incidents/active
+	const canCountAccounts = role === ROLES.ADMIN; // GET /api/users (FM chỉ được xem bảo vệ nên không hiện thẻ)
+	const canSeeAudit = [ROLES.ADMIN, ROLES.FACILITY_MANAGER].includes(role); // GET /api/access-control/audit-logs
+
+	// GET /api/areas mặc định isActive=true (khu chưa bị vô hiệu hoá); trang 1 phần tử, chỉ lấy totalElements
+	const areaQuery = useQuery({
+		queryKey: ["dashboard", "area-count"],
+		queryFn: () => getAreas({ page: 0, size: 1 }),
 		enabled: isAreaAuthorized,
 	});
-	const areas = areaResponse?.content || [];
-	// Lỗi tải -> null (hiện "—" + ErrorState), không coi là 0 khu vực
-	const areaCount =
-		typeof areaResponse?.totalElements === "number"
-			? areaResponse.totalElements
-			: isAreaAuthorized && !areaError
-				? areas.length
-				: null;
-	// Trước đây: GUARD (truy vấn bị tắt) và lỗi API đều hiện mãi "Đang tải dữ liệu..."
-	const areaSubtext = !isAreaAuthorized
-		? "Không thuộc phạm vi vai trò của bạn"
-		: areaLoading
-			? "Đang tải dữ liệu..."
-			: areaError
-				? "Không tải được số liệu"
-				: "Khu vực quản lý an ninh";
-
-	// UI-AUDIT #4: thẻ chỉ hiện khi có API sẵn MÀ role được gọi (theo @PreAuthorize backend); không thì ẩn.
-	// Gọi thẳng apiClient, không dùng service của module camera / sự cố.
-	const role = user?.role;
-	const canCountCameras = [ROLES.ADMIN, ROLES.FACILITY_MANAGER, ROLES.GUARD].includes(role);
-	const canCountIncidents = [ROLES.ADMIN, ROLES.GUARD].includes(role);
-	// GET /api/cameras (ADMIN, FM, GUARD): trang 1 phần tử, chỉ lấy totalElements.
-	// status=ACTIVE là camera được bật trong cấu hình, không phải camera đang có hình.
+	const areaTypeQueries = useQueries({
+		queries: AREA_LEVEL_OPTIONS.map((level) => ({
+			queryKey: ["dashboard", "area-count", level.code],
+			queryFn: () => getAreas({ areaLevel: level.code, page: 0, size: 1 }),
+			enabled: isAreaAuthorized,
+		})),
+	});
+	// status=ACTIVE là camera được bật trong cấu hình, không phải camera đang có hình
 	const cameraQuery = useQuery({
 		queryKey: ["dashboard", "active-camera-count"],
 		queryFn: () => apiGet("/api/cameras?status=ACTIVE&page=0&size=1"),
 		enabled: canCountCameras,
 	});
-	// GET /api/incidents/active (ADMIN, GUARD): sự cố mới hoặc đã tiếp nhận, chưa xử lý xong
+	// Sự cố mới hoặc đã tiếp nhận, chưa xử lý xong
 	const incidentQuery = useQuery({
 		queryKey: ["dashboard", "active-incidents"],
 		queryFn: () => apiGet("/api/incidents/active"),
 		enabled: canCountIncidents,
 	});
+	// isActive chỉ có hiệu lực khi kèm accountType: NORMAL = người dùng, SYSTEM = cán bộ (ADMIN, FM, GUARD)
+	const [normalAccountQuery, staffAccountQuery] = useQueries({
+		queries: ["NORMAL", "SYSTEM"].map((accountType) => ({
+			queryKey: ["dashboard", "active-accounts", accountType],
+			queryFn: () => apiGet(`/api/users?accountType=${accountType}&isActive=true&page=0&size=1`),
+			enabled: canCountAccounts,
+		})),
+	});
+	const auditQuery = useQuery({
+		queryKey: ["dashboard", "recent-audit"],
+		queryFn: () => getAuditLogs({ page: 0, size: RECENT_ACTIVITY_SIZE }),
+		enabled: canSeeAudit,
+	});
+
 	const kpiValue = (query, count) =>
 		query.isLoading ? "..." : query.isError || typeof count !== "number" ? "—" : count;
 	const kpiSubtext = (query, text) =>
 		query.isLoading ? "Đang tải dữ liệu..." : query.isError ? "Không tải được số liệu" : text;
 
-	// Subsystem statuses (FIX 2)
-	const [subsystems] = useState([
-		{
-			id: "cameraNetwork",
-			name: "Camera Network",
-			status: "not_connected",
-			icon: Camera,
-		},
-		{
-			id: "aiVisionEngine",
-			name: "AI Vision Engine",
-			status: "not_connected",
-			icon: Cpu,
-		},
-		{
-			id: "faceIntelligence",
-			name: "Face Intelligence",
-			status: "not_connected",
-			icon: Shield,
-		},
-		{
-			id: "coreStorageApi",
-			name: "Core Storage & API",
-			status: "not_connected",
-			icon: HardDrive,
-		},
-	]);
+	const accountState = {
+		isLoading: normalAccountQuery.isLoading || staffAccountQuery.isLoading,
+		isError: normalAccountQuery.isError || staffAccountQuery.isError,
+	};
+	const normalCount = totalOf(normalAccountQuery.data?.users);
+	const staffCount = totalOf(staffAccountQuery.data?.users);
+	const accountCount = normalCount !== null && staffCount !== null ? normalCount + staffCount : null;
 
-	// Data availability flags for panels (FIX 3)
-	const [miniMapData] = useState(null);
-	const [attentionEvents] = useState([]);
-	const [securityLogs] = useState([]);
-
-	const currentDateStr = format(new Date(), "EEEE, dd/MM/yyyy", { locale: vi });
-
-	// Derive Area data for FIX 4
-	const totalAreas = areas.length > 0 ? areas.length : areaCount || 0;
-	const publicCount = areas.filter((a) => {
-		const lvl = a.areaLevel || a.level;
-		return lvl === "PUBLIC" || lvl === 1 || lvl === "1";
-	}).length;
-	const semiCount = areas.filter((a) => {
-		const lvl = a.areaLevel || a.level;
-		return lvl === "SEMI_PRIVATE" || lvl === 2 || lvl === "2";
-	}).length;
-	const privateCount = areas.filter((a) => {
-		const lvl = a.areaLevel || a.level;
-		return lvl === "PRIVATE" || lvl === 3 || lvl === "3";
-	}).length;
-
-	const publicPct = totalAreas > 0 ? (publicCount / totalAreas) * 100 : 0;
-	const semiPct = totalAreas > 0 ? (semiCount / totalAreas) * 100 : 0;
-	const privatePct = totalAreas > 0 ? (privateCount / totalAreas) * 100 : 0;
-	const areaChartData = [
-		{ name: "PUBLIC", value: publicCount, color: "#22c55e" },
-		{ name: "SEMI_PRIVATE", value: semiCount, color: "#f59e0b" },
-		{ name: "PRIVATE", value: privateCount, color: "#ef4444" },
-	].filter((item) => item.value > 0);
-	const subsystemColumns = [
-		{
-			accessorKey: "name",
-			header: "Phân hệ",
-			cell: ({ row }) => (
-				<span className="font-medium">{row.original.name}</span>
-			),
-		},
-		{
-			accessorKey: "status",
-			header: "Trạng thái",
-			cell: ({ row }) => (
-				<span className="inline-flex items-center gap-2 text-slate-500">
-					<span
-						className={`h-2 w-2 rounded-full ${row.original.status === "connected" ? "bg-emerald-500" : "bg-slate-300"}`}
-					/>
-					{row.original.status === "connected" ? "Connected" : "Unavailable"}
-				</span>
-			),
-		},
-	];
-
-	const areasWithCoordsCount = areas.filter(
-		(a) => a.centerLatitude != null && a.centerLongitude != null,
-	).length;
-
-	// Connected subsystems count (FIX 2)
-	const connectedSubsystemsCount = subsystems.filter(
-		(s) => s.status === "connected",
-	).length;
-	const isAllSubsystemsDisconnected = connectedSubsystemsCount === 0;
-
-	// Placeholder status for FIX 3
-	const hasMiniMapData = Boolean(miniMapData && miniMapData.length > 0);
-	const hasAttentionData = Boolean(
-		attentionEvents && attentionEvents.length > 0,
-	);
-	const hasEventsData = Boolean(securityLogs && securityLogs.length > 0);
-	const allThreeEmpty = !hasMiniMapData && !hasAttentionData && !hasEventsData;
-
-	// KPI card configs. Thẻ "Hồ sơ khuôn mặt" bỏ: backend chưa có API đếm hồ sơ khuôn mặt cho role nào.
 	const kpiCards = [
 		{
 			id: "areas",
 			visible: isAreaAuthorized,
-			label: "Tổng số khu vực",
+			label: "Khu vực đang hoạt động",
 			badge: "Khu vực",
 			icon: MapPin,
-			value: areaLoading ? "..." : areaCount !== null ? areaCount : "—",
-			subtext: areaSubtext,
+			value: kpiValue(areaQuery, totalOf(areaQuery.data)),
+			subtext: kpiSubtext(areaQuery, "Không tính khu đã vô hiệu hoá"),
 		},
 		{
 			id: "cameras",
@@ -221,12 +291,22 @@ export default function DashboardPage() {
 			),
 			subtext: kpiSubtext(incidentQuery, "Mới hoặc đã tiếp nhận, chưa xử lý xong"),
 		},
+		{
+			id: "accounts",
+			visible: canCountAccounts,
+			label: "Tài khoản đang hoạt động",
+			badge: "Tài khoản",
+			icon: Users,
+			value: kpiValue(accountState, accountCount),
+			subtext: kpiSubtext(accountState, `${normalCount ?? "—"} người dùng · ${staffCount ?? "—"} cán bộ`),
+		},
 	].filter((card) => card.visible);
+
+	const currentDateStr = format(new Date(), "EEEE, dd/MM/yyyy", { locale: vi });
 
 	return (
 		<div className="dashboard-page">
 			<div className="dashboard-container">
-				{/* Header Section */}
 				<PageHeader
 					title="Tổng quan"
 					description={DASHBOARD_DESCRIPTIONS[role] ?? DEFAULT_DASHBOARD_DESCRIPTION}
@@ -238,17 +318,7 @@ export default function DashboardPage() {
 					}
 				/>
 
-				{isAreaAuthorized && areaError && (
-					<ErrorState
-						size="sm"
-						title="Không tải được số liệu khu vực"
-						message={areaErrorObj?.message}
-						onRetry={() => refetchAreas()}
-						retrying={areaFetching}
-					/>
-				)}
-
-				{/* 4 KPI Cards (FIX 1) */}
+				{/* Hàng 1: thẻ số */}
 				<section className="dashboard-kpis">
 					{kpiCards.map((card) => {
 						const IconComponent = card.icon;
@@ -271,6 +341,14 @@ export default function DashboardPage() {
 						);
 					})}
 				</section>
+
+				{/* Hàng 2: khu theo loại (trái) + hoạt động gần đây (phải). GUARD không gọi được hai API này nên không có hàng 2 */}
+				{(isAreaAuthorized || canSeeAudit) && (
+					<div className="dashboard-grid">
+						{isAreaAuthorized && <AreaTypePanel queries={areaTypeQueries} />}
+						{canSeeAudit && <RecentActivityPanel query={auditQuery} />}
+					</div>
+				)}
 			</div>
 		</div>
 	);
