@@ -116,8 +116,7 @@
 }
 
 .form-group input,
-.form-group textarea,
-.form-group select {
+.form-group textarea {
   background: var(--theme-bg-input);
   border: 1.5px solid var(--theme-input-border);
   border-radius: 10px;
@@ -130,8 +129,7 @@
 }
 
 .form-group input:focus,
-.form-group textarea:focus,
-.form-group select:focus {
+.form-group textarea:focus {
   outline: none;
   border-color: var(--brand-blue);
   box-shadow: var(--focus-ring);

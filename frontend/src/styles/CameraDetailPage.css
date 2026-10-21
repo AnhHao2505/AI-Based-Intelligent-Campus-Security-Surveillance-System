@@ -1667,4 +1667,11 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   .date-value {
     font-size: 0.65rem;
   }
-}
+}
+
+/* Tab Thông tin chung: ô chọn khu vực (Select chung) chiếm phần còn lại của hàng, nút "Quản lý khu vực" đứng cạnh */
+.camera-general-area-select {
+  flex: 1 1 300px;
+  width: auto;
+  min-width: 0;
+}
