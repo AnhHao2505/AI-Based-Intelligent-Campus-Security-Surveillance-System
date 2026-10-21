@@ -1,10 +1,10 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import {
 	AlertCircle,
 	Plus,
 	Cctv,
 	VideoOff,
-	ShieldCheck,
 	Users,
 	Pencil,
 	Ban,
@@ -83,11 +83,11 @@ export default function AreaListView({
 	onSelectArea,
 	onOpenCreateModal,
 	onOpenCamerasModal,
-	onOpenAccessRulesModal,
 	onOpenAssignedPersonnelModal,
 	onOpenEditModal,
 	onOpenDeactivateModal,
 }) {
+	const navigate = useNavigate();
 	const renderAreaCard = (area) => {
 		const isSelected = selectedAreaId === area.id;
 		const levelKey =
@@ -127,12 +127,17 @@ export default function AreaListView({
 							</span>
 						)}
 						{area.upcomingScheduleCount > 0 && (
-							<span
+							<button
+								type="button"
 								className="zone-card__pill-schedule"
-								title="Số lịch sự kiện đã đặt, chưa bắt đầu"
+								title="Số lịch sự kiện đã đặt, chưa bắt đầu — bấm để xem ở màn Quản lý sự kiện"
+								onClick={(e) => {
+									e.stopPropagation();
+									navigate(`/admin/events?areaId=${area.id}&status=SCHEDULED`);
+								}}
 							>
 								{area.upcomingScheduleCount} lịch sự kiện
-							</span>
+							</button>
 						)}
 					</div>
 				</div>
@@ -181,22 +186,6 @@ export default function AreaListView({
 						>
 							<Cctv size={13} />
 						</button>
-
-						{/* V83 (D4): cấp cố định theo loại, ADMIN không còn sửa cấp riêng từng khu */}
-						{isFacilityManager && (
-							<button
-								type="button"
-								className="zone-card__quick-btn"
-								onClick={(e) => {
-									e.stopPropagation();
-									onOpenAccessRulesModal(area);
-								}}
-								title="Chế độ sự kiện và lịch"
-								aria-label="Chế độ sự kiện và lịch"
-							>
-								<ShieldCheck size={13} />
-							</button>
-						)}
 
 						{isFacilityManager && levelKey !== "PUBLIC" && (
 							<button

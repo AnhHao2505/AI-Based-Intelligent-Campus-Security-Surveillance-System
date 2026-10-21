@@ -586,6 +586,10 @@
   border: 1px solid var(--theme-info-border);
   color: var(--theme-info-text);
   white-space: nowrap;
+  /* Bấm được: mở màn Quản lý sự kiện lọc sẵn theo khu */
+  font-family: inherit;
+  line-height: inherit;
+  cursor: pointer;
   flex-shrink: 0;
 }
 

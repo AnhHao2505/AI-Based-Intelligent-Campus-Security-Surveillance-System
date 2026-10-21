@@ -135,21 +135,10 @@ export async function updateAreaEventMode(areaId, data) {
 }
 
 /**
- * Lấy danh sách lịch chế độ sự kiện của khu vực, sắp startAt tăng dần (FACILITY_MANAGER, ADMIN)
- * GET /api/areas/{areaId}/event-schedules?status=
- * @param {string} areaId
- * @param {string} [status] SCHEDULED | STARTED | COMPLETED | ENDED_EARLY | CANCELLED | FAILED — bỏ trống để lấy tất cả
- */
-export async function getEventSchedules(areaId, status) {
-	const query = status ? `?status=${encodeURIComponent(status)}` : "";
-	return apiGet(`/api/areas/${areaId}/event-schedules${query}`);
-}
-
-/**
  * Đặt lịch bật chế độ sự kiện trong tương lai (chỉ FACILITY_MANAGER)
  * POST /api/areas/{areaId}/event-schedules
  * @param {string} areaId
- * @param {Object} data { startAt, endAt, reasonCode, note }
+ * @param {Object} data { title, startAt, endAt, reasonCode, note? } — note không bắt buộc (BR-ES-20 sửa 21/10)
  */
 export async function createEventSchedule(areaId, data) {
 	return apiPost(`/api/areas/${areaId}/event-schedules`, data);
@@ -160,7 +149,7 @@ export async function createEventSchedule(areaId, data) {
  * PATCH /api/areas/{areaId}/event-schedules/{scheduleId}
  * @param {string} areaId
  * @param {string} scheduleId
- * @param {Object} data { startAt, endAt, reasonCode, note }
+ * @param {Object} data { title, startAt, endAt, reasonCode, note } — reasonCode nhóm EVENT_SCHEDULE_UPDATE, note = lý do sửa
  */
 export async function updateEventSchedule(areaId, scheduleId, data) {
 	return apiPatch(`/api/areas/${areaId}/event-schedules/${scheduleId}`, data);
