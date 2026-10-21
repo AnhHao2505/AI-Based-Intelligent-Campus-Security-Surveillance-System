@@ -321,13 +321,13 @@ export default function AuditLogPage() {
 
 	const hasActiveFilters = Boolean(
 		filterModule ||
-			filterCorrelationId ||
-			filterTargetType ||
-			filterAreaId ||
-			filterFrom ||
-			filterTo ||
-			filterSubjectUser ||
-			filterChangedByUser,
+		filterCorrelationId ||
+		filterTargetType ||
+		filterAreaId ||
+		filterFrom ||
+		filterTo ||
+		filterSubjectUser ||
+		filterChangedByUser,
 	);
 
 	const handleResetFilters = () => {
@@ -517,8 +517,8 @@ export default function AuditLogPage() {
 					<div className="audit-detail-row">
 						<span className="audit-row-label">Cấp truy cập:</span>
 						{oldLvl !== undefined &&
-						newLvl !== undefined &&
-						oldLvl !== newLvl ? (
+							newLvl !== undefined &&
+							oldLvl !== newLvl ? (
 							<>
 								<span>Cấp {oldLvl}</span>
 								<span className="audit-arrow">→</span>
@@ -531,24 +531,24 @@ export default function AuditLogPage() {
 						)}
 					</div>
 					{hasExplicit && (
-					<div className="audit-detail-row">
-						<span className="audit-row-label">Yêu cầu chỉ định:</span>
-						{oldExp !== undefined &&
-						newExp !== undefined &&
-						oldExp !== newExp ? (
-							<>
-								<span>{oldExp ? "Bật" : "Tắt"}</span>
-								<span className="audit-arrow">→</span>
+						<div className="audit-detail-row">
+							<span className="audit-row-label">Yêu cầu chỉ định:</span>
+							{oldExp !== undefined &&
+								newExp !== undefined &&
+								oldExp !== newExp ? (
+								<>
+									<span>{oldExp ? "Bật" : "Tắt"}</span>
+									<span className="audit-arrow">→</span>
+									<strong className="audit-val--new">
+										{newExp ? "Bật" : "Tắt"}
+									</strong>
+								</>
+							) : (
 								<strong className="audit-val--new">
-									{newExp ? "Bật" : "Tắt"}
+									{(newExp ?? oldExp) ? "Bật" : "Tắt"}
 								</strong>
-							</>
-						) : (
-							<strong className="audit-val--new">
-								{(newExp ?? oldExp) ? "Bật" : "Tắt"}
-							</strong>
-						)}
-					</div>
+							)}
+						</div>
 					)}
 				</div>
 			);
@@ -785,7 +785,7 @@ export default function AuditLogPage() {
 										<th>NGƯỜI THỰC HIỆN</th>
 										<th>LOẠI SỰ KIỆN</th>
 										<th>HÀNH ĐỘNG & CHI TIẾT</th>
-										<th>ĐỐI TƯỢNG TÁC ĐỘNG</th>
+										<th>ĐỐI TƯỢNG</th>
 									</tr>
 								</thead>
 								<tbody>
