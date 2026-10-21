@@ -459,3 +459,14 @@
 .syscfg-container > .ui-page-header {
   margin-bottom: 0;
 }
+
+/* Danh mục lý do — bộ lọc dùng Select chung: rộng theo nội dung (mũi tên sát chữ),
+   cao bằng ô lọc ở Nhật ký kiểm toán (42px) */
+.reason-filter__select {
+  width: auto;
+}
+
+.reason-filter__select .ui-select__field {
+  width: auto;
+  height: 42px;
+}

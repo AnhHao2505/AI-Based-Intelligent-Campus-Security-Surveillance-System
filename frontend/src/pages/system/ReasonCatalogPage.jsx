@@ -19,6 +19,7 @@ import {
 import {
 	Button,
 	Input,
+	Select,
 	Modal,
 	Badge,
 	PageHeader,
@@ -36,6 +37,14 @@ const ACTION_TYPES = [
 	{ value: "EVENT_SCHEDULE_CREATE", label: "Đặt lịch sự kiện" },
 	{ value: "EVENT_SCHEDULE_UPDATE", label: "Sửa lịch sự kiện" },
 	{ value: "EVENT_SCHEDULE_CANCEL", label: "Hủy lịch sự kiện" },
+];
+
+// Bộ lọc: dòng đầu value rỗng = không lọc (không dùng prop placeholder vì option đó bị disabled)
+const ACTION_FILTER_OPTIONS = [{ value: "", label: "Tất cả loại thao tác" }, ...ACTION_TYPES];
+const ACTIVE_FILTER_OPTIONS = [
+	{ value: "", label: "Tất cả trạng thái" },
+	{ value: "true", label: "Đang dùng" },
+	{ value: "false", label: "Ngừng dùng" },
 ];
 
 export default function ReasonCatalogPage() {
@@ -270,41 +279,20 @@ export default function ReasonCatalogPage() {
 					<ListFilter size={16} />
 					<span style={{ fontSize: "13px", fontWeight: 600 }}>Lọc theo:</span>
 				</div>
-				<select
+				<Select
+					className="reason-filter__select"
 					value={filterAction}
 					onChange={(e) => setFilterAction(e.target.value)}
 					aria-label="Lọc theo loại thao tác"
-					style={{
-						padding: "6px 12px",
-						borderRadius: "6px",
-						border: "1px solid var(--theme-border)",
-						background: "var(--theme-card-bg)",
-						fontSize: "13px",
-					}}
-				>
-					<option value="">Tất cả loại thao tác</option>
-					{ACTION_TYPES.map((a) => (
-						<option key={a.value} value={a.value}>
-							{a.label}
-						</option>
-					))}
-				</select>
-				<select
+					options={ACTION_FILTER_OPTIONS}
+				/>
+				<Select
+					className="reason-filter__select"
 					value={filterActive}
 					onChange={(e) => setFilterActive(e.target.value)}
 					aria-label="Lọc theo trạng thái"
-					style={{
-						padding: "6px 12px",
-						borderRadius: "6px",
-						border: "1px solid var(--theme-border)",
-						background: "var(--theme-card-bg)",
-						fontSize: "13px",
-					}}
-				>
-					<option value="">Tất cả trạng thái</option>
-					<option value="true">Đang dùng</option>
-					<option value="false">Ngừng dùng</option>
-				</select>
+					options={ACTIVE_FILTER_OPTIONS}
+				/>
 			</div>
 
 			{/* Table */}
