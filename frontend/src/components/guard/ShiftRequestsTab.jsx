@@ -23,7 +23,7 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { guardScheduleApi } from '../../api/guardScheduleApi';
-import { ErrorState } from '../../components/ui';
+import { ErrorState, Select } from '../../components/ui';
 
 const formatDateVN = (dateStr) => {
   if (!dateStr) return '';
@@ -1191,7 +1191,7 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
                       <span>Đang tìm kiếm nhân viên bảo vệ rảnh ca...</span>
                     </div>
                   ) : (
-                    <select
+                    <Select
                       value={leaveModal.selectedSubstituteId}
                       onChange={(e) =>
                         setLeaveModal((prev) => ({
@@ -1200,19 +1200,15 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
                         }))
                       }
                       required
-                      className="w-full px-3 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs"
-                    >
-                      <option value="">-- Chọn bảo vệ trực thay --</option>
-                      {leaveModal.substitutes.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.fullName} ({s.userCode || 'NV-BV'}) —{' '}
-                          {s.isSameTeam ? `[Cùng đội] ${s.teamName}` : s.teamName}
-                        </option>
-                      ))}
-                      <option value="CANCEL_SHIFT">
-                        -- Hủy ca trực này (Không cần người trực thay) --
-                      </option>
-                    </select>
+                      options={[
+                        { value: '', label: '-- Chọn bảo vệ trực thay --' },
+                        ...leaveModal.substitutes.map((s) => ({
+                          value: s.id,
+                          label: `${s.fullName} (${s.userCode || 'NV-BV'}) — ${s.isSameTeam ? `[Cùng đội] ${s.teamName}` : s.teamName}`,
+                        })),
+                        { value: 'CANCEL_SHIFT', label: '-- Hủy ca trực này (Không cần người trực thay) --' },
+                      ]}
+                    />
                   )}
                   <p className="text-[11px] text-slate-400 mt-1.5">
                     Hệ thống tự động lọc các bảo vệ đang nghỉ trong ngày và đảm bảo nhịp sinh học nghỉ ngơi (ưu tiên cùng đội).
