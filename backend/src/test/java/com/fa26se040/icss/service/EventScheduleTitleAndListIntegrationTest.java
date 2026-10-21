@@ -237,6 +237,37 @@ class EventScheduleTitleAndListIntegrationTest extends Step5bTestSupport {
         assertEquals(200, status(send(get("/api/event-schedules"), admin, null).andReturn()));
     }
 
+    // ================================================================== Dừng sự kiện (nút Dừng, Q7 / F6)
+
+    @Test
+    @DisplayName("Q7/F6: DISABLE ghi chú không bắt buộc (có nhập thì 10–500, sai -> 400 ERR_AREA_024); dừng -> phiên đóng, lịch ENDED_EARLY, khu hết mở. ENABLE vẫn bắt buộc ghi chú")
+    void stopEventNoteOptional() throws Exception {
+        Area area = newArea(AreaLevel.CONFIDENTIAL);
+        OffsetDateTime now = OffsetDateTime.now().truncatedTo(ChronoUnit.MINUTES);
+        var session = openEvent(area, now.minusHours(1), now.plusHours(2));
+        AreaEventSchedule running = schedule(area, "Sự kiện đang diễn ra", AreaEventScheduleStatus.STARTED, now.minusHours(1), now.plusHours(2));
+        running.setSession(session);
+        eventScheduleRepository.save(running);
+        session.setScheduleId(running.getId()); // phiên do lịch sinh ra (BR-ES-S1)
+        sessionRepository.save(session);
+
+        MvcResult shortNote = patchEventMode(fm, area, eventBody("DISABLE", null, "OTHER", "ngắn", dbVersion(area)));
+        assertEquals(400, status(shortNote), describe(shortNote));
+        assertEquals("ERR_AREA_024", errorCode(shortNote));
+        assertTrue(Boolean.TRUE.equals(reload(area).getOpenToMembers()), "bị chặn thì khu vẫn mở");
+
+        MvcResult stopped = patchEventMode(fm, area, eventBody("DISABLE", null, "OTHER", null, dbVersion(area)));
+        assertEquals(200, status(stopped), describe(stopped));
+        assertFalse(Boolean.TRUE.equals(reload(area).getOpenToMembers()), "dừng -> khu hết mở");
+        assertNotNull(sessionRepository.findById(session.getId()).orElseThrow().getActualEnd(), "dừng -> phiên đóng");
+        assertEquals(AreaEventScheduleStatus.ENDED_EARLY, eventScheduleRepository.findById(running.getId()).orElseThrow().getStatus());
+
+        Area other = newArea(AreaLevel.CONFIDENTIAL);
+        MvcResult enableNoNote = patchEventMode(fm, other, eventBody("ENABLE", now.plusHours(2), "OTHER", null, dbVersion(other)));
+        assertEquals(400, status(enableNoNote), describe(enableNoNote));
+        assertEquals("ERR_AREA_024", errorCode(enableNoNote), "bật sự kiện vẫn bắt buộc ghi chú");
+    }
+
     // ================================================================== V87
 
     @Test

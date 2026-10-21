@@ -1486,7 +1486,10 @@ public class AreaService {
         if (eventAction == null) {
             throw new AreaException(AreaErrorCode.ERR_AREA_047);
         }
-        String trimmedNote = requireEventNote(req.note());
+        // Màn Quản lý sự kiện (21/10): dừng sự kiện (DISABLE) ghi chú không bắt buộc; bật / điều chỉnh vẫn bắt buộc
+        String trimmedNote = eventAction == com.fa26se040.icss.enums.EventModeAction.DISABLE
+                ? optionalEventNote(req.note())
+                : requireEventNote(req.note());
         String rawReasonCode = req.reasonCode();
         if (rawReasonCode == null || rawReasonCode.trim().isEmpty()) {
             throw eventNoteError();
