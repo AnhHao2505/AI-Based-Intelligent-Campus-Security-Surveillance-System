@@ -37,7 +37,10 @@ public record AccessRequestResponse(
     // Step 5b (BR-TC-15): nguồn huỷ (USER / SYSTEM; NULL = chưa huỷ hoặc huỷ trước V56), lý do, người huỷ
     CancelSource cancelSource,
     String cancelReason,
-    UUID cancelledById
+    UUID cancelledById,
+    // V88 (BR-RQ-46): lý do kết thúc và tên người kết thúc (chỉ tên, không e-mail); NULL = chưa kết thúc / kết thúc trước V88 không có audit
+    String finishReason,
+    String finishedByName
 ) {
     public AccessRequestResponse(
             UUID id,
@@ -70,7 +73,8 @@ public record AccessRequestResponse(
                 requestType, purpose, startTime, endTime, status,
                 reviewerId, reviewerName, reviewerEmail, reviewedAt,
                 rejectionReason, members, createdAt, updatedAt, null,
-                null, null, null
+                null, null, null,
+                null, null
         );
     }
 }

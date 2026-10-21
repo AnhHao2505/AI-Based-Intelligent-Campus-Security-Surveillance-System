@@ -29,7 +29,7 @@ import { useReasonLimits } from '../../hooks/useReasonLimits';
 
 /**
  * Nội dung cột "Lý do" theo trạng thái, chỉ dùng trường có sẵn trong response
- * (rejectionReason, cancelSource, cancelReason). FINISHED chưa có lý do trong response (chỉ lưu ở audit).
+ * (rejectionReason, cancelSource, cancelReason, finishReason). FINISHED kết thúc trước V88 mà không có audit thì finishReason null.
  * @returns {string|null} null = không có lý do (hiện "—")
  */
 const getListReason = (req) => {
@@ -41,6 +41,9 @@ const getListReason = (req) => {
       if (req.cancelSource === 'STAFF') return req.cancelReason ? `Quản lý hủy: ${req.cancelReason}` : 'Quản lý hủy';
       if (req.cancelSource === 'SYSTEM') return req.cancelReason ? `Hủy bởi hệ thống: ${req.cancelReason}` : 'Hủy bởi hệ thống';
       return req.cancelReason || 'Người yêu cầu tự hủy';
+    case 'FINISHED':
+      // BR-RQ-46 (V88): FM kết thúc đơn đã duyệt, lý do lưu trên đơn
+      return req.finishReason ? `Quản lý kết thúc: ${req.finishReason}` : null;
     case 'EXPIRED':
       // BR-RQ-43
       return 'Quá giờ bắt đầu nhưng chưa được duyệt';
@@ -1025,6 +1028,11 @@ export default function AccessRequestReviewPage() {
                     {detailItem.status === 'CANCELLED' && detailItem.cancelSource === 'USER' && detailItem.cancelReason && (
                       <div className="arr-cancel-system arr-cancel-system--detail">
                         Người yêu cầu tự hủy: {detailItem.cancelReason}
+                      </div>
+                    )}
+                    {detailItem.status === 'FINISHED' && detailItem.finishReason && (
+                      <div className="arr-cancel-system arr-cancel-system--detail">
+                        Quản lý kết thúc{detailItem.finishedByName ? ` (${detailItem.finishedByName})` : ''}: {detailItem.finishReason}
                       </div>
                     )}
                   </div>

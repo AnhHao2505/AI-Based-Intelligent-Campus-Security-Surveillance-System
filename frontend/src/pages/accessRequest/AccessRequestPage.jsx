@@ -1394,6 +1394,12 @@ export default function AccessRequestPage() {
 													<span>Hết hạn</span>
 												</>
 											)}
+											{selectedDetail.status === "FINISHED" && (
+												<>
+													<CheckCircle2 size={11} />
+													<span>Hoàn thành</span>
+												</>
+											)}
 										</span>
 										{selectedDetail.status === "CANCELLED" && selectedDetail.cancelSource === "SYSTEM" && (
 											<div className="arp-cancel-system arp-cancel-system--detail">
@@ -1403,6 +1409,12 @@ export default function AccessRequestPage() {
 										{selectedDetail.status === "CANCELLED" && selectedDetail.cancelSource === "STAFF" && (
 											<div className="arp-cancel-system arp-cancel-system--detail">
 												Quản lý hủy: {selectedDetail.cancelReason}
+											</div>
+										)}
+										{/* BR-RQ-46 (V88): FM kết thúc đơn đã duyệt */}
+										{selectedDetail.status === "FINISHED" && selectedDetail.finishReason && (
+											<div className="arp-cancel-system arp-cancel-system--detail">
+												Quản lý kết thúc: {selectedDetail.finishReason}
 											</div>
 										)}
 									</div>

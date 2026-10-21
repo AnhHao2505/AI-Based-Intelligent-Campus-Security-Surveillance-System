@@ -92,6 +92,14 @@ public class AccessRequest {
     @Column(name = "cancel_reason", columnDefinition = "TEXT")
     private String cancelReason;
 
+    // V88 (BR-RQ-46): lý do và người kết thúc đơn, ghi cùng câu UPDATE có điều kiện finishIfApprovedStarted
+    @Column(name = "finish_reason", length = 500)
+    private String finishReason;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "finished_by")
+    private User finishedBy;
+
     @OneToMany(mappedBy = "accessRequest", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @Builder.Default
     private List<AccessRequestMember> members = new ArrayList<>();
