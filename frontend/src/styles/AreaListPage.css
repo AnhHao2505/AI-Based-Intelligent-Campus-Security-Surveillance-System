@@ -1563,41 +1563,6 @@
   flex-wrap: wrap;
 }
 
-.zone-toolbar__building {
-  display: flex;
-  align-items: center;
-  background: var(--theme-bg-surface-elevated);
-  border: 0.5px solid var(--theme-border);
-  border-radius: 8px;
-  padding: 0 12px;
-  height: 36px;
-  box-sizing: border-box;
-  box-shadow: none;
-  flex-shrink: 0;
-}
-
-.zone-toolbar__building-icon {
-  color: var(--brand-text);
-  margin-right: 8px;
-  flex-shrink: 0;
-}
-
-.zone-toolbar__building-select {
-  border: none;
-  background: transparent;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--theme-text-primary);
-  outline: none;
-  cursor: pointer;
-  padding: 0;
-}
-
-.zone-toolbar__building-select option {
-  background: var(--theme-bg-surface-elevated);
-  color: var(--theme-text-primary);
-}
-
 /* Ô chọn tòa / tầng dùng Select chung (--filter); icon đặt đè bên trái trong ô */
 .zone-toolbar__select {
   position: relative;
