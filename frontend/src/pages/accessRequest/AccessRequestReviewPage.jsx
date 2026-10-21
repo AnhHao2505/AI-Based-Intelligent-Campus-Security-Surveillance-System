@@ -17,7 +17,7 @@ import accessRequestService from '../../services/accessRequestService';
 import { getLevelConfig, AREA_LEVEL_CONFIG } from '../../utils/areaHelpers';
 import '../../styles/AccessRequestReviewPage.css';
 import PageHeader from '../../components/ui/PageHeader';
-import { LoadingState, EmptyState, ErrorState, DialogPanel } from '../../components/ui';
+import { LoadingState, EmptyState, ErrorState, DialogPanel, Select } from '../../components/ui';
 import ReasonTextarea from '../../components/ui/ReasonTextarea';
 import StatusTabs from '../../components/ui/StatusTabs';
 import '../../components/ui/Button.css';
@@ -423,25 +423,22 @@ export default function AccessRequestReviewPage() {
         />
 
         <div className="arr-toolbar-right">
-          <select
-            className="arr-select"
+          <Select
+            className="ui-select-group--filter"
             aria-label="Lọc theo khu vực"
             value={selectedAreaId}
             onChange={(e) => {
               setSelectedAreaId(e.target.value);
               setPage(0);
             }}
-          >
-            <option value="">Tất cả khu vực</option>
-            {areasList.map((a) => {
-              const loc = formatLocation(a.building, a.floor);
-              return (
-                <option key={a.id} value={a.id}>
-                  {loc ? `${a.name} (${loc})` : a.name}
-                </option>
-              );
-            })}
-          </select>
+            options={[
+              { value: '', label: 'Tất cả khu vực' },
+              ...areasList.map((a) => {
+                const loc = formatLocation(a.building, a.floor);
+                return { value: a.id, label: loc ? `${a.name} (${loc})` : a.name };
+              }),
+            ]}
+          />
 
           <div className="arr-search-wrap">
             <Search size={14} className="arr-search-icon" />

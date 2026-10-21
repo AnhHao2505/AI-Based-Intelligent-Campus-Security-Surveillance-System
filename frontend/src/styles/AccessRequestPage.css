@@ -195,12 +195,6 @@
   background: var(--theme-bg-surface-elevated);
 }
 
-.arp-select option {
-  background: var(--theme-bg-surface);
-  color: var(--theme-text-primary);
-  padding: 8px;
-}
-
 .arp-textarea {
   min-height: 85px;
   resize: vertical;
@@ -651,27 +645,10 @@
   font-weight: 600;
 }
 
-.arp-select-filter {
-  padding: 6px 14px;
-  font-size: 12.5px;
-  border-radius: 8px;
-  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.12));
-  background: var(--theme-bg-input);
-  color: var(--theme-text-primary);
-  outline: none;
-  cursor: pointer;
-  font-family: inherit;
-  transition: all 0.15s ease;
-  min-width: 180px;
-}
-
-.arp-select-filter:focus {
-  border-color: var(--brand-blue);
-}
-
 .arp-refresh-btn {
-  width: 32px;
-  height: 32px;
+  /* Cao bằng ô lọc khu vực (Select --filter, 42px) */
+  width: 42px;
+  height: 42px;
   display: inline-flex;
   align-items: center;
   justify-content: center;

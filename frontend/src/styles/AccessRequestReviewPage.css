@@ -87,25 +87,6 @@
   flex-wrap: wrap;
 }
 
-.arr-select {
-  padding: 0.45rem 2rem 0.45rem 0.75rem;
-  font-size: 0.8125rem;
-  border-radius: 0.5rem;
-  border: 1px solid var(--theme-input-border);
-  background: var(--theme-bg-input);
-  color: var(--theme-text-primary);
-  outline: none;
-  cursor: pointer;
-  min-width: 220px;
-  font-family: inherit;
-  transition: all 0.15s ease;
-}
-
-.arr-select:focus {
-  border-color: var(--brand-blue);
-  box-shadow: var(--focus-ring);
-}
-
 /* Search Input */
 .arr-search-wrap {
   position: relative;
@@ -122,8 +103,11 @@
 
 .arr-search-input {
   width: 100%;
-  padding: 0.45rem 0.75rem 0.45rem 2.2rem;
-  font-size: 0.8125rem;
+  box-sizing: border-box;
+  /* Cao bằng ô lọc khu vực (Select --filter, 42px) */
+  height: 42px;
+  padding: 0 0.75rem 0 2.2rem;
+  font-size: 0.875rem;
   border-radius: 0.5rem;
   border: 1px solid var(--theme-input-border);
   background: var(--theme-bg-input);
