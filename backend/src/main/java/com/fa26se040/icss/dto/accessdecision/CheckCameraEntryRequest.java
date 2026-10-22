@@ -10,6 +10,7 @@ import java.time.OffsetDateTime;
 
 /**
  * DTO yêu cầu xét quyền ra vào tại vị trí Camera quan sát.
+ * Hỗ trợ nhận diện sự kiện di chuyển qua vùng ROI (VÀO / RA).
  */
 @Data
 @Builder
@@ -24,4 +25,10 @@ public class CheckCameraEntryRequest {
     private String userCode;
 
     private OffsetDateTime timestamp;
+
+    private String roiLabel;
+
+    private String eventDirection; // "ENTRY" | "EXIT"
+
+    private Double durationSeconds;
 }

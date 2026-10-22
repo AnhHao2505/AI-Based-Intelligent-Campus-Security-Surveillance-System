@@ -64,7 +64,15 @@ public class CameraAccessLogService {
                 : "UNKNOWN";
 
         // 1. Kiểm tra Debounce chống spam
-        String cacheKey = cameraCode + ":" + userCode;
+        String directionKey = "";
+        if (entryResponse.getReason() != null) {
+            if (entryResponse.getReason().startsWith("[RA KHỎI ROI")) {
+                directionKey = ":EXIT";
+            } else if (entryResponse.getReason().startsWith("[VÀO ROI")) {
+                directionKey = ":ENTRY";
+            }
+        }
+        String cacheKey = cameraCode + ":" + userCode + directionKey;
         long nowEpoch = at.toEpochSecond();
         Long lastSeen = debounceCache.get(cacheKey);
         int debounceSeconds = systemConfigService.getInt(ConfigKey.ENTRY_LOG_DEBOUNCE_SECONDS);

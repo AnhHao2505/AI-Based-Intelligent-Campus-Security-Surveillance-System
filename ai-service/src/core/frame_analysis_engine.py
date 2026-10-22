@@ -66,6 +66,7 @@ class FrameAnalysisEngine:
             after_hours = False
 
         generated_alerts: List[SecurityAlertEvent] = []
+        roi_access_events: List[Dict[str, Any]] = []
         current_frame_track_ids = set()
 
         active_pixel_polys: List[Tuple[List[Point], List[str], str]] = []
@@ -140,9 +141,38 @@ class FrameAnalysisEngine:
                 in_roi = True
                 matched_rules = ["ENTRY_EXIT_TRACKING", "AFTER_HOURS"]
 
+            # Theo dõi chuyển trạng thái ra vào vùng ROI
+            if in_roi and not person.was_in_roi:
+                person.roi_enter_time = current_time
+                person.entered_roi_label = matched_label or "Vùng giám sát"
+                person.roi_entry_logged = False
+            elif not in_roi and person.was_in_roi:
+                duration = max(0.0, current_time - (person.roi_enter_time or current_time))
+                exit_label = person.entered_roi_label or "Vùng giám sát"
+                if person.face_detected and person.face_info and person.face_info.matched_code:
+                    roi_access_events.append({
+                        "user_code": person.face_info.matched_code,
+                        "roi_label": exit_label,
+                        "direction": "EXIT",
+                        "duration": duration
+                    })
+                person.roi_enter_time = None
+                person.entered_roi_label = None
+                person.roi_entry_logged = False
+
             person.is_in_roi = in_roi
+            person.was_in_roi = in_roi
 
             if person.is_in_roi:
+                if person.face_detected and person.face_info and person.face_info.matched_code and not person.roi_entry_logged:
+                    roi_access_events.append({
+                        "user_code": person.face_info.matched_code,
+                        "roi_label": person.entered_roi_label or matched_label or "Vùng giám sát",
+                        "direction": "ENTRY",
+                        "duration": 0.0
+                    })
+                    person.roi_entry_logged = True
+
                 loc_info = {"label": matched_label} if matched_label else None
                 target_area_name = getattr(person.face_info, "area_name", None) if person.face_info else None
                 area_display = target_area_name or matched_label or "khu vực giám sát"
@@ -274,11 +304,21 @@ class FrameAnalysisEngine:
                     inactive_ids.append(tid)
 
         for tid in inactive_ids:
+            p = self.active_tracks[tid]
+            if getattr(p, "was_in_roi", False) and p.face_detected and p.face_info and p.face_info.matched_code:
+                duration = max(0.0, current_time - (p.roi_enter_time or p.last_seen_time))
+                exit_label = p.entered_roi_label or "Vùng giám sát"
+                roi_access_events.append({
+                    "user_code": p.face_info.matched_code,
+                    "roi_label": exit_label,
+                    "direction": "EXIT",
+                    "duration": duration
+                })
             del self.active_tracks[tid]
             if tid in self.pending_faces:
                 del self.pending_faces[tid]
 
-        return list(self.active_tracks.values()), generated_alerts
+        return list(self.active_tracks.values()), generated_alerts, roi_access_events
 
     def associate_face(self, track_id: int, face_result: FaceDetectionResult):
         if face_result is None:

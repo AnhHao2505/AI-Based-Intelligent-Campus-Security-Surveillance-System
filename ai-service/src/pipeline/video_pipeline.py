@@ -188,7 +188,7 @@ class VideoPipeline:
 
         # 4. Phân tích Xâm nhập vùng cấm
         is_public = self.face_matcher.is_camera_public(self.camera_code) if self.face_matcher else False
-        active_persons, alerts = self.analysis_engine.process_frame(
+        active_persons, alerts, roi_events = self.analysis_engine.process_frame(
             detected_tracks=detected_tracks,
             roi_polygon=self.roi_polygon,
             camera_code=self.camera_code,
@@ -197,6 +197,19 @@ class VideoPipeline:
             frame_size=(w, h),
             is_public_area=is_public
         )
+
+        # 4b. Xử lý ghi log sự kiện RA / VÀO vùng ROI ngầm (Async qua ThreadPoolExecutor)
+        if roi_events and self.face_matcher:
+            for ev in roi_events:
+                self.executor.submit(
+                    self.face_matcher.check_camera_access,
+                    self.camera_code,
+                    ev["user_code"],
+                    ev["roi_label"],
+                    ev["direction"],
+                    ev.get("duration"),
+                    True
+                )
 
         # 5. Xử lý lưu bằng chứng và gửi cảnh báo tự động ngầm (Async không chặn luồng video)
         if alerts:
