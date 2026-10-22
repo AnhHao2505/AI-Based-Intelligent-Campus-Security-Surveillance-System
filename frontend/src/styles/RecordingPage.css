@@ -1,0 +1,582 @@
+/* RecordingPage.css — Modern, high-contrast, theme-integrated surveillance video vault */
+
+.recording-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  max-width: var(--page-max-width, 1440px);
+  margin: 0 auto;
+  padding: 28px 32px 48px;
+  box-sizing: border-box;
+}
+
+/* Header & Stat Cards */
+.recording-page .page-header {
+  margin-bottom: 4px;
+}
+
+.recording-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.recording-stat-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--theme-bg-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: 12px;
+  padding: 18px 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.recording-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+}
+
+.recording-stat-card__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.recording-stat-card__icon--blue {
+  background: rgba(0, 163, 255, 0.12);
+  color: #00a3ff;
+}
+
+.recording-stat-card__icon--red {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+}
+
+.recording-stat-card__icon--green {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+}
+
+.recording-stat-card__icon--purple {
+  background: rgba(168, 85, 247, 0.12);
+  color: #a855f7;
+}
+
+.recording-stat-card__content {
+  display: flex;
+  flex-direction: column;
+}
+
+.recording-stat-card__value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--theme-text-primary);
+  line-height: 1.2;
+}
+
+.recording-stat-card__label {
+  font-size: 13px;
+  color: var(--theme-text-secondary);
+  margin-top: 4px;
+}
+
+/* Filter Section */
+.recording-filter-card {
+  background: var(--theme-bg-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: 14px;
+  padding: 20px 24px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.recording-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+}
+
+.recording-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 200px;
+  flex: 1;
+}
+
+.recording-filter-group label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--theme-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.recording-filter-group select,
+.recording-filter-group input {
+  height: 40px;
+  border-radius: 8px;
+  border: 1px solid var(--theme-border);
+  background: var(--theme-bg-input, var(--theme-bg-surface));
+  color: var(--theme-text-primary);
+  padding: 0 12px;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.recording-filter-group select:focus,
+.recording-filter-group input:focus {
+  border-color: #00a3ff;
+  box-shadow: 0 0 0 3px rgba(0, 163, 255, 0.15);
+}
+
+/* Custom DateTime Row */
+.recording-custom-time-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--theme-border);
+  background: var(--theme-bg-hover, rgba(0, 0, 0, 0.02));
+  padding: 14px 16px;
+  border-radius: 8px;
+}
+
+.recording-custom-time-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.recording-custom-time-group label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--theme-text-secondary);
+  white-space: nowrap;
+}
+
+.recording-custom-time-group input[type="date"],
+.recording-custom-time-group input[type="time"] {
+  height: 36px;
+  border-radius: 6px;
+  border: 1px solid var(--theme-border);
+  background: var(--theme-bg-surface);
+  color: var(--theme-text-primary);
+  padding: 0 10px;
+  font-size: 13px;
+  outline: none;
+}
+
+.recording-custom-time-group input[type="date"]:focus,
+.recording-custom-time-group input[type="time"]:focus {
+  border-color: #00a3ff;
+}
+
+.recording-filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+/* View Mode Toggles & Layout */
+.recording-results-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+
+.recording-results-count {
+  font-size: 14px;
+  color: var(--theme-text-secondary);
+}
+
+.recording-results-count strong {
+  color: var(--theme-text-primary);
+  font-weight: 600;
+}
+
+.recording-view-mode-toggle {
+  display: flex;
+  align-items: center;
+  background: var(--theme-bg-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: 8px;
+  overflow: hidden;
+  padding: 2px;
+}
+
+.recording-view-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: var(--theme-text-secondary);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.recording-view-btn--active {
+  background: var(--brand-primary, #00a3ff);
+  color: #fff;
+}
+
+/* Grid View */
+.recording-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 20px;
+}
+
+.recording-card {
+  background: var(--theme-bg-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  position: relative;
+}
+
+.recording-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.09);
+  border-color: rgba(0, 163, 255, 0.4);
+}
+
+.recording-card__media {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.recording-card__thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.88;
+  pointer-events: none;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.recording-card:hover .recording-card__thumb {
+  transform: scale(1.04);
+  opacity: 1;
+}
+
+.recording-card__play-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.3);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.recording-card:hover .recording-card__play-overlay {
+  opacity: 1;
+}
+
+.recording-play-icon-circle {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: rgba(0, 163, 255, 0.9);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px rgba(0, 163, 255, 0.4);
+  transform: scale(0.9);
+  transition: transform 0.2s ease;
+}
+
+.recording-card:hover .recording-play-icon-circle {
+  transform: scale(1.05);
+}
+
+.recording-card__duration-badge {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 6px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.recording-card__event-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 6px;
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.recording-badge--security {
+  background: rgba(239, 68, 68, 0.9);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+}
+
+.recording-badge--normal {
+  background: rgba(16, 185, 129, 0.85);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+.recording-card__body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+
+.recording-card__cam-info {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.recording-card__cam-code {
+  font-size: 11px;
+  font-weight: 700;
+  color: #00a3ff;
+  background: rgba(0, 163, 255, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+
+.recording-card__cam-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--theme-text-primary);
+  margin-top: 4px;
+  line-height: 1.3;
+}
+
+.recording-card__meta-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--theme-text-secondary);
+  border-top: 1px solid var(--theme-border);
+  padding-top: 10px;
+}
+
+.recording-card__meta-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.recording-card__meta-item svg {
+  color: var(--theme-text-muted);
+  flex-shrink: 0;
+}
+
+.recording-card__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--theme-border);
+  padding-top: 12px;
+  margin-top: auto;
+}
+
+/* Table View */
+.recording-table-container {
+  background: var(--theme-bg-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
+.recording-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  text-align: left;
+}
+
+.recording-table th {
+  background: var(--theme-bg-hover, rgba(0, 0, 0, 0.03));
+  color: var(--theme-text-secondary);
+  font-weight: 600;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--theme-border);
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+}
+
+.recording-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--theme-border);
+  color: var(--theme-text-primary);
+  vertical-align: middle;
+}
+
+.recording-table tr:hover td {
+  background: var(--theme-bg-hover, rgba(0, 0, 0, 0.015));
+}
+
+.recording-table-thumb {
+  width: 64px;
+  height: 38px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: #000;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.recording-table-thumb:hover {
+  transform: scale(1.1);
+}
+
+/* Video Player Modal */
+.recording-player-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(8px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.recording-player-modal {
+  background: #111827;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 16px;
+  width: 100%;
+  max-width: 960px;
+  overflow: hidden;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+}
+
+.recording-player-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: #1f2937;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.recording-player-modal__title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.recording-player-modal__title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #f9fafb;
+}
+
+.recording-player-modal__close {
+  background: transparent;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  transition: color 0.2s, background 0.2s;
+}
+
+.recording-player-modal__close:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.recording-player-modal__video-wrapper {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000;
+}
+
+.recording-player-modal__video {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.recording-player-modal__footer {
+  padding: 16px 20px;
+  background: #182234;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.recording-player-modal__meta-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+.recording-player-modal__meta-item strong {
+  color: #f3f4f6;
+  font-weight: 500;
+}

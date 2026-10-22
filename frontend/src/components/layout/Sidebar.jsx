@@ -24,6 +24,7 @@ import {
 	UserPlus,
 	UserCheck,
 	Camera,
+	Film,
 } from "lucide-react";
 import { ROLES, ROLE_SHORT_LABELS } from "../../constants/roles";
 import { useTheme } from "../../context/ThemeContext";
@@ -339,6 +340,17 @@ export default function Sidebar({ user, onLogout }) {
 									>
 										<History size={18} />
 										<span>Lịch sử ra vào</span>
+									</NavLink>
+
+									<NavLink
+										to="/recordings"
+										className={({ isActive }) =>
+											`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
+										}
+										title={sidebarCollapsed ? "Kho lưu trữ ghi hình" : undefined}
+									>
+										<Film size={18} />
+										<span>Kho lưu trữ ghi hình</span>
 									</NavLink>
 
 									{/* B-04: ADMIN không làm host khách — chỉ FM thấy "Khách của tôi" trong khối này */}

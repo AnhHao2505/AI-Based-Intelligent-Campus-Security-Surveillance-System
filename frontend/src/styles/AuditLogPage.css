@@ -15,12 +15,14 @@
 .audit-log-page .page-header {
   margin-bottom: 8px;
 }
+
 .audit-log-page .page-header__title {
   font-size: 28px;
   font-weight: 700;
   color: var(--theme-text-primary);
   margin-bottom: 8px;
 }
+
 .audit-log-page .page-header__subtitle {
   font-size: 14px;
   color: var(--theme-text-secondary);
