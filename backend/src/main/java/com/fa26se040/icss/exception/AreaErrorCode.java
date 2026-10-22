@@ -19,9 +19,9 @@ public enum AreaErrorCode {
     ERR_AREA_019("ERR_AREA_019", HttpStatus.BAD_REQUEST, "Tên khu vực chỉ được chứa chữ cái, số, khoảng trắng và các ký tự: - _ ( ) . , /"),
     ERR_AREA_020("ERR_AREA_020", HttpStatus.CONFLICT, "Tên khu vực đã tồn tại trong cùng tầng"),
     ERR_AREA_021("ERR_AREA_021", HttpStatus.BAD_REQUEST, "Thông tin tầng không hợp lệ hoặc không tìm thấy tầng tương ứng"),
-    ERR_AREA_022("ERR_AREA_022", HttpStatus.BAD_REQUEST, "Chế độ sự kiện chỉ áp dụng cho khu vực Nội bộ (INTERNAL_CONFIDENTIAL) hoặc Yêu cầu liên hệ (CONFIDENTIAL_CONTACT_REQUIRED)"),
+    ERR_AREA_022("ERR_AREA_022", HttpStatus.BAD_REQUEST, "Chế độ sự kiện chỉ áp dụng cho khu vực Bảo mật"),
     ERR_AREA_023("ERR_AREA_023", HttpStatus.BAD_REQUEST, "Thời điểm kết thúc sự kiện phải ở trong tương lai"),
-    ERR_AREA_024("ERR_AREA_024", HttpStatus.BAD_REQUEST, "Ghi chú bắt buộc 10–500 ký tự, nêu tên sự kiện hoặc đơn vị tổ chức"),
+    ERR_AREA_024("ERR_AREA_024", HttpStatus.BAD_REQUEST, "Ghi chú phải có {min}–{max} ký tự"),
     ERR_AREA_025("ERR_AREA_025", HttpStatus.BAD_REQUEST, "Mã lý do không tồn tại hoặc đã ngừng sử dụng"),
     ERR_AREA_026("ERR_AREA_026", HttpStatus.BAD_REQUEST, "Mã lý do không phù hợp với loại thao tác sự kiện"),
     ERR_AREA_027("ERR_AREA_027", HttpStatus.BAD_REQUEST, "Thời gian mở sự kiện vượt quá giới hạn tối đa cho một phiên ({maxHours} giờ)"),
@@ -48,14 +48,17 @@ public enum AreaErrorCode {
     ERR_AREA_047("ERR_AREA_047", HttpStatus.BAD_REQUEST, "Thiếu action của thao tác chế độ sự kiện (ENABLE, ADJUST, DISABLE)"),
     ERR_AREA_048("ERR_AREA_048", HttpStatus.CONFLICT, "Khu vực đang mở chế độ sự kiện, không thể đổi sang loại {newType}. Tắt sự kiện trước khi đổi loại"),
     ERR_AREA_049("ERR_AREA_049", HttpStatus.CONFLICT, "Khu vực còn {count} quyền gán nhân sự còn hiệu lực, thu hồi trước khi chuyển sang Công khai"),
-    ERR_AREA_050("ERR_AREA_050", HttpStatus.BAD_REQUEST, "Lý do phải có từ 10 đến 500 ký tự"),
+    ERR_AREA_050("ERR_AREA_050", HttpStatus.BAD_REQUEST, "Lý do phải có từ {min} đến {max} ký tự"),
     // Step 6 — vô hiệu hoá / khôi phục khu vực (BR-AD)
     ERR_AREA_051("ERR_AREA_051", HttpStatus.CONFLICT, "Khu vực còn {count} sự cố chưa xử lý xong. Xử lý sự cố trước khi vô hiệu hoá"),
     ERR_AREA_052("ERR_AREA_052", HttpStatus.CONFLICT, "Khu vực đang mở chế độ sự kiện. Tắt chế độ sự kiện trước khi vô hiệu hoá"),
     ERR_AREA_053("ERR_AREA_053", HttpStatus.CONFLICT, "Khu vực đã bị vô hiệu hoá"),
     ERR_AREA_054("ERR_AREA_054", HttpStatus.CONFLICT, "Khu vực chưa bị vô hiệu hoá, không cần khôi phục"),
     ERR_AREA_055("ERR_AREA_055", HttpStatus.CONFLICT, "Không thể khôi phục: tầng hoặc toà nhà của khu vực không còn hoạt động"),
-    ERR_AREA_056("ERR_AREA_056", HttpStatus.BAD_REQUEST, "Cờ yêu cầu chỉ định (explicitAuthorizationRequired) được suy ra từ loại khu vực ({areaLevel}) và không được thay đổi độc lập");
+    // V83 (D4): không còn sửa cấp riêng từng khu; PATCH /api/areas/{id}/access-rules luôn trả lỗi này
+    ERR_AREA_056("ERR_AREA_056", HttpStatus.BAD_REQUEST, "Cấp khu vực cố định theo loại (Công khai: cấp 1, Bảo mật: cấp 2, Tuyệt mật: cấp 3). Muốn đổi cấp, hãy đổi loại khu vực"),
+    // V87: tên sự kiện của lịch
+    ERR_AREA_057("ERR_AREA_057", HttpStatus.BAD_REQUEST, "Tên sự kiện bắt buộc, tối đa {max} ký tự");
 
     private final String code;
     private final HttpStatus httpStatus;

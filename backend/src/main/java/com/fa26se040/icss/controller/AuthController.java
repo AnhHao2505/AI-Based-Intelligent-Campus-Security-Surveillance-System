@@ -21,13 +21,17 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class AuthController {
 
+    static final String FORGOT_PASSWORD_MESSAGE =
+            "Nếu e-mail tồn tại trong hệ thống, bạn sẽ nhận được hướng dẫn đặt lại mật khẩu qua e-mail.";
+
     private final AuthService authService;
 
     @PostMapping("/send-reset-link")
     public ResponseEntity<ApiResponse<Void>> sendResetLink(@Valid @RequestBody ForgotPasswordRequest request) {
         log.info("Received request to send reset password link to: {}", request.getEmail());
         authService.sendResetLink(request);
-        return ResponseEntity.ok(ApiResponse.success("Đã gửi liên kết đặt lại mật khẩu đến email"));
+        // S2: cùng status và cùng câu dù e-mail có tồn tại hay không
+        return ResponseEntity.ok(ApiResponse.success(FORGOT_PASSWORD_MESSAGE));
     }
 
     @PutMapping("/reset-password")

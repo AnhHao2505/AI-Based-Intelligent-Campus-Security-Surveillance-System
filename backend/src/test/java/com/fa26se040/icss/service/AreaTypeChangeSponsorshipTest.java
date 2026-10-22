@@ -23,11 +23,9 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Q1 (BR-RQ-03/04, BR-TC-08): đổi loại khu vực đánh giá đơn nhóm có thành viên bảo lãnh theo cùng nguồn cấu hình
  * ACCESS_REQUEST_SPONSOR_ALLOWED_AREA_TYPES với luồng duyệt đơn. Xem trước (BR-TC-03) và PUT dùng chung kết quả.
+ * V83: chỉ khu Bảo mật cho bảo lãnh, nên các ca đổi loại CONTACT <-> INTERNAL cũ chuyển thành Bảo mật <-> Tuyệt mật.
  */
 class AreaTypeChangeSponsorshipTest extends Step5bTestSupport {
-
-    private static final String CONTACT_ONLY = "CONFIDENTIAL_CONTACT_REQUIRED";
-    private static final String CONTACT_AND_INTERNAL = "CONFIDENTIAL_CONTACT_REQUIRED,INTERNAL_CONFIDENTIAL";
 
     private String originalSponsorTypes;
     private Area contactArea;
@@ -36,8 +34,8 @@ class AreaTypeChangeSponsorshipTest extends Step5bTestSupport {
     void setUpSponsorship() {
         originalSponsorTypes = systemConfigService.getString(ConfigKey.ACCESS_REQUEST_SPONSOR_ALLOWED_AREA_TYPES);
         // Tiền điều kiện về preset (dữ liệu dùng chung của DB test): kỳ vọng bên dưới dựa vào các cấp này
-        assertEquals(2, presetLevel(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED), "preset CONTACT phải là cấp 2");
-        assertEquals(2, presetLevel(AreaLevel.INTERNAL_CONFIDENTIAL), "preset INTERNAL phải là cấp 2");
+        assertEquals(1, presetLevel(AreaLevel.PUBLIC), "preset PUBLIC phải là cấp 1");
+        assertEquals(2, presetLevel(AreaLevel.CONFIDENTIAL), "preset CONFIDENTIAL phải là cấp 2");
         assertEquals(3, presetLevel(AreaLevel.HIGHLY_CONFIDENTIAL), "preset HIGHLY phải là cấp 3");
         // Tầng của Step5bTestSupport ("Tầng test 5b <suffix>", 21 ký tự) vượt giới hạn 20 ký tự khi PUT khu vực
         floor = floorRepository.save(com.fa26se040.icss.entity.Floor.builder()
@@ -46,7 +44,7 @@ class AreaTypeChangeSponsorshipTest extends Step5bTestSupport {
                 .building(building)
                 .isActive(true)
                 .build());
-        contactArea = newArea(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED, 2, true);
+        contactArea = newArea(AreaLevel.CONFIDENTIAL);
     }
 
     @AfterEach
@@ -61,8 +59,8 @@ class AreaTypeChangeSponsorshipTest extends Step5bTestSupport {
         return presetRepository.findById(level).orElseThrow().getAreaAccessLevel();
     }
 
-    private void setSponsorTypes(String value) {
-        systemConfigService.update(ConfigKey.ACCESS_REQUEST_SPONSOR_ALLOWED_AREA_TYPES.name(), value, admin.getEmail());
+    private void setGroupAllowedInHighly(boolean allowed) {
+        systemConfigService.update(ConfigKey.ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE.name(), String.valueOf(allowed), admin.getEmail());
     }
 
     /** Đơn nhóm APPROVED chưa kết thúc; members: user -> sponsored. */
@@ -99,25 +97,26 @@ class AreaTypeChangeSponsorshipTest extends Step5bTestSupport {
     }
 
     @Test
-    @DisplayName("Q1: người gửi L2 + thành viên L1 sponsored, đổi CONTACT -> INTERNAL khi INTERNAL cho bảo lãnh -> đơn KHÔNG bị huỷ")
+    @DisplayName("Q1 (V83): thành viên L1 sponsored, đổi Tuyệt mật -> Bảo mật (loại mới cho bảo lãnh) -> đơn KHÔNG bị huỷ")
     void sponsoredMemberKeptWhenNewTypeAllowsSponsorship() throws Exception {
-        setSponsorTypes(CONTACT_AND_INTERNAL);
-        AccessRequest req = approvedGroupRequest(contactArea, userL2, Map.of(userL1, true));
+        setGroupAllowedInHighly(true);
+        Area highlyArea = newArea(AreaLevel.HIGHLY_CONFIDENTIAL);
+        AccessRequest req = approvedGroupRequest(highlyArea, userL3, Map.of(userL1, true));
 
-        assertFalse(previewCancels(contactArea, AreaLevel.INTERNAL_CONFIDENTIAL, req), "Xem trước không được liệt kê đơn");
-        changeTypeOk(contactArea, AreaLevel.INTERNAL_CONFIDENTIAL);
+        assertFalse(previewCancels(highlyArea, AreaLevel.CONFIDENTIAL, req), "Xem trước không được liệt kê đơn");
+        changeTypeOk(highlyArea, AreaLevel.CONFIDENTIAL);
 
         assertEquals(RequestStatus.APPROVED, requestStatus(req));
     }
 
     @Test
-    @DisplayName("Q1: cùng đơn, đổi sang INTERNAL khi INTERNAL KHÔNG cho bảo lãnh -> đơn bị huỷ, lý do nêu bảo lãnh + tên thành viên")
+    @DisplayName("Q1 (V83): đổi Bảo mật -> Tuyệt mật (cho đơn nhóm, KHÔNG cho bảo lãnh) -> đơn có thành viên L1 sponsored bị huỷ, lý do nêu bảo lãnh + tên thành viên")
     void sponsoredMemberCancelsWhenNewTypeDisallowsSponsorship() throws Exception {
-        setSponsorTypes(CONTACT_ONLY);
-        AccessRequest req = approvedGroupRequest(contactArea, userL2, Map.of(userL1, true));
+        setGroupAllowedInHighly(true);
+        AccessRequest req = approvedGroupRequest(contactArea, userL3, Map.of(userL1, true));
 
-        assertTrue(previewCancels(contactArea, AreaLevel.INTERNAL_CONFIDENTIAL, req), "Xem trước phải liệt kê đơn");
-        changeTypeOk(contactArea, AreaLevel.INTERNAL_CONFIDENTIAL);
+        assertTrue(previewCancels(contactArea, AreaLevel.HIGHLY_CONFIDENTIAL, req), "Xem trước phải liệt kê đơn");
+        changeTypeOk(contactArea, AreaLevel.HIGHLY_CONFIDENTIAL);
 
         assertEquals(RequestStatus.CANCELLED, requestStatus(req));
         String reason = cancelReason(req);
@@ -126,13 +125,13 @@ class AreaTypeChangeSponsorshipTest extends Step5bTestSupport {
     }
 
     @Test
-    @DisplayName("Q1: đổi sang INTERNAL khi INTERNAL KHÔNG cho bảo lãnh nhưng thành viên sponsored đã đủ cấp 2 -> đơn KHÔNG bị huỷ (giống reviewRequest)")
+    @DisplayName("Q1 (V83): đổi Bảo mật -> Tuyệt mật, thành viên sponsored đã đủ cấp 3 -> đơn KHÔNG bị huỷ (giống reviewRequest)")
     void sponsoredMemberWithSufficientLevelKeptWhenNewTypeDisallowsSponsorship() throws Exception {
-        setSponsorTypes(CONTACT_ONLY);
-        AccessRequest req = approvedGroupRequest(contactArea, userL3, Map.of(userL2, true));
+        setGroupAllowedInHighly(true);
+        AccessRequest req = approvedGroupRequest(contactArea, userL3, Map.of(userL3b, true));
 
-        assertFalse(previewCancels(contactArea, AreaLevel.INTERNAL_CONFIDENTIAL, req), "Xem trước không được liệt kê đơn");
-        changeTypeOk(contactArea, AreaLevel.INTERNAL_CONFIDENTIAL);
+        assertFalse(previewCancels(contactArea, AreaLevel.HIGHLY_CONFIDENTIAL, req), "Xem trước không được liệt kê đơn");
+        changeTypeOk(contactArea, AreaLevel.HIGHLY_CONFIDENTIAL);
 
         assertEquals(RequestStatus.APPROVED, requestStatus(req));
     }
@@ -154,33 +153,33 @@ class AreaTypeChangeSponsorshipTest extends Step5bTestSupport {
     }
 
     @Test
-    @DisplayName("Q1: thành viên KHÔNG sponsored cấp 1 vẫn bị kiểm cấp như cũ dù loại mới cho bảo lãnh -> đơn bị huỷ")
+    @DisplayName("Q1 (V83): thành viên KHÔNG sponsored cấp 2 bị kiểm cấp theo loại mới (Tuyệt mật, cấp 3) -> đơn bị huỷ, lý do không nhắc bảo lãnh")
     void nonSponsoredLowMemberStillChecked() throws Exception {
-        setSponsorTypes(CONTACT_AND_INTERNAL);
-        AccessRequest req = approvedGroupRequest(contactArea, userL2, Map.of(userL1, false));
+        setGroupAllowedInHighly(true);
+        AccessRequest req = approvedGroupRequest(contactArea, userL3, Map.of(userL2, false));
 
-        changeTypeOk(contactArea, AreaLevel.INTERNAL_CONFIDENTIAL);
+        changeTypeOk(contactArea, AreaLevel.HIGHLY_CONFIDENTIAL);
 
         assertEquals(RequestStatus.CANCELLED, requestStatus(req));
         String reason = cancelReason(req);
-        assertTrue(reason.contains("không đủ cấp truy cập 2"), reason);
-        assertTrue(reason.contains(userL1.getUserCode()), reason);
+        assertTrue(reason.contains("không đủ cấp truy cập 3"), reason);
+        assertTrue(reason.contains(userL2.getUserCode()), reason);
         assertFalse(reason.contains("bảo lãnh"), reason);
     }
 
     @Test
-    @DisplayName("Q1: đổi ACCESS_REQUEST_SPONSOR_ALLOWED_AREA_TYPES qua SystemConfigService -> xem trước đổi kết quả ngay, không cần restart")
-    void sponsorConfigChangeTakesEffectImmediately() {
-        AccessRequest req = approvedGroupRequest(contactArea, userL2, Map.of(userL1, true, userL3, false));
+    @DisplayName("Q1 (V83): đổi ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE qua SystemConfigService -> xem trước đổi Bảo mật -> Tuyệt mật đổi kết quả ngay, không cần restart")
+    void groupConfigChangeTakesEffectImmediately() {
+        AccessRequest req = approvedGroupRequest(contactArea, userL3, Map.of(userL3b, false));
 
-        setSponsorTypes(CONTACT_AND_INTERNAL);
-        assertFalse(previewCancels(contactArea, AreaLevel.INTERNAL_CONFIDENTIAL, req));
+        setGroupAllowedInHighly(false);
+        assertTrue(previewCancels(contactArea, AreaLevel.HIGHLY_CONFIDENTIAL, req), "Tuyệt mật không nhận đơn nhóm");
 
-        setSponsorTypes(CONTACT_ONLY);
-        assertTrue(previewCancels(contactArea, AreaLevel.INTERNAL_CONFIDENTIAL, req));
+        setGroupAllowedInHighly(true);
+        assertFalse(previewCancels(contactArea, AreaLevel.HIGHLY_CONFIDENTIAL, req));
 
-        setSponsorTypes(CONTACT_AND_INTERNAL);
-        assertFalse(previewCancels(contactArea, AreaLevel.INTERNAL_CONFIDENTIAL, req));
+        setGroupAllowedInHighly(false);
+        assertTrue(previewCancels(contactArea, AreaLevel.HIGHLY_CONFIDENTIAL, req));
         assertEquals(RequestStatus.APPROVED, requestStatus(req), "Xem trước chỉ đọc, không đổi đơn");
     }
 }

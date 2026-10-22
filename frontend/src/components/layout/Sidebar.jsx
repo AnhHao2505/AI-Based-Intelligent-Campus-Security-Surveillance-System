@@ -16,6 +16,7 @@ import {
 	ChevronLeft,
 	ChevronRight,
 	CalendarClock,
+	CalendarDays,
 	Sliders,
 	ShieldCheck,
 	Compass,
@@ -24,7 +25,7 @@ import {
 	UserCheck,
 	Camera,
 } from "lucide-react";
-import { ROLES, ROLE_LABELS } from "../../constants/roles";
+import { ROLES, ROLE_SHORT_LABELS } from "../../constants/roles";
 import { useTheme } from "../../context/ThemeContext";
 import { useUiStore } from "../../store/useUiStore";
 import { notificationService } from "../../services/notificationService";
@@ -197,10 +198,10 @@ export default function Sidebar({ user, onLogout }) {
 								className={({ isActive }) =>
 									`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
 								}
-								title={sidebarCollapsed ? "Lịch sử truy cập" : undefined}
+								title={sidebarCollapsed ? "Lịch sử ra vào của tôi" : undefined}
 							>
 								<History size={18} />
-								<span>Lịch sử truy cập</span>
+								<span>Lịch sử ra vào của tôi</span>
 							</NavLink>
 
 							<NavLink
@@ -238,10 +239,10 @@ export default function Sidebar({ user, onLogout }) {
 									className={({ isActive }) =>
 										`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
 									}
-									title={sidebarCollapsed ? "Dashboard" : undefined}
+									title={sidebarCollapsed ? "Tổng quan" : undefined}
 								>
 									<LayoutDashboard size={18} />
-									<span>Dashboard</span>
+									<span>Tổng quan</span>
 								</NavLink>
 
 								{isGuard && (
@@ -282,7 +283,7 @@ export default function Sidebar({ user, onLogout }) {
 											className={({ isActive }) =>
 												`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
 											}
-											title={sidebarCollapsed ? "Quản lý Camera" : undefined}
+											title={sidebarCollapsed ? "Quản lý camera" : undefined}
 										>
 											<Video size={18} />
 											<span>Quản lý camera</span>
@@ -316,6 +317,17 @@ export default function Sidebar({ user, onLogout }) {
 									>
 										<MapPin size={18} />
 										<span>Quản lý khu vực</span>
+									</NavLink>
+
+									<NavLink
+										to="/admin/events"
+										className={({ isActive }) =>
+											`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
+										}
+										title={sidebarCollapsed ? "Quản lý sự kiện" : undefined}
+									>
+										<CalendarDays size={18} />
+										<span>Quản lý sự kiện</span>
 									</NavLink>
 
 									<NavLink
@@ -463,18 +475,6 @@ export default function Sidebar({ user, onLogout }) {
 												<span>Ảnh khách</span>
 											</NavLink>
 											<NavLink
-												to="/admin/level-presets"
-												className={({ isActive }) =>
-													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
-												}
-												title={
-													sidebarCollapsed ? "Mặc định theo loại khu vực" : undefined
-												}
-											>
-												<ShieldCheck size={18} />
-												<span>Mặc định theo loại khu vực</span>
-											</NavLink>
-											<NavLink
 												to="/admin/audit-logs"
 												className={({ isActive }) =>
 													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
@@ -530,19 +530,24 @@ export default function Sidebar({ user, onLogout }) {
 					onClick={toggleTheme}
 					title={
 						theme === "light"
-							? "Chuyển sang Dark Mode"
-							: "Chuyển sang Light Mode"
+							? "Chuyển sang giao diện tối"
+							: "Chuyển sang giao diện sáng"
+					}
+					aria-label={
+						theme === "light"
+							? "Chuyển sang giao diện tối"
+							: "Chuyển sang giao diện sáng"
 					}
 				>
 					{theme === "light" ? (
 						<>
 							<Moon size={16} />
-							<span>Dark Mode</span>
+							<span>Giao diện tối</span>
 						</>
 					) : (
 						<>
 							<Sun size={16} />
-							<span>Light Mode</span>
+							<span>Giao diện sáng</span>
 						</>
 					)}
 				</button>
@@ -552,18 +557,20 @@ export default function Sidebar({ user, onLogout }) {
 					<div className="sidebar__user">
 						<div className="sidebar__avatar">{getInitials(user?.fullName)}</div>
 						<div className="sidebar__user-info">
-							<span className="sidebar__username">
-								{user?.fullName || "User"}
+							<span className="sidebar__username" title={user?.fullName || undefined}>
+								{user?.fullName || "Người dùng"}
 							</span>
 							<span className="sidebar__userrole">
-								{ROLE_LABELS[userRole] || userRole || "Người dùng"}
+								{ROLE_SHORT_LABELS[userRole] || "Người dùng"}
 							</span>
 						</div>
 					</div>
 					<button
+						type="button"
 						className="sidebar__logout-btn"
 						onClick={onLogout}
 						title="Đăng xuất"
+						aria-label="Đăng xuất"
 					>
 						<LogOut size={16} />
 					</button>

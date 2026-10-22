@@ -97,7 +97,7 @@ class AreaNameValidationIntegrationTest extends AbstractIntegrationTest {
         assertEquals(0, nullFloorCount, "Sau V53 không được còn dòng nào có floor_id IS NULL");
 
         Integer indexCount = jdbcTemplate.queryForObject(
-                "SELECT count(*) FROM pg_indexes WHERE indexname = 'ux_areas_floor_name_active'", Integer.class);
+                "SELECT count(*) FROM pg_indexes WHERE indexname = 'ux_areas_floor_name_active' AND schemaname = current_schema()", Integer.class);
         assertEquals(1, indexCount, "Index ux_areas_floor_name_active phải tồn tại trong DB");
     }
 
@@ -166,7 +166,7 @@ class AreaNameValidationIntegrationTest extends AbstractIntegrationTest {
         // Tầng 1
         AreaCreateRequest req1 = AreaCreateRequest.builder()
                 .name(name)
-                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
+                .areaLevel(AreaLevel.CONFIDENTIAL)
                 .floorId(testFloor1.getId())
                 .centerLatitude(10.84175)
                 .centerLongitude(106.80922)
@@ -181,7 +181,7 @@ class AreaNameValidationIntegrationTest extends AbstractIntegrationTest {
         // Tầng 2
         AreaCreateRequest req2 = AreaCreateRequest.builder()
                 .name(name)
-                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
+                .areaLevel(AreaLevel.CONFIDENTIAL)
                 .floorId(testFloor2.getId())
                 .centerLatitude(10.84175)
                 .centerLongitude(106.80922)
@@ -251,7 +251,7 @@ class AreaNameValidationIntegrationTest extends AbstractIntegrationTest {
         // Khu vực A ở Tầng 1 có tên "Phòng Nghiên Cứu <suffix>"
         AreaCreateRequest reqA = AreaCreateRequest.builder()
                 .name(name)
-                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
+                .areaLevel(AreaLevel.CONFIDENTIAL)
                 .floorId(testFloor1.getId())
                 .centerLatitude(10.84175)
                 .centerLongitude(106.80922)
@@ -266,7 +266,7 @@ class AreaNameValidationIntegrationTest extends AbstractIntegrationTest {
         // Khu vực B ở Tầng 2 có tên khác
         AreaCreateRequest reqB = AreaCreateRequest.builder()
                 .name("Phòng Khác " + suffix)
-                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
+                .areaLevel(AreaLevel.CONFIDENTIAL)
                 .floorId(testFloor2.getId())
                 .centerLatitude(10.84175)
                 .centerLongitude(106.80922)
@@ -285,7 +285,7 @@ class AreaNameValidationIntegrationTest extends AbstractIntegrationTest {
         // Sửa khu vực B: đổi sang Tầng 1 VÀ đổi tên thành "Phòng Nghiên Cứu <suffix>" -> Đã có ở tầng 1!
         AreaUpdateRequest updateReq = AreaUpdateRequest.builder()
                 .name(name)
-                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
+                .areaLevel(AreaLevel.CONFIDENTIAL)
                 .floorId(testFloor1.getId())
                 .centerLatitude(10.84175)
                 .centerLongitude(106.80922)
@@ -327,7 +327,7 @@ class AreaNameValidationIntegrationTest extends AbstractIntegrationTest {
         // Sửa: đổi cấp độ, giữ nguyên tên
         AreaUpdateRequest updateReq = AreaUpdateRequest.builder()
                 .name(name)
-                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
+                .areaLevel(AreaLevel.CONFIDENTIAL)
                 .floorId(testFloor1.getId())
                 .centerLatitude(10.84175)
                 .centerLongitude(106.80922)
@@ -340,7 +340,7 @@ class AreaNameValidationIntegrationTest extends AbstractIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(updateReq)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.areaLevel", is("INTERNAL_CONFIDENTIAL")));
+                .andExpect(jsonPath("$.data.areaLevel", is("CONFIDENTIAL")));
     }
 
     @Test
@@ -354,7 +354,7 @@ class AreaNameValidationIntegrationTest extends AbstractIntegrationTest {
 
         AreaCreateRequest req = AreaCreateRequest.builder()
                 .name(nfdName)
-                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
+                .areaLevel(AreaLevel.CONFIDENTIAL)
                 .floorId(testFloor1.getId())
                 .centerLatitude(10.84175)
                 .centerLongitude(106.80922)

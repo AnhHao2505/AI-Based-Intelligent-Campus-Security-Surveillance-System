@@ -6,6 +6,8 @@ import java.util.UUID;
 public record EventScheduleResponse(
         UUID id,
         UUID areaId,
+        String areaName,
+        String title,
         OffsetDateTime startAt,
         OffsetDateTime endAt,
         String status,

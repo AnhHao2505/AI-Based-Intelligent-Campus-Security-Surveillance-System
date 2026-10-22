@@ -109,7 +109,8 @@ class UserAccessLevelHelperTest {
         }
         assertEquals(1, helper.resolveDefaultAccessLevel(Role.NORMAL_USER));
         assertEquals(2, helper.resolveDefaultAccessLevel(Role.GUARD));
-        assertEquals(2, helper.resolveDefaultAccessLevel(Role.FACILITY_MANAGER));
-        assertEquals(1, helper.resolveDefaultAccessLevel(Role.ADMIN));
+        // V83 (BR-AL-24): FM và ADMIN tạo mới mặc định cấp 3
+        assertEquals(3, helper.resolveDefaultAccessLevel(Role.FACILITY_MANAGER));
+        assertEquals(3, helper.resolveDefaultAccessLevel(Role.ADMIN));
     }
 }

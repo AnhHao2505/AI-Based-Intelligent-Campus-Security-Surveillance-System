@@ -13,6 +13,15 @@ export async function getSystemConfigs() {
 }
 
 /**
+ * Giới hạn độ dài lý do đang hiệu lực (REASON_MIN_LENGTH / REASON_MAX_LENGTH). Mọi tài khoản đăng nhập đọc được;
+ * chỉ trả 2 giá trị này, không phải toàn bộ cấu hình. Dùng qua hook useReasonLimits().
+ * @returns {Promise<{minLength: number, maxLength: number}>}
+ */
+export async function getReasonLimits() {
+  return apiGet('/api/system-configurations/reason-limits');
+}
+
+/**
  * Cập nhật giá trị của một cấu hình hệ thống (Yêu cầu quyền ADMIN)
  * @param {string} configKey - Mã khóa cấu hình
  * @param {string} configValue - Giá trị mới dạng chuỗi
@@ -38,6 +47,7 @@ export async function getSystemConfigHistory(configKey, { page = 0, size = 10 } 
 
 export default {
   getSystemConfigs,
+  getReasonLimits,
   updateSystemConfig,
   getSystemConfigHistory,
 };

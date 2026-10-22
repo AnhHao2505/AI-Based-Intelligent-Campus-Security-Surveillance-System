@@ -5,7 +5,6 @@ import com.fa26se040.icss.dto.incident.IncidentDetailResponse;
 import com.fa26se040.icss.dto.incident.IncidentEventDto;
 import com.fa26se040.icss.dto.incident.IncidentResolveRequest;
 import com.fa26se040.icss.entity.Area;
-import com.fa26se040.icss.entity.GuardLocation;
 import com.fa26se040.icss.entity.GuardShift;
 import com.fa26se040.icss.entity.IncidentEscalation;
 import com.fa26se040.icss.entity.SecurityIncident;
@@ -62,10 +61,6 @@ class SecurityIncidentServiceTest {
 
     @Mock
     private CameraAccessLogService cameraAccessLogService;
-
-    // Không còn là dependency của SecurityIncidentService (BR-IE-02 bỏ geofence); giữ mock để chứng minh không được gọi
-    @Mock
-    private GuardLocationService guardLocationService;
 
     @Mock
     private GuardShiftRepository guardShiftRepository;
@@ -227,8 +222,8 @@ class SecurityIncidentServiceTest {
     }
 
     @Test
-    @DisplayName("BR-IE-02: bảo vệ hết ca (quên trả ca) nhưng còn vị trí trong geofence -> KHÔNG nhận")
-    void ingest_guardOffShiftInsideGeofence_notNotified() {
+    @DisplayName("BR-IE-02: bảo vệ hết ca (quên trả ca) -> KHÔNG nhận")
+    void ingest_guardOffShift_notNotified() {
         stubCameraAndSave();
         User onDuty = guard("Bảo vệ đang trực");
         User offShift = guard("Bảo vệ hết ca");
@@ -237,10 +232,6 @@ class SecurityIncidentServiceTest {
         when(shiftQuery.findByStatusAndShiftDateBetween(eq(ShiftStatus.CHECKED_IN), any(), any())).thenReturn(List.of(
                 checkedInShift(onDuty, nowVn.minusHours(1), nowVn.plusHours(1)),
                 checkedInShift(offShift, nowVn.minusHours(3), nowVn.minusHours(1))));
-        // Geofence vẫn thấy cả hai trong khuôn viên — không còn được dùng để chọn người nhận
-        lenient().when(guardLocationService.findGuardsInsideCampus()).thenReturn(List.of(
-                GuardLocation.builder().guard(onDuty).build(),
-                GuardLocation.builder().guard(offShift).build()));
         SecurityIncidentService service = new SecurityIncidentService(incidentRepository, cameraRepository, userRepository,
                 messagingTemplate, cameraAccessLogService, guardShiftRepository,
                 new IncidentRecipientResolver(shiftQuery), incidentEscalationRepository);
@@ -249,7 +240,6 @@ class SecurityIncidentServiceTest {
 
         verify(messagingTemplate).convertAndSend(eq(guardTopic(onDuty)), same((Object) result));
         verify(messagingTemplate, never()).convertAndSend(eq(guardTopic(offShift)), any(Object.class));
-        verifyNoInteractions(guardLocationService);
         ArgumentCaptor<IncidentEscalation> captor = ArgumentCaptor.forClass(IncidentEscalation.class);
         verify(incidentEscalationRepository).save(captor.capture());
         assertEquals(1, captor.getValue().getGuardRecipientCount());

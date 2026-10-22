@@ -91,8 +91,9 @@ export default function NotificationsPage() {
       }
     }
 
-    // BR-IE-04: FM chưa có màn sự cố -> INCIDENT_ESCALATED chỉ đánh dấu đã đọc, không chuyển trang
-    if (notif.type === 'INCIDENT_ESCALATED') {
+    // BR-IE-04: FM chưa có màn sự cố -> INCIDENT_ESCALATED chỉ đánh dấu đã đọc, không chuyển trang.
+    // S5 (V84): INCIDENT_ESCALATION_NO_FM (ADMIN được báo khi không có Quản lý CSVC nào đang hoạt động) cũng vậy.
+    if (notif.type === 'INCIDENT_ESCALATED' || notif.type === 'INCIDENT_ESCALATION_NO_FM') {
       return;
     }
 
@@ -328,6 +329,13 @@ export default function NotificationsPage() {
             <ShieldAlert size={16} />
           </div>
         );
+      // S5 (V84): cần leo thang sự cố nhưng không có Quản lý CSVC nào đang hoạt động (ADMIN)
+      case 'INCIDENT_ESCALATION_NO_FM':
+        return (
+          <div className="notif-icon-box notif-icon-box--denied" title="Không có Quản lý CSVC nhận leo thang">
+            <ShieldAlert size={16} />
+          </div>
+        );
       default:
         return (
           <div className="notif-icon-box notif-icon-box--default">
@@ -395,7 +403,9 @@ export default function NotificationsPage() {
                   <div className="notif-item__content">
                     <div className="notif-item__title-row">
                       <span className="notif-item__title">{notif.title}</span>
-                      {!notif.isRead && <span className="notif-item__unread-dot" />}
+                      {!notif.isRead && (
+                        <span className="notif-item__unread-dot" role="img" aria-label="Chưa đọc" title="Chưa đọc" />
+                      )}
                     </div>
                     <div className="notif-item__message">{notif.message}</div>
                   </div>

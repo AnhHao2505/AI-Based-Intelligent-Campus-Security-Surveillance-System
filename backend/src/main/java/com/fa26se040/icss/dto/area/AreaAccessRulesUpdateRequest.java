@@ -1,10 +1,10 @@
 package com.fa26se040.icss.dto.area;
 
+import com.fa26se040.icss.validation.ReasonLength;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
 
 public record AreaAccessRulesUpdateRequest(
         @NotNull(message = "Cấp độ truy cập khu vực không được để trống")
@@ -16,7 +16,7 @@ public record AreaAccessRulesUpdateRequest(
         Boolean explicitAuthorizationRequired,
 
         @NotBlank(message = "Lý do không được để trống")
-        @Size(min = 10, max = 500, message = "Lý do phải có từ 10 đến 500 ký tự")
+        @ReasonLength
         String reason,
         // Step 5b (BR-TC-13): version của khu vực mà client đang xem
         Long version

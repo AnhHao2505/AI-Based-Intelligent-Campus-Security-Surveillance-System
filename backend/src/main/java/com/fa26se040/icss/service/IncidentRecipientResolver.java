@@ -18,7 +18,7 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Chọn người nhận cảnh báo sự cố (BR-IE-01 / BR-IE-02). Không dùng geofence / GuardLocation.
+ * Chọn người nhận cảnh báo sự cố theo ca trực (BR-IE-01 / BR-IE-02).
  */
 @Service
 @RequiredArgsConstructor

@@ -27,6 +27,7 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, UU
            "JOIN FETCH ar.area " +
            "JOIN FETCH ar.requester " +
            "LEFT JOIN FETCH ar.reviewer " +
+           "LEFT JOIN FETCH ar.finishedBy " +
            "WHERE ar.id = :id")
     Optional<AccessRequest> findByIdWithDetails(@Param("id") UUID id);
 
@@ -182,6 +183,26 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, UU
     );
 
     /**
+     * BR-RQ-46: FM hoàn thành đơn APPROVED đã tới giờ bắt đầu — conditional UPDATE nguyên tử (cùng cách cancelIfApprovedNotStarted):
+     * 1 dòng = giành được quyền hoàn thành; 0 dòng = đơn đã đổi trạng thái (FM khác hoàn thành, hệ thống huỷ...) hoặc chưa tới giờ.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE AccessRequest r " +
+           "SET r.status = :newStatus, " +
+           "    r.updatedAt = :now, " +
+           "    r.finishReason = :finishReason, " +
+           "    r.finishedBy = :finishedBy " +
+           "WHERE r.id = :id AND r.status = :expectedStatus AND (r.startTime IS NULL OR r.startTime <= :now)")
+    int finishIfApprovedStarted(
+            @Param("id") UUID id,
+            @Param("newStatus") RequestStatus newStatus,
+            @Param("now") OffsetDateTime now,
+            @Param("expectedStatus") RequestStatus expectedStatus,
+            @Param("finishReason") String finishReason,
+            @Param("finishedBy") User finishedBy
+    );
+
+    /**
      * Step 5b (BR-TC-15): ghi nguồn huỷ sau khi cancelIfPending đã thành công (chỉ chạm đơn đã CANCELLED).
      */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
@@ -290,4 +311,13 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, UU
             @Param("areaId") UUID areaId,
             @Param("status") RequestStatus status
     );
+
+    /**
+     * BR-AL-30: tên khu vực của mọi đơn PENDING mà người dùng là người tạo hoặc thành viên (mỗi đơn một dòng, theo giờ bắt đầu).
+     */
+    @Query(value = "SELECT a.name FROM access_requests r JOIN areas a ON a.id = r.area_id "
+            + "WHERE r.status = 'PENDING' AND (r.requester_id = :userId OR EXISTS ("
+            + "SELECT 1 FROM access_request_members m WHERE m.access_request_id = r.id AND m.user_id = :userId)) "
+            + "ORDER BY r.start_time, r.id", nativeQuery = true)
+    List<String> findPendingAreaNamesForParticipant(@Param("userId") UUID userId);
 }

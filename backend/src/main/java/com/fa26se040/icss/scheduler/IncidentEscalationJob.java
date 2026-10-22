@@ -66,6 +66,8 @@ public class IncidentEscalationJob implements SchedulingConfigurer {
         CLOSED,
         /** Đã báo FM (BR-IE-04 / BR-IE-05). */
         ESCALATED,
+        /** Tới hạn nhưng không có FM nào đang hoạt động: bản ghi giữ mở để lần sau thử lại, ADMIN được báo 1 lần (S5, V84). */
+        WAITING_FOR_FM,
         /** Lỗi, transaction của bản ghi này rollback; lần chạy sau thử lại. */
         FAILED
     }
@@ -167,6 +169,13 @@ public class IncidentEscalationJob implements SchedulingConfigurer {
             return Outcome.NOT_DUE;
         }
 
+        // S5 (V84): không có FM active -> không đóng bản ghi (lần chạy sau thử lại), báo ADMIN một lần cho sự cố này
+        List<User> fms = userRepository.findActiveUsersByRole(Role.FACILITY_MANAGER);
+        if (fms.isEmpty()) {
+            notifyAdminsNoFacilityManagerOnce(escalation, incident, now);
+            return Outcome.WAITING_FOR_FM;
+        }
+
         // BR-IE-07: kết quả conditional UPDATE là nguồn chân lý duy nhất
         int rows = escalationRepository.markEscalatedIfOpen(escalation.getId(), now);
         if (rows != 1) {
@@ -177,7 +186,7 @@ public class IncidentEscalationJob implements SchedulingConfigurer {
         // [RÀNG BUỘC NOTIFICATION / SIDE-EFFECTS] chỉ gửi ở nhánh UPDATE trả về 1 dòng.
         // Lỗi tạo thông báo in-app -> ném ra, transaction rollback, bản ghi còn mở để lần chạy sau thử lại.
         long minutesElapsed = Duration.between(incidentCreatedAt, now).toMinutes();
-        int fmRecipientCount = notifyFacilityManagers(incident, incidentCreatedAt, minutesElapsed, noGuardNotified);
+        int fmRecipientCount = notifyFacilityManagers(fms, incident, incidentCreatedAt, minutesElapsed, noGuardNotified);
         escalationRepository.updateFmRecipientCount(escalation.getId(), fmRecipientCount);
 
         long escalationDelaySeconds = Duration.between(incidentCreatedAt, now).getSeconds();
@@ -186,18 +195,17 @@ public class IncidentEscalationJob implements SchedulingConfigurer {
         return Outcome.ESCALATED;
     }
 
-    /** BR-IE-10: chỉ FM đang hoạt động, chưa xoá; ADMIN không nhận. Trả về số FM nhận thông báo in-app. */
-    private int notifyFacilityManagers(SecurityIncident incident, OffsetDateTime incidentCreatedAt,
+    /**
+     * BR-IE-10: chỉ FM đang hoạt động, chưa xoá (danh sách khác rỗng, đã lấy ở doProcess); ADMIN không nhận.
+     * Trả về số FM nhận thông báo in-app.
+     */
+    private int notifyFacilityManagers(List<User> fms, SecurityIncident incident, OffsetDateTime incidentCreatedAt,
                                        long minutesElapsed, boolean noGuardNotified) {
         String areaName = incident.getArea() != null ? incident.getArea().getName() : "khu vực";
         String building = incident.getBuilding();
 
-        List<User> fms = userRepository.findActiveUsersByRole(Role.FACILITY_MANAGER);
         int fmRecipientCount;
-        if (fms.isEmpty()) {
-            log.warn("[INCIDENT-ESCALATION] incident={}: không có Quản lý cơ sở vật chất nào đang hoạt động để báo", incident.getId());
-            fmRecipientCount = 0;
-        } else if (inAppNotificationService.existsByReferenceIdAndType(incident.getId(), NotificationType.INCIDENT_ESCALATED)) {
+        if (inAppNotificationService.existsByReferenceIdAndType(incident.getId(), NotificationType.INCIDENT_ESCALATED)) {
             // Chỉ xảy ra khi lần trước đã tạo thông báo nhưng transaction của bản ghi rollback
             log.warn("[INCIDENT-ESCALATION] incident={}: đã có thông báo INCIDENT_ESCALATED, không tạo lại", incident.getId());
             fmRecipientCount = fms.size();
@@ -227,6 +235,34 @@ public class IncidentEscalationJob implements SchedulingConfigurer {
             log.error("[INCIDENT-ESCALATION] incident={}: gửi real-time {} lỗi: {}", incident.getId(), FM_TOPIC, ex.getMessage(), ex);
         }
         return fmRecipientCount;
+    }
+
+    /**
+     * S5 (V84): sự cố cần leo thang nhưng không có FM nào đang hoạt động. Mỗi sự cố chỉ báo mọi ADMIN đang hoạt động
+     * một lần: lần chạy giành được conditional UPDATE trên admin_no_fm_notified_at mới gửi. Lỗi tạo thông báo -> ném ra,
+     * transaction rollback cả mốc, lần sau thử lại.
+     */
+    private void notifyAdminsNoFacilityManagerOnce(IncidentEscalation escalation, SecurityIncident incident,
+                                                   OffsetDateTime now) {
+        if (escalationRepository.markAdminNoFmNotifiedIfNot(escalation.getId(), now) != 1) {
+            log.debug("[INCIDENT-ESCALATION] incident={}: vẫn chưa có FM đang hoạt động, đã báo ADMIN trước đó", incident.getId());
+            return;
+        }
+        log.warn("[INCIDENT-ESCALATION] incident={}: không có Quản lý cơ sở vật chất nào đang hoạt động, giữ bản ghi mở và báo ADMIN",
+                incident.getId());
+        List<User> admins = userRepository.findActiveUsersByRole(Role.ADMIN);
+        if (admins.isEmpty()) {
+            log.warn("[INCIDENT-ESCALATION] incident={}: cũng không có ADMIN nào đang hoạt động để báo", incident.getId());
+            return;
+        }
+        String areaName = incident.getArea() != null ? incident.getArea().getName() : "khu vực";
+        String createdAtText = incident.getCreatedAt().atZoneSameInstant(VN_ZONE).format(TIME_FORMATTER);
+        String title = "Không có Quản lý CSVC nhận leo thang sự cố";
+        String message = "Không có Quản lý CSVC nào đang hoạt động để nhận leo thang sự cố \"" + eventTypeLabel(incident.getEventType())
+                + "\" tại khu vực " + areaName + " (" + incident.getBuilding() + ") lúc " + createdAtText
+                + ". Hệ thống sẽ báo Quản lý CSVC ngay khi có tài khoản Quản lý CSVC đang hoạt động.";
+        inAppNotificationService.createForUsers(
+                admins, NotificationType.INCIDENT_ESCALATION_NO_FM, title, message, incident.getId(), REF_TYPE_SECURITY_INCIDENT);
     }
 
     /**

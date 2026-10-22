@@ -146,7 +146,7 @@ class AccessRequestMemberSuggestionTest extends Step5bTestSupport {
     @Test
     @DisplayName("#5 q rỗng -> thành viên trong đơn của CHÍNH người gọi; thành viên trong đơn người khác không có")
     void emptyQuery_returnsOwnRecentMembersOnly() throws Exception {
-        Area area = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        Area area = newArea(AreaLevel.CONFIDENTIAL);
         OffsetDateTime start = OffsetDateTime.now().plusDays(1);
         User m1 = codeUser(prefix + "-11", Role.NORMAL_USER, true, false);
         User m2 = codeUser(prefix + "-12", Role.NORMAL_USER, true, false);
@@ -248,7 +248,7 @@ class AccessRequestMemberSuggestionTest extends Step5bTestSupport {
     @Test
     @DisplayName("MEM-3: tạo đơn nhóm có thành viên FACILITY_MANAGER -> 400")
     void createGroupWithFacilityManagerMember_badRequest() throws Exception {
-        Area area = newArea(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED, 2, true);
+        Area area = newArea(AreaLevel.CONFIDENTIAL);
         User fmMember = codeUser(prefix + "-F1", Role.FACILITY_MANAGER, true, false, 3);
 
         MvcResult r = send(post("/api/access-requests/group"), caller, groupBody(area, fmMember)).andReturn();
@@ -260,7 +260,7 @@ class AccessRequestMemberSuggestionTest extends Step5bTestSupport {
     @Test
     @DisplayName("MEM-4: tạo đơn nhóm có thành viên NORMAL_USER đủ cấp -> 201 như cũ")
     void createGroupWithNormalUserMember_created() throws Exception {
-        Area area = newArea(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED, 2, true);
+        Area area = newArea(AreaLevel.CONFIDENTIAL);
         User member = codeUser(prefix + "-N1", Role.NORMAL_USER, true, false, 2);
 
         MvcResult r = send(post("/api/access-requests/group"), caller, groupBody(area, member)).andReturn();

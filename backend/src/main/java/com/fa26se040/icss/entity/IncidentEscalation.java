@@ -66,6 +66,10 @@ public class IncidentEscalation {
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
+    /** V84: lúc đã báo ADMIN "không có Quản lý CSVC nào đang hoạt động" (chỉ báo 1 lần / sự cố). */
+    @Column(name = "admin_no_fm_notified_at")
+    private OffsetDateTime adminNoFmNotifiedAt;
+
     @PrePersist
     protected void onCreate() {
         if (this.createdAt == null) {

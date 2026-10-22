@@ -86,7 +86,6 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
     private User adminUser;
 
     private Area internalArea;
-    private Area contactArea;
     private Area publicArea;
     private Area highlyArea;
 
@@ -150,21 +149,8 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
 
         internalArea = areaRepository.save(Area.builder()
                 .name("Khu Vuc Internal " + suffix)
-                .areaLevel(AreaLevel.INTERNAL_CONFIDENTIAL)
+                .areaLevel(AreaLevel.CONFIDENTIAL)
                 .areaAccessLevel(2)
-                .explicitAuthorizationRequired(false)
-                .floorEntity(testFloor)
-                .building(testBuilding.getName())
-                .floor(testFloor.getName())
-                .isActive(true)
-                .openToMembers(false)
-                .build());
-
-        contactArea = areaRepository.save(Area.builder()
-                .name("Khu Vuc Contact " + suffix)
-                .areaLevel(AreaLevel.CONFIDENTIAL_CONTACT_REQUIRED)
-                .areaAccessLevel(2)
-                .explicitAuthorizationRequired(true)
                 .floorEntity(testFloor)
                 .building(testBuilding.getName())
                 .floor(testFloor.getName())
@@ -176,7 +162,6 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
                 .name("Khu Vuc Public " + suffix)
                 .areaLevel(AreaLevel.PUBLIC)
                 .areaAccessLevel(1)
-                .explicitAuthorizationRequired(false)
                 .floorEntity(testFloor)
                 .building(testBuilding.getName())
                 .floor(testFloor.getName())
@@ -188,7 +173,6 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
                 .name("Khu Vuc Highly " + suffix)
                 .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
                 .areaAccessLevel(3)
-                .explicitAuthorizationRequired(true)
                 .floorEntity(testFloor)
                 .building(testBuilding.getName())
                 .floor(testFloor.getName())
@@ -272,7 +256,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
 
         EventScheduleResponse res = areaService.createSchedule(
                 internalArea.getId(),
-                new EventScheduleRequest(start, end, REASON_ENABLE, "Dat lich hop le hop hoi sinh vien"),
+                new EventScheduleRequest("Sự kiện thử nghiệm", start, end, REASON_ENABLE, "Dat lich hop le hop hoi sinh vien"),
                 fmUser.getEmail()
         );
 
@@ -308,7 +292,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         // 1. startAt trong quá khứ -> ERR_AREA_032
         AreaException exPast = assertThrows(AreaException.class, () ->
                 areaService.createSchedule(internalArea.getId(),
-                        new EventScheduleRequest(now.minusHours(1), now.plusHours(2), REASON_ENABLE, "Lich trong qua khu"),
+                        new EventScheduleRequest("Sự kiện thử nghiệm", now.minusHours(1), now.plusHours(2), REASON_ENABLE, "Lich trong qua khu"),
                         fmUser.getEmail())
         );
         assertEquals(AreaErrorCode.ERR_AREA_032, exPast.getErrorCode());
@@ -316,7 +300,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         // 2. vượt LEAD_DAYS (30 ngày) -> ERR_AREA_033
         AreaException exLead = assertThrows(AreaException.class, () ->
                 areaService.createSchedule(internalArea.getId(),
-                        new EventScheduleRequest(now.plusDays(31), now.plusDays(31).plusHours(2), REASON_ENABLE, "Vuot qua max lead days"),
+                        new EventScheduleRequest("Sự kiện thử nghiệm", now.plusDays(31), now.plusDays(31).plusHours(2), REASON_ENABLE, "Vuot qua max lead days"),
                         fmUser.getEmail())
         );
         assertEquals(AreaErrorCode.ERR_AREA_033, exLead.getErrorCode());
@@ -324,7 +308,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         // 3. ngắn hơn MIN (30 phut) -> ERR_AREA_035
         AreaException exMin = assertThrows(AreaException.class, () ->
                 areaService.createSchedule(internalArea.getId(),
-                        new EventScheduleRequest(now.plusHours(1), now.plusHours(1).plusMinutes(15), REASON_ENABLE, "Ngan hon min minutes"),
+                        new EventScheduleRequest("Sự kiện thử nghiệm", now.plusHours(1), now.plusHours(1).plusMinutes(15), REASON_ENABLE, "Ngan hon min minutes"),
                         fmUser.getEmail())
         );
         assertEquals(AreaErrorCode.ERR_AREA_035, exMin.getErrorCode());
@@ -332,7 +316,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         // 4. dài hơn MAX (12 gio) -> ERR_AREA_036
         AreaException exMax = assertThrows(AreaException.class, () ->
                 areaService.createSchedule(internalArea.getId(),
-                        new EventScheduleRequest(now.plusHours(1), now.plusHours(14), REASON_ENABLE, "Dai hon max hours"),
+                        new EventScheduleRequest("Sự kiện thử nghiệm", now.plusHours(1), now.plusHours(14), REASON_ENABLE, "Dai hon max hours"),
                         fmUser.getEmail())
         );
         assertEquals(AreaErrorCode.ERR_AREA_036, exMax.getErrorCode());
@@ -340,7 +324,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         // 5. HIGHLY_CONFIDENTIAL -> ERR_AREA_022
         AreaException exHighly = assertThrows(AreaException.class, () ->
                 areaService.createSchedule(highlyArea.getId(),
-                        new EventScheduleRequest(now.plusHours(1), now.plusHours(3), REASON_ENABLE, "Dat lich cho khu highly"),
+                        new EventScheduleRequest("Sự kiện thử nghiệm", now.plusHours(1), now.plusHours(3), REASON_ENABLE, "Dat lich cho khu highly"),
                         fmUser.getEmail())
         );
         assertEquals(AreaErrorCode.ERR_AREA_022, exHighly.getErrorCode());
@@ -348,7 +332,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         // 6. PUBLIC -> ERR_AREA_022
         AreaException exPub = assertThrows(AreaException.class, () ->
                 areaService.createSchedule(publicArea.getId(),
-                        new EventScheduleRequest(now.plusHours(1), now.plusHours(3), REASON_ENABLE, "Dat lich cho khu public"),
+                        new EventScheduleRequest("Sự kiện thử nghiệm", now.plusHours(1), now.plusHours(3), REASON_ENABLE, "Dat lich cho khu public"),
                         fmUser.getEmail())
         );
         assertEquals(AreaErrorCode.ERR_AREA_022, exPub.getErrorCode());
@@ -358,7 +342,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         areaRepository.save(internalArea);
         AreaException exInactive = assertThrows(AreaException.class, () ->
                 areaService.createSchedule(internalArea.getId(),
-                        new EventScheduleRequest(now.plusHours(1), now.plusHours(3), REASON_ENABLE, "Dat lich khu inactive"),
+                        new EventScheduleRequest("Sự kiện thử nghiệm", now.plusHours(1), now.plusHours(3), REASON_ENABLE, "Dat lich khu inactive"),
                         fmUser.getEmail())
         );
         assertEquals(AreaErrorCode.ERR_AREA_017, exInactive.getErrorCode());
@@ -370,7 +354,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(post("/api/areas/" + internalArea.getId() + "/event-schedules")
                         .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new EventScheduleRequest(
+                        .content(objectMapper.writeValueAsString(new EventScheduleRequest("Sự kiện thử nghiệm",
                                 now.plusHours(1), now.plusHours(3), REASON_ENABLE, "Admin thu dat lich"))))
                 .andExpect(status().isForbidden());
     }
@@ -384,13 +368,13 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
 
         // Đặt lịch thứ nhất: [t1, t2]
         areaService.createSchedule(internalArea.getId(),
-                new EventScheduleRequest(t1, t2, REASON_ENABLE, "Lich thu nhat hop le"),
+                new EventScheduleRequest("Sự kiện thử nghiệm", t1, t2, REASON_ENABLE, "Lich thu nhat hop le"),
                 fmUser.getEmail());
 
         // 1. Chồng lịch khác: [t1 + 1h, t2 + 1h] -> ERR_AREA_037 (409)
         AreaException exOverlap = assertThrows(AreaException.class, () ->
                 areaService.createSchedule(internalArea.getId(),
-                        new EventScheduleRequest(t1.plusHours(1), t2.plusHours(1), REASON_ENABLE, "Lich bi trung lap gio"),
+                        new EventScheduleRequest("Sự kiện thử nghiệm", t1.plusHours(1), t2.plusHours(1), REASON_ENABLE, "Lich bi trung lap gio"),
                         fmUser.getEmail())
         );
         assertEquals(AreaErrorCode.ERR_AREA_037, exOverlap.getErrorCode());
@@ -402,7 +386,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
 
         AreaException exOverlapActive = assertThrows(AreaException.class, () ->
                 areaService.createSchedule(internalArea.getId(),
-                        new EventScheduleRequest(now.plusHours(1), now.plusHours(3), REASON_ENABLE, "Trung phien dang mo"),
+                        new EventScheduleRequest("Sự kiện thử nghiệm", now.plusHours(1), now.plusHours(3), REASON_ENABLE, "Trung phien dang mo"),
                         fmUser.getEmail())
         );
         assertEquals(AreaErrorCode.ERR_AREA_038, exOverlapActive.getErrorCode());
@@ -414,7 +398,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
 
         // 3. Tiếp giáp đúng mốc: [t2, t2 + 2h] (start = end của lịch trước) -> OK!
         EventScheduleResponse resAdjacent = areaService.createSchedule(internalArea.getId(),
-                new EventScheduleRequest(t2, t2.plusHours(2), REASON_ENABLE, "Lich tiep giap dung moc gio"),
+                new EventScheduleRequest("Sự kiện thử nghiệm", t2, t2.plusHours(2), REASON_ENABLE, "Lich tiep giap dung moc gio"),
                 fmUser.getEmail());
         assertNotNull(resAdjacent.id());
         assertEquals(AreaEventScheduleStatus.SCHEDULED.name(), resAdjacent.status());
@@ -429,7 +413,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
             OffsetDateTime start = now.plusDays(i).withNano(0);
             OffsetDateTime end = start.plusHours(2);
             areaService.createSchedule(internalArea.getId(),
-                    new EventScheduleRequest(start, end, REASON_ENABLE, "Lich hop le thu " + i),
+                    new EventScheduleRequest("Sự kiện thử nghiệm", start, end, REASON_ENABLE, "Lich hop le thu " + i),
                     fmUser.getEmail());
         }
 
@@ -438,7 +422,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         OffsetDateTime end6 = start6.plusHours(2);
         AreaException exMax = assertThrows(AreaException.class, () ->
                 areaService.createSchedule(internalArea.getId(),
-                        new EventScheduleRequest(start6, end6, REASON_ENABLE, "Lich thu sau vuot toi da"),
+                        new EventScheduleRequest("Sự kiện thử nghiệm", start6, end6, REASON_ENABLE, "Lich thu sau vuot toi da"),
                         fmUser.getEmail())
         );
         assertEquals(AreaErrorCode.ERR_AREA_039, exMax.getErrorCode());
@@ -454,7 +438,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
 
         // Đặt lịch giữ chỗ 8 giờ tại ngày mai
         EventScheduleResponse sched1 = areaService.createSchedule(internalArea.getId(),
-                new EventScheduleRequest(now.plusDays(1), now.plusDays(1).plusHours(8), REASON_ENABLE, "Dat lich giu cho 8h"),
+                new EventScheduleRequest("Sự kiện thử nghiệm", now.plusDays(1), now.plusDays(1).plusHours(8), REASON_ENABLE, "Dat lich giu cho 8h"),
                 fmUser.getEmail());
 
         // 1. Lịch giữ chỗ làm bật tay 5 giờ bị từ chối do tổng = 13h > 10h -> ERR_AREA_028
@@ -469,7 +453,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         // Đặt sched2 tại now + 2 hours (dài 4h) -> cửa sổ sched1 tính cả sched2 thành 12h > 10h -> ERR_AREA_028
         AreaException exSched2 = assertThrows(AreaException.class, () ->
                 areaService.createSchedule(internalArea.getId(),
-                        new EventScheduleRequest(now.plusHours(2), now.plusHours(6), REASON_ENABLE, "Lich lam cua so lich sau vuot"),
+                        new EventScheduleRequest("Sự kiện thử nghiệm", now.plusHours(2), now.plusHours(6), REASON_ENABLE, "Lich lam cua so lich sau vuot"),
                         fmUser.getEmail())
         );
         assertEquals(AreaErrorCode.ERR_AREA_028, exSched2.getErrorCode());
@@ -500,7 +484,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
 
         // Đặt lịch [now + 3h, now + 5h]
         areaService.createSchedule(internalArea.getId(),
-                new EventScheduleRequest(schedStart, schedEnd, REASON_ENABLE, "Lich su kien chieu nay"),
+                new EventScheduleRequest("Sự kiện thử nghiệm", schedStart, schedEnd, REASON_ENABLE, "Lich su kien chieu nay"),
                 fmUser.getEmail());
 
         // Bật tay đến now + 4h (open_until > schedStart và now < schedEnd) -> 409 ERR_AREA_041
@@ -517,7 +501,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
     void testES_T07_ModifyCancelledOrStartedAndBadReason() {
         OffsetDateTime now = OffsetDateTime.now();
         EventScheduleResponse sched = areaService.createSchedule(internalArea.getId(),
-                new EventScheduleRequest(now.plusDays(1), now.plusDays(1).plusHours(2), REASON_ENABLE, "Dat lich kiem tra sua huy"),
+                new EventScheduleRequest("Sự kiện thử nghiệm", now.plusDays(1), now.plusDays(1).plusHours(2), REASON_ENABLE, "Dat lich kiem tra sua huy"),
                 fmUser.getEmail());
 
         // 1. Huỷ lịch
@@ -528,7 +512,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         // 2. Sửa lịch đã CANCELLED -> ERR_AREA_040 (409)
         AreaException exEditCancelled = assertThrows(AreaException.class, () ->
                 areaService.updateSchedule(internalArea.getId(), sched.id(),
-                        new EventScheduleRequest(now.plusDays(2), now.plusDays(2).plusHours(2), REASON_EXTEND, "Thu sua lich da huy"),
+                        new EventScheduleRequest("Sự kiện thử nghiệm", now.plusDays(2), now.plusDays(2).plusHours(2), REASON_EXTEND, "Thu sua lich da huy"),
                         fmUser.getEmail())
         );
         assertEquals(AreaErrorCode.ERR_AREA_040, exEditCancelled.getErrorCode());
@@ -544,7 +528,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         // 4. Lý do sai loại: Tạo lịch mới dùng reasonCode của EVENT_DISABLE -> ERR_AREA_026
         AreaException exBadReason = assertThrows(AreaException.class, () ->
                 areaService.createSchedule(internalArea.getId(),
-                        new EventScheduleRequest(now.plusDays(2), now.plusDays(2).plusHours(2), REASON_DISABLE, "Dung sai danh muc ly do"),
+                        new EventScheduleRequest("Sự kiện thử nghiệm", now.plusDays(2), now.plusDays(2).plusHours(2), REASON_DISABLE, "Dung sai danh muc ly do"),
                         fmUser.getEmail())
         );
         assertEquals(AreaErrorCode.ERR_AREA_026, exBadReason.getErrorCode());
@@ -552,7 +536,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         // 5. Note < 10 ký tự -> ERR_AREA_024 (400)
         AreaException exShortNote = assertThrows(AreaException.class, () ->
                 areaService.createSchedule(internalArea.getId(),
-                        new EventScheduleRequest(now.plusDays(2), now.plusDays(2).plusHours(2), REASON_ENABLE, "ngan"),
+                        new EventScheduleRequest("Sự kiện thử nghiệm", now.plusDays(2), now.plusDays(2).plusHours(2), REASON_ENABLE, "ngan"),
                         fmUser.getEmail())
         );
         assertEquals(AreaErrorCode.ERR_AREA_024, exShortNote.getErrorCode());
@@ -566,6 +550,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         OffsetDateTime schedEnd = now.plusHours(2);
 
         eventScheduleRepository.save(AreaEventSchedule.builder()
+                .title("Sự kiện thử nghiệm")
                 .area(internalArea)
                 .startAt(schedStart)
                 .endAt(schedEnd)
@@ -600,6 +585,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         OffsetDateTime schedEnd = now.plusHours(2);
 
         AreaEventSchedule schedule = eventScheduleRepository.save(AreaEventSchedule.builder()
+                .title("Sự kiện thử nghiệm")
                 .area(internalArea)
                 .startAt(schedStart)
                 .endAt(schedEnd)
@@ -654,6 +640,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         OffsetDateTime schedEnd = now.minusMinutes(10); // Đã kết thúc trong quá khứ
 
         AreaEventSchedule schedule = eventScheduleRepository.save(AreaEventSchedule.builder()
+                .title("Sự kiện thử nghiệm")
                 .area(internalArea)
                 .startAt(schedStart)
                 .endAt(schedEnd)
@@ -747,6 +734,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         OffsetDateTime now = OffsetDateTime.now();
         // REMINDER_MINUTES = 30; tạo lịch bắt đầu sau 20 phút
         AreaEventSchedule schedule = eventScheduleRepository.save(AreaEventSchedule.builder()
+                .title("Sự kiện thử nghiệm")
                 .area(internalArea)
                 .startAt(now.plusMinutes(20))
                 .endAt(now.plusHours(2))
@@ -779,6 +767,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         // 3. Khi REMINDER_MINUTES = 0 -> không nhắc
         systemConfigService.update(ConfigKey.EVENT_MODE_SCHEDULE_REMINDER_MINUTES.name(), "0", adminUser.getEmail());
         AreaEventSchedule schedule2 = eventScheduleRepository.save(AreaEventSchedule.builder()
+                .title("Sự kiện thử nghiệm")
                 .area(internalArea)
                 .startAt(now.plusMinutes(10))
                 .endAt(now.plusHours(2))
@@ -800,7 +789,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
     void testES_T13_DeactivateAndChangeLevelBlockedBySchedule() {
         OffsetDateTime now = OffsetDateTime.now();
         EventScheduleResponse sched = areaService.createSchedule(internalArea.getId(),
-                new EventScheduleRequest(now.plusDays(2), now.plusDays(2).plusHours(2), REASON_ENABLE, "Dat lich de test chan khoa"),
+                new EventScheduleRequest("Sự kiện thử nghiệm", now.plusDays(2), now.plusDays(2).plusHours(2), REASON_ENABLE, "Dat lich de test chan khoa"),
                 fmUser.getEmail());
 
         // 1. Vô hiệu hoá khu vực -> ERR_AREA_042 (409)
@@ -875,7 +864,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
                         try {
                             startLatch.await();
                             areaService.createSchedule(internalArea.getId(),
-                                    new EventScheduleRequest(start, end, REASON_ENABLE, "Dat lich dong thoi thread " + idx),
+                                    new EventScheduleRequest("Sự kiện thử nghiệm", start, end, REASON_ENABLE, "Dat lich dong thoi thread " + idx),
                                     fmUser.getEmail());
                             successCount.incrementAndGet();
                         } catch (AreaException ex) {
@@ -906,7 +895,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         OffsetDateTime now = OffsetDateTime.now();
         // MAX_HOURS hiện là 12, đặt lịch dài 10 giờ
         EventScheduleResponse sched = areaService.createSchedule(internalArea.getId(),
-                new EventScheduleRequest(now.plusDays(3), now.plusDays(3).plusHours(10), REASON_ENABLE, "Dat lich dai 10h hop le"),
+                new EventScheduleRequest("Sự kiện thử nghiệm", now.plusDays(3), now.plusDays(3).plusHours(10), REASON_ENABLE, "Dat lich dai 10h hop le"),
                 fmUser.getEmail());
 
         notificationRepository.deleteAll();
@@ -944,6 +933,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         OffsetDateTime s2End = s2Start.plusHours(4); // 13:00–17:00
 
         eventScheduleRepository.save(AreaEventSchedule.builder()
+                .title("Sự kiện thử nghiệm")
                 .area(internalArea)
                 .startAt(s1Start)
                 .endAt(s1End)
@@ -956,6 +946,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
                 .build());
 
         eventScheduleRepository.save(AreaEventSchedule.builder()
+                .title("Sự kiện thử nghiệm")
                 .area(internalArea)
                 .startAt(s2Start)
                 .endAt(s2End)
@@ -1007,6 +998,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
 
         // Tạo lịch sự kiện SCHEDULED
         AreaEventSchedule schedule = eventScheduleRepository.save(AreaEventSchedule.builder()
+                .title("Sự kiện thử nghiệm")
                 .area(internalArea)
                 .startAt(scheduleStart)
                 .endAt(scheduleEnd)
@@ -1122,7 +1114,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         // Đặt lịch EVENT_ENABLE/OTHER -> thành công
         EventScheduleResponse created = areaService.createSchedule(
                 internalArea.getId(),
-                new EventScheduleRequest(sStart, sEnd, "OTHER", "Dat lich voi ly do khac tren 10 ky tu"),
+                new EventScheduleRequest("Sự kiện thử nghiệm", sStart, sEnd, "OTHER", "Dat lich voi ly do khac tren 10 ky tu"),
                 fmUser.getEmail()
         );
         assertNotNull(created);
@@ -1134,7 +1126,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         EventScheduleResponse updated = areaService.updateSchedule(
                 internalArea.getId(),
                 created.id(),
-                new EventScheduleRequest(sStart, newEnd, "OTHER", "Sua lich voi ly do khac tren 10 ky tu"),
+                new EventScheduleRequest("Sự kiện thử nghiệm", sStart, newEnd, "OTHER", "Sua lich voi ly do khac tren 10 ky tu"),
                 fmUser.getEmail()
         );
         assertNotNull(updated);
@@ -1163,7 +1155,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         AreaException exWrongAction = assertThrows(AreaException.class, () ->
                 areaService.createSchedule(
                         internalArea.getId(),
-                        new EventScheduleRequest(sStart, sEnd, "MISTAKE", "Dat lich dung sai loai ly do"),
+                        new EventScheduleRequest("Sự kiện thử nghiệm", sStart, sEnd, "MISTAKE", "Dat lich dung sai loai ly do"),
                         fmUser.getEmail()
                 )
         );
@@ -1173,7 +1165,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         AreaException exNotExist = assertThrows(AreaException.class, () ->
                 areaService.createSchedule(
                         internalArea.getId(),
-                        new EventScheduleRequest(sStart, sEnd, "UNKNOWN_CODE_XYZ", "Dat lich ma khong ton tai"),
+                        new EventScheduleRequest("Sự kiện thử nghiệm", sStart, sEnd, "UNKNOWN_CODE_XYZ", "Dat lich ma khong ton tai"),
                         fmUser.getEmail()
                 )
         );
@@ -1191,7 +1183,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         // Đặt lịch với lý do A (SEMINAR)
         EventScheduleResponse created = areaService.createSchedule(
                 internalArea.getId(),
-                new EventScheduleRequest(sStart, sEnd, "SEMINAR", "Hoi thao chuyen mon ly do A"),
+                new EventScheduleRequest("Sự kiện thử nghiệm", sStart, sEnd, "SEMINAR", "Hoi thao chuyen mon ly do A"),
                 fmUser.getEmail()
         );
         assertEquals("SEMINAR", created.reasonCode());
@@ -1200,7 +1192,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         EventScheduleResponse updated = areaService.updateSchedule(
                 internalArea.getId(),
                 created.id(),
-                new EventScheduleRequest(sStart, sEndExtended, "ORGANIZER_CHANGED", "Sua doi gio su kien ly do B"),
+                new EventScheduleRequest("Sự kiện thử nghiệm", sStart, sEndExtended, "ORGANIZER_CHANGED", "Sua doi gio su kien ly do B"),
                 fmUser.getEmail()
         );
         // Schedule vẫn giữ lý do A

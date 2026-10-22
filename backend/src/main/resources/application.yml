@@ -87,15 +87,20 @@ mediamtx:
 
 app:
   jwt:
-    secret: ${JWT_SECRET:9a4f2c8d3b7a1e5f8g2h6i0j3k7l1m5n9o3p7q1r5s9t3u7v1w5x9y3z7a1b5c9d}
+    secret: ${JWT_SECRET}
     expiration-ms: ${JWT_EXPIRATION:86400000} # 24 hours
   google:
     client-id: ${GOOGLE_CLIENT_ID:}
+  # Cấu hình triển khai (không phải tham số nghiệp vụ): địa chỉ web frontend, dùng cho link đặt lại mật khẩu
+  frontend-base-url: ${APP_FRONTEND_BASE_URL:http://localhost:5173}
+  cors:
+    # Danh sách origin được gọi API, phân tách bằng dấu phẩy
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174,http://localhost:3000}
 
 minio:
   endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
   access-key: ${MINIO_ROOT_USER:minioadmin}
-  secret-key: ${MINIO_ROOT_PASSWORD:12345678abc}
+  secret-key: ${MINIO_ROOT_PASSWORD}
   bucket:
     faces: face-profiles
     evidence: security-evidence

@@ -60,7 +60,7 @@ public class UserController {
     public ResponseEntity<byte[]> downloadNormalUserTemplate() {
         byte[] excelData = userService.generateSampleExcel();
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"sample_normal_users.xlsx\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"metadata.xlsx\"")
                 .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
                 .body(excelData);
     }
@@ -80,7 +80,7 @@ public class UserController {
     public ResponseEntity<byte[]> downloadStaffUserTemplate() {
         byte[] excelData = userService.generateSampleStaffExcel();
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"sample_staff_users.xlsx\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"metadata.xlsx\"")
                 .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
                 .body(excelData);
     }
@@ -178,10 +178,12 @@ public class UserController {
     @DeleteMapping("/import-batches/{batchId}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<BatchDeleteResponse>> deleteBatch(
-            @PathVariable UUID batchId
+            @PathVariable UUID batchId,
+            Authentication authentication
     ) {
-        log.info("Admin soft-deleting import batch: {}", batchId);
-        BatchDeleteResponse response = userService.deleteBatch(batchId);
+        String currentUserEmail = authentication != null ? authentication.getName() : null;
+        log.info("Admin {} soft-deleting import batch: {}", currentUserEmail, batchId);
+        BatchDeleteResponse response = userService.deleteBatch(batchId, currentUserEmail);
         return ResponseEntity.ok(ApiResponse.success(response, "Xóa lô import thành công"));
     }
 

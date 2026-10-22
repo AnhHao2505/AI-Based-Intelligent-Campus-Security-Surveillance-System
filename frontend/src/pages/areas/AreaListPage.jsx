@@ -21,16 +21,14 @@ import {
 	RotateCcw,
 	Archive,
 } from "lucide-react";
-import AreaAccessRulesModal from "../../components/area/AreaAccessRulesModal";
 import AreaAssignedPersonnelModal from "../../components/area/AreaAssignedPersonnelModal";
 import AreaListView from "../../components/area/AreaListView";
 import AreaTypeChangePreviewModal from "../../components/area/AreaTypeChangePreviewModal";
 import PageHeader from "../../components/ui/PageHeader";
-import { LoadingState, EmptyState, ErrorState } from "../../components/ui";
+import { LoadingState, EmptyState, ErrorState, Select } from "../../components/ui";
 import { formatLocation } from "../../utils/formatLocation";
 import ReasonTextarea from "../../components/ui/ReasonTextarea";
 import "../../components/ui/Button.css";
-import { getLevelPresets } from "../../services/accessControlService";
 import {
 	getAreas,
 	getDependencies,
@@ -43,12 +41,14 @@ import {
 } from "../../services/areaService";
 import { getBuildings } from "../../services/buildingService";
 import {
-	AREA_LEVEL_CONFIG,
+	AREA_LEVEL_OPTIONS,
 	getErrorMessage,
+	getLevelConfig,
 	normalizeAreaName,
 	validateAreaName,
 } from "../../utils/areaHelpers";
 import "../../styles/AreaListPage.css";
+import { useReasonLimits } from "../../hooks/useReasonLimits";
 
 // BR-AR-COORD-01..03: toạ độ tuỳ chọn — trống cả hai = "chưa định vị" (null); chỉ nhập một ô thì từ chối
 const COORDINATE_PAIR_ERROR = "Phải nhập đủ cả vĩ độ và kinh độ, hoặc để trống cả hai.";
@@ -93,30 +93,22 @@ const coordinateFieldError = (value, min, max, label) => {
 	return null;
 };
 
-const AREA_LEVEL_CARDS = [
-	{
-		value: "PUBLIC",
-		name: AREA_LEVEL_CONFIG.PUBLIC.name,
-		color: AREA_LEVEL_CONFIG.PUBLIC.color,
-	},
-	{
-		value: "INTERNAL_CONFIDENTIAL",
-		name: AREA_LEVEL_CONFIG.INTERNAL_CONFIDENTIAL.name,
-		color: AREA_LEVEL_CONFIG.INTERNAL_CONFIDENTIAL.color,
-	},
-	{
-		value: "CONFIDENTIAL_CONTACT_REQUIRED",
-		name: AREA_LEVEL_CONFIG.CONFIDENTIAL_CONTACT_REQUIRED.name,
-		color: AREA_LEVEL_CONFIG.CONFIDENTIAL_CONTACT_REQUIRED.color,
-	},
-	{
-		value: "HIGHLY_CONFIDENTIAL",
-		name: AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name,
-		color: AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.color,
-	},
-];
+// V83: 3 loại, cấp cố định theo loại (Công khai 1, Bảo mật 2, Tuyệt mật 3)
+const AREA_LEVEL_CARDS = AREA_LEVEL_OPTIONS.map((cfg, i) => ({
+	value: cfg.code,
+	name: cfg.name,
+	color: cfg.color,
+	level: i + 1,
+}));
+
+const AREA_LEVEL_BTN_CLASS = {
+	PUBLIC: "area-level-btn--public",
+	CONFIDENTIAL: "area-level-btn--internal",
+	HIGHLY_CONFIDENTIAL: "area-level-btn--private",
+};
 
 export default function AreaListPage() {
+	const reasonLimits = useReasonLimits();
 	const { user } = useAuth();
 	const isAdmin = user?.role === "ADMIN";
 	const navigate = useNavigate();
@@ -133,32 +125,6 @@ export default function AreaListPage() {
 	const [selectedFloor, setSelectedFloor] = useState("ALL");
 	const [selectedAreaId, setSelectedAreaId] = useState(null);
 	const [cameraCounts, setCameraCounts] = useState({});
-
-	// Level Presets (ADMIN / FM)
-	const [levelPresets, setLevelPresets] = useState(null);
-
-	useEffect(() => {
-		getLevelPresets()
-			.then((presets) => {
-				if (Array.isArray(presets)) {
-					const map = {};
-					presets.forEach((p) => {
-						map[p.areaLevel] = p;
-					});
-					setLevelPresets(map);
-				}
-			})
-			.catch((err) => {
-				console.warn("Could not load level presets:", err);
-				setLevelPresets(null);
-			});
-	}, []);
-
-	const getPresetSubtitle = (areaLevelValue) => {
-		const preset = levelPresets?.[areaLevelValue];
-		if (!preset) return null;
-		return `Cấp mặc định của loại: ${preset.areaAccessLevel} · Chỉ định: ${preset.explicitAuthorizationRequired ? "có" : "không"}`;
-	};
 
 	// Modal states
 	const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -210,26 +176,6 @@ export default function AreaListPage() {
 
 	// Search & camera inspection modal states
 	const [cameraSearchQuery, setCameraSearchQuery] = useState("");
-
-	// Access rules modal states (Facility Manager)
-	const [accessRulesModalOpen, setAccessRulesModalOpen] = useState(false);
-	const [accessRulesModalArea, setAccessRulesModalArea] = useState(null);
-
-	const handleOpenAccessRulesModal = useCallback((area) => {
-		if (!area) return;
-		setAccessRulesModalArea(area);
-		setAccessRulesModalOpen(true);
-	}, []);
-
-	const handleAccessRulesSuccess = useCallback((updatedArea) => {
-		if (!updatedArea) return;
-		setAreas((prev) =>
-			prev.map((a) => (a.id === updatedArea.id ? { ...a, ...updatedArea } : a)),
-		);
-		setAccessRulesModalArea((prev) =>
-			prev?.id === updatedArea.id ? { ...prev, ...updatedArea } : prev,
-		);
-	}, []);
 
 	// Assigned personnel modal states (Facility Manager & Admin)
 	const [assignedPersonnelModalOpen, setAssignedPersonnelModalOpen] =
@@ -628,13 +574,13 @@ export default function AreaListPage() {
 		const targetId = formData.id || selectedArea?.id;
 		if (!targetId) return;
 
-		// Step 5b (BR-TC-02): đổi loại bắt buộc lý do 10–500 ký tự
+		// Step 5b (BR-TC-02): đổi loại bắt buộc lý do, độ dài theo cấu hình (useReasonLimits)
 		const isTypeChange =
 			Boolean(formData.originalAreaLevel) &&
 			formData.areaLevel !== formData.originalAreaLevel;
 		const trimmedReason = (formData.reason || "").trim();
-		if (isTypeChange && (trimmedReason.length < 10 || trimmedReason.length > 500)) {
-			setEditReasonError(`Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmedReason.length}).`);
+		if (isTypeChange && !reasonLimits.isValid(trimmedReason)) {
+			setEditReasonError(reasonLimits.error(trimmedReason));
 			editReasonRef.current?.focus();
 			return;
 		}
@@ -745,8 +691,8 @@ export default function AreaListPage() {
 	const handleDeactivateSubmit = async () => {
 		if (!deactivateTarget || !dependencies) return;
 		const trimmed = deactivateReason.trim();
-		if (trimmed.length < 10 || trimmed.length > 500) {
-			setDeactivateReasonError(`Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmed.length}).`);
+		if (!reasonLimits.isValid(trimmed)) {
+			setDeactivateReasonError(reasonLimits.error(trimmed));
 			deactivateReasonRef.current?.focus();
 			return;
 		}
@@ -817,8 +763,8 @@ export default function AreaListPage() {
 	const handleRestoreSubmit = async () => {
 		if (!restoreTarget) return;
 		const trimmed = restoreReason.trim();
-		if (trimmed.length < 10 || trimmed.length > 500) {
-			setRestoreReasonError(`Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmed.length}).`);
+		if (!reasonLimits.isValid(trimmed)) {
+			setRestoreReasonError(reasonLimits.error(trimmed));
 			restoreReasonRef.current?.focus();
 			return;
 		}
@@ -874,50 +820,36 @@ export default function AreaListPage() {
 			{/* ============================================================ */}
 			<div className="zone-toolbar">
 				{/* Building Selector */}
-				<div className="zone-toolbar__building">
+				<div className="zone-toolbar__select">
 					<Building2
 						size={16}
-						className="zone-toolbar__building-icon"
+						className="zone-toolbar__select-icon"
 					/>
-					<select
-						className="zone-toolbar__building-select"
+					<Select
+						className="ui-select-group--filter"
 						value={selectedBuilding}
 						onChange={(e) => handleSelectBuilding(e.target.value)}
 						title="Chọn tòa nhà"
-					>
-						{availableBuildings.map((b) => (
-							<option
-								key={b.id || b.name}
-								value={b.name}
-							>
-								{b.name}
-							</option>
-						))}
-					</select>
+						options={availableBuildings.map((b) => ({ value: b.name, label: b.name }))}
+					/>
 				</div>
 
 				{/* Floor Selector (Options) */}
-				<div className="zone-toolbar__building">
+				<div className="zone-toolbar__select">
 					<Layers
 						size={16}
-						className="zone-toolbar__building-icon"
+						className="zone-toolbar__select-icon"
 					/>
-					<select
-						className="zone-toolbar__building-select"
+					<Select
+						className="ui-select-group--filter"
 						value={selectedFloor}
 						onChange={(e) => handleSelectFloor(e.target.value)}
 						title="Chọn tầng"
-					>
-						<option value="ALL">Tất cả tầng</option>
-						{availableFloors.map((fl) => (
-							<option
-								key={fl.floorId || fl.name}
-								value={fl.name}
-							>
-								{fl.name}
-							</option>
-						))}
-					</select>
+						options={[
+							{ value: "ALL", label: "Tất cả tầng" },
+							...availableFloors.map((fl) => ({ value: fl.name, label: fl.name })),
+						]}
+					/>
 				</div>
 
 				<div className="zone-toolbar__spacer" />
@@ -1044,7 +976,7 @@ export default function AreaListPage() {
 												{formatLocation(a.building, a.floor) || "—"}
 											</td>
 											<td>
-												{AREA_LEVEL_CONFIG[a.areaLevel]?.name || a.areaLevel}
+												{getLevelConfig(a.areaLevel).name}
 											</td>
 											<td className="zone-deactivated__actions">
 												<button
@@ -1074,11 +1006,9 @@ export default function AreaListPage() {
 					cameraCounts={cameraCounts}
 					isAdmin={isAdmin}
 					isFacilityManager={isFacilityManager}
-					levelPresets={levelPresets}
 					onSelectArea={(id) => handleSelectArea(id, false)}
 					onOpenCreateModal={handleOpenCreateModal}
 					onOpenCamerasModal={handleOpenCamerasModal}
-					onOpenAccessRulesModal={handleOpenAccessRulesModal}
 					onOpenAssignedPersonnelModal={handleOpenAssignedPersonnelModal}
 					onOpenEditModal={handleOpenEditModal}
 					onOpenDeactivateModal={handleOpenDeactivateModal}
@@ -1167,15 +1097,8 @@ export default function AreaListPage() {
 									<div className="area-level-selector">
 										{AREA_LEVEL_CARDS.map((card) => {
 											const isSelected = formData.areaLevel === card.value;
-											const levelClass =
-												card.value === "PUBLIC"
-													? "area-level-btn--public"
-													: card.value === "INTERNAL_CONFIDENTIAL"
-														? "area-level-btn--internal"
-														: card.value === "CONFIDENTIAL_CONTACT_REQUIRED"
-															? "area-level-btn--contact"
-															: "area-level-btn--private";
-											const subText = getPresetSubtitle(card.value);
+											const levelClass = AREA_LEVEL_BTN_CLASS[card.value];
+											const subText = `Cấp ${card.level}, cố định theo loại`;
 
 											return (
 												<button
@@ -1213,9 +1136,8 @@ export default function AreaListPage() {
 										>
 											Tòa nhà / Phân khu <span className="required">*</span>
 										</label>
-										<select
+										<Select
 											id="create-building"
-											className="area-form-input"
 											value={formData.building}
 											onChange={(e) => {
 												const newB = e.target.value;
@@ -1230,16 +1152,8 @@ export default function AreaListPage() {
 													floorId: firstFloor ? firstFloor.id : null,
 												});
 											}}
-										>
-											{availableBuildings.map((b) => (
-												<option
-													key={b.id || b.name}
-													value={b.name}
-												>
-													{b.name}
-												</option>
-											))}
-										</select>
+											options={availableBuildings.map((b) => ({ value: b.name, label: b.name }))}
+										/>
 									</div>
 
 									<div className="area-form-group">
@@ -1249,9 +1163,8 @@ export default function AreaListPage() {
 										>
 											Tầng <span className="required">*</span>
 										</label>
-										<select
+										<Select
 											id="create-floor"
-											className="area-form-input"
 											value={formData.floor}
 											onChange={(e) => {
 												const newF = e.target.value;
@@ -1262,16 +1175,8 @@ export default function AreaListPage() {
 													floorId: flObj ? flObj.id : null,
 												});
 											}}
-										>
-											{modalFloors.map((fl) => (
-												<option
-													key={fl.id || fl.name}
-													value={fl.name}
-												>
-													{fl.name}
-												</option>
-											))}
-										</select>
+											options={modalFloors.map((fl) => ({ value: fl.name, label: fl.name }))}
+										/>
 									</div>
 								</div>
 								<div className="area-form-row">
@@ -1428,29 +1333,14 @@ export default function AreaListPage() {
 											Loại khu vực <span className="required">*</span>
 										</label>
 										<span style={{ fontSize: "12.5px", color: "var(--theme-text-secondary, #475569)" }}>
-											Cấp hiện tại của khu vực: <strong>{formData.areaAccessLevel ?? 1}</strong>
-											{(() => {
-												const origPreset = levelPresets?.[formData.originalAreaLevel || formData.areaLevel];
-												const presetLvl = origPreset?.areaAccessLevel;
-												if (formData.areaAccessLevel != null && presetLvl != null && Number(formData.areaAccessLevel) !== Number(presetLvl)) {
-													return <span style={{ color: "var(--brand-warning, #d97706)", marginLeft: "4px" }}>(khác mặc định của loại: {presetLvl})</span>;
-												}
-												return null;
-											})()}
+											Cấp theo loại: <strong>{AREA_LEVEL_CARDS.find((c) => c.value === formData.areaLevel)?.level ?? "—"}</strong>
 										</span>
 									</div>
 									<div className="area-level-selector">
 										{AREA_LEVEL_CARDS.map((card) => {
 											const isSelected = formData.areaLevel === card.value;
-											const levelClass =
-												card.value === "PUBLIC"
-													? "area-level-btn--public"
-													: card.value === "INTERNAL_CONFIDENTIAL"
-														? "area-level-btn--internal"
-														: card.value === "CONFIDENTIAL_CONTACT_REQUIRED"
-															? "area-level-btn--contact"
-															: "area-level-btn--private";
-											const subText = getPresetSubtitle(card.value);
+											const levelClass = AREA_LEVEL_BTN_CLASS[card.value];
+											const subText = `Cấp ${card.level}, cố định theo loại`;
 
 											return (
 												<button
@@ -1479,26 +1369,24 @@ export default function AreaListPage() {
 									</div>
 								</div>
 
-								{/* Step 5b (BR-TC-02): đổi loại -> bắt buộc lý do 10–500 ký tự, ghi vào audit CHANGE_TYPE */}
+								{/* Step 5b (BR-TC-02): đổi loại -> bắt buộc lý do (độ dài theo cấu hình), ghi vào audit CHANGE_TYPE */}
 								{formData.originalAreaLevel && formData.areaLevel !== formData.originalAreaLevel && (
 									<div className="area-form-group">
 										<ReasonTextarea
 											ref={editReasonRef}
 											id="edit-type-change-reason"
 											label="Lý do đổi loại khu vực"
-											placeholder="Nêu lý do đổi loại (10–500 ký tự)..."
+											placeholder={`Nêu lý do đổi loại (${reasonLimits.range} ký tự)...`}
 											value={formData.reason || ""}
 											onChange={(e) => {
 												const val = e.target.value;
 												setFormData({ ...formData, reason: val });
-												if (editReasonError && val.trim().length >= 10 && val.trim().length <= 500) {
+												if (editReasonError && reasonLimits.isValid(val)) {
 													setEditReasonError(null);
 												}
 											}}
 											error={editReasonError}
 											hint="Đổi loại sẽ áp cấp truy cập theo mặc định của loại mới và có thể hủy các đơn truy cập không còn phù hợp."
-											min={10}
-											max={500}
 											required
 										/>
 									</div>
@@ -1512,9 +1400,8 @@ export default function AreaListPage() {
 										>
 											Tòa nhà / Phân khu <span className="required">*</span>
 										</label>
-										<select
+										<Select
 											id="edit-building"
-											className="area-form-input"
 											value={formData.building}
 											onChange={(e) => {
 												const newB = e.target.value;
@@ -1529,16 +1416,8 @@ export default function AreaListPage() {
 													floorId: firstFloor ? firstFloor.id : null,
 												});
 											}}
-										>
-											{availableBuildings.map((b) => (
-												<option
-													key={b.id || b.name}
-													value={b.name}
-												>
-													{b.name}
-												</option>
-											))}
-										</select>
+											options={availableBuildings.map((b) => ({ value: b.name, label: b.name }))}
+										/>
 									</div>
 
 									<div className="area-form-group">
@@ -1548,9 +1427,8 @@ export default function AreaListPage() {
 										>
 											Tầng <span className="required">*</span>
 										</label>
-										<select
+										<Select
 											id="edit-floor"
-											className="area-form-input"
 											value={formData.floor}
 											onChange={(e) => {
 												const newF = e.target.value;
@@ -1561,16 +1439,8 @@ export default function AreaListPage() {
 													floorId: flObj ? flObj.id : null,
 												});
 											}}
-										>
-											{modalFloors.map((fl) => (
-												<option
-													key={fl.id || fl.name}
-													value={fl.name}
-												>
-													{fl.name}
-												</option>
-											))}
-										</select>
+											options={modalFloors.map((fl) => ({ value: fl.name, label: fl.name }))}
+										/>
 									</div>
 								</div>
 								<div className="area-form-row">
@@ -1764,18 +1634,16 @@ export default function AreaListPage() {
 										ref={deactivateReasonRef}
 										id="deactivate-reason"
 										label="Lý do vô hiệu hóa"
-										placeholder="Nêu lý do vô hiệu hóa (10–500 ký tự)..."
+										placeholder={`Nêu lý do vô hiệu hóa (${reasonLimits.range} ký tự)...`}
 										value={deactivateReason}
 										onChange={(e) => {
 											const val = e.target.value;
 											setDeactivateReason(val);
-											if (deactivateReasonError && val.trim().length >= 10 && val.trim().length <= 500) {
+											if (deactivateReasonError && reasonLimits.isValid(val)) {
 												setDeactivateReasonError(null);
 											}
 										}}
 										error={deactivateReasonError}
-										min={10}
-										max={500}
 										disabled={modalLoading}
 										required
 									/>
@@ -1874,18 +1742,16 @@ export default function AreaListPage() {
 									ref={restoreReasonRef}
 									id="restore-reason"
 									label="Lý do khôi phục"
-									placeholder="Nêu lý do khôi phục (10–500 ký tự)..."
+									placeholder={`Nêu lý do khôi phục (${reasonLimits.range} ký tự)...`}
 									value={restoreReason}
 									onChange={(e) => {
 										const val = e.target.value;
 										setRestoreReason(val);
-										if (restoreReasonError && val.trim().length >= 10 && val.trim().length <= 500) {
+										if (restoreReasonError && reasonLimits.isValid(val)) {
 											setRestoreReasonError(null);
 										}
 									}}
 									error={restoreReasonError}
-									min={10}
-									max={500}
 									disabled={restoreLoading}
 									required
 								/>
@@ -2144,15 +2010,6 @@ export default function AreaListPage() {
 				onClose={() => setAssignedPersonnelModalOpen(false)}
 				area={assignedPersonnelModalArea}
 				isFacilityManager={isFacilityManager}
-			/>
-
-			{/* Area Access Rules Modal — ADMIN: đổi cấp; FM: chế độ sự kiện + lịch (A-09) */}
-			<AreaAccessRulesModal
-				isOpen={accessRulesModalOpen}
-				onClose={() => setAccessRulesModalOpen(false)}
-				area={accessRulesModalArea}
-				onSuccess={handleAccessRulesSuccess}
-				levelPresets={levelPresets}
 			/>
 		</div>
 	);

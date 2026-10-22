@@ -29,6 +29,7 @@ import {
 import '../../styles/GuestVisitPage.css';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
+import { useReasonLimits } from '../../hooks/useReasonLimits';
 
 const PAGE_SIZE = 10;
 
@@ -59,6 +60,7 @@ function ReasonBlock({ label, value, author, time, variant = 'default' }) {
 }
 
 export default function GuestVisitReviewPage() {
+  const reasonLimits = useReasonLimits();
   const { user } = useAuth();
   const [statusFilter, setStatusFilter] = useState('PENDING');
   const [page, setPage] = useState(0);
@@ -204,8 +206,8 @@ export default function GuestVisitReviewPage() {
   const handleReject = async () => {
     if (!rejectTarget) return;
     const trimmed = rejectReason.trim();
-    if (trimmed.length < 10 || trimmed.length > 500) {
-      setRejectReasonError(`Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmed.length}).`);
+    if (!reasonLimits.isValid(trimmed)) {
+      setRejectReasonError(reasonLimits.error(trimmed));
       rejectReasonRef.current?.focus();
       return;
     }
@@ -245,8 +247,8 @@ export default function GuestVisitReviewPage() {
   const handleRevoke = async () => {
     if (!revokeTarget) return;
     const trimmed = revokeReason.trim();
-    if (trimmed.length < 10 || trimmed.length > 500) {
-      setRevokeReasonError(`Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmed.length}).`);
+    if (!reasonLimits.isValid(trimmed)) {
+      setRevokeReasonError(reasonLimits.error(trimmed));
       revokeReasonRef.current?.focus();
       return;
     }
@@ -333,7 +335,12 @@ export default function GuestVisitReviewPage() {
         ) : error ? (
           <ErrorState size="sm" message={error} onRetry={() => loadVisits(page)} />
         ) : visits.length === 0 ? (
-          <EmptyState size="sm" icon={Users} title="Không có lượt khách nào phù hợp" />
+          <EmptyState
+            size="sm"
+            icon={Users}
+            title="Không có lượt khách nào phù hợp"
+            description="Chọn trạng thái khác ở bộ lọc phía trên để xem các lượt khách còn lại."
+          />
         ) : (
           <table className="guest-visit__table">
             <thead>
@@ -611,6 +618,7 @@ export default function GuestVisitReviewPage() {
       {/* REJECT MODAL */}
       <Modal
         isOpen={!!rejectTarget}
+        initialFocus="field"
         onClose={() => {
           if (!actionLoading) {
             setRejectTarget(null);
@@ -663,13 +671,11 @@ export default function GuestVisitReviewPage() {
               value={rejectReason}
               onChange={(e) => {
                 setRejectReason(e.target.value);
-                if (rejectReasonError && e.target.value.trim().length >= 10 && e.target.value.trim().length <= 500) {
+                if (rejectReasonError && reasonLimits.isValid(e.target.value)) {
                   setRejectReasonError(null);
                 }
               }}
               error={rejectReasonError}
-              min={10}
-              max={500}
               disabled={actionLoading}
               required
             />
@@ -680,6 +686,7 @@ export default function GuestVisitReviewPage() {
       {/* REVOKE MODAL */}
       <Modal
         isOpen={!!revokeTarget}
+        initialFocus="field"
         onClose={() => {
           if (!actionLoading) {
             setRevokeTarget(null);
@@ -742,13 +749,11 @@ export default function GuestVisitReviewPage() {
               value={revokeReason}
               onChange={(e) => {
                 setRevokeReason(e.target.value);
-                if (revokeReasonError && e.target.value.trim().length >= 10 && e.target.value.trim().length <= 500) {
+                if (revokeReasonError && reasonLimits.isValid(e.target.value)) {
                   setRevokeReasonError(null);
                 }
               }}
               error={revokeReasonError}
-              min={10}
-              max={500}
               disabled={actionLoading}
               required
             />

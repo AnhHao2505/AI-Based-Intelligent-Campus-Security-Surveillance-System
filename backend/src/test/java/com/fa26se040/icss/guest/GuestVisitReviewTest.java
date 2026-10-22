@@ -132,11 +132,13 @@ public class GuestVisitReviewTest extends GuestTestSupport {
     }
 
     @Test
-    @DisplayName("GV-11: host mất AP giữa lúc tạo và lúc duyệt -> 409 ERR_GUEST_021, không duyệt, không audit APPROVE")
+    @DisplayName("GV-11: host thiếu cấp mất AP giữa lúc tạo và lúc duyệt -> 409 ERR_GUEST_021, không duyệt, không audit APPROVE")
     void approve_recheck_hostLostAp() throws Exception {
+        // V83: host cấp 2 phủ khu Bảo mật bằng cấp; đường AP chỉ còn với host cấp 1 (GUEST_HOST_MIN_LEVEL = 1)
+        setConfig(ConfigKey.GUEST_HOST_MIN_LEVEL, "1");
         OffsetDateTime s = future(0), e = future(120);
-        AreaAssignedPersonnel ap = newAp(contactArea, hostL2, s.minusDays(1), e.plusDays(1));
-        UUID id = createVisit(hostL2, List.of(contactArea), s, e);
+        AreaAssignedPersonnel ap = newAp(contactArea, hostL1, s.minusDays(1), e.plusDays(1));
+        UUID id = createVisit(hostL1, List.of(contactArea), s, e);
         ap.setRevokedAt(OffsetDateTime.now());
         ap.setRevokedBy(fm);
         ap.setRevokeReason("Thu hồi AP giữa chừng để thử BR-GV-11");
@@ -157,21 +159,21 @@ public class GuestVisitReviewTest extends GuestTestSupport {
         userRepository.save(h);
         assertRejected(review(fm, a, 0L, "APPROVED", null), 409, "ERR_GUEST_021");
 
-        Area area2 = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        Area area2 = newArea(AreaLevel.CONFIDENTIAL);
         UUID b = createVisit(otherHost, List.of(area2), future(0), future(120));
         Area x = reload(area2);
         x.setAreaLevel(AreaLevel.HIGHLY_CONFIDENTIAL);
         areaRepository.save(x);
         assertRejected(review(fm, b, 0L, "APPROVED", null), 409, "ERR_GUEST_021");
 
-        Area area3 = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        Area area3 = newArea(AreaLevel.CONFIDENTIAL);
         UUID c = createVisit(otherHost, List.of(area3), future(0), future(120));
         Area y = reload(area3);
         y.setIsActive(false);
         areaRepository.save(y);
         assertRejected(review(fm, c, 0L, "APPROVED", null), 409, "ERR_GUEST_021");
 
-        Area area4 = newArea(AreaLevel.INTERNAL_CONFIDENTIAL, 2, false);
+        Area area4 = newArea(AreaLevel.CONFIDENTIAL);
         UUID d = createVisit(otherHost, List.of(area4), future(0), future(180));
         setConfig(ConfigKey.GUEST_VISIT_MAX_HOURS, "2");
         assertRejected(review(fm, d, 0L, "APPROVED", null), 409, "ERR_GUEST_021");

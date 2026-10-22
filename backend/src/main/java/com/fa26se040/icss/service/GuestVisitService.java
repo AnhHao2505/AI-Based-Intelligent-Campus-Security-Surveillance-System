@@ -1,5 +1,6 @@
 package com.fa26se040.icss.service;
 
+import com.fa26se040.icss.dto.systemconfig.ReasonLimits;
 import com.fa26se040.icss.dto.audit.AuditActor;
 import com.fa26se040.icss.dto.guest.*;
 import com.fa26se040.icss.entity.Area;
@@ -43,6 +44,7 @@ public class GuestVisitService {
     private final UserRepository userRepository;
     private final NotificationRepository notificationRepository;
     private final SystemConfigService systemConfigService;
+    private final ReasonValidator reasonValidator;
     private final GuestRules rules;
     private final GuestBiometricService biometricService;
     private final AuditService auditService;
@@ -176,7 +178,7 @@ public class GuestVisitService {
 
     /**
      * BR-GV-04: khu vực chọn được trong form lượt khách — cùng điều kiện với checkArea (đang hoạt động, chưa xoá mềm,
-     * loại INTERNAL / CONTACT). Không lọc theo cờ explicit nên có cả khu vực INTERNAL.
+     * loại Bảo mật, V83).
      * BR-GV-06 (host phủ khu vực) phụ thuộc khung giờ: khi có đủ startTime và endTime thì mỗi khu vực kèm hostCanInvite
      * và reasonCode, tính bằng đúng GuestRules.hostEligible + hostCoversArea mà bước tạo lượt dùng (ERR_GUEST_002 /
      * ERR_GUEST_014). Thiếu một trong hai thì không tính (giữ như trước). Bước tạo lượt vẫn kiểm lại.
@@ -483,25 +485,31 @@ public class GuestVisitService {
         visit.setVersion((visit.getVersion() != null ? visit.getVersion() : 0L) + 1);
     }
 
-    /** Lý do tuỳ chọn: rỗng = không gửi; có thì 10–500 sau trim. */
-    static String optionalReason(String raw) {
+    /** Lý do tuỳ chọn: rỗng = không gửi; có thì REASON_MIN_LENGTH..REASON_MAX_LENGTH sau trim (checklist 6.1). */
+    String optionalReason(String raw) {
         String t = raw != null ? raw.trim() : "";
         if (t.isEmpty()) {
             return null;
         }
-        if (t.length() < 10 || t.length() > 500) {
-            throw new GuestException(GuestErrorCode.ERR_GUEST_019);
+        if (!reasonValidator.isValid(t)) {
+            throw reasonError();
         }
         return t;
     }
 
-    /** Lý do bắt buộc 10–500 sau trim. */
-    static String requiredReason(String raw) {
+    /** Lý do bắt buộc REASON_MIN_LENGTH..REASON_MAX_LENGTH sau trim. */
+    String requiredReason(String raw) {
         String t = optionalReason(raw);
         if (t == null) {
-            throw new GuestException(GuestErrorCode.ERR_GUEST_019);
+            throw reasonError();
         }
         return t;
+    }
+
+    /** ERR_GUEST_019 ghi giới hạn độ dài lý do đang cấu hình. */
+    private GuestException reasonError() {
+        ReasonLimits limits = reasonValidator.limits();
+        return new GuestException(GuestErrorCode.ERR_GUEST_019, limits.minLength(), limits.maxLength());
     }
 
     void deleteAllBiometrics(GuestVisit visit, OffsetDateTime now, AuditActor actor, String reason) {

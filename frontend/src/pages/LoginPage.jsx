@@ -19,6 +19,10 @@ const credentialSchema = z.object({
   password: z.string().min(6, 'Mật khẩu phải có ít nhất 6 ký tự.'),
 });
 
+// Câu dự phòng, giống câu backend trả cho /api/auth/send-reset-link (không cho biết email có tồn tại hay không)
+const FORGOT_PASSWORD_MESSAGE =
+  'Nếu e-mail tồn tại trong hệ thống, bạn sẽ nhận được hướng dẫn đặt lại mật khẩu qua e-mail.';
+
 export default function LoginPage({ onLoginSuccess, initialResetToken, onResetComplete }) {
   const { loginWithGoogleToken, loginWithPassword, loginAsDemoRole } = useAuth();
   const navigate = useNavigate();
@@ -30,6 +34,7 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [forgotMessage, setForgotMessage] = useState(null);
 
   // Form states
   const [email, setEmail] = useState('');
@@ -111,7 +116,7 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
     setError(null);
     setLoading(true);
     try {
-      await sendResetLink(email);
+      setForgotMessage(await sendResetLink(email));
       setSuccess(true);
     } catch (err) {
       console.error('Forgot password link request failed:', err);
@@ -282,7 +287,7 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
                   <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
                   <path d="M9 12L11 14L15 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
-                <span>Yêu cầu khôi phục mật khẩu đã được gửi đi! Vui lòng kiểm tra hòm thư của bạn để lấy đường dẫn xác nhận.</span>
+                <span>{forgotMessage || FORGOT_PASSWORD_MESSAGE}</span>
               </div>
             ) : (
               <form className="login-card__form" onSubmit={handleForgotSubmit}>

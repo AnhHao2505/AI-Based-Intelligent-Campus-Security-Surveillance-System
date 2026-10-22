@@ -24,7 +24,7 @@ import { getLevelConfig, AREA_LEVEL_CONFIG } from "../../utils/areaHelpers";
 import { useAuth } from "../../context/AuthContext";
 import "../../styles/AccessRequestPage.css";
 import PageHeader from "../../components/ui/PageHeader";
-import { LoadingState, EmptyState, ErrorState } from "../../components/ui";
+import { LoadingState, EmptyState, ErrorState, DialogPanel, Select } from "../../components/ui";
 import { formatLocation } from "../../utils/formatLocation";
 import { formatDateTime, formatRange } from "../../utils/formatDateTime";
 import MemberCodeCombobox from "../../components/accessRequest/MemberCodeCombobox";
@@ -43,6 +43,8 @@ export default function AccessRequestPage() {
 	// Form State
 	const [selectedAreaId, setSelectedAreaId] = useState("");
 	const [requestType, setRequestType] = useState("INDIVIDUAL"); // 'INDIVIDUAL' | 'GROUP'
+	// V83: khu xin được theo từng loại đơn (available-areas?type=INDIVIDUAL|GROUP)
+	const [areasByType, setAreasByType] = useState({ INDIVIDUAL: [], GROUP: [] });
 	const [requestDate, setRequestDate] = useState("");
 	// UI-15: ngày kết thúc riêng để đặt được đơn qua nửa đêm (mặc định = ngày bắt đầu)
 	const [endDate, setEndDate] = useState("");
@@ -178,9 +180,19 @@ export default function AccessRequestPage() {
 		setLoadingAreas(true);
 		setAreasError(null);
 		try {
-			const data = await accessRequestService.getAvailableAreas();
-			const list = Array.isArray(data) ? data : data?.content || [];
-			setAreas(list);
+			// V83: danh sách theo loại đơn (BE dùng cùng điều kiện với API tạo đơn)
+			const [individual, group] = await Promise.all([
+				accessRequestService.getAvailableAreas("INDIVIDUAL"),
+				accessRequestService.getAvailableAreas("GROUP"),
+			]);
+			const asList = (d) => (Array.isArray(d) ? d : d?.content || []);
+			const byType = { INDIVIDUAL: asList(individual), GROUP: asList(group) };
+			setAreasByType(byType);
+			const union = new Map();
+			[...byType.INDIVIDUAL, ...byType.GROUP].forEach((a) => union.set(a.id, a));
+			setAreas([...union.values()]);
+			// Tab mặc định: cá nhân nếu có khu, không thì nhóm
+			setRequestType((prev) => (byType[prev].length > 0 ? prev : byType.INDIVIDUAL.length > 0 ? "INDIVIDUAL" : "GROUP"));
 		} catch (err) {
 			console.error("Lỗi khi tải danh sách khu vực:", err);
 			// Lỗi tải không được hiểu là "không có khu" — hiện lỗi + Thử lại
@@ -277,25 +289,25 @@ export default function AccessRequestPage() {
 	}, [highlightRequestId]);
 
 	// Selected area object
-	const areaList = Array.isArray(areas) ? areas : areas?.content || [];
+	// V83: mỗi tab một danh sách (cá nhân: khu cấp cao hơn bạn trong khoảng cho phép; nhóm: khu bạn tự vào được
+	// bằng cấp để bảo lãnh thành viên). BE kiểm lại đúng điều kiện này khi tạo đơn.
+	const areaList = areasByType[requestType] || [];
 	const currentArea = areaList.find((a) => a.id === selectedAreaId);
+	const noIndividualAreas = areasByType.INDIVIDUAL.length === 0;
+	const noGroupAreas = areasByType.GROUP.length === 0;
 
-	// A-06 (BR-RQ-28): khu vực có nhận đơn nhóm hay không do BE quyết (cờ groupRequestAllowed của available-areas,
-	// theo ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE). Thiếu cờ thì giữ luật mặc định: Tuyệt mật chỉ nhận đơn cá nhân.
-	const isGroupBlocked = (area) => {
-		if (!area) return false;
-		if (typeof area.groupRequestAllowed === "boolean") return !area.groupRequestAllowed;
-		return area.areaLevel === "HIGHLY_CONFIDENTIAL" || area.areaLevel === "PRIVATE";
-	};
-	const groupBlocked = isGroupBlocked(currentArea);
-
-	// When area changes, if area does not accept group requests, force INDIVIDUAL
 	const handleAreaChange = (e) => {
-		const areaId = e.target.value;
-		setSelectedAreaId(areaId);
-		const found = areaList.find((a) => a.id === areaId);
-		if (isGroupBlocked(found)) {
-			setRequestType("INDIVIDUAL");
+		setSelectedAreaId(e.target.value);
+	};
+
+	// Đổi tab: khu đang chọn không có trong danh sách của tab mới thì bỏ chọn; sang cá nhân thì bỏ danh sách thành viên
+	const handleRequestTypeChange = (type) => {
+		if (type === requestType) return;
+		setRequestType(type);
+		if (!(areasByType[type] || []).some((a) => a.id === selectedAreaId)) {
+			setSelectedAreaId("");
+		}
+		if (type === "INDIVIDUAL") {
 			setMemberList([]);
 		}
 	};
@@ -423,13 +435,6 @@ export default function AccessRequestPage() {
 
 		let cleanMemberCodes = [];
 		if (requestType === "GROUP") {
-			if (groupBlocked) {
-				setFormError(
-					`Khu vực ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name} chỉ cho phép đăng ký cá nhân.`,
-				);
-				return;
-			}
-
 			if (memberList.length === 0) {
 				setFormError(
 					"Yêu cầu theo nhóm bắt buộc phải thêm ít nhất một mã số thành viên",
@@ -620,32 +625,76 @@ export default function AccessRequestPage() {
 					onSubmit={handleSubmit}
 					className="arp-card__body"
 				>
-					{/* TRƯỜNG 1: Khu vực cần truy cập */}
+					{/* TRƯỜNG 1: Hình thức đăng ký (V83: chọn trước, danh sách khu theo loại đơn) */}
 					<div className="arp-form-group">
-						<label className="arp-label">
+						<div className="arp-label" id="arp-type-label">
+							<span>Hình thức đăng ký</span>
+							<span className="arp-required">*</span>
+						</div>
+						<div className="arp-type-grid" role="group" aria-labelledby="arp-type-label">
+							<button
+								type="button"
+								className={`arp-type-btn ${requestType === "INDIVIDUAL" ? "arp-type-btn--selected" : ""}`}
+								aria-pressed={requestType === "INDIVIDUAL"}
+								onClick={() => handleRequestTypeChange("INDIVIDUAL")}
+								disabled={noIndividualAreas || submitting}
+								title={noIndividualAreas ? "Không có khu vực nào cấp cao hơn cấp của bạn trong phạm vi được xin" : ""}
+							>
+								<User
+									size={18}
+									className="arp-type-btn__icon"
+								/>
+								<div className="arp-type-btn__name">Cá nhân</div>
+								<div className="arp-type-btn__desc">
+									Đăng ký quyền ra vào khu vực cho chính bạn.
+								</div>
+							</button>
+
+							<button
+								type="button"
+								className={`arp-type-btn ${requestType === "GROUP" ? "arp-type-btn--selected" : ""}`}
+								aria-pressed={requestType === "GROUP"}
+								onClick={() => handleRequestTypeChange("GROUP")}
+								disabled={noGroupAreas || submitting}
+								title={
+									noGroupAreas
+										? "Đơn nhóm dành cho người tự vào được khu vực Bảo mật bằng cấp truy cập để bảo lãnh thành viên"
+										: ""
+								}
+							>
+								<Users
+									size={18}
+									className="arp-type-btn__icon"
+								/>
+								<div className="arp-type-btn__name">Nhóm nội bộ</div>
+								<div className="arp-type-btn__desc">
+									Đăng ký quyền ra vào cho một nhóm thành viên theo danh sách mã
+									số.
+								</div>
+							</button>
+						</div>
+					</div>
+
+					{/* TRƯỜNG 2: Khu vực cần truy cập */}
+					<div className="arp-form-group">
+						<label className="arp-label" htmlFor="arp-area">
 							<span>Khu vực cần truy cập</span>
 							<span className="arp-required">*</span>
 						</label>
-						<select
-							className="arp-select"
+						<Select
+							id="arp-area"
 							value={selectedAreaId}
 							onChange={handleAreaChange}
 							disabled={loadingAreas || submitting}
 							required
-						>
-							<option value="">-- Chọn khu vực cần đăng ký truy cập --</option>
-							{areas.map((a) => {
-								const loc = formatLocation(a.building, a.floor);
-								return (
-									<option
-										key={a.id}
-										value={a.id}
-									>
-										{loc ? `${a.name} (${loc})` : a.name}
-									</option>
-								);
-							})}
-						</select>
+							options={[
+								{ value: "", label: "-- Chọn khu vực cần đăng ký truy cập --" },
+								...areaList.map((a) => {
+									const loc = formatLocation(a.building, a.floor);
+									return { value: a.id, label: loc ? `${a.name} (${loc})` : a.name };
+								}),
+							]}
+						/>
 
 						{currentArea &&
 							(() => {
@@ -680,69 +729,18 @@ export default function AccessRequestPage() {
 												</span>
 											</div>
 											<div>
-												{isHighlyConf
-													? groupBlocked
-														? `Khu vực ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name}. Chỉ áp dụng hình thức đăng ký truy cập Cá nhân (không hỗ trợ đăng ký theo nhóm).`
-														: `Khu vực ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name}. Đơn nhóm được phép theo cấu hình hệ thống; thành viên cần đáp ứng điều kiện cấp độ truy cập của khu vực.`
-													: currentArea?.areaLevel === "CONFIDENTIAL_CONTACT_REQUIRED"
-													? "Khu vực yêu cầu liên hệ trước. Người tạo đơn đủ cấp độ truy cập có thể bảo lãnh cho các thành viên trong nhóm tham gia cùng thời gian đăng ký."
-													: "Khu vực yêu cầu phê duyệt trước khi vào."}
+												{requestType === "GROUP"
+													? isHighlyConf
+														? `Khu vực ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name}. Đơn nhóm được phép theo cấu hình hệ thống; thành viên cần đủ cấp truy cập của khu vực.`
+														: "Khu vực Bảo mật. Bạn vào được bằng cấp truy cập và có thể bảo lãnh thành viên chưa đủ cấp tham gia cùng thời gian đăng ký."
+													: isHighlyConf
+														? `Khu vực ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name}. Đơn cá nhân vào khu vực cấp cao hơn cấp của bạn, cần Ban quản lý duyệt.`
+														: "Khu vực Bảo mật. Đơn cá nhân vào khu vực cấp cao hơn cấp của bạn, cần Ban quản lý duyệt."}
 											</div>
 										</div>
 									</div>
 								);
 							})()}
-					</div>
-
-					{/* TRƯỜNG 2: Hình thức đăng ký */}
-					<div className="arp-form-group">
-						<label className="arp-label">
-							<span>Hình thức đăng ký</span>
-							<span className="arp-required">*</span>
-						</label>
-						<div className="arp-type-grid">
-							<button
-								type="button"
-								className={`arp-type-btn ${requestType === "INDIVIDUAL" ? "arp-type-btn--selected" : ""}`}
-								onClick={() => setRequestType("INDIVIDUAL")}
-								disabled={submitting}
-							>
-								<User
-									size={18}
-									className="arp-type-btn__icon"
-								/>
-								<div className="arp-type-btn__name">Cá nhân</div>
-								<div className="arp-type-btn__desc">
-									Đăng ký quyền ra vào khu vực cho chính bạn.
-								</div>
-							</button>
-
-							<button
-								type="button"
-								className={`arp-type-btn ${requestType === "GROUP" ? "arp-type-btn--selected" : ""}`}
-								onClick={() => {
-									if (!groupBlocked) {
-										setRequestType("GROUP");
-									}
-								}}
-								disabled={groupBlocked || submitting}
-								title={
-									groupBlocked
-										? `Khu vực ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.name} chỉ cho phép đăng ký cá nhân`
-										: ""
-								}
-							>
-								<Users
-									size={18}
-									className="arp-type-btn__icon"
-								/>
-								<div className="arp-type-btn__name">Nhóm nội bộ</div>
-								<div className="arp-type-btn__desc">
-									Đăng ký quyền ra vào cho một nhóm thành viên theo danh sách mã
-									số.
-								</div>
-							</button>
-						</div>
 					</div>
 
 					{/* TRƯỜNG 3: Khung thời gian */}
@@ -753,8 +751,9 @@ export default function AccessRequestPage() {
 						</label>
 						<div className="arp-time-grid arp-time-grid--range">
 							<div>
-								<label className="arp-sub-label">Từ ngày</label>
+								<label className="arp-sub-label" htmlFor="arp-start-date">Từ ngày</label>
 								<input
+									id="arp-start-date"
 									type="date"
 									className="arp-input"
 									value={requestDate}
@@ -764,8 +763,9 @@ export default function AccessRequestPage() {
 								/>
 							</div>
 							<div>
-								<label className="arp-sub-label">Từ giờ</label>
+								<label className="arp-sub-label" htmlFor="arp-start-time">Từ giờ</label>
 								<input
+									id="arp-start-time"
 									type="time"
 									className="arp-input"
 									value={startHour}
@@ -775,8 +775,9 @@ export default function AccessRequestPage() {
 								/>
 							</div>
 							<div>
-								<label className="arp-sub-label">Đến ngày</label>
+								<label className="arp-sub-label" htmlFor="arp-end-date">Đến ngày</label>
 								<input
+									id="arp-end-date"
 									type="date"
 									className="arp-input"
 									value={endDate || requestDate}
@@ -787,8 +788,9 @@ export default function AccessRequestPage() {
 								/>
 							</div>
 							<div>
-								<label className="arp-sub-label">Đến giờ</label>
+								<label className="arp-sub-label" htmlFor="arp-end-time">Đến giờ</label>
 								<input
+									id="arp-end-time"
 									type="time"
 									className="arp-input"
 									value={endHour}
@@ -804,8 +806,8 @@ export default function AccessRequestPage() {
 									fontSize: "12px",
 									marginTop: "6px",
 									color: timeSummary.isError
-										? "var(--theme-danger, #ef4444)"
-										: "var(--theme-text-secondary, #94a3b8)",
+										? "var(--theme-danger)"
+										: "var(--theme-text-secondary)",
 								}}
 							>
 								{timeSummary.text}
@@ -816,12 +818,13 @@ export default function AccessRequestPage() {
 					{/* TRƯỜNG 4: Danh sách thành viên (nếu chọn GROUP) */}
 					{requestType === "GROUP" && (
 						<div className="arp-form-group">
-							<label className="arp-label">
+							<label className="arp-label" htmlFor="arp-member-code">
 								<span>Danh sách mã số thành viên nhóm</span>
 								<span className="arp-required">*</span>
 							</label>
 							<div className="arp-member-lookup">
 								<MemberCodeCombobox
+									id="arp-member-code"
 									placeholder="Nhập mã số thành viên (vd: SV-002, GV-001...) hoặc bấm ↓"
 									value={memberCodeInput}
 									onChange={(text) => {
@@ -884,11 +887,12 @@ export default function AccessRequestPage() {
 
 					{/* TRƯỜNG 5: Mục đích sử dụng */}
 					<div className="arp-form-group">
-						<label className="arp-label">
+						<label className="arp-label" htmlFor="arp-purpose">
 							<span>Mục đích sử dụng khu vực</span>
 							<span className="arp-required">*</span>
 						</label>
 						<textarea
+							id="arp-purpose"
 							className="arp-textarea"
 							rows={3}
 							placeholder="Mô tả cụ thể mục đích truy cập (ví dụ: Họp nhóm đồ án Capstone, nghiên cứu phòng Lab Robotics, chuẩn bị sự kiện...)"
@@ -982,30 +986,29 @@ export default function AccessRequestPage() {
 							</button>
 						))}
 
-						<select
-							className="arp-select-filter"
+						<Select
+							className="ui-select-group--filter"
+							aria-label="Lọc theo khu vực"
 							value={historyAreaFilter}
 							onChange={(e) => {
 								setHistoryAreaFilter(e.target.value);
 								setHistoryPage(0);
 							}}
-						>
-							<option value="">Tất cả khu vực</option>
-							{areaList.map((a) => {
-								const loc = formatLocation(a.building, a.floor);
-								return (
-									<option key={a.id} value={a.id}>
-										{loc ? `${a.name} (${loc})` : a.name}
-									</option>
-								);
-							})}
-						</select>
+							options={[
+								{ value: "", label: "Tất cả khu vực" },
+								...areaList.map((a) => {
+									const loc = formatLocation(a.building, a.floor);
+									return { value: a.id, label: loc ? `${a.name} (${loc})` : a.name };
+								}),
+							]}
+						/>
 
 						<button
 							type="button"
 							className="arp-refresh-btn"
 							onClick={() => loadMyRequests(historyPage, historyStatusFilter, historyAreaFilter)}
 							title="Làm mới danh sách"
+							aria-label="Làm mới danh sách"
 							disabled={loadingHistory}
 						>
 							<RefreshCw
@@ -1040,7 +1043,7 @@ export default function AccessRequestPage() {
 						<EmptyState size="sm" icon={Inbox} title="Chưa có yêu cầu nào" />
 					) : (
 						<div className="arp-table-container">
-							<table className="arp-table">
+							<table className="arp-table ui-table--mobile-card">
 								<thead>
 									<tr>
 										<th>Khu vực</th>
@@ -1058,7 +1061,7 @@ export default function AccessRequestPage() {
 												data-request-id={req.id}
 												className={highlightRequestId === req.id ? "arp-row--highlight" : undefined}
 											>
-												<td>
+												<td data-label="Khu vực">
 													<div style={{ fontWeight: 600 }}>{req.areaName}</div>
 													{formatLocation(req.building, req.floor) && (
 														<div className="arp-table-room-code">
@@ -1066,7 +1069,7 @@ export default function AccessRequestPage() {
 														</div>
 													)}
 												</td>
-												<td className="arp-col-type">
+												<td className="arp-col-type" data-label="Hình thức">
 													<span
 														className={`arp-badge ${
 															req.requestType === "GROUP"
@@ -1090,12 +1093,12 @@ export default function AccessRequestPage() {
 														</div>
 													)}
 												</td>
-												<td>
+												<td data-label="Thời gian truy cập">
 													<div style={{ fontSize: "13px" }}>
 														{formatRange(req.startTime, req.endTime)}
 													</div>
 												</td>
-												<td>
+												<td data-label="Trạng thái">
 													<span
 														className={`arp-status-badge arp-status-badge--${req.status.toLowerCase()}`}
 													>
@@ -1144,11 +1147,12 @@ export default function AccessRequestPage() {
 													{/* BR-RQ-47: FM huỷ đơn đã duyệt (cancel_source STAFF) */}
 													{req.status === "CANCELLED" && req.cancelSource === "STAFF" && (
 														<div className="arp-cancel-system" title={req.cancelReason || ""}>
-															Quản lý huỷ: {req.cancelReason}
+															Quản lý hủy: {req.cancelReason}
 														</div>
 													)}
 												</td>
 												<td
+													data-label="Ngày tạo"
 													style={{
 														fontSize: "12px",
 														color: "var(--theme-text-muted)",
@@ -1243,6 +1247,7 @@ export default function AccessRequestPage() {
 								}
 								disabled={historyPage === 0 || loadingHistory}
 								title="Trang trước"
+								aria-label="Trang trước"
 							>
 								<ChevronLeft size={14} />
 							</button>
@@ -1290,6 +1295,7 @@ export default function AccessRequestPage() {
 									historyPage >= historyTotalPages - 1 || loadingHistory
 								}
 								title="Trang sau"
+								aria-label="Trang sau"
 							>
 								<ChevronRight size={14} />
 							</button>
@@ -1304,9 +1310,12 @@ export default function AccessRequestPage() {
 					className="arp-modal-overlay"
 					onClick={() => setSelectedDetail(null)}
 				>
-					<div
+					<DialogPanel
 						className="arp-modal"
 						onClick={(e) => e.stopPropagation()}
+						onClose={() => setSelectedDetail(null)}
+						labelledBy="arp-detail-title"
+						initialFocus="dialog"
 					>
 						<div className="arp-modal__header">
 							<div className="arp-modal__header-title">
@@ -1314,7 +1323,7 @@ export default function AccessRequestPage() {
 									<KeyRound size={16} />
 								</div>
 								<div>
-									<h2 className="arp-modal__title">
+									<h2 className="arp-modal__title" id="arp-detail-title">
 										Chi tiết yêu cầu truy cập
 									</h2>
 								</div>
@@ -1323,6 +1332,8 @@ export default function AccessRequestPage() {
 								type="button"
 								className="arp-modal__close"
 								onClick={() => setSelectedDetail(null)}
+								title="Đóng"
+								aria-label="Đóng"
 							>
 								<X size={16} />
 							</button>
@@ -1383,6 +1394,12 @@ export default function AccessRequestPage() {
 													<span>Hết hạn</span>
 												</>
 											)}
+											{selectedDetail.status === "FINISHED" && (
+												<>
+													<CheckCircle2 size={11} />
+													<span>Hoàn thành</span>
+												</>
+											)}
 										</span>
 										{selectedDetail.status === "CANCELLED" && selectedDetail.cancelSource === "SYSTEM" && (
 											<div className="arp-cancel-system arp-cancel-system--detail">
@@ -1391,7 +1408,13 @@ export default function AccessRequestPage() {
 										)}
 										{selectedDetail.status === "CANCELLED" && selectedDetail.cancelSource === "STAFF" && (
 											<div className="arp-cancel-system arp-cancel-system--detail">
-												Quản lý huỷ: {selectedDetail.cancelReason}
+												Quản lý hủy: {selectedDetail.cancelReason}
+											</div>
+										)}
+										{/* BR-RQ-46 (V88): FM kết thúc đơn đã duyệt */}
+										{selectedDetail.status === "FINISHED" && selectedDetail.finishReason && (
+											<div className="arp-cancel-system arp-cancel-system--detail">
+												Quản lý kết thúc: {selectedDetail.finishReason}
 											</div>
 										)}
 									</div>
@@ -1427,7 +1450,7 @@ export default function AccessRequestPage() {
 													borderRadius: "4px",
 													background: "rgba(59, 130, 246, 0.12)",
 													border: "1px solid rgba(59, 130, 246, 0.25)",
-													color: "var(--brand-blue, #3b82f6)",
+													color: "var(--brand-blue)",
 													fontSize: "11px",
 													fontWeight: 600,
 												}}
@@ -1474,7 +1497,7 @@ export default function AccessRequestPage() {
 												>
 													<strong>{m.userCode}</strong> · {m.fullName}
 													{m.sponsored && (
-														<span style={{ marginLeft: "6px", fontSize: "11px", padding: "1px 6px", borderRadius: "4px", backgroundColor: "rgba(59, 130, 246, 0.15)", color: "var(--brand-blue, #3b82f6)", fontWeight: 600 }}>
+														<span style={{ marginLeft: "6px", fontSize: "11px", padding: "1px 6px", borderRadius: "4px", backgroundColor: "rgba(59, 130, 246, 0.15)", color: "var(--brand-blue)", fontWeight: 600 }}>
 															Bảo lãnh
 														</span>
 													)}
@@ -1519,7 +1542,7 @@ export default function AccessRequestPage() {
 									>
 										Duyệt bởi:{" "}
 										<strong>
-											{selectedDetail.reviewerName || "Quản lý cơ sở"}
+											{selectedDetail.reviewerName || "Quản lý cơ sở vật chất"}
 										</strong>{" "}
 										vào lúc {formatDateTime(selectedDetail.reviewedAt)}
 									</div>
@@ -1536,7 +1559,7 @@ export default function AccessRequestPage() {
 								Đóng
 							</button>
 						</div>
-					</div>
+					</DialogPanel>
 				</div>
 			)}
 

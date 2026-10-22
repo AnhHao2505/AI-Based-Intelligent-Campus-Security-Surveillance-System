@@ -5,7 +5,7 @@ import { Compass, Building2, Layers } from "lucide-react";
 import CampusMapView from "../../components/area/CampusMapView";
 import ErrorBoundary from "../../components/common/ErrorBoundary";
 import PageHeader from "../../components/ui/PageHeader";
-import { LoadingState, ErrorState } from "../../components/ui";
+import { LoadingState, ErrorState, Select } from "../../components/ui";
 import "../../components/ui/Button.css";
 import { getAreas, getAreaCameras } from "../../services/areaService";
 import { getBuildings } from "../../services/buildingService";
@@ -179,13 +179,13 @@ export default function CampusMapPage() {
 			{/* Toolbar */}
 			<div className="zone-toolbar">
 				{/* Building Selector */}
-				<div className="zone-toolbar__building">
+				<div className="zone-toolbar__select">
 					<Building2
 						size={16}
-						className="zone-toolbar__building-icon"
+						className="zone-toolbar__select-icon"
 					/>
-					<select
-						className="zone-toolbar__building-select"
+					<Select
+						className="ui-select-group--filter"
 						value={selectedBuilding}
 						onChange={(e) => {
 							setSelectedBuilding(e.target.value);
@@ -193,44 +193,32 @@ export default function CampusMapPage() {
 							setSelectedAreaId(null);
 						}}
 						title="Lọc khu vực theo tòa nhà"
-					>
-						<option value="ALL">Tất cả tòa nhà</option>
-						{buildingsList.map((b) => (
-							<option
-								key={b.id || b.name}
-								value={b.name}
-							>
-								{b.name}
-							</option>
-						))}
-					</select>
+						options={[
+							{ value: "ALL", label: "Tất cả tòa nhà" },
+							...buildingsList.map((b) => ({ value: b.name, label: b.name })),
+						]}
+					/>
 				</div>
 
 				{/* Floor Options Selector */}
-				<div className="zone-toolbar__building">
+				<div className="zone-toolbar__select">
 					<Layers
 						size={16}
-						className="zone-toolbar__building-icon"
+						className="zone-toolbar__select-icon"
 					/>
-					<select
-						className="zone-toolbar__building-select"
+					<Select
+						className="ui-select-group--filter"
 						value={selectedFloor}
 						onChange={(e) => {
 							setSelectedFloor(e.target.value);
 							setSelectedAreaId(null);
 						}}
 						title="Lọc khu vực theo tầng"
-					>
-						<option value="ALL">Tất cả tầng</option>
-						{availableFloors.map((fl) => (
-							<option
-								key={fl}
-								value={fl}
-							>
-								{fl}
-							</option>
-						))}
-					</select>
+						options={[
+							{ value: "ALL", label: "Tất cả tầng" },
+							...availableFloors.map((fl) => ({ value: fl, label: fl })),
+						]}
+					/>
 				</div>
 				<div className="zone-toolbar__spacer" />
 			</div>

@@ -25,7 +25,7 @@ import {
 import { guardScheduleApi } from '../../api/guardScheduleApi';
 import { getUsers } from '../../services/userService';
 import { ROLES } from '../../constants/roles';
-import { ErrorState } from '../../components/ui';
+import { ErrorState, Select } from '../../components/ui';
 
 // Helper chuẩn hóa tên đội hiển thị (VD: "1" -> "Đội 1")
 const formatTeamName = (name) => {
@@ -1637,16 +1637,16 @@ export default function GuardTeamsTab({
                         <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
                           Ca trực cần tăng cường <span className="text-rose-500">*</span>
                         </label>
-                        <select
+                        <Select
                           value={dispatchShiftType}
                           onChange={(e) => setDispatchShiftType(e.target.value)}
-                          className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-medium"
-                        >
-                          <option value="SHIFT_MORNING">Ca Sáng (06:00 - 14:00)</option>
-                          <option value="SHIFT_AFTERNOON">Ca Chiều (14:00 - 22:00)</option>
-                          <option value="SHIFT_NIGHT">Ca Đêm (22:00 - 06:00)</option>
-                          <option value="ALL">Cả ngày (Tất cả 3 ca)</option>
-                        </select>
+                          options={[
+                            { value: 'SHIFT_MORNING', label: 'Ca Sáng (06:00 - 14:00)' },
+                            { value: 'SHIFT_AFTERNOON', label: 'Ca Chiều (14:00 - 22:00)' },
+                            { value: 'SHIFT_NIGHT', label: 'Ca Đêm (22:00 - 06:00)' },
+                            { value: 'ALL', label: 'Cả ngày (Tất cả 3 ca)' },
+                          ]}
+                        />
                       </div>
                       <div>
                         <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
@@ -1691,16 +1691,16 @@ export default function GuardTeamsTab({
                         <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
                           Khung ca tăng cường
                         </label>
-                        <select
+                        <Select
                           value={dispatchShiftType}
                           onChange={(e) => setDispatchShiftType(e.target.value)}
-                          className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-medium"
-                        >
-                          <option value="ALL">Tất cả các ca (Cả ngày)</option>
-                          <option value="SHIFT_MORNING">Ca Sáng (06:00 - 14:00)</option>
-                          <option value="SHIFT_AFTERNOON">Ca Chiều (14:00 - 22:00)</option>
-                          <option value="SHIFT_NIGHT">Ca Đêm (22:00 - 06:00)</option>
-                        </select>
+                          options={[
+                            { value: 'ALL', label: 'Tất cả các ca (Cả ngày)' },
+                            { value: 'SHIFT_MORNING', label: 'Ca Sáng (06:00 - 14:00)' },
+                            { value: 'SHIFT_AFTERNOON', label: 'Ca Chiều (14:00 - 22:00)' },
+                            { value: 'SHIFT_NIGHT', label: 'Ca Đêm (22:00 - 06:00)' },
+                          ]}
+                        />
                       </div>
                       <div>
                         <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
@@ -1932,26 +1932,22 @@ export default function GuardTeamsTab({
                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
                       <span>Tòa Nhà / Cơ Sở Phụ Trách</span>
                     </label>
-                    <select
+                    <Select
                       value={teamForm.description || ''}
                       onChange={(e) =>
                         setTeamForm((prev) => ({ ...prev, description: e.target.value }))
                       }
-                      className="w-full px-3 py-2 text-xs font-medium rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">-- Chưa gán tòa / Tùy chỉnh sau --</option>
-                      {(buildings || []).map((b) => (
-                        <option key={b.name || b.id} value={b.name || b.id}>
-                          {b.name}
-                        </option>
-                      ))}
-                      {(!buildings || buildings.length === 0) && (
-                        <>
-                          <option value="Tòa Alpha">Tòa Alpha</option>
-                          <option value="Tòa Beta">Tòa Beta</option>
-                        </>
-                      )}
-                    </select>
+                      options={[
+                        { value: '', label: '-- Chưa gán tòa / Tùy chỉnh sau --' },
+                        ...(buildings || []).map((b) => ({ value: b.name || b.id, label: b.name })),
+                        ...(!buildings || buildings.length === 0
+                          ? [
+                              { value: 'Tòa Alpha', label: 'Tòa Alpha' },
+                              { value: 'Tòa Beta', label: 'Tòa Beta' },
+                            ]
+                          : []),
+                      ]}
+                    />
                   </div>
                 </div>
 

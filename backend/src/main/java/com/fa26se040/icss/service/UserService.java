@@ -1,5 +1,6 @@
 package com.fa26se040.icss.service;
 
+import com.fa26se040.icss.config.WebSocketSessionRegistry;
 import com.fa26se040.icss.dto.BulkImportResponse;
 import com.fa26se040.icss.dto.FaceDataResponseDto;
 import com.fa26se040.icss.dto.UserInfo;
@@ -67,7 +68,6 @@ public class UserService {
     );
 
     private static final Set<Role> ALLOWED_CREATE_ROLES = EnumSet.of(
-            Role.ADMIN,
             Role.FACILITY_MANAGER,
             Role.GUARD,
             Role.NORMAL_USER
@@ -89,6 +89,12 @@ public class UserService {
     private final UserBulkImportService userBulkImportService;
     // BR-RQ-SP-05: vô hiệu hoá / xoá tài khoản -> hệ thống huỷ đơn truy cập người đó đứng tên (cùng transaction)
     private final AccessRequestService accessRequestService;
+    // BR-AP-24/25: vô hiệu hoá / xoá tài khoản -> thu hồi Assigned Personnel của người đó (cùng transaction)
+    private final AreaAssignedPersonnelService assignedPersonnelService;
+    // BR-AL-30: kiểm đơn PENDING trước khi đổi cấp
+    private final com.fa26se040.icss.repository.AccessRequestRepository accessRequestRepository;
+    // KI-1: vô hiệu hoá / xoá tài khoản -> đóng phiên WebSocket đang mở của người đó (sau commit)
+    private final WebSocketSessionRegistry webSocketSessionRegistry;
 
     @Value("${ai.service.url:http://localhost:8000}")
     private String aiServiceUrl = "http://localhost:8000";
@@ -123,10 +129,13 @@ public class UserService {
     public StaffAccountCreateResponse createStaffAccount(StaffAccountCreateRequest request) {
         log.info("Creating account for userCode: {}, email: {}, role: {}", request.getUserCode(), request.getEmail(), request.getRole());
 
-        // Validate role must belong to ALLOWED_CREATE_ROLES (ADMIN, FACILITY_MANAGER, GUARD, NORMAL_USER)
+        // Validate role: cấm ADMIN, chỉ cho phép FACILITY_MANAGER, GUARD, NORMAL_USER
         Role role = request.getRole();
+        if (role == Role.ADMIN) {
+            throw new IllegalArgumentException("Hệ thống chỉ cho phép duy nhất 1 Quản trị viên (ADMIN). Không thể tạo thêm tài khoản Quản trị viên.");
+        }
         if (role == null || !ALLOWED_CREATE_ROLES.contains(role)) {
-            throw new IllegalArgumentException("Vai trò không hợp lệ. Chỉ chấp nhận: ADMIN, FACILITY_MANAGER, GUARD, NORMAL_USER");
+            throw new IllegalArgumentException("Vai trò không hợp lệ. Chỉ chấp nhận: FACILITY_MANAGER, GUARD, NORMAL_USER");
         }
 
         // Apply shared normalization
@@ -172,6 +181,8 @@ public class UserService {
                     .build();
 
             User savedUser = userRepository.save(user);
+            // S4: khuôn mặt được đăng ký trước khi có User nên face_data.user_id còn trống -> gắn ngay (cùng transaction)
+            faceDataService.linkToUser(normUserCode, savedUser);
 
             // 6b. Gửi email thông tin tài khoản và mật khẩu khởi tạo
             try {
@@ -261,6 +272,8 @@ public class UserService {
 
     @Transactional
     public UserListResponse toggleActive(UUID userId, String currentAdminEmail) {
+        // BR-AP-27: khoá dòng users trước khi đọc -> gán AP đồng thời cho người này phải chờ (rồi bị BR-AP-04 chặn)
+        userRepository.lockRowById(userId);
         User user = userRepository.findById(userId)
                 .filter(u -> u.getDeletedAt() == null)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với ID: " + userId));
@@ -270,22 +283,32 @@ public class UserService {
         }
 
         boolean deactivating = Boolean.TRUE.equals(user.getIsActive());
+        User actor = deactivating ? resolveAdminActor(currentAdminEmail) : null;
+        OffsetDateTime now = OffsetDateTime.now();
         user.setIsActive(!user.getIsActive());
-        user.setUpdatedAt(OffsetDateTime.now());
+        user.setUpdatedAt(now);
         User updatedUser = userRepository.save(user);
 
-        // BR-RQ-SP-05: chỉ chiều vô hiệu hoá huỷ đơn; kích hoạt lại KHÔNG khôi phục đơn đã huỷ
+        // BR-RQ-SP-05 + BR-AP-24: chỉ chiều vô hiệu hoá huỷ đơn và thu hồi AP; kích hoạt lại KHÔNG khôi phục gì
         if (deactivating) {
-            accessRequestService.cancelActiveRequestsOfRequester(userId, AccessRequestService.REQUESTER_INACTIVE_CANCEL_REASON);
+            withActionCorrelation(() -> {
+                accessRequestService.cancelActiveRequestsOfRequester(userId, AccessRequestService.REQUESTER_INACTIVE_CANCEL_REASON);
+                assignedPersonnelService.revokeAllOfUser(userId, actor, AreaAssignedPersonnelService.REVOKE_REASON_USER_DEACTIVATED, now);
+            });
         }
 
         log.info("Toggled active state for user {}: now {}", userId, updatedUser.getIsActive());
         notifyAiServiceRefreshCache();
+        if (deactivating) {
+            closeWebSocketSessionsAfterCommit(List.of(userId));
+        }
         return UserListResponse.fromEntity(updatedUser);
     }
 
     @Transactional
     public void softDelete(UUID userId, String currentAdminEmail) {
+        // BR-AP-27: khoá dòng users trước khi đọc
+        userRepository.lockRowById(userId);
         User user = userRepository.findById(userId)
                 .filter(u -> u.getDeletedAt() == null)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với ID: " + userId));
@@ -294,16 +317,49 @@ public class UserService {
             throw new IllegalArgumentException("Không thể tự xóa tài khoản của chính mình.");
         }
 
-        user.setDeletedAt(OffsetDateTime.now());
+        User actor = resolveAdminActor(currentAdminEmail);
+        OffsetDateTime now = OffsetDateTime.now();
+        user.setDeletedAt(now);
         user.setIsActive(false);
-        user.setUpdatedAt(OffsetDateTime.now());
+        user.setUpdatedAt(now);
         userRepository.save(user);
 
-        // BR-RQ-SP-05: xoá tài khoản -> huỷ đơn người đó đứng tên (cùng transaction)
-        accessRequestService.cancelActiveRequestsOfRequester(userId, AccessRequestService.REQUESTER_INACTIVE_CANCEL_REASON);
+        // BR-RQ-SP-05 + BR-AP-25: xoá tài khoản -> huỷ đơn người đó đứng tên và thu hồi AP (cùng transaction)
+        withActionCorrelation(() -> {
+            accessRequestService.cancelActiveRequestsOfRequester(userId, AccessRequestService.REQUESTER_INACTIVE_CANCEL_REASON);
+            assignedPersonnelService.revokeAllOfUser(userId, actor, AreaAssignedPersonnelService.REVOKE_REASON_USER_DELETED, now);
+        });
 
         log.info("Soft-deleted user {}", userId);
         notifyAiServiceRefreshCache();
+        closeWebSocketSessionsAfterCommit(List.of(userId));
+    }
+
+    /** BR-AP-24/25: ADMIN đang thao tác, ghi vào revoked_by và audit USER (chk_audit_actor cần changed_by). */
+    private User resolveAdminActor(String currentAdminEmail) {
+        if (currentAdminEmail == null) {
+            throw new UnauthorizedException("Phiên đăng nhập không hợp lệ");
+        }
+        return userRepository.findByEmail(currentAdminEmail)
+                .orElseThrow(() -> new UnauthorizedException("Phiên đăng nhập không hợp lệ"));
+    }
+
+    /**
+     * Mọi audit của một thao tác (huỷ đơn + thu hồi AP) dùng chung một correlation. Request HTTP đã có correlation
+     * từ AuditCorrelationFilter; gọi trực tiếp (test, job) thì tự đặt rồi gỡ, như AreaService.
+     */
+    private void withActionCorrelation(Runnable task) {
+        boolean ownCorrelation = com.fa26se040.icss.context.AuditContext.getCorrelationId() == null;
+        if (ownCorrelation) {
+            com.fa26se040.icss.context.AuditContext.setCorrelationId(UUID.randomUUID());
+        }
+        try {
+            task.run();
+        } finally {
+            if (ownCorrelation) {
+                com.fa26se040.icss.context.AuditContext.clearCorrelationId();
+            }
+        }
     }
 
     /**
@@ -320,6 +376,29 @@ public class UserService {
                 refreshHttpCaller.accept(targetUrl);
             }
         });
+
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    task.run();
+                }
+            });
+        } else {
+            task.run();
+        }
+    }
+
+    /**
+     * KI-1: đóng phiên WebSocket của các user SAU KHI transaction commit; rollback thì không đóng.
+     * Không có transaction (gọi trực tiếp) thì đóng ngay, cùng cách notifyAiServiceRefreshCache.
+     */
+    void closeWebSocketSessionsAfterCommit(Collection<UUID> userIds) {
+        List<UUID> ids = List.copyOf(userIds);
+        if (ids.isEmpty()) {
+            return;
+        }
+        Runnable task = () -> ids.forEach(webSocketSessionRegistry::closeSessionsOf);
 
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -350,22 +429,31 @@ public class UserService {
     }
 
     @Transactional
-    public BatchDeleteResponse deleteBatch(UUID batchId) {
+    public BatchDeleteResponse deleteBatch(UUID batchId, String currentAdminEmail) {
         if (!userRepository.existsByImportBatchId(batchId)) {
             throw new ResourceNotFoundException("Không tìm thấy lô import với mã: " + batchId);
         }
-        // BR-RQ-SP-05: huỷ đơn của từng tài khoản sắp bị gỡ (lấy trước câu UPDATE hàng loạt), cùng transaction
+        User actor = resolveAdminActor(currentAdminEmail);
+        // BR-RQ-SP-05 + BR-AP-25: huỷ đơn và thu hồi AP của từng tài khoản sắp bị gỡ (lấy trước câu UPDATE hàng loạt),
+        // cùng transaction. BR-AP-27: khoá từng dòng users theo thứ tự id (cùng thứ tự với khoá người tham gia đơn).
         List<UUID> usersToDelete = userRepository.findByImportBatchIdOrderByUserCodeAsc(batchId).stream()
                 .filter(u -> u.getDeletedAt() == null)
                 .map(User::getId)
+                .sorted(Comparator.comparing(UUID::toString))
                 .toList();
-        for (UUID uid : usersToDelete) {
-            accessRequestService.cancelActiveRequestsOfRequester(uid, AccessRequestService.REQUESTER_INACTIVE_CANCEL_REASON);
-        }
+        OffsetDateTime now = OffsetDateTime.now();
+        withActionCorrelation(() -> {
+            for (UUID uid : usersToDelete) {
+                userRepository.lockRowById(uid);
+                accessRequestService.cancelActiveRequestsOfRequester(uid, AccessRequestService.REQUESTER_INACTIVE_CANCEL_REASON);
+                assignedPersonnelService.revokeAllOfUser(uid, actor, AreaAssignedPersonnelService.REVOKE_REASON_USER_DELETED, now);
+            }
+        });
         int deletedCount = userRepository.softDeleteByImportBatchId(batchId);
         log.info("Soft-deleted import batch {}: {} users affected", batchId, deletedCount);
         if (deletedCount > 0) {
             notifyAiServiceRefreshCache();
+            closeWebSocketSessionsAfterCommit(usersToDelete);
         }
         return new BatchDeleteResponse(batchId, deletedCount, "Đã gỡ " + deletedCount + " tài khoản trong lô.");
     }
@@ -569,10 +657,10 @@ public class UserService {
                     "      <c r=\"A5\" t=\"inlineStr\"><is><t>AD001</t></is></c>\n" +
                     "      <c r=\"B5\" t=\"inlineStr\"><is><t>Phạm Minh Đức</t></is></c>\n" +
                     "      <c r=\"C5\" t=\"inlineStr\"><is><t>pmd@fpt.edu.vn</t></is></c>\n" +
-                    "      <c r=\"D5\" t=\"inlineStr\"><is><t>ADMIN</t></is></c>\n" +
+                    "      <c r=\"D5\" t=\"inlineStr\"><is><t>FACILITY_MANAGER</t></is></c>\n" +
                     "    </row>\n" +
                     "    <row r=\"7\">\n" +
-                    "      <c r=\"A7\" t=\"inlineStr\"><is><t>CHÚ THÍCH: Cột role bắt buộc nhập chính xác 1 trong các giá trị: ADMIN, FACILITY_MANAGER, GUARD. Không để trống. Không chấp nhận NORMAL_USER. Xóa các dòng mẫu trước khi nạp.</t></is></c>\n" +
+                    "      <c r=\"A7\" t=\"inlineStr\"><is><t>CHÚ THÍCH: Cột role bắt buộc nhập chính xác 1 trong các giá trị: FACILITY_MANAGER, GUARD. Không để trống. Không chấp nhận NORMAL_USER hoặc ADMIN. Xóa các dòng mẫu trước khi nạp.</t></is></c>\n" +
                     "    </row>\n" +
                     "  </sheetData>\n" +
                     "</worksheet>");
@@ -653,6 +741,8 @@ public class UserService {
                 throw new AccessDeniedException("Bạn không thể tự thay đổi cấp truy cập của chính mình");
             }
         }
+        // BR-AL-30: khoá dòng users trước khi đọc -> tạo đơn đồng thời cho người này phải chờ (hoặc ngược lại)
+        userRepository.lockRowById(id);
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng"));
         if (user.getDeletedAt() != null) {
@@ -675,6 +765,16 @@ public class UserService {
                     user.getRole(),
                     user.getAccessLevel()
             );
+        }
+
+        // BR-AL-30: người tạo / thành viên của đơn PENDING -> 409, không lưu, không audit (cả nâng lẫn hạ; APPROVED không chặn).
+        // Đổi nhiều người gọi lại hàm này nên người đó FAILED kèm thông báo, người khác vẫn chạy.
+        List<String> pendingAreas = accessRequestRepository.findPendingAreaNamesForParticipant(id);
+        if (pendingAreas != null && !pendingAreas.isEmpty()) {
+            throw new com.fa26se040.icss.exception.AccessControlException(
+                    com.fa26se040.icss.exception.AccessControlErrorCode.ERR_AC_011,
+                    user.getUserCode(), user.getFullName(), pendingAreas.size(),
+                    String.join(", ", new java.util.LinkedHashSet<>(pendingAreas)));
         }
 
         Integer oldLevel = user.getAccessLevel();

@@ -31,6 +31,7 @@ import {
 import "../../styles/GuestVisitPage.css";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
+import { useReasonLimits } from "../../hooks/useReasonLimits";
 
 const PAGE_SIZE = 10;
 const EMPTY_GUEST = { fullName: "", organization: "" };
@@ -57,6 +58,7 @@ function ReasonBlock({ label, value }) {
 }
 
 export default function GuestVisitPage() {
+	const reasonLimits = useReasonLimits();
 	// Danh sách
 	const [visits, setVisits] = useState([]);
 	const [page, setPage] = useState(0);
@@ -272,8 +274,8 @@ export default function GuestVisitPage() {
 	const submitCancel = async () => {
 		if (!cancelTarget) return;
 		const trimmed = cancelReason.trim();
-		if (trimmed.length > 0 && (trimmed.length < 10 || trimmed.length > 500)) {
-			setCancelReasonError(`Nếu nhập, lý do phải từ 10 đến 500 ký tự (hiện có ${trimmed.length}).`);
+		if (trimmed.length > 0 && !reasonLimits.isValid(trimmed)) {
+			setCancelReasonError(`Nếu nhập, ${reasonLimits.error(trimmed, "lý do")}`);
 			cancelReasonRef.current?.focus();
 			return;
 		}
@@ -314,7 +316,7 @@ export default function GuestVisitPage() {
 		<div className="guest-visit">
 			<PageHeader
 				title="Khách của tôi"
-				description="Đăng ký lượt khách vào khu vực hạn chế. Quản lý cơ sở duyệt, quản trị viên gắn ảnh khách sau khi khách đồng ý tại quầy."
+				description="Đăng ký lượt khách vào khu vực hạn chế. Quản lý cơ sở vật chất duyệt, quản trị viên gắn ảnh khách sau khi khách đồng ý tại quầy."
 				actions={
 					<>
 						<Button variant="secondary" icon={RefreshCw} onClick={() => loadVisits(page)} loading={loading}>
@@ -350,7 +352,12 @@ export default function GuestVisitPage() {
 				) : listError ? (
 					<ErrorState size="sm" message={listError} onRetry={() => loadVisits(page)} />
 				) : visits.length === 0 ? (
-					<EmptyState size="sm" icon={Inbox} title="Bạn chưa có lượt khách nào" />
+					<EmptyState
+						size="sm"
+						icon={Inbox}
+						title="Bạn chưa có lượt khách nào"
+						description={cannotHost ? undefined : "Bấm “Tạo lượt khách” để đăng ký khách đến làm việc."}
+					/>
 				) : (
 					<table className="guest-visit__table">
 						<thead>
@@ -439,6 +446,7 @@ export default function GuestVisitPage() {
 			{/* Tạo lượt khách */}
 			<Modal
 				isOpen={createOpen}
+				initialFocus="field"
 				onClose={() => !creating && setCreateOpen(false)}
 				title="Tạo lượt khách"
 				subtitle="Chỉ nhập họ tên và đơn vị của khách. Hệ thống không nhận CCCD, số điện thoại, địa chỉ hay email."
@@ -497,7 +505,7 @@ export default function GuestVisitPage() {
 					</div>
 
 					<div className="guest-visit__field">
-						<span className="guest-visit__label">Khu vực * (chỉ loại Bảo mật nội bộ hoặc Liên hệ trước)</span>
+						<span className="guest-visit__label">Khu vực * (chỉ loại Bảo mật)</span>
 						{loadingAreas ? (
 							<span className="guest-visit__muted">Đang tải khu vực…</span>
 						) : selectableAreas.length === 0 ? (
@@ -542,12 +550,14 @@ export default function GuestVisitPage() {
 						{guests.map((g, i) => (
 							<div className="guest-visit__guest-row" key={i}>
 								<input
+									aria-label={`Họ tên khách ${i + 1}`}
 									placeholder="Họ tên (2–100 ký tự)"
 									value={g.fullName}
 									maxLength={100}
 									onChange={(e) => updateGuest(i, "fullName", e.target.value)}
 								/>
 								<input
+									aria-label={`Đơn vị của khách ${i + 1}`}
 									placeholder="Đơn vị (không bắt buộc)"
 									value={g.organization}
 									maxLength={200}
@@ -559,7 +569,8 @@ export default function GuestVisitPage() {
 									icon={Trash2}
 									onClick={() => removeGuest(i)}
 									disabled={guests.length <= 1}
-									aria-label="Xóa khách"
+									aria-label={`Xóa khách ${i + 1}`}
+									title="Xóa khách"
 								/>
 							</div>
 						))}
@@ -685,14 +696,12 @@ export default function GuestVisitPage() {
 					value={cancelReason}
 					onChange={(e) => {
 						setCancelReason(e.target.value);
-						if (cancelReasonError && (e.target.value.trim().length === 0 || (e.target.value.trim().length >= 10 && e.target.value.trim().length <= 500))) {
+						if (cancelReasonError && (e.target.value.trim().length === 0 || reasonLimits.isValid(e.target.value))) {
 							setCancelReasonError(null);
 						}
 					}}
 					error={cancelReasonError}
 					required={false}
-					min={10}
-					max={500}
 					disabled={cancelling}
 				/>
 			</Modal>

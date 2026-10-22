@@ -28,7 +28,7 @@
    Card Container & Premium Glassmorphism
    ========================================================================== */
 .arp-card {
-  background: var(--theme-bg-surface, #1e293b);
+  background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.08));
   border-radius: 14px;
   margin-bottom: 24px;
@@ -63,7 +63,7 @@
   height: 36px;
   border-radius: 10px;
   background: var(--brand-subtle, rgba(59, 130, 246, 0.12));
-  color: var(--brand-text, #60a5fa);
+  color: var(--brand-text);
   border: 1px solid rgba(59, 130, 246, 0.2);
   display: flex;
   align-items: center;
@@ -74,7 +74,7 @@
 .arp-card__title {
   font-size: 16px;
   font-weight: 600;
-  color: var(--theme-text-primary, #f8fafc);
+  color: var(--theme-text-primary);
   margin: 0;
   line-height: 1.3;
   letter-spacing: -0.01em;
@@ -82,7 +82,7 @@
 
 .arp-card__subtitle {
   font-size: 12px;
-  color: var(--theme-text-muted, #94a3b8);
+  color: var(--theme-text-muted);
   margin: 2px 0 0 0;
 }
 
@@ -146,7 +146,7 @@
 .arp-label {
   font-size: 13px;
   font-weight: 600;
-  color: var(--theme-text-primary, #f8fafc);
+  color: var(--theme-text-primary);
   display: flex;
   align-items: center;
   gap: 4px;
@@ -155,7 +155,7 @@
 .arp-sub-label {
   font-size: 12px;
   font-weight: 500;
-  color: var(--theme-text-muted, #94a3b8);
+  color: var(--theme-text-muted);
   display: block;
   margin-bottom: 4px;
 }
@@ -174,7 +174,7 @@
   border-radius: 8px;
   padding: 10px 14px;
   font-size: 13.5px;
-  color: var(--theme-text-primary, #f8fafc);
+  color: var(--theme-text-primary);
   font-family: inherit;
   transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
   color-scheme: dark;
@@ -190,15 +190,9 @@
 .arp-select:focus,
 .arp-textarea:focus {
   outline: none;
-  border-color: var(--brand-blue, #3b82f6);
+  border-color: var(--brand-blue);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
-  background: var(--theme-bg-surface-elevated, #1e293b);
-}
-
-.arp-select option {
-  background: var(--theme-bg-surface);
-  color: var(--theme-text-primary);
-  padding: 8px;
+  background: var(--theme-bg-surface-elevated);
 }
 
 .arp-textarea {
@@ -209,7 +203,7 @@
 
 .arp-hint {
   font-size: 12px;
-  color: var(--theme-text-muted, #94a3b8);
+  color: var(--theme-text-muted);
   margin-top: 4px;
 }
 
@@ -281,13 +275,13 @@
 }
 
 .arp-type-btn:hover:not(:disabled) {
-  border-color: var(--brand-blue, #3b82f6);
+  border-color: var(--brand-blue);
   transform: translateY(-1px);
 }
 
 .arp-type-btn--selected {
   background: rgba(59, 130, 246, 0.08);
-  border: 1.5px solid var(--brand-blue, #3b82f6);
+  border: 1.5px solid var(--brand-blue);
   box-shadow: 0 0 12px rgba(59, 130, 246, 0.15);
 }
 
@@ -296,11 +290,11 @@
 }
 
 .arp-type-btn--selected .arp-type-btn__desc {
-  color: var(--theme-text-primary, #f8fafc);
+  color: var(--theme-text-primary);
 }
 
 .arp-type-btn--selected .arp-type-btn__icon {
-  color: var(--brand-blue, #3b82f6);
+  color: var(--brand-blue);
 }
 
 .arp-type-btn:disabled {
@@ -311,20 +305,20 @@
 
 .arp-type-btn__icon {
   margin-bottom: 10px;
-  color: var(--theme-text-muted, #94a3b8);
+  color: var(--theme-text-muted);
   transition: color 0.2s ease;
 }
 
 .arp-type-btn__name {
   font-size: 14px;
   font-weight: 600;
-  color: var(--theme-text-primary, #f8fafc);
+  color: var(--theme-text-primary);
   margin-bottom: 4px;
 }
 
 .arp-type-btn__desc {
   font-size: 12px;
-  color: var(--theme-text-muted, #94a3b8);
+  color: var(--theme-text-muted);
   line-height: 1.4;
 }
 
@@ -454,7 +448,7 @@
   border-radius: 20px;
   padding: 6px 12px;
   font-size: 12.5px;
-  color: var(--theme-text-primary, #f8fafc);
+  color: var(--theme-text-primary);
   animation: arpFadeIn 0.15s ease-out;
 }
 
@@ -462,7 +456,7 @@
   background: transparent;
   border: none;
   cursor: pointer;
-  color: var(--theme-text-muted, #94a3b8);
+  color: var(--theme-text-muted);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -503,7 +497,7 @@
 .arp-btn--secondary {
   background: var(--theme-bg-surface-elevated, rgba(30, 41, 59, 0.8));
   border-color: var(--theme-border, rgba(255, 255, 255, 0.12));
-  color: var(--theme-text-primary, #f8fafc);
+  color: var(--theme-text-primary);
 }
 
 .arp-btn--secondary:hover:not(:disabled) {
@@ -631,7 +625,7 @@
   border-radius: 20px;
   cursor: pointer;
   background: transparent;
-  color: var(--theme-text-muted, #94a3b8);
+  color: var(--theme-text-muted);
   border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.12));
   font-family: inherit;
   font-weight: 500;
@@ -640,50 +634,34 @@
 
 .arp-filter-btn:hover {
   border-color: var(--theme-border-hover, rgba(255, 255, 255, 0.25));
-  color: var(--theme-text-primary, #f8fafc);
+  color: var(--theme-text-primary);
 }
 
 .arp-filter-btn--active {
-  background: rgba(59, 130, 246, 0.12);
-  color: var(--theme-primary);
-  border-color: var(--brand-blue, #3b82f6);
+  background: var(--theme-primary-subtle);
+  /* UI-AUDIT #30: --theme-primary chỉ đạt 3.43 trên nền tối */
+  color: var(--theme-info-text);
+  border-color: var(--brand-blue);
   font-weight: 600;
 }
 
-.arp-select-filter {
-  padding: 6px 14px;
-  font-size: 12.5px;
-  border-radius: 8px;
-  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.12));
-  background: var(--theme-bg-input, #0f172a);
-  color: var(--theme-text-primary, #f8fafc);
-  outline: none;
-  cursor: pointer;
-  font-family: inherit;
-  transition: all 0.15s ease;
-  min-width: 180px;
-}
-
-.arp-select-filter:focus {
-  border-color: var(--brand-blue, #3b82f6);
-}
-
 .arp-refresh-btn {
-  width: 32px;
-  height: 32px;
+  /* Cao bằng ô lọc khu vực (Select --filter, 42px) */
+  width: 42px;
+  height: 42px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   background: transparent;
   border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.12));
   border-radius: 8px;
-  color: var(--theme-text-muted, #94a3b8);
+  color: var(--theme-text-muted);
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .arp-refresh-btn:hover:not(:disabled) {
-  color: var(--theme-text-primary, #f8fafc);
+  color: var(--theme-text-primary);
   border-color: var(--theme-border-hover, rgba(255, 255, 255, 0.25));
 }
 
@@ -711,23 +689,8 @@
   text-align: left;
 }
 
-/* UI-08: điện thoại — giữ bề rộng tối thiểu cho 6 cột, khung bảng cuộn ngang để
-   cột Trạng thái và Thao tác vẫn truy cập được (không ép cột Khu vực xuống từng chữ) */
-@media (max-width: 640px) {
-  .arp-table-container {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior-x: contain;
-  }
-
-  .arp-table {
-    min-width: 760px;
-  }
-
-  .arp-table th {
-    white-space: nowrap;
-  }
-}
+/* Điện thoại (≤ 640px): bảng hiện dạng thẻ theo class dùng chung ui-table--mobile-card
+   (styles/components.css), mỗi đơn là một thẻ nên nút Chi tiết / Xem lý do luôn nằm trong khung */
 
 .arp-table th {
   background: var(--theme-bg-surface-elevated, rgba(15, 23, 42, 0.5));
@@ -738,7 +701,7 @@
 .arp-table td {
   padding: 14px 16px;
   border-bottom: 1px solid var(--theme-border, rgba(255, 255, 255, 0.06));
-  color: var(--theme-text-primary, #f8fafc);
+  color: var(--theme-text-primary);
   vertical-align: middle;
 }
 
@@ -748,7 +711,7 @@
 
 .arp-table-room-code {
   font-size: 11.5px;
-  color: var(--theme-text-muted, #94a3b8);
+  color: var(--theme-text-muted);
   font-family: monospace;
   margin-top: 3px;
 }
@@ -759,8 +722,8 @@
 }
 
 .arp-reject-expand-box {
-  background: rgba(239, 68, 68, 0.06);
-  border-left: 4px solid #ef4444;
+  background: var(--theme-danger-subtle);
+  border-left: 4px solid var(--theme-danger);
   padding: 14px 20px;
 }
 
@@ -774,7 +737,7 @@
 
 .arp-reject-expand-content {
   font-size: 12.5px;
-  color: var(--theme-text-primary, #f8fafc);
+  color: var(--theme-text-primary);
   margin-top: 4px;
   line-height: 1.5;
 }
@@ -839,7 +802,7 @@
 
 .arp-badge--individual {
   background: var(--theme-bg-surface-elevated, rgba(30, 41, 59, 0.8));
-  color: var(--theme-text-muted, #94a3b8);
+  color: var(--theme-text-muted);
   border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.1));
 }
 
@@ -882,7 +845,7 @@
 }
 
 .arp-member-requester {
-  color: var(--theme-text-muted, #94a3b8);
+  color: var(--theme-text-muted);
 }
 
 /* ==========================================================================
@@ -900,7 +863,7 @@
 
 .arp-pagination__info {
   font-size: 12px;
-  color: var(--theme-text-muted, #94a3b8);
+  color: var(--theme-text-muted);
 }
 
 .arp-pagination__controls {
@@ -921,19 +884,19 @@
   cursor: pointer;
   background: var(--theme-bg-input, rgba(15, 23, 42, 0.6));
   border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.1));
-  color: var(--theme-text-primary, #f8fafc);
+  color: var(--theme-text-primary);
   transition: all 0.15s ease;
   font-family: inherit;
 }
 
 .arp-page-btn:hover:not(:disabled) {
-  border-color: var(--brand-blue, #3b82f6);
+  border-color: var(--brand-blue);
   color: var(--theme-primary);
 }
 
 .arp-page-btn--active {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-  color: #ffffff;
+  background: var(--action-primary-bg);
+  color: var(--action-primary-text);
   font-weight: 600;
   border-color: transparent;
   box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
@@ -946,7 +909,7 @@
 
 .arp-page-ellipsis {
   padding: 0 6px;
-  color: var(--theme-text-muted, #94a3b8);
+  color: var(--theme-text-muted);
   font-size: 12px;
 }
 
@@ -963,13 +926,13 @@
 }
 
 .arp-empty__icon {
-  color: var(--theme-text-disabled, #64748b);
+  color: var(--theme-text-disabled);
   margin-bottom: 12px;
 }
 
 .arp-empty__text {
   font-size: 13.5px;
-  color: var(--theme-text-muted, #94a3b8);
+  color: var(--theme-text-muted);
 }
 
 .arp-spin {
@@ -999,7 +962,7 @@
 }
 
 .arp-modal {
-  background: var(--theme-modal-bg, #1e293b);
+  background: var(--theme-modal-bg);
   border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.12));
   border-radius: 16px;
   max-width: 560px;
@@ -1041,13 +1004,13 @@
 .arp-modal__title {
   font-size: 16px;
   font-weight: 600;
-  color: var(--theme-text-primary, #f8fafc);
+  color: var(--theme-text-primary);
   margin: 0;
 }
 
 .arp-modal__subtitle {
   font-size: 12px;
-  color: var(--theme-text-muted, #94a3b8);
+  color: var(--theme-text-muted);
   font-family: monospace;
   margin-top: 2px;
 }
@@ -1055,7 +1018,7 @@
 .arp-modal__close {
   background: transparent;
   border: none;
-  color: var(--theme-text-muted, #94a3b8);
+  color: var(--theme-text-muted);
   cursor: pointer;
   padding: 6px;
   border-radius: 6px;
@@ -1064,7 +1027,7 @@
 
 .arp-modal__close:hover {
   background: rgba(255, 255, 255, 0.1);
-  color: var(--theme-text-primary, #f8fafc);
+  color: var(--theme-text-primary);
 }
 
 .arp-modal__body {
@@ -1097,13 +1060,13 @@
   font-size: 11.5px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--theme-text-muted, #94a3b8);
+  color: var(--theme-text-muted);
   font-weight: 600;
 }
 
 .arp-detail-val {
   font-size: 13.5px;
-  color: var(--theme-text-primary, #f8fafc);
+  color: var(--theme-text-primary);
   font-weight: 500;
 }
 
@@ -1113,7 +1076,7 @@
   border-radius: 8px;
   padding: 12px 14px;
   font-size: 13px;
-  color: var(--theme-text-primary, #f8fafc);
+  color: var(--theme-text-primary);
   line-height: 1.5;
   white-space: pre-wrap;
 }

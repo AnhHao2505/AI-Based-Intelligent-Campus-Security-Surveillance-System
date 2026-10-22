@@ -90,7 +90,7 @@ export default function AccessHistoryPage() {
 		}
 		return (
 			<>
-				<Table columns={columns} data={logs} />
+				<Table columns={columns} data={logs} mobileCard />
 				<Pagination
 					currentPage={page}
 					totalPages={totalPages}
@@ -106,7 +106,7 @@ export default function AccessHistoryPage() {
 	return (
 		<div className="ahp-container">
 			<PageHeader
-				title="Lịch sử truy cập"
+				title="Lịch sử ra vào của tôi"
 				description={
 					user?.fullName
 						? `Các lần camera nhận diện ${user.fullName} tại các khu vực giám sát, gồm cả lượt bị từ chối.`

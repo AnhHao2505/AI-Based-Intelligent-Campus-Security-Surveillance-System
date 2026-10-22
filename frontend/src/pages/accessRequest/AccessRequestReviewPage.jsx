@@ -17,7 +17,7 @@ import accessRequestService from '../../services/accessRequestService';
 import { getLevelConfig, AREA_LEVEL_CONFIG } from '../../utils/areaHelpers';
 import '../../styles/AccessRequestReviewPage.css';
 import PageHeader from '../../components/ui/PageHeader';
-import { LoadingState, EmptyState, ErrorState } from '../../components/ui';
+import { LoadingState, EmptyState, ErrorState, DialogPanel, Select } from '../../components/ui';
 import ReasonTextarea from '../../components/ui/ReasonTextarea';
 import StatusTabs from '../../components/ui/StatusTabs';
 import '../../components/ui/Button.css';
@@ -25,8 +25,35 @@ import { formatLocation } from '../../utils/formatLocation';
 import { formatDateTime } from '../../utils/formatDateTime';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
+import { useReasonLimits } from '../../hooks/useReasonLimits';
+
+/**
+ * Nội dung cột "Lý do" theo trạng thái, chỉ dùng trường có sẵn trong response
+ * (rejectionReason, cancelSource, cancelReason, finishReason). FINISHED kết thúc trước V88 mà không có audit thì finishReason null.
+ * @returns {string|null} null = không có lý do (hiện "—")
+ */
+const getListReason = (req) => {
+  switch (req.status) {
+    case 'REJECTED':
+      return req.rejectionReason || null;
+    case 'CANCELLED':
+      // BR-RQ-47: FM huỷ đơn đã duyệt (cancel_source STAFF); BR-TC-15: hệ thống huỷ
+      if (req.cancelSource === 'STAFF') return req.cancelReason ? `Quản lý hủy: ${req.cancelReason}` : 'Quản lý hủy';
+      if (req.cancelSource === 'SYSTEM') return req.cancelReason ? `Hủy bởi hệ thống: ${req.cancelReason}` : 'Hủy bởi hệ thống';
+      return req.cancelReason || 'Người yêu cầu tự hủy';
+    case 'FINISHED':
+      // BR-RQ-46 (V88): FM kết thúc đơn đã duyệt, lý do lưu trên đơn
+      return req.finishReason ? `Quản lý kết thúc: ${req.finishReason}` : null;
+    case 'EXPIRED':
+      // BR-RQ-43
+      return 'Quá giờ bắt đầu nhưng chưa được duyệt';
+    default:
+      return null;
+  }
+};
 
 export default function AccessRequestReviewPage() {
+  const reasonLimits = useReasonLimits();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(null);
@@ -177,24 +204,7 @@ export default function AccessRequestReviewPage() {
     loadStats();
   }, [loadRequests, loadStats, statusFilter, selectedAreaId]);
 
-  // Esc đóng popup đang mở giống nút X (popup thao tác không đóng khi đang gửi); popup thao tác trước, chi tiết sau
-  useEffect(() => {
-    if (!approveItem && !finishItem && !staffCancelItem && !rejectItem && !detailItem) return undefined;
-    const handleKeyDown = (e) => {
-      if (e.key !== 'Escape' && e.key !== 'Esc') return;
-      if (approveItem || finishItem || staffCancelItem || rejectItem) {
-        if (actionLoading) return;
-        if (approveItem) setApproveItem(null);
-        else if (finishItem) setFinishItem(null);
-        else if (staffCancelItem) setStaffCancelItem(null);
-        else setRejectItem(null);
-        return;
-      }
-      setDetailItem(null);
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [approveItem, finishItem, staffCancelItem, rejectItem, detailItem, actionLoading]);
+  // Esc / focus / giữ Tab của từng popup: DialogPanel (useDialogA11y); popup thao tác không đóng khi đang gửi
 
   // Handle Approve
   const handleConfirmApprove = async () => {
@@ -225,12 +235,12 @@ export default function AccessRequestReviewPage() {
     }
   };
 
-  // Handle Finish (BR-RQ-44, BR-RQ-46) — bắt buộc lý do 10–500 ký tự; backend chặn đơn chưa bắt đầu (ERR_AC_007)
+  // Handle Finish (BR-RQ-44, BR-RQ-46) — bắt buộc lý do, độ dài theo cấu hình (useReasonLimits); backend chặn đơn chưa bắt đầu (ERR_AC_007)
   const handleConfirmFinish = async () => {
     if (!finishItem) return;
     const trimmed = finishReason.trim();
-    if (trimmed.length < 10 || trimmed.length > 500) {
-      setFinishReasonError(`Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmed.length}).`);
+    if (!reasonLimits.isValid(trimmed)) {
+      setFinishReasonError(reasonLimits.error(trimmed));
       finishReasonInputRef.current?.focus();
       return;
     }
@@ -246,18 +256,28 @@ export default function AccessRequestReviewPage() {
       loadStats();
       setTimeout(() => setActionSuccess(null), 3000);
     } catch (err) {
-      setActionError(err.message || 'Lỗi khi chuyển yêu cầu sang Hoàn thành');
+      if (err.status === 409) {
+        setFinishItem(null);
+        setFinishReason('');
+        setFinishReasonError(null);
+        setActionWarning(err.message || 'Yêu cầu này đã được xử lý bởi người khác. Danh sách đã được làm mới.');
+        loadRequests(page, statusFilter, selectedAreaId);
+        loadStats();
+        setTimeout(() => setActionWarning(null), 7000);
+      } else {
+        setActionError(err.message || 'Lỗi khi chuyển yêu cầu sang Hoàn thành');
+      }
     } finally {
       setActionLoading(false);
     }
   };
 
-  // Handle Staff Cancel (BR-RQ-47) — bắt buộc lý do 10–500 ký tự; backend chặn đơn đã bắt đầu (ERR_AC_008)
+  // Handle Staff Cancel (BR-RQ-47) — bắt buộc lý do, độ dài theo cấu hình (useReasonLimits); backend chặn đơn đã bắt đầu (ERR_AC_008)
   const handleConfirmStaffCancel = async () => {
     if (!staffCancelItem) return;
     const trimmed = staffCancelReason.trim();
-    if (trimmed.length < 10 || trimmed.length > 500) {
-      setStaffCancelReasonError(`Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmed.length}).`);
+    if (!reasonLimits.isValid(trimmed)) {
+      setStaffCancelReasonError(reasonLimits.error(trimmed));
       staffCancelReasonInputRef.current?.focus();
       return;
     }
@@ -266,7 +286,7 @@ export default function AccessRequestReviewPage() {
     setActionError(null);
     try {
       await accessRequestService.cancelApprovedRequest(staffCancelItem.id, trimmed);
-      setActionSuccess('Đã huỷ yêu cầu đã duyệt.');
+      setActionSuccess('Đã hủy yêu cầu đã duyệt.');
       setStaffCancelItem(null);
       setStaffCancelReason('');
       loadRequests(page, statusFilter, selectedAreaId);
@@ -280,7 +300,7 @@ export default function AccessRequestReviewPage() {
         loadStats();
         setTimeout(() => setActionWarning(null), 7000);
       } else {
-        setActionError(err.message || 'Lỗi khi huỷ yêu cầu đã duyệt');
+        setActionError(err.message || 'Lỗi khi hủy yêu cầu đã duyệt');
       }
     } finally {
       setActionLoading(false);
@@ -291,8 +311,8 @@ export default function AccessRequestReviewPage() {
   const handleConfirmReject = async () => {
     if (!rejectItem) return;
     const trimmed = rejectionReason.trim();
-    if (!trimmed || trimmed.length < 10 || trimmed.length > 500) {
-      setRejectionReasonError(`Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmed.length}).`);
+    if (!reasonLimits.isValid(trimmed)) {
+      setRejectionReasonError(reasonLimits.error(trimmed));
       rejectReasonInputRef.current?.focus();
       return;
     }
@@ -355,7 +375,7 @@ export default function AccessRequestReviewPage() {
       {/* Header */}
       <PageHeader
         title="Phê duyệt yêu cầu truy cập"
-        description={`Xét duyệt yêu cầu ra vào các khu vực ${AREA_LEVEL_CONFIG.INTERNAL_CONFIDENTIAL.badgeLabel}, ${AREA_LEVEL_CONFIG.CONFIDENTIAL_CONTACT_REQUIRED.badgeLabel} và ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.badgeLabel}.`}
+        description={`Xét duyệt yêu cầu ra vào các khu vực ${AREA_LEVEL_CONFIG.CONFIDENTIAL.badgeLabel} và ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.badgeLabel}.`}
         actions={
           <button
             type="button"
@@ -406,30 +426,29 @@ export default function AccessRequestReviewPage() {
         />
 
         <div className="arr-toolbar-right">
-          <select
-            className="arr-select"
+          <Select
+            className="ui-select-group--filter"
+            aria-label="Lọc theo khu vực"
             value={selectedAreaId}
             onChange={(e) => {
               setSelectedAreaId(e.target.value);
               setPage(0);
             }}
-          >
-            <option value="">Tất cả khu vực</option>
-            {areasList.map((a) => {
-              const loc = formatLocation(a.building, a.floor);
-              return (
-                <option key={a.id} value={a.id}>
-                  {loc ? `${a.name} (${loc})` : a.name}
-                </option>
-              );
-            })}
-          </select>
+            options={[
+              { value: '', label: 'Tất cả khu vực' },
+              ...areasList.map((a) => {
+                const loc = formatLocation(a.building, a.floor);
+                return { value: a.id, label: loc ? `${a.name} (${loc})` : a.name };
+              }),
+            ]}
+          />
 
           <div className="arr-search-wrap">
             <Search size={14} className="arr-search-icon" />
             <input
               type="text"
               className="arr-search-input"
+              aria-label="Tìm theo tên, mã số người yêu cầu"
               placeholder="Tìm theo tên, mã số người yêu cầu..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -453,9 +472,9 @@ export default function AccessRequestReviewPage() {
                 <tr>
                   <th>Người yêu cầu</th>
                   <th>Khu vực đăng ký</th>
-                  <th className="ui-col-time-range">Thời gian truy cập</th>
                   <th>Hình thức</th>
                   <th>Trạng thái</th>
+                  <th className="arr-col-reason">Lý do</th>
                   <th className="ui-col-time">Ngày gửi</th>
                   <th className="arr-col-actions">Thao tác</th>
                 </tr>
@@ -493,14 +512,6 @@ export default function AccessRequestReviewPage() {
                       </div>
                     </td>
 
-                    {/* Time */}
-                    <td>
-                      <div style={{ fontSize: '0.8125rem' }}>{formatDateTime(req.startTime)}</div>
-                      <div className="arr-text-muted" style={{ fontSize: '0.75rem' }}>
-                        đến {formatDateTime(req.endTime)}
-                      </div>
-                    </td>
-
                     {/* Type */}
                     <td>
                       <span className={`arr-badge ${req.requestType === 'GROUP' ? 'arr-badge--group' : 'arr-badge--individual'}`}>
@@ -518,17 +529,18 @@ export default function AccessRequestReviewPage() {
                         {req.status === 'EXPIRED' && 'Hết hạn'}
                         {req.status === 'FINISHED' && 'Hoàn thành'}
                       </span>
-                      {req.status === 'CANCELLED' && req.cancelSource === 'SYSTEM' && (
-                        <div className="arr-cancel-system" title={req.cancelReason || ''}>
-                          Hủy bởi hệ thống: {req.cancelReason}
-                        </div>
-                      )}
-                      {/* BR-RQ-47: FM huỷ đơn đã duyệt (cancel_source STAFF) */}
-                      {req.status === 'CANCELLED' && req.cancelSource === 'STAFF' && (
-                        <div className="arr-cancel-system" title={req.cancelReason || ''}>
-                          Quản lý huỷ: {req.cancelReason}
-                        </div>
-                      )}
+                    </td>
+
+                    {/* Reason: tối đa 2 dòng, toàn văn ở title và popup chi tiết */}
+                    <td className="arr-col-reason">
+                      {(() => {
+                        const reason = getListReason(req);
+                        return reason ? (
+                          <div className="arr-reason-text" title={reason}>{reason}</div>
+                        ) : (
+                          <span className="arr-reason-empty">—</span>
+                        );
+                      })()}
                     </td>
 
                     {/* Created At */}
@@ -546,6 +558,7 @@ export default function AccessRequestReviewPage() {
                               className="arr-btn-icon arr-btn-icon--approve"
                               onClick={() => { setApproveItem(req); setActionError(null); }}
                               title="Phê duyệt yêu cầu"
+                              aria-label="Phê duyệt yêu cầu"
                             >
                               <Check size={16} />
                             </button>
@@ -554,6 +567,7 @@ export default function AccessRequestReviewPage() {
                               className="arr-btn-icon arr-btn-icon--reject"
                               onClick={() => { setRejectItem(req); setRejectionReason(''); setActionError(null); }}
                               title="Từ chối yêu cầu"
+                              aria-label="Từ chối yêu cầu"
                             >
                               <X size={16} />
                             </button>
@@ -575,13 +589,13 @@ export default function AccessRequestReviewPage() {
                                   setStaffCancelReasonError(null);
                                   setActionError(null);
                                 }}
-                                title="Huỷ yêu cầu đã duyệt (chưa bắt đầu)"
-                                aria-label="Huỷ yêu cầu đã duyệt"
+                                title="Hủy yêu cầu đã duyệt (chưa bắt đầu)"
+                                aria-label="Hủy yêu cầu đã duyệt"
                               >
                                 <Ban size={16} />
                               </button>
                             )}
-                            <span title={notStarted ? 'Chưa bắt đầu, dùng Huỷ' : undefined}>
+                            <span title={notStarted ? 'Chưa bắt đầu, dùng Hủy' : undefined}>
                               <button
                                 type="button"
                                 className="arr-btn-icon"
@@ -592,7 +606,7 @@ export default function AccessRequestReviewPage() {
                                   setActionError(null);
                                 }}
                                 disabled={notStarted}
-                                aria-label={notStarted ? 'Chưa bắt đầu, dùng Huỷ' : 'Chuyển sang Hoàn thành'}
+                                aria-label={notStarted ? 'Chưa bắt đầu, dùng Hủy' : 'Chuyển sang Hoàn thành'}
                                 title={notStarted ? undefined : 'Chuyển sang Hoàn thành'}
                               >
                                 <CheckCheck size={16} />
@@ -606,6 +620,7 @@ export default function AccessRequestReviewPage() {
                           className="arr-btn-icon"
                           onClick={() => setDetailItem(req)}
                           title="Xem chi tiết"
+                          aria-label="Xem chi tiết"
                         >
                           <Eye size={16} />
                         </button>
@@ -649,13 +664,21 @@ export default function AccessRequestReviewPage() {
       {/* APPROVE CONFIRMATION MODAL */}
       {approveItem && (
         <div className="arr-modal-overlay" onClick={() => !actionLoading && setApproveItem(null)}>
-          <div className="arr-modal arr-modal--sm" onClick={e => e.stopPropagation()}>
+          <DialogPanel
+            className="arr-modal arr-modal--sm"
+            onClick={e => e.stopPropagation()}
+            onClose={() => !actionLoading && setApproveItem(null)}
+            labelledBy="arr-modal-title-approve"
+            initialFocus="dialog"
+          >
             <div className="arr-modal__header">
-              <h2 className="arr-modal__title">Xác nhận phê duyệt</h2>
+              <h2 className="arr-modal__title" id="arr-modal-title-approve">Xác nhận phê duyệt</h2>
               <button
                 type="button"
                 className="arr-modal__close"
                 onClick={() => !actionLoading && setApproveItem(null)}
+                title="Đóng"
+                aria-label="Đóng"
               >
                 <X size={18} />
               </button>
@@ -703,20 +726,28 @@ export default function AccessRequestReviewPage() {
                 <span>{actionLoading ? 'Đang duyệt...' : 'Xác nhận duyệt'}</span>
               </button>
             </div>
-          </div>
+          </DialogPanel>
         </div>
       )}
 
       {/* FINISH CONFIRMATION MODAL — BR-RQ-44, BR-RQ-46 */}
       {finishItem && (
         <div className="arr-modal-overlay" onClick={() => !actionLoading && setFinishItem(null)}>
-          <div className="arr-modal arr-modal--sm" onClick={e => e.stopPropagation()}>
+          <DialogPanel
+            className="arr-modal arr-modal--sm"
+            onClick={e => e.stopPropagation()}
+            onClose={() => !actionLoading && setFinishItem(null)}
+            labelledBy="arr-modal-title-finish"
+            initialFocus="field"
+          >
             <div className="arr-modal__header">
-              <h2 className="arr-modal__title">Xác nhận hoàn thành</h2>
+              <h2 className="arr-modal__title" id="arr-modal-title-finish">Xác nhận hoàn thành</h2>
               <button
                 type="button"
                 className="arr-modal__close"
                 onClick={() => !actionLoading && setFinishItem(null)}
+                title="Đóng"
+                aria-label="Đóng"
               >
                 <X size={18} />
               </button>
@@ -757,13 +788,11 @@ export default function AccessRequestReviewPage() {
                 onChange={(e) => {
                   const val = e.target.value;
                   setFinishReason(val);
-                  if (finishReasonError && val.trim().length >= 10 && val.trim().length <= 500) {
+                  if (finishReasonError && reasonLimits.isValid(val)) {
                     setFinishReasonError(null);
                   }
                 }}
                 error={finishReasonError}
-                min={10}
-                max={500}
                 disabled={actionLoading}
                 required
               />
@@ -788,20 +817,28 @@ export default function AccessRequestReviewPage() {
                 <span>{actionLoading ? 'Đang cập nhật...' : 'Xác nhận hoàn thành'}</span>
               </button>
             </div>
-          </div>
+          </DialogPanel>
         </div>
       )}
 
       {/* STAFF CANCEL MODAL — BR-RQ-47 */}
       {staffCancelItem && (
         <div className="arr-modal-overlay" onClick={() => !actionLoading && setStaffCancelItem(null)}>
-          <div className="arr-modal" onClick={e => e.stopPropagation()}>
+          <DialogPanel
+            className="arr-modal"
+            onClick={e => e.stopPropagation()}
+            onClose={() => !actionLoading && setStaffCancelItem(null)}
+            labelledBy="arr-modal-title-staff-cancel"
+            initialFocus="field"
+          >
             <div className="arr-modal__header">
-              <h2 className="arr-modal__title">Huỷ yêu cầu đã duyệt</h2>
+              <h2 className="arr-modal__title" id="arr-modal-title-staff-cancel">Hủy yêu cầu đã duyệt</h2>
               <button
                 type="button"
                 className="arr-modal__close"
                 onClick={() => !actionLoading && setStaffCancelItem(null)}
+                title="Đóng"
+                aria-label="Đóng"
               >
                 <X size={18} />
               </button>
@@ -815,7 +852,7 @@ export default function AccessRequestReviewPage() {
               )}
 
               <p className="arr-confirm-text">
-                Huỷ yêu cầu của <strong>{staffCancelItem.requesterName}</strong> tại khu vực <strong>{staffCancelItem.areaName}</strong> trước giờ bắt đầu. Người tạo đơn và các thành viên sẽ nhận thông báo kèm lý do.
+                Hủy yêu cầu của <strong>{staffCancelItem.requesterName}</strong> tại khu vực <strong>{staffCancelItem.areaName}</strong> trước giờ bắt đầu. Người tạo đơn và các thành viên sẽ nhận thông báo kèm lý do.
               </p>
 
               <div className="arr-info-box">
@@ -826,19 +863,17 @@ export default function AccessRequestReviewPage() {
               <ReasonTextarea
                 ref={staffCancelReasonInputRef}
                 id="staff-cancel-reason"
-                label="Lý do huỷ"
+                label="Lý do hủy"
                 placeholder="Ví dụ: Khu vực phải đóng để bảo trì đột xuất..."
                 value={staffCancelReason}
                 onChange={(e) => {
                   const val = e.target.value;
                   setStaffCancelReason(val);
-                  if (staffCancelReasonError && val.trim().length >= 10 && val.trim().length <= 500) {
+                  if (staffCancelReasonError && reasonLimits.isValid(val)) {
                     setStaffCancelReasonError(null);
                   }
                 }}
                 error={staffCancelReasonError}
-                min={10}
-                max={500}
                 disabled={actionLoading}
                 required
               />
@@ -852,23 +887,31 @@ export default function AccessRequestReviewPage() {
                 disabled={actionLoading}
               >
                 <Ban size={16} />
-                <span>{actionLoading ? 'Đang huỷ...' : 'Xác nhận huỷ'}</span>
+                <span>{actionLoading ? 'Đang hủy...' : 'Xác nhận hủy'}</span>
               </button>
             </div>
-          </div>
+          </DialogPanel>
         </div>
       )}
 
       {/* REJECT MODAL */}
       {rejectItem && (
         <div className="arr-modal-overlay" onClick={() => !actionLoading && setRejectItem(null)}>
-          <div className="arr-modal" onClick={e => e.stopPropagation()}>
+          <DialogPanel
+            className="arr-modal"
+            onClick={e => e.stopPropagation()}
+            onClose={() => !actionLoading && setRejectItem(null)}
+            labelledBy="arr-modal-title-reject"
+            initialFocus="field"
+          >
             <div className="arr-modal__header">
-              <h2 className="arr-modal__title">Từ chối yêu cầu truy cập</h2>
+              <h2 className="arr-modal__title" id="arr-modal-title-reject">Từ chối yêu cầu truy cập</h2>
               <button
                 type="button"
                 className="arr-modal__close"
                 onClick={() => !actionLoading && setRejectItem(null)}
+                title="Đóng"
+                aria-label="Đóng"
               >
                 <X size={18} />
               </button>
@@ -892,13 +935,11 @@ export default function AccessRequestReviewPage() {
                 value={rejectionReason}
                 onChange={(e) => {
                   setRejectionReason(e.target.value);
-                  if (rejectionReasonError && e.target.value.trim().length >= 10 && e.target.value.trim().length <= 500) {
+                  if (rejectionReasonError && reasonLimits.isValid(e.target.value)) {
                     setRejectionReasonError(null);
                   }
                 }}
                 error={rejectionReasonError}
-                min={10}
-                max={500}
                 disabled={actionLoading}
                 required
               />
@@ -926,20 +967,28 @@ export default function AccessRequestReviewPage() {
                 <span>{actionLoading ? 'Đang xử lý...' : 'Xác nhận từ chối'}</span>
               </button>
             </div>
-          </div>
+          </DialogPanel>
         </div>
       )}
 
       {/* DETAIL MODAL */}
       {detailItem && (
         <div className="arr-modal-overlay" onClick={() => setDetailItem(null)}>
-          <div className="arr-modal" onClick={e => e.stopPropagation()}>
+          <DialogPanel
+            className="arr-modal"
+            onClick={e => e.stopPropagation()}
+            onClose={() => setDetailItem(null)}
+            labelledBy="arr-modal-title-detail"
+            initialFocus="dialog"
+          >
             <div className="arr-modal__header">
-              <h2 className="arr-modal__title">Chi tiết yêu cầu truy cập</h2>
+              <h2 className="arr-modal__title" id="arr-modal-title-detail">Chi tiết yêu cầu truy cập</h2>
               <button
                 type="button"
                 className="arr-modal__close"
                 onClick={() => setDetailItem(null)}
+                title="Đóng"
+                aria-label="Đóng"
               >
                 <X size={18} />
               </button>
@@ -973,7 +1022,17 @@ export default function AccessRequestReviewPage() {
                     )}
                     {detailItem.status === 'CANCELLED' && detailItem.cancelSource === 'STAFF' && (
                       <div className="arr-cancel-system arr-cancel-system--detail">
-                        Quản lý huỷ: {detailItem.cancelReason}
+                        Quản lý hủy: {detailItem.cancelReason}
+                      </div>
+                    )}
+                    {detailItem.status === 'CANCELLED' && detailItem.cancelSource === 'USER' && detailItem.cancelReason && (
+                      <div className="arr-cancel-system arr-cancel-system--detail">
+                        Người yêu cầu tự hủy: {detailItem.cancelReason}
+                      </div>
+                    )}
+                    {detailItem.status === 'FINISHED' && detailItem.finishReason && (
+                      <div className="arr-cancel-system arr-cancel-system--detail">
+                        Quản lý kết thúc{detailItem.finishedByName ? ` (${detailItem.finishedByName})` : ''}: {detailItem.finishReason}
                       </div>
                     )}
                   </div>
@@ -1029,7 +1088,7 @@ export default function AccessRequestReviewPage() {
                       <span key={m.userId || m.userCode} className="arr-member-chip">
                         <strong>{m.userCode}</strong> - {m.fullName}
                         {m.sponsored && (
-                          <span style={{ marginLeft: '6px', fontSize: '11px', padding: '1px 6px', borderRadius: '4px', backgroundColor: 'rgba(59, 130, 246, 0.15)', color: 'var(--brand-blue, #3b82f6)', fontWeight: 600 }}>
+                          <span style={{ marginLeft: '6px', fontSize: '11px', padding: '1px 6px', borderRadius: '4px', backgroundColor: 'rgba(59, 130, 246, 0.15)', color: 'var(--brand-blue)', fontWeight: 600 }}>
                             Bảo lãnh
                           </span>
                         )}
@@ -1066,7 +1125,7 @@ export default function AccessRequestReviewPage() {
                 Đóng
               </button>
             </div>
-          </div>
+          </DialogPanel>
         </div>
       )}
     </div>

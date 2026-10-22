@@ -56,7 +56,7 @@ export async function createArea(data) {
  * Cập nhật thông tin khu vực (ADMIN)
  * PUT /api/areas/{id}
  * @param {Object} data { name, areaLevel, building, floor, floorId, centerLatitude, centerLongitude, reason, version }
- *   reason bắt buộc 10–500 ký tự khi đổi loại khu vực
+ *   reason bắt buộc khi đổi loại khu vực, độ dài theo cấu hình (REASON_MIN_LENGTH / REASON_MAX_LENGTH)
  */
 export async function updateArea(id, data) {
 	return apiPut(`/api/areas/${id}`, data);
@@ -65,7 +65,7 @@ export async function updateArea(id, data) {
 /**
  * Vô hiệu hoá khu vực (ADMIN) — Step 6 BR-AD-01. Thay cho DELETE /api/areas/{id} (đã bỏ).
  * POST /api/areas/{id}/deactivate
- * @param {Object} data { reason, version } — lý do 10–500 ký tự sau trim, version lấy từ xem trước
+ * @param {Object} data { reason, version } — lý do (độ dài theo cấu hình) sau trim, version lấy từ xem trước
  */
 export async function deactivateArea(id, data) {
 	return apiPost(`/api/areas/${id}/deactivate`, data);
@@ -90,13 +90,6 @@ export async function getAreaCameras(areaId) {
 }
 
 /**
- * Cập nhật quy tắc truy cập khu vực (FACILITY_MANAGER)
- * PATCH /api/areas/{id}/access-rules
- * @param {Object} data { areaAccessLevel, explicitAuthorizationRequired, reason, version }
- */
-export async function updateAreaAccessRules(areaId, data) {
-	return apiPatch(`/api/areas/${areaId}/access-rules`, data);
-}
 
 /**
  * Lấy danh sách nhân sự được gán vào khu vực (FACILITY_MANAGER, ADMIN)
@@ -142,21 +135,10 @@ export async function updateAreaEventMode(areaId, data) {
 }
 
 /**
- * Lấy danh sách lịch chế độ sự kiện của khu vực, sắp startAt tăng dần (FACILITY_MANAGER, ADMIN)
- * GET /api/areas/{areaId}/event-schedules?status=
- * @param {string} areaId
- * @param {string} [status] SCHEDULED | STARTED | COMPLETED | ENDED_EARLY | CANCELLED | FAILED — bỏ trống để lấy tất cả
- */
-export async function getEventSchedules(areaId, status) {
-	const query = status ? `?status=${encodeURIComponent(status)}` : "";
-	return apiGet(`/api/areas/${areaId}/event-schedules${query}`);
-}
-
-/**
  * Đặt lịch bật chế độ sự kiện trong tương lai (chỉ FACILITY_MANAGER)
  * POST /api/areas/{areaId}/event-schedules
  * @param {string} areaId
- * @param {Object} data { startAt, endAt, reasonCode, note }
+ * @param {Object} data { title, startAt, endAt, reasonCode, note? } — note không bắt buộc (BR-ES-20 sửa 21/10)
  */
 export async function createEventSchedule(areaId, data) {
 	return apiPost(`/api/areas/${areaId}/event-schedules`, data);
@@ -167,7 +149,7 @@ export async function createEventSchedule(areaId, data) {
  * PATCH /api/areas/{areaId}/event-schedules/{scheduleId}
  * @param {string} areaId
  * @param {string} scheduleId
- * @param {Object} data { startAt, endAt, reasonCode, note }
+ * @param {Object} data { title, startAt, endAt, reasonCode, note } — reasonCode nhóm EVENT_SCHEDULE_UPDATE, note = lý do sửa
  */
 export async function updateEventSchedule(areaId, scheduleId, data) {
 	return apiPatch(`/api/areas/${areaId}/event-schedules/${scheduleId}`, data);
@@ -188,7 +170,7 @@ export async function cancelEventSchedule(areaId, scheduleId, data) {
  * Xem trước tác động khi ADMIN đổi loại khu vực (chỉ đọc, BR-TC-03)
  * GET /api/areas/{id}/type-change-preview?newAreaLevel=
  * @param {string} id
- * @param {string} newAreaLevel PUBLIC | INTERNAL_CONFIDENTIAL | CONFIDENTIAL_CONTACT_REQUIRED | HIGHLY_CONFIDENTIAL
+ * @param {string} newAreaLevel PUBLIC | CONFIDENTIAL | HIGHLY_CONFIDENTIAL
  * @returns {Promise<Object>} AreaTypeChangePreviewResponse
  */
 export async function getTypeChangePreview(id, newAreaLevel) {

@@ -1,5 +1,6 @@
 package com.fa26se040.icss.service;
 
+import com.fa26se040.icss.config.WebSocketSessionRegistry;
 import com.fa26se040.icss.dto.user.UserListResponse;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.Role;
@@ -16,6 +17,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -55,6 +57,12 @@ class UserServiceCacheRefreshTest {
     @Mock
     private AccessRequestService accessRequestService;
 
+    @Mock
+    private AreaAssignedPersonnelService assignedPersonnelService;
+
+    @Mock
+    private WebSocketSessionRegistry webSocketSessionRegistry;
+
     @InjectMocks
     private UserService userService;
 
@@ -74,6 +82,9 @@ class UserServiceCacheRefreshTest {
                 .accessLevel(1)
                 .deletedAt(null)
                 .build();
+        // BR-AP-24/25: vô hiệu hoá / xoá cần ADMIN đang thao tác (revoked_by của AP)
+        lenient().when(userRepository.findByEmail("admin@fpt.edu.vn")).thenReturn(Optional.of(User.builder()
+                .id(UUID.randomUUID()).email("admin@fpt.edu.vn").role(Role.ADMIN).isActive(true).build()));
     }
 
     @AfterEach
@@ -178,6 +189,107 @@ class UserServiceCacheRefreshTest {
 
         assertTrue(waitForCondition(() -> invokedUrl.get() != null, 1500));
         assertEquals("http://custom-ai-host:9090/api/v1/faces/refresh-cache", invokedUrl.get());
+    }
+
+    // ───────────── KI-1: đóng phiên WebSocket sau commit ─────────────
+
+    private static void commit() {
+        for (TransactionSynchronization sync : TransactionSynchronizationManager.getSynchronizations()) {
+            sync.afterCommit();
+            sync.afterCompletion(TransactionSynchronization.STATUS_COMMITTED);
+        }
+    }
+
+    private static void rollback() {
+        for (TransactionSynchronization sync : TransactionSynchronizationManager.getSynchronizations()) {
+            sync.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK);
+        }
+    }
+
+    @Test
+    @DisplayName("KI-1: vô hiệu hoá -> closeSessionsOf chỉ được gọi SAU KHI commit")
+    void toggleActive_deactivate_closesWebSocketSessionsAfterCommit() {
+        when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+        userService.setRefreshHttpCaller(url -> { });
+        TransactionSynchronizationManager.initSynchronization();
+
+        userService.toggleActive(userId, "admin@fpt.edu.vn");
+        verify(webSocketSessionRegistry, never()).closeSessionsOf(any());
+
+        commit();
+        verify(webSocketSessionRegistry).closeSessionsOf(userId);
+    }
+
+    @Test
+    @DisplayName("KI-1: vô hiệu hoá rồi transaction rollback -> không đóng phiên")
+    void toggleActive_rollback_doesNotCloseWebSocketSessions() {
+        when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+        userService.setRefreshHttpCaller(url -> { });
+        TransactionSynchronizationManager.initSynchronization();
+
+        userService.toggleActive(userId, "admin@fpt.edu.vn");
+        rollback();
+
+        verify(webSocketSessionRegistry, never()).closeSessionsOf(any());
+    }
+
+    @Test
+    @DisplayName("KI-1: kích hoạt lại tài khoản -> không đóng phiên")
+    void toggleActive_reactivate_doesNotCloseWebSocketSessions() {
+        testUser.setIsActive(false);
+        when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+        userService.setRefreshHttpCaller(url -> { });
+        TransactionSynchronizationManager.initSynchronization();
+
+        userService.toggleActive(userId, "admin@fpt.edu.vn");
+        commit();
+
+        verify(webSocketSessionRegistry, never()).closeSessionsOf(any());
+    }
+
+    @Test
+    @DisplayName("KI-1: xoá mềm -> đóng phiên sau commit; rollback thì không")
+    void softDelete_closesWebSocketSessionsAfterCommitOnly() {
+        when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+        userService.setRefreshHttpCaller(url -> { });
+
+        TransactionSynchronizationManager.initSynchronization();
+        userService.softDelete(userId, "admin@fpt.edu.vn");
+        rollback();
+        verify(webSocketSessionRegistry, never()).closeSessionsOf(any());
+        TransactionSynchronizationManager.clearSynchronization();
+
+        testUser.setDeletedAt(null);
+        testUser.setIsActive(true);
+        TransactionSynchronizationManager.initSynchronization();
+        userService.softDelete(userId, "admin@fpt.edu.vn");
+        verify(webSocketSessionRegistry, never()).closeSessionsOf(any());
+        commit();
+        verify(webSocketSessionRegistry).closeSessionsOf(userId);
+    }
+
+    @Test
+    @DisplayName("KI-1: gỡ lô import -> đóng phiên của từng tài khoản trong lô sau commit")
+    void deleteBatch_closesWebSocketSessionsOfEachUserAfterCommit() {
+        UUID batchId = UUID.randomUUID();
+        User second = User.builder().id(UUID.randomUUID()).userCode("SV19002").email("b@fpt.edu.vn")
+                .role(Role.NORMAL_USER).isActive(true).accessLevel(1).build();
+        when(userRepository.existsByImportBatchId(batchId)).thenReturn(true);
+        when(userRepository.findByImportBatchIdOrderByUserCodeAsc(batchId)).thenReturn(List.of(testUser, second));
+        when(userRepository.softDeleteByImportBatchId(batchId)).thenReturn(2);
+        userService.setRefreshHttpCaller(url -> { });
+        TransactionSynchronizationManager.initSynchronization();
+
+        userService.deleteBatch(batchId, "admin@fpt.edu.vn");
+        verify(webSocketSessionRegistry, never()).closeSessionsOf(any());
+
+        commit();
+        verify(webSocketSessionRegistry).closeSessionsOf(userId);
+        verify(webSocketSessionRegistry).closeSessionsOf(second.getId());
     }
 
     private boolean waitForCondition(java.util.function.BooleanSupplier condition, long maxWaitMs) {

@@ -1,10 +1,10 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import {
 	AlertCircle,
 	Plus,
 	Cctv,
 	VideoOff,
-	ShieldCheck,
 	Users,
 	Pencil,
 	Ban,
@@ -31,9 +31,8 @@ const formatEventUntil = (openUntil) => {
 
 const TYPE_PRIORITY = {
 	PUBLIC: 1,
-	INTERNAL_CONFIDENTIAL: 2,
-	CONFIDENTIAL_CONTACT_REQUIRED: 3,
-	HIGHLY_CONFIDENTIAL: 4,
+	CONFIDENTIAL: 2,
+	HIGHLY_CONFIDENTIAL: 3,
 };
 
 const LEVEL_SECTIONS = [
@@ -42,29 +41,32 @@ const LEVEL_SECTIONS = [
 		levelNumber: 1,
 		title: "Khu vực Công khai",
 		badgeLabel: "Cấp 1",
-		badgeColor: "#10b981",
-		badgeBg: "rgba(16, 185, 129, 0.12)",
+		dotColor: "var(--theme-success)",
+		badgeColor: "var(--theme-success-text)",
+		badgeBg: "var(--theme-success-bg)",
+		badgeBorder: "var(--theme-success-border)",
 		filter: (a) => a.areaAccessLevel === 1 || a.areaLevel === "PUBLIC",
 	},
 	{
 		key: "LEVEL_2",
 		levelNumber: 2,
-		title: "Khu vực Bảo mật nội bộ & Cần liên hệ",
+		title: "Khu vực Bảo mật",
 		badgeLabel: "Cấp 2",
-		badgeColor: "#3b82f6",
-		badgeBg: "rgba(59, 130, 246, 0.12)",
-		filter: (a) =>
-			a.areaAccessLevel === 2 ||
-			a.areaLevel === "INTERNAL_CONFIDENTIAL" ||
-			a.areaLevel === "CONFIDENTIAL_CONTACT_REQUIRED",
+		dotColor: "var(--theme-info)",
+		badgeColor: "var(--theme-info-text)",
+		badgeBg: "var(--theme-info-bg)",
+		badgeBorder: "var(--theme-info-border)",
+		filter: (a) => a.areaAccessLevel === 2 || a.areaLevel === "CONFIDENTIAL",
 	},
 	{
 		key: "LEVEL_3",
 		levelNumber: 3,
 		title: "Khu vực Tuyệt mật",
 		badgeLabel: "Cấp 3",
-		badgeColor: "#ef4444",
-		badgeBg: "rgba(239, 68, 68, 0.12)",
+		dotColor: "var(--theme-danger)",
+		badgeColor: "var(--theme-danger-text)",
+		badgeBg: "var(--theme-danger-bg)",
+		badgeBorder: "var(--theme-danger-border)",
 		filter: (a) =>
 			a.areaAccessLevel === 3 || a.areaLevel === "HIGHLY_CONFIDENTIAL",
 	},
@@ -78,15 +80,14 @@ export default function AreaListView({
 	cameraCounts,
 	isAdmin,
 	isFacilityManager,
-	levelPresets,
 	onSelectArea,
 	onOpenCreateModal,
 	onOpenCamerasModal,
-	onOpenAccessRulesModal,
 	onOpenAssignedPersonnelModal,
 	onOpenEditModal,
 	onOpenDeactivateModal,
 }) {
+	const navigate = useNavigate();
 	const renderAreaCard = (area) => {
 		const isSelected = selectedAreaId === area.id;
 		const levelKey =
@@ -126,12 +127,17 @@ export default function AreaListView({
 							</span>
 						)}
 						{area.upcomingScheduleCount > 0 && (
-							<span
+							<button
+								type="button"
 								className="zone-card__pill-schedule"
-								title="Số lịch sự kiện đã đặt, chưa bắt đầu"
+								title="Số lịch sự kiện đã đặt, chưa bắt đầu — bấm để xem ở màn Quản lý sự kiện"
+								onClick={(e) => {
+									e.stopPropagation();
+									navigate(`/admin/events?areaId=${area.id}&status=SCHEDULED`);
+								}}
 							>
 								{area.upcomingScheduleCount} lịch sự kiện
-							</span>
+							</button>
 						)}
 					</div>
 				</div>
@@ -180,29 +186,6 @@ export default function AreaListView({
 						>
 							<Cctv size={13} />
 						</button>
-
-						{(isAdmin || isFacilityManager) && (
-							<button
-								type="button"
-								className="zone-card__quick-btn"
-								onClick={(e) => {
-									e.stopPropagation();
-									onOpenAccessRulesModal(area);
-								}}
-								title={
-									isAdmin
-										? "Đổi cấp truy cập khu vực"
-										: "Chế độ sự kiện và lịch"
-								}
-								aria-label={
-									isAdmin
-										? "Đổi cấp truy cập khu vực"
-										: "Chế độ sự kiện và lịch"
-								}
-							>
-								<ShieldCheck size={13} />
-							</button>
-						)}
 
 						{isFacilityManager && levelKey !== "PUBLIC" && (
 							<button
@@ -305,7 +288,7 @@ export default function AreaListView({
 									<div className="area-level-section__title-group">
 										<span
 											className="area-level-section__dot"
-											style={{ backgroundColor: section.badgeColor }}
+											style={{ backgroundColor: section.dotColor }}
 										/>
 										<h2 className="area-level-section__title">
 											{section.title}
@@ -315,7 +298,7 @@ export default function AreaListView({
 											style={{
 												color: section.badgeColor,
 												backgroundColor: section.badgeBg,
-												borderColor: section.badgeColor,
+												borderColor: section.badgeBorder,
 											}}
 										>
 											{section.badgeLabel}

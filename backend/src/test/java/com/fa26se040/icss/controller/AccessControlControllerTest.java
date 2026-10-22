@@ -75,10 +75,10 @@ class AccessControlControllerTest {
     }
 
     @Test
-    @DisplayName("GET /api/access-control/level-presets -> 200 OK với danh sách presets")
+    @DisplayName("GET /api/access-control/level-presets -> 200 OK với danh sách presets (chỉ xem)")
     void getLevelPresets_Returns200() throws Exception {
         LevelPresetResponse p1 = new LevelPresetResponse(AreaLevel.PUBLIC, 1, false, OffsetDateTime.now(), "Admin", "ADM01", 0L);
-        LevelPresetResponse p2 = new LevelPresetResponse(AreaLevel.HIGHLY_CONFIDENTIAL, 3, true, OffsetDateTime.now(), "Admin", "ADM01", 0L);
+        LevelPresetResponse p2 = new LevelPresetResponse(AreaLevel.HIGHLY_CONFIDENTIAL, 3, false, OffsetDateTime.now(), "Admin", "ADM01", 0L);
 
         when(presetService.getAllPresets()).thenReturn(List.of(p1, p2));
 
@@ -90,19 +90,17 @@ class AccessControlControllerTest {
     }
 
     @Test
-    @DisplayName("PATCH /api/access-control/level-presets/{areaType} hợp lệ -> 200 OK")
-    void updateLevelPreset_Valid_Returns200() throws Exception {
-        LevelPresetUpdateRequest req = new LevelPresetUpdateRequest(2, true, "Nâng cấp bảo mật", 0L);
-        LevelPresetResponse resp = new LevelPresetResponse(AreaLevel.PUBLIC, 2, true, OffsetDateTime.now(), "FM", "FM01", 1L);
-
-        when(presetService.updatePreset(eq(AreaLevel.PUBLIC), any(), any())).thenReturn(resp);
+    @DisplayName("V83: PATCH /api/access-control/level-presets/{areaType} hợp lệ về dữ liệu -> 400 ERR_AC_005 (cấp cố định theo loại)")
+    void updateLevelPreset_FixedByType_Returns400() throws Exception {
+        LevelPresetUpdateRequest req = new LevelPresetUpdateRequest(2, false, "Nâng cấp bảo mật", 0L);
+        when(presetService.updatePreset(eq(AreaLevel.PUBLIC), any(), any()))
+                .thenThrow(new AccessControlException(AccessControlErrorCode.ERR_AC_005));
 
         mockMvc.perform(patch("/api/access-control/level-presets/{areaType}", "PUBLIC")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.areaAccessLevel").value(2))
-                .andExpect(jsonPath("$.data.explicitAuthorizationRequired").value(true));
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("ERR_AC_005"));
     }
 
     @Test
@@ -154,20 +152,6 @@ class AccessControlControllerTest {
 
         org.mockito.Mockito.verify(presetService, org.mockito.Mockito.never())
                 .updatePreset(any(), any(), any());
-    }
-
-    @Test
-    @DisplayName("PATCH /api/access-control/level-presets/{areaType} với version xung đột -> 409 Conflict")
-    void updateLevelPreset_VersionConflict_Returns409() throws Exception {
-        LevelPresetUpdateRequest req = new LevelPresetUpdateRequest(2, true, "Điều chỉnh theo quy định mới", 0L);
-        when(presetService.updatePreset(eq(AreaLevel.PUBLIC), any(), any()))
-                .thenThrow(new AccessControlException(AccessControlErrorCode.ERR_AC_003));
-
-        mockMvc.perform(patch("/api/access-control/level-presets/{areaType}", "PUBLIC")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("ERR_AC_003"));
     }
 
     @Test

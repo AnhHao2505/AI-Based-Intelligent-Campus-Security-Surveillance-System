@@ -1,10 +1,10 @@
 package com.fa26se040.icss.dto.user;
 
+import com.fa26se040.icss.validation.ReasonLength;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
 
 public record UserAccessLevelUpdateRequest(
         @NotNull(message = "Cấp độ truy cập không được để trống")
@@ -13,7 +13,7 @@ public record UserAccessLevelUpdateRequest(
         Integer accessLevel,
 
         @NotBlank(message = "Lý do không được để trống")
-        @Size(min = 10, max = 500, message = "Lý do phải có từ 10 đến 500 ký tự")
+        @ReasonLength
         String reason
 ) {
     public UserAccessLevelUpdateRequest(Integer accessLevel) {

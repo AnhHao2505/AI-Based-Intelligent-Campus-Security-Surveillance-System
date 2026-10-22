@@ -19,6 +19,7 @@ import {
 import {
 	Button,
 	Input,
+	Select,
 	Modal,
 	Badge,
 	PageHeader,
@@ -36,6 +37,14 @@ const ACTION_TYPES = [
 	{ value: "EVENT_SCHEDULE_CREATE", label: "Đặt lịch sự kiện" },
 	{ value: "EVENT_SCHEDULE_UPDATE", label: "Sửa lịch sự kiện" },
 	{ value: "EVENT_SCHEDULE_CANCEL", label: "Hủy lịch sự kiện" },
+];
+
+// Bộ lọc: dòng đầu value rỗng = không lọc (không dùng prop placeholder vì option đó bị disabled)
+const ACTION_FILTER_OPTIONS = [{ value: "", label: "Tất cả loại thao tác" }, ...ACTION_TYPES];
+const ACTIVE_FILTER_OPTIONS = [
+	{ value: "", label: "Tất cả trạng thái" },
+	{ value: "true", label: "Đang dùng" },
+	{ value: "false", label: "Ngừng dùng" },
 ];
 
 export default function ReasonCatalogPage() {
@@ -62,6 +71,7 @@ export default function ReasonCatalogPage() {
 	// UI-AUDIT #19: ô bắt buộc báo lỗi ngay khi rời ô (onBlur) còn để trống
 	const [createTouched, setCreateTouched] = useState({ code: false, label: false });
 	const [editSubmitError, setEditSubmitError] = useState(null);
+	const [editLabelTouched, setEditLabelTouched] = useState(false);
 
 	// Edit Modal
 	const [editModalOpen, setEditModalOpen] = useState(false);
@@ -171,12 +181,16 @@ export default function ReasonCatalogPage() {
 			sortOrder: item.sortOrder ?? 0,
 		});
 		setEditSubmitError(null);
+		setEditLabelTouched(false);
 		setEditModalOpen(true);
 	};
+
+	const editLabelRequiredError = editLabelTouched && !(editForm.label || "").trim() ? "Vui lòng nhập nhãn hiển thị" : null;
 
 	const handleUpdateSubmit = async (e) => {
 		e.preventDefault();
 		if (!editForm.label?.trim()) {
+			setEditLabelTouched(true);
 			setEditSubmitError("Nhãn lý do không được để trống.");
 			return;
 		}
@@ -265,39 +279,20 @@ export default function ReasonCatalogPage() {
 					<ListFilter size={16} />
 					<span style={{ fontSize: "13px", fontWeight: 600 }}>Lọc theo:</span>
 				</div>
-				<select
+				<Select
+					className="ui-select-group--filter"
 					value={filterAction}
 					onChange={(e) => setFilterAction(e.target.value)}
-					style={{
-						padding: "6px 12px",
-						borderRadius: "6px",
-						border: "1px solid var(--theme-border, #cbd5e1)",
-						background: "var(--theme-card-bg, #fff)",
-						fontSize: "13px",
-					}}
-				>
-					<option value="">Tất cả loại thao tác</option>
-					{ACTION_TYPES.map((a) => (
-						<option key={a.value} value={a.value}>
-							{a.label}
-						</option>
-					))}
-				</select>
-				<select
+					aria-label="Lọc theo loại thao tác"
+					options={ACTION_FILTER_OPTIONS}
+				/>
+				<Select
+					className="ui-select-group--filter"
 					value={filterActive}
 					onChange={(e) => setFilterActive(e.target.value)}
-					style={{
-						padding: "6px 12px",
-						borderRadius: "6px",
-						border: "1px solid var(--theme-border, #cbd5e1)",
-						background: "var(--theme-card-bg, #fff)",
-						fontSize: "13px",
-					}}
-				>
-					<option value="">Tất cả trạng thái</option>
-					<option value="true">Đang dùng</option>
-					<option value="false">Ngừng dùng</option>
-				</select>
+					aria-label="Lọc theo trạng thái"
+					options={ACTIVE_FILTER_OPTIONS}
+				/>
 			</div>
 
 			{/* Table */}
@@ -330,12 +325,16 @@ export default function ReasonCatalogPage() {
 						) : reasons.length === 0 ? (
 							<tr>
 								<td colSpan={7}>
-									<EmptyState size="sm" title="Không tìm thấy lý do nào phù hợp bộ lọc" />
+									<EmptyState
+										size="sm"
+										title="Không tìm thấy lý do nào phù hợp bộ lọc"
+										description="Đổi bộ lọc hoặc bấm “Thêm lý do” để tạo lý do mới."
+									/>
 								</td>
 							</tr>
 						) : (
 							reasons.map((item) => (
-								<tr key={item.id} style={{ borderBottom: "1px solid var(--theme-border, #f1f5f9)" }}>
+								<tr key={item.id} style={{ borderBottom: "1px solid var(--theme-border)" }}>
 									<td style={{ padding: "12px 16px" }}>
 										<span style={{ fontWeight: 600, color: "var(--theme-text-primary)" }}>
 											{getActionLabel(item.actionType)}
@@ -368,6 +367,7 @@ export default function ReasonCatalogPage() {
 												icon={Edit2}
 												onClick={() => handleOpenEdit(item)}
 												title="Sửa nhãn và thứ tự"
+												aria-label="Sửa nhãn và thứ tự"
 											/>
 											{item.isActive ? (
 												<Button
@@ -377,6 +377,7 @@ export default function ReasonCatalogPage() {
 													disabled={item.isOther}
 													onClick={() => setDeactivateTarget(item)}
 													title={item.isOther ? "Không thể ngừng dùng mục Khác" : "Ngừng dùng"}
+													aria-label={item.isOther ? "Không thể ngừng dùng mục Khác" : "Ngừng dùng"}
 													style={{ color: item.isOther ? "var(--theme-text-disabled)" : "var(--theme-danger)" }}
 												/>
 											) : (
@@ -386,6 +387,7 @@ export default function ReasonCatalogPage() {
 													icon={Power}
 													onClick={() => handleToggleStatus(item)}
 													title="Kích hoạt lại"
+													aria-label="Kích hoạt lại"
 													style={{ color: "var(--theme-success)" }}
 												/>
 											)}
@@ -401,6 +403,7 @@ export default function ReasonCatalogPage() {
 			{/* Create Modal */}
 			<Modal
 				isOpen={createModalOpen}
+				initialFocus="field"
 				onClose={() => setCreateModalOpen(false)}
 				title="Thêm lý do sự kiện mới"
 				icon={Tag}
@@ -412,32 +415,14 @@ export default function ReasonCatalogPage() {
 							<span className="syscfg-alert__text">{createSubmitError}</span>
 						</div>
 					)}
-					<div>
-						<label
-							htmlFor="reason-create-action-type"
-							style={{ display: "block", fontSize: "13px", fontWeight: 600, marginBottom: "4px" }}
-						>
-							Loại thao tác <span style={{ color: "red" }}>*</span>
-						</label>
-						<select
-							id="reason-create-action-type"
-							value={createForm.actionType}
-							onChange={(e) => setCreateForm({ ...createForm, actionType: e.target.value })}
-							style={{
-								width: "100%",
-								padding: "8px 12px",
-								borderRadius: "6px",
-								border: "1px solid var(--theme-border, #cbd5e1)",
-								fontSize: "13.5px",
-							}}
-						>
-							{ACTION_TYPES.map((a) => (
-								<option key={a.value} value={a.value}>
-									{a.label}
-								</option>
-							))}
-						</select>
-					</div>
+					<Select
+						id="reason-create-action-type"
+						label="Loại thao tác"
+						value={createForm.actionType}
+						onChange={(e) => setCreateForm({ ...createForm, actionType: e.target.value })}
+						options={ACTION_TYPES}
+						required
+					/>
 
 					{/* UI-AUDIT #19: label của components/ui/Input gắn htmlFor với ô nhập */}
 					<Input
@@ -493,6 +478,7 @@ export default function ReasonCatalogPage() {
 			{/* Edit Modal */}
 			<Modal
 				isOpen={editModalOpen}
+				initialFocus="field"
 				onClose={() => setEditModalOpen(false)}
 				title="Sửa lý do sự kiện"
 				icon={Edit2}
@@ -504,34 +490,26 @@ export default function ReasonCatalogPage() {
 							<span className="syscfg-alert__text">{editSubmitError}</span>
 						</div>
 					)}
-					<div>
-						<label style={{ display: "block", fontSize: "13px", fontWeight: 600, marginBottom: "4px" }}>
-							Mã lý do
-						</label>
-						<Input value={editForm.code} disabled />
-					</div>
+					{/* UI-AUDIT #19: dùng label của components/ui/Input (htmlFor gắn với ô nhập) như modal tạo mới */}
+					<Input id="reason-edit-code" label="Mã lý do" value={editForm.code} disabled />
 
-					<div>
-						<label style={{ display: "block", fontSize: "13px", fontWeight: 600, marginBottom: "4px" }}>
-							Nhãn hiển thị <span style={{ color: "red" }}>*</span>
-						</label>
-						<Input
-							value={editForm.label}
-							onChange={(e) => setEditForm({ ...editForm, label: e.target.value })}
-							required
-						/>
-					</div>
+					<Input
+						id="reason-edit-label"
+						label="Nhãn hiển thị"
+						value={editForm.label}
+						onChange={(e) => setEditForm({ ...editForm, label: e.target.value })}
+						onBlur={() => setEditLabelTouched(true)}
+						error={editLabelRequiredError}
+						required
+					/>
 
-					<div>
-						<label style={{ display: "block", fontSize: "13px", fontWeight: 600, marginBottom: "4px" }}>
-							Thứ tự sắp xếp
-						</label>
-						<Input
-							type="number"
-							value={editForm.sortOrder}
-							onChange={(e) => setEditForm({ ...editForm, sortOrder: parseInt(e.target.value, 10) || 0 })}
-						/>
-					</div>
+					<Input
+						id="reason-edit-sort-order"
+						label="Thứ tự sắp xếp"
+						type="number"
+						value={editForm.sortOrder}
+						onChange={(e) => setEditForm({ ...editForm, sortOrder: parseInt(e.target.value, 10) || 0 })}
+					/>
 
 					<div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "12px" }}>
 						<Button type="button" variant="secondary" onClick={() => setEditModalOpen(false)}>

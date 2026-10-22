@@ -10,6 +10,7 @@ import {
 	ACCESS_RESULT_OPTIONS,
 	dateRangeError,
 	defaultDateRange,
+	placeholderUserCodeLabel,
 	toRangeParams,
 } from "../../utils/accessHistoryHelpers";
 import { formatDateTime } from "../../utils/formatDateTime";
@@ -112,12 +113,19 @@ export default function AccessHistoryAdminPage() {
 		{
 			key: "userCode",
 			title: "Người",
-			render: (v, record) => (
-				<span className="ahp-person">
-					<span className="ahp-person__code">{v || "—"}</span>
-					{record.fullName && <span className="ahp-person__name">{record.fullName}</span>}
-				</span>
-			),
+			render: (v, record) => {
+				const placeholder = placeholderUserCodeLabel(v);
+				return (
+					<span className="ahp-person">
+						{placeholder ? (
+							<span className="ahp-person__placeholder">{placeholder}</span>
+						) : (
+							<span className="ahp-person__code">{v || "—"}</span>
+						)}
+						{record.fullName && <span className="ahp-person__name">{record.fullName}</span>}
+					</span>
+				);
+			},
 		},
 		{ key: "areaName", title: "Khu vực", render: (v) => v || "—" },
 		{ key: "cameraCode", title: "Camera", isCode: true, width: "130px" },

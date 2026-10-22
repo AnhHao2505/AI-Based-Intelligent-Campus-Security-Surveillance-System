@@ -169,13 +169,13 @@
 
 .access-level-search-box__input {
   width: 100%;
-  height: 40px;
+  height: 42px;
   padding: 0 36px 0 36px;
   border-radius: 8px;
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
   color: var(--theme-text-primary);
-  font-size: 13px;
+  font-size: 14px;
   transition: all 0.2s ease;
 }
 
@@ -212,11 +212,6 @@
   flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 12px;
-}
-
-.access-level-filter {
-  height: 40px;
-  font-size: 13px;
 }
 
 .access-level-bulk-bar {
@@ -285,6 +280,21 @@
   background: var(--theme-danger-bg);
   border-color: var(--theme-danger-border);
   color: var(--theme-danger-text);
+}
+
+/* BR-AL-30: lỗi 409 khi người dùng đang có đơn chờ duyệt — giữ trong modal (toast tự tắt) */
+.access-level-submit-error {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--theme-danger-border);
+  background: var(--theme-danger-bg);
+  color: var(--theme-danger-text);
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 /* Table Card */
@@ -387,21 +397,6 @@
 
 .access-level-select-wrap {
   display: inline-block;
-}
-
-.access-level-select {
-  height: 32px;
-  padding: 0 10px;
-  border-radius: 6px;
-  background: var(--theme-bg-surface);
-  border: 1px solid var(--theme-border);
-  color: var(--theme-text-primary);
-  font-size: 12px;
-}
-
-.access-level-select:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 
 .access-level-readonly-hint,

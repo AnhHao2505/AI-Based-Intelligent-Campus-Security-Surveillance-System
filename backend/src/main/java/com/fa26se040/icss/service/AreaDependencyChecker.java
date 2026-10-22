@@ -68,14 +68,14 @@ public class AreaDependencyChecker {
     public DeactivationEvaluation evaluate(Area area, OffsetDateTime now) {
         List<Blocker> blockers = new ArrayList<>();
 
-        // BR-AD-06: camera còn gán (chưa xoá) — phải chuyển sang khu vực khác trước khi vô hiệu hoá
+        // BR-AD-06: camera còn gán (chưa xoá) — phải chuyển sang khu vực khác trước khi vô hiệu hoá; liệt kê mã + tên từng camera
         List<Camera> cameras = cameraRepository.findByAreaIdAndDeletedAtIsNull(area.getId());
         if (!cameras.isEmpty()) {
             String list = cameras.stream()
                     .map(c -> c.getCameraCode() + " – " + c.getName())
                     .collect(Collectors.joining(", "));
             blockers.add(new Blocker(AreaErrorCode.ERR_AREA_009, cameras.size(),
-                    "Không thể vô hiệu hoá: còn " + cameras.size() + " camera đang gán. Chuyển camera sang khu vực khác trước"));
+                    "Không thể vô hiệu hoá: còn " + cameras.size() + " camera đang gán (" + list + "). Chuyển camera sang khu vực khác trước"));
         }
 
         // BR-AD-02: sự cố NEW hoặc CLAIMED

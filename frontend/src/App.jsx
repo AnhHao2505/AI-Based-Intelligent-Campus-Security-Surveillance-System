@@ -21,13 +21,13 @@ import GuestVisitReviewPage from "./pages/guestVisit/GuestVisitReviewPage";
 import GuestPhotoPage from "./pages/guestVisit/GuestPhotoPage";
 import AccessHistoryPage from "./pages/accessHistory/AccessHistoryPage";
 import AccessHistoryAdminPage from "./pages/accessHistory/AccessHistoryAdminPage";
+import EventManagementPage from "./pages/events/EventManagementPage";
 import NotificationsPage from "./pages/notifications/NotificationsPage";
 import ManageAccountPage from "./pages/accounts/ManageAccountPage";
 import SystemConfigPage from "./pages/system/SystemConfigPage";
 import GuardTeamManagementPage from "./pages/guardTeams/GuardTeamManagementPage";
 import ReasonCatalogPage from "./pages/system/ReasonCatalogPage";
 import UserAccessLevelPage from "./pages/accessControl/UserAccessLevelPage";
-import AdminPresetPage from "./pages/accessControl/AdminPresetPage";
 import AuditLogPage from "./pages/accessControl/AuditLogPage";
 import AccessLevelsRedirect from "./pages/accessControl/AccessLevelsRedirect";
 import DemoModeBanner from "./components/common/DemoModeBanner";
@@ -36,9 +36,10 @@ const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
 
 const ROUTE_TITLES = {
 	"/": "FPTU SecureVision",
-	"/dashboard": "Dashboard",
+	"/dashboard": "Tổng quan",
 	"/admin/areas": "Quản lý khu vực",
 	"/admin/areas/map": "Bản đồ Vùng",
+	"/admin/events": "Quản lý sự kiện",
 	"/cameras": "Quản lý Camera",
 	"/admin/cameras": "Quản lý Camera",
 	"/admin/accounts": "Quản lý tài khoản",
@@ -46,7 +47,7 @@ const ROUTE_TITLES = {
 	"/admin/guard-schedules": "Quản lý Đội bảo vệ",
 	"/guard": "Trung tâm Giám sát",
 	"/access-requests": "Yêu cầu truy cập",
-	"/access-history": "Lịch sử truy cập",
+	"/access-history": "Lịch sử ra vào của tôi",
 	"/admin/access-history": "Lịch sử ra vào",
 	"/notifications": "Thông báo",
 	"/admin/access-requests": "Phê duyệt yêu cầu truy cập",
@@ -55,7 +56,6 @@ const ROUTE_TITLES = {
 	"/admin/guest-photos": "Ảnh khách",
 	"/fm/access-levels": "Cấp truy cập người dùng",
 	"/admin/access-levels": "Cấp truy cập người dùng",
-	"/admin/level-presets": "Mặc định theo loại khu vực",
 	"/admin/audit-logs": "Nhật ký Kiểm toán",
 	"/admin/system-configurations": "Cấu hình Hệ thống",
 	"/login": "Đăng nhập",
@@ -311,6 +311,16 @@ function App() {
 								}
 							/>
 
+							{/* Quản lý sự kiện: FM tạo / sửa / huỷ / dừng; ADMIN chỉ xem (API đọc cho phép ADMIN) */}
+							<Route
+								path="/admin/events"
+								element={
+									<ProtectedRoute allowedRoles={[ROLES.FACILITY_MANAGER, ROLES.ADMIN]}>
+										<EventManagementPage />
+									</ProtectedRoute>
+								}
+							/>
+
 							<Route
 								path="/notifications"
 								element={
@@ -367,15 +377,10 @@ function App() {
 								}
 							/>
 
+							{/* V83 (D2): cấp cố định theo loại, bỏ trang sửa preset; link cũ về danh sách khu vực */}
 							<Route
 								path="/admin/level-presets"
-								element={
-									<ProtectedRoute
-										allowedRoles={[ROLES.ADMIN]}
-									>
-										<AdminPresetPage />
-									</ProtectedRoute>
-								}
+								element={<Navigate to="/admin/areas" replace />}
 							/>
 
 							<Route

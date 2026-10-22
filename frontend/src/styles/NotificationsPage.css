@@ -198,7 +198,8 @@
 /* Cột 3: Thời gian */
 .notif-item__time {
   font-size: 11px;
-  color: var(--theme-text-muted);
+  /* UI-AUDIT #30: --theme-text-muted chỉ đạt 4.26 trên nền thông báo chưa đọc (sáng) */
+  color: var(--theme-text-secondary);
   text-align: right;
   white-space: nowrap;
 }
