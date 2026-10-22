@@ -1,6 +1,7 @@
 package com.fa26se040.icss.service;
 
 import com.fa26se040.icss.AbstractIntegrationTest;
+import com.fa26se040.icss.dto.accessrequest.AccessRequestResponse;
 import com.fa26se040.icss.entity.AccessRequest;
 import com.fa26se040.icss.entity.AccessRequestMember;
 import com.fa26se040.icss.entity.Area;
@@ -20,6 +21,7 @@ import com.fa26se040.icss.repository.BuildingRepository;
 import com.fa26se040.icss.repository.FloorRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import com.fa26se040.icss.security.JwtTokenProvider;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,6 +42,7 @@ import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -178,6 +181,11 @@ class AccessRequestFinishTest extends AbstractIntegrationTest {
         return jdbc.queryForObject("SELECT status FROM access_requests WHERE id = ?", String.class, r.getId());
     }
 
+    /** V88: finish_reason / finished_by của đơn (đọc thẳng DB). */
+    private Map<String, Object> finishColumns(AccessRequest r) {
+        return jdbc.queryForMap("SELECT finish_reason, finished_by FROM access_requests WHERE id = ?", r.getId());
+    }
+
     private static String body(MvcResult r) throws Exception {
         return r.getResponse().getContentAsString(StandardCharsets.UTF_8);
     }
@@ -254,6 +262,45 @@ class AccessRequestFinishTest extends AbstractIntegrationTest {
         assertEquals("FINISHED", status(r));
         assertEquals(1, finishAudits(r));
         assertEquals(1, finishNotifications(r));
+    }
+
+    @Test
+    @DisplayName("V88: hoàn thành -> lưu finish_reason (đã trim) và finished_by = FM; response có finishReason, finishedByName, không có e-mail người kết thúc")
+    void fm_finish_storesReasonAndActor() throws Exception {
+        AccessRequest r = request(RequestStatus.APPROVED);
+        // FM kết thúc khác FM đã duyệt (reviewerEmail vốn có trong response) để kiểm không lộ e-mail người kết thúc
+        User finisher = user("fin", Role.FACILITY_MANAGER);
+
+        MvcResult res = finish(finisher, r, "{\"reason\":\"   " + REASON + "  \"}");
+
+        assertEquals(200, res.getResponse().getStatus(), body(res));
+        Map<String, Object> cols = finishColumns(r);
+        assertEquals(REASON, cols.get("finish_reason"));
+        assertEquals(finisher.getId(), cols.get("finished_by"));
+        JsonNode data = objectMapper.readTree(body(res)).path("data");
+        assertEquals(REASON, data.path("finishReason").asText(), body(res));
+        assertEquals(finisher.getFullName(), data.path("finishedByName").asText(), body(res));
+        assertFalse(body(res).contains(finisher.getEmail()), "response không được lộ e-mail người kết thúc: " + body(res));
+        // Audit FINISH giữ nguyên: cùng lý do
+        assertEquals(REASON, jdbc.queryForObject(
+                "SELECT reason FROM audit_logs WHERE target_type = 'ACCESS_REQUEST' AND action = 'FINISH' AND target_id = ?",
+                String.class, r.getId().toString()));
+    }
+
+    @Test
+    @DisplayName("V88: đơn chưa kết thúc (APPROVED) và đơn hoàn thành bị chặn -> finish_reason / finished_by vẫn NULL, response trả null")
+    void finishColumns_nullUntilFinished() throws Exception {
+        AccessRequest r = request(RequestStatus.APPROVED, OffsetDateTime.now().plusHours(2), List.of());
+
+        MvcResult res = finish(fm, r);
+
+        assertEquals(400, res.getResponse().getStatus(), body(res));
+        Map<String, Object> cols = finishColumns(r);
+        assertNull(cols.get("finish_reason"));
+        assertNull(cols.get("finished_by"));
+        AccessRequestResponse response = accessRequestService.getRequestById(r.getId(), fm.getEmail(), true);
+        assertNull(response.finishReason());
+        assertNull(response.finishedByName());
     }
 
     @Test
@@ -354,8 +401,9 @@ class AccessRequestFinishTest extends AbstractIntegrationTest {
         AccessRequest r = request(RequestStatus.APPROVED);
         User otherFm = user("fm2", Role.FACILITY_MANAGER);
 
+        String winnerReason = "FM thứ hai kết thúc trước do sự kiện huỷ";
         MvcResult res = finishWhileAnotherTransactionHoldsTheRow(fm, r,
-                () -> accessRequestService.finishRequest(r.getId(), REASON, otherFm.getEmail()));
+                () -> accessRequestService.finishRequest(r.getId(), winnerReason, otherFm.getEmail()));
 
         assertEquals(409, res.getResponse().getStatus(), body(res));
         assertTrue(body(res).contains("FINISHED"), body(res));
@@ -365,6 +413,10 @@ class AccessRequestFinishTest extends AbstractIntegrationTest {
         assertEquals(otherFm.getId(), jdbc.queryForObject(
                 "SELECT changed_by FROM audit_logs WHERE target_type = 'ACCESS_REQUEST' AND action = 'FINISH' AND target_id = ?",
                 UUID.class, r.getId().toString()));
+        // V88: chỉ bên thắng ghi lý do / người kết thúc; FM chậm hơn không ghi đè
+        Map<String, Object> cols = finishColumns(r);
+        assertEquals(winnerReason, cols.get("finish_reason"));
+        assertEquals(otherFm.getId(), cols.get("finished_by"));
     }
 
     @Test
@@ -383,6 +435,9 @@ class AccessRequestFinishTest extends AbstractIntegrationTest {
                 "SELECT cancel_source FROM access_requests WHERE id = ?", String.class, r.getId()));
         assertEquals(0, finishAudits(r));
         assertEquals(0, finishNotifications(r));
+        Map<String, Object> cols = finishColumns(r);
+        assertNull(cols.get("finish_reason"));
+        assertNull(cols.get("finished_by"));
     }
 
     @Test

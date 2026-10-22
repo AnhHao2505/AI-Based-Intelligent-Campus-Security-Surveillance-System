@@ -27,6 +27,7 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, UU
            "JOIN FETCH ar.area " +
            "JOIN FETCH ar.requester " +
            "LEFT JOIN FETCH ar.reviewer " +
+           "LEFT JOIN FETCH ar.finishedBy " +
            "WHERE ar.id = :id")
     Optional<AccessRequest> findByIdWithDetails(@Param("id") UUID id);
 
@@ -188,13 +189,17 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, UU
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE AccessRequest r " +
            "SET r.status = :newStatus, " +
-           "    r.updatedAt = :now " +
+           "    r.updatedAt = :now, " +
+           "    r.finishReason = :finishReason, " +
+           "    r.finishedBy = :finishedBy " +
            "WHERE r.id = :id AND r.status = :expectedStatus AND (r.startTime IS NULL OR r.startTime <= :now)")
     int finishIfApprovedStarted(
             @Param("id") UUID id,
             @Param("newStatus") RequestStatus newStatus,
             @Param("now") OffsetDateTime now,
-            @Param("expectedStatus") RequestStatus expectedStatus
+            @Param("expectedStatus") RequestStatus expectedStatus,
+            @Param("finishReason") String finishReason,
+            @Param("finishedBy") User finishedBy
     );
 
     /**

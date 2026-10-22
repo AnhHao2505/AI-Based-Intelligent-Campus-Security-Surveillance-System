@@ -962,7 +962,7 @@ public class AccessRequestService {
         // mới quyết định ai hoàn thành được. Không dùng save(): save() ghi đè trạng thái mà thao tác khác vừa commit
         // (FM khác hoàn thành, hệ thống huỷ đơn) và hai FM bấm cùng lúc sẽ cùng ghi audit, cùng gửi thông báo.
         int updatedCount = accessRequestRepository.finishIfApprovedStarted(
-                id, RequestStatus.FINISHED, now, RequestStatus.APPROVED);
+                id, RequestStatus.FINISHED, now, RequestStatus.APPROVED, finishReason, actor);
 
         if (updatedCount == 1) {
             // [RÀNG BUỘC NOTIFICATION / SIDE-EFFECTS]: chỉ ở nhánh 1 dòng
@@ -1263,7 +1263,9 @@ public class AccessRequestService {
                 isRequester,
                 ar.getCancelSource(),
                 ar.getCancelReason(),
-                ar.getCancelledBy() != null ? ar.getCancelledBy().getId() : null
+                ar.getCancelledBy() != null ? ar.getCancelledBy().getId() : null,
+                ar.getFinishReason(),
+                ar.getFinishedBy() != null ? ar.getFinishedBy().getFullName() : null
         );
     }
 }

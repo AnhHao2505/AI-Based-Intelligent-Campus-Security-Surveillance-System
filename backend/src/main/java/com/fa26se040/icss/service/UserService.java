@@ -1,5 +1,6 @@
 package com.fa26se040.icss.service;
 
+import com.fa26se040.icss.config.WebSocketSessionRegistry;
 import com.fa26se040.icss.dto.BulkImportResponse;
 import com.fa26se040.icss.dto.FaceDataResponseDto;
 import com.fa26se040.icss.dto.UserInfo;
@@ -92,6 +93,8 @@ public class UserService {
     private final AreaAssignedPersonnelService assignedPersonnelService;
     // BR-AL-30: kiểm đơn PENDING trước khi đổi cấp
     private final com.fa26se040.icss.repository.AccessRequestRepository accessRequestRepository;
+    // KI-1: vô hiệu hoá / xoá tài khoản -> đóng phiên WebSocket đang mở của người đó (sau commit)
+    private final WebSocketSessionRegistry webSocketSessionRegistry;
 
     @Value("${ai.service.url:http://localhost:8000}")
     private String aiServiceUrl = "http://localhost:8000";
@@ -296,6 +299,9 @@ public class UserService {
 
         log.info("Toggled active state for user {}: now {}", userId, updatedUser.getIsActive());
         notifyAiServiceRefreshCache();
+        if (deactivating) {
+            closeWebSocketSessionsAfterCommit(List.of(userId));
+        }
         return UserListResponse.fromEntity(updatedUser);
     }
 
@@ -326,6 +332,7 @@ public class UserService {
 
         log.info("Soft-deleted user {}", userId);
         notifyAiServiceRefreshCache();
+        closeWebSocketSessionsAfterCommit(List.of(userId));
     }
 
     /** BR-AP-24/25: ADMIN đang thao tác, ghi vào revoked_by và audit USER (chk_audit_actor cần changed_by). */
@@ -382,6 +389,29 @@ public class UserService {
         }
     }
 
+    /**
+     * KI-1: đóng phiên WebSocket của các user SAU KHI transaction commit; rollback thì không đóng.
+     * Không có transaction (gọi trực tiếp) thì đóng ngay, cùng cách notifyAiServiceRefreshCache.
+     */
+    void closeWebSocketSessionsAfterCommit(Collection<UUID> userIds) {
+        List<UUID> ids = List.copyOf(userIds);
+        if (ids.isEmpty()) {
+            return;
+        }
+        Runnable task = () -> ids.forEach(webSocketSessionRegistry::closeSessionsOf);
+
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    task.run();
+                }
+            });
+        } else {
+            task.run();
+        }
+    }
+
     @Transactional(readOnly = true)
     public Page<ImportBatchSummaryResponse> getImportBatches(Pageable pageable) {
         return userRepository.findImportBatchSummaries(pageable);
@@ -423,6 +453,7 @@ public class UserService {
         log.info("Soft-deleted import batch {}: {} users affected", batchId, deletedCount);
         if (deletedCount > 0) {
             notifyAiServiceRefreshCache();
+            closeWebSocketSessionsAfterCommit(usersToDelete);
         }
         return new BatchDeleteResponse(batchId, deletedCount, "Đã gỡ " + deletedCount + " tài khoản trong lô.");
     }
