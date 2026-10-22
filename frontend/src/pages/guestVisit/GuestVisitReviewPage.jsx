@@ -59,7 +59,11 @@ function ReasonBlock({ label, value, author, time, variant = 'default' }) {
   );
 }
 
-export default function GuestVisitReviewPage() {
+/**
+ * @param {Object} props
+ * @param {boolean} [props.embedded=false] - nhúng làm tab của màn Phê duyệt yêu cầu: ẩn tiêu đề / phụ đề, bỏ khung trang, giữ nút thao tác
+ */
+export default function GuestVisitReviewPage({ embedded = false }) {
   const reasonLimits = useReasonLimits();
   const { user } = useAuth();
   const [statusFilter, setStatusFilter] = useState('PENDING');
@@ -297,10 +301,10 @@ export default function GuestVisitReviewPage() {
     isFacilityManager && !isOwnVisit && (detail?.status === 'PENDING' || isDetailApprovedAndActive);
 
   return (
-    <div className="guest-visit">
+    <div className={`guest-visit ${embedded ? 'guest-visit--embedded' : ''}`}>
       <PageHeader
-        title="Duyệt lượt khách"
-        description="Xem xét, phê duyệt hoặc từ chối các lượt đăng ký mời khách vào khuôn viên trường."
+        title={embedded ? undefined : 'Duyệt lượt khách'}
+        description={embedded ? undefined : 'Xem xét, phê duyệt hoặc từ chối các lượt đăng ký mời khách vào khuôn viên trường.'}
         actions={
           <Button
             variant="secondary"

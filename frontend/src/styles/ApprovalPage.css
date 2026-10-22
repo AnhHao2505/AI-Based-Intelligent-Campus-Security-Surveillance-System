@@ -1,0 +1,17 @@
+/* Màn "Phê duyệt yêu cầu" (FM) — khung trang chứa 2 tab; nội dung tab là AccessRequestReviewPage / GuestVisitReviewPage ở chế độ embedded */
+.apv-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  /* UI-1 A4: khuôn trang dùng chung */
+  width: 100%;
+  max-width: var(--page-max-width);
+  margin: 0 auto;
+  padding: var(--page-padding-y) var(--page-padding-x);
+  box-sizing: border-box;
+}
+
+/* Container đã có gap, PageHeader không cần lề dưới */
+.apv-container > .ui-page-header {
+  margin-bottom: 0;
+}

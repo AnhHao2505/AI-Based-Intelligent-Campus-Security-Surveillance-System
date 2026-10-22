@@ -22,7 +22,6 @@ import {
 	Compass,
 	Tag,
 	UserPlus,
-	UserCheck,
 	Camera,
 	Film,
 } from "lucide-react";
@@ -390,23 +389,11 @@ export default function Sidebar({ user, onLogout }) {
 													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
 												}
 												title={
-													sidebarCollapsed ? "Phê duyệt yêu cầu truy cập" : undefined
+													sidebarCollapsed ? "Phê duyệt yêu cầu" : undefined
 												}
 											>
 												<ClipboardCheck size={18} />
-												<span>Phê duyệt yêu cầu truy cập</span>
-											</NavLink>
-											<NavLink
-												to="/admin/guest-visits"
-												className={({ isActive }) =>
-													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
-												}
-												title={
-													sidebarCollapsed ? "Duyệt lượt khách" : undefined
-												}
-											>
-												<UserCheck size={18} />
-												<span>Duyệt lượt khách</span>
+												<span>Phê duyệt yêu cầu</span>
 											</NavLink>
 											<NavLink
 												to="/admin/guard-teams"

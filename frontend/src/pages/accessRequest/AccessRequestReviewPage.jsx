@@ -52,7 +52,11 @@ const getListReason = (req) => {
   }
 };
 
-export default function AccessRequestReviewPage() {
+/**
+ * @param {Object} props
+ * @param {boolean} [props.embedded=false] - nhúng làm tab của màn Phê duyệt yêu cầu: ẩn tiêu đề / phụ đề, bỏ khung trang, giữ nút thao tác
+ */
+export default function AccessRequestReviewPage({ embedded = false }) {
   const reasonLimits = useReasonLimits();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -371,11 +375,11 @@ export default function AccessRequestReviewPage() {
   });
 
   return (
-    <div className="arr-container">
+    <div className={`arr-container ${embedded ? 'arr-container--embedded' : ''}`}>
       {/* Header */}
       <PageHeader
-        title="Phê duyệt yêu cầu truy cập"
-        description={`Xét duyệt yêu cầu ra vào các khu vực ${AREA_LEVEL_CONFIG.CONFIDENTIAL.badgeLabel} và ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.badgeLabel}.`}
+        title={embedded ? undefined : 'Phê duyệt yêu cầu truy cập'}
+        description={embedded ? undefined : `Xét duyệt yêu cầu ra vào các khu vực ${AREA_LEVEL_CONFIG.CONFIDENTIAL.badgeLabel} và ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.badgeLabel}.`}
         actions={
           <button
             type="button"

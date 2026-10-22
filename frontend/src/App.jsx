@@ -15,9 +15,8 @@ import CameraListPage from "./pages/cameras/CameraListPage";
 import CameraDetailPage from "./pages/cameras/CameraDetailPage";
 import GuardDashboardPage from "./pages/guard/GuardDashboardPage";
 import AccessRequestPage from "./pages/accessRequest/AccessRequestPage";
-import AccessRequestReviewPage from "./pages/accessRequest/AccessRequestReviewPage";
+import ApprovalPage from "./pages/approvals/ApprovalPage";
 import GuestVisitPage from "./pages/guestVisit/GuestVisitPage";
-import GuestVisitReviewPage from "./pages/guestVisit/GuestVisitReviewPage";
 import GuestPhotoPage from "./pages/guestVisit/GuestPhotoPage";
 import AccessHistoryPage from "./pages/accessHistory/AccessHistoryPage";
 import AccessHistoryAdminPage from "./pages/accessHistory/AccessHistoryAdminPage";
@@ -52,9 +51,8 @@ const ROUTE_TITLES = {
 	"/access-history": "Lịch sử ra vào của tôi",
 	"/admin/access-history": "Lịch sử ra vào",
 	"/notifications": "Thông báo",
-	"/admin/access-requests": "Phê duyệt yêu cầu truy cập",
+	"/admin/access-requests": "Phê duyệt yêu cầu",
 	"/guest-visits": "Khách của tôi",
-	"/admin/guest-visits": "Duyệt lượt khách",
 	"/admin/guest-photos": "Ảnh khách",
 	"/fm/access-levels": "Cấp truy cập người dùng",
 	"/admin/access-levels": "Cấp truy cập người dùng",
@@ -104,6 +102,22 @@ function DashboardRoute() {
 		);
 	}
 	return <DashboardPage />;
+}
+
+// Màn "Duyệt lượt khách" đã gộp thành tab của "Phê duyệt yêu cầu": link cũ chuyển sang tab Lượt khách, giữ ?visitId
+function GuestVisitReviewRedirect() {
+	const location = useLocation();
+	const next = new URLSearchParams({ tab: "guests" });
+	const visitId = new URLSearchParams(location.search).get("visitId");
+	if (visitId) {
+		next.set("visitId", visitId);
+	}
+	return (
+		<Navigate
+			to={`/admin/access-requests?${next}`}
+			replace
+		/>
+	);
 }
 
 function App() {
@@ -357,7 +371,7 @@ function App() {
 								path="/admin/access-requests"
 								element={
 									<ProtectedRoute allowedRoles={[ROLES.FACILITY_MANAGER]}>
-										<AccessRequestReviewPage />
+										<ApprovalPage />
 									</ProtectedRoute>
 								}
 							/>
@@ -366,7 +380,7 @@ function App() {
 								path="/admin/guest-visits"
 								element={
 									<ProtectedRoute allowedRoles={[ROLES.FACILITY_MANAGER]}>
-										<GuestVisitReviewPage />
+										<GuestVisitReviewRedirect />
 									</ProtectedRoute>
 								}
 							/>

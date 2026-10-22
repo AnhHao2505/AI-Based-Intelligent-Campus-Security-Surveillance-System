@@ -10,6 +10,12 @@
   box-sizing: border-box;
 }
 
+/* Nhúng làm tab của màn Phê duyệt yêu cầu: khung trang do màn gộp lo */
+.guest-visit--embedded {
+  max-width: none;
+  padding: 0;
+}
+
 .guest-visit__card {
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
