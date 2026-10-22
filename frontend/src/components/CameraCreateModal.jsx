@@ -4,6 +4,7 @@ import { createCamera } from "../services/cameraService";
 import { getAreas } from "../services/areaService";
 import "../styles/CameraCreateModal.css";
 import { formatLocation } from "../utils/formatLocation";
+import Select from "./ui/Select";
 
 export default function CameraCreateModal({ isOpen, onClose, onSuccess }) {
 	const [loading, setLoading] = useState(false);
@@ -99,36 +100,25 @@ export default function CameraCreateModal({ isOpen, onClose, onSuccess }) {
 							<label htmlFor="areaId">
 								Khu vực phân công <span className="required">*</span>
 							</label>
-							<select
+							<Select
 								id="areaId"
 								name="areaId"
 								value={formData.areaId}
 								onChange={handleChange}
 								required
 								disabled={loading}
-								style={{
-									width: "100%",
-									padding: "0.6rem 0.85rem",
-									borderRadius: "8px",
-									border: "1px solid var(--theme-border)",
-									background: "var(--theme-bg-input, var(--theme-bg-surface))",
-									color: "var(--theme-text-primary)",
-									fontSize: "0.875rem",
-								}}
-							>
-								<option value="" disabled>-- Chọn khu vực --</option>
-								{availableAreas.map((area) => (
-									<option
-										key={area.id}
-										value={area.id}
-									>
-										{area.name}{" "}
-										{formatLocation(area.building, area.floor, " - ")
-											? `(${formatLocation(area.building, area.floor, " - ")})`
-											: ""}
-									</option>
-								))}
-							</select>
+								options={[
+									{ value: "", label: "-- Chọn khu vực --", disabled: true },
+									...availableAreas.map((area) => ({
+										value: area.id,
+										label: `${area.name} ${
+											formatLocation(area.building, area.floor, " - ")
+												? `(${formatLocation(area.building, area.floor, " - ")})`
+												: ""
+										}`,
+									})),
+								]}
+							/>
 							<span
 								style={{
 									fontSize: "0.775rem",

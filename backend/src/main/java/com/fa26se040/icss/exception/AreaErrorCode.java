@@ -21,7 +21,7 @@ public enum AreaErrorCode {
     ERR_AREA_021("ERR_AREA_021", HttpStatus.BAD_REQUEST, "Thông tin tầng không hợp lệ hoặc không tìm thấy tầng tương ứng"),
     ERR_AREA_022("ERR_AREA_022", HttpStatus.BAD_REQUEST, "Chế độ sự kiện chỉ áp dụng cho khu vực Bảo mật"),
     ERR_AREA_023("ERR_AREA_023", HttpStatus.BAD_REQUEST, "Thời điểm kết thúc sự kiện phải ở trong tương lai"),
-    ERR_AREA_024("ERR_AREA_024", HttpStatus.BAD_REQUEST, "Ghi chú bắt buộc {min}–{max} ký tự, nêu tên sự kiện hoặc đơn vị tổ chức"),
+    ERR_AREA_024("ERR_AREA_024", HttpStatus.BAD_REQUEST, "Ghi chú phải có {min}–{max} ký tự"),
     ERR_AREA_025("ERR_AREA_025", HttpStatus.BAD_REQUEST, "Mã lý do không tồn tại hoặc đã ngừng sử dụng"),
     ERR_AREA_026("ERR_AREA_026", HttpStatus.BAD_REQUEST, "Mã lý do không phù hợp với loại thao tác sự kiện"),
     ERR_AREA_027("ERR_AREA_027", HttpStatus.BAD_REQUEST, "Thời gian mở sự kiện vượt quá giới hạn tối đa cho một phiên ({maxHours} giờ)"),
@@ -56,7 +56,9 @@ public enum AreaErrorCode {
     ERR_AREA_054("ERR_AREA_054", HttpStatus.CONFLICT, "Khu vực chưa bị vô hiệu hoá, không cần khôi phục"),
     ERR_AREA_055("ERR_AREA_055", HttpStatus.CONFLICT, "Không thể khôi phục: tầng hoặc toà nhà của khu vực không còn hoạt động"),
     // V83 (D4): không còn sửa cấp riêng từng khu; PATCH /api/areas/{id}/access-rules luôn trả lỗi này
-    ERR_AREA_056("ERR_AREA_056", HttpStatus.BAD_REQUEST, "Cấp khu vực cố định theo loại (Công khai: cấp 1, Bảo mật: cấp 2, Tuyệt mật: cấp 3). Muốn đổi cấp, hãy đổi loại khu vực");
+    ERR_AREA_056("ERR_AREA_056", HttpStatus.BAD_REQUEST, "Cấp khu vực cố định theo loại (Công khai: cấp 1, Bảo mật: cấp 2, Tuyệt mật: cấp 3). Muốn đổi cấp, hãy đổi loại khu vực"),
+    // V87: tên sự kiện của lịch
+    ERR_AREA_057("ERR_AREA_057", HttpStatus.BAD_REQUEST, "Tên sự kiện bắt buộc, tối đa {max} ký tự");
 
     private final String code;
     private final HttpStatus httpStatus;

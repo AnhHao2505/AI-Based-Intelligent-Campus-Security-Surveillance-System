@@ -112,7 +112,8 @@
 .account-table th,
 .syscfg-history-table th,
 .access-level-table thead th,
-.reason-table th {
+.reason-table th,
+.evm-table th {
   font-size: 11px;
   font-weight: 700;
   line-height: 1.4;

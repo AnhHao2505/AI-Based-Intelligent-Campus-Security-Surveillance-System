@@ -157,25 +157,6 @@
   align-items: center;
 }
 
-.filter-dropdowns select {
-  background: var(--theme-bg-input);
-  border: 1.5px solid var(--theme-input-border);
-  border-radius: 10px;
-  color: var(--theme-text-primary);
-  padding: 0.65rem 2.25rem 0.65rem 1rem;
-  font-size: 0.875rem;
-  font-family: inherit;
-  cursor: pointer;
-  outline: none;
-  transition: all 0.2s ease;
-}
-
-.filter-dropdowns select:focus {
-  outline: none;
-  border-color: var(--brand-blue);
-  box-shadow: var(--focus-ring);
-}
-
 .btn-search {
   background: var(--theme-bg-input);
   border: 1px solid var(--theme-input-border);
@@ -531,7 +512,8 @@
   }
 
   .search-box,
-  .filter-dropdowns select,
+  .filter-dropdowns .ui-select-group,
+  .filter-dropdowns .ui-select__field,
   .btn-search {
     width: 100%;
     min-width: 0;

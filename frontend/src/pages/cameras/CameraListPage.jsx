@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { fetchCameras, decommissionCamera, reactivateCamera, deleteCamera } from '../../services/cameraService';
 import CameraCreateModal from '../../components/CameraCreateModal';
-import { Modal, Button, PageHeader, LoadingState, EmptyState, ErrorState } from '../../components/ui';
+import { Modal, Button, PageHeader, LoadingState, EmptyState, ErrorState, Select } from '../../components/ui';
 import { formatLocation } from '../../utils/formatLocation';
 import '../../styles/CameraListPage.css';
 
@@ -152,29 +152,33 @@ export default function CameraListPage() {
           </div>
 
           <div className="filter-dropdowns">
-            <select
+            <Select
+              className="ui-select-group--filter"
               value={statusFilter}
               onChange={(e) => {
                 setStatusFilter(e.target.value);
                 setPage(0);
               }}
-            >
-              <option value="">-- Trạng thái thiết bị --</option>
-              <option value="ACTIVE">Đang hoạt động</option>
-              <option value="DECOMMISSIONED">Đã tắt</option>
-            </select>
+              options={[
+                { value: '', label: '-- Trạng thái thiết bị --' },
+                { value: 'ACTIVE', label: 'Đang hoạt động' },
+                { value: 'DECOMMISSIONED', label: 'Đã tắt' },
+              ]}
+            />
 
-            <select
+            <Select
+              className="ui-select-group--filter"
               value={opStatusFilter}
               onChange={(e) => {
                 setOpStatusFilter(e.target.value);
                 setPage(0);
               }}
-            >
-              <option value="">-- Trạng thái kết nối --</option>
-              <option value="ONLINE">Online</option>
-              <option value="OFFLINE">Offline</option>
-            </select>
+              options={[
+                { value: '', label: '-- Trạng thái kết nối --' },
+                { value: 'ONLINE', label: 'Online' },
+                { value: 'OFFLINE', label: 'Offline' },
+              ]}
+            />
 
             <button type="submit" className="btn-search">
               Tìm kiếm

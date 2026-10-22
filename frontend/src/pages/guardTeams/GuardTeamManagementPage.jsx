@@ -29,7 +29,7 @@ import { getUsers } from '../../services/userService';
 import { getAreas } from '../../services/areaService';
 import { getBuildings } from '../../services/buildingService';
 import { ROLES } from '../../constants/roles';
-import { ErrorState, LoadingState } from '../../components/ui';
+import { ErrorState, LoadingState, Select } from '../../components/ui';
 import StaffingWizardModal from '../../components/guard/StaffingWizardModal';
 import ExportTimesheetModal from '../../components/guard/ExportTimesheetModal';
 import GuardTeamsTab from '../../components/guard/GuardTeamsTab';
@@ -1125,22 +1125,19 @@ export default function GuardTeamManagementPage() {
             <div className="flex items-center gap-2">
               <Users size={16} className="text-slate-400 shrink-0" />
               <span className="text-xs font-semibold text-slate-500">Đội:</span>
-              <select
+              <Select
+                className="ui-select-group--filter"
                 value={selectedTeam}
                 onChange={(e) => handleTeamChange(e.target.value)}
-                className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[220px]"
-              >
-                <option value="ALL">-- Tất cả đội bảo vệ --</option>
-                {teams.map((t) => {
-                  const bName = getShortBuildingName(t.description);
-                  const suffix = bName ? ` — (${bName})` : '';
-                  return (
-                    <option key={t.id} value={t.id}>
-                      {t.teamName}{suffix}
-                    </option>
-                  );
-                })}
-              </select>
+                options={[
+                  { value: 'ALL', label: '-- Tất cả đội bảo vệ --' },
+                  ...teams.map((t) => {
+                    const bName = getShortBuildingName(t.description);
+                    const suffix = bName ? ` — (${bName})` : '';
+                    return { value: t.id, label: `${t.teamName}${suffix}` };
+                  }),
+                ]}
+              />
             </div>
           </div>
 
@@ -1397,19 +1394,15 @@ export default function GuardTeamManagementPage() {
                     <span>Nhân Viên Bảo Vệ</span>
                     <span className="required">*</span>
                   </label>
-                  <select
+                  <Select
                     name="guardId"
                     defaultValue={editingShift ? editingShift.guardId : ''}
                     required
-                    className="schedule-form-select"
-                  >
-                    <option value="">-- Chọn nhân viên bảo vệ --</option>
-                    {guards.map((g) => (
-                      <option key={g.id} value={g.id}>
-                        {g.fullName} ({g.userCode || 'NV-BV'})
-                      </option>
-                    ))}
-                  </select>
+                    options={[
+                      { value: '', label: '-- Chọn nhân viên bảo vệ --' },
+                      ...guards.map((g) => ({ value: g.id, label: `${g.fullName} (${g.userCode || 'NV-BV'})` })),
+                    ]}
+                  />
                 </div>
 
                 <div className="schedule-form-row">
@@ -1431,15 +1424,15 @@ export default function GuardTeamManagementPage() {
                     <label className="schedule-form-label">
                       <span>Loại Ca</span>
                     </label>
-                    <select
+                    <Select
                       name="shiftType"
                       defaultValue={editingShift ? editingShift.shiftType : 'SHIFT_MORNING'}
-                      className="schedule-form-select"
-                    >
-                      <option value="SHIFT_MORNING">Ca Sáng (06:00 - 14:00)</option>
-                      <option value="SHIFT_AFTERNOON">Ca Chiều (14:00 - 22:00)</option>
-                      <option value="SHIFT_NIGHT">Ca Đêm (22:00 - 06:00)</option>
-                    </select>
+                      options={[
+                        { value: 'SHIFT_MORNING', label: 'Ca Sáng (06:00 - 14:00)' },
+                        { value: 'SHIFT_AFTERNOON', label: 'Ca Chiều (14:00 - 22:00)' },
+                        { value: 'SHIFT_NIGHT', label: 'Ca Đêm (22:00 - 06:00)' },
+                      ]}
+                    />
                   </div>
                 </div>
 
@@ -1448,16 +1441,16 @@ export default function GuardTeamManagementPage() {
                     <label className="schedule-form-label">
                       <span>Trạng Thái Điểm Danh</span>
                     </label>
-                    <select
+                    <Select
                       name="status"
                       defaultValue={editingShift.status}
-                      className="schedule-form-select"
-                    >
-                      <option value="SCHEDULED">SCHEDULED (Lên lịch)</option>
-                      <option value="CHECKED_IN">CHECKED_IN (Đang trực)</option>
-                      <option value="COMPLETED">COMPLETED (Hoàn thành)</option>
-                      <option value="ABSENT">ABSENT (Vắng mặt)</option>
-                    </select>
+                      options={[
+                        { value: 'SCHEDULED', label: 'SCHEDULED (Lên lịch)' },
+                        { value: 'CHECKED_IN', label: 'CHECKED_IN (Đang trực)' },
+                        { value: 'COMPLETED', label: 'COMPLETED (Hoàn thành)' },
+                        { value: 'ABSENT', label: 'ABSENT (Vắng mặt)' },
+                      ]}
+                    />
                   </div>
                 )}
 
@@ -1611,17 +1604,11 @@ export default function GuardTeamManagementPage() {
                         </div>
 
                         {bulkClearScope === 'TEAM' && (
-                          <select
+                          <Select
                             value={bulkClearSelectedTeamId}
                             onChange={(e) => setBulkClearSelectedTeamId(e.target.value)}
-                            className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-medium"
-                          >
-                            {teams.map((t) => (
-                              <option key={t.id} value={t.id}>
-                                {t.teamName}
-                              </option>
-                            ))}
-                          </select>
+                            options={teams.map((t) => ({ value: t.id, label: t.teamName }))}
+                          />
                         )}
                       </div>
                     </label>

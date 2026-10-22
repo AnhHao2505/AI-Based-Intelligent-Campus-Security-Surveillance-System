@@ -165,40 +165,6 @@
   flex-wrap: wrap;
 }
 
-.account-filter-select-wrapper {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-}
-
-.account-filter-select {
-  height: 42px;
-  padding: 0 34px 0 14px;
-  background-color: var(--theme-bg-surface);
-  border: 1px solid var(--theme-border);
-  border-radius: 8px;
-  font-size: 0.875rem;
-  color: var(--theme-text-primary);
-  outline: none;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  appearance: none;
-  font-weight: 500;
-}
-
-.account-filter-select:focus {
-  outline: none;
-  border-color: var(--brand-blue);
-  box-shadow: var(--focus-ring);
-}
-
-.account-filter-select-icon {
-  position: absolute;
-  right: 12px;
-  pointer-events: none;
-  color: var(--theme-text-muted);
-}
-
 .account-search-wrapper {
   position: relative;
   flex: 1;

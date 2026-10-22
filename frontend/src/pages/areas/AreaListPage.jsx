@@ -21,12 +21,11 @@ import {
 	RotateCcw,
 	Archive,
 } from "lucide-react";
-import AreaAccessRulesModal from "../../components/area/AreaAccessRulesModal";
 import AreaAssignedPersonnelModal from "../../components/area/AreaAssignedPersonnelModal";
 import AreaListView from "../../components/area/AreaListView";
 import AreaTypeChangePreviewModal from "../../components/area/AreaTypeChangePreviewModal";
 import PageHeader from "../../components/ui/PageHeader";
-import { LoadingState, EmptyState, ErrorState } from "../../components/ui";
+import { LoadingState, EmptyState, ErrorState, Select } from "../../components/ui";
 import { formatLocation } from "../../utils/formatLocation";
 import ReasonTextarea from "../../components/ui/ReasonTextarea";
 import "../../components/ui/Button.css";
@@ -177,26 +176,6 @@ export default function AreaListPage() {
 
 	// Search & camera inspection modal states
 	const [cameraSearchQuery, setCameraSearchQuery] = useState("");
-
-	// Access rules modal states (Facility Manager)
-	const [accessRulesModalOpen, setAccessRulesModalOpen] = useState(false);
-	const [accessRulesModalArea, setAccessRulesModalArea] = useState(null);
-
-	const handleOpenAccessRulesModal = useCallback((area) => {
-		if (!area) return;
-		setAccessRulesModalArea(area);
-		setAccessRulesModalOpen(true);
-	}, []);
-
-	const handleAccessRulesSuccess = useCallback((updatedArea) => {
-		if (!updatedArea) return;
-		setAreas((prev) =>
-			prev.map((a) => (a.id === updatedArea.id ? { ...a, ...updatedArea } : a)),
-		);
-		setAccessRulesModalArea((prev) =>
-			prev?.id === updatedArea.id ? { ...prev, ...updatedArea } : prev,
-		);
-	}, []);
 
 	// Assigned personnel modal states (Facility Manager & Admin)
 	const [assignedPersonnelModalOpen, setAssignedPersonnelModalOpen] =
@@ -841,50 +820,36 @@ export default function AreaListPage() {
 			{/* ============================================================ */}
 			<div className="zone-toolbar">
 				{/* Building Selector */}
-				<div className="zone-toolbar__building">
+				<div className="zone-toolbar__select">
 					<Building2
 						size={16}
-						className="zone-toolbar__building-icon"
+						className="zone-toolbar__select-icon"
 					/>
-					<select
-						className="zone-toolbar__building-select"
+					<Select
+						className="ui-select-group--filter"
 						value={selectedBuilding}
 						onChange={(e) => handleSelectBuilding(e.target.value)}
 						title="Chọn tòa nhà"
-					>
-						{availableBuildings.map((b) => (
-							<option
-								key={b.id || b.name}
-								value={b.name}
-							>
-								{b.name}
-							</option>
-						))}
-					</select>
+						options={availableBuildings.map((b) => ({ value: b.name, label: b.name }))}
+					/>
 				</div>
 
 				{/* Floor Selector (Options) */}
-				<div className="zone-toolbar__building">
+				<div className="zone-toolbar__select">
 					<Layers
 						size={16}
-						className="zone-toolbar__building-icon"
+						className="zone-toolbar__select-icon"
 					/>
-					<select
-						className="zone-toolbar__building-select"
+					<Select
+						className="ui-select-group--filter"
 						value={selectedFloor}
 						onChange={(e) => handleSelectFloor(e.target.value)}
 						title="Chọn tầng"
-					>
-						<option value="ALL">Tất cả tầng</option>
-						{availableFloors.map((fl) => (
-							<option
-								key={fl.floorId || fl.name}
-								value={fl.name}
-							>
-								{fl.name}
-							</option>
-						))}
-					</select>
+						options={[
+							{ value: "ALL", label: "Tất cả tầng" },
+							...availableFloors.map((fl) => ({ value: fl.name, label: fl.name })),
+						]}
+					/>
 				</div>
 
 				<div className="zone-toolbar__spacer" />
@@ -1044,7 +1009,6 @@ export default function AreaListPage() {
 					onSelectArea={(id) => handleSelectArea(id, false)}
 					onOpenCreateModal={handleOpenCreateModal}
 					onOpenCamerasModal={handleOpenCamerasModal}
-					onOpenAccessRulesModal={handleOpenAccessRulesModal}
 					onOpenAssignedPersonnelModal={handleOpenAssignedPersonnelModal}
 					onOpenEditModal={handleOpenEditModal}
 					onOpenDeactivateModal={handleOpenDeactivateModal}
@@ -1172,9 +1136,8 @@ export default function AreaListPage() {
 										>
 											Tòa nhà / Phân khu <span className="required">*</span>
 										</label>
-										<select
+										<Select
 											id="create-building"
-											className="area-form-input"
 											value={formData.building}
 											onChange={(e) => {
 												const newB = e.target.value;
@@ -1189,16 +1152,8 @@ export default function AreaListPage() {
 													floorId: firstFloor ? firstFloor.id : null,
 												});
 											}}
-										>
-											{availableBuildings.map((b) => (
-												<option
-													key={b.id || b.name}
-													value={b.name}
-												>
-													{b.name}
-												</option>
-											))}
-										</select>
+											options={availableBuildings.map((b) => ({ value: b.name, label: b.name }))}
+										/>
 									</div>
 
 									<div className="area-form-group">
@@ -1208,9 +1163,8 @@ export default function AreaListPage() {
 										>
 											Tầng <span className="required">*</span>
 										</label>
-										<select
+										<Select
 											id="create-floor"
-											className="area-form-input"
 											value={formData.floor}
 											onChange={(e) => {
 												const newF = e.target.value;
@@ -1221,16 +1175,8 @@ export default function AreaListPage() {
 													floorId: flObj ? flObj.id : null,
 												});
 											}}
-										>
-											{modalFloors.map((fl) => (
-												<option
-													key={fl.id || fl.name}
-													value={fl.name}
-												>
-													{fl.name}
-												</option>
-											))}
-										</select>
+											options={modalFloors.map((fl) => ({ value: fl.name, label: fl.name }))}
+										/>
 									</div>
 								</div>
 								<div className="area-form-row">
@@ -1454,9 +1400,8 @@ export default function AreaListPage() {
 										>
 											Tòa nhà / Phân khu <span className="required">*</span>
 										</label>
-										<select
+										<Select
 											id="edit-building"
-											className="area-form-input"
 											value={formData.building}
 											onChange={(e) => {
 												const newB = e.target.value;
@@ -1471,16 +1416,8 @@ export default function AreaListPage() {
 													floorId: firstFloor ? firstFloor.id : null,
 												});
 											}}
-										>
-											{availableBuildings.map((b) => (
-												<option
-													key={b.id || b.name}
-													value={b.name}
-												>
-													{b.name}
-												</option>
-											))}
-										</select>
+											options={availableBuildings.map((b) => ({ value: b.name, label: b.name }))}
+										/>
 									</div>
 
 									<div className="area-form-group">
@@ -1490,9 +1427,8 @@ export default function AreaListPage() {
 										>
 											Tầng <span className="required">*</span>
 										</label>
-										<select
+										<Select
 											id="edit-floor"
-											className="area-form-input"
 											value={formData.floor}
 											onChange={(e) => {
 												const newF = e.target.value;
@@ -1503,16 +1439,8 @@ export default function AreaListPage() {
 													floorId: flObj ? flObj.id : null,
 												});
 											}}
-										>
-											{modalFloors.map((fl) => (
-												<option
-													key={fl.id || fl.name}
-													value={fl.name}
-												>
-													{fl.name}
-												</option>
-											))}
-										</select>
+											options={modalFloors.map((fl) => ({ value: fl.name, label: fl.name }))}
+										/>
 									</div>
 								</div>
 								<div className="area-form-row">
@@ -2082,14 +2010,6 @@ export default function AreaListPage() {
 				onClose={() => setAssignedPersonnelModalOpen(false)}
 				area={assignedPersonnelModalArea}
 				isFacilityManager={isFacilityManager}
-			/>
-
-			{/* Area Access Rules Modal — ADMIN: đổi cấp; FM: chế độ sự kiện + lịch (A-09) */}
-			<AreaAccessRulesModal
-				isOpen={accessRulesModalOpen}
-				onClose={() => setAccessRulesModalOpen(false)}
-				area={accessRulesModalArea}
-				onSuccess={handleAccessRulesSuccess}
 			/>
 		</div>
 	);

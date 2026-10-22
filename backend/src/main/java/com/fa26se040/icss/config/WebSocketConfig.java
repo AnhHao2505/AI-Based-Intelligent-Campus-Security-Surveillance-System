@@ -7,6 +7,7 @@ import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
+import org.springframework.web.socket.config.annotation.WebSocketTransportRegistration;
 
 @Configuration
 @EnableWebSocketMessageBroker
@@ -14,6 +15,7 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     private final WebSocketAuthChannelInterceptor webSocketAuthChannelInterceptor;
+    private final WebSocketSessionRegistry webSocketSessionRegistry;
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
@@ -39,5 +41,11 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public void configureClientInboundChannel(ChannelRegistration registration) {
         // Xác thực JWT ở frame CONNECT và phân quyền SUBSCRIBE/SEND (handshake vẫn permitAll)
         registration.interceptors(webSocketAuthChannelInterceptor);
+    }
+
+    @Override
+    public void configureWebSocketTransport(WebSocketTransportRegistration registration) {
+        // KI-1: giữ WebSocketSession theo user để đóng phiên khi tài khoản bị vô hiệu hoá / xoá
+        registration.addDecoratorFactory(webSocketSessionRegistry);
     }
 }

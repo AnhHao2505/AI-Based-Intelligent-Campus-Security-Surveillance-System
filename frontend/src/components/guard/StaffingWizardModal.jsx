@@ -8,6 +8,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { guardScheduleApi } from '../../api/guardScheduleApi';
+import Select from '../ui/Select';
 
 export default function StaffingWizardModal({
   isOpen,
@@ -364,19 +365,15 @@ export default function StaffingWizardModal({
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
                   1. Chọn Đội Bảo Vệ Phụ Trách <span className="text-rose-500">*</span>
                 </label>
-                <select
+                <Select
                   value={selectedTeamId}
                   onChange={(e) => handleSelectTeam(e.target.value)}
                   required
-                  className="w-full px-3 py-2 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">-- Chọn đội bảo vệ để phân lịch --</option>
-                  {teams.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.teamName} — ({t.members?.length || 0} thành viên)
-                    </option>
-                  ))}
-                </select>
+                  options={[
+                    { value: '', label: '-- Chọn đội bảo vệ để phân lịch --' },
+                    ...teams.map((t) => ({ value: t.id, label: `${t.teamName} — (${t.members?.length || 0} thành viên)` })),
+                  ]}
+                />
 
                 {/* THẺ TÓM TẮT ĐỘI ĐÃ CHỌN (KHÔNG HIỂN THỊ DANH SÁCH TÊN TỪNG NGƯỜI) */}
                 {activeTeam ? (
@@ -516,18 +513,12 @@ export default function StaffingWizardModal({
                   <Building2 size={13} className="text-blue-500" />
                   <span>3. Tòa Nhà / Cơ Sở Phụ Trách <span className="text-rose-500">*</span></span>
                 </label>
-                <select
+                <Select
                   value={building}
                   onChange={(e) => setBuilding(e.target.value)}
                   required
-                  className="w-full px-3 py-2 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  {availableBuildings.map((bName) => (
-                    <option key={bName} value={bName}>
-                      {bName}
-                    </option>
-                  ))}
-                </select>
+                  options={availableBuildings.map((bName) => ({ value: bName, label: bName }))}
+                />
                 <p className="text-[10px] text-slate-400">
                   Cơ sở phân công trực tiếp để nhận cảnh báo AI Camera và kiểm soát an ninh
                 </p>

@@ -586,6 +586,10 @@
   border: 1px solid var(--theme-info-border);
   color: var(--theme-info-text);
   white-space: nowrap;
+  /* Bấm được: mở màn Quản lý sự kiện lọc sẵn theo khu */
+  font-family: inherit;
+  line-height: inherit;
+  cursor: pointer;
   flex-shrink: 0;
 }
 
@@ -1563,39 +1567,37 @@
   flex-wrap: wrap;
 }
 
-.zone-toolbar__building {
+/* Ô chọn tòa / tầng dùng Select chung (--filter); icon đặt đè bên trái trong ô */
+.zone-toolbar__select {
+  position: relative;
   display: flex;
   align-items: center;
-  background: var(--theme-bg-surface-elevated);
-  border: 0.5px solid var(--theme-border);
-  border-radius: 8px;
-  padding: 0 12px;
-  height: 36px;
-  box-sizing: border-box;
-  box-shadow: none;
   flex-shrink: 0;
 }
 
-.zone-toolbar__building-icon {
+.zone-toolbar__select-icon {
+  position: absolute;
+  left: 12px;
+  z-index: 1;
   color: var(--brand-text);
-  margin-right: 8px;
-  flex-shrink: 0;
+  pointer-events: none;
 }
 
-.zone-toolbar__building-select {
-  border: none;
-  background: transparent;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--theme-text-primary);
-  outline: none;
-  cursor: pointer;
-  padding: 0;
+.zone-toolbar__select .ui-select__field {
+  padding-left: 36px;
 }
 
-.zone-toolbar__building-select option {
-  background: var(--theme-bg-surface-elevated);
-  color: var(--theme-text-primary);
+/* Cùng hàng với ô chọn 42px: nút chuyển chế độ xem và nút Thêm vùng trên thanh công cụ cũng cao 42px */
+.zone-toolbar .zone-view-toggle {
+  height: 42px;
+}
+
+.zone-toolbar .zone-view-toggle__btn {
+  height: 34px;
+}
+
+.zone-toolbar .zone-toolbar__add-btn {
+  height: 42px;
 }
 
 .zone-toolbar__tabs {
