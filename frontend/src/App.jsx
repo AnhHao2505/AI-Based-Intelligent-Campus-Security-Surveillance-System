@@ -30,6 +30,7 @@ import ReasonCatalogPage from "./pages/system/ReasonCatalogPage";
 import UserAccessLevelPage from "./pages/accessControl/UserAccessLevelPage";
 import AuditLogPage from "./pages/accessControl/AuditLogPage";
 import AccessLevelsRedirect from "./pages/accessControl/AccessLevelsRedirect";
+import RecordingPage from "./pages/cameras/RecordingPage";
 import DemoModeBanner from "./components/common/DemoModeBanner";
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
@@ -37,6 +38,7 @@ const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
 const ROUTE_TITLES = {
 	"/": "FPTU SecureVision",
 	"/dashboard": "Tổng quan",
+	"/recordings": "Kho Lưu Trữ Ghi Hình",
 	"/admin/areas": "Quản lý khu vực",
 	"/admin/areas/map": "Bản đồ Vùng",
 	"/admin/events": "Quản lý sự kiện",
@@ -221,6 +223,20 @@ function App() {
 							<Route
 								path="/admin/cameras/:id"
 								element={<Navigate to="/cameras" replace />}
+							/>
+
+							{/* Video Recordings - Admin and Facility Manager */}
+							<Route
+								path="/recordings"
+								element={
+									<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.FACILITY_MANAGER]}>
+										<RecordingPage />
+									</ProtectedRoute>
+								}
+							/>
+							<Route
+								path="/admin/recordings"
+								element={<Navigate to="/recordings" replace />}
 							/>
 
 							{/* Account management - Admin only */}
