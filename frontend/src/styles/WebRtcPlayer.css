@@ -32,6 +32,16 @@
   display: block;
 }
 
+.cctv-annotated-stream {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  background: #000000;
+  user-select: none;
+  pointer-events: none;
+}
+
 /* --------------------------------------------------------------------------
    Thanh OSD Phía Trên (Top Bar)
    Tên camera đứng riêng ở góc trái trên (thu nhỏ kích thước tinh tế),
@@ -117,6 +127,30 @@
   color: #f87171;
 }
 
+/* Nút toggle AI Tracking hiển thị Bounding Box & ROI */
+.cctv-tag--tracking {
+  background: rgba(14, 165, 233, 0.12);
+  border: 1px solid rgba(14, 165, 233, 0.35);
+  color: #7dd3fc;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+}
+
+.cctv-tag--tracking:hover {
+  background: rgba(14, 165, 233, 0.25);
+  border-color: #38bdf8;
+  color: #e0f2fe;
+}
+
+.cctv-tag--tracking.active {
+  background: rgba(6, 182, 212, 0.25);
+  border: 1px solid #06b6d4;
+  color: #22d3ee;
+  box-shadow: 0 0 10px rgba(6, 182, 212, 0.4);
+}
+
 .cctv-dot {
   width: 6px;
   height: 6px;
@@ -136,6 +170,16 @@
   animation: cctv-pulse-red 1.2s infinite;
 }
 
+.cctv-dot--cyan {
+  background-color: #06b6d4;
+  box-shadow: 0 0 8px #06b6d4;
+  animation: cctv-pulse-cyan 1.2s infinite;
+}
+
+.cctv-dot--idle {
+  background-color: #64748b;
+}
+
 @keyframes cctv-pulse-green {
   0% { transform: scale(0.95); opacity: 0.8; }
   50% { transform: scale(1.15); opacity: 1; box-shadow: 0 0 10px #22c55e; }
@@ -145,6 +189,12 @@
 @keyframes cctv-pulse-red {
   0% { transform: scale(0.95); opacity: 0.8; }
   50% { transform: scale(1.2); opacity: 1; box-shadow: 0 0 12px #ef4444; }
+  100% { transform: scale(0.95); opacity: 0.8; }
+}
+
+@keyframes cctv-pulse-cyan {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.2); opacity: 1; box-shadow: 0 0 10px #06b6d4; }
   100% { transform: scale(0.95); opacity: 0.8; }
 }
 
@@ -221,6 +271,96 @@
 .cctv-spec-item {
   color: #cbd5e1;
   font-weight: 600;
+}
+
+.cctv-ai-active-tag {
+  color: #22d3ee;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  animation: cctv-pulse-cyan-text 2s infinite ease-in-out;
+}
+
+@keyframes cctv-pulse-cyan-text {
+  0%, 100% { opacity: 0.9; }
+  50% { opacity: 1; text-shadow: 0 0 8px rgba(34, 211, 238, 0.6); }
+}
+
+/* Overlay hiển thị khi luồng tracking lỗi */
+.cctv-tracking-error-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 12;
+  padding: 16px;
+}
+
+.cctv-tracking-error-box {
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  border-radius: 6px;
+  padding: 14px 18px;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.8);
+}
+
+.cctv-tracking-error-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #f87171;
+  letter-spacing: 0.5px;
+}
+
+.cctv-tracking-error-desc {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  line-height: 1.4;
+}
+
+.cctv-tracking-error-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.cctv-tracking-retry-btn {
+  background: rgba(14, 165, 233, 0.2);
+  border: 1px solid #0284c7;
+  color: #38bdf8;
+  padding: 4px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.cctv-tracking-retry-btn:hover {
+  background: rgba(14, 165, 233, 0.4);
+  color: #ffffff;
+}
+
+.cctv-tracking-return-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #cbd5e1;
+  padding: 4px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.72rem;
+  transition: all 0.2s;
+}
+
+.cctv-tracking-return-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
 }
 
 .cctv-osd-bottom-right {
