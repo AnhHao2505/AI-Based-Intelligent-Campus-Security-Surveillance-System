@@ -21,6 +21,7 @@ import GuestVisitReviewPage from "./pages/guestVisit/GuestVisitReviewPage";
 import GuestPhotoPage from "./pages/guestVisit/GuestPhotoPage";
 import AccessHistoryPage from "./pages/accessHistory/AccessHistoryPage";
 import AccessHistoryAdminPage from "./pages/accessHistory/AccessHistoryAdminPage";
+import EventManagementPage from "./pages/events/EventManagementPage";
 import NotificationsPage from "./pages/notifications/NotificationsPage";
 import ManageAccountPage from "./pages/accounts/ManageAccountPage";
 import SystemConfigPage from "./pages/system/SystemConfigPage";
@@ -38,6 +39,7 @@ const ROUTE_TITLES = {
 	"/dashboard": "Tổng quan",
 	"/admin/areas": "Quản lý khu vực",
 	"/admin/areas/map": "Bản đồ Vùng",
+	"/admin/events": "Quản lý sự kiện",
 	"/cameras": "Quản lý Camera",
 	"/admin/cameras": "Quản lý Camera",
 	"/admin/accounts": "Quản lý tài khoản",
@@ -305,6 +307,16 @@ function App() {
 								element={
 									<ProtectedRoute allowedRoles={[ROLES.FACILITY_MANAGER, ROLES.ADMIN]}>
 										<AccessHistoryAdminPage />
+									</ProtectedRoute>
+								}
+							/>
+
+							{/* Quản lý sự kiện: FM tạo / sửa / huỷ / dừng; ADMIN chỉ xem (API đọc cho phép ADMIN) */}
+							<Route
+								path="/admin/events"
+								element={
+									<ProtectedRoute allowedRoles={[ROLES.FACILITY_MANAGER, ROLES.ADMIN]}>
+										<EventManagementPage />
 									</ProtectedRoute>
 								}
 							/>

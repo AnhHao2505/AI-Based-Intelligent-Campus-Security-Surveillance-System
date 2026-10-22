@@ -107,14 +107,18 @@ export function getAccessLevelConfig(level) {
  * STARTED -> COMPLETED (phiên đóng do hết giờ) | ENDED_EARLY (FM tắt sớm) do backend chuyển.
  * variant dùng cho components/ui/Badge.
  */
+// Nhãn theo trạng thái lưu, không tính lại theo giờ xem (BR-ES-L1) — màn Quản lý sự kiện
 const SCHEDULE_STATUS_VIEW = {
-  SCHEDULED: { label: 'Đã lên lịch', variant: 'brand' },
+  SCHEDULED: { label: 'Sắp diễn ra', variant: 'brand' },
   STARTED: { label: 'Đang diễn ra', variant: 'success' },
   COMPLETED: { label: 'Đã kết thúc', variant: 'neutral' },
-  ENDED_EARLY: { label: 'Kết thúc sớm', variant: 'warning' },
+  ENDED_EARLY: { label: 'Dừng sớm', variant: 'warning' },
   CANCELLED: { label: 'Đã huỷ', variant: 'neutral' },
-  FAILED: { label: 'Thất bại', variant: 'danger' },
+  FAILED: { label: 'Không kích hoạt được', variant: 'danger' },
 };
+
+/** Thứ tự trạng thái cho bộ lọc màn Quản lý sự kiện */
+export const SCHEDULE_STATUS_ORDER = ['SCHEDULED', 'STARTED', 'COMPLETED', 'ENDED_EARLY', 'CANCELLED', 'FAILED'];
 
 export function getScheduleStatusView(status) {
   return SCHEDULE_STATUS_VIEW[status] || { label: status || '—', variant: 'neutral' };

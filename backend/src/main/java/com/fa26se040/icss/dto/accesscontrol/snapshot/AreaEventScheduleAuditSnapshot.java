@@ -3,8 +3,10 @@ package com.fa26se040.icss.dto.accesscontrol.snapshot;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
+/** V87: thêm title để Nhật ký kiểm toán hiện được tên sự kiện (audit cũ không có khoá này). */
 public record AreaEventScheduleAuditSnapshot(
         UUID scheduleId,
+        String title,
         OffsetDateTime startAt,
         OffsetDateTime endAt,
         String status,
@@ -15,6 +17,7 @@ public record AreaEventScheduleAuditSnapshot(
 ) implements AuditSnapshot {
     public AreaEventScheduleAuditSnapshot(
             UUID scheduleId,
+            String title,
             OffsetDateTime startAt,
             OffsetDateTime endAt,
             String status,
@@ -22,6 +25,6 @@ public record AreaEventScheduleAuditSnapshot(
             String reasonLabel,
             String note
     ) {
-        this(scheduleId, startAt, endAt, status, reasonCode, reasonLabel, note, null);
+        this(scheduleId, title, startAt, endAt, status, reasonCode, reasonLabel, note, null);
     }
 }

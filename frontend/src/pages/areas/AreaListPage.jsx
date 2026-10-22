@@ -21,7 +21,6 @@ import {
 	RotateCcw,
 	Archive,
 } from "lucide-react";
-import AreaAccessRulesModal from "../../components/area/AreaAccessRulesModal";
 import AreaAssignedPersonnelModal from "../../components/area/AreaAssignedPersonnelModal";
 import AreaListView from "../../components/area/AreaListView";
 import AreaTypeChangePreviewModal from "../../components/area/AreaTypeChangePreviewModal";
@@ -177,26 +176,6 @@ export default function AreaListPage() {
 
 	// Search & camera inspection modal states
 	const [cameraSearchQuery, setCameraSearchQuery] = useState("");
-
-	// Access rules modal states (Facility Manager)
-	const [accessRulesModalOpen, setAccessRulesModalOpen] = useState(false);
-	const [accessRulesModalArea, setAccessRulesModalArea] = useState(null);
-
-	const handleOpenAccessRulesModal = useCallback((area) => {
-		if (!area) return;
-		setAccessRulesModalArea(area);
-		setAccessRulesModalOpen(true);
-	}, []);
-
-	const handleAccessRulesSuccess = useCallback((updatedArea) => {
-		if (!updatedArea) return;
-		setAreas((prev) =>
-			prev.map((a) => (a.id === updatedArea.id ? { ...a, ...updatedArea } : a)),
-		);
-		setAccessRulesModalArea((prev) =>
-			prev?.id === updatedArea.id ? { ...prev, ...updatedArea } : prev,
-		);
-	}, []);
 
 	// Assigned personnel modal states (Facility Manager & Admin)
 	const [assignedPersonnelModalOpen, setAssignedPersonnelModalOpen] =
@@ -1030,7 +1009,6 @@ export default function AreaListPage() {
 					onSelectArea={(id) => handleSelectArea(id, false)}
 					onOpenCreateModal={handleOpenCreateModal}
 					onOpenCamerasModal={handleOpenCamerasModal}
-					onOpenAccessRulesModal={handleOpenAccessRulesModal}
 					onOpenAssignedPersonnelModal={handleOpenAssignedPersonnelModal}
 					onOpenEditModal={handleOpenEditModal}
 					onOpenDeactivateModal={handleOpenDeactivateModal}
@@ -2032,14 +2010,6 @@ export default function AreaListPage() {
 				onClose={() => setAssignedPersonnelModalOpen(false)}
 				area={assignedPersonnelModalArea}
 				isFacilityManager={isFacilityManager}
-			/>
-
-			{/* Area Access Rules Modal — ADMIN: đổi cấp; FM: chế độ sự kiện + lịch (A-09) */}
-			<AreaAccessRulesModal
-				isOpen={accessRulesModalOpen}
-				onClose={() => setAccessRulesModalOpen(false)}
-				area={accessRulesModalArea}
-				onSuccess={handleAccessRulesSuccess}
 			/>
 		</div>
 	);

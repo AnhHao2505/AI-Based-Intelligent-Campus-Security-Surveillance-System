@@ -56,6 +56,7 @@ const AUDIT_FIELD_LABELS = {
 	startAt: "Giờ bắt đầu",
 	endAt: "Giờ kết thúc",
 	scheduleId: "Lịch sự kiện",
+	title: "Tên sự kiện",
 	sessionId: "Phiên sự kiện",
 	openToMembers: "Mở cho thành viên",
 	openUntil: "Mở đến",
@@ -419,9 +420,26 @@ export default function AuditLogPage() {
 			};
 			const oldStatus = oldValue?.status;
 			const newStatus = newValue?.status;
+			// V87: tên sự kiện (audit trước V87 không có khoá title)
+			const oldTitle = oldValue?.title;
+			const newTitle = newValue?.title;
 
 			return (
 				<div className="audit-detail-rules">
+					{(oldTitle || newTitle) && (
+						<div className="audit-detail-row">
+							<span className="audit-row-label">Tên sự kiện:</span>
+							{oldTitle && newTitle && oldTitle !== newTitle ? (
+								<>
+									<span>{oldTitle}</span>
+									<span className="audit-arrow">→</span>
+									<strong className="audit-val--new">{newTitle}</strong>
+								</>
+							) : (
+								<strong className="audit-val--new">{newTitle || oldTitle}</strong>
+							)}
+						</div>
+					)}
 					<div className="audit-detail-row">
 						<span className="audit-row-label">Thời gian:</span>
 						{oldValue && newValue && oldRange !== newRange ? (

@@ -1,0 +1,364 @@
+/* ==========================================================================
+   EventManagementPage.css — màn Quản lý sự kiện (prefix evm-)
+   Chỉ dùng token theme (sáng + tối), không mã hex. Ô lọc cao 42px như toàn hệ thống.
+   ========================================================================== */
+
+.evm-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: var(--page-padding-y) var(--page-padding-x);
+}
+
+.evm-container > .ui-page-header {
+  margin-bottom: 0;
+}
+
+.evm-card {
+  background: var(--theme-bg-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: 12px;
+  box-shadow: var(--theme-card-shadow);
+  overflow: hidden;
+}
+
+/* Hàng lọc: tự xuống dòng, nhóm "Xóa bộ lọc + Làm mới" sát phải */
+.evm-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--theme-border);
+}
+
+.evm-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 260px;
+  min-width: 220px;
+  max-width: 380px;
+}
+
+.evm-search__icon {
+  position: absolute;
+  left: 12px;
+  color: var(--theme-text-muted);
+  pointer-events: none;
+}
+
+.evm-search__input {
+  width: 100%;
+  box-sizing: border-box;
+  height: 42px;
+  padding: 0 12px 0 36px;
+  border: 1px solid var(--theme-input-border);
+  border-radius: 8px;
+  background: var(--theme-bg-input);
+  color: var(--theme-text-primary);
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.evm-search__input::placeholder {
+  color: var(--theme-text-muted);
+}
+
+.evm-search__input:focus,
+.evm-date-input:focus {
+  border-color: var(--brand-blue);
+  box-shadow: var(--focus-ring);
+}
+
+.evm-date-range {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.evm-date-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--theme-text-secondary);
+  white-space: nowrap;
+}
+
+.evm-date-input {
+  box-sizing: border-box;
+  height: 42px;
+  padding: 0 10px;
+  border: 1px solid var(--theme-input-border);
+  border-radius: 8px;
+  background: var(--theme-bg-input);
+  color: var(--theme-text-primary);
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+}
+
+.evm-toolbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.evm-clear-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 42px;
+  padding: 0 12px;
+  background: var(--theme-bg-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: 8px;
+  color: var(--theme-text-secondary);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.evm-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  background: var(--theme-bg-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: 8px;
+  color: var(--theme-text-secondary);
+  cursor: pointer;
+}
+
+.evm-clear-btn:hover:not(:disabled),
+.evm-refresh-btn:hover:not(:disabled) {
+  background: var(--theme-bg-page);
+  color: var(--theme-text-primary);
+}
+
+.evm-clear-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.evm-refresh-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.evm-range-error {
+  padding: 8px 18px 0;
+  font-size: 13px;
+  color: var(--theme-danger-text);
+}
+
+.evm-body {
+  padding: 4px 0 8px;
+}
+
+/* Bảng */
+.evm-table-wrap {
+  overflow-x: auto;
+}
+
+.evm-table {
+  width: 100%;
+  min-width: 900px;
+  border-collapse: collapse;
+  font-size: 13px;
+  text-align: left;
+}
+
+.evm-table th {
+  padding: 12px 10px;
+  background: var(--theme-bg-page);
+  border-bottom: 1px solid var(--theme-border);
+}
+
+.evm-table td {
+  padding: 12px 10px;
+  border-bottom: 1px solid var(--theme-border);
+  color: var(--theme-text-primary);
+  vertical-align: middle;
+}
+
+.evm-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.evm-table tbody tr:hover td {
+  background: var(--brand-subtle);
+}
+
+/* Tên dài: tối đa 2 dòng, toàn văn ở title */
+.evm-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  max-width: 280px;
+  min-width: 150px;
+  font-weight: 600;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.evm-area,
+.evm-type {
+  min-width: 110px;
+  max-width: 200px;
+  overflow-wrap: break-word;
+}
+
+.evm-creator {
+  white-space: nowrap;
+}
+
+.evm-time {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.evm-muted {
+  color: var(--theme-text-muted);
+  font-size: 12px;
+}
+
+.evm-col-actions {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.evm-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.evm-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--theme-border);
+  border-radius: 8px;
+  background: var(--theme-bg-surface);
+  color: var(--theme-text-secondary);
+  cursor: pointer;
+}
+
+.evm-icon-btn:hover {
+  color: var(--brand-text);
+  border-color: var(--brand-blue);
+}
+
+.evm-icon-btn--danger:hover,
+.evm-stop-btn:hover {
+  color: var(--theme-danger-text);
+  border-color: var(--theme-danger);
+}
+
+.evm-stop-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--theme-danger-border);
+  border-radius: 8px;
+  background: var(--theme-danger-bg);
+  color: var(--theme-danger-text);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Form / popup */
+.evm-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.evm-form__row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.evm-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.evm-alert--error {
+  background: var(--theme-danger-bg);
+  border: 1px solid var(--theme-danger-border);
+  color: var(--theme-danger-text);
+}
+
+.evm-alert svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.evm-confirm-text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--theme-text-primary);
+}
+
+.evm-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+}
+
+.evm-detail__row {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 12px;
+  font-size: 14px;
+}
+
+.evm-detail__row dt {
+  color: var(--theme-text-muted);
+  font-weight: 500;
+}
+
+.evm-detail__row dd {
+  margin: 0;
+  color: var(--theme-text-primary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .evm-search {
+    max-width: none;
+    flex-basis: 100%;
+  }
+
+  .evm-form__row,
+  .evm-detail__row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

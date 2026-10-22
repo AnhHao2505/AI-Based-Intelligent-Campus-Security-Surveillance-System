@@ -16,6 +16,7 @@ import {
 	ChevronLeft,
 	ChevronRight,
 	CalendarClock,
+	CalendarDays,
 	Sliders,
 	ShieldCheck,
 	Compass,
@@ -316,6 +317,17 @@ export default function Sidebar({ user, onLogout }) {
 									>
 										<MapPin size={18} />
 										<span>Quản lý khu vực</span>
+									</NavLink>
+
+									<NavLink
+										to="/admin/events"
+										className={({ isActive }) =>
+											`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
+										}
+										title={sidebarCollapsed ? "Quản lý sự kiện" : undefined}
+									>
+										<CalendarDays size={18} />
+										<span>Quản lý sự kiện</span>
 									</NavLink>
 
 									<NavLink

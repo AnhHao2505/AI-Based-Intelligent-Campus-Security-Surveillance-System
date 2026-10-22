@@ -210,6 +210,7 @@ public abstract class Step5bTestSupport extends AbstractIntegrationTest {
     protected AreaEventSchedule newSchedule(Area area, OffsetDateTime start, OffsetDateTime end,
                                             String reasonCode, String reasonLabel) {
         return eventScheduleRepository.save(AreaEventSchedule.builder()
+                .title("Sự kiện thử nghiệm")
                 .area(area)
                 .startAt(start)
                 .endAt(end)

@@ -338,6 +338,7 @@ class Step6AreaDeactivationTest extends GuestTestSupport {
         Area area = newArea(AreaLevel.CONFIDENTIAL);
         OffsetDateTime start = OffsetDateTime.now().plusDays(2);
         scheduleRepository.save(AreaEventSchedule.builder()
+                .title("Sự kiện thử nghiệm")
                 .area(area).startAt(start).endAt(start.plusHours(2)).status(AreaEventScheduleStatus.SCHEDULED)
                 .reasonCode("OTHER").reasonLabel("Khác").note("Lịch test step 6").createdBy(fm).build());
         Long v0 = dbVersion(area);
@@ -623,6 +624,7 @@ class Step6AreaDeactivationTest extends GuestTestSupport {
         openEvent(area, now.minusMinutes(10), now.plusHours(1));
         OffsetDateTime start = now.plusDays(2);
         scheduleRepository.save(AreaEventSchedule.builder()
+                .title("Sự kiện thử nghiệm")
                 .area(area).startAt(start).endAt(start.plusHours(2)).status(AreaEventScheduleStatus.SCHEDULED)
                 .reasonCode("OTHER").reasonLabel("Khác").note("Lịch test step 6").createdBy(fm).build());
         newAp(area, hostL2, now.minusDays(1), now.plusDays(3));
@@ -695,6 +697,7 @@ class Step6AreaDeactivationTest extends GuestTestSupport {
         assertBlocked(send(patch("/api/areas/{id}/event-mode", area.getId()), fm, event).andReturn(), "event-mode", 400, "ERR_AREA_017");
 
         Map<String, Object> schedule = new LinkedHashMap<>();
+        schedule.put("title", "Sự kiện thử nghiệm");
         schedule.put("startAt", now.plusDays(2).toString());
         schedule.put("endAt", now.plusDays(2).plusHours(2).toString());
         schedule.put("reasonCode", "OTHER");

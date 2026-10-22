@@ -586,12 +586,12 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
         OffsetDateTime start = OffsetDateTime.now().plusDays(1).withNano(0);
 
         MvcResult created = send(post("/api/areas/{id}/event-schedules", area.getId()), fm,
-                new EventScheduleRequest(start, start.plusHours(2), "OTHER", EVENT_NOTE)).andReturn();
+                new EventScheduleRequest("Sự kiện thử nghiệm", start, start.plusHours(2), "OTHER", EVENT_NOTE)).andReturn();
         assertEquals(201, status(created), describe(created));
         UUID scheduleId = UUID.fromString(json(created).path("data").path("id").asText());
 
         MvcResult updated = send(patch("/api/areas/{id}/event-schedules/{sid}", area.getId(), scheduleId), fm,
-                new EventScheduleRequest(start.plusHours(1), start.plusHours(3), "OTHER", EVENT_NOTE)).andReturn();
+                new EventScheduleRequest("Sự kiện thử nghiệm", start.plusHours(1), start.plusHours(3), "OTHER", EVENT_NOTE)).andReturn();
         assertEquals(200, status(updated), describe(updated));
 
         MvcResult cancelled = send(post("/api/areas/{id}/event-schedules/{sid}/cancel", area.getId(), scheduleId), fm,
@@ -614,7 +614,7 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
             OffsetDateTime start = OffsetDateTime.now().plusDays(1).withNano(0);
 
             MvcResult r = send(post("/api/areas/{id}/event-schedules", area.getId()), fm,
-                    new EventScheduleRequest(start, start.plusHours(2), enableOnly.getCode(), EVENT_NOTE)).andReturn();
+                    new EventScheduleRequest("Sự kiện thử nghiệm", start, start.plusHours(2), enableOnly.getCode(), EVENT_NOTE)).andReturn();
 
             assertEquals(400, status(r), describe(r));
             assertEquals("ERR_AREA_026", errorCode(r));
