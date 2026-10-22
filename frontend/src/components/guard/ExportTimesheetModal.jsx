@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, FileSpreadsheet, Download, Loader2, Calendar, Users, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { guardScheduleApi } from '../../api/guardScheduleApi';
+import Select from '../ui/Select';
 
 export default function ExportTimesheetModal({ isOpen, onClose, teams = [], currentDate = new Date() }) {
   const [selectedMonthYear, setSelectedMonthYear] = useState('');
@@ -129,18 +130,14 @@ export default function ExportTimesheetModal({ isOpen, onClose, teams = [], curr
                 <span>Đội bảo vệ</span>
               </span>
             </label>
-            <select
+            <Select
               value={selectedTeamId}
               onChange={(e) => setSelectedTeamId(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-medium focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition"
-            >
-              <option value="">Tất cả các đội bảo vệ</option>
-              {teams.map((team) => (
-                <option key={team.id} value={team.id}>
-                  {team.teamName} {team.description ? `(${team.description})` : ''}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: '', label: 'Tất cả các đội bảo vệ' },
+                ...teams.map((team) => ({ value: team.id, label: `${team.teamName} ${team.description ? `(${team.description})` : ''}` })),
+              ]}
+            />
           </div>
 
           {/* Info Card */}

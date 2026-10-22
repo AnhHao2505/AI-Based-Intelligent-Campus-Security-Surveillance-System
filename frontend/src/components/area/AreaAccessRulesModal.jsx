@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import Modal from "../ui/Modal";
 import Button from "../ui/Button";
 import ReasonTextarea from "../ui/ReasonTextarea";
+import Select from "../ui/Select";
 import EventScheduleSection from "./EventScheduleSection";
 import { getAreaById, updateAreaEventMode } from "../../services/areaService";
 import { getActiveReasons } from "../../services/reasonCatalogService";
@@ -545,26 +546,12 @@ export default function AreaAccessRulesModal({
 														Đang tải danh mục lý do...
 													</div>
 												) : (
-													<select
+													<Select
 														id="event-mode-reason-code"
 														value={eventReasonCode}
 														onChange={(e) => setEventReasonCode(e.target.value)}
-														style={{
-															width: "100%",
-															padding: "8px 12px",
-															borderRadius: "8px",
-															border: "1px solid var(--theme-border, #cbd5e1)",
-															background: "var(--theme-card-bg, #ffffff)",
-															fontSize: "13px",
-															color: "var(--theme-text-primary, #0f172a)",
-														}}
-													>
-														{eventReasons.map((r) => (
-															<option key={r.code} value={r.code}>
-																{r.label}
-															</option>
-														))}
-													</select>
+														options={eventReasons.map((r) => ({ value: r.code, label: r.label }))}
+													/>
 												)}
 											</div>
 

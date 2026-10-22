@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import Button from "../ui/Button";
 import Badge from "../ui/Badge";
 import ReasonTextarea from "../ui/ReasonTextarea";
+import Select from "../ui/Select";
 import { useAuth } from "../../context/AuthContext";
 import {
 	getEventSchedules,
@@ -285,18 +286,14 @@ export default function EventScheduleSection({ area, onSchedulesChanged }) {
 					{loadingReasons ? (
 						<span className="evs-muted">Đang tải danh mục lý do...</span>
 					) : (
-						<select
-							className="evs-input"
+						<Select
 							value={form.reasonCode}
 							onChange={(e) => setForm((p) => ({ ...p, reasonCode: e.target.value }))}
-						>
-							{reasons.length === 0 && <option value="">Chưa có lý do khả dụng</option>}
-							{reasons.map((r) => (
-								<option key={r.code} value={r.code}>
-									{r.label}
-								</option>
-							))}
-						</select>
+							options={[
+								...(reasons.length === 0 ? [{ value: "", label: "Chưa có lý do khả dụng" }] : []),
+								...reasons.map((r) => ({ value: r.code, label: r.label })),
+							]}
+						/>
 					)}
 				</label>
 				<ReasonTextarea

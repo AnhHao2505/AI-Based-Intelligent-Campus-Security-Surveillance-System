@@ -9,7 +9,6 @@ import {
 	UserCheck,
 	ChevronLeft,
 	ChevronRight,
-	ChevronDown,
 	AlertCircle,
 	CheckCircle2,
 	RotateCw,
@@ -40,7 +39,7 @@ import { ROLES, ROLE_LABELS } from "../../constants/roles";
 import { useAuth } from "../../context/AuthContext";
 import "../../styles/ManageAccountPage.css";
 import PageHeader from "../../components/ui/PageHeader";
-import { LoadingState, EmptyState, ErrorState } from "../../components/ui";
+import { LoadingState, EmptyState, ErrorState, Select } from "../../components/ui";
 import { formatDateTime } from "../../utils/formatDateTime";
 import useDialogA11y from "../../hooks/useDialogA11y";
 
@@ -802,25 +801,20 @@ export default function ManageAccountPage() {
 				</div>
 
 				{activeTab === "NORMAL" && (
-					<div className="account-filter-select-wrapper">
-						<select
-							className="account-filter-select"
-							value={statusFilter}
-							onChange={(e) => {
-								setStatusFilter(e.target.value);
-								setCurrentPage(0);
-							}}
-							aria-label="Lọc trạng thái người dùng thường"
-						>
-							<option value="">Trạng thái: Tất cả</option>
-							<option value="true">Đang hoạt động</option>
-							<option value="false">Đã vô hiệu hóa</option>
-						</select>
-						<ChevronDown
-							size={16}
-							className="account-filter-select-icon"
-						/>
-					</div>
+					<Select
+						className="ui-select-group--filter"
+						value={statusFilter}
+						onChange={(e) => {
+							setStatusFilter(e.target.value);
+							setCurrentPage(0);
+						}}
+						aria-label="Lọc trạng thái người dùng thường"
+						options={[
+							{ value: "", label: "Trạng thái: Tất cả" },
+							{ value: "true", label: "Đang hoạt động" },
+							{ value: "false", label: "Đã vô hiệu hóa" },
+						]}
+					/>
 				)}
 			</div>
 
@@ -1327,24 +1321,15 @@ export default function ManageAccountPage() {
 												<span className="account-form-label__required">*</span>
 											</span>
 										</label>
-										<select
+										<Select
 											id="account-create-role"
-											className="account-form-select"
 											value={createForm.role}
 											onChange={(e) =>
 												setCreateForm({ ...createForm, role: e.target.value })
 											}
 											disabled={isSubmitting}
-										>
-											{SYSTEM_STAFF_ROLES.map((r) => (
-												<option
-													key={r}
-													value={r}
-												>
-													{ROLE_LABELS[r] || r}
-												</option>
-											))}
-										</select>
+											options={SYSTEM_STAFF_ROLES.map((r) => ({ value: r, label: ROLE_LABELS[r] || r }))}
+										/>
 									</div>
 								)}
 

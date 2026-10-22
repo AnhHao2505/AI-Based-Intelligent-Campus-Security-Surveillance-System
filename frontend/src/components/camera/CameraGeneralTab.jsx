@@ -2,6 +2,7 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import { MapPin, Save, Loader2, ExternalLink } from "lucide-react";
 import { formatLocation } from "../../utils/formatLocation";
+import Select from "../ui/Select";
 
 export default function CameraGeneralTab({
 	camera,
@@ -55,40 +56,25 @@ export default function CameraGeneralTab({
 							flexWrap: "wrap",
 						}}
 					>
-						<select
+						<Select
+							className="camera-general-area-select"
 							value={generalForm.areaId || ""}
 							onChange={(e) =>
 								setGeneralForm({ ...generalForm, areaId: e.target.value })
 							}
 							required
-							style={{
-								flex: "1 1 300px",
-								padding: "0.6rem 0.85rem",
-								borderRadius: "8px",
-								border: "1px solid var(--theme-border)",
-								background: "var(--theme-bg-input, var(--theme-bg-surface))",
-								color: "var(--theme-text-primary)",
-								fontSize: "0.875rem",
-							}}
-						>
-							<option
-								value=""
-								disabled
-							>
-								-- Chọn khu vực --
-							</option>
-							{availableAreas.map((area) => (
-								<option
-									key={area.id}
-									value={area.id}
-								>
-									{area.name}{" "}
-									{formatLocation(area.building, area.floor, " - ")
-										? `(${formatLocation(area.building, area.floor, " - ")})`
-										: ""}
-								</option>
-							))}
-						</select>
+							options={[
+								{ value: "", label: "-- Chọn khu vực --", disabled: true },
+								...availableAreas.map((area) => ({
+									value: area.id,
+									label: `${area.name} ${
+										formatLocation(area.building, area.floor, " - ")
+											? `(${formatLocation(area.building, area.floor, " - ")})`
+											: ""
+									}`,
+								})),
+							]}
+						/>
 
 						<button
 							type="button"

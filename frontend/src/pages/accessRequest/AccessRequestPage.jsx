@@ -24,7 +24,7 @@ import { getLevelConfig, AREA_LEVEL_CONFIG } from "../../utils/areaHelpers";
 import { useAuth } from "../../context/AuthContext";
 import "../../styles/AccessRequestPage.css";
 import PageHeader from "../../components/ui/PageHeader";
-import { LoadingState, EmptyState, ErrorState, DialogPanel } from "../../components/ui";
+import { LoadingState, EmptyState, ErrorState, DialogPanel, Select } from "../../components/ui";
 import { formatLocation } from "../../utils/formatLocation";
 import { formatDateTime, formatRange } from "../../utils/formatDateTime";
 import MemberCodeCombobox from "../../components/accessRequest/MemberCodeCombobox";
@@ -681,27 +681,20 @@ export default function AccessRequestPage() {
 							<span>Khu vực cần truy cập</span>
 							<span className="arp-required">*</span>
 						</label>
-						<select
+						<Select
 							id="arp-area"
-							className="arp-select"
 							value={selectedAreaId}
 							onChange={handleAreaChange}
 							disabled={loadingAreas || submitting}
 							required
-						>
-							<option value="">-- Chọn khu vực cần đăng ký truy cập --</option>
-							{areaList.map((a) => {
-								const loc = formatLocation(a.building, a.floor);
-								return (
-									<option
-										key={a.id}
-										value={a.id}
-									>
-										{loc ? `${a.name} (${loc})` : a.name}
-									</option>
-								);
-							})}
-						</select>
+							options={[
+								{ value: "", label: "-- Chọn khu vực cần đăng ký truy cập --" },
+								...areaList.map((a) => {
+									const loc = formatLocation(a.building, a.floor);
+									return { value: a.id, label: loc ? `${a.name} (${loc})` : a.name };
+								}),
+							]}
+						/>
 
 						{currentArea &&
 							(() => {
@@ -993,25 +986,22 @@ export default function AccessRequestPage() {
 							</button>
 						))}
 
-						<select
-							className="arp-select-filter"
+						<Select
+							className="ui-select-group--filter"
 							aria-label="Lọc theo khu vực"
 							value={historyAreaFilter}
 							onChange={(e) => {
 								setHistoryAreaFilter(e.target.value);
 								setHistoryPage(0);
 							}}
-						>
-							<option value="">Tất cả khu vực</option>
-							{areaList.map((a) => {
-								const loc = formatLocation(a.building, a.floor);
-								return (
-									<option key={a.id} value={a.id}>
-										{loc ? `${a.name} (${loc})` : a.name}
-									</option>
-								);
-							})}
-						</select>
+							options={[
+								{ value: "", label: "Tất cả khu vực" },
+								...areaList.map((a) => {
+									const loc = formatLocation(a.building, a.floor);
+									return { value: a.id, label: loc ? `${a.name} (${loc})` : a.name };
+								}),
+							]}
+						/>
 
 						<button
 							type="button"
