@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import PageHeader from '../../components/ui/PageHeader';
 import AccessRequestReviewPage from '../accessRequest/AccessRequestReviewPage';
@@ -20,6 +20,8 @@ const DEFAULT_TAB = 'requests';
  */
 export default function ApprovalPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  // Ô bên phải thanh tab: trang của tab đang mở đặt nút thao tác (vd "Làm mới") vào đây qua portal
+  const [actionsContainer, setActionsContainer] = useState(null);
   const tabParam = searchParams.get('tab');
   const activeTab = TABS.some((t) => t.key === tabParam) ? tabParam : DEFAULT_TAB;
 
@@ -56,9 +58,12 @@ export default function ApprovalPage() {
           </button>
         ))}
       </nav>
+      <div className="apv-tab-actions" ref={setActionsContainer} />
 
       <div id="apv-tabpanel" role="tabpanel" aria-labelledby={`apv-tab-${activeTab}`}>
-        {activeTab === 'guests' ? <GuestVisitReviewPage embedded /> : <AccessRequestReviewPage embedded />}
+        {activeTab === 'guests'
+          ? <GuestVisitReviewPage embedded actionsContainer={actionsContainer} />
+          : <AccessRequestReviewPage embedded actionsContainer={actionsContainer} />}
       </div>
     </div>
   );

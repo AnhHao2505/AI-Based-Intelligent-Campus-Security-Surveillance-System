@@ -61,9 +61,10 @@ function ReasonBlock({ label, value, author, time, variant = 'default' }) {
 
 /**
  * @param {Object} props
- * @param {boolean} [props.embedded=false] - nhúng làm tab của màn Phê duyệt yêu cầu: ẩn tiêu đề / phụ đề, bỏ khung trang, giữ nút thao tác
+ * @param {boolean} [props.embedded=false] - nhúng làm tab của màn Phê duyệt yêu cầu: ẩn tiêu đề / phụ đề, bỏ khung trang
+ * @param {Element|null} [props.actionsContainer] - khi embedded: nơi đặt nút thao tác (hàng thanh tab của màn gộp)
  */
-export default function GuestVisitReviewPage({ embedded = false }) {
+export default function GuestVisitReviewPage({ embedded = false, actionsContainer = null }) {
   const reasonLimits = useReasonLimits();
   const { user } = useAuth();
   const [statusFilter, setStatusFilter] = useState('PENDING');
@@ -303,8 +304,9 @@ export default function GuestVisitReviewPage({ embedded = false }) {
   return (
     <div className={`guest-visit ${embedded ? 'guest-visit--embedded' : ''}`}>
       <PageHeader
-        title={embedded ? undefined : 'Duyệt lượt khách'}
-        description={embedded ? undefined : 'Xem xét, phê duyệt hoặc từ chối các lượt đăng ký mời khách vào khuôn viên trường.'}
+        title="Duyệt lượt khách"
+        description="Xem xét, phê duyệt hoặc từ chối các lượt đăng ký mời khách vào khuôn viên trường."
+        actionsContainer={embedded ? actionsContainer : undefined}
         actions={
           <Button
             variant="secondary"

@@ -54,9 +54,10 @@ const getListReason = (req) => {
 
 /**
  * @param {Object} props
- * @param {boolean} [props.embedded=false] - nhúng làm tab của màn Phê duyệt yêu cầu: ẩn tiêu đề / phụ đề, bỏ khung trang, giữ nút thao tác
+ * @param {boolean} [props.embedded=false] - nhúng làm tab của màn Phê duyệt yêu cầu: ẩn tiêu đề / phụ đề, bỏ khung trang
+ * @param {Element|null} [props.actionsContainer] - khi embedded: nơi đặt nút thao tác (hàng thanh tab của màn gộp)
  */
-export default function AccessRequestReviewPage({ embedded = false }) {
+export default function AccessRequestReviewPage({ embedded = false, actionsContainer = null }) {
   const reasonLimits = useReasonLimits();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -378,8 +379,9 @@ export default function AccessRequestReviewPage({ embedded = false }) {
     <div className={`arr-container ${embedded ? 'arr-container--embedded' : ''}`}>
       {/* Header */}
       <PageHeader
-        title={embedded ? undefined : 'Phê duyệt yêu cầu truy cập'}
-        description={embedded ? undefined : `Xét duyệt yêu cầu ra vào các khu vực ${AREA_LEVEL_CONFIG.CONFIDENTIAL.badgeLabel} và ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.badgeLabel}.`}
+        title="Phê duyệt yêu cầu truy cập"
+        description={`Xét duyệt yêu cầu ra vào các khu vực ${AREA_LEVEL_CONFIG.CONFIDENTIAL.badgeLabel} và ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.badgeLabel}.`}
+        actionsContainer={embedded ? actionsContainer : undefined}
         actions={
           <button
             type="button"

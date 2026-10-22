@@ -11,15 +11,6 @@
   margin-bottom: 20px;
 }
 
-/* Không có tiêu đề (trang nhúng trong tab): hàng nút căn phải như vị trí cũ */
-.ui-page-header--actions-only {
-  justify-content: flex-end;
-}
-
-.ui-page-header--actions-only .ui-page-header__text {
-  display: none;
-}
-
 .ui-page-header__text {
   min-width: 0;
   flex: 1 1 320px;
