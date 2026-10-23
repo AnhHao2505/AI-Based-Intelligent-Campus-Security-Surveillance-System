@@ -15,9 +15,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.test.util.AopTestUtils;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -34,12 +35,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
  * M-03 (V89): hạn link đặt lại mật khẩu đọc từ PASSWORD_RESET_TOKEN_MINUTES lúc tạo token, mail ghi đúng số phút.
  * JavaMailSender là mock (không gửi mail thật); NotificationService thật nên mail chụp lại được nội dung.
+ * Không dùng @MockBean: mỗi bộ mock là một context riêng giữ thêm một pool kết nối, DB test dùng chung đã gần
+ * chạm giới hạn kết nối ("too many clients"). Lớp này dùng context mặc định và chỉ thay mailSender của
+ * NotificationService trong lúc chạy, trả lại ở @AfterEach.
  */
 class PasswordResetTokenConfigIntegrationTest extends AbstractIntegrationTest {
 
@@ -50,8 +54,10 @@ class PasswordResetTokenConfigIntegrationTest extends AbstractIntegrationTest {
     @Autowired private UserRepository userRepository;
     @Autowired private PasswordResetTokenRepository passwordResetTokenRepository;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private NotificationService notificationService;
 
-    @MockBean private JavaMailSender mailSender;
+    private JavaMailSender mailSender;
+    private Object realMailSender;
 
     private User admin;
     private User target;
@@ -60,7 +66,10 @@ class PasswordResetTokenConfigIntegrationTest extends AbstractIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        reset(mailSender);
+        mailSender = mock(JavaMailSender.class);
+        Object mailHolder = AopTestUtils.getUltimateTargetObject(notificationService);
+        realMailSender = ReflectionTestUtils.getField(mailHolder, "mailSender");
+        ReflectionTestUtils.setField(mailHolder, "mailSender", mailSender);
         sent.clear();
         mailLatch = new CountDownLatch(1);
         when(mailSender.createMimeMessage()).thenAnswer(i -> new MimeMessage(Session.getInstance(new Properties())));
@@ -77,13 +86,22 @@ class PasswordResetTokenConfigIntegrationTest extends AbstractIntegrationTest {
         target = userRepository.save(User.builder()
                 .email("prt.usr." + suffix + "@fpt.edu.vn").userCode("PRT-USR-" + suffix).fullName("PRT user " + suffix)
                 .role(Role.NORMAL_USER).accessLevel(1).isActive(true).build());
+        // Lần chạy trước dừng giữa chừng có thể để lại giá trị khác -> luôn bắt đầu từ mặc định
+        resetToDefault();
+    }
+
+    private void resetToDefault() {
+        String def = ConfigKey.PASSWORD_RESET_TOKEN_MINUTES.getDefaultValue();
+        if (!def.equals(systemConfigService.getString(ConfigKey.PASSWORD_RESET_TOKEN_MINUTES))) {
+            systemConfigService.update(KEY, def, admin.getEmail());
+        }
     }
 
     @AfterEach
     void cleanUp() {
-        if (!"15".equals(systemConfigService.getString(ConfigKey.PASSWORD_RESET_TOKEN_MINUTES))) {
-            systemConfigService.update(KEY, "15", admin.getEmail());
-        }
+        Object mailHolder = AopTestUtils.getUltimateTargetObject(notificationService);
+        ReflectionTestUtils.setField(mailHolder, "mailSender", realMailSender);
+        resetToDefault();
         passwordResetTokenRepository.findAll().stream()
                 .filter(t -> target.getEmail().equals(t.getEmail()))
                 .forEach(passwordResetTokenRepository::delete);
@@ -155,6 +173,9 @@ class PasswordResetTokenConfigIntegrationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("T-09: V89 tạo khoá PASSWORD_RESET_TOKEN_MINUTES mặc định 15, min 5, max 60")
     void migrationRow() {
+        assertThat(jdbc.queryForObject(
+                "SELECT success FROM flyway_schema_history WHERE version = '89'", Boolean.class)).isTrue();
+        assertThat(ConfigKey.PASSWORD_RESET_TOKEN_MINUTES.getDefaultValue()).isEqualTo("15");
         Map<String, Object> row = jdbc.queryForMap(
                 "SELECT config_value, data_type, min_value, max_value, unit, config_group, editable "
                         + "FROM system_configurations WHERE config_key = ?", KEY);

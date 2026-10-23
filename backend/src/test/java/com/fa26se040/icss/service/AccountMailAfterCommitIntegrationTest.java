@@ -18,11 +18,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.test.util.AopTestUtils;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -47,16 +48,19 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 
 /**
  * M-04 (23/10): mail tài khoản mới chỉ gửi sau khi transaction commit và chạy nền trên mailExecutor.
- * JavaMailSender là mock (không gửi mail thật); FaceDataService, MinIO là mock nên không cần AI Service.
+ * JavaMailSender là mock (không gửi mail thật); FaceDataService là mock nên không cần AI Service / MinIO.
  * Đợi mail bằng CountDownLatch, không sleep cố định ở luồng test.
+ * Không dùng @MockBean: mỗi bộ mock là một context riêng giữ thêm một pool kết nối, DB test dùng chung đã gần
+ * chạm giới hạn kết nối ("too many clients"). Lớp này dùng context mặc định, chỉ thay mailSender của
+ * NotificationService và faceDataService của UserService / UserBulkImportHelper trong lúc chạy, trả lại ở @AfterEach.
  */
 class AccountMailAfterCommitIntegrationTest extends AbstractIntegrationTest {
 
@@ -67,10 +71,13 @@ class AccountMailAfterCommitIntegrationTest extends AbstractIntegrationTest {
     @Autowired private MockMvc mockMvc;
     @Autowired private JwtTokenProvider jwtTokenProvider;
     @Autowired @Qualifier(AsyncConfig.MAIL_EXECUTOR) private ThreadPoolTaskExecutor mailExecutor;
+    @Autowired private NotificationService notificationService;
+    @Autowired private UserBulkImportHelper userBulkImportHelper;
 
-    @MockBean private JavaMailSender mailSender;
-    @MockBean private FaceDataService faceDataService;
-    @MockBean private MinioStorageService minioStorageService;
+    private JavaMailSender mailSender;
+    private FaceDataService faceDataService;
+    /** Bean đích -> {tên field, giá trị thật} để trả lại sau mỗi test. */
+    private final List<Object[]> swapped = new ArrayList<>();
 
     private final List<MimeMessage> sent = new CopyOnWriteArrayList<>();
     private final List<String> createdCodes = new ArrayList<>();
@@ -79,7 +86,11 @@ class AccountMailAfterCommitIntegrationTest extends AbstractIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        reset(mailSender, faceDataService, minioStorageService);
+        mailSender = mock(JavaMailSender.class);
+        faceDataService = mock(FaceDataService.class);
+        swap(notificationService, "mailSender", mailSender);
+        swap(userService, "faceDataService", faceDataService);
+        swap(userBulkImportHelper, "faceDataService", faceDataService);
         sent.clear();
         suffix = UUID.randomUUID().toString().substring(0, 6).toUpperCase(Locale.ROOT);
         when(mailSender.createMimeMessage()).thenAnswer(i -> new MimeMessage(Session.getInstance(new Properties())));
@@ -87,8 +98,16 @@ class AccountMailAfterCommitIntegrationTest extends AbstractIntegrationTest {
                 .id(UUID.randomUUID()).code(i.getArgument(0)).imageFrontUrl("face-profiles/" + i.getArgument(0) + ".jpg").build());
     }
 
+    private void swap(Object bean, String field, Object replacement) {
+        Object target = AopTestUtils.getUltimateTargetObject(bean);
+        swapped.add(new Object[]{target, field, ReflectionTestUtils.getField(target, field)});
+        ReflectionTestUtils.setField(target, field, replacement);
+    }
+
     @AfterEach
     void cleanUp() {
+        swapped.forEach(s -> ReflectionTestUtils.setField(s[0], (String) s[1], s[2]));
+        swapped.clear();
         createdCodes.forEach(code -> userRepository.findByUserCode(code).ifPresent(userRepository::delete));
         createdCodes.clear();
         userRepository.deleteAllById(fixtureUsers);
