@@ -13,6 +13,7 @@ import lombok.NoArgsConstructor;
 public class TestConnectionResponse {
     private boolean success;
     private Long latencyMs;
+    private String errorCode;
     private String message;
     private OperationalStatus operationalStatus;
 }

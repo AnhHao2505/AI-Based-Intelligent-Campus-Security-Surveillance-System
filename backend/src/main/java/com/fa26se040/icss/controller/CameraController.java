@@ -16,7 +16,9 @@ import com.fa26se040.icss.dto.common.ApiResponse;
 import com.fa26se040.icss.enums.CameraStatus;
 import com.fa26se040.icss.enums.OperationalStatus;
 import com.fa26se040.icss.service.CameraService;
+import com.fa26se040.icss.service.CameraConnectionService;
 import com.fa26se040.icss.service.CameraSnapshotService;
+import com.fa26se040.icss.service.CameraStreamLifecycleService;
 
 import java.util.List;
 import java.util.UUID;
@@ -28,7 +30,9 @@ import java.util.UUID;
 public class CameraController {
 
     private final CameraService cameraService;
+    private final CameraConnectionService cameraConnectionService;
     private final CameraSnapshotService cameraSnapshotService;
+    private final CameraStreamLifecycleService cameraStreamLifecycleService;
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
@@ -68,7 +72,7 @@ public class CameraController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<CameraDetailResponse>> update(@PathVariable UUID id, @Valid @RequestBody UpdateCameraRequest req) {
+    public ResponseEntity<ApiResponse<CameraDetailResponse>> updateInfo(@PathVariable UUID id, @Valid @RequestBody UpdateCameraRequest req) {
         log.info("REST request to update camera: {}", id);
         CameraDetailResponse updated = cameraService.updateCamera(id, req);
         return ResponseEntity.ok(ApiResponse.success(updated, "Cập nhật thông tin camera thành công"));
@@ -116,12 +120,28 @@ public class CameraController {
         return ResponseEntity.ok(ApiResponse.success(logs, "Lấy nhật ký hoạt động camera thành công"));
     }
 
-    @PostMapping("/{id}/connect")
+    @PostMapping("/{id}/snapshot")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<ConnectStreamResponse>> connectStream(@PathVariable UUID id) {
-        log.info("REST request to connect RTSP stream for camera: {}", id);
-        ConnectStreamResponse response = cameraSnapshotService.connectAndCapture(id);
-        return ResponseEntity.ok(ApiResponse.success(response, "Kết nối luồng stream camera thành công"));
+    public ResponseEntity<ApiResponse<CameraSnapshotResponse>> captureSnapshot(@PathVariable UUID id) {
+        log.info("REST request to capture snapshot frame for camera: {}", id);
+        CameraSnapshotResponse response = cameraSnapshotService.captureSnapshot(id);
+        return ResponseEntity.ok(ApiResponse.success(response, "Trích xuất khung hình snapshot thành công"));
+    }
+
+    @PostMapping("/{id}/stream/start")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<CameraStreamLifecycleResponse>> startStream(@PathVariable UUID id) {
+        log.info("REST request to start stream and AI worker for camera: {}", id);
+        CameraStreamLifecycleResponse response = cameraStreamLifecycleService.startStream(id);
+        return ResponseEntity.ok(ApiResponse.success(response, "Kết nối Stream phát trực tiếp thành công"));
+    }
+
+    @PostMapping("/{id}/stream/stop")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<CameraStreamLifecycleResponse>> stopStream(@PathVariable UUID id) {
+        log.info("REST request to stop stream and AI worker for camera: {}", id);
+        CameraStreamLifecycleResponse response = cameraStreamLifecycleService.stopStream(id);
+        return ResponseEntity.ok(ApiResponse.success(response, "Đã Ngắt Stream phát trực tiếp của camera"));
     }
 
     @PostMapping("/{id}/test-connection")
@@ -130,7 +150,7 @@ public class CameraController {
             @PathVariable UUID id,
             @RequestBody(required = false) CameraStreamConfigRequest req) {
         log.info("REST request to test RTSP stream connection for camera: {}", id);
-        TestConnectionResponse response = cameraSnapshotService.testConnection(id, req);
+        TestConnectionResponse response = cameraConnectionService.testConnection(id, req);
         return ResponseEntity.ok(ApiResponse.success(response, "Kiểm tra kết nối camera hoàn tất"));
     }
 

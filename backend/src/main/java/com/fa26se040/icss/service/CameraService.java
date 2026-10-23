@@ -19,6 +19,8 @@ import com.fa26se040.icss.exception.CameraErrorCode;
 import com.fa26se040.icss.exception.CameraException;
 import com.fa26se040.icss.repository.*;
 import com.fa26se040.icss.util.AesEncryptionUtil;
+import com.fa26se040.icss.util.RtspCheckResult;
+import com.fa26se040.icss.util.RtspHandshakeChecker;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -44,6 +46,7 @@ public class CameraService {
     private final MinioStorageService minioStorageService;
     private final SystemConfigService systemConfigService;
     private final AreaRepository areaRepository;
+    private final RtspHandshakeChecker rtspHandshakeChecker;
 
     @Value("${ai.service.url:http://localhost:8000}")
     private String aiServiceUrl;
@@ -231,6 +234,7 @@ public class CameraService {
 
         camera.setStatus(CameraStatus.DECOMMISSIONED);
         camera.setOperationalStatus(OperationalStatus.OFFLINE);
+        camera.setArea(null);
         camera.setDeletedAt(OffsetDateTime.now());
 
         cameraRepository.save(camera);
@@ -307,23 +311,6 @@ public class CameraService {
                 .orElse(CameraStreamConfiguration.builder().camera(camera).build());
 
         String rawPassword = req.getEffectivePassword();
-        String effectivePlainPassword = rawPassword;
-        if ((rawPassword == null || rawPassword.isBlank()) && config.getCredentialRef() != null && !config.getCredentialRef().isBlank()) {
-            effectivePlainPassword = aesEncryptionUtil.decrypt(config.getCredentialRef());
-        }
-
-        String rtspUrl = buildRtspUrlWithCredentials(
-                req.getHost(),
-                req.getPort(),
-                req.getUsername(),
-                effectivePlainPassword,
-                req.getMainStreamPath()
-        );
-
-        if (rtspUrl != null && camera.getStatus() == CameraStatus.ACTIVE) {
-            mediaMtxService.syncCameraPathStrict(camera.getCameraCode(), rtspUrl);
-        }
-
         if (rawPassword != null && !rawPassword.isBlank()) {
             config.setCredentialRef(aesEncryptionUtil.encrypt(rawPassword));
         }
@@ -338,65 +325,11 @@ public class CameraService {
 
         CameraStreamConfiguration saved = cameraStreamConfigurationRepository.save(config);
 
-        // Tự động kiểm tra kết nối ngay sau khi lưu cấu hình luồng
-        OperationalStatus finalOpStatus = OperationalStatus.OFFLINE;
-        String connMessage = null;
-        Integer latency = null;
-        try {
-            String aiEndpoint = aiServiceUrl + "/api/v1/cameras/snapshot";
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            int timeout = (config.getTimeoutMs() != null && config.getTimeoutMs() > 0) ? config.getTimeoutMs() : 5000;
-            Map<String, Object> body = Map.of(
-                    "rtsp_url", rtspUrl != null ? rtspUrl : "",
-                    "timeout_ms", timeout
-            );
-            HttpEntity<Map<String, Object>> snapshotReq = new HttpEntity<>(body, headers);
-            Map<String, Object> response = restTemplate.postForObject(aiEndpoint, snapshotReq, Map.class);
-            if (response != null && Boolean.TRUE.equals(response.get("success"))) {
-                finalOpStatus = OperationalStatus.ONLINE;
-                Number latencyNumber = (Number) response.get("latency_ms");
-                latency = latencyNumber != null ? latencyNumber.intValue() : null;
-                connMessage = "Cấu hình luồng và kết nối RTSP thành công (Độ trễ: " + (latency != null ? latency + "ms" : "N/A") + ")";
-            } else {
-                finalOpStatus = OperationalStatus.OFFLINE;
-                connMessage = "Cấu hình luồng thành công nhưng không thể trích xuất khung hình từ camera";
-            }
-        } catch (Exception e) {
-            log.warn("Không thể kết nối thử sau khi lưu cấu hình stream cho camera [{}]: {}", camera.getCameraCode(), e.getMessage());
-            finalOpStatus = OperationalStatus.OFFLINE;
-            connMessage = "Cấu hình luồng thành công nhưng kiểm tra kết nối thất bại: " + cleanErrorMessage(e);
-        }
-
-        camera.setOperationalStatus(finalOpStatus);
         camera.setUpdatedAt(OffsetDateTime.now());
         cameraRepository.save(camera);
 
-        if (finalOpStatus == OperationalStatus.ONLINE) {
-            try {
-                String streamStartUrl = aiServiceUrl + "/api/v1/stream/start";
-                String workerRtspUrl = buildRtspUrl(config);
-                restTemplate.postForObject(streamStartUrl, Map.of(
-                        "camera_code", camera.getCameraCode(),
-                        "rtsp_url", workerRtspUrl
-                ), Map.class);
-                log.info("✅ Đã kích hoạt AI Stream Worker cho camera [{}] sau khi lưu stream config", camera.getCameraCode());
-            } catch (Exception ex) {
-                log.warn("⚠️ Không thể tự động kích hoạt AI Stream Worker cho camera [{}]: {}", camera.getCameraCode(), ex.getMessage());
-            }
-        }
-
-        CameraHealthLog healthLog = CameraHealthLog.builder()
-                .camera(camera)
-                .status(finalOpStatus)
-                .checkedAt(OffsetDateTime.now())
-                .latencyMs(latency)
-                .errorMessage(connMessage)
-                .build();
-        cameraHealthLogRepository.save(healthLog);
-
         CameraStreamConfigResponse streamResponse = mapToStreamResponse(saved);
-        streamResponse.setOperationalStatus(finalOpStatus);
+        streamResponse.setOperationalStatus(camera.getOperationalStatus() != null ? camera.getOperationalStatus() : OperationalStatus.OFFLINE);
         return streamResponse;
     }
 
@@ -418,9 +351,17 @@ public class CameraService {
                 .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_CAM_002));
 
         RoiGeometry roi = request.getRoiGeometry();
+        if (roi == null) {
+            roi = RoiGeometry.builder().polygons(new ArrayList<>()).build();
+        }
         roiGeometryValidator.validate(roi);
 
-        if (request.getSnapshotBase64() != null && !request.getSnapshotBase64().isBlank()) {
+        boolean isNewBase64 = request.getSnapshotBase64() != null
+                && !request.getSnapshotBase64().isBlank()
+                && !request.getSnapshotBase64().startsWith("http")
+                && !request.getSnapshotBase64().startsWith("/api/");
+
+        if (isNewBase64) {
             try {
                 String cleanBase64 = request.getSnapshotBase64();
                 if (cleanBase64.contains(",")) {
@@ -434,6 +375,12 @@ public class CameraService {
                 roi.setReferenceCapturedAt(OffsetDateTime.now());
             } catch (Exception e) {
                 log.error("Failed to upload reference snapshot to MinIO for camera {}: {}", camera.getCameraCode(), e.getMessage());
+                if (camera.getRoiGeometry() != null && camera.getRoiGeometry().getReferenceSnapshotUrl() != null) {
+                    roi.setReferenceSnapshotUrl(camera.getRoiGeometry().getReferenceSnapshotUrl());
+                    roi.setReferenceSnapshotWidth(camera.getRoiGeometry().getReferenceSnapshotWidth());
+                    roi.setReferenceSnapshotHeight(camera.getRoiGeometry().getReferenceSnapshotHeight());
+                    roi.setReferenceCapturedAt(camera.getRoiGeometry().getReferenceCapturedAt());
+                }
             }
         } else if (camera.getRoiGeometry() != null) {
             roi.setReferenceSnapshotUrl(camera.getRoiGeometry().getReferenceSnapshotUrl());
@@ -676,10 +623,35 @@ public class CameraService {
 
     private String cleanErrorMessage(Exception e) {
         if (e instanceof org.springframework.web.client.HttpStatusCodeException hs) {
-            return hs.getStatusCode().value() + " " + hs.getStatusText();
+            int code = hs.getStatusCode().value();
+            return switch (code) {
+                case 504 -> "Quá thời gian chờ kết nối (504 Timeout). Vui lòng kiểm tra lại địa chỉ IP, cổng mạng và nguồn camera.";
+                case 502 -> "Không thể kết nối đến cổng AI hoặc MediaMTX Gateway (502 Bad Gateway). Dịch vụ nền có thể chưa sẵn sàng.";
+                case 401, 403 -> "Sai thông tin đăng nhập camera (401/403). Vui lòng kiểm tra lại tài khoản hoặc mật khẩu RTSP.";
+                case 404 -> "Không tìm thấy luồng RTSP (404 Not Found). Vui lòng kiểm tra lại đuôi đường dẫn Main Stream Path.";
+                case 500 -> "Lỗi nội bộ khi khởi tạo luồng giải mã video qua AI-service.";
+                default -> hs.getStatusCode().value() + " " + hs.getStatusText();
+            };
+        }
+        if (e instanceof org.springframework.web.client.ResourceAccessException rae) {
+            String raeMsg = rae.getMessage() != null ? rae.getMessage().toLowerCase() : "";
+            if (raeMsg.contains("timed out") || raeMsg.contains("timeout")) {
+                return "Quá thời gian chờ phản hồi từ camera (Timeout). Vui lòng kiểm tra lại địa chỉ IP và nguồn điện camera.";
+            }
+            if (raeMsg.contains("refused") || raeMsg.contains("connect")) {
+                return "Không thể kết nối đến AI-service. Vui lòng kiểm tra dịch vụ AI trên cổng cấu hình.";
+            }
+            return "Không thể thiết lập kết nối mạng tới camera hoặc dịch vụ AI.";
         }
         String msg = e.getMessage();
         if (msg != null) {
+            msg = msg.replaceAll("([a-zA-Z][a-zA-Z0-9+.-]*://)[^/\\s@]+@", "$1****@");
+            if (msg.contains("504") || msg.toLowerCase().contains("gateway timeout")) {
+                return "Quá thời gian chờ kết nối (504 Timeout). Vui lòng kiểm tra lại địa chỉ IP, cổng mạng và nguồn camera.";
+            }
+            if (msg.contains("502") || msg.toLowerCase().contains("bad gateway")) {
+                return "Không thể kết nối đến AI-service hoặc MediaMTX Gateway (502 Bad Gateway).";
+            }
             return msg.replaceAll("(?i):\\s*\"Internal Server Error\"", "")
                       .replaceAll("(?i)500 Internal Server Error: \"Internal Server Error\"", "500 Internal Server Error");
         }

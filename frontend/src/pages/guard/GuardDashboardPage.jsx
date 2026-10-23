@@ -1012,6 +1012,7 @@ export function SecuritySurveillancePage() {
 											resolution="1080p"
 											fps="30 FPS"
 											isRecording={true}
+											enabled={camera.status === "ONLINE"}
 											host="localhost:8889"
 											onStatusChange={(playerStatus) => {
 												const newOpStatus =
