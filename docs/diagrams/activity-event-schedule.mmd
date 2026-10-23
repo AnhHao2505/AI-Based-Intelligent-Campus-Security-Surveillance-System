@@ -1,0 +1,40 @@
+%% Title: AD-03 Event schedule workflow · Source: service/AreaService.java (createSchedule, updateSchedule, cancelSchedule, processScheduleReminders, activateScheduleInTx, updateEventMode, cleanupExpiredSessions), scheduler/AreaEventModeScheduler.java, service/AccessDecisionService.java (checkEntry), frontend pages/events/EventManagementPage.jsx · Generated from main @ 84f5565
+flowchart TB
+    subgraph FM["Facility Manager"]
+        start((Start))
+        f1["Open Event Management Page, Create Event: title, Confidential area, start and end, reason"]
+        f2{"Change plan before start?"}
+        f3["Cancel event with reason code and note"]
+        f4{"Stop the running event early?"}
+        f5["Stop event, event mode DISABLE"]
+    end
+
+    subgraph SYS["System (backend and jobs)"]
+        s1{"Area active and Confidential, future start, duration, no overlap, budget ok?"}
+        s2["Save schedule SCHEDULED, audit, notify guards"]
+        s3["Schedule CANCELLED, notify guards"]
+        s4["Job reminds creator before startAt"]
+        s5{"Job at startAt: endAt after now, area active and Confidential?"}
+        s6["Schedule FAILED, notify creator"]
+        s7["Open event session, area open to members, schedule STARTED, notify guards"]
+        s8["checkEntry allows source OPEN_EVENT when AP and level do not"]
+        s9["Close session, schedule ENDED_EARLY, notify guards"]
+        s10["Job closes session at planned end, schedule COMPLETED, area closed"]
+    end
+
+    subgraph AI["AI Surveillance Engine"]
+        i1["Recognise member on a camera of the area, call check-entry"]
+    end
+
+    stop(((End)))
+
+    start --> f1 --> s1
+    s1 -->|no, error shown| f1
+    s1 -->|yes| s2 --> f2
+    f2 -->|edit| s1
+    f2 -->|cancel| f3 --> s3 --> stop
+    f2 -->|no| s4 --> s5
+    s5 -->|no| s6 --> stop
+    s5 -->|yes| s7 --> i1 --> s8 --> f4
+    f4 -->|yes| f5 --> s9 --> stop
+    f4 -->|no| s10 --> stop
