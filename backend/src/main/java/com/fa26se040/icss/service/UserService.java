@@ -184,17 +184,8 @@ public class UserService {
             // S4: khuôn mặt được đăng ký trước khi có User nên face_data.user_id còn trống -> gắn ngay (cùng transaction)
             faceDataService.linkToUser(normUserCode, savedUser);
 
-            // 6b. Gửi email thông tin tài khoản và mật khẩu khởi tạo
-            try {
-                notificationService.sendStaffAccountSetupEmail(
-                        savedUser.getEmail(),
-                        savedUser.getFullName(),
-                        savedUser.getUserCode(),
-                        tempPassword
-                );
-            } catch (Exception mailEx) {
-                log.warn("Gửi email khởi tạo tài khoản cho [{}] thất bại nhưng giữ tài khoản: {}", normUserCode, mailEx.getMessage());
-            }
+            // 6b. Gửi email thông tin tài khoản và mật khẩu khởi tạo — M-04a: chỉ sau khi transaction commit
+            sendAccountSetupEmailAfterCommit(savedUser.getEmail(), savedUser.getFullName(), savedUser.getUserCode(), tempPassword);
 
             return StaffAccountCreateResponse.builder()
                     .id(savedUser.getId())
@@ -376,6 +367,32 @@ public class UserService {
                 refreshHttpCaller.accept(targetUrl);
             }
         });
+
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    task.run();
+                }
+            });
+        } else {
+            task.run();
+        }
+    }
+
+    /**
+     * M-04a: gửi mail tài khoản mới SAU KHI transaction commit; rollback thì không gửi (không lộ mật khẩu của
+     * tài khoản không tồn tại). Mail chạy nền (M-04b). Lỗi xếp hàng chỉ ghi WARN: tài khoản đã commit, request vẫn
+     * thành công. Không có transaction (gọi trực tiếp) thì gửi ngay, cùng cách notifyAiServiceRefreshCache.
+     */
+    private void sendAccountSetupEmailAfterCommit(String email, String fullName, String userCode, String tempPassword) {
+        Runnable task = () -> {
+            try {
+                notificationService.sendStaffAccountSetupEmail(email, fullName, userCode, tempPassword);
+            } catch (Exception mailEx) {
+                log.warn("Gửi email khởi tạo tài khoản cho [{}] thất bại nhưng giữ tài khoản: {}", userCode, mailEx.getClass().getSimpleName());
+            }
+        };
 
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {

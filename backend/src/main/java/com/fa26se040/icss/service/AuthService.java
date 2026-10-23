@@ -8,6 +8,7 @@ import com.fa26se040.icss.dto.ResetPasswordRequest;
 import com.fa26se040.icss.dto.UserInfo;
 import com.fa26se040.icss.entity.PasswordResetToken;
 import com.fa26se040.icss.entity.User;
+import com.fa26se040.icss.enums.ConfigKey;
 import com.fa26se040.icss.exception.UnauthorizedException;
 import com.fa26se040.icss.repository.PasswordResetTokenRepository;
 import com.fa26se040.icss.repository.UserRepository;
@@ -32,6 +33,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final NotificationService notificationService;
+    private final SystemConfigService systemConfigService;
 
     @Value("${app.jwt.expiration-ms}")
     private long jwtExpirationMs;
@@ -55,21 +57,25 @@ public class AuthService {
             return;
         }
 
+        // M-03: hạn link lấy từ cấu hình lúc tạo token; mail ghi đúng số phút này
+        int validMinutes = systemConfigService.getInt(ConfigKey.PASSWORD_RESET_TOKEN_MINUTES);
         String token = java.util.UUID.randomUUID().toString();
         PasswordResetToken resetToken = PasswordResetToken.builder()
                 .token(token)
                 .email(email)
-                .expiredAt(java.time.OffsetDateTime.now().plusMinutes(15))
+                .expiredAt(java.time.OffsetDateTime.now().plusMinutes(validMinutes))
                 .build();
 
         passwordResetTokenRepository.save(resetToken);
 
         String baseUrl = frontendBaseUrl.endsWith("/") ? frontendBaseUrl.substring(0, frontendBaseUrl.length() - 1) : frontendBaseUrl;
         String resetLink = baseUrl + "/?token=" + token;
+        // M-04b: gửi nền, request trả về ngay (vẫn cùng một phản hồi S2). Chỉ lỗi xếp hàng (pool đầy) mới về tới đây;
+        // không log link hay token
         try {
-            notificationService.sendResetPasswordEmail(email, resetLink);
+            notificationService.sendResetPasswordEmail(email, resetLink, validMinutes);
         } catch (Exception e) {
-            log.error("Failed to send reset password email", e);
+            log.warn("Could not queue reset password email: {}", e.getClass().getSimpleName());
         }
     }
 
