@@ -1,0 +1,34 @@
+%% Title: SM-04 Assigned personnel (AP) status · Source: enums/AssignedPersonnelStatus.java, service/AreaAssignedPersonnelService.java (create, updateValidTo, revoke, revokeAllOfUser, computeStatus), service/AreaService.java (revokeAssignedPersonnelOnDeactivation), service/UserService.java · Generated from main @ 84f5565
+stateDiagram-v2
+    direction LR
+
+    state "UPCOMING · computed" as UPCOMING
+    state "ACTIVE · computed" as ACTIVE
+    state "EXPIRED · computed" as EXPIRED
+    state "REVOKED · stored as revoked_at" as REVOKED
+
+    [*] --> UPCOMING : Facility Manager assigns user [validFrom after now]
+    [*] --> ACTIVE : Facility Manager assigns user [validFrom at or before now, default now]
+
+    UPCOMING --> ACTIVE : Time passes [now at or after validFrom]
+    ACTIVE --> EXPIRED : Time passes [validTo set and now at or after validTo]
+    EXPIRED --> ACTIVE : Facility Manager edits end time [new validTo after now or empty]
+
+    UPCOMING --> REVOKED : Facility Manager revokes [reason required]
+    ACTIVE --> REVOKED : Facility Manager revokes [reason required]
+    EXPIRED --> REVOKED : Facility Manager revokes [reason required]
+
+    UPCOMING --> REVOKED : Administrator deactivates or deletes the user account (BR-AP-24, BR-AP-25)
+    ACTIVE --> REVOKED : Administrator deactivates or deletes the user account (BR-AP-24, BR-AP-25)
+    UPCOMING --> REVOKED : Administrator deactivates the area (BR-AD-04)
+    ACTIVE --> REVOKED : Administrator deactivates the area (BR-AD-04)
+
+    REVOKED --> [*]
+
+    note left of REVOKED
+        Status is NOT stored. computeStatus(ap, now):
+        revoked_at set -> REVOKED
+        now before valid_from -> UPCOMING
+        valid_to set and now at or after valid_to -> EXPIRED
+        otherwise ACTIVE
+    end note

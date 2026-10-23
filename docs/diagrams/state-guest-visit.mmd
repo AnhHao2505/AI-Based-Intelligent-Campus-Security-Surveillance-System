@@ -1,0 +1,39 @@
+%% Title: SM-02 Guest visit lifecycle · Source: enums/GuestVisitStatus.java, service/GuestVisitService.java, service/GuestVisitJobService.java, scheduler/GuestVisitScheduler.java · Generated from main @ 84f5565
+stateDiagram-v2
+    direction LR
+
+    state "PENDING · awaiting review" as PENDING
+    state "APPROVED · guests may enter inside window" as APPROVED
+    state "REJECTED" as REJECTED
+    state "CANCELLED" as CANCELLED
+    state "REVOKED" as REVOKED
+    state "EXPIRED" as EXPIRED
+    state "COMPLETED" as COMPLETED
+
+    [*] --> PENDING : Host (Authorized User or Facility Manager) creates visit [host eligible, Confidential areas, host covers areas for whole window]
+
+    PENDING --> APPROVED : Facility Manager approves [version matches, reviewer is not host, now before startTime, rules re-checked]
+    PENDING --> REJECTED : Facility Manager rejects [version matches, reviewer is not host, now before startTime, reason required]
+    PENDING --> CANCELLED : Host cancels [version matches, now before endTime]
+    PENDING --> CANCELLED : Administrator deactivates an area of the visit [now before endTime]
+    PENDING --> EXPIRED : System job expirePendingVisits every minute [now at or after startTime]
+
+    APPROVED --> CANCELLED : Host cancels [version matches, now before endTime] / biometrics deleted
+    APPROVED --> REVOKED : Facility Manager revokes [version matches, reviewer is not host, reason required, now before endTime] / biometrics deleted
+    APPROVED --> REVOKED : Administrator deactivates an area of the visit [now before endTime] / biometrics deleted
+    APPROVED --> COMPLETED : System job completeApprovedVisits every minute [now at or after endTime]
+
+    REJECTED --> [*]
+    CANCELLED --> [*]
+    REVOKED --> [*]
+    EXPIRED --> [*]
+    COMPLETED --> [*]
+
+    note right of APPROVED
+        Biometric deletion is not a visit state.
+        It is Guest.biometricStatus (GuestBiometricStatus):
+        NO_PHOTO, PHOTO_READY after Administrator attaches photo with consent,
+        DELETED on cancel or revoke of an APPROVED visit, on expiry,
+        or by job deleteDueBiometrics at endTime + GUEST_FACE_RETENTION_HOURS.
+        PHOTO_ONLY exists in the enum but no code sets it.
+    end note

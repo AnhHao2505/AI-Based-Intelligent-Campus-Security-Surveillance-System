@@ -1,0 +1,33 @@
+%% Title: SM-01 Access request lifecycle · Source: enums/RequestStatus.java, service/AccessRequestService.java, service/AreaService.java (cancelRequestsBySystem) · Generated from main @ 84f5565
+stateDiagram-v2
+    direction LR
+
+    state "PENDING · awaiting review" as PENDING
+    state "APPROVED · grants entry inside window" as APPROVED
+    state "REJECTED" as REJECTED
+    state "CANCELLED" as CANCELLED
+    state "EXPIRED" as EXPIRED
+    state "FINISHED" as FINISHED
+
+    [*] --> PENDING : Authorized User creates request [area not Public, valid window, no overlap]
+
+    PENDING --> APPROVED : Facility Manager approves [reviewer is not requester, members re-checked, UPDATE WHERE status = PENDING hits 1 row]
+    PENDING --> REJECTED : Facility Manager rejects [reason required, UPDATE WHERE status = PENDING hits 1 row]
+    PENDING --> CANCELLED : Authorized User (requester) cancels [UPDATE WHERE status = PENDING hits 1 row] / source USER
+    PENDING --> EXPIRED : System job expireOverdueRequests every 15 min [startTime before now]
+    PENDING --> CANCELLED : System [area changed to Public, area deactivated, or requester deactivated or deleted] / source SYSTEM
+
+    APPROVED --> FINISHED : Facility Manager finishes [now at or after startTime, reason required]
+    APPROVED --> CANCELLED : Facility Manager cancels approved request [now before startTime, reason required] / source STAFF
+    APPROVED --> CANCELLED : System [area type change breaks request rule, area deactivated, or requester deactivated or deleted, with endTime after now] / source SYSTEM
+
+    REJECTED --> [*]
+    CANCELLED --> [*]
+    EXPIRED --> [*]
+    FINISHED --> [*]
+
+    note right of APPROVED
+        No job moves APPROVED after endTime:
+        the request stays APPROVED and checkEntry
+        simply stops matching it (startTime <= at < endTime).
+    end note

@@ -1,0 +1,33 @@
+%% Title: SM-05 Area lifecycle (active / deactivated, area type) · Source: entity/Area.java (isActive, deletedAt, areaLevel), enums/AreaLevel.java, service/AreaService.java (create, update, deactivate, restore), service/AreaDependencyChecker.java · Generated from main @ 84f5565
+stateDiagram-v2
+    direction LR
+
+    [*] --> InOperation : Administrator creates area
+
+    state "In operation · is_active = true, deleted_at empty" as InOperation {
+        state "PUBLIC · level 1" as PUBLIC
+        state "CONFIDENTIAL · level 2" as CONFIDENTIAL
+        state "HIGHLY_CONFIDENTIAL · level 3" as HIGHLY_CONFIDENTIAL
+
+        [*] --> PUBLIC : type chosen at creation
+        [*] --> CONFIDENTIAL : type chosen at creation
+        [*] --> HIGHLY_CONFIDENTIAL : type chosen at creation
+
+        CONFIDENTIAL --> PUBLIC : Administrator changes type [reason, no active event, no SCHEDULED schedule, no active AP]
+        CONFIDENTIAL --> HIGHLY_CONFIDENTIAL : Administrator changes type [reason, no active event, no SCHEDULED schedule]
+        HIGHLY_CONFIDENTIAL --> PUBLIC : Administrator changes type [reason, no active AP]
+        HIGHLY_CONFIDENTIAL --> CONFIDENTIAL : Administrator changes type [reason]
+        PUBLIC --> CONFIDENTIAL : Administrator changes type [reason]
+        PUBLIC --> HIGHLY_CONFIDENTIAL : Administrator changes type [reason]
+    }
+
+    state "Deactivated · is_active = false, deleted_at set" as Deactivated
+
+    InOperation --> Deactivated : Administrator deactivates [reason, version, no camera, no open incident, no active event, no SCHEDULED schedule] / AP revoked, requests and guest visits closed
+    Deactivated --> InOperation : Administrator restores [reason, version, floor and building active, name unique on floor] / nothing restored automatically
+
+    note right of Deactivated
+        Type change: system cancels APPROVED requests that break the new type rules
+        (and all PENDING + APPROVED when new type is PUBLIC) in the same transaction.
+        A deactivated area cannot be edited or have its type changed (ERR_AREA_002).
+    end note
