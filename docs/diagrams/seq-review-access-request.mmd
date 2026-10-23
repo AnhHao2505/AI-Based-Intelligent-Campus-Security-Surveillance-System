@@ -1,0 +1,44 @@
+%% Title: SQ-02 Review (approve / reject) access request · Source: frontend pages/approvals/ApprovalPage.jsx, pages/accessRequest/AccessRequestReviewPage.jsx (handleConfirmApprove), controller/AccessRequestController.java (reviewRequest), service/AccessRequestService.java (reviewRequest), repository/AccessRequestRepository.java (reviewIfPending) · Generated from main @ 84f5565
+sequenceDiagram
+    autonumber
+    actor FM as Facility Manager
+    participant P as Request Approval Page (tab Access requests)
+    participant C as :AccessRequestController
+    participant S as :AccessRequestService
+    participant UR as :UserRepository
+    participant RR as :AccessRequestRepository
+    participant AS as :AuditService
+    participant NS as :InAppNotificationService
+
+    FM->>P: Click Approve, or Reject and enter reason
+    activate P
+    P->>C: PATCH /api/access-requests/{id}/review {status, rejectionReason}
+    activate C
+    C->>S: reviewRequest(id, reviewRequest, actorEmail)
+    activate S
+    S->>UR: findByEmail(actorEmail)
+    S->>RR: findByIdWithDetails(id)
+    S->>S: Check decision and reason, reviewer is not requester, re-check members when APPROVED
+    alt Failure: invalid input or rule broken
+        S-->>C: IllegalArgumentException, or AccessControlException ERR_AC_006
+        C-->>P: 400 Bad Request, or 403 Forbidden (self review)
+    else Input valid
+        S->>RR: reviewIfPending(id, status, reviewer, now, reason, PENDING)
+        alt Success: 1 row updated
+            S->>AS: record(ACCESS_REQUEST, APPROVE or REJECT)
+            S->>NS: createForUsers(requester and members, REQUEST_APPROVED or REQUEST_REJECTED)
+            S-->>C: AccessRequestResponse
+            C-->>P: 200 OK
+            P-->>FM: Success message, reload list
+        else Failure: 0 rows, handled by someone else
+            S->>RR: findByIdWithDetails(id)
+            S-->>C: ConcurrentReviewException (who, new status, when)
+            C-->>P: 409 Conflict
+            P-->>FM: Warning banner, reload list
+        end
+    end
+    deactivate S
+    deactivate C
+    deactivate P
+
+    note over S,RR: No status pre-check. A request that is no longer PENDING gives 409 from the conditional UPDATE, not 400

@@ -1,0 +1,48 @@
+%% Title: SQ-04 AI Surveillance Engine calls checkEntry · Source: ai-service src/core/face_matcher.py (check_camera_access), controller/AccessControlController.java (checkCameraEntry), service/AccessDecisionService.java (checkCameraEntry, checkEntry, findIncidentCoveringGuard), service/GuestAccessDecisionService.java (checkGuestEntry), service/CameraAccessLogService.java (recordAccessLog) · Generated from main @ 84f5565
+sequenceDiagram
+    autonumber
+    actor AI as AI Surveillance Engine
+    participant C as :AccessControlController
+    participant S as :AccessDecisionService
+    participant CR as :CameraRepository
+    participant UR as :UserRepository
+    participant APR as :AreaAssignedPersonnelRepository
+    participant ESR as :AreaEventScheduleRepository
+    participant GIR as :GuardIncidentAccessRepository
+    participant RR as :AccessRequestRepository
+    participant GS as :GuestAccessDecisionService
+    participant LS as :CameraAccessLogService
+
+    AI->>C: POST /api/access-control/check-entry {cameraCode, userCode} with X-Service-Key
+    activate C
+    C->>S: checkCameraEntry(cameraCode, userCode, at)
+    activate S
+    S->>CR: findByCameraCodeAndDeletedAtIsNull(cameraCode)
+    S->>UR: findByUserCodeAndDeletedAtIsNull(userCode)
+    alt Registered user found
+        S->>S: checkEntry(userId, areaId, at): user and area active
+        S->>APR: findEffectiveAt(userId, areaId, at) -> ASSIGNED_PERSONNEL
+        S->>S: accessLevel at least areaAccessLevel -> ACCESS_LEVEL
+        S->>S: Confidential area with isEventActive(at) -> OPEN_EVENT
+        S->>ESR: existsByAreaIdAndStatusAndStartAtLessThanEqualAndEndAtGreaterThan(areaId, SCHEDULED, at, at) -> OPEN_EVENT
+        S->>GIR: findLatestClaimedByUserInArea (GUARD only) -> INCIDENT_RESPONSE
+        S->>RR: findCoveringRequestsForUser(userId, areaId, at, APPROVED) -> ACCESS_REQUEST
+        S->>S: No source matched -> denied, source NONE, reason (out of time or level too low)
+    else Guest code (UUID or GUEST-UUID)
+        S->>GS: checkGuestEntry(guestId, areaId, at)
+        GS-->>S: allowed with GUEST_VISIT, or denied with GuestEntryDenyReason
+    else Unknown person
+        S->>S: denied, source NONE, user not found
+    end
+    S->>LS: recordAccessLog(response, at)
+    S-->>C: CheckCameraEntryResponse {allowed, source, reason, areaId}
+    deactivate S
+    C-->>AI: 200 OK
+    deactivate C
+    alt Allowed
+        AI->>AI: Mark person authorized
+    else Denied
+        AI->>AI: Mark person unauthorized, raise alert
+    end
+
+    note over S,RR: Sources are checked in this order and the first match returns allowed. Missing or DECOMMISSIONED camera is denied without log, inactive area is denied and logged

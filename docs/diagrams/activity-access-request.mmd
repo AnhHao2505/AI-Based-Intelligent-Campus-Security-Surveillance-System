@@ -18,7 +18,7 @@ flowchart TB
     subgraph SYS["System (backend and jobs)"]
         s1{"Rules satisfied? area not Public, window, level, members, no overlap"}
         s2["Save request as PENDING, notify Facility Managers"]
-        s3{"Reviewed before startTime?"}
+        s3{"Reviewed before the expiry job runs after startTime?"}
         s4["Job expireOverdueRequests sets EXPIRED, notify requester"]
         s5{"Conditional UPDATE WHERE status = PENDING hits 1 row?"}
         s6["Request REJECTED, notify requester and members"]

@@ -1,0 +1,180 @@
+%% Title: ER-01 Access control tables · Source: db/migration V19, V37, V42, V45, V54_1, V55, V55_1, V56, V58, V60, V62, V73, V74, V76, V83, V87, V88 (latest V89) · Generated from main @ 84f5565
+erDiagram
+    users {
+        uuid id PK
+        varchar user_code
+        varchar full_name
+        varchar role
+        smallint access_level
+        boolean is_active
+        timestamptz deleted_at
+    }
+
+    floors {
+        uuid id PK
+        uuid building_id FK
+        varchar name
+        boolean is_active
+    }
+
+    areas {
+        uuid id PK
+        uuid floor_id FK
+        varchar name
+        varchar area_level "PUBLIC, CONFIDENTIAL, HIGHLY_CONFIDENTIAL"
+        smallint area_access_level "1 to 3, fixed by type"
+        boolean open_to_members
+        timestamptz open_until
+        boolean is_active
+        timestamptz deleted_at
+        bigint version
+    }
+
+    cameras {
+        uuid id PK
+        uuid area_id FK "NOT NULL since V76"
+        varchar camera_code
+        varchar status
+    }
+
+    access_requests {
+        uuid id PK
+        uuid area_id FK
+        uuid requester_id FK
+        uuid reviewer_id FK
+        uuid cancelled_by FK
+        uuid finished_by FK
+        varchar request_type "INDIVIDUAL, GROUP"
+        timestamptz start_time
+        timestamptz end_time
+        varchar status "PENDING ... FINISHED"
+        varchar cancel_source "USER, SYSTEM, STAFF"
+        text cancel_reason
+        varchar finish_reason
+    }
+
+    access_request_members {
+        uuid id PK
+        uuid access_request_id FK
+        uuid user_id FK
+        boolean sponsored
+    }
+
+    area_assigned_personnel {
+        uuid id PK
+        uuid area_id FK
+        uuid user_id FK
+        uuid created_by FK
+        uuid revoked_by FK
+        timestamptz valid_from
+        timestamptz valid_to "NULL = unlimited"
+        timestamptz revoked_at "status computed, not stored"
+        text revoke_reason
+    }
+
+    area_event_sessions {
+        uuid id PK
+        uuid area_id FK
+        uuid started_by FK
+        uuid ended_by FK
+        uuid schedule_id FK
+        timestamptz started_at
+        timestamptz planned_end
+        timestamptz actual_end
+    }
+
+    area_event_schedules {
+        uuid id PK
+        uuid area_id FK
+        uuid session_id FK
+        uuid created_by FK
+        varchar title
+        timestamptz start_at
+        timestamptz end_at
+        varchar status "SCHEDULED ... ENDED_EARLY"
+        varchar reason_code
+    }
+
+    guest_visits {
+        uuid id PK
+        uuid host_id FK
+        uuid reviewed_by FK
+        uuid revoked_by FK
+        timestamptz start_time
+        timestamptz end_time
+        varchar status "PENDING ... COMPLETED"
+        bigint version
+    }
+
+    guest_visit_areas {
+        uuid visit_id PK, FK
+        uuid area_id PK, FK
+    }
+
+    guests {
+        uuid id PK
+        uuid visit_id FK
+        uuid consent_confirmed_by FK
+        varchar full_name
+        varchar biometric_status "NO_PHOTO, PHOTO_READY, PHOTO_ONLY, DELETED"
+        varchar consent_notice_version
+        timestamptz anonymized_at
+    }
+
+    guest_face_embeddings {
+        uuid guest_id PK, FK
+        vector embedding "vector 512"
+        timestamptz expires_at
+    }
+
+    camera_access_logs {
+        uuid id PK
+        uuid area_id FK
+        uuid user_id FK
+        varchar camera_code
+        varchar access_result
+        varchar access_source
+        uuid source_reference_id
+        timestamptz logged_at
+    }
+
+    audit_logs {
+        uuid id PK
+        uuid area_id FK
+        uuid subject_user_id FK
+        uuid changed_by FK
+        varchar target_type
+        varchar action
+        varchar target_id
+        jsonb old_value
+        jsonb new_value
+        uuid correlation_id
+    }
+
+    floors |o--o{ areas : "floor_id"
+    areas ||--o{ cameras : "area_id"
+
+    areas ||--o{ access_requests : "area_id"
+    users ||--o{ access_requests : "requester_id"
+    users |o--o{ access_requests : "reviewer_id"
+    access_requests ||--o{ access_request_members : "access_request_id"
+    users ||--o{ access_request_members : "user_id"
+
+    areas ||--o{ area_assigned_personnel : "area_id"
+    users ||--o{ area_assigned_personnel : "user_id"
+
+    areas ||--o{ area_event_sessions : "area_id"
+    areas ||--o{ area_event_schedules : "area_id"
+    area_event_sessions |o--o{ area_event_schedules : "session_id"
+    area_event_schedules |o--o{ area_event_sessions : "schedule_id"
+
+    users ||--o{ guest_visits : "host_id"
+    guest_visits ||--o{ guest_visit_areas : "visit_id"
+    areas ||--o{ guest_visit_areas : "area_id"
+    guest_visits ||--o{ guests : "visit_id"
+    guests ||--o| guest_face_embeddings : "guest_id"
+
+    areas ||--o{ camera_access_logs : "area_id"
+    users |o--o{ camera_access_logs : "user_id"
+    areas |o--o{ audit_logs : "area_id"
+    users |o--o{ audit_logs : "subject_user_id"
