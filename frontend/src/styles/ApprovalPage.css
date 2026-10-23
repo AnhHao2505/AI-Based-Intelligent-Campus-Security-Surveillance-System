@@ -1,0 +1,49 @@
+/* Màn "Phê duyệt yêu cầu" (FM) — khung trang chứa 2 tab; nội dung tab là AccessRequestReviewPage / GuestVisitReviewPage ở chế độ embedded */
+.apv-container {
+  /* Lưới 2 cột: thanh tab + ô nút thao tác chung một hàng; tiêu đề và nội dung tab trải hết bề ngang */
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 20px 0;
+  /* UI-1 A4: khuôn trang dùng chung */
+  width: 100%;
+  max-width: var(--page-max-width);
+  margin: 0 auto;
+  padding: var(--page-padding-y) var(--page-padding-x);
+  box-sizing: border-box;
+}
+
+.apv-container > .ui-page-header,
+.apv-container > [role="tabpanel"] {
+  grid-column: 1 / -1;
+}
+
+/* Container đã có gap, PageHeader không cần lề dưới */
+.apv-container > .ui-page-header {
+  margin-bottom: 0;
+}
+
+/* Ô nút bên phải thanh tab: kéo tiếp đường kẻ dưới của account-tabs */
+.apv-tab-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-left: 16px;
+  border-bottom: 1px solid var(--theme-border);
+}
+
+/* PageHeader cho vùng nút rộng 100% trên màn hẹp; ở đây nút luôn nằm cùng hàng tab */
+.apv-tab-actions .ui-page-header__actions {
+  width: auto;
+}
+
+/* Điện thoại: không đủ chỗ cho tab và nút trên một hàng (tên tab bị xuống dòng) -> nút xuống hàng riêng dưới thanh tab, căn phải */
+@media (max-width: 480px) {
+  .apv-container {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .apv-tab-actions {
+    padding-left: 0;
+    border-bottom: none;
+  }
+}
