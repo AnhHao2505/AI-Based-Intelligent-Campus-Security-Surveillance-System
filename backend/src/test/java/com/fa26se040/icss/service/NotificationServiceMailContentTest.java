@@ -8,12 +8,19 @@ import jakarta.mail.internet.MimeMessage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.mail.MailSendException;
 import org.springframework.mail.javamail.JavaMailSender;
 
 import java.util.Properties;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -21,7 +28,9 @@ import static org.mockito.Mockito.when;
 /**
  * M-01 / M-02 (23/10): nội dung HTML của mail tài khoản mới và mail đặt lại mật khẩu.
  * JavaMailSender là mock, không gửi mail thật; nội dung đọc lại từ MimeMessage đã chụp.
+ * M-04c: gửi lỗi chỉ ghi WARN, không ném ra ngoài, log không có mật khẩu tạm hay link đặt lại mật khẩu.
  */
+@ExtendWith(OutputCaptureExtension.class)
 class NotificationServiceMailContentTest {
 
     private JavaMailSender mailSender;
@@ -87,5 +96,30 @@ class NotificationServiceMailContentTest {
         String html = sentHtml();
         assertThat(html).contains("href='http://x.local/?token=a&#39;b&amp;c=&lt;d&gt;'");
         assertThat(html).doesNotContain("a'b&c=<d>");
+    }
+
+    @Test
+    @DisplayName("M-04c: gửi mail tài khoản lỗi -> không ném ra, WARN không có mật khẩu tạm")
+    void staffAccountMailFailure_warnsWithoutPassword(CapturedOutput output) {
+        doThrow(new MailSendException("smtp down")).when(mailSender).send(any(MimeMessage.class));
+
+        assertThatCode(() -> notificationService.sendStaffAccountSetupEmail("fail@fpt.edu.vn", "Fail", "SV-FAIL", "Secr3tTmpPw"))
+                .doesNotThrowAnyException();
+
+        assertThat(output.getAll()).contains("WARN").contains("Failed to send staff account setup email to fail@fpt.edu.vn");
+        assertThat(output.getAll()).doesNotContain("Secr3tTmpPw");
+    }
+
+    @Test
+    @DisplayName("M-04c: gửi mail đặt lại mật khẩu lỗi -> không ném ra, WARN không có link hay token")
+    void resetMailFailure_warnsWithoutLink(CapturedOutput output) {
+        doThrow(new MailSendException("smtp down")).when(mailSender).send(any(MimeMessage.class));
+        String token = "6f1c2d3e-0000-4000-8000-123456789abc";
+
+        assertThatCode(() -> notificationService.sendResetPasswordEmail("fail@fpt.edu.vn", "http://x.local/?token=" + token, 15))
+                .doesNotThrowAnyException();
+
+        assertThat(output.getAll()).contains("WARN").contains("Failed to send reset password email to fail@fpt.edu.vn");
+        assertThat(output.getAll()).doesNotContain(token).doesNotContain("http://x.local");
     }
 }

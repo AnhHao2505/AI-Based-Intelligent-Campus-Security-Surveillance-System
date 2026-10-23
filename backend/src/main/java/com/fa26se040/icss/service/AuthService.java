@@ -70,10 +70,12 @@ public class AuthService {
 
         String baseUrl = frontendBaseUrl.endsWith("/") ? frontendBaseUrl.substring(0, frontendBaseUrl.length() - 1) : frontendBaseUrl;
         String resetLink = baseUrl + "/?token=" + token;
+        // M-04b: gửi nền, request trả về ngay (vẫn cùng một phản hồi S2). Chỉ lỗi xếp hàng (pool đầy) mới về tới đây;
+        // không log link hay token
         try {
             notificationService.sendResetPasswordEmail(email, resetLink, validMinutes);
         } catch (Exception e) {
-            log.error("Failed to send reset password email", e);
+            log.warn("Could not queue reset password email: {}", e.getClass().getSimpleName());
         }
     }
 

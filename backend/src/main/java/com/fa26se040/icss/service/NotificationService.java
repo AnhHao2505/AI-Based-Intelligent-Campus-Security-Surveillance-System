@@ -1,10 +1,12 @@
 package com.fa26se040.icss.service;
 
+import com.fa26se040.icss.config.AsyncConfig;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import static org.springframework.web.util.HtmlUtils.htmlEscape;
@@ -16,6 +18,11 @@ public class NotificationService {
 
     private final JavaMailSender mailSender;
 
+    /**
+     * M-04b: chạy nền trên mailExecutor; lỗi gửi chỉ ghi WARN, không ném ra ngoài.
+     * Log chỉ có e-mail người nhận và loại lỗi, không có link đặt lại mật khẩu.
+     */
+    @Async(AsyncConfig.MAIL_EXECUTOR)
     public void sendResetPasswordEmail(String toEmail, String resetLink, int validMinutes) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
@@ -45,11 +52,16 @@ public class NotificationService {
             mailSender.send(message);
             log.info("Reset password email successfully sent to {}", toEmail);
         } catch (Exception e) {
-            log.error("Failed to send reset password email to {}", toEmail, e);
             // 6.4: không ghi link đặt lại mật khẩu ra log (ai đọc log cũng chiếm được tài khoản)
+            log.warn("Failed to send reset password email to {}: {}", toEmail, describe(e));
         }
     }
 
+    /**
+     * M-04b: chạy nền trên mailExecutor; người gọi chỉ được gọi sau khi transaction tạo tài khoản đã commit (M-04a).
+     * Lỗi gửi chỉ ghi WARN, không ném ra ngoài; log không có mật khẩu tạm.
+     */
+    @Async(AsyncConfig.MAIL_EXECUTOR)
     public void sendStaffAccountSetupEmail(String toEmail, String fullName, String userCode, String temporaryPassword) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
@@ -78,8 +90,13 @@ public class NotificationService {
             mailSender.send(message);
             log.info("Staff account setup email successfully sent to {}", toEmail);
         } catch (Exception e) {
-            log.error("Failed to send staff account setup email to {}", toEmail, e);
             // 6.4: không ghi mật khẩu tạm ra log; người dùng dùng "Quên mật khẩu" khi email không tới
+            log.warn("Failed to send staff account setup email to {}: {}", toEmail, describe(e));
         }
+    }
+
+    /** Loại lỗi + thông điệp, không kèm stack trace (M-04c). */
+    private static String describe(Exception e) {
+        return e.getClass().getSimpleName() + ": " + e.getMessage();
     }
 }
