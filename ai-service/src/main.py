@@ -422,7 +422,7 @@ async def get_live_annotated_feed(camera_code: str = Query(..., description="Mã
     http://localhost:8000/api/v1/stream/live-annotated?camera_code=CAM-002
     """
     if camera_code not in active_workers or not active_workers[camera_code].is_running:
-        raise HTTPException(status_code=404, detail="Camera worker hiện chưa chạy. Hãy kích hoạt luồng trước.")
+        raise HTTPException(status_code=404, detail="Camera worker hiện chưa chạy. Hãy Kết nối Stream trước.")
         
     async def frame_generator():
         worker = active_workers[camera_code]

@@ -11,7 +11,7 @@ import {
 	Move,
 } from "lucide-react";
 import "../../styles/RoiEditorModal.css";
-import { formatImageUrl } from "./CameraSurveillanceTab";
+import { formatImageUrl } from "../../utils/roiUtils";
 import { useAuthorizedImage } from "../../hooks/useAuthorizedImage";
 
 const MAX_POLYGONS = 10;
@@ -325,12 +325,7 @@ export default function RoiEditorModal({
 			return;
 		}
 
-		if (polygons.length === 0) {
-			setError("Cần ít nhất 1 vùng giám sát an ninh đa giác.");
-			return;
-		}
-
-		// Validate polygons
+		// Validate polygons (nếu có cấu hình vùng)
 		for (let i = 0; i < polygons.length; i++) {
 			const p = polygons[i];
 			if (!p.vertices || p.vertices.length < MIN_VERTICES) {
@@ -354,12 +349,16 @@ export default function RoiEditorModal({
 			})),
 		};
 
+		const isNewBase64 =
+			snapshotBase64 &&
+			typeof snapshotBase64 === "string" &&
+			(snapshotBase64.startsWith("data:image") ||
+				(!snapshotBase64.startsWith("http") &&
+					!snapshotBase64.startsWith("/api/")));
+
 		try {
 			await onSave(payload, {
-				snapshotBase64:
-					snapshotBase64 && !snapshotBase64.startsWith("http")
-						? snapshotBase64
-						: null,
+				snapshotBase64: isNewBase64 ? snapshotBase64 : null,
 				snapshotWidth: imgDimensions.width || snapshotWidth || 1920,
 				snapshotHeight: imgDimensions.height || snapshotHeight || 1080,
 			});
@@ -752,7 +751,10 @@ export default function RoiEditorModal({
 								<div className="roi-polygon-list">
 									{polygons.length === 0 ? (
 										<div className="roi-empty-state">
-											Chưa cấu hình vùng giám sát nào.
+											<p style={{ fontWeight: 500, margin: 0 }}>Chưa cấu hình vùng giám sát nào.</p>
+											<span style={{ fontSize: "0.78rem", color: "#94a3b8", display: "block", marginTop: "4px" }}>
+												(Camera sẽ mặc định giám sát toàn bộ khung hình)
+											</span>
 										</div>
 									) : (
 										polygons.map((poly, idx) => {

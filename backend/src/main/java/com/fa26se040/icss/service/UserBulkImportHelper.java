@@ -12,6 +12,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.interceptor.TransactionAspectSupport;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayInputStream;
@@ -129,12 +131,8 @@ public class UserBulkImportHelper {
 
             faceDataService.registerFace(userCode, imageMultipart);
 
-            // 6c. Gửi email chứa mật khẩu trong khối try-catch riêng (lỗi gửi mail chỉ warning, không rollback)
-            try {
-                notificationService.sendStaffAccountSetupEmail(email, fullName, userCode, tempPassword);
-            } catch (Exception mailEx) {
-                log.warn("Gửi email mật khẩu cho [{}] thất bại nhưng giữ tài khoản: {}", userCode, mailEx.getMessage());
-            }
+            // 6c. Gửi email chứa mật khẩu — M-04a: sau khi transaction REQUIRES_NEW của dòng này commit
+            sendAccountSetupEmailAfterCommit(email, fullName, userCode, tempPassword);
 
             return BulkImportRowResult.builder()
                     .rowIndex(rowIndex)
@@ -163,6 +161,32 @@ public class UserBulkImportHelper {
             }
 
             return buildError(rowIndex, userCode, fullName, email, roleStr, errorMsg);
+        }
+    }
+
+    /**
+     * M-04a: mỗi dòng có transaction REQUIRES_NEW riêng (luồng nạp bên ngoài không có transaction), nên đăng ký vào
+     * transaction của dòng: dòng commit thì mail đi ngay, không đợi cả lô; dòng bị setRollbackOnly ở nhánh catch thì
+     * không gửi. Mail chạy nền (M-04b), lỗi xếp hàng chỉ ghi WARN, không ghi mật khẩu.
+     */
+    private void sendAccountSetupEmailAfterCommit(String email, String fullName, String userCode, String tempPassword) {
+        Runnable task = () -> {
+            try {
+                notificationService.sendStaffAccountSetupEmail(email, fullName, userCode, tempPassword);
+            } catch (Exception mailEx) {
+                log.warn("Gửi email mật khẩu cho [{}] thất bại nhưng giữ tài khoản: {}", userCode, mailEx.getClass().getSimpleName());
+            }
+        };
+
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    task.run();
+                }
+            });
+        } else {
+            task.run();
         }
     }
 

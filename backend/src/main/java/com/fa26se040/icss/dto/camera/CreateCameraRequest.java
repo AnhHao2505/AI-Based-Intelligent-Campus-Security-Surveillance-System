@@ -15,11 +15,11 @@ import java.util.UUID;
 @AllArgsConstructor
 public class CreateCameraRequest {
 
-    @Size(max = 50, message = "Camera code cannot exceed 50 characters")
+    @Size(max = 50, message = "Mã camera không được vượt quá 50 ký tự")
     private String cameraCode;
 
-    @NotBlank(message = "Camera name is required")
-    @Size(max = 100, message = "Camera name cannot exceed 100 characters")
+    @NotBlank(message = "Tên camera không được để trống")
+    @Size(max = 100, message = "Tên camera không được vượt quá 100 ký tự")
     private String name;
 
     @NotNull(message = "Camera phải được gán vào một khu vực")

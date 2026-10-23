@@ -14,8 +14,8 @@ import java.util.UUID;
 @AllArgsConstructor
 public class UpdateCameraRequest {
 
-    @NotBlank(message = "Camera name is required")
-    @Size(max = 100, message = "Camera name cannot exceed 100 characters")
+    @NotBlank(message = "Tên camera không được để trống")
+    @Size(max = 100, message = "Tên camera không được vượt quá 100 ký tự")
     private String name;
 
     private UUID areaId;

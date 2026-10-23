@@ -14,18 +14,10 @@ import {
 } from "lucide-react";
 import WebRtcPlayer from "../video/WebRtcPlayer";
 import { useAuthorizedImage } from "../../hooks/useAuthorizedImage";
-
-export function formatImageUrl(url) {
-	if (!url) return "";
-	// Khi MinIO bucket là private, tự động định tuyến qua Backend Media Proxy (/api/media/...)
-	const minioMatch = url.match(/^https?:\/\/[^/]+:9000\/([^/]+)\/(.+)$/);
-	if (minioMatch) {
-		const bucket = minioMatch[1];
-		const path = minioMatch[2];
-		return `/api/media/${bucket}/${path}`;
-	}
-	return url;
-}
+import {
+	formatImageUrl,
+	computePolygonCentroid,
+} from "../../utils/roiUtils";
 
 // Ảnh /api/media cần JWT -> tải qua useAuthorizedImage; lỗi chỉ hiện thông báo, không vỡ trang
 function AuthorizedImg({ src, alt, className }) {
@@ -36,35 +28,28 @@ function AuthorizedImg({ src, alt, className }) {
 	if (loading || !url) {
 		return (
 			<div className="roi-preview-img-state">
-				<Loader2 size={18} className="animate-spin" />
+				<Loader2
+					size={18}
+					className="animate-spin"
+				/>
 			</div>
 		);
 	}
-	return <img src={url} alt={alt} className={className} />;
-}
-
-export function computePolygonCentroid(vertices) {
-	if (!vertices || vertices.length === 0) return { x: 0.5, y: 0.5 };
-	let sumX = 0;
-	let sumY = 0;
-	vertices.forEach((v) => {
-		sumX += Number(v.x) || 0;
-		sumY += Number(v.y) || 0;
-	});
-	return {
-		x: sumX / vertices.length,
-		y: sumY / vertices.length,
-	};
+	return (
+		<img
+			src={url}
+			alt={alt}
+			className={className}
+		/>
+	);
 }
 
 export default function CameraSurveillanceTab({
 	camera,
-	connecting,
 	capturingSnapshot,
 	refreshingLive,
 	compareMode,
 	liveSnapshot,
-	onConnectCamera,
 	onCaptureNewSnapshot,
 	onEditCurrentRoi,
 	onCheckDrift,
@@ -93,15 +78,15 @@ export default function CameraSurveillanceTab({
 		}
 
 		// Fallback: nếu WebRTC chưa sẵn sàng hoặc không lấy được frame canvas,
-		// gọi trực tiếp service trích xuất snapshot từ camera qua AI Service (RTSP)
+		// gọi trực tiếp service trích xuất snapshot từ camera
 		if (onCaptureNewSnapshot) {
 			onCaptureNewSnapshot();
 			return;
 		}
 
-		const msg = "Không thể lấy khung hình từ camera. Vui lòng kiểm tra lại thiết bị!";
+		const msg =
+			"Không thể lấy khung hình từ camera. Vui lòng kiểm tra lại thiết bị!";
 		if (onError) onError(msg);
-		else alert(msg);
 	};
 	const rawRefUrl =
 		camera?.roiGeometry?.reference_snapshot_url ||
@@ -166,13 +151,6 @@ export default function CameraSurveillanceTab({
 	return (
 		<div className="roi-config-section">
 			<div className="roi-section-header">
-				<div className="roi-section-info">
-					<p>
-						Quản lý vùng giám sát an ninh (Tự động phát hiện Người lạ,
-						Người không có thẩm quyền truy cập, Ngoài giờ).
-					</p>
-				</div>
-
 				<div className="roi-action-bar">
 					{refUrl ? (
 						<>
@@ -181,12 +159,18 @@ export default function CameraSurveillanceTab({
 								className={`btn-toggle-live-cam ${
 									viewMode === "live" ? "btn-toggle-live-cam--active" : ""
 								}`}
-								onClick={() => setViewMode(viewMode === "live" ? "snapshot" : "live")}
+								onClick={() =>
+									setViewMode(viewMode === "live" ? "snapshot" : "live")
+								}
 								disabled={capturingSnapshot || refreshingLive}
 								title="Xem góc quay trực tiếp từ camera để căn chỉnh hoặc chụp ảnh mới"
 							>
 								<Video size={16} />
-								<span>{viewMode === "live" ? "Xem ảnh tham chiếu" : "Căn góc & Chụp ảnh mới"}</span>
+								<span>
+									{viewMode === "live"
+										? "Kết thúc hành động"
+										: "Phát trực tiếp"}
+								</span>
 							</button>
 
 							<button
@@ -197,7 +181,7 @@ export default function CameraSurveillanceTab({
 								title="Chỉnh sửa các polygon ROI trên ảnh tham chiếu hiện tại"
 							>
 								<Scan size={16} />
-								<span>Chỉnh sửa ROI</span>
+								<span>Chỉnh sửa vùng giám sát</span>
 							</button>
 
 							<button
@@ -245,26 +229,49 @@ export default function CameraSurveillanceTab({
 					<div className="roi-live-banner">
 						<div className="roi-live-badge">
 							<span className="pulse-dot-red" />
-							<span>GÓC QUAY TRỰC TIẾP (LIVE STREAM)</span>
+							<span>GÓC QUAY TRỰC TIẾP</span>
 						</div>
-						<p className="roi-live-hint">
-							Đang xem trực tiếp từ camera. Căn chỉnh góc quay cho chuẩn xác, sau đó bấm <strong>"Chụp khung hình này để vẽ ROI"</strong>.
-						</p>
 					</div>
 
-					<div className="roi-preview-wrapper" style={{ position: "relative" }}>
-						<div className="roi-preview-stage" style={{ width: "100%", maxWidth: "860px" }}>
+					<div
+						className="roi-preview-wrapper"
+						style={{ position: "relative" }}
+					>
+						<div
+							className="roi-preview-stage"
+							style={{ width: "100%", maxWidth: "860px" }}
+						>
 							<WebRtcPlayer
 								ref={playerRef}
-								streamPath={camera?.cameraCode?.toLowerCase().replace(/[^a-z0-9_-]/g, "") || "cam-001"}
+								streamPath={
+									camera?.cameraCode
+										?.toLowerCase()
+										.replace(/[^a-z0-9_-]/g, "") || "cam-001"
+								}
 								cameraCode={camera?.cameraCode || "CAM-001"}
 								cameraName={camera?.name || "Camera"}
-								host={typeof window !== "undefined" && window.location.hostname ? `${window.location.hostname}:8889` : "localhost:8889"}
+								enabled={camera?.operationalStatus === "ONLINE"}
+								host={
+									import.meta.env.VITE_MEDIAMTX_HOST ||
+									(typeof window !== "undefined" && window.location.hostname
+										? `${window.location.hostname}:8889`
+										: "localhost:8889")
+								}
 								autoPlay={true}
 								onStatusChange={setPlayerStatus}
 							/>
 							{showRoiOnLive && totalRoiCount > 0 && (
-								<div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 10 }}>
+								<div
+									style={{
+										position: "absolute",
+										top: 0,
+										left: 0,
+										width: "100%",
+										height: "100%",
+										pointerEvents: "none",
+										zIndex: 10,
+									}}
+								>
 									{renderRoiSvgElements(refWidth, refHeight, false)}
 								</div>
 							)}
@@ -272,57 +279,66 @@ export default function CameraSurveillanceTab({
 					</div>
 
 					<div className="roi-live-actions">
-						<div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
+						<div
+							style={{
+								display: "flex",
+								alignItems: "center",
+								gap: "0.75rem",
+								flexWrap: "wrap",
+							}}
+						>
 							<button
 								type="button"
 								className="btn-capture-from-live"
 								onClick={handleCaptureFromLive}
-								disabled={capturingSnapshot || connecting}
+								disabled={capturingSnapshot}
 								title={
 									playerStatus === "live"
 										? "Chụp lại chính xác khung hình camera đang hiển thị để chuyển sang vẽ vùng ROI"
-										: "Camera chưa sẵn sàng luồng WebRTC - Bấm để trích xuất ảnh trực tiếp từ RTSP qua AI Service"
+										: "Camera chưa sẵn sàng luồng WebRTC - Bấm để trích xuất ảnh trực tiếp từ RTSP"
 								}
 							>
 								{capturingSnapshot ? (
 									<>
-										<Loader2 className="animate-spin" size={18} />
+										<Loader2
+											className="animate-spin"
+											size={18}
+										/>
 										<span>Đang xử lý ảnh...</span>
 									</>
 								) : playerStatus === "live" ? (
 									<>
 										<CameraIcon size={18} />
-										<span>Chụp khung hình này để vẽ ROI</span>
+										<span>Chụp khung hình này để vẽ vùng giám sát</span>
 									</>
 								) : (
 									<>
 										<CameraIcon size={18} />
-										<span>Chụp khung hình để vẽ ROI (qua RTSP)</span>
+										<span>Chụp khung hình để vẽ vùng giám sát</span>
 									</>
 								)}
 							</button>
 
 							{totalRoiCount > 0 && (
-								<label style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", fontSize: "0.85rem", cursor: "pointer", color: "var(--theme-text-muted)" }}>
+								<label
+									style={{
+										display: "inline-flex",
+										alignItems: "center",
+										gap: "0.4rem",
+										fontSize: "0.85rem",
+										cursor: "pointer",
+										color: "var(--theme-text-muted)",
+									}}
+								>
 									<input
 										type="checkbox"
 										checked={showRoiOnLive}
 										onChange={(e) => setShowRoiOnLive(e.target.checked)}
 									/>
-									<span>Hiện vùng ROI đã lưu</span>
+									<span>Hiện vùng giám sát</span>
 								</label>
 							)}
 						</div>
-
-						<button
-							type="button"
-							className="btn-close-compare"
-							onClick={() => setViewMode("snapshot")}
-							title="Quay lại ảnh tham chiếu đã lưu"
-						>
-							<X size={15} />
-							<span>Quay lại ảnh tham chiếu</span>
-						</button>
 					</div>
 				</div>
 			) : (
@@ -335,12 +351,11 @@ export default function CameraSurveillanceTab({
 								<AlertTriangle size={22} />
 							</div>
 							<div className="drift-warning-content">
-								<h5>Kiểm Tra Sai Lệch Khung Hình Camera</h5>
+								<h5>Kiểm tra sai lệch góc quan sát</h5>
 								<p>
-									Đối chiếu trực quan giữa <strong>Ảnh tham chiếu gốc</strong> và{" "}
-									<strong>Khung hình thực tế hiện tại</strong>. Giúp nhận biết
-									camera có bị rung lắc, xoay góc hoặc dịch chuyển vị trí thực địa
-									so với khi lắp đặt.
+									Đối chiếu <strong>Khung hình gốc</strong> và{" "}
+									<strong>Khung hình trực tiếp</strong> để phát hiện camera bị rung
+									lắc hoặc xê dịch góc quay.
 								</p>
 							</div>
 							<div className="drift-warning-actions">
@@ -351,7 +366,6 @@ export default function CameraSurveillanceTab({
 									title="Đóng chế độ kiểm tra sai lệch"
 								>
 									<X size={15} />
-									<span>Đóng kiểm tra</span>
 								</button>
 							</div>
 						</div>
@@ -364,7 +378,7 @@ export default function CameraSurveillanceTab({
 							<div className="roi-compare-card">
 								<div className="roi-compare-header">
 									<div className="roi-compare-badge roi-compare-badge--ref">
-										<span>Ảnh tham chiếu gốc</span>
+										<span>Khung hình tham chiếu gốc</span>
 									</div>
 								</div>
 
@@ -384,9 +398,7 @@ export default function CameraSurveillanceTab({
 									<span className="roi-meta-badge">
 										Độ phân giải: {refWidth}x{refHeight}
 									</span>
-									<span>
-										{roiPolygons.length} vùng giám sát
-									</span>
+									<span>{roiPolygons.length} vùng giám sát</span>
 								</div>
 							</div>
 
@@ -394,7 +406,6 @@ export default function CameraSurveillanceTab({
 							<div className="roi-compare-card">
 								<div className="roi-compare-header">
 									<div className="roi-compare-badge roi-compare-badge--live">
-										<span className="pulse-dot" />
 										<span>Khung hình thực tế</span>
 									</div>
 								</div>
@@ -423,9 +434,6 @@ export default function CameraSurveillanceTab({
 										Độ phân giải: {liveSnapshot.width || 1920}x
 										{liveSnapshot.height || 1080}
 									</span>
-									<span style={{ color: "var(--theme-warning)", fontWeight: 600 }}>
-										Đang kiểm tra sai lệch
-									</span>
 								</div>
 							</div>
 						</div>
@@ -451,7 +459,20 @@ export default function CameraSurveillanceTab({
 												size={14}
 												className="text-emerald-400"
 											/>
-											Ảnh tham chiếu ({refWidth}x{refHeight})
+											Khung hình gốc ({refWidth}x{refHeight})
+										</span>
+										<span
+											className="roi-meta-badge"
+											style={{
+												color:
+													roiPolygons.length > 0
+														? "var(--theme-text)"
+														: "#38bdf8",
+											}}
+										>
+											{roiPolygons.length > 0
+												? `${roiPolygons.length} vùng giám sát`
+												: "Chế độ: Nhận diện AI toàn khung hình"}
 										</span>
 										<span>
 											Thời gian lưu:{" "}
@@ -466,9 +487,11 @@ export default function CameraSurveillanceTab({
 									<div className="roi-empty-icon-wrap">
 										<Layers size={36} />
 									</div>
-									<h4 className="roi-empty-title">Chưa cấu hình vùng giám sát (ROI)</h4>
+									<h4 className="roi-empty-title">Chưa có vùng giám sát</h4>
 									<p className="roi-empty-desc">
-										Camera này chưa có ảnh tham chiếu và vùng bảo vệ. Hãy bật Live Cam để quan sát góc máy thực tế, căn chỉnh vị trí đứng và chụp ảnh để vẽ vùng ROI.
+										Camera này chưa có ảnh tham chiếu và vùng bảo vệ. Hãy bật
+										Live Cam để quan sát góc máy thực tế, căn chỉnh vị trí và
+										chụp ảnh để vẽ vùng ROI.
 									</p>
 									<button
 										type="button"
@@ -476,7 +499,7 @@ export default function CameraSurveillanceTab({
 										onClick={() => setViewMode("live")}
 									>
 										<Video size={18} />
-										<span>Bật Live Cam để căn góc & Chụp ảnh</span>
+										<span>Xem camera trực tiếp, vẽ vùng giám sát ROI</span>
 									</button>
 								</div>
 							)}
