@@ -16,7 +16,7 @@ public class NotificationService {
 
     private final JavaMailSender mailSender;
 
-    public void sendResetPasswordEmail(String toEmail, String resetLink) {
+    public void sendResetPasswordEmail(String toEmail, String resetLink, int validMinutes) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
@@ -31,7 +31,7 @@ public class NotificationService {
                     + "<h2 style='color: #4A90E2; text-align: center;'>Khôi phục mật khẩu tài khoản</h2>"
                     + "<p>Xin chào,</p>"
                     + "<p>Bạn nhận được email này vì đã gửi yêu cầu khôi phục mật khẩu cho tài khoản Campus Security của mình.</p>"
-                    + "<p>Vui lòng click vào nút bên dưới để tiến hành đổi mật khẩu. Đường dẫn này có hiệu lực trong vòng 15 phút:</p>"
+                    + "<p>Vui lòng click vào nút bên dưới để tiến hành đổi mật khẩu. Đường dẫn này có hiệu lực trong vòng " + validMinutes + " phút:</p>"
                     + "<div style='text-align: center; margin: 30px 0;'>"
                     + "  <a href='" + safeLink + "' style='background-color: #4A90E2; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;'>Đổi mật khẩu mới</a>"
                     + "</div>"

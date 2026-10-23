@@ -82,7 +82,7 @@ class NotificationServiceMailContentTest {
     @Test
     @DisplayName("M-01: link đặt lại mật khẩu được escape trong cả href lẫn phần chữ")
     void resetMail_escapesLink() throws Exception {
-        notificationService.sendResetPasswordEmail("reset@fpt.edu.vn", "http://x.local/?token=a'b&c=<d>");
+        notificationService.sendResetPasswordEmail("reset@fpt.edu.vn", "http://x.local/?token=a'b&c=<d>", 15);
 
         String html = sentHtml();
         assertThat(html).contains("href='http://x.local/?token=a&#39;b&amp;c=&lt;d&gt;'");
