@@ -16,15 +16,12 @@ public class RoiGeometryValidator {
 
     public void validate(RoiGeometry geometry) {
         if (geometry == null) {
-            throw new CameraException(CameraErrorCode.ERR_ROI_001);
+            return;
         }
 
         List<RoiGeometry.RoiPolygon> polygons = geometry.getPolygons();
-
-        boolean hasPolygons = polygons != null && !polygons.isEmpty();
-
-        if (!hasPolygons) {
-            throw new CameraException(CameraErrorCode.ERR_ROI_001);
+        if (polygons == null || polygons.isEmpty()) {
+            return;
         }
 
         if (polygons.size() > 10) {

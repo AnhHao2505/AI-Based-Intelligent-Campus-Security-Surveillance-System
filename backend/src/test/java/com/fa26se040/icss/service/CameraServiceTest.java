@@ -65,6 +65,9 @@ class CameraServiceTest {
     @Mock
     private AreaRepository areaRepository;
 
+    @Mock
+    private com.fa26se040.icss.util.RtspHandshakeChecker rtspHandshakeChecker;
+
     @InjectMocks
     private CameraService cameraService;
 
@@ -156,32 +159,7 @@ class CameraServiceTest {
     }
 
     @Test
-    @DisplayName("UpsertStreamConfig: Gateway-First aborts DB commit when MediaMTX throws ERR_STREAM_002")
-    void testUpsertStreamConfigGatewayFirstFailure() {
-        when(cameraRepository.findById(testCameraId)).thenReturn(Optional.of(testCamera));
-        when(cameraStreamConfigurationRepository.findByCameraId(testCameraId)).thenReturn(Optional.empty());
-
-        doThrow(new CameraException(CameraErrorCode.ERR_STREAM_002))
-                .when(mediaMtxService).syncCameraPathStrict(anyString(), anyString());
-
-        CameraStreamConfigRequest req = CameraStreamConfigRequest.builder()
-                .host("192.168.1.50")
-                .port(554)
-                .username("admin")
-                .password("CameraPass@123")
-                .mainStreamPath("/live/ch0")
-                .build();
-
-        CameraException ex = assertThrows(CameraException.class,
-                () -> cameraService.upsertStreamConfig(testCameraId, req));
-
-        assertEquals(CameraErrorCode.ERR_STREAM_002, ex.getErrorCode());
-        // Verify DB was NOT saved
-        verify(cameraStreamConfigurationRepository, never()).save(any());
-    }
-
-    @Test
-    @DisplayName("UpsertStreamConfig: Success path encrypts password at rest and returns zero-leakage response")
+    @DisplayName("UpsertStreamConfig: Pure persistence saves DB without MediaMTX side-effects and returns encrypted config")
     void testUpsertStreamConfigSuccess() {
         when(cameraRepository.findById(testCameraId)).thenReturn(Optional.of(testCamera));
         when(cameraStreamConfigurationRepository.findByCameraId(testCameraId)).thenReturn(Optional.empty());
@@ -211,11 +189,17 @@ class CameraServiceTest {
         assertEquals("admin", response.getUsername());
         assertTrue(response.getIsPasswordConfigured());
         assertEquals("http://localhost:8889/cam-001/whep", response.getWhepUrl());
+        assertEquals(OperationalStatus.OFFLINE, response.getOperationalStatus());
 
-        // Verify Gateway was called before DB commit
-        verify(mediaMtxService).syncCameraPathStrict(eq("CAM-001"), contains("Secret123"));
+        // Verify Gateway và Socket RTSP KHÔNG bị gọi khi chỉ Lưu cấu hình
+        verify(mediaMtxService, never()).syncCameraPathStrict(any(), any());
+        verify(mediaMtxService, never()).syncCameraPath(any(), any());
+        verify(rtspHandshakeChecker, never()).check(any(), anyInt(), any(), anyInt());
+        verify(cameraHealthLogRepository, never()).save(any());
+
         verify(aesEncryptionUtil).encrypt("Secret123");
         verify(cameraStreamConfigurationRepository).save(any());
+        verify(cameraRepository).save(any());
     }
 
     @Test
@@ -239,5 +223,53 @@ class CameraServiceTest {
         assertNotNull(detail.getAssignedAreas());
         assertEquals(1, detail.getAssignedAreas().size());
         assertEquals("Phòng Server", detail.getAssignedAreas().get(0).name());
+    }
+
+    @Test
+    @DisplayName("DeleteCamera: happy path should soft-delete, unassign area (area=null), and clean MediaMTX path")
+    void testDeleteCamera_happyPath_unassignsAreaAndCleansGateway() {
+        when(cameraRepository.findById(testCameraId)).thenReturn(Optional.of(testCamera));
+
+        cameraService.deleteCamera(testCameraId);
+
+        verify(cameraRepository).save(argThat(c ->
+                c.getArea() == null &&
+                c.getStatus() == CameraStatus.DECOMMISSIONED &&
+                c.getOperationalStatus() == OperationalStatus.OFFLINE &&
+                c.getDeletedAt() != null
+        ));
+        verify(mediaMtxService).deleteCameraPath("CAM-001");
+    }
+
+    @Test
+    @DisplayName("DecommissionCamera: should transition to DECOMMISSIONED and OFFLINE, retain area, and clean MediaMTX path")
+    void testDecommissionCamera_happyPath_retainsAreaAndCleansGateway() {
+        when(cameraRepository.findById(testCameraId)).thenReturn(Optional.of(testCamera));
+        when(cameraRepository.save(any(Camera.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        CameraDetailResponse response = cameraService.decommissionCamera(testCameraId);
+
+        assertNotNull(response);
+        assertEquals(CameraStatus.DECOMMISSIONED, response.getStatus());
+        assertEquals(OperationalStatus.OFFLINE, response.getOperationalStatus());
+        assertNotNull(testCamera.getArea(), "Decommission camera must retain area association (BR-CAM-06)");
+        verify(cameraRepository).save(argThat(c ->
+                c.getArea() != null &&
+                c.getStatus() == CameraStatus.DECOMMISSIONED &&
+                c.getOperationalStatus() == OperationalStatus.OFFLINE
+        ));
+        verify(mediaMtxService).deleteCameraPath("CAM-001");
+    }
+
+    @Test
+    @DisplayName("DeleteCamera: not found should throw ERR_CAM_002")
+    void testDeleteCamera_notFound_throwsERR_CAM_002() {
+        UUID nonExistentId = UUID.randomUUID();
+        when(cameraRepository.findById(nonExistentId)).thenReturn(Optional.empty());
+
+        CameraException ex = assertThrows(CameraException.class, () -> cameraService.deleteCamera(nonExistentId));
+        assertEquals(CameraErrorCode.ERR_CAM_002, ex.getErrorCode());
+        verify(cameraRepository, never()).save(any());
+        verify(mediaMtxService, never()).deleteCameraPath(anyString());
     }
 }

@@ -52,7 +52,7 @@ export default function CameraHealthLogs({
 		// Loại bỏ lỗi 500 bị lặp: 500 Internal Server Error: "Internal Server Error"
 		text = text.replace(
 			/500\s+Internal\s+Server\s+Error:\s*"?Internal\s+Server\s+Error"?/gi,
-			"500 Internal Server Error (Lỗi máy chủ)"
+			"500 Internal Server Error (Lỗi máy chủ)",
 		);
 		text = text.replace(/:\s*"Internal\s+Server\s+Error"/gi, "");
 		return text;
@@ -93,7 +93,10 @@ export default function CameraHealthLogs({
 			{/* Body */}
 			<div className="health-logs-body">
 				{loading ? (
-					<LoadingState size="sm" text="Đang tải nhật ký kết nối..." />
+					<LoadingState
+						size="sm"
+						text="Đang tải nhật ký kết nối..."
+					/>
 				) : error ? (
 					<ErrorState
 						size="sm"
@@ -107,10 +110,6 @@ export default function CameraHealthLogs({
 							<ShieldCheck size={22} />
 						</div>
 						<h4 className="logs-empty-title">Chưa có nhật ký kết nối</h4>
-						<p className="logs-empty-desc">
-							Hệ thống sẽ tự động lưu lại thông số độ trễ, FPS và lỗi kết nối
-							mỗi khi kiểm tra luồng camera.
-						</p>
 					</div>
 				) : (
 					<div className="logs-list">
@@ -152,17 +151,6 @@ export default function CameraHealthLogs({
 									{(log.latencyMs !== null && log.latencyMs !== undefined) ||
 									log.fps ? (
 										<div className="log-metrics-row">
-											{log.latencyMs !== null &&
-												log.latencyMs !== undefined && (
-													<span
-														className={`log-metric-chip ${getLatencyClass(log.latencyMs)}`}
-														title="Thời gian phản hồi kết nối mạng RTSP"
-													>
-														<Zap size={12} />
-														{log.latencyMs} ms
-													</span>
-												)}
-
 											{log.fps !== null && log.fps !== undefined && (
 												<span
 													className="log-metric-chip log-metric-chip--fps"
