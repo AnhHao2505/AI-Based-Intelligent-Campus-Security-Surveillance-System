@@ -221,11 +221,13 @@ class VideoPipeline:
                 )
                 snapshot_frame = self.visualizer.draw_tracked_persons(
                     snapshot_frame,
-                    active_persons
+                    active_persons,
+                    only_in_roi=has_roi
                 )
                 self.executor.submit(self._dispatch_alert_async, alert, snapshot_frame)
 
         # 6. Render các lớp đồ họa lên khung hình hiển thị (Overlay Annotations)
+        has_roi = bool(self.roi_polygons or self.roi_polygon)
         annotated_frame = frame.copy()
         annotated_frame = FrameVisualizer.draw_all_rois(
             annotated_frame,
@@ -233,7 +235,8 @@ class VideoPipeline:
         )
         annotated_frame = self.visualizer.draw_tracked_persons(
             annotated_frame,
-            active_persons
+            active_persons,
+            only_in_roi=has_roi
         )
         
         return annotated_frame, active_persons, alerts

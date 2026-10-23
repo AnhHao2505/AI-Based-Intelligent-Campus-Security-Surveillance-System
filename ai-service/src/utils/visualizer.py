@@ -108,9 +108,15 @@ class FrameVisualizer:
     @staticmethod
     def draw_tracked_persons(
         frame: np.ndarray,
-        persons: List[TrackedPerson]
+        persons: List[TrackedPerson],
+        only_in_roi: bool = False
     ) -> np.ndarray:
         for p in persons:
+            # Nếu bật chế độ only_in_roi: Chỉ vẽ khung cho người đang trong ROI (hoặc đang có cảnh báo vi phạm)
+            if only_in_roi and not p.is_in_roi:
+                if not (p.alert_unauthorized_sent or getattr(p, "alert_unknown_sent", False) or getattr(p, "alert_after_hours_sent", False)):
+                    continue
+
             x1, y1, x2, y2 = p.bbox.to_int_xyxy()
 
             # 1. Neu da xac dinh danh tinh trong DB va HOP LE
