@@ -42,8 +42,9 @@ const getListReason = (req) => {
       if (req.cancelSource === 'SYSTEM') return req.cancelReason ? `Hủy bởi hệ thống: ${req.cancelReason}` : 'Hủy bởi hệ thống';
       return req.cancelReason || 'Người yêu cầu tự hủy';
     case 'FINISHED':
-      // BR-RQ-46 (V88): FM kết thúc đơn đã duyệt, lý do lưu trên đơn
-      return req.finishReason ? `Quản lý kết thúc: ${req.finishReason}` : null;
+      // BR-RQ-46 (V88): FM kết thúc đơn đã duyệt, lý do lưu trên đơn; D-2.1: không có người kết thúc = hệ thống kết thúc khi hết giờ
+      if (!req.finishReason) return null;
+      return req.finishedByName ? `Quản lý kết thúc: ${req.finishReason}` : `Hệ thống kết thúc: ${req.finishReason}`;
     case 'EXPIRED':
       // BR-RQ-43
       return 'Quá giờ bắt đầu nhưng chưa được duyệt';
@@ -1038,7 +1039,7 @@ export default function AccessRequestReviewPage({ embedded = false, actionsConta
                     )}
                     {detailItem.status === 'FINISHED' && detailItem.finishReason && (
                       <div className="arr-cancel-system arr-cancel-system--detail">
-                        Quản lý kết thúc{detailItem.finishedByName ? ` (${detailItem.finishedByName})` : ''}: {detailItem.finishReason}
+                        {detailItem.finishedByName ? `Quản lý kết thúc (${detailItem.finishedByName})` : 'Hệ thống kết thúc'}: {detailItem.finishReason}
                       </div>
                     )}
                   </div>

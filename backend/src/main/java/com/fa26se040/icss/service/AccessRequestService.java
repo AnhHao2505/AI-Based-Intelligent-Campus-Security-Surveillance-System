@@ -67,6 +67,8 @@ public class AccessRequestService {
 
     private static final DateTimeFormatter VN_DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy");
     private static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+    /** D-2.1: lý do (finish_reason + audit) khi hệ thống kết thúc đơn APPROVED đã qua giờ kết thúc. */
+    public static final String FINISH_REASON_ELAPSED = "Hết thời gian hiệu lực";
 
     private final AccessRequestRepository accessRequestRepository;
     private final AreaRepository areaRepository;
@@ -798,6 +800,66 @@ public class AccessRequestService {
                     .toList();
             runAfterCommit(() -> notices.forEach(this::sendExpiredNotice));
 
+            return count;
+        });
+    }
+
+    /**
+     * D-2.1: đơn APPROVED đã qua giờ kết thúc (end_time <= now) -> FINISHED do hệ thống: finish_reason = FINISH_REASON_ELAPSED,
+     * finished_by = NULL, audit ACCESS_REQUEST / FINISH với actor System. Không gửi thông báo.
+     * Cùng mẫu expireOverdueRequests: khoá trước, update theo id đã khoá, lệch số dòng -> rollback.
+     * FM hoàn thành cùng lúc: bên nào giữ khoá dòng trước thắng (finishIfApprovedStarted cũng điều kiện status = APPROVED).
+     */
+    @Scheduled(cron = "${icss.scheduler.finish-elapsed-cron:0 */15 * * * *}")
+    @Transactional
+    public int finishElapsedApprovedRequests() {
+        return AuditContext.runAsSystem("FINISH_ELAPSED_REQUESTS_JOB", () -> {
+            OffsetDateTime now = OffsetDateTime.now();
+
+            List<AccessRequest> elapsed = accessRequestRepository
+                    .findApprovedElapsedRequestsForUpdate(RequestStatus.APPROVED, now);
+            if (elapsed == null || elapsed.isEmpty()) {
+                return 0;
+            }
+
+            List<UUID> ids = elapsed.stream().map(AccessRequest::getId).toList();
+            int count = accessRequestRepository.finishElapsedRequestsByIds(
+                    ids,
+                    RequestStatus.APPROVED,
+                    RequestStatus.FINISHED,
+                    FINISH_REASON_ELAPSED,
+                    now
+            );
+            if (count != ids.size()) {
+                log.error("Finish elapsed requests mismatch: locked {} but updated {} — rolling back", ids.size(), count);
+                throw new IllegalStateException("Số đơn cập nhật (" + count + ") khác số đơn đã khoá (" + ids.size() + ")");
+            }
+            log.info("Finished {} elapsed approved access requests at {}", count, now);
+
+            for (AccessRequest req : elapsed) {
+                AccessRequestSnapshot beforeSnapshot = AccessRequestSnapshot.from(req);
+                AccessRequestSnapshot afterSnapshot = new AccessRequestSnapshot(
+                        req.getId(),
+                        req.getRequestType() != null ? req.getRequestType().name() : null,
+                        RequestStatus.FINISHED.name(),
+                        req.getArea() != null ? req.getArea().getId() : null,
+                        req.getRequester() != null ? req.getRequester().getId() : null,
+                        req.getStartTime(),
+                        req.getEndTime(),
+                        req.getPurpose(),
+                        req.getRejectionReason()
+                );
+                auditService.record(
+                        AuditTargetType.ACCESS_REQUEST,
+                        AuditAction.FINISH,
+                        req.getId().toString(),
+                        req.getArea(),
+                        req.getRequester(),
+                        beforeSnapshot,
+                        afterSnapshot,
+                        FINISH_REASON_ELAPSED
+                );
+            }
             return count;
         });
     }
