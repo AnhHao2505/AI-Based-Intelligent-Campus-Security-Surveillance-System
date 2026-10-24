@@ -612,7 +612,7 @@ export default function RecordingPage() {
                     <td>
                       <video
                         src={`${recording.videoUrl}#t=0.001`}
-                        preload="metadata"
+                        preload="none"
                         muted
                         playsInline
                         className="recording-table-thumb"

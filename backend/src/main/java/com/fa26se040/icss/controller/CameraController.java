@@ -181,10 +181,11 @@ public class CameraController {
     }
 
     @GetMapping("/recordings/stream")
-    public ResponseEntity<org.springframework.core.io.Resource> streamRecording(
+    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER', 'GUARD')")
+    public ResponseEntity<?> streamRecording(
             @RequestParam String path,
             @RequestParam(required = false, defaultValue = "false") boolean download,
-            @RequestHeader HttpHeaders headers) throws IOException {
+            @RequestHeader(required = false) HttpHeaders headers) throws IOException {
         log.debug("REST request to stream recording: {}", path);
         return cameraRecordingService.streamVideo(path, headers, download);
     }

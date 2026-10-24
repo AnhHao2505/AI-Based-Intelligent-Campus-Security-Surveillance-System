@@ -52,8 +52,39 @@ public class CameraRecordingService {
             DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")
     );
 
+    public Path getResolvedStoragePath() {
+        Path configuredPath = Paths.get(recordingStoragePath).toAbsolutePath().normalize();
+        if (Files.exists(configuredPath)) {
+            return configuredPath;
+        }
+
+        // Thử tìm theo cấu trúc thư mục gốc dự án (../recording nếu đang ở thư mục backend)
+        Path rootRecording = Paths.get("..", "recording").toAbsolutePath().normalize();
+        if (Files.exists(rootRecording)) {
+            return rootRecording;
+        }
+
+        Path localRecording = Paths.get("recording").toAbsolutePath().normalize();
+        if (Files.exists(localRecording)) {
+            return localRecording;
+        }
+
+        // Tự động tạo thư mục fallback
+        try {
+            Files.createDirectories(configuredPath);
+            return configuredPath;
+        } catch (Exception e) {
+            try {
+                Files.createDirectories(localRecording);
+                return localRecording;
+            } catch (Exception ignored) {
+            }
+        }
+        return configuredPath;
+    }
+
     /**
-     * Quét đệ quy toàn bộ thư mục C:\DATN\...\recording và tìm tất cả file video .mp4.
+     * Quét đệ quy toàn bộ thư mục recording và tìm tất cả file video .mp4.
      * Cấu trúc: {camera_id}/{year}/{month}/{day}/{filename}.mp4
      */
     public List<RecordingVideoResponse> listRecordings(
@@ -62,17 +93,8 @@ public class CameraRecordingService {
             String fromDateStr,
             String toDateStr
     ) {
-        Path baseDirPath = Paths.get(recordingStoragePath).toAbsolutePath().normalize();
-        log.info("🔍 [RecordingService] Quét thư mục: {}", baseDirPath);
-        if (!Files.exists(baseDirPath)) {
-            try {
-                Files.createDirectories(baseDirPath);
-                log.info("📁 Đã tự động tạo thư mục lưu trữ video ghi hình: {}", baseDirPath);
-            } catch (IOException e) {
-                log.error("❌ Không thể tạo thư mục lưu trữ video: {}", e.getMessage());
-                return Collections.emptyList();
-            }
-        }
+        Path baseDirPath = getResolvedStoragePath();
+        log.info("🔍 [RecordingService] Quét thư mục lưu trữ video: {}", baseDirPath);
 
         // Cache camera info from DB
         Map<String, Camera> cameraMap = cameraRepository.findAll().stream()
@@ -197,10 +219,10 @@ public class CameraRecordingService {
     }
 
     /**
-     * Trả về Stream Video hỗ trợ HTTP Range chuẩn cho thẻ <video> HTML5
+     * Trả về Stream Video hỗ trợ HTTP Range chuẩn RFC 7233 cho thẻ <video> HTML5
      */
-    public ResponseEntity<Resource> streamVideo(String relativePathStr, HttpHeaders headers, boolean download) throws IOException {
-        Path baseDirPath = Paths.get(recordingStoragePath).toAbsolutePath().normalize();
+    public ResponseEntity<?> streamVideo(String relativePathStr, HttpHeaders headers, boolean download) throws IOException {
+        Path baseDirPath = getResolvedStoragePath();
         Path targetPath = baseDirPath.resolve(relativePathStr).normalize();
 
         // Kiểm tra an ninh chống Directory Traversal Attack
@@ -224,11 +246,36 @@ public class CameraRecordingService {
                     .body(resource);
         }
 
-        return ResponseEntity.ok()
+        // Chuẩn hoá Streaming: Client gửi Range hoặc không gửi thì đều stream dạng Partial Content (206)
+        // Nếu không có Range header, mặc định phát từ byte 0 (chunk đầu tiên tối đa 2MB)
+        List<HttpRange> ranges = (headers != null) ? headers.getRange() : Collections.emptyList();
+        long start = 0;
+        long end = contentLength - 1;
+
+        if (!ranges.isEmpty()) {
+            HttpRange range = ranges.get(0);
+            start = range.getRangeStart(contentLength);
+            end = range.getRangeEnd(contentLength);
+
+            // Kiểm tra tính hợp lệ của dải byte yêu cầu
+            if (start >= contentLength) {
+                return ResponseEntity.status(HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE)
+                        .header(HttpHeaders.CONTENT_RANGE, "bytes */" + contentLength)
+                        .build();
+            }
+        }
+
+        // Giới hạn kích thước chunk tối đa 2MB mỗi lần request để tối ưu RAM và stream mượt mà
+        long chunkLength = Math.min(2 * 1024 * 1024L, end - start + 1);
+        if (start + chunkLength > contentLength) {
+            chunkLength = contentLength - start;
+        }
+
+        ResourceRegion region = new ResourceRegion(resource, start, chunkLength);
+        return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT)
                 .contentType(MediaType.valueOf("video/mp4"))
                 .header(HttpHeaders.ACCEPT_RANGES, "bytes")
-                .contentLength(contentLength)
-                .body(resource);
+                .body(region);
     }
 
     private OffsetDateTime parseStartTime(String filename, BasicFileAttributes attrs) {

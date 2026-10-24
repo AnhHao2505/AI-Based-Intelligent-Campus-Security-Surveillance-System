@@ -31,7 +31,21 @@ authInternalUsers:
       - action: read
       - action: publish
 
-# 4. Danh sách Kênh Camera
+# 4. Cấu hình mặc định cho tất cả các luồng Camera (Path Defaults)
+pathDefaults:
+  # Ghi hình trực tiếp (Stream Passthrough / Remuxing):
+  # - Ghi luồng H.264/H.265 gốc từ camera xuống đĩa (0% tải CPU)
+  # - Chuẩn phân đoạn 60 giây (1 phút/file)
+  # - Định dạng fmp4 (Fragmented MP4) không sợ lỗi hỏng moov atom khi ngắt đột ngột
+  # - Tự động xóa video cũ sau 7 ngày (retention policy)
+  record: yes
+  recordPath: /recordings/%path/%Y/%m/%d/%d-%m-%Y - %H-%M-%S
+  recordFormat: fmp4
+  recordPartDuration: 1s
+  recordSegmentDuration: 60s
+  recordDeleteAfter: 7d
+
+# 5. Danh sách Kênh Camera
 # Tất cả các camera sẽ được Backend tự động đồng bộ qua MediaMTX API (/v3/config/paths/add)
 paths:
   # Cho phép các nguồn khác kết nối hoặc đẩy luồng vào MediaMTX

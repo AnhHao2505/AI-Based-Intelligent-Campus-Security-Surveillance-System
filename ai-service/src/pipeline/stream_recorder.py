@@ -68,8 +68,8 @@ class StreamRecorder:
         except Exception:
             self.fourcc = cv2.VideoWriter_fourcc(*"mp4v")
 
-        # Hàng đợi frame (non-blocking để capture thread không bị lag)
-        self.frame_queue: queue.Queue = queue.Queue(maxsize=150)
+        # Hàng đợi frame (non-blocking để capture thread không bị lag, đệm tối đa 30 frames ~1.2s tránh ngốn RAM)
+        self.frame_queue: queue.Queue = queue.Queue(maxsize=30)
         self.is_running = False
         self.worker_thread: Optional[threading.Thread] = None
 
@@ -218,11 +218,16 @@ class StreamRecorder:
         self._pad_and_close()
 
     def _pad_and_close(self):
-        """Đảm bảo phân đoạn đủ đúng 1500 frames (60.00 giây) trước khi đóng file"""
+        """
+        Đảm bảo phân đoạn kết thúc an toàn.
+        Chỉ bù frame nếu phân đoạn đã gần đạt 60 giây (thiếu <= 25 frames, tức thiếu <= 1s)
+        để tránh ghi hàng nghìn frame đóng băng khi camera bị ngắt kết nối.
+        """
         if self.writer is not None and self.last_frame is not None:
-            while self.frames_in_segment < self.target_frames_per_segment:
-                self.writer.write(self.last_frame)
-                self.frames_in_segment += 1
+            if self.frames_in_segment >= (self.target_frames_per_segment - int(self.fps)):
+                while self.frames_in_segment < self.target_frames_per_segment:
+                    self.writer.write(self.last_frame)
+                    self.frames_in_segment += 1
         self._close_writer()
 
     def _close_writer(self):

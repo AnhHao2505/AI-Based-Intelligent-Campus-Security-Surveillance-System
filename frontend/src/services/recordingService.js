@@ -56,15 +56,23 @@ export async function fetchDiskRecordings({ cameraId = "", search = "", fromDate
   const json = await res.json();
   const rawList = json.data || [];
 
-  // Chuẩn hoá URL video sang full URL backend
+  const token = getAccessToken();
+
+  // Chuẩn hoá URL video sang full URL backend và đính kèm token xác thực cho HTML5 video/download
   return rawList.map((item) => {
-    const videoUrl = item.videoUrl?.startsWith("http")
+    let videoUrl = item.videoUrl?.startsWith("http")
       ? item.videoUrl
       : `${API_BASE_URL}${item.videoUrl}`;
+    if (token && !videoUrl.includes("token=")) {
+      videoUrl += (videoUrl.includes("?") ? "&" : "?") + `token=${encodeURIComponent(token)}`;
+    }
 
-    const downloadUrl = item.downloadUrl?.startsWith("http")
+    let downloadUrl = item.downloadUrl?.startsWith("http")
       ? item.downloadUrl
       : `${API_BASE_URL}${item.downloadUrl}`;
+    if (token && !downloadUrl.includes("token=")) {
+      downloadUrl += (downloadUrl.includes("?") ? "&" : "?") + `token=${encodeURIComponent(token)}`;
+    }
 
     return {
       ...item,

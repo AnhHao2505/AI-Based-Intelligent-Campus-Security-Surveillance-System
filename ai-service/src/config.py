@@ -60,6 +60,7 @@ class Settings(BaseSettings):
     TIMEZONE: str = "Asia/Ho_Chi_Minh"
     
     # Continuous Video Recording Configuration
+    RECORDING_ENABLED: bool = Field(default=False, validation_alias="RECORDING_ENABLED")
     RECORDING_BASE_DIR: str = Field(
         default=r"C:\DATN\AI-Based-Intelligent-Campus-Security-Surveillance-System\recording",
         validation_alias="RECORDING_BASE_DIR"

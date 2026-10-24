@@ -38,12 +38,15 @@ class CameraStreamWorker:
             polys = roi_geometry.get("polygons", [])
             self.pipeline.set_roi_config(polygons=polys)
         
-        # Recorder tự động ghi hình toàn bộ luồng camera theo từng phân đoạn 1 phút tại C:\DATN\...\recording
-        self.recorder = StreamRecorder(
-            camera_code=self.camera_code,
-            base_dir=settings.RECORDING_BASE_DIR,
-            segment_seconds=settings.RECORDING_SEGMENT_SECONDS
-        )
+        # Recorder tự động ghi hình (mặc định False do MediaMTX đảm nhiệm stream recording không tốn CPU)
+        if settings.RECORDING_ENABLED:
+            self.recorder = StreamRecorder(
+                camera_code=self.camera_code,
+                base_dir=settings.RECORDING_BASE_DIR,
+                segment_seconds=settings.RECORDING_SEGMENT_SECONDS
+            )
+        else:
+            self.recorder = None
 
         self.is_running = False
         self.capture_thread: Optional[threading.Thread] = None
