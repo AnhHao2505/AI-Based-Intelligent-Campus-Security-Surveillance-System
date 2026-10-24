@@ -99,10 +99,10 @@ const EVENT_SEVERITY_CONFIG = {
 };
 
 const cleanIncidentMessage = (msg) => {
-	if (!msg) return "Phát hiện sự cố an ninh trong vùng cấm";
+	if (!msg) return "Phát hiện sự cố an ninh tại khu vực giám sát";
 	return String(msg)
-		.replace(/\[TRONG_GIO\]\s*/gi, "")
-		.replace(/\[AFTER_HOURS_PRESENCE\]\s*/gi, "[INTRUSION] ");
+		.replace(/\[[A-Z0-9_]+\]\s*/g, "")
+		.trim();
 };
 
 const isAlertPending = (status) => {
@@ -450,13 +450,13 @@ export function SecuritySurveillancePage() {
 							setActiveAlerts((prev) =>
 								prev.map((a) =>
 									a.id === update.incidentId ||
-									String(a.id) === String(update.incidentId)
+										String(a.id) === String(update.incidentId)
 										? {
-												...a,
-												status: update.status || a.status,
-												claimedByName: update.claimedByName || a.claimedByName,
-												claimedById: update.claimedById || a.claimedById,
-											}
+											...a,
+											status: update.status || a.status,
+											claimedByName: update.claimedByName || a.claimedByName,
+											claimedById: update.claimedById || a.claimedById,
+										}
 										: a,
 								),
 							);
@@ -612,10 +612,10 @@ export function SecuritySurveillancePage() {
 			otherCameras.length > 0
 				? otherCameras[Math.floor(Math.random() * otherCameras.length)]
 				: cameraList[0] || {
-						cameraCode: "CAM-002",
-						name: "Cổng Phụ",
-						code: "cam-002",
-					};
+					cameraCode: "CAM-002",
+					name: "Cổng Phụ",
+					code: "cam-002",
+				};
 
 		const eventPayload = {
 			event_id: `EVT-${Date.now()}`,
@@ -745,9 +745,9 @@ export function SecuritySurveillancePage() {
 	const visibleCameras =
 		cameraLayout === 1
 			? [
-					sortedCameras.find((cam) => cam.code === selectedCamera) ||
-						sortedCameras[0],
-				].filter(Boolean)
+				sortedCameras.find((cam) => cam.code === selectedCamera) ||
+				sortedCameras[0],
+			].filter(Boolean)
 			: sortedCameras.slice(0, cameraLayout);
 
 	const pendingAlertCount = activeAlerts.filter(
@@ -756,8 +756,8 @@ export function SecuritySurveillancePage() {
 	const filteredAlerts =
 		alertFilter === "PENDING"
 			? activeAlerts.filter(
-					(a) => !a.socAcknowledged && isAlertPending(a.status),
-				)
+				(a) => !a.socAcknowledged && isAlertPending(a.status),
+			)
 			: activeAlerts;
 
 	return (
@@ -1092,15 +1092,15 @@ export function SecuritySurveillancePage() {
 							{activeAlerts.some(
 								(a) => a.socAcknowledged || !isAlertPending(a.status),
 							) && (
-								<button
-									type="button"
-									className="soc-btn-clear"
-									onClick={handleClearResolved}
-									title="Dọn dẹp sự cố đã xem hoặc đã giải quyết"
-								>
-									<RotateCcw size={12} />
-								</button>
-							)}
+									<button
+										type="button"
+										className="soc-btn-clear"
+										onClick={handleClearResolved}
+										title="Dọn dẹp sự cố đã xem hoặc đã giải quyết"
+									>
+										<RotateCcw size={12} />
+									</button>
+								)}
 						</div>
 
 						{/* Khu Vực Hiển Thị Sự Kiện Hoặc Trạng Thái An Toàn */}
@@ -1118,10 +1118,10 @@ export function SecuritySurveillancePage() {
 								incidentsError ? null : <LoadingState size="sm" text="Đang tải danh sách sự cố..." />
 							) : filteredAlerts.length === 0 ? (
 								/* ┌──────────────────────────────┐
-                   │        🟢                    │
-                   │    HỆ THỐNG AN TOÀN          │
-                   │    Không có sự kiện          │
-                   └──────────────────────────────┘ */
+				   │        🟢                    │
+				   │    HỆ THỐNG AN TOÀN          │
+				   │    Không có sự kiện          │
+				   └──────────────────────────────┘ */
 								<div className="soc-safe-system-state">
 									<div className="soc-green-pulse-circle" />
 									<h4 className="soc-safe-title">HỆ THỐNG AN TOÀN</h4>

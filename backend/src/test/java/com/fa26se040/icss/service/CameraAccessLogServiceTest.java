@@ -186,7 +186,7 @@ class CameraAccessLogServiceTest {
         assertEquals(AccessResult.UNKNOWN_PERSON, result.getAccessResult());
         assertEquals("UNKNOWN-FACE", result.getUserCode());
         assertEquals("Người lạ / Chưa rõ mặt", result.getFullName());
-        assertEquals("[UNKNOWN_PERSON] Phát hiện đối tượng chưa đăng ký / người lạ (chưa rõ mặt) tại khu vực giám sát.", result.getReasonDetails());
+        assertEquals("Phát hiện người chưa đăng ký tại khu vực giám sát.", result.getReasonDetails());
     }
 
     @Test
@@ -212,7 +212,33 @@ class CameraAccessLogServiceTest {
         assertEquals(AccessResult.UNKNOWN_PERSON, result.getAccessResult());
         assertEquals("SE194249", result.getUserCode());
         assertEquals("Người lạ / Chưa rõ mặt", result.getFullName());
-        assertEquals("[UNKNOWN_PERSON] Phát hiện đối tượng chưa đăng ký / người lạ (chưa rõ mặt) tại khu vực giám sát.", result.getReasonDetails());
+        assertEquals("Phát hiện người chưa đăng ký tại khu vực giám sát.", result.getReasonDetails());
+    }
+
+    @Test
+    @DisplayName("Loại bỏ tag kỹ thuật AI [UNAUTHORIZED_ACCESS] và rút gọn lý do súc tích chuyên nghiệp")
+    void testRecordAccessLog_CleansAiTagsAndFormatsConcisely() {
+        OffsetDateTime daytime = OffsetDateTime.of(2026, 10, 24, 8, 0, 0, 0, ZoneOffset.ofHours(7));
+        CheckCameraEntryResponse entryResponse = CheckCameraEntryResponse.builder()
+                .allowed(false)
+                .source(AccessSource.NONE)
+                .reason("[UNAUTHORIZED_ACCESS] Phát hiện đối tượng không có quyền truy cập: Nguyễn Văn An (NV001) tại Phòng LB01. Lý do: Cấp độ truy cập không đủ (Khu vực Cấp 3, người dùng Cấp 2)")
+                .cameraCode("CAM-001")
+                .areaId(areaId)
+                .userCode("NV001")
+                .fullName("Nguyễn Văn An")
+                .build();
+
+        when(areaRepository.findById(areaId)).thenReturn(Optional.of(area));
+        when(userRepository.findByUserCodeAndDeletedAtIsNull("NV001")).thenReturn(Optional.of(testUser));
+        when(cameraAccessLogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        CameraAccessLogResponse result = cameraAccessLogService.recordAccessLog(entryResponse, daytime);
+
+        assertNotNull(result);
+        assertEquals(AccessResult.UNAUTHORIZED_ACCESS, result.getAccessResult());
+        assertEquals("NV001", result.getUserCode());
+        assertEquals("Cấp độ truy cập không đủ (Khu vực Cấp 3, người dùng Cấp 2)", result.getReasonDetails());
     }
 
     @Test
