@@ -112,6 +112,8 @@ minio:
 icss:
   scheduler:
     expire-overdue-cron: ${EXPIRE_OVERDUE_CRON:0 */15 * * * *}
+    # D-2.1: đơn APPROVED đã qua giờ kết thúc -> FINISHED do hệ thống
+    finish-elapsed-cron: ${FINISH_ELAPSED_CRON:0 */15 * * * *}
     notification-expiring-soon-cron: ${NOTIFICATION_EXPIRING_SOON_CRON:0 */10 * * * *}
     notification-pending-overdue-cron: ${NOTIFICATION_PENDING_OVERDUE_CRON:0 0 * * * *}
     event-mode-tick-cron: ${EVENT_MODE_TICK_CRON:0 */1 * * * *}
