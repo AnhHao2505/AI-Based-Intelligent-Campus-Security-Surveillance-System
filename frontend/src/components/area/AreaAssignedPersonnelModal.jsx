@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import {
 	Users,
 	UserPlus,
-	CalendarClock,
+	CalendarPlus,
 	UserX,
 	AlertCircle,
 	X,
@@ -16,9 +16,9 @@ import UserSearchCombobox from "../user/UserSearchCombobox";
 import {
 	getAssignedPersonnel,
 	assignPersonnel,
-	updateAssignedPersonnel,
 	revokeAssignedPersonnel,
 } from "../../services/areaService";
+import { searchUsers } from "../../services/userService";
 import { ROLE_LABELS } from "../../constants/roles";
 import {
 	formatToOffsetDateTime,
@@ -34,6 +34,17 @@ const STATUS_FILTERS = [
 	{ key: "EXPIRED", label: "Hết hạn" },
 	{ key: "REVOKED", label: "Đã thu hồi" },
 ];
+
+const pad2 = (n) => String(n).padStart(2, "0");
+
+// Giá trị cho input datetime-local theo giờ máy (tới phút); roundUp = còn giây thì lấy phút kế tiếp
+const toDateTimeLocal = (value, roundUp = false) => {
+	const d = new Date(value);
+	const hasSeconds = d.getSeconds() > 0 || d.getMilliseconds() > 0;
+	d.setSeconds(0, 0);
+	if (roundUp && hasSeconds) d.setMinutes(d.getMinutes() + 1);
+	return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+};
 
 export default function AreaAssignedPersonnelModal({
 	isOpen,
@@ -57,15 +68,6 @@ export default function AreaAssignedPersonnelModal({
 	const [addReasonError, setAddReasonError] = useState("");
 	const addReasonRef = useRef(null);
 	const [submittingAdd, setSubmittingAdd] = useState(false);
-
-	// Modal Sửa Hạn State
-	const [editItem, setEditItem] = useState(null);
-	const [editValidToInput, setEditValidToInput] = useState("");
-	const [editIsIndefinite, setEditIsIndefinite] = useState(false);
-	const [editReasonInput, setEditReasonInput] = useState("");
-	const [editReasonError, setEditReasonError] = useState("");
-	const editReasonRef = useRef(null);
-	const [submittingEdit, setSubmittingEdit] = useState(false);
 
 	// Modal Thu Hồi State
 	const [revokeItem, setRevokeItem] = useState(null);
@@ -104,9 +106,6 @@ export default function AreaAssignedPersonnelModal({
 			setNoteInput("");
 			setAddReasonInput("");
 			setAddReasonError("");
-			setEditItem(null);
-			setEditReasonInput("");
-			setEditReasonError("");
 			setRevokeItem(null);
 			setRevokeReason("");
 			setRevokeReasonError("");
@@ -142,6 +141,11 @@ export default function AreaAssignedPersonnelModal({
 		e?.preventDefault();
 		if (!selectedUser) {
 			toast.error("Vui lòng chọn người dùng cần gán");
+			return;
+		}
+		// BR-AP-28: không chọn ngày bắt đầu ở quá khứ (backend chặn bằng ERR_AP_013)
+		if (validFromInput && validFromInput < toDateTimeLocal(new Date())) {
+			toast.error("Thời điểm bắt đầu không được ở quá khứ");
 			return;
 		}
 		const trimmedAddReason = addReasonInput.trim();
@@ -181,65 +185,32 @@ export default function AreaAssignedPersonnelModal({
 			loadData();
 		} catch (err) {
 			console.error("Lỗi khi gán nhân sự:", err);
-			// Hiển thị nguyên văn thông báo backend (vd. ERR_AP_004 trùng thời gian, ERR_AP_011 BR-AP-06 tự gán / tự gia hạn)
+			// Hiển thị nguyên văn thông báo backend (vd. ERR_AP_004 trùng thời gian, ERR_AP_011 BR-AP-06 tự gán, ERR_AP_013 bắt đầu ở quá khứ)
 			toast.error(err?.message || "Không thể gán nhân sự vào khu vực");
 		} finally {
 			setSubmittingAdd(false);
 		}
 	};
 
-	// Mở modal sửa hạn
-	const handleOpenEditValidTo = (item) => {
-		setEditItem(item);
-		setEditReasonInput("");
-		setEditReasonError("");
-		if (!item.validTo) {
-			setEditIsIndefinite(true);
-			setEditValidToInput("");
-		} else {
-			setEditIsIndefinite(false);
-			try {
-				const d = new Date(item.validTo);
-				const pad = (n) => String(n).padStart(2, "0");
-				const localStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-				setEditValidToInput(localStr);
-			} catch {
-				setEditValidToInput("");
-			}
-		}
-	};
-
-	// Xác nhận sửa hạn
-	const handleSaveValidTo = async (e) => {
-		e?.preventDefault();
-		if (!editItem) return;
-		const trimmedEditReason = editReasonInput.trim();
-		if (!reasonLimits.isValid(trimmedEditReason)) {
-			setEditReasonError(reasonLimits.error(trimmedEditReason));
-			editReasonRef.current?.focus();
-			return;
-		}
-
-		setSubmittingEdit(true);
+	// E-3: cấp tiếp = gán đợt mới. Mở form Gán điền sẵn người dùng, bắt đầu = max(hạn cũ, hiện tại)
+	// (hạn cũ đã qua thì để trống = bây giờ lúc gửi). Không có sửa thời hạn bản ghi cũ.
+	const handleOpenNextGrant = async (item) => {
+		const oldEnd = new Date(item.validTo);
+		setShowAddForm(true);
+		setSelectedUser(item.user);
+		setValidFromInput(oldEnd > new Date() ? toDateTimeLocal(oldEnd, true) : "");
+		setValidToInput("");
+		setIsIndefinite(false);
+		setNoteInput("");
+		setAddReasonInput("");
+		setAddReasonError("");
+		// Bản ghi AP không kèm cấp truy cập của người dùng -> tra lại để ô người dùng hiện đúng cấp
 		try {
-			const payload = {
-				validTo:
-					editIsIndefinite || !editValidToInput
-						? null
-						: formatToOffsetDateTime(editValidToInput),
-				reason: trimmedEditReason,
-			};
-
-			await updateAssignedPersonnel(area.id, editItem.id, payload);
-			toast.success(`Đã cập nhật thời hạn cho ${editItem.user?.fullName}`);
-			setEditItem(null);
-			loadData();
+			const data = await searchUsers(item.user?.userCode, 0, 20);
+			const match = (data?.content || []).find((u) => u.id === item.user?.id);
+			if (match) setSelectedUser((cur) => (cur?.id === match.id ? match : cur));
 		} catch (err) {
-			console.error("Lỗi khi sửa thời hạn:", err);
-			// Hiển thị nguyên văn thông báo backend (vd. ERR_AP_004 trùng thời gian, ERR_AP_011 BR-AP-06 tự gán / tự gia hạn)
-			toast.error(err?.message || "Không thể sửa thời hạn gán");
-		} finally {
-			setSubmittingEdit(false);
+			console.error("Lỗi khi tải thông tin người dùng để gán đợt tiếp:", err);
 		}
 	};
 
@@ -406,6 +377,7 @@ export default function AreaAssignedPersonnelModal({
 										type="datetime-local"
 										className="ap-form-input"
 										value={validFromInput}
+										min={toDateTimeLocal(new Date())}
 										onChange={(e) => setValidFromInput(e.target.value)}
 									/>
 								</div>
@@ -536,6 +508,11 @@ export default function AreaAssignedPersonnelModal({
 								<tbody>
 									{displayedList.map((item) => {
 										const isRevoked = item.status === "REVOKED";
+										// BR-AP-30: chỉ thu hồi AP Đang hiệu lực / Sắp hiệu lực; Gán đợt tiếp cho AP có hạn Đang hiệu lực / Hết hạn
+										const canRevoke = item.status === "ACTIVE" || item.status === "UPCOMING";
+										const canNextGrant =
+											Boolean(item.validTo) &&
+											(item.status === "ACTIVE" || item.status === "EXPIRED");
 
 										return (
 											<tr
@@ -609,24 +586,28 @@ export default function AreaAssignedPersonnelModal({
 														className="ap-cell--sticky-actions"
 														style={{ textAlign: "center" }}
 													>
-														{!isRevoked ? (
+														{canNextGrant || canRevoke ? (
 															<div className="ap-actions">
-																<button
-																	type="button"
-																	className="ap-action-btn ap-action-btn--edit"
-																	onClick={() => handleOpenEditValidTo(item)}
-																	title="Sửa ngày hết hạn"
-																>
-																	<CalendarClock size={14} />
-																</button>
-																<button
-																	type="button"
-																	className="ap-action-btn ap-action-btn--revoke"
-																	onClick={() => handleOpenRevoke(item)}
-																	title="Thu hồi quyền gán"
-																>
-																	<UserX size={14} />
-																</button>
+																{canNextGrant && (
+																	<button
+																		type="button"
+																		className="ap-action-btn ap-action-btn--next"
+																		onClick={() => handleOpenNextGrant(item)}
+																		title="Gán đợt tiếp"
+																	>
+																		<CalendarPlus size={14} />
+																	</button>
+																)}
+																{canRevoke && (
+																	<button
+																		type="button"
+																		className="ap-action-btn ap-action-btn--revoke"
+																		onClick={() => handleOpenRevoke(item)}
+																		title="Thu hồi quyền gán"
+																	>
+																		<UserX size={14} />
+																	</button>
+																)}
 															</div>
 														) : (
 															<span className="ap-action-disabled">—</span>
@@ -642,89 +623,6 @@ export default function AreaAssignedPersonnelModal({
 					</div>
 				</div>
 			</Modal>
-
-			{/* Modal Con: Sửa thời hạn validTo */}
-			{editItem && (
-				<Modal
-					isOpen={Boolean(editItem)}
-					onClose={() => setEditItem(null)}
-					title="Sửa thời hạn gán nhân sự"
-					subtitle={`Cập nhật ngày hết hạn cho: ${editItem.user?.fullName} (${editItem.user?.userCode})`}
-					icon={CalendarClock}
-					size="sm"
-					footer={
-						<div className="ap-modal__footer">
-							<Button
-								variant="secondary"
-								onClick={() => setEditItem(null)}
-								disabled={submittingEdit}
-							>
-								Hủy
-							</Button>
-							<Button
-								variant="primary"
-								onClick={handleSaveValidTo}
-								loading={submittingEdit}
-							>
-								Lưu thời hạn
-							</Button>
-						</div>
-					}
-				>
-					<div className="ap-edit-form">
-						<div className="ap-form-group">
-							<label className="ap-form-label">
-								Ngày hết hạn mới (Hiệu lực đến)
-							</label>
-							<input
-								type="datetime-local"
-								className="ap-form-input"
-								value={editValidToInput}
-								onChange={(e) => {
-									setEditValidToInput(e.target.value);
-									if (e.target.value) setEditIsIndefinite(false);
-								}}
-								disabled={editIsIndefinite}
-							/>
-							<label
-								className="ap-form-checkbox-inline"
-								style={{ marginTop: "8px" }}
-							>
-								<input
-									type="checkbox"
-									checked={editIsIndefinite}
-									onChange={(e) => {
-										setEditIsIndefinite(e.target.checked);
-										if (e.target.checked) setEditValidToInput("");
-									}}
-								/>
-								<span>Không thời hạn (quyền cố định vô hạn)</span>
-							</label>
-						</div>
-
-						<div className="ap-form-group" style={{ marginTop: "12px" }}>
-							<ReasonTextarea
-								ref={editReasonRef}
-								label="Lý do điều chỉnh"
-								required
-								value={editReasonInput}
-								onChange={(e) => {
-									const val = e.target.value;
-									setEditReasonInput(val);
-									if (editReasonError && reasonLimits.isValid(val)) {
-										setEditReasonError("");
-									}
-								}}
-								minLength={reasonLimits.min}
-								maxLength={reasonLimits.max}
-								placeholder={`Ví dụ: Gia hạn theo yêu cầu trưởng bộ môn (tối thiểu ${reasonLimits.min} ký tự, tối đa ${reasonLimits.max} ký tự)...`}
-								rows={3}
-								error={editReasonError}
-							/>
-						</div>
-					</div>
-				</Modal>
-			)}
 
 			{/* Modal Con: Thu hồi quyền (Bắt buộc nhập lý do) */}
 			{revokeItem && (

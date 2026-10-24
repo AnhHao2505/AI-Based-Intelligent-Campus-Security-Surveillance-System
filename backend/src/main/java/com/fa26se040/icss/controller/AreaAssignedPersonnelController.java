@@ -3,7 +3,6 @@ package com.fa26se040.icss.controller;
 import com.fa26se040.icss.dto.assignedpersonnel.AssignedPersonnelCreateRequest;
 import com.fa26se040.icss.dto.assignedpersonnel.AssignedPersonnelResponse;
 import com.fa26se040.icss.dto.assignedpersonnel.AssignedPersonnelRevokeRequest;
-import com.fa26se040.icss.dto.assignedpersonnel.AssignedPersonnelUpdateRequest;
 import com.fa26se040.icss.dto.common.ApiResponse;
 import com.fa26se040.icss.enums.AssignedPersonnelStatus;
 import com.fa26se040.icss.service.AreaAssignedPersonnelService;
@@ -26,7 +25,8 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * BR-AP-01: chỉ FACILITY_MANAGER được tạo, sửa, thu hồi. ADMIN chỉ xem.
+ * BR-AP-01: chỉ FACILITY_MANAGER được tạo, thu hồi. ADMIN chỉ xem.
+ * E-3: mỗi đợt cấp quyền là một bản ghi, không có sửa thời hạn — kết thúc sớm = thu hồi, cấp tiếp = gán đợt mới.
  */
 @RestController
 @RequestMapping("/api/areas/{areaId}/assigned-personnel")
@@ -55,19 +55,6 @@ public class AreaAssignedPersonnelController {
         AssignedPersonnelResponse response = assignedPersonnelService.create(areaId, request, actorEmail);
         URI location = URI.create("/api/areas/" + areaId + "/assigned-personnel/" + response.id());
         return ResponseEntity.created(location).body(ApiResponse.created(response, "Gán nhân sự vào khu vực thành công"));
-    }
-
-    @PatchMapping("/{id}")
-    @PreAuthorize("hasRole('FACILITY_MANAGER')")
-    public ResponseEntity<ApiResponse<AssignedPersonnelResponse>> updateValidTo(
-            @PathVariable UUID areaId,
-            @PathVariable UUID id,
-            @Valid @RequestBody AssignedPersonnelUpdateRequest request,
-            Authentication authentication
-    ) {
-        String actorEmail = authentication.getName();
-        AssignedPersonnelResponse response = assignedPersonnelService.updateValidTo(areaId, id, request, actorEmail);
-        return ResponseEntity.ok(ApiResponse.success(response, "Gia hạn thời gian gán nhân sự thành công"));
     }
 
     @PatchMapping("/{id}/revoke")

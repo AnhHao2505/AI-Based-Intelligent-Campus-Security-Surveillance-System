@@ -3,7 +3,6 @@ package com.fa26se040.icss.service;
 import com.fa26se040.icss.dto.assignedpersonnel.AssignedPersonnelCreateRequest;
 import com.fa26se040.icss.dto.assignedpersonnel.AssignedPersonnelResponse;
 import com.fa26se040.icss.dto.assignedpersonnel.AssignedPersonnelRevokeRequest;
-import com.fa26se040.icss.dto.assignedpersonnel.AssignedPersonnelUpdateRequest;
 import com.fa26se040.icss.dto.assignedpersonnel.AssignedPersonnelUserInfo;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.AreaAssignedPersonnel;
@@ -23,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -41,6 +41,11 @@ public class AreaAssignedPersonnelService {
     public static final String REVOKE_REASON_USER_DEACTIVATED = "Tài khoản người được gán đã bị vô hiệu hoá";
     /** BR-AP-25: lý do thu hồi AP khi tài khoản người được gán bị xoá (lẻ hoặc theo lô import). */
     public static final String REVOKE_REASON_USER_DELETED = "Tài khoản người được gán đã bị xoá";
+    /**
+     * BR-AP-28: validFrom được lùi tối đa chừng này so với giờ máy chủ — chỉ để bù lệch đồng hồ giữa trình duyệt và
+     * máy chủ (form gửi "bây giờ" có thể tới chậm vài giây / phút), không phải tham số nghiệp vụ.
+     */
+    static final Duration VALID_FROM_CLOCK_SKEW = Duration.ofMinutes(5);
 
     private final AreaAssignedPersonnelRepository assignedPersonnelRepository;
     private final AreaRepository areaRepository;
@@ -94,6 +99,10 @@ public class AreaAssignedPersonnelService {
         OffsetDateTime validFrom = request.validFrom() != null ? request.validFrom() : now;
         OffsetDateTime validTo = request.validTo();
 
+        // BR-AP-28: không gán lùi về quá khứ (mỗi đợt cấp là một bản ghi, E-3); bỏ trống = now
+        if (validFrom.isBefore(now.minus(VALID_FROM_CLOCK_SKEW))) {
+            throw new AssignedPersonnelException(AssignedPersonnelErrorCode.ERR_AP_013);
+        }
         validateValidTo(validFrom, validTo, now);
         validateNoOverlap(area.getId(), user.getId(), validFrom, validTo, null);
 
@@ -133,73 +142,6 @@ public class AreaAssignedPersonnelService {
     }
 
     @Transactional
-    public AssignedPersonnelResponse updateValidTo(UUID areaId, UUID id, AssignedPersonnelUpdateRequest request, String actorEmail) {
-        User actor = resolveActor(actorEmail);
-
-        AreaAssignedPersonnel entity = getOwnedRecord(areaId, id);
-
-        // BR-AP-06: người thao tác không tự gia hạn / sửa thời hạn quyền chỉ định của chính mình (tự thu hồi vẫn được)
-        if (entity.getUser() != null && actor.getId().equals(entity.getUser().getId())) {
-            throw new AssignedPersonnelException(AssignedPersonnelErrorCode.ERR_AP_011);
-        }
-
-        // BR-AP-08: không sửa bản ghi đã thu hồi
-        if (entity.getRevokedAt() != null) {
-            throw new AssignedPersonnelException(AssignedPersonnelErrorCode.ERR_AP_009);
-        }
-
-        OffsetDateTime now = OffsetDateTime.now();
-        OffsetDateTime newValidTo = request != null ? request.validTo() : null;
-        OffsetDateTime oldValidTo = entity.getValidTo();
-
-        // BR-AL-06: Thao tác không làm thay đổi giá trị (new == old) -> không ghi log, trả về hiện tại
-        if (java.util.Objects.equals(oldValidTo, newValidTo)) {
-            log.info("validTo of assigned personnel {} unchanged, skipping audit log", entity.getId());
-            return mapToResponse(entity, now);
-        }
-
-        // Khoá dòng users để tuần tự hoá các thao tác gán cùng user (chống race BR-AP-03)
-        assignedPersonnelRepository.findUserByIdForUpdate(entity.getUser().getId());
-
-        validateValidTo(entity.getValidFrom(), newValidTo, now);
-        validateNoOverlap(entity.getArea().getId(), entity.getUser().getId(), entity.getValidFrom(), newValidTo, entity.getId());
-
-        AssignedPersonnelStatus oldStatus = computeStatus(entity, now);
-
-        entity.setValidTo(newValidTo);
-        entity.setUpdatedAt(now);
-
-        AreaAssignedPersonnel saved = assignedPersonnelRepository.save(entity);
-        log.info("Updated validTo of assigned personnel {} to {} by {}", saved.getId(), newValidTo, actorEmail);
-
-        com.fa26se040.icss.dto.accesscontrol.snapshot.AreaAssignmentAuditSnapshot oldSnapshot =
-                new com.fa26se040.icss.dto.accesscontrol.snapshot.AreaAssignmentAuditSnapshot(
-                        entity.getValidFrom(),
-                        oldValidTo,
-                        oldStatus
-                );
-        com.fa26se040.icss.dto.accesscontrol.snapshot.AreaAssignmentAuditSnapshot newSnapshot =
-                new com.fa26se040.icss.dto.accesscontrol.snapshot.AreaAssignmentAuditSnapshot(
-                        saved.getValidFrom(),
-                        newValidTo,
-                        computeStatus(saved, now)
-                );
-        auditService.record(
-                com.fa26se040.icss.enums.AuditTargetType.AREA_ASSIGNMENT,
-                com.fa26se040.icss.enums.AuditAction.UPDATE_VALIDITY,
-                saved.getId().toString(),
-                saved.getArea(),
-                saved.getUser(),
-                oldSnapshot,
-                newSnapshot,
-                request != null ? request.reason() : null,
-                actor
-        );
-
-        return mapToResponse(saved, now);
-    }
-
-    @Transactional
     public AssignedPersonnelResponse revoke(UUID areaId, UUID id, AssignedPersonnelRevokeRequest request, String actorEmail) {
         User actor = resolveActor(actorEmail);
 
@@ -218,6 +160,11 @@ public class AreaAssignedPersonnelService {
 
         OffsetDateTime now = OffsetDateTime.now();
         AssignedPersonnelStatus oldStatus = computeStatus(entity, now);
+
+        // BR-AP-30: chỉ thu hồi AP ACTIVE / UPCOMING; AP đã hết hạn thì không còn gì để thu hồi
+        if (oldStatus == AssignedPersonnelStatus.EXPIRED) {
+            throw new AssignedPersonnelException(AssignedPersonnelErrorCode.ERR_AP_012);
+        }
 
         // BR-AP-08: thu hồi có hiệu lực ngay
         entity.setRevokedAt(now);
