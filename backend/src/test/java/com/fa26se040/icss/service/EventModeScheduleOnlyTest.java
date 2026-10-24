@@ -80,8 +80,10 @@ class EventModeScheduleOnlyTest extends Step5bTestSupport {
 
         assertEquals(400, status(r046), describe(r046));
         assertEquals("ERR_AREA_046", errorCode(r046));
+        assertEquals("Trường enabled không còn được hỗ trợ, hãy gửi action DISABLE", message(r046));
         assertEquals(400, status(r047), describe(r047));
         assertEquals("ERR_AREA_047", errorCode(r047));
+        assertEquals("Thiếu action của thao tác chế độ sự kiện (chỉ hỗ trợ DISABLE)", message(r047));
     }
 
     @Test
