@@ -471,6 +471,11 @@ public class AccessRequestService {
         if (targetReq.getRequester() != null && targetReq.getRequester().getId().equals(reviewer.getId())) {
             throw new AccessControlException(AccessControlErrorCode.ERR_AC_006);
         }
+        // D-1 (như BR-GV-12): đơn PENDING đã tới giờ bắt đầu thì không duyệt / từ chối, kiểm trước BR-RQ-02 để báo đúng lý do.
+        // Điều kiện thời gian cũng nằm trong câu UPDATE có điều kiện bên dưới (chống race), đây chỉ là báo sớm.
+        if (targetReq.getStatus() == RequestStatus.PENDING && hasStarted(targetReq, OffsetDateTime.now())) {
+            throw new AccessControlException(AccessControlErrorCode.ERR_AC_012);
+        }
 
         // BR-RQ-02: Kiểm tra lại cấp độ truy cập và cấu hình nhóm khi FM phê duyệt (APPROVED)
         if (reviewRequest.status() == RequestStatus.APPROVED) {
@@ -536,7 +541,7 @@ public class AccessRequestService {
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu truy cập với mã: " + id));
         AccessRequestSnapshot beforeSnapshot = AccessRequestSnapshot.from(beforeReq);
 
-        // 3. Conditional UPDATE nguyên tử tại database (single source of truth)
+        // 3. Conditional UPDATE nguyên tử tại database (single source of truth): status = PENDING AND startTime > now
         int updatedCount = accessRequestRepository.reviewIfPending(
                 id,
                 reviewRequest.status(),
@@ -610,6 +615,10 @@ public class AccessRequestService {
         AccessRequest current = accessRequestRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu truy cập với mã: " + id));
 
+        // D-1: vẫn PENDING mà UPDATE trượt -> đã tới giờ bắt đầu (job sẽ chuyển EXPIRED)
+        if (current.getStatus() == RequestStatus.PENDING && hasStarted(current, now)) {
+            throw new AccessControlException(AccessControlErrorCode.ERR_AC_012);
+        }
         if (current.getReviewer() != null && current.getReviewer().getFullName() != null) {
             String reviewerName = current.getReviewer().getFullName();
             String actionVerb = current.getStatus() == RequestStatus.APPROVED ? "phê duyệt" : "từ chối";
@@ -630,6 +639,11 @@ public class AccessRequestService {
                 throw new ConcurrentReviewException("Yêu cầu này đã ở trạng thái " + current.getStatus() + ", không thể phê duyệt.");
             }
         }
+    }
+
+    /** D-1: đơn đã tới giờ bắt đầu (now >= startTime); cùng điều kiện với câu UPDATE của reviewIfPending. */
+    private static boolean hasStarted(AccessRequest req, OffsetDateTime now) {
+        return req.getStartTime() != null && !now.isBefore(req.getStartTime());
     }
 
     @Transactional

@@ -144,7 +144,7 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, UU
            "    r.reviewedAt = :reviewedAt, " +
            "    r.rejectionReason = :rejectionReason, " +
            "    r.updatedAt = :reviewedAt " +
-           "WHERE r.id = :id AND r.status = :expectedStatus")
+           "WHERE r.id = :id AND r.status = :expectedStatus AND (r.startTime IS NULL OR r.startTime > :reviewedAt)")
     int reviewIfPending(
             @Param("id") UUID id,
             @Param("newStatus") RequestStatus newStatus,
