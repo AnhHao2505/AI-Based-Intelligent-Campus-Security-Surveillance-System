@@ -207,6 +207,12 @@ public abstract class Step5bTestSupport extends AbstractIntegrationTest {
                 .build());
     }
 
+    /** X-01a: mở sự kiện đúng đường thật — lịch SCHEDULED [start, end) do FM đặt + job kích hoạt (actor SYSTEM). */
+    protected AreaEventSchedule openEventViaSchedule(Area area, OffsetDateTime start, OffsetDateTime end) {
+        return EventScheduleActivationTestSupport.openViaSchedule(eventScheduleRepository, areaService, area, fm,
+                "SEMINAR", "Hội thảo/sự kiện chuyên môn", start, end);
+    }
+
     protected AreaEventSchedule newSchedule(Area area, OffsetDateTime start, OffsetDateTime end,
                                             String reasonCode, String reasonLabel) {
         return eventScheduleRepository.save(AreaEventSchedule.builder()

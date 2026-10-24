@@ -694,7 +694,8 @@ class Step6AreaDeactivationTest extends GuestTestSupport {
         event.put("reasonCode", "OTHER");
         event.put("note", "Hội thảo sau khi vô hiệu hoá khu vực");
         event.put("version", v1);
-        assertBlocked(send(patch("/api/areas/{id}/event-mode", area.getId()), fm, event).andReturn(), "event-mode", 400, "ERR_AREA_017");
+        // X-01a: ENABLE thủ công bị chặn ngay (ERR_AREA_058); khu vô hiệu hoá không mở được sự kiện qua lịch (ERR_AREA_017 bên dưới)
+        assertBlocked(send(patch("/api/areas/{id}/event-mode", area.getId()), fm, event).andReturn(), "event-mode", 400, "ERR_AREA_058");
 
         Map<String, Object> schedule = new LinkedHashMap<>();
         schedule.put("title", "Sự kiện thử nghiệm");

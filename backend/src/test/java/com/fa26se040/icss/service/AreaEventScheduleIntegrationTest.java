@@ -429,7 +429,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("ES-T05: Ngân sách: lịch giữ chỗ làm bật tay bị từ chối; đặt lịch sớm hơn làm cửa sổ của lịch sau vượt -> từ chối; huỷ lịch -> ngân sách được trả lại")
+    @DisplayName("ES-T05: Ngân sách: lịch giữ chỗ làm lịch khác bị từ chối; đặt lịch sớm hơn làm cửa sổ của lịch sau vượt -> từ chối; huỷ lịch -> ngân sách được trả lại")
     void testES_T05_BudgetValidation() {
         OffsetDateTime now = OffsetDateTime.now();
         // Cấu hình: WINDOW_DAYS = 7, BUDGET_HOURS = 10, MAX_HOURS = 10
@@ -441,13 +441,14 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
                 new EventScheduleRequest("Sự kiện thử nghiệm", now.plusDays(1), now.plusDays(1).plusHours(8), REASON_ENABLE, "Dat lich giu cho 8h"),
                 fmUser.getEmail());
 
-        // 1. Lịch giữ chỗ làm bật tay 5 giờ bị từ chối do tổng = 13h > 10h -> ERR_AREA_028
-        AreaException exManual = assertThrows(AreaException.class, () ->
-                areaService.updateEventMode(internalArea.getId(),
-                        eventReq(internalArea.getId(), EventModeAction.ENABLE, now.plusHours(5), REASON_ENABLE, "Bat tay 5h bi vuot ngan sach"),
+        // 1. Lịch giữ chỗ làm lịch 5 giờ khác bị từ chối do tổng = 13h > 10h -> ERR_AREA_028
+        //    (X-01a: không còn bật tay, sự kiện chỉ mở qua lịch)
+        AreaException exFiveHours = assertThrows(AreaException.class, () ->
+                areaService.createSchedule(internalArea.getId(),
+                        new EventScheduleRequest("Sự kiện thử nghiệm", now.plusHours(1), now.plusHours(6), REASON_ENABLE, "Lich 5h bi vuot ngan sach"),
                         fmUser.getEmail())
         );
-        assertEquals(AreaErrorCode.ERR_AREA_028, exManual.getErrorCode());
+        assertEquals(AreaErrorCode.ERR_AREA_028, exFiveHours.getErrorCode());
 
         // 2. Thử đặt thêm lịch thứ 2 sớm hơn làm cửa sổ của sched1 vượt:
         // Đặt sched2 tại now + 2 hours (dài 4h) -> cửa sổ sched1 tính cả sched2 thành 12h > 10h -> ERR_AREA_028
@@ -463,37 +464,16 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
                 new EventScheduleCancelRequest(REASON_DISABLE, "Huy lich de giai phong ngan sach"),
                 fmUser.getEmail());
 
-        // Giờ bật tay 5h thành công!
-        AreaResponse enableRes = areaService.updateEventMode(internalArea.getId(),
-                eventReq(internalArea.getId(), EventModeAction.ENABLE, now.plusHours(5), REASON_ENABLE, "Bat tay thanh cong sau khi huy lich"),
+        // Giờ đặt lịch 5h thành công!
+        EventScheduleResponse fiveHours = areaService.createSchedule(internalArea.getId(),
+                new EventScheduleRequest("Sự kiện thử nghiệm", now.plusHours(1), now.plusHours(6), REASON_ENABLE, "Lich 5h thanh cong sau khi huy lich"),
                 fmUser.getEmail());
-        assertTrue(enableRes.openToMembers());
+        assertEquals(AreaEventScheduleStatus.SCHEDULED.name(), fiveHours.status());
 
         // Dọn dẹp
-        areaService.updateEventMode(internalArea.getId(),
-                eventReq(internalArea.getId(), EventModeAction.DISABLE, null, REASON_DISABLE, "Tat lai che do su kien"),
+        areaService.cancelSchedule(internalArea.getId(), fiveHours.id(),
+                new EventScheduleCancelRequest(REASON_DISABLE, "Huy lich sau khi kiem tra ngan sach"),
                 fmUser.getEmail());
-    }
-
-    @Test
-    @DisplayName("ES-T06: Bật tay có open_until chồng lịch -> 409 ERR_AREA_041")
-    void testES_T06_ManualEnableOverlapsSchedule() {
-        OffsetDateTime now = OffsetDateTime.now();
-        OffsetDateTime schedStart = now.plusHours(3);
-        OffsetDateTime schedEnd = schedStart.plusHours(2);
-
-        // Đặt lịch [now + 3h, now + 5h]
-        areaService.createSchedule(internalArea.getId(),
-                new EventScheduleRequest("Sự kiện thử nghiệm", schedStart, schedEnd, REASON_ENABLE, "Lich su kien chieu nay"),
-                fmUser.getEmail());
-
-        // Bật tay đến now + 4h (open_until > schedStart và now < schedEnd) -> 409 ERR_AREA_041
-        AreaException exManual = assertThrows(AreaException.class, () ->
-                areaService.updateEventMode(internalArea.getId(),
-                        eventReq(internalArea.getId(), EventModeAction.ENABLE, now.plusHours(4), REASON_ENABLE, "Bat tay bi de len lich"),
-                        fmUser.getEmail())
-        );
-        assertEquals(AreaErrorCode.ERR_AREA_041, exManual.getErrorCode());
     }
 
     @Test
@@ -1045,54 +1025,13 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("RS-01: Bật sự kiện tay với EVENT_ENABLE/OTHER + ghi chú >= 10 -> 200; audit lưu nhãn Khác")
-    void testRS01_EnableEventModeWithOtherReason() throws Exception {
+    @DisplayName("RS-02: sự kiện mở qua lịch, tắt tay EVENT_DISABLE/OTHER -> 200 (X-01a: không còn điều chỉnh tay)")
+    void testRS02_DisableEventModeWithOtherReason() {
         OffsetDateTime now = OffsetDateTime.now();
-        OffsetDateTime futureUntil = now.plusHours(2);
 
-        AreaResponse resp = areaService.updateEventMode(
-                internalArea.getId(),
-                eventReq(internalArea.getId(), EventModeAction.ENABLE, futureUntil, "OTHER", "Lý do khác trên 10 ký tự"),
-                fmUser.getEmail()
-        );
-        assertNotNull(resp);
-        assertTrue(resp.openToMembers());
-
-        // Audit lưu nhãn "Khác"
-        List<AuditLog> logs = auditLogRepository.findAll().stream()
-                .filter(l -> l.getTargetType() == AuditTargetType.AREA_EVENT_MODE)
-                .filter(l -> l.getTargetId().equals(internalArea.getId().toString()))
-                .filter(l -> l.getAction() == AuditAction.ENABLE_EVENT_MODE)
-                .toList();
-        assertFalse(logs.isEmpty());
-        AuditLog lastLog = logs.get(logs.size() - 1);
-        AreaEventModeAuditSnapshot snap = objectMapper.readValue(lastLog.getNewValue(), AreaEventModeAuditSnapshot.class);
-        assertEquals("Khác", snap.reasonLabel());
-        assertEquals("OTHER", snap.reasonCode());
-    }
-
-    @Test
-    @DisplayName("RS-02: Điều chỉnh tay EVENT_EXTEND/OTHER -> 200; tắt tay EVENT_DISABLE/OTHER -> 200")
-    void testRS02_ExtendAndDisableEventModeWithOtherReason() {
-        OffsetDateTime now = OffsetDateTime.now();
-        OffsetDateTime until1 = now.plusHours(2);
-        OffsetDateTime until2 = now.plusHours(3);
-
-        // Bật trước
-        areaService.updateEventMode(
-                internalArea.getId(),
-                eventReq(internalArea.getId(), EventModeAction.ENABLE, until1, "SEMINAR", "Ghi chu bat su kien tren 10 ky tu"),
-                fmUser.getEmail()
-        );
-
-        // Điều chỉnh tay với EVENT_EXTEND/OTHER -> 200
-        AreaResponse respExtend = areaService.updateEventMode(
-                internalArea.getId(),
-                eventReq(internalArea.getId(), EventModeAction.ADJUST, until2, "OTHER", "Gia han voi ly do khac tren 10 ky tu"),
-                fmUser.getEmail()
-        );
-        assertNotNull(respExtend);
-        assertTrue(respExtend.openToMembers());
+        // Mở qua lịch + job kích hoạt
+        EventScheduleActivationTestSupport.openViaSchedule(eventScheduleRepository, areaService, internalArea, fmUser,
+                REASON_ENABLE, "Hội thảo lên lịch", now.minusMinutes(1), now.plusHours(2));
 
         // Tắt tay với EVENT_DISABLE/OTHER -> 200
         AreaResponse respDisable = areaService.updateEventMode(

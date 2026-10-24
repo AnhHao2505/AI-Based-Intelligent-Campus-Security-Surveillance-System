@@ -85,51 +85,33 @@ class NotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
     }
 
     /**
-     * BR-EV-31: bật / điều chỉnh / tắt thành công -> thông báo GUARD; bị từ chối / no-op (BR-EV-11) -> không thông báo.
+     * BR-EV-31: bật (qua lịch, X-01a) / tắt thành công -> thông báo GUARD; bị từ chối -> không thông báo.
      * Nguồn: Step5aSupplement2Test#testT19_GuardNotificationOnEventModeChanged.
      */
     @Test
-    @DisplayName("BR-EV-31: BẬT / ĐIỀU CHỈNH / TẮT thành công -> GUARD đang hoạt động nhận 1 EVENT_MODE_CHANGED mỗi lần; no-op / bị từ chối -> 0")
+    @DisplayName("BR-EV-31: BẬT (lịch được job kích hoạt) / TẮT thành công -> GUARD đang hoạt động nhận 1 EVENT_MODE_CHANGED mỗi lần; bị từ chối -> 0")
     void brEv31_guardNotifiedOnEventModeChanged() {
         OffsetDateTime now = OffsetDateTime.now();
 
-        // 1. BẬT thành công
-        areaService.updateEventMode(internalArea.getId(),
-                eventReq(internalArea, EventModeAction.ENABLE, now.plusHours(2), "SEMINAR", "Bat su kien kiem tra thong bao guard"),
-                fm.getEmail());
+        // 1. BẬT thành công (X-01a: chỉ mở qua lịch + job kích hoạt)
+        openEventViaSchedule(internalArea, now.minusMinutes(1), now.plusHours(2));
         List<Notification> afterEnable = notificationsFor(guard, NotificationType.EVENT_MODE_CHANGED, internalArea);
         assertEquals(1, afterEnable.size());
         assertTrue(afterEnable.get(0).getMessage().contains("Bật chế độ sự kiện"), afterEnable.get(0).getMessage());
 
-        // 2. ĐIỀU CHỈNH no-op (lệch < 1 giây) -> không thông báo mới
-        OffsetDateTime sameEnd = reload(internalArea).getOpenUntil();
-        areaService.updateEventMode(internalArea.getId(),
-                eventReq(internalArea, EventModeAction.ADJUST, sameEnd, "EVENT_PROLONGED", "Dieu chinh no op khong doi gio"),
-                fm.getEmail());
-        assertEquals(1, notificationsFor(guard, NotificationType.EVENT_MODE_CHANGED, internalArea).size(),
-                "No-op không được gửi thông báo mới");
-
-        // 3. ĐIỀU CHỈNH thành công
-        areaService.updateEventMode(internalArea.getId(),
-                eventReq(internalArea, EventModeAction.ADJUST, now.plusHours(4), "EVENT_PROLONGED", "Dieu chinh gio ket thuc hop le"),
-                fm.getEmail());
-        List<Notification> afterAdjust = notificationsFor(guard, NotificationType.EVENT_MODE_CHANGED, internalArea);
-        assertEquals(2, afterAdjust.size());
-        assertTrue(afterAdjust.get(0).getMessage().contains("Điều chỉnh giờ kết thúc"), afterAdjust.get(0).getMessage());
-
-        // 4. TẮT thành công
+        // 2. TẮT thành công
         areaService.updateEventMode(internalArea.getId(),
                 eventReq(internalArea, EventModeAction.DISABLE, null, "ENDED_EARLY", "Tat su kien hop le theo lich"),
                 fm.getEmail());
         List<Notification> afterDisable = notificationsFor(guard, NotificationType.EVENT_MODE_CHANGED, internalArea);
-        assertEquals(3, afterDisable.size());
+        assertEquals(2, afterDisable.size());
         assertTrue(afterDisable.get(0).getMessage().contains("Tắt chế độ sự kiện"), afterDisable.get(0).getMessage());
 
-        // 5. Bị từ chối (tắt khi đã tắt) -> không thông báo mới
+        // 3. Bị từ chối (tắt khi đã tắt) -> không thông báo mới
         assertThrows(AreaException.class, () -> areaService.updateEventMode(internalArea.getId(),
                 eventReq(internalArea, EventModeAction.DISABLE, null, "ENDED_EARLY", "Thu tat khi da tat"),
                 fm.getEmail()));
-        assertEquals(3, notificationsFor(guard, NotificationType.EVENT_MODE_CHANGED, internalArea).size(),
+        assertEquals(2, notificationsFor(guard, NotificationType.EVENT_MODE_CHANGED, internalArea).size(),
                 "Thao tác bị từ chối không sinh thông báo");
     }
 
@@ -243,10 +225,8 @@ class NotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
                 .endedBy(fm)
                 .build());
 
-        // Bật thêm 4h -> tổng 44h <= 48h
-        areaService.updateEventMode(internalArea.getId(),
-                eventReq(internalArea, EventModeAction.ENABLE, now.plusHours(4), "SEMINAR", "Bat them 4 gio tong 44 gio"),
-                fm.getEmail());
+        // Bật thêm 4h (qua lịch + job kích hoạt, X-01a) -> tổng 44h <= 48h
+        openEventViaSchedule(internalArea, now, now.plusHours(4));
 
         assertEquals(0, notificationsOf(fm, NotificationType.EVENT_MODE_LIMIT_CHANGED).size());
 

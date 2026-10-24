@@ -240,7 +240,7 @@ class EventScheduleTitleAndListIntegrationTest extends Step5bTestSupport {
     // ================================================================== Dừng sự kiện (nút Dừng, Q7 / F6)
 
     @Test
-    @DisplayName("Q7/F6: DISABLE ghi chú không bắt buộc (có nhập thì 10–500, sai -> 400 ERR_AREA_024); dừng -> phiên đóng, lịch ENDED_EARLY, khu hết mở. ENABLE vẫn bắt buộc ghi chú")
+    @DisplayName("Q7/F6: DISABLE ghi chú không bắt buộc (có nhập thì 10–500, sai -> 400 ERR_AREA_024); dừng -> phiên đóng, lịch ENDED_EARLY, khu hết mở. ENABLE thủ công -> 400 ERR_AREA_058 (X-01a)")
     void stopEventNoteOptional() throws Exception {
         Area area = newArea(AreaLevel.CONFIDENTIAL);
         OffsetDateTime now = OffsetDateTime.now().truncatedTo(ChronoUnit.MINUTES);
@@ -265,7 +265,7 @@ class EventScheduleTitleAndListIntegrationTest extends Step5bTestSupport {
         Area other = newArea(AreaLevel.CONFIDENTIAL);
         MvcResult enableNoNote = patchEventMode(fm, other, eventBody("ENABLE", now.plusHours(2), "OTHER", null, dbVersion(other)));
         assertEquals(400, status(enableNoNote), describe(enableNoNote));
-        assertEquals("ERR_AREA_024", errorCode(enableNoNote), "bật sự kiện vẫn bắt buộc ghi chú");
+        assertEquals("ERR_AREA_058", errorCode(enableNoNote), "X-01a: không còn bật sự kiện thủ công");
     }
 
     // ================================================================== V87

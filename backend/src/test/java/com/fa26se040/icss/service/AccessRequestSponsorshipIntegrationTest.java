@@ -23,6 +23,7 @@ import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.repository.AccessRequestMemberRepository;
 import com.fa26se040.icss.repository.AccessRequestRepository;
 import com.fa26se040.icss.repository.AreaLevelPresetRepository;
+import com.fa26se040.icss.repository.AreaEventScheduleRepository;
 import com.fa26se040.icss.repository.AreaRepository;
 import com.fa26se040.icss.repository.AuditLogRepository;
 import com.fa26se040.icss.repository.BuildingRepository;
@@ -66,6 +67,9 @@ class AccessRequestSponsorshipIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private AreaService areaService;
+
+    @Autowired
+    private AreaEventScheduleRepository eventScheduleRepository;
 
     @Autowired
     private SystemConfigService systemConfigService;
@@ -582,19 +586,21 @@ class AccessRequestSponsorshipIntegrationTest extends AbstractIntegrationTest {
                                 """.formatted(OffsetDateTime.now().plusHours(4).toString(), freshInternal.getVersion())))
                 .andExpect(status().isForbidden());
 
-        // 4. FM sửa event-mode -> 200
+        // 4. FM sửa event-mode -> 200 (X-01a: chỉ còn Dừng; sự kiện mở qua lịch + job kích hoạt trước)
+        EventScheduleActivationTestSupport.openViaSchedule(eventScheduleRepository, areaService, internalArea, fmUser,
+                "SEMINAR", "Hội thảo/sự kiện chuyên môn", OffsetDateTime.now().minusMinutes(1), OffsetDateTime.now().plusHours(4));
+        Area openedInternal = areaRepository.findById(internalArea.getId()).orElseThrow();
         mockMvc.perform(patch("/api/areas/" + internalArea.getId() + "/event-mode")
                         .header("Authorization", tokenFm)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                    "action": "ENABLE",
-                                    "openUntil": "%s",
-                                    "reasonCode": "SEMINAR",
-                                    "note": "Ghi chú sự kiện seminar hội thảo",
+                                    "action": "DISABLE",
+                                    "reasonCode": "ENDED_EARLY",
+                                    "note": "Ghi chú dừng sự kiện seminar hội thảo",
                                     "version": %d
                                 }
-                                """.formatted(OffsetDateTime.now().plusHours(4).toString(), freshInternal.getVersion())))
+                                """.formatted(openedInternal.getVersion())))
                 .andExpect(status().isOk());
     }
 

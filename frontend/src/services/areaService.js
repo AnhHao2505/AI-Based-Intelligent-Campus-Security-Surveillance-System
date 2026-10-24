@@ -117,10 +117,11 @@ export async function revokeAssignedPersonnel(areaId, id, data) {
 }
 
 /**
- * Bật / điều chỉnh / tắt chế độ sự kiện khu vực (chỉ FACILITY_MANAGER)
+ * Dừng chế độ sự kiện khu vực đang mở (chỉ FACILITY_MANAGER)
  * PATCH /api/areas/{areaId}/event-mode
+ * X-01a: chỉ nhận action DISABLE; sự kiện chỉ mở qua lịch (job kích hoạt), ENABLE / ADJUST bị từ chối (ERR_AREA_058)
  * @param {string} areaId
- * @param {Object} data { action: "ENABLE" | "ADJUST" | "DISABLE", openUntil, reasonCode, note, version } — KHÔNG gửi enabled
+ * @param {Object} data { action: "DISABLE", reasonCode, note, version } — KHÔNG gửi enabled
  */
 export async function updateAreaEventMode(areaId, data) {
 	return apiPatch(`/api/areas/${areaId}/event-mode`, data);

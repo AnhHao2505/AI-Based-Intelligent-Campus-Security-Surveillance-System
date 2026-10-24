@@ -1437,8 +1437,6 @@ public class AreaService {
             String actionText;
             if (action == com.fa26se040.icss.enums.AuditAction.ENABLE_EVENT_MODE) {
                 actionText = "Bật";
-            } else if (action == com.fa26se040.icss.enums.AuditAction.EXTEND_EVENT_MODE) {
-                actionText = "Điều chỉnh giờ kết thúc";
             } else {
                 actionText = "Tắt";
             }
@@ -1486,10 +1484,12 @@ public class AreaService {
         if (eventAction == null) {
             throw new AreaException(AreaErrorCode.ERR_AREA_047);
         }
-        // Màn Quản lý sự kiện (21/10): dừng sự kiện (DISABLE) ghi chú không bắt buộc; bật / điều chỉnh vẫn bắt buộc
-        String trimmedNote = eventAction == com.fa26se040.icss.enums.EventModeAction.DISABLE
-                ? optionalEventNote(req.note())
-                : requireEventNote(req.note());
+        // X-01a: sự kiện chỉ mở qua lịch (job kích hoạt) và chỉ đóng khi hết giờ hoặc FM bấm Dừng -> chỉ nhận DISABLE
+        if (eventAction != com.fa26se040.icss.enums.EventModeAction.DISABLE) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_058);
+        }
+        // Màn Quản lý sự kiện (21/10): dừng sự kiện (DISABLE) ghi chú không bắt buộc
+        String trimmedNote = optionalEventNote(req.note());
         String rawReasonCode = req.reasonCode();
         if (rawReasonCode == null || rawReasonCode.trim().isEmpty()) {
             throw eventNoteError();
@@ -1497,30 +1497,10 @@ public class AreaService {
         String normReasonCode = rawReasonCode.trim().toUpperCase();
         requireVersion(req.version());
 
-        // EV-A2: lý do tra theo (nhóm của action, code); không có trong nhóm -> 026
-        String expectedActionType;
-        com.fa26se040.icss.enums.AuditAction action;
-        switch (eventAction) {
-            case ENABLE -> {
-                expectedActionType = "EVENT_ENABLE";
-                action = com.fa26se040.icss.enums.AuditAction.ENABLE_EVENT_MODE;
-            }
-            case ADJUST -> {
-                expectedActionType = "EVENT_EXTEND";
-                action = com.fa26se040.icss.enums.AuditAction.EXTEND_EVENT_MODE;
-            }
-            default -> {
-                expectedActionType = "EVENT_DISABLE";
-                action = com.fa26se040.icss.enums.AuditAction.DISABLE_EVENT_MODE;
-            }
-        }
-        com.fa26se040.icss.entity.ReasonCatalog reasonItem = findReasonInGroup(expectedActionType, normReasonCode);
+        // EV-A2: lý do tra theo (nhóm EVENT_DISABLE, code); không có trong nhóm -> 026
+        com.fa26se040.icss.enums.AuditAction action = com.fa26se040.icss.enums.AuditAction.DISABLE_EVENT_MODE;
+        com.fa26se040.icss.entity.ReasonCatalog reasonItem = findReasonInGroup("EVENT_DISABLE", normReasonCode);
         String reasonLabel = reasonItem.getLabel();
-
-        boolean targetEnabled = eventAction != com.fa26se040.icss.enums.EventModeAction.DISABLE;
-        if (targetEnabled && (req.openUntil() == null || !req.openUntil().isAfter(OffsetDateTime.now()))) {
-            throw new AreaException(AreaErrorCode.ERR_AREA_023);
-        }
 
         // 2. Khoá area (B2). Không tồn tại -> ERR_AREA_002
         Area area = areaRepository.findByIdWithLock(id)
@@ -1536,28 +1516,15 @@ public class AreaService {
         // Dọn phiên hết hạn trong cùng transaction, trên CHÍNH entity area đã khoá
         cleanupExpiredSessions(area, now);
 
-        // 4. Ý định vs trạng thái sau khi khoá (EV-A3): ENABLE khi đang mở / ADJUST, DISABLE khi đang tắt hoặc hết hạn -> 030
+        // 4. Ý định vs trạng thái sau khi khoá (EV-A3): DISABLE khi đang tắt hoặc hết hạn -> 030
         boolean activeNow = area.isEventActive(now);
         boolean oldEnabled = Boolean.TRUE.equals(area.getOpenToMembers());
         OffsetDateTime oldOpenUntil = area.getOpenUntil();
-        if (activeNow == (eventAction == com.fa26se040.icss.enums.EventModeAction.ENABLE)) {
+        if (!activeNow) {
             throw new AreaException(AreaErrorCode.ERR_AREA_030, buildEventModeStatusChangedMessage(area, now));
         }
 
-        // (BR-EV-11) ADJUST với openUntil lệch giờ hiện tại < 1 giây -> thành công, không đổi, không audit, không thông báo
-        if (eventAction == com.fa26se040.icss.enums.EventModeAction.ADJUST
-                && oldOpenUntil != null
-                && Math.abs(java.time.Duration.between(req.openUntil(), oldOpenUntil).toMillis()) < 1000) {
-            log.info("Area {} extend event mode unchanged (<1s diff), skipping audit and update", id);
-            return mapToAreaResponse(area);
-        }
-
-        // (BR-EV-03) ENABLE / ADJUST trên khu vực isActive = false -> từ chối (ERR_AREA_017). DISABLE vẫn cho phép.
-        if (targetEnabled && (!Boolean.TRUE.equals(area.getIsActive()) || area.getDeletedAt() != null)) {
-            throw new AreaException(AreaErrorCode.ERR_AREA_017);
-        }
-
-        // 5. Loại khu vực (ERR_AREA_022), min minutes (ERR_AREA_031), MAX_HOURS (ERR_AREA_027), chồng lịch, ngân sách (ERR_AREA_028)
+        // 5. Loại khu vực (ERR_AREA_022)
         if (!eventModeAllowed(area.getAreaLevel())) {
             throw new AreaException(AreaErrorCode.ERR_AREA_022);
         }
@@ -1567,71 +1534,18 @@ public class AreaService {
 
         UUID closedScheduleId = null;
         String closedScheduleStatus = null;
-        if (targetEnabled) {
-            OffsetDateTime targetOpenUntil = req.openUntil();
-
-            int minMinutes = getEventModeMinMinutes();
-            long reqMinutes = java.time.Duration.between(now, targetOpenUntil).toMinutes();
-            if (reqMinutes < minMinutes) {
-                throw new AreaException(AreaErrorCode.ERR_AREA_031, minMinutes);
-            }
-
-            int maxHours = getEventModeMaxHours();
-            if (targetOpenUntil.isAfter(now.plusHours(maxHours))) {
-                throw new AreaException(AreaErrorCode.ERR_AREA_027, maxHours);
-            }
-
-            // Kiểm tra chồng lấn với lịch SCHEDULED (BR-ES-15)
-            List<com.fa26se040.icss.entity.AreaEventSchedule> scheduledList = eventScheduleRepository
-                    .findByAreaIdAndStatus(id, com.fa26se040.icss.enums.AreaEventScheduleStatus.SCHEDULED);
-            for (com.fa26se040.icss.entity.AreaEventSchedule s : scheduledList) {
-                if (targetOpenUntil.isAfter(s.getStartAt()) && now.isBefore(s.getEndAt())) {
-                    throw new AreaException(AreaErrorCode.ERR_AREA_041);
-                }
-            }
-
-            // ADJUST: đóng phiên hiện tại tại now TRƯỚC khi tính ngân sách; phiên mới kế thừa lịch nguồn (BR-ES-S1)
-            UUID inheritedScheduleId = null;
-            if (eventAction == com.fa26se040.icss.enums.EventModeAction.ADJUST) {
-                com.fa26se040.icss.entity.AreaEventSession currentSession = eventSessionRepository.findByAreaIdAndActualEndIsNull(id).orElse(null);
-                if (currentSession != null) {
-                    inheritedScheduleId = currentSession.getScheduleId();
-                    currentSession.setActualEnd(now);
-                    currentSession.setEndedBy(actor);
-                    eventSessionRepository.save(currentSession);
-                }
-            }
-
-            validateEventBudget(id, new com.fa26se040.icss.dto.area.TimeInterval(now, targetOpenUntil), null);
-
-            com.fa26se040.icss.entity.AreaEventSession newSession = com.fa26se040.icss.entity.AreaEventSession.builder()
-                    .area(area)
-                    .startedAt(now)
-                    .plannedEnd(targetOpenUntil)
-                    .actualEnd(null)
-                    .startedBy(actor)
-                    .expiryRemindedAt(null)
-                    .createdAt(now)
-                    .scheduleId(inheritedScheduleId)
-                    .build();
-            eventSessionRepository.save(newSession);
-
-            area.setOpenToMembers(true);
-            area.setOpenUntil(targetOpenUntil);
-        } else {
-            com.fa26se040.icss.entity.AreaEventSession currentSession = eventSessionRepository.findByAreaIdAndActualEndIsNull(id).orElse(null);
-            if (currentSession != null) {
-                currentSession.setActualEnd(now);
-                currentSession.setEndedBy(actor);
-                eventSessionRepository.save(currentSession);
-                // BR-ES-S1/S2: FM tắt phiên do lịch sinh ra -> lịch ENDED_EARLY, cùng transaction đóng phiên
-                closedScheduleId = currentSession.getScheduleId();
-                closedScheduleStatus = finishScheduleOfSession(currentSession, com.fa26se040.icss.enums.AreaEventScheduleStatus.ENDED_EARLY);
-            }
-
-            area.setOpenToMembers(false);
-            area.setOpenUntil(null);
+        com.fa26se040.icss.entity.AreaEventSession currentSession = eventSessionRepository.findByAreaIdAndActualEndIsNull(id).orElse(null);
+        if (currentSession != null) {
+            currentSession.setActualEnd(now);
+            currentSession.setEndedBy(actor);
+            eventSessionRepository.save(currentSession);
+            // BR-ES-S1/S2: FM tắt phiên do lịch sinh ra -> lịch ENDED_EARLY, cùng transaction đóng phiên
+            closedScheduleId = currentSession.getScheduleId();
+            closedScheduleStatus = finishScheduleOfSession(currentSession, com.fa26se040.icss.enums.AreaEventScheduleStatus.ENDED_EARLY);
         }
+
+        area.setOpenToMembers(false);
+        area.setOpenUntil(null);
 
         area.setUpdatedAt(now);
         bumpVersionIfChanged(area, before);
