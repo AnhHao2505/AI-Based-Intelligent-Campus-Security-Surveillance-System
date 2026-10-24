@@ -1,6 +1,18 @@
-// Mock / Example Recording Data & Helpers for Campus Surveillance System
+import { getAccessToken } from "./authService";
+
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
+
+function getHeaders() {
+  const token = getAccessToken();
+  return {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
 
 export const RECORDING_TIME_RANGES = [
+  { value: "all", label: "Tất cả thời gian (All Time)" },
   { value: "today", label: "Hôm nay (Today)" },
   { value: "last_24h", label: "24 giờ qua (Last 24 Hours)" },
   { value: "last_7d", label: "7 ngày qua (Last 7 Days)" },
@@ -9,7 +21,7 @@ export const RECORDING_TIME_RANGES = [
 
 export const EVENT_TYPE_OPTIONS = [
   { value: "", label: "Tất cả sự kiện (All Events)" },
-  { value: "NORMAL_RECORDING", label: "Ghi hình định kỳ (Normal Recording)" },
+  { value: "NORMAL_RECORDING", label: "Ghi hình định kỳ 1 phút (Normal 1-min Segment)" },
   { value: "SECURITY_EVENT", label: "Sự kiện an ninh (Security Event)" },
 ];
 
@@ -20,197 +32,44 @@ export const SECURITY_SEVERITY_LEVELS = {
   LOW: { label: "Thông tin", color: "info", bg: "rgba(59, 130, 246, 0.15)", border: "#3b82f6" },
 };
 
-export const MOCK_RECORDINGS = [
-  {
-    id: "REC-20261022-001",
-    cameraId: "CAM-GATE-01",
-    cameraName: "Cổng chính A (Cổng vào)",
-    areaName: "Khu vực Cổng Chính - Nhà Điều Hành",
-    building: "Tòa Alpha",
-    floor: "Tầng G",
-    eventType: "SECURITY_EVENT",
-    eventTypeName: "Sự cố an ninh đặc biệt / Khẩn cấp (Storyful Incident)",
-    severity: "CRITICAL",
-    startTime: "2026-10-22T08:15:30+07:00",
-    endTime: "2026-10-22T08:25:30+07:00",
-    duration: "10m 00s",
-    fileSize: "184 MB",
-    resolution: "1920x1080 (1080p 30fps)",
-    format: "MP4 (H.264 / AAC)",
-    storagePath: "C:\\Train\\031025-wls-man-on-fire-storyful-raw-vid.mp4",
-    videoUrl: "/sample-videos/031025-wls-man-on-fire-storyful-raw-vid.mp4",
-    thumbnailUrl: "https://images.unsplash.com/photo-1557597774-9d273605dfa9?auto=format&fit=crop&w=600&q=80",
-    status: "SAVED",
-    hasIncidentTrigger: true,
-    incidentCode: "INC-2026-0891",
-    notes: "AI phát hiện sự cố an ninh nghiêm trọng tại khu vực cổng chính. Video gốc trích xuất từ tệp kiểm thử.",
-  },
-  {
-    id: "REC-20261022-002",
-    cameraId: "CAM-HALL-02",
-    cameraName: "Hành lang Sảnh Trục chính 1",
-    areaName: "Sảnh trung tâm FPTU",
-    building: "Tòa Beta",
-    floor: "Tầng 1",
-    eventType: "NORMAL_RECORDING",
-    eventTypeName: "Ghi hình liên tục (Continuous)",
-    severity: null,
-    startTime: "2026-10-22T07:00:00+07:00",
-    endTime: "2026-10-22T08:00:00+07:00",
-    duration: "60m 00s",
-    fileSize: "1.12 GB",
-    resolution: "2560x1440 (2K 30fps)",
-    format: "MP4 (H.265 / AAC)",
-    storagePath: "/storage/recordings/2026/10/22/CAM-HALL-02_070000.mp4",
-    videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
-    thumbnailUrl: "https://images.unsplash.com/photo-1577495508048-b635879837f1?auto=format&fit=crop&w=600&q=80",
-    status: "SAVED",
-    hasIncidentTrigger: false,
-    incidentCode: null,
-    notes: "Lưu trữ định kỳ tự động theo lịch 24/7.",
-  },
-  {
-    id: "REC-20261022-003",
-    cameraId: "CAM-LAB-05",
-    cameraName: "Phòng Thực hành Mạng & IoT",
-    areaName: "Phòng Nghiên Cứu Lab 302",
-    building: "Tòa Gamma",
-    floor: "Tầng 3",
-    eventType: "SECURITY_EVENT",
-    eventTypeName: "Người lạ ngoài giờ cấp phép (Unauthorized Access)",
-    severity: "HIGH",
-    startTime: "2026-10-22T06:40:10+07:00",
-    endTime: "2026-10-22T06:55:45+07:00",
-    duration: "15m 35s",
-    fileSize: "290 MB",
-    resolution: "1920x1080 (1080p 25fps)",
-    format: "MP4 (H.264 / AAC)",
-    storagePath: "/storage/recordings/2026/10/22/CAM-LAB-05_064010.mp4",
-    videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
-    thumbnailUrl: "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=600&q=80",
-    status: "SAVED",
-    hasIncidentTrigger: true,
-    incidentCode: "INC-2026-0888",
-    notes: "Nhận diện khuôn mặt chưa đăng ký quẹt thẻ cửa phòng máy chủ Lab.",
-  },
-  {
-    id: "REC-20261021-004",
-    cameraId: "CAM-PARK-01",
-    cameraName: "Bãi đỗ xe Khu A1 (Cổng Xe máy)",
-    areaName: "Bãi giữ xe tập trung",
-    building: "Khu Ngoài Trời",
-    floor: "Bãi xe",
-    eventType: "SECURITY_EVENT",
-    eventTypeName: "Tụ tập đông người bất thường (Crowd Gathering)",
-    severity: "MEDIUM",
-    startTime: "2026-10-21T18:20:00+07:00",
-    endTime: "2026-10-21T18:45:00+07:00",
-    duration: "25m 00s",
-    fileSize: "460 MB",
-    resolution: "1920x1080 (1080p 30fps)",
-    format: "MP4 (H.264 / AAC)",
-    storagePath: "/storage/recordings/2026/10/21/CAM-PARK-01_182000.mp4",
-    videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
-    thumbnailUrl: "https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=600&q=80",
-    status: "SAVED",
-    hasIncidentTrigger: true,
-    incidentCode: "INC-2026-0870",
-    notes: "Đội tuần tra đã được điều phối giải tán trật tự bãi xe.",
-  },
-  {
-    id: "REC-20261021-005",
-    cameraId: "CAM-LIB-02",
-    cameraName: "Thư viện Tầng 2 - Khu Tự Học",
-    areaName: "Thư viện trung tâm",
-    building: "Tòa Alpha",
-    floor: "Tầng 2",
-    eventType: "NORMAL_RECORDING",
-    eventTypeName: "Ghi hình theo lịch hoạt động thư viện",
-    severity: null,
-    startTime: "2026-10-21T14:00:00+07:00",
-    endTime: "2026-10-21T16:00:00+07:00",
-    duration: "120m 00s",
-    fileSize: "2.35 GB",
-    resolution: "1920x1080 (1080p 30fps)",
-    format: "MP4 (H.264 / AAC)",
-    storagePath: "/storage/recordings/2026/10/21/CAM-LIB-02_140000.mp4",
-    videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4",
-    thumbnailUrl: "https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&w=600&q=80",
-    status: "SAVED",
-    hasIncidentTrigger: false,
-    incidentCode: null,
-    notes: "Lưu trữ định kỳ phục vụ tra cứu kiểm toán.",
-  },
-  {
-    id: "REC-20261020-006",
-    cameraId: "CAM-SRV-01",
-    cameraName: "Phòng Máy Chủ DC Server Room",
-    areaName: "Khu vực Tuyệt Mật - Data Center",
-    building: "Tòa Alpha",
-    floor: "Tầng Hầm B1",
-    eventType: "SECURITY_EVENT",
-    eventTypeName: "Cảnh báo khói / Cảm biến chuyển động ngoài giờ",
-    severity: "CRITICAL",
-    startTime: "2026-10-20T23:10:15+07:00",
-    endTime: "2026-10-20T23:30:15+07:00",
-    duration: "20m 00s",
-    fileSize: "410 MB",
-    resolution: "2560x1440 (2K 30fps)",
-    format: "MP4 (H.265 / AAC)",
-    storagePath: "/storage/recordings/2026/10/20/CAM-SRV-01_231015.mp4",
-    videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyBlazes.mp4",
-    thumbnailUrl: "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=600&q=80",
-    status: "SAVED",
-    hasIncidentTrigger: true,
-    incidentCode: "INC-2026-0855",
-    notes: "Hệ thống bảo vệ xác nhận lỗi kiểm tra đường dây điều hòa, không phát sinh cháy.",
-  },
-  {
-    id: "REC-20261019-007",
-    cameraId: "CAM-GATE-02",
-    cameraName: "Cổng phụ B (Đường nội bộ)",
-    areaName: "Cổng phía Đông",
-    building: "Khu Ngoài Trời",
-    floor: "Mặt đất",
-    eventType: "NORMAL_RECORDING",
-    eventTypeName: "Ghi hình định kỳ",
-    severity: null,
-    startTime: "2026-10-19T10:00:00+07:00",
-    endTime: "2026-10-19T11:30:00+07:00",
-    duration: "90m 00s",
-    fileSize: "1.75 GB",
-    resolution: "1920x1080 (1080p 30fps)",
-    format: "MP4 (H.264 / AAC)",
-    storagePath: "/storage/recordings/2026/10/19/CAM-GATE-02_100000.mp4",
-    videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WeAreGoingOnBullrun.mp4",
-    thumbnailUrl: "https://images.unsplash.com/photo-1590486803833-1c5dc8ddd4c8?auto=format&fit=crop&w=600&q=80",
-    status: "SAVED",
-    hasIncidentTrigger: false,
-    incidentCode: null,
-    notes: "Lưu trữ định kỳ tự động.",
-  },
-  {
-    id: "REC-20261018-008",
-    cameraId: "CAM-CAFE-01",
-    cameraName: "Khu Căn tin & Sinh viên",
-    areaName: "Căn tin Tòa Delta",
-    building: "Tòa Delta",
-    floor: "Tầng 1",
-    eventType: "SECURITY_EVENT",
-    eventTypeName: "Xô xát / Hành vi gây rối (Aggressive Behavior)",
-    severity: "HIGH",
-    startTime: "2026-10-18T12:15:00+07:00",
-    endTime: "2026-10-18T12:35:10+07:00",
-    duration: "20m 10s",
-    fileSize: "380 MB",
-    resolution: "1920x1080 (1080p 30fps)",
-    format: "MP4 (H.264 / AAC)",
-    storagePath: "/storage/recordings/2026/10/18/CAM-CAFE-01_121500.mp4",
-    videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WhatCarCanYouGetForAGrand.mp4",
-    thumbnailUrl: "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=600&q=80",
-    status: "SAVED",
-    hasIncidentTrigger: true,
-    incidentCode: "INC-2026-0812",
-    notes: "Bảo vệ xử lý hiện trường, lập biên bản sinh viên vi phạm quy chế.",
-  },
-];
+/**
+ * Lấy danh sách toàn bộ video ghi hình thực tế trên ổ cứng (C:\DATN\...\recording)
+ */
+export async function fetchDiskRecordings({ cameraId = "", search = "", fromDate = "", toDate = "" } = {}) {
+  const params = new URLSearchParams();
+  if (cameraId) params.append("cameraId", cameraId);
+  if (search) params.append("search", search);
+  if (fromDate) params.append("fromDate", fromDate);
+  if (toDate) params.append("toDate", toDate);
+
+  const queryStr = params.toString() ? `?${params.toString()}` : "";
+  const res = await fetch(`${API_BASE_URL}/api/cameras/recordings${queryStr}`, {
+    method: "GET",
+    headers: getHeaders(),
+  });
+
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ message: "Không thể tải danh sách bản ghi" }));
+    throw new Error(error.message || `Lỗi HTTP ${res.status}`);
+  }
+
+  const json = await res.json();
+  const rawList = json.data || [];
+
+  // Chuẩn hoá URL video sang full URL backend
+  return rawList.map((item) => {
+    const videoUrl = item.videoUrl?.startsWith("http")
+      ? item.videoUrl
+      : `${API_BASE_URL}${item.videoUrl}`;
+
+    const downloadUrl = item.downloadUrl?.startsWith("http")
+      ? item.downloadUrl
+      : `${API_BASE_URL}${item.downloadUrl}`;
+
+    return {
+      ...item,
+      videoUrl,
+      downloadUrl,
+    };
+  });
+}

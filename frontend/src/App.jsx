@@ -239,14 +239,18 @@ function App() {
 								element={<Navigate to="/cameras" replace />}
 							/>
 
-							{/* Video Recordings - Admin and Facility Manager */}
+							{/* Video Recordings - Admin, Facility Manager and Guard */}
 							<Route
 								path="/recordings"
 								element={
-									<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.FACILITY_MANAGER]}>
+									<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.FACILITY_MANAGER, ROLES.GUARD]}>
 										<RecordingPage />
 									</ProtectedRoute>
 								}
+							/>
+							<Route
+								path="/recording"
+								element={<Navigate to="/recordings" replace />}
 							/>
 							<Route
 								path="/admin/recordings"

@@ -127,3 +127,8 @@ icss:
     # Khoá dùng chung AI service ↔ backend (header X-Service-Key) cho check-entry và /api/internal/**.
     # Bắt buộc, tối thiểu 32 ký tự: thiếu thì backend không khởi động. Giá trị chỉ đặt trong .env, không commit.
     service-key: ${INTERNAL_SERVICE_KEY:}
+
+recording:
+  storage:
+    path: ${RECORDING_STORAGE_PATH:C:/DATN/AI-Based-Intelligent-Campus-Security-Surveillance-System/recording}
+

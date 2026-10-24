@@ -59,6 +59,13 @@ class Settings(BaseSettings):
     DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS: float = 30.0
     TIMEZONE: str = "Asia/Ho_Chi_Minh"
     
+    # Continuous Video Recording Configuration
+    RECORDING_BASE_DIR: str = Field(
+        default=r"C:\DATN\AI-Based-Intelligent-Campus-Security-Surveillance-System\recording",
+        validation_alias="RECORDING_BASE_DIR"
+    )
+    RECORDING_SEGMENT_SECONDS: int = Field(default=60, validation_alias="RECORDING_SEGMENT_SECONDS")
+
     # Backend Access Decision Service Integration
     BACKEND_API_URL: str = Field(default="http://localhost:8080", validation_alias="BACKEND_API_URL")
     ACCESS_DECISION_CACHE_TTL: float = 30.0

@@ -63,14 +63,15 @@ public class CameraStreamLifecycleService {
         // 1. Đăng ký luồng sang MediaMTX Gateway (WHEP/HLS)
         mediaMtxService.syncCameraPath(camera.getCameraCode(), rtspUrl);
 
-        // 2. Kích hoạt background AI Stream Worker (nếu có cấu hình AI Service)
+        // 2. Kích hoạt background AI Stream Worker (nếu có cấu hình AI Service) qua MediaMTX Gateway
         try {
             String streamStartUrl = aiServiceUrl + "/api/v1/stream/start";
+            String workerRtspUrl = mediaMtxService.getGatewayRtspUrl(camera.getCameraCode());
             restTemplate.postForObject(streamStartUrl, Map.of(
                     "camera_code", camera.getCameraCode(),
-                    "rtsp_url", rtspUrl
+                    "rtsp_url", workerRtspUrl
             ), Map.class);
-            log.info("✅ Đã kích hoạt AI Stream Worker cho camera [{}]", camera.getCameraCode());
+            log.info("✅ Đã kích hoạt AI Stream Worker cho camera [{}] qua MediaMTX Gateway ({})", camera.getCameraCode(), workerRtspUrl);
         } catch (Exception ex) {
             log.warn("⚠️ Không thể kích hoạt AI Stream Worker cho camera [{}]: {}", camera.getCameraCode(), ex.getMessage());
         }

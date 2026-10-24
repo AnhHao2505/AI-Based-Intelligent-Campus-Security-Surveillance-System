@@ -67,3 +67,7 @@ ai-service/models/w600k_r50.onnx
 # local only
 Claude outputs/
 backup_*.sql
+*.dll
+*.mp4
+recording/
+video/

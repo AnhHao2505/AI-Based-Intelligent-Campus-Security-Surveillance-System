@@ -187,6 +187,12 @@ public class CameraService {
                             .build();
                     cameraHealthLogRepository.save(healthLog);
                     log.info("Cập nhật trạng thái kết nối camera [{}]: {} -> {}", cam.getCameraCode(), currentStatus, newStatus);
+
+                    if (newStatus == OperationalStatus.ONLINE) {
+                        startAiStreamWorkerSafely(cam.getCameraCode());
+                    } else if (newStatus == OperationalStatus.OFFLINE) {
+                        stopAiStreamWorkerSafely(cam.getCameraCode());
+                    }
                 }
             }
         } catch (Exception e) {
@@ -275,7 +281,7 @@ public class CameraService {
                         if (cfg.getCamera().getOperationalStatus() == OperationalStatus.ONLINE) {
                             try {
                                 String streamStartUrl = aiServiceUrl + "/api/v1/stream/start";
-                                String workerRtspUrl = rtspUrl;
+                                String workerRtspUrl = mediaMtxService.getGatewayRtspUrl(cfg.getCamera().getCameraCode());
                                 restTemplate.postForObject(streamStartUrl, Map.of(
                                         "camera_code", cfg.getCamera().getCameraCode(),
                                         "rtsp_url", workerRtspUrl
@@ -439,6 +445,23 @@ public class CameraService {
             log.info("Successfully synced ROI geometry to AI Service for camera [{}]", cameraCode);
         } catch (Exception e) {
             log.warn("Could not sync ROI geometry to AI Service for camera [{}]: {}", cameraCode, e.getMessage());
+        }
+    }
+
+    private void startAiStreamWorkerSafely(String cameraCode) {
+        if (cameraCode == null || cameraCode.isBlank() || aiServiceUrl == null || aiServiceUrl.isBlank()) {
+            return;
+        }
+        try {
+            String streamStartUrl = aiServiceUrl + "/api/v1/stream/start";
+            String workerRtspUrl = mediaMtxService.getGatewayRtspUrl(cameraCode);
+            restTemplate.postForObject(streamStartUrl, Map.of(
+                    "camera_code", cameraCode,
+                    "rtsp_url", workerRtspUrl
+            ), Map.class);
+            log.info("✅ Đã tự động kích hoạt AI Stream Worker & Continuous Recording cho camera [{}] qua MediaMTX Gateway ({})", cameraCode, workerRtspUrl);
+        } catch (Exception ex) {
+            log.warn("⚠️ Không thể tự động kích hoạt AI Stream Worker cho camera [{}]: {}", cameraCode, ex.getMessage());
         }
     }
 
