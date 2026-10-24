@@ -183,7 +183,31 @@ export default function CameraAccessLogsTab({ camera }) {
     }
   };
 
+  const cleanReasonDetails = (reason, accessResult) => {
+    if (!reason) return "";
+    let text = String(reason)
+      .replace(/\[[A-Z0-9_]+\]\s*/g, "")
+      .trim();
+
+    if (
+      accessResult === "UNKNOWN_PERSON" &&
+      (text.includes("không tồn tại") ||
+        text.includes("đã bị xoá") ||
+        text.includes("chưa đăng ký") ||
+        text.includes("chưa rõ mặt"))
+    ) {
+      return "Phát hiện người chưa đăng ký tại khu vực giám sát.";
+    }
+
+    if (text.includes("Lý do:")) {
+      return text.substring(text.indexOf("Lý do:") + 6).trim();
+    }
+
+    return text;
+  };
+
   const getSourceBadge = (source) => {
+    if (!source || source === "NONE") return null;
     switch (source) {
       case "ACCESS_LEVEL":
         return { label: "Cấp độ tài khoản", icon: KeyRound, bg: "rgba(59, 130, 246, 0.12)", color: "#3b82f6" };
@@ -198,7 +222,7 @@ export default function CameraAccessLogsTab({ camera }) {
       case "OPEN_EVENT":
         return { label: "Chế độ sự kiện", icon: Calendar, bg: "rgba(236, 72, 153, 0.12)", color: "#ec4899" };
       default:
-        return { label: "Quét thông thường", icon: Radio, bg: "rgba(100, 116, 139, 0.12)", color: "#64748b" };
+        return null;
     }
   };
 
@@ -311,7 +335,7 @@ export default function CameraAccessLogsTab({ camera }) {
             {logs.map((item, idx) => {
               const { time, date } = formatLogTime(item.loggedAt);
               const sourceBadge = getSourceBadge(item.accessSource);
-              const SourceIcon = sourceBadge.icon;
+              const SourceIcon = sourceBadge?.icon;
               const itemColor = item.colorCode || "#10b981";
 
               return (
@@ -354,16 +378,18 @@ export default function CameraAccessLogsTab({ camera }) {
                           {item.resultDescription || item.accessResult}
                         </span>
 
-                        <span
-                          className="access-source-badge"
-                          style={{
-                            color: sourceBadge.color,
-                            backgroundColor: sourceBadge.bg,
-                          }}
-                        >
-                          <SourceIcon size={12} />
-                          <span>{sourceBadge.label}</span>
-                        </span>
+                        {sourceBadge && (
+                          <span
+                            className="access-source-badge"
+                            style={{
+                              color: sourceBadge.color,
+                              backgroundColor: sourceBadge.bg,
+                            }}
+                          >
+                            {SourceIcon && <SourceIcon size={12} />}
+                            <span>{sourceBadge.label}</span>
+                          </span>
+                        )}
                       </div>
 
                       {item.userAccessLevel !== null && item.userAccessLevel !== undefined && (
@@ -376,12 +402,26 @@ export default function CameraAccessLogsTab({ camera }) {
                     <div className="timeline-card-body">
                       <div className="person-identity">
                         <h4 className="person-name">
-                          {item.accessResult === "UNKNOWN_PERSON"
-                            ? (item.fullName && item.fullName !== "Chưa xác định" ? item.fullName : "Người lạ / Chưa rõ mặt")
-                            : (item.fullName || (item.userCode?.startsWith("UNKNOWN") ? "Người lạ / Chưa rõ mặt" : "Chưa xác định"))}
+                          {item.fullName &&
+                          item.fullName !== "Chưa xác định" &&
+                          item.fullName !== "Đối tượng chưa cấp quyền"
+                            ? item.fullName
+                            : item.accessResult === "UNKNOWN_PERSON" ||
+                                item.userCode?.startsWith("UNKNOWN") ||
+                                item.userCode === "VIOLATION"
+                              ? "Người lạ / Chưa rõ mặt"
+                              : "Đối tượng chưa cấp quyền"}
                         </h4>
                         <span className="person-code font-mono">
-                          [{item.accessResult === "UNKNOWN_PERSON" ? "UNKNOWN" : (item.userCode || "N/A")}]
+                          [
+                          {item.userCode &&
+                          !item.userCode.startsWith("UNKNOWN") &&
+                          item.userCode !== "VIOLATION"
+                            ? item.userCode
+                            : item.accessResult === "UNKNOWN_PERSON"
+                              ? "UNKNOWN"
+                              : "N/A"}
+                          ]
                         </span>
                         {item.areaName && (
                           <span className="person-area-tag">
@@ -392,9 +432,7 @@ export default function CameraAccessLogsTab({ camera }) {
 
                       {item.reasonDetails && (
                         <p className="timeline-card-reason">
-                          {item.accessResult === "UNKNOWN_PERSON" && (item.reasonDetails.includes("không tồn tại") || item.reasonDetails.includes("đã bị xoá"))
-                            ? "[UNKNOWN_PERSON] Phát hiện đối tượng chưa đăng ký / người lạ (chưa rõ mặt) tại khu vực giám sát."
-                            : item.reasonDetails}
+                          {cleanReasonDetails(item.reasonDetails, item.accessResult)}
                         </p>
                       )}
                     </div>

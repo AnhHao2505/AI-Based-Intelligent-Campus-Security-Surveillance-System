@@ -4,10 +4,6 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../incident/providers/incident_provider.dart';
-import '../../incident/widgets/incident_alert_banner.dart';
-import '../../incident/widgets/incident_detail_sheet.dart';
-import '../../incident/widgets/incident_queue_sheet.dart';
 import '../models/area_pin_model.dart';
 import '../providers/map_provider.dart';
 import '../widgets/area_detail_card.dart';
@@ -25,7 +21,6 @@ class GuardMapScreen extends StatefulWidget {
 class _GuardMapScreenState extends State<GuardMapScreen>
     with TickerProviderStateMixin {
   late final MapController _mapController;
-  IncidentProvider? _incidentProvider;
 
   @override
   void initState() {
@@ -34,10 +29,6 @@ class _GuardMapScreenState extends State<GuardMapScreen>
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final mapProvider = context.read<MapProvider>();
-      final incidentProvider = context.read<IncidentProvider>();
-
-      incidentProvider.initStomp();
-      incidentProvider.loadActiveIncidents();
 
       await mapProvider.initLocation();
       await mapProvider.fetchAreaPins();
@@ -49,61 +40,6 @@ class _GuardMapScreenState extends State<GuardMapScreen>
         _flyTo(mapProvider.guardLocation!, 17.0);
       }
     });
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final provider = context.read<IncidentProvider>();
-    if (_incidentProvider != provider) {
-      _incidentProvider?.removeListener(_onIncidentProviderChanged);
-      _incidentProvider = provider;
-      _incidentProvider?.addListener(_onIncidentProviderChanged);
-    }
-  }
-
-  void _onIncidentProviderChanged() {
-    if (!mounted) return;
-    final provider = _incidentProvider;
-    if (provider == null) return;
-
-    if (provider.errorMessage != null) {
-      final msg = provider.errorMessage!;
-      provider.clearErrorMessage();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(msg),
-          backgroundColor: const Color(0xFFEF4444),
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 4),
-        ),
-      );
-    }
-
-    if (provider.peerClaimNotice != null) {
-      final notice = provider.peerClaimNotice!;
-      provider.clearPeerClaimNotice();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.info_outline, color: Colors.white, size: 20),
-              const SizedBox(width: 8),
-              Expanded(child: Text(notice)),
-            ],
-          ),
-          backgroundColor: const Color(0xFF3B82F6),
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 3),
-        ),
-      );
-    }
-  }
-
-  @override
-  void dispose() {
-    _incidentProvider?.removeListener(_onIncidentProviderChanged);
-    super.dispose();
   }
 
   void _flyTo(LatLng target, double targetZoom) {
@@ -212,8 +148,6 @@ class _GuardMapScreenState extends State<GuardMapScreen>
                     mapState.selectedBuilding!.toLowerCase())
             .toList();
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final incProvider = context.watch<IncidentProvider>();
-    final hasIncomingAlert = incProvider.currentAlert != null && !incProvider.isHandlingIncident;
 
     return Scaffold(
       body: Stack(
@@ -501,9 +435,7 @@ class _GuardMapScreenState extends State<GuardMapScreen>
           // 3. Floating Quick Action Controls (Right side)
           Positioned(
             right: 16,
-            bottom: incProvider.isHandlingIncident
-                ? 200
-                : ((mapState.selectedArea != null && !hasIncomingAlert) ? 320 : 32),
+            bottom: (mapState.selectedArea != null) ? 320 : 32,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -560,8 +492,8 @@ class _GuardMapScreenState extends State<GuardMapScreen>
             ),
           ),
 
-          // 4. Area Detail Card at bottom when an area is selected (only when not handling active incident and no incoming emergency alert)
-          if (!incProvider.isHandlingIncident && !hasIncomingAlert && mapState.selectedArea != null)
+          // 4. Area Detail Card at bottom when an area is selected
+          if (mapState.selectedArea != null)
             Positioned(
               left: 0,
               right: 0,
@@ -589,79 +521,6 @@ class _GuardMapScreenState extends State<GuardMapScreen>
                 ),
               ),
             ),
-
-          // 5. Incident Real-time Alert Banner (Top of screen)
-          IncidentAlertBanner(
-            onClaim: (incident) async {
-              final incidentProvider = context.read<IncidentProvider>();
-              final success = await incidentProvider.claimIncident(incident.id);
-              if (success) {
-                final pin = await mapProvider.navigateToIncidentArea(
-                  areaId: incident.areaId,
-                  areaName: incident.areaName,
-                  cameraCode: incident.cameraCode,
-                );
-                if (pin != null) {
-                  _flyTo(pin.latLng, 17.5);
-                }
-                if (mapProvider.currentRoute != null) {
-                  _fitRoute(mapProvider.currentRoute!.points);
-                }
-              }
-            },
-            onTapBadge: () {
-              IncidentQueueSheet.show(
-                context: context,
-                onClaim: (incident) async {
-                  final incidentProvider = context.read<IncidentProvider>();
-                  final success = await incidentProvider.claimIncident(incident.id);
-                  if (success) {
-                    final pin = await mapProvider.navigateToIncidentArea(
-                      areaId: incident.areaId,
-                      areaName: incident.areaName,
-                      cameraCode: incident.cameraCode,
-                    );
-                    if (pin != null) {
-                      _flyTo(pin.latLng, 17.5);
-                    }
-                    if (mapProvider.currentRoute != null) {
-                      _fitRoute(mapProvider.currentRoute!.points);
-                    }
-                  }
-                },
-                onPreviewOnMap: (incident) {
-                  final pin = mapProvider.findPinForIncident(
-                    areaId: incident.areaId,
-                    areaName: incident.areaName,
-                    cameraCode: incident.cameraCode,
-                  );
-                  if (pin != null) {
-                    mapProvider.selectArea(pin);
-                    _flyTo(pin.latLng, 18.0);
-                  }
-                },
-              );
-            },
-          ),
-
-          // 6. Active Incident Detail & Resolution Sheet (Bottom of screen)
-          Consumer<IncidentProvider>(
-            builder: (context, incProvider, child) {
-              final activeIncident = incProvider.activeIncident;
-              if (activeIncident == null) return const SizedBox.shrink();
-
-              return IncidentDetailSheet(
-                incident: activeIncident,
-                onResolved: () {
-                  mapProvider.clearRoute();
-                  mapProvider.selectArea(null);
-                },
-                onCancelNavigation: () {
-                  mapProvider.clearRoute();
-                },
-              );
-            },
-          ),
         ],
       ),
     );

@@ -37,8 +37,6 @@ class CameraRequestValidationTest {
                 .password("secret123")
                 .mainStreamPath("/live/ch0")
                 .subStreamPath("/live/ch1")
-                .retryTimeBeforeAlerting(3)
-                .timeoutMs(5000)
                 .build();
 
         Set<ConstraintViolation<CameraStreamConfigRequest>> violations = validator.validate(req);

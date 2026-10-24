@@ -241,19 +241,7 @@ async def configure_camera(req: ROIConfigRequest):
         )
         worker_updated = True
     else:
-        try:
-            worker_rtsp = f"rtsp://localhost:8554/{req.camera_code.lower()}"
-            worker = CameraStreamWorker(
-                camera_code=req.camera_code,
-                rtsp_url=worker_rtsp,
-                roi_geometry={"polygons": polygons_to_set}
-            )
-            worker.start()
-            active_workers[req.camera_code] = worker
-            worker_updated = True
-            logger.info(f"✅ Tự động khởi động AI Stream Worker cho camera [{req.camera_code}] tại {worker_rtsp}")
-        except Exception as ex:
-            logger.warning(f"⚠️ Không thể tự động khởi động Stream Worker cho [{req.camera_code}]: {ex}")
+        logger.info(f"ℹ️ Camera [{req.camera_code}] chưa có Stream Worker đang chạy. Cấu hình ROI đã được áp dụng vào pipeline mặc định.")
 
     return {
         "success": True,

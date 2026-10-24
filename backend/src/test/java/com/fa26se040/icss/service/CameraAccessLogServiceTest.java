@@ -2,7 +2,6 @@ package com.fa26se040.icss.service;
 
 import com.fa26se040.icss.dto.accessdecision.CheckCameraEntryResponse;
 import com.fa26se040.icss.dto.accesslog.CameraAccessLogResponse;
-import com.fa26se040.icss.dto.accesslog.CameraAccessLogStatsResponse;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.CameraAccessLog;
 import com.fa26se040.icss.entity.User;
@@ -186,7 +185,7 @@ class CameraAccessLogServiceTest {
         assertEquals(AccessResult.UNKNOWN_PERSON, result.getAccessResult());
         assertEquals("UNKNOWN-FACE", result.getUserCode());
         assertEquals("Người lạ / Chưa rõ mặt", result.getFullName());
-        assertEquals("[UNKNOWN_PERSON] Phát hiện đối tượng chưa đăng ký / người lạ (chưa rõ mặt) tại khu vực giám sát.", result.getReasonDetails());
+        assertEquals("Phát hiện người chưa đăng ký tại khu vực giám sát.", result.getReasonDetails());
     }
 
     @Test
@@ -212,7 +211,7 @@ class CameraAccessLogServiceTest {
         assertEquals(AccessResult.UNKNOWN_PERSON, result.getAccessResult());
         assertEquals("SE194249", result.getUserCode());
         assertEquals("Người lạ / Chưa rõ mặt", result.getFullName());
-        assertEquals("[UNKNOWN_PERSON] Phát hiện đối tượng chưa đăng ký / người lạ (chưa rõ mặt) tại khu vực giám sát.", result.getReasonDetails());
+        assertEquals("Phát hiện người chưa đăng ký tại khu vực giám sát.", result.getReasonDetails());
     }
 
     @Test
@@ -237,31 +236,6 @@ class CameraAccessLogServiceTest {
         assertEquals(AccessResult.UNKNOWN_PERSON, result.getAccessResult());
         assertEquals("UNKNOWN", result.getUserCode());
         assertEquals("Người lạ / Chưa rõ mặt", result.getFullName());
-    }
-
-    @Test
-    @DisplayName("Lấy thống kê lượt quét trong ngày thành công")
-    void testGetStatsToday() {
-        when(cameraAccessLogRepository.countByCameraCodeAndLoggedAtBetween(eq("CAM-001"), any(), any()))
-                .thenReturn(10L);
-        when(cameraAccessLogRepository.countByCameraCodeAndLoggedAtBetweenAndAccessResult(eq("CAM-001"), any(), any(), eq(AccessResult.AUTHORIZED_ACCESS)))
-                .thenReturn(7L);
-        when(cameraAccessLogRepository.countByCameraCodeAndLoggedAtBetweenAndAccessResult(eq("CAM-001"), any(), any(), eq(AccessResult.UNAUTHORIZED_ACCESS)))
-                .thenReturn(2L);
-        when(cameraAccessLogRepository.countByCameraCodeAndLoggedAtBetweenAndAccessResult(eq("CAM-001"), any(), any(), eq(AccessResult.ACCESS_OUT_OF_TIME)))
-                .thenReturn(1L);
-        when(cameraAccessLogRepository.countByCameraCodeAndLoggedAtBetweenAndAccessResult(eq("CAM-001"), any(), any(), eq(AccessResult.UNKNOWN_PERSON)))
-                .thenReturn(0L);
-        when(cameraAccessLogRepository.countByCameraCodeAndLoggedAtBetweenAndAccessResult(eq("CAM-001"), any(), any(), eq(AccessResult.INTRUSION)))
-                .thenReturn(0L);
-
-        CameraAccessLogStatsResponse stats = cameraAccessLogService.getStatsToday("CAM-001");
-
-        assertNotNull(stats);
-        assertEquals(10L, stats.getTotalToday());
-        assertEquals(7L, stats.getAuthorizedToday());
-        assertEquals(2L, stats.getUnauthorizedToday());
-        assertEquals(1L, stats.getOutOfTimeToday());
     }
 
     @Test

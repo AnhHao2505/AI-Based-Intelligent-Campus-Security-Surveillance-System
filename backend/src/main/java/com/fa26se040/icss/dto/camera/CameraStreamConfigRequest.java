@@ -39,10 +39,6 @@ public class CameraStreamConfigRequest {
     @Size(max = 512, message = "Đường dẫn luồng phụ không được vượt quá 512 ký tự")
     private String subStreamPath;
 
-    private Integer retryTimeBeforeAlerting;
-
-    private Integer timeoutMs;
-
     public String getEffectivePassword() {
         if (password != null && !password.trim().isEmpty()) {
             return password.trim();

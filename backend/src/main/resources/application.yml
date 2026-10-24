@@ -85,6 +85,10 @@ mediamtx:
   api:
     url: http://${MEDIAMTX_HOST:localhost}:${MEDIAMTX_API_PORT:9997}
 
+camera:
+  rtsp:
+    timeout-ms: ${CAMERA_RTSP_TIMEOUT_MS:10000}
+
 app:
   jwt:
     secret: ${JWT_SECRET}

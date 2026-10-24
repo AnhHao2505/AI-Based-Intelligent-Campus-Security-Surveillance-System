@@ -41,6 +41,14 @@ class ApiEndpoints {
   static String get wsSecurity => '${baseUrl.replaceFirst('http', 'ws')}/ws-security';
 
   // Incidents endpoints
+  static String get incidentsAll => '$baseUrl/api/incidents';
+  static String incidentsFiltered({String? building, String? status}) {
+    final params = <String>[];
+    if (building != null && building.isNotEmpty) params.add('building=$building');
+    if (status != null && status.isNotEmpty) params.add('status=$status');
+    if (params.isEmpty) return incidentsAll;
+    return '$incidentsAll?${params.join('&')}';
+  }
   static String get activeIncidentsAll => '$baseUrl/api/incidents/active';
   static String activeIncidents(String building) => '$baseUrl/api/incidents/active?building=$building';
   static String claimIncident(String incidentId) => '$baseUrl/api/incidents/$incidentId/claim';

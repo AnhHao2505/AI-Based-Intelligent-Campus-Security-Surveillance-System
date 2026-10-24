@@ -2,6 +2,7 @@ package com.fa26se040.icss.util;
 
 import com.fa26se040.icss.enums.RtspConnectionErrorCode;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.BufferedReader;
@@ -19,6 +20,9 @@ import java.nio.charset.StandardCharsets;
 @Component
 public class RtspHandshakeChecker {
 
+    @Value("${camera.rtsp.timeout-ms:10000}")
+    private int defaultTimeoutMs;
+
     /**
      * Mở socket TCP kết nối trực tiếp đến camera RTSP port và gửi lệnh OPTIONS.
      * Hoàn toàn không phụ thuộc AI-service, không giải mã video, phản hồi chỉ mất từ 10ms - 50ms.
@@ -33,7 +37,7 @@ public class RtspHandshakeChecker {
         }
 
         int effectivePort = port > 0 ? port : 554;
-        int effectiveTimeout = timeoutMs > 0 ? timeoutMs : 3000;
+        int effectiveTimeout = timeoutMs > 0 ? timeoutMs : defaultTimeoutMs;
         String effectivePath = (path != null && !path.isBlank()) ? path : "/";
         if (!effectivePath.startsWith("/")) {
             effectivePath = "/" + effectivePath;

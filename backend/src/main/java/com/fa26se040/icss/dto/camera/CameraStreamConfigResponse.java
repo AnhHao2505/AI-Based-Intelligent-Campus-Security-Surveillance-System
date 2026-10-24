@@ -22,8 +22,6 @@ public class CameraStreamConfigResponse {
     private String subStreamPath;
     private String whepUrl;
     private String whepStreamUrl;
-    private Integer retryTimeBeforeAlerting;
-    private Integer timeoutMs;
     private OffsetDateTime updatedAt;
     private OperationalStatus operationalStatus;
 }

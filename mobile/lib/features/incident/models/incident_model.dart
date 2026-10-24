@@ -53,12 +53,15 @@ class IncidentModel {
       case 'UNAUTHORIZED_ACCESS':
       case 'UNAUTHORIZED':
         return 3; // 🔴 CỰC KỲ NGUY CẤP (Critical)
-      case 'UNKNOWN_PERSON':
-      case 'UNKNOWN':
-        return 2; // 🟠 MỨC ĐỘ CAO (High)
+      case 'INTRUSION':
       case 'AFTER_HOURS_ACCESS':
       case 'AFTER_HOURS_PRESENCE':
       case 'AFTER_HOURS':
+        return 2; // 🟠 MỨC ĐỘ CAO (High)
+      case 'ACCESS_OUT_OF_TIME':
+        return 2; // 🟡 MỨC ĐỘ TRUNG BÌNH CAO
+      case 'UNKNOWN_PERSON':
+      case 'UNKNOWN':
       default:
         return 1; // 🟣 CẢNH BÁO (Warning / Medium)
     }
@@ -80,15 +83,17 @@ class IncidentModel {
     switch (eventType.toUpperCase()) {
       case 'UNAUTHORIZED_ACCESS':
       case 'UNAUTHORIZED':
-        return 'Xâm nhập trái phép';
+        return 'Không đủ thẩm quyền';
       case 'UNKNOWN_PERSON':
       case 'UNKNOWN':
-        return 'Người lạ chưa xác minh';
+        return 'Đối tượng không xác định';
       case 'INTRUSION': // backend lưu AFTER_HOURS_* thành INTRUSION (SecurityIncidentService.ingestIncident)
       case 'AFTER_HOURS_ACCESS':
       case 'AFTER_HOURS_PRESENCE':
       case 'AFTER_HOURS':
-        return 'Xâm nhập ngoài giờ';
+        return 'Sau giờ hoạt động';
+      case 'ACCESS_OUT_OF_TIME':
+        return 'Quá thời hạn thẩm quyền';
       default:
         return eventType;
     }

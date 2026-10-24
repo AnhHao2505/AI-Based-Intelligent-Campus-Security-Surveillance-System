@@ -24,6 +24,20 @@ class IncidentService {
     return [];
   }
 
+  /// Lấy danh sách sự cố theo bộ lọc (hoặc tất cả)
+  Future<List<IncidentModel>> getIncidents({String? building, String? status}) async {
+    final url = ApiEndpoints.incidentsFiltered(building: building, status: status);
+    final response = await _apiClient.dio.get(url);
+    final rawData = response.data;
+
+    if (rawData is List) {
+      return rawData
+          .map((item) => IncidentModel.fromJson(item as Map<String, dynamic>))
+          .toList();
+    }
+    return [];
+  }
+
   /// Tiếp nhận xử lý sự cố (Claim)
   Future<Map<String, dynamic>> claimIncident(String incidentId) async {
     final response = await _apiClient.dio.post(

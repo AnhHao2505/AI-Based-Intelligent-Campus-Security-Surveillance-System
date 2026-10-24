@@ -19,8 +19,6 @@ import com.fa26se040.icss.exception.CameraErrorCode;
 import com.fa26se040.icss.exception.CameraException;
 import com.fa26se040.icss.repository.*;
 import com.fa26se040.icss.util.AesEncryptionUtil;
-import com.fa26se040.icss.util.RtspCheckResult;
-import com.fa26se040.icss.util.RtspHandshakeChecker;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -46,10 +44,12 @@ public class CameraService {
     private final MinioStorageService minioStorageService;
     private final SystemConfigService systemConfigService;
     private final AreaRepository areaRepository;
-    private final RtspHandshakeChecker rtspHandshakeChecker;
 
     @Value("${ai.service.url:http://localhost:8000}")
     private String aiServiceUrl;
+
+    @Value("${camera.rtsp.timeout-ms:10000}")
+    private int defaultTimeoutMs;
 
     private final RestTemplate restTemplate = new RestTemplate();
 
@@ -320,8 +320,6 @@ public class CameraService {
         config.setUsername(req.getUsername() != null ? req.getUsername().trim() : null);
         config.setMainStreamPath(req.getMainStreamPath().trim());
         config.setSubStreamPath(req.getSubStreamPath() != null ? req.getSubStreamPath().trim() : null);
-        config.setRetryTimeBeforeAlerting(req.getRetryTimeBeforeAlerting() != null ? req.getRetryTimeBeforeAlerting() : 3);
-        config.setTimeoutMs(req.getTimeoutMs() != null ? req.getTimeoutMs() : 5000);
 
         CameraStreamConfiguration saved = cameraStreamConfigurationRepository.save(config);
 
@@ -543,8 +541,6 @@ public class CameraService {
                 .subStreamPath(config.getSubStreamPath())
                 .whepUrl(whepUrl)
                 .whepStreamUrl(whepUrl)
-                .retryTimeBeforeAlerting(config.getRetryTimeBeforeAlerting())
-                .timeoutMs(config.getTimeoutMs())
                 .updatedAt(config.getCamera() != null ? config.getCamera().getUpdatedAt() : null)
                 .operationalStatus(config.getCamera() != null ? config.getCamera().getOperationalStatus() : null)
                 .build();
@@ -621,40 +617,4 @@ public class CameraService {
         return sb.toString();
     }
 
-    private String cleanErrorMessage(Exception e) {
-        if (e instanceof org.springframework.web.client.HttpStatusCodeException hs) {
-            int code = hs.getStatusCode().value();
-            return switch (code) {
-                case 504 -> "Quá thời gian chờ kết nối (504 Timeout). Vui lòng kiểm tra lại địa chỉ IP, cổng mạng và nguồn camera.";
-                case 502 -> "Không thể kết nối đến cổng AI hoặc MediaMTX Gateway (502 Bad Gateway). Dịch vụ nền có thể chưa sẵn sàng.";
-                case 401, 403 -> "Sai thông tin đăng nhập camera (401/403). Vui lòng kiểm tra lại tài khoản hoặc mật khẩu RTSP.";
-                case 404 -> "Không tìm thấy luồng RTSP (404 Not Found). Vui lòng kiểm tra lại đuôi đường dẫn Main Stream Path.";
-                case 500 -> "Lỗi nội bộ khi khởi tạo luồng giải mã video qua AI-service.";
-                default -> hs.getStatusCode().value() + " " + hs.getStatusText();
-            };
-        }
-        if (e instanceof org.springframework.web.client.ResourceAccessException rae) {
-            String raeMsg = rae.getMessage() != null ? rae.getMessage().toLowerCase() : "";
-            if (raeMsg.contains("timed out") || raeMsg.contains("timeout")) {
-                return "Quá thời gian chờ phản hồi từ camera (Timeout). Vui lòng kiểm tra lại địa chỉ IP và nguồn điện camera.";
-            }
-            if (raeMsg.contains("refused") || raeMsg.contains("connect")) {
-                return "Không thể kết nối đến AI-service. Vui lòng kiểm tra dịch vụ AI trên cổng cấu hình.";
-            }
-            return "Không thể thiết lập kết nối mạng tới camera hoặc dịch vụ AI.";
-        }
-        String msg = e.getMessage();
-        if (msg != null) {
-            msg = msg.replaceAll("([a-zA-Z][a-zA-Z0-9+.-]*://)[^/\\s@]+@", "$1****@");
-            if (msg.contains("504") || msg.toLowerCase().contains("gateway timeout")) {
-                return "Quá thời gian chờ kết nối (504 Timeout). Vui lòng kiểm tra lại địa chỉ IP, cổng mạng và nguồn camera.";
-            }
-            if (msg.contains("502") || msg.toLowerCase().contains("bad gateway")) {
-                return "Không thể kết nối đến AI-service hoặc MediaMTX Gateway (502 Bad Gateway).";
-            }
-            return msg.replaceAll("(?i):\\s*\"Internal Server Error\"", "")
-                      .replaceAll("(?i)500 Internal Server Error: \"Internal Server Error\"", "500 Internal Server Error");
-        }
-        return "Lỗi kết nối không xác định";
-    }
 }

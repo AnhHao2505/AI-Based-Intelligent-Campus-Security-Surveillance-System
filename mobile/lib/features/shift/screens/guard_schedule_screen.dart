@@ -10,6 +10,8 @@ import '../widgets/my_shift_requests_sheet.dart';
 import '../widgets/shift_list_item.dart';
 import '../widgets/weekly_date_bar.dart';
 import '../../map/screens/guard_map_screen.dart';
+import '../../incident/providers/incident_provider.dart';
+import '../../incident/screens/incident_list_screen.dart';
 
 class GuardScheduleScreen extends StatefulWidget {
   const GuardScheduleScreen({super.key});
@@ -24,6 +26,11 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ShiftProvider>().fetchWeeklyShifts();
+      final incidentProvider = context.read<IncidentProvider>();
+      if (!incidentProvider.isStompConnected) {
+        incidentProvider.initStomp();
+      }
+      incidentProvider.loadActiveIncidents();
     });
   }
 
@@ -243,6 +250,59 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
                         icon: Icon(Icons.refresh, color: AppColors.txtSecondary(context), size: 20),
                         tooltip: 'Làm mới lịch trực',
                         onPressed: () => shiftProvider.fetchWeeklyShifts(),
+                      ),
+                      const SizedBox(width: 2),
+
+                      // Incidents icon button with real-time pending badge
+                      Consumer<IncidentProvider>(
+                        builder: (context, incProvider, child) {
+                          final pendingCount = incProvider.pendingCount;
+                          return Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              IconButton(
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.all(6),
+                                constraints: const BoxConstraints(),
+                                icon: Icon(
+                                  Icons.shield_outlined,
+                                  color: pendingCount > 0 ? const Color(0xFFEF4444) : AppColors.txtSecondary(context),
+                                  size: 22,
+                                ),
+                                tooltip: 'Sự cố an ninh',
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (_) => const IncidentListScreen()),
+                                  );
+                                },
+                              ),
+                              if (pendingCount > 0)
+                                Positioned(
+                                  right: 2,
+                                  top: 2,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFEF4444),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(color: AppColors.bg(context), width: 1.5),
+                                    ),
+                                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                                    child: Text(
+                                      pendingCount > 99 ? '99+' : '$pendingCount',
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
                       ),
                       const SizedBox(width: 2),
 

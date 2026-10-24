@@ -70,10 +70,10 @@ class CameraSnapshotServiceTest {
                 .host("192.168.1.100")
                 .port(554)
                 .mainStreamPath("/live")
-                .timeoutMs(3000)
                 .build();
 
         ReflectionTestUtils.setField(cameraSnapshotService, "aiServiceUrl", "http://ai-service:8000");
+        ReflectionTestUtils.setField(cameraSnapshotService, "defaultTimeoutMs", 10000);
         ReflectionTestUtils.setField(cameraSnapshotService, "restTemplate", restTemplate);
     }
 
