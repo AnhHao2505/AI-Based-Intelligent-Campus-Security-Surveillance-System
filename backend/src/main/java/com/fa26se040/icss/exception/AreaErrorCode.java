@@ -44,8 +44,8 @@ public enum AreaErrorCode {
     // Step 5b — đổi loại khu vực, version khu vực, ý định chế độ sự kiện
     ERR_AREA_044("ERR_AREA_044", HttpStatus.BAD_REQUEST, "Thiếu version của khu vực, vui lòng tải lại trang"),
     ERR_AREA_045("ERR_AREA_045", HttpStatus.CONFLICT, "Khu vực đã được người khác cập nhật, vui lòng tải lại"),
-    ERR_AREA_046("ERR_AREA_046", HttpStatus.BAD_REQUEST, "Trường enabled không còn được hỗ trợ, hãy gửi action (ENABLE, ADJUST, DISABLE)"),
-    ERR_AREA_047("ERR_AREA_047", HttpStatus.BAD_REQUEST, "Thiếu action của thao tác chế độ sự kiện (ENABLE, ADJUST, DISABLE)"),
+    ERR_AREA_046("ERR_AREA_046", HttpStatus.BAD_REQUEST, "Trường enabled không còn được hỗ trợ, hãy gửi action DISABLE"),
+    ERR_AREA_047("ERR_AREA_047", HttpStatus.BAD_REQUEST, "Thiếu action của thao tác chế độ sự kiện (chỉ hỗ trợ DISABLE)"),
     ERR_AREA_048("ERR_AREA_048", HttpStatus.CONFLICT, "Khu vực đang mở chế độ sự kiện, không thể đổi sang loại {newType}. Tắt sự kiện trước khi đổi loại"),
     ERR_AREA_049("ERR_AREA_049", HttpStatus.CONFLICT, "Khu vực còn {count} quyền gán nhân sự còn hiệu lực, thu hồi trước khi chuyển sang Công khai"),
     ERR_AREA_050("ERR_AREA_050", HttpStatus.BAD_REQUEST, "Lý do phải có từ {min} đến {max} ký tự"),
