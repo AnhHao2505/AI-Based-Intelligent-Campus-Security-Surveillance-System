@@ -15,6 +15,24 @@ class IncidentDetailSheet extends StatefulWidget {
     this.onCancelNavigation,
   });
 
+  static void show({
+    required BuildContext context,
+    required IncidentModel incident,
+    required VoidCallback onResolved,
+    VoidCallback? onCancelNavigation,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => IncidentDetailSheet(
+        incident: incident,
+        onResolved: onResolved,
+        onCancelNavigation: onCancelNavigation,
+      ),
+    );
+  }
+
   @override
   State<IncidentDetailSheet> createState() => _IncidentDetailSheetState();
 }

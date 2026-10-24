@@ -29,12 +29,12 @@ import {
 import "../../styles/GuardDashboardPage.css";
 import { LoadingState, ErrorState } from "../../components/ui";
 
-// Chuẩn hóa 5 nhóm sự kiện an ninh:
-// 1. AUTHORIZED_ACCESS: Hợp lệ (#10b981)
-// 2. UNAUTHORIZED_ACCESS: Sai quyền (#ef4444)
-// 3. ACCESS_OUT_OF_TIME: Sai giờ (#f59e0b)
-// 4. UNKNOWN_PERSON: Người lạ (#8b5cf6)
-// 5. INTRUSION: Ngoài giờ (#eab308)
+// Chuẩn hóa 5 nhóm sự kiện an ninh theo độ ưu tiên (Priority):
+// 1. UNAUTHORIZED_ACCESS: Không đủ thẩm quyền (Trọng số 3 - Nguy cấp, #ef4444)
+// 2. INTRUSION: Sau giờ hoạt động (Trọng số 2 - Cao, #f97316)
+// 3. ACCESS_OUT_OF_TIME: Quá thời hạn thẩm quyền (Trọng số 2 - Cao, #eab308)
+// 4. UNKNOWN_PERSON: Đối tượng không xác định (Trọng số 1 - Cảnh báo, #8b5cf6)
+// 5. AUTHORIZED_ACCESS: Hợp lệ (Trọng số 0, #10b981)
 const EVENT_SEVERITY_CONFIG = {
 	AUTHORIZED_ACCESS: {
 		weight: 0,
@@ -44,57 +44,57 @@ const EVENT_SEVERITY_CONFIG = {
 	},
 	UNAUTHORIZED_ACCESS: {
 		weight: 3,
-		label: "Sai quyền",
+		label: "Không đủ thẩm quyền",
 		badgeClass: "severity-critical",
 		color: "#ef4444",
 	},
 	UNAUTHORIZED: {
 		weight: 3,
-		label: "Sai quyền",
+		label: "Không đủ thẩm quyền",
 		badgeClass: "severity-critical",
 		color: "#ef4444",
 	},
+	INTRUSION: {
+		weight: 2,
+		label: "Sau giờ hoạt động",
+		badgeClass: "severity-high",
+		color: "#f97316",
+	},
+	AFTER_HOURS_PRESENCE: {
+		weight: 2,
+		label: "Sau giờ hoạt động",
+		badgeClass: "severity-high",
+		color: "#f97316",
+	},
+	AFTER_HOURS_ACCESS: {
+		weight: 2,
+		label: "Sau giờ hoạt động",
+		badgeClass: "severity-high",
+		color: "#f97316",
+	},
+	AFTER_HOURS: {
+		weight: 2,
+		label: "Sau giờ hoạt động",
+		badgeClass: "severity-high",
+		color: "#f97316",
+	},
 	ACCESS_OUT_OF_TIME: {
 		weight: 2,
-		label: "Sai giờ",
+		label: "Quá thời hạn thẩm quyền",
 		badgeClass: "severity-high",
-		color: "#f59e0b",
+		color: "#eab308",
 	},
 	UNKNOWN_PERSON: {
-		weight: 2,
-		label: "Người lạ",
-		badgeClass: "severity-high",
+		weight: 1,
+		label: "Đối tượng không xác định",
+		badgeClass: "severity-warning",
 		color: "#8b5cf6",
 	},
 	UNKNOWN: {
-		weight: 2,
-		label: "Người lạ",
-		badgeClass: "severity-high",
+		weight: 1,
+		label: "Đối tượng không xác định",
+		badgeClass: "severity-warning",
 		color: "#8b5cf6",
-	},
-	INTRUSION: {
-		weight: 3,
-		label: "Ngoài giờ",
-		badgeClass: "severity-critical",
-		color: "#eab308",
-	},
-	AFTER_HOURS_PRESENCE: {
-		weight: 3,
-		label: "Ngoài giờ",
-		badgeClass: "severity-critical",
-		color: "#eab308",
-	},
-	AFTER_HOURS_ACCESS: {
-		weight: 3,
-		label: "Ngoài giờ",
-		badgeClass: "severity-critical",
-		color: "#eab308",
-	},
-	AFTER_HOURS: {
-		weight: 3,
-		label: "Ngoài giờ",
-		badgeClass: "severity-critical",
-		color: "#eab308",
 	},
 };
 
@@ -753,12 +753,23 @@ export function SecuritySurveillancePage() {
 	const pendingAlertCount = activeAlerts.filter(
 		(a) => !a.socAcknowledged && isAlertPending(a.status),
 	).length;
-	const filteredAlerts =
-		alertFilter === "PENDING"
-			? activeAlerts.filter(
-				(a) => !a.socAcknowledged && isAlertPending(a.status),
-			)
-			: activeAlerts;
+	const filteredAlerts = useMemo(() => {
+		const base =
+			alertFilter === "PENDING"
+				? activeAlerts.filter(
+					(a) => !a.socAcknowledged && isAlertPending(a.status),
+				)
+				: [...activeAlerts];
+
+		return base.sort((a, b) => {
+			const weightA = getSeverityMeta(a.eventType).weight;
+			const weightB = getSeverityMeta(b.eventType).weight;
+			if (weightB !== weightA) {
+				return weightB - weightA;
+			}
+			return (b.rawTime || 0) - (a.rawTime || 0);
+		});
+	}, [activeAlerts, alertFilter]);
 
 	return (
 		<div
@@ -792,7 +803,7 @@ export function SecuritySurveillancePage() {
 							<span>Phóng to giám sát</span>
 						</button>
 
-						{/* Bật/Tắt âm thanh chuông */}
+						{/* Bật/Tắt âm thanh */}
 						<button
 							type="button"
 							className={`btn-sound-toggle ${soundEnabled ? "active" : "muted"}`}
@@ -800,12 +811,10 @@ export function SecuritySurveillancePage() {
 								const next = !soundEnabled;
 								setSoundEnabled(next);
 							}}
-							title={
-								soundEnabled ? "Tắt âm thanh còi báo" : "Bật âm thanh còi báo"
-							}
+							title={soundEnabled ? "Tắt âm thanh" : "Bật âm thanh"}
 						>
 							{soundEnabled ? <Volume2 size={15} /> : <VolumeX size={15} />}
-							<span>{soundEnabled ? "Âm thanh" : "Tắt tiếng"}</span>
+							<span>{soundEnabled ? "Âm thanh" : "Tắt âm thanh"}</span>
 						</button>
 
 						{/* Nhóm nút TEST mô phỏng */}
@@ -916,14 +925,10 @@ export function SecuritySurveillancePage() {
 										const next = !soundEnabled;
 										setSoundEnabled(next);
 									}}
-									title={
-										soundEnabled
-											? "Tắt âm thanh còi báo"
-											: "Bật âm thanh còi báo"
-									}
+									title={soundEnabled ? "Tắt âm thanh" : "Bật âm thanh"}
 								>
 									{soundEnabled ? <Volume2 size={12} /> : <VolumeX size={12} />}
-									<span>{soundEnabled ? "Âm thanh" : "Tắt tiếng"}</span>
+									<span>{soundEnabled ? "Âm thanh" : "Tắt âm thanh"}</span>
 								</button>
 								<button
 									type="button"
@@ -1199,10 +1204,10 @@ export function SecuritySurveillancePage() {
 																		type="button"
 																		className="btn-soc-ack"
 																		onClick={() => handleAcknowledge(alert.id)}
-																		title="Xác nhận đã theo dõi qua Camera & Tắt còi tại phòng SOC"
+																		title="Xác nhận đã theo dõi qua Camera"
 																	>
-																		<BellOff size={11} />
-																		<span>Tắt còi</span>
+																		<Eye size={11} />
+																		<span>Đã xem</span>
 																	</button>
 																)}
 															</div>
