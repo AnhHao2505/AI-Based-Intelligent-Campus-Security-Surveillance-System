@@ -46,12 +46,4 @@ public class CameraStreamConfiguration {
 
     @Column(name = "sub_stream_path", length = 512)
     private String subStreamPath;
-
-    @Column(name = "retries_before_alert", nullable = false)
-    @Builder.Default
-    private Integer retryTimeBeforeAlerting = 3;
-
-    @Column(name = "timeout_ms", nullable = false)
-    @Builder.Default
-    private Integer timeoutMs = 5000;
 }

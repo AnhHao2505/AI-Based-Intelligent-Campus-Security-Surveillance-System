@@ -43,6 +43,9 @@ public class CameraSnapshotService {
     @Value("${ai.service.url:http://localhost:8000}")
     private String aiServiceUrl;
 
+    @Value("${camera.rtsp.timeout-ms:10000}")
+    private int defaultTimeoutMs;
+
     @Transactional(readOnly = true)
     public CameraSnapshotResponse captureSnapshot(UUID cameraId) {
         Camera camera = cameraRepository.findById(cameraId)
@@ -60,7 +63,7 @@ public class CameraSnapshotService {
             throw new CameraException(CameraErrorCode.ERR_STREAM_001);
         }
 
-        int timeout = (config.getTimeoutMs() != null && config.getTimeoutMs() > 0) ? config.getTimeoutMs() : 5000;
+        int timeout = defaultTimeoutMs;
 
         try {
             String aiEndpoint = aiServiceUrl + "/api/v1/cameras/snapshot";

@@ -67,8 +67,9 @@ class CameraConnectionServiceTest {
                 .host("192.168.1.100")
                 .port(554)
                 .mainStreamPath("/live")
-                .timeoutMs(3000)
                 .build();
+
+        org.springframework.test.util.ReflectionTestUtils.setField(cameraConnectionService, "defaultTimeoutMs", 10000);
     }
 
     @Test
@@ -83,7 +84,7 @@ class CameraConnectionServiceTest {
                 .statusText("OK")
                 .latencyMs(25L)
                 .build();
-        when(rtspHandshakeChecker.check("192.168.1.100", 554, "/live", 3000)).thenReturn(checkResult);
+        when(rtspHandshakeChecker.check("192.168.1.100", 554, "/live", 10000)).thenReturn(checkResult);
 
         TestConnectionResponse response = cameraConnectionService.testConnection(cameraId);
 
@@ -110,7 +111,7 @@ class CameraConnectionServiceTest {
                 .statusText("Unauthorized")
                 .latencyMs(30L)
                 .build();
-        when(rtspHandshakeChecker.check("192.168.1.100", 554, "/live", 3000)).thenReturn(checkResult);
+        when(rtspHandshakeChecker.check("192.168.1.100", 554, "/live", 10000)).thenReturn(checkResult);
 
         TestConnectionResponse response = cameraConnectionService.testConnection(cameraId);
 
@@ -134,7 +135,6 @@ class CameraConnectionServiceTest {
         customReq.setUsername("custom_user");
         customReq.setPassword("custom_pass");
         customReq.setMainStreamPath("/stream1");
-        customReq.setTimeoutMs(4000);
 
         RtspCheckResult checkResult = RtspCheckResult.builder()
                 .reachable(true)
@@ -142,7 +142,7 @@ class CameraConnectionServiceTest {
                 .statusText("OK")
                 .latencyMs(15L)
                 .build();
-        when(rtspHandshakeChecker.check("10.0.0.99", 8554, "/stream1", 4000)).thenReturn(checkResult);
+        when(rtspHandshakeChecker.check("10.0.0.99", 8554, "/stream1", 10000)).thenReturn(checkResult);
 
         TestConnectionResponse response = cameraConnectionService.testConnection(cameraId, customReq);
 
@@ -162,11 +162,11 @@ class CameraConnectionServiceTest {
 
         RtspCheckResult checkResult = RtspCheckResult.builder()
                 .reachable(false)
-                .latencyMs(3000L)
+                .latencyMs(10000L)
                 .errorCode(com.fa26se040.icss.enums.RtspConnectionErrorCode.ERR_CONN_TIMEOUT)
-                .errorMessage("Quá thời gian chờ phản hồi từ camera (Timeout sau 3000ms). Vui lòng kiểm tra IP và nguồn điện camera.")
+                .errorMessage("Quá thời gian chờ phản hồi từ camera (Timeout sau 10000ms). Vui lòng kiểm tra IP và nguồn điện camera.")
                 .build();
-        when(rtspHandshakeChecker.check("192.168.1.100", 554, "/live", 3000)).thenReturn(checkResult);
+        when(rtspHandshakeChecker.check("192.168.1.100", 554, "/live", 10000)).thenReturn(checkResult);
 
         TestConnectionResponse response = cameraConnectionService.testConnection(cameraId);
 
@@ -174,7 +174,7 @@ class CameraConnectionServiceTest {
         assertFalse(response.isSuccess());
         assertEquals(OperationalStatus.OFFLINE, response.getOperationalStatus());
         assertEquals("ERR_CONN_TIMEOUT", response.getErrorCode());
-        assertEquals("Quá thời gian chờ phản hồi từ camera (Timeout sau 3000ms). Vui lòng kiểm tra IP và nguồn điện camera.", response.getMessage());
+        assertEquals("Quá thời gian chờ phản hồi từ camera (Timeout sau 10000ms). Vui lòng kiểm tra IP và nguồn điện camera.", response.getMessage());
         assertFalse(response.getMessage().contains("Kiểm tra kết nối thất bại:"));
 
         verify(cameraRepository, never()).save(any());

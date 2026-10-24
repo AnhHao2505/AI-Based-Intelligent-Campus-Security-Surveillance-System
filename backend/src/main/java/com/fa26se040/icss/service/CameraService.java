@@ -51,6 +51,9 @@ public class CameraService {
     @Value("${ai.service.url:http://localhost:8000}")
     private String aiServiceUrl;
 
+    @Value("${camera.rtsp.timeout-ms:10000}")
+    private int defaultTimeoutMs;
+
     private final RestTemplate restTemplate = new RestTemplate();
 
     // === Camera CRUD ===
@@ -320,8 +323,6 @@ public class CameraService {
         config.setUsername(req.getUsername() != null ? req.getUsername().trim() : null);
         config.setMainStreamPath(req.getMainStreamPath().trim());
         config.setSubStreamPath(req.getSubStreamPath() != null ? req.getSubStreamPath().trim() : null);
-        config.setRetryTimeBeforeAlerting(req.getRetryTimeBeforeAlerting() != null ? req.getRetryTimeBeforeAlerting() : 3);
-        config.setTimeoutMs(req.getTimeoutMs() != null ? req.getTimeoutMs() : 5000);
 
         CameraStreamConfiguration saved = cameraStreamConfigurationRepository.save(config);
 
@@ -543,8 +544,6 @@ public class CameraService {
                 .subStreamPath(config.getSubStreamPath())
                 .whepUrl(whepUrl)
                 .whepStreamUrl(whepUrl)
-                .retryTimeBeforeAlerting(config.getRetryTimeBeforeAlerting())
-                .timeoutMs(config.getTimeoutMs())
                 .updatedAt(config.getCamera() != null ? config.getCamera().getUpdatedAt() : null)
                 .operationalStatus(config.getCamera() != null ? config.getCamera().getOperationalStatus() : null)
                 .build();

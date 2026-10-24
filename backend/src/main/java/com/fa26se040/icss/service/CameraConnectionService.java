@@ -38,6 +38,9 @@ public class CameraConnectionService {
     @Value("${ai.service.url:http://localhost:8000}")
     private String aiServiceUrl;
 
+    @Value("${camera.rtsp.timeout-ms:10000}")
+    private int defaultTimeoutMs;
+
     /**
      * "Thử kết nối": Chỉ kiểm tra kết nối luồng RTSP qua AI-service.
      * KHÔNG thay đổi operationalStatus, KHÔNG ghi health log, KHÔNG lưu snapshot.
@@ -57,7 +60,7 @@ public class CameraConnectionService {
         String host;
         int port = 554;
         String path = "/";
-        int timeout = 3000;
+        int timeout = defaultTimeoutMs;
 
         if (customReq != null && customReq.getHost() != null && !customReq.getHost().isBlank()) {
             host = customReq.getHost().trim();
@@ -66,9 +69,6 @@ public class CameraConnectionService {
             }
             if (customReq.getMainStreamPath() != null && !customReq.getMainStreamPath().isBlank()) {
                 path = customReq.getMainStreamPath().trim();
-            }
-            if (customReq.getTimeoutMs() != null && customReq.getTimeoutMs() > 0) {
-                timeout = customReq.getTimeoutMs();
             }
         } else {
             if (config == null) {
@@ -80,9 +80,6 @@ public class CameraConnectionService {
             }
             if (config.getMainStreamPath() != null && !config.getMainStreamPath().isBlank()) {
                 path = config.getMainStreamPath().trim();
-            }
-            if (config.getTimeoutMs() != null && config.getTimeoutMs() > 0) {
-                timeout = config.getTimeoutMs();
             }
         }
 
