@@ -310,7 +310,8 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("TC-CE-03 (V83): Bảo mật (Liên hệ trước cũ): L3, L2 vào thẳng; L1 đơn PENDING/REJECTED/CANCELLED -> DENIED; APPROVED [s,e) chứa t -> ALLOWED; t=e và t=s-1m -> DENIED; thành viên bảo lãnh L1 trong khung -> ALLOWED")
     void tc_ce_03() {
-        OffsetDateTime now = OffsetDateTime.now();
+        // Postgres lưu micro giây và làm tròn; cắt now() về micro giây để mốc biên (t = e) khớp giá trị đọc lại từ DB
+        OffsetDateTime now = OffsetDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS);
         OffsetDateTime start = now.plusHours(1);
         OffsetDateTime end = now.plusHours(3);
 
@@ -506,7 +507,8 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("TC-CE-06: Sự kiện: L1 trước giờ kết thúc -> ALLOWED (OPEN_EVENT); tại/sau giờ kết thúc -> DENIED; tài khoản khoá -> DENIED; khách -> DENIED")
     void tc_ce_06() {
-        OffsetDateTime now = OffsetDateTime.now();
+        // Postgres lưu micro giây và làm tròn; cắt now() về micro giây để mốc biên (t = e) khớp giá trị đọc lại từ DB
+        OffsetDateTime now = OffsetDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS);
         OffsetDateTime eventEnd = now.plusHours(2);
 
         internalArea.setOpenToMembers(true);
@@ -559,7 +561,8 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("TC-CE-07: Khách: trong khung -> ALLOWED; t=e -> DENIED; khu vực ngoài lượt -> DENIED; lượt PENDING/CANCELLED/REVOKED -> DENIED; host mất quyền -> DENIED; đã xoá sinh trắc -> DENIED")
     void tc_ce_07() {
-        OffsetDateTime now = OffsetDateTime.now();
+        // Postgres lưu micro giây và làm tròn; cắt now() về micro giây để mốc biên (t = e) khớp giá trị đọc lại từ DB
+        OffsetDateTime now = OffsetDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS);
         OffsetDateTime start = now.minusHours(1);
         OffsetDateTime end = now.plusHours(2);
 
