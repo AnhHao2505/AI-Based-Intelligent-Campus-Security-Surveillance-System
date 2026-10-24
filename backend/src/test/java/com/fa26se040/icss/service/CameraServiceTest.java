@@ -226,4 +226,52 @@ class CameraServiceTest {
         ));
         verify(mediaMtxService).deleteCameraPath("CAM-001");
     }
+
+    @Test
+    @DisplayName("DeleteCamera: happy path should soft-delete, unassign area (area=null), and clean MediaMTX path")
+    void testDeleteCamera_happyPath_unassignsAreaAndCleansGateway() {
+        when(cameraRepository.findById(testCameraId)).thenReturn(Optional.of(testCamera));
+
+        cameraService.deleteCamera(testCameraId);
+
+        verify(cameraRepository).save(argThat(c ->
+                c.getArea() == null &&
+                c.getStatus() == CameraStatus.DECOMMISSIONED &&
+                c.getOperationalStatus() == OperationalStatus.OFFLINE &&
+                c.getDeletedAt() != null
+        ));
+        verify(mediaMtxService).deleteCameraPath("CAM-001");
+    }
+
+    @Test
+    @DisplayName("DecommissionCamera: should transition to DECOMMISSIONED and OFFLINE, retain area, and clean MediaMTX path")
+    void testDecommissionCamera_happyPath_retainsAreaAndCleansGateway() {
+        when(cameraRepository.findById(testCameraId)).thenReturn(Optional.of(testCamera));
+        when(cameraRepository.save(any(Camera.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        CameraDetailResponse response = cameraService.decommissionCamera(testCameraId);
+
+        assertNotNull(response);
+        assertEquals(CameraStatus.DECOMMISSIONED, response.getStatus());
+        assertEquals(OperationalStatus.OFFLINE, response.getOperationalStatus());
+        assertNotNull(testCamera.getArea(), "Decommission camera must retain area association (BR-CAM-06)");
+        verify(cameraRepository).save(argThat(c ->
+                c.getArea() != null &&
+                c.getStatus() == CameraStatus.DECOMMISSIONED &&
+                c.getOperationalStatus() == OperationalStatus.OFFLINE
+        ));
+        verify(mediaMtxService).deleteCameraPath("CAM-001");
+    }
+
+    @Test
+    @DisplayName("DeleteCamera: not found should throw ERR_CAM_002")
+    void testDeleteCamera_notFound_throwsERR_CAM_002() {
+        UUID nonExistentId = UUID.randomUUID();
+        when(cameraRepository.findById(nonExistentId)).thenReturn(Optional.empty());
+
+        CameraException ex = assertThrows(CameraException.class, () -> cameraService.deleteCamera(nonExistentId));
+        assertEquals(CameraErrorCode.ERR_CAM_002, ex.getErrorCode());
+        verify(cameraRepository, never()).save(any());
+        verify(mediaMtxService, never()).deleteCameraPath(anyString());
+    }
 }

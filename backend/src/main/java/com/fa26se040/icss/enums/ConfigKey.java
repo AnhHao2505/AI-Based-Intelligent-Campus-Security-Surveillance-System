@@ -63,7 +63,9 @@ public enum ConfigKey {
     // Checklist 6.1 (V82): độ dài lý do thao tác (huỷ, từ chối, hoàn thành đơn, quy tắc khu vực, cấp truy cập...),
     // tính sau khi trim. Kiểm duy nhất ở ReasonValidator, đọc lại mỗi lần gọi
     REASON_MIN_LENGTH("REASON_MIN_LENGTH", "10"),
-    REASON_MAX_LENGTH("REASON_MAX_LENGTH", "500");
+    REASON_MAX_LENGTH("REASON_MAX_LENGTH", "500"),
+    // M-03 (V89): hạn link đặt lại mật khẩu (phút), đọc lúc tạo token
+    PASSWORD_RESET_TOKEN_MINUTES("PASSWORD_RESET_TOKEN_MINUTES", "15");
 
     private final String key;
     private final String defaultValue;
