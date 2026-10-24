@@ -540,16 +540,16 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
 
     /** BR-EV-A6, BR-EV-31 — nguồn: Step5bEventActionTest#evA6_BR_EV_A6_enableAfterOpenUntil_newSession */
     @Test
-    @DisplayName("EV-A6 (BR-EV-A6): quá open_until, job chưa đóng -> ENABLE -> phiên mới, giờ bắt đầu mới, GUARD nhận EVENT_MODE_CHANGED")
+    @DisplayName("EV-A6 (BR-EV-A6): quá open_until, job chưa đóng -> lịch mới được job kích hoạt -> phiên mới, giờ bắt đầu mới, GUARD nhận EVENT_MODE_CHANGED")
     void evA6_enableAfterOpenUntil_newSession_guardNotified() throws Exception {
         OffsetDateTime now = OffsetDateTime.now();
         Area area = newArea(AreaLevel.CONFIDENTIAL);
         AreaEventSession old = openEvent(area, now.minusHours(2), now.minusMinutes(5));
         OffsetDateTime until = now.plusHours(2).withNano(0);
 
-        MvcResult r = patchEventMode(fm, area, eventBody("ENABLE", until, "SEMINAR", EVENT_NOTE, apiVersion(area)));
+        // X-01a: không còn ENABLE thủ công, phiên mới chỉ mở qua lịch + job kích hoạt
+        openEventViaSchedule(area, now.withNano(0), until);
 
-        assertEquals(200, status(r), describe(r));
         List<AreaEventSession> open = openSessions(area);
         assertEquals(1, open.size(), "Đúng 1 phiên đang mở");
         AreaEventSession fresh = open.get(0);
@@ -567,8 +567,9 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
         Area area = newArea(AreaLevel.CONFIDENTIAL);
         long auditBefore = auditCountForArea(area);
 
+        // X-01a: PATCH event-mode chỉ còn DISABLE; thiếu version vẫn bị chặn trước khi khoá
         MvcResult r = patchEventMode(fm, area,
-                eventBody("ENABLE", OffsetDateTime.now().plusHours(2), "SEMINAR", EVENT_NOTE, null));
+                eventBody("DISABLE", null, "ENDED_EARLY", EVENT_NOTE, null));
 
         assertEquals(400, status(r), describe(r));
         assertEquals("ERR_AREA_044", errorCode(r));

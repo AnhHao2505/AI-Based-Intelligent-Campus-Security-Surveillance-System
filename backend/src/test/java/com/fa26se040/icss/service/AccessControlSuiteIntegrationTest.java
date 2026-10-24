@@ -48,6 +48,9 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
     private AreaService areaService;
 
     @Autowired
+    private AreaEventScheduleRepository eventScheduleRepository;
+
+    @Autowired
     private AreaLevelPresetService areaLevelPresetService;
 
     @Autowired
@@ -675,10 +678,13 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isUnauthorized());
 
         // 3. event-mode: FM -> 200, NORMAL_USER -> 403, GUARD -> 403, không token -> 401
+        // X-01a: chỉ còn Dừng (DISABLE) -> mở sự kiện qua lịch + job kích hoạt trước
         OffsetDateTime now = OffsetDateTime.now();
+        EventScheduleActivationTestSupport.openViaSchedule(eventScheduleRepository, areaService, internalArea, fmUser,
+                "SEMINAR", "Hội thảo/sự kiện chuyên môn", now.minusMinutes(1), now.plusHours(2));
         String eventJson = String.format(
-                "{\"action\":\"ENABLE\",\"openUntil\":\"%s\",\"reasonCode\":\"SEMINAR\",\"note\":\"Kiem tra quyen event dai hon 10 ky tu\",\"version\":%d}",
-                now.plusHours(2), areaService.getAreaById(internalArea.getId()).version()
+                "{\"action\":\"DISABLE\",\"reasonCode\":\"ENDED_EARLY\",\"note\":\"Kiem tra quyen event dai hon 10 ky tu\",\"version\":%d}",
+                areaService.getAreaById(internalArea.getId()).version()
         );
 
         mockMvc.perform(patch("/api/areas/{id}/event-mode", internalArea.getId())
@@ -698,14 +704,16 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("BR-EV-22 (V83): FM bật chế độ sự kiện: khu Bảo mật -> 200; Tuyệt mật / Công khai -> 400 ERR_AREA_022 \"chỉ áp dụng cho khu vực Bảo mật\"")
+    @DisplayName("BR-EV-22 (V83): FM đặt lịch sự kiện: khu Bảo mật -> mở được (qua job kích hoạt); Tuyệt mật / Công khai -> 400 ERR_AREA_022 \"chỉ áp dụng cho khu vực Bảo mật\"")
     void eventMode_onlyConfidentialArea() throws Exception {
-        OffsetDateTime until = OffsetDateTime.now().plusHours(2);
+        // X-01a: sự kiện chỉ mở qua lịch, BR-EV-22 kiểm ở bước đặt lịch
+        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime until = now.plusHours(2);
         for (Area area : List.of(highlyConfidentialArea, publicArea)) {
             String json = String.format(
-                    "{\"action\":\"ENABLE\",\"openUntil\":\"%s\",\"reasonCode\":\"SEMINAR\",\"note\":\"Hoi thao khu vuc khong ho tro su kien\",\"version\":%d}",
-                    until, areaService.getAreaById(area.getId()).version());
-            mockMvc.perform(patch("/api/areas/{id}/event-mode", area.getId())
+                    "{\"title\":\"Sự kiện thử nghiệm\",\"startAt\":\"%s\",\"endAt\":\"%s\",\"reasonCode\":\"SEMINAR\",\"note\":\"Hoi thao khu vuc khong ho tro su kien\"}",
+                    now.plusHours(1), until.plusHours(1));
+            mockMvc.perform(post("/api/areas/{id}/event-schedules", area.getId())
                             .header("Authorization", bearer(fmUser))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(json))
@@ -713,14 +721,8 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
                     .andExpect(jsonPath("$.code").value("ERR_AREA_022"))
                     .andExpect(jsonPath("$.message").value("Chế độ sự kiện chỉ áp dụng cho khu vực Bảo mật"));
         }
-        String ok = String.format(
-                "{\"action\":\"ENABLE\",\"openUntil\":\"%s\",\"reasonCode\":\"SEMINAR\",\"note\":\"Hoi thao tai khu vuc Bao mat\",\"version\":%d}",
-                until, areaService.getAreaById(contactArea.getId()).version());
-        mockMvc.perform(patch("/api/areas/{id}/event-mode", contactArea.getId())
-                        .header("Authorization", bearer(fmUser))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(ok))
-                .andExpect(status().isOk());
+        EventScheduleActivationTestSupport.openViaSchedule(eventScheduleRepository, areaService, contactArea, fmUser,
+                "SEMINAR", "Hội thảo/sự kiện chuyên môn", now.minusMinutes(1), until);
         assertTrue(accessDecisionService.checkEntry(normalUserL1.getId(), contactArea.getId(), OffsetDateTime.now()).allowed(),
                 "L1 vào khu Bảo mật đang mở sự kiện");
     }
