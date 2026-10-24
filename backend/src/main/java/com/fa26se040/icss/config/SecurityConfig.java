@@ -61,6 +61,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/access-control/check-entry", "/api/internal/**").permitAll()
                         .requestMatchers("/ws-security/**").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                        .requestMatchers("/api/cameras/recordings/stream").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(internalServiceKeyFilter, UsernamePasswordAuthenticationFilter.class)

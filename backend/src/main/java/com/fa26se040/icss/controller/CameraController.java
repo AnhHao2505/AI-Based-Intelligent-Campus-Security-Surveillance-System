@@ -19,7 +19,10 @@ import com.fa26se040.icss.service.CameraService;
 import com.fa26se040.icss.service.CameraConnectionService;
 import com.fa26se040.icss.service.CameraSnapshotService;
 import com.fa26se040.icss.service.CameraStreamLifecycleService;
+import com.fa26se040.icss.service.CameraRecordingService;
+import org.springframework.http.HttpHeaders;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
 
@@ -33,6 +36,7 @@ public class CameraController {
     private final CameraConnectionService cameraConnectionService;
     private final CameraSnapshotService cameraSnapshotService;
     private final CameraStreamLifecycleService cameraStreamLifecycleService;
+    private final CameraRecordingService cameraRecordingService;
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
@@ -163,5 +167,27 @@ public class CameraController {
         CameraDetailResponse response = cameraService.updateRoiGeometry(id, request);
         return ResponseEntity.ok(ApiResponse.success(response, "Cập nhật cấu hình vùng giám sát ROI thành công"));
     }
+
+    @GetMapping("/recordings")
+    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER', 'GUARD')")
+    public ResponseEntity<ApiResponse<List<RecordingVideoResponse>>> listRecordings(
+            @RequestParam(required = false) String cameraId,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String fromDate,
+            @RequestParam(required = false) String toDate) {
+        log.info("REST request to list video recordings on disk, cameraId: {}, search: {}", cameraId, search);
+        List<RecordingVideoResponse> list = cameraRecordingService.listRecordings(cameraId, search, fromDate, toDate);
+        return ResponseEntity.ok(ApiResponse.success(list, "Lấy danh sách video ghi hình thành công"));
+    }
+
+    @GetMapping("/recordings/stream")
+    public ResponseEntity<org.springframework.core.io.Resource> streamRecording(
+            @RequestParam String path,
+            @RequestParam(required = false, defaultValue = "false") boolean download,
+            @RequestHeader HttpHeaders headers) throws IOException {
+        log.debug("REST request to stream recording: {}", path);
+        return cameraRecordingService.streamVideo(path, headers, download);
+    }
 }
+
 

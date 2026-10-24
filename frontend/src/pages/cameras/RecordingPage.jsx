@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Video,
   Search,
@@ -18,22 +18,28 @@ import {
   Film,
   Camera,
   RotateCcw,
+  RefreshCw,
+  FolderOpen,
 } from "lucide-react";
 import PageHeader from "../../components/ui/PageHeader";
 import Button from "../../components/ui/Button";
 import {
   RECORDING_TIME_RANGES,
   EVENT_TYPE_OPTIONS,
-  MOCK_RECORDINGS,
   SECURITY_SEVERITY_LEVELS,
+  fetchDiskRecordings,
 } from "../../services/recordingService";
 import "../../styles/RecordingPage.css";
 
 export default function RecordingPage() {
+  const [recordings, setRecordings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
   // Filters state
-  const [timeRange, setTimeRange] = useState("today");
-  const [customFromDate, setCustomFromDate] = useState("2026-10-22");
-  const [customToDate, setCustomToDate] = useState("2026-10-22");
+  const [timeRange, setTimeRange] = useState("all");
+  const [customFromDate, setCustomFromDate] = useState("");
+  const [customToDate, setCustomToDate] = useState("");
   const [customFromTime, setCustomFromTime] = useState("00:00");
   const [customToTime, setCustomToTime] = useState("23:59");
 
@@ -47,23 +53,45 @@ export default function RecordingPage() {
   // Selected video for modal player
   const [activeVideo, setActiveVideo] = useState(null);
 
-  // Extract unique camera list for dropdown
+  // Tải danh sách video thực tế trên ổ đĩa từ backend
+  const loadRecordings = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await fetchDiskRecordings({
+        cameraId: selectedCameraId,
+        search: searchKeyword,
+      });
+      setRecordings(data);
+    } catch (err) {
+      console.error("Lỗi khi tải danh sách video ghi hình:", err);
+      setError(err.message || "Không thể kết nối đến máy chủ lưu trữ video.");
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedCameraId, searchKeyword]);
+
+  useEffect(() => {
+    loadRecordings();
+  }, [loadRecordings]);
+
+  // Tự động trích xuất danh sách Camera từ các file ghi nhận được
   const cameraOptions = useMemo(() => {
     const map = new Map();
-    MOCK_RECORDINGS.forEach((rec) => {
-      if (!map.has(rec.cameraId)) {
-        map.set(rec.cameraId, `${rec.cameraId} - ${rec.cameraName}`);
+    recordings.forEach((rec) => {
+      if (rec.cameraId && !map.has(rec.cameraId)) {
+        map.set(rec.cameraId, `${rec.cameraId} - ${rec.cameraName || rec.cameraId}`);
       }
     });
     return Array.from(map.entries()).map(([value, label]) => ({
       value,
       label,
     }));
-  }, []);
+  }, [recordings]);
 
-  // Filtered recordings logic
+  // Bộ lọc thời gian và loại sự kiện
   const filteredRecordings = useMemo(() => {
-    return MOCK_RECORDINGS.filter((item) => {
+    return recordings.filter((item) => {
       // Filter by Camera
       if (selectedCameraId && item.cameraId !== selectedCameraId) {
         return false;
@@ -74,22 +102,23 @@ export default function RecordingPage() {
         return false;
       }
 
-      // Filter by Keyword (search in camera, notes, incident code, area)
+      // Filter by Keyword
       if (searchKeyword.trim()) {
         const kw = searchKeyword.toLowerCase();
         const matches =
-          item.cameraId.toLowerCase().includes(kw) ||
-          item.cameraName.toLowerCase().includes(kw) ||
-          item.areaName.toLowerCase().includes(kw) ||
-          item.building.toLowerCase().includes(kw) ||
-          (item.incidentCode && item.incidentCode.toLowerCase().includes(kw)) ||
-          item.notes.toLowerCase().includes(kw);
+          item.cameraId?.toLowerCase().includes(kw) ||
+          item.cameraName?.toLowerCase().includes(kw) ||
+          item.areaName?.toLowerCase().includes(kw) ||
+          item.building?.toLowerCase().includes(kw) ||
+          item.filename?.toLowerCase().includes(kw) ||
+          (item.notes && item.notes.toLowerCase().includes(kw));
         if (!matches) return false;
       }
 
       // Filter by Time Range
+      if (!item.startTime) return true;
       const itemDate = new Date(item.startTime);
-      const now = new Date("2026-10-22T09:00:00+07:00"); // anchored system time
+      const now = new Date();
 
       if (timeRange === "today") {
         const isSameDay =
@@ -105,11 +134,11 @@ export default function RecordingPage() {
         if (diffMs < 0 || diffMs > 7 * 24 * 60 * 60 * 1000) return false;
       } else if (timeRange === "custom") {
         if (customFromDate && customFromTime) {
-          const fromDt = new Date(`${customFromDate}T${customFromTime}:00+07:00`);
+          const fromDt = new Date(`${customFromDate}T${customFromTime}:00`);
           if (itemDate < fromDt) return false;
         }
         if (customToDate && customToTime) {
-          const toDt = new Date(`${customToDate}T${customToTime}:59+07:00`);
+          const toDt = new Date(`${customToDate}T${customToTime}:59`);
           if (itemDate > toDt) return false;
         }
       }
@@ -117,6 +146,7 @@ export default function RecordingPage() {
       return true;
     });
   }, [
+    recordings,
     selectedCameraId,
     selectedEventType,
     searchKeyword,
@@ -136,13 +166,26 @@ export default function RecordingPage() {
     (r) => r.eventType === "NORMAL_RECORDING"
   ).length;
 
+  const totalSizeBytes = useMemo(() => {
+    return filteredRecordings.reduce((acc, curr) => acc + (curr.fileSizeBytes || 0), 0);
+  }, [filteredRecordings]);
+
+  const formattedTotalStorage = useMemo(() => {
+    if (totalSizeBytes === 0) return "0 MB";
+    const mb = totalSizeBytes / (1024 * 1024);
+    if (mb >= 1024) {
+      return `${(mb / 1024).toFixed(2)} GB`;
+    }
+    return `${mb.toFixed(2)} MB`;
+  }, [totalSizeBytes]);
+
   const handleResetFilters = () => {
-    setTimeRange("today");
+    setTimeRange("all");
     setSelectedCameraId("");
     setSelectedEventType("");
     setSearchKeyword("");
-    setCustomFromDate("2026-10-22");
-    setCustomToDate("2026-10-22");
+    setCustomFromDate("");
+    setCustomToDate("");
     setCustomFromTime("00:00");
     setCustomToTime("23:59");
   };
@@ -159,10 +202,30 @@ export default function RecordingPage() {
 
   return (
     <div className="recording-page">
-      <PageHeader
-        title="Kho Lưu Trữ Video Ghi Hình (Video Recordings)"
-        description="Quản lý và tra cứu video lưu trữ tập trung từ toàn bộ camera trong khuôn viên. Hỗ trợ lọc theo thời gian, thiết bị camera và phân loại sự kiện."
-      />
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <PageHeader
+          title="Kho Lưu Trữ Video Ghi Hình (Video Recordings)"
+          description="Quản lý và tra cứu các video ghi hình 1 phút liên tục được lưu trữ tại C:\DATN\...\recording. Tự động chia session chính xác 1 phút khi camera ONLINE."
+        />
+        <div style={{ marginTop: "24px" }}>
+          <Button
+            variant="outline"
+            size="md"
+            onClick={loadRecordings}
+            disabled={loading}
+            title="Làm mới danh sách từ ổ cứng"
+          >
+            <RefreshCw
+              size={15}
+              style={{
+                marginRight: "6px",
+                animation: loading ? "spin 1s linear infinite" : "none",
+              }}
+            />
+            {loading ? "Đang quét..." : "Làm mới dữ liệu"}
+          </Button>
+        </div>
+      </div>
 
       {/* Overview Stat Badges */}
       <div className="recording-stats-grid">
@@ -177,22 +240,12 @@ export default function RecordingPage() {
         </div>
 
         <div className="recording-stat-card">
-          <div className="recording-stat-card__icon recording-stat-card__icon--red">
-            <ShieldAlert size={22} />
-          </div>
-          <div className="recording-stat-card__content">
-            <span className="recording-stat-card__value">{securityEventsCount}</span>
-            <span className="recording-stat-card__label">Sự kiện An ninh (Security)</span>
-          </div>
-        </div>
-
-        <div className="recording-stat-card">
           <div className="recording-stat-card__icon recording-stat-card__icon--green">
             <CheckCircle2 size={22} />
           </div>
           <div className="recording-stat-card__content">
             <span className="recording-stat-card__value">{normalRecordingsCount}</span>
-            <span className="recording-stat-card__label">Ghi hình định kỳ (Normal)</span>
+            <span className="recording-stat-card__label">Ghi hình định kỳ (1 phút)</span>
           </div>
         </div>
 
@@ -202,7 +255,17 @@ export default function RecordingPage() {
           </div>
           <div className="recording-stat-card__content">
             <span className="recording-stat-card__value">{cameraOptions.length}</span>
-            <span className="recording-stat-card__label">Camera có dữ liệu ghi</span>
+            <span className="recording-stat-card__label">Camera có video lưu</span>
+          </div>
+        </div>
+
+        <div className="recording-stat-card">
+          <div className="recording-stat-card__icon recording-stat-card__icon--blue">
+            <HardDrive size={22} />
+          </div>
+          <div className="recording-stat-card__content">
+            <span className="recording-stat-card__value">{formattedTotalStorage}</span>
+            <span className="recording-stat-card__label">Dung lượng ổ đĩa sử dụng</span>
           </div>
         </div>
       </div>
@@ -213,7 +276,7 @@ export default function RecordingPage() {
           {/* Time Range Dropdown */}
           <div className="recording-filter-group">
             <label>
-              <Calendar size={14} /> Thời gian (Time Range)
+              <Calendar size={14} /> Khoảng thời gian
             </label>
             <select
               value={timeRange}
@@ -231,7 +294,7 @@ export default function RecordingPage() {
           {/* Camera ID Dropdown */}
           <div className="recording-filter-group">
             <label>
-              <Camera size={14} /> Camera ID / Tên Camera
+              <Camera size={14} /> Camera
             </label>
             <select
               value={selectedCameraId}
@@ -250,7 +313,7 @@ export default function RecordingPage() {
           {/* Event Type Dropdown */}
           <div className="recording-filter-group">
             <label>
-              <Filter size={14} /> Loại sự kiện (Event Type)
+              <Filter size={14} /> Phân loại
             </label>
             <select
               value={selectedEventType}
@@ -268,11 +331,11 @@ export default function RecordingPage() {
           {/* Search Box */}
           <div className="recording-filter-group" style={{ flex: 1.2 }}>
             <label>
-              <Search size={14} /> Tìm kiếm từ khóa
+              <Search size={14} /> Tìm kiếm
             </label>
             <input
               type="text"
-              placeholder="Nhập mã sự kiện, tên camera, vị trí..."
+              placeholder="Nhập tên camera, mã file, khu vực..."
               value={searchKeyword}
               onChange={(e) => setSearchKeyword(e.target.value)}
             />
@@ -295,13 +358,13 @@ export default function RecordingPage() {
         {timeRange === "custom" && (
           <div className="recording-custom-time-row">
             <div className="recording-custom-time-group">
-              <label>Từ ngày (From Date):</label>
+              <label>Từ ngày:</label>
               <input
                 type="date"
                 value={customFromDate}
                 onChange={(e) => setCustomFromDate(e.target.value)}
               />
-              <label>Giờ (From Hour):</label>
+              <label>Giờ:</label>
               <input
                 type="time"
                 value={customFromTime}
@@ -310,13 +373,13 @@ export default function RecordingPage() {
             </div>
 
             <div className="recording-custom-time-group">
-              <label>Đến ngày (To Date):</label>
+              <label>Đến ngày:</label>
               <input
                 type="date"
                 value={customToDate}
                 onChange={(e) => setCustomToDate(e.target.value)}
               />
-              <label>Giờ (To Hour):</label>
+              <label>Giờ:</label>
               <input
                 type="time"
                 value={customToTime}
@@ -330,7 +393,7 @@ export default function RecordingPage() {
       {/* Results Header with View Mode Switch */}
       <div className="recording-results-header">
         <div className="recording-results-count">
-          Tìm thấy <strong>{filteredRecordings.length}</strong> video ghi hình phù hợp
+          Tìm thấy <strong>{filteredRecordings.length}</strong> video ghi hình trên đĩa
         </div>
 
         <div className="recording-view-mode-toggle">
@@ -354,31 +417,83 @@ export default function RecordingPage() {
       </div>
 
       {/* Main Content Area */}
-      {filteredRecordings.length === 0 ? (
+      {loading ? (
         <div
           style={{
             background: "var(--theme-bg-surface)",
             border: "1px dashed var(--theme-border)",
             borderRadius: "12px",
-            padding: "48px 24px",
+            padding: "60px 24px",
             textAlign: "center",
           }}
         >
-          <Video size={48} style={{ color: "var(--theme-text-muted)", marginBottom: "12px" }} />
-          <h3 style={{ margin: "0 0 6px 0", color: "var(--theme-text-primary)" }}>
-            Không tìm thấy video ghi hình nào
+          <RefreshCw
+            size={40}
+            style={{
+              color: "#00a3ff",
+              marginBottom: "16px",
+              animation: "spin 1s linear infinite",
+            }}
+          />
+          <h3 style={{ margin: "0 0 8px 0", color: "var(--theme-text-primary)" }}>
+            Đang quét đệ quy các tệp video từ ổ cứng...
           </h3>
           <p style={{ margin: 0, fontSize: "14px", color: "var(--theme-text-secondary)" }}>
-            Vui lòng thử điều chỉnh lại bộ lọc thời gian, camera hoặc loại sự kiện.
+            Đang tìm kiếm trong thư mục C:\DATN\...\recording
           </p>
+        </div>
+      ) : error ? (
+        <div
+          style={{
+            background: "rgba(239, 68, 68, 0.08)",
+            border: "1px solid rgba(239, 68, 68, 0.3)",
+            borderRadius: "12px",
+            padding: "40px 24px",
+            textAlign: "center",
+          }}
+        >
+          <AlertTriangle size={40} style={{ color: "#ef4444", marginBottom: "12px" }} />
+          <h3 style={{ margin: "0 0 8px 0", color: "#ef4444" }}>Lỗi truy xuất kho video</h3>
+          <p style={{ margin: "0 0 16px 0", color: "var(--theme-text-secondary)" }}>{error}</p>
+          <Button variant="primary" size="md" onClick={loadRecordings}>
+            <RefreshCw size={14} style={{ marginRight: "6px" }} /> Thử lại
+          </Button>
+        </div>
+      ) : filteredRecordings.length === 0 ? (
+        <div
+          style={{
+            background: "var(--theme-bg-surface)",
+            border: "1px dashed var(--theme-border)",
+            borderRadius: "12px",
+            padding: "60px 24px",
+            textAlign: "center",
+          }}
+        >
+          <FolderOpen size={48} style={{ color: "var(--theme-text-muted)", marginBottom: "16px" }} />
+          <h3 style={{ margin: "0 0 8px 0", color: "var(--theme-text-primary)" }}>
+            Chưa có video ghi hình nào trong thư mục recording
+          </h3>
+          <p
+            style={{
+              maxWidth: "540px",
+              margin: "0 auto 16px auto",
+              fontSize: "14px",
+              lineHeight: 1.6,
+              color: "var(--theme-text-secondary)",
+            }}
+          >
+            Khi bất kỳ camera nào chuyển sang trạng thái <strong>ONLINE</strong>, hệ thống sẽ tự động ghi hình liên tục và cắt thành các phân đoạn chuẩn xác đúng <strong>1 phút/video</strong> lưu tại:
+            <br />
+            <code>C:\DATN\AI-Based-Intelligent-Campus-Security-Surveillance-System\recording\{"{camera_id}"}\...</code>
+          </p>
+          <Button variant="outline" size="md" onClick={loadRecordings}>
+            <RefreshCw size={14} style={{ marginRight: "6px" }} /> Quét lại thư mục
+          </Button>
         </div>
       ) : viewMode === "grid" ? (
         <div className="recording-grid">
           {filteredRecordings.map((recording) => {
             const isSecurity = recording.eventType === "SECURITY_EVENT";
-            const sev = recording.severity
-              ? SECURITY_SEVERITY_LEVELS[recording.severity]
-              : null;
 
             return (
               <div key={recording.id} className="recording-card">
@@ -387,21 +502,13 @@ export default function RecordingPage() {
                   className="recording-card__media"
                   onClick={() => setActiveVideo(recording)}
                 >
-                  {recording.videoUrl ? (
-                    <video
-                      src={`${recording.videoUrl}#t=0.001`}
-                      preload="metadata"
-                      muted
-                      playsInline
-                      className="recording-card__thumb"
-                    />
-                  ) : (
-                    <img
-                      src={recording.thumbnailUrl}
-                      alt={recording.cameraName}
-                      className="recording-card__thumb"
-                    />
-                  )}
+                  <video
+                    src={`${recording.videoUrl}#t=0.001`}
+                    preload="metadata"
+                    muted
+                    playsInline
+                    className="recording-card__thumb"
+                  />
                   <div className="recording-card__play-overlay">
                     <div className="recording-play-icon-circle">
                       <Play size={22} fill="currentColor" style={{ marginLeft: "3px" }} />
@@ -410,10 +517,9 @@ export default function RecordingPage() {
 
                   {/* Event Type Badge */}
                   <span
-                    className={`recording-card__event-badge ${isSecurity
-                      ? "recording-badge--security"
-                      : "recording-badge--normal"
-                      }`}
+                    className={`recording-card__event-badge ${
+                      isSecurity ? "recording-badge--security" : "recording-badge--normal"
+                    }`}
                   >
                     {isSecurity ? (
                       <>
@@ -421,7 +527,7 @@ export default function RecordingPage() {
                       </>
                     ) : (
                       <>
-                        <Video size={12} /> Normal Rec
+                        <Video size={12} /> 1-Min Segment
                       </>
                     )}
                   </span>
@@ -443,21 +549,6 @@ export default function RecordingPage() {
                         {recording.cameraName}
                       </h4>
                     </div>
-                    {sev && (
-                      <span
-                        style={{
-                          fontSize: "11px",
-                          fontWeight: 600,
-                          padding: "2px 6px",
-                          borderRadius: "4px",
-                          background: sev.bg,
-                          color: sev.border,
-                          border: `1px solid ${sev.border}`,
-                        }}
-                      >
-                        {sev.label}
-                      </span>
-                    )}
                   </div>
 
                   <div className="recording-card__meta-list">
@@ -467,17 +558,10 @@ export default function RecordingPage() {
                     </div>
                     <div className="recording-card__meta-item">
                       <HardDrive size={13} />
-                      <span>{recording.building} ({recording.floor})</span>
+                      <span>
+                        {recording.building} ({recording.floor}) — {recording.fileSize}
+                      </span>
                     </div>
-                    {recording.hasIncidentTrigger && (
-                      <div
-                        className="recording-card__meta-item"
-                        style={{ color: "#ef4444", fontWeight: 500 }}
-                      >
-                        <AlertTriangle size={13} />
-                        <span>Mã sự cố: {recording.incidentCode}</span>
-                      </div>
-                    )}
                   </div>
 
                   <div className="recording-card__actions">
@@ -493,7 +577,7 @@ export default function RecordingPage() {
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        window.open(recording.videoUrl, "_blank");
+                        window.open(recording.downloadUrl || recording.videoUrl, "_blank");
                       }}
                       title="Tải video xuống máy"
                     >
@@ -513,37 +597,27 @@ export default function RecordingPage() {
               <tr>
                 <th>Xem trước</th>
                 <th>Camera ID / Tên</th>
-                <th>Loại sự kiện</th>
-                <th>Thời gian ghi hình</th>
+                <th>Tên file trên đĩa</th>
+                <th>Thời gian bắt đầu</th>
                 <th>Thời lượng</th>
+                <th>Dung lượng</th>
                 <th>Vị trí</th>
                 <th style={{ textAlign: "right" }}>Thao tác</th>
               </tr>
             </thead>
             <tbody>
               {filteredRecordings.map((recording) => {
-                const isSecurity = recording.eventType === "SECURITY_EVENT";
-
                 return (
                   <tr key={recording.id}>
                     <td>
-                      {recording.videoUrl ? (
-                        <video
-                          src={`${recording.videoUrl}#t=0.001`}
-                          preload="metadata"
-                          muted
-                          playsInline
-                          className="recording-table-thumb"
-                          onClick={() => setActiveVideo(recording)}
-                        />
-                      ) : (
-                        <img
-                          src={recording.thumbnailUrl}
-                          alt="thumb"
-                          className="recording-table-thumb"
-                          onClick={() => setActiveVideo(recording)}
-                        />
-                      )}
+                      <video
+                        src={`${recording.videoUrl}#t=0.001`}
+                        preload="metadata"
+                        muted
+                        playsInline
+                        className="recording-table-thumb"
+                        onClick={() => setActiveVideo(recording)}
+                      />
                     </td>
                     <td>
                       <span
@@ -559,42 +633,17 @@ export default function RecordingPage() {
                       <div style={{ fontWeight: 600 }}>{recording.cameraName}</div>
                     </td>
                     <td>
-                      {isSecurity ? (
-                        <span
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: "4px",
-                            padding: "3px 8px",
-                            borderRadius: "6px",
-                            fontSize: "12px",
-                            fontWeight: 600,
-                            background: "rgba(239, 68, 68, 0.15)",
-                            color: "#ef4444",
-                          }}
-                        >
-                          <ShieldAlert size={12} /> Security Event
-                        </span>
-                      ) : (
-                        <span
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: "4px",
-                            padding: "3px 8px",
-                            borderRadius: "6px",
-                            fontSize: "12px",
-                            fontWeight: 600,
-                            background: "rgba(16, 185, 129, 0.15)",
-                            color: "#10b981",
-                          }}
-                        >
-                          <Video size={12} /> Normal Rec
-                        </span>
-                      )}
+                      <span style={{ fontSize: "12px", fontFamily: "monospace", color: "var(--theme-text-muted)" }}>
+                        {recording.filename}
+                      </span>
                     </td>
                     <td>{formatDisplayTime(recording.startTime)}</td>
-                    <td>{recording.duration}</td>
+                    <td>
+                      <span style={{ fontWeight: 600, color: "#10b981" }}>
+                        {recording.duration}
+                      </span>
+                    </td>
+                    <td>{recording.fileSize}</td>
                     <td>
                       {recording.building} ({recording.floor})
                     </td>
@@ -610,7 +659,7 @@ export default function RecordingPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => window.open(recording.videoUrl, "_blank")}
+                          onClick={() => window.open(recording.downloadUrl || recording.videoUrl, "_blank")}
                         >
                           <Download size={12} />
                         </Button>
@@ -642,7 +691,7 @@ export default function RecordingPage() {
                     [{activeVideo.cameraId}] {activeVideo.cameraName}
                   </div>
                   <div style={{ fontSize: "12px", color: "#9ca3af" }}>
-                    {formatDisplayTime(activeVideo.startTime)} — {activeVideo.duration}
+                    {formatDisplayTime(activeVideo.startTime)} — Thời lượng: {activeVideo.duration} ({activeVideo.fileSize})
                   </div>
                 </div>
               </div>
@@ -672,29 +721,23 @@ export default function RecordingPage() {
             <div className="recording-player-modal__footer">
               <div className="recording-player-modal__meta-grid">
                 <div>
-                  <strong>Loại sự kiện:</strong>{" "}
-                  {activeVideo.eventType === "SECURITY_EVENT"
-                    ? "Sự kiện an ninh (Security Event)"
-                    : "Ghi hình định kỳ (Normal Recording)"}
+                  <strong>Phân loại:</strong> Ghi hình giám sát 1 phút chuẩn xác (CFR 25 FPS)
                 </div>
                 <div>
-                  <strong>Tòa nhà / Khu vực:</strong> {activeVideo.building} -{" "}
-                  {activeVideo.areaName}
+                  <strong>Độ phân giải & Codec:</strong> {activeVideo.resolution} — {activeVideo.format}
+                </div>
+                <div>
+                  <strong>Vị trí:</strong> {activeVideo.building} - {activeVideo.areaName}
                 </div>
                 <div>
                   <strong>Đường dẫn file:</strong> {activeVideo.storagePath}
                 </div>
-                {activeVideo.notes && (
-                  <div>
-                    <strong>Ghi chú:</strong> {activeVideo.notes}
-                  </div>
-                )}
               </div>
 
               <Button
                 variant="primary"
                 size="md"
-                onClick={() => window.open(activeVideo.videoUrl, "_blank")}
+                onClick={() => window.open(activeVideo.downloadUrl || activeVideo.videoUrl, "_blank")}
               >
                 <Download size={14} style={{ marginRight: "6px" }} /> Tải xuống file MP4
               </Button>
