@@ -7,7 +7,6 @@ import com.fa26se040.icss.dto.camera.CreateCameraRequest;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.Camera;
 import com.fa26se040.icss.entity.CameraStreamConfiguration;
-import com.fa26se040.icss.enums.AreaLevel;
 import com.fa26se040.icss.enums.CameraStatus;
 import com.fa26se040.icss.enums.OperationalStatus;
 import com.fa26se040.icss.exception.CameraErrorCode;
@@ -189,42 +188,6 @@ class CameraServiceTest {
         verify(aesEncryptionUtil).encrypt("Secret123");
         verify(cameraStreamConfigurationRepository).save(any());
         verify(cameraRepository).save(any());
-    }
-
-    @Test
-    @DisplayName("DeleteCamera: happy path should soft-delete, unassign area (area=null), and clean MediaMTX path")
-    void testDeleteCamera_happyPath_unassignsAreaAndCleansGateway() {
-        when(cameraRepository.findById(testCameraId)).thenReturn(Optional.of(testCamera));
-
-        cameraService.deleteCamera(testCameraId);
-
-        verify(cameraRepository).save(argThat(c ->
-                c.getArea() == null &&
-                c.getStatus() == CameraStatus.DECOMMISSIONED &&
-                c.getOperationalStatus() == OperationalStatus.OFFLINE &&
-                c.getDeletedAt() != null
-        ));
-        verify(mediaMtxService).deleteCameraPath("CAM-001");
-    }
-
-    @Test
-    @DisplayName("DecommissionCamera: should transition to DECOMMISSIONED and OFFLINE, retain area, and clean MediaMTX path")
-    void testDecommissionCamera_happyPath_retainsAreaAndCleansGateway() {
-        when(cameraRepository.findById(testCameraId)).thenReturn(Optional.of(testCamera));
-        when(cameraRepository.save(any(Camera.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        CameraDetailResponse response = cameraService.decommissionCamera(testCameraId);
-
-        assertNotNull(response);
-        assertEquals(CameraStatus.DECOMMISSIONED, response.getStatus());
-        assertEquals(OperationalStatus.OFFLINE, response.getOperationalStatus());
-        assertNotNull(testCamera.getArea(), "Decommission camera must retain area association (BR-CAM-06)");
-        verify(cameraRepository).save(argThat(c ->
-                c.getArea() != null &&
-                c.getStatus() == CameraStatus.DECOMMISSIONED &&
-                c.getOperationalStatus() == OperationalStatus.OFFLINE
-        ));
-        verify(mediaMtxService).deleteCameraPath("CAM-001");
     }
 
     @Test

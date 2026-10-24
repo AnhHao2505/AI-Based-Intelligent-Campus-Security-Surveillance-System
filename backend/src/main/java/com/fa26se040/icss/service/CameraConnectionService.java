@@ -1,29 +1,20 @@
 package com.fa26se040.icss.service;
 
 import com.fa26se040.icss.dto.camera.CameraStreamConfigRequest;
-import com.fa26se040.icss.dto.camera.ConnectStreamResponse;
 import com.fa26se040.icss.dto.camera.TestConnectionResponse;
 import com.fa26se040.icss.entity.Camera;
-import com.fa26se040.icss.entity.CameraHealthLog;
 import com.fa26se040.icss.entity.CameraStreamConfiguration;
 import com.fa26se040.icss.enums.OperationalStatus;
 import com.fa26se040.icss.exception.CameraErrorCode;
 import com.fa26se040.icss.exception.CameraException;
-import com.fa26se040.icss.repository.CameraHealthLogRepository;
 import com.fa26se040.icss.repository.CameraRepository;
 import com.fa26se040.icss.repository.CameraStreamConfigurationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestTemplate;
-
-import java.time.OffsetDateTime;
-import java.util.Map;
 import java.util.UUID;
 
 @Slf4j

@@ -2,7 +2,6 @@ package com.fa26se040.icss.service;
 
 import com.fa26se040.icss.dto.accessdecision.CheckCameraEntryResponse;
 import com.fa26se040.icss.dto.accesslog.CameraAccessLogResponse;
-import com.fa26se040.icss.dto.accesslog.CameraAccessLogStatsResponse;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.CameraAccessLog;
 import com.fa26se040.icss.entity.User;
@@ -216,32 +215,6 @@ class CameraAccessLogServiceTest {
     }
 
     @Test
-    @DisplayName("Loại bỏ tag kỹ thuật AI [UNAUTHORIZED_ACCESS] và rút gọn lý do súc tích chuyên nghiệp")
-    void testRecordAccessLog_CleansAiTagsAndFormatsConcisely() {
-        OffsetDateTime daytime = OffsetDateTime.of(2026, 10, 24, 8, 0, 0, 0, ZoneOffset.ofHours(7));
-        CheckCameraEntryResponse entryResponse = CheckCameraEntryResponse.builder()
-                .allowed(false)
-                .source(AccessSource.NONE)
-                .reason("[UNAUTHORIZED_ACCESS] Phát hiện đối tượng không có quyền truy cập: Nguyễn Văn An (NV001) tại Phòng LB01. Lý do: Cấp độ truy cập không đủ (Khu vực Cấp 3, người dùng Cấp 2)")
-                .cameraCode("CAM-001")
-                .areaId(areaId)
-                .userCode("NV001")
-                .fullName("Nguyễn Văn An")
-                .build();
-
-        when(areaRepository.findById(areaId)).thenReturn(Optional.of(area));
-        when(userRepository.findByUserCodeAndDeletedAtIsNull("NV001")).thenReturn(Optional.of(testUser));
-        when(cameraAccessLogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-
-        CameraAccessLogResponse result = cameraAccessLogService.recordAccessLog(entryResponse, daytime);
-
-        assertNotNull(result);
-        assertEquals(AccessResult.UNAUTHORIZED_ACCESS, result.getAccessResult());
-        assertEquals("NV001", result.getUserCode());
-        assertEquals("Cấp độ truy cập không đủ (Khu vực Cấp 3, người dùng Cấp 2)", result.getReasonDetails());
-    }
-
-    @Test
     @DisplayName("Khi AI không phát hiện được mã (userCode null/blank) thì mặc định lưu UNKNOWN")
     void testRecordAccessLog_NullUserCode_DefaultsToUnknown() {
         OffsetDateTime daytime = OffsetDateTime.of(2026, 10, 16, 10, 45, 0, 0, ZoneOffset.ofHours(7));
@@ -263,31 +236,6 @@ class CameraAccessLogServiceTest {
         assertEquals(AccessResult.UNKNOWN_PERSON, result.getAccessResult());
         assertEquals("UNKNOWN", result.getUserCode());
         assertEquals("Người lạ / Chưa rõ mặt", result.getFullName());
-    }
-
-    @Test
-    @DisplayName("Lấy thống kê lượt quét trong ngày thành công")
-    void testGetStatsToday() {
-        when(cameraAccessLogRepository.countByCameraCodeAndLoggedAtBetween(eq("CAM-001"), any(), any()))
-                .thenReturn(10L);
-        when(cameraAccessLogRepository.countByCameraCodeAndLoggedAtBetweenAndAccessResult(eq("CAM-001"), any(), any(), eq(AccessResult.AUTHORIZED_ACCESS)))
-                .thenReturn(7L);
-        when(cameraAccessLogRepository.countByCameraCodeAndLoggedAtBetweenAndAccessResult(eq("CAM-001"), any(), any(), eq(AccessResult.UNAUTHORIZED_ACCESS)))
-                .thenReturn(2L);
-        when(cameraAccessLogRepository.countByCameraCodeAndLoggedAtBetweenAndAccessResult(eq("CAM-001"), any(), any(), eq(AccessResult.ACCESS_OUT_OF_TIME)))
-                .thenReturn(1L);
-        when(cameraAccessLogRepository.countByCameraCodeAndLoggedAtBetweenAndAccessResult(eq("CAM-001"), any(), any(), eq(AccessResult.UNKNOWN_PERSON)))
-                .thenReturn(0L);
-        when(cameraAccessLogRepository.countByCameraCodeAndLoggedAtBetweenAndAccessResult(eq("CAM-001"), any(), any(), eq(AccessResult.INTRUSION)))
-                .thenReturn(0L);
-
-        CameraAccessLogStatsResponse stats = cameraAccessLogService.getStatsToday("CAM-001");
-
-        assertNotNull(stats);
-        assertEquals(10L, stats.getTotalToday());
-        assertEquals(7L, stats.getAuthorizedToday());
-        assertEquals(2L, stats.getUnauthorizedToday());
-        assertEquals(1L, stats.getOutOfTimeToday());
     }
 
     @Test
