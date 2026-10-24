@@ -20,7 +20,9 @@ public enum AccessControlErrorCode {
     // Lịch sử ra vào: khoảng thời gian lọc phải có from <= to
     ERR_AC_010("ERR_AC_010", HttpStatus.BAD_REQUEST, "Thời điểm bắt đầu ({from}) phải trước hoặc bằng thời điểm kết thúc ({to})"),
     // BR-AL-30 (V83): không đổi cấp (nâng hay hạ) khi người dùng là người tạo hoặc thành viên của đơn PENDING
-    ERR_AC_011("ERR_AC_011", HttpStatus.CONFLICT, "Người dùng {userCode} – {fullName} đang có {count} yêu cầu chờ duyệt ({areas}). Hãy duyệt hoặc từ chối các yêu cầu này trước khi đổi cấp.");
+    ERR_AC_011("ERR_AC_011", HttpStatus.CONFLICT, "Người dùng {userCode} – {fullName} đang có {count} yêu cầu chờ duyệt ({areas}). Hãy duyệt hoặc từ chối các yêu cầu này trước khi đổi cấp."),
+    // D-1: tới giờ bắt đầu (now >= startTime) thì không duyệt / từ chối đơn PENDING nữa; job chuyển sang EXPIRED
+    ERR_AC_012("ERR_AC_012", HttpStatus.CONFLICT, "Đã tới giờ bắt đầu, không thể duyệt hoặc từ chối yêu cầu. Hệ thống sẽ chuyển yêu cầu sang Hết hạn.");
 
     private final String code;
     private final HttpStatus httpStatus;

@@ -211,7 +211,7 @@ export default function AccessRequestReviewPage({ embedded = false, actionsConta
 
   // Esc / focus / giữ Tab của từng popup: DialogPanel (useDialogA11y); popup thao tác không đóng khi đang gửi
 
-  // Handle Approve
+  // Handle Approve — 409 gồm cả ERR_AC_012 (đơn đã tới giờ bắt đầu, D-1): đóng popup, cảnh báo vàng câu backend, tải lại
   const handleConfirmApprove = async () => {
     if (!approveItem) return;
     setActionLoading(true);
@@ -312,7 +312,7 @@ export default function AccessRequestReviewPage({ embedded = false, actionsConta
     }
   };
 
-  // Handle Reject
+  // Handle Reject — 409 gồm cả ERR_AC_012 (đơn đã tới giờ bắt đầu, D-1), xử lý như Approve
   const handleConfirmReject = async () => {
     if (!rejectItem) return;
     const trimmed = rejectionReason.trim();
