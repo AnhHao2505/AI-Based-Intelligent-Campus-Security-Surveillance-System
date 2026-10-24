@@ -1,6 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import * as authService from '../services/authService';
-import { DEMO_LOGIN_ENABLED } from '../config/demoConfig';
 import { getStoredUser, setStoredUser, clearStoredAuth } from '../utils/authStorage';
 
 const AuthContext = createContext(null);
@@ -29,7 +28,7 @@ export function AuthProvider({ children }) {
         return;
       }
 
-      if (storedToken.startsWith('frontend-demo-') && !DEMO_LOGIN_ENABLED) {
+      if (storedToken.startsWith('frontend-demo-')) {
         logout();
         setLoading(false);
         return;
@@ -96,16 +95,6 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const loginAsDemoRole = (role) => {
-    if (!DEMO_LOGIN_ENABLED) {
-      throw new Error('Chế độ đăng nhập demo đang bị tắt.');
-    }
-    const response = authService.createDemoAuth(role);
-    authService.saveAuth(response);
-    setUser(response.user);
-    setToken(response.accessToken);
-    return response;
-  };
 
   const hasRole = useCallback((allowedRoles) => {
     if (!user) return false;
@@ -141,19 +130,15 @@ export function AuthProvider({ children }) {
     );
   }
 
-  const isDemoMode = DEMO_LOGIN_ENABLED && Boolean(token?.startsWith('frontend-demo-'));
-
   const value = {
     user,
     token,
     loading,
-    isDemoMode,
     isAuthenticated: !!user,
     loginWithCredentials,
     loginWithPassword: loginWithCredentials,
     loginWithGoogle,
     loginWithGoogleToken: loginWithGoogle,
-    loginAsDemoRole,
     logout,
     hasRole,
   };

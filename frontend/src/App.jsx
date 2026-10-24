@@ -30,7 +30,6 @@ import UserAccessLevelPage from "./pages/accessControl/UserAccessLevelPage";
 import AuditLogPage from "./pages/accessControl/AuditLogPage";
 import AccessLevelsRedirect from "./pages/accessControl/AccessLevelsRedirect";
 import RecordingPage from "./pages/cameras/RecordingPage";
-import DemoModeBanner from "./components/common/DemoModeBanner";
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
 
@@ -145,7 +144,6 @@ function App() {
 		<GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
 			<ThemeProvider>
 				<AuthProvider>
-					<DemoModeBanner />
 					<Routes>
 						{/* Public Routes */}
 						<Route

@@ -53,26 +53,7 @@ export const guardScheduleApi = {
     const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
-    // Demo Mode Fallback: Tạo file tổng hợp demo nếu đăng nhập qua tài khoản demo
-    if (token?.startsWith('frontend-demo-')) {
-      const csvContent = '\uFEFF' +
-        `BẢNG CHẤM CÔNG VÀ TỔNG HỢP CA TRỰC BẢO VỆ\n` +
-        `Tháng: ${String(month).padStart(2, '0')}/${year}\n` +
-        `Đơn vị: ${teamId ? 'Đội đã chọn' : 'Toàn bộ các đội bảo vệ'}\n\n` +
-        `STT,Mã Bảo Vệ,Họ và Tên,Đội Biên Chế,Tổng Ca Trực,Ca Sáng,Ca Chiều,Ca Đêm,Làm Thêm (OT),Nghỉ Phép\n` +
-        `1,NV-BV01,Nguyễn Văn An,Tổ 1 - An ninh Cổng & Vòng ngoài,24,10,8,6,2,1\n` +
-        `2,NV-BV02,Bảo Vệ Demo,Tổ 1 - An ninh Cổng & Vòng ngoài,22,8,8,6,0,2\n`;
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `Bang_Cham_Cong_Bao_Ve_Thang_${String(month).padStart(2, '0')}_${year}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-      return;
-    }
+
 
     const response = await fetch(`${API_BASE_URL}/api/guard-shifts/export-timesheet?${query.toString()}`, {
       headers: {

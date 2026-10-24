@@ -46,18 +46,6 @@ export function saveAuth(authResponse) {
   setStoredUser(authResponse?.user);
 }
 
-export function createDemoAuth(role) {
-  return {
-    accessToken: `frontend-demo-${role}`,
-    user: {
-      id: `demo-${role.toLowerCase()}`,
-      fullName: `Demo ${role.replaceAll('_', ' ')}`,
-      email: `demo.${role.toLowerCase()}@frontend.local`,
-      role,
-      isActive: true,
-    },
-  };
-}
 
 /**
  * Lấy token từ localStorage
