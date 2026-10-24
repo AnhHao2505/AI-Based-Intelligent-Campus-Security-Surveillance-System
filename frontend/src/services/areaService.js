@@ -109,14 +109,6 @@ export async function assignPersonnel(areaId, data) {
 }
 
 /**
- * Cập nhật thời hạn gán nhân sự (FACILITY_MANAGER)
- * PATCH /api/areas/{areaId}/assigned-personnel/{id}
- */
-export async function updateAssignedPersonnel(areaId, id, data) {
-	return apiPatch(`/api/areas/${areaId}/assigned-personnel/${id}`, data);
-}
-
-/**
  * Thu hồi quyền gán nhân sự (FACILITY_MANAGER)
  * PATCH /api/areas/{areaId}/assigned-personnel/{id}/revoke
  */

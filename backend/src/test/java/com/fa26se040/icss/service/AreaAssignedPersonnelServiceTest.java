@@ -3,7 +3,6 @@ package com.fa26se040.icss.service;
 import com.fa26se040.icss.dto.assignedpersonnel.AssignedPersonnelCreateRequest;
 import com.fa26se040.icss.dto.assignedpersonnel.AssignedPersonnelResponse;
 import com.fa26se040.icss.dto.assignedpersonnel.AssignedPersonnelRevokeRequest;
-import com.fa26se040.icss.dto.assignedpersonnel.AssignedPersonnelUpdateRequest;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.AreaAssignedPersonnel;
 import com.fa26se040.icss.entity.User;
@@ -215,8 +214,9 @@ class AreaAssignedPersonnelServiceTest {
     @Test
     @DisplayName("BR-AP-02: validTo trong quá khứ (dù > validFrom) → ERR_AP_003")
     void create_ValidToInPast_ThrowsErrAp003() {
-        OffsetDateTime from = OffsetDateTime.now().minusDays(3);
-        OffsetDateTime to = OffsetDateTime.now().minusDays(1);
+        // BR-AP-28: validFrom chỉ lùi được trong độ lệch đồng hồ, nên validTo quá khứ chỉ còn nằm trong khoảng đó
+        OffsetDateTime from = OffsetDateTime.now().minusMinutes(4);
+        OffsetDateTime to = OffsetDateTime.now().minusMinutes(1);
 
         assertApError(AssignedPersonnelErrorCode.ERR_AP_003,
                 () -> service.create(lab.getId(), createReq(from, to), FM_EMAIL));
@@ -232,52 +232,6 @@ class AreaAssignedPersonnelServiceTest {
 
         assertEquals(AssignedPersonnelStatus.UPCOMING, res.status());
         assertEquals(from, res.validFrom());
-    }
-
-    @Test
-    @DisplayName("BR-AP-02: sửa validTo về quá khứ → ERR_AP_003")
-    void update_ValidToInPast_ThrowsErrAp003() {
-        AreaAssignedPersonnel rec = existing(OffsetDateTime.now().minusDays(5), null);
-
-        assertApError(AssignedPersonnelErrorCode.ERR_AP_003,
-                () -> service.updateValidTo(lab.getId(), rec.getId(),
-                        new AssignedPersonnelUpdateRequest(OffsetDateTime.now().minusMinutes(1)), FM_EMAIL));
-        assertNull(rec.getValidTo());
-    }
-
-    @Test
-    @DisplayName("BR-AP-02: sửa validTo <= validFrom → ERR_AP_002")
-    void update_ValidToNotAfterValidFrom_ThrowsErrAp002() {
-        OffsetDateTime from = OffsetDateTime.now().plusDays(2);
-        AreaAssignedPersonnel rec = existing(from, from.plusHours(4));
-
-        assertApError(AssignedPersonnelErrorCode.ERR_AP_002,
-                () -> service.updateValidTo(lab.getId(), rec.getId(),
-                        new AssignedPersonnelUpdateRequest(from.minusHours(1)), FM_EMAIL));
-    }
-
-    @Test
-    @DisplayName("BR-AP-02/03: gia hạn validTo của chính bản ghi (query trả về chính nó) → thành công")
-    void update_ExtendValidTo_ExcludesSelf_Success() {
-        AreaAssignedPersonnel rec = existing(OffsetDateTime.now().minusHours(1), OffsetDateTime.now().plusHours(1));
-        OffsetDateTime newTo = OffsetDateTime.now().plusHours(3);
-
-        AssignedPersonnelResponse res = service.updateValidTo(lab.getId(), rec.getId(),
-                new AssignedPersonnelUpdateRequest(newTo), FM_EMAIL);
-
-        assertEquals(newTo, res.validTo());
-        assertEquals(AssignedPersonnelStatus.ACTIVE, res.status());
-        verify(assignedPersonnelRepository).findUserByIdForUpdate(lecturer.getId());
-    }
-
-    @Test
-    @DisplayName("PATCH: {id} không thuộc {areaId} → ERR_AP_001 (404)")
-    void update_RecordNotInArea_ThrowsErrAp001() {
-        AreaAssignedPersonnel rec = existing(OffsetDateTime.now().minusHours(1), null);
-
-        assertApError(AssignedPersonnelErrorCode.ERR_AP_001,
-                () -> service.updateValidTo(UUID.randomUUID(), rec.getId(),
-                        new AssignedPersonnelUpdateRequest(OffsetDateTime.now().plusDays(1)), FM_EMAIL));
     }
 
     @Test
@@ -338,31 +292,6 @@ class AreaAssignedPersonnelServiceTest {
 
         assertEquals(t2, res.validFrom());
         assertEquals(2, store.size());
-    }
-
-    @Test
-    @DisplayName("BR-AP-03: sửa validTo làm chồng sang bản ghi khác → ERR_AP_004")
-    void update_ExtendIntoOtherRecord_ThrowsErrAp004() {
-        OffsetDateTime now = OffsetDateTime.now();
-        AreaAssignedPersonnel first = existing(now.minusHours(1), now.plusHours(1));
-        existing(now.plusHours(2), now.plusHours(4));
-
-        assertApError(AssignedPersonnelErrorCode.ERR_AP_004,
-                () -> service.updateValidTo(lab.getId(), first.getId(),
-                        new AssignedPersonnelUpdateRequest(now.plusHours(3)), FM_EMAIL));
-        assertEquals(now.plusHours(1), first.getValidTo());
-    }
-
-    @Test
-    @DisplayName("BR-AP-03: sửa validTo thành NULL (vô hạn) khi đã có bản ghi tương lai → ERR_AP_004")
-    void update_ToUnlimited_OverlapsFuture_ThrowsErrAp004() {
-        OffsetDateTime now = OffsetDateTime.now();
-        AreaAssignedPersonnel first = existing(now.minusHours(1), now.plusHours(1));
-        existing(now.plusDays(1), now.plusDays(1).plusHours(2));
-
-        assertApError(AssignedPersonnelErrorCode.ERR_AP_004,
-                () -> service.updateValidTo(lab.getId(), first.getId(),
-                        new AssignedPersonnelUpdateRequest(null), FM_EMAIL));
     }
 
     // ------------------------------------------------------------------ BR-AP-04
@@ -480,18 +409,6 @@ class AreaAssignedPersonnelServiceTest {
         assertEquals("Lý do cũ", rec.getRevokeReason());
     }
 
-    @Test
-    @DisplayName("BR-AP-08: sửa validTo của bản ghi đã thu hồi → ERR_AP_009")
-    void update_RevokedRecord_ThrowsErrAp009() {
-        AreaAssignedPersonnel rec = existing(OffsetDateTime.now().minusDays(1), null);
-        rec.setRevokedAt(OffsetDateTime.now().minusHours(1));
-        rec.setRevokeReason("Nghỉ việc");
-
-        assertApError(AssignedPersonnelErrorCode.ERR_AP_009,
-                () -> service.updateValidTo(lab.getId(), rec.getId(),
-                        new AssignedPersonnelUpdateRequest(OffsetDateTime.now().plusDays(1)), FM_EMAIL));
-    }
-
     // ------------------------------------------------------------------ GET + status
 
     @Test
@@ -599,7 +516,7 @@ class AreaAssignedPersonnelServiceTest {
     @Test
     @DisplayName("E.1: create AP ghi nhận audit log với đầy đủ tham số qua ArgumentCaptor")
     void create_AuditsChange_WithArgumentCaptor() {
-        OffsetDateTime from = OffsetDateTime.now().minusDays(1);
+        OffsetDateTime from = OffsetDateTime.now().minusMinutes(2);
         OffsetDateTime to = OffsetDateTime.now().plusMonths(3);
         AssignedPersonnelCreateRequest req = new AssignedPersonnelCreateRequest(
                 lecturer.getId(),
@@ -647,58 +564,6 @@ class AreaAssignedPersonnelServiceTest {
         assertEquals(new com.fa26se040.icss.dto.accesscontrol.snapshot.AreaAssignmentAuditSnapshot(
                 from, to, AssignedPersonnelStatus.ACTIVE), newSnapshotCaptor.getValue());
         assertEquals("Gán quyền cho giảng viên", reasonCaptor.getValue());
-        assertEquals(fm, actorCaptor.getValue());
-    }
-
-    @Test
-    @DisplayName("E.1: updateValidTo AP ghi nhận audit log với đầy đủ tham số qua ArgumentCaptor")
-    void updateValidTo_AuditsChange_WithArgumentCaptor() {
-        OffsetDateTime from = OffsetDateTime.now().minusDays(1);
-        OffsetDateTime oldTo = OffsetDateTime.now().plusMonths(1);
-        OffsetDateTime newTo = OffsetDateTime.now().plusMonths(6);
-
-        AreaAssignedPersonnel rec = existing(from, oldTo);
-
-        AssignedPersonnelUpdateRequest req = new AssignedPersonnelUpdateRequest(newTo, "Gia hạn thêm 5 tháng");
-        AssignedPersonnelResponse resp = service.updateValidTo(lab.getId(), rec.getId(), req, FM_EMAIL);
-        assertNotNull(resp);
-
-        org.mockito.ArgumentCaptor<com.fa26se040.icss.enums.AuditTargetType> targetTypeCaptor =
-                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.enums.AuditTargetType.class);
-        org.mockito.ArgumentCaptor<com.fa26se040.icss.enums.AuditAction> actionCaptor =
-                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.enums.AuditAction.class);
-        org.mockito.ArgumentCaptor<String> targetIdCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
-        org.mockito.ArgumentCaptor<Area> areaCaptor = org.mockito.ArgumentCaptor.forClass(Area.class);
-        org.mockito.ArgumentCaptor<User> userCaptor = org.mockito.ArgumentCaptor.forClass(User.class);
-        org.mockito.ArgumentCaptor<com.fa26se040.icss.dto.accesscontrol.snapshot.AuditSnapshot> oldSnapshotCaptor =
-                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.dto.accesscontrol.snapshot.AuditSnapshot.class);
-        org.mockito.ArgumentCaptor<com.fa26se040.icss.dto.accesscontrol.snapshot.AuditSnapshot> newSnapshotCaptor =
-                org.mockito.ArgumentCaptor.forClass(com.fa26se040.icss.dto.accesscontrol.snapshot.AuditSnapshot.class);
-        org.mockito.ArgumentCaptor<String> reasonCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
-        org.mockito.ArgumentCaptor<User> actorCaptor = org.mockito.ArgumentCaptor.forClass(User.class);
-
-        verify(auditService, org.mockito.Mockito.times(1)).record(
-                targetTypeCaptor.capture(),
-                actionCaptor.capture(),
-                targetIdCaptor.capture(),
-                areaCaptor.capture(),
-                userCaptor.capture(),
-                oldSnapshotCaptor.capture(),
-                newSnapshotCaptor.capture(),
-                reasonCaptor.capture(),
-                actorCaptor.capture()
-        );
-
-        assertEquals(com.fa26se040.icss.enums.AuditTargetType.AREA_ASSIGNMENT, targetTypeCaptor.getValue());
-        assertEquals(com.fa26se040.icss.enums.AuditAction.UPDATE_VALIDITY, actionCaptor.getValue());
-        assertEquals(rec.getId().toString(), targetIdCaptor.getValue());
-        assertEquals(lab, areaCaptor.getValue());
-        assertEquals(lecturer, userCaptor.getValue());
-        assertEquals(new com.fa26se040.icss.dto.accesscontrol.snapshot.AreaAssignmentAuditSnapshot(
-                from, oldTo, AssignedPersonnelStatus.ACTIVE), oldSnapshotCaptor.getValue());
-        assertEquals(new com.fa26se040.icss.dto.accesscontrol.snapshot.AreaAssignmentAuditSnapshot(
-                from, newTo, AssignedPersonnelStatus.ACTIVE), newSnapshotCaptor.getValue());
-        assertEquals("Gia hạn thêm 5 tháng", reasonCaptor.getValue());
         assertEquals(fm, actorCaptor.getValue());
     }
 
@@ -751,23 +616,5 @@ class AreaAssignedPersonnelServiceTest {
                 from, to, AssignedPersonnelStatus.REVOKED), newSnapshotCaptor.getValue());
         assertEquals("Chuyển công tác sang cơ sở khác", reasonCaptor.getValue());
         assertEquals(fm, actorCaptor.getValue());
-    }
-
-    @Test
-    @DisplayName("BR-AL-06: updateValidTo no-op (validTo không đổi) -> không lưu DB, không ghi audit log")
-    void updateValidTo_NoOp_DoesNotSaveOrAudit() {
-        OffsetDateTime from = OffsetDateTime.now().minusDays(1);
-        OffsetDateTime to = OffsetDateTime.now().plusMonths(3);
-
-        AreaAssignedPersonnel rec = existing(from, to);
-
-        AssignedPersonnelUpdateRequest req = new AssignedPersonnelUpdateRequest(to, "Không đổi hạn");
-        AssignedPersonnelResponse resp = service.updateValidTo(lab.getId(), rec.getId(), req, FM_EMAIL);
-
-        assertNotNull(resp);
-        assertEquals(to, resp.validTo());
-
-        verify(assignedPersonnelRepository, org.mockito.Mockito.never()).save(any(AreaAssignedPersonnel.class));
-        verify(auditService, org.mockito.Mockito.never()).record(any(), any(), any(), any(), any(), any(), any(), any(), any(User.class));
     }
 }

@@ -15,8 +15,12 @@ public enum AssignedPersonnelErrorCode {
     ERR_AP_008("ERR_AP_008", HttpStatus.BAD_REQUEST, "Lý do thu hồi không được để trống"),
     ERR_AP_009("ERR_AP_009", HttpStatus.CONFLICT, "Bản ghi gán đã bị thu hồi, không thể thao tác thêm"),
     ERR_AP_010("ERR_AP_010", HttpStatus.BAD_REQUEST, "Khu vực công cộng (PUBLIC) không áp dụng gán nhân sự chỉ định"),
-    // BR-AP-06: không tự gán / tự gia hạn quyền chỉ định cho chính mình
-    ERR_AP_011("ERR_AP_011", HttpStatus.FORBIDDEN, "Không được tự gán hoặc tự gia hạn quyền chỉ định cho chính mình. Hãy nhờ quản lý cơ sở vật chất khác thực hiện");
+    // BR-AP-06: không tự gán quyền chỉ định cho chính mình
+    ERR_AP_011("ERR_AP_011", HttpStatus.FORBIDDEN, "Không được tự gán quyền chỉ định cho chính mình. Hãy nhờ quản lý cơ sở vật chất khác thực hiện"),
+    // BR-AP-30: chỉ thu hồi AP đang hiệu lực / sắp hiệu lực; AP đã hết hạn thì cấp tiếp bằng một đợt gán mới
+    ERR_AP_012("ERR_AP_012", HttpStatus.CONFLICT, "Quyền đã hết hạn, không cần thu hồi. Muốn cấp tiếp, hãy gán đợt mới."),
+    // BR-AP-28: validFrom không được ở quá khứ (cho phép lệch đồng hồ nhỏ)
+    ERR_AP_013("ERR_AP_013", HttpStatus.BAD_REQUEST, "Thời điểm bắt đầu không được ở quá khứ");
 
     private final String code;
     private final HttpStatus httpStatus;

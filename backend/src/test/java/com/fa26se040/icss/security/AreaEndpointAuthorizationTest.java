@@ -192,7 +192,7 @@ public class AreaEndpointAuthorizationTest extends AbstractIntegrationTest {
     }
 
     // =========================================================================
-    // NHÓM CHỈ FACILITY_MANAGER (7 endpoint)
+    // NHÓM CHỈ FACILITY_MANAGER (6 endpoint)
     // =========================================================================
 
     @Test
@@ -238,19 +238,6 @@ public class AreaEndpointAuthorizationTest extends AbstractIntegrationTest {
                             "reason": "Gán nhân sự vào khu vực hợp lệ"
                         }
                         """, UUID.randomUUID())));
-    }
-
-    @Test
-    @DisplayName("T3 [FM ONLY]: PATCH /api/areas/{areaId}/assigned-personnel/{id} -> 401 không token, 403 cho ADMIN/USER/GUARD")
-    void updateAssignedPersonnel_fmOnly() throws Exception {
-        assertFmOnly(() -> patch("/api/areas/{areaId}/assigned-personnel/{id}", randomAreaId, randomApId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("""
-                        {
-                            "validTo": "2026-10-01T00:00:00Z",
-                            "reason": "Gia hạn thời gian gán nhân sự khu vực"
-                        }
-                        """));
     }
 
     @Test
