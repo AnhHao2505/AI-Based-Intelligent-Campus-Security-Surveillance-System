@@ -1,4 +1,4 @@
-%% Title: SM-04 Assigned personnel (AP) status · Source: enums/AssignedPersonnelStatus.java, service/AreaAssignedPersonnelService.java (create, updateValidTo, revoke, revokeAllOfUser, computeStatus), service/AreaService.java (revokeAssignedPersonnelOnDeactivation), service/UserService.java · Generated from main @ 84f5565
+%% Title: SM-04 Assigned personnel (AP) status · Source: enums/AssignedPersonnelStatus.java, service/AreaAssignedPersonnelService.java (create, revoke, revokeAllOfUser, computeStatus), service/AreaService.java (revokeAssignedPersonnelOnDeactivation), service/UserService.java · Generated from main @ 84c7760
 stateDiagram-v2
     direction LR
 
@@ -7,16 +7,14 @@ stateDiagram-v2
     state "EXPIRED · computed" as EXPIRED
     state "REVOKED · stored as revoked_at" as REVOKED
 
-    [*] --> UPCOMING : Facility Manager assigns user [validFrom after now]
-    [*] --> ACTIVE : Facility Manager assigns user [validFrom at or before now, default now]
+    [*] --> UPCOMING : Facility Manager assigns user [validFrom after now, no overlap]
+    [*] --> ACTIVE : Facility Manager assigns user [validFrom default now, not more than 5 min in the past (ERR_AP_013)]
 
     UPCOMING --> ACTIVE : Time passes [now at or after validFrom]
     ACTIVE --> EXPIRED : Time passes [validTo set and now at or after validTo]
-    EXPIRED --> ACTIVE : Facility Manager edits end time [new validTo after now or empty]
 
     UPCOMING --> REVOKED : Facility Manager revokes [reason required]
     ACTIVE --> REVOKED : Facility Manager revokes [reason required]
-    EXPIRED --> REVOKED : Facility Manager revokes [reason required]
 
     UPCOMING --> REVOKED : Administrator deactivates or deletes the user account (BR-AP-24, BR-AP-25)
     ACTIVE --> REVOKED : Administrator deactivates or deletes the user account (BR-AP-24, BR-AP-25)
@@ -24,6 +22,14 @@ stateDiagram-v2
     ACTIVE --> REVOKED : Administrator deactivates the area (BR-AD-04)
 
     REVOKED --> [*]
+    EXPIRED --> [*]
+
+    note right of EXPIRED
+        One record per grant: validity cannot be edited.
+        To grant again, the Facility Manager creates a new record
+        (it may start exactly at the previous validTo).
+        Revoking an EXPIRED record is refused (409 ERR_AP_012).
+    end note
 
     note left of REVOKED
         Status is NOT stored. computeStatus(ap, now):

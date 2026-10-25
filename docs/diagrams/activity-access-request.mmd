@@ -1,4 +1,4 @@
-%% Title: AD-01 Access request workflow · Source: service/AccessRequestService.java (createIndividualRequest, createGroupRequest, reviewRequest, expireOverdueRequests, finishRequest, cancelApprovedRequest), service/AccessDecisionService.java (checkCameraEntry, checkEntry), frontend pages/accessRequest/AccessRequestPage.jsx, pages/approvals/ApprovalPage.jsx · Generated from main @ 84f5565
+%% Title: AD-01 Access request workflow · Source: service/AccessRequestService.java (createIndividualRequest, createGroupRequest, reviewRequest, expireOverdueRequests, finishRequest, cancelApprovedRequest, finishElapsedApprovedRequests), service/AccessDecisionService.java (checkCameraEntry, checkEntry), frontend pages/accessRequest/AccessRequestPage.jsx, pages/approvals/ApprovalPage.jsx · Generated from main @ 84c7760
 flowchart TB
     subgraph AU["Authorized User"]
         start((Start))
@@ -18,8 +18,8 @@ flowchart TB
     subgraph SYS["System (backend and jobs)"]
         s1{"Rules satisfied? area not Public, window, level, members, no overlap"}
         s2["Save request as PENDING, notify Facility Managers"]
-        s3{"Reviewed before the expiry job runs after startTime?"}
-        s4["Job expireOverdueRequests sets EXPIRED, notify requester"]
+        s3{"Reviewed before startTime?"}
+        s4["Review after startTime refused (ERR_AC_012); job expireOverdueRequests sets EXPIRED, notify requester"]
         s5{"Conditional UPDATE WHERE status = PENDING hits 1 row?"}
         s6["Request REJECTED, notify requester and members"]
         s7["Request APPROVED, notify requester and members"]
@@ -27,6 +27,7 @@ flowchart TB
         s9["Write camera access log: AUTHORIZED_ACCESS"]
         s9b["Write camera access log: denied result and reason"]
         s10["Conditional UPDATE to FINISHED or CANCELLED, notify participants"]
+        s11["Job finishElapsedApprovedRequests: endTime passed, set FINISHED, finished_by empty, no notification"]
     end
 
     subgraph AI["AI Surveillance Engine"]
@@ -51,4 +52,4 @@ flowchart TB
     s8 -->|allowed, source ACCESS_REQUEST| s9 --> i2 --> f5
     s8 -->|denied, source NONE| s9b --> i3 --> f5
     f5 -->|yes| f6 --> s10 --> stop
-    f5 -->|no, window ends, request stays APPROVED| stop
+    f5 -->|no, window ends| s11 --> stop

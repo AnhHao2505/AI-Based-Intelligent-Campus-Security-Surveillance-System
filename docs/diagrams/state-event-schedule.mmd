@@ -1,4 +1,4 @@
-%% Title: SM-03 Event schedule lifecycle · Source: enums/AreaEventScheduleStatus.java, service/AreaService.java (createSchedule, updateSchedule, cancelSchedule, activateScheduleInTx, cleanupExpiredSessions, updateEventMode, finishScheduleOfSession), scheduler/AreaEventModeScheduler.java · Generated from main @ 84f5565
+%% Title: SM-03 Event schedule lifecycle · Source: enums/AreaEventScheduleStatus.java, service/AreaService.java (createSchedule, updateSchedule, cancelSchedule, activateScheduleInTx, cleanupExpiredSessions, updateEventMode, finishScheduleOfSession), scheduler/AreaEventModeScheduler.java · Generated from main @ 84c7760
 stateDiagram-v2
     direction LR
 
@@ -16,11 +16,17 @@ stateDiagram-v2
     SCHEDULED --> STARTED : System job AreaEventModeScheduler every minute [startAt reached, endAt after now, area active and Confidential] / session opened
     SCHEDULED --> FAILED : System job AreaEventModeScheduler every minute [startAt reached and endAt passed, or area inactive, or area no longer Confidential]
 
-    STARTED --> STARTED : Facility Manager adjusts event mode (ADJUST) / new session inherits schedule
-    STARTED --> COMPLETED : System closes expired session [plannedEnd reached, by job every minute or by any event-mode write on the area]
+    STARTED --> COMPLETED : System closes expired session [plannedEnd reached, by job every minute or by any schedule or event-mode write on the area]
     STARTED --> ENDED_EARLY : Facility Manager stops event (event mode DISABLE)
 
     CANCELLED --> [*]
     FAILED --> [*]
     COMPLETED --> [*]
     ENDED_EARLY --> [*]
+
+    note right of STARTED
+        Manual enable / adjust removed:
+        PATCH /event-mode accepts DISABLE only
+        (ENABLE, ADJUST -> 400 ERR_AREA_058).
+        An event opens only from a schedule.
+    end note

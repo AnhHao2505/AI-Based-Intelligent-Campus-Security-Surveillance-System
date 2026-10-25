@@ -1,4 +1,4 @@
-%% Title: CD-01 Access control classes, part 2 of 2: controllers, services, jobs · Source: controller/AccessRequestController.java, GuestVisitController.java, AreaController.java, AreaAssignedPersonnelController.java, AccessControlController.java, service/AccessRequestService.java, GuestVisitService.java, GuestVisitJobService.java, AreaService.java, AreaAssignedPersonnelService.java, AccessDecisionService.java, GuestAccessDecisionService.java, UserService.java, scheduler/AreaEventModeScheduler.java, GuestVisitScheduler.java · Generated from main @ 84f5565
+%% Title: CD-01 Access control classes, part 2 of 2: controllers, services, jobs · Source: controller/AccessRequestController.java, GuestVisitController.java, AreaController.java, AreaAssignedPersonnelController.java, AccessControlController.java, service/AccessRequestService.java, GuestVisitService.java, GuestVisitJobService.java, AreaService.java, AreaAssignedPersonnelService.java, AccessDecisionService.java, GuestAccessDecisionService.java, UserService.java, scheduler/AreaEventModeScheduler.java, GuestVisitScheduler.java · Generated from main @ 84c7760
 classDiagram
     direction LR
 
@@ -25,7 +25,6 @@ classDiagram
     }
     class AreaAssignedPersonnelController {
         +create()
-        +updateValidTo()
         +revoke()
     }
     class AccessControlController {
@@ -40,6 +39,7 @@ classDiagram
         +finishRequest()
         +cancelApprovedRequest()
         +expireOverdueRequests()
+        +finishElapsedApprovedRequests()
         +cancelActiveRequestsOfRequester()
     }
     class GuestVisitService {
@@ -69,7 +69,6 @@ classDiagram
     }
     class AreaAssignedPersonnelService {
         +create()
-        +updateValidTo()
         +revoke()
         +revokeAllOfUser()
         computeStatus()$

@@ -2,7 +2,7 @@
 
 Diagrams for the access-control modules (access requests, guest visits, assigned personnel, areas, event schedules, entry decision), kept as Mermaid source so they can be reviewed and versioned with the code.
 
-- Drawn from the code on `main` @ `84f5565` (migrations up to V89). Where code and documents disagree, the diagram follows the code; the differences are listed in [Differences from the documents](#differences-from-the-documents).
+- Drawn from the code on `main` @ `84f5565` (migrations up to V89). **Updated 2026-10-25** against `main` @ `84c7760` for the access-rules changes (no review after start time, system finish of elapsed requests, one assigned-personnel record per grant, event mode opened by schedules only): SM-01, SM-03, SM-04, AD-01, AD-03, SQ-02 and CD-01 part 2. Where code and documents disagree, the diagram follows the code; the differences are listed in [Differences from the documents](#differences-from-the-documents).
 - Every `.mmd` file starts with `%% Title: … · Source: … · Generated from main @ <commit>`.
 - Paths in the tables are relative to `backend/src/main/java/com/fa26se040/icss/` unless they start with `frontend/`, `ai-service/` or `db/`.
 
@@ -58,14 +58,15 @@ Diagrams for the access-control modules (access requests, guest visits, assigned
 |---|---|
 | States | `enums/RequestStatus.java` (DB CHECK `chk_access_requests_status`, V40) |
 | [*] → PENDING (Authorized User) | `AccessRequestService.createIndividualRequest`, `createGroupRequest` (`status(RequestStatus.PENDING)`); `AccessRequestController` `@PreAuthorize("hasRole('NORMAL_USER')")` |
-| PENDING → APPROVED / REJECTED (Facility Manager) | `AccessRequestService.reviewRequest` → `AccessRequestRepository.reviewIfPending` |
+| PENDING → APPROVED / REJECTED (Facility Manager, before startTime) | `AccessRequestService.reviewRequest` (early check `hasStarted` → `ERR_AC_012`) → `AccessRequestRepository.reviewIfPending` (`… AND startTime > :reviewedAt`) |
 | PENDING → CANCELLED, source USER (requester) | `AccessRequestService.cancelRequest` → `cancelIfPending`, `recordCancellation(…, CancelSource.USER, …)` |
 | PENDING → EXPIRED (job, every 15 min) | `AccessRequestService.expireOverdueRequests` (`@Scheduled icss.scheduler.expire-overdue-cron`) → `findPendingOverdueRequestsForUpdate` (`startTime < now`), `expireOverdueRequestsByIds` |
 | PENDING → CANCELLED, source SYSTEM | `AreaService.update` → `evaluateTypeChange` (new type PUBLIC, `PUBLIC_CANCEL_REASON`) → `cancelRequestsBySystem`; `AreaService.deactivate` → `AreaDependencyChecker.evaluate` → `cancelRequestsBySystem`; `AccessRequestService.cancelActiveRequestsOfRequester` ← `UserService.toggleActive`, `softDelete`, `deleteBatch`; all via `AccessRequestRepository.cancelBySystemIfStatus` |
 | APPROVED → FINISHED (Facility Manager) | `AccessRequestService.finishRequest` → `finishIfApprovedStarted` (`startTime <= now`) |
+| APPROVED → FINISHED (system job, every 15 min) | `AccessRequestService.finishElapsedApprovedRequests` (`@Scheduled icss.scheduler.finish-elapsed-cron`) → `AccessRequestRepository.findApprovedElapsedRequestsForUpdate` (`endTime <= now`), `finishElapsedRequestsByIds` (`finishedBy = NULL`, `FINISH_REASON_ELAPSED`) |
 | APPROVED → CANCELLED, source STAFF (Facility Manager) | `AccessRequestService.cancelApprovedRequest` → `cancelIfApprovedNotStarted` (`startTime > now`), `recordCancellation(…, CancelSource.STAFF, …)` |
 | APPROVED → CANCELLED, source SYSTEM | `AreaService.evaluateTypeChange` + `describeRuleViolation` → `cancelRequestsBySystem`; `AreaService.deactivate`; `AccessRequestService.cancelActiveRequestsOfRequester` (`findNotEndedByRequesterWithParticipants`, `endTime > now`) |
-| Note: APPROVED kept after endTime | No `@Scheduled` method writes APPROVED; `AccessDecisionService.checkEntry` → `findCoveringRequestsForUser` (`startTime <= at < endTime`) |
+| Note: entry window | `AccessDecisionService.checkEntry` → `findCoveringRequestsForUser` (`startTime <= at < endTime`) |
 
 ### SM-02 Guest visit
 
@@ -91,7 +92,7 @@ Diagrams for the access-control modules (access requests, guest visits, assigned
 | SCHEDULED → SCHEDULED (edit) | `AreaService.updateSchedule` (requires SCHEDULED, ERR_AREA_040) |
 | SCHEDULED → CANCELLED | `AreaService.cancelSchedule` |
 | SCHEDULED → STARTED / FAILED (job) | `scheduler/AreaEventModeScheduler.tick` → `AreaService.processScheduledEventActivations` → `activateScheduleInTx` |
-| STARTED → STARTED (ADJUST) | `AreaService.updateEventMode` (ADJUST branch, `inheritedScheduleId`) |
+| Manual ENABLE / ADJUST removed | `AreaService.updateEventMode`: any action other than DISABLE → `ERR_AREA_058` |
 | STARTED → COMPLETED | `AreaService.cleanupExpiredSessions` → `finishScheduleOfSession(…, COMPLETED)`; called by `processExpiredEventSessions` / `expireEventSessionForAreaInTx` and by `updateEventMode`, `createSchedule`, `updateSchedule`, `cancelSchedule`, `activateScheduleInTx` |
 | STARTED → ENDED_EARLY (Facility Manager stops) | `AreaService.updateEventMode` (DISABLE branch) → `finishScheduleOfSession(…, ENDED_EARLY)` |
 
@@ -102,8 +103,8 @@ Diagrams for the access-control modules (access requests, guest visits, assigned
 | States (computed) | `enums/AssignedPersonnelStatus.java`, `AreaAssignedPersonnelService.computeStatus`; stored columns `valid_from`, `valid_to`, `revoked_at` (V37) |
 | [*] → UPCOMING / ACTIVE | `AreaAssignedPersonnelService.create` (`validFrom` defaults to now) |
 | UPCOMING → ACTIVE, ACTIVE → EXPIRED (time) | `AreaAssignedPersonnelService.computeStatus` |
-| EXPIRED → ACTIVE (edit end time) | `AreaAssignedPersonnelService.updateValidTo` (blocks only revoked records; `validateValidTo` needs new `validTo > now`) |
-| UPCOMING / ACTIVE / EXPIRED → REVOKED (Facility Manager) | `AreaAssignedPersonnelService.revoke` (blocks only already revoked) |
+| No validity edit | `AreaAssignedPersonnelController` has no update endpoint; `AssignedPersonnelUpdateRequest` removed. `create` rejects `validFrom` older than `now − VALID_FROM_CLOCK_SKEW` (5 min) → `ERR_AP_013` |
+| UPCOMING / ACTIVE → REVOKED (Facility Manager) | `AreaAssignedPersonnelService.revoke` (already revoked → `ERR_AP_009`; EXPIRED → `ERR_AP_012`) |
 | UPCOMING / ACTIVE → REVOKED (account deactivated / deleted) | `UserService.toggleActive`, `softDelete`, `deleteBatch` → `AreaAssignedPersonnelService.revokeAllOfUser` (`findNotRevokedNotExpiredByUser`) |
 | UPCOMING / ACTIVE → REVOKED (area deactivated) | `AreaService.deactivate` → `revokeAssignedPersonnelOnDeactivation` (`AreaDependencyChecker.evaluate` → `findNotRevokedNotExpired`) |
 
@@ -133,9 +134,9 @@ The diagrams follow the code. Differences found with `r3-draft` (II-5-1 business
 | D2 | BR-GV-04: selectable areas are "Internal Confidential and Contact-Required Confidential" | Since V83 only `CONFIDENTIAL` (`GuestRules.GUEST_AREA_LEVELS`) |
 | D3 | BR-GV-27: immediate deletion for CANCELLED / REVOKED / EXPIRED | Also REJECTED (`GuestVisitJobService.CLOSED_WITHOUT_VISIT`) |
 | D4 | BR-GV-38 describes a "photo without a valid embedding" status | `PHOTO_ONLY` exists in `GuestBiometricStatus` but no code sets it; `GuestPhotoService.attach` rejects a photo without a valid embedding |
-| D5 | (not stated) | APPROVED requests are never moved by a job after endTime; they stay APPROVED and stop granting entry |
+| D5 | (not stated) | Resolved on `84c7760`: the job `finishElapsedApprovedRequests` moves elapsed APPROVED requests to FINISHED |
 | D6 | (task brief) review returns 400 for a wrong status | Non-PENDING gives 409 (`ConcurrentReviewException`); 400 only for bad input or failed re-check (matches BR-RQ-40) |
-| D7 | BR-AP-08 forbids changes to revoked records only | `updateValidTo` can move an EXPIRED record back to ACTIVE, and `revoke` accepts EXPIRED records |
+| D7 | BR-AP-08 forbids changes to revoked records only | Resolved on `84c7760`: validity edit removed (one record per grant), and `revoke` refuses EXPIRED records |
 | D8 | II-2-1 actors: "AI Service", "System Scheduler", "Guard" | Diagrams use the task names: AI Surveillance Engine, System (job), Security Officer (code `GUARD`) |
 
 ## Diagrams
@@ -147,7 +148,7 @@ Embedded copies of the `.mmd` files (the `.mmd` file is the source; keep both in
 Source file: [`state-access-request.mmd`](state-access-request.mmd)
 
 ```mermaid
-%% Title: SM-01 Access request lifecycle · Source: enums/RequestStatus.java, service/AccessRequestService.java, service/AreaService.java (cancelRequestsBySystem) · Generated from main @ 84f5565
+%% Title: SM-01 Access request lifecycle · Source: enums/RequestStatus.java, service/AccessRequestService.java, service/AreaService.java (cancelRequestsBySystem) · Generated from main @ 84c7760
 stateDiagram-v2
     direction LR
 
@@ -160,13 +161,14 @@ stateDiagram-v2
 
     [*] --> PENDING : Authorized User creates request [area not Public, valid window, no overlap]
 
-    PENDING --> APPROVED : Facility Manager approves [reviewer is not requester, members re-checked, UPDATE WHERE status = PENDING hits 1 row]
-    PENDING --> REJECTED : Facility Manager rejects [reason required, UPDATE WHERE status = PENDING hits 1 row]
+    PENDING --> APPROVED : Facility Manager approves [now before startTime, reviewer is not requester, members re-checked, UPDATE WHERE status = PENDING AND startTime > now hits 1 row]
+    PENDING --> REJECTED : Facility Manager rejects [now before startTime, reason required, UPDATE WHERE status = PENDING AND startTime > now hits 1 row]
     PENDING --> CANCELLED : Authorized User (requester) cancels [UPDATE WHERE status = PENDING hits 1 row] / source USER
-    PENDING --> EXPIRED : System job expireOverdueRequests every 15 min [startTime before now]
+    PENDING --> EXPIRED : System job expireOverdueRequests every 15 min [startTime before now; review after start is refused with ERR_AC_012]
     PENDING --> CANCELLED : System [area changed to Public, area deactivated, or requester deactivated or deleted] / source SYSTEM
 
     APPROVED --> FINISHED : Facility Manager finishes [now at or after startTime, reason required]
+    APPROVED --> FINISHED : System job finishElapsedApprovedRequests every 15 min [endTime at or before now] / finished_by NULL, reason "Hết thời gian hiệu lực", no notification
     APPROVED --> CANCELLED : Facility Manager cancels approved request [now before startTime, reason required] / source STAFF
     APPROVED --> CANCELLED : System [area type change breaks request rule, area deactivated, or requester deactivated or deleted, with endTime after now] / source SYSTEM
 
@@ -176,9 +178,9 @@ stateDiagram-v2
     FINISHED --> [*]
 
     note right of APPROVED
-        No job moves APPROVED after endTime:
-        the request stays APPROVED and checkEntry
-        simply stops matching it (startTime <= at < endTime).
+        Entry is granted only while
+        startTime <= at < endTime (checkEntry).
+        After endTime the system job moves it to FINISHED.
     end note
 ```
 
@@ -233,7 +235,7 @@ stateDiagram-v2
 Source file: [`state-event-schedule.mmd`](state-event-schedule.mmd)
 
 ```mermaid
-%% Title: SM-03 Event schedule lifecycle · Source: enums/AreaEventScheduleStatus.java, service/AreaService.java (createSchedule, updateSchedule, cancelSchedule, activateScheduleInTx, cleanupExpiredSessions, updateEventMode, finishScheduleOfSession), scheduler/AreaEventModeScheduler.java · Generated from main @ 84f5565
+%% Title: SM-03 Event schedule lifecycle · Source: enums/AreaEventScheduleStatus.java, service/AreaService.java (createSchedule, updateSchedule, cancelSchedule, activateScheduleInTx, cleanupExpiredSessions, updateEventMode, finishScheduleOfSession), scheduler/AreaEventModeScheduler.java · Generated from main @ 84c7760
 stateDiagram-v2
     direction LR
 
@@ -251,14 +253,20 @@ stateDiagram-v2
     SCHEDULED --> STARTED : System job AreaEventModeScheduler every minute [startAt reached, endAt after now, area active and Confidential] / session opened
     SCHEDULED --> FAILED : System job AreaEventModeScheduler every minute [startAt reached and endAt passed, or area inactive, or area no longer Confidential]
 
-    STARTED --> STARTED : Facility Manager adjusts event mode (ADJUST) / new session inherits schedule
-    STARTED --> COMPLETED : System closes expired session [plannedEnd reached, by job every minute or by any event-mode write on the area]
+    STARTED --> COMPLETED : System closes expired session [plannedEnd reached, by job every minute or by any schedule or event-mode write on the area]
     STARTED --> ENDED_EARLY : Facility Manager stops event (event mode DISABLE)
 
     CANCELLED --> [*]
     FAILED --> [*]
     COMPLETED --> [*]
     ENDED_EARLY --> [*]
+
+    note right of STARTED
+        Manual enable / adjust removed:
+        PATCH /event-mode accepts DISABLE only
+        (ENABLE, ADJUST -> 400 ERR_AREA_058).
+        An event opens only from a schedule.
+    end note
 ```
 
 ### SM-04 Assigned personnel (AP) status
@@ -266,7 +274,7 @@ stateDiagram-v2
 Source file: [`state-assigned-personnel.mmd`](state-assigned-personnel.mmd)
 
 ```mermaid
-%% Title: SM-04 Assigned personnel (AP) status · Source: enums/AssignedPersonnelStatus.java, service/AreaAssignedPersonnelService.java (create, updateValidTo, revoke, revokeAllOfUser, computeStatus), service/AreaService.java (revokeAssignedPersonnelOnDeactivation), service/UserService.java · Generated from main @ 84f5565
+%% Title: SM-04 Assigned personnel (AP) status · Source: enums/AssignedPersonnelStatus.java, service/AreaAssignedPersonnelService.java (create, revoke, revokeAllOfUser, computeStatus), service/AreaService.java (revokeAssignedPersonnelOnDeactivation), service/UserService.java · Generated from main @ 84c7760
 stateDiagram-v2
     direction LR
 
@@ -275,16 +283,14 @@ stateDiagram-v2
     state "EXPIRED · computed" as EXPIRED
     state "REVOKED · stored as revoked_at" as REVOKED
 
-    [*] --> UPCOMING : Facility Manager assigns user [validFrom after now]
-    [*] --> ACTIVE : Facility Manager assigns user [validFrom at or before now, default now]
+    [*] --> UPCOMING : Facility Manager assigns user [validFrom after now, no overlap]
+    [*] --> ACTIVE : Facility Manager assigns user [validFrom default now, not more than 5 min in the past (ERR_AP_013)]
 
     UPCOMING --> ACTIVE : Time passes [now at or after validFrom]
     ACTIVE --> EXPIRED : Time passes [validTo set and now at or after validTo]
-    EXPIRED --> ACTIVE : Facility Manager edits end time [new validTo after now or empty]
 
     UPCOMING --> REVOKED : Facility Manager revokes [reason required]
     ACTIVE --> REVOKED : Facility Manager revokes [reason required]
-    EXPIRED --> REVOKED : Facility Manager revokes [reason required]
 
     UPCOMING --> REVOKED : Administrator deactivates or deletes the user account (BR-AP-24, BR-AP-25)
     ACTIVE --> REVOKED : Administrator deactivates or deletes the user account (BR-AP-24, BR-AP-25)
@@ -292,6 +298,14 @@ stateDiagram-v2
     ACTIVE --> REVOKED : Administrator deactivates the area (BR-AD-04)
 
     REVOKED --> [*]
+    EXPIRED --> [*]
+
+    note right of EXPIRED
+        One record per grant: validity cannot be edited.
+        To grant again, the Facility Manager creates a new record
+        (it may start exactly at the previous validTo).
+        Revoking an EXPIRED record is refused (409 ERR_AP_012).
+    end note
 
     note left of REVOKED
         Status is NOT stored. computeStatus(ap, now):
@@ -347,7 +361,7 @@ stateDiagram-v2
 Source file: [`activity-access-request.mmd`](activity-access-request.mmd)
 
 ```mermaid
-%% Title: AD-01 Access request workflow · Source: service/AccessRequestService.java (createIndividualRequest, createGroupRequest, reviewRequest, expireOverdueRequests, finishRequest, cancelApprovedRequest), service/AccessDecisionService.java (checkCameraEntry, checkEntry), frontend pages/accessRequest/AccessRequestPage.jsx, pages/approvals/ApprovalPage.jsx · Generated from main @ 84f5565
+%% Title: AD-01 Access request workflow · Source: service/AccessRequestService.java (createIndividualRequest, createGroupRequest, reviewRequest, expireOverdueRequests, finishRequest, cancelApprovedRequest, finishElapsedApprovedRequests), service/AccessDecisionService.java (checkCameraEntry, checkEntry), frontend pages/accessRequest/AccessRequestPage.jsx, pages/approvals/ApprovalPage.jsx · Generated from main @ 84c7760
 flowchart TB
     subgraph AU["Authorized User"]
         start((Start))
@@ -367,8 +381,8 @@ flowchart TB
     subgraph SYS["System (backend and jobs)"]
         s1{"Rules satisfied? area not Public, window, level, members, no overlap"}
         s2["Save request as PENDING, notify Facility Managers"]
-        s3{"Reviewed before the expiry job runs after startTime?"}
-        s4["Job expireOverdueRequests sets EXPIRED, notify requester"]
+        s3{"Reviewed before startTime?"}
+        s4["Review after startTime refused (ERR_AC_012); job expireOverdueRequests sets EXPIRED, notify requester"]
         s5{"Conditional UPDATE WHERE status = PENDING hits 1 row?"}
         s6["Request REJECTED, notify requester and members"]
         s7["Request APPROVED, notify requester and members"]
@@ -376,6 +390,7 @@ flowchart TB
         s9["Write camera access log: AUTHORIZED_ACCESS"]
         s9b["Write camera access log: denied result and reason"]
         s10["Conditional UPDATE to FINISHED or CANCELLED, notify participants"]
+        s11["Job finishElapsedApprovedRequests: endTime passed, set FINISHED, finished_by empty, no notification"]
     end
 
     subgraph AI["AI Surveillance Engine"]
@@ -400,7 +415,7 @@ flowchart TB
     s8 -->|allowed, source ACCESS_REQUEST| s9 --> i2 --> f5
     s8 -->|denied, source NONE| s9b --> i3 --> f5
     f5 -->|yes| f6 --> s10 --> stop
-    f5 -->|no, window ends, request stays APPROVED| stop
+    f5 -->|no, window ends| s11 --> stop
 ```
 
 ### AD-02 Guest visit workflow
@@ -473,7 +488,7 @@ flowchart TB
 Source file: [`activity-event-schedule.mmd`](activity-event-schedule.mmd)
 
 ```mermaid
-%% Title: AD-03 Event schedule workflow · Source: service/AreaService.java (createSchedule, updateSchedule, cancelSchedule, processScheduleReminders, activateScheduleInTx, updateEventMode, cleanupExpiredSessions), scheduler/AreaEventModeScheduler.java, service/AccessDecisionService.java (checkEntry), frontend pages/events/EventManagementPage.jsx · Generated from main @ 84f5565
+%% Title: AD-03 Event schedule workflow · Source: service/AreaService.java (createSchedule, updateSchedule, cancelSchedule, processScheduleReminders, activateScheduleInTx, updateEventMode, cleanupExpiredSessions), scheduler/AreaEventModeScheduler.java, service/AccessDecisionService.java (checkEntry), frontend pages/events/EventManagementPage.jsx · Generated from main @ 84c7760
 flowchart TB
     subgraph FM["Facility Manager"]
         start((Start))
@@ -492,7 +507,7 @@ flowchart TB
         s5{"Job at startAt: endAt after now, area active and Confidential?"}
         s6["Schedule FAILED, notify creator"]
         s7["Open event session, area open to members, schedule STARTED, notify guards"]
-        s8["checkEntry allows source OPEN_EVENT when AP and level do not"]
+        s8["checkEntry allows source OPEN_EVENT when AP and level do not (event opens only from a schedule; no manual enable)"]
         s9["Close session, schedule ENDED_EARLY, notify guards"]
         s10["Job closes session at planned end, schedule COMPLETED, area closed"]
     end
@@ -572,7 +587,7 @@ sequenceDiagram
 Source file: [`seq-review-access-request.mmd`](seq-review-access-request.mmd)
 
 ```mermaid
-%% Title: SQ-02 Review (approve / reject) access request · Source: frontend pages/approvals/ApprovalPage.jsx, pages/accessRequest/AccessRequestReviewPage.jsx (handleConfirmApprove), controller/AccessRequestController.java (reviewRequest), service/AccessRequestService.java (reviewRequest), repository/AccessRequestRepository.java (reviewIfPending) · Generated from main @ 84f5565
+%% Title: SQ-02 Review (approve / reject) access request · Source: frontend pages/approvals/ApprovalPage.jsx, pages/accessRequest/AccessRequestReviewPage.jsx (handleConfirmApprove), controller/AccessRequestController.java (reviewRequest), service/AccessRequestService.java (reviewRequest), repository/AccessRequestRepository.java (reviewIfPending) · Generated from main @ 84c7760
 sequenceDiagram
     autonumber
     actor FM as Facility Manager
@@ -596,8 +611,12 @@ sequenceDiagram
     alt Failure: invalid input or rule broken
         S-->>C: IllegalArgumentException, or AccessControlException ERR_AC_006
         C-->>P: 400 Bad Request, or 403 Forbidden (self review)
+    else Failure: request still PENDING but now >= startTime
+        S-->>C: AccessControlException ERR_AC_012
+        C-->>P: 409 Conflict
+        P-->>FM: Warning banner, reload list
     else Input valid
-        S->>RR: reviewIfPending(id, status, reviewer, now, reason, PENDING)
+        S->>RR: reviewIfPending(id, status, reviewer, now, reason, PENDING) [AND startTime > now]
         alt Success: 1 row updated
             S->>AS: record(ACCESS_REQUEST, APPROVE or REJECT)
             S->>NS: createForUsers(requester and members, REQUEST_APPROVED or REQUEST_REJECTED)
@@ -606,7 +625,7 @@ sequenceDiagram
             P-->>FM: Success message, reload list
         else Failure: 0 rows, handled by someone else
             S->>RR: findByIdWithDetails(id)
-            S-->>C: ConcurrentReviewException (who, new status, when)
+            S-->>C: ConcurrentReviewException (who, new status, when), or ERR_AC_012 if still PENDING and started
             C-->>P: 409 Conflict
             P-->>FM: Warning banner, reload list
         end
@@ -615,7 +634,7 @@ sequenceDiagram
     deactivate C
     deactivate P
 
-    note over S,RR: No status pre-check. A request that is no longer PENDING gives 409 from the conditional UPDATE, not 400
+    note over S,RR: No status pre-check. A request that is no longer PENDING gives 409 from the conditional UPDATE, not 400. The start-time check exists both as an early check and inside the UPDATE (race-safe)
 ```
 
 ### SQ-03 Finish approved access request
@@ -1000,7 +1019,7 @@ classDiagram
 Source file: [`class-access-control-services.mmd`](class-access-control-services.mmd)
 
 ```mermaid
-%% Title: CD-01 Access control classes, part 2 of 2: controllers, services, jobs · Source: controller/AccessRequestController.java, GuestVisitController.java, AreaController.java, AreaAssignedPersonnelController.java, AccessControlController.java, service/AccessRequestService.java, GuestVisitService.java, GuestVisitJobService.java, AreaService.java, AreaAssignedPersonnelService.java, AccessDecisionService.java, GuestAccessDecisionService.java, UserService.java, scheduler/AreaEventModeScheduler.java, GuestVisitScheduler.java · Generated from main @ 84f5565
+%% Title: CD-01 Access control classes, part 2 of 2: controllers, services, jobs · Source: controller/AccessRequestController.java, GuestVisitController.java, AreaController.java, AreaAssignedPersonnelController.java, AccessControlController.java, service/AccessRequestService.java, GuestVisitService.java, GuestVisitJobService.java, AreaService.java, AreaAssignedPersonnelService.java, AccessDecisionService.java, GuestAccessDecisionService.java, UserService.java, scheduler/AreaEventModeScheduler.java, GuestVisitScheduler.java · Generated from main @ 84c7760
 classDiagram
     direction LR
 
@@ -1027,7 +1046,6 @@ classDiagram
     }
     class AreaAssignedPersonnelController {
         +create()
-        +updateValidTo()
         +revoke()
     }
     class AccessControlController {
@@ -1042,6 +1060,7 @@ classDiagram
         +finishRequest()
         +cancelApprovedRequest()
         +expireOverdueRequests()
+        +finishElapsedApprovedRequests()
         +cancelActiveRequestsOfRequester()
     }
     class GuestVisitService {
@@ -1071,7 +1090,6 @@ classDiagram
     }
     class AreaAssignedPersonnelService {
         +create()
-        +updateValidTo()
         +revoke()
         +revokeAllOfUser()
         computeStatus()$

@@ -1,4 +1,4 @@
-%% Title: SM-01 Access request lifecycle · Source: enums/RequestStatus.java, service/AccessRequestService.java, service/AreaService.java (cancelRequestsBySystem) · Generated from main @ 84f5565
+%% Title: SM-01 Access request lifecycle · Source: enums/RequestStatus.java, service/AccessRequestService.java, service/AreaService.java (cancelRequestsBySystem) · Generated from main @ 84c7760
 stateDiagram-v2
     direction LR
 
@@ -11,13 +11,14 @@ stateDiagram-v2
 
     [*] --> PENDING : Authorized User creates request [area not Public, valid window, no overlap]
 
-    PENDING --> APPROVED : Facility Manager approves [reviewer is not requester, members re-checked, UPDATE WHERE status = PENDING hits 1 row]
-    PENDING --> REJECTED : Facility Manager rejects [reason required, UPDATE WHERE status = PENDING hits 1 row]
+    PENDING --> APPROVED : Facility Manager approves [now before startTime, reviewer is not requester, members re-checked, UPDATE WHERE status = PENDING AND startTime > now hits 1 row]
+    PENDING --> REJECTED : Facility Manager rejects [now before startTime, reason required, UPDATE WHERE status = PENDING AND startTime > now hits 1 row]
     PENDING --> CANCELLED : Authorized User (requester) cancels [UPDATE WHERE status = PENDING hits 1 row] / source USER
-    PENDING --> EXPIRED : System job expireOverdueRequests every 15 min [startTime before now]
+    PENDING --> EXPIRED : System job expireOverdueRequests every 15 min [startTime before now; review after start is refused with ERR_AC_012]
     PENDING --> CANCELLED : System [area changed to Public, area deactivated, or requester deactivated or deleted] / source SYSTEM
 
     APPROVED --> FINISHED : Facility Manager finishes [now at or after startTime, reason required]
+    APPROVED --> FINISHED : System job finishElapsedApprovedRequests every 15 min [endTime at or before now] / finished_by NULL, reason "Hết thời gian hiệu lực", no notification
     APPROVED --> CANCELLED : Facility Manager cancels approved request [now before startTime, reason required] / source STAFF
     APPROVED --> CANCELLED : System [area type change breaks request rule, area deactivated, or requester deactivated or deleted, with endTime after now] / source SYSTEM
 
@@ -27,7 +28,7 @@ stateDiagram-v2
     FINISHED --> [*]
 
     note right of APPROVED
-        No job moves APPROVED after endTime:
-        the request stays APPROVED and checkEntry
-        simply stops matching it (startTime <= at < endTime).
+        Entry is granted only while
+        startTime <= at < endTime (checkEntry).
+        After endTime the system job moves it to FINISHED.
     end note

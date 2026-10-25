@@ -1,4 +1,4 @@
-%% Title: SQ-02 Review (approve / reject) access request · Source: frontend pages/approvals/ApprovalPage.jsx, pages/accessRequest/AccessRequestReviewPage.jsx (handleConfirmApprove), controller/AccessRequestController.java (reviewRequest), service/AccessRequestService.java (reviewRequest), repository/AccessRequestRepository.java (reviewIfPending) · Generated from main @ 84f5565
+%% Title: SQ-02 Review (approve / reject) access request · Source: frontend pages/approvals/ApprovalPage.jsx, pages/accessRequest/AccessRequestReviewPage.jsx (handleConfirmApprove), controller/AccessRequestController.java (reviewRequest), service/AccessRequestService.java (reviewRequest), repository/AccessRequestRepository.java (reviewIfPending) · Generated from main @ 84c7760
 sequenceDiagram
     autonumber
     actor FM as Facility Manager
@@ -22,8 +22,12 @@ sequenceDiagram
     alt Failure: invalid input or rule broken
         S-->>C: IllegalArgumentException, or AccessControlException ERR_AC_006
         C-->>P: 400 Bad Request, or 403 Forbidden (self review)
+    else Failure: request still PENDING but now >= startTime
+        S-->>C: AccessControlException ERR_AC_012
+        C-->>P: 409 Conflict
+        P-->>FM: Warning banner, reload list
     else Input valid
-        S->>RR: reviewIfPending(id, status, reviewer, now, reason, PENDING)
+        S->>RR: reviewIfPending(id, status, reviewer, now, reason, PENDING) [AND startTime > now]
         alt Success: 1 row updated
             S->>AS: record(ACCESS_REQUEST, APPROVE or REJECT)
             S->>NS: createForUsers(requester and members, REQUEST_APPROVED or REQUEST_REJECTED)
@@ -32,7 +36,7 @@ sequenceDiagram
             P-->>FM: Success message, reload list
         else Failure: 0 rows, handled by someone else
             S->>RR: findByIdWithDetails(id)
-            S-->>C: ConcurrentReviewException (who, new status, when)
+            S-->>C: ConcurrentReviewException (who, new status, when), or ERR_AC_012 if still PENDING and started
             C-->>P: 409 Conflict
             P-->>FM: Warning banner, reload list
         end
@@ -41,4 +45,4 @@ sequenceDiagram
     deactivate C
     deactivate P
 
-    note over S,RR: No status pre-check. A request that is no longer PENDING gives 409 from the conditional UPDATE, not 400
+    note over S,RR: No status pre-check. A request that is no longer PENDING gives 409 from the conditional UPDATE, not 400. The start-time check exists both as an early check and inside the UPDATE (race-safe)
