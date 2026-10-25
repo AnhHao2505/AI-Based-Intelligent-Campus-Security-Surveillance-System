@@ -86,6 +86,7 @@ class CameraStreamLifecycleServiceTest {
         when(cameraRepository.findById(cameraId)).thenReturn(Optional.of(camera));
         when(streamConfigRepo.findByCameraId(cameraId)).thenReturn(Optional.of(streamConfig));
         when(cameraService.buildRtspUrl(streamConfig)).thenReturn("rtsp://192.168.1.50:554/stream1");
+        when(mediaMtxService.getGatewayRtspUrl("CAM-001")).thenReturn("rtsp://mediamtx:8554/cam-001");
 
         CameraStreamLifecycleResponse response = cameraStreamLifecycleService.startStream(cameraId);
 
