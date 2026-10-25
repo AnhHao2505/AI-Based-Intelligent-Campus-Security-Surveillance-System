@@ -1,0 +1,86 @@
+@startuml package_diagram
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam roundCorner 6
+skinparam shadowing false
+skinparam packageStyle rectangle
+
+skinparam nodesep 35
+skinparam ranksep 40
+
+skinparam package {
+    BorderThickness 1.2
+}
+
+' ============================================================================
+' CLIENT SUB-SYSTEM (PRESENTATION LAYER)
+' ============================================================================
+package "Client Sub-system (Web & Mobile: frontend.src)" as ClientSubsys #EFF6FF {
+    package "pages" as FePages #DBEAFE
+    package "components" as FeComponents #DBEAFE
+    package "context / store" as FeStore #DBEAFE
+    package "services" as FeServices #DBEAFE
+
+    FePages ..> FeComponents : renders
+    FePages ..> FeStore : consumes state
+    FeComponents ..> FeServices : calls API / Stream
+    FeStore ..> FeServices : dispatches
+}
+
+' ============================================================================
+' AI VIDEO ANALYTICS SUB-SYSTEM (PYTHON / FASTAPI: ai_service.src)
+' ============================================================================
+package "AI Video Analytics Sub-system (ai_service.src)" as AISubsys #FAF5FF {
+    package "src.pipeline" as AiPipeline #F3E8FF
+    package "src.core" as AiCore #F3E8FF
+    package "src.integration" as AiIntegration #F3E8FF
+    package "src.utils" as AiUtils #F3E8FF
+
+    AiPipeline ..> AiCore : detection & embeddings
+    AiPipeline ..> AiIntegration : publish events & evidence
+    AiPipeline ..> AiUtils : bbox & polygon math
+    AiCore ..> AiUtils : image processing
+}
+
+' ============================================================================
+' CORE BACKEND SUB-SYSTEM (SPRING BOOT: com.fa26se040.icss)
+' ============================================================================
+package "Core Backend Sub-system (com.fa26se040.icss)" as BackendSubsys #F0FDF4 {
+    
+    package "controller" as BeController #DCFCE7
+    package "security" as BeSecurity #DCFCE7
+    package "consumer" as BeConsumer #DCFCE7
+    package "scheduler" as BeScheduler #DCFCE7
+    package "service" as BeService #DCFCE7
+    package "dto" as BeDto #DCFCE7
+    package "repository" as BeRepo #DCFCE7
+    package "entity" as BeEntity #DCFCE7
+    package "config" as BeConfig #DCFCE7
+    package "exception" as BeException #DCFCE7
+
+    BeSecurity ..> BeController : filters & authorizes
+    BeController ..> BeService : invokes business logic
+    BeController ..> BeDto : uses request / response
+    BeException ..> BeController : handles API errors
+
+    BeConsumer ..> BeService : dispatches security events
+    BeScheduler ..> BeService : triggers scheduled tasks
+
+    BeService ..> BeRepo : performs CRUD
+    BeService ..> BeEntity : manages state
+    BeService ..> BeDto : transforms data
+    BeConfig ..> BeService : injects infra beans
+
+    BeRepo ..> BeEntity : persists entities
+}
+
+' ============================================================================
+' CROSS-SUB-SYSTEM INTERACTIONS
+' ============================================================================
+FeServices ..> BeController : HTTPS REST / STOMP
+AiIntegration ..> BeController : Check Allow (HTTP REST)
+AiIntegration ..> BeConsumer : Security Incidents (Kafka)
+
+@enduml
