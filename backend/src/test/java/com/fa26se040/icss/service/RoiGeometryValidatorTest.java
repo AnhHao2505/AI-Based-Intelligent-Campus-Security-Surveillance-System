@@ -48,10 +48,42 @@ class RoiGeometryValidatorTest {
     }
 
     @Test
-    @DisplayName("Validate: should throw ERR_ROI_001 if polygons is empty")
-    void testValidateEmptyGeometryThrows() {
+    @DisplayName("Validate: should pass with empty polygons (Full-frame mode)")
+    void testValidatePassWithEmptyPolygons() {
         RoiGeometry geometry = RoiGeometry.builder()
                 .polygons(List.of())
+                .build();
+
+        assertDoesNotThrow(() -> validator.validate(geometry));
+    }
+
+    @Test
+    @DisplayName("Validate: should pass when polygons is null (Full-frame mode)")
+    void testValidatePassWithNullPolygons() {
+        RoiGeometry geometry = RoiGeometry.builder()
+                .polygons(null)
+                .build();
+
+        assertDoesNotThrow(() -> validator.validate(geometry));
+    }
+
+    @Test
+    @DisplayName("Validate: should pass when geometry is null (Full-frame mode)")
+    void testValidatePassWithNullGeometry() {
+        assertDoesNotThrow(() -> validator.validate(null));
+    }
+
+    @Test
+    @DisplayName("Validate: should throw ERR_ROI_001 if polygons exceeds 10")
+    void testValidateThrowsWhenMoreThan10Polygons() {
+        RoiGeometry.RoiPolygon polygon = RoiGeometry.RoiPolygon.builder()
+                .label("Vùng A")
+                .vertices(validVertices)
+                .build();
+
+        List<RoiGeometry.RoiPolygon> elevenPolygons = java.util.Collections.nCopies(11, polygon);
+        RoiGeometry geometry = RoiGeometry.builder()
+                .polygons(elevenPolygons)
                 .build();
 
         CameraException ex = assertThrows(CameraException.class, () -> validator.validate(geometry));

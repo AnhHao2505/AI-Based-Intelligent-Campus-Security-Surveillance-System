@@ -1411,10 +1411,10 @@ export default function AccessRequestPage() {
 												Quản lý hủy: {selectedDetail.cancelReason}
 											</div>
 										)}
-										{/* BR-RQ-46 (V88): FM kết thúc đơn đã duyệt */}
+										{/* BR-RQ-46 (V88): FM kết thúc đơn đã duyệt; D-2.1: không có người kết thúc = hệ thống kết thúc khi hết giờ */}
 										{selectedDetail.status === "FINISHED" && selectedDetail.finishReason && (
 											<div className="arp-cancel-system arp-cancel-system--detail">
-												Quản lý kết thúc: {selectedDetail.finishReason}
+												{selectedDetail.finishedByName ? "Quản lý kết thúc" : "Hệ thống kết thúc"}: {selectedDetail.finishReason}
 											</div>
 										)}
 									</div>

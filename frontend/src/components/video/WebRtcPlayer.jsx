@@ -1,30 +1,40 @@
-import React, { useEffect, useRef, useState, useImperativeHandle, forwardRef } from "react";
+import React, {
+	useEffect,
+	useRef,
+	useState,
+	useImperativeHandle,
+	forwardRef,
+} from "react";
 import "../../styles/WebRtcPlayer.css";
 
 /**
  * WebRtcPlayer: Component phát luồng video WebRTC (WHEP) từ MediaMTX với chuẩn giao diện OSD CCTV chuyên nghiệp.
  * Tích hợp nút toggle [TRACKING] cho phép bảo vệ/giám sát viên xem trực tiếp Bounding Box, Track ID, Khuôn mặt & Vùng ROI.
  */
-const WebRtcPlayer = forwardRef(function WebRtcPlayer({
-	streamPath = "cam01",
-	cameraCode = "CAM-001",
-	cameraName = "Cổng chính",
-	resolution = "1080p",
-	fps = "30 FPS",
-	isRecording = true,
-	host = "localhost:8889",
-	aiHost = typeof window !== "undefined" && window.location.hostname
-		? `${window.location.hostname}:8000`
-		: "localhost:8000",
-	enableTrackingToggle = true,
-	autoPlay = true,
-	muted = true,
-	onStatusChange = null,
-	onToggleMaximize = null,
-}, ref) {
+const WebRtcPlayer = forwardRef(function WebRtcPlayer(
+	{
+		streamPath = "cam01",
+		cameraCode = "CAM-001",
+		cameraName = "Cổng chính",
+		resolution = "1080p",
+		fps = "30 FPS",
+		isRecording = true,
+		host = "localhost:8889",
+		aiHost = typeof window !== "undefined" && window.location.hostname
+			? `${window.location.hostname}:8000`
+			: "localhost:8000",
+		enableTrackingToggle = true,
+		autoPlay = true,
+		muted = true,
+		enabled = true,
+		onStatusChange = null,
+		onToggleMaximize = null,
+	},
+	ref,
+) {
 	const videoRef = useRef(null);
 	const pcRef = useRef(null);
-	const [status, setStatus] = useState("connecting"); // 'connecting' | 'live' | 'error' | 'offline'
+	const [status, setStatus] = useState(enabled ? "connecting" : "offline"); // 'connecting' | 'live' | 'error' | 'offline'
 	const [errorMsg, setErrorMsg] = useState("");
 	const [showTracking, setShowTracking] = useState(false);
 	const [trackingError, setTrackingError] = useState(false);
@@ -53,11 +63,11 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer({
 	}));
 	const [retryCount, setRetryCount] = useState(0);
 
-	// Reset retryCount và tracking error khi đổi kênh stream hoặc host
+	// Reset retryCount và tracking error khi đổi kênh stream, host hoặc trạng thái enabled
 	useEffect(() => {
 		setRetryCount(0);
 		setTrackingError(false);
-	}, [streamPath, host, cameraCode]);
+	}, [streamPath, host, cameraCode, enabled]);
 
 	// Xử lý bật/tắt luồng AI Tracking
 	const handleToggleTracking = (e) => {
@@ -79,12 +89,16 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer({
 	}, []);
 
 	useEffect(() => {
+		if (!enabled) {
+			setStatus("offline");
+			if (onStatusChange) onStatusChange("offline");
+			return;
+		}
+
 		let isMounted = true;
 		let peerConnection = null;
 
 		async function startWebRTC() {
-			// Chỉ chuyển sang "connecting" ở lần kết nối ban đầu
-			// Ở các lần tự động thử lại sau đó, giữ nguyên "offline" để chạy ngầm êm ái, tránh chớp nháy OSD
 			if (retryCount === 0) {
 				setStatus("connecting");
 			}
@@ -136,12 +150,18 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer({
 					const state = peerConnection.connectionState;
 					if (state === "connected") {
 						// Nếu video đã có frame hoặc đang play thì kích hoạt live ngay
-						if (videoRef.current && (videoRef.current.videoWidth > 0 || !videoRef.current.paused)) {
+						if (
+							videoRef.current &&
+							(videoRef.current.videoWidth > 0 || !videoRef.current.paused)
+						) {
 							markLive();
 						} else {
 							// Đợi I-Frame từ camera, nếu quá 1.5s chưa có event onPlaying thì fallback sang live
 							setTimeout(() => {
-								if (isMounted && peerConnection?.connectionState === "connected") {
+								if (
+									isMounted &&
+									peerConnection?.connectionState === "connected"
+								) {
 									markLive();
 								}
 							}, 1500);
@@ -201,7 +221,7 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer({
 				peerConnection.close();
 			}
 		};
-	}, [streamPath, host, retryCount]);
+	}, [streamPath, host, retryCount, enabled]);
 
 	const displayCamCode = (cameraCode || streamPath || "CAM-001").toUpperCase();
 	const displayCamName = cameraName || "Camera quan sát";
@@ -371,19 +391,18 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer({
 					<div className="cctv-offline-telemetry">
 						<div
 							className={
-								status === "connecting"
-									? "cctv-connecting-badge"
-									: "cctv-no-signal-badge"
+								!enabled
+									? "cctv-no-signal-badge"
+									: status === "connecting"
+										? "cctv-connecting-badge"
+										: "cctv-no-signal-badge"
 							}
 						>
-							{status === "connecting"
-								? "[ ĐANG KẾT NỐI VÀ CHỜ KHUNG HÌNH... ]"
-								: "[ MẤT TÍN HIỆU ]"}
-						</div>
-						<div className="cctv-offline-details">
-							<span>SOURCE: {displayCamCode}</span>
-							<span className="cctv-sep">|</span>
-							<span>{displayCamName.toUpperCase()}</span>
+							{!enabled
+								? "[ LUỒNG STREAM ĐANG TẮT ]"
+								: status === "connecting"
+									? "[ ĐANG KẾT NỐI... ]"
+									: "[ MẤT TÍN HIỆU ]"}
 						</div>
 					</div>
 				</div>

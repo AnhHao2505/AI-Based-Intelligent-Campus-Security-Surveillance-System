@@ -1,7 +1,6 @@
 package com.fa26se040.icss.service;
 
 import com.fa26se040.icss.AbstractIntegrationTest;
-import com.fa26se040.icss.entity.AreaAssignedPersonnel;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.Building;
 import com.fa26se040.icss.entity.Floor;
@@ -38,7 +37,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 /**
- * BR-AP-06 (TC-AA-09): FM không tự gán / tự gia hạn quyền chỉ định (AP) cho chính mình -> 403 ERR_AP_011.
+ * BR-AP-06 (TC-AA-09): FM không tự gán quyền chỉ định (AP) cho chính mình -> 403 ERR_AP_011 (E-3: không còn sửa thời hạn AP).
  * Gán cho FM khác, được FM khác gán, và tự thu hồi AP của chính mình vẫn được phép.
  * @Transactional: dữ liệu fixture rollback sau mỗi test.
  */
@@ -117,15 +116,8 @@ class AreaAssignedPersonnelSelfAssignIntegrationTest extends AbstractIntegration
         return b;
     }
 
-    private Map<String, Object> extendBody(OffsetDateTime validTo) {
-        Map<String, Object> b = new LinkedHashMap<>();
-        b.put("validTo", validTo.toString());
-        b.put("reason", "Gia hạn quyền chỉ định để thử BR-AP-06");
-        return b;
-    }
-
     @Test
-    @DisplayName("TC-AA-09 (BR-AP-06): FM tự gán / tự gia hạn -> 403 ERR_AP_011; gán chéo FM-1 <-> FM-2 OK; tự thu hồi AP của mình OK")
+    @DisplayName("TC-AA-09 (BR-AP-06): FM tự gán -> 403 ERR_AP_011; gán chéo FM-1 <-> FM-2 OK; tự thu hồi AP của mình OK")
     void tc_aa_09_fmCannotSelfAssign() throws Exception {
         String base = "/api/areas/{areaId}/assigned-personnel";
         OffsetDateTime until = OffsetDateTime.now().plusDays(7).truncatedTo(ChronoUnit.MINUTES);
@@ -146,14 +138,7 @@ class AreaAssignedPersonnelSelfAssignIntegrationTest extends AbstractIntegration
         assertThat(cross2.getResponse().getStatus()).as(describe(cross2)).isEqualTo(201);
         UUID fm1ApId = UUID.fromString(json(cross2).path("data").path("id").asText());
 
-        // 4. FM-1 gia hạn AP của chính mình -> từ chối, validTo không đổi
-        MvcResult selfExtend = send(patch(base + "/{id}", area.getId(), fm1ApId), fm1, extendBody(until.plusDays(30)));
-        assertThat(selfExtend.getResponse().getStatus()).as(describe(selfExtend)).isEqualTo(403);
-        assertThat(json(selfExtend).path("code").asText()).as(describe(selfExtend)).isEqualTo("ERR_AP_011");
-        AreaAssignedPersonnel afterSelfExtend = assignedPersonnelRepository.findById(fm1ApId).orElseThrow();
-        assertThat(afterSelfExtend.getValidTo().toInstant()).isEqualTo(until.toInstant());
-
-        // 5. FM-1 tự thu hồi AP của chính mình -> OK
+        // 4. FM-1 tự thu hồi AP của chính mình -> OK
         Map<String, Object> revoke = Map.of("reason", "Tự thu hồi quyền chỉ định của mình");
         MvcResult selfRevoke = send(patch(base + "/{id}/revoke", area.getId(), fm1ApId), fm1, revoke);
         assertThat(selfRevoke.getResponse().getStatus()).as(describe(selfRevoke)).isEqualTo(200);

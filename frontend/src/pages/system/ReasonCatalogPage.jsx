@@ -39,8 +39,13 @@ const ACTION_TYPES = [
 	{ value: "EVENT_SCHEDULE_CANCEL", label: "Hủy lịch sự kiện" },
 ];
 
+// X-01a: không còn bật / điều chỉnh sự kiện thủ công -> ẩn hai nhóm này khỏi bộ lọc và form thêm mới.
+// Dữ liệu cũ giữ nguyên, ACTION_TYPES vẫn đủ để hiện nhãn các dòng đã có.
+const RETIRED_ACTION_TYPES = new Set(["EVENT_ENABLE", "EVENT_EXTEND"]);
+const SELECTABLE_ACTION_TYPES = ACTION_TYPES.filter((a) => !RETIRED_ACTION_TYPES.has(a.value));
+
 // Bộ lọc: dòng đầu value rỗng = không lọc (không dùng prop placeholder vì option đó bị disabled)
-const ACTION_FILTER_OPTIONS = [{ value: "", label: "Tất cả loại thao tác" }, ...ACTION_TYPES];
+const ACTION_FILTER_OPTIONS = [{ value: "", label: "Tất cả loại thao tác" }, ...SELECTABLE_ACTION_TYPES];
 const ACTIVE_FILTER_OPTIONS = [
 	{ value: "", label: "Tất cả trạng thái" },
 	{ value: "true", label: "Đang dùng" },
@@ -59,7 +64,7 @@ export default function ReasonCatalogPage() {
 	// Create Modal
 	const [createModalOpen, setCreateModalOpen] = useState(false);
 	const [createForm, setCreateForm] = useState({
-		actionType: "EVENT_ENABLE",
+		actionType: SELECTABLE_ACTION_TYPES[0].value,
 		code: "",
 		label: "",
 		sortOrder: 0,
@@ -111,7 +116,7 @@ export default function ReasonCatalogPage() {
 
 	const handleOpenCreate = () => {
 		setCreateForm({
-			actionType: filterAction || "EVENT_ENABLE",
+			actionType: filterAction || SELECTABLE_ACTION_TYPES[0].value,
 			code: "",
 			label: "",
 			sortOrder: reasons.length + 1,
@@ -420,7 +425,7 @@ export default function ReasonCatalogPage() {
 						label="Loại thao tác"
 						value={createForm.actionType}
 						onChange={(e) => setCreateForm({ ...createForm, actionType: e.target.value })}
-						options={ACTION_TYPES}
+						options={SELECTABLE_ACTION_TYPES}
 						required
 					/>
 

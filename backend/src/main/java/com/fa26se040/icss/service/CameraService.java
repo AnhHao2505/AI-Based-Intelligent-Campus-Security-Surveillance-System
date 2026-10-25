@@ -48,6 +48,9 @@ public class CameraService {
     @Value("${ai.service.url:http://localhost:8000}")
     private String aiServiceUrl;
 
+    @Value("${camera.rtsp.timeout-ms:10000}")
+    private int defaultTimeoutMs;
+
     private final RestTemplate restTemplate = new RestTemplate();
 
     // === Camera CRUD ===
@@ -184,6 +187,12 @@ public class CameraService {
                             .build();
                     cameraHealthLogRepository.save(healthLog);
                     log.info("Cập nhật trạng thái kết nối camera [{}]: {} -> {}", cam.getCameraCode(), currentStatus, newStatus);
+
+                    if (newStatus == OperationalStatus.ONLINE) {
+                        startAiStreamWorkerSafely(cam.getCameraCode());
+                    } else if (newStatus == OperationalStatus.OFFLINE) {
+                        stopAiStreamWorkerSafely(cam.getCameraCode());
+                    }
                 }
             }
         } catch (Exception e) {
@@ -231,6 +240,7 @@ public class CameraService {
 
         camera.setStatus(CameraStatus.DECOMMISSIONED);
         camera.setOperationalStatus(OperationalStatus.OFFLINE);
+        camera.setArea(null);
         camera.setDeletedAt(OffsetDateTime.now());
 
         cameraRepository.save(camera);
@@ -271,7 +281,7 @@ public class CameraService {
                         if (cfg.getCamera().getOperationalStatus() == OperationalStatus.ONLINE) {
                             try {
                                 String streamStartUrl = aiServiceUrl + "/api/v1/stream/start";
-                                String workerRtspUrl = rtspUrl;
+                                String workerRtspUrl = mediaMtxService.getGatewayRtspUrl(cfg.getCamera().getCameraCode());
                                 restTemplate.postForObject(streamStartUrl, Map.of(
                                         "camera_code", cfg.getCamera().getCameraCode(),
                                         "rtsp_url", workerRtspUrl
@@ -307,23 +317,6 @@ public class CameraService {
                 .orElse(CameraStreamConfiguration.builder().camera(camera).build());
 
         String rawPassword = req.getEffectivePassword();
-        String effectivePlainPassword = rawPassword;
-        if ((rawPassword == null || rawPassword.isBlank()) && config.getCredentialRef() != null && !config.getCredentialRef().isBlank()) {
-            effectivePlainPassword = aesEncryptionUtil.decrypt(config.getCredentialRef());
-        }
-
-        String rtspUrl = buildRtspUrlWithCredentials(
-                req.getHost(),
-                req.getPort(),
-                req.getUsername(),
-                effectivePlainPassword,
-                req.getMainStreamPath()
-        );
-
-        if (rtspUrl != null && camera.getStatus() == CameraStatus.ACTIVE) {
-            mediaMtxService.syncCameraPathStrict(camera.getCameraCode(), rtspUrl);
-        }
-
         if (rawPassword != null && !rawPassword.isBlank()) {
             config.setCredentialRef(aesEncryptionUtil.encrypt(rawPassword));
         }
@@ -333,70 +326,14 @@ public class CameraService {
         config.setUsername(req.getUsername() != null ? req.getUsername().trim() : null);
         config.setMainStreamPath(req.getMainStreamPath().trim());
         config.setSubStreamPath(req.getSubStreamPath() != null ? req.getSubStreamPath().trim() : null);
-        config.setRetryTimeBeforeAlerting(req.getRetryTimeBeforeAlerting() != null ? req.getRetryTimeBeforeAlerting() : 3);
-        config.setTimeoutMs(req.getTimeoutMs() != null ? req.getTimeoutMs() : 5000);
 
         CameraStreamConfiguration saved = cameraStreamConfigurationRepository.save(config);
 
-        // Tự động kiểm tra kết nối ngay sau khi lưu cấu hình luồng
-        OperationalStatus finalOpStatus = OperationalStatus.OFFLINE;
-        String connMessage = null;
-        Integer latency = null;
-        try {
-            String aiEndpoint = aiServiceUrl + "/api/v1/cameras/snapshot";
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            int timeout = (config.getTimeoutMs() != null && config.getTimeoutMs() > 0) ? config.getTimeoutMs() : 5000;
-            Map<String, Object> body = Map.of(
-                    "rtsp_url", rtspUrl != null ? rtspUrl : "",
-                    "timeout_ms", timeout
-            );
-            HttpEntity<Map<String, Object>> snapshotReq = new HttpEntity<>(body, headers);
-            Map<String, Object> response = restTemplate.postForObject(aiEndpoint, snapshotReq, Map.class);
-            if (response != null && Boolean.TRUE.equals(response.get("success"))) {
-                finalOpStatus = OperationalStatus.ONLINE;
-                Number latencyNumber = (Number) response.get("latency_ms");
-                latency = latencyNumber != null ? latencyNumber.intValue() : null;
-                connMessage = "Cấu hình luồng và kết nối RTSP thành công (Độ trễ: " + (latency != null ? latency + "ms" : "N/A") + ")";
-            } else {
-                finalOpStatus = OperationalStatus.OFFLINE;
-                connMessage = "Cấu hình luồng thành công nhưng không thể trích xuất khung hình từ camera";
-            }
-        } catch (Exception e) {
-            log.warn("Không thể kết nối thử sau khi lưu cấu hình stream cho camera [{}]: {}", camera.getCameraCode(), e.getMessage());
-            finalOpStatus = OperationalStatus.OFFLINE;
-            connMessage = "Cấu hình luồng thành công nhưng kiểm tra kết nối thất bại: " + cleanErrorMessage(e);
-        }
-
-        camera.setOperationalStatus(finalOpStatus);
         camera.setUpdatedAt(OffsetDateTime.now());
         cameraRepository.save(camera);
 
-        if (finalOpStatus == OperationalStatus.ONLINE) {
-            try {
-                String streamStartUrl = aiServiceUrl + "/api/v1/stream/start";
-                String workerRtspUrl = buildRtspUrl(config);
-                restTemplate.postForObject(streamStartUrl, Map.of(
-                        "camera_code", camera.getCameraCode(),
-                        "rtsp_url", workerRtspUrl
-                ), Map.class);
-                log.info("✅ Đã kích hoạt AI Stream Worker cho camera [{}] sau khi lưu stream config", camera.getCameraCode());
-            } catch (Exception ex) {
-                log.warn("⚠️ Không thể tự động kích hoạt AI Stream Worker cho camera [{}]: {}", camera.getCameraCode(), ex.getMessage());
-            }
-        }
-
-        CameraHealthLog healthLog = CameraHealthLog.builder()
-                .camera(camera)
-                .status(finalOpStatus)
-                .checkedAt(OffsetDateTime.now())
-                .latencyMs(latency)
-                .errorMessage(connMessage)
-                .build();
-        cameraHealthLogRepository.save(healthLog);
-
         CameraStreamConfigResponse streamResponse = mapToStreamResponse(saved);
-        streamResponse.setOperationalStatus(finalOpStatus);
+        streamResponse.setOperationalStatus(camera.getOperationalStatus() != null ? camera.getOperationalStatus() : OperationalStatus.OFFLINE);
         return streamResponse;
     }
 
@@ -418,9 +355,17 @@ public class CameraService {
                 .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_CAM_002));
 
         RoiGeometry roi = request.getRoiGeometry();
+        if (roi == null) {
+            roi = RoiGeometry.builder().polygons(new ArrayList<>()).build();
+        }
         roiGeometryValidator.validate(roi);
 
-        if (request.getSnapshotBase64() != null && !request.getSnapshotBase64().isBlank()) {
+        boolean isNewBase64 = request.getSnapshotBase64() != null
+                && !request.getSnapshotBase64().isBlank()
+                && !request.getSnapshotBase64().startsWith("http")
+                && !request.getSnapshotBase64().startsWith("/api/");
+
+        if (isNewBase64) {
             try {
                 String cleanBase64 = request.getSnapshotBase64();
                 if (cleanBase64.contains(",")) {
@@ -434,6 +379,12 @@ public class CameraService {
                 roi.setReferenceCapturedAt(OffsetDateTime.now());
             } catch (Exception e) {
                 log.error("Failed to upload reference snapshot to MinIO for camera {}: {}", camera.getCameraCode(), e.getMessage());
+                if (camera.getRoiGeometry() != null && camera.getRoiGeometry().getReferenceSnapshotUrl() != null) {
+                    roi.setReferenceSnapshotUrl(camera.getRoiGeometry().getReferenceSnapshotUrl());
+                    roi.setReferenceSnapshotWidth(camera.getRoiGeometry().getReferenceSnapshotWidth());
+                    roi.setReferenceSnapshotHeight(camera.getRoiGeometry().getReferenceSnapshotHeight());
+                    roi.setReferenceCapturedAt(camera.getRoiGeometry().getReferenceCapturedAt());
+                }
             }
         } else if (camera.getRoiGeometry() != null) {
             roi.setReferenceSnapshotUrl(camera.getRoiGeometry().getReferenceSnapshotUrl());
@@ -494,6 +445,23 @@ public class CameraService {
             log.info("Successfully synced ROI geometry to AI Service for camera [{}]", cameraCode);
         } catch (Exception e) {
             log.warn("Could not sync ROI geometry to AI Service for camera [{}]: {}", cameraCode, e.getMessage());
+        }
+    }
+
+    private void startAiStreamWorkerSafely(String cameraCode) {
+        if (cameraCode == null || cameraCode.isBlank() || aiServiceUrl == null || aiServiceUrl.isBlank()) {
+            return;
+        }
+        try {
+            String streamStartUrl = aiServiceUrl + "/api/v1/stream/start";
+            String workerRtspUrl = mediaMtxService.getGatewayRtspUrl(cameraCode);
+            restTemplate.postForObject(streamStartUrl, Map.of(
+                    "camera_code", cameraCode,
+                    "rtsp_url", workerRtspUrl
+            ), Map.class);
+            log.info("✅ Đã tự động kích hoạt AI Stream Worker & Continuous Recording cho camera [{}] qua MediaMTX Gateway ({})", cameraCode, workerRtspUrl);
+        } catch (Exception ex) {
+            log.warn("⚠️ Không thể tự động kích hoạt AI Stream Worker cho camera [{}]: {}", cameraCode, ex.getMessage());
         }
     }
 
@@ -596,8 +564,6 @@ public class CameraService {
                 .subStreamPath(config.getSubStreamPath())
                 .whepUrl(whepUrl)
                 .whepStreamUrl(whepUrl)
-                .retryTimeBeforeAlerting(config.getRetryTimeBeforeAlerting())
-                .timeoutMs(config.getTimeoutMs())
                 .updatedAt(config.getCamera() != null ? config.getCamera().getUpdatedAt() : null)
                 .operationalStatus(config.getCamera() != null ? config.getCamera().getOperationalStatus() : null)
                 .build();
@@ -674,15 +640,4 @@ public class CameraService {
         return sb.toString();
     }
 
-    private String cleanErrorMessage(Exception e) {
-        if (e instanceof org.springframework.web.client.HttpStatusCodeException hs) {
-            return hs.getStatusCode().value() + " " + hs.getStatusText();
-        }
-        String msg = e.getMessage();
-        if (msg != null) {
-            return msg.replaceAll("(?i):\\s*\"Internal Server Error\"", "")
-                      .replaceAll("(?i)500 Internal Server Error: \"Internal Server Error\"", "500 Internal Server Error");
-        }
-        return "Lỗi kết nối không xác định";
-    }
 }

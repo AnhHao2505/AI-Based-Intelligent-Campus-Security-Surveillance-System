@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -134,10 +135,10 @@ class AuthPasswordResetIntegrationTest extends AbstractIntegrationTest {
         sendResetLink(deactivated.getEmail());
         sendResetLink(softDeleted.getEmail());
         sendResetLink("s2.unknown." + UUID.randomUUID().toString().substring(0, 8) + "@fpt.edu.vn");
-        verify(notificationService, never()).sendResetPasswordEmail(anyString(), anyString());
+        verify(notificationService, never()).sendResetPasswordEmail(anyString(), anyString(), anyInt());
 
         sendResetLink(active.getEmail());
-        verify(notificationService).sendResetPasswordEmail(eq(active.getEmail()), anyString());
+        verify(notificationService).sendResetPasswordEmail(eq(active.getEmail()), anyString(), anyInt());
     }
 
     @Test
@@ -145,6 +146,6 @@ class AuthPasswordResetIntegrationTest extends AbstractIntegrationTest {
     void resetLinkUsesConfiguredFrontendUrl() throws Exception {
         sendResetLink(active.getEmail());
         verify(notificationService).sendResetPasswordEmail(eq(active.getEmail()), argThat(link ->
-                link.matches("http://frontend\\.test\\.local/\\?token=[0-9a-f-]{36}")));
+                link.matches("http://frontend\\.test\\.local/\\?token=[0-9a-f-]{36}")), anyInt());
     }
 }

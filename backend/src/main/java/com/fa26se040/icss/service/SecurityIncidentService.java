@@ -111,24 +111,35 @@ public class SecurityIncidentService {
             return null;
         }
 
-        String cleanDetails = eventDto.getDetails() != null ? eventDto.getDetails() : "";
-        cleanDetails = cleanDetails.replace("[TRONG_GIO] ", "").replace("[TRONG_GIO]", "")
-                .replace("[AFTER_HOURS_PRESENCE] ", "[INTRUSION] ").replace("[AFTER_HOURS_PRESENCE]", "[INTRUSION]");
+        String cleanDetails = eventDto.getDetails() != null ? eventDto.getDetails().replaceAll("\\[[A-Z0-9_]+\\]\\s*", "").trim() : "";
 
         // Ngoại lệ cho cảnh báo ban đêm (INTRUSION): Trừ bảo vệ trong ca trực
         if ("INTRUSION".equals(normalizedEventType)) {
-            java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\((SE\\d+|GU\\d+|SEC-\\d+|[A-Z0-9_-]+)\\)").matcher(cleanDetails);
-            if (m.find()) {
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\(([A-Za-z0-9_-]{3,30})\\)").matcher(cleanDetails);
+            while (m.find()) {
                 String extractedCode = m.group(1);
-                Optional<User> uOpt = userRepository.findByUserCodeAndDeletedAtIsNull(extractedCode);
-                if (uOpt.isPresent() && uOpt.get().getRole() == Role.GUARD) {
-                    if (isGuardOnShift(uOpt.get().getId(), detectedAt, area)) {
-                        log.info("Bỏ qua cảnh báo INTRUSION ngoài giờ vì [{}] ({}) là bảo vệ đang trong ca trực.",
-                                uOpt.get().getFullName(), uOpt.get().getUserCode());
-                        return null;
+                if (!extractedCode.startsWith("Khu") && !extractedCode.startsWith("người")) {
+                    Optional<User> uOpt = userRepository.findByUserCodeAndDeletedAtIsNull(extractedCode);
+                    if (uOpt.isPresent() && uOpt.get().getRole() == Role.GUARD) {
+                        if (isGuardOnShift(uOpt.get().getId(), detectedAt, area)) {
+                            log.info("Bỏ qua cảnh báo INTRUSION ngoài giờ vì [{}] ({}) là bảo vệ đang trong ca trực.",
+                                    uOpt.get().getFullName(), uOpt.get().getUserCode());
+                            return null;
+                        }
                     }
                 }
             }
+        }
+
+        String incidentResolutionNotes = cleanDetails;
+        if (incidentResolutionNotes.isBlank()) {
+            incidentResolutionNotes = switch (normalizedEventType) {
+                case "INTRUSION" -> "Phát hiện đối tượng xuất hiện ngoài giờ hoạt động tại " + area.getName() + ".";
+                case "UNAUTHORIZED_ACCESS" -> "Phát hiện đối tượng không có quyền truy cập tại " + area.getName() + ".";
+                case "UNKNOWN_PERSON" -> "Phát hiện người chưa đăng ký tại " + area.getName() + ".";
+                case "ACCESS_OUT_OF_TIME" -> "Phát hiện ra vào ngoài khung giờ quy định tại " + area.getName() + ".";
+                default -> "Phát hiện sự cố an ninh tại " + area.getName() + ".";
+            };
         }
 
         SecurityIncident incident = SecurityIncident.builder()
@@ -140,7 +151,7 @@ public class SecurityIncidentService {
                 .imageUrl(imageUrl)
                 .detectedAt(detectedAt)
                 .status(IncidentStatus.NEW)
-                .resolutionNotes(cleanDetails)
+                .resolutionNotes(incidentResolutionNotes)
                 .version(0)
                 .build();
 
@@ -150,24 +161,50 @@ public class SecurityIncidentService {
         // 1b. Tự động đồng bộ sự cố người lạ / vi phạm / sai giờ / ngoài giờ sang Nhật ký ra vào của Camera (Tab 4 Camera Detail)
         if (cameraAccessLogService != null && eventDto.getCameraCode() != null) {
             try {
-                boolean isUnknown = normalizedEventType.contains("UNKNOWN") || cleanDetails.contains("UNKNOWN") || cleanDetails.contains("chưa rõ mặt");
+                boolean isUnknown = normalizedEventType.contains("UNKNOWN")
+                        || cleanDetails.contains("chưa rõ mặt")
+                        || cleanDetails.contains("chưa đăng ký")
+                        || cleanDetails.contains("người lạ ngoài hệ thống");
 
                 String userCode = isUnknown ? "UNKNOWN" : "VIOLATION";
                 String fullName = isUnknown ? "Người lạ / Chưa rõ mặt" : "Đối tượng chưa cấp quyền";
 
-                // Trích xuất mã người dùng nếu AI đã nhận diện được mặt (ví dụ: SE194249 hoặc GUEST-xxx)
-                java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\((SE\\d+|GUEST-[a-zA-Z0-9-]+|[A-Z]{2,}\\d{4,})\\)").matcher(cleanDetails);
-                if (m.find()) {
-                    String extractedCode = m.group(1);
+                // Trích xuất họ tên và mã người dùng từ chi tiết sự cố nếu có
+                // Định dạng 1: "Nguyễn Văn An (NV001)"
+                java.util.regex.Matcher nameCodeMatcher = java.util.regex.Pattern.compile("(?:truy cập|quy định|ngoài giờ|hoá|tượng):\\s*([^\\(]+?)\\s*\\(([A-Za-z0-9_-]{3,30})\\)").matcher(cleanDetails);
+                if (nameCodeMatcher.find()) {
+                    String extractedName = nameCodeMatcher.group(1).trim();
+                    String extractedCode = nameCodeMatcher.group(2).trim();
+                    userCode = extractedCode;
+                    fullName = extractedName;
                     Optional<User> uOpt = userRepository.findByUserCodeAndDeletedAtIsNull(extractedCode);
                     if (uOpt.isPresent()) {
                         userCode = uOpt.get().getUserCode();
                         fullName = uOpt.get().getFullName();
-                    } else {
-                        // Người dùng đã bị xoá mềm hoặc không tồn tại trong hệ thống -> Giữ nguyên mã AI quét được để phục vụ truy vết điều tra
-                        userCode = extractedCode;
-                        fullName = "Người lạ / Chưa rõ mặt";
                     }
+                } else {
+                    // Định dạng 2: Chỉ có mã trong ngoặc đơn "(NV001)" hoặc "(SE170123)"
+                    java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\(([A-Za-z0-9_-]{3,30})\\)").matcher(cleanDetails);
+                    while (m.find()) {
+                        String extractedCode = m.group(1);
+                        if (!extractedCode.startsWith("Khu") && !extractedCode.startsWith("người")) {
+                            userCode = extractedCode;
+                            Optional<User> uOpt = userRepository.findByUserCodeAndDeletedAtIsNull(extractedCode);
+                            if (uOpt.isPresent()) {
+                                userCode = uOpt.get().getUserCode();
+                                fullName = uOpt.get().getFullName();
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // Chuẩn hóa lý do súc tích chuyên nghiệp cho nhật ký ra vào
+                String logReason = cleanDetails;
+                if (cleanDetails.contains("Lý do:")) {
+                    logReason = cleanDetails.substring(cleanDetails.indexOf("Lý do:") + 6).trim();
+                } else if (isUnknown || logReason.isBlank()) {
+                    logReason = "Phát hiện người chưa đăng ký tại khu vực giám sát.";
                 }
 
                 CheckCameraEntryResponse logEntry = CheckCameraEntryResponse.builder()
@@ -178,7 +215,7 @@ public class SecurityIncidentService {
                         .fullName(fullName)
                         .allowed(false)
                         .source(AccessSource.NONE)
-                        .reason(cleanDetails.isBlank() ? "Phát hiện sự cố an ninh: " + normalizedEventType : cleanDetails)
+                        .reason(logReason)
                         .build();
                 cameraAccessLogService.recordAccessLog(logEntry, detectedAt);
             } catch (Exception ex) {

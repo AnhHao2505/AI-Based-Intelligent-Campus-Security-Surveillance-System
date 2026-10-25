@@ -22,8 +22,8 @@ import {
 	Compass,
 	Tag,
 	UserPlus,
-	UserCheck,
 	Camera,
+	Film,
 } from "lucide-react";
 import { ROLES, ROLE_SHORT_LABELS } from "../../constants/roles";
 import { useTheme } from "../../context/ThemeContext";
@@ -341,6 +341,17 @@ export default function Sidebar({ user, onLogout }) {
 										<span>Lịch sử ra vào</span>
 									</NavLink>
 
+									<NavLink
+										to="/recordings"
+										className={({ isActive }) =>
+											`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
+										}
+										title={sidebarCollapsed ? "Kho lưu trữ ghi hình" : undefined}
+									>
+										<Film size={18} />
+										<span>Kho lưu trữ ghi hình</span>
+									</NavLink>
+
 									{/* B-04: ADMIN không làm host khách — chỉ FM thấy "Khách của tôi" trong khối này */}
 									{isFacilityManager && (
 										<NavLink
@@ -378,23 +389,11 @@ export default function Sidebar({ user, onLogout }) {
 													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
 												}
 												title={
-													sidebarCollapsed ? "Phê duyệt yêu cầu truy cập" : undefined
+													sidebarCollapsed ? "Phê duyệt yêu cầu" : undefined
 												}
 											>
 												<ClipboardCheck size={18} />
-												<span>Phê duyệt yêu cầu truy cập</span>
-											</NavLink>
-											<NavLink
-												to="/admin/guest-visits"
-												className={({ isActive }) =>
-													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
-												}
-												title={
-													sidebarCollapsed ? "Duyệt lượt khách" : undefined
-												}
-											>
-												<UserCheck size={18} />
-												<span>Duyệt lượt khách</span>
+												<span>Phê duyệt yêu cầu</span>
 											</NavLink>
 											<NavLink
 												to="/admin/guard-teams"

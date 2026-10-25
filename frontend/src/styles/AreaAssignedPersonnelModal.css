@@ -417,7 +417,7 @@
   transition: all 0.15s ease;
 }
 
-.ap-action-btn--edit:hover {
+.ap-action-btn--next:hover {
   border-color: var(--brand-text);
   color: var(--brand-text);
   background: var(--brand-subtle);

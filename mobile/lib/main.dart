@@ -14,13 +14,13 @@ import 'features/incident/providers/incident_provider.dart';
 import 'features/incident/services/incident_service.dart';
 import 'features/incident/services/stomp_service.dart';
 import 'features/map/providers/map_provider.dart';
-import 'features/map/screens/guard_map_screen.dart';
+import 'features/incident/screens/incident_list_screen.dart';
 import 'features/shift/providers/shift_provider.dart';
 import 'features/shift/screens/guard_schedule_screen.dart';
 
 import 'package:intl/date_symbol_data_local.dart';
 
-/// Dùng để mở màn bản đồ khi bảo vệ bấm vào thông báo sự cố (không có BuildContext lúc đó).
+/// Dùng để mở màn danh sách sự cố khi bảo vệ bấm vào thông báo sự cố (không có BuildContext lúc đó).
 final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
@@ -31,9 +31,9 @@ void main() async {
     final nav = appNavigatorKey.currentState;
     debugPrint('[NotificationTap] navigator ready=${nav != null}');
     if (nav == null) return;
-    // Về màn gốc rồi mở bản đồ, tránh chồng nhiều màn bản đồ khi bấm nhiều thông báo.
+    // Về màn gốc rồi mở màn hình danh sách sự cố
     nav.popUntil((route) => route.isFirst);
-    nav.push(MaterialPageRoute(builder: (_) => const GuardMapScreen()));
+    nav.push(MaterialPageRoute(builder: (_) => const IncidentListScreen()));
   };
   await LocalNotificationService.instance.init();
   GuardDutyService.instance.init();

@@ -19,6 +19,7 @@ icss:
   scheduler:
     event-mode-tick-cron: "-"
     expire-overdue-cron: "-"
+    finish-elapsed-cron: "-"
     notification-expiring-soon-cron: "-"
     notification-pending-overdue-cron: "-"
     rate-limiter-cleanup-cron: "-"

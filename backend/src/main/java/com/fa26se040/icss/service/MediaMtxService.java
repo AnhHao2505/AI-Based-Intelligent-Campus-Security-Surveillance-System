@@ -24,6 +24,17 @@ public class MediaMtxService {
     @Value("${mediamtx.api.url:http://localhost:9997}")
     private String mediaMtxApiUrl;
 
+    @Value("${mediamtx.rtsp.url:rtsp://localhost:8554}")
+    private String mediaMtxRtspUrl;
+
+    /**
+     * Lấy địa chỉ RTSP phân phối nội bộ từ MediaMTX Gateway (ví dụ: rtsp://localhost:8554/cam-001).
+     * AI-Service và các consumer nội bộ kết nối qua luồng này để tránh double-connection gây quá tải camera/điện thoại.
+     */
+    public String getGatewayRtspUrl(String cameraCode) {
+        return mediaMtxRtspUrl + "/" + formatPathName(cameraCode);
+    }
+
     /**
      * Tự động đăng ký hoặc cập nhật luồng RTSP của Camera vào MediaMTX Gateway.
      * MediaMTX sẽ tự động tạo WebRTC WHEP endpoint: http://mediamtx:8889/{cameraCode}

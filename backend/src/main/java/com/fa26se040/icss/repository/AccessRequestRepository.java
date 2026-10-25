@@ -137,6 +137,28 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, UU
             @Param("now") OffsetDateTime now
     );
 
+    /** D-2.1: khoá các đơn APPROVED đã qua giờ kết thúc (end_time <= now) để job hệ thống chuyển sang FINISHED. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT ar FROM AccessRequest ar " +
+           "WHERE ar.status = :status AND ar.endTime <= :now")
+    List<AccessRequest> findApprovedElapsedRequestsForUpdate(
+            @Param("status") RequestStatus status,
+            @Param("now") OffsetDateTime now
+    );
+
+    /** D-2.1: chỉ update theo danh sách id đã khoá, còn APPROVED; hệ thống kết thúc nên finished_by = NULL. */
+    @Modifying(clearAutomatically = false, flushAutomatically = true)
+    @Query("UPDATE AccessRequest ar SET ar.status = :newStatus, ar.finishReason = :finishReason, " +
+           "ar.finishedBy = NULL, ar.updatedAt = :now " +
+           "WHERE ar.id IN :ids AND ar.status = :currentStatus")
+    int finishElapsedRequestsByIds(
+            @Param("ids") Collection<UUID> ids,
+            @Param("currentStatus") RequestStatus currentStatus,
+            @Param("newStatus") RequestStatus newStatus,
+            @Param("finishReason") String finishReason,
+            @Param("now") OffsetDateTime now
+    );
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE AccessRequest r " +
            "SET r.status = :newStatus, " +
@@ -144,7 +166,7 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, UU
            "    r.reviewedAt = :reviewedAt, " +
            "    r.rejectionReason = :rejectionReason, " +
            "    r.updatedAt = :reviewedAt " +
-           "WHERE r.id = :id AND r.status = :expectedStatus")
+           "WHERE r.id = :id AND r.status = :expectedStatus AND (r.startTime IS NULL OR r.startTime > :reviewedAt)")
     int reviewIfPending(
             @Param("id") UUID id,
             @Param("newStatus") RequestStatus newStatus,

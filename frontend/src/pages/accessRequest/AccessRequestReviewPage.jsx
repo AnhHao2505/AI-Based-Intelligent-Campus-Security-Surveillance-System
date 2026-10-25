@@ -42,8 +42,9 @@ const getListReason = (req) => {
       if (req.cancelSource === 'SYSTEM') return req.cancelReason ? `Hủy bởi hệ thống: ${req.cancelReason}` : 'Hủy bởi hệ thống';
       return req.cancelReason || 'Người yêu cầu tự hủy';
     case 'FINISHED':
-      // BR-RQ-46 (V88): FM kết thúc đơn đã duyệt, lý do lưu trên đơn
-      return req.finishReason ? `Quản lý kết thúc: ${req.finishReason}` : null;
+      // BR-RQ-46 (V88): FM kết thúc đơn đã duyệt, lý do lưu trên đơn; D-2.1: không có người kết thúc = hệ thống kết thúc khi hết giờ
+      if (!req.finishReason) return null;
+      return req.finishedByName ? `Quản lý kết thúc: ${req.finishReason}` : `Hệ thống kết thúc: ${req.finishReason}`;
     case 'EXPIRED':
       // BR-RQ-43
       return 'Quá giờ bắt đầu nhưng chưa được duyệt';
@@ -52,7 +53,12 @@ const getListReason = (req) => {
   }
 };
 
-export default function AccessRequestReviewPage() {
+/**
+ * @param {Object} props
+ * @param {boolean} [props.embedded=false] - nhúng làm tab của màn Phê duyệt yêu cầu: ẩn tiêu đề / phụ đề, bỏ khung trang
+ * @param {Element|null} [props.actionsContainer] - khi embedded: nơi đặt nút thao tác (hàng thanh tab của màn gộp)
+ */
+export default function AccessRequestReviewPage({ embedded = false, actionsContainer = null }) {
   const reasonLimits = useReasonLimits();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -206,7 +212,7 @@ export default function AccessRequestReviewPage() {
 
   // Esc / focus / giữ Tab của từng popup: DialogPanel (useDialogA11y); popup thao tác không đóng khi đang gửi
 
-  // Handle Approve
+  // Handle Approve — 409 gồm cả ERR_AC_012 (đơn đã tới giờ bắt đầu, D-1): đóng popup, cảnh báo vàng câu backend, tải lại
   const handleConfirmApprove = async () => {
     if (!approveItem) return;
     setActionLoading(true);
@@ -307,7 +313,7 @@ export default function AccessRequestReviewPage() {
     }
   };
 
-  // Handle Reject
+  // Handle Reject — 409 gồm cả ERR_AC_012 (đơn đã tới giờ bắt đầu, D-1), xử lý như Approve
   const handleConfirmReject = async () => {
     if (!rejectItem) return;
     const trimmed = rejectionReason.trim();
@@ -371,11 +377,12 @@ export default function AccessRequestReviewPage() {
   });
 
   return (
-    <div className="arr-container">
+    <div className={`arr-container ${embedded ? 'arr-container--embedded' : ''}`}>
       {/* Header */}
       <PageHeader
         title="Phê duyệt yêu cầu truy cập"
         description={`Xét duyệt yêu cầu ra vào các khu vực ${AREA_LEVEL_CONFIG.CONFIDENTIAL.badgeLabel} và ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.badgeLabel}.`}
+        actionsContainer={embedded ? actionsContainer : undefined}
         actions={
           <button
             type="button"
@@ -1032,7 +1039,7 @@ export default function AccessRequestReviewPage() {
                     )}
                     {detailItem.status === 'FINISHED' && detailItem.finishReason && (
                       <div className="arr-cancel-system arr-cancel-system--detail">
-                        Quản lý kết thúc{detailItem.finishedByName ? ` (${detailItem.finishedByName})` : ''}: {detailItem.finishReason}
+                        {detailItem.finishedByName ? `Quản lý kết thúc (${detailItem.finishedByName})` : 'Hệ thống kết thúc'}: {detailItem.finishReason}
                       </div>
                     )}
                   </div>

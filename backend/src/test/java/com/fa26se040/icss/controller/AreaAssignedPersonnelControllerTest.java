@@ -3,7 +3,6 @@ package com.fa26se040.icss.controller;
 import com.fa26se040.icss.dto.assignedpersonnel.AssignedPersonnelCreateRequest;
 import com.fa26se040.icss.dto.assignedpersonnel.AssignedPersonnelResponse;
 import com.fa26se040.icss.dto.assignedpersonnel.AssignedPersonnelRevokeRequest;
-import com.fa26se040.icss.dto.assignedpersonnel.AssignedPersonnelUpdateRequest;
 import com.fa26se040.icss.dto.assignedpersonnel.AssignedPersonnelUserInfo;
 import com.fa26se040.icss.enums.AssignedPersonnelStatus;
 import com.fa26se040.icss.enums.Role;
@@ -153,45 +152,6 @@ class AreaAssignedPersonnelControllerTest {
     }
 
     @Test
-    @DisplayName("PATCH /{id} cập nhật validTo → 200 OK")
-    void updateValidTo_Valid_Returns200() throws Exception {
-        AssignedPersonnelUpdateRequest request = new AssignedPersonnelUpdateRequest(
-                OffsetDateTime.now().plusMonths(12),
-                "Điều chỉnh theo phân công mới"
-        );
-
-        when(service.updateValidTo(eq(areaId), eq(recordId), any(AssignedPersonnelUpdateRequest.class), eq(fmEmail)))
-                .thenReturn(sampleResponse(AssignedPersonnelStatus.ACTIVE));
-
-        mockMvc.perform(patch("/api/areas/{areaId}/assigned-personnel/{id}", areaId, recordId)
-                        .principal(auth)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.id").value(recordId.toString()));
-    }
-
-    @Test
-    @DisplayName("PATCH /{id} khi {id} không thuộc {areaId} → 404 Not Found")
-    void updateValidTo_RecordNotInArea_Returns404() throws Exception {
-        AssignedPersonnelUpdateRequest request = new AssignedPersonnelUpdateRequest(
-                OffsetDateTime.now().plusMonths(12),
-                "Điều chỉnh theo phân công mới"
-        );
-
-        when(service.updateValidTo(eq(areaId), eq(recordId), any(AssignedPersonnelUpdateRequest.class), eq(fmEmail)))
-                .thenThrow(new AssignedPersonnelException(AssignedPersonnelErrorCode.ERR_AP_001));
-
-        mockMvc.perform(patch("/api/areas/{areaId}/assigned-personnel/{id}", areaId, recordId)
-                        .principal(auth)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("ERR_AP_001"))
-                .andExpect(jsonPath("$.status").value(404));
-    }
-
-    @Test
     @DisplayName("PATCH /{id}/revoke thu hồi hợp lệ → 200 OK")
     void revoke_Valid_Returns200() throws Exception {
         AssignedPersonnelRevokeRequest request = new AssignedPersonnelRevokeRequest("Chuyển công tác");
@@ -279,43 +239,6 @@ class AreaAssignedPersonnelControllerTest {
                 "a".repeat(501)
         );
         mockMvc.perform(post("/api/areas/{areaId}/assigned-personnel", areaId)
-                        .principal(auth)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req501)))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    @DisplayName("BR-AL-03 + U2: PATCH /{id} reason bắt buộc (null -> 400; 9 ký tự -> 400; 10 ký tự -> 200; 501 ký tự -> 400)")
-    void updateValidTo_ReasonValidation() throws Exception {
-        // reason = null / 9 ký tự -> 400 Bad Request (U2: bắt buộc 10–500)
-        for (String bad : new String[]{null, "a".repeat(9)}) {
-            AssignedPersonnelUpdateRequest badReq = new AssignedPersonnelUpdateRequest(
-                    OffsetDateTime.now().plusMonths(6), bad);
-            mockMvc.perform(patch("/api/areas/{areaId}/assigned-personnel/{id}", areaId, recordId)
-                            .principal(auth)
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(badReq)))
-                    .andExpect(status().isBadRequest());
-        }
-
-        // reason = 10 ký tự -> 200 OK
-        AssignedPersonnelUpdateRequest okReq = new AssignedPersonnelUpdateRequest(
-                OffsetDateTime.now().plusMonths(6), "a".repeat(10));
-        when(service.updateValidTo(eq(areaId), eq(recordId), any(AssignedPersonnelUpdateRequest.class), eq(fmEmail)))
-                .thenReturn(sampleResponse(AssignedPersonnelStatus.ACTIVE));
-        mockMvc.perform(patch("/api/areas/{areaId}/assigned-personnel/{id}", areaId, recordId)
-                        .principal(auth)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(okReq)))
-                .andExpect(status().isOk());
-
-        // reason = 501 ký tự -> 400 Bad Request
-        AssignedPersonnelUpdateRequest req501 = new AssignedPersonnelUpdateRequest(
-                OffsetDateTime.now().plusMonths(6),
-                "a".repeat(501)
-        );
-        mockMvc.perform(patch("/api/areas/{areaId}/assigned-personnel/{id}", areaId, recordId)
                         .principal(auth)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req501)))

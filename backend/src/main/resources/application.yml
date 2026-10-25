@@ -85,6 +85,10 @@ mediamtx:
   api:
     url: http://${MEDIAMTX_HOST:localhost}:${MEDIAMTX_API_PORT:9997}
 
+camera:
+  rtsp:
+    timeout-ms: ${CAMERA_RTSP_TIMEOUT_MS:10000}
+
 app:
   jwt:
     secret: ${JWT_SECRET}
@@ -108,6 +112,8 @@ minio:
 icss:
   scheduler:
     expire-overdue-cron: ${EXPIRE_OVERDUE_CRON:0 */15 * * * *}
+    # D-2.1: đơn APPROVED đã qua giờ kết thúc -> FINISHED do hệ thống
+    finish-elapsed-cron: ${FINISH_ELAPSED_CRON:0 */15 * * * *}
     notification-expiring-soon-cron: ${NOTIFICATION_EXPIRING_SOON_CRON:0 */10 * * * *}
     notification-pending-overdue-cron: ${NOTIFICATION_PENDING_OVERDUE_CRON:0 0 * * * *}
     event-mode-tick-cron: ${EVENT_MODE_TICK_CRON:0 */1 * * * *}
@@ -123,3 +129,8 @@ icss:
     # Khoá dùng chung AI service ↔ backend (header X-Service-Key) cho check-entry và /api/internal/**.
     # Bắt buộc, tối thiểu 32 ký tự: thiếu thì backend không khởi động. Giá trị chỉ đặt trong .env, không commit.
     service-key: ${INTERNAL_SERVICE_KEY:}
+
+recording:
+  storage:
+    path: ${RECORDING_STORAGE_PATH:C:/DATN/AI-Based-Intelligent-Campus-Security-Surveillance-System/recording}
+

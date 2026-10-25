@@ -103,6 +103,9 @@ public class CameraAccessLogService {
         }
         Integer userAccessLevel = user != null ? user.getAccessLevel() : null;
         String reasonDetails = entryResponse.getReason();
+        if (reasonDetails != null) {
+            reasonDetails = reasonDetails.replaceAll("\\[[A-Z0-9_]+\\]\\s*", "").trim();
+        }
 
         // 3b. Chuẩn hóa danh tính khi là Người lạ (UNKNOWN_PERSON) hoặc Đột nhập ngoài giờ của người lạ
         // Giữ nguyên mã AI quét được (userCode) để phục vụ truy vết điều tra; chỉ ẩn thông tin user entity và đặt tên chuẩn hoá
@@ -116,8 +119,12 @@ public class CameraAccessLogService {
                         || reasonDetails.contains("người dùng không tồn tại")
                         || reasonDetails.contains("không tồn tại")
                         || reasonDetails.contains("đã bị xoá")) {
-                    reasonDetails = "[UNKNOWN_PERSON] Phát hiện đối tượng chưa đăng ký / người lạ (chưa rõ mặt) tại khu vực giám sát.";
+                    reasonDetails = "Phát hiện người chưa đăng ký tại khu vực giám sát.";
                 }
+            }
+        } else if (result == AccessResult.UNAUTHORIZED_ACCESS) {
+            if (reasonDetails != null && reasonDetails.contains("Lý do:")) {
+                reasonDetails = reasonDetails.substring(reasonDetails.indexOf("Lý do:") + 6).trim();
             }
         }
 
@@ -173,7 +180,14 @@ public class CameraAccessLogService {
 
         // 3. Kiểm tra Người lạ (UNKNOWN_PERSON): Chưa rõ mặt, không có tài khoản, đã bị xoá, hoặc gắn cờ UNKNOWN
         boolean isGuest = userCode.startsWith("GUEST-");
-        if ((!userExists && !isGuest) || reason.contains("người dùng không tồn tại") || reason.contains("đã bị xoá") || userCode.startsWith("UNKNOWN") || reason.contains("chưa rõ mặt") || reason.contains("người lạ")) {
+        boolean isExplicitUnknownCode = userCode.isBlank() || userCode.startsWith("UNKNOWN") || userCode.equals("VIOLATION");
+        if ((!userExists && !isGuest && isExplicitUnknownCode)
+                || reason.contains("người dùng không tồn tại")
+                || reason.contains("đã bị xoá")
+                || userCode.startsWith("UNKNOWN")
+                || reason.contains("chưa rõ mặt")
+                || reason.contains("chưa đăng ký")
+                || reason.contains("người lạ")) {
             return AccessResult.UNKNOWN_PERSON;
         }
 

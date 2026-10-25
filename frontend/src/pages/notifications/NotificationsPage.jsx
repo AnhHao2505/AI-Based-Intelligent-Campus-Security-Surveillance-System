@@ -145,7 +145,8 @@ export default function NotificationsPage() {
       const visitRef = notif.referenceId || notif.reference_id;
       const visitQuery = visitRef ? `?visitId=${encodeURIComponent(visitRef)}` : '';
       if (notif.type === 'GUEST_VISIT_PENDING') {
-        navigate(`/admin/guest-visits${visitQuery}`);
+        // Duyệt lượt khách là tab "Lượt khách" của màn Phê duyệt yêu cầu
+        navigate(`/admin/access-requests?tab=guests${visitRef ? `&visitId=${encodeURIComponent(visitRef)}` : ''}`);
       } else if (notif.type === 'GUEST_PHOTO_REQUIRED') {
         navigate('/admin/guest-photos');
       } else {

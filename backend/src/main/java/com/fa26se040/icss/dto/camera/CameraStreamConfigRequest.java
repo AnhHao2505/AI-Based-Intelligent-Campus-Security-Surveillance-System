@@ -14,34 +14,30 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class CameraStreamConfigRequest {
 
-    @NotBlank(message = "Host is required")
-    @Size(max = 255, message = "Host cannot exceed 255 characters")
+    @NotBlank(message = "Địa chỉ IP/Host không được để trống")
+    @Size(max = 255, message = "Địa chỉ IP/Host không được vượt quá 255 ký tự")
     private String host;
 
-    @NotNull(message = "Port is required")
-    @jakarta.validation.constraints.Min(value = 1, message = "Port must be at least 1")
-    @jakarta.validation.constraints.Max(value = 65535, message = "Port cannot exceed 65535")
+    @NotNull(message = "Cổng kết nối RTSP không được để trống")
+    @jakarta.validation.constraints.Min(value = 1, message = "Cổng kết nối phải lớn hơn hoặc bằng 1")
+    @jakarta.validation.constraints.Max(value = 65535, message = "Cổng kết nối không được vượt quá 65535")
     private Integer port;
 
-    @Size(max = 100, message = "Username cannot exceed 100 characters")
+    @Size(max = 100, message = "Tên đăng nhập không được vượt quá 100 ký tự")
     private String username;
 
-    @Size(max = 255, message = "Credential reference cannot exceed 255 characters")
+    @Size(max = 255, message = "Mã xác thực không được vượt quá 255 ký tự")
     private String credentialRef;
 
-    @Size(max = 255, message = "Password cannot exceed 255 characters")
+    @Size(max = 255, message = "Mật khẩu không được vượt quá 255 ký tự")
     private String password;
 
-    @NotBlank(message = "Main stream path is required")
-    @Size(max = 512, message = "Main stream path cannot exceed 512 characters")
+    @NotBlank(message = "Đường dẫn luồng chính không được để trống")
+    @Size(max = 512, message = "Đường dẫn luồng chính không được vượt quá 512 ký tự")
     private String mainStreamPath;
 
-    @Size(max = 512, message = "Sub stream path cannot exceed 512 characters")
+    @Size(max = 512, message = "Đường dẫn luồng phụ không được vượt quá 512 ký tự")
     private String subStreamPath;
-
-    private Integer retryTimeBeforeAlerting;
-
-    private Integer timeoutMs;
 
     public String getEffectivePassword() {
         if (password != null && !password.trim().isEmpty()) {
