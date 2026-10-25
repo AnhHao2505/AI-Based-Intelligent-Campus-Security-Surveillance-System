@@ -1,0 +1,55 @@
+%% Title: AD-01 Access request workflow · Source: service/AccessRequestService.java (createIndividualRequest, createGroupRequest, reviewRequest, expireOverdueRequests, finishRequest, cancelApprovedRequest, finishElapsedApprovedRequests), service/AccessDecisionService.java (checkCameraEntry, checkEntry), frontend pages/accessRequest/AccessRequestPage.jsx, pages/approvals/ApprovalPage.jsx · Generated from main @ 84c7760
+flowchart TB
+    subgraph AU["Authorized User"]
+        start((Start))
+        u1["Open Access Requests Page, fill form: type, area, window, purpose, members"]
+        u2["See error message and correct the form"]
+    end
+
+    subgraph FM["Facility Manager"]
+        f1["Open Request Approval Page, tab Access requests"]
+        f2{"Approve?"}
+        f3["Enter rejection reason"]
+        f4["See 409 warning, list refreshed"]
+        f5{"End the approved request early?"}
+        f6["Finish after start or cancel before start, with reason"]
+    end
+
+    subgraph SYS["System (backend and jobs)"]
+        s1{"Rules satisfied? area not Public, window, level, members, no overlap"}
+        s2["Save request as PENDING, notify Facility Managers"]
+        s3{"Reviewed before startTime?"}
+        s4["Review after startTime refused (ERR_AC_012); job expireOverdueRequests sets EXPIRED, notify requester"]
+        s5{"Conditional UPDATE WHERE status = PENDING hits 1 row?"}
+        s6["Request REJECTED, notify requester and members"]
+        s7["Request APPROVED, notify requester and members"]
+        s8{"checkEntry: APPROVED request covers detection time? (after AP, level, event, incident)"}
+        s9["Write camera access log: AUTHORIZED_ACCESS"]
+        s9b["Write camera access log: denied result and reason"]
+        s10["Conditional UPDATE to FINISHED or CANCELLED, notify participants"]
+        s11["Job finishElapsedApprovedRequests: endTime passed, set FINISHED, finished_by empty, no notification"]
+    end
+
+    subgraph AI["AI Surveillance Engine"]
+        i1["Recognise participant on a camera of the area, call check-entry"]
+        i2["Mark person authorized"]
+        i3["Mark person unauthorized, raise alert"]
+    end
+
+    stop(((End)))
+
+    start --> u1 --> s1
+    s1 -->|no| u2 --> u1
+    s1 -->|yes| s2 --> s3
+    s3 -->|no| s4 --> stop
+    s3 -->|yes| f1 --> f2
+    f2 -->|reject| f3 --> s5
+    f2 -->|approve| s5
+    s5 -->|no, handled by someone else| f4 --> stop
+    s5 -->|yes, reject| s6 --> stop
+    s5 -->|yes, approve| s7
+    s7 --> i1 --> s8
+    s8 -->|allowed, source ACCESS_REQUEST| s9 --> i2 --> f5
+    s8 -->|denied, source NONE| s9b --> i3 --> f5
+    f5 -->|yes| f6 --> s10 --> stop
+    f5 -->|no, window ends| s11 --> stop

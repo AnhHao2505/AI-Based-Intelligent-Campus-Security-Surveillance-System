@@ -1,0 +1,46 @@
+%% Title: SQ-03 Finish approved access request · Source: frontend pages/accessRequest/AccessRequestReviewPage.jsx (handleConfirmFinish), controller/AccessRequestController.java (finishRequest), service/AccessRequestService.java (finishRequest), repository/AccessRequestRepository.java (finishIfApprovedStarted) · Generated from main @ 84f5565
+sequenceDiagram
+    autonumber
+    actor FM as Facility Manager
+    participant P as Request Approval Page (tab Access requests)
+    participant C as :AccessRequestController
+    participant S as :AccessRequestService
+    participant UR as :UserRepository
+    participant RR as :AccessRequestRepository
+    participant AS as :AuditService
+    participant NS as :InAppNotificationService
+
+    FM->>P: Click Finish on an APPROVED request, enter reason
+    activate P
+    P->>C: PATCH /api/access-requests/{id}/finish {reason}
+    activate C
+    C->>S: finishRequest(id, reason, actorEmail)
+    activate S
+    S->>RR: findByIdWithDetails(id)
+    S->>UR: findByEmail(actorEmail)
+    alt Failure: status is not APPROVED
+        S-->>C: IllegalArgumentException
+        C-->>P: 400 Bad Request
+    else Failure: actor is not FACILITY_MANAGER
+        S-->>C: AccessDeniedException
+        C-->>P: 403 Forbidden
+    else Failure: now before startTime
+        S-->>C: AccessControlException ERR_AC_007
+        C-->>P: 400 Bad Request (use Cancel instead)
+    else Checks passed
+        S->>RR: finishIfApprovedStarted(id, FINISHED, now, APPROVED, reason, actor)
+        alt Success: 1 row updated
+            S->>AS: record(ACCESS_REQUEST, FINISH, reason)
+            S->>NS: createForUsers(requester and members, REQUEST_FINISHED)
+            S-->>C: AccessRequestResponse
+            C-->>P: 200 OK
+        else Failure: 0 rows, changed concurrently
+            S->>RR: findByIdWithDetails(id)
+            S-->>C: ConcurrentReviewException
+            C-->>P: 409 Conflict, list reloaded
+        end
+    end
+    deactivate S
+    deactivate C
+    P-->>FM: Show result
+    deactivate P

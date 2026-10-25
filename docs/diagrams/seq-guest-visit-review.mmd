@@ -1,0 +1,37 @@
+%% Title: SQ-06 Review guest visit · Source: frontend pages/approvals/ApprovalPage.jsx, pages/guestVisit/GuestVisitReviewPage.jsx (handleApprove, handleReject), services/guestVisitService.js (reviewVisit), controller/GuestVisitController.java (review), service/GuestVisitService.java (review, recheckForApproval, notifyAfterCommit) · Generated from main @ 84f5565
+sequenceDiagram
+    autonumber
+    actor FM as Facility Manager
+    participant P as Request Approval Page (tab Guest visits)
+    participant C as :GuestVisitController
+    participant S as :GuestVisitService
+    participant UR as :UserRepository
+    participant GVR as :GuestVisitRepository
+    participant AS as :AuditService
+    participant NS as :InAppNotificationService
+
+    FM->>P: Click Approve, or Reject and enter reason
+    activate P
+    P->>C: PATCH /api/guest-visits/{id}/review {version, decision, reason}
+    activate C
+    C->>S: review(id, request, actorEmail)
+    activate S
+    S->>UR: findByEmail(actorEmail)
+    S->>S: Check version present, decision APPROVED or REJECTED, reason length
+    S->>GVR: findByIdForUpdate(id) (row lock)
+    S->>S: Check reviewer is not host, version matches, status PENDING, now before startTime, recheckForApproval
+    alt Failure: a check fails
+        S-->>C: GuestException (ERR_GUEST_015, 016, 017, 019, 021, 022, 023, 024)
+        C-->>P: 400, 403 or 409 with error code
+        P-->>FM: Show error, reload list on ERR_GUEST_016
+    else Success
+        S->>GVR: save(visit APPROVED or REJECTED, version + 1)
+        S->>AS: record(GUEST_VISIT, APPROVE or REJECT)
+        S->>NS: After commit: GUEST_VISIT_APPROVED to host and GUEST_PHOTO_REQUIRED to Administrators, or GUEST_VISIT_REJECTED to host
+        S-->>C: GuestVisitResponse
+        C-->>P: 200 OK
+        P-->>FM: Close popup, reload list
+    end
+    deactivate S
+    deactivate C
+    deactivate P

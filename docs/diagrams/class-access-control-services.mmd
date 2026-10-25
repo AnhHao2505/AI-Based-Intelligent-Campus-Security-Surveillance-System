@@ -1,0 +1,111 @@
+%% Title: CD-01 Access control classes, part 2 of 2: controllers, services, jobs · Source: controller/AccessRequestController.java, GuestVisitController.java, AreaController.java, AreaAssignedPersonnelController.java, AccessControlController.java, service/AccessRequestService.java, GuestVisitService.java, GuestVisitJobService.java, AreaService.java, AreaAssignedPersonnelService.java, AccessDecisionService.java, GuestAccessDecisionService.java, UserService.java, scheduler/AreaEventModeScheduler.java, GuestVisitScheduler.java · Generated from main @ 84c7760
+classDiagram
+    direction LR
+
+    class AccessRequestController {
+        +createIndividualRequest()
+        +createGroupRequest()
+        +reviewRequest()
+        +cancelRequest()
+        +cancelApprovedRequest()
+        +finishRequest()
+    }
+    class GuestVisitController {
+        +create()
+        +cancel()
+        +review()
+        +revoke()
+    }
+    class AreaController {
+        +update()
+        +deactivate()
+        +restore()
+        +updateEventMode()
+        +createEventSchedule()
+    }
+    class AreaAssignedPersonnelController {
+        +create()
+        +revoke()
+    }
+    class AccessControlController {
+        +checkCameraEntry()
+    }
+
+    class AccessRequestService {
+        +createIndividualRequest()
+        +createGroupRequest()
+        +reviewRequest()
+        +cancelRequest()
+        +finishRequest()
+        +cancelApprovedRequest()
+        +expireOverdueRequests()
+        +finishElapsedApprovedRequests()
+        +cancelActiveRequestsOfRequester()
+    }
+    class GuestVisitService {
+        +create()
+        +review()
+        +cancel()
+        +revoke()
+        +closeForAreaDeactivation()
+    }
+    class GuestVisitJobService {
+        +runAll()
+        +expirePendingVisits()
+        +completeApprovedVisits()
+        +deleteDueBiometrics()
+        +anonymizeGuests()
+    }
+    class AreaService {
+        +update()
+        +deactivate()
+        +restore()
+        +updateEventMode()
+        +createSchedule()
+        +updateSchedule()
+        +cancelSchedule()
+        +processExpiredEventSessions()
+        +processScheduledEventActivations()
+    }
+    class AreaAssignedPersonnelService {
+        +create()
+        +revoke()
+        +revokeAllOfUser()
+        computeStatus()$
+    }
+    class AccessDecisionService {
+        +checkCameraEntry()
+        +checkEntry()
+    }
+    class GuestAccessDecisionService {
+        +checkGuestEntry()
+    }
+    class UserService {
+        +toggleActive()
+        +softDelete()
+        +deleteBatch()
+    }
+    class AreaEventModeScheduler {
+        <<job>>
+        +tick()
+    }
+    class GuestVisitScheduler {
+        <<job>>
+        +tick()
+    }
+
+    AccessRequestController --> AccessRequestService
+    GuestVisitController --> GuestVisitService
+    AreaController --> AreaService
+    AreaAssignedPersonnelController --> AreaAssignedPersonnelService
+    AccessControlController --> AccessDecisionService
+
+    AccessDecisionService --> GuestAccessDecisionService : guest branch
+    AreaService --> GuestVisitService : closeForAreaDeactivation
+    AreaService ..> AreaAssignedPersonnelService : computeStatus
+    AccessRequestService ..> AreaService : requestIneligibility
+    UserService --> AccessRequestService : cancelActiveRequestsOfRequester
+    UserService --> AreaAssignedPersonnelService : revokeAllOfUser
+    GuestVisitJobService --> GuestVisitService : deleteAllBiometrics
+    AreaEventModeScheduler --> AreaService : every minute
+    GuestVisitScheduler --> GuestVisitJobService : every minute

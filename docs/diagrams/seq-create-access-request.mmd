@@ -1,0 +1,45 @@
+%% Title: SQ-01 Create access request (individual) · Source: frontend pages/accessRequest/AccessRequestPage.jsx, services/accessRequestService.js (createIndividualRequest), controller/AccessRequestController.java (createIndividualRequest), service/AccessRequestService.java (createIndividualRequest, validateCommonRules, requireAreaAvailableForRequest, validateNoOverlap) · Generated from main @ 84f5565
+sequenceDiagram
+    autonumber
+    actor AU as Authorized User
+    participant P as Access Requests Page
+    participant C as :AccessRequestController
+    participant S as :AccessRequestService
+    participant UR as :UserRepository
+    participant AR as :AreaRepository
+    participant RR as :AccessRequestRepository
+    participant AS as :AuditService
+    participant NS as :InAppNotificationService
+
+    AU->>P: Fill form (Individual, area, start, end, purpose) and submit
+    activate P
+    P->>C: POST /api/access-requests/individual
+    activate C
+    C->>S: createIndividualRequest(request, actorEmail)
+    activate S
+    S->>UR: findByEmail(actorEmail)
+    S->>AR: findByIdAndDeletedAtIsNull(areaId)
+    S->>S: lockParticipants(requester), validateCommonRules(area, startTime, endTime)
+    S->>S: requireAreaAvailableForRequest(area, requester, INDIVIDUAL)
+    alt Failure: rule violated (Public area, window, advance days, duration, level gap)
+        S-->>C: IllegalArgumentException
+        C-->>P: 400 Bad Request with message
+    else Rules satisfied
+        S->>RR: findOverlappingRequests(userIds, areaId, startTime, endTime, [PENDING, APPROVED])
+        alt Failure: overlapping request exists
+            S-->>C: DuplicateResourceException
+            C-->>P: 409 Conflict (code and name of each overlapping participant)
+        else Success
+            S->>RR: save(AccessRequest status PENDING)
+            S->>AS: record(ACCESS_REQUEST, CREATE, snapshot)
+            S->>NS: createForUsers(active Facility Managers, NEW_REQUEST_PENDING)
+            S-->>C: AccessRequestResponse
+            C-->>P: 201 Created
+        end
+    end
+    deactivate S
+    deactivate C
+    P-->>AU: Show result, refresh My requests
+    deactivate P
+
+    note over P,S: Group request: POST /api/access-requests/group, createGroupRequest also resolves member codes, marks sponsored members and notifies members (ADDED_TO_GROUP)
