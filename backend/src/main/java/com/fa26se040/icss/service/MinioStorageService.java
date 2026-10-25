@@ -11,6 +11,7 @@ import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
 import io.minio.Result;
+import io.minio.ServerSideEncryptionS3;
 import io.minio.StatObjectArgs;
 import io.minio.StatObjectResponse;
 import io.minio.errors.ErrorResponseException;
@@ -183,6 +184,7 @@ public class MinioStorageService {
                             .object(objectName)
                             .stream(inputStream, imageBytes.length, -1)
                             .contentType("image/jpeg")
+                            .sse(new ServerSideEncryptionS3())
                             .build()
             );
 
@@ -248,6 +250,7 @@ public class MinioStorageService {
                             .object(objectName)
                             .stream(inputStream, imageBytes.length, -1)
                             .contentType("image/jpeg")
+                            .sse(new ServerSideEncryptionS3())
                             .build()
             );
 
@@ -282,6 +285,7 @@ public class MinioStorageService {
                             .object(objectName)
                             .stream(inputStream, imageBytes.length, -1)
                             .contentType("image/jpeg")
+                            .sse(new ServerSideEncryptionS3())
                             .build()
             );
 
