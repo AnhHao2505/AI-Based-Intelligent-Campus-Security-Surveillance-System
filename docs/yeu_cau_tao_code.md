@@ -1,1 +1,0 @@
-Code phải được thiết kế theo các module đảm bảo các tiêu chí đơn giản, dễ mở rộng, dễ bảo trì. Tạo các document comment.
