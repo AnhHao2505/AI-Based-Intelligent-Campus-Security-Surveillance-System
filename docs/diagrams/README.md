@@ -33,10 +33,11 @@ Diagrams for the access-control modules (access requests, guest visits, assigned
 
 | Code | File | Type | Entity / workflow | Main code source (file: function) | Note |
 |---|---|---|---|---|---|
-| SM-01 | `state-access-request.mmd` | stateDiagram-v2 | Access request | `enums/RequestStatus.java`, `service/AccessRequestService.java`, `service/AreaService.java: cancelRequestsBySystem` | No transition out of APPROVED at endTime (D5) |
+| CTX-01 | `context-diagram.mmd` (+ `context-diagram.svg` for reports) | flowchart (ELK layout) | Whole system, level 0 | `controller/*` (`@PreAuthorize` roles), `security/GoogleTokenVerifier.java`, `service/NotificationService.java`, `service/CameraConnectionService.java`, `MediaMtxService.java`, `mobile/lib` | System = circle, external entities = rectangles, flows = nouns |
+| SM-01 | `state-access-request.mmd` | stateDiagram-v2 | Access request | `enums/RequestStatus.java`, `service/AccessRequestService.java`, `service/AreaService.java: cancelRequestsBySystem` | System job finishes elapsed APPROVED requests (D5 resolved) |
 | SM-02 | `state-guest-visit.mmd` | stateDiagram-v2 | Guest visit | `enums/GuestVisitStatus.java`, `service/GuestVisitService.java`, `service/GuestVisitJobService.java` | Biometric deletion is a note (it is `Guest.biometricStatus`) |
 | SM-03 | `state-event-schedule.mmd` | stateDiagram-v2 | Event schedule | `enums/AreaEventScheduleStatus.java`, `service/AreaService.java` | |
-| SM-04 | `state-assigned-personnel.mmd` | stateDiagram-v2 | Assigned personnel | `service/AreaAssignedPersonnelService.java: computeStatus` | Status computed, not stored. EXPIRED → ACTIVE exists in code (D7) |
+| SM-04 | `state-assigned-personnel.mmd` | stateDiagram-v2 | Assigned personnel | `service/AreaAssignedPersonnelService.java: computeStatus` | Status computed, not stored. EXPIRED is final; no validity edit (D7 resolved) |
 | SM-05 | `state-area.mmd` | stateDiagram-v2 | Area | `entity/Area.java`, `service/AreaService.java: create, update, deactivate, restore` | Business states, no status enum |
 | AD-01 | `activity-access-request.mmd` | flowchart, swimlanes | Request access workflow | `AccessRequestService`, `AccessDecisionService` | |
 | AD-02 | `activity-guest-visit.mmd` | flowchart, swimlanes | Guest visit workflow | `GuestVisitService`, `GuestPhotoService.attach`, `GuestVisitJobService`, `GuestAccessDecisionService` | |
@@ -139,9 +140,75 @@ The diagrams follow the code. Differences found with `r3-draft` (II-5-1 business
 | D7 | BR-AP-08 forbids changes to revoked records only | Resolved on `84c7760`: validity edit removed (one record per grant), and `revoke` refuses EXPIRED records |
 | D8 | II-2-1 actors: "AI Service", "System Scheduler", "Guard" | Diagrams use the task names: AI Surveillance Engine, System (job), Security Officer (code `GUARD`) |
 
+## Context diagram notes
+
+| Choice | Reason |
+|---|---|
+| AI Surveillance Engine, mobile app, MediaMTX, MinIO, Kafka, PostgreSQL are **inside** the system circle | They are built or deployed by the team as part of ICSSS |
+| Guest is **not** an external entity | A guest never uses the system; the host registers the visit and the Administrator attaches the photo (decision D1, 06/10) |
+| Google Identity Service | The web client gets a Google ID token in the browser; the backend verifies it with `GoogleIdTokenVerifier`, which downloads Google signing certificates |
+| Google Drive (dashed) | **Planned, not yet in code** (decision 25/10: archive every 1-minute recording segment to the team's Google Drive; owner Bảo). Shown dashed so the diagram does not claim an implemented integration. Turn it solid when the uploader is merged |
+| No push service | The guard app gets alerts over STOMP while running; there is no FCM (`mobile/lib/core/notifications/local_notification_service.dart`) |
+| Two files, same content | `context-diagram.mmd` is the Mermaid source (Review 2 requirement). `context-diagram.svg` is a hand-laid version of the **same flows** for reports and slides (users on the left, external systems on the right, one inbound and one outbound arrow per entity). Change both together |
+
 ## Diagrams
 
 Embedded copies of the `.mmd` files (the `.mmd` file is the source; keep both in sync).
+
+### CTX-01 Context diagram (level 0)
+
+![CTX-01 context diagram](context-diagram.svg)
+
+Mermaid source:
+
+```mermaid
+---
+config:
+  layout: elk
+---
+%% Title: CTX-01 Context diagram of ICSSS (level 0) · Source: controller/*.java (@PreAuthorize roles), security/GoogleTokenVerifier.java, service/NotificationService.java (JavaMailSender, Gmail SMTP), service/CameraConnectionService.java and MediaMtxService.java (RTSP), mobile/lib (Security Officer app) · Generated from main @ 84c7760
+%% Notation: the system is one circle; every external entity is a separate rectangle; every flow is labelled with a noun (data, not an action).
+flowchart LR
+    AU["Authorized User"]
+    FM["Facility Manager"]
+    AD["Administrator"]
+    SO["Security Officer"]
+
+    SYS(("ICSSS<br/>Intelligent Campus<br/>Security Surveillance<br/>System"))
+
+    CAM["IP Camera"]
+    GID["Google Identity Service"]
+    SMTP["E-mail Service<br/>(Gmail SMTP)"]
+    GDR["Google Drive<br/>(planned, not yet in code)"]
+
+    AU -->|"Login credentials<br/>Access requests<br/>Guest visit registrations"| SYS
+    FM -->|"Review decisions<br/>Event schedules<br/>Personnel assignments<br/>User access levels<br/>Guard shift plans"| SYS
+    AD -->|"User accounts<br/>Area definitions<br/>Camera configurations<br/>System parameters<br/>Guest photos with consent"| SYS
+    SO -->|"Incident claims<br/>Verification results<br/>Shift change requests"| SYS
+
+    SYS -->|"Request status<br/>Notifications<br/>Personal access history"| AU
+    SYS -->|"Pending requests<br/>Escalated incident alerts<br/>Access history<br/>Audit records<br/>Dashboard statistics"| FM
+    SYS -->|"Import results<br/>Audit records<br/>Camera status<br/>Configuration history"| AD
+    SYS -->|"Real-time incident alerts<br/>Live video<br/>Shift schedule"| SO
+
+    SYS -->|"Stream connection request"| CAM
+    CAM -->|"Video stream"| SYS
+    SYS -->|"Signing key request"| GID
+    GID -->|"Google signing certificates"| SYS
+    SYS -->|"Account setup e-mails<br/>Password reset e-mails"| SMTP
+    SMTP -->|"Send result"| SYS
+
+    %% Planned: continuous recording archive (1-minute segments). Dashed = not implemented yet.
+    SYS -.->|"Recorded video segments"| GDR
+    GDR -.->|"Archived video files"| SYS
+
+    classDef ext fill:#ffffff,stroke:#1f2937,stroke-width:1.5px,color:#111827
+    classDef sys fill:#e0ecff,stroke:#1d4ed8,stroke-width:2px,color:#0f172a
+    class AU,FM,AD,SO,CAM,GID,SMTP ext
+    classDef planned fill:#fff4e6,stroke:#c2410c,stroke-width:1.5px,stroke-dasharray:6 4,color:#4a2a10
+    class GDR planned
+    class SYS sys
+```
 
 ### SM-01 Access request lifecycle
 
