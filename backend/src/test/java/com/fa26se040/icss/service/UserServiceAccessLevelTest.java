@@ -354,4 +354,38 @@ class UserServiceAccessLevelTest {
 
         assertThrows(ResourceNotFoundException.class, () -> userService.updateAccessLevel(targetId, 2, "Lý do", null));
     }
+
+    @Test
+    @DisplayName("BR-AL-32: người bị đổi là ADMIN / FACILITY_MANAGER -> ERR_AC_013 nêu mã người dùng, không lưu, không audit, không kiểm đơn PENDING")
+    void updateAccessLevel_AdminOrManagerTarget_ThrowsErrAc013() {
+        String actorEmail = "fm@fpt.edu.vn";
+        User actor = User.builder().id(UUID.randomUUID()).email(actorEmail).role(Role.FACILITY_MANAGER).build();
+        when(userRepository.findByEmail(actorEmail)).thenReturn(Optional.of(actor));
+
+        for (Role role : List.of(Role.ADMIN, Role.FACILITY_MANAGER)) {
+            UUID targetId = UUID.randomUUID();
+            User target = User.builder()
+                    .id(targetId)
+                    .userCode("CODE-" + role.name())
+                    .fullName("Người " + role.name())
+                    .role(role)
+                    .accessLevel(1)
+                    .isActive(true)
+                    .build();
+            when(userRepository.findById(targetId)).thenReturn(Optional.of(target));
+
+            com.fa26se040.icss.exception.AccessControlException ex = assertThrows(
+                    com.fa26se040.icss.exception.AccessControlException.class,
+                    () -> userService.updateAccessLevel(targetId, 2, "Nâng quyền quản lý", actorEmail));
+
+            assertEquals(com.fa26se040.icss.exception.AccessControlErrorCode.ERR_AC_013, ex.getErrorCode());
+            assertEquals("Chỉ được đổi cấp truy cập của người dùng thường và bảo vệ; không đổi cấp của quản trị viên "
+                    + "hoặc quản lý cơ sở vật chất (CODE-" + role.name() + ")", ex.getMessage());
+            assertEquals(1, target.getAccessLevel());
+        }
+
+        verify(userRepository, org.mockito.Mockito.never()).save(any(User.class));
+        verify(auditService, org.mockito.Mockito.never()).record(any(), any(), any(), any(), any(), any(), any(), any(), any(User.class));
+        verify(accessRequestRepository, org.mockito.Mockito.never()).findPendingAreaNamesForParticipant(any());
+    }
 }
