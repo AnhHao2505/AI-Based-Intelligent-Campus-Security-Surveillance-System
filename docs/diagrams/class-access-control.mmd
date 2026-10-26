@@ -1,0 +1,171 @@
+%% Title: CD-01 Access control classes, part 1 of 2: domain model · Source: entity/AccessRequest.java, AccessRequestMember.java, User.java, Area.java, AreaAssignedPersonnel.java, AreaEventSchedule.java, AreaEventSession.java, GuestVisit.java, Guest.java, GuestFaceEmbedding.java, enums/* · Generated from main @ 84f5565
+classDiagram
+    direction LR
+
+    class User {
+        +UUID id
+        +String userCode
+        +String fullName
+        +Role role
+        +Integer accessLevel
+        +Boolean isActive
+        +OffsetDateTime deletedAt
+    }
+
+    class Area {
+        +UUID id
+        +String name
+        +AreaLevel areaLevel
+        +Integer areaAccessLevel
+        +Boolean openToMembers
+        +OffsetDateTime openUntil
+        +Boolean isActive
+        +OffsetDateTime deletedAt
+        +Long version
+        +isEventActive(OffsetDateTime now) boolean
+    }
+
+    class AccessRequest {
+        +UUID id
+        +RequestType requestType
+        +String purpose
+        +OffsetDateTime startTime
+        +OffsetDateTime endTime
+        +RequestStatus status
+        +String rejectionReason
+        +CancelSource cancelSource
+        +String cancelReason
+        +String finishReason
+    }
+
+    class AccessRequestMember {
+        +UUID id
+        +Boolean sponsored
+    }
+
+    class AreaAssignedPersonnel {
+        +UUID id
+        +OffsetDateTime validFrom
+        +OffsetDateTime validTo
+        +OffsetDateTime revokedAt
+        +String revokeReason
+    }
+
+    class AreaEventSchedule {
+        +UUID id
+        +String title
+        +OffsetDateTime startAt
+        +OffsetDateTime endAt
+        +AreaEventScheduleStatus status
+        +String reasonCode
+        +String failReason
+    }
+
+    class AreaEventSession {
+        +UUID id
+        +OffsetDateTime startedAt
+        +OffsetDateTime plannedEnd
+        +OffsetDateTime actualEnd
+        +UUID scheduleId
+    }
+
+    class GuestVisit {
+        +UUID id
+        +String purpose
+        +OffsetDateTime startTime
+        +OffsetDateTime endTime
+        +GuestVisitStatus status
+        +Long version
+    }
+
+    class Guest {
+        +UUID id
+        +String fullName
+        +String organization
+        +GuestBiometricStatus biometricStatus
+        +String consentNoticeVersion
+        +OffsetDateTime anonymizedAt
+    }
+
+    class GuestFaceEmbedding {
+        +UUID guestId
+        +String embedding
+        +OffsetDateTime expiresAt
+    }
+
+    class RequestStatus {
+        <<enumeration>>
+        PENDING
+        APPROVED
+        REJECTED
+        CANCELLED
+        EXPIRED
+        FINISHED
+    }
+
+    class GuestVisitStatus {
+        <<enumeration>>
+        PENDING
+        APPROVED
+        REJECTED
+        CANCELLED
+        REVOKED
+        EXPIRED
+        COMPLETED
+    }
+
+    class AreaEventScheduleStatus {
+        <<enumeration>>
+        SCHEDULED
+        STARTED
+        CANCELLED
+        FAILED
+        COMPLETED
+        ENDED_EARLY
+    }
+
+    class AssignedPersonnelStatus {
+        <<enumeration>>
+        ACTIVE
+        UPCOMING
+        EXPIRED
+        REVOKED
+    }
+
+    class AreaLevel {
+        <<enumeration>>
+        PUBLIC
+        CONFIDENTIAL
+        HIGHLY_CONFIDENTIAL
+    }
+
+    class GuestBiometricStatus {
+        <<enumeration>>
+        NO_PHOTO
+        PHOTO_READY
+        PHOTO_ONLY
+        DELETED
+    }
+
+    AccessRequest "*" --> "1" Area : area
+    AccessRequest "*" --> "1" User : requester
+    AccessRequest "*" --> "0..1" User : reviewer
+    AccessRequest "1" *-- "*" AccessRequestMember : members
+    AccessRequestMember "*" --> "1" User : user
+    AreaAssignedPersonnel "*" --> "1" Area : area
+    AreaAssignedPersonnel "*" --> "1" User : user
+    AreaEventSchedule "*" --> "1" Area : area
+    AreaEventSchedule "*" --> "0..1" AreaEventSession : session
+    AreaEventSession "*" --> "1" Area : area
+    AreaEventSession ..> AreaEventSchedule : scheduleId
+    GuestVisit "*" --> "1" User : host
+    GuestVisit "*" --> "1..*" Area : areas
+    GuestVisit "1" *-- "1..*" Guest : guests
+    GuestFaceEmbedding ..> Guest : guestId
+
+    AccessRequest ..> RequestStatus
+    GuestVisit ..> GuestVisitStatus
+    Guest ..> GuestBiometricStatus
+    AreaEventSchedule ..> AreaEventScheduleStatus
+    AreaAssignedPersonnel ..> AssignedPersonnelStatus : computed, not stored
+    Area ..> AreaLevel

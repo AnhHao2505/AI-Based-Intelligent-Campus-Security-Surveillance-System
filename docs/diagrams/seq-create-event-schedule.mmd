@@ -1,0 +1,40 @@
+%% Title: SQ-05 Create event schedule · Source: frontend pages/events/EventManagementPage.jsx, components/event/EventScheduleFormModal.jsx (handleSubmit), services/areaService.js (createEventSchedule), controller/AreaController.java (createEventSchedule), service/AreaService.java (createSchedule, cleanupExpiredSessions, findReasonInGroup, validateEventBudget, sendGuardScheduleNotification) · Generated from main @ 84f5565
+sequenceDiagram
+    autonumber
+    actor FM as Facility Manager
+    participant P as Event Management Page
+    participant C as :AreaController
+    participant S as :AreaService
+    participant AR as :AreaRepository
+    participant RCR as :ReasonCatalogRepository
+    participant ESR as :AreaEventScheduleRepository
+    participant AS as :AuditService
+    participant NS as :InAppNotificationService
+
+    FM->>P: Click Create Event, enter title, Confidential area, start, end, reason, note
+    activate P
+    P->>C: POST /api/areas/{id}/event-schedules {title, startAt, endAt, reasonCode, note}
+    activate C
+    C->>S: createSchedule(areaId, request, actorEmail)
+    activate S
+    S->>AR: findByIdWithLock(areaId)
+    S->>S: cleanupExpiredSessions(area, now)
+    S->>S: Check area active, Confidential, startAt in future, lead days, duration, title
+    S->>RCR: findByActionTypeAndCode(EVENT_SCHEDULE_CREATE, reasonCode)
+    S->>ESR: findByAreaIdAndStatus(areaId, SCHEDULED)
+    S->>S: Check overlap with schedules and active session, max schedules, validateEventBudget
+    alt Failure: any check fails
+        S-->>C: AreaException (ERR_AREA_017, 022, 025, 026, 028, 032 to 039, 057)
+        C-->>P: 400 Bad Request or 409 Conflict with message
+        P-->>FM: Show error in form
+    else Success
+        S->>ESR: save(AreaEventSchedule status SCHEDULED)
+        S->>AS: record(AREA_EVENT_SCHEDULE, CREATE)
+        S->>NS: createForUsers(active Guards, EVENT_MODE_SCHEDULED) after commit
+        S-->>C: EventScheduleResponse
+        C-->>P: 201 Created
+        P-->>FM: Toast, reload event list
+    end
+    deactivate S
+    deactivate C
+    deactivate P

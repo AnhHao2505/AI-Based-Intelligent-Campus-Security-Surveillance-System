@@ -1,0 +1,93 @@
+@startuml system_architecture
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam roundCorner 8
+skinparam shadowing false
+skinparam packageStyle rectangle
+
+skinparam nodesep 50
+skinparam ranksep 50
+
+skinparam rectangle {
+    BorderThickness 1.5
+}
+
+skinparam component {
+    BorderThickness 1.2
+}
+
+' ============================================================================
+' 1. EXTERNAL VIDEO SOURCE (TOP)
+' ============================================================================
+package "External Video Source" as ExtSources #F8FAFC {
+    component "IP Surveillance Cameras\n(RTSP Video Sources)" as ExtCameras #E2E8F0
+}
+
+' ============================================================================
+' 2. SYSTEM BOUNDARY: CAMPUS SECURITY SURVEILLANCE SYSTEM (CENTER)
+' ============================================================================
+package "System Boundary: Campus Security Surveillance System" as SysBoundary #FFFFFF {
+
+    ' Top Tier: Ingestion & Presentation
+    component "Media Gateway Subsystem\n--\n• MediaMTX Streaming Server\n• WebRTC WHEP / RTSP Proxy" as MediaGateway #FEF3C7
+    
+    component "Client Subsystem\n--\n• Web Application (React 18 / Vite)\n• Mobile Application (Flutter / Dart)" as ClientSubsys #EFF6FF
+
+    ' Middle Tier: Processing & Event Pipeline
+    component "AI Video Analytics Subsystem\n--\n• FastAPI AI Microservice\n• Face & Access Recognition\n• Fire Detection" as AISubsys #F3E8FF
+
+    component "Message Streaming Subsystem\n--\n• Apache Kafka Broker\n• Security Incident Topics" as KafkaSubsys #FFFBEB
+
+    component "Core Backend Subsystem\n--\n• Spring Boot Application Server\n• Security, Access Control & Dispatch" as BackendSubsys #EFF6FF
+
+    ' Bottom Tier: Persistence & Storage
+    component "Data & Storage Subsystem\n--\n• PostgreSQL 16 & pgvector\n• MinIO Object Storage\n• Local MP4 Video Storage" as StorageSubsys #F0FDF4
+}
+
+' ============================================================================
+' 3. EXTERNAL CLOUD SERVICES (RIGHT - VERTICAL ALIGNMENT)
+' ============================================================================
+package "External Cloud Services" as ExtServices #F8FAFC {
+    component "Google Identity Platform\n(OAuth 2.0 / OpenID Connect)" as ExtGoogle #E2E8F0
+    component "SMTP Mail Server\n(Email Notification Service)" as ExtMail #E2E8F0
+    component "Google Drive API\n(Cloud Video Archive Storage)" as ExtGDrive #E2E8F0
+}
+
+' Enforce vertical stacking for External Cloud Services
+ExtGoogle -[hidden]down-> ExtMail
+ExtMail -[hidden]down-> ExtGDrive
+
+' ============================================================================
+' STREAMLINED DATA FLOWS & PROTOCOLS
+' ============================================================================
+
+' 1. Video Ingestion from Top into System Boundary
+ExtCameras -down-> MediaGateway : "RTSP Video Ingestion\n(RTSP over TCP)"
+
+' 2. Media Streaming & Client Distribution
+MediaGateway -right-> ClientSubsys : "Live Stream Preview\n(WebRTC WHEP)"
+MediaGateway -down-> AISubsys : "Internal Video Feed\n(RTSP Stream)"
+
+' 3. Client & Core Backend Communication
+ClientSubsys <--> BackendSubsys : "• Business REST APIs (HTTPS)\n• Real-Time Alerts (WebSocket STOMP)"
+
+' 4. Core Backend Management of Video & AI
+BackendSubsys -up-> MediaGateway : "Stream Config (REST API)"
+BackendSubsys <--> AISubsys : "Check allow\n(HTTP REST)"
+
+' 5. Security Incident Event Pipeline (Left-to-Right Flow)
+AISubsys -right-> KafkaSubsys : "Publish Incidents\n(Kafka Protocol)"
+KafkaSubsys -right-> BackendSubsys : "Consume Incidents\n(Kafka Consumer)"
+
+' 6. Data Persistence & Object Storage
+AISubsys -down-> StorageSubsys : "Incident Snapshots (S3 API)\nFace Vectors (SQL)"
+BackendSubsys -down-> StorageSubsys : "Relational DB (JDBC)\nFace Photos (S3 API)\nMP4 Recordings (File I/O)"
+
+' 7. External Cloud Integrations (Right side)
+BackendSubsys -right-> ExtGoogle : "Token Verification (HTTPS)"
+BackendSubsys -right-> ExtMail : "Email Alerts (SMTP over TLS)"
+BackendSubsys -right-> ExtGDrive : "Video Archive Backup (Google Drive API)"
+
+@enduml

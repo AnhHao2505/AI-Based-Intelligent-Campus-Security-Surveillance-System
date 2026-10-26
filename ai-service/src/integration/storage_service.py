@@ -5,6 +5,7 @@ import logging
 import cv2
 import numpy as np
 from typing import Optional
+from minio.sse import SseS3
 from ..config import settings
 
 logger = logging.getLogger(__name__)
@@ -75,11 +76,12 @@ class StorageService:
                     object_name=object_name,
                     data=io.BytesIO(image_bytes),
                     length=len(image_bytes),
-                    content_type="image/jpeg"
+                    content_type="image/jpeg",
+                    sse=SseS3()
                 )
                 schema = "https" if settings.MINIO_SECURE else "http"
                 minio_url = f"{schema}://{settings.MINIO_ENDPOINT}/{self.bucket_faces}/{object_name}"
-                logger.info(f"[MINIO] Đã lưu ảnh khuôn mặt hồ sơ: {minio_url}")
+                logger.info(f"[MINIO] Đã lưu ảnh khuôn mặt hồ sơ (SSE-S3 AES-256): {minio_url}")
                 return minio_url
             except Exception as e:
                 logger.error(f"[MINIO LỖI] Upload ảnh khuôn mặt thất bại: {e}")
@@ -149,7 +151,8 @@ class StorageService:
                     object_name=object_name,
                     data=io.BytesIO(file_bytes),
                     length=len(file_bytes),
-                    content_type="image/jpeg"
+                    content_type="image/jpeg",
+                    sse=SseS3()
                 )
                 object_key = f"{self.bucket_evidence}/{object_name}"
                 logger.info(f"[MINIO] Đã lưu ảnh bằng chứng vi phạm: {object_key}")

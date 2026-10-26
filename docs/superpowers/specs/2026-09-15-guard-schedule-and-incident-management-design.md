@@ -65,7 +65,6 @@ Table guard_schedule_templates {
   start_time TIME [not null]
   end_time TIME [not null]
   area_id UUID [note: 'FK to areas — designated post (e.g., Security Room, Floor Patrol)']
-  radio_channel VARCHAR(50) [note: 'Assigned radio channel, e.g., Kênh 2 - Alpha']
   notes TEXT [note: 'Duty notes']
   is_active BOOLEAN [not null, default: true]
   created_at TIMESTAMPTZ [not null, default: `CURRENT_TIMESTAMP`]
@@ -80,7 +79,6 @@ Table guard_shifts {
   start_time TIME [not null]
   end_time TIME [not null]
   area_id UUID [note: 'FK to areas']
-  radio_channel VARCHAR(50)
   status VARCHAR(20) [not null, default: 'SCHEDULED', note: 'SCHEDULED | CHECKED_IN | COMPLETED | ABSENT | CANCELLED']
   check_in_at TIMESTAMPTZ
   check_out_at TIMESTAMPTZ
@@ -190,7 +188,6 @@ Aligned strictly with `Incident_Detection_Summary.md` (Review & Verify/Dismiss p
        "imageUrl": "http://localhost:9000/security-evidence/cam01_snap.jpg",
        "detectedAt": "2026-09-15T14:02:15+07:00",
        "status": "NEW",
-       "radioChannel": "Kênh 2 - Tòa Alpha",
        "primarySecurityRoom": "Phòng Bảo vệ Tòa Alpha (G.01)"
      }
      ```

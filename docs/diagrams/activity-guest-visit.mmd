@@ -1,0 +1,58 @@
+%% Title: AD-02 Guest visit workflow · Source: service/GuestVisitService.java (create, review, cancel, revoke), service/GuestPhotoService.java (attach), service/GuestVisitJobService.java (expirePendingVisits, completeApprovedVisits, deleteDueBiometrics, anonymizeGuests), service/AccessDecisionService.java (checkCameraEntry), service/GuestAccessDecisionService.java (checkGuestEntry), ai-service src/core/face_matcher.py · Generated from main @ 84f5565
+flowchart TB
+    subgraph HOST["Host (Authorized User or Facility Manager)"]
+        start((Start))
+        h1["Open My Guest Visits Page, create visit: guests, purpose, Confidential areas, window"]
+        h2["Cancel visit"]
+    end
+
+    subgraph FM["Facility Manager"]
+        f1["Open Request Approval Page, tab Guest visits"]
+        f2{"Approve?"}
+        f3["Revoke visit with reason"]
+    end
+
+    subgraph ADM["Administrator"]
+        a1["Guest confirms consent at desk, Administrator attaches photo on Guest Photos Page"]
+    end
+
+    subgraph AI["AI Surveillance Engine"]
+        i1["Extract 512-d face embedding from photo"]
+        i2["Recognise guest on a camera, call check-entry with guest id"]
+    end
+
+    subgraph SYS["System (backend and jobs)"]
+        s1{"Host eligible, areas Confidential, host covers areas for whole window?"}
+        s2["Save visit PENDING, notify Facility Managers"]
+        s3{"Reviewed before startTime?"}
+        s4["Job sets EXPIRED, notify host"]
+        s5["Visit REJECTED, notify host"]
+        s6["Re-check rules, visit APPROVED, notify host and Administrators"]
+        s7{"Exactly one face and valid embedding?"}
+        s8["Store photo and embedding, guest PHOTO_READY"]
+        s9{"checkGuestEntry: APPROVED, inside window, area in visit, host still covers, PHOTO_READY?"}
+        s10["Write camera access log: GUEST_VISIT allowed or denied with reason"]
+        s11{"How does the visit end?"}
+        s12["Job sets COMPLETED at endTime"]
+        s13["Delete photo and embedding: at once for cancel or revoke, at endTime + retention hours for completed"]
+        s14["Job anonymises guest after record retention days"]
+    end
+
+    stop(((End)))
+
+    start --> h1 --> s1
+    s1 -->|no, error shown| h1
+    s1 -->|yes| s2 --> s3
+    s3 -->|no| s4 --> stop
+    s3 -->|yes| f1 --> f2
+    f2 -->|reject with reason| s5 --> stop
+    f2 -->|approve| s6 --> a1 --> i1 --> s7
+    s7 -->|no| a1
+    s7 -->|yes| s8 --> i2 --> s9
+    s9 -->|allowed, source GUEST_VISIT| s10
+    s9 -->|denied, reason code| s10
+    s10 --> s11
+    s11 -->|host cancels| h2 --> s13
+    s11 -->|Facility Manager revokes| f3 --> s13
+    s11 -->|endTime reached| s12 --> s13
+    s13 --> s14 --> stop
