@@ -66,6 +66,8 @@ python test_pipeline.py --mode webcam
 
 ### 4. Khởi chạy FastAPI Server
 ```bash
+python -m uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+or
 uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 Truy cập tài liệu API tại: `http://localhost:8000/docs`

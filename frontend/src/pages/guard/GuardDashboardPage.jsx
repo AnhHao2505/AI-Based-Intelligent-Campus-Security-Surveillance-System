@@ -28,6 +28,8 @@ import {
 	triggerTestAlert,
 	triggerBatchTestAlerts,
 	getActiveIncidents,
+	acknowledgeIncident,
+	acknowledgeAllIncidents,
 } from "../../services/incidentService";
 import "../../styles/GuardDashboardPage.css";
 import { LoadingState, ErrorState } from "../../components/ui";
@@ -208,6 +210,7 @@ export function SecuritySurveillancePage() {
 	const [flashAlertCamera, setFlashAlertCamera] = useState(null);
 	const [statusNotification, setStatusNotification] = useState(null);
 	const [evidenceModalAlert, setEvidenceModalAlert] = useState(null);
+	const [isSimulating, setIsSimulating] = useState(false);
 
 	const flashTimeoutRef = useRef(null);
 	const soundEnabledRef = useRef(soundEnabled);
@@ -405,12 +408,15 @@ export function SecuritySurveillancePage() {
 	// Nhận diện và tiếp nhận cảnh báo mới (dùng chung cho WebSocket & Nút Test)
 	const processNewIncident = (incident) => {
 		const incidentId = incident.id || incident.event_id || Date.now();
+		const eventId = incident.eventId || incident.event_id;
 		const ackSet = getStoredSet(SOC_ACK_STORAGE_KEY);
-		const isAck = ackSet.has(String(incidentId));
+		const isAck =
+			ackSet.has(String(incidentId)) ||
+			(eventId && ackSet.has(String(eventId)));
 		const camCodeClean = (
 			incident.camera_code ||
 			incident.cameraCode ||
-			"CAM-001"
+			"cam-006"
 		)
 			.toLowerCase()
 			.replace(/[^a-z0-9_-]/g, "")
@@ -418,10 +424,11 @@ export function SecuritySurveillancePage() {
 
 		const newAlert = {
 			id: incidentId,
+			eventId: eventId,
 			cameraCode: (
 				incident.camera_code ||
 				incident.cameraCode ||
-				"CAM-001"
+				"CAM-006"
 			).toUpperCase(),
 			camCodeClean,
 			cameraName:
@@ -448,12 +455,36 @@ export function SecuritySurveillancePage() {
 		};
 
 		setActiveAlerts((prev) => {
-			if (
-				prev.some(
-					(a) => a.id === incidentId || String(a.id) === String(incidentId),
-				)
-			) {
-				return prev;
+			const existingIndex = prev.findIndex((a) => {
+				// 1. Trùng ID sự cố (UUID hoặc ID)
+				if (incident.id && (a.id === incident.id || String(a.id) === String(incident.id))) {
+					return true;
+				}
+				// 2. Trùng Event ID
+				if (eventId && (a.eventId === eventId || a.id === eventId || String(a.id) === String(eventId))) {
+					return true;
+				}
+				// 3. Khử trùng lặp an toàn: cùng camera + cùng loại sự cố trong vòng 4 giây
+				const isSameCamera =
+					(a.cameraCode && newAlert.cameraCode && a.cameraCode === newAlert.cameraCode) ||
+					(a.camCodeClean && newAlert.camCodeClean && a.camCodeClean === newAlert.camCodeClean);
+				const isSameType = a.eventType === newAlert.eventType;
+				const isRecent = Math.abs((newAlert.rawTime || Date.now()) - (a.rawTime || 0)) < 4000;
+				if (isSameCamera && isSameType && isRecent) {
+					return true;
+				}
+				return false;
+			});
+
+			if (existingIndex >= 0) {
+				const updated = [...prev];
+				updated[existingIndex] = {
+					...updated[existingIndex],
+					...newAlert,
+					id: incident.id || updated[existingIndex].id,
+					eventId: eventId || updated[existingIndex].eventId,
+				};
+				return updated;
 			}
 			return [newAlert, ...prev];
 		});
@@ -596,20 +627,46 @@ export function SecuritySurveillancePage() {
 	}, [incidentsReloadKey]);
 
 	// Nghiệp vụ SOC: Xác nhận đã xem & tắt còi báo động tại phòng trực điều hành
-	const handleAcknowledge = (id) => {
+	// Đồng thời kết thúc ghi hình sự cố an ninh và hoàn tất lưu video vào evidence/
+	const handleAcknowledge = async (id) => {
 		const strId = String(id);
 		const ackSet = getStoredSet(SOC_ACK_STORAGE_KEY);
 		ackSet.add(strId);
+
+		const targetAlert = activeAlerts.find(
+			(a) => String(a.id) === strId || (a.eventId && String(a.eventId) === strId),
+		);
+		if (targetAlert?.eventId) {
+			ackSet.add(String(targetAlert.eventId));
+		}
+		if (targetAlert?.id) {
+			ackSet.add(String(targetAlert.id));
+		}
 		saveStoredSet(SOC_ACK_STORAGE_KEY, ackSet);
 
+		const camCode = targetAlert?.cameraCode || targetAlert?.camCodeClean || targetAlert?.camera_code || "";
+
 		setActiveAlerts((prev) =>
-			prev.map((a) => (String(a.id) === strId ? { ...a, socAcknowledged: true } : a)),
+			prev.map((a) =>
+				String(a.id) === strId || (targetAlert?.eventId && String(a.eventId) === String(targetAlert.eventId))
+					? { ...a, socAcknowledged: true }
+					: a,
+			),
 		);
 		setFlashAlertCamera(null);
+
+		try {
+			await acknowledgeIncident(strId, camCode);
+			triggerNotification("Đã xác nhận xem sự cố. Video bằng chứng đã được lưu vào thư mục evidence!");
+		} catch (err) {
+			console.warn("Lỗi khi kết thúc ghi hình sự cố:", err);
+			triggerNotification("Đã xác nhận xem sự cố");
+		}
 	};
 
 	// Nghiệp vụ SOC: Xác nhận đã xem toàn bộ sự cố đang chờ xử lý
-	const handleAcknowledgeAll = () => {
+	// Đồng thời kết thúc toàn bộ video ghi hình sự cố an ninh
+	const handleAcknowledgeAll = async () => {
 		const ackSet = getStoredSet(SOC_ACK_STORAGE_KEY);
 		activeAlerts.forEach((a) => {
 			if (isAlertPending(a.status)) {
@@ -624,7 +681,14 @@ export function SecuritySurveillancePage() {
 			),
 		);
 		setFlashAlertCamera(null);
-		triggerNotification("Đã xác nhận xem tất cả sự cố đang chờ");
+
+		try {
+			await acknowledgeAllIncidents();
+			triggerNotification("Đã xác nhận xem tất cả sự cố. Toàn bộ video bằng chứng đã được lưu vào thư mục evidence!");
+		} catch (err) {
+			console.warn("Lỗi khi kết thúc toàn bộ ghi hình sự cố:", err);
+			triggerNotification("Đã xác nhận xem tất cả sự cố đang chờ");
+		}
 	};
 
 	// Xóa các sự cố đã tắt còi (SOC đã xem) hoặc đã được hiện trường đóng khỏi bảng trực
@@ -654,130 +718,152 @@ export function SecuritySurveillancePage() {
 	};
 
 	// 1. NÚT TEST: Bắn 1 sự cố ngẫu nhiên qua Backend REST -> STOMP broadcast toàn hệ thống (Web + Mobile)
+	// Chỉ ghi hình khi camera đang ONLINE và đang kết nối stream thực tế
 	const handleSimulateSingleAlert = async () => {
-		const otherCameras = cameraList.filter((c) => c.code !== selectedCamera);
+		if (isSimulating) return;
+		setIsSimulating(true);
+
+		const onlineCameras = cameraList.filter(
+			(c) => c.status === "ONLINE" || c.operationalStatus === "ONLINE",
+		);
+		const targetPool =
+			onlineCameras.length > 0
+				? onlineCameras
+				: cameraList.filter((c) => c.status !== "DECOMMISSIONED");
+
+		if (targetPool.length === 0) {
+			triggerNotification("⚠️ Không có camera nào sẵn sàng trong hệ thống!");
+			setIsSimulating(false);
+			return;
+		}
+
+		// Ưu tiên camera đang chọn nếu có trong danh sách
 		const targetCam =
-			otherCameras.length > 0
-				? otherCameras[Math.floor(Math.random() * otherCameras.length)]
-				: cameraList[0] || {
-					cameraCode: "CAM-002",
-					name: "Cổng Phụ",
-					code: "cam-002",
-				};
+			targetPool.find((c) => c.code === selectedCamera) || targetPool[0];
+
+		const now = Date.now();
+		const eventId = `EVT-${now}`;
+		const cameraCode = (targetCam.cameraCode || targetCam.code).toUpperCase();
+		const cleanCode = targetCam.code || cameraCode.toLowerCase();
 
 		const eventPayload = {
-			event_id: `EVT-${Date.now()}`,
-			camera_code: targetCam.cameraCode || targetCam.code.toUpperCase(),
+			event_id: eventId,
+			camera_code: cameraCode,
 			event_type: "UNAUTHORIZED_ACCESS",
-			details: `CẢNH BÁO (Mức 3 - Khẩn cấp): Phát hiện xâm nhập trái phép tại khu vực ${targetCam.name || targetCam.cameraCode}!`,
-			image_url: null,
+			details: `CẢNH BÁO (Mức 3 - Khẩn cấp): Phát hiện xâm nhập trái phép tại khu vực ${targetCam.name || cameraCode}!`,
+			duration_seconds: 3.5,
 		};
 
+		// 1. Hiển thị cảnh báo trực tiếp trên giao diện và phát âm thanh ngay lập tức (Zero-Latency)
+		processNewIncident({
+			...eventPayload,
+			id: eventId,
+			eventId,
+			cameraCode,
+			camCodeClean: cleanCode,
+			cameraName: targetCam.name || cameraCode,
+		});
+		triggerNotification(`🚨 Đã kích hoạt sự cố thử nghiệm cho camera [${cameraCode}]!`);
+
+		// 2. Đồng bộ sang Backend CSDL (Backend lưu incident UUID, tự kích hoạt ghi hình AI và broadcast STOMP)
 		try {
-			await triggerTestAlert(eventPayload);
+			const res = await triggerTestAlert(eventPayload);
+			// Nếu WebSocket STOMP chưa kết nối thì mới nạp thủ công từ HTTP response để tránh x2 cảnh báo
+			if (!wsConnected) {
+				const created = res?.data || res;
+				if (created && created.id) {
+					processNewIncident(created);
+				}
+			}
 		} catch (err) {
-			console.warn(
-				"Backend test-alert failed, falling back to local simulation:",
-				err,
-			);
-			processNewIncident({
-				id: Date.now(),
-				camera_code: targetCam.cameraCode || targetCam.code.toUpperCase(),
-				area_name: targetCam.name,
-				event_type: "UNAUTHORIZED_ACCESS",
-				details: `CẢNH BÁO (Mức 3 - Khẩn cấp): Phát hiện xâm nhập trái phép tại khu vực ${targetCam.name}!`,
-				duration_seconds: 4.5,
-			});
+			console.warn("Backend test-alert background sync warning:", err);
+		} finally {
+			setTimeout(() => setIsSimulating(false), 1000);
 		}
 	};
 
 	// 2. NÚT TEST: Bắn đa sự cố đồng thời với 3 mức độ ưu tiên chuẩn hóa qua Backend REST
+	// Chỉ kích hoạt trên các camera ĐANG ONLINE (đang có luồng ghi hình thực tế)
 	const handleSimulateMultiPriorityAlerts = async () => {
-		const targets = [
+		if (isSimulating) return;
+		setIsSimulating(true);
+
+		const onlineCameras = cameraList.filter(
+			(c) => c.status === "ONLINE" || c.operationalStatus === "ONLINE",
+		);
+		const targetPool =
+			onlineCameras.length > 0
+				? onlineCameras
+				: cameraList.filter((c) => c.status !== "DECOMMISSIONED");
+
+		if (targetPool.length === 0) {
+			triggerNotification("⚠️ Không có camera nào sẵn sàng trong hệ thống!");
+			setIsSimulating(false);
+			return;
+		}
+
+		// 3 mức ưu tiên an ninh chuẩn hóa theo EVENT_SEVERITY_CONFIG:
+		// Mức 3 (Khẩn cấp): UNAUTHORIZED_ACCESS (Trọng số 3, Đỏ)
+		// Mức 2 (Cao): AFTER_HOURS_ACCESS (Trọng số 2, Cam)
+		// Mức 1 (Cảnh báo): UNKNOWN_PERSON (Trọng số 1, Tím)
+		const priorityPresets = [
 			{
-				cam: cameraList[2] || {
-					cameraCode: "CAM-003",
-					name: "Phòng Server / Thiết bị",
-					code: "cam-003",
-				},
 				type: "UNAUTHORIZED_ACCESS",
-				details:
-					"NGUY CẤP (Mức 3): Đối tượng xâm nhập trái phép khu vực Server!",
-				duration: "3.0s",
+				title: "NGUY CẤP (Mức 3): Đối tượng không đủ thẩm quyền xâm nhập khu vực giám sát!",
+				durationSec: 3.0,
 			},
 			{
-				cam: cameraList[0] || {
-					cameraCode: "CAM-001",
-					name: "Hành Lang Chính Tầng 1",
-					code: "cam-001",
-				},
-				type: "UNKNOWN_PERSON",
-				details:
-					"CẢNH BÁO (Mức 2): Phát hiện người lạ chưa xác minh danh tính.",
-				duration: "15.0s",
-			},
-			{
-				cam: cameraList[1] || {
-					cameraCode: "CAM-002",
-					name: "Khu Vực Văn Phòng",
-					code: "cam-002",
-				},
 				type: "AFTER_HOURS_ACCESS",
-				details: "NHẮC NHỞ (Mức 1): Có người hiện diện sau khung giờ quy định.",
-				duration: "8.0s",
+				title: "CẢNH BÁO (Mức 2): Có người hiện diện sau khung giờ hoạt động quy định.",
+				durationSec: 8.0,
+			},
+			{
+				type: "UNKNOWN_PERSON",
+				title: "NHẮC NHỞ (Mức 1): Phát hiện đối tượng chưa xác minh danh tính.",
+				durationSec: 15.0,
 			},
 		];
 
 		const now = Date.now();
-		const batchEvents = targets.map((item, index) => ({
-			event_id: `EVT-${now}-${index}`,
-			camera_code: item.cam.cameraCode
-				? item.cam.cameraCode.toUpperCase()
-				: "CAM-001",
-			event_type: item.type,
-			details: item.details,
-			image_url: null,
-		}));
+		const batchPayload = priorityPresets.map((preset, index) => {
+			const assignedCam = targetPool[index % targetPool.length];
+			const camCode = (assignedCam.cameraCode || assignedCam.code).toUpperCase();
+			return {
+				event_id: `EVT-${now}-${index}`,
+				camera_code: camCode,
+				event_type: preset.type,
+				details: `[${camCode}] ${preset.title}`,
+				duration_seconds: preset.durationSec,
+			};
+		});
 
-		try {
-			await triggerBatchTestAlerts(batchEvents);
-		} catch (err) {
-			console.warn(
-				"Backend batch test-alert failed, falling back to local simulation:",
-				err,
-			);
-			playAlertSound();
-			const timestamp = new Date().toLocaleTimeString("vi-VN");
-			const generatedAlerts = targets.map((item, index) => {
-				const cleanCode =
-					item.cam.code ||
-					(item.cam.cameraCode && item.cam.cameraCode.toLowerCase()) ||
-					"cam-001";
-				return {
-					id: now + index,
-					cameraCode: item.cam.cameraCode
-						? item.cam.cameraCode.toUpperCase()
-						: "CAM-001",
-					camCodeClean: cleanCode,
-					cameraName: item.cam.name,
-					eventType: item.type,
-					message: item.details,
-					duration: item.duration,
-					timestamp,
-					rawTime: now - index * 100,
-					status: "PENDING",
-				};
+		// 1. Hiển thị ngay 3 sự cố trên danh sách cảnh báo SOC
+		batchPayload.forEach((ev) => {
+			processNewIncident({
+				...ev,
+				id: ev.event_id,
+				eventId: ev.event_id,
+				cameraCode: ev.camera_code,
+				camCodeClean: ev.camera_code.toLowerCase(),
+				cameraName: ev.camera_code,
 			});
+		});
+		triggerNotification(`🚨 Đã kích hoạt đồng thời 3 sự cố an ninh theo thứ tự ưu tiên!`);
 
-			setActiveAlerts((prev) => [...generatedAlerts, ...prev]);
-
-			const highestPriorityCam =
-				targets[0].cam.code ||
-				(targets[0].cam.cameraCode &&
-					targets[0].cam.cameraCode.toLowerCase()) ||
-				"cam-003";
-			setSelectedCamera(highestPriorityCam);
-			flashCameraAlert(highestPriorityCam);
+		// 2. Gửi batch sang backend (Backend sẽ lưu 3 incidents, kích hoạt ghi hình sự cố AI và broadcast STOMP)
+		try {
+			const res = await triggerBatchTestAlerts(batchPayload);
+			// Nếu WebSocket STOMP chưa kết nối thì mới nạp thủ công từ HTTP response
+			if (!wsConnected) {
+				const createdList = res?.data || res;
+				if (Array.isArray(createdList) && createdList.length > 0) {
+					createdList.forEach((item) => processNewIncident(item));
+				}
+			}
+		} catch (err) {
+			console.warn("Backend batch test-alert background sync warning:", err);
+		} finally {
+			setTimeout(() => setIsSimulating(false), 1500);
 		}
 	};
 
@@ -871,20 +957,22 @@ export function SecuritySurveillancePage() {
 								type="button"
 								className="btn-sim-alert"
 								onClick={handleSimulateSingleAlert}
+								disabled={isSimulating}
 								title="Mô phỏng 1 sự cố ngẫu nhiên"
 							>
 								<Bell size={14} />
-								<span>Test 1 sự cố</span>
+								<span>{isSimulating ? "Đang xử lý..." : "Test 1 sự cố"}</span>
 							</button>
 
 							<button
 								type="button"
 								className="btn-sim-multi-alert"
 								onClick={handleSimulateMultiPriorityAlerts}
+								disabled={isSimulating}
 								title="Mô phỏng đồng thời nhiều sự cố với độ ưu tiên khác nhau"
 							>
 								<Flame size={14} />
-								<span>Test đa sự cố (Ưu tiên)</span>
+								<span>{isSimulating ? "Đang xử lý..." : "Test đa sự cố (Ưu tiên)"}</span>
 							</button>
 						</div>
 					</div>
@@ -1068,15 +1156,15 @@ export function SecuritySurveillancePage() {
 											enabled={camera.status === "ONLINE"}
 											host="localhost:8889"
 											onStatusChange={(playerStatus) => {
-												const newOpStatus =
-													playerStatus === "live" ? "ONLINE" : "OFFLINE";
-												setCameraList((prev) =>
-													prev.map((c) =>
-														c.code === camera.code
-															? { ...c, status: newOpStatus }
-															: c,
-													),
-												);
+												if (playerStatus === "live") {
+													setCameraList((prev) =>
+														prev.map((c) =>
+															c.code === camera.code
+																? { ...c, status: "ONLINE" }
+																: c,
+														),
+													);
+												}
 											}}
 											onToggleMaximize={() => {
 												setSelectedCamera(camera.code);
@@ -1197,6 +1285,14 @@ export function SecuritySurveillancePage() {
 														<AlertTriangle size={12} />
 														<span>{sev.label}</span>
 													</div>
+													{!alert.socAcknowledged && (
+														<span
+															className="soc-rec-badge"
+															title="Đang ghi hình sự cố an ninh vào thư mục evidence/ cho tới khi bấm Xác nhận đã xem"
+														>
+															<span className="rec-dot"></span> REC
+														</span>
+													)}
 													<span className="soc-incident-time">
 														<Clock size={11} /> {alert.timestamp}
 													</span>

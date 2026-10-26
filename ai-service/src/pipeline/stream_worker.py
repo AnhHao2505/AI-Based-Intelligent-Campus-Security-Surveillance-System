@@ -8,6 +8,7 @@ from typing import Optional, Dict, Any, List
 
 from .video_pipeline import VideoPipeline
 from .stream_recorder import StreamRecorder
+from .incident_recorder import incident_recording_manager
 from ..config import settings
 
 logger = logging.getLogger(__name__)
@@ -164,6 +165,9 @@ class CameraStreamWorker:
             if self.recorder:
                 self.recorder.write_frame(frame)
 
+            # Ghi hình sự cố an ninh nếu có phiên ghi hình sự cố đang chạy cho camera này
+            incident_recording_manager.write_frame_for_camera(self.camera_code, frame)
+
             with self.raw_frame_lock:
                 self.raw_frame = frame
 
@@ -202,6 +206,10 @@ class CameraStreamWorker:
                 time.sleep(0.05)
 
         logger.info(f"Đã đóng Analysis Thread cho camera [{self.camera_code}].")
+
+    def get_current_raw_frame(self) -> Optional[Any]:
+        with self.raw_frame_lock:
+            return self.raw_frame.copy() if self.raw_frame is not None else None
 
     def get_status(self) -> Dict[str, Any]:
         return {

@@ -133,4 +133,7 @@ icss:
 recording:
   storage:
     path: ${RECORDING_STORAGE_PATH:C:/DATN/AI-Based-Intelligent-Campus-Security-Surveillance-System/recording}
+  evidence:
+    path: ${EVIDENCE_STORAGE_PATH:C:/DATN/AI-Based-Intelligent-Campus-Security-Surveillance-System/evidence}
+
 

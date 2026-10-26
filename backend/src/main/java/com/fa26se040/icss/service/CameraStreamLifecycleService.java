@@ -18,8 +18,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
+
 import java.time.OffsetDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -143,5 +147,29 @@ public class CameraStreamLifecycleService {
                 .message("Đã Ngắt Stream phát trực tiếp của camera")
                 .timestamp(OffsetDateTime.now())
                 .build();
+    }
+
+    /**
+     * Tự động phục hồi luồng MediaMTX và kích hoạt AI Stream Worker (bao gồm ghi hình định kỳ)
+     * cho tất cả camera đang ở trạng thái ONLINE khi Backend khởi động lại.
+     */
+    @EventListener(ApplicationReadyEvent.class)
+    public void autoRecoverOnlineStreams() {
+        log.info("🔄 [StreamRecovery] Tự động kiểm tra và phục hồi luồng camera ONLINE khi hệ thống khởi động...");
+        try {
+            List<Camera> onlineCameras = cameraRepository.findAll().stream()
+                    .filter(c -> c.getStatus() == CameraStatus.ACTIVE && c.getOperationalStatus() == OperationalStatus.ONLINE)
+                    .toList();
+            for (Camera cam : onlineCameras) {
+                try {
+                    log.info("🔄 [StreamRecovery] Đang kích hoạt lại luồng và AI worker cho camera [{}]...", cam.getCameraCode());
+                    startStream(cam.getId());
+                } catch (Exception ex) {
+                    log.warn("⚠️ [StreamRecovery] Không thể tự động phục hồi luồng cho camera [{}]: {}", cam.getCameraCode(), ex.getMessage());
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("⚠️ [StreamRecovery] Lỗi khi quét danh sách camera phục hồi: {}", ex.getMessage());
+        }
     }
 }

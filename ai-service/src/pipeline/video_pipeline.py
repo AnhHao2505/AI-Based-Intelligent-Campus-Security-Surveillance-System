@@ -13,6 +13,7 @@ from ..integration.kafka_producer import SecurityKafkaProducer
 from ..integration.storage_service import StorageService
 from ..utils.visualizer import FrameVisualizer
 from ..utils.geometry import is_point_in_polygon, scale_polygon_to_frame
+from .incident_recorder import incident_recording_manager
 
 logger = logging.getLogger(__name__)
 
@@ -269,6 +270,19 @@ class VideoPipeline:
         # 5. Xử lý lưu bằng chứng và gửi cảnh báo tự động ngầm (Async không chặn luồng video)
         if alerts:
             for alert in alerts:
+                # Kích hoạt ghi hình sự cố an ninh ngay lập tức khi phát hiện vi phạm
+                ev_type = str(alert.event_type or "").upper()
+                if any(k in ev_type for k in ["UNAUTHORIZED", "INTRUSION", "AFTER_HOUR", "UNKNOWN"]):
+                    try:
+                        incident_recording_manager.start_incident_recording(
+                            incident_id=alert.event_id or f"EVT-{int(time.time()*1000)}",
+                            camera_code=self.camera_code,
+                            event_type=alert.event_type,
+                            details=alert.details or "Phát hiện sự cố an ninh",
+                        )
+                    except Exception as e:
+                        logger.error(f"Lỗi kích hoạt ghi hình sự cố cho camera [{self.camera_code}]: {e}")
+
                 snapshot_frame = frame.copy()
                 snapshot_frame = FrameVisualizer.draw_all_rois(
                     snapshot_frame,

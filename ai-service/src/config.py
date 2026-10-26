@@ -67,6 +67,12 @@ class Settings(BaseSettings):
     )
     RECORDING_SEGMENT_SECONDS: int = Field(default=60, validation_alias="RECORDING_SEGMENT_SECONDS")
 
+    # Incident Video Evidence Recording Configuration
+    EVIDENCE_BASE_DIR: str = Field(
+        default=r"C:\DATN\AI-Based-Intelligent-Campus-Security-Surveillance-System\evidence",
+        validation_alias="EVIDENCE_BASE_DIR"
+    )
+
     # Backend Access Decision Service Integration
     BACKEND_API_URL: str = Field(default="http://localhost:8080", validation_alias="BACKEND_API_URL")
     ACCESS_DECISION_CACHE_TTL: float = 30.0
