@@ -5,13 +5,21 @@ export const SYSTEM_ACTOR_LABELS = {
 	EVENT_MODE_EXPIRY: "Tự động kết thúc sự kiện hết hạn",
 	EVENT_SCHEDULE_ACTIVATION: "Tự động kích hoạt lịch sự kiện",
 	GUEST_VISIT_JOB: "Tự động xử lý lượt khách",
+	FINISH_ELAPSED_REQUESTS_JOB: "Tự động kết thúc đơn hết giờ",
+	AREA_TYPE_CHANGE: "Đổi loại khu vực",
+	AREA_DEACTIVATION: "Vô hiệu hoá khu vực",
+	REQUESTER_DEACTIVATION: "Vô hiệu hoá tài khoản người tạo đơn",
 };
+
+// Dòng do migration Flyway ghi (vd FLYWAY_MIGRATION_V83) -> "Nâng cấp dữ liệu V83"
+const MIGRATION_SOURCE = /^FLYWAY_MIGRATION_(V[\d_]+)$/;
 
 export const renderSystemActor = (source) => {
 	if (!source) return "Hệ thống";
-	return SYSTEM_ACTOR_LABELS[source]
-		? `Hệ thống – ${SYSTEM_ACTOR_LABELS[source]}`
-		: `Hệ thống – ${source}`;
+	if (SYSTEM_ACTOR_LABELS[source]) return `Hệ thống – ${SYSTEM_ACTOR_LABELS[source]}`;
+	const migration = MIGRATION_SOURCE.exec(source);
+	if (migration) return `Hệ thống – Nâng cấp dữ liệu ${migration[1].replace(/_/g, ".")}`;
+	return `Hệ thống – ${source}`;
 };
 
 export const TARGET_TYPE_LABELS = {
