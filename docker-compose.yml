@@ -15,7 +15,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -55,7 +55,7 @@ services:
     volumes:
       - miniodata:/data
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: [ "CMD", "mc", "ready", "local" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -88,8 +88,7 @@ services:
     volumes:
       - kafkadata:/var/lib/kafka/data
     healthcheck:
-      test:
-        ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list"]
+      test: [ "CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list" ]
       interval: 10s
       timeout: 10s
       retries: 5
@@ -185,11 +184,11 @@ services:
     container_name: sep_mediamtx
     restart: always
     ports:
-      - "8554:8554"     # RTSP Stream cho AI Service
-      - "8888:8888"     # HLS Stream cho Trình duyệt
-      - "8889:8889"     # WebRTC (WHEP) cho Frontend Web
+      - "8554:8554" # RTSP Stream cho AI Service
+      - "8888:8888" # HLS Stream cho Trình duyệt
+      - "8889:8889" # WebRTC (WHEP) cho Frontend Web
       - "8189:8189/udp" # WebRTC UDP data channel
-      - "9997:9997"     # MediaMTX REST API
+      - "9997:9997" # MediaMTX REST API
     volumes:
       - ./mediamtx.yml:/mediamtx.yml:ro
     networks:

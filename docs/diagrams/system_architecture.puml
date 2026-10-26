@@ -7,8 +7,8 @@ skinparam roundCorner 8
 skinparam shadowing false
 skinparam packageStyle rectangle
 
-skinparam nodesep 60
-skinparam ranksep 60
+skinparam nodesep 50
+skinparam ranksep 50
 
 skinparam rectangle {
     BorderThickness 1.5
@@ -19,14 +19,14 @@ skinparam component {
 }
 
 ' ============================================================================
-' EXTERNAL VIDEO INGESTION (LEFT)
+' 1. EXTERNAL VIDEO SOURCE (TOP)
 ' ============================================================================
 package "External Video Source" as ExtSources #F8FAFC {
     component "IP Surveillance Cameras\n(RTSP Video Sources)" as ExtCameras #E2E8F0
 }
 
 ' ============================================================================
-' SYSTEM BOUNDARY: CAMPUS SECURITY SURVEILLANCE SYSTEM (CENTER)
+' 2. SYSTEM BOUNDARY: CAMPUS SECURITY SURVEILLANCE SYSTEM (CENTER)
 ' ============================================================================
 package "System Boundary: Campus Security Surveillance System" as SysBoundary #FFFFFF {
 
@@ -36,7 +36,7 @@ package "System Boundary: Campus Security Surveillance System" as SysBoundary #F
     component "Client Subsystem\n--\n• Web Application (React 18 / Vite)\n• Mobile Application (Flutter / Dart)" as ClientSubsys #EFF6FF
 
     ' Middle Tier: Processing & Event Pipeline
-    component "AI Video Analytics Subsystem\n--\n• FastAPI AI Microservice\n• YOLO11, ByteTrack, ArcFace" as AISubsys #F3E8FF
+    component "AI Video Analytics Subsystem\n--\n• FastAPI AI Microservice\n• Face & Access Recognition\n• Fire Detection" as AISubsys #F3E8FF
 
     component "Message Streaming Subsystem\n--\n• Apache Kafka Broker\n• Security Incident Topics" as KafkaSubsys #FFFBEB
 
@@ -47,7 +47,7 @@ package "System Boundary: Campus Security Surveillance System" as SysBoundary #F
 }
 
 ' ============================================================================
-' EXTERNAL CLOUD SERVICES (RIGHT)
+' 3. EXTERNAL CLOUD SERVICES (RIGHT - VERTICAL ALIGNMENT)
 ' ============================================================================
 package "External Cloud Services" as ExtServices #F8FAFC {
     component "Google Identity Platform\n(OAuth 2.0 / OpenID Connect)" as ExtGoogle #E2E8F0
@@ -55,33 +55,39 @@ package "External Cloud Services" as ExtServices #F8FAFC {
     component "Google Drive API\n(Cloud Video Archive Storage)" as ExtGDrive #E2E8F0
 }
 
+' Enforce vertical stacking for External Cloud Services
+ExtGoogle -[hidden]down-> ExtMail
+ExtMail -[hidden]down-> ExtGDrive
+
 ' ============================================================================
 ' STREAMLINED DATA FLOWS & PROTOCOLS
 ' ============================================================================
 
-' 1. Video Ingestion & Direct Live Streaming
-ExtCameras -right-> MediaGateway : "RTSP Video Ingestion\n(RTSP over TCP)"
+' 1. Video Ingestion from Top into System Boundary
+ExtCameras -down-> MediaGateway : "RTSP Video Ingestion\n(RTSP over TCP)"
+
+' 2. Media Streaming & Client Distribution
 MediaGateway -right-> ClientSubsys : "Live Stream Preview\n(WebRTC WHEP)"
 MediaGateway -down-> AISubsys : "Internal Video Feed\n(RTSP Stream)"
 
-' 2. Client & Core Backend Communication
+' 3. Client & Core Backend Communication
 ClientSubsys <--> BackendSubsys : "• Business REST APIs (HTTPS)\n• Real-Time Alerts (WebSocket STOMP)"
 
-' 3. Core Backend Management of Video & AI
+' 4. Core Backend Management of Video & AI
 BackendSubsys -up-> MediaGateway : "Stream Config (REST API)"
 BackendSubsys <--> AISubsys : "Check allow\n(HTTP REST)"
 
-' 4. Security Incident Event Pipeline (Linear Left-to-Right Flow)
+' 5. Security Incident Event Pipeline (Left-to-Right Flow)
 AISubsys -right-> KafkaSubsys : "Publish Incidents\n(Kafka Protocol)"
 KafkaSubsys -right-> BackendSubsys : "Consume Incidents\n(Kafka Consumer)"
 
-' 5. Data Persistence & Object Storage
+' 6. Data Persistence & Object Storage
 AISubsys -down-> StorageSubsys : "Incident Snapshots (S3 API)\nFace Vectors (SQL)"
 BackendSubsys -down-> StorageSubsys : "Relational DB (JDBC)\nFace Photos (S3 API)\nMP4 Recordings (File I/O)"
 
-' 6. External Cloud Integrations
-BackendSubsys -right-> ExtGoogle : "Token Verification\n(HTTPS)"
-BackendSubsys -right-> ExtMail : "Email Alerts\n(SMTP over TLS)"
-BackendSubsys -right-> ExtGDrive : "Video Archive Backup\n(Google Drive API)"
+' 7. External Cloud Integrations (Right side)
+BackendSubsys -right-> ExtGoogle : "Token Verification (HTTPS)"
+BackendSubsys -right-> ExtMail : "Email Alerts (SMTP over TLS)"
+BackendSubsys -right-> ExtGDrive : "Video Archive Backup (Google Drive API)"
 
 @enduml
