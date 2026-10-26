@@ -371,7 +371,7 @@
   margin: 2px 0 0;
 }
 
-/* 5 thẻ (4 trạng thái + tỉ lệ báo nhầm) nằm một hàng trên màn rộng */
+/* 5 thẻ (4 trạng thái + tỉ lệ bác bỏ) nằm một hàng trên màn rộng */
 .dash-stats__kpis {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
