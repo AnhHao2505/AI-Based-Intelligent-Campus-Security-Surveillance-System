@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/incident_model.dart';
 import '../providers/incident_provider.dart';
+import '../../../core/widgets/authorized_network_image.dart';
 
 class IncidentAlertBanner extends StatelessWidget {
   final Function(IncidentModel) onClaim;
@@ -192,46 +193,69 @@ class IncidentAlertBanner extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
 
-                // Main Info: Event Type & Location
-                Text(
-                  alert.eventTypeDisplay.toUpperCase(),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 4),
+                // Main Info: Event Type & Location + Optional Evidence Image Thumbnail
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.videocam, size: 15, color: Colors.white70),
-                    const SizedBox(width: 4),
-                    Text(
-                      alert.cameraCode,
-                      style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            alert.eventTypeDisplay.toUpperCase(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              const Icon(Icons.videocam, size: 15, color: Colors.white70),
+                              const SizedBox(width: 4),
+                              Text(
+                                alert.cameraCode,
+                                style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500),
+                              ),
+                              if (alert.areaName != null && alert.areaName!.isNotEmpty) ...[
+                                const Text(' • ', style: TextStyle(color: Colors.white38)),
+                                Expanded(
+                                  child: Text(
+                                    alert.areaName!,
+                                    style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          if (alert.resolutionNotes != null && alert.resolutionNotes!.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              alert.resolutionNotes!,
+                              style: const TextStyle(color: Colors.white60, fontSize: 12),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
-                    if (alert.areaName != null && alert.areaName!.isNotEmpty) ...[
-                      const Text(' • ', style: TextStyle(color: Colors.white38)),
-                      Expanded(
-                        child: Text(
-                          alert.areaName!,
-                          style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                    if (alert.imageUrl != null && alert.imageUrl!.trim().isNotEmpty) ...[
+                      const SizedBox(width: 10),
+                      AuthorizedNetworkImage(
+                        imageUrl: alert.imageUrl,
+                        width: 60,
+                        height: 60,
+                        fit: BoxFit.cover,
+                        borderRadius: BorderRadius.circular(8),
+                        enableZoomOnTap: true,
                       ),
                     ],
                   ],
                 ),
-                if (alert.resolutionNotes != null && alert.resolutionNotes!.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    alert.resolutionNotes!,
-                    style: const TextStyle(color: Colors.white60, fontSize: 12),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
                 const SizedBox(height: 12),
 
                 // Action Buttons

@@ -20,7 +20,6 @@ export const ACCESS_RESULT_META = {
  */
 export const PLACEHOLDER_USER_CODE_LABELS = {
 	UNKNOWN: "Người lạ",
-	VIOLATION: "Chưa xác định",
 };
 
 /** Nhãn của mã giữ chỗ (UNKNOWN, VIOLATION), null nếu là mã người dùng thật. */

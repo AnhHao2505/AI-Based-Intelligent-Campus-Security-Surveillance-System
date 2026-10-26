@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/incident_model.dart';
 import '../providers/incident_provider.dart';
+import '../../../core/widgets/authorized_network_image.dart';
 
 class IncidentDetailSheet extends StatefulWidget {
   final IncidentModel incident;
@@ -186,6 +187,68 @@ class _IncidentDetailSheetState extends State<IncidentDetailSheet> {
                   ),
                 ],
               ),
+
+              // Evidence Snapshot Card (Ảnh chụp bằng chứng quả tang từ AI)
+              if (widget.incident.imageUrl != null &&
+                  widget.incident.imageUrl!.trim().isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E293B),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFF334155)),
+                  ),
+                  padding: const EdgeInsets.all(10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(
+                            Icons.photo_camera_outlined,
+                            size: 14,
+                            color: Color(0xFFEF4444),
+                          ),
+                          SizedBox(width: 6),
+                          Text(
+                            'ẢNH BẰNG CHỨNG QUẢ TANG (AI)',
+                            style: TextStyle(
+                              color: Color(0xFF94A3B8),
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          Spacer(),
+                          Text(
+                            'Chạm để phóng to',
+                            style: TextStyle(
+                              color: Color(0xFF64748B),
+                              fontSize: 10.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: SizedBox(
+                          width: double.infinity,
+                          height: 160,
+                          child: AuthorizedNetworkImage(
+                            imageUrl: widget.incident.imageUrl,
+                            width: double.infinity,
+                            height: 160,
+                            fit: BoxFit.contain,
+                            borderRadius: BorderRadius.circular(8),
+                            enableZoomOnTap: true,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
 
               // Expanded Resolution Form
               if (_isExpanded) ...[

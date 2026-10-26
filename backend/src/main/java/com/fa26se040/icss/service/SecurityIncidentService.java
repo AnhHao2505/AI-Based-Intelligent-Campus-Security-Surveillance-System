@@ -115,18 +115,12 @@ public class SecurityIncidentService {
 
         // Ngoại lệ cho cảnh báo ban đêm (INTRUSION): Trừ bảo vệ trong ca trực
         if ("INTRUSION".equals(normalizedEventType)) {
-            java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\(([A-Za-z0-9_-]{3,30})\\)").matcher(cleanDetails);
-            while (m.find()) {
-                String extractedCode = m.group(1);
-                if (!extractedCode.startsWith("Khu") && !extractedCode.startsWith("người")) {
-                    Optional<User> uOpt = userRepository.findByUserCodeAndDeletedAtIsNull(extractedCode);
-                    if (uOpt.isPresent() && uOpt.get().getRole() == Role.GUARD) {
-                        if (isGuardOnShift(uOpt.get().getId(), detectedAt, area)) {
-                            log.info("Bỏ qua cảnh báo INTRUSION ngoài giờ vì [{}] ({}) là bảo vệ đang trong ca trực.",
-                                    uOpt.get().getFullName(), uOpt.get().getUserCode());
-                            return null;
-                        }
-                    }
+            ExtractedPersonInfo personInfo = extractPersonInfo(cleanDetails);
+            if (personInfo.user != null && personInfo.user.getRole() == Role.GUARD) {
+                if (isGuardOnShift(personInfo.user.getId(), detectedAt, area)) {
+                    log.info("Bỏ qua cảnh báo INTRUSION ngoài giờ vì [{}] ({}) là bảo vệ đang trong ca trực.",
+                            personInfo.user.getFullName(), personInfo.user.getUserCode());
+                    return null;
                 }
             }
         }
@@ -161,49 +155,11 @@ public class SecurityIncidentService {
         // 1b. Tự động đồng bộ sự cố người lạ / vi phạm / sai giờ / ngoài giờ sang Nhật ký ra vào của Camera (Tab 4 Camera Detail)
         if (cameraAccessLogService != null && eventDto.getCameraCode() != null) {
             try {
-                boolean isUnknown = normalizedEventType.contains("UNKNOWN")
-                        || cleanDetails.contains("chưa rõ mặt")
-                        || cleanDetails.contains("chưa đăng ký")
-                        || cleanDetails.contains("người lạ ngoài hệ thống");
-
-                String userCode = isUnknown ? "UNKNOWN" : "VIOLATION";
-                String fullName = isUnknown ? "Người lạ / Chưa rõ mặt" : "Đối tượng chưa cấp quyền";
-
-                // Trích xuất họ tên và mã người dùng từ chi tiết sự cố nếu có
-                // Định dạng 1: "Nguyễn Văn An (NV001)"
-                java.util.regex.Matcher nameCodeMatcher = java.util.regex.Pattern.compile("(?:truy cập|quy định|ngoài giờ|hoá|tượng):\\s*([^\\(]+?)\\s*\\(([A-Za-z0-9_-]{3,30})\\)").matcher(cleanDetails);
-                if (nameCodeMatcher.find()) {
-                    String extractedName = nameCodeMatcher.group(1).trim();
-                    String extractedCode = nameCodeMatcher.group(2).trim();
-                    userCode = extractedCode;
-                    fullName = extractedName;
-                    Optional<User> uOpt = userRepository.findByUserCodeAndDeletedAtIsNull(extractedCode);
-                    if (uOpt.isPresent()) {
-                        userCode = uOpt.get().getUserCode();
-                        fullName = uOpt.get().getFullName();
-                    }
-                } else {
-                    // Định dạng 2: Chỉ có mã trong ngoặc đơn "(NV001)" hoặc "(SE170123)"
-                    java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\(([A-Za-z0-9_-]{3,30})\\)").matcher(cleanDetails);
-                    while (m.find()) {
-                        String extractedCode = m.group(1);
-                        if (!extractedCode.startsWith("Khu") && !extractedCode.startsWith("người")) {
-                            userCode = extractedCode;
-                            Optional<User> uOpt = userRepository.findByUserCodeAndDeletedAtIsNull(extractedCode);
-                            if (uOpt.isPresent()) {
-                                userCode = uOpt.get().getUserCode();
-                                fullName = uOpt.get().getFullName();
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                // Chuẩn hóa lý do súc tích chuyên nghiệp cho nhật ký ra vào
+                ExtractedPersonInfo personInfo = extractPersonInfo(cleanDetails);
                 String logReason = cleanDetails;
                 if (cleanDetails.contains("Lý do:")) {
                     logReason = cleanDetails.substring(cleanDetails.indexOf("Lý do:") + 6).trim();
-                } else if (isUnknown || logReason.isBlank()) {
+                } else if (!personInfo.isExistingUser || logReason.isBlank()) {
                     logReason = "Phát hiện người chưa đăng ký tại khu vực giám sát.";
                 }
 
@@ -211,8 +167,8 @@ public class SecurityIncidentService {
                         .cameraCode(eventDto.getCameraCode())
                         .areaId(area.getId())
                         .areaName(area.getName())
-                        .userCode(userCode)
-                        .fullName(fullName)
+                        .userCode(personInfo.userCode)
+                        .fullName(personInfo.fullName)
                         .allowed(false)
                         .source(AccessSource.NONE)
                         .reason(logReason)
@@ -452,5 +408,48 @@ public class SecurityIncidentService {
             }
         }
         return false;
+    }
+
+    @lombok.AllArgsConstructor
+    private static class ExtractedPersonInfo {
+        final String userCode;
+        final String fullName;
+        final boolean isExistingUser;
+        final User user;
+    }
+
+    /**
+     * Trích xuất thông tin người dùng linh hoạt từ chuỗi chi tiết sự cố do AI gửi về.
+     * Hỗ trợ định dạng chuẩn: ": Họ Tên (MÃ_SỐ) tại..." hoặc mọi mã trong ngoặc đơn (NV001, SE194249, GUEST-xxx,...)
+     */
+    private ExtractedPersonInfo extractPersonInfo(String cleanDetails) {
+        if (cleanDetails == null || cleanDetails.isBlank()) {
+            return new ExtractedPersonInfo("UNKNOWN", "Người lạ / Chưa rõ mặt", false, null);
+        }
+
+        // 1. Bắt cấu trúc chuẩn do AI Engine sinh ra: ": [Tên Người] ([MÃ_NGƯỜI_DÙNG])"
+        java.util.regex.Matcher m1 = java.util.regex.Pattern.compile(":\\s*([^():\\n]+?)\\s*\\(([A-Za-z0-9_.-]+)\\)").matcher(cleanDetails);
+        if (m1.find()) {
+            String candidateName = m1.group(1).trim();
+            String candidateCode = m1.group(2).trim();
+            Optional<User> uOpt = userRepository.findByUserCodeAndDeletedAtIsNull(candidateCode);
+            if (uOpt.isPresent()) {
+                return new ExtractedPersonInfo(uOpt.get().getUserCode(), uOpt.get().getFullName(), true, uOpt.get());
+            }
+            // Không tìm thấy trong User DB (ví dụ: đã xóa mềm hoặc mã khách / mã ngoài)
+            return new ExtractedPersonInfo(candidateCode, candidateName.isBlank() ? "Người lạ / Chưa rõ mặt" : candidateName, false, null);
+        }
+
+        // 2. Fallback: Tìm mã trong ngoặc đơn bất kỳ nếu khớp với mã User trong hệ thống
+        java.util.regex.Matcher m2 = java.util.regex.Pattern.compile("\\(([A-Za-z0-9_.-]+)\\)").matcher(cleanDetails);
+        while (m2.find()) {
+            String candidate = m2.group(1).trim();
+            Optional<User> uOpt = userRepository.findByUserCodeAndDeletedAtIsNull(candidate);
+            if (uOpt.isPresent()) {
+                return new ExtractedPersonInfo(uOpt.get().getUserCode(), uOpt.get().getFullName(), true, uOpt.get());
+            }
+        }
+
+        return new ExtractedPersonInfo("UNKNOWN", "Người lạ / Chưa rõ mặt", false, null);
     }
 }

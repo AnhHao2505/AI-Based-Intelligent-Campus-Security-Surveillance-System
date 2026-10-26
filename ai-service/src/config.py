@@ -46,6 +46,7 @@ class Settings(BaseSettings):
         default=os.path.join(AI_SERVICE_DIR, "models", "w600k_r50.onnx"),
         validation_alias="MODEL_ARCFACE_PATH"
     )
+    AI_DEVICE: str = Field(default="auto", validation_alias="AI_DEVICE")
     
     # AI Thresholds & Business Rules
     DEFAULT_DETECTION_CONFIDENCE: float = 0.50

@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.OffsetDateTime;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -67,10 +68,13 @@ public class CameraStreamLifecycleService {
         try {
             String streamStartUrl = aiServiceUrl + "/api/v1/stream/start";
             String workerRtspUrl = mediaMtxService.getGatewayRtspUrl(camera.getCameraCode());
-            restTemplate.postForObject(streamStartUrl, Map.of(
-                    "camera_code", camera.getCameraCode(),
-                    "rtsp_url", workerRtspUrl
-            ), Map.class);
+            Map<String, Object> reqBody = new HashMap<>();
+            reqBody.put("camera_code", camera.getCameraCode());
+            reqBody.put("rtsp_url", workerRtspUrl);
+            if (camera.getRoiGeometry() != null) {
+                reqBody.put("roi_geometry", camera.getRoiGeometry());
+            }
+            restTemplate.postForObject(streamStartUrl, reqBody, Map.class);
             log.info("✅ Đã kích hoạt AI Stream Worker cho camera [{}] qua MediaMTX Gateway ({})", camera.getCameraCode(), workerRtspUrl);
         } catch (Exception ex) {
             log.warn("⚠️ Không thể kích hoạt AI Stream Worker cho camera [{}]: {}", camera.getCameraCode(), ex.getMessage());

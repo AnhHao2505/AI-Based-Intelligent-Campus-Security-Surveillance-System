@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/incident_model.dart';
 import '../providers/incident_provider.dart';
+import '../../../core/widgets/authorized_network_image.dart';
 
 class IncidentQueueSheet extends StatelessWidget {
   final Function(IncidentModel) onClaim;
@@ -209,46 +210,66 @@ class IncidentQueueSheet extends StatelessWidget {
 
                           const SizedBox(height: 8),
 
-                          // Hàng 2: Tên loại sự cố
-                          Text(
-                            item.eventTypeDisplay,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-
-                          const SizedBox(height: 4),
-
-                          // Hàng 3: Vị trí Camera & Khu vực
+                          // Hàng 2 & 3: Tên loại sự cố, vị trí và Thumbnail ảnh bằng chứng
                           Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Icon(Icons.videocam_outlined, size: 14, color: Color(0xFF38BDF8)),
-                              const SizedBox(width: 4),
-                              Text(
-                                item.cameraCode,
-                                style: const TextStyle(
-                                  color: Color(0xFF38BDF8),
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              const Text('•', style: TextStyle(color: Colors.white38)),
-                              const SizedBox(width: 8),
-                              const Icon(Icons.location_on_outlined, size: 14, color: Colors.white70),
-                              const SizedBox(width: 4),
                               Expanded(
-                                child: Text(
-                                  item.areaName ?? 'Chưa rõ khu vực',
-                                  style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 12,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      item.eventTypeDisplay,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      children: [
+                                        const Icon(Icons.videocam_outlined, size: 14, color: Color(0xFF38BDF8)),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          item.cameraCode,
+                                          style: const TextStyle(
+                                            color: Color(0xFF38BDF8),
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        const Text('•', style: TextStyle(color: Colors.white38)),
+                                        const SizedBox(width: 8),
+                                        const Icon(Icons.location_on_outlined, size: 14, color: Colors.white70),
+                                        const SizedBox(width: 4),
+                                        Expanded(
+                                          child: Text(
+                                            item.areaName ?? 'Chưa rõ khu vực',
+                                            style: const TextStyle(
+                                              color: Colors.white70,
+                                              fontSize: 12,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
                                 ),
                               ),
+                              if (item.imageUrl != null && item.imageUrl!.trim().isNotEmpty) ...[
+                                const SizedBox(width: 10),
+                                AuthorizedNetworkImage(
+                                  imageUrl: item.imageUrl,
+                                  width: 46,
+                                  height: 46,
+                                  fit: BoxFit.cover,
+                                  borderRadius: BorderRadius.circular(8),
+                                  enableZoomOnTap: true,
+                                ),
+                              ],
                             ],
                           ),
 

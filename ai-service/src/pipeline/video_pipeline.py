@@ -4,7 +4,7 @@ import numpy as np
 from typing import List, Optional, Tuple, Any
 
 from ..config import settings
-from ..core.entity import Point, TrackedPerson, SecurityAlertEvent, RoiPolygonConfig
+from ..core.entity import Point, TrackedPerson, SecurityAlertEvent, RoiPolygonConfig, BoundingBox
 from ..core.human_detector import HumanDetector
 from ..core.face_detector import FaceDetector
 from ..core.face_matcher import FaceMatcher
@@ -12,6 +12,7 @@ from ..core.frame_analysis_engine import FrameAnalysisEngine
 from ..integration.kafka_producer import SecurityKafkaProducer
 from ..integration.storage_service import StorageService
 from ..utils.visualizer import FrameVisualizer
+from ..utils.geometry import is_point_in_polygon, scale_polygon_to_frame
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +101,27 @@ class VideoPipeline:
         else:
             self.roi_polygon = []
 
+    def is_bbox_in_roi(self, bbox: BoundingBox, frame_w: int, frame_h: int) -> Tuple[bool, str]:
+        """
+        Kiểm tra xem vị trí chân người (bottom_center) có nằm trong bất kỳ polygon ROI nào không.
+        Trả về: (in_roi: bool, matched_label: str)
+        """
+        if not self.roi_polygons and not self.roi_polygon:
+            return True, "Toàn khung hình"
+
+        bc = bbox.bottom_center
+        if self.roi_polygons:
+            for poly in self.roi_polygons:
+                pts = poly.to_pixel_points(frame_w, frame_h) if (frame_w > 0 and frame_h > 0) else poly.vertices
+                if len(pts) >= 3 and is_point_in_polygon(bc, pts):
+                    return True, poly.label or "Vùng ROI"
+        elif self.roi_polygon and len(self.roi_polygon) >= 3:
+            pts = scale_polygon_to_frame(self.roi_polygon, frame_w, frame_h) if (frame_w > 0 and frame_h > 0) else self.roi_polygon
+            if is_point_in_polygon(bc, pts):
+                return True, "Vùng ROI"
+
+        return False, ""
+
     def process_frame(
         self,
         frame: np.ndarray,
@@ -124,10 +146,32 @@ class VideoPipeline:
             if track_id < 0:
                 continue
 
+            in_roi, roi_label = self.is_bbox_in_roi(bbox, w, h)
+
             # Tối ưu hiệu năng: Nếu Track ID này đã nhận diện được danh tính trong active_tracks,
             # ByteTrack tiếp tục bám theo mượt mà mà không cần chạy lại YuNet + ArcFace + pgvector mỗi frame!
             existing = self.analysis_engine.active_tracks.get(track_id)
             if existing and existing.face_detected and existing.face_info and existing.face_info.matched_code:
+                # Nếu người này trước đó ở ngoài ROI, nay bước chân vào ROI:
+                if in_roi and not getattr(existing.face_info, "access_checked", False):
+                    is_allowed, access_reason, area_name = self.face_matcher.check_camera_access(
+                        self.camera_code,
+                        existing.face_info.matched_code,
+                        roi_label=roi_label or "Vùng giám sát",
+                        event_direction="ENTRY"
+                    )
+                    reason_lower = (access_reason or "").lower()
+                    if "không tồn tại" in reason_lower or "đã bị xoá" in reason_lower:
+                        existing.face_info.matched_code = None
+                        existing.face_info.matched_name = None
+                        existing.face_info.is_authorized = False
+                        existing.face_info.access_reason = "Đối tượng không xác định"
+                    else:
+                        existing.face_info.is_authorized = is_allowed
+                        existing.face_info.access_reason = access_reason
+                        existing.face_info.area_name = area_name
+                    existing.face_info.access_checked = True
+                    existing.roi_entry_logged = True
                 continue
 
             x1, y1, x2, y2 = bbox.to_int_xyxy()
@@ -168,21 +212,30 @@ class VideoPipeline:
                                 face_result.is_active = is_active
                                 face_result.role = role
 
-                                # Thẩm định quyền ra vào thực tế tại camera này qua Backend checkEntry
-                                is_allowed, access_reason, area_name = self.face_matcher.check_camera_access(
-                                    self.camera_code, code
-                                )
-                                reason_lower = (access_reason or "").lower()
-                                if "không tồn tại" in reason_lower or "đã bị xoá" in reason_lower:
-                                    # Người dùng đã bị xoá khỏi hệ thống -> Trở thành người lạ UNKNOWN_PERSON
-                                    face_result.matched_code = None
-                                    face_result.matched_name = None
-                                    face_result.is_authorized = False
-                                    face_result.access_reason = "Đối tượng không xác định"
+                                # CHỈ kiểm tra thẩm quyền và ghi nhận truy cập khi đã thực sự bước chân vào vùng ROI!
+                                if in_roi:
+                                    is_allowed, access_reason, area_name = self.face_matcher.check_camera_access(
+                                        self.camera_code,
+                                        code,
+                                        roi_label=roi_label or "Vùng giám sát",
+                                        event_direction="ENTRY"
+                                    )
+                                    reason_lower = (access_reason or "").lower()
+                                    if "không tồn tại" in reason_lower or "đã bị xoá" in reason_lower:
+                                        face_result.matched_code = None
+                                        face_result.matched_name = None
+                                        face_result.is_authorized = False
+                                        face_result.access_reason = "Đối tượng không xác định"
+                                    else:
+                                        face_result.is_authorized = is_allowed
+                                        face_result.access_reason = access_reason
+                                        face_result.area_name = area_name
+                                    face_result.access_checked = True
                                 else:
-                                    face_result.is_authorized = is_allowed
-                                    face_result.access_reason = access_reason
-                                    face_result.area_name = area_name
+                                    # Người dùng đang ở ngoài vùng ROI: Trạng thái bình thường, không ghi log vi phạm
+                                    face_result.is_authorized = True
+                                    face_result.access_reason = "Đang ở ngoài vùng ROI"
+                                    face_result.access_checked = False
 
                         self.analysis_engine.associate_face(track_id, face_result)
 
@@ -211,6 +264,8 @@ class VideoPipeline:
                     True
                 )
 
+        has_roi = bool(self.roi_polygons or self.roi_polygon)
+
         # 5. Xử lý lưu bằng chứng và gửi cảnh báo tự động ngầm (Async không chặn luồng video)
         if alerts:
             for alert in alerts:
@@ -227,7 +282,6 @@ class VideoPipeline:
                 self.executor.submit(self._dispatch_alert_async, alert, snapshot_frame)
 
         # 6. Render các lớp đồ họa lên khung hình hiển thị (Overlay Annotations)
-        has_roi = bool(self.roi_polygons or self.roi_polygon)
         annotated_frame = frame.copy()
         annotated_frame = FrameVisualizer.draw_all_rois(
             annotated_frame,
@@ -236,7 +290,7 @@ class VideoPipeline:
         annotated_frame = self.visualizer.draw_tracked_persons(
             annotated_frame,
             active_persons,
-            only_in_roi=has_roi
+            only_in_roi=False
         )
         
         return annotated_frame, active_persons, alerts

@@ -52,6 +52,7 @@ class FaceDetectionResult:
     access_reason: Optional[str] = None
     area_name: Optional[str] = None
     role: Optional[str] = "NORMAL_USER"
+    access_checked: bool = False
 
 @dataclass
 class TrackedPerson:

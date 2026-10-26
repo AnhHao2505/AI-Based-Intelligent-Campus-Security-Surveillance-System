@@ -282,10 +282,13 @@ public class CameraService {
                             try {
                                 String streamStartUrl = aiServiceUrl + "/api/v1/stream/start";
                                 String workerRtspUrl = mediaMtxService.getGatewayRtspUrl(cfg.getCamera().getCameraCode());
-                                restTemplate.postForObject(streamStartUrl, Map.of(
-                                        "camera_code", cfg.getCamera().getCameraCode(),
-                                        "rtsp_url", workerRtspUrl
-                                ), Map.class);
+                                Map<String, Object> reqBody = new HashMap<>();
+                                reqBody.put("camera_code", cfg.getCamera().getCameraCode());
+                                reqBody.put("rtsp_url", workerRtspUrl);
+                                if (cfg.getCamera().getRoiGeometry() != null) {
+                                    reqBody.put("roi_geometry", cfg.getCamera().getRoiGeometry());
+                                }
+                                restTemplate.postForObject(streamStartUrl, reqBody, Map.class);
                             } catch (Exception ex) {
                                 log.debug("Không thể auto-start stream worker on startup cho {}: {}", cfg.getCamera().getCameraCode(), ex.getMessage());
                             }
@@ -331,6 +334,7 @@ public class CameraService {
 
         camera.setUpdatedAt(OffsetDateTime.now());
         cameraRepository.save(camera);
+
 
         CameraStreamConfigResponse streamResponse = mapToStreamResponse(saved);
         streamResponse.setOperationalStatus(camera.getOperationalStatus() != null ? camera.getOperationalStatus() : OperationalStatus.OFFLINE);
