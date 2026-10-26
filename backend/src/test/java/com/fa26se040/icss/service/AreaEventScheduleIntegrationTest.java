@@ -77,6 +77,9 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private org.springframework.transaction.PlatformTransactionManager transactionManager;
+
     private Building testBuilding;
     private Floor testFloor;
 
@@ -1170,6 +1173,69 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         AreaEventModeAuditSnapshot enableSnap = objectMapper.readValue(enableLog.getNewValue(), AreaEventModeAuditSnapshot.class);
         assertEquals("SEMINAR", enableSnap.reasonCode(), "Audit kích hoạt phải có lý do gốc A");
         assertEquals("Hội thảo / seminar", enableSnap.reasonLabel(), "Audit kích hoạt phải có nhãn gốc A");
+    }
+
+    @Test
+    @DisplayName("E-1: FM huỷ lịch khi job kích hoạt đang chờ khoá khu vực -> lịch vẫn CANCELLED, giữ thông tin huỷ, không có phiên, khu không mở")
+    void testE1_CancelWhileActivationWaitsForAreaLock() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now();
+        // Lịch đã tới giờ bắt đầu, job sẽ kích hoạt
+        AreaEventSchedule schedule = eventScheduleRepository.save(AreaEventSchedule.builder()
+                .title("Sự kiện thử nghiệm")
+                .area(internalArea)
+                .startAt(now.minusMinutes(1))
+                .endAt(now.plusHours(2))
+                .status(AreaEventScheduleStatus.SCHEDULED)
+                .reasonCode(REASON_ENABLE)
+                .reasonLabel("Hội thảo lên lịch")
+                .note("Lich bi huy dung luc job kich hoat")
+                .createdBy(fmUser)
+                .createdAt(now.minusHours(1))
+                .build());
+        int sessionCountBefore = sessionRepository.findByAreaId(internalArea.getId()).size();
+        long enableAuditsBefore = countAudits(internalArea.getId().toString(), AuditAction.ENABLE_EVENT_MODE);
+
+        // Luồng FM: huỷ lịch trong transaction chưa commit (đang giữ khoá khu vực), giữ khoá thêm một lúc
+        CountDownLatch cancelHoldsLock = new CountDownLatch(1);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            Future<?> cancel = executor.submit(() -> {
+                org.springframework.transaction.support.TransactionTemplate tx =
+                        new org.springframework.transaction.support.TransactionTemplate(transactionManager);
+                tx.executeWithoutResult(status -> {
+                    areaService.cancelSchedule(internalArea.getId(), schedule.getId(),
+                            new EventScheduleCancelRequest(REASON_DISABLE, "Huy lich trong luc job dang kich hoat"),
+                            fmUser.getEmail());
+                    cancelHoldsLock.countDown();
+                    try {
+                        Thread.sleep(1500);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                });
+            });
+            assertTrue(cancelHoldsLock.await(10, TimeUnit.SECONDS));
+
+            // Luồng job: chạy khi huỷ chưa commit -> chờ khoá khu vực, sau đó phải thấy lịch đã CANCELLED
+            areaService.activateScheduleInTx(schedule.getId(), now);
+            cancel.get(10, TimeUnit.SECONDS);
+        } finally {
+            executor.shutdown();
+        }
+
+        AreaEventSchedule reloaded = eventScheduleRepository.findById(schedule.getId()).orElseThrow();
+        assertEquals(AreaEventScheduleStatus.CANCELLED, reloaded.getStatus());
+        assertNotNull(reloaded.getCancelledAt());
+        assertNotNull(reloaded.getCancelledBy());
+        assertEquals(REASON_DISABLE, reloaded.getCancelReasonCode());
+        assertEquals("Huy lich trong luc job dang kich hoat", reloaded.getCancelNote());
+        assertNull(reloaded.getSession());
+
+        assertEquals(sessionCountBefore, sessionRepository.findByAreaId(internalArea.getId()).size());
+        Area reloadedArea = areaRepository.findById(internalArea.getId()).orElseThrow();
+        assertFalse(Boolean.TRUE.equals(reloadedArea.getOpenToMembers()));
+        assertNull(reloadedArea.getOpenUntil());
+        assertEquals(enableAuditsBefore, countAudits(internalArea.getId().toString(), AuditAction.ENABLE_EVENT_MODE));
     }
 
     /** Step 6: vô hiệu hoá cần lý do + version hiện tại của khu vực. */

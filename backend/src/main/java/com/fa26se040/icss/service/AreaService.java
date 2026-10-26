@@ -2354,12 +2354,18 @@ public class AreaService {
     @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     public void activateScheduleInTx(UUID scheduleId, OffsetDateTime now) {
         com.fa26se040.icss.context.AuditContext.runAsSystem("EVENT_SCHEDULE_ACTIVATION", () -> {
-            com.fa26se040.icss.entity.AreaEventSchedule schedule = eventScheduleRepository.findById(scheduleId).orElse(null);
-            if (schedule == null || schedule.getStatus() != com.fa26se040.icss.enums.AreaEventScheduleStatus.SCHEDULED) {
+            // Khoá area TRƯỚC rồi mới đọc lịch: sửa / huỷ lịch cũng khoá area trước, nên đọc sau khoá thấy trạng thái đã commit.
+            // Đọc lịch trước khoá thì entity cũ (SCHEDULED) ở lại persistence context và ghi đè CANCELLED.
+            UUID areaId = eventScheduleRepository.findAreaIdById(scheduleId).orElse(null);
+            if (areaId == null) {
                 return;
             }
-            Area area = areaRepository.findByIdWithLock(schedule.getArea().getId()).orElse(null);
+            Area area = areaRepository.findByIdWithLock(areaId).orElse(null);
             if (area == null) {
+                return;
+            }
+            com.fa26se040.icss.entity.AreaEventSchedule schedule = eventScheduleRepository.findById(scheduleId).orElse(null);
+            if (schedule == null || schedule.getStatus() != com.fa26se040.icss.enums.AreaEventScheduleStatus.SCHEDULED) {
                 return;
             }
             AreaRowState before = AreaRowState.of(area);
@@ -2486,6 +2492,11 @@ public class AreaService {
 
     @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     public void remindScheduleInTx(UUID scheduleId, OffsetDateTime now) {
+        // Cùng thứ tự với activateScheduleInTx: khoá area rồi mới đọc lịch
+        UUID areaId = eventScheduleRepository.findAreaIdById(scheduleId).orElse(null);
+        if (areaId == null || areaRepository.findByIdWithLock(areaId).isEmpty()) {
+            return;
+        }
         com.fa26se040.icss.entity.AreaEventSchedule schedule = eventScheduleRepository.findById(scheduleId).orElse(null);
         if (schedule == null || schedule.getRemindedAt() != null || schedule.getStatus() != com.fa26se040.icss.enums.AreaEventScheduleStatus.SCHEDULED) {
             return;
