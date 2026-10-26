@@ -59,6 +59,7 @@ public class AccessDecisionService {
     private final AreaAssignedPersonnelRepository assignedPersonnelRepository;
     private final AccessRequestRepository accessRequestRepository;
     private final com.fa26se040.icss.repository.AreaEventScheduleRepository areaEventScheduleRepository;
+    private final com.fa26se040.icss.repository.AreaEventSessionRepository areaEventSessionRepository;
     private final GuestRepository guestRepository;
     private final GuestAccessDecisionService guestAccessDecisionService;
     private final CameraAccessLogService cameraAccessLogService;
@@ -72,7 +73,7 @@ public class AccessDecisionService {
      *   <li>Area không tồn tại / inactive / xoá mềm → denied, NONE</li>
      *   <li>Có Assigned Personnel chưa thu hồi, validFrom &lt;= at &lt; validTo (NULL = vô hạn) → allowed, ASSIGNED_PERSONNEL</li>
      *   <li>user.accessLevel &gt;= cấp của loại khu vực (V83: Công khai 1, Bảo mật 2, Tuyệt mật 3) → allowed, ACCESS_LEVEL</li>
-     *   <li>Khu Bảo mật đang mở chế độ sự kiện hoặc trong khung lịch sự kiện → allowed, OPEN_EVENT</li>
+     *   <li>Khu Bảo mật có phiên sự kiện phủ at hoặc trong khung lịch sự kiện → allowed, OPEN_EVENT</li>
      *   <li>GUARD đã tiếp nhận sự cố tại area, at nằm trong cửa sổ xử lý sự cố → allowed, INCIDENT_RESPONSE (BR-GD-02/03)</li>
      *   <li>Có đơn APPROVED của area, startTime &lt;= at &lt; endTime, user là requester hoặc member → allowed, ACCESS_REQUEST</li>
      *   <li>Còn lại → denied, NONE</li>
@@ -125,9 +126,11 @@ public class AccessDecisionService {
             );
         }
 
-        // 4b. Chế độ sự kiện (Event Mode / open_to_members): chỉ khu Bảo mật
+        // 4b. Chế độ sự kiện: chỉ khu Bảo mật, có phiên sự kiện phủ at (started_at <= at < actual_end / planned_end).
+        // Không dùng cờ open_until trên areas: cờ chỉ phản ánh hiện tại, không biết sự kiện mở từ lúc nào và đã đóng khi nào.
         boolean eventApplicable = area.getAreaLevel() == AreaLevel.CONFIDENTIAL;
-        if (area.isEventActive(at) && eventApplicable) {
+        if (eventApplicable && areaEventSessionRepository != null
+                && areaEventSessionRepository.existsSessionCoveringAt(areaId, at)) {
             return AccessDecision.allowed(
                     AccessSource.OPEN_EVENT,
                     null,

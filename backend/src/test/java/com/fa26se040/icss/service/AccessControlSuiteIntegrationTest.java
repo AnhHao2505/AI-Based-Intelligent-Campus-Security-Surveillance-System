@@ -511,9 +511,9 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
         OffsetDateTime now = OffsetDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS);
         OffsetDateTime eventEnd = now.plusHours(2);
 
-        internalArea.setOpenToMembers(true);
-        internalArea.setOpenUntil(eventEnd);
-        areaRepository.save(internalArea);
+        // E-5: OPEN_EVENT xét theo phiên sự kiện (started_at <= t < planned_end), không theo cờ trên areas -> mở qua lịch + job
+        EventScheduleActivationTestSupport.openViaSchedule(eventScheduleRepository, areaService, internalArea, fmUser,
+                "SEMINAR", "Hội thảo/sự kiện chuyên môn", now, eventEnd);
 
         // 1. L1 trước giờ kết thúc -> ALLOWED (OPEN_EVENT)
         AccessDecision dBefore = accessDecisionService.checkEntry(normalUserL1.getId(), internalArea.getId(), now.plusHours(1));

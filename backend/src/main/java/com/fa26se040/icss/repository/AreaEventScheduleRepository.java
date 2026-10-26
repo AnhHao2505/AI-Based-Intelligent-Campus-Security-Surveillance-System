@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -38,6 +39,10 @@ public interface AreaEventScheduleRepository extends JpaRepository<AreaEventSche
     );
 
     List<AreaEventSchedule> findByAreaIdAndStatus(UUID areaId, AreaEventScheduleStatus status);
+
+    /** Chỉ lấy area_id, không nạp entity lịch vào persistence context (job khoá area trước rồi mới đọc lịch). */
+    @Query("SELECT s.area.id FROM AreaEventSchedule s WHERE s.id = :id")
+    Optional<UUID> findAreaIdById(@Param("id") UUID id);
 
     long countByAreaIdAndStatus(UUID areaId, AreaEventScheduleStatus status);
 

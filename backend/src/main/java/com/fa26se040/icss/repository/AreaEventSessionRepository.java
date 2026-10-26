@@ -37,6 +37,15 @@ public interface AreaEventSessionRepository extends JpaRepository<AreaEventSessi
 
     List<AreaEventSession> findByAreaId(UUID areaId);
 
+    /** Có phiên của khu phủ thời điểm at: started_at <= at < COALESCE(actual_end, planned_end). Phiên đã đóng vẫn tính trong khung đã mở. */
+    @Query("""
+        SELECT COUNT(s) > 0 FROM AreaEventSession s
+        WHERE s.area.id = :areaId
+          AND s.startedAt <= :at
+          AND COALESCE(s.actualEnd, s.plannedEnd) > :at
+        """)
+    boolean existsSessionCoveringAt(@Param("areaId") UUID areaId, @Param("at") OffsetDateTime at);
+
     @Query("""
         SELECT s FROM AreaEventSession s
         WHERE s.actualEnd IS NULL
