@@ -1443,7 +1443,10 @@ public class AreaService {
 
             String actorName = (actor != null && actor.getFullName() != null) ? actor.getFullName() : "Facility Manager";
             String message;
-            if (openUntil != null) {
+            if (action == com.fa26se040.icss.enums.AuditAction.EXPIRE_EVENT_MODE) {
+                // Hết giờ tự đóng: không có người thao tác, openUntil = planned_end của phiên vừa đóng
+                message = String.format("Khu vực %s: chế độ sự kiện đã tự kết thúc lúc %s.", area.getName(), dtf.format(openUntil));
+            } else if (openUntil != null) {
                 message = String.format("Khu vực %s: %s chế độ sự kiện đến %s bởi %s.", area.getName(), actionText, dtf.format(openUntil), actorName);
             } else {
                 message = String.format("Khu vực %s: %s chế độ sự kiện bởi %s.", area.getName(), actionText, actorName);
@@ -1844,6 +1847,8 @@ public class AreaService {
                         "Chế độ sự kiện tự động hết hạn",
                         com.fa26se040.icss.dto.audit.AuditActor.system("EVENT_MODE_EXPIRY")
                 );
+                // Chỉ gửi ở nhánh thực sự đóng phiên -> mỗi phiên một lần; sau commit để rollback thì không gửi
+                sendGuardEventModeChangedNotification(area, com.fa26se040.icss.enums.AuditAction.EXPIRE_EVENT_MODE, null, exp.getPlannedEnd(), true);
             }
             if (Boolean.TRUE.equals(area.getOpenToMembers()) && !area.isEventActive(now)) {
                 area.setOpenToMembers(false);
@@ -1853,7 +1858,8 @@ public class AreaService {
         });
     }
 
-    private void sendGuardScheduleNotification(Area area, com.fa26se040.icss.enums.AuditAction action, com.fa26se040.icss.entity.AreaEventSchedule schedule) {
+    /** actor = FM thực hiện thao tác: đặt lịch -> người tạo, điều chỉnh -> người sửa, huỷ -> người huỷ. */
+    private void sendGuardScheduleNotification(Area area, com.fa26se040.icss.enums.AuditAction action, com.fa26se040.icss.entity.AreaEventSchedule schedule, User actor) {
         executeAfterCommitOrImmediately(() -> {
             InAppNotificationService notifService = inAppNotificationServiceProvider.getIfAvailable();
             if (notifService == null) {
@@ -1873,7 +1879,7 @@ public class AreaService {
             } else {
                 actionText = "Huỷ";
             }
-            String actorName = schedule.getCreatedBy() != null ? schedule.getCreatedBy().getFullName() : "Facility Manager";
+            String actorName = (actor != null && actor.getFullName() != null) ? actor.getFullName() : "Facility Manager";
             String msg = String.format("Khu vực %s: %s lịch sự kiện từ %s đến %s bởi %s.",
                     area.getName(), actionText, dtf.format(schedule.getStartAt()), dtf.format(schedule.getEndAt()), actorName);
             notifService.createForUsers(
@@ -2037,7 +2043,7 @@ public class AreaService {
         );
 
         bumpVersionIfChanged(area, before);
-        sendGuardScheduleNotification(area, com.fa26se040.icss.enums.AuditAction.CREATE, saved);
+        sendGuardScheduleNotification(area, com.fa26se040.icss.enums.AuditAction.CREATE, saved, actor);
 
         return mapToEventScheduleResponse(saved);
     }
@@ -2169,7 +2175,7 @@ public class AreaService {
         );
 
         bumpVersionIfChanged(area, before);
-        sendGuardScheduleNotification(area, com.fa26se040.icss.enums.AuditAction.UPDATE, saved);
+        sendGuardScheduleNotification(area, com.fa26se040.icss.enums.AuditAction.UPDATE, saved, actor);
 
         return mapToEventScheduleResponse(saved);
     }
@@ -2258,7 +2264,7 @@ public class AreaService {
         );
 
         bumpVersionIfChanged(area, before);
-        sendGuardScheduleNotification(area, com.fa26se040.icss.enums.AuditAction.CANCEL, saved);
+        sendGuardScheduleNotification(area, com.fa26se040.icss.enums.AuditAction.CANCEL, saved, actor);
 
         return mapToEventScheduleResponse(saved);
     }
