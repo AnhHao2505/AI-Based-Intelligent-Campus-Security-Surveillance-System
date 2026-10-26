@@ -13,6 +13,7 @@ import logging
 from .config import settings, INTERNAL_SERVICE_KEY_HEADER
 from .pipeline.video_pipeline import VideoPipeline
 from .pipeline.stream_worker import CameraStreamWorker
+from .pipeline.incident_recorder import incident_recording_manager
 from .integration.storage_service import StorageService
 
 logger = logging.getLogger("ai_service")
@@ -490,3 +491,77 @@ async def capture_rtsp_snapshot(req: SnapshotRequest):
         "height": height,
         "latency_ms": latency_ms
     }
+
+# ============================================================================
+# API GHI HÌNH SỰ CỐ AN NINH (INCIDENT RECORDING)
+# ============================================================================
+
+class IncidentRecordingStartRequest(BaseModel):
+    incident_id: str
+    camera_code: str
+    event_type: Optional[str] = "SECURITY_INCIDENT"
+    details: Optional[str] = ""
+
+class IncidentRecordingStopRequest(BaseModel):
+    incident_id: Optional[str] = None
+    camera_code: Optional[str] = None
+    stop_all: Optional[bool] = False
+
+@app.post("/api/v1/incident-recording/start")
+async def start_incident_recording_api(req: IncidentRecordingStartRequest):
+    """
+    Bắt đầu ghi hình sự cố an ninh ngay lập tức khi phát hiện hoặc khi Guard click Test:
+    Lưu vào: C:\\DATN\\AI-Based-Intelligent-Campus-Security-Surveillance-System\\evidence\\{camera_code}\\{year}\\{month}\\{day}\\Incident dd-MM-yyyy - HH-mm-ss.mp4
+    """
+    cam_code = req.camera_code.strip().upper()
+    frame_provider = None
+
+    # Tận dụng luồng frame thực tế nếu camera đang có worker chạy
+    if cam_code in active_workers and active_workers[cam_code].is_running:
+        frame_provider = active_workers[cam_code].get_current_raw_frame
+
+    recorder = incident_recording_manager.start_incident_recording(
+        incident_id=req.incident_id,
+        camera_code=cam_code,
+        event_type=req.event_type or "SECURITY_INCIDENT",
+        details=req.details or "",
+        frame_provider=frame_provider,
+    )
+
+    logger.info(f"🚨 [API] Bắt đầu ghi hình sự cố [{req.incident_id}] camera [{cam_code}] -> {recorder.file_path}")
+    return {
+        "success": True,
+        "incident_id": req.incident_id,
+        "camera_code": cam_code,
+        "file_path": recorder.file_path,
+        "status": "RECORDING_STARTED",
+    }
+
+@app.post("/api/v1/incident-recording/stop")
+async def stop_incident_recording_api(req: IncidentRecordingStopRequest):
+    """
+    Kết thúc ghi hình sự cố khi Bảo vệ click 'Xác nhận đã xem' và hoàn tất lưu file MP4
+    """
+    if req.stop_all:
+        results = incident_recording_manager.stop_all_incident_recordings()
+        return {"success": True, "stopped_count": len(results), "recordings": results}
+
+    if req.incident_id:
+        res = incident_recording_manager.stop_incident_recording(req.incident_id)
+        if not res and req.camera_code:
+            res = incident_recording_manager.stop_incident_recording(req.camera_code)
+        return {"success": True, "recording": res}
+
+    if req.camera_code:
+        res = incident_recording_manager.stop_incident_recording(req.camera_code)
+        return {"success": True, "recording": res}
+
+    results = incident_recording_manager.stop_all_incident_recordings()
+    return {"success": True, "stopped_count": len(results), "recordings": results}
+
+@app.get("/api/v1/incident-recording/active")
+async def get_active_incident_recordings_api():
+    """Lấy danh sách các sự cố hiện đang được ghi hình thời gian thực"""
+    active = incident_recording_manager.get_active_recordings()
+    return {"success": True, "count": len(active), "data": active}
+
