@@ -22,7 +22,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/guard-teams/dispatches")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
+@PreAuthorize("hasRole('FACILITY_MANAGER')")
 public class GuardTeamDispatchController {
 
     private final GuardTeamDispatchService dispatchService;

@@ -41,11 +41,11 @@ public class GuardShiftController {
     private final GuardShiftExportService guardShiftExportService;
 
     // ==========================================
-    // ADMIN & FM ENDPOINTS
+    // FM MANAGEMENT ENDPOINTS
     // ==========================================
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
+    @PreAuthorize("hasRole('FACILITY_MANAGER')")
     public ResponseEntity<ApiResponse<List<GuardShiftDto>>> getShifts(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
@@ -53,18 +53,18 @@ public class GuardShiftController {
             @RequestParam(required = false) String building,
             @RequestParam(required = false) ShiftStatus status
     ) {
-        log.info("Admin/FM querying shifts from [{}] to [{}], building: [{}]", startDate, endDate, building);
+        log.info("FM querying shifts from [{}] to [{}], building: [{}]", startDate, endDate, building);
         return ResponseEntity.ok(ApiResponse.success(guardScheduleService.getShifts(startDate, endDate, guardId, building, status), "Lấy danh sách ca trực thành công"));
     }
 
     @GetMapping("/export-timesheet")
-    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
+    @PreAuthorize("hasRole('FACILITY_MANAGER')")
     public ResponseEntity<byte[]> exportTimesheet(
             @RequestParam int year,
             @RequestParam int month,
             @RequestParam(required = false) UUID teamId
     ) {
-        log.info("Admin/FM exporting guard timesheet Excel for year={}, month={}, teamId={}", year, month, teamId);
+        log.info("FM exporting guard timesheet Excel for year={}, month={}, teamId={}", year, month, teamId);
         try {
             byte[] excelBytes = guardShiftExportService.exportMonthlyTimesheet(year, month, teamId);
             String filename = String.format("Bang_Cham_Cong_Bao_Ve_Thang_%02d_%d.xlsx", month, year);
@@ -80,42 +80,42 @@ public class GuardShiftController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
+    @PreAuthorize("hasRole('FACILITY_MANAGER')")
     public ResponseEntity<ApiResponse<GuardShiftDto>> createShift(@Valid @RequestBody GuardShiftCreateRequest request) {
-        log.info("Admin/FM creating individual shift for guard [{}] on [{}]", request.getGuardId(), request.getShiftDate());
+        log.info("FM creating individual shift for guard [{}] on [{}]", request.getGuardId(), request.getShiftDate());
         GuardShiftDto created = guardScheduleService.createShift(request);
         return new ResponseEntity<>(ApiResponse.created(created, "Tạo ca trực mới thành công"), HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
+    @PreAuthorize("hasRole('FACILITY_MANAGER')")
     public ResponseEntity<ApiResponse<GuardShiftDto>> updateShift(
             @PathVariable UUID id,
             @Valid @RequestBody GuardShiftUpdateRequest request
     ) {
-        log.info("Admin/FM updating shift [{}]", id);
+        log.info("FM updating shift [{}]", id);
         return ResponseEntity.ok(ApiResponse.success(guardScheduleService.updateShift(id, request), "Cập nhật ca trực thành công"));
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
+    @PreAuthorize("hasRole('FACILITY_MANAGER')")
     public ResponseEntity<ApiResponse<Void>> deleteShift(@PathVariable UUID id) {
-        log.info("Admin/FM deleting shift [{}]", id);
+        log.info("FM deleting shift [{}]", id);
         guardScheduleService.deleteShift(id);
         return ResponseEntity.ok(ApiResponse.success("Xóa ca trực thành công"));
     }
 
     @PostMapping("/bulk-clear")
-    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
+    @PreAuthorize("hasRole('FACILITY_MANAGER')")
     public ResponseEntity<ApiResponse<BulkClearShiftsResponse>> bulkClearShifts(
             @Valid @RequestBody BulkClearShiftsRequest request
     ) {
-        log.info("Admin/FM bulk clearing shifts: {}", request);
+        log.info("FM bulk clearing shifts: {}", request);
         return ResponseEntity.ok(ApiResponse.success(guardScheduleService.bulkClearShifts(request), "Xóa hàng loạt ca trực thành công"));
     }
 
     @PostMapping("/wizard/calculate-capacity")
-    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
+    @PreAuthorize("hasRole('FACILITY_MANAGER')")
     public ResponseEntity<ApiResponse<CapacityCalculateResponse>> calculateCapacity(
             @Valid @RequestBody CapacityCalculateRequest request
     ) {
@@ -123,7 +123,7 @@ public class GuardShiftController {
     }
 
     @PostMapping("/wizard/generate")
-    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
+    @PreAuthorize("hasRole('FACILITY_MANAGER')")
     public ResponseEntity<ApiResponse<List<GuardShiftDto>>> generateShiftsFromWizard(
             @Valid @RequestBody WizardGenerateShiftsRequest request
     ) {
@@ -131,7 +131,7 @@ public class GuardShiftController {
     }
 
     @GetMapping("/{id}/available-substitutes")
-    @PreAuthorize("hasAnyRole('GUARD', 'ADMIN', 'FACILITY_MANAGER')")
+    @PreAuthorize("hasAnyRole('GUARD', 'FACILITY_MANAGER')")
     public ResponseEntity<ApiResponse<List<AvailableSubstituteDto>>> getAvailableSubstitutes(
             @PathVariable UUID id,
             Authentication authentication
@@ -141,7 +141,7 @@ public class GuardShiftController {
     }
 
     @GetMapping("/{id}/available-swap-shifts")
-    @PreAuthorize("hasAnyRole('GUARD', 'ADMIN', 'FACILITY_MANAGER')")
+    @PreAuthorize("hasAnyRole('GUARD', 'FACILITY_MANAGER')")
     public ResponseEntity<ApiResponse<List<com.fa26se040.icss.dto.guard.AvailableSwapShiftDto>>> getAvailableSwapShifts(
             @PathVariable UUID id,
             Authentication authentication
