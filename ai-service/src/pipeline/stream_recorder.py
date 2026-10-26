@@ -11,18 +11,25 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 # Đảm bảo Windows tìm được thư viện OpenH264 để mã hóa chuẩn AVC1/H.264
+_current_dir = os.path.dirname(os.path.abspath(__file__))
+_ai_service_dir = os.path.dirname(os.path.dirname(_current_dir))
+_repo_dir = os.path.dirname(_ai_service_dir)
+
 DLL_SEARCH_PATHS = [
-    os.path.dirname(os.path.abspath(__file__)),
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
+    _ai_service_dir,
+    _current_dir,
+    _repo_dir,
     os.getcwd(),
 ]
 for p in DLL_SEARCH_PATHS:
-    if os.path.exists(p) and hasattr(os, "add_dll_directory"):
-        try:
-            os.add_dll_directory(p)
-        except Exception:
-            pass
+    if os.path.exists(p):
+        if hasattr(os, "add_dll_directory"):
+            try:
+                os.add_dll_directory(p)
+            except Exception:
+                pass
+        if p not in os.environ.get("PATH", ""):
+            os.environ["PATH"] = p + os.pathsep + os.environ.get("PATH", "")
 
 
 class StreamRecorder:

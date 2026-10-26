@@ -56,6 +56,11 @@ public class SecurityIncidentService {
     private final IncidentRecipientResolver incidentRecipientResolver;
     private final IncidentEscalationRepository incidentEscalationRepository;
 
+    @org.springframework.beans.factory.annotation.Value("${ai.service.url:http://localhost:8000}")
+    private String aiServiceUrl;
+
+    private final org.springframework.web.client.RestTemplate restTemplate = new org.springframework.web.client.RestTemplate();
+
     @Transactional
     public IncidentDetailResponse ingestIncident(IncidentEventDto eventDto) {
         log.info("Processing incoming incident for camera [{}] type [{}]",
@@ -102,8 +107,12 @@ public class SecurityIncidentService {
 
         // Quy chuẩn an ninh khuôn viên: Khu vực Cấp 1 (PUBLIC) cho phép tự do ra vào trong giờ hoạt động
         // -> Không tạo cảnh báo sự cố đối với người lạ (UNKNOWN_PERSON) và không cảnh báo truy cập trái phép (UNAUTHORIZED_ACCESS) trong giờ
-        boolean isPublicArea = area.getAreaLevel() == AreaLevel.PUBLIC
-                || (area.getAreaAccessLevel() != null && area.getAreaAccessLevel() <= 1);
+        // (Ngoại lệ: Sự kiện Test do Bảo vệ kích hoạt để kiểm thử tính năng thì luôn được ghi nhận)
+        boolean isTestEvent = eventDto.getEventId() != null
+                && (eventDto.getEventId().startsWith("EVT-") || eventDto.getEventId().startsWith("TEST-"));
+
+        boolean isPublicArea = !isTestEvent && (area.getAreaLevel() == AreaLevel.PUBLIC
+                || (area.getAreaAccessLevel() != null && area.getAreaAccessLevel() <= 1));
 
         if (isPublicArea && ("UNKNOWN_PERSON".equals(normalizedEventType) || "UNAUTHORIZED_ACCESS".equals(normalizedEventType))) {
             log.info("Khu vực [{}] thuộc Cấp 1 (PUBLIC) - Bỏ qua cảnh báo [{}] trong giờ hoạt động bình thường.",
@@ -221,6 +230,14 @@ public class SecurityIncidentService {
             } catch (Exception ex) {
                 log.warn("Không thể đồng bộ sự cố sang nhật ký camera: {}", ex.getMessage());
             }
+        }
+
+        // 1c. Tự động kích hoạt ghi hình sự cố an ninh (Incident Recording) sang AI Service
+        // Bắt đầu ghi hình ngay lập tức từ khi phát hiện tới khi Bảo vệ click "Xác nhận đã xem"
+        try {
+            triggerIncidentRecordingStart(saved);
+        } catch (Exception ex) {
+            log.warn("Không thể kích hoạt ghi hình sự cố sang AI service: {}", ex.getMessage());
         }
 
         // 2. Real-time WebSocket dispatching
@@ -452,5 +469,52 @@ public class SecurityIncidentService {
             }
         }
         return false;
+    }
+
+    public void triggerIncidentRecordingStart(SecurityIncident incident) {
+        if (incident == null || aiServiceUrl == null || aiServiceUrl.isBlank()) return;
+        try {
+            String url = aiServiceUrl + "/api/v1/incident-recording/start";
+            Map<String, Object> req = Map.of(
+                    "incident_id", incident.getId().toString(),
+                    "camera_code", incident.getCameraCode() != null ? incident.getCameraCode() : "CAM-001",
+                    "event_type", incident.getEventType() != null ? incident.getEventType() : "SECURITY_INCIDENT",
+                    "details", incident.getResolutionNotes() != null ? incident.getResolutionNotes() : ""
+            );
+            restTemplate.postForObject(url, req, Map.class);
+            log.info("🚨 [IncidentService] Đã kích hoạt ghi hình sự cố [{}] camera [{}] sang AI Service",
+                    incident.getId(), incident.getCameraCode());
+        } catch (Exception ex) {
+            log.warn("⚠️ Không thể gửi tín hiệu ghi hình sự cố sang AI service: {}", ex.getMessage());
+        }
+    }
+
+    public void triggerIncidentRecordingStop(UUID incidentId) {
+        triggerIncidentRecordingStop(incidentId != null ? incidentId.toString() : null);
+    }
+
+    public void triggerIncidentRecordingStop(String incidentId) {
+        if (aiServiceUrl == null || aiServiceUrl.isBlank()) return;
+        try {
+            String url = aiServiceUrl + "/api/v1/incident-recording/stop";
+            Map<String, Object> req = (incidentId != null && !incidentId.isBlank())
+                    ? Map.of("incident_id", incidentId)
+                    : Map.of("stop_all", true);
+            restTemplate.postForObject(url, req, Map.class);
+            log.info("🛑 [IncidentService] Đã gửi tín hiệu dừng ghi hình sự cố [{}] sang AI Service", incidentId);
+        } catch (Exception ex) {
+            log.warn("⚠️ Không thể gửi tín hiệu dừng ghi hình sự cố sang AI service: {}", ex.getMessage());
+        }
+    }
+
+    public void triggerAllIncidentRecordingsStop() {
+        if (aiServiceUrl == null || aiServiceUrl.isBlank()) return;
+        try {
+            String url = aiServiceUrl + "/api/v1/incident-recording/stop";
+            restTemplate.postForObject(url, Map.of("stop_all", true), Map.class);
+            log.info("🛑 [IncidentService] Đã gửi tín hiệu dừng tất cả phiên ghi hình sự cố sang AI Service");
+        } catch (Exception ex) {
+            log.warn("⚠️ Không thể gửi tín hiệu dừng toàn bộ ghi hình sự cố sang AI service: {}", ex.getMessage());
+        }
     }
 }

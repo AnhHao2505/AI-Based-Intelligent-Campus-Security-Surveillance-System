@@ -183,10 +183,11 @@ public class CameraController {
     @GetMapping("/recordings/stream")
     public ResponseEntity<org.springframework.core.io.Resource> streamRecording(
             @RequestParam String path,
+            @RequestParam(required = false, defaultValue = "recording") String source,
             @RequestParam(required = false, defaultValue = "false") boolean download,
             @RequestHeader HttpHeaders headers) throws IOException {
-        log.debug("REST request to stream recording: {}", path);
-        return cameraRecordingService.streamVideo(path, headers, download);
+        log.debug("REST request to stream recording: {}, source: {}", path, source);
+        return cameraRecordingService.streamVideo(path, source, headers, download);
     }
 }
 

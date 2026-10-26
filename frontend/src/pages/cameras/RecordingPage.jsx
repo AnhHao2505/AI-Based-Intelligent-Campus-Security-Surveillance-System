@@ -52,6 +52,12 @@ export default function RecordingPage() {
 
   // Selected video for modal player
   const [activeVideo, setActiveVideo] = useState(null);
+  const [videoError, setVideoError] = useState(false);
+
+  const handleOpenVideo = (recording) => {
+    setVideoError(false);
+    setActiveVideo(recording);
+  };
 
   // Tải danh sách video thực tế trên ổ đĩa từ backend
   const loadRecordings = useCallback(async () => {
@@ -205,7 +211,7 @@ export default function RecordingPage() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <PageHeader
           title="Kho Lưu Trữ Video Ghi Hình (Video Recordings)"
-          description="Quản lý và tra cứu các video ghi hình 1 phút liên tục được lưu trữ tại C:\DATN\...\recording. Tự động chia session chính xác 1 phút khi camera ONLINE."
+          description="Quản lý và tra cứu video ghi hình 1 phút liên tục (recording/) và video bằng chứng sự cố an ninh (evidence/). Tự động chia session chính xác 1 phút khi camera ONLINE và tự động ghi hình khi phát hiện sự cố đến khi Bảo vệ 'Xác nhận đã xem'."
         />
         <div style={{ marginTop: "24px" }}>
           <Button
@@ -246,6 +252,16 @@ export default function RecordingPage() {
           <div className="recording-stat-card__content">
             <span className="recording-stat-card__value">{normalRecordingsCount}</span>
             <span className="recording-stat-card__label">Ghi hình định kỳ (1 phút)</span>
+          </div>
+        </div>
+
+        <div className="recording-stat-card">
+          <div className="recording-stat-card__icon recording-stat-card__icon--red" style={{ background: "rgba(239, 68, 68, 0.15)", color: "#ef4444" }}>
+            <ShieldAlert size={22} />
+          </div>
+          <div className="recording-stat-card__content">
+            <span className="recording-stat-card__value" style={{ color: "#ef4444" }}>{securityEventsCount}</span>
+            <span className="recording-stat-card__label">Bằng chứng sự cố (evidence/)</span>
           </div>
         </div>
 
@@ -500,7 +516,7 @@ export default function RecordingPage() {
                 {/* Thumbnail / Media Container */}
                 <div
                   className="recording-card__media"
-                  onClick={() => setActiveVideo(recording)}
+                  onClick={() => handleOpenVideo(recording)}
                 >
                   <video
                     src={`${recording.videoUrl}#t=0.001`}
@@ -523,11 +539,11 @@ export default function RecordingPage() {
                   >
                     {isSecurity ? (
                       <>
-                        <ShieldAlert size={12} /> Security Event
+                        <ShieldAlert size={12} /> Bằng chứng sự cố
                       </>
                     ) : (
                       <>
-                        <Video size={12} /> 1-Min Segment
+                        <Video size={12} /> Định kỳ 1 phút
                       </>
                     )}
                   </span>
@@ -568,7 +584,7 @@ export default function RecordingPage() {
                     <Button
                       variant="primary"
                       size="sm"
-                      onClick={() => setActiveVideo(recording)}
+                      onClick={() => handleOpenVideo(recording)}
                     >
                       <Play size={13} style={{ marginRight: "4px" }} /> Phát video
                     </Button>
@@ -616,7 +632,7 @@ export default function RecordingPage() {
                         muted
                         playsInline
                         className="recording-table-thumb"
-                        onClick={() => setActiveVideo(recording)}
+                        onClick={() => handleOpenVideo(recording)}
                       />
                     </td>
                     <td>
@@ -652,7 +668,7 @@ export default function RecordingPage() {
                         <Button
                           variant="primary"
                           size="sm"
-                          onClick={() => setActiveVideo(recording)}
+                          onClick={() => handleOpenVideo(recording)}
                         >
                           <Play size={12} />
                         </Button>
@@ -706,16 +722,47 @@ export default function RecordingPage() {
             </div>
 
             <div className="recording-player-modal__video-wrapper">
-              <video
-                src={activeVideo.videoUrl}
-                controls
-                autoPlay
-                preload="auto"
-                type="video/mp4"
-                className="recording-player-modal__video"
-              >
-                Trình duyệt không hỗ trợ phát thẻ video HTML5.
-              </video>
+              {videoError ? (
+                <div style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  height: "100%",
+                  padding: "24px",
+                  textAlign: "center",
+                  color: "#f87171",
+                  background: "radial-gradient(circle, rgba(239,68,68,0.15) 0%, rgba(0,0,0,0.95) 100%)",
+                }}>
+                  <AlertTriangle size={42} style={{ marginBottom: "12px", color: "#ef4444" }} />
+                  <div style={{ fontSize: "16px", fontWeight: 600, color: "#fff", marginBottom: "6px" }}>
+                    Không thể phát trực tiếp video trên trình duyệt
+                  </div>
+                  <div style={{ fontSize: "13px", color: "#9ca3af", maxWidth: "480px", marginBottom: "16px", lineHeight: 1.5 }}>
+                    Tệp video có thể vừa được tạo, đang ghi hình chưa kết thúc hoặc codec của tệp cũ không hỗ trợ HTML5. Bạn có thể bấm nút bên dưới để tải trực tiếp file về máy mở bằng VLC hoặc Windows Media Player.
+                  </div>
+                  <Button
+                    variant="primary"
+                    size="md"
+                    onClick={() => window.open(activeVideo.downloadUrl || activeVideo.videoUrl, "_blank")}
+                  >
+                    <Download size={15} style={{ marginRight: "6px" }} /> Tải tệp MP4 về máy ({activeVideo.fileSize})
+                  </Button>
+                </div>
+              ) : (
+                <video
+                  key={activeVideo.id || activeVideo.videoUrl}
+                  src={activeVideo.videoUrl}
+                  controls
+                  autoPlay
+                  preload="auto"
+                  type="video/mp4"
+                  className="recording-player-modal__video"
+                  onError={() => setVideoError(true)}
+                >
+                  Trình duyệt không hỗ trợ phát thẻ video HTML5.
+                </video>
+              )}
             </div>
 
             <div className="recording-player-modal__footer">

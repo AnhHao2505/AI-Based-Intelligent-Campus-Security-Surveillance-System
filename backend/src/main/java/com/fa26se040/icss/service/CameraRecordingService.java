@@ -8,7 +8,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
-import org.springframework.core.io.support.ResourceRegion;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,6 +41,9 @@ public class CameraRecordingService {
     @Value("${recording.storage.path:C:/DATN/AI-Based-Intelligent-Campus-Security-Surveillance-System/recording}")
     private String recordingStoragePath;
 
+    @Value("${recording.evidence.path:C:/DATN/AI-Based-Intelligent-Campus-Security-Surveillance-System/evidence}")
+    private String evidenceStoragePath;
+
     private static final ZoneId VIETNAM_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final List<DateTimeFormatter> DATE_TIME_FORMATTERS = List.of(
             DateTimeFormatter.ofPattern("dd-MM-yyyy - HH-mm-ss"),
@@ -53,7 +55,9 @@ public class CameraRecordingService {
     );
 
     /**
-     * Quét đệ quy toàn bộ thư mục C:\DATN\...\recording và tìm tất cả file video .mp4.
+     * Quét đệ quy cả 2 thư mục:
+     * 1. C:\DATN\...\recording (Ghi hình định kỳ 1 phút/session)
+     * 2. C:\DATN\...\evidence  (Ghi hình sự cố an ninh từ khi phát hiện tới khi Bảo vệ click Xác nhận đã xem)
      * Cấu trúc: {camera_id}/{year}/{month}/{day}/{filename}.mp4
      */
     public List<RecordingVideoResponse> listRecordings(
@@ -62,18 +66,6 @@ public class CameraRecordingService {
             String fromDateStr,
             String toDateStr
     ) {
-        Path baseDirPath = Paths.get(recordingStoragePath).toAbsolutePath().normalize();
-        log.info("🔍 [RecordingService] Quét thư mục: {}", baseDirPath);
-        if (!Files.exists(baseDirPath)) {
-            try {
-                Files.createDirectories(baseDirPath);
-                log.info("📁 Đã tự động tạo thư mục lưu trữ video ghi hình: {}", baseDirPath);
-            } catch (IOException e) {
-                log.error("❌ Không thể tạo thư mục lưu trữ video: {}", e.getMessage());
-                return Collections.emptyList();
-            }
-        }
-
         // Cache camera info from DB
         Map<String, Camera> cameraMap = cameraRepository.findAll().stream()
                 .filter(c -> c.getCameraCode() != null)
@@ -84,6 +76,39 @@ public class CameraRecordingService {
                 ));
 
         List<RecordingVideoResponse> results = new ArrayList<>();
+
+        // Quét thư mục Continuous Recording
+        scanDirectory(recordingStoragePath, false, cameraCodeFilter, keyword, fromDateStr, toDateStr, cameraMap, results);
+
+        // Quét thư mục Incident Evidence Recording
+        scanDirectory(evidenceStoragePath, true, cameraCodeFilter, keyword, fromDateStr, toDateStr, cameraMap, results);
+
+        // Sắp xếp mới nhất lên đầu
+        results.sort((a, b) -> b.getStartTime().compareTo(a.getStartTime()));
+        return results;
+    }
+
+    private void scanDirectory(
+            String dirPathStr,
+            boolean isEvidenceFolder,
+            String cameraCodeFilter,
+            String keyword,
+            String fromDateStr,
+            String toDateStr,
+            Map<String, Camera> cameraMap,
+            List<RecordingVideoResponse> results
+    ) {
+        Path baseDirPath = Paths.get(dirPathStr).toAbsolutePath().normalize();
+        log.info("🔍 [RecordingService] Quét thư mục (isEvidence={}): {}", isEvidenceFolder, baseDirPath);
+        if (!Files.exists(baseDirPath)) {
+            try {
+                Files.createDirectories(baseDirPath);
+                log.info("📁 Đã tự động tạo thư mục: {}", baseDirPath);
+            } catch (IOException e) {
+                log.error("❌ Không thể tạo thư mục {}: {}", baseDirPath, e.getMessage());
+                return;
+            }
+        }
 
         try (Stream<Path> stream = Files.walk(baseDirPath)) {
             List<Path> videoFiles = stream
@@ -112,8 +137,19 @@ public class CameraRecordingService {
                     long fileSizeBytes = Files.size(filePath);
                     BasicFileAttributes attrs = Files.readAttributes(filePath, BasicFileAttributes.class);
 
+                    boolean isIncidentVideo = isEvidenceFolder || filename.toLowerCase().startsWith("incident");
+
                     OffsetDateTime startTime = parseStartTime(filename, attrs);
-                    OffsetDateTime endTime = startTime.plusSeconds(60);
+                    long durationSeconds = 60;
+                    if (isIncidentVideo) {
+                        long diffSec = (attrs.lastModifiedTime().toMillis() - startTime.toInstant().toEpochMilli()) / 1000;
+                        if (diffSec > 0 && diffSec < 86400) {
+                            durationSeconds = diffSec;
+                        } else {
+                            durationSeconds = Math.max(5, fileSizeBytes / (250 * 1024)); // Ước lượng ~250KB/s
+                        }
+                    }
+                    OffsetDateTime endTime = startTime.plusSeconds(durationSeconds);
 
                     // Lọc theo ngày nếu có
                     if (fromDateStr != null && !fromDateStr.isBlank()) {
@@ -152,24 +188,34 @@ public class CameraRecordingService {
                     }
 
                     String encodedRelPath = URLEncoder.encode(relPathStr, StandardCharsets.UTF_8);
-                    String streamUrl = "/api/cameras/recordings/stream?path=" + encodedRelPath;
+                    String sourceParam = isEvidenceFolder ? "&source=evidence" : "&source=recording";
+                    String streamUrl = "/api/cameras/recordings/stream?path=" + encodedRelPath + sourceParam;
                     String downloadUrl = streamUrl + "&download=true";
 
                     String formattedSize = formatFileSize(fileSizeBytes);
+                    String durationDisplay = String.format("%02d:%02d (%ds)", durationSeconds / 60, durationSeconds % 60, durationSeconds);
+
+                    String eventType = isIncidentVideo ? "SECURITY_EVENT" : "NORMAL_RECORDING";
+                    String eventTypeName = isIncidentVideo ? "Sự cố an ninh (Incident Evidence)" : "Ghi hình định kỳ (1 phút/session)";
+                    String severity = isIncidentVideo ? "CRITICAL" : null;
+                    String notes = isIncidentVideo
+                            ? "Video ghi lại bằng chứng sự cố an ninh từ khi phát hiện tới khi Bảo vệ 'Xác nhận đã xem' (lưu tại evidence/)."
+                            : "Video 1 phút chuẩn xác lưu tại ổ đĩa hệ thống (lưu tại recording/).";
+                    String idPrefix = isIncidentVideo ? "EVD-" : "REC-";
 
                     RecordingVideoResponse rec = RecordingVideoResponse.builder()
-                            .id("REC-" + cameraCode + "-" + startTime.toEpochSecond())
+                            .id(idPrefix + cameraCode + "-" + startTime.toEpochSecond())
                             .cameraId(cameraCode)
                             .cameraName(cameraName)
                             .areaName(areaName)
                             .building(building)
                             .floor(floor)
-                            .eventType("NORMAL_RECORDING")
-                            .eventTypeName("Ghi hình định kỳ (1 phút/session)")
-                            .severity(null)
+                            .eventType(eventType)
+                            .eventTypeName(eventTypeName)
+                            .severity(severity)
                             .startTime(startTime)
                             .endTime(endTime)
-                            .duration("01:00 (60s)")
+                            .duration(durationDisplay)
                             .fileSize(formattedSize)
                             .fileSizeBytes(fileSizeBytes)
                             .resolution("1280x720 (HD 25fps)")
@@ -179,7 +225,7 @@ public class CameraRecordingService {
                             .videoUrl(streamUrl)
                             .downloadUrl(downloadUrl)
                             .filename(filename)
-                            .notes("Video 1 phút chuẩn xác lưu tại ổ đĩa hệ thống.")
+                            .notes(notes)
                             .build();
 
                     results.add(rec);
@@ -188,23 +234,34 @@ public class CameraRecordingService {
                 }
             }
         } catch (IOException e) {
-            log.error("❌ Lỗi khi duyệt thư mục recordings: {}", e.getMessage());
+            log.error("❌ Lỗi khi duyệt thư mục {}: {}", dirPathStr, e.getMessage());
         }
-
-        // Sắp xếp mới nhất lên đầu
-        results.sort((a, b) -> b.getStartTime().compareTo(a.getStartTime()));
-        return results;
     }
 
     /**
-     * Trả về Stream Video hỗ trợ HTTP Range chuẩn cho thẻ <video> HTML5
+     * Trả về Stream Video hỗ trợ HTTP Range chuẩn cho thẻ <video> HTML5.
+     * Hỗ trợ tìm kiếm tệp ở cả recordingStoragePath và evidenceStoragePath.
      */
-    public ResponseEntity<Resource> streamVideo(String relativePathStr, HttpHeaders headers, boolean download) throws IOException {
-        Path baseDirPath = Paths.get(recordingStoragePath).toAbsolutePath().normalize();
-        Path targetPath = baseDirPath.resolve(relativePathStr).normalize();
+    public ResponseEntity<Resource> streamVideo(String relativePathStr, String source, HttpHeaders headers, boolean download) throws IOException {
+        Path recBasePath = Paths.get(recordingStoragePath).toAbsolutePath().normalize();
+        Path evdBasePath = Paths.get(evidenceStoragePath).toAbsolutePath().normalize();
+
+        Path targetPath;
+        if ("evidence".equalsIgnoreCase(source)) {
+            targetPath = evdBasePath.resolve(relativePathStr).normalize();
+            if (!Files.exists(targetPath) || !targetPath.startsWith(evdBasePath)) {
+                targetPath = recBasePath.resolve(relativePathStr).normalize();
+            }
+        } else {
+            targetPath = recBasePath.resolve(relativePathStr).normalize();
+            if (!Files.exists(targetPath) || !targetPath.startsWith(recBasePath)) {
+                targetPath = evdBasePath.resolve(relativePathStr).normalize();
+            }
+        }
 
         // Kiểm tra an ninh chống Directory Traversal Attack
-        if (!targetPath.startsWith(baseDirPath)) {
+        if (!targetPath.startsWith(recBasePath) && !targetPath.startsWith(evdBasePath)) {
+            log.warn("🚨 Từ chối truy cập đường dẫn bất thường: {}", relativePathStr);
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
@@ -232,7 +289,7 @@ public class CameraRecordingService {
     }
 
     private OffsetDateTime parseStartTime(String filename, BasicFileAttributes attrs) {
-        String baseName = filename.replace(".mp4", "").trim();
+        String baseName = filename.replace(".mp4", "").replaceFirst("^(?i)Incident[ _-]*", "").trim();
 
         // Thử parse qua các định dạng ngày giờ chuẩn
         for (DateTimeFormatter fmt : DATE_TIME_FORMATTERS) {
