@@ -5,11 +5,15 @@ import com.fa26se040.icss.repository.CameraRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 
@@ -27,16 +31,29 @@ class CameraRecordingServiceTest {
 
     @Test
     @DisplayName("Quét cả thư mục recording và evidence, nhận diện SECURITY_EVENT từ evidence/")
-    void testListRecordingsFromBothFolders() {
+    void testListRecordingsFromBothFolders(@TempDir Path tempDir) throws IOException {
         when(cameraRepository.findAll()).thenReturn(Collections.emptyList());
 
-        ReflectionTestUtils.setField(cameraRecordingService, "recordingStoragePath", "C:/DATN/AI-Based-Intelligent-Campus-Security-Surveillance-System/recording");
-        ReflectionTestUtils.setField(cameraRecordingService, "evidenceStoragePath", "C:/DATN/AI-Based-Intelligent-Campus-Security-Surveillance-System/evidence");
+        Path recDir = tempDir.resolve("recording");
+        Path evdDir = tempDir.resolve("evidence");
+
+        // Tạo thư mục giả lập CAM-006 trong recording và evidence
+        Path recCamDir = recDir.resolve("CAM-006/2026/10/26");
+        Path evdCamDir = evdDir.resolve("CAM-006/2026/10/26");
+        Files.createDirectories(recCamDir);
+        Files.createDirectories(evdCamDir);
+
+        // Tạo dummy file video
+        Files.createFile(recCamDir.resolve("26-10-2026 - 10-00-00.mp4"));
+        Files.createFile(evdCamDir.resolve("Incident 26-10-2026 - 10-05-00.mp4"));
+
+        ReflectionTestUtils.setField(cameraRecordingService, "recordingStoragePath", recDir.toString());
+        ReflectionTestUtils.setField(cameraRecordingService, "evidenceStoragePath", evdDir.toString());
 
         List<RecordingVideoResponse> list = cameraRecordingService.listRecordings(null, null, null, null);
 
         assertNotNull(list);
-        assertFalse(list.isEmpty(), "Danh sách không được rỗng khi đã có video trong thư mục");
+        assertEquals(2, list.size(), "Phải tìm thấy đủ 2 video từ cả 2 thư mục");
 
         // Kiểm tra xem có video sự cố an ninh SECURITY_EVENT nào được tìm thấy từ evidence/ không
         boolean hasSecurityEvent = list.stream().anyMatch(r -> "SECURITY_EVENT".equals(r.getEventType()));
@@ -48,7 +65,7 @@ class CameraRecordingServiceTest {
                 .orElse(null);
 
         assertNotNull(incidentVideo);
-        assertTrue(List.of("CAM-006", "CAM-007").contains(incidentVideo.getCameraId()), "CameraId phải là CAM-006 hoặc CAM-007");
+        assertEquals("CAM-006", incidentVideo.getCameraId());
         assertTrue(incidentVideo.getFilename().startsWith("Incident"), "Tên file phải bắt đầu bằng Incident");
         assertEquals("CRITICAL", incidentVideo.getSeverity());
         assertTrue(incidentVideo.getVideoUrl().contains("source=evidence"));
