@@ -1352,6 +1352,39 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         assertEquals(0, countAreaNotifications(creator, NotificationType.EVENT_MODE_SCHEDULE_FAILED));
     }
 
+    @Test
+    @DisplayName("E-5: sự kiện [S, S+2h): trước S / tại S / S+2h-1' / tại S+2h; FM Dừng ở S+1h -> S+30' vẫn OPEN_EVENT theo phiên đã đóng, S+1h30' thì không")
+    void testE5_EventEntryFollowsSessionStartAndEnd() {
+        // Postgres làm tròn micro giây -> cắt mốc về micro giây để biên khớp giá trị đọc lại
+        OffsetDateTime start = OffsetDateTime.now().minusHours(1).truncatedTo(java.time.temporal.ChronoUnit.MICROS); // "10:00"
+        OffsetDateTime end = start.plusHours(2);                                                                     // "12:00"
+        EventScheduleActivationTestSupport.openViaSchedule(eventScheduleRepository, areaService, internalArea, fmUser,
+                REASON_ENABLE, "Hội thảo lên lịch", start, end);
+
+        assertEventEntry(false, start.minusMinutes(1));
+        assertEventEntry(true, start);
+        assertEventEntry(true, end.minusMinutes(1));
+        assertEventEntry(false, end);
+
+        // FM Dừng lúc "11:00" (thời điểm hiện tại)
+        areaService.updateEventMode(internalArea.getId(),
+                eventReq(internalArea.getId(), EventModeAction.DISABLE, null, REASON_DISABLE, "Dung su kien giua chung"),
+                fmUser.getEmail());
+
+        assertEventEntry(true, start.plusMinutes(30));
+        assertEventEntry(false, start.plusMinutes(90));
+    }
+
+    private void assertEventEntry(boolean expectedOpenEvent, OffsetDateTime at) {
+        AccessDecision d = accessDecisionService.checkEntry(userL1.getId(), internalArea.getId(), at);
+        if (expectedOpenEvent) {
+            assertTrue(d.allowed(), "at " + at + ": " + d.reason());
+            assertEquals(AccessSource.OPEN_EVENT, d.source(), "at " + at);
+        } else {
+            assertFalse(d.allowed(), "at " + at + ": " + d.source() + " / " + d.reason());
+        }
+    }
+
     private AreaEventSchedule saveScheduled(User createdBy, OffsetDateTime start, OffsetDateTime end) {
         return eventScheduleRepository.save(AreaEventSchedule.builder()
                 .title("Sự kiện thử nghiệm")
