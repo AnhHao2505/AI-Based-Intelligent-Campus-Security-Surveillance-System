@@ -375,6 +375,38 @@ class ActiveShiftCard extends StatelessWidget {
             ),
           ),
 
+          // Building Location
+          if (s.building != null && s.building!.trim().isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: AppColors.surfLight(context),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.crdBorder(context)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.business_outlined,
+                    size: 15,
+                    color: AppColors.primaryLight,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Địa điểm: ${s.building!.trim()}',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.txtPrimary(context),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
           // Notes from Admin (if any)
           if (s.notes != null && s.notes!.isNotEmpty) ...[
             const SizedBox(height: 10),

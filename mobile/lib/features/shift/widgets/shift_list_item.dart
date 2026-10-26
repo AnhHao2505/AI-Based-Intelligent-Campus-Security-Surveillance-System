@@ -118,6 +118,31 @@ class ShiftListItem extends StatelessWidget {
                         ],
                       ],
                     ),
+                    if (shift.building != null && shift.building!.trim().isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.business_outlined,
+                            size: 13,
+                            color: AppColors.txtMuted(context),
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              shift.building!.trim(),
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                color: AppColors.txtSecondary(context),
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),
