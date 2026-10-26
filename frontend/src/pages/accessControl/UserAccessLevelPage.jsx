@@ -38,6 +38,11 @@ const EMPTY_BULK_MODAL = {
   result: null,
 };
 
+// BR-AL-32: FM chỉ đổi cấp của người dùng thường và bảo vệ; dòng ADMIN / FM không có nút đổi, không tích chọn được
+const LOCKED_TARGET_ROLES = [ROLES.ADMIN, ROLES.FACILITY_MANAGER];
+const SELF_LOCK_REASON = 'Bạn không thể tự thay đổi cấp truy cập của chính mình';
+const ROLE_LOCK_REASON = 'Chỉ đổi được cấp truy cập của người dùng thường và bảo vệ; không đổi cấp của quản trị viên hoặc quản lý cơ sở vật chất';
+
 const ACCESS_LEVELS = [
   { level: 1, name: 'Cấp 1 — Mọi người dùng' },
   { level: 2, name: 'Cấp 2 — Nhân viên' },
@@ -147,6 +152,12 @@ export default function UserAccessLevelPage() {
     (currentUser?.id && item.id === currentUser.id) ||
     (currentUser?.email && item.email?.toLowerCase() === currentUser.email?.toLowerCase());
 
+  const lockReason = (item) => {
+    if (isSelfUser(item)) return SELF_LOCK_REASON;
+    if (LOCKED_TARGET_ROLES.includes(item.role)) return ROLE_LOCK_REASON;
+    return null;
+  };
+
   const toggleSelect = (item) => {
     setSelected((prev) => {
       const next = { ...prev };
@@ -156,7 +167,7 @@ export default function UserAccessLevelPage() {
     });
   };
 
-  const selectablePageUsers = users.filter((u) => !isSelfUser(u));
+  const selectablePageUsers = users.filter((u) => !lockReason(u));
   const allPageSelected =
     selectablePageUsers.length > 0 && selectablePageUsers.every((u) => selected[u.id]);
 
@@ -362,10 +373,8 @@ export default function UserAccessLevelPage() {
                 </thead>
                 <tbody>
                   {users.map((item) => {
-                    const isSelf =
-                      (currentUser?.id && item.id === currentUser.id) ||
-                      (currentUser?.email &&
-                        item.email?.toLowerCase() === currentUser.email?.toLowerCase());
+                    const isSelf = isSelfUser(item);
+                    const locked = lockReason(item);
 
                     const currentLevel = item.accessLevel ?? 1;
                     const selectedLevel = selectedLevels[item.id] ?? currentLevel;
@@ -379,9 +388,9 @@ export default function UserAccessLevelPage() {
                               type="checkbox"
                               checked={Boolean(selected[item.id])}
                               onChange={() => toggleSelect(item)}
-                              disabled={isSelf}
+                              disabled={Boolean(locked)}
                               aria-label={`Chọn ${item.userCode}`}
-                              title={isSelf ? 'Bạn không thể tự thay đổi cấp truy cập của chính mình' : undefined}
+                              title={locked || undefined}
                             />
                           </td>
                         )}
@@ -411,22 +420,15 @@ export default function UserAccessLevelPage() {
                             <Select
                               value={selectedLevel}
                               onChange={(e) => handleLevelChange(item.id, e.target.value)}
-                              disabled={isSelf || (!isFM && !isAdmin)}
-                              title={
-                                isSelf
-                                  ? 'Bạn không thể tự thay đổi cấp truy cập của chính mình'
-                                  : undefined
-                              }
+                              disabled={Boolean(locked) || (!isFM && !isAdmin)}
+                              title={locked || undefined}
                               options={ACCESS_LEVELS.map((opt) => ({ value: opt.level, label: opt.name }))}
                             />
                           </div>
                         </td>
                         <td style={{ textAlign: 'center' }}>
-                          {isSelf ? (
-                            <span
-                              className="access-level-self-hint"
-                              title="Không thể tự thay đổi cấp truy cập của chính mình"
-                            >
+                          {locked ? (
+                            <span className="access-level-self-hint" title={locked}>
                               Không khả dụng
                             </span>
                           ) : (
