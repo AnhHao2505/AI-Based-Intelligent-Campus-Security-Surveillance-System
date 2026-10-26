@@ -468,8 +468,9 @@ public class SecurityIncidentService {
         }
 
         return new ExtractedPersonInfo("UNKNOWN", "Người lạ / Chưa rõ mặt", false, null);
+    }
 
-public void triggerIncidentRecordingStart(SecurityIncident incident) {
+    public void triggerIncidentRecordingStart(SecurityIncident incident) {
         if (incident == null || aiServiceUrl == null || aiServiceUrl.isBlank()) return;
         try {
             String url = aiServiceUrl + "/api/v1/incident-recording/start";
