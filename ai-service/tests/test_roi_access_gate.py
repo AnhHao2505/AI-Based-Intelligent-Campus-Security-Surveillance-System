@@ -1,11 +1,20 @@
-import sys, os
-sys.path.insert(0, os.path.abspath("."))
+import sys
+import os
 import time
+from datetime import datetime
 import numpy as np
+
+# Thêm đường dẫn ai-service vào sys.path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 from src.core.entity import BoundingBox, Point, FaceDetectionResult, RoiPolygonConfig
 from src.pipeline.video_pipeline import VideoPipeline
 
 def test_roi_and_access_gate():
+    # Sử dụng mốc giờ 14:00 chiều ban ngày để kiểm tra chuẩn xác kịch bản UNAUTHORIZED_ACCESS
+    base_time = datetime.now().replace(hour=14, minute=0, second=0).timestamp()
+
+    # Khởi tạo VideoPipeline với Camera CAM-002
     pipeline = VideoPipeline(camera_code="CAM-002")
     # Cấu hình ROI polygon giống CAM-002: Vùng ở góc dưới bên phải (0.417..0.998, 0.655..0.991)
     # Trên frame 1000x1000: x: 417..998, y: 655..991
@@ -50,7 +59,7 @@ def test_roi_and_access_gate():
         camera_code="CAM-002",
         roi_polygons=pipeline.roi_polygons,
         frame_size=(1000, 1000),
-        current_time=time.time()
+        current_time=base_time
     )
     assert len(alerts) == 0, f"Lỗi: Đứng ngoài ROI mà sinh ra {len(alerts)} cảnh báo!"
     assert len(roi_events) == 0, f"Lỗi: Đứng ngoài ROI mà sinh ra {len(roi_events)} sự kiện ra vào!"
@@ -72,11 +81,11 @@ def test_roi_and_access_gate():
         camera_code="CAM-002",
         roi_polygons=pipeline.roi_polygons,
         frame_size=(1000, 1000),
-        current_time=time.time() + 1.0
+        current_time=base_time + 1.0
     )
     assert persons2[0].is_in_roi, "Lỗi: person.is_in_roi phải là True khi bước vào ROI"
     if not is_allowed:
-        assert len(alerts2) > 0, "Lỗi: SE194249 không có quyền vào Lab 1 thì phải sinh cảnh báo UNAUTHORIZED_ACCESS!"
+        assert len(alerts2) > 0 and alerts2[0].event_type == "UNAUTHORIZED_ACCESS", f"Lỗi: Kỳ vọng UNAUTHORIZED_ACCESS nhưng nhận: {alerts2[0].event_type}"
         print(f"✅ TEST 4 PASSED: Bước chân vào ROI không có thẩm quyền -> Đã kích hoạt cảnh báo hợp lệ: {alerts2[0].event_type}")
 
     # 5. Người bước chân ra khỏi ROI:
@@ -85,7 +94,7 @@ def test_roi_and_access_gate():
         camera_code="CAM-002",
         roi_polygons=pipeline.roi_polygons,
         frame_size=(1000, 1000),
-        current_time=time.time() + 3.0
+        current_time=base_time + 3.0
     )
     assert not persons3[0].is_in_roi
     exit_events = [ev for ev in roi_events3 if ev.get("direction") == "EXIT"]

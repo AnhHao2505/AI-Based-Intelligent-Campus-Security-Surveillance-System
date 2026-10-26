@@ -56,7 +56,7 @@ class Settings(BaseSettings):
     UPPER_BODY_CROP_RATIO: float = 0.60
     DEFAULT_AFTER_HOUR_START: str = "22:00"
     DEFAULT_AFTER_HOUR_END: str = "06:00"
-    DEFAULT_TRACK_MAX_INACTIVE_SECONDS: float = 10.0
+    DEFAULT_TRACK_MAX_INACTIVE_SECONDS: float = 2.0
     DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS: float = 30.0
     TIMEZONE: str = "Asia/Ho_Chi_Minh"
     
