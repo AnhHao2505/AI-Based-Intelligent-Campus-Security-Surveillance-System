@@ -517,19 +517,19 @@ export default function AccessRequestPage() {
 		try {
 			await accessRequestService.cancelRequest(cancelItem.id);
 			setCancelItem(null);
-			setFormSuccess("Hủy yêu cầu truy cập thành công!");
+			setFormSuccess("Huỷ yêu cầu truy cập thành công!");
 			loadMyRequests(historyPage, historyStatusFilter, historyAreaFilter);
 			setTimeout(() => setFormSuccess(null), 4000);
 		} catch (err) {
 			if (err.status === 409) {
 				setCancelItem(null);
 				setHistoryWarning(
-					err.message || "Yêu cầu này vừa được xử lý, không thể hủy.",
+					err.message || "Yêu cầu này vừa được xử lý, không thể huỷ.",
 				);
 				loadMyRequests(historyPage, historyStatusFilter, historyAreaFilter);
 				setTimeout(() => setHistoryWarning(null), 7000);
 			} else {
-				setCancelError(err.message || "Không thể hủy yêu cầu truy cập.");
+				setCancelError(err.message || "Không thể huỷ yêu cầu truy cập.");
 			}
 		} finally {
 			setCancelling(false);
@@ -970,7 +970,7 @@ export default function AccessRequestPage() {
 							{ label: "Đã duyệt", val: "APPROVED" },
 							{ label: "Hoàn thành", val: "FINISHED" },
 							{ label: "Bị từ chối", val: "REJECTED" },
-							{ label: "Đã hủy", val: "CANCELLED" },
+							{ label: "Đã huỷ", val: "CANCELLED" },
 							{ label: "Hết hạn", val: "EXPIRED" },
 						].map((f) => (
 							<button
@@ -1129,7 +1129,7 @@ export default function AccessRequestPage() {
 														{req.status === "CANCELLED" && (
 															<>
 																<Ban size={11} />
-																<span>Đã hủy</span>
+																<span>Đã huỷ</span>
 															</>
 														)}
 														{req.status === "EXPIRED" && (
@@ -1141,13 +1141,13 @@ export default function AccessRequestPage() {
 													</span>
 													{req.status === "CANCELLED" && req.cancelSource === "SYSTEM" && (
 														<div className="arp-cancel-system" title={req.cancelReason || ""}>
-															Hủy bởi hệ thống: {req.cancelReason}
+															Huỷ bởi hệ thống: {req.cancelReason}
 														</div>
 													)}
 													{/* BR-RQ-47: FM huỷ đơn đã duyệt (cancel_source STAFF) */}
 													{req.status === "CANCELLED" && req.cancelSource === "STAFF" && (
 														<div className="arp-cancel-system" title={req.cancelReason || ""}>
-															Quản lý hủy: {req.cancelReason}
+															Quản lý huỷ: {req.cancelReason}
 														</div>
 													)}
 												</td>
@@ -1178,9 +1178,9 @@ export default function AccessRequestPage() {
 																	setCancelItem(req);
 																	setCancelError(null);
 																}}
-																title="Hủy yêu cầu truy cập này"
+																title="Huỷ yêu cầu truy cập này"
 															>
-																Hủy
+																Huỷ
 															</button>
 														)}
 														{req.status === "REJECTED" && (
@@ -1385,7 +1385,7 @@ export default function AccessRequestPage() {
 											{selectedDetail.status === "CANCELLED" && (
 												<>
 													<Ban size={11} />
-													<span>Đã hủy</span>
+													<span>Đã huỷ</span>
 												</>
 											)}
 											{selectedDetail.status === "EXPIRED" && (
@@ -1403,12 +1403,12 @@ export default function AccessRequestPage() {
 										</span>
 										{selectedDetail.status === "CANCELLED" && selectedDetail.cancelSource === "SYSTEM" && (
 											<div className="arp-cancel-system arp-cancel-system--detail">
-												Hủy bởi hệ thống: {selectedDetail.cancelReason}
+												Huỷ bởi hệ thống: {selectedDetail.cancelReason}
 											</div>
 										)}
 										{selectedDetail.status === "CANCELLED" && selectedDetail.cancelSource === "STAFF" && (
 											<div className="arp-cancel-system arp-cancel-system--detail">
-												Quản lý hủy: {selectedDetail.cancelReason}
+												Quản lý huỷ: {selectedDetail.cancelReason}
 											</div>
 										)}
 										{/* BR-RQ-46 (V88): FM kết thúc đơn đã duyệt; D-2.1: không có người kết thúc = hệ thống kết thúc khi hết giờ */}
@@ -1567,8 +1567,8 @@ export default function AccessRequestPage() {
 			<Modal
 				isOpen={Boolean(cancelItem)}
 				onClose={() => !cancelling && setCancelItem(null)}
-				title="Xác nhận hủy yêu cầu truy cập"
-				subtitle="Thao tác này sẽ hủy bỏ yêu cầu của bạn và không thể hoàn tác."
+				title="Xác nhận huỷ yêu cầu truy cập"
+				subtitle="Thao tác này sẽ huỷ bỏ yêu cầu của bạn và không thể hoàn tác."
 				icon={AlertTriangle}
 				iconVariant="danger"
 				size="md"
@@ -1587,7 +1587,7 @@ export default function AccessRequestPage() {
 							loading={cancelling}
 							disabled={cancelling}
 						>
-							Xác nhận hủy
+							Xác nhận huỷ
 						</Button>
 					</div>
 				}
@@ -1610,7 +1610,7 @@ export default function AccessRequestPage() {
 						}}
 					>
 						<p style={{ margin: "0 0 10px 0" }}>
-							Bạn có chắc chắn muốn hủy yêu cầu truy cập vào khu vực sau không?
+							Bạn có chắc chắn muốn huỷ yêu cầu truy cập vào khu vực sau không?
 						</p>
 						<div
 							style={{

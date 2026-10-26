@@ -175,8 +175,8 @@ export default function EventManagementPage() {
 						type="button"
 						className="evm-icon-btn evm-icon-btn--danger"
 						onClick={() => setFormState({ mode: "cancel", schedule: s })}
-						title="Hủy sự kiện"
-						aria-label={`Hủy sự kiện ${s.title}`}
+						title="Huỷ sự kiện"
+						aria-label={`Huỷ sự kiện ${s.title}`}
 					>
 						<XCircle size={16} />
 					</button>
@@ -273,10 +273,10 @@ export default function EventManagementPage() {
 		if (s.updatedByName && s.updatedAt) rows.push(["Sửa lần cuối", `${s.updatedByName} · ${formatDisplayDateTime(s.updatedAt)}`]);
 		if (s.status === "CANCELLED") {
 			rows.push([
-				"Hủy bởi",
+				"Huỷ bởi",
 				`${s.cancelledByName || "—"}${s.cancelledAt ? ` · ${formatDisplayDateTime(s.cancelledAt)}` : ""}`,
 			]);
-			rows.push(["Lý do hủy", [s.cancelReasonLabel, s.cancelNote].filter(Boolean).join(" – ") || "—"]);
+			rows.push(["Lý do huỷ", [s.cancelReasonLabel, s.cancelNote].filter(Boolean).join(" – ") || "—"]);
 		}
 		if (s.status === "FAILED") {
 			rows.push(["Lý do không kích hoạt", `${s.failReason || "—"}${s.failedAt ? ` · ${formatDisplayDateTime(s.failedAt)}` : ""}`]);

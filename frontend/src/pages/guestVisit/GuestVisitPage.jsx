@@ -300,7 +300,7 @@ export default function GuestVisitPage() {
 				setCancelReasonError(null);
 				await loadVisits(page);
 			} else {
-				setCancelError(err?.message || "Không hủy được lượt khách.");
+				setCancelError(err?.message || "Không huỷ được lượt khách.");
 			}
 		} finally {
 			setCancelling(false);
@@ -406,7 +406,7 @@ export default function GuestVisitPage() {
 										</Button>
 										{canHostCancel(v) && (
 											<Button variant="ghost" size="sm" icon={Ban} onClick={() => openCancel(v)}>
-												Hủy
+												Huỷ
 											</Button>
 										)}
 									</td>
@@ -594,7 +594,7 @@ export default function GuestVisitPage() {
 					<>
 						{detail && canHostCancel(detail) && (
 							<Button variant="danger" icon={Ban} onClick={() => openCancel(detail)}>
-								Hủy lượt
+								Huỷ lượt
 							</Button>
 						)}
 						{/* Có nút hành động thì bỏ "Đóng" (còn X + Esc); chỉ để xem thì giữ "Đóng" */}
@@ -628,7 +628,7 @@ export default function GuestVisitPage() {
 						</div>
 						<ReasonBlock label="Lý do từ chối / duyệt" value={detail.reviewReason} />
 						<ReasonBlock label="Lý do thu hồi" value={detail.revokeReason} />
-						<ReasonBlock label="Lý do hủy" value={detail.cancelReason} />
+						<ReasonBlock label="Lý do huỷ" value={detail.cancelReason} />
 
 						<table className="guest-visit__table">
 							<thead>
@@ -666,11 +666,11 @@ export default function GuestVisitPage() {
 						setCancelReasonError(null);
 					}
 				}}
-				title="Hủy lượt khách"
+				title="Huỷ lượt khách"
 				subtitle={
 					cancelTarget?.status === "APPROVED"
-						? "Lượt đã được duyệt: hủy sẽ thu hồi quyền của khách và xóa ngay dữ liệu khuôn mặt đã gắn."
-						: "Lượt đang chờ duyệt sẽ bị hủy."
+						? "Lượt đã được duyệt: huỷ sẽ thu hồi quyền của khách và xóa ngay dữ liệu khuôn mặt đã gắn."
+						: "Lượt đang chờ duyệt sẽ bị huỷ."
 				}
 				icon={Ban}
 				iconVariant="danger"
@@ -678,7 +678,7 @@ export default function GuestVisitPage() {
 				footer={
 					<>
 						<Button variant="danger" onClick={submitCancel} loading={cancelling} disabled={cancelling}>
-							Xác nhận hủy
+							Xác nhận huỷ
 						</Button>
 					</>
 				}
@@ -692,7 +692,7 @@ export default function GuestVisitPage() {
 				<ReasonTextarea
 					ref={cancelReasonRef}
 					label="Lý do (không bắt buộc)"
-					placeholder="Nhập lý do hủy lượt khách (nếu có)..."
+					placeholder="Nhập lý do huỷ lượt khách (nếu có)..."
 					value={cancelReason}
 					onChange={(e) => {
 						setCancelReason(e.target.value);

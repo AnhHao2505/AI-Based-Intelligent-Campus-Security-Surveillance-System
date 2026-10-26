@@ -175,7 +175,7 @@ public class AccessRequestController {
     ) {
         String actorEmail = authentication.getName();
         AccessRequestResponse result = accessRequestService.cancelRequest(id, actorEmail);
-        return ResponseEntity.ok(ApiResponse.success(result, "Hủy yêu cầu truy cập thành công"));
+        return ResponseEntity.ok(ApiResponse.success(result, "Huỷ yêu cầu truy cập thành công"));
     }
 
     /** BR-RQ-47: FM huỷ đơn đã duyệt chưa bắt đầu (endpoint riêng — /cancel là luồng người tạo huỷ đơn PENDING). */

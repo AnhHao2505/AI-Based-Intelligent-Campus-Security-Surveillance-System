@@ -522,7 +522,7 @@ export default function UserAccessLevelPage() {
 
                 <div className="modal-actions">
                   <Button variant="outline" onClick={closeBulkModal} disabled={bulkModal.isSaving}>
-                    Hủy bỏ
+                    Huỷ bỏ
                   </Button>
                   <Button
                     variant="primary"
@@ -657,7 +657,7 @@ export default function UserAccessLevelPage() {
                 }
                 disabled={confirmUserModal.isSaving}
               >
-                Hủy bỏ
+                Huỷ bỏ
               </Button>
               <Button
                 variant="primary"
