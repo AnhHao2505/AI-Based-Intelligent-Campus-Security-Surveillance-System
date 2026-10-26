@@ -1350,13 +1350,7 @@ public class AreaService {
             count++;
 
             if (notifService != null) {
-                User startedBy = session.getStartedBy();
-                List<User> recipients = new java.util.ArrayList<>();
-                if (startedBy != null && Boolean.TRUE.equals(startedBy.getIsActive()) && startedBy.getRole() == com.fa26se040.icss.enums.Role.FACILITY_MANAGER) {
-                    recipients.add(startedBy);
-                } else {
-                    recipients.addAll(userRepository.findActiveUsersByRole(com.fa26se040.icss.enums.Role.FACILITY_MANAGER));
-                }
+                List<User> recipients = resolveFmRecipients(session.getStartedBy());
 
                 if (!recipients.isEmpty()) {
                     String areaName = area.getName();
@@ -1373,6 +1367,17 @@ public class AreaService {
             }
         }
         return count;
+    }
+
+    /**
+     * Người nhận thông báo phía FM (BR-EV-29, dùng chung cho nhắc lịch / lịch FAILED): người phụ trách nếu còn là
+     * FM đang hoạt động, không thì mọi FM đang hoạt động.
+     */
+    private List<User> resolveFmRecipients(User preferred) {
+        if (preferred != null && Boolean.TRUE.equals(preferred.getIsActive()) && preferred.getRole() == com.fa26se040.icss.enums.Role.FACILITY_MANAGER) {
+            return List.of(preferred);
+        }
+        return userRepository.findActiveUsersByRole(com.fa26se040.icss.enums.Role.FACILITY_MANAGER);
     }
 
     /**
@@ -1894,13 +1899,15 @@ public class AreaService {
     }
 
     private void sendFmScheduleFailedNotification(Area area, com.fa26se040.icss.entity.AreaEventSchedule schedule, String failReason) {
+        // Chọn người nhận trong transaction (đọc trạng thái người tạo), gửi sau commit
+        List<User> recipients = resolveFmRecipients(schedule.getCreatedBy());
         executeAfterCommitOrImmediately(() -> {
             InAppNotificationService notifService = inAppNotificationServiceProvider.getIfAvailable();
-            if (notifService == null || schedule.getCreatedBy() == null) {
+            if (notifService == null || recipients.isEmpty()) {
                 return;
             }
             notifService.createForUsers(
-                    List.of(schedule.getCreatedBy()),
+                    recipients,
                     com.fa26se040.icss.enums.NotificationType.EVENT_MODE_SCHEDULE_FAILED,
                     "Kích hoạt lịch sự kiện thất bại",
                     String.format("Lịch sự kiện tại khu vực %s không thể kích hoạt do: %s.", area.getName(), failReason),
@@ -1911,15 +1918,16 @@ public class AreaService {
     }
 
     private void sendFmScheduleStartingNotification(com.fa26se040.icss.entity.AreaEventSchedule schedule) {
+        List<User> recipients = resolveFmRecipients(schedule.getCreatedBy());
         executeAfterCommitOrImmediately(() -> {
             InAppNotificationService notifService = inAppNotificationServiceProvider.getIfAvailable();
-            if (notifService == null || schedule.getCreatedBy() == null) {
+            if (notifService == null || recipients.isEmpty()) {
                 return;
             }
             java.time.format.DateTimeFormatter dtf = java.time.format.DateTimeFormatter
                     .ofPattern("HH:mm dd/MM/yyyy").withZone(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
             notifService.createForUsers(
-                    List.of(schedule.getCreatedBy()),
+                    recipients,
                     com.fa26se040.icss.enums.NotificationType.EVENT_MODE_SCHEDULE_STARTING,
                     "Lịch chế độ sự kiện sắp diễn ra",
                     String.format("Lịch sự kiện tại khu vực %s sẽ bắt đầu lúc %s. Vui lòng kiểm tra chuẩn bị.",

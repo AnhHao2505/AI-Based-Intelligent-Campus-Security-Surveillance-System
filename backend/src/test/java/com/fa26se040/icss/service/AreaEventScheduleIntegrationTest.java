@@ -1318,6 +1318,61 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         }
     }
 
+    @Test
+    @DisplayName("E-4: người tạo còn là FM hoạt động -> nhắc lịch / lịch FAILED chỉ gửi người tạo; người tạo bị vô hiệu hoá -> gửi mọi FM đang hoạt động")
+    void testE4_ScheduleReminderAndFailureFallBackToActiveManagers() {
+        User creator = saveUser(Role.FACILITY_MANAGER, "fmcreator", 3);
+        User fm2 = saveUser(Role.FACILITY_MANAGER, "fm2", 3);
+        OffsetDateTime now = OffsetDateTime.now();
+
+        // 1. Người tạo còn hoạt động -> chỉ người tạo
+        areaService.remindScheduleInTx(saveScheduled(creator, now.plusMinutes(20), now.plusHours(2)).getId(), now);
+        areaService.activateScheduleInTx(saveScheduled(creator, now.minusHours(3), now.minusMinutes(10)).getId(), now);
+
+        assertEquals(1, countAreaNotifications(creator, NotificationType.EVENT_MODE_SCHEDULE_STARTING));
+        assertEquals(1, countAreaNotifications(creator, NotificationType.EVENT_MODE_SCHEDULE_FAILED));
+        for (User other : List.of(fm2, fmUser)) {
+            assertEquals(0, countAreaNotifications(other, NotificationType.EVENT_MODE_SCHEDULE_STARTING));
+            assertEquals(0, countAreaNotifications(other, NotificationType.EVENT_MODE_SCHEDULE_FAILED));
+        }
+
+        // 2. Người tạo bị vô hiệu hoá -> mọi FM đang hoạt động
+        creator.setIsActive(false);
+        userRepository.save(creator);
+        notificationRepository.deleteAll();
+
+        areaService.remindScheduleInTx(saveScheduled(creator, now.plusMinutes(25), now.plusHours(3)).getId(), now);
+        areaService.activateScheduleInTx(saveScheduled(creator, now.minusHours(5), now.minusHours(4)).getId(), now);
+
+        for (User active : List.of(fm2, fmUser)) {
+            assertEquals(1, countAreaNotifications(active, NotificationType.EVENT_MODE_SCHEDULE_STARTING));
+            assertEquals(1, countAreaNotifications(active, NotificationType.EVENT_MODE_SCHEDULE_FAILED));
+        }
+        assertEquals(0, countAreaNotifications(creator, NotificationType.EVENT_MODE_SCHEDULE_STARTING));
+        assertEquals(0, countAreaNotifications(creator, NotificationType.EVENT_MODE_SCHEDULE_FAILED));
+    }
+
+    private AreaEventSchedule saveScheduled(User createdBy, OffsetDateTime start, OffsetDateTime end) {
+        return eventScheduleRepository.save(AreaEventSchedule.builder()
+                .title("Sự kiện thử nghiệm")
+                .area(internalArea)
+                .startAt(start)
+                .endAt(end)
+                .status(AreaEventScheduleStatus.SCHEDULED)
+                .reasonCode(REASON_ENABLE)
+                .reasonLabel("Hội thảo lên lịch")
+                .note("Lich kiem tra nguoi nhan thong bao FM")
+                .createdBy(createdBy)
+                .createdAt(OffsetDateTime.now().minusDays(1))
+                .build());
+    }
+
+    private long countAreaNotifications(User recipient, NotificationType type) {
+        return getNotificationsForUser(recipient.getId()).stream()
+                .filter(n -> n.getType() == type && internalArea.getId().equals(n.getReferenceId()))
+                .count();
+    }
+
     private User saveUser(Role role, String prefix, int accessLevel) {
         String suffix = UUID.randomUUID().toString().substring(0, 8);
         return userRepository.save(User.builder()
