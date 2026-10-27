@@ -14,6 +14,36 @@ from ..config import settings
 logger = logging.getLogger(__name__)
 
 class CameraStreamWorker:
+    @staticmethod
+    def _fetch_roi_geometry(camera_code: str) -> Optional[Dict[str, Any]]:
+        import psycopg2
+        import json
+        from ..config import settings
+        try:
+            conn = psycopg2.connect(
+                host=settings.DB_HOST,
+                port=settings.DB_PORT,
+                user=settings.POSTGRES_USER,
+                password=settings.POSTGRES_PASSWORD,
+                dbname=settings.POSTGRES_DB,
+                connect_timeout=3
+            )
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT roi_geometry FROM cameras WHERE camera_code = %s AND deleted_at IS NULL",
+                    (camera_code,)
+                )
+                row = cur.fetchone()
+                if row and row[0]:
+                    geom = row[0]
+                    if isinstance(geom, str):
+                        geom = json.loads(geom)
+                    return geom
+            conn.close()
+        except Exception as e:
+            logger.warning(f"Không thể tải roi_geometry từ DB cho camera [{camera_code}]: {e}")
+        return None
+
     """
     Worker xử lý ngầm luồng video RTSP từ MediaMTX:
     - Kéo frame liên tục từ RTSP stream theo từng camera
@@ -35,9 +65,13 @@ class CameraStreamWorker:
         self.camera_code = camera_code.strip()
         self.rtsp_url = rtsp_url.strip()
         self.pipeline = VideoPipeline(camera_code=self.camera_code)
+        if not roi_geometry:
+            roi_geometry = self._fetch_roi_geometry(self.camera_code)
+
         if roi_geometry:
             polys = roi_geometry.get("polygons", [])
             self.pipeline.set_roi_config(polygons=polys)
+            logger.info(f"Stream Worker camera [{self.camera_code}] đã tải {len(polys)} ROI polygons từ DB.")
         
         # Recorder tự động ghi hình toàn bộ luồng camera theo từng phân đoạn 1 phút tại C:\DATN\...\recording
         self.recorder = StreamRecorder(

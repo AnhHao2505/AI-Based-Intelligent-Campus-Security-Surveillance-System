@@ -29,7 +29,7 @@ public class GuardShiftRequestController {
     private final GuardShiftRequestService requestService;
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('GUARD', 'ADMIN', 'FACILITY_MANAGER')")
+    @PreAuthorize("hasAnyRole('GUARD', 'FACILITY_MANAGER')")
     public ResponseEntity<ApiResponse<GuardShiftRequestResponseDto>> createRequest(
             @Valid @RequestBody GuardShiftRequestCreateDto dto,
             Authentication authentication
@@ -39,13 +39,13 @@ public class GuardShiftRequestController {
     }
 
     @GetMapping("/my-requests")
-    @PreAuthorize("hasAnyRole('GUARD', 'ADMIN', 'FACILITY_MANAGER')")
+    @PreAuthorize("hasAnyRole('GUARD', 'FACILITY_MANAGER')")
     public ResponseEntity<ApiResponse<List<GuardShiftRequestResponseDto>>> getMyRequests(Authentication authentication) {
         return ResponseEntity.ok(ApiResponse.success(requestService.getMyRequests(authentication.getName()), "Lấy danh sách yêu cầu của tôi thành công"));
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
+    @PreAuthorize("hasRole('FACILITY_MANAGER')")
     public ResponseEntity<ApiResponse<List<GuardShiftRequestResponseDto>>> getAllRequests(
             @RequestParam(required = false) GuardShiftRequestStatus status,
             @RequestParam(required = false) UUID teamId,
@@ -56,7 +56,7 @@ public class GuardShiftRequestController {
     }
 
     @PutMapping("/{id}/approve")
-    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
+    @PreAuthorize("hasRole('FACILITY_MANAGER')")
     public ResponseEntity<ApiResponse<GuardShiftRequestResponseDto>> approveRequest(
             @PathVariable UUID id,
             @RequestBody(required = false) GuardShiftRequestReviewDto reviewDto,
@@ -67,7 +67,7 @@ public class GuardShiftRequestController {
     }
 
     @PutMapping("/{id}/reject")
-    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
+    @PreAuthorize("hasRole('FACILITY_MANAGER')")
     public ResponseEntity<ApiResponse<GuardShiftRequestResponseDto>> rejectRequest(
             @PathVariable UUID id,
             @RequestBody(required = false) GuardShiftRequestReviewDto reviewDto,

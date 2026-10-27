@@ -1,16 +1,34 @@
-from typing import List, Tuple
+import logging
+import torch
+from typing import List, Tuple, Optional
 import numpy as np
 from ultralytics import YOLO
 from .entity import BoundingBox
+
+logger = logging.getLogger(__name__)
 
 class HumanDetector:
     """
     Module phát hiện & theo dõi con người sử dụng YOLO11 và thuật toán ByteTrack.
     Chỉ kích hoạt class 0 (Person) nhằm tối đa hóa hiệu năng và tốc độ xử lý Realtime.
+    Tự động kích hoạt GPU CUDA (card rời) nếu có sẵn để giải phóng CPU.
     """
-    def __init__(self, model_path: str = "yolo11n.pt", conf_threshold: float = 0.5):
+    def __init__(self, model_path: str = "yolo11n.pt", conf_threshold: float = 0.5, device: Optional[str] = None):
         self.model_path = model_path
         self.conf_threshold = conf_threshold
+        
+        # Tự động phát hiện GPU rời (CUDA) hoặc fallback về CPU
+        if device is not None and device != "auto":
+            self.device = device
+        else:
+            if torch.cuda.is_available():
+                self.device = 0
+                gpu_name = torch.cuda.get_device_name(0)
+                logger.info(f"🚀 [HumanDetector] Phát hiện GPU rời: [{gpu_name}]. Kích hoạt suy luận YOLO11 trên CUDA.")
+            else:
+                self.device = "cpu"
+                logger.info("ℹ️ [HumanDetector] Không phát hiện CUDA GPU, sử dụng CPU.")
+
         self.model = YOLO(model_path)
 
     def detect_and_track(self, frame: np.ndarray, persist: bool = True) -> List[Tuple[int, BoundingBox]]:
@@ -29,6 +47,7 @@ class HumanDetector:
             classes=[0],
             conf=self.conf_threshold,
             tracker="bytetrack.yaml",
+            device=self.device,
             verbose=False
         )
 

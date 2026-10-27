@@ -20,7 +20,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/guard-teams")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
+@PreAuthorize("hasRole('FACILITY_MANAGER')")
 public class GuardTeamController {
 
     private final GuardTeamService guardTeamService;

@@ -130,7 +130,7 @@ services:
   #   networks:
   #     - sep_network
 
-  # 6. AI Service (Python / YOLOv8 / ByteTrack / OpenCV YuNet)
+  # 6. AI Service (Python / YOLO11 / ByteTrack / OpenCV YuNet)
   ai-service:
     build:
       context: ./ai-service
@@ -149,11 +149,14 @@ services:
       MINIO_ENDPOINT: minio:9000
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-      MODEL_YOLO_PATH: /app/yolov8n.pt
+      BACKEND_API_URL: http://host.docker.internal:8080
+      MODEL_YOLO_PATH: /app/yolo11n.pt
       MODEL_YUNET_PATH: /app/models/face_detection_yunet.onnx
       # Khoá dùng chung với Backend (header X-Service-Key); giá trị chỉ đặt trong .env
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY}
       TZ: Asia/Ho_Chi_Minh
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy

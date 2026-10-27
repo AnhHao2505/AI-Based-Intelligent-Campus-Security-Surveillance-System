@@ -66,6 +66,7 @@ class FrameAnalysisEngine:
             after_hours = False
 
         generated_alerts: List[SecurityAlertEvent] = []
+        roi_access_events: List[Dict[str, Any]] = []
         current_frame_track_ids = set()
 
         active_pixel_polys: List[Tuple[List[Point], List[str], str]] = []
@@ -140,9 +141,52 @@ class FrameAnalysisEngine:
                 in_roi = True
                 matched_rules = ["ENTRY_EXIT_TRACKING", "AFTER_HOURS"]
 
+            # Theo dõi chuyển trạng thái ra vào vùng ROI
+            if in_roi and not person.was_in_roi:
+                person.roi_enter_time = current_time
+                person.entered_roi_label = matched_label or "Vùng giám sát"
+                person.roi_entry_logged = False
+            elif not in_roi and person.was_in_roi:
+                duration = max(0.0, current_time - (person.roi_enter_time or current_time))
+                exit_label = person.entered_roi_label or "Vùng giám sát"
+                exit_code = person.face_info.matched_code if (person.face_detected and person.face_info and person.face_info.matched_code) else "UNKNOWN"
+                roi_access_events.append({
+                    "user_code": exit_code,
+                    "roi_label": exit_label,
+                    "direction": "EXIT",
+                    "duration": duration
+                })
+                person.roi_enter_time = None
+                person.entered_roi_label = None
+                person.roi_entry_logged = False
+                if person.face_info:
+                    person.face_info.access_checked = False
+                person.alert_unauthorized_sent = False
+                person.alert_unknown_sent = False
+
             person.is_in_roi = in_roi
+            person.was_in_roi = in_roi
 
             if person.is_in_roi:
+                if not person.roi_entry_logged:
+                    entry_code = person.face_info.matched_code if (person.face_detected and person.face_info and person.face_info.matched_code) else None
+                    if entry_code:
+                        roi_access_events.append({
+                            "user_code": entry_code,
+                            "roi_label": person.entered_roi_label or matched_label or "Vùng giám sát",
+                            "direction": "ENTRY",
+                            "duration": 0.0
+                        })
+                        person.roi_entry_logged = True
+                    elif (current_time - person.first_seen_time) >= 1.5:
+                        roi_access_events.append({
+                            "user_code": "UNKNOWN",
+                            "roi_label": person.entered_roi_label or matched_label or "Vùng giám sát",
+                            "direction": "ENTRY",
+                            "duration": 0.0
+                        })
+                        person.roi_entry_logged = True
+
                 loc_info = {"label": matched_label} if matched_label else None
                 target_area_name = getattr(person.face_info, "area_name", None) if person.face_info else None
                 area_display = target_area_name or matched_label or "khu vực giám sát"
@@ -239,10 +283,14 @@ class FrameAnalysisEngine:
                     # tự do lưu thông trong giờ hoạt động bình thường -> KHÔNG cảnh báo người lạ UNKNOWN_PERSON!
                     # Chỉ kích hoạt cảnh báo INTRUSION nếu xuất hiện ngoài giờ (after_hours = True).
                     if not getattr(person, "alert_unknown_sent", False):
-                        if not is_public_area or after_hours:
+                        if not is_public_area or after_hours or (active_pixel_polys and person.is_in_roi):
                             last_alert_ts = self.last_unknown_alert_time.get(camera_code, 0.0)
                             if (current_time - last_alert_ts) >= self.unknown_alert_cooldown:
                                 is_face_clear = person.face_detected and person.face_info
+                                # Nếu chưa rõ mặt (chưa quét được face hoặc đang quay mặt đi), cho phép thời gian đệm 1.5s
+                                # để Face Detector kịp phát hiện và định danh trước khi vội bắn cảnh báo người lạ
+                                if not is_face_clear and (current_time - person.first_seen_time) < 1.5:
+                                    continue
                                 face_note = "người lạ ngoài hệ thống" if is_face_clear else "chưa rõ mặt"
                                 if after_hours:
                                     event_type = "INTRUSION"
@@ -274,11 +322,21 @@ class FrameAnalysisEngine:
                     inactive_ids.append(tid)
 
         for tid in inactive_ids:
+            p = self.active_tracks[tid]
+            if getattr(p, "was_in_roi", False) and p.face_detected and p.face_info and p.face_info.matched_code:
+                duration = max(0.0, current_time - (p.roi_enter_time or p.last_seen_time))
+                exit_label = p.entered_roi_label or "Vùng giám sát"
+                roi_access_events.append({
+                    "user_code": p.face_info.matched_code,
+                    "roi_label": exit_label,
+                    "direction": "EXIT",
+                    "duration": duration
+                })
             del self.active_tracks[tid]
             if tid in self.pending_faces:
                 del self.pending_faces[tid]
 
-        return list(self.active_tracks.values()), generated_alerts
+        return list(self.active_tracks.values()), generated_alerts, roi_access_events
 
     def associate_face(self, track_id: int, face_result: FaceDetectionResult):
         if face_result is None:

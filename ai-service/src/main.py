@@ -410,19 +410,36 @@ async def get_live_annotated_feed(camera_code: str = Query(..., description="Mã
     Mở trực tiếp trên trình duyệt Web để xem AI đang tracking thế nào:
     http://localhost:8000/api/v1/stream/live-annotated?camera_code=CAM-002
     """
-    if camera_code not in active_workers or not active_workers[camera_code].is_running:
-        raise HTTPException(status_code=404, detail="Camera worker hiện chưa chạy. Hãy Kết nối Stream trước.")
-        
+    norm_code = camera_code.strip()
+    target_worker = active_workers.get(norm_code)
+    if not target_worker:
+        for k, w in active_workers.items():
+            if k.lower() == norm_code.lower():
+                target_worker = w
+                break
+
+    if not target_worker or not target_worker.is_running:
+        try:
+            worker_rtsp = f"rtsp://localhost:8554/{norm_code.lower()}"
+            target_worker = CameraStreamWorker(
+                camera_code=norm_code,
+                rtsp_url=worker_rtsp
+            )
+            target_worker.start()
+            active_workers[norm_code] = target_worker
+            logger.info(f"✅ Tự động khởi chạy CameraStreamWorker cho [{norm_code}] để phục vụ luồng live-annotated tại {worker_rtsp}")
+        except Exception as ex:
+            logger.warning(f"Không thể tự động kích hoạt worker cho [{norm_code}]: {ex}")
+            raise HTTPException(status_code=404, detail="Camera worker hiện chưa chạy. Hãy Kết nối Stream trước.")
     async def frame_generator():
-        worker = active_workers[camera_code]
-        while worker.is_running:
-            with worker.lock:
-                frame = worker.latest_frame
+        while target_worker.is_running:
+            with target_worker.lock:
+                frame = target_worker.latest_frame
             if frame is not None:
                 _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
                 yield (b'--frame\r\n'
                        b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
-            await asyncio.sleep(0.08) # ~12 FPS preview
+            await asyncio.sleep(0.06)  # ~16 FPS preview
             
     return StreamingResponse(frame_generator(), media_type="multipart/x-mixed-replace; boundary=frame")
 

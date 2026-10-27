@@ -52,6 +52,7 @@ class FaceDetectionResult:
     access_reason: Optional[str] = None
     area_name: Optional[str] = None
     role: Optional[str] = "NORMAL_USER"
+    access_checked: bool = False
 
 @dataclass
 class TrackedPerson:
@@ -62,6 +63,10 @@ class TrackedPerson:
     
     # Trạng thái trong vùng hạn chế (ROI)
     is_in_roi: bool = False
+    was_in_roi: bool = False
+    roi_enter_time: Optional[float] = None
+    entered_roi_label: Optional[str] = None
+    roi_entry_logged: bool = False
     
     # Thông tin khuôn mặt
     face_detected: bool = False

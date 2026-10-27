@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.OffsetDateTime;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -64,6 +65,7 @@ public class CameraSnapshotService {
         }
 
         int timeout = defaultTimeoutMs;
+
 
         try {
             String aiEndpoint = aiServiceUrl + "/api/v1/cameras/snapshot";

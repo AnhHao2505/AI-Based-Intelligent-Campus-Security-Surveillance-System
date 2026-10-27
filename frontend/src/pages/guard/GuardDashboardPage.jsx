@@ -18,7 +18,10 @@ import {
 	BellOff,
 	Eye,
 	CheckCheck,
+	Camera as CameraIcon,
+	X,
 } from "lucide-react";
+import { useAuthorizedImage } from "../../hooks/useAuthorizedImage";
 import WebRtcPlayer from "../../components/video/WebRtcPlayer";
 import { fetchCameras } from "../../services/cameraService";
 import {
@@ -148,6 +151,44 @@ const saveStoredSet = (key, set) => {
 	}
 };
 
+export function formatEvidenceImageUrl(rawUrl) {
+	if (!rawUrl) return "";
+	const url = String(rawUrl).trim();
+	if (url.startsWith("/api/media/")) return url;
+	const minioMatch = url.match(/^https?:\/\/[^/]+(?::\d+)?\/([^/]+)\/(.+)$/);
+	if (minioMatch) {
+		const bucket = minioMatch[1];
+		const path = minioMatch[2];
+		return `/api/media/${bucket}/${path}`;
+	}
+	if (url.startsWith("security-evidence/") || url.startsWith("face-profiles/")) {
+		return `/api/media/${url}`;
+	}
+	return url;
+}
+
+function EvidenceImage({ src, alt, className }) {
+	const formatted = formatEvidenceImageUrl(src);
+	const { url, loading, error } = useAuthorizedImage(formatted);
+	if (error) {
+		return (
+			<div className="soc-evidence-error">
+				<AlertTriangle size={24} />
+				<span>Không tải được ảnh bằng chứng sự cố</span>
+			</div>
+		);
+	}
+	if (loading || !url) {
+		return (
+			<div className="soc-evidence-loading">
+				<Loader2 size={24} className="animate-spin" />
+				<span>Đang tải ảnh bằng chứng...</span>
+			</div>
+		);
+	}
+	return <img src={url} alt={alt || "Ảnh bằng chứng vi phạm"} className={className} />;
+}
+
 /**
  * Trung tâm Giám sát An ninh (SOC) — Security Surveillance Center
  * Tên trước: GuardDashboardPage
@@ -168,6 +209,7 @@ export function SecuritySurveillancePage() {
 	const [alertFilter, setAlertFilter] = useState("ALL"); // 'ALL' | 'PENDING'
 	const [flashAlertCamera, setFlashAlertCamera] = useState(null);
 	const [statusNotification, setStatusNotification] = useState(null);
+	const [evidenceModalAlert, setEvidenceModalAlert] = useState(null);
 	const [isSimulating, setIsSimulating] = useState(false);
 
 	const flashTimeoutRef = useRef(null);
@@ -177,16 +219,20 @@ export function SecuritySurveillancePage() {
 		soundEnabledRef.current = soundEnabled;
 	}, [soundEnabled]);
 
-	// Phím tắt ESC để thoát chế độ phóng to màn hình
+	// Phím tắt ESC để thoát chế độ phóng to hoặc đóng modal xem ảnh bằng chứng
 	useEffect(() => {
 		const handleKeyDown = (e) => {
-			if (e.key === "Escape" && isTheaterMode) {
-				setIsTheaterMode(false);
+			if (e.key === "Escape") {
+				if (evidenceModalAlert) {
+					setEvidenceModalAlert(null);
+				} else if (isTheaterMode) {
+					setIsTheaterMode(false);
+				}
 			}
 		};
 		window.addEventListener("keydown", handleKeyDown);
 		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, [isTheaterMode]);
+	}, [isTheaterMode, evidenceModalAlert]);
 
 	// Hiển thị thông báo toast tạm thời
 	const triggerNotification = (msg) => {
@@ -405,6 +451,7 @@ export function SecuritySurveillancePage() {
 			status: incident.status || "NEW",
 			socAcknowledged: isAck,
 			claimedByName: incident.claimedByName || incident.claimed_by_name,
+			imageUrl: incident.imageUrl || incident.image_url || null,
 		};
 
 		setActiveAlerts((prev) => {
@@ -564,6 +611,7 @@ export function SecuritySurveillancePage() {
 								status: incident.status || "NEW",
 								socAcknowledged: ackSet.has(String(incId)),
 								claimedByName: incident.claimedByName || incident.claimed_by_name,
+								imageUrl: incident.imageUrl || incident.image_url || null,
 							};
 						});
 					setActiveAlerts(mapped);
@@ -1253,21 +1301,36 @@ export function SecuritySurveillancePage() {
 												<p className="soc-incident-msg">{alert.message}</p>
 
 												<div className="soc-incident-bottom">
-													{/* Nút xem nhanh camera */}
-													<button
-														type="button"
-														className="btn-soc-jump-cam"
-														onClick={() =>
-															handleSelectCamera(
-																alert.camCodeClean || alert.cameraCode,
-															)
-														}
-														title="Chuyển màn hình sang camera này"
-													>
-														<Video size={12} />
-														<span>{alert.cameraCode}</span>
-														<ArrowRight size={11} />
-													</button>
+													<div className="soc-incident-bottom-left">
+														{/* Nút xem nhanh camera */}
+														<button
+															type="button"
+															className="btn-soc-jump-cam"
+															onClick={() =>
+																handleSelectCamera(
+																	alert.camCodeClean || alert.cameraCode,
+																)
+															}
+															title="Chuyển màn hình sang camera này"
+														>
+															<Video size={12} />
+															<span>{alert.cameraCode}</span>
+															<ArrowRight size={11} />
+														</button>
+
+														{/* Nút xem ảnh bằng chứng quả tang từ AI */}
+														{alert.imageUrl && (
+															<button
+																type="button"
+																className="btn-soc-evidence"
+																onClick={() => setEvidenceModalAlert(alert)}
+																title="Xem ảnh chụp bằng chứng quả tang từ AI"
+															>
+																<CameraIcon size={12} />
+																<span>Bằng chứng</span>
+															</button>
+														)}
+													</div>
 
 													<div
 														className="soc-incident-workflow"
@@ -1336,6 +1399,96 @@ export function SecuritySurveillancePage() {
 					</div>
 				)}
 			</div>
+
+			{/* Modal hiển thị ảnh bằng chứng quả tang từ AI */}
+			{evidenceModalAlert && (
+				<div
+					className="soc-evidence-modal-backdrop"
+					onClick={() => setEvidenceModalAlert(null)}
+				>
+					<div
+						className="soc-evidence-modal-content"
+						onClick={(e) => e.stopPropagation()}
+					>
+						<div className="soc-evidence-modal-header">
+							<div className="soc-evidence-modal-title">
+								<ShieldAlert
+									size={18}
+									style={{
+										color: getSeverityMeta(evidenceModalAlert.eventType).color,
+									}}
+								/>
+								<h4>ẢNH BẰNG CHỨNG VI PHẠM AN NINH</h4>
+								<span
+									className={`soc-incident-tag ${getSeverityMeta(evidenceModalAlert.eventType).badgeClass}`}
+								>
+									{getSeverityMeta(evidenceModalAlert.eventType).label}
+								</span>
+							</div>
+							<button
+								type="button"
+								className="soc-evidence-close-btn"
+								onClick={() => setEvidenceModalAlert(null)}
+								title="Đóng (ESC)"
+							>
+								<X size={18} />
+							</button>
+						</div>
+
+						<div className="soc-evidence-modal-body">
+							<div className="soc-evidence-image-container">
+								<EvidenceImage
+									src={evidenceModalAlert.imageUrl}
+									alt="Ảnh bằng chứng vi phạm an ninh"
+									className="soc-evidence-full-img"
+								/>
+							</div>
+
+							<div className="soc-evidence-meta-panel">
+								<div className="soc-evidence-meta-row">
+									<span className="soc-evidence-meta-label">Camera:</span>
+									<span className="soc-evidence-meta-val">
+										<strong>{evidenceModalAlert.cameraCode}</strong> — {evidenceModalAlert.cameraName}
+									</span>
+								</div>
+								<div className="soc-evidence-meta-row">
+									<span className="soc-evidence-meta-label">Thời điểm:</span>
+									<span className="soc-evidence-meta-val">{evidenceModalAlert.timestamp}</span>
+								</div>
+								<div className="soc-evidence-meta-row">
+									<span className="soc-evidence-meta-label">Nội dung:</span>
+									<span className="soc-evidence-meta-val">{evidenceModalAlert.message}</span>
+								</div>
+							</div>
+						</div>
+
+						<div className="soc-evidence-modal-footer">
+							<button
+								type="button"
+								className="btn-soc-jump-cam"
+								onClick={() => {
+									handleSelectCamera(
+										evidenceModalAlert.camCodeClean ||
+											evidenceModalAlert.cameraCode,
+									);
+									setEvidenceModalAlert(null);
+								}}
+								title="Chuyển màn hình sang xem trực tiếp camera này"
+							>
+								<Video size={13} />
+								<span>Xem trực tiếp camera {evidenceModalAlert.cameraCode}</span>
+							</button>
+							<button
+								type="button"
+								className="btn-soc-evidence-close"
+								onClick={() => setEvidenceModalAlert(null)}
+							>
+								Đóng
+							</button>
+						</div>
+					</div>
+				</div>
+			)}
 		</div>
 	);
 }

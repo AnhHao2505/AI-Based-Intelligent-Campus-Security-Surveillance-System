@@ -167,11 +167,19 @@ class FaceMatcher:
 
         return None
 
-    def check_camera_access(self, camera_code: str, user_code: str) -> Tuple[bool, str, Optional[str]]:
+    def check_camera_access(
+        self,
+        camera_code: str,
+        user_code: str,
+        roi_label: Optional[str] = None,
+        event_direction: Optional[str] = None,
+        duration_seconds: Optional[float] = None,
+        skip_cache: bool = False
+    ) -> Tuple[bool, str, Optional[str]]:
         """
-        Kiểm tra quyền ra vào của user_code tại vị trí camera_code:
+        Kiểm tra quyền ra vào của user_code tại vị trí camera_code và ghi log chuyển động qua vùng ROI (VÀO / RA).
         Gọi API POST /api/access-control/check-entry của Spring Boot Backend (checkEntry).
-        Có bộ đệm in-memory RAM (TTL 30s) để đảm bảo tốc độ Real-time 30+ FPS cho luồng video.
+        Có bộ đệm in-memory RAM (TTL 30s) khi đối soát nhanh.
         Trả về: (is_allowed: bool, reason: str, area_name: Optional[str])
         """
         if not camera_code or not user_code:
@@ -180,8 +188,8 @@ class FaceMatcher:
         cache_key = f"{camera_code}:{user_code}"
         now = time.time()
 
-        # 1. Kiểm tra cache RAM
-        if cache_key in self.access_cache:
+        # 1. Kiểm tra cache RAM (chỉ dùng cache khi không phải sự kiện ROI cụ thể)
+        if not skip_cache and not event_direction and cache_key in self.access_cache:
             allowed, reason, area_name, expire_at = self.access_cache[cache_key]
             if now < expire_at:
                 return allowed, reason, area_name
@@ -192,9 +200,20 @@ class FaceMatcher:
 
         try:
             import requests
+            payload = {
+                "cameraCode": camera_code,
+                "userCode": user_code
+            }
+            if roi_label:
+                payload["roiLabel"] = roi_label
+            if event_direction:
+                payload["eventDirection"] = event_direction
+            if duration_seconds is not None:
+                payload["durationSeconds"] = round(duration_seconds, 1)
+
             resp = requests.post(
                 endpoint,
-                json={"cameraCode": camera_code, "userCode": user_code},
+                json=payload,
                 headers={INTERNAL_SERVICE_KEY_HEADER: settings.INTERNAL_SERVICE_KEY},
                 timeout=1.5
             )

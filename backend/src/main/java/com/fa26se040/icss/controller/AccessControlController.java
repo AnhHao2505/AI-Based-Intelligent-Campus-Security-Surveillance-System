@@ -50,11 +50,23 @@ public class AccessControlController {
             @Valid @RequestBody CheckCameraEntryRequest request
     ) {
         OffsetDateTime at = request.getTimestamp() != null ? request.getTimestamp() : OffsetDateTime.now();
-        CheckCameraEntryResponse response = accessDecisionService.checkCameraEntry(
-                request.getCameraCode(),
-                request.getUserCode(),
-                at
-        );
+        CheckCameraEntryResponse response;
+        if (request.getRoiLabel() != null || request.getEventDirection() != null || request.getDurationSeconds() != null) {
+            response = accessDecisionService.checkCameraEntry(
+                    request.getCameraCode(),
+                    request.getUserCode(),
+                    at,
+                    request.getRoiLabel(),
+                    request.getEventDirection(),
+                    request.getDurationSeconds()
+            );
+        } else {
+            response = accessDecisionService.checkCameraEntry(
+                    request.getCameraCode(),
+                    request.getUserCode(),
+                    at
+            );
+        }
         return ResponseEntity.ok(ApiResponse.success(response, "Xét quyền ra vào thành công"));
     }
 
