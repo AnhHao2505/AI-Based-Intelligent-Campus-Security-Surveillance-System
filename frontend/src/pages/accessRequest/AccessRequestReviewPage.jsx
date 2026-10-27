@@ -456,7 +456,7 @@ export default function AccessRequestReviewPage({ embedded = false, actionsConta
               type="text"
               className="arr-search-input"
               aria-label="Tìm theo tên, mã số người yêu cầu"
-              placeholder="Tìm theo tên, mã số người yêu cầu..."
+              placeholder="Tìm theo tên, mã số..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
