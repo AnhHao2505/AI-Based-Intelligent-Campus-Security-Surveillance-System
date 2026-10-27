@@ -1244,7 +1244,7 @@ export default function AreaListPage() {
 									onClick={() => setCreateModalOpen(false)}
 									disabled={modalLoading}
 								>
-									Hủy
+									Huỷ
 								</button>
 								<button
 									type="submit"
@@ -1386,7 +1386,7 @@ export default function AreaListPage() {
 												}
 											}}
 											error={editReasonError}
-											hint="Đổi loại sẽ áp cấp truy cập theo mặc định của loại mới và có thể hủy các đơn truy cập không còn phù hợp."
+											hint="Đổi loại sẽ áp cấp truy cập theo mặc định của loại mới và có thể huỷ các đơn truy cập không còn phù hợp."
 											required
 										/>
 									</div>
@@ -1507,7 +1507,7 @@ export default function AreaListPage() {
 									onClick={() => setEditModalOpen(false)}
 									disabled={modalLoading}
 								>
-									Hủy
+									Huỷ
 								</button>
 								<button
 									type="submit"
@@ -1613,11 +1613,11 @@ export default function AreaListPage() {
 											<strong>{dependencies.apToRevoke ?? 0}</strong>
 										</li>
 										<li>
-											Đơn truy cập bị hủy:{" "}
+											Đơn truy cập bị huỷ:{" "}
 											<strong>{dependencies.requestsToCancel ?? 0}</strong>
 										</li>
 										<li>
-											Lượt khách chờ duyệt bị hủy:{" "}
+											Lượt khách chờ duyệt bị huỷ:{" "}
 											<strong>{dependencies.guestVisitsToCancel ?? 0}</strong>
 										</li>
 										<li>
@@ -1658,7 +1658,7 @@ export default function AreaListPage() {
 								onClick={closeDeactivateModal}
 								disabled={modalLoading}
 							>
-								Hủy
+								Huỷ
 							</button>
 							<button
 								type="button"
@@ -1731,7 +1731,7 @@ export default function AreaListPage() {
 								<div className="area-dependencies-box__title">Lưu ý</div>
 								<ul>
 									<li>
-										Nhân sự chỉ định, đơn truy cập và lượt khách đã bị hủy / thu
+										Nhân sự chỉ định, đơn truy cập và lượt khách đã bị huỷ / thu
 										hồi KHÔNG tự hồi phục.
 									</li>
 									<li>Camera cần được gán lại nếu cần.</li>
@@ -1768,7 +1768,7 @@ export default function AreaListPage() {
 								}}
 								disabled={restoreLoading}
 							>
-								Hủy
+								Huỷ
 							</button>
 							<button
 								type="button"

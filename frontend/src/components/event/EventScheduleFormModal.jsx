@@ -133,7 +133,7 @@ export default function EventScheduleFormModal({ mode, schedule, areas, onClose,
 		if (!form.reasonCode) next.reasonCode = "Vui lòng chọn từ danh mục.";
 		const noteRequired = mode !== "create";
 		if (noteRequired || form.note.trim()) {
-			const noteError = reasonLimits.error(form.note, mode === "edit" ? "Lý do sửa lịch" : mode === "cancel" ? "Lý do hủy" : "Ghi chú");
+			const noteError = reasonLimits.error(form.note, mode === "edit" ? "Lý do sửa lịch" : mode === "cancel" ? "Lý do huỷ" : "Ghi chú");
 			if (noteError) next.note = noteError;
 		}
 		return next;
@@ -170,7 +170,7 @@ export default function EventScheduleFormModal({ mode, schedule, areas, onClose,
 				toast.success("Đã cập nhật sự kiện");
 			} else if (mode === "cancel") {
 				await cancelEventSchedule(schedule.areaId, schedule.id, { reasonCode: form.reasonCode, note });
-				toast.success("Đã hủy sự kiện");
+				toast.success("Đã huỷ sự kiện");
 			}
 			onSaved?.();
 		} catch (err) {
@@ -186,9 +186,9 @@ export default function EventScheduleFormModal({ mode, schedule, areas, onClose,
 	if (!isOpen) return null;
 
 	const nowLocal = toLocalInput(new Date().toISOString());
-	const titleText = mode === "create" ? "Tạo sự kiện" : mode === "edit" ? "Sửa sự kiện" : "Hủy sự kiện";
+	const titleText = mode === "create" ? "Tạo sự kiện" : mode === "edit" ? "Sửa sự kiện" : "Huỷ sự kiện";
 	const icon = mode === "create" ? CalendarPlus : mode === "edit" ? Pencil : XCircle;
-	const reasonLabel = mode === "create" ? "Loại sự kiện" : mode === "edit" ? "Lý do sửa" : "Lý do hủy";
+	const reasonLabel = mode === "create" ? "Loại sự kiện" : mode === "edit" ? "Lý do sửa" : "Lý do huỷ";
 	const areaOptions = [
 		{ value: "", label: "-- Chọn khu vực Bảo mật --", disabled: true },
 		...areas.map((a) => ({ value: a.id, label: a.name })),
@@ -224,7 +224,7 @@ export default function EventScheduleFormModal({ mode, schedule, areas, onClose,
 						loading={submitting}
 						disabled={submitting || loadingReasons}
 					>
-						{mode === "create" ? "Tạo sự kiện" : mode === "edit" ? "Lưu thay đổi" : "Xác nhận hủy"}
+						{mode === "create" ? "Tạo sự kiện" : mode === "edit" ? "Lưu thay đổi" : "Xác nhận huỷ"}
 					</Button>
 				</>
 			}
@@ -322,7 +322,7 @@ export default function EventScheduleFormModal({ mode, schedule, areas, onClose,
 					<ReasonTextarea
 						ref={noteRef}
 						id="evm-note"
-						label={mode === "edit" ? "Lý do sửa lịch" : "Ghi chú lý do hủy"}
+						label={mode === "edit" ? "Lý do sửa lịch" : "Ghi chú lý do huỷ"}
 						placeholder={`Nêu rõ lý do (${reasonLimits.range} ký tự)...`}
 						value={form.note}
 						onChange={(e) => setField("note", e.target.value)}

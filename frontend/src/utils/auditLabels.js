@@ -55,7 +55,7 @@ export const getActionLabel = (targetType, action) => {
 	else if (action === "SUBMIT") actionLabel = "Gửi yêu cầu";
 	else if (action === "APPROVE") actionLabel = "Phê duyệt";
 	else if (action === "REJECT") actionLabel = "Từ chối";
-	else if (action === "CANCEL") actionLabel = "Hủy bỏ";
+	else if (action === "CANCEL") actionLabel = "Huỷ bỏ";
 	else if (action === "FINISH") actionLabel = "Kết thúc";
 	else if (action === "EXPIRE") actionLabel = "Hết hạn";
 	else if (action === "AUTO_EXPIRE") actionLabel = "Tự động hết hạn";
@@ -72,7 +72,7 @@ export const getActionLabel = (targetType, action) => {
 	if (targetType === "AREA_EVENT_SCHEDULE") {
 		if (action === "CREATE") actionLabel = "Đặt lịch";
 		else if (action === "UPDATE") actionLabel = "Sửa lịch";
-		else if (action === "CANCEL") actionLabel = "Hủy lịch";
+		else if (action === "CANCEL") actionLabel = "Huỷ lịch";
 		else if (action === "FAIL") actionLabel = "Lịch thất bại";
 	}
 	return actionLabel;

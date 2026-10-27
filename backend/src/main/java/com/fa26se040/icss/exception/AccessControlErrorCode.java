@@ -22,7 +22,9 @@ public enum AccessControlErrorCode {
     // BR-AL-30 (V83): không đổi cấp (nâng hay hạ) khi người dùng là người tạo hoặc thành viên của đơn PENDING
     ERR_AC_011("ERR_AC_011", HttpStatus.CONFLICT, "Người dùng {userCode} – {fullName} đang có {count} yêu cầu chờ duyệt ({areas}). Hãy duyệt hoặc từ chối các yêu cầu này trước khi đổi cấp."),
     // D-1: tới giờ bắt đầu (now >= startTime) thì không duyệt / từ chối đơn PENDING nữa; job chuyển sang EXPIRED
-    ERR_AC_012("ERR_AC_012", HttpStatus.CONFLICT, "Đã tới giờ bắt đầu, không thể duyệt hoặc từ chối yêu cầu. Hệ thống sẽ chuyển yêu cầu sang Hết hạn.");
+    ERR_AC_012("ERR_AC_012", HttpStatus.CONFLICT, "Đã tới giờ bắt đầu, không thể duyệt hoặc từ chối yêu cầu. Hệ thống sẽ chuyển yêu cầu sang Hết hạn."),
+    // BR-AL-32: FM chỉ đổi cấp truy cập của NORMAL_USER và GUARD (đổi lẻ và đổi nhiều người)
+    ERR_AC_013("ERR_AC_013", HttpStatus.FORBIDDEN, "Chỉ được đổi cấp truy cập của người dùng thường và bảo vệ; không đổi cấp của quản trị viên hoặc quản lý cơ sở vật chất ({userCode})");
 
     private final String code;
     private final HttpStatus httpStatus;
