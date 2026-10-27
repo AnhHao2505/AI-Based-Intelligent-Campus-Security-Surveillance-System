@@ -1,14 +1,5 @@
 import os
 import sys
-import cv2
-import time
-import queue
-import logging
-import threading
-from datetime import datetime
-from typing import Optional
-
-logger = logging.getLogger(__name__)
 
 # Đảm bảo Windows tìm được thư viện OpenH264 để mã hóa chuẩn AVC1/H.264
 _current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -21,15 +12,25 @@ DLL_SEARCH_PATHS = [
     _repo_dir,
     os.getcwd(),
 ]
-for p in DLL_SEARCH_PATHS:
-    if os.path.exists(p):
+for p_dir in DLL_SEARCH_PATHS:
+    if os.path.exists(p_dir):
         if hasattr(os, "add_dll_directory"):
             try:
-                os.add_dll_directory(p)
+                os.add_dll_directory(p_dir)
             except Exception:
                 pass
-        if p not in os.environ.get("PATH", ""):
-            os.environ["PATH"] = p + os.pathsep + os.environ.get("PATH", "")
+        if p_dir not in os.environ.get("PATH", ""):
+            os.environ["PATH"] = p_dir + os.pathsep + os.environ.get("PATH", "")
+
+import cv2
+import time
+import queue
+import logging
+import threading
+from datetime import datetime
+from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 class StreamRecorder:
