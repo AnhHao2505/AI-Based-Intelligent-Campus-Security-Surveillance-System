@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { Client } from "@stomp/stompjs";
 import {
 	ShieldAlert,
@@ -18,6 +19,7 @@ import {
 	BellOff,
 	Eye,
 	CheckCheck,
+	Film,
 } from "lucide-react";
 import WebRtcPlayer from "../../components/video/WebRtcPlayer";
 import { fetchCameras } from "../../services/cameraService";
@@ -153,6 +155,7 @@ const saveStoredSet = (key, set) => {
  * Tên trước: GuardDashboardPage
  */
 export function SecuritySurveillancePage() {
+	const navigate = useNavigate();
 	const [selectedCamera, setSelectedCamera] = useState("");
 	const [cameraLayout, setCameraLayout] = useState(1); // 1 | 4 (2x2) | 9 (3x3) | 16 (4x4)
 	const [isTheaterMode, setIsTheaterMode] = useState(false); // Chế độ phóng to chỉ view màn hình
@@ -887,6 +890,17 @@ export function SecuritySurveillancePage() {
 						>
 							<Maximize2 size={15} />
 							<span>Phóng to giám sát</span>
+						</button>
+
+						{/* Kho video ghi hình & bằng chứng */}
+						<button
+							type="button"
+							className="btn-theater-mode"
+							onClick={() => navigate("/recordings")}
+							title="Mở Kho lưu trữ video ghi hình và bằng chứng an ninh"
+						>
+							<Film size={15} />
+							<span>Kho video ghi hình</span>
 						</button>
 
 						{/* Bật/Tắt âm thanh */}
