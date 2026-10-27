@@ -1,0 +1,65 @@
+@startuml state_guest_visit
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam roundCorner 6
+skinparam shadowing false
+
+skinparam nodesep 65
+skinparam ranksep 45
+
+skinparam stateStartColor #000000
+skinparam stateEndColor #000000
+skinparam stateBackgroundColor #F8FAFC
+skinparam stateBorderColor #475569
+skinparam stateFontColor #0F172A
+skinparam stateArrowColor #2563EB
+
+title GuestVisit Lifecycle
+
+' ============================================================================
+' STATE DEFINITIONS
+' ============================================================================
+state PENDING {
+    PENDING : • Awaiting FM review
+}
+
+state APPROVED {
+    APPROVED : • Active window (start <= now < end)
+    APPROVED : • Photo pending or ready
+}
+
+state REJECTED  : • Rejected by FM (reason required)
+state CANCELLED : • Cancelled by Host or Area deactivation
+state COMPLETED : • Completed by system (now >= end)
+state REVOKED   : • Revoked by FM or Area deactivation
+state EXPIRED   : • Expired by system (now >= start)
+
+' Layout alignment: left column, center column, right column
+REJECTED -[hidden]down-> CANCELLED
+EXPIRED  -[hidden]down-> REVOKED
+
+' ============================================================================
+' TRANSITIONS
+' ============================================================================
+[*] -down-> PENDING : submit\n[confidentialArea && now < start < end]
+
+' --- From PENDING ---
+PENDING -down-> APPROVED  : approve [now < start]\n/ notifyHost()
+PENDING -left-> REJECTED  : reject [now < start && reason]\n/ notifyHost()
+PENDING -right-> EXPIRED  : expirePendingVisits\n[now >= start]
+PENDING --> CANCELLED     : cancel || deactivateArea\n[now < end]
+
+' --- From APPROVED ---
+APPROVED -down-> COMPLETED : completeApprovedVisits\n[now >= end]
+APPROVED -left-> CANCELLED : cancel [now < end]\n/ purgeBiometrics()
+APPROVED -right-> REVOKED  : revoke [reason] || deactivateArea\n[now < end] / purgeBiometrics()
+
+' --- Terminal Transitions ---
+REJECTED  -down-> [*]
+CANCELLED -down-> [*]
+COMPLETED -down-> [*]
+REVOKED   -down-> [*]
+EXPIRED   -down-> [*]
+
+@enduml
