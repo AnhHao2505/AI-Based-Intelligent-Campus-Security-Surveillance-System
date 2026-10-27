@@ -206,4 +206,34 @@ class MinioStorageServiceTest {
 
         assertThrows(ErrorResponseException.class, () -> minioStorageService.statObject("face-profiles", "SV-1/a.jpg"));
     }
+
+    @Test
+    @DisplayName("uploadFaceImage: SSE-S3 thành công khi MinIO có hỗ trợ KMS")
+    void uploadFaceImage_success_withSse() throws Exception {
+        when(minioClient.bucketExists(any(BucketExistsArgs.class))).thenReturn(true);
+        when(minioClient.putObject(any(PutObjectArgs.class))).thenReturn(null);
+
+        byte[] bytes = new byte[]{1, 2, 3};
+        String url = minioStorageService.uploadFaceImage(bytes, "SE123456");
+
+        assertEquals("http://localhost:9000/face-profiles/SE123456/SE123456_front.jpg", url);
+        verify(minioClient, times(1)).putObject(any(PutObjectArgs.class));
+    }
+
+    @Test
+    @DisplayName("uploadFaceImage: NotImplemented khi dùng SSE-S3 -> tự động fallback sang upload thường")
+    void uploadFaceImage_fallbackWhenSseNotImplemented() throws Exception {
+        when(minioClient.bucketExists(any(BucketExistsArgs.class))).thenReturn(true);
+        // Lần đầu ném NotImplemented, lần retry thứ 2 thành công
+        when(minioClient.putObject(any(PutObjectArgs.class)))
+                .thenThrow(minioError("NotImplemented"))
+                .thenReturn(null);
+
+        byte[] bytes = new byte[]{1, 2, 3};
+        String url = minioStorageService.uploadFaceImage(bytes, "SE123456");
+
+        assertEquals("http://localhost:9000/face-profiles/SE123456/SE123456_front.jpg", url);
+        // Gọi 2 lần: lần 1 có SSE, lần 2 không có SSE
+        verify(minioClient, times(2)).putObject(any(PutObjectArgs.class));
+    }
 }

@@ -50,7 +50,7 @@ class StaffAccountFaceLinkIntegrationTest extends AbstractIntegrationTest {
     @Autowired
     private UserRepository userRepository;
 
-    @MockBean
+    @Autowired
     private MinioStorageService minioStorageService;
 
     @MockBean
@@ -64,13 +64,14 @@ class StaffAccountFaceLinkIntegrationTest extends AbstractIntegrationTest {
         RestTemplate restTemplate = (RestTemplate) ReflectionTestUtils.getField(faceDataService, "restTemplate");
         aiServer = MockRestServiceServer.bindTo(restTemplate).build();
         userCode = "S4-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT);
-        when(minioStorageService.uploadFaceImage(any(), anyString())).thenReturn("face-profiles/" + userCode + ".jpg");
     }
 
     @AfterEach
     void cleanUp() {
         faceDataRepository.findByCode(userCode).ifPresent(faceDataRepository::delete);
-        userRepository.findByUserCode(userCode).ifPresent(userRepository::delete);
+        userRepository.findAll().stream()
+                .filter(u -> userCode.equalsIgnoreCase(u.getUserCode()))
+                .forEach(userRepository::delete);
     }
 
     private static String aiSuccessBody(String code) {
@@ -98,5 +99,41 @@ class StaffAccountFaceLinkIntegrationTest extends AbstractIntegrationTest {
         FaceData faceData = faceDataRepository.findByCode(userCode).orElseThrow();
         assertThat(faceData.getUser()).as("face_data.user_id phải được gắn").isNotNull();
         assertThat(faceData.getUser().getId()).isEqualTo(response.getId());
+    }
+
+    @Test
+    @DisplayName("Tái tạo tài khoản đã soft-delete với cùng userCode và email")
+    void createStaffAccount_afterSoftDelete() {
+        aiServer.expect(requestTo(org.hamcrest.Matchers.endsWith("/api/v1/faces/process-registration")))
+                .andRespond(withSuccess(aiSuccessBody(userCode), MediaType.APPLICATION_JSON));
+
+        StaffAccountCreateRequest request = StaffAccountCreateRequest.builder()
+                .fullName("S4 Face Link")
+                .userCode(userCode)
+                .email(userCode.toLowerCase(Locale.ROOT) + "@fpt.edu.vn")
+                .role(Role.GUARD)
+                .faceImage(new MockMultipartFile("faceImage", "front.jpg", "image/jpeg", new byte[]{1, 2, 3}))
+                .build();
+
+        StaffAccountCreateResponse response1 = userService.createStaffAccount(request);
+        aiServer.verify();
+
+        // Soft delete user1
+        com.fa26se040.icss.entity.User user1 = userRepository.findById(response1.getId()).orElseThrow();
+        user1.setDeletedAt(java.time.OffsetDateTime.now());
+        user1.setIsActive(false);
+        userRepository.save(user1);
+
+        // Giờ tạo lại tài khoản với cùng request
+        aiServer.reset();
+        aiServer.expect(requestTo(org.hamcrest.Matchers.endsWith("/api/v1/faces/process-registration")))
+                .andRespond(withSuccess(aiSuccessBody(userCode), MediaType.APPLICATION_JSON));
+
+        StaffAccountCreateResponse response2 = userService.createStaffAccount(request);
+        aiServer.verify();
+
+        FaceData faceData = faceDataRepository.findByCode(userCode).orElseThrow();
+        assertThat(faceData.getUser()).isNotNull();
+        assertThat(faceData.getUser().getId()).isEqualTo(response2.getId());
     }
 }
