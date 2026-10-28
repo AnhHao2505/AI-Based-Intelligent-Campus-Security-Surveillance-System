@@ -5,13 +5,21 @@ export const SYSTEM_ACTOR_LABELS = {
 	EVENT_MODE_EXPIRY: "Tự động kết thúc sự kiện hết hạn",
 	EVENT_SCHEDULE_ACTIVATION: "Tự động kích hoạt lịch sự kiện",
 	GUEST_VISIT_JOB: "Tự động xử lý lượt khách",
+	FINISH_ELAPSED_REQUESTS_JOB: "Tự động kết thúc đơn hết giờ",
+	AREA_TYPE_CHANGE: "Đổi loại khu vực",
+	AREA_DEACTIVATION: "Vô hiệu hoá khu vực",
+	REQUESTER_DEACTIVATION: "Vô hiệu hoá tài khoản người tạo đơn",
 };
+
+// Dòng do migration Flyway ghi (vd FLYWAY_MIGRATION_V83) -> "Nâng cấp dữ liệu V83"
+const MIGRATION_SOURCE = /^FLYWAY_MIGRATION_(V[\d_]+)$/;
 
 export const renderSystemActor = (source) => {
 	if (!source) return "Hệ thống";
-	return SYSTEM_ACTOR_LABELS[source]
-		? `Hệ thống – ${SYSTEM_ACTOR_LABELS[source]}`
-		: `Hệ thống – ${source}`;
+	if (SYSTEM_ACTOR_LABELS[source]) return `Hệ thống – ${SYSTEM_ACTOR_LABELS[source]}`;
+	const migration = MIGRATION_SOURCE.exec(source);
+	if (migration) return `Hệ thống – Nâng cấp dữ liệu ${migration[1].replace(/_/g, ".")}`;
+	return `Hệ thống – ${source}`;
 };
 
 export const TARGET_TYPE_LABELS = {
@@ -55,7 +63,7 @@ export const getActionLabel = (targetType, action) => {
 	else if (action === "SUBMIT") actionLabel = "Gửi yêu cầu";
 	else if (action === "APPROVE") actionLabel = "Phê duyệt";
 	else if (action === "REJECT") actionLabel = "Từ chối";
-	else if (action === "CANCEL") actionLabel = "Hủy bỏ";
+	else if (action === "CANCEL") actionLabel = "Huỷ bỏ";
 	else if (action === "FINISH") actionLabel = "Kết thúc";
 	else if (action === "EXPIRE") actionLabel = "Hết hạn";
 	else if (action === "AUTO_EXPIRE") actionLabel = "Tự động hết hạn";
@@ -72,7 +80,7 @@ export const getActionLabel = (targetType, action) => {
 	if (targetType === "AREA_EVENT_SCHEDULE") {
 		if (action === "CREATE") actionLabel = "Đặt lịch";
 		else if (action === "UPDATE") actionLabel = "Sửa lịch";
-		else if (action === "CANCEL") actionLabel = "Hủy lịch";
+		else if (action === "CANCEL") actionLabel = "Huỷ lịch";
 		else if (action === "FAIL") actionLabel = "Lịch thất bại";
 	}
 	return actionLabel;

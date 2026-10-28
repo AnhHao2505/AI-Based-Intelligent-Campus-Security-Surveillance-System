@@ -340,6 +340,51 @@
   white-space: nowrap;
 }
 
+/* Hàng 3: thống kê an ninh (FM, ADMIN) */
+.dash-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--theme-border);
+}
+
+.dash-stats__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.dash-stats__title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--theme-text-primary);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.dash-stats__subtitle {
+  font-size: 0.8rem;
+  color: var(--theme-text-muted);
+  margin: 2px 0 0;
+}
+
+/* 5 thẻ (4 trạng thái + tỉ lệ bác bỏ) nằm một hàng trên màn rộng */
+.dash-stats__kpis {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.dash-stats__chart {
+  width: 100%;
+  height: 280px;
+}
+
+.area-type-bar__fill--incident {
+  background: var(--theme-danger);
+}
+
 /* Responsive */
 @media (max-width: 1024px) {
   .dashboard-grid {
@@ -357,6 +402,11 @@
   }
 
   .dash-card__header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .dash-stats__header {
     flex-direction: column;
     align-items: flex-start;
   }

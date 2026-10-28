@@ -260,6 +260,19 @@ export default function Sidebar({ user, onLogout }) {
 
 								{isGuard && (
 									<NavLink
+										to="/recordings"
+										className={({ isActive }) =>
+											`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
+										}
+										title={sidebarCollapsed ? "Kho lưu trữ ghi hình" : undefined}
+									>
+										<Film size={18} />
+										<span>Kho lưu trữ ghi hình</span>
+									</NavLink>
+								)}
+
+								{isGuard && (
+									<NavLink
 										to="/notifications"
 										className={({ isActive }) =>
 											`sidebar__link ${isActive ? "sidebar__link--active" : ""}`

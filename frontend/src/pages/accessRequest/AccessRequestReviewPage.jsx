@@ -38,9 +38,9 @@ const getListReason = (req) => {
       return req.rejectionReason || null;
     case 'CANCELLED':
       // BR-RQ-47: FM huỷ đơn đã duyệt (cancel_source STAFF); BR-TC-15: hệ thống huỷ
-      if (req.cancelSource === 'STAFF') return req.cancelReason ? `Quản lý hủy: ${req.cancelReason}` : 'Quản lý hủy';
-      if (req.cancelSource === 'SYSTEM') return req.cancelReason ? `Hủy bởi hệ thống: ${req.cancelReason}` : 'Hủy bởi hệ thống';
-      return req.cancelReason || 'Người yêu cầu tự hủy';
+      if (req.cancelSource === 'STAFF') return req.cancelReason ? `Quản lý huỷ: ${req.cancelReason}` : 'Quản lý huỷ';
+      if (req.cancelSource === 'SYSTEM') return req.cancelReason ? `Huỷ bởi hệ thống: ${req.cancelReason}` : 'Huỷ bởi hệ thống';
+      return req.cancelReason || 'Người yêu cầu tự huỷ';
     case 'FINISHED':
       // BR-RQ-46 (V88): FM kết thúc đơn đã duyệt, lý do lưu trên đơn; D-2.1: không có người kết thúc = hệ thống kết thúc khi hết giờ
       if (!req.finishReason) return null;
@@ -292,7 +292,7 @@ export default function AccessRequestReviewPage({ embedded = false, actionsConta
     setActionError(null);
     try {
       await accessRequestService.cancelApprovedRequest(staffCancelItem.id, trimmed);
-      setActionSuccess('Đã hủy yêu cầu đã duyệt.');
+      setActionSuccess('Đã huỷ yêu cầu đã duyệt.');
       setStaffCancelItem(null);
       setStaffCancelReason('');
       loadRequests(page, statusFilter, selectedAreaId);
@@ -306,7 +306,7 @@ export default function AccessRequestReviewPage({ embedded = false, actionsConta
         loadStats();
         setTimeout(() => setActionWarning(null), 7000);
       } else {
-        setActionError(err.message || 'Lỗi khi hủy yêu cầu đã duyệt');
+        setActionError(err.message || 'Lỗi khi huỷ yêu cầu đã duyệt');
       }
     } finally {
       setActionLoading(false);
@@ -420,7 +420,7 @@ export default function AccessRequestReviewPage({ embedded = false, actionsConta
             { key: 'PENDING', label: 'Chờ duyệt', count: stats.pending, tone: 'attention' },
             { key: 'APPROVED', label: 'Đã duyệt', count: stats.approved },
             { key: 'REJECTED', label: 'Đã từ chối', count: stats.rejected },
-            { key: 'CANCELLED', label: 'Đã hủy', count: stats.cancelled },
+            { key: 'CANCELLED', label: 'Đã huỷ', count: stats.cancelled },
             { key: 'EXPIRED', label: 'Hết hạn', count: stats.expired },
             { key: 'FINISHED', label: 'Hoàn thành', count: stats.finished }
           ]}
@@ -456,7 +456,7 @@ export default function AccessRequestReviewPage({ embedded = false, actionsConta
               type="text"
               className="arr-search-input"
               aria-label="Tìm theo tên, mã số người yêu cầu"
-              placeholder="Tìm theo tên, mã số người yêu cầu..."
+              placeholder="Tìm theo tên, mã số..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -532,7 +532,7 @@ export default function AccessRequestReviewPage({ embedded = false, actionsConta
                         {req.status === 'PENDING' && 'Chờ duyệt'}
                         {req.status === 'APPROVED' && 'Đã duyệt'}
                         {req.status === 'REJECTED' && 'Từ chối'}
-                        {req.status === 'CANCELLED' && 'Đã hủy'}
+                        {req.status === 'CANCELLED' && 'Đã huỷ'}
                         {req.status === 'EXPIRED' && 'Hết hạn'}
                         {req.status === 'FINISHED' && 'Hoàn thành'}
                       </span>
@@ -596,13 +596,13 @@ export default function AccessRequestReviewPage({ embedded = false, actionsConta
                                   setStaffCancelReasonError(null);
                                   setActionError(null);
                                 }}
-                                title="Hủy yêu cầu đã duyệt (chưa bắt đầu)"
-                                aria-label="Hủy yêu cầu đã duyệt"
+                                title="Huỷ yêu cầu đã duyệt (chưa bắt đầu)"
+                                aria-label="Huỷ yêu cầu đã duyệt"
                               >
                                 <Ban size={16} />
                               </button>
                             )}
-                            <span title={notStarted ? 'Chưa bắt đầu, dùng Hủy' : undefined}>
+                            <span title={notStarted ? 'Chưa bắt đầu, dùng Huỷ' : undefined}>
                               <button
                                 type="button"
                                 className="arr-btn-icon"
@@ -613,7 +613,7 @@ export default function AccessRequestReviewPage({ embedded = false, actionsConta
                                   setActionError(null);
                                 }}
                                 disabled={notStarted}
-                                aria-label={notStarted ? 'Chưa bắt đầu, dùng Hủy' : 'Chuyển sang Hoàn thành'}
+                                aria-label={notStarted ? 'Chưa bắt đầu, dùng Huỷ' : 'Chuyển sang Hoàn thành'}
                                 title={notStarted ? undefined : 'Chuyển sang Hoàn thành'}
                               >
                                 <CheckCheck size={16} />
@@ -721,7 +721,7 @@ export default function AccessRequestReviewPage({ embedded = false, actionsConta
                 onClick={() => setApproveItem(null)}
                 disabled={actionLoading}
               >
-                Hủy bỏ
+                Huỷ bỏ
               </button>
               <button
                 type="button"
@@ -812,7 +812,7 @@ export default function AccessRequestReviewPage({ embedded = false, actionsConta
                 onClick={() => setFinishItem(null)}
                 disabled={actionLoading}
               >
-                Hủy bỏ
+                Huỷ bỏ
               </button>
               <button
                 type="button"
@@ -839,7 +839,7 @@ export default function AccessRequestReviewPage({ embedded = false, actionsConta
             initialFocus="field"
           >
             <div className="arr-modal__header">
-              <h2 className="arr-modal__title" id="arr-modal-title-staff-cancel">Hủy yêu cầu đã duyệt</h2>
+              <h2 className="arr-modal__title" id="arr-modal-title-staff-cancel">Huỷ yêu cầu đã duyệt</h2>
               <button
                 type="button"
                 className="arr-modal__close"
@@ -859,7 +859,7 @@ export default function AccessRequestReviewPage({ embedded = false, actionsConta
               )}
 
               <p className="arr-confirm-text">
-                Hủy yêu cầu của <strong>{staffCancelItem.requesterName}</strong> tại khu vực <strong>{staffCancelItem.areaName}</strong> trước giờ bắt đầu. Người tạo đơn và các thành viên sẽ nhận thông báo kèm lý do.
+                Huỷ yêu cầu của <strong>{staffCancelItem.requesterName}</strong> tại khu vực <strong>{staffCancelItem.areaName}</strong> trước giờ bắt đầu. Người tạo đơn và các thành viên sẽ nhận thông báo kèm lý do.
               </p>
 
               <div className="arr-info-box">
@@ -870,7 +870,7 @@ export default function AccessRequestReviewPage({ embedded = false, actionsConta
               <ReasonTextarea
                 ref={staffCancelReasonInputRef}
                 id="staff-cancel-reason"
-                label="Lý do hủy"
+                label="Lý do huỷ"
                 placeholder="Ví dụ: Khu vực phải đóng để bảo trì đột xuất..."
                 value={staffCancelReason}
                 onChange={(e) => {
@@ -894,7 +894,7 @@ export default function AccessRequestReviewPage({ embedded = false, actionsConta
                 disabled={actionLoading}
               >
                 <Ban size={16} />
-                <span>{actionLoading ? 'Đang hủy...' : 'Xác nhận hủy'}</span>
+                <span>{actionLoading ? 'Đang huỷ...' : 'Xác nhận huỷ'}</span>
               </button>
             </div>
           </DialogPanel>
@@ -962,7 +962,7 @@ export default function AccessRequestReviewPage({ embedded = false, actionsConta
                 }}
                 disabled={actionLoading}
               >
-                Hủy bỏ
+                Huỷ bỏ
               </button>
               <button
                 type="button"
@@ -1018,23 +1018,23 @@ export default function AccessRequestReviewPage({ embedded = false, actionsConta
                       {detailItem.status === 'PENDING' && 'Chờ phê duyệt'}
                       {detailItem.status === 'APPROVED' && 'Đã phê duyệt'}
                       {detailItem.status === 'REJECTED' && 'Bị từ chối'}
-                      {detailItem.status === 'CANCELLED' && 'Đã hủy'}
+                      {detailItem.status === 'CANCELLED' && 'Đã huỷ'}
                       {detailItem.status === 'EXPIRED' && 'Hết hạn'}
                       {detailItem.status === 'FINISHED' && 'Hoàn thành'}
                     </span>
                     {detailItem.status === 'CANCELLED' && detailItem.cancelSource === 'SYSTEM' && (
                       <div className="arr-cancel-system arr-cancel-system--detail">
-                        Hủy bởi hệ thống: {detailItem.cancelReason}
+                        Huỷ bởi hệ thống: {detailItem.cancelReason}
                       </div>
                     )}
                     {detailItem.status === 'CANCELLED' && detailItem.cancelSource === 'STAFF' && (
                       <div className="arr-cancel-system arr-cancel-system--detail">
-                        Quản lý hủy: {detailItem.cancelReason}
+                        Quản lý huỷ: {detailItem.cancelReason}
                       </div>
                     )}
                     {detailItem.status === 'CANCELLED' && detailItem.cancelSource === 'USER' && detailItem.cancelReason && (
                       <div className="arr-cancel-system arr-cancel-system--detail">
-                        Người yêu cầu tự hủy: {detailItem.cancelReason}
+                        Người yêu cầu tự huỷ: {detailItem.cancelReason}
                       </div>
                     )}
                     {detailItem.status === 'FINISHED' && detailItem.finishReason && (

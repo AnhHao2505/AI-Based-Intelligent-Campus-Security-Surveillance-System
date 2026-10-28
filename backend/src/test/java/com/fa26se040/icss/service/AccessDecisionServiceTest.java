@@ -88,6 +88,9 @@ class AccessDecisionServiceTest {
     private com.fa26se040.icss.repository.AreaEventScheduleRepository areaEventScheduleRepository;
 
     @Mock
+    private com.fa26se040.icss.repository.AreaEventSessionRepository areaEventSessionRepository;
+
+    @Mock
     private com.fa26se040.icss.repository.GuestRepository guestRepository;
 
     @Mock
@@ -799,6 +802,8 @@ class AccessDecisionServiceTest {
         Area highly = area("Phòng Máy Chủ Sự Kiện", AreaLevel.HIGHLY_CONFIDENTIAL);
         highly.setOpenToMembers(true);
         highly.setOpenUntil(at(12));
+        // E-5: OPEN_EVENT theo phiên sự kiện phủ thời điểm vào, không theo cờ trên areas
+        when(areaEventSessionRepository.existsSessionCoveringAt(confidential.getId(), at(10))).thenReturn(true);
 
         AccessDecision inConfidential = accessDecisionService.checkEntry(student.getId(), confidential.getId(), at(10));
         assertTrue(inConfidential.allowed());

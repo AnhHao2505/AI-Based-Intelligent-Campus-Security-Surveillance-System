@@ -36,7 +36,7 @@ const ACTION_TYPES = [
 	// Step 5b (BR-ES-L1): nhóm lý do riêng cho lịch sự kiện
 	{ value: "EVENT_SCHEDULE_CREATE", label: "Đặt lịch sự kiện" },
 	{ value: "EVENT_SCHEDULE_UPDATE", label: "Sửa lịch sự kiện" },
-	{ value: "EVENT_SCHEDULE_CANCEL", label: "Hủy lịch sự kiện" },
+	{ value: "EVENT_SCHEDULE_CANCEL", label: "Huỷ lịch sự kiện" },
 ];
 
 // X-01a: không còn bật / điều chỉnh sự kiện thủ công -> ẩn hai nhóm này khỏi bộ lọc và form thêm mới.
@@ -466,7 +466,7 @@ export default function ReasonCatalogPage() {
 
 					<div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "12px" }}>
 						<Button type="button" variant="secondary" onClick={() => setCreateModalOpen(false)}>
-							Hủy
+							Huỷ
 						</Button>
 						<Button
 							type="submit"
@@ -518,7 +518,7 @@ export default function ReasonCatalogPage() {
 
 					<div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "12px" }}>
 						<Button type="button" variant="secondary" onClick={() => setEditModalOpen(false)}>
-							Hủy
+							Huỷ
 						</Button>
 						<Button type="submit" variant="primary" loading={updating}>
 							Lưu thay đổi
@@ -542,7 +542,7 @@ export default function ReasonCatalogPage() {
 							onClick={() => setDeactivateTarget(null)}
 							disabled={deactivating}
 						>
-							Hủy
+							Huỷ
 						</Button>
 						<Button
 							variant="danger"

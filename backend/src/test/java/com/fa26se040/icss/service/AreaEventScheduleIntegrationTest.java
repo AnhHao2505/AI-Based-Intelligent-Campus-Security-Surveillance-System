@@ -77,6 +77,9 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private org.springframework.transaction.PlatformTransactionManager transactionManager;
+
     private Building testBuilding;
     private Floor testFloor;
 
@@ -1170,6 +1173,249 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         AreaEventModeAuditSnapshot enableSnap = objectMapper.readValue(enableLog.getNewValue(), AreaEventModeAuditSnapshot.class);
         assertEquals("SEMINAR", enableSnap.reasonCode(), "Audit kích hoạt phải có lý do gốc A");
         assertEquals("Hội thảo / seminar", enableSnap.reasonLabel(), "Audit kích hoạt phải có nhãn gốc A");
+    }
+
+    @Test
+    @DisplayName("E-1: FM huỷ lịch khi job kích hoạt đang chờ khoá khu vực -> lịch vẫn CANCELLED, giữ thông tin huỷ, không có phiên, khu không mở")
+    void testE1_CancelWhileActivationWaitsForAreaLock() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now();
+        // Lịch đã tới giờ bắt đầu, job sẽ kích hoạt
+        AreaEventSchedule schedule = eventScheduleRepository.save(AreaEventSchedule.builder()
+                .title("Sự kiện thử nghiệm")
+                .area(internalArea)
+                .startAt(now.minusMinutes(1))
+                .endAt(now.plusHours(2))
+                .status(AreaEventScheduleStatus.SCHEDULED)
+                .reasonCode(REASON_ENABLE)
+                .reasonLabel("Hội thảo lên lịch")
+                .note("Lich bi huy dung luc job kich hoat")
+                .createdBy(fmUser)
+                .createdAt(now.minusHours(1))
+                .build());
+        int sessionCountBefore = sessionRepository.findByAreaId(internalArea.getId()).size();
+        long enableAuditsBefore = countAudits(internalArea.getId().toString(), AuditAction.ENABLE_EVENT_MODE);
+
+        // Luồng FM: huỷ lịch trong transaction chưa commit (đang giữ khoá khu vực), giữ khoá thêm một lúc
+        CountDownLatch cancelHoldsLock = new CountDownLatch(1);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            Future<?> cancel = executor.submit(() -> {
+                org.springframework.transaction.support.TransactionTemplate tx =
+                        new org.springframework.transaction.support.TransactionTemplate(transactionManager);
+                tx.executeWithoutResult(status -> {
+                    areaService.cancelSchedule(internalArea.getId(), schedule.getId(),
+                            new EventScheduleCancelRequest(REASON_DISABLE, "Huy lich trong luc job dang kich hoat"),
+                            fmUser.getEmail());
+                    cancelHoldsLock.countDown();
+                    try {
+                        Thread.sleep(1500);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                });
+            });
+            assertTrue(cancelHoldsLock.await(10, TimeUnit.SECONDS));
+
+            // Luồng job: chạy khi huỷ chưa commit -> chờ khoá khu vực, sau đó phải thấy lịch đã CANCELLED
+            areaService.activateScheduleInTx(schedule.getId(), now);
+            cancel.get(10, TimeUnit.SECONDS);
+        } finally {
+            executor.shutdown();
+        }
+
+        AreaEventSchedule reloaded = eventScheduleRepository.findById(schedule.getId()).orElseThrow();
+        assertEquals(AreaEventScheduleStatus.CANCELLED, reloaded.getStatus());
+        assertNotNull(reloaded.getCancelledAt());
+        assertNotNull(reloaded.getCancelledBy());
+        assertEquals(REASON_DISABLE, reloaded.getCancelReasonCode());
+        assertEquals("Huy lich trong luc job dang kich hoat", reloaded.getCancelNote());
+        assertNull(reloaded.getSession());
+
+        assertEquals(sessionCountBefore, sessionRepository.findByAreaId(internalArea.getId()).size());
+        Area reloadedArea = areaRepository.findById(internalArea.getId()).orElseThrow();
+        assertFalse(Boolean.TRUE.equals(reloadedArea.getOpenToMembers()));
+        assertNull(reloadedArea.getOpenUntil());
+        assertEquals(enableAuditsBefore, countAudits(internalArea.getId().toString(), AuditAction.ENABLE_EVENT_MODE));
+    }
+
+    @Test
+    @DisplayName("E-2: FM A đặt lịch, FM B sửa rồi huỷ -> thông báo GUARD lúc sửa và huỷ ghi tên FM B")
+    void testE2_GuardScheduleNotificationNamesActingManager() {
+        User fmB = saveUser(Role.FACILITY_MANAGER, "fmb", 3);
+        OffsetDateTime start = OffsetDateTime.now().plusDays(1).withNano(0);
+        OffsetDateTime end = start.plusHours(2);
+
+        EventScheduleResponse created = areaService.createSchedule(internalArea.getId(),
+                new EventScheduleRequest("Sự kiện thử nghiệm", start, end, REASON_ENABLE, "Dat lich boi FM A"),
+                fmUser.getEmail());
+        areaService.updateSchedule(internalArea.getId(), created.id(),
+                new EventScheduleRequest("Sự kiện thử nghiệm", start, end.plusHours(1), REASON_EXTEND, "Sua lich boi FM B"),
+                fmB.getEmail());
+        areaService.cancelSchedule(internalArea.getId(), created.id(),
+                new EventScheduleCancelRequest(REASON_DISABLE, "Huy lich boi FM B"),
+                fmB.getEmail());
+
+        List<String> messages = getNotificationsForUser(guardUser.getId()).stream()
+                .filter(n -> n.getType() == NotificationType.EVENT_MODE_SCHEDULED)
+                .map(Notification::getMessage)
+                .filter(m -> m.contains(internalArea.getName()))
+                .toList();
+        assertEquals(3, messages.size(), messages.toString());
+        assertTrue(messages.stream().anyMatch(m -> m.contains(": Đặt lịch") && m.endsWith("bởi " + fmUser.getFullName() + ".")), messages.toString());
+        assertTrue(messages.stream().anyMatch(m -> m.contains(": Điều chỉnh lịch") && m.endsWith("bởi " + fmB.getFullName() + ".")), messages.toString());
+        assertTrue(messages.stream().anyMatch(m -> m.contains(": Huỷ lịch") && m.endsWith("bởi " + fmB.getFullName() + ".")), messages.toString());
+    }
+
+    @Test
+    @DisplayName("E-3: phiên của lịch hết giờ, job chạy 2 lần -> mỗi GUARD đang hoạt động nhận đúng 1 EVENT_MODE_CHANGED 'tự kết thúc'; lịch COMPLETED")
+    void testE3_AutoEndNotifiesGuardsOnce() {
+        User guard2 = saveUser(Role.GUARD, "guard2", 2);
+        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime start = now.minusHours(2);
+        OffsetDateTime plannedEnd = now.minusMinutes(10);
+
+        AreaEventSchedule schedule = eventScheduleRepository.save(AreaEventSchedule.builder()
+                .title("Sự kiện thử nghiệm")
+                .area(internalArea)
+                .startAt(start)
+                .endAt(plannedEnd)
+                .status(AreaEventScheduleStatus.STARTED)
+                .reasonCode(REASON_ENABLE)
+                .reasonLabel("Hội thảo lên lịch")
+                .note("Lich da chay va het gio")
+                .createdBy(fmUser)
+                .createdAt(start.minusHours(1))
+                .build());
+        AreaEventSession session = sessionRepository.save(AreaEventSession.builder()
+                .area(internalArea)
+                .startedAt(start)
+                .plannedEnd(plannedEnd)
+                .actualEnd(null)
+                .startedBy(fmUser)
+                .createdAt(start)
+                .scheduleId(schedule.getId())
+                .build());
+        schedule.setSession(session);
+        eventScheduleRepository.save(schedule);
+        internalArea.setOpenToMembers(true);
+        internalArea.setOpenUntil(plannedEnd);
+        areaRepository.save(internalArea);
+
+        areaService.processExpiredEventSessions(now);
+        areaService.processExpiredEventSessions(now);
+
+        assertEquals(AreaEventScheduleStatus.COMPLETED, eventScheduleRepository.findById(schedule.getId()).orElseThrow().getStatus());
+        String expected = "Khu vực " + internalArea.getName() + ": chế độ sự kiện đã tự kết thúc lúc "
+                + java.time.format.DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy")
+                        .withZone(java.time.ZoneId.of("Asia/Ho_Chi_Minh")).format(plannedEnd) + ".";
+        for (User guard : List.of(guardUser, guard2)) {
+            List<Notification> autoEnd = getNotificationsForUser(guard.getId()).stream()
+                    .filter(n -> n.getType() == NotificationType.EVENT_MODE_CHANGED)
+                    .filter(n -> n.getMessage().contains(internalArea.getName()))
+                    .toList();
+            assertEquals(1, autoEnd.size(), guard.getFullName() + ": " + autoEnd.stream().map(Notification::getMessage).toList());
+            assertEquals(expected, autoEnd.get(0).getMessage());
+        }
+    }
+
+    @Test
+    @DisplayName("E-4: người tạo còn là FM hoạt động -> nhắc lịch / lịch FAILED chỉ gửi người tạo; người tạo bị vô hiệu hoá -> gửi mọi FM đang hoạt động")
+    void testE4_ScheduleReminderAndFailureFallBackToActiveManagers() {
+        User creator = saveUser(Role.FACILITY_MANAGER, "fmcreator", 3);
+        User fm2 = saveUser(Role.FACILITY_MANAGER, "fm2", 3);
+        OffsetDateTime now = OffsetDateTime.now();
+
+        // 1. Người tạo còn hoạt động -> chỉ người tạo
+        areaService.remindScheduleInTx(saveScheduled(creator, now.plusMinutes(20), now.plusHours(2)).getId(), now);
+        areaService.activateScheduleInTx(saveScheduled(creator, now.minusHours(3), now.minusMinutes(10)).getId(), now);
+
+        assertEquals(1, countAreaNotifications(creator, NotificationType.EVENT_MODE_SCHEDULE_STARTING));
+        assertEquals(1, countAreaNotifications(creator, NotificationType.EVENT_MODE_SCHEDULE_FAILED));
+        for (User other : List.of(fm2, fmUser)) {
+            assertEquals(0, countAreaNotifications(other, NotificationType.EVENT_MODE_SCHEDULE_STARTING));
+            assertEquals(0, countAreaNotifications(other, NotificationType.EVENT_MODE_SCHEDULE_FAILED));
+        }
+
+        // 2. Người tạo bị vô hiệu hoá -> mọi FM đang hoạt động
+        creator.setIsActive(false);
+        userRepository.save(creator);
+        notificationRepository.deleteAll();
+
+        areaService.remindScheduleInTx(saveScheduled(creator, now.plusMinutes(25), now.plusHours(3)).getId(), now);
+        areaService.activateScheduleInTx(saveScheduled(creator, now.minusHours(5), now.minusHours(4)).getId(), now);
+
+        for (User active : List.of(fm2, fmUser)) {
+            assertEquals(1, countAreaNotifications(active, NotificationType.EVENT_MODE_SCHEDULE_STARTING));
+            assertEquals(1, countAreaNotifications(active, NotificationType.EVENT_MODE_SCHEDULE_FAILED));
+        }
+        assertEquals(0, countAreaNotifications(creator, NotificationType.EVENT_MODE_SCHEDULE_STARTING));
+        assertEquals(0, countAreaNotifications(creator, NotificationType.EVENT_MODE_SCHEDULE_FAILED));
+    }
+
+    @Test
+    @DisplayName("E-5: sự kiện [S, S+2h): trước S / tại S / S+2h-1' / tại S+2h; FM Dừng ở S+1h -> S+30' vẫn OPEN_EVENT theo phiên đã đóng, S+1h30' thì không")
+    void testE5_EventEntryFollowsSessionStartAndEnd() {
+        // Postgres làm tròn micro giây -> cắt mốc về micro giây để biên khớp giá trị đọc lại
+        OffsetDateTime start = OffsetDateTime.now().minusHours(1).truncatedTo(java.time.temporal.ChronoUnit.MICROS); // "10:00"
+        OffsetDateTime end = start.plusHours(2);                                                                     // "12:00"
+        EventScheduleActivationTestSupport.openViaSchedule(eventScheduleRepository, areaService, internalArea, fmUser,
+                REASON_ENABLE, "Hội thảo lên lịch", start, end);
+
+        assertEventEntry(false, start.minusMinutes(1));
+        assertEventEntry(true, start);
+        assertEventEntry(true, end.minusMinutes(1));
+        assertEventEntry(false, end);
+
+        // FM Dừng lúc "11:00" (thời điểm hiện tại)
+        areaService.updateEventMode(internalArea.getId(),
+                eventReq(internalArea.getId(), EventModeAction.DISABLE, null, REASON_DISABLE, "Dung su kien giua chung"),
+                fmUser.getEmail());
+
+        assertEventEntry(true, start.plusMinutes(30));
+        assertEventEntry(false, start.plusMinutes(90));
+    }
+
+    private void assertEventEntry(boolean expectedOpenEvent, OffsetDateTime at) {
+        AccessDecision d = accessDecisionService.checkEntry(userL1.getId(), internalArea.getId(), at);
+        if (expectedOpenEvent) {
+            assertTrue(d.allowed(), "at " + at + ": " + d.reason());
+            assertEquals(AccessSource.OPEN_EVENT, d.source(), "at " + at);
+        } else {
+            assertFalse(d.allowed(), "at " + at + ": " + d.source() + " / " + d.reason());
+        }
+    }
+
+    private AreaEventSchedule saveScheduled(User createdBy, OffsetDateTime start, OffsetDateTime end) {
+        return eventScheduleRepository.save(AreaEventSchedule.builder()
+                .title("Sự kiện thử nghiệm")
+                .area(internalArea)
+                .startAt(start)
+                .endAt(end)
+                .status(AreaEventScheduleStatus.SCHEDULED)
+                .reasonCode(REASON_ENABLE)
+                .reasonLabel("Hội thảo lên lịch")
+                .note("Lich kiem tra nguoi nhan thong bao FM")
+                .createdBy(createdBy)
+                .createdAt(OffsetDateTime.now().minusDays(1))
+                .build());
+    }
+
+    private long countAreaNotifications(User recipient, NotificationType type) {
+        return getNotificationsForUser(recipient.getId()).stream()
+                .filter(n -> n.getType() == type && internalArea.getId().equals(n.getReferenceId()))
+                .count();
+    }
+
+    private User saveUser(Role role, String prefix, int accessLevel) {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        return userRepository.save(User.builder()
+                .email(prefix + ".sched." + suffix + "@fpt.edu.vn")
+                .userCode(prefix.toUpperCase() + "_SC_" + suffix)
+                .fullName(prefix + " Test " + suffix)
+                .role(role)
+                .accessLevel(accessLevel)
+                .isActive(true)
+                .build());
     }
 
     /** Step 6: vô hiệu hoá cần lý do + version hiện tại của khu vực. */

@@ -342,7 +342,7 @@ export default function AuditLogPage() {
 				STARTED: "Đã bắt đầu",
 				COMPLETED: "Đã kết thúc",
 				ENDED_EARLY: "Kết thúc sớm",
-				CANCELLED: "Đã hủy",
+				CANCELLED: "Đã huỷ",
 				FAILED: "Thất bại",
 			};
 			const oldStatus = oldValue?.status;

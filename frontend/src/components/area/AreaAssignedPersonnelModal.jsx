@@ -452,7 +452,7 @@ export default function AreaAssignedPersonnelModal({
 									onClick={() => setShowAddForm(false)}
 									disabled={submittingAdd}
 								>
-									Hủy
+									Huỷ
 								</Button>
 								<Button
 									type="submit"
@@ -641,7 +641,7 @@ export default function AreaAssignedPersonnelModal({
 								onClick={() => setRevokeItem(null)}
 								disabled={submittingRevoke}
 							>
-								Hủy
+								Huỷ
 							</Button>
 							<Button
 								variant="danger"
