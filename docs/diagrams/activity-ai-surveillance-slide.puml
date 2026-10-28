@@ -1,42 +1,35 @@
-@startuml AD-04_RealTime_AI_Surveillance_Slide
-title <b>AD-04: Real-time AI-powered Surveillance Activity Diagram (WF-4)</b>\n<size:14>Campus Security Surveillance System (FA26SE040) - FPT University</size>
-
-skinparam dpi 300
-skinparam defaultFontName Arial
-skinparam defaultFontSize 14
-skinparam defaultFontStyle plain
-skinparam roundCorner 8
-skinparam shadowing false
-
-skinparam titleFontSize 18
-skinparam titleFontColor #1E293B
+@startuml AD-04_RealTime_AI_Surveillance
+title AD-04: Real-time AI-powered Surveillance Activity Diagram (WF-4)\nCampus Security Surveillance System (FA26SE040)
 
 skinparam conditionStyle inside
+skinparam roundCorner 8
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+skinparam defaultFontStyle plain
+
+skinparam titleFontSize 16
+skinparam titleFontColor #1E293B
+
 skinparam ActivityDiamondBackgroundColor #FEF08A
 skinparam ActivityDiamondBorderColor #CA8A04
-skinparam ActivityDiamondFontSize 14
+skinparam ActivityDiamondFontSize 13
 skinparam ActivityDiamondFontStyle bold
 
 skinparam ActivityBackgroundColor #FFFFFF
 skinparam ActivityBorderColor #334155
 skinparam ActivityBorderThickness 1.5
-skinparam ActivityFontSize 14
+skinparam ActivityFontSize 13
 
 skinparam ArrowColor #1E293B
-skinparam ArrowFontSize 13
+skinparam ArrowFontSize 12
 skinparam ArrowFontStyle bold
 skinparam ArrowThickness 1.5
 
-skinparam PartitionBorderColor #475569
+skinparam PartitionBorderColor #64748B
 skinparam PartitionBorderThickness 1.5
-skinparam PartitionFontSize 16
+skinparam PartitionFontSize 14
 skinparam PartitionFontStyle bold
-skinparam PartitionBackgroundColor #FFFFFF
-
-skinparam NoteBackgroundColor #EFF6FF
-skinparam NoteBorderColor #2563EB
-skinparam NoteFontSize 13
-skinparam NoteBorderThickness 1.2
 
 |#E0F2FE|Camera & Ingestion|
 start
@@ -47,7 +40,7 @@ start
 :Grab fresh frame & preprocess\n(Letterbox 640x640, BGR to RGB);
 :Detect humans via YOLO11n\n& Track via ByteTrack (Track ID);
 
-if (Person's bottom-center inside ROI Polygon?\n(Ray-Casting Point-in-Polygon)) then (yes)
+if (Person inside ROI Polygon?\n(Ray-Casting Algorithm)) then (yes)
   if (Track ID verified in cache?) then (yes)
     :Reuse cached authorization status;
   else (no: New Subject)
@@ -58,16 +51,7 @@ if (Person's bottom-center inside ROI Polygon?\n(Ray-Casting Point-in-Polygon)) 
       if (Similarity >= Threshold (0.65)?) then (yes)
         :Identify User / Guest Code;
         |#DCFCE7|System Backend Core & Storage|
-        :Evaluate Waterfall Authorization Rules\nvia AccessDecisionService;
-        note right
-          <b>Waterfall Rules:</b>
-          1. Check Area Level (PUBLIC / RESTRICTED)
-          2. Check Assigned Personnel
-          3. Check Access Level vs Area Level
-          4. Check Active Area Event Schedule
-          5. Check Incident Response (Guard on duty)
-          6. Check Active Access Request / Guest Visit
-        end note
+        :Evaluate Waterfall Authorization Rules\nvia AccessDecisionService\n**(1. Area Level  2. Assigned Personnel)**\n**(3. Access Level  4. Event Schedule)**\n**(5. Incident Guard  6. Access Request)**;
       else (no: Unmatched)
         |#FEF3C7|AI Surveillance Engine (ai-service)|
         :Classify as UNKNOWN_PERSON;
@@ -84,18 +68,18 @@ if (Person's bottom-center inside ROI Polygon?\n(Ray-Casting Point-in-Polygon)) 
 
   |#FEF3C7|AI Surveillance Engine (ai-service)|
   if (Is entry authorized?) then (yes)
-    :Display <b>Green Bounding Box</b>\n(Authorized Access);
+    :Display **Green Bounding Box**\n(Authorized Access);
     |#DCFCE7|System Backend Core & Storage|
     :Write CameraAccessLog (Result: ALLOWED);
     stop
   else (no: Violation)
     |#FEF3C7|AI Surveillance Engine (ai-service)|
-    :Display <b>Red Bounding Box</b> (Violation);
+    :Display **Red Bounding Box** (Violation);
     :Classify Incident Type\n(UNAUTHORIZED_ACCESS / INTRUSION / UNKNOWN_PERSON);
 
     ' ===== PARALLEL FORK 1: AI EVIDENCE =====
     fork
-      :Trigger Incident Video Recording (.mp4);
+      :Trigger Incident Video\nRecording (.mp4);
     fork again
       :Capture & upload evidence image\nto MinIO (SSE-S3 AES-256);
       :Publish alert event to Apache Kafka\n(Topic: security-incidents);
@@ -104,15 +88,15 @@ if (Person's bottom-center inside ROI Polygon?\n(Ray-Casting Point-in-Polygon)) 
     |#DCFCE7|System Backend Core & Storage|
     :Kafka Consumer ingests event\n(Idempotency Key Check);
 
-    :[<b>Object State</b>]\nSecurityIncident: <b>NEW</b>; <<#FEF08A>>
+    #LightYellow:[**Object State**]\nSecurityIncident: **NEW**;
 
     ' ===== PARALLEL FORK 2: BACKEND DISPATCH =====
     fork
-      :Write CameraAccessLog (Result: DENIED);
+      :Write CameraAccessLog\n(Result: DENIED);
     fork again
-      :Create IncidentEscalation timer (F-07);
+      :Create IncidentEscalation\ntimer record (F-07);
     fork again
-      :Dispatch real-time WebSocket alerts:\n• Guard: /topic/guards/{id}/alerts\n• Building: /topic/buildings/{code}/alerts\n• Global: /topic/security-alerts;
+      :Dispatch real-time alerts\nvia WebSocket STOMP;
     end fork
 
     stop
