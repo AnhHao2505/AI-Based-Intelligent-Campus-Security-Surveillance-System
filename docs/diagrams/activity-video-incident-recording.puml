@@ -1,0 +1,111 @@
+@startuml activity-video-incident-recording
+title AD-WF — 24/7 Video & Incident Evidence Recording
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 14
+skinparam defaultTextAlignment center
+
+skinparam activity {
+  BackgroundColor #FFFFFF
+  BorderColor #000000
+  BorderThickness 1.5
+  FontColor #000000
+  FontSize 14
+}
+
+skinparam activityDiamond {
+  BackgroundColor #FFFDF0
+  BorderColor #000000
+  BorderThickness 1.5
+  FontColor #000000
+  FontSize 13
+}
+
+skinparam note {
+  BackgroundColor #FFFFCC
+  BorderColor #888888
+  FontColor #000000
+  FontSize 12
+}
+
+skinparam arrow {
+  Color #000000
+  FontColor #000000
+  FontSize 13
+}
+
+skinparam swimlane {
+  BorderColor #000000
+  BorderThickness 1.5
+  TitleFontColor #000000
+  TitleFontSize 16
+  TitleFontStyle bold
+}
+
+|AI Surveillance Engine|
+|Storage Subsystem|
+|System (Backend)|
+|Security Guard / Reviewer|
+
+|AI Surveillance Engine|
+start
+:Receive 24/7 Camera Stream;
+
+fork
+  |Storage Subsystem|
+  :Open New 15-Minute Video Segment;
+  repeat
+    :Record Camera Frames 24/7;
+  repeat while (15 Minutes Elapsed?) is (No)
+  ->Yes;
+  :Save Segment to /recording/;
+  :Start Next 15-Minute Segment;
+
+fork again
+  |AI Surveillance Engine|
+  repeat
+    :Monitor & Detect Security Breaches;
+  repeat while (Incident Detected?) is (No)
+  ->Yes;
+
+  |System (Backend)|
+  :Register Incident Alert;
+  
+  fork
+    |AI Surveillance Engine|
+    :Start Incident Video Recording;
+    |Storage Subsystem|
+    :Record Evidence Video\n(Tagged from detection moment);
+    note right
+      Safety Rule:
+      Auto-stops after 5 minutes
+      if Guard does not confirm.
+    end note
+  fork again
+    |Security Guard / Reviewer|
+    :Receive Real-Time Alert & Alarm;
+    :Check Live Camera Stream;
+    :Click "Xác nhận đã xem" (Acknowledge);
+  end fork
+
+  |System (Backend)|
+  :Trigger Stop Incident Recording;
+  |AI Surveillance Engine|
+  :Stop Incident Recorder;
+  |Storage Subsystem|
+  :Save Evidence Clip to /evidence/\n(Labeled as SECURITY_EVENT);
+end fork
+
+|Security Guard / Reviewer|
+:Open Video Storage Page;
+|System (Backend)|
+:Load Continuous & Incident Videos;
+|Storage Subsystem|
+:Query Video Files from Disk;
+|System (Backend)|
+:Return Video List with Metadata;
+|Security Guard / Reviewer|
+:Filter by Camera, Date, or Incident;
+:Watch Video Playback or Download;
+stop
+@enduml
