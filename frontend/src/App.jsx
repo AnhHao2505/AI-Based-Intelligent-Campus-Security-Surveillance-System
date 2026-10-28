@@ -239,11 +239,11 @@ function App() {
 								element={<Navigate to="/cameras" replace />}
 							/>
 
-							{/* Video Recordings - Admin, Facility Manager and Guard */}
+							{/* Video Recordings - Admin and Guard */}
 							<Route
 								path="/recordings"
 								element={
-									<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.FACILITY_MANAGER, ROLES.GUARD]}>
+									<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.GUARD]}>
 										<RecordingPage />
 									</ProtectedRoute>
 								}

@@ -354,16 +354,18 @@ export default function Sidebar({ user, onLogout }) {
 										<span>Lịch sử ra vào</span>
 									</NavLink>
 
-									<NavLink
-										to="/recordings"
-										className={({ isActive }) =>
-											`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
-										}
-										title={sidebarCollapsed ? "Kho lưu trữ ghi hình" : undefined}
-									>
-										<Film size={18} />
-										<span>Kho lưu trữ ghi hình</span>
-									</NavLink>
+									{isAdmin && (
+										<NavLink
+											to="/recordings"
+											className={({ isActive }) =>
+												`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
+											}
+											title={sidebarCollapsed ? "Kho lưu trữ ghi hình" : undefined}
+										>
+											<Film size={18} />
+											<span>Kho lưu trữ ghi hình</span>
+										</NavLink>
+									)}
 
 									{/* B-04: ADMIN không làm host khách — chỉ FM thấy "Khách của tôi" trong khối này */}
 									{isFacilityManager && (
