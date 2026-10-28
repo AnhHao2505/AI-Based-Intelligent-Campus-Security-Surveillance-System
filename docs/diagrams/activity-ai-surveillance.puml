@@ -1,0 +1,100 @@
+@startuml AD-04_RealTime_AI_Surveillance
+title AD-04: Real-time AI-powered Surveillance Activity Diagram (WF-4)\nCampus Security Surveillance System (FA26SE040)
+
+skinparam conditionStyle inside
+skinparam ActivityDiamondBackgroundColor #FFF2CC
+skinparam ActivityDiamondBorderColor #D6B656
+skinparam ActivityBackgroundColor #F8F9FA
+skinparam ActivityBorderColor #4A5568
+skinparam PartitionBorderColor #4A5568
+skinparam PartitionBackgroundColor #FFFFFF
+skinparam NoteBackgroundColor #EBF8FF
+skinparam NoteBorderColor #3182CE
+
+|#E3F2FD|Camera & Ingestion|
+start
+:Capture RTSP live video stream via MediaMTX;
+:Deliver frame to Zero-Lag Buffer (Buffer Size = 1);
+
+|#FFF3E0|AI Surveillance Engine (ai-service)|
+:Grab fresh frame & preprocess\n(Letterbox Resize 640x640, BGR to RGB);
+:Detect humans via YOLO11n\n& Track continuously via ByteTrack (Track ID);
+
+if (Person's bottom-center inside ROI Polygon?\n(Ray-Casting Algorithm)) then (yes)
+  if (Track ID already verified in cache?) then (yes)
+    :Reuse cached authorization status;
+  else (no: New subject / Uncached)
+    :Crop upper-body & detect face/landmarks\nvia OpenCV YuNet ONNX;
+    if (Face detected and quality sufficient?) then (yes)
+      :Extract 512-D L2-Normalized Embedding\nvia ArcFace ResNet-50 ONNX;
+      :Cosine Similarity Search against\nIn-Memory Vector RAM Cache;
+      if (Similarity >= Threshold (0.65)?) then (yes)
+        :Identify User / Guest Code;
+        |#E8F5E9|System Backend Core & Storage|
+        :Evaluate Waterfall Authorization Rules\nvia AccessDecisionService;
+        note right
+          1. Check Area Level (PUBLIC / RESTRICTED)
+          2. Check Assigned Personnel
+          3. Check Access Level vs Area Level
+          4. Check Active Area Event Schedule
+          5. Check Incident Response (Guard on duty)
+          6. Check Active Access Request / Guest Visit
+        end note
+      else (no: Unmatched)
+        |#FFF3E0|AI Surveillance Engine (ai-service)|
+        :Classify as UNKNOWN_PERSON;
+        :Check Campus Zone & Time Policy;
+      endif
+    else (no / timeout > 1.5s)
+      |#FFF3E0|AI Surveillance Engine (ai-service)|
+      :Classify as UNKNOWN_PERSON;
+      :Check Campus Zone & Time Policy;
+    endif
+    |#FFF3E0|AI Surveillance Engine (ai-service)|
+    :Cache identity & authorization result for this Track ID;
+  endif
+
+  |#FFF3E0|AI Surveillance Engine (ai-service)|
+  if (Is entry authorized?) then (yes)
+    :Display green bounding box (Authorized Access);
+    |#E8F5E9|System Backend Core & Storage|
+    :Write CameraAccessLog (Result: ALLOWED);
+    stop
+  else (no: Violation / Unauthorized)
+    |#FFF3E0|AI Surveillance Engine (ai-service)|
+    :Display red bounding box (Security Violation);
+    :Classify Incident Violation Type\n(UNAUTHORIZED_ACCESS / INTRUSION / UNKNOWN_PERSON);
+
+    ' ===== PARALLELISM 1: AI PARALLEL TASKS (FORK) =====
+    fork
+      :Trigger Incident Stream Recording (.mp4);
+    fork again
+      :Capture & upload high-res evidence snapshot\nto MinIO (SSE-S3 AES-256);
+      :Publish alert event to Apache Kafka\n(Topic: security-incidents);
+    end fork
+
+    |#E8F5E9|System Backend Core & Storage|
+    :Kafka Consumer ingests event\n(Idempotency Key Check);
+
+    ' ===== CORE ENTITY LIFECYCLE STATE: NEW =====
+    :[<b>Object State</b>]\nSecurityIncident: <b>NEW</b>; <<#LightYellow>>
+
+    ' ===== PARALLELISM 2: SYSTEM PARALLEL DISPATCH (FORK 3 NHÁNH) =====
+    fork
+      :Write CameraAccessLog (Result: DENIED);
+    fork again
+      :Create IncidentEscalation record;
+    fork again
+      :Dispatch real-time WebSocket alerts:\n• Targeted: /topic/guards/{id}/alerts\n• Building: /topic/buildings/{code}/alerts\n• Global: /topic/security-alerts;
+    end fork
+
+    stop
+  endif
+
+else (no)
+  |#FFF3E0|AI Surveillance Engine (ai-service)|
+  :Update ByteTrack trajectory in RAM\n(Outside ROI / Normal state);
+  detach
+endif
+
+@enduml
