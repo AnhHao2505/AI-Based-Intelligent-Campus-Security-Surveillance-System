@@ -1,0 +1,104 @@
+@startuml activity_workflow_2
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI", Arial, sans-serif
+skinparam defaultFontSize 11
+skinparam wrapWidth 160
+skinparam maxMessageSize 100
+skinparam conditionStyle diamond
+skinparam roundCorner 8
+skinparam shadowing false
+skinparam swimlaneWidth 135
+
+skinparam ActivityBackgroundColor #F8FAFC
+skinparam ActivityBorderColor #475569
+skinparam ActivityBorderThickness 1.2
+skinparam ArrowColor #334155
+skinparam ArrowThickness 1.1
+
+skinparam NoteBackgroundColor #FEF9C3
+skinparam NoteBorderColor #CA8A04
+skinparam NoteFontSize 10
+
+title **WORKFLOW 2: ZONE COMMISSIONING & CAMERA DEPLOYMENT**
+
+|#E0F2FE|Quản trị viên (Admin)|
+|#F0FDF4|Backend (Spring Boot)|
+|#FEF3C7|MediaMTX / Camera|
+|#EDE9FE|Bảo vệ (Guard Web)|
+
+|Quản trị viên (Admin)|
+start
+:Tạo Camera mới và\ngán vào Khu vực;
+
+|Backend (Spring Boot)|
+if (Khu vực active?) then (Không)
+  :Báo lỗi 400/404;
+  stop
+else (Hợp lệ)
+  :Lưu Camera vào DB\n(Status: ACTIVE / DECOMMISSIONED);
+endif
+
+|Quản trị viên (Admin)|
+:Nhập thông số RTSP\nvà bấm **"Test Connection"**;
+
+|Backend (Spring Boot)|
+:Mở Socket TCP gửi\nlệnh **RTSP OPTIONS**;
+
+|MediaMTX / Camera|
+:Phản hồi tín hiệu RTSP;
+
+|Backend (Spring Boot)|
+if (Kết nối thành công?) then (Thành công)
+  :Ghi nhận Reachable = TRUE;
+  |Quản trị viên (Admin)|
+  :Lưu cấu hình Stream RTSP;
+else (Lỗi mạng / Timeout)
+  |Backend (Spring Boot)|
+  :Trả về Reachable = FALSE\n(ERR_CONN_TIMEOUT/REFUSED);
+  |Quản trị viên (Admin)|
+  :Hiện cảnh báo lỗi kết nối;
+  stop
+endif
+
+:Bật Live Cam và bấm\n**"Capture Snapshot"**;
+
+|MediaMTX / Camera|
+:Cung cấp khung hình trực tiếp\ntừ camera IP;
+
+|Quản trị viên (Admin)|
+:Vẽ đa giác ROI (>= 3 đỉnh)\nvà bấm **"Lưu cấu hình ROI"**;
+
+|Backend (Spring Boot)|
+if (Đa giác hợp lệ?) then (Sai chuẩn)
+  :Báo lỗi 400 Bad Request;
+  stop
+else (Hợp lệ)
+  fork
+    :Tải Snapshot lên MinIO;
+    :Lưu ROI vào DB cameras;
+  fork again
+    :Đồng bộ ROI sang AI Service;
+  end fork
+endif
+
+|Quản trị viên (Admin)|
+:Bấm **"Start Stream"**\nđể kích hoạt giám sát;
+
+|Backend (Spring Boot)|
+if (Camera DECOMMISSIONED?) then (Có)
+  :Chặn thao tác;
+  stop
+else (ACTIVE)
+  fork
+    :Bật AI Stream Worker;\n:Set operationalStatus = ONLINE;\n:Ghi log CameraHealthLog;
+  fork again
+    |MediaMTX / Camera|
+    :Đăng ký path vào MediaMTX;\n:Mở cổng WebRTC WHEP;
+  end fork
+endif
+
+|Bảo vệ (Guard Web)|
+:Mở Live Monitor Grid;\n:Màn hình camera hiển thị thành công;
+stop
+
+@enduml

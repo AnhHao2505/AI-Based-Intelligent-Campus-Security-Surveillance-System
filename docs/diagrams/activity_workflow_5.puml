@@ -1,0 +1,61 @@
+@startuml activity_workflow_5
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI", Arial, sans-serif
+skinparam defaultFontSize 12
+skinparam wrapWidth 180
+skinparam maxMessageSize 100
+skinparam conditionStyle diamond
+skinparam roundCorner 8
+skinparam shadowing false
+skinparam swimlaneWidth 145
+
+skinparam ActivityBackgroundColor #F8FAFC
+skinparam ActivityBorderColor #334155
+skinparam ActivityBorderThickness 1.4
+skinparam ArrowColor #1E293B
+skinparam ArrowThickness 1.3
+
+title **WORKFLOW 5: INCIDENT ALERT HANDLING & DISPATCH**
+
+|#FCE7F3|AI Service & Kafka|
+|#F0FDF4|Backend (Spring Boot)|
+|#E0F2FE|Bảo vệ A (Mobile & Livestream)|
+|#FEE2E2|Bảo vệ B (Mobile App)|
+
+|AI Service & Kafka|
+start
+:Phát hiện vi phạm qua Camera IP\n(Lưu ảnh evidence MinIO, gửi alert sang Kafka);
+
+|Backend (Spring Boot)|
+:Consumer nhận message từ\ntopic **security-incidents**;
+:Tạo SecurityIncident (status = NEW);\n:Bắt đầu ghi hình video sự cố (.mp4);
+:Dispatch WebSocket tới Bảo vệ trực ca\n(/topic/guards/{id}/alerts);
+
+split
+  |Bảo vệ A (Mobile & Livestream)|
+  -[#0066cc]-> **[KỊCH BẢN CHÍNH: DS-05a]**;
+  :Màn hình livestream chớp viền đỏ & hú còi;\n:Điện thoại nhận chuông cảnh báo khẩn cấp;
+  :Bấm **"Tiếp nhận (Claim)"**;
+
+  |Backend (Spring Boot)|
+  :Cập nhật **status = CLAIMED**;\n:Lưu DB (version tăng từ 0 lên 1);\n:Broadcast /topic/incidents/updates;
+
+  |Bảo vệ A (Mobile & Livestream)|
+  :Màn hình livestream hiện "Đang xử lý";\n:Đến hiện trường kiểm tra đối tượng;\n:Mở form Resolve, chọn Outcome & phân loại;\n:Bấm **"Hoàn tất xử lý"**;
+
+  |Backend (Spring Boot)|
+  :Cập nhật **RESOLVED_VERIFIED**;\n:Lưu DB & chốt video bằng chứng;\n:Broadcast đóng sự cố;
+
+  |Bảo vệ A (Mobile & Livestream)|
+  :Màn hình livestream gỡ viền đỏ & tắt còi;\n:Sự cố hoàn tất và lưu trữ lịch sử;
+  stop
+
+split again
+  |Bảo vệ B (Mobile App)|
+  -[#cc0000]-> **[NGOẠI LỆ: DS-05b]**;
+  :Điện thoại nhận chuông cảnh báo;\n:Bấm **"Tiếp nhận (Claim)"** đồng thời;
+  :Backend từ chối với lỗi **409 CONFLICT**:\n*"Sự việc vừa được tiếp nhận bởi Guard A"*;\n:App tự động cập nhật UI đã có người nhận;\n:Dừng xử lý, tránh trùng lặp hiện trường;
+  stop
+
+end split
+@enduml
