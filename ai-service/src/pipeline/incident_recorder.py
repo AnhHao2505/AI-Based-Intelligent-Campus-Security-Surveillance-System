@@ -1,17 +1,5 @@
 import os
 import sys
-import cv2
-import time
-import queue
-import logging
-import threading
-import numpy as np
-from datetime import datetime
-from typing import Optional, Dict, Any, List, Callable
-
-from ..config import settings
-
-logger = logging.getLogger(__name__)
 
 # Đảm bảo Windows tìm được thư viện OpenH264 để mã hóa chuẩn AVC1/H.264
 _current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -33,6 +21,19 @@ for p in DLL_SEARCH_PATHS:
                 pass
         if p not in os.environ.get("PATH", ""):
             os.environ["PATH"] = p + os.pathsep + os.environ.get("PATH", "")
+
+import cv2
+import time
+import queue
+import logging
+import threading
+import numpy as np
+from datetime import datetime
+from typing import Optional, Dict, Any, List, Callable
+
+from ..config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class IncidentRecorder:

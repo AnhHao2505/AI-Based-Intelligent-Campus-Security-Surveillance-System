@@ -152,9 +152,14 @@ class CameraStreamWorker:
                 fail_count += 1
                 time.sleep(0.3)
                 if fail_count >= 10:
-                    logger.warning(f"RTSP stream [{self.camera_code}] gián đoạn, đang kết nối lại VideoCapture...")
+                    logger.warning(
+                        f"⚠️ [StreamWorker] Camera [{self.camera_code}] chưa có luồng từ MediaMTX ({self.rtsp_url}). "
+                        f"Kiểm tra xem camera/điện thoại phát RTSP đã bật và đúng địa chỉ IP chưa. Đang thử kết nối lại sau 3s..."
+                    )
                     cap.release()
-                    time.sleep(1.0)
+                    time.sleep(3.0)
+                    if not self.is_running:
+                        break
                     cap = cv2.VideoCapture(self.rtsp_url, cv2.CAP_FFMPEG)
                     cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
                     fail_count = 0

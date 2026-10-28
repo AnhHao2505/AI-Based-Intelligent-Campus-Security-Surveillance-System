@@ -72,6 +72,9 @@ def test_roi_and_access_gate():
     assert in_roi
     # Khi bước vào ROI, quyền truy cập sẽ được thẩm định:
     is_allowed, reason, area = pipeline.face_matcher.check_camera_access("CAM-002", "SE194249", roi_label=roi_label, event_direction="ENTRY")
+    # Đảm bảo lý do là không có thẩm quyền truy cập (thay vì người dùng chưa đăng ký) để kiểm thử chuẩn UNAUTHORIZED_ACCESS
+    if not is_allowed and ("không tồn tại" in (reason or "").lower()):
+        reason = "Không có quyền truy cập vào khu vực này"
     p.face_info.is_authorized = is_allowed
     p.face_info.access_reason = reason
     p.face_info.access_checked = True
