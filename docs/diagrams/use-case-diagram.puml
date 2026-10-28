@@ -2,20 +2,19 @@
 ' Title: UC-01 Use case diagram of ICSSS (one diagram for the whole system)
 ' Source: frontend/src/App.jsx (routes and roles), backend controllers (@PreAuthorize),
 '         mobile/lib/features (Security Officer app), ai-service (check-entry, Kafka alerts, runtime config)
-' Presentation layout: use-case-diagram.svg (generated, same content). Decisions 2026-10-26/27: AI Surveillance Engine is an external actor; no time actor; Google/E-mail not drawn;
-'         abstract actor User; only implemented functions; roles as shown in the user interface.
-left to right direction
-skinparam packageStyle rectangle
+' Presentation version: gen_uc.py -> use-case-diagram.svg / .png (same content, actor-centred layout;
+'   AI - UC-05 added 28/10: 2 unavoidable crossings, 0 lines through other use cases). This .puml is the text source of truth.
+' Decisions 2026-10-26/27: AI Surveillance Engine is an external actor; no time actor; Google/E-mail not drawn;
+'   abstract actor User; only implemented functions; roles as shown in the user interface;
+'   layout grouped by actor (27/10) - functional grouping is kept in the SRS UC mapping table, not as packages.
+' Layout hint: Administrator top, Facility Manager left, Security Officer and AI right, Authorized User bottom.
+top to bottom direction
 skinparam shadowing false
 skinparam defaultFontName Arial
 skinparam defaultFontSize 13
 skinparam usecase {
   BackgroundColor #FFFFFF
   BorderColor #1F2937
-}
-skinparam package {
-  BorderColor #64748B
-  FontColor #334155
 }
 skinparam actorStyle awesome
 skinparam ArrowColor #475569
@@ -28,76 +27,74 @@ actor "Authorized User" as AU
 actor "Security Officer" as SO
 actor "AI Surveillance\nEngine" as AI <<system>>
 
-AD -up-|> U
-FM -up-|> U
-AU -up-|> U
-SO -up-|> U
+AD -|> U
+FM -|> U
+AU -|> U
+SO -|> U
 
 rectangle "ICSSS — Intelligent Campus Security Surveillance System" {
 
-  package "Authentication & Notification" {
-    usecase "UC-01 Log In" as UC01
-    usecase "UC-02 Reset Password" as UC02
-    usecase "UC-03 View Notifications" as UC03
-  }
+  ' --- User (all roles)
+  usecase "UC-01 Log In" as UC01
+  usecase "UC-02 Reset Password" as UC02
+  usecase "UC-03 View Notifications" as UC03
 
-  package "Administration" {
-    usecase "UC-04 Manage User Accounts" as UC04
-    usecase "UC-05 Register Face Data" as UC05
-    usecase "UC-06 Configure System Parameters" as UC06
-    usecase "UC-07 Manage Reason Catalog" as UC07
-    usecase "UC-08 View Audit Log" as UC08
-  }
+  ' --- Administrator only
+  usecase "UC-04 Manage User Accounts" as UC04
+  usecase "UC-05 Register Face Data" as UC05
+  usecase "UC-06 Configure System Parameters" as UC06
+  usecase "UC-07 Manage Reason Catalog" as UC07
+  usecase "UC-09 Manage Areas" as UC09
+  usecase "UC-10 Manage Cameras" as UC10
+  usecase "UC-24 Attach Guest Photo" as UC24
 
-  package "Area & Camera" {
-    usecase "UC-09 Manage Areas" as UC09
-    usecase "UC-10 Manage Cameras" as UC10
-  }
+  ' --- Shared by Administrator and Facility Manager
+  usecase "UC-08 View Audit Log" as UC08
+  usecase "UC-15 View Event Schedules" as UC15
+  usecase "UC-16 Search Access History" as UC16
+  usecase "UC-32 View Security Dashboard" as UC32
 
-  package "Access Control" {
-    usecase "UC-12 Change User Access Level" as UC12
-    usecase "UC-13 Manage Assigned Personnel" as UC13
-    usecase "UC-14 Manage Event Schedules" as UC14
-    usecase "UC-15 View Event Schedules" as UC15
-    usecase "UC-16 Search Access History" as UC16
-    usecase "UC-17 View Personal Access History" as UC17
-  }
+  ' --- Shared by Administrator, Facility Manager and Security Officer
+  usecase "UC-31 View Recorded Video" as UC31
 
-  package "Access Request & Guest Visit" {
-    usecase "UC-18 Request Area Access" as UC18
-    usecase "UC-19 Cancel Access Request" as UC19
-    usecase "UC-20 Review Access Request" as UC20
-    usecase "UC-21 Finish or Cancel\nApproved Request" as UC21
-    usecase "UC-22 Invite Guests" as UC22
-    usecase "UC-23 Review Guest Visit" as UC23
-    usecase "UC-24 Attach Guest Photo" as UC24
-  }
+  ' --- Shared by Administrator and Security Officer
+  usecase "UC-11 View Campus Map" as UC11
 
-  package "Monitoring & Incident" {
-    usecase "UC-11 View Campus Map" as UC11
-    usecase "UC-25 Monitor Live Cameras" as UC25
-    usecase "UC-26 Receive Security Alert" as UC26
-    usecase "UC-27 Acknowledge\nIncident Alert" as UC27
-    usecase "UC-28 Claim Incident" as UC28
-    usecase "UC-29 Resolve Incident" as UC29
-    usecase "UC-30 View Incident\nLocation on Map" as UC30
-    usecase "UC-31 View Recorded Video" as UC31
-    usecase "UC-32 View Security Dashboard" as UC32
-  }
+  ' --- Facility Manager only
+  usecase "UC-12 Change User Access Level" as UC12
+  usecase "UC-13 Manage Assigned Personnel" as UC13
+  usecase "UC-14 Manage Event Schedules" as UC14
+  usecase "UC-20 Review Access Request" as UC20
+  usecase "UC-21 Finish or Cancel\nApproved Request" as UC21
+  usecase "UC-23 Review Guest Visit" as UC23
+  usecase "UC-33 Manage Guard Teams" as UC33
+  usecase "UC-34 Plan Guard Shifts" as UC34
+  usecase "UC-35 Review Shift Request" as UC35
 
-  package "Guard Operations" {
-    usecase "UC-33 Manage Guard Teams" as UC33
-    usecase "UC-34 Plan Guard Shifts" as UC34
-    usecase "UC-35 Review Shift Request" as UC35
-    usecase "UC-36 Check In and Out of Shift" as UC36
-    usecase "UC-37 Request Shift Swap or Leave" as UC37
-  }
+  ' --- Shared by Facility Manager and Security Officer
+  usecase "UC-26 Receive Security Alert" as UC26
 
-  package "AI Integration" {
-    usecase "UC-38 Check Entry Permission" as UC38
-    usecase "UC-39 Report Security Incident" as UC39
-    usecase "UC-40 Load AI Runtime\nConfiguration" as UC40
-  }
+  ' --- Shared by Facility Manager and Authorized User
+  usecase "UC-22 Invite Guests" as UC22
+
+  ' --- Authorized User only
+  usecase "UC-17 View Personal Access History" as UC17
+  usecase "UC-18 Request Area Access" as UC18
+  usecase "UC-19 Cancel Access Request" as UC19
+
+  ' --- Security Officer only
+  usecase "UC-25 Monitor Live Cameras" as UC25
+  usecase "UC-27 Acknowledge\nIncident Alert" as UC27
+  usecase "UC-28 Claim Incident" as UC28
+  usecase "UC-29 Resolve Incident" as UC29
+  usecase "UC-30 View Incident\nLocation on Map" as UC30
+  usecase "UC-36 Check In and Out of Shift" as UC36
+  usecase "UC-37 Request Shift Swap or Leave" as UC37
+
+  ' --- AI Surveillance Engine
+  usecase "UC-38 Check Entry Permission" as UC38
+  usecase "UC-39 Report Security Incident" as UC39
+  usecase "UC-40 Load AI Runtime\nConfiguration" as UC40
 }
 
 ' --- User (all four roles)
@@ -155,7 +152,8 @@ UC31 -- SO
 UC36 -- SO
 UC37 -- SO
 
-' --- AI Surveillance Engine
+' --- AI Surveillance Engine (also extracts the face embedding in UC-05, decision 28/10)
+UC05 -- AI
 UC38 -- AI
 UC39 -- AI
 UC40 -- AI
