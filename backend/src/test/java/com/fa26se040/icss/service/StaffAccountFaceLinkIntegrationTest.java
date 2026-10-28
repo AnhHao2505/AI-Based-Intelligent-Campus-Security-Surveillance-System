@@ -50,7 +50,7 @@ class StaffAccountFaceLinkIntegrationTest extends AbstractIntegrationTest {
     @Autowired
     private UserRepository userRepository;
 
-    @Autowired
+    @MockBean
     private MinioStorageService minioStorageService;
 
     @MockBean
@@ -64,6 +64,7 @@ class StaffAccountFaceLinkIntegrationTest extends AbstractIntegrationTest {
         RestTemplate restTemplate = (RestTemplate) ReflectionTestUtils.getField(faceDataService, "restTemplate");
         aiServer = MockRestServiceServer.bindTo(restTemplate).build();
         userCode = "S4-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT);
+        when(minioStorageService.uploadFaceImage(any(), anyString())).thenReturn("face-profiles/" + userCode + ".jpg");
     }
 
     @AfterEach
