@@ -40,4 +40,4 @@ app:
   frontend-base-url: http://frontend.test.local/
 
 minio:
-  secret-key: minioadmin123
+  secret-key: test-only-minio-88babfda7721fbeb40a6dff0bf28705c # test-only, not a real secret

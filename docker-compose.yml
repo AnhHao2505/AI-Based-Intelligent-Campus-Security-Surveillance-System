@@ -48,7 +48,7 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-      MINIO_KMS_SECRET_KEY: ${MINIO_KMS_SECRET_KEY:-icss-key:2/18ca4lWNI4THiX1mPzng76iNrcyy9blBvdQlKjb+E=}
+      MINIO_KMS_SECRET_KEY: ${MINIO_KMS_SECRET_KEY:?Set MINIO_KMS_SECRET_KEY in .env}
     command: server /data --console-address ":9001"
     ports:
       - "9000:9000"
