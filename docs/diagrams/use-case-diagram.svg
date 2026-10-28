@@ -1,209 +1,194 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="2460" height="1560" viewBox="0 0 2460 1560" font-family="Arial, Helvetica, sans-serif" xmlns:c2pa="http://c2pa.org/manifest"><metadata><c2pa:manifest>AAAWgmp1bWIAAAAeanVtZGMycGEAEQAQgAAAqgA4m3EDYzJwYQAAABZcanVtYgAAAEdqdW1kYzJtYQARABCAAACqADibcQN1cm46YzJwYTpiMGIyMzdkOS0yMzM3LTRmOGUtYjQwZS05YTZjNDU5ZWFlNGEAAAADl2p1bWIAAAApanVtZGMyYXMAEQAQgAAAqgA4m3EDYzJwYS5hc3NlcnRpb25zAAAAALxqdW1iAAAARGp1bWRjYm9yABEAEIAAAKoAOJtxE2MycGEuaW5ncmVkaWVudC52MwAAAAAYYzJzaDrtHSV9a9yQYjdzKB4TxwMAAABwY2JvcqNpZGM6Zm9ybWF0bWltYWdlL3N2Zyt4bWxqaW5zdGFuY2VJRHgseG1wOmlpZDoyMzY2MmU5OC0wMzAzLTQwMTktYThkMS1kMjFlOWEyOTgxNmJscmVsYXRpb25zaGlwaHBhcmVudE9mAAAB4mp1bWIAAABBanVtZGNib3IAEQAQgAAAqgA4m3ETYzJwYS5hY3Rpb25zLnYyAAAAABhjMnNo/2pVd4rcjntoab8/q8ZnTQAAAZljYm9yomdhY3Rpb25zgqJmYWN0aW9ua2MycGEub3BlbmVkanBhcmFtZXRlcnOha2luZ3JlZGllbnRzgaJjdXJseC1zZWxmI2p1bWJmPWMycGEuYXNzZXJ0aW9ucy9jMnBhLmluZ3JlZGllbnQudjNkaGFzaFgg/4OYZAV4hllpPVxo7pH7KDoPJwvdR2SmidEocm1IT/SkZmFjdGlvbngdY29tLmFudGhyb3BpYy5jbGF1ZGUucHJvdmlkZWRqcGFyYW1ldGVyc6F4H2NvbS5hbnRocm9waWMub3JpZ2luLWNvbmZpZGVuY2VndW5rbm93bmtkZXNjcmlwdGlvbnhmQ2xhdWRlIHByb3ZpZGVkIHRoaXMgZmlsZSBhdCB0aGUgcmVxdWVzdCBvZiBhIHVzZXIgYW5kIG1heSBoYXZlIGNyZWF0ZWQgb3IgbW9kaWZpZWQgdGhlIGZpbGUgY29udGVudHMubXNvZnR3YXJlQWdlbnShZG5hbWVmQ2xhdWRlcmFsbEFjdGlvbnNJbmNsdWRlZPUAAADIanVtYgAAAEBqdW1kY2JvcgARABCAAACqADibcRNjMnBhLmhhc2guZGF0YQAAAAAYYzJzaI2oS0aKdRlBAzquowHXt+UAAACAY2JvcqVjYWxnZnNoYTI1NmNwYWRNAAAAAAAAAAAAAAAAAGRoYXNoWCCiCHcDvSAylfo0LfMFS3jUo30RvdQl3B/UhHQg51nLxWRuYW1lbmp1bWJmIG1hbmlmZXN0amV4Y2x1c2lvbnOBomVzdGFydBjFZmxlbmd0aBkeBAAAAj5qdW1iAAAAJ2p1bWRjMmNsABEAEIAAAKoAOJtxA2MycGEuY2xhaW0udjIAAAACD2Nib3KlY2FsZ2ZzaGEyNTZpc2lnbmF0dXJleE1zZWxmI2p1bWJmPS9jMnBhL3VybjpjMnBhOmIwYjIzN2Q5LTIzMzctNGY4ZS1iNDBlLTlhNmM0NTllYWU0YS9jMnBhLnNpZ25hdHVyZWppbnN0YW5jZUlEeCx4bXA6aWlkOmUxNjNkYTZjLWI0YWMtNGNlZS05MDY3LTljNGMyZTBmZmViY3JjcmVhdGVkX2Fzc2VydGlvbnODomN1cmx4LXNlbGYjanVtYmY9YzJwYS5hc3NlcnRpb25zL2MycGEuaW5ncmVkaWVudC52M2RoYXNoWCD/g5hkBXiGWWk9XGjukfsoOg8nC91HZKaJ0ShybUhP9KJjdXJseCpzZWxmI2p1bWJmPWMycGEuYXNzZXJ0aW9ucy9jMnBhLmFjdGlvbnMudjJkaGFzaFgg5oZuBgHPECuYRL1LmwH3awWw181pD7svdkxrZD7Dr1miY3VybHgpc2VsZiNqdW1iZj1jMnBhLmFzc2VydGlvbnMvYzJwYS5oYXNoLmRhdGFkaGFzaFgg/26nTD0f7QE1WtvXEtnC1AcJkWMZNktXnV2Novmwkr90Y2xhaW1fZ2VuZXJhdG9yX2luZm+jZG5hbWVvQW50aHJvcGljIEZpbGVzZ3ZlcnNpb25lMS4wLjBrc3BlY1ZlcnNpb25lMi40LjAAABA4anVtYgAAAChqdW1kYzJjcwARABCAAACqADibcQNjMnBhLnNpZ25hdHVyZQAAABAIY2JvctKEWQISogEmGCFZAgowggIGMIIBjaADAgECAhRA5aAK7sI50L64g/oGQgU9Z1UTADAKBggqhkjOPQQDAzBJMRcwFQYDVQQKEw5BbnRocm9waWMsIFBCQzEuMCwGA1UEAxMlQW50aHJvcGljIENvbnRlbnQgQ3JlZGVudGlhbHMgUm9vdCBDQTAeFw0yNjA4MDcxODQzNTZaFw0yODA4MDYxOTQzNTZaMEQxFzAVBgNVBAoTDkFudGhyb3BpYywgUEJDMSkwJwYDVQQDEyBBbnRocm9waWMgQ2xhdWRlIENvbnRlbnQgU2lnbmluZzBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABJh6CmvLUBgFFNU0vUKlOVtE6djd17L5SuwX0LemFisBM3dkd/3cyjxFA3Qo5S46fX0/ihY0VZ7mfb9KF703t5OjWDBWMA4GA1UdDwEB/wQEAwIHgDAVBgNVHSUEDjAMBgorBgEEAYPoXgIBMAwGA1UdEwEB/wQCMAAwHwYDVR0jBBgwFoAUzlHiBIFOZFsj+OPEz5o+nMHXXMIwCgYIKoZIzj0EAwMDZwAwZAIwMXMdFJ4BetLLVY7ORuE9noqbbAZOZn/aArXyTwFAZfKrPzxF2vPoJNf1+UCdg1XGAjBwX1zd9WGqYkqmL5SFqw1QySjr1zJfpJM9+1rdDwSPLMOPOjKuiXjoU/pUUeG9RwmhY3BhZFkNngAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPZYQItwPaRuuNSnLrd0Svc9QhAzy3jwsL1tEynZvk0/KQHY1wfpHsdGkAqeTn2/Ir/AcrmjAjKrFCY+SRzYmgnz6R8=</c2pa:manifest></metadata>
-<defs><marker id="tri" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="14" markerHeight="14" orient="auto"><path d="M1,1 L11,6 L1,11 Z" fill="#FFFFFF" stroke="#334155" stroke-width="1.3"/></marker><marker id="open" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="11" markerHeight="11" orient="auto"><path d="M1,1 L11,6 L1,11" fill="none" stroke="#334155" stroke-width="1.5"/></marker></defs>
-<rect width="2460" height="1560" fill="#FFFFFF"/>
-<text x="1230.0" y="44" text-anchor="middle" font-size="28" font-weight="bold" fill="#0F172A">ICSSS — Use Case Diagram</text>
-<rect x="400" y="120" width="1530" height="1312" fill="none" stroke="#1E293B" stroke-width="2.2" rx="6"/>
-<text x="1165.0" y="154" text-anchor="middle" font-size="19" font-weight="bold" fill="#1E293B">ICSSS — Intelligent Campus Security Surveillance System</text>
-<rect x="430" y="180" width="330" height="228" fill="#F8FAFC" stroke="#94A3B8" stroke-width="1.4" rx="4"/>
-<text x="595.0" y="206" text-anchor="middle" font-size="16" font-weight="bold" fill="#334155">Authentication &amp; Notification</text>
-<rect x="430" y="434" width="330" height="348" fill="#F8FAFC" stroke="#94A3B8" stroke-width="1.4" rx="4"/>
-<text x="595.0" y="460" text-anchor="middle" font-size="16" font-weight="bold" fill="#334155">Administration</text>
-<rect x="430" y="808" width="330" height="168" fill="#F8FAFC" stroke="#94A3B8" stroke-width="1.4" rx="4"/>
-<text x="595.0" y="834" text-anchor="middle" font-size="16" font-weight="bold" fill="#334155">Area &amp; Camera</text>
-<rect x="1000" y="180" width="330" height="408" fill="#F8FAFC" stroke="#94A3B8" stroke-width="1.4" rx="4"/>
-<text x="1165.0" y="206" text-anchor="middle" font-size="16" font-weight="bold" fill="#334155">Access Control</text>
-<rect x="1000" y="614" width="330" height="468" fill="#F8FAFC" stroke="#94A3B8" stroke-width="1.4" rx="4"/>
-<text x="1165.0" y="640" text-anchor="middle" font-size="16" font-weight="bold" fill="#334155">Access Request &amp; Guest Visit</text>
-<rect x="1570" y="180" width="330" height="588" fill="#F8FAFC" stroke="#94A3B8" stroke-width="1.4" rx="4"/>
-<text x="1735.0" y="206" text-anchor="middle" font-size="16" font-weight="bold" fill="#334155">Monitoring &amp; Incident</text>
-<rect x="1570" y="794" width="330" height="348" fill="#F8FAFC" stroke="#94A3B8" stroke-width="1.4" rx="4"/>
-<text x="1735.0" y="820" text-anchor="middle" font-size="16" font-weight="bold" fill="#334155">Guard Operations</text>
-<rect x="1570" y="1168" width="330" height="228" fill="#F8FAFC" stroke="#94A3B8" stroke-width="1.4" rx="4"/>
-<text x="1735.0" y="1194" text-anchor="middle" font-size="16" font-weight="bold" fill="#334155">AI Integration</text>
-<line x1="136.0" y1="255.0" x2="470.5" y2="249.9" stroke="#475569" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="136.0" y1="255.0" x2="490.5" y2="295.9" stroke="#475569" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="136.0" y1="255.0" x2="522.3" y2="350.1" stroke="#475569" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="276.0" y1="560.0" x2="508.1" y2="517.8" stroke="#2563EB" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="276.0" y1="560.0" x2="511.1" y2="605.7" stroke="#2563EB" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="276.0" y1="560.0" x2="542.7" y2="662.0" stroke="#2563EB" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="276.0" y1="560.0" x2="558.2" y2="721.0" stroke="#2563EB" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="276.0" y1="560.0" x2="573.1" y2="854.3" stroke="#2563EB" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="276.0" y1="560.0" x2="576.5" y2="914.2" stroke="#2563EB" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="276.0" y1="560.0" x2="1634.9" y2="381.2" stroke="#2563EB" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="276.0" y1="560.0" x2="1109.0" y2="267.7" stroke="#2563EB" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="276.0" y1="560.0" x2="1099.1" y2="326.7" stroke="#2563EB" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="276.0" y1="560.0" x2="1126.4" y2="1021.1" stroke="#2563EB" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="276.0" y1="560.0" x2="1645.8" y2="323.4" stroke="#2563EB" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="276.0" y1="560.0" x2="1655.6" y2="265.0" stroke="#2563EB" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="276.0" y1="820.0" x2="522.0" y2="759.9" stroke="#059669" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="276.0" y1="820.0" x2="1124.1" y2="388.8" stroke="#059669" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="276.0" y1="820.0" x2="1118.7" y2="448.4" stroke="#059669" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="276.0" y1="820.0" x2="1111.7" y2="507.9" stroke="#059669" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="276.0" y1="820.0" x2="1132.0" y2="269.2" stroke="#059669" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="276.0" y1="820.0" x2="1128.5" y2="329.0" stroke="#059669" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="276.0" y1="820.0" x2="1040.8" y2="804.5" stroke="#059669" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="276.0" y1="820.0" x2="1044.3" y2="856.3" stroke="#059669" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="276.0" y1="820.0" x2="1060.3" y2="910.0" stroke="#059669" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="276.0" y1="820.0" x2="1078.2" y2="966.2" stroke="#059669" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="276.0" y1="820.0" x2="1649.2" y2="564.0" stroke="#059669" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="276.0" y1="820.0" x2="1679.0" y2="327.7" stroke="#059669" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="276.0" y1="820.0" x2="1683.8" y2="268.1" stroke="#059669" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="276.0" y1="820.0" x2="1611.6" y2="858.4" stroke="#059669" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="276.0" y1="820.0" x2="1618.8" y2="913.9" stroke="#059669" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="276.0" y1="820.0" x2="1629.3" y2="970.3" stroke="#059669" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="276.0" y1="1270.0" x2="1138.5" y2="569.5" stroke="#D97706" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="276.0" y1="1270.0" x2="1132.9" y2="703.3" stroke="#D97706" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="276.0" y1="1270.0" x2="1129.5" y2="763.1" stroke="#D97706" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="276.0" y1="1270.0" x2="1113.7" y2="942.1" stroke="#D97706" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="2134.0" y1="640.0" x2="1766.2" y2="389.3" stroke="#DC2626" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="2134.0" y1="640.0" x2="1787.4" y2="508.0" stroke="#DC2626" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="2134.0" y1="640.0" x2="1810.8" y2="565.5" stroke="#DC2626" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="2134.0" y1="640.0" x2="1848.7" y2="617.1" stroke="#DC2626" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="2134.0" y1="640.0" x2="1851.1" y2="659.9" stroke="#DC2626" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="2134.0" y1="640.0" x2="1813.0" y2="710.8" stroke="#DC2626" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="2134.0" y1="640.0" x2="1774.3" y2="448.9" stroke="#DC2626" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="2134.0" y1="640.0" x2="1760.9" y2="329.5" stroke="#DC2626" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="2134.0" y1="640.0" x2="1756.5" y2="1020.3" stroke="#DC2626" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="2134.0" y1="640.0" x2="1753.8" y2="1080.2" stroke="#DC2626" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="2134.0" y1="1330.0" x2="1809.8" y2="1253.6" stroke="#7C3AED" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="2134.0" y1="1330.0" x2="1847.5" y2="1305.6" stroke="#7C3AED" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="2134.0" y1="1330.0" x2="1852.2" y2="1348.4" stroke="#7C3AED" stroke-width="1.5" stroke-opacity="0.75"/>
-<line x1="250" y1="526" x2="116" y2="329" stroke="#334155" stroke-width="1.4" marker-end="url(#tri)"/>
-<line x1="250" y1="786" x2="116" y2="329" stroke="#334155" stroke-width="1.4" marker-end="url(#tri)"/>
-<line x1="250" y1="1236" x2="116" y2="329" stroke="#334155" stroke-width="1.4" marker-end="url(#tri)"/>
-<polyline points="2160,604 2160,90 110,90 110,217" fill="none" stroke="#334155" stroke-width="1.4" marker-end="url(#tri)"/>
-<ellipse cx="595.0" cy="248.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="595.0" y="253.0" text-anchor="middle" font-size="14" fill="#0F172A">UC-01 Log In</text>
-<ellipse cx="595.0" cy="308.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="595.0" y="313.0" text-anchor="middle" font-size="14" fill="#0F172A">UC-02 Reset Password</text>
-<ellipse cx="595.0" cy="368.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="595.0" y="373.0" text-anchor="middle" font-size="14" fill="#0F172A">UC-03 View Notifications</text>
-<ellipse cx="595.0" cy="502.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="595.0" y="507.0" text-anchor="middle" font-size="14" fill="#0F172A">UC-04 Manage User Accounts</text>
-<ellipse cx="595.0" cy="562.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="595.0" y="567.0" text-anchor="middle" font-size="14" fill="#0F172A">UC-05 Register Face Data</text>
-<ellipse cx="595.0" cy="622.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="595.0" y="627.0" text-anchor="middle" font-size="12.5" fill="#0F172A">UC-06 Configure System Parameters</text>
-<ellipse cx="595.0" cy="682.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="595.0" y="687.0" text-anchor="middle" font-size="14" fill="#0F172A">UC-07 Manage Reason Catalog</text>
-<ellipse cx="595.0" cy="742.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="595.0" y="747.0" text-anchor="middle" font-size="14" fill="#0F172A">UC-08 View Audit Log</text>
-<ellipse cx="595.0" cy="876.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="595.0" y="881.0" text-anchor="middle" font-size="14" fill="#0F172A">UC-09 Manage Areas</text>
-<ellipse cx="595.0" cy="936.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="595.0" y="941.0" text-anchor="middle" font-size="14" fill="#0F172A">UC-10 Manage Cameras</text>
-<ellipse cx="1165.0" cy="248.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="1165.0" y="253.0" text-anchor="middle" font-size="14" fill="#0F172A">UC-15 View Event Schedules</text>
-<ellipse cx="1165.0" cy="308.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="1165.0" y="313.0" text-anchor="middle" font-size="14" fill="#0F172A">UC-16 Search Access History</text>
-<ellipse cx="1165.0" cy="368.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="1165.0" y="373.0" text-anchor="middle" font-size="14" fill="#0F172A">UC-12 Change User Access Level</text>
-<ellipse cx="1165.0" cy="428.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="1165.0" y="433.0" text-anchor="middle" font-size="14" fill="#0F172A">UC-13 Manage Assigned Personnel</text>
-<ellipse cx="1165.0" cy="488.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="1165.0" y="493.0" text-anchor="middle" font-size="14" fill="#0F172A">UC-14 Manage Event Schedules</text>
-<ellipse cx="1165.0" cy="548.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="1165.0" y="553.0" text-anchor="middle" font-size="12.5" fill="#0F172A">UC-17 View Personal Access History</text>
-<ellipse cx="1165.0" cy="682.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="1165.0" y="687.0" text-anchor="middle" font-size="14" fill="#0F172A">UC-18 Request Area Access</text>
-<ellipse cx="1165.0" cy="742.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="1165.0" y="747.0" text-anchor="middle" font-size="14" fill="#0F172A">UC-19 Cancel Access Request</text>
-<ellipse cx="1165.0" cy="802.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="1165.0" y="807.0" text-anchor="middle" font-size="14" fill="#0F172A">UC-20 Review Access Request</text>
-<ellipse cx="1165.0" cy="862.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="1165.0" y="867.0" text-anchor="middle" font-size="12.5" fill="#0F172A">UC-21 Finish or Cancel Approved Request</text>
-<ellipse cx="1165.0" cy="922.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="1165.0" y="927.0" text-anchor="middle" font-size="14" fill="#0F172A">UC-22 Invite Guests</text>
-<ellipse cx="1165.0" cy="982.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="1165.0" y="987.0" text-anchor="middle" font-size="14" fill="#0F172A">UC-23 Review Guest Visit</text>
-<ellipse cx="1165.0" cy="1042.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="1165.0" y="1047.0" text-anchor="middle" font-size="14" fill="#0F172A">UC-24 Attach Guest Photo</text>
-<ellipse cx="1735.0" cy="248.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="1735.0" y="253.0" text-anchor="middle" font-size="14" fill="#0F172A">UC-32 View Security Dashboard</text>
-<ellipse cx="1735.0" cy="308.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="1735.0" y="313.0" text-anchor="middle" font-size="14" fill="#0F172A">UC-31 View Recorded Video</text>
-<ellipse cx="1735.0" cy="368.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="1735.0" y="373.0" text-anchor="middle" font-size="14" fill="#0F172A">UC-11 View Campus Map</text>
-<ellipse cx="1735.0" cy="428.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="1735.0" y="433.0" text-anchor="middle" font-size="12.5" fill="#0F172A">UC-30 View Incident Location on Map</text>
-<ellipse cx="1735.0" cy="488.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="1735.0" y="493.0" text-anchor="middle" font-size="14" fill="#0F172A">UC-25 Monitor Live Cameras</text>
-<ellipse cx="1735.0" cy="548.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="1735.0" y="553.0" text-anchor="middle" font-size="14" fill="#0F172A">UC-26 Receive Security Alert</text>
-<ellipse cx="1735.0" cy="608.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="1735.0" y="613.0" text-anchor="middle" font-size="14" fill="#0F172A">UC-27 Acknowledge Incident Alert</text>
-<ellipse cx="1735.0" cy="668.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="1735.0" y="673.0" text-anchor="middle" font-size="14" fill="#0F172A">UC-28 Claim Incident</text>
-<ellipse cx="1735.0" cy="728.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="1735.0" y="733.0" text-anchor="middle" font-size="14" fill="#0F172A">UC-29 Resolve Incident</text>
-<ellipse cx="1735.0" cy="862.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="1735.0" y="867.0" text-anchor="middle" font-size="14" fill="#0F172A">UC-33 Manage Guard Teams</text>
-<ellipse cx="1735.0" cy="922.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="1735.0" y="927.0" text-anchor="middle" font-size="14" fill="#0F172A">UC-34 Plan Guard Shifts</text>
-<ellipse cx="1735.0" cy="982.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="1735.0" y="987.0" text-anchor="middle" font-size="14" fill="#0F172A">UC-35 Review Shift Request</text>
-<ellipse cx="1735.0" cy="1042.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="1735.0" y="1047.0" text-anchor="middle" font-size="14" fill="#0F172A">UC-36 Check In and Out of Shift</text>
-<ellipse cx="1735.0" cy="1102.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="1735.0" y="1107.0" text-anchor="middle" font-size="12.5" fill="#0F172A">UC-37 Request Shift Swap or Leave</text>
-<ellipse cx="1735.0" cy="1236.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="1735.0" y="1241.0" text-anchor="middle" font-size="14" fill="#0F172A">UC-38 Check Entry Permission</text>
-<ellipse cx="1735.0" cy="1296.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="1735.0" y="1301.0" text-anchor="middle" font-size="14" fill="#0F172A">UC-39 Report Security Incident</text>
-<ellipse cx="1735.0" cy="1356.0" rx="125.0" ry="22.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
-<text x="1735.0" y="1361.0" text-anchor="middle" font-size="12.5" fill="#0F172A">UC-40 Load AI Runtime Configuration</text>
-<path d="M710.0,510.0 C770.0,510.0 770.0,554.0 710.0,554.0" fill="none" stroke="#334155" stroke-width="1.4" stroke-dasharray="6 4" marker-end="url(#open)"/>
-<text x="762.0" y="537.0" font-size="13" fill="#334155">«include»</text>
-<path d="M1850.0,600.0 C1910.0,600.0 1910.0,556.0 1850.0,556.0" fill="none" stroke="#334155" stroke-width="1.4" stroke-dasharray="6 4" marker-end="url(#open)"/>
-<text x="1902.0" y="583.0" font-size="13" fill="#334155">«extend»</text>
-<path d="M1850.0,420.0 C1910.0,420.0 1910.0,376.0 1850.0,376.0" fill="none" stroke="#334155" stroke-width="1.4" stroke-dasharray="6 4" marker-end="url(#open)"/>
-<text x="1902.0" y="403.0" font-size="13" fill="#334155">«extend»</text>
-<circle cx="110" cy="231" r="10" fill="#FFFFFF" stroke="#334155" stroke-width="2"/>
-<line x1="110" y1="241" x2="110" y2="265" stroke="#334155" stroke-width="2"/>
-<line x1="94" y1="251" x2="126" y2="251" stroke="#334155" stroke-width="2"/>
-<line x1="110" y1="265" x2="98" y2="285" stroke="#334155" stroke-width="2"/>
-<line x1="110" y1="265" x2="122" y2="285" stroke="#334155" stroke-width="2"/>
-<text x="110" y="307" text-anchor="middle" font-size="16" font-weight="bold" fill="#475569">User</text>
-<text x="110" y="327" text-anchor="middle" font-size="12" fill="#475569">(abstract)</text>
-<circle cx="250" cy="536" r="10" fill="#FFFFFF" stroke="#334155" stroke-width="2"/>
-<line x1="250" y1="546" x2="250" y2="570" stroke="#334155" stroke-width="2"/>
-<line x1="234" y1="556" x2="266" y2="556" stroke="#334155" stroke-width="2"/>
-<line x1="250" y1="570" x2="238" y2="590" stroke="#334155" stroke-width="2"/>
-<line x1="250" y1="570" x2="262" y2="590" stroke="#334155" stroke-width="2"/>
-<text x="250" y="612" text-anchor="middle" font-size="16" font-weight="bold" fill="#2563EB">Administrator</text>
-<circle cx="250" cy="796" r="10" fill="#FFFFFF" stroke="#334155" stroke-width="2"/>
-<line x1="250" y1="806" x2="250" y2="830" stroke="#334155" stroke-width="2"/>
-<line x1="234" y1="816" x2="266" y2="816" stroke="#334155" stroke-width="2"/>
-<line x1="250" y1="830" x2="238" y2="850" stroke="#334155" stroke-width="2"/>
-<line x1="250" y1="830" x2="262" y2="850" stroke="#334155" stroke-width="2"/>
-<text x="250" y="872" text-anchor="middle" font-size="16" font-weight="bold" fill="#059669">Facility Manager</text>
-<circle cx="250" cy="1246" r="10" fill="#FFFFFF" stroke="#334155" stroke-width="2"/>
-<line x1="250" y1="1256" x2="250" y2="1280" stroke="#334155" stroke-width="2"/>
-<line x1="234" y1="1266" x2="266" y2="1266" stroke="#334155" stroke-width="2"/>
-<line x1="250" y1="1280" x2="238" y2="1300" stroke="#334155" stroke-width="2"/>
-<line x1="250" y1="1280" x2="262" y2="1300" stroke="#334155" stroke-width="2"/>
-<text x="250" y="1322" text-anchor="middle" font-size="16" font-weight="bold" fill="#D97706">Authorized User</text>
-<circle cx="2160" cy="616" r="10" fill="#FFFFFF" stroke="#334155" stroke-width="2"/>
-<line x1="2160" y1="626" x2="2160" y2="650" stroke="#334155" stroke-width="2"/>
-<line x1="2144" y1="636" x2="2176" y2="636" stroke="#334155" stroke-width="2"/>
-<line x1="2160" y1="650" x2="2148" y2="670" stroke="#334155" stroke-width="2"/>
-<line x1="2160" y1="650" x2="2172" y2="670" stroke="#334155" stroke-width="2"/>
-<text x="2160" y="692" text-anchor="middle" font-size="16" font-weight="bold" fill="#DC2626">Security Officer</text>
-<circle cx="2160" cy="1306" r="10" fill="#FFFFFF" stroke="#334155" stroke-width="2"/>
-<line x1="2160" y1="1316" x2="2160" y2="1340" stroke="#334155" stroke-width="2"/>
-<line x1="2144" y1="1326" x2="2176" y2="1326" stroke="#334155" stroke-width="2"/>
-<line x1="2160" y1="1340" x2="2148" y2="1360" stroke="#334155" stroke-width="2"/>
-<line x1="2160" y1="1340" x2="2172" y2="1360" stroke="#334155" stroke-width="2"/>
-<text x="2160" y="1382" text-anchor="middle" font-size="16" font-weight="bold" fill="#7C3AED">AI Surveillance</text>
-<text x="2160" y="1402" text-anchor="middle" font-size="16" font-weight="bold" fill="#7C3AED">Engine</text>
-<text x="2160" y="1286" text-anchor="middle" font-size="13" fill="#475569">«system»</text>
-<rect x="40" y="1355" width="330" height="185" fill="#FFFFFF" stroke="#94A3B8" rx="4"/>
-<text x="52" y="1381" font-size="14" font-weight="bold" fill="#1E293B">Legend</text>
-<text x="52" y="1402" font-size="12.5"  fill="#1E293B">Solid line: actor takes part in the use case</text>
-<text x="52" y="1423" font-size="12.5"  fill="#1E293B">Line colour = actor (for readability only)</text>
-<text x="52" y="1444" font-size="12.5"  fill="#1E293B">Hollow triangle: generalization (each role is a User)</text>
-<text x="52" y="1465" font-size="12.5"  fill="#1E293B">Dashed «include»: always part of the base use case</text>
-<text x="52" y="1486" font-size="12.5"  fill="#1E293B">Dashed «extend»: optional, only under a condition</text>
-<text x="52" y="1507" font-size="12.5"  fill="#1E293B">Scheduled jobs are non-screen functions</text>
-<text x="52" y="1528" font-size="12.5"  fill="#1E293B">(SRS 3.1.4), not use cases</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="2330" height="1930" viewBox="0 0 2330 1930" font-family="Arial, Helvetica, sans-serif" xmlns:c2pa="http://c2pa.org/manifest"><metadata><c2pa:manifest>AAAWgmp1bWIAAAAeanVtZGMycGEAEQAQgAAAqgA4m3EDYzJwYQAAABZcanVtYgAAAEdqdW1kYzJtYQARABCAAACqADibcQN1cm46YzJwYTplZmNiZjFkMy1iZjM0LTRiZjEtOGVjOC02MzM1ZTMzOTgwMjUAAAADl2p1bWIAAAApanVtZGMyYXMAEQAQgAAAqgA4m3EDYzJwYS5hc3NlcnRpb25zAAAAALxqdW1iAAAARGp1bWRjYm9yABEAEIAAAKoAOJtxE2MycGEuaW5ncmVkaWVudC52MwAAAAAYYzJzaMggdwumYv5vDvAG1WfAf30AAABwY2JvcqNpZGM6Zm9ybWF0bWltYWdlL3N2Zyt4bWxqaW5zdGFuY2VJRHgseG1wOmlpZDo5YjJmOGMyYS0yMTE5LTQ5ODctODUwMC0xZmYwODZjN2MxZmJscmVsYXRpb25zaGlwaHBhcmVudE9mAAAB4mp1bWIAAABBanVtZGNib3IAEQAQgAAAqgA4m3ETYzJwYS5hY3Rpb25zLnYyAAAAABhjMnNoWqo7vHxLZvigJ+iWCPK8EwAAAZljYm9yomdhY3Rpb25zgqJmYWN0aW9ua2MycGEub3BlbmVkanBhcmFtZXRlcnOha2luZ3JlZGllbnRzgaJjdXJseC1zZWxmI2p1bWJmPWMycGEuYXNzZXJ0aW9ucy9jMnBhLmluZ3JlZGllbnQudjNkaGFzaFggRuhcet5qYzkQEXUTBvGITAFhd6LxPN/KeT26buudE3WkZmFjdGlvbngdY29tLmFudGhyb3BpYy5jbGF1ZGUucHJvdmlkZWRqcGFyYW1ldGVyc6F4H2NvbS5hbnRocm9waWMub3JpZ2luLWNvbmZpZGVuY2VndW5rbm93bmtkZXNjcmlwdGlvbnhmQ2xhdWRlIHByb3ZpZGVkIHRoaXMgZmlsZSBhdCB0aGUgcmVxdWVzdCBvZiBhIHVzZXIgYW5kIG1heSBoYXZlIGNyZWF0ZWQgb3IgbW9kaWZpZWQgdGhlIGZpbGUgY29udGVudHMubXNvZnR3YXJlQWdlbnShZG5hbWVmQ2xhdWRlcmFsbEFjdGlvbnNJbmNsdWRlZPUAAADIanVtYgAAAEBqdW1kY2JvcgARABCAAACqADibcRNjMnBhLmhhc2guZGF0YQAAAAAYYzJzaMWSfwDUCQEgjDtC6WXBCkEAAACAY2JvcqVjYWxnZnNoYTI1NmNwYWRNAAAAAAAAAAAAAAAAAGRoYXNoWCB7xY3rhInnzJz6+Ffq1LScVdnpuCEvFfWukgS2gPQueGRuYW1lbmp1bWJmIG1hbmlmZXN0amV4Y2x1c2lvbnOBomVzdGFydBjFZmxlbmd0aBkeBAAAAj5qdW1iAAAAJ2p1bWRjMmNsABEAEIAAAKoAOJtxA2MycGEuY2xhaW0udjIAAAACD2Nib3KlY2FsZ2ZzaGEyNTZpc2lnbmF0dXJleE1zZWxmI2p1bWJmPS9jMnBhL3VybjpjMnBhOmVmY2JmMWQzLWJmMzQtNGJmMS04ZWM4LTYzMzVlMzM5ODAyNS9jMnBhLnNpZ25hdHVyZWppbnN0YW5jZUlEeCx4bXA6aWlkOmM2ZjQ4NDkzLTFhN2UtNDkxZC05OGZjLTQyNjdiYjE5MzQ1OXJjcmVhdGVkX2Fzc2VydGlvbnODomN1cmx4LXNlbGYjanVtYmY9YzJwYS5hc3NlcnRpb25zL2MycGEuaW5ncmVkaWVudC52M2RoYXNoWCBG6Fx63mpjORARdRMG8YhMAWF3ovE838p5Pbpu650TdaJjdXJseCpzZWxmI2p1bWJmPWMycGEuYXNzZXJ0aW9ucy9jMnBhLmFjdGlvbnMudjJkaGFzaFggN/yZ4v/Bp9crVnLXtgHHev8LICS176TGWfv7aNvEE+2iY3VybHgpc2VsZiNqdW1iZj1jMnBhLmFzc2VydGlvbnMvYzJwYS5oYXNoLmRhdGFkaGFzaFgg2eAReu+4MdQssE0bjIHha+0ssTgDeNXfT/BkwmCF1Qx0Y2xhaW1fZ2VuZXJhdG9yX2luZm+jZG5hbWVvQW50aHJvcGljIEZpbGVzZ3ZlcnNpb25lMS4wLjBrc3BlY1ZlcnNpb25lMi40LjAAABA4anVtYgAAAChqdW1kYzJjcwARABCAAACqADibcQNjMnBhLnNpZ25hdHVyZQAAABAIY2JvctKEWQISogEmGCFZAgowggIGMIIBjaADAgECAhRA5aAK7sI50L64g/oGQgU9Z1UTADAKBggqhkjOPQQDAzBJMRcwFQYDVQQKEw5BbnRocm9waWMsIFBCQzEuMCwGA1UEAxMlQW50aHJvcGljIENvbnRlbnQgQ3JlZGVudGlhbHMgUm9vdCBDQTAeFw0yNjA4MDcxODQzNTZaFw0yODA4MDYxOTQzNTZaMEQxFzAVBgNVBAoTDkFudGhyb3BpYywgUEJDMSkwJwYDVQQDEyBBbnRocm9waWMgQ2xhdWRlIENvbnRlbnQgU2lnbmluZzBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABJh6CmvLUBgFFNU0vUKlOVtE6djd17L5SuwX0LemFisBM3dkd/3cyjxFA3Qo5S46fX0/ihY0VZ7mfb9KF703t5OjWDBWMA4GA1UdDwEB/wQEAwIHgDAVBgNVHSUEDjAMBgorBgEEAYPoXgIBMAwGA1UdEwEB/wQCMAAwHwYDVR0jBBgwFoAUzlHiBIFOZFsj+OPEz5o+nMHXXMIwCgYIKoZIzj0EAwMDZwAwZAIwMXMdFJ4BetLLVY7ORuE9noqbbAZOZn/aArXyTwFAZfKrPzxF2vPoJNf1+UCdg1XGAjBwX1zd9WGqYkqmL5SFqw1QySjr1zJfpJM9+1rdDwSPLMOPOjKuiXjoU/pUUeG9RwmhY3BhZFkNngAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPZYQPeZ1y3RlBb0BZsxGZlf/OVhnN2QAAFCe6g8J5S2phl6hfMBatGRJ7FBdzt6BXjGSB3raR+NqBS/qIWx140s2eE=</c2pa:manifest></metadata>
+<defs><marker id="tri" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="16" markerHeight="16" orient="auto"><path d="M1,1 L11,6 L1,11 Z" fill="#FFFFFF" stroke="#334155" stroke-width="1.2"/></marker><marker id="open" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="11" markerHeight="11" orient="auto"><path d="M1,1 L11,6 L1,11" fill="none" stroke="#334155" stroke-width="1.5"/></marker></defs>
+<rect width="2330" height="1930" fill="#FFFFFF"/>
+<text x="1165.0" y="46" text-anchor="middle" font-size="28" font-weight="bold" fill="#0F172A">ICSSS — Use Case Diagram</text>
+<rect x="300" y="250" width="1730" height="1420" fill="none" stroke="#1E293B" stroke-width="2.2" rx="6"/>
+<text x="2014" y="1654" text-anchor="end" font-size="18" font-weight="bold" fill="#1E293B">ICSSS — Intelligent Campus Security Surveillance System</text>
+<line x1="176.0" y1="370.0" x2="389.9" y2="419.5" stroke="#475569" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="176.0" y1="370.0" x2="383.5" y2="327.7" stroke="#475569" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="176.0" y1="370.0" x2="335.4" y2="372.2" stroke="#475569" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="1160.0" y1="157.0" x2="1374.9" y2="1119.0" stroke="#2563EB" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="1160.0" y1="157.0" x2="1804.3" y2="353.9" stroke="#2563EB" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="1160.0" y1="157.0" x2="1816.6" y2="416.9" stroke="#2563EB" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="1160.0" y1="157.0" x2="871.4" y2="735.1" stroke="#2563EB" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="1160.0" y1="157.0" x2="1365.4" y2="479.1" stroke="#2563EB" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="1160.0" y1="157.0" x2="1491.2" y2="415.5" stroke="#2563EB" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="1160.0" y1="157.0" x2="1759.3" y2="480.1" stroke="#2563EB" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="1160.0" y1="157.0" x2="776.8" y2="479.5" stroke="#2563EB" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="1160.0" y1="157.0" x2="507.3" y2="543.9" stroke="#2563EB" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="1160.0" y1="157.0" x2="1786.3" y2="292.0" stroke="#2563EB" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="1160.0" y1="157.0" x2="1150.4" y2="735.0" stroke="#2563EB" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="1160.0" y1="157.0" x2="767.4" y2="671.2" stroke="#2563EB" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="176.0" y1="916.0" x2="779.9" y2="776.5" stroke="#059669" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="176.0" y1="916.0" x2="451.1" y2="1247.2" stroke="#059669" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="176.0" y1="916.0" x2="780.0" y2="1248.0" stroke="#059669" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="176.0" y1="916.0" x2="984.1" y2="833.8" stroke="#059669" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="176.0" y1="916.0" x2="719.0" y2="524.4" stroke="#059669" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="176.0" y1="916.0" x2="450.9" y2="588.8" stroke="#059669" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="176.0" y1="916.0" x2="918.0" y2="1001.2" stroke="#059669" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="176.0" y1="916.0" x2="837.8" y2="1184.8" stroke="#059669" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="176.0" y1="916.0" x2="460.0" y2="1567.1" stroke="#059669" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="176.0" y1="916.0" x2="689.8" y2="892.1" stroke="#059669" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="176.0" y1="916.0" x2="1456.3" y2="946.8" stroke="#059669" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="176.0" y1="916.0" x2="1052.2" y2="773.9" stroke="#059669" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="176.0" y1="916.0" x2="695.6" y2="715.0" stroke="#059669" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="176.0" y1="916.0" x2="826.0" y2="1121.7" stroke="#059669" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="176.0" y1="916.0" x2="591.0" y2="996.7" stroke="#059669" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="176.0" y1="916.0" x2="719.2" y2="1311.6" stroke="#059669" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="1160.0" y1="1736.0" x2="1346.4" y2="1612.3" stroke="#D97706" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="1160.0" y1="1736.0" x2="1050.2" y2="1612.7" stroke="#D97706" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="1160.0" y1="1736.0" x2="1231.3" y2="1549.0" stroke="#D97706" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="1160.0" y1="1736.0" x2="554.7" y2="1607.9" stroke="#D97706" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="2144.0" y1="776.0" x2="1828.2" y2="524.5" stroke="#DC2626" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="2144.0" y1="776.0" x2="1768.4" y2="991.9" stroke="#DC2626" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="2144.0" y1="776.0" x2="1654.4" y2="929.8" stroke="#DC2626" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="2144.0" y1="776.0" x2="1677.9" y2="868.5" stroke="#DC2626" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="2144.0" y1="776.0" x2="1884.6" y2="1183.1" stroke="#DC2626" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="2144.0" y1="776.0" x2="1777.9" y2="810.8" stroke="#DC2626" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="2144.0" y1="776.0" x2="1773.0" y2="587.8" stroke="#DC2626" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="2144.0" y1="776.0" x2="1284.2" y2="760.4" stroke="#DC2626" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="2144.0" y1="776.0" x2="1878.5" y2="712.7" stroke="#DC2626" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="2144.0" y1="776.0" x2="1825.7" y2="1055.4" stroke="#DC2626" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="2144.0" y1="1386.0" x2="1459.1" y2="1224.6" stroke="#7C3AED" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="2144.0" y1="1386.0" x2="1900.1" y2="1567.6" stroke="#7C3AED" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="2144.0" y1="1386.0" x2="2000.7" y2="1392.3" stroke="#7C3AED" stroke-width="1.6" stroke-opacity="0.85"/>
+<line x1="2144.0" y1="1386.0" x2="1940.7" y2="1442.4" stroke="#7C3AED" stroke-width="1.6" stroke-opacity="0.85"/>
+<polyline points="1160,89 1160,82" fill="none" stroke="#334155" stroke-width="1.4"/>
+<polyline points="2170,744 2170,82 150,82 150,338" fill="none" stroke="#334155" stroke-width="1.4" marker-end="url(#tri)"/>
+<polyline points="150,884 150,444 150,444" fill="none" stroke="#334155" stroke-width="1.4"/>
+<polyline points="1160,1802 1160,1890 52,1890 52,444 150,444 150,408" fill="none" stroke="#334155" stroke-width="1.4" marker-end="url(#tri)"/>
+<circle cx="150" cy="444" r="3" fill="#334155"/>
+<circle cx="1160" cy="82" r="3" fill="#334155"/>
+<path d="M1501.0,1150 C1571.0,1150 1571.0,1198 1501.0,1198" fill="none" stroke="#334155" stroke-width="1.4" stroke-dasharray="6 4" marker-end="url(#open)"/>
+<text x="1559.0" y="1179.0" font-size="13" fill="#334155">«include»</text>
+<path d="M1711.0,894 C1781.0,894 1781.0,942 1711.0,942" fill="none" stroke="#334155" stroke-width="1.4" stroke-dasharray="6 4" marker-end="url(#open)"/>
+<text x="1769.0" y="923.0" font-size="13" fill="#334155">«extend»</text>
+<line x1="1754.7" y1="543.4" x2="1775.3" y2="524.6" stroke="#334155" stroke-width="1.4" stroke-dasharray="6 4" marker-end="url(#open)"/>
+<text x="1757.0" y="539.0" text-anchor="end" font-size="13" fill="#334155">«extend»</text>
+<ellipse cx="470" cy="438" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="470" y="443" text-anchor="middle" font-size="14" fill="#0F172A">UC-01 Log In</text>
+<ellipse cx="470" cy="310" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="470" y="315" text-anchor="middle" font-size="14" fill="#0F172A">UC-02 Reset Password</text>
+<ellipse cx="470" cy="374" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="470" y="379" text-anchor="middle" font-size="14" fill="#0F172A">UC-03 View Notifications</text>
+<ellipse cx="1380" cy="1142" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="1380" y="1147" text-anchor="middle" font-size="14" fill="#0F172A">UC-04 Manage User Accounts</text>
+<ellipse cx="1380" cy="1206" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="1380" y="1211" text-anchor="middle" font-size="14" fill="#0F172A">UC-05 Register Face Data</text>
+<ellipse cx="1870" cy="374" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="1870" y="379" text-anchor="middle" font-size="12.5" fill="#0F172A">UC-06 Configure System Parameters</text>
+<ellipse cx="1870" cy="438" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="1870" y="443" text-anchor="middle" font-size="14" fill="#0F172A">UC-07 Manage Reason Catalog</text>
+<ellipse cx="860" cy="758" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="860" y="763" text-anchor="middle" font-size="14" fill="#0F172A">UC-08 View Audit Log</text>
+<ellipse cx="1380" cy="502" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="1380" y="507" text-anchor="middle" font-size="14" fill="#0F172A">UC-09 Manage Areas</text>
+<ellipse cx="1520" cy="438" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="1520" y="443" text-anchor="middle" font-size="14" fill="#0F172A">UC-10 Manage Cameras</text>
+<ellipse cx="1800" cy="502" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="1800" y="507" text-anchor="middle" font-size="14" fill="#0F172A">UC-11 View Campus Map</text>
+<ellipse cx="470" cy="1270" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="470" y="1275" text-anchor="middle" font-size="14" fill="#0F172A">UC-12 Change User Access Level</text>
+<ellipse cx="820" cy="1270" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="820" y="1275" text-anchor="middle" font-size="12.5" fill="#0F172A">UC-13 Manage Assigned Personnel</text>
+<ellipse cx="1100" cy="822" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="1100" y="827" text-anchor="middle" font-size="14" fill="#0F172A">UC-14 Manage Event Schedules</text>
+<ellipse cx="750" cy="502" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="750" y="507" text-anchor="middle" font-size="14" fill="#0F172A">UC-15 View Event Schedules</text>
+<ellipse cx="470" cy="566" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="470" y="571" text-anchor="middle" font-size="14" fill="#0F172A">UC-16 Search Access History</text>
+<ellipse cx="1380" cy="1590" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="1380" y="1595" text-anchor="middle" font-size="12.5" fill="#0F172A">UC-17 View Personal Access History</text>
+<ellipse cx="1030" cy="1590" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="1030" y="1595" text-anchor="middle" font-size="14" fill="#0F172A">UC-18 Request Area Access</text>
+<ellipse cx="1240" cy="1526" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="1240" y="1531" text-anchor="middle" font-size="14" fill="#0F172A">UC-19 Cancel Access Request</text>
+<ellipse cx="1030" cy="1014" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="1030" y="1019" text-anchor="middle" font-size="14" fill="#0F172A">UC-20 Review Access Request</text>
+<ellipse cx="890" cy="1206" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="890" y="1211" text-anchor="middle" font-size="11.5" fill="#0F172A">UC-21 Finish or Cancel Approved Request</text>
+<ellipse cx="470" cy="1590" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="470" y="1595" text-anchor="middle" font-size="14" fill="#0F172A">UC-22 Invite Guests</text>
+<ellipse cx="820" cy="886" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="820" y="891" text-anchor="middle" font-size="14" fill="#0F172A">UC-23 Review Guest Visit</text>
+<ellipse cx="1870" cy="310" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="1870" y="315" text-anchor="middle" font-size="14" fill="#0F172A">UC-24 Attach Guest Photo</text>
+<ellipse cx="1730" cy="1014" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="1730" y="1019" text-anchor="middle" font-size="14" fill="#0F172A">UC-25 Monitor Live Cameras</text>
+<ellipse cx="1590" cy="950" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="1590" y="955" text-anchor="middle" font-size="14" fill="#0F172A">UC-26 Receive Security Alert</text>
+<ellipse cx="1590" cy="886" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="1590" y="891" text-anchor="middle" font-size="12.5" fill="#0F172A">UC-27 Acknowledge Incident Alert</text>
+<ellipse cx="1870" cy="1206" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="1870" y="1211" text-anchor="middle" font-size="14" fill="#0F172A">UC-28 Claim Incident</text>
+<ellipse cx="1660" cy="822" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="1660" y="827" text-anchor="middle" font-size="14" fill="#0F172A">UC-29 Resolve Incident</text>
+<ellipse cx="1730" cy="566" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="1730" y="571" text-anchor="middle" font-size="12.5" fill="#0F172A">UC-30 View Incident Location on Map</text>
+<ellipse cx="1150" cy="758" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="1150" y="763" text-anchor="middle" font-size="14" fill="#0F172A">UC-31 View Recorded Video</text>
+<ellipse cx="750" cy="694" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="750" y="699" text-anchor="middle" font-size="14" fill="#0F172A">UC-32 View Security Dashboard</text>
+<ellipse cx="890" cy="1142" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="890" y="1147" text-anchor="middle" font-size="14" fill="#0F172A">UC-33 Manage Guard Teams</text>
+<ellipse cx="680" cy="1014" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="680" y="1019" text-anchor="middle" font-size="14" fill="#0F172A">UC-34 Plan Guard Shifts</text>
+<ellipse cx="750" cy="1334" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="750" y="1339" text-anchor="middle" font-size="14" fill="#0F172A">UC-35 Review Shift Request</text>
+<ellipse cx="1800" cy="694" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="1800" y="699" text-anchor="middle" font-size="12.5" fill="#0F172A">UC-36 Check In and Out of Shift</text>
+<ellipse cx="1800" cy="1078" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="1800" y="1083" text-anchor="middle" font-size="12.5" fill="#0F172A">UC-37 Request Shift Swap or Leave</text>
+<ellipse cx="1870" cy="1590" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="1870" y="1595" text-anchor="middle" font-size="14" fill="#0F172A">UC-38 Check Entry Permission</text>
+<ellipse cx="1870" cy="1398" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="1870" y="1403" text-anchor="middle" font-size="14" fill="#0F172A">UC-39 Report Security Incident</text>
+<ellipse cx="1870" cy="1462" rx="135.0" ry="23.0" fill="#FFFFFF" stroke="#1F2937" stroke-width="1.4"/>
+<text x="1870" y="1467" text-anchor="middle" font-size="12.5" fill="#0F172A">UC-40 Load AI Runtime Configuration</text>
+<circle cx="150" cy="350" r="10" fill="#FFFFFF" stroke="#334155" stroke-width="2"/>
+<line x1="150" y1="360" x2="150" y2="384" stroke="#334155" stroke-width="2"/>
+<line x1="134" y1="370" x2="166" y2="370" stroke="#334155" stroke-width="2"/>
+<line x1="150" y1="384" x2="138" y2="404" stroke="#334155" stroke-width="2"/>
+<line x1="150" y1="384" x2="162" y2="404" stroke="#334155" stroke-width="2"/>
+<text x="124" y="376" text-anchor="end" font-size="16" font-weight="bold" fill="#475569">User</text>
+<text x="124" y="394" text-anchor="end" font-size="12" fill="#475569">(abstract)</text>
+<circle cx="1160" cy="101" r="10" fill="#FFFFFF" stroke="#334155" stroke-width="2"/>
+<line x1="1160" y1="111" x2="1160" y2="135" stroke="#334155" stroke-width="2"/>
+<line x1="1144" y1="121" x2="1176" y2="121" stroke="#334155" stroke-width="2"/>
+<line x1="1160" y1="135" x2="1148" y2="155" stroke="#334155" stroke-width="2"/>
+<line x1="1160" y1="135" x2="1172" y2="155" stroke="#334155" stroke-width="2"/>
+<text x="1190" y="127" font-size="16" font-weight="bold" fill="#2563EB">Administrator</text>
+<circle cx="150" cy="896" r="10" fill="#FFFFFF" stroke="#334155" stroke-width="2"/>
+<line x1="150" y1="906" x2="150" y2="930" stroke="#334155" stroke-width="2"/>
+<line x1="134" y1="916" x2="166" y2="916" stroke="#334155" stroke-width="2"/>
+<line x1="150" y1="930" x2="138" y2="950" stroke="#334155" stroke-width="2"/>
+<line x1="150" y1="930" x2="162" y2="950" stroke="#334155" stroke-width="2"/>
+<text x="150" y="972" text-anchor="middle" font-size="16" font-weight="bold" fill="#059669">Facility Manager</text>
+<circle cx="1160" cy="1746" r="10" fill="#FFFFFF" stroke="#334155" stroke-width="2"/>
+<line x1="1160" y1="1756" x2="1160" y2="1780" stroke="#334155" stroke-width="2"/>
+<line x1="1144" y1="1766" x2="1176" y2="1766" stroke="#334155" stroke-width="2"/>
+<line x1="1160" y1="1780" x2="1148" y2="1800" stroke="#334155" stroke-width="2"/>
+<line x1="1160" y1="1780" x2="1172" y2="1800" stroke="#334155" stroke-width="2"/>
+<text x="1190" y="1772" font-size="16" font-weight="bold" fill="#D97706">Authorized User</text>
+<circle cx="2170" cy="756" r="10" fill="#FFFFFF" stroke="#334155" stroke-width="2"/>
+<line x1="2170" y1="766" x2="2170" y2="790" stroke="#334155" stroke-width="2"/>
+<line x1="2154" y1="776" x2="2186" y2="776" stroke="#334155" stroke-width="2"/>
+<line x1="2170" y1="790" x2="2158" y2="810" stroke="#334155" stroke-width="2"/>
+<line x1="2170" y1="790" x2="2182" y2="810" stroke="#334155" stroke-width="2"/>
+<text x="2170" y="832" text-anchor="middle" font-size="16" font-weight="bold" fill="#DC2626">Security Officer</text>
+<circle cx="2170" cy="1366" r="10" fill="#FFFFFF" stroke="#334155" stroke-width="2"/>
+<line x1="2170" y1="1376" x2="2170" y2="1400" stroke="#334155" stroke-width="2"/>
+<line x1="2154" y1="1386" x2="2186" y2="1386" stroke="#334155" stroke-width="2"/>
+<line x1="2170" y1="1400" x2="2158" y2="1420" stroke="#334155" stroke-width="2"/>
+<line x1="2170" y1="1400" x2="2182" y2="1420" stroke="#334155" stroke-width="2"/>
+<text x="2170" y="1442" text-anchor="middle" font-size="16" font-weight="bold" fill="#7C3AED">AI Surveillance</text>
+<text x="2170" y="1462" text-anchor="middle" font-size="16" font-weight="bold" fill="#7C3AED">Engine</text>
+<text x="2170" y="1346" text-anchor="middle" font-size="13" fill="#475569">«system»</text>
+<rect x="1640" y="1710" width="430" height="140" fill="#FFFFFF" stroke="#94A3B8" rx="4"/>
+<text x="1652" y="1734" font-size="14" font-weight="bold" fill="#1E293B">Legend</text>
+<text x="1652" y="1754" font-size="12.5"  fill="#1E293B">Solid line: actor takes part in the use case (colour = actor)</text>
+<text x="1652" y="1774" font-size="12.5"  fill="#1E293B">Hollow triangle: generalization (each role is a User)</text>
+<text x="1652" y="1794" font-size="12.5"  fill="#1E293B">«include»: always part of the base use case</text>
+<text x="1652" y="1814" font-size="12.5"  fill="#1E293B">«extend»: optional, only under a condition</text>
+<text x="1652" y="1834" font-size="12.5"  fill="#1E293B">Scheduled jobs are non-screen functions (SRS 3.1.4)</text>
 </svg>

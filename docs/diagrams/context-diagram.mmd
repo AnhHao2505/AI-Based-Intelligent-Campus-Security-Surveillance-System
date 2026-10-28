@@ -2,7 +2,7 @@
 config:
   layout: elk
 ---
-%% Title: CTX-01 Context diagram of ICSSS (level 0) · Source: controller/*.java (@PreAuthorize roles), security/GoogleTokenVerifier.java, service/NotificationService.java (JavaMailSender, Gmail SMTP), service/CameraConnectionService.java and MediaMtxService.java (RTSP), mobile/lib (Security Officer app) · Updated 2026-10-27 (main @ b3e5ce6): AI Surveillance Engine drawn as an external entity (decision Q-2), ai-service/src/core/face_matcher.py (check-entry), ai-service/src/integration/kafka_producer.py (alerts), FaceDataService (face embeddings), CameraStreamLifecycleService (stream start/stop via MediaMTX), InternalAiController (runtime config)
+%% Title: CTX-01 Context diagram of ICSSS (level 0) · Source: controller/*.java (@PreAuthorize roles), security/GoogleTokenVerifier.java, service/NotificationService.java (JavaMailSender, Gmail SMTP), service/CameraConnectionService.java and MediaMtxService.java (RTSP), mobile/lib (Security Officer app) · Updated 2026-10-27 (main @ b3e5ce6): AI Surveillance Engine drawn as an external entity (decision Q-2), ai-service/src/core/face_matcher.py (check-entry), ai-service/src/integration/kafka_producer.py (alerts), FaceDataService (face embeddings), CameraStreamLifecycleService (stream start/stop via MediaMTX), InternalAiController (runtime config) · Updated 2026-10-28: Google Drive (planned, not in code) removed
 %% Notation: the system is one circle; every external entity is a separate rectangle; every flow is labelled with a noun (data, not an action).
 flowchart LR
     AU["Authorized User"]
@@ -16,7 +16,6 @@ flowchart LR
     CAM["IP Camera"]
     GID["Google Identity Service"]
     SMTP["E-mail Service<br/>(Gmail SMTP)"]
-    GDR["Google Drive<br/>(planned, not yet in code)"]
 
     AU -->|"Login credentials<br/>Access requests<br/>Guest visit registrations"| SYS
     FM -->|"Review decisions<br/>Event schedules<br/>Personnel assignments<br/>User access levels<br/>Guard shift plans"| SYS
@@ -38,13 +37,8 @@ flowchart LR
     SYS -->|"Account setup e-mails<br/>Password reset e-mails"| SMTP
     SMTP -->|"Send result"| SYS
 
-    %% Planned: continuous recording archive (1-minute segments). Dashed = not implemented yet.
-    SYS -.->|"Recorded video segments"| GDR
-    GDR -.->|"Archived video files"| SYS
 
     classDef ext fill:#ffffff,stroke:#1f2937,stroke-width:1.5px,color:#111827
     classDef sys fill:#e0ecff,stroke:#1d4ed8,stroke-width:2px,color:#0f172a
     class AU,FM,AD,SO,AIE,CAM,GID,SMTP ext
-    classDef planned fill:#fff4e6,stroke:#c2410c,stroke-width:1.5px,stroke-dasharray:6 4,color:#4a2a10
-    class GDR planned
     class SYS sys
