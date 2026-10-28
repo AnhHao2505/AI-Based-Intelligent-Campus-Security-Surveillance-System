@@ -1,0 +1,131 @@
+@startuml physical_architecture
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam roundCorner 8
+skinparam shadowing false
+skinparam packageStyle rectangle
+
+skinparam node {
+    BorderColor #334155
+    BackgroundColor #F8FAFC
+    BorderThickness 1.5
+}
+
+skinparam artifact {
+    BorderColor #2563EB
+    BackgroundColor #EFF6FF
+}
+
+skinparam queue {
+    BorderColor #D97706
+    BackgroundColor #FFFBEB
+}
+
+skinparam database {
+    BorderColor #059669
+    BackgroundColor #F0FDF4
+}
+
+skinparam storage {
+    BorderColor #0D9488
+    BackgroundColor #F0FDFA
+}
+
+title Deployment & Physical Architecture Diagram - ICSSS (FA26SE040)
+
+node "Campus IP Camera Network" as CamNet #F8FAFC {
+    node "<<device>> IP Surveillance Cameras\n(Hikvision / Dahua / ONVIF)" as IP_Cam #E2E8F0 {
+        artifact "RTSP Video Stream\n(H.264 / 1080p @ 25fps)" as StreamArtifact
+    }
+}
+
+node "Client Tier (End-User Workstations & Devices)" as ClientTier #F8FAFC {
+    node "<<device>> Security Control Room Workstation" as GuardPC #EFF6FF {
+        node "<<executionEnvironment>> Web Browser (Chrome / Edge)" as Browser {
+            artifact "Web Surveillance Console\n(React 18 + Vite SPA)" as WebApp
+        }
+    }
+    
+    node "<<device>> Patrol Guard Smartphone" as MobileDev #EFF6FF {
+        node "<<executionEnvironment>> Android OS (10+)" as AndroidEnv {
+            artifact "Guard Mobile Application\n(Flutter / Dart)" as MobileApp
+        }
+    }
+    
+    node "<<device>> Administrator Workstation" as AdminPC #EFF6FF {
+        node "<<executionEnvironment>> Web Browser" as AdminBrowser {
+            artifact "Admin & Management Portal\n(React 18 SPA)" as AdminApp
+        }
+    }
+}
+
+node "Central Campus Security Server (On-Premise / Edge Server)" as ServerNode #FFFFFF {
+    node "<<executionEnvironment>> Linux Host OS (Ubuntu 22.04 LTS)\nHardware: Intel Core i7 / Xeon | 32GB RAM | NVIDIA RTX GPU (CUDA)" as HostOS #F1F5F9 {
+        
+        node "<<executionEnvironment>> Docker Engine & Compose\nBridge Network: sep_network" as DockerHost #FFFFFF {
+            
+            node "<<container>> sep_mediamtx\n(bluenviron/mediamtx:latest)" as c_mediamtx #FEF3C7 {
+                artifact "Media Gateway Daemon\nPorts: 8554 (RTSP), 8889 (WHEP)\n8189 (UDP ICE), 8888 (HLS)" as a_mediamtx
+            }
+            
+            node "<<container>> sep_ai_service\n(Python 3.10+ / FastAPI / CUDA)" as c_ai #F3E8FF {
+                artifact "AI Analytics Engine\n• YOLO11n (Human Detect)\n• YuNet ONNX (Face Detect)\n• ArcFace (512-d Embedding)\n• ByteTrack (Multi-object Track)" as a_ai
+            }
+            
+            node "<<container>> sep_kafka\n(confluentinc/cp-kafka:7.7.0)" as c_kafka #FFFBEB {
+                queue "Message Broker (KRaft mode)\nPort: 9092 (Host), 29092 (Internal)\nTopics: security-incidents, cam.alert" as a_kafka
+            }
+            
+            node "<<container>> sep_backend\n(Eclipse Temurin OpenJDK 21)" as c_backend #EFF6FF {
+                artifact "Spring Boot 3.2.5 App Server\n• Access Decision Waterfall\n• Incident Management & Escalation\n• WebSocket STOMP Broker\nPort: 8080 (HTTP / WS)" as a_backend
+            }
+            
+            node "<<container>> sep_postgres\n(pgvector/pgvector:pg16)" as c_db #F0FDF4 {
+                database "PostgreSQL 16 Database\n• 33 Relational Tables\n• HNSW Cosine Index vector(512)\nPort: 5432" as a_db
+            }
+            
+            node "<<container>> sep_minio\n(minio/minio:latest)" as c_minio #F0FDF4 {
+                storage "MinIO Object Storage\n• security-evidence (Incident snapshots)\n• face-datasets (Enrollment photos)\nPorts: 9000 (S3 API), 9001 (Console)" as a_minio
+            }
+        }
+        
+        storage "<<volume>> pgdata\n(NVMe SSD)" as vol_db #DCFCE7
+        storage "<<volume>> miniodata\n(NVMe SSD)" as vol_minio #DCFCE7
+        storage "<<volume>> kafkadata\n(NVMe SSD)" as vol_kafka #FEF9C3
+        
+        c_db ..> vol_db : mounts
+        c_minio ..> vol_minio : mounts
+        c_kafka ..> vol_kafka : mounts
+    }
+}
+
+node "External Cloud Services" as CloudServices #F8FAFC {
+    cloud "Google Identity Platform\n(OAuth 2.0 / OpenID)" as cloud_google #E2E8F0
+    cloud "Google SMTP Mail Server\n(smtp.gmail.com:587)" as cloud_smtp #E2E8F0
+    cloud "Google Drive API\n(Video Archive Storage)" as cloud_gdrive #E2E8F0
+}
+
+' Connections
+IP_Cam --> c_mediamtx : "RTSP Video Ingestion\n(TCP :8554)"
+c_mediamtx --> c_ai : "RTSP Analysis Stream\n(TCP :8554)"
+c_mediamtx --> WebApp : "WebRTC WHEP Live Stream\n(Port :8889 / UDP :8189, <0.5s latency)"
+
+c_ai --> c_minio : "Upload Violation Snapshot\n(S3 API HTTP :9000)"
+c_ai --> c_kafka : "Publish Incident Alert\n(Kafka Binary :29092)"
+c_ai <--> c_backend : "Check Entry Permission\n(HTTP REST :8080)"
+
+c_kafka --> c_backend : "Consume Incident Event\n(Kafka Listener :29092)"
+c_backend --> c_db : "Database Operations & Vector Search\n(JDBC / TCP :5432)"
+c_backend --> c_minio : "Read/Write S3 Assets\n(S3 API HTTP :9000)"
+
+WebApp <--> c_backend : "• REST API (HTTPS :8080)\n• Real-Time Alerts (WebSocket STOMP :8080)"
+MobileApp <--> c_backend : "• REST API (HTTPS :8080)\n• Real-Time Dispatch (WebSocket STOMP :8080)"
+AdminApp <--> c_backend : "• Management REST API (HTTPS :8080)"
+
+c_backend --> cloud_google : "Verify OAuth 2.0 JWT (HTTPS :443)"
+c_backend --> cloud_smtp : "Send Escalation Email (TLS :587)"
+c_backend --> cloud_gdrive : "Backup Video Archives (HTTPS :443)"
+
+@enduml
