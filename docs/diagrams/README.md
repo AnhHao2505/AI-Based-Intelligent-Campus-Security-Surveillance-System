@@ -4,6 +4,7 @@ Diagrams for the access-control modules (access requests, guest visits, assigned
 
 - Drawn from the code on `main` @ `84f5565` (migrations up to V89). **Updated 2026-10-25** against `main` @ `84c7760` for the access-rules changes (no review after start time, system finish of elapsed requests, one assigned-personnel record per grant, event mode opened by schedules only): SM-01, SM-03, SM-04, AD-01, AD-03, SQ-02 and CD-01 part 2. **Checked 2026-10-29** against `main` @ `e474968`: SM-01 … SM-05 unchanged; SM-06 (user account) added. Where code and documents disagree, the diagram follows the code; the differences are listed in [Differences from the documents](#differences-from-the-documents).
 - Every `.mmd` file starts with `%% Title: … · Source: … · Generated from main @ <commit>`.
+- SM-01 … SM-06 also have a PlantUML version (`state-*.puml`, same name) used in the SDD (Report 4 §4). Edit the `.mmd` and the `.puml` together.
 - Paths in the tables are relative to `backend/src/main/java/com/fa26se040/icss/` unless they start with `frontend/`, `ai-service/` or `db/`.
 
 ## How to view

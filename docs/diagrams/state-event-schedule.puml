@@ -1,0 +1,50 @@
+@startuml state-event-schedule
+' Title: SM-03 Event schedule lifecycle (PlantUML version of state-event-schedule.mmd, keep both in sync)
+' Source: enums/AreaEventScheduleStatus.java, service/AreaService.java (createSchedule, updateSchedule, cancelSchedule,
+'   activateScheduleInTx, cleanupExpiredSessions, updateEventMode, finishScheduleOfSession),
+'   scheduler/AreaEventModeScheduler.java · Generated from main @ e474968
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam roundCorner 6
+skinparam shadowing false
+skinparam nodesep 65
+skinparam ranksep 45
+skinparam stateStartColor #000000
+skinparam stateEndColor #000000
+skinparam stateBackgroundColor #F8FAFC
+skinparam stateBorderColor #475569
+skinparam stateFontColor #0F172A
+skinparam stateArrowColor #2563EB
+hide empty description
+
+title SM-03 Event Schedule Lifecycle
+
+state SCHEDULED : booked, not started
+state STARTED : event session open
+state CANCELLED
+state FAILED
+state COMPLETED
+state ENDED_EARLY
+
+[*] --> SCHEDULED : Facility Manager creates schedule\n[active Confidential area, startAt > now,\nno overlap, budget ok]
+
+SCHEDULED --> SCHEDULED : Facility Manager edits\n[same checks as create, note]
+SCHEDULED --> CANCELLED : Facility Manager cancels\n[reason code and note]
+SCHEDULED --> STARTED : System job every minute\n[startAt reached, endAt > now,\narea active and Confidential] / session opened
+SCHEDULED --> FAILED : System job every minute\n[endAt already passed, or area inactive,\nor area no longer Confidential]
+
+STARTED --> COMPLETED : System closes the session\n[plannedEnd reached]
+STARTED --> ENDED_EARLY : Facility Manager stops the event\n(event mode DISABLE)
+
+CANCELLED --> [*]
+FAILED --> [*]
+COMPLETED --> [*]
+ENDED_EARLY --> [*]
+
+note right of STARTED
+  An event opens only from a schedule.
+  PATCH /event-mode accepts DISABLE only
+  (ENABLE, ADJUST -> 400 ERR_AREA_058).
+end note
+@enduml
