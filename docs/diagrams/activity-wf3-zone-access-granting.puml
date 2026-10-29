@@ -19,23 +19,22 @@ title AD-WF3 — Zone Access Granting
 |System|
 |Facility Manager|
 start
-switch (Access source?)
-case (access request)
+if (Access source?) then (access request)
   |Authorized User|
   :Request access for a time window
   (alone or with members);
   |Facility Manager|
   :Approve or reject before the start time
   (not one's own request);
-case (named assignment)
+elseif () then (named assignment)
   |Facility Manager|
   :Assign a named person to the area
   for one validity window;
-case (event)
+elseif () then (event)
   |Facility Manager|
   :Schedule an event
   on a Confidential area;
-case (guest visit)
+else (guest visit)
   |Authorized User|
   :Host (or a Facility Manager) invites guests
   to Confidential areas;
@@ -45,7 +44,7 @@ case (guest visit)
   |Administrator|
   :Attach each approved guest's photo
   after recording consent;
-endswitch
+endif
 |System|
 :Record the grant and notify the people concerned:
 request Approved, Rejected or Expired,
