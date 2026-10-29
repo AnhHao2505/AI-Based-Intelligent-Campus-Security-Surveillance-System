@@ -2,14 +2,39 @@
 title AD-04: Real-time AI-powered Surveillance Activity Diagram (WF-4)\nCampus Security Surveillance System (FA26SE040)
 
 skinparam conditionStyle inside
+skinparam roundCorner 8
+skinparam shadowing false
+
+skinparam defaultFontName Arial
+skinparam defaultFontSize 16
+skinparam titleFontSize 20
+skinparam titleFontColor #1E293B
+
 skinparam ActivityDiamondBackgroundColor #FFF2CC
 skinparam ActivityDiamondBorderColor #D6B656
+skinparam ActivityDiamondFontSize 14
+skinparam ActivityDiamondFontStyle bold
+
 skinparam ActivityBackgroundColor #F8F9FA
 skinparam ActivityBorderColor #4A5568
+skinparam ActivityBorderThickness 1.5
+skinparam ActivityFontSize 15
+
+skinparam ArrowColor #334155
+skinparam ArrowFontSize 13
+skinparam ArrowFontStyle bold
+skinparam ArrowThickness 1.5
+
 skinparam PartitionBorderColor #4A5568
+skinparam PartitionBorderThickness 1.5
+skinparam PartitionFontSize 17
+skinparam PartitionFontStyle bold
 skinparam PartitionBackgroundColor #FFFFFF
+
 skinparam NoteBackgroundColor #EBF8FF
 skinparam NoteBorderColor #3182CE
+skinparam NoteFontSize 13
+skinparam NoteBorderThickness 1.2
 
 |#E3F2FD|Camera & Ingestion|
 start
