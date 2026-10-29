@@ -6,40 +6,43 @@ skinparam roundCorner 8
 skinparam shadowing false
 
 skinparam defaultFontName Arial
-skinparam defaultFontSize 16
-skinparam titleFontSize 20
+skinparam defaultFontSize 14
+skinparam titleFontSize 18
 skinparam titleFontColor #1E293B
 
 skinparam ActivityDiamondBackgroundColor #FFF2CC
 skinparam ActivityDiamondBorderColor #D6B656
-skinparam ActivityDiamondFontSize 14
+skinparam ActivityDiamondFontSize 13
 skinparam ActivityDiamondFontStyle bold
 
 skinparam ActivityBackgroundColor #F8F9FA
 skinparam ActivityBorderColor #4A5568
 skinparam ActivityBorderThickness 1.5
-skinparam ActivityFontSize 15
+skinparam ActivityFontSize 14
 
 skinparam ArrowColor #334155
-skinparam ArrowFontSize 13
+skinparam ArrowFontSize 12
 skinparam ArrowFontStyle bold
 skinparam ArrowThickness 1.5
 
 skinparam PartitionBorderColor #4A5568
 skinparam PartitionBorderThickness 1.5
-skinparam PartitionFontSize 17
+skinparam PartitionFontSize 16
 skinparam PartitionFontStyle bold
 skinparam PartitionBackgroundColor #FFFFFF
 
 skinparam NoteBackgroundColor #EBF8FF
 skinparam NoteBorderColor #3182CE
-skinparam NoteFontSize 13
+skinparam NoteFontSize 12
 skinparam NoteBorderThickness 1.2
 
 |#E3F2FD|Camera & Ingestion|
 start
 :Capture RTSP live video stream via MediaMTX;
 :Deliver frame to Zero-Lag Buffer (Buffer Size = 1);
+
+|#E8F5E9|System Backend Core & Storage|
+:Provide Campus Zone & Security Policy\n(Active ROI Polygons, Area Level, Operating Hours);
 
 |#FFF3E0|AI Surveillance Engine (ai-service)|
 :Grab fresh frame & preprocess\n(Letterbox Resize 640x640, BGR to RGB);
@@ -56,8 +59,10 @@ if (Person's bottom-center inside ROI Polygon?\n(Ray-Casting Algorithm)) then (y
       if (Similarity >= Threshold (0.65)?) then (yes)
         :Identify User / Guest Code;
         |#E8F5E9|System Backend Core & Storage|
+        :Receive Check-Entry API Request\n(POST /api/access-control/check-entry);
         :Evaluate Waterfall Authorization Rules\nvia AccessDecisionService;
-        note right
+        note left
+          **Waterfall Rules:**
           1. Check Area Level (PUBLIC / RESTRICTED)
           2. Check Assigned Personnel
           3. Check Access Level vs Area Level
@@ -65,6 +70,7 @@ if (Person's bottom-center inside ROI Polygon?\n(Ray-Casting Algorithm)) then (y
           5. Check Incident Response (Guard on duty)
           6. Check Active Access Request / Guest Visit
         end note
+        :Return AccessDecision Response\n(ALLOWED / DENIED with detailed reason);
       else (no: Unmatched)
         |#FFF3E0|AI Surveillance Engine (ai-service)|
         :Classify as UNKNOWN_PERSON;
