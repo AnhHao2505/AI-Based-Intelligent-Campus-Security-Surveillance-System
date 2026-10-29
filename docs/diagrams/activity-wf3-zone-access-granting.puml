@@ -17,7 +17,7 @@ title AD-WF3 — Zone Access Granting
 |Facility Manager|
 |Administrator|
 |System|
-|Facility Manager|
+|Authorized User|
 start
 if (Access source?) then (access request)
   |Authorized User|
