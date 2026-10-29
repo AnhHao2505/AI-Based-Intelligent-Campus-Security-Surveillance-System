@@ -1,0 +1,34 @@
+%% Title: SM-06 User account lifecycle · Source: entity/User.java (isActive, deletedAt, importBatchId), service/UserService.java (createStaffAccount, bulkImport*, toggleActive, softDelete, deleteBatch, restoreBatch), service/UserBulkImportHelper.java, repository/UserRepository.java (softDeleteByImportBatchId), security/JwtAuthenticationFilter.java, service/AuthService.java · Generated from main @ e474968
+stateDiagram-v2
+    direction LR
+
+    state "ACTIVE · is_active = true, deleted_at empty" as ACTIVE
+    state "DEACTIVATED · is_active = false, deleted_at empty" as DEACTIVATED
+    state "DELETED · is_active = false, deleted_at set (soft delete)" as DELETED
+
+    [*] --> ACTIVE : Administrator creates staff account [role FACILITY_MANAGER, GUARD or NORMAL_USER; never ADMIN] / credentials e-mailed after commit
+    [*] --> ACTIVE : Administrator imports accounts from file [valid row with face photo] / import_batch_id set, face data registered, credentials e-mailed after the row commits
+
+    ACTIVE --> DEACTIVATED : Administrator deactivates [not own account] / requests PENDING or APPROVED cancelled (source SYSTEM), assigned personnel revoked, WebSocket sessions closed, AI face cache refreshed
+    DEACTIVATED --> ACTIVE : Administrator reactivates / nothing restored automatically, AI face cache refreshed
+
+    ACTIVE --> DELETED : Administrator deletes account [not own account] / same side effects as deactivation
+    DEACTIVATED --> DELETED : Administrator deletes account [not own account]
+    ACTIVE --> DELETED : Administrator removes import batch / same side effects for every account of the batch
+    DEACTIVATED --> DELETED : Administrator removes import batch
+
+    DELETED --> ACTIVE : Administrator restores import batch [account belongs to the batch, user code and e-mail not used by another live account] / skipped accounts reported
+
+    note right of DEACTIVATED
+        DEACTIVATED and DELETED accounts cannot log in
+        (password, Google or reset link: findByEmailAndIsActiveTrue)
+        and existing JWTs are refused by JwtAuthenticationFilter.
+        Guest visits hosted by the account keep their status;
+        guest entry is denied at decision time (HOST_LOST_ACCESS).
+    end note
+
+    note left of DELETED
+        There is no single-account restore.
+        Only accounts created by import (import_batch_id set)
+        can return, and they always return as ACTIVE.
+    end note

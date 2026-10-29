@@ -1,0 +1,55 @@
+@startuml state-assigned-personnel
+' Title: SM-04 Assigned personnel (AP) status (PlantUML version of state-assigned-personnel.mmd, keep both in sync)
+' Source: enums/AssignedPersonnelStatus.java, service/AreaAssignedPersonnelService.java (create, revoke, revokeAllOfUser,
+'   computeStatus), service/AreaService.java (revokeAssignedPersonnelOnDeactivation), service/UserService.java · Generated from main @ e474968
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam roundCorner 6
+skinparam shadowing false
+skinparam nodesep 65
+skinparam ranksep 45
+skinparam stateStartColor #000000
+skinparam stateEndColor #000000
+skinparam stateBackgroundColor #F8FAFC
+skinparam stateBorderColor #475569
+skinparam stateFontColor #0F172A
+skinparam stateArrowColor #2563EB
+hide empty description
+
+title SM-04 Assigned Personnel Status
+
+state UPCOMING : computed
+state ACTIVE : computed
+state EXPIRED : computed
+state REVOKED : stored as revoked_at
+
+[*] --> UPCOMING : Facility Manager assigns user\n[validFrom > now, no overlap]
+[*] --> ACTIVE : Facility Manager assigns user\n[validFrom = now, at most 5 min in the past (ERR_AP_013)]
+
+UPCOMING --> ACTIVE : Time passes\n[now >= validFrom]
+ACTIVE --> EXPIRED : Time passes\n[validTo set and now >= validTo]
+
+UPCOMING --> REVOKED : Facility Manager revokes [reason]
+ACTIVE --> REVOKED : Facility Manager revokes [reason]
+UPCOMING --> REVOKED : Administrator deactivates or deletes\nthe user (BR-AP-24, BR-AP-25),\nor deactivates the area (BR-AD-04)
+ACTIVE --> REVOKED : Administrator deactivates or deletes\nthe user (BR-AP-24, BR-AP-25),\nor deactivates the area (BR-AD-04)
+
+REVOKED --> [*]
+EXPIRED --> [*]
+
+note right of EXPIRED
+  One record per grant: validity cannot be edited.
+  To grant again, create a new record
+  (it may start exactly at the previous validTo).
+  Revoking an EXPIRED record -> 409 ERR_AP_012.
+end note
+
+note left of REVOKED
+  Status is NOT stored. computeStatus(ap, now):
+  revoked_at set -> REVOKED
+  now < valid_from -> UPCOMING
+  valid_to set and now >= valid_to -> EXPIRED
+  otherwise ACTIVE
+end note
+@enduml

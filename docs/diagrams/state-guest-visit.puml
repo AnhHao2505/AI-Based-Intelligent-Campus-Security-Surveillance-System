@@ -1,0 +1,58 @@
+@startuml state-guest-visit
+' Title: SM-02 Guest visit lifecycle (PlantUML version of state-guest-visit.mmd, keep both in sync)
+' Source: enums/GuestVisitStatus.java, service/GuestVisitService.java (create, review, cancel, revoke,
+'   closeForAreaDeactivation), service/GuestVisitJobService.java, scheduler/GuestVisitScheduler.java · Generated from main @ e474968
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam roundCorner 6
+skinparam shadowing false
+skinparam nodesep 65
+skinparam ranksep 45
+skinparam stateStartColor #000000
+skinparam stateEndColor #000000
+skinparam stateBackgroundColor #F8FAFC
+skinparam stateBorderColor #475569
+skinparam stateFontColor #0F172A
+skinparam stateArrowColor #2563EB
+hide empty description
+
+title SM-02 Guest Visit Lifecycle
+
+state PENDING : awaiting review
+state APPROVED : guests may enter inside the window
+state REJECTED
+state CANCELLED
+state REVOKED
+state EXPIRED
+state COMPLETED
+
+[*] --> PENDING : Host (Authorized User or Facility Manager)\ncreates visit [host eligible, Confidential areas,\nhost covers the areas for the whole window]
+
+PENDING --> APPROVED : Facility Manager approves\n[version matches, reviewer is not host,\nnow < startTime, rules re-checked]
+PENDING --> REJECTED : Facility Manager rejects\n[version matches, reviewer is not host,\nnow < startTime, reason]
+PENDING --> CANCELLED : Host cancels\n[version matches, now < endTime]
+PENDING --> CANCELLED : Administrator deactivates an area\nof the visit [now < endTime]
+PENDING --> EXPIRED : System job every minute\n[now >= startTime]
+
+APPROVED --> CANCELLED : Host cancels\n[version matches, now < endTime]\n/ biometrics deleted
+APPROVED --> REVOKED : Facility Manager revokes\n[version matches, reviewer is not host,\nreason, now < endTime] / biometrics deleted
+APPROVED --> REVOKED : Administrator deactivates an area\nof the visit [now < endTime] / biometrics deleted
+APPROVED --> COMPLETED : System job every minute\n[now >= endTime]
+
+REJECTED --> [*]
+CANCELLED --> [*]
+REVOKED --> [*]
+EXPIRED --> [*]
+COMPLETED --> [*]
+
+note right of APPROVED
+  Biometric deletion is not a visit state.
+  It is Guest.biometricStatus (GuestBiometricStatus):
+  NO_PHOTO -> PHOTO_READY after the Administrator
+  attaches a photo with recorded consent;
+  DELETED on cancel or revoke of an APPROVED visit,
+  on expiry, or by job at endTime + GUEST_FACE_RETENTION_HOURS.
+  PHOTO_ONLY exists in the enum but no code sets it.
+end note
+@enduml

@@ -1,0 +1,51 @@
+@startuml state-user
+' Title: SM-06 User account lifecycle (PlantUML version of state-user.mmd, keep both in sync)
+' Source: entity/User.java (isActive, deletedAt, importBatchId), service/UserService.java (createStaffAccount, toggleActive,
+'   softDelete, deleteBatch, restoreBatch), service/UserBulkImportHelper.java, repository/UserRepository.java
+'   (softDeleteByImportBatchId), security/JwtAuthenticationFilter.java, service/AuthService.java · Generated from main @ e474968
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam roundCorner 6
+skinparam shadowing false
+skinparam nodesep 65
+skinparam ranksep 45
+skinparam stateStartColor #000000
+skinparam stateEndColor #000000
+skinparam stateBackgroundColor #F8FAFC
+skinparam stateBorderColor #475569
+skinparam stateFontColor #0F172A
+skinparam stateArrowColor #2563EB
+hide empty description
+
+title SM-06 User Account Lifecycle
+
+state ACTIVE : is_active = true, deleted_at empty
+state DEACTIVATED : is_active = false, deleted_at empty
+state DELETED : is_active = false, deleted_at set (soft delete)
+
+[*] --> ACTIVE : Administrator creates staff account\n[role FACILITY_MANAGER, GUARD or NORMAL_USER,\nnever ADMIN] / credentials e-mailed after commit
+[*] --> ACTIVE : Administrator imports accounts from file\n[valid row with face photo] / import_batch_id set,\nface data registered, credentials e-mailed
+
+ACTIVE --> DEACTIVATED : Administrator deactivates [not own account]\n/ open requests cancelled (SYSTEM), AP revoked,\nWebSocket sessions closed, AI face cache refreshed
+DEACTIVATED --> ACTIVE : Administrator reactivates\n/ nothing restored automatically
+
+ACTIVE --> DELETED : Administrator deletes account [not own account]\nor removes its import batch\n/ same side effects as deactivation
+DEACTIVATED --> DELETED : Administrator deletes account [not own account]\nor removes its import batch
+
+DELETED --> ACTIVE : Administrator restores import batch\n[user code and e-mail not used by a live account]\n/ skipped accounts reported
+
+note right of DEACTIVATED
+  DEACTIVATED and DELETED accounts cannot log in
+  (password, Google or reset link) and existing JWTs
+  are refused by JwtAuthenticationFilter.
+  Guest visits hosted by the account keep their status;
+  guest entry is denied at decision time (HOST_LOST_ACCESS).
+end note
+
+note left of DELETED
+  No single-account restore.
+  Only imported accounts (import_batch_id set)
+  can return, and they always return as ACTIVE.
+end note
+@enduml

@@ -2,8 +2,9 @@
 
 Diagrams for the access-control modules (access requests, guest visits, assigned personnel, areas, event schedules, entry decision), kept as Mermaid source so they can be reviewed and versioned with the code.
 
-- Drawn from the code on `main` @ `84f5565` (migrations up to V89). **Updated 2026-10-25** against `main` @ `84c7760` for the access-rules changes (no review after start time, system finish of elapsed requests, one assigned-personnel record per grant, event mode opened by schedules only): SM-01, SM-03, SM-04, AD-01, AD-03, SQ-02 and CD-01 part 2. Where code and documents disagree, the diagram follows the code; the differences are listed in [Differences from the documents](#differences-from-the-documents).
+- Drawn from the code on `main` @ `84f5565` (migrations up to V89). **Updated 2026-10-25** against `main` @ `84c7760` for the access-rules changes (no review after start time, system finish of elapsed requests, one assigned-personnel record per grant, event mode opened by schedules only): SM-01, SM-03, SM-04, AD-01, AD-03, SQ-02 and CD-01 part 2. **Checked 2026-10-29** against `main` @ `e474968`: SM-01 … SM-05 unchanged; SM-06 (user account) added. Where code and documents disagree, the diagram follows the code; the differences are listed in [Differences from the documents](#differences-from-the-documents).
 - Every `.mmd` file starts with `%% Title: … · Source: … · Generated from main @ <commit>`.
+- SM-01 … SM-06 also have a PlantUML version (`state-*.puml`, same name) used in the SDD (Report 4 §4). Edit the `.mmd` and the `.puml` together.
 - Paths in the tables are relative to `backend/src/main/java/com/fa26se040/icss/` unless they start with `frontend/`, `ai-service/` or `db/`.
 
 ## How to view
@@ -39,6 +40,7 @@ Diagrams for the access-control modules (access requests, guest visits, assigned
 | SM-03 | `state-event-schedule.mmd` | stateDiagram-v2 | Event schedule | `enums/AreaEventScheduleStatus.java`, `service/AreaService.java` | |
 | SM-04 | `state-assigned-personnel.mmd` | stateDiagram-v2 | Assigned personnel | `service/AreaAssignedPersonnelService.java: computeStatus` | Status computed, not stored. EXPIRED is final; no validity edit (D7 resolved) |
 | SM-05 | `state-area.mmd` | stateDiagram-v2 | Area | `entity/Area.java`, `service/AreaService.java: create, update, deactivate, restore` | Business states, no status enum |
+| SM-06 | `state-user.mmd` | stateDiagram-v2 | User account | `entity/User.java`, `service/UserService.java: createStaffAccount, toggleActive, softDelete, deleteBatch, restoreBatch` | Business states, no status enum. Only import batches can be restored |
 | AD-01 | `activity-access-request.mmd` | flowchart, swimlanes | Request access workflow | `AccessRequestService`, `AccessDecisionService` | |
 | AD-02 | `activity-guest-visit.mmd` | flowchart, swimlanes | Guest visit workflow | `GuestVisitService`, `GuestPhotoService.attach`, `GuestVisitJobService`, `GuestAccessDecisionService` | |
 | AD-03 | `activity-event-schedule.mmd` | flowchart, swimlanes | Event schedule workflow | `AreaService`, `scheduler/AreaEventModeScheduler.java` | |
@@ -120,6 +122,20 @@ Diagrams for the access-control modules (access requests, guest visits, assigned
 | In operation → Deactivated | `AreaService.deactivate`, `AreaDependencyChecker.evaluate` (ERR_AREA_009, 051, 052, 042) |
 | Deactivated → In operation | `AreaService.restore` (ERR_AREA_054, 055, 020) |
 | Deactivated area cannot be edited | `AreaService.update` (`filter(a -> a.getDeletedAt() == null)` → ERR_AREA_002) |
+
+### SM-06 User account
+
+| State / transition | Source |
+|---|---|
+| ACTIVE / DEACTIVATED / DELETED | `entity/User.java` (`isActive`, `deletedAt`, `importBatchId`) |
+| [*] → ACTIVE (create) | `UserService.createStaffAccount` (ADMIN role refused), mail via `sendAccountSetupEmailAfterCommit` |
+| [*] → ACTIVE (import) | `UserBulkImportHelper` (face data via `FaceDataService.registerFace`, mail after the row commits) |
+| ACTIVE ↔ DEACTIVATED | `UserService.toggleActive` (not own account); deactivation calls `cancelActiveRequestsOfRequester`, `revokeAllOfUser`, `closeWebSocketSessionsAfterCommit` |
+| → DELETED (one account) | `UserService.softDelete` (not own account, same side effects) |
+| → DELETED (batch) | `UserService.deleteBatch` → `UserRepository.softDeleteByImportBatchId` |
+| DELETED → ACTIVE | `UserService.restoreBatch` (skips accounts whose code or e-mail is used by a live account) |
+| Login refused | `AuthService` (`findByEmailAndIsActiveTrue`), `security/JwtAuthenticationFilter.java` |
+| Hosted guest visits | Status unchanged; `GuestAccessDecisionService` denies entry with `HOST_LOST_ACCESS` |
 
 ## ER-01 note
 
@@ -420,6 +436,47 @@ stateDiagram-v2
         Type change: system cancels APPROVED requests that break the new type rules
         (and all PENDING + APPROVED when new type is PUBLIC) in the same transaction.
         A deactivated area cannot be edited or have its type changed (ERR_AREA_002).
+    end note
+```
+
+### SM-06 User account lifecycle
+
+Source file: [`state-user.mmd`](state-user.mmd)
+
+```mermaid
+%% Title: SM-06 User account lifecycle · Source: entity/User.java (isActive, deletedAt, importBatchId), service/UserService.java (createStaffAccount, bulkImport*, toggleActive, softDelete, deleteBatch, restoreBatch), service/UserBulkImportHelper.java, repository/UserRepository.java (softDeleteByImportBatchId), security/JwtAuthenticationFilter.java, service/AuthService.java · Generated from main @ e474968
+stateDiagram-v2
+    direction LR
+
+    state "ACTIVE · is_active = true, deleted_at empty" as ACTIVE
+    state "DEACTIVATED · is_active = false, deleted_at empty" as DEACTIVATED
+    state "DELETED · is_active = false, deleted_at set (soft delete)" as DELETED
+
+    [*] --> ACTIVE : Administrator creates staff account [role FACILITY_MANAGER, GUARD or NORMAL_USER; never ADMIN] / credentials e-mailed after commit
+    [*] --> ACTIVE : Administrator imports accounts from file [valid row with face photo] / import_batch_id set, face data registered, credentials e-mailed after the row commits
+
+    ACTIVE --> DEACTIVATED : Administrator deactivates [not own account] / requests PENDING or APPROVED cancelled (source SYSTEM), assigned personnel revoked, WebSocket sessions closed, AI face cache refreshed
+    DEACTIVATED --> ACTIVE : Administrator reactivates / nothing restored automatically, AI face cache refreshed
+
+    ACTIVE --> DELETED : Administrator deletes account [not own account] / same side effects as deactivation
+    DEACTIVATED --> DELETED : Administrator deletes account [not own account]
+    ACTIVE --> DELETED : Administrator removes import batch / same side effects for every account of the batch
+    DEACTIVATED --> DELETED : Administrator removes import batch
+
+    DELETED --> ACTIVE : Administrator restores import batch [account belongs to the batch, user code and e-mail not used by another live account] / skipped accounts reported
+
+    note right of DEACTIVATED
+        DEACTIVATED and DELETED accounts cannot log in
+        (password, Google or reset link: findByEmailAndIsActiveTrue)
+        and existing JWTs are refused by JwtAuthenticationFilter.
+        Guest visits hosted by the account keep their status;
+        guest entry is denied at decision time (HOST_LOST_ACCESS).
+    end note
+
+    note left of DELETED
+        There is no single-account restore.
+        Only accounts created by import (import_batch_id set)
+        can return, and they always return as ACTIVE.
     end note
 ```
 
