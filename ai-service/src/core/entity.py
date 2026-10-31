@@ -82,10 +82,19 @@ class TrackedPerson:
         self.last_seen_time = current_time
 
 @dataclass
+class MotionResult:
+    has_motion: bool = False
+    motion_area: int = 0
+    motion_boxes: List[BoundingBox] = field(default_factory=list)
+    is_lighting_spike: bool = False
+    is_tampering: bool = False
+    details: Optional[str] = None
+
+@dataclass
 class SecurityAlertEvent:
     event_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     camera_code: str = "CAM-001"
-    event_type: str = "UNKNOWN_PERSON"  # AFTER_HOURS_PRESENCE, UNAUTHORIZED_ACCESS, UNKNOWN_PERSON
+    event_type: str = "UNKNOWN_PERSON"  # AFTER_HOURS_PRESENCE, UNAUTHORIZED_ACCESS, UNKNOWN_PERSON, SUSPICIOUS_MOTION, CAMERA_TAMPERING
     track_id: int = -1
     duration_seconds: float = 0.0
     confidence: float = 1.0
