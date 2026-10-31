@@ -85,6 +85,8 @@ class VideoPipeline:
         self._suspicious_motion_cooldown: float = 5.0
         self._last_tampering_time: float = 0.0
         self._tampering_cooldown: float = 10.0
+        self._face_check_history: dict = {}
+        self._face_check_interval: float = 1.0
 
         # Khởi tạo các module tích hợp
         from concurrent.futures import ThreadPoolExecutor
@@ -127,6 +129,35 @@ class VideoPipeline:
             self.roi_polygon = configs[0].vertices
         else:
             self.roi_polygon = []
+
+    @staticmethod
+    def _is_motion_overlapping_humans(
+        motion_box: BoundingBox,
+        human_bboxes: List[BoundingBox],
+        iou_or_inter_thresh: float = 0.05
+    ) -> bool:
+        if not human_bboxes:
+            return False
+        mx1, my1, mx2, my2 = motion_box.to_xyxy()
+        m_area = max(1.0, (mx2 - mx1) * (my2 - my1))
+        for hb in human_bboxes:
+            hx1, hy1, hx2, hy2 = hb.to_xyxy()
+            ix1 = max(mx1, hx1)
+            iy1 = max(my1, hy1)
+            ix2 = min(mx2, hx2)
+            iy2 = min(my2, hy2)
+            if ix2 > ix1 and iy2 > iy1:
+                inter_area = (ix2 - ix1) * (iy2 - iy1)
+                if (inter_area / m_area) >= iou_or_inter_thresh:
+                    return True
+        return False
+
+    def _should_check_face(self, track_id: int, current_time: float) -> bool:
+        last_t = self._face_check_history.get(track_id, 0.0)
+        return (current_time - last_t) >= self._face_check_interval
+
+    def _record_face_check_attempt(self, track_id: int, current_time: float, matched: bool = False):
+        self._face_check_history[track_id] = current_time
 
     def is_bbox_in_roi(self, bbox: BoundingBox, frame_w: int, frame_h: int) -> Tuple[bool, str]:
         """
@@ -226,8 +257,17 @@ class VideoPipeline:
         )
 
         # 2c. Phát hiện Đột nhập Ngụy trang (SUSPICIOUS_MOTION):
-        # Có chuyển động đáng kể trong ROI nhưng YOLO26 không nhận diện được dáng người
-        if motion_res.has_motion and not person_in_roi and len(motion_res.motion_boxes) > 0:
+        # Có chuyển động đáng kể trong ROI nhưng không trùng khớp/đè lên bất kỳ dáng người nào được YOLO phát hiện
+        human_boxes = [bbox for _, bbox in detected_tracks]
+        unexplained_motion = False
+        if motion_res.has_motion and len(motion_res.motion_boxes) > 0:
+            for mb in motion_res.motion_boxes:
+                if not self._is_motion_overlapping_humans(mb, human_boxes):
+                    unexplained_motion = True
+                    break
+
+        has_roi_defined = bool(self.roi_polygons or self.roi_polygon)
+        if unexplained_motion and has_roi_defined:
             if (current_time - self._last_suspicious_motion_time) >= self._suspicious_motion_cooldown:
                 self._last_suspicious_motion_time = current_time
                 anomaly_alert = SecurityAlertEvent(
@@ -258,7 +298,7 @@ class VideoPipeline:
                         self.camera_code,
                         existing.face_info.matched_code,
                         roi_label=roi_label or "Vùng giám sát",
-                        event_direction="ENTRY"
+                        event_direction=None
                     )
                     reason_lower = (access_reason or "").lower()
                     if "không tồn tại" in reason_lower or "đã bị xoá" in reason_lower:
@@ -272,6 +312,9 @@ class VideoPipeline:
                         existing.face_info.area_name = area_name
                     existing.face_info.access_checked = True
                     existing.roi_entry_logged = True
+                continue
+
+            if not self._should_check_face(track_id, current_time):
                 continue
 
             x1, y1, x2, y2 = bbox.to_int_xyxy()
@@ -301,6 +344,7 @@ class VideoPipeline:
                                 threshold=settings.FACE_MATCH_THRESHOLD,
                                 landmarks=crop_landmarks
                             )
+                            self._record_face_check_attempt(track_id, current_time, matched=bool(match))
                             if match:
                                 if len(match) >= 5:
                                     code, name, score, is_active, role = match
@@ -318,7 +362,7 @@ class VideoPipeline:
                                         self.camera_code,
                                         code,
                                         roi_label=roi_label or "Vùng giám sát",
-                                        event_direction="ENTRY"
+                                        event_direction=None
                                     )
                                     reason_lower = (access_reason or "").lower()
                                     if "không tồn tại" in reason_lower or "đã bị xoá" in reason_lower:
@@ -350,7 +394,8 @@ class VideoPipeline:
             current_time=current_time,
             roi_polygons=self.roi_polygons,
             frame_size=(w, h),
-            is_public_area=is_public
+            is_public_area=is_public,
+            return_roi_events=True
         )
 
         if early_alerts:

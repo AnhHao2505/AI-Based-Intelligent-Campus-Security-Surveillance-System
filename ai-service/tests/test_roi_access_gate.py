@@ -59,7 +59,8 @@ def test_roi_and_access_gate():
         camera_code="CAM-002",
         roi_polygons=pipeline.roi_polygons,
         frame_size=(1000, 1000),
-        current_time=base_time
+        current_time=base_time,
+        return_roi_events=True
     )
     assert len(alerts) == 0, f"Lỗi: Đứng ngoài ROI mà sinh ra {len(alerts)} cảnh báo!"
     assert len(roi_events) == 0, f"Lỗi: Đứng ngoài ROI mà sinh ra {len(roi_events)} sự kiện ra vào!"
@@ -84,7 +85,8 @@ def test_roi_and_access_gate():
         camera_code="CAM-002",
         roi_polygons=pipeline.roi_polygons,
         frame_size=(1000, 1000),
-        current_time=base_time + 1.0
+        current_time=base_time + 1.0,
+        return_roi_events=True
     )
     assert persons2[0].is_in_roi, "Lỗi: person.is_in_roi phải là True khi bước vào ROI"
     if not is_allowed:
@@ -97,7 +99,8 @@ def test_roi_and_access_gate():
         camera_code="CAM-002",
         roi_polygons=pipeline.roi_polygons,
         frame_size=(1000, 1000),
-        current_time=base_time + 3.0
+        current_time=base_time + 3.0,
+        return_roi_events=True
     )
     assert not persons3[0].is_in_roi
     exit_events = [ev for ev in roi_events3 if ev.get("direction") == "EXIT"]

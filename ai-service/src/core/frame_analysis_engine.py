@@ -1,7 +1,7 @@
 import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Tuple, Any, Union
 from ..config import settings
 from .entity import (
     TrackedPerson, BoundingBox, Point, SecurityAlertEvent,
@@ -23,15 +23,18 @@ class FrameAnalysisEngine:
         max_inactive_seconds: Optional[float] = None,
         after_hour_start: Optional[str] = None,
         after_hour_end: Optional[str] = None,
-        unknown_alert_cooldown: Optional[float] = None
+        unknown_alert_cooldown: Optional[float] = None,
+        unclear_face_buffer_seconds: float = 0.0
     ):
         self.max_inactive_seconds = max_inactive_seconds if max_inactive_seconds is not None else settings.DEFAULT_TRACK_MAX_INACTIVE_SECONDS
         self.after_hour_start = after_hour_start or settings.DEFAULT_AFTER_HOUR_START
         self.after_hour_end = after_hour_end or settings.DEFAULT_AFTER_HOUR_END
         self.unknown_alert_cooldown = unknown_alert_cooldown if unknown_alert_cooldown is not None else settings.DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS
+        self.unclear_face_buffer_seconds = unclear_face_buffer_seconds
         self.active_tracks: Dict[int, TrackedPerson] = {}
         self.pending_faces: Dict[int, FaceDetectionResult] = {}
         self.last_unknown_alert_time: Dict[str, float] = {}  # camera_code -> timestamp
+        self.latest_roi_events: List[Dict[str, Any]] = []
 
     def process_frame(
         self,
@@ -41,8 +44,9 @@ class FrameAnalysisEngine:
         current_time: Optional[float] = None,
         roi_polygons: Optional[List[Any]] = None,
         frame_size: Optional[Tuple[int, int]] = None,
-        is_public_area: bool = False
-    ) -> Tuple[List[TrackedPerson], List[SecurityAlertEvent]]:
+        is_public_area: bool = False,
+        return_roi_events: bool = False
+    ) -> Union[Tuple[List[TrackedPerson], List[SecurityAlertEvent]], Tuple[List[TrackedPerson], List[SecurityAlertEvent], List[Dict[str, Any]]]]:
         if current_time is None:
             current_time = time.time()
 
@@ -283,13 +287,15 @@ class FrameAnalysisEngine:
                     # tự do lưu thông trong giờ hoạt động bình thường -> KHÔNG cảnh báo người lạ UNKNOWN_PERSON!
                     # Chỉ kích hoạt cảnh báo INTRUSION nếu xuất hiện ngoài giờ (after_hours = True).
                     if not getattr(person, "alert_unknown_sent", False):
-                        if not is_public_area or after_hours or (active_pixel_polys and person.is_in_roi):
+                        has_explicit_restricted_rule = any(r in ["INTRUSION", "UNAUTHORIZED", "FORBIDDEN"] for r in matched_rules)
+                        should_alert_unknown = (not is_public_area) or after_hours or has_explicit_restricted_rule
+                        if should_alert_unknown:
                             last_alert_ts = self.last_unknown_alert_time.get(camera_code, 0.0)
                             if (current_time - last_alert_ts) >= self.unknown_alert_cooldown:
                                 is_face_clear = person.face_detected and person.face_info
                                 # Nếu chưa rõ mặt (chưa quét được face hoặc đang quay mặt đi), cho phép thời gian đệm 1.5s
                                 # để Face Detector kịp phát hiện và định danh trước khi vội bắn cảnh báo người lạ
-                                if not is_face_clear and (current_time - person.first_seen_time) < 1.5:
+                                if not is_face_clear and self.unclear_face_buffer_seconds > 0 and (current_time - person.first_seen_time) < self.unclear_face_buffer_seconds:
                                     continue
                                 face_note = "người lạ ngoài hệ thống" if is_face_clear else "chưa rõ mặt"
                                 if after_hours:
@@ -336,7 +342,10 @@ class FrameAnalysisEngine:
             if tid in self.pending_faces:
                 del self.pending_faces[tid]
 
-        return list(self.active_tracks.values()), generated_alerts, roi_access_events
+        self.latest_roi_events = roi_access_events
+        if return_roi_events:
+            return list(self.active_tracks.values()), generated_alerts, roi_access_events
+        return list(self.active_tracks.values()), generated_alerts
 
     def associate_face(self, track_id: int, face_result: FaceDetectionResult):
         if face_result is None:

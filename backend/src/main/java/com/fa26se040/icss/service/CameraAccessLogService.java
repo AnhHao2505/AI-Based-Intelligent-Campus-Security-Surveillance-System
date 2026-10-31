@@ -173,14 +173,9 @@ public class CameraAccessLogService {
             return AccessResult.INTRUSION;
         }
 
-        // 2. Kiểm tra Sai giờ (ACCESS_OUT_OF_TIME): Đến sớm, trễ, quá hạn, ngoài khung giờ quy định
-        if (reason.contains("ngoài khung giờ") || reason.contains("hết hạn") || reason.contains("chưa tới giờ") || reason.contains("chưa đến giờ") || reason.contains("khung giờ") || reason.contains("thời gian") || reason.contains("out_of_time")) {
-            return AccessResult.ACCESS_OUT_OF_TIME;
-        }
-
-        // 3. Kiểm tra Người lạ (UNKNOWN_PERSON): Chưa rõ mặt, không có tài khoản, đã bị xoá, hoặc gắn cờ UNKNOWN
+        // 2. Kiểm tra Người lạ (UNKNOWN_PERSON): Chưa rõ mặt, không có tài khoản, đã bị xoá, người lạ rời khu vực, hoặc gắn cờ UNKNOWN/N/A
         boolean isGuest = userCode.startsWith("GUEST-");
-        boolean isExplicitUnknownCode = userCode.isBlank() || userCode.startsWith("UNKNOWN") || userCode.equals("VIOLATION");
+        boolean isExplicitUnknownCode = userCode.isBlank() || userCode.startsWith("UNKNOWN") || userCode.equals("VIOLATION") || userCode.equals("N/A");
         if ((!userExists && !isGuest && isExplicitUnknownCode)
                 || reason.contains("người dùng không tồn tại")
                 || reason.contains("đã bị xoá")
@@ -189,6 +184,19 @@ public class CameraAccessLogService {
                 || reason.contains("chưa đăng ký")
                 || reason.contains("người lạ")) {
             return AccessResult.UNKNOWN_PERSON;
+        }
+
+        // 3. Kiểm tra Sai giờ (ACCESS_OUT_OF_TIME): Đến sớm, trễ, quá hạn, ngoài khung giờ quy định
+        // Lưu ý: không nhầm với thời gian lưu lại ROI (durationSeconds)
+        boolean hasTimingKeyword = reason.contains("ngoài khung giờ")
+                || reason.contains("hết hạn")
+                || reason.contains("chưa tới giờ")
+                || reason.contains("chưa đến giờ")
+                || reason.contains("khung giờ")
+                || (reason.contains("thời gian") && !reason.contains("thời gian lưu lại"))
+                || reason.contains("out_of_time");
+        if (hasTimingKeyword) {
+            return AccessResult.ACCESS_OUT_OF_TIME;
         }
 
         // 4. Mặc định: Sai quyền (UNAUTHORIZED_ACCESS) - Cấp độ không đủ, không có đơn, tài khoản bị khoá

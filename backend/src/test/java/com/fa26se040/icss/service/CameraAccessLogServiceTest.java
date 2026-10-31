@@ -262,6 +262,33 @@ class CameraAccessLogServiceTest {
     }
 
     @Test
+    @DisplayName("Người lạ ra khỏi khu vực (EXIT) có ghi thời gian lưu lại vẫn phải phân loại là UNKNOWN_PERSON (không nhầm thành ACCESS_OUT_OF_TIME hay AUTHORIZED_ACCESS)")
+    void testRecordAccessLog_UnknownPersonExit_ClassifiedAsUnknownPerson() {
+        OffsetDateTime daytime = OffsetDateTime.of(2026, 10, 14, 14, 0, 0, 0, ZoneOffset.ofHours(7));
+        CheckCameraEntryResponse entryResponse = CheckCameraEntryResponse.builder()
+                .allowed(false)
+                .source(AccessSource.NONE)
+                .reason("[RA KHỎI ROI: Vùng giám sát 1] Người lạ rời khu vực (Thời gian lưu lại: 7s)")
+                .cameraCode("CAM-001")
+                .areaId(areaId)
+                .userCode("UNKNOWN")
+                .fullName("Người lạ / Chưa rõ mặt")
+                .build();
+
+        when(areaRepository.findById(areaId)).thenReturn(Optional.of(area));
+        when(userRepository.findByUserCodeAndDeletedAtIsNull("UNKNOWN")).thenReturn(Optional.empty());
+        when(cameraAccessLogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        CameraAccessLogResponse result = cameraAccessLogService.recordAccessLog(entryResponse, daytime);
+
+        assertNotNull(result);
+        assertEquals(AccessResult.UNKNOWN_PERSON, result.getAccessResult(), "Người lạ rời ROI phải được phân loại là UNKNOWN_PERSON, không được thành ACCESS_OUT_OF_TIME hay AUTHORIZED_ACCESS");
+        assertEquals("UNKNOWN", result.getUserCode());
+        assertEquals("Người lạ / Chưa rõ mặt", result.getFullName());
+        assertEquals("[RA KHỎI ROI: Vùng giám sát 1] Người lạ rời khu vực (Thời gian lưu lại: 7s)", result.getReasonDetails());
+    }
+
+    @Test
     @DisplayName("Phân loại INTRUSION (Ngoài giờ) khi có sự cố gắn nhãn ngoài giờ kể cả trong giờ giả lập")
     void testRecordAccessLog_AfterHoursReason_ClassifiesAsIntrusion() {
         OffsetDateTime testTime = OffsetDateTime.of(2026, 10, 14, 15, 0, 0, 0, ZoneOffset.ofHours(7));

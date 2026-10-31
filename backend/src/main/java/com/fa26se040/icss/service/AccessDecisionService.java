@@ -317,10 +317,10 @@ public class AccessDecisionService {
         // Từ đây đã xác định được camera + khu: mọi kết quả DENIED đều gắn khu để ghi được nhật ký ra vào
         if (!Boolean.TRUE.equals(area.getIsActive()) || area.getDeletedAt() != null) {
             String reason = isExit
-                    ? (cleanRoi != null ? "[RA KHỎI ROI: " + cleanRoi + "] Rời khu vực" + durationStr : "Rời khu vực đã ngừng hoạt động")
+                    ? (cleanRoi != null ? "[RA KHỎI ROI: " + cleanRoi + "] Rời khu vực đã ngừng hoạt động" + durationStr : "Rời khu vực đã ngừng hoạt động")
                     : (cleanRoi != null ? "[VÀO ROI: " + cleanRoi + "] Khu vực đã ngừng hoạt động" : "Khu vực đã ngừng hoạt động");
             CheckCameraEntryResponse inactive = isExit
-                    ? CheckCameraEntryResponse.builder().allowed(true).source(AccessSource.NONE).reason(reason).cameraCode(camera.getCameraCode()).areaId(area.getId()).areaName(area.getName()).userCode(userCode).build()
+                    ? CheckCameraEntryResponse.builder().allowed(false).source(AccessSource.NONE).reason(reason).cameraCode(camera.getCameraCode()).areaId(area.getId()).areaName(area.getName()).userCode(userCode).build()
                     : deniedAtCamera(camera, area, userCode, reason);
             recordAccessLogSafely(inactive, at);
             return inactive;
@@ -331,12 +331,17 @@ public class AccessDecisionService {
         if (userOpt.isPresent()) {
             User user = userOpt.get();
             if (isExit) {
+                AccessDecision decision = checkEntry(user.getId(), area.getId(), at);
+                boolean allowed = decision.allowed();
                 String exitReason = cleanRoi != null
                         ? "[RA KHỎI ROI: " + cleanRoi + "] Rời khu vực" + durationStr
                         : "Rời khu vực" + durationStr;
+                if (!allowed) {
+                    exitReason += " (Không có thẩm quyền)";
+                }
                 CheckCameraEntryResponse response = CheckCameraEntryResponse.builder()
-                        .allowed(true)
-                        .source(AccessSource.NONE)
+                        .allowed(allowed)
+                        .source(allowed ? decision.source() : AccessSource.NONE)
                         .reason(exitReason)
                         .cameraCode(camera.getCameraCode())
                         .areaId(area.getId())
@@ -378,12 +383,17 @@ public class AccessDecisionService {
                 if (guestOpt.isPresent()) {
                     Guest guest = guestOpt.get();
                     if (isExit) {
+                        GuestAccessDecision guestDecision = guestAccessDecisionService.checkGuestEntry(guestId, area.getId(), at);
+                        boolean allowed = guestDecision.allowed();
                         String exitReason = cleanRoi != null
                                 ? "[RA KHỎI ROI: " + cleanRoi + "] Khách rời khu vực" + durationStr
                                 : "Khách rời khu vực" + durationStr;
+                        if (!allowed) {
+                            exitReason += " (Không có thẩm quyền)";
+                        }
                         CheckCameraEntryResponse response = CheckCameraEntryResponse.builder()
-                                .allowed(true)
-                                .source(AccessSource.GUEST_VISIT)
+                                .allowed(allowed)
+                                .source(allowed ? AccessSource.GUEST_VISIT : AccessSource.NONE)
                                 .reason(exitReason)
                                 .cameraCode(camera.getCameraCode())
                                 .areaId(area.getId())
@@ -438,9 +448,19 @@ public class AccessDecisionService {
                 ? (cleanRoi != null ? "[RA KHỎI ROI: " + cleanRoi + "] Người lạ rời khu vực" + durationStr : "Người lạ rời khu vực" + durationStr)
                 : (cleanRoi != null ? "[VÀO ROI: " + cleanRoi + "] Người dùng không tồn tại" : "Người dùng không tồn tại");
 
+        String effectiveUserCode = (userCode != null && !userCode.isBlank()) ? userCode : "UNKNOWN";
         CheckCameraEntryResponse denied = isExit
-                ? CheckCameraEntryResponse.builder().allowed(true).source(AccessSource.NONE).reason(finalDeniedReason).cameraCode(camera.getCameraCode()).areaId(area.getId()).areaName(area.getName()).userCode(userCode).fullName("Người lạ / Chưa rõ danh tính").build()
-                : deniedAtCamera(camera, area, userCode, finalDeniedReason);
+                ? CheckCameraEntryResponse.builder()
+                        .allowed(false)
+                        .source(AccessSource.NONE)
+                        .reason(finalDeniedReason)
+                        .cameraCode(camera.getCameraCode())
+                        .areaId(area.getId())
+                        .areaName(area.getName())
+                        .userCode(effectiveUserCode)
+                        .fullName("Người lạ / Chưa rõ mặt")
+                        .build()
+                : deniedAtCamera(camera, area, effectiveUserCode, finalDeniedReason);
         recordAccessLogSafely(denied, at);
         return denied;
     }
@@ -449,6 +469,7 @@ public class AccessDecisionService {
      * DENIED tại một camera đã xác định được khu: gắn areaId / areaName / cameraCode để nhật ký ghi được (area_id NOT NULL).
      */
     private static CheckCameraEntryResponse deniedAtCamera(Camera camera, Area area, String userCode, String reason) {
+        String effectiveUserCode = (userCode != null && !userCode.isBlank()) ? userCode : "UNKNOWN";
         return CheckCameraEntryResponse.builder()
                 .allowed(false)
                 .source(AccessSource.NONE)
@@ -456,7 +477,8 @@ public class AccessDecisionService {
                 .cameraCode(camera.getCameraCode())
                 .areaId(area.getId())
                 .areaName(area.getName())
-                .userCode(userCode)
+                .userCode(effectiveUserCode)
+                .fullName("Người lạ / Chưa rõ mặt")
                 .build();
     }
 

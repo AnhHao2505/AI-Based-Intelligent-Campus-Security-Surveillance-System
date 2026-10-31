@@ -84,6 +84,7 @@ class CameraStreamWorker:
         self.capture_thread: Optional[threading.Thread] = None
         self.analysis_thread: Optional[threading.Thread] = None
         self.raw_frame = None
+        self.frame_id: int = 0
         self.raw_frame_lock = threading.Lock()
         self.latest_frame = None
         self.processed_fps = 0.0
@@ -175,6 +176,7 @@ class CameraStreamWorker:
 
             with self.raw_frame_lock:
                 self.raw_frame = frame
+                self.frame_id += 1
 
         if self.recorder:
             self.recorder.stop()
@@ -186,13 +188,18 @@ class CameraStreamWorker:
         logger.info(f"Khởi động Analysis Thread cho camera [{self.camera_code}]")
         fps_timer = time.time()
         frame_counter = 0
+        last_processed_frame_id = -1
 
         while self.is_running:
             with self.raw_frame_lock:
-                frame = self.raw_frame.copy() if self.raw_frame is not None else None
+                if self.raw_frame is not None and self.frame_id != last_processed_frame_id:
+                    frame = self.raw_frame.copy()
+                    last_processed_frame_id = self.frame_id
+                else:
+                    frame = None
 
             if frame is None:
-                time.sleep(0.02)
+                time.sleep(0.01)
                 continue
 
             try:
