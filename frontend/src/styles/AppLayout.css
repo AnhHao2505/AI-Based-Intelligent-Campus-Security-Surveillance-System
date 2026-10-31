@@ -1,7 +1,7 @@
 .app-layout {
   display: flex;
   min-height: 100vh;
-  background-color: var(--theme-bg-page);
+  background-color: transparent;
   color: var(--theme-text-primary);
   transition: background-color 0.25s ease, color 0.25s ease;
 }
@@ -11,7 +11,7 @@
   margin-left: 260px;
   min-height: 100vh;
   position: relative;
-  background-color: var(--theme-bg-page);
+  background-color: transparent;
   color: var(--theme-text-primary);
   overflow-x: hidden;
   overflow-y: auto;
@@ -22,8 +22,25 @@
   margin-left: 76px;
 }
 
+/* Ensure top-level page containers inside app layout remain transparent to showcase background wave */
+.app-layout__content > div,
+.dashboard-page,
+.area-page-container,
+.manage-account-page,
+.guard-dashboard,
+.camera-page,
+.camera-page-container,
+.audit-page-container,
+.user-access-level-page,
+.event-management-page,
+.access-request-page,
+.guard-schedule-page {
+  background-color: transparent !important;
+}
+
 @media (max-width: 768px) {
   .app-layout__content {
     margin-left: 72px;
   }
 }
+

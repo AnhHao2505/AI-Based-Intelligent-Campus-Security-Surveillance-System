@@ -723,7 +723,8 @@
 
 .arp-reject-expand-box {
   background: var(--theme-danger-subtle);
-  border-left: 4px solid var(--theme-danger);
+  border: 1px solid var(--theme-danger-border);
+  border-radius: 8px;
   padding: 14px 20px;
 }
 
