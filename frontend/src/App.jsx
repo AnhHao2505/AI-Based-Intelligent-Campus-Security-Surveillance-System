@@ -26,6 +26,7 @@ import ManageAccountPage from "./pages/accounts/ManageAccountPage";
 import SystemConfigPage from "./pages/system/SystemConfigPage";
 import GuardTeamManagementPage from "./pages/guardTeams/GuardTeamManagementPage";
 import ReasonCatalogPage from "./pages/system/ReasonCatalogPage";
+import IncidentPolicyPage from "./pages/system/IncidentPolicyPage";
 import UserAccessLevelPage from "./pages/accessControl/UserAccessLevelPage";
 import AuditLogPage from "./pages/accessControl/AuditLogPage";
 import AccessLevelsRedirect from "./pages/accessControl/AccessLevelsRedirect";
@@ -60,6 +61,7 @@ const ROUTE_TITLES = {
 	"/admin/system-configurations": "Cấu hình Hệ thống",
 	"/login": "Đăng nhập",
 	"/admin/reason-catalogs": "Danh mục lý do",
+	"/admin/incident-policies": "Chính sách sự cố",
 	"/unauthorized": "Không có quyền truy cập",
 };
 
@@ -442,6 +444,14 @@ function App() {
 								element={
 									<ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
 										<ReasonCatalogPage />
+									</ProtectedRoute>
+								}
+							/>
+							<Route
+								path="/admin/incident-policies"
+								element={
+									<ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+										<IncidentPolicyPage />
 									</ProtectedRoute>
 								}
 							/>

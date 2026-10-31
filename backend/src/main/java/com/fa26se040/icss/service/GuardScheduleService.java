@@ -9,7 +9,9 @@ import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.enums.ShiftStatus;
 import com.fa26se040.icss.enums.ShiftType;
+import com.fa26se040.icss.entity.DutyPostType;
 import com.fa26se040.icss.repository.AreaRepository;
+import com.fa26se040.icss.repository.DutyPostTypeRepository;
 import com.fa26se040.icss.repository.GuardShiftRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -56,6 +58,7 @@ public class GuardScheduleService {
     private final GuardTeamRepository teamRepository;
     private final GuardShiftRequestRepository shiftRequestRepository;
     private final GuardTeamDispatchRepository dispatchRepository;
+    private final DutyPostTypeRepository dutyPostTypeRepository;
 
 
 
@@ -565,6 +568,7 @@ public class GuardScheduleService {
                 .status(ShiftStatus.SCHEDULED)
                 .notes(request.getNotes())
                 .isOvertime(Boolean.TRUE.equals(request.getIsOvertime()))
+                .dutyPostCode(resolveDutyPostCode(request.getDutyPostCode(), null))
                 .build();
 
         GuardShift saved = shiftRepository.save(shift);
@@ -598,9 +602,32 @@ public class GuardScheduleService {
             shift.setIsOvertime(request.getIsOvertime());
         }
         shift.setNotes(request.getNotes());
+        if (request.getDutyPostCode() != null && !request.getDutyPostCode().isBlank()) {
+            shift.setDutyPostCode(resolveDutyPostCode(request.getDutyPostCode(), shift.getDutyPostCode()));
+        }
 
         GuardShift saved = shiftRepository.save(shift);
         return mapShiftToDto(saved);
+    }
+
+    /**
+     * V90 (BR-DSP-13): mã vị trí trực của ca. Không gửi -> PATROL. Gửi mã khác mã hiện tại của ca thì phải là
+     * vị trí đang sử dụng; giữ nguyên mã hiện tại thì không kiểm (vị trí đã bị ngừng sau khi xếp ca vẫn giữ được).
+     */
+    private String resolveDutyPostCode(String requested, String current) {
+        if (requested == null || requested.isBlank()) {
+            return DutyPostType.DEFAULT_CODE;
+        }
+        String code = requested.trim().toUpperCase();
+        if (code.equals(current)) {
+            return code;
+        }
+        DutyPostType post = dutyPostTypeRepository.findById(code)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy vị trí trực: " + code));
+        if (!Boolean.TRUE.equals(post.getIsActive())) {
+            throw new IllegalArgumentException("Vị trí trực " + post.getLabel() + " đã ngừng sử dụng");
+        }
+        return code;
     }
 
     @Transactional
@@ -878,6 +905,7 @@ public class GuardScheduleService {
                 .checkOutAt(s.getCheckOutAt())
                 .notes(s.getNotes())
                 .isOvertime(s.getIsOvertime())
+                .dutyPostCode(s.getDutyPostCode())
                 .build();
     }
 }

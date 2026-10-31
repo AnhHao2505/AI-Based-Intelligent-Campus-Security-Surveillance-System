@@ -35,4 +35,6 @@ public class GuardShiftCreateRequest {
     private UUID areaId;
     private String notes;
     private Boolean isOvertime = false;
+    // V90 (BR-DSP-13): mã vị trí trực đang hoạt động; không gửi thì PATROL
+    private String dutyPostCode;
 }

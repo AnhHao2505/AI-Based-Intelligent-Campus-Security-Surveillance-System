@@ -15,5 +15,9 @@ public enum AuditTargetType {
     GUEST,
     // Xem ảnh qua /api/media (V81): ảnh khuôn mặt người dùng, ảnh bằng chứng sự cố
     FACE_PROFILE,
-    SECURITY_EVIDENCE
+    SECURITY_EVIDENCE,
+    // Phân phối sự cố (V90): luật severity, chính sách dispatch theo mức, danh mục vị trí trực
+    INCIDENT_SEVERITY_RULE,
+    INCIDENT_DISPATCH_POLICY,
+    DUTY_POST_TYPE
 }

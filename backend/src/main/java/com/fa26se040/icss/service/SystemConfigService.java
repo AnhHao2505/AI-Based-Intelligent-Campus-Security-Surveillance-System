@@ -404,6 +404,9 @@ public class SystemConfigService {
                 if (ConfigKey.ACCESS_REQUEST_SPONSOR_ALLOWED_AREA_TYPES.getKey().equals(config.getConfigKey())) {
                     validateSponsorAllowedAreaTypes(value);
                 }
+                if (ConfigKey.INCIDENT_SEVERITY_DEFAULT.getKey().equals(config.getConfigKey())) {
+                    validateIncidentSeverityDefault(value);
+                }
             }
             default -> log.warn("Unknown dataType [{}] for config [{}]", dataType, config.getConfigKey());
         }
@@ -434,6 +437,18 @@ public class SystemConfigService {
                 throw new IllegalArgumentException("Độ dài tối đa của lý do (" + value
                         + ") phải lớn hơn độ dài tối thiểu đang cấu hình (" + currentMin + ")");
             }
+        }
+    }
+
+    /** V90 (BR-SEV-03): INCIDENT_SEVERITY_DEFAULT phải là đúng tên một mức của IncidentSeverity. */
+    private void validateIncidentSeverityDefault(String value) {
+        try {
+            com.fa26se040.icss.enums.IncidentSeverity.valueOf(value);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Mức độ mặc định của sự cố phải là một trong: "
+                    + java.util.Arrays.stream(com.fa26se040.icss.enums.IncidentSeverity.values())
+                            .map(Enum::name)
+                            .collect(java.util.stream.Collectors.joining(", ")));
         }
     }
 

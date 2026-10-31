@@ -15,6 +15,7 @@ import com.fa26se040.icss.enums.AccessSource;
 import com.fa26se040.icss.enums.AreaLevel;
 import com.fa26se040.icss.enums.CameraStatus;
 import com.fa26se040.icss.enums.IncidentOutcome;
+import com.fa26se040.icss.enums.IncidentSeverity;
 import com.fa26se040.icss.enums.IncidentStatus;
 import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.enums.ShiftStatus;
@@ -56,6 +57,7 @@ public class SecurityIncidentService {
     private final GuardShiftRepository guardShiftRepository;
     private final IncidentRecipientResolver incidentRecipientResolver;
     private final IncidentEscalationRepository incidentEscalationRepository;
+    private final IncidentSeverityResolver incidentSeverityResolver;
 
     @org.springframework.beans.factory.annotation.Value("${ai.service.url:http://localhost:8000}")
     private String aiServiceUrl;
@@ -158,6 +160,7 @@ public class SecurityIncidentService {
                 .resolutionNotes(incidentResolutionNotes)
                 .version(0)
                 .build();
+        incident.setSeverity(resolveSeverity(normalizedEventType, area, detectedAt));
 
         SecurityIncident saved = incidentRepository.save(incident);
         IncidentDetailResponse response = mapToDetailResponse(saved);
@@ -284,6 +287,7 @@ public class SecurityIncidentService {
             updatePayload.put("claimedById", guard.getId());
             updatePayload.put("claimedByName", guard.getFullName());
             updatePayload.put("claimedAt", saved.getClaimedAt());
+            updatePayload.put("severity", severityName(saved));
 
             messagingTemplate.convertAndSend("/topic/incidents/updates", updatePayload);
             log.info("Incident [{}] claimed successfully by [{}]", incidentId, guard.getFullName());
@@ -352,6 +356,7 @@ public class SecurityIncidentService {
         updatePayload.put("resolvedById", guard.getId());
         updatePayload.put("resolvedByName", guard.getFullName());
         updatePayload.put("resolvedAt", saved.getResolvedAt());
+        updatePayload.put("severity", severityName(saved));
 
         messagingTemplate.convertAndSend("/topic/incidents/updates", updatePayload);
         log.info("Incident [{}] resolved with status [{}] by [{}]", incidentId, newStatus, guard.getFullName());
@@ -382,7 +387,29 @@ public class SecurityIncidentService {
                 .resolutionNotes(i.getResolutionNotes())
                 .evidenceImageUrl(i.getEvidenceImageUrl())
                 .radioChannel("Kênh " + (i.getBuilding() != null ? i.getBuilding() : "Chính"))
+                .severity(i.getSeverity())
                 .build();
+    }
+
+    /**
+     * V90 (BR-SEV-01): mức độ của sự cố mới. Resolver chưa được inject (test dựng service thủ công) hoặc lỗi tầng Java
+     * -> NULL, ingest chạy tiếp như trước V90.
+     */
+    private IncidentSeverity resolveSeverity(String eventType, Area area, OffsetDateTime at) {
+        if (incidentSeverityResolver == null) {
+            return null;
+        }
+        try {
+            return incidentSeverityResolver.resolve(eventType, area.getAreaLevel(), at);
+        } catch (Exception e) {
+            log.error("Không tính được severity cho sự cố loại [{}] tại khu [{}]: {}", eventType, area.getName(), e.getMessage(), e);
+            return null;
+        }
+    }
+
+    /** V90: tên severity trong map gửi /topic/incidents/updates; sự cố cũ -> null. */
+    private static String severityName(SecurityIncident incident) {
+        return incident.getSeverity() != null ? incident.getSeverity().name() : null;
     }
 
     private boolean isGuardOnShift(UUID guardId, OffsetDateTime at, Area area) {

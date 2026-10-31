@@ -2,6 +2,7 @@ package com.fa26se040.icss.entity;
 
 import com.fa26se040.icss.enums.IncidentOutcome;
 import com.fa26se040.icss.enums.IncidentResolutionCategory;
+import com.fa26se040.icss.enums.IncidentSeverity;
 import com.fa26se040.icss.enums.IncidentStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -94,6 +95,11 @@ public class SecurityIncident {
 
     @Column(name = "evidence_image_url", length = 512)
     private String evidenceImageUrl;
+
+    // V90 (BR-SEV-01): gán lúc ingest theo luật severity; sự cố tạo trước V90 để NULL
+    @Enumerated(EnumType.STRING)
+    @Column(name = "severity", length = 10)
+    private IncidentSeverity severity;
 
     @Version
     @Column(name = "version", nullable = false)
