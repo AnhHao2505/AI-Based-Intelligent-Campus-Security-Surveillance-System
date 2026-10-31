@@ -300,6 +300,76 @@ class SecurityIncidentServiceTest {
         verify(messagingTemplate).convertAndSend(eq("/topic/security-alerts"), same((Object) result));
     }
 
+    // ===== Chống tạo trùng theo event_id =====
+
+    @Test
+    @DisplayName("Cùng event_id gửi 2 lần -> lần 2 trả sự cố cũ, không lưu, không gửi WebSocket, không tạo leo thang")
+    void ingest_sameEventIdTwice_secondReturnsExistingWithoutSideEffects() {
+        stubCameraAndSave();
+        when(incidentRecipientResolver.findOnDutyGuards(any())).thenReturn(List.of(guard("A")));
+        when(incidentRepository.findByEventId("EVT-IE")).thenReturn(Optional.empty(), Optional.of(incident));
+
+        IncidentDetailResponse first = incidentService.ingestIncident(alertEvent());
+        clearInvocations(incidentRepository, cameraRepository, messagingTemplate, cameraAccessLogService,
+                incidentRecipientResolver, incidentEscalationRepository);
+
+        IncidentDetailResponse second = incidentService.ingestIncident(alertEvent());
+
+        assertNotNull(first);
+        assertNotNull(second);
+        assertEquals(incident.getId(), second.getId());
+        verify(incidentRepository).findByEventId("EVT-IE");
+        verify(incidentRepository, never()).save(any());
+        verify(incidentRepository, never()).flush();
+        verifyNoInteractions(messagingTemplate, incidentEscalationRepository, incidentRecipientResolver,
+                cameraRepository, cameraAccessLogService);
+    }
+
+    @Test
+    @DisplayName("event_id null gửi 2 lần -> tạo 2 sự cố như cũ, không tra theo event_id")
+    void ingest_nullEventIdTwice_createsTwoIncidents() {
+        stubCameraAndSave();
+        when(incidentRecipientResolver.findOnDutyGuards(any())).thenReturn(List.of(guard("A")));
+        IncidentEventDto noEventId = alertEvent();
+        noEventId.setEventId(null);
+
+        incidentService.ingestIncident(noEventId);
+        incidentService.ingestIncident(noEventId);
+
+        verify(incidentRepository, never()).findByEventId(any());
+        verify(incidentRepository, times(2)).save(any());
+        verify(incidentEscalationRepository, times(2)).save(any());
+        verify(messagingTemplate, times(2)).convertAndSend(eq("/topic/security-alerts"), any(Object.class));
+    }
+
+    @Test
+    @DisplayName("event_id rỗng (chỉ khoảng trắng) -> chạy như cũ, không tra theo event_id")
+    void ingest_blankEventId_runsAsBefore() {
+        stubCameraAndSave();
+        IncidentEventDto blankEventId = alertEvent();
+        blankEventId.setEventId("   ");
+
+        IncidentDetailResponse result = incidentService.ingestIncident(blankEventId);
+
+        assertNotNull(result);
+        verify(incidentRepository, never()).findByEventId(any());
+        verify(incidentRepository).save(any());
+    }
+
+    @Test
+    @DisplayName("event_id mới -> lưu và flush ngay sau save, trước khi gửi WebSocket")
+    void ingest_newEventId_flushesBeforeDispatch() {
+        stubCameraAndSave();
+
+        incidentService.ingestIncident(alertEvent());
+
+        org.mockito.InOrder inOrder = inOrder(incidentRepository, messagingTemplate);
+        inOrder.verify(incidentRepository).findByEventId("EVT-IE");
+        inOrder.verify(incidentRepository).save(any());
+        inOrder.verify(incidentRepository).flush();
+        inOrder.verify(messagingTemplate).convertAndSend(eq("/topic/security-alerts"), any(Object.class));
+    }
+
     @Test
     @DisplayName("Tiếp nhận (Claim) sự cố thành công khi còn trạng thái NEW")
     void testClaimIncident_Success() {

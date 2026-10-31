@@ -69,6 +69,17 @@ public class SecurityIncidentService {
         log.info("Processing incoming incident for camera [{}] type [{}]",
                 eventDto.getCameraCode(), eventDto.getEventType());
 
+        // 0. Chống tạo trùng theo event_id (AI gửi lại cùng sự kiện qua MQTT hoặc REST): đã có thì trả sự cố cũ,
+        //    không lưu, không gửi WebSocket, không tạo bản ghi leo thang, không bật ghi hình. event_id rỗng -> chạy như cũ.
+        //    Hai tin đến cùng lúc cùng lọt qua bước này thì unique index uq_security_incidents_event_id (V92) chặn bản thứ hai.
+        if (eventDto.getEventId() != null && !eventDto.getEventId().isBlank()) {
+            Optional<SecurityIncident> existing = incidentRepository.findByEventId(eventDto.getEventId());
+            if (existing.isPresent()) {
+                log.info("Bỏ qua sự cố trùng event_id [{}]: đã có sự cố [{}]", eventDto.getEventId(), existing.get().getId());
+                return mapToDetailResponse(existing.get());
+            }
+        }
+
         // 1. Resolve camera and its assigned area
         Camera camera = cameraRepository.findByCameraCodeAndDeletedAtIsNull(eventDto.getCameraCode())
                 .orElseThrow(() -> new IllegalArgumentException(
@@ -163,6 +174,8 @@ public class SecurityIncidentService {
         incident.setSeverity(resolveSeverity(normalizedEventType, area, detectedAt));
 
         SecurityIncident saved = incidentRepository.save(incident);
+        // Ghi xuống DB ngay: tin trùng đến cùng lúc vấp unique index event_id tại đây, trước mọi tác dụng phụ bên dưới
+        incidentRepository.flush();
         IncidentDetailResponse response = mapToDetailResponse(saved);
 
         // 1b. Tự động đồng bộ sự cố người lạ / vi phạm / sai giờ / ngoài giờ sang Nhật ký ra vào của Camera (Tab 4 Camera Detail)
