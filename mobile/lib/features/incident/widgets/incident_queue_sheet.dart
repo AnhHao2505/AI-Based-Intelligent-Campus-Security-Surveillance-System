@@ -162,7 +162,8 @@ class IncidentQueueSheet extends StatelessWidget {
                   separatorBuilder: (_, _) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
                     final item = queue[index];
-                    final color = _getSeverityColor(item.severityWeight);
+                    final color = _getSeverityColor(item.severityLevel);
+                    final isClaimLocked = provider.isClaimLockedFor(item);
 
                     return Container(
                       padding: const EdgeInsets.all(14),
@@ -321,6 +322,13 @@ class IncidentQueueSheet extends StatelessWidget {
                                     elevation: 2,
                                   ),
                                   onPressed: () {
+                                    // K8: đang mời bảo vệ khác (STEP1) → không claim, báo lý do
+                                    if (isClaimLocked) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(content: Text(IncidentProvider.notOfferedMessage)),
+                                      );
+                                      return;
+                                    }
                                     Navigator.pop(context);
                                     onClaim(item);
                                   },
@@ -333,6 +341,23 @@ class IncidentQueueSheet extends StatelessWidget {
                               ),
                             ],
                           ),
+                          // K8: nhãn khoá khi sự cố đang mời bảo vệ khác
+                          if (isClaimLocked)
+                            const Padding(
+                              padding: EdgeInsets.only(top: 8),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.lock_clock_outlined, size: 14, color: Color(0xFF94A3B8)),
+                                  SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      IncidentProvider.notOfferedMessage,
+                                      style: TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                         ],
                       ),
                     );
