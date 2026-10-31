@@ -152,7 +152,7 @@ async def health_check():
             "yunet_model": os.path.exists(settings.MODEL_YUNET_PATH),
             "arcface_model": os.path.exists(settings.MODEL_ARCFACE_PATH)
         },
-        "kafka_connected": default_pipeline.kafka_producer.is_connected if default_pipeline else False,
+        "mqtt_connected": default_pipeline.mqtt_client.is_connected if default_pipeline else False,
         "minio_connected": default_pipeline.storage_service.is_connected if default_pipeline else False
     }
 

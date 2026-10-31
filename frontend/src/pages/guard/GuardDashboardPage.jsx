@@ -27,8 +27,6 @@ import { useAuthorizedImage } from "../../hooks/useAuthorizedImage";
 import WebRtcPlayer from "../../components/video/WebRtcPlayer";
 import { fetchCameras } from "../../services/cameraService";
 import {
-	triggerTestAlert,
-	triggerBatchTestAlerts,
 	getActiveIncidents,
 	acknowledgeIncident,
 	acknowledgeAllIncidents,
@@ -213,7 +211,6 @@ export function SecuritySurveillancePage() {
 	const [flashAlertCamera, setFlashAlertCamera] = useState(null);
 	const [statusNotification, setStatusNotification] = useState(null);
 	const [evidenceModalAlert, setEvidenceModalAlert] = useState(null);
-	const [isSimulating, setIsSimulating] = useState(false);
 
 	const flashTimeoutRef = useRef(null);
 	const soundEnabledRef = useRef(soundEnabled);
@@ -720,156 +717,6 @@ export function SecuritySurveillancePage() {
 		flashCameraAlert(clean);
 	};
 
-	// 1. NÚT TEST: Bắn 1 sự cố ngẫu nhiên qua Backend REST -> STOMP broadcast toàn hệ thống (Web + Mobile)
-	// Chỉ ghi hình khi camera đang ONLINE và đang kết nối stream thực tế
-	const handleSimulateSingleAlert = async () => {
-		if (isSimulating) return;
-		setIsSimulating(true);
-
-		const onlineCameras = cameraList.filter(
-			(c) => c.status === "ONLINE" || c.operationalStatus === "ONLINE",
-		);
-		const targetPool =
-			onlineCameras.length > 0
-				? onlineCameras
-				: cameraList.filter((c) => c.status !== "DECOMMISSIONED");
-
-		if (targetPool.length === 0) {
-			triggerNotification("⚠️ Không có camera nào sẵn sàng trong hệ thống!");
-			setIsSimulating(false);
-			return;
-		}
-
-		// Ưu tiên camera đang chọn nếu có trong danh sách
-		const targetCam =
-			targetPool.find((c) => c.code === selectedCamera) || targetPool[0];
-
-		const now = Date.now();
-		const eventId = `EVT-${now}`;
-		const cameraCode = (targetCam.cameraCode || targetCam.code).toUpperCase();
-		const cleanCode = targetCam.code || cameraCode.toLowerCase();
-
-		const eventPayload = {
-			event_id: eventId,
-			camera_code: cameraCode,
-			event_type: "UNAUTHORIZED_ACCESS",
-			details: `CẢNH BÁO (Mức 3 - Khẩn cấp): Phát hiện xâm nhập trái phép tại khu vực ${targetCam.name || cameraCode}!`,
-			duration_seconds: 3.5,
-		};
-
-		// 1. Hiển thị cảnh báo trực tiếp trên giao diện và phát âm thanh ngay lập tức (Zero-Latency)
-		processNewIncident({
-			...eventPayload,
-			id: eventId,
-			eventId,
-			cameraCode,
-			camCodeClean: cleanCode,
-			cameraName: targetCam.name || cameraCode,
-		});
-		triggerNotification(`🚨 Đã kích hoạt sự cố thử nghiệm cho camera [${cameraCode}]!`);
-
-		// 2. Đồng bộ sang Backend CSDL (Backend lưu incident UUID, tự kích hoạt ghi hình AI và broadcast STOMP)
-		try {
-			const res = await triggerTestAlert(eventPayload);
-			// Nếu WebSocket STOMP chưa kết nối thì mới nạp thủ công từ HTTP response để tránh x2 cảnh báo
-			if (!wsConnected) {
-				const created = res?.data || res;
-				if (created && created.id) {
-					processNewIncident(created);
-				}
-			}
-		} catch (err) {
-			console.warn("Backend test-alert background sync warning:", err);
-		} finally {
-			setTimeout(() => setIsSimulating(false), 1000);
-		}
-	};
-
-	// 2. NÚT TEST: Bắn đa sự cố đồng thời với 3 mức độ ưu tiên chuẩn hóa qua Backend REST
-	// Chỉ kích hoạt trên các camera ĐANG ONLINE (đang có luồng ghi hình thực tế)
-	const handleSimulateMultiPriorityAlerts = async () => {
-		if (isSimulating) return;
-		setIsSimulating(true);
-
-		const onlineCameras = cameraList.filter(
-			(c) => c.status === "ONLINE" || c.operationalStatus === "ONLINE",
-		);
-		const targetPool =
-			onlineCameras.length > 0
-				? onlineCameras
-				: cameraList.filter((c) => c.status !== "DECOMMISSIONED");
-
-		if (targetPool.length === 0) {
-			triggerNotification("⚠️ Không có camera nào sẵn sàng trong hệ thống!");
-			setIsSimulating(false);
-			return;
-		}
-
-		// 3 mức ưu tiên an ninh chuẩn hóa theo EVENT_SEVERITY_CONFIG:
-		// Mức 3 (Khẩn cấp): UNAUTHORIZED_ACCESS (Trọng số 3, Đỏ)
-		// Mức 2 (Cao): AFTER_HOURS_ACCESS (Trọng số 2, Cam)
-		// Mức 1 (Cảnh báo): UNKNOWN_PERSON (Trọng số 1, Tím)
-		const priorityPresets = [
-			{
-				type: "UNAUTHORIZED_ACCESS",
-				title: "NGUY CẤP (Mức 3): Đối tượng không đủ thẩm quyền xâm nhập khu vực giám sát!",
-				durationSec: 3.0,
-			},
-			{
-				type: "AFTER_HOURS_ACCESS",
-				title: "CẢNH BÁO (Mức 2): Có người hiện diện sau khung giờ hoạt động quy định.",
-				durationSec: 8.0,
-			},
-			{
-				type: "UNKNOWN_PERSON",
-				title: "NHẮC NHỞ (Mức 1): Phát hiện đối tượng chưa xác minh danh tính.",
-				durationSec: 15.0,
-			},
-		];
-
-		const now = Date.now();
-		const batchPayload = priorityPresets.map((preset, index) => {
-			const assignedCam = targetPool[index % targetPool.length];
-			const camCode = (assignedCam.cameraCode || assignedCam.code).toUpperCase();
-			return {
-				event_id: `EVT-${now}-${index}`,
-				camera_code: camCode,
-				event_type: preset.type,
-				details: `[${camCode}] ${preset.title}`,
-				duration_seconds: preset.durationSec,
-			};
-		});
-
-		// 1. Hiển thị ngay 3 sự cố trên danh sách cảnh báo SOC
-		batchPayload.forEach((ev) => {
-			processNewIncident({
-				...ev,
-				id: ev.event_id,
-				eventId: ev.event_id,
-				cameraCode: ev.camera_code,
-				camCodeClean: ev.camera_code.toLowerCase(),
-				cameraName: ev.camera_code,
-			});
-		});
-		triggerNotification(`🚨 Đã kích hoạt đồng thời 3 sự cố an ninh theo thứ tự ưu tiên!`);
-
-		// 2. Gửi batch sang backend (Backend sẽ lưu 3 incidents, kích hoạt ghi hình sự cố AI và broadcast STOMP)
-		try {
-			const res = await triggerBatchTestAlerts(batchPayload);
-			// Nếu WebSocket STOMP chưa kết nối thì mới nạp thủ công từ HTTP response
-			if (!wsConnected) {
-				const createdList = res?.data || res;
-				if (Array.isArray(createdList) && createdList.length > 0) {
-					createdList.forEach((item) => processNewIncident(item));
-				}
-			}
-		} catch (err) {
-			console.warn("Backend batch test-alert background sync warning:", err);
-		} finally {
-			setTimeout(() => setIsSimulating(false), 1500);
-		}
-	};
-
 	// 4 TÙY CHỌN BỐ CỤC LƯỚI CAMERA: 1, 2x2, 3x3, 4x4
 	const cameraLayoutOptions = [
 		{ value: 1, label: "1" },
@@ -964,31 +811,6 @@ export function SecuritySurveillancePage() {
 							{soundEnabled ? <Volume2 size={15} /> : <VolumeX size={15} />}
 							<span>{soundEnabled ? "Âm thanh" : "Tắt âm thanh"}</span>
 						</button>
-
-						{/* Nhóm nút TEST mô phỏng */}
-						<div className="test-btn-group">
-							<button
-								type="button"
-								className="btn-sim-alert"
-								onClick={handleSimulateSingleAlert}
-								disabled={isSimulating}
-								title="Mô phỏng 1 sự cố ngẫu nhiên"
-							>
-								<Bell size={14} />
-								<span>{isSimulating ? "Đang xử lý..." : "Test 1 sự cố"}</span>
-							</button>
-
-							<button
-								type="button"
-								className="btn-sim-multi-alert"
-								onClick={handleSimulateMultiPriorityAlerts}
-								disabled={isSimulating}
-								title="Mô phỏng đồng thời nhiều sự cố với độ ưu tiên khác nhau"
-							>
-								<Flame size={14} />
-								<span>{isSimulating ? "Đang xử lý..." : "Test đa sự cố (Ưu tiên)"}</span>
-							</button>
-						</div>
 					</div>
 				</div>
 			)}
@@ -1065,7 +887,7 @@ export function SecuritySurveillancePage() {
 							)}
 						</div>
 
-						{/* Nút Thao tác khi ở Theater Mode: Test sự cố & Thu nhỏ */}
+						{/* Nút Thao tác khi ở Theater Mode: Âm thanh & Thu nhỏ */}
 						{isTheaterMode && (
 							<div className="theater-actions-bar">
 								<button
@@ -1079,24 +901,6 @@ export function SecuritySurveillancePage() {
 								>
 									{soundEnabled ? <Volume2 size={12} /> : <VolumeX size={12} />}
 									<span>{soundEnabled ? "Âm thanh" : "Tắt âm thanh"}</span>
-								</button>
-								<button
-									type="button"
-									className="btn-theater-test"
-									onClick={handleSimulateSingleAlert}
-									title="Mô phỏng 1 sự cố để kiểm tra tự chuyển camera & tô đỏ màn hình trong chế độ phóng to"
-								>
-									<Bell size={12} />
-									<span>Test 1 sự cố</span>
-								</button>
-								<button
-									type="button"
-									className="btn-theater-test priority"
-									onClick={handleSimulateMultiPriorityAlerts}
-									title="Mô phỏng đa sự cố ưu tiên trong chế độ phóng to"
-								>
-									<Flame size={12} />
-									<span>Test đa sự cố</span>
 								</button>
 								<button
 									type="button"

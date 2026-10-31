@@ -80,6 +80,37 @@ class MinioStorageServiceTest {
         assertEquals("CAM-1/roi.jpg", captor.getValue().object());
     }
 
+    @Test
+    @DisplayName("getObject với offset và length lấy đúng byte range phục vụ HTTP 206 video streaming")
+    void getObject_withRange_returnsPartialStream() throws Exception {
+        GetObjectResponse mockResponse = mock(GetObjectResponse.class);
+        when(minioClient.getObject(any(GetObjectArgs.class))).thenReturn(mockResponse);
+
+        InputStream stream = minioStorageService.getObject("camera-recordings", "CAM-001/video.mp4", 1024L, 4096L);
+        assertNotNull(stream);
+
+        ArgumentCaptor<GetObjectArgs> captor = ArgumentCaptor.forClass(GetObjectArgs.class);
+        verify(minioClient).getObject(captor.capture());
+        assertEquals("camera-recordings", captor.getValue().bucket());
+        assertEquals("CAM-001/video.mp4", captor.getValue().object());
+        assertEquals(1024L, captor.getValue().offset());
+        assertEquals(4096L, captor.getValue().length());
+    }
+
+    @Test
+    @DisplayName("uploadSecurityEvidence bắt buộc đính kèm mã hóa ServerSideEncryptionS3 (SSE-S3)")
+    void uploadSecurityEvidence_usesSseS3() throws Exception {
+        givenBucketsExist();
+        byte[] dummyImage = new byte[]{1, 2, 3, 4};
+
+        String url = minioStorageService.uploadSecurityEvidence(dummyImage, "CAM-001", "UNAUTHORIZED_ACCESS", 1L);
+        assertNotNull(url);
+
+        ArgumentCaptor<PutObjectArgs> captor = ArgumentCaptor.forClass(PutObjectArgs.class);
+        verify(minioClient).putObject(captor.capture());
+        assertNotNull(captor.getValue().sse(), "Phải cấu hình SSE-S3 khi tải bằng chứng lên MinIO");
+    }
+
     // ===== M2 / B6: gỡ policy public của bucket tạo trước đây =====
 
     private static ErrorResponseException minioError(String code) {

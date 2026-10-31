@@ -47,6 +47,7 @@ pgdata/
 pgadmindata/
 miniodata/
 kafkadata/
+mosquittodata/
 backups/
 
 # Python & AI Service

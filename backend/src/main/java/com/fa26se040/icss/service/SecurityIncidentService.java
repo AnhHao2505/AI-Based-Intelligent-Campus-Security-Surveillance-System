@@ -40,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -472,20 +473,27 @@ public class SecurityIncidentService {
 
     public void triggerIncidentRecordingStart(SecurityIncident incident) {
         if (incident == null || aiServiceUrl == null || aiServiceUrl.isBlank()) return;
-        try {
-            String url = aiServiceUrl + "/api/v1/incident-recording/start";
-            Map<String, Object> req = Map.of(
-                    "incident_id", incident.getId().toString(),
-                    "camera_code", incident.getCameraCode() != null ? incident.getCameraCode() : "CAM-001",
-                    "event_type", incident.getEventType() != null ? incident.getEventType() : "SECURITY_INCIDENT",
-                    "details", incident.getResolutionNotes() != null ? incident.getResolutionNotes() : ""
-            );
-            restTemplate.postForObject(url, req, Map.class);
-            log.info("🚨 [IncidentService] Đã kích hoạt ghi hình sự cố [{}] camera [{}] sang AI Service",
-                    incident.getId(), incident.getCameraCode());
-        } catch (Exception ex) {
-            log.warn("⚠️ Không thể gửi tín hiệu ghi hình sự cố sang AI service: {}", ex.getMessage());
-        }
+        String incidentIdStr = incident.getId() != null ? incident.getId().toString() : "";
+        String cameraCode = incident.getCameraCode() != null ? incident.getCameraCode() : "CAM-001";
+        String eventType = incident.getEventType() != null ? incident.getEventType() : "SECURITY_INCIDENT";
+        String details = incident.getResolutionNotes() != null ? incident.getResolutionNotes() : "";
+        String url = aiServiceUrl + "/api/v1/incident-recording/start";
+
+        CompletableFuture.runAsync(() -> {
+            try {
+                Map<String, Object> req = Map.of(
+                        "incident_id", incidentIdStr,
+                        "camera_code", cameraCode,
+                        "event_type", eventType,
+                        "details", details
+                );
+                restTemplate.postForObject(url, req, Map.class);
+                log.info("🚨 [IncidentService] Đã kích hoạt ghi hình sự cố [{}] camera [{}] sang AI Service",
+                        incidentIdStr, cameraCode);
+            } catch (Exception ex) {
+                log.warn("⚠️ Không thể gửi tín hiệu ghi hình sự cố sang AI service: {}", ex.getMessage());
+            }
+        });
     }
 
     public void triggerIncidentRecordingStop(UUID incidentId) {
@@ -494,26 +502,30 @@ public class SecurityIncidentService {
 
     public void triggerIncidentRecordingStop(String incidentId) {
         if (aiServiceUrl == null || aiServiceUrl.isBlank()) return;
-        try {
-            String url = aiServiceUrl + "/api/v1/incident-recording/stop";
-            Map<String, Object> req = (incidentId != null && !incidentId.isBlank())
-                    ? Map.of("incident_id", incidentId)
-                    : Map.of("stop_all", true);
-            restTemplate.postForObject(url, req, Map.class);
-            log.info("🛑 [IncidentService] Đã gửi tín hiệu dừng ghi hình sự cố [{}] sang AI Service", incidentId);
-        } catch (Exception ex) {
-            log.warn("⚠️ Không thể gửi tín hiệu dừng ghi hình sự cố sang AI service: {}", ex.getMessage());
-        }
+        String url = aiServiceUrl + "/api/v1/incident-recording/stop";
+        CompletableFuture.runAsync(() -> {
+            try {
+                Map<String, Object> req = (incidentId != null && !incidentId.isBlank())
+                        ? Map.of("incident_id", incidentId)
+                        : Map.of("stop_all", true);
+                restTemplate.postForObject(url, req, Map.class);
+                log.info("🛑 [IncidentService] Đã gửi tín hiệu dừng ghi hình sự cố [{}] sang AI Service", incidentId);
+            } catch (Exception ex) {
+                log.warn("⚠️ Không thể gửi tín hiệu dừng ghi hình sự cố sang AI service: {}", ex.getMessage());
+            }
+        });
     }
 
     public void triggerAllIncidentRecordingsStop() {
         if (aiServiceUrl == null || aiServiceUrl.isBlank()) return;
-        try {
-            String url = aiServiceUrl + "/api/v1/incident-recording/stop";
-            restTemplate.postForObject(url, Map.of("stop_all", true), Map.class);
-            log.info("🛑 [IncidentService] Đã gửi tín hiệu dừng tất cả phiên ghi hình sự cố sang AI Service");
-        } catch (Exception ex) {
-            log.warn("⚠️ Không thể gửi tín hiệu dừng toàn bộ ghi hình sự cố sang AI service: {}", ex.getMessage());
-        }
+        String url = aiServiceUrl + "/api/v1/incident-recording/stop";
+        CompletableFuture.runAsync(() -> {
+            try {
+                restTemplate.postForObject(url, Map.of("stop_all", true), Map.class);
+                log.info("🛑 [IncidentService] Đã gửi tín hiệu dừng tất cả phiên ghi hình sự cố sang AI Service");
+            } catch (Exception ex) {
+                log.warn("⚠️ Không thể gửi tín hiệu dừng toàn bộ ghi hình sự cố sang AI service: {}", ex.getMessage());
+            }
+        });
     }
 }
