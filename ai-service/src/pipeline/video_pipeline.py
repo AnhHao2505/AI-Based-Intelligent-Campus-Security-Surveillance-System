@@ -11,7 +11,7 @@ from ..core.human_detector import HumanDetector
 from ..core.face_detector import FaceDetector
 from ..core.face_matcher import FaceMatcher
 from ..core.frame_analysis_engine import FrameAnalysisEngine
-from ..integration.kafka_producer import SecurityKafkaProducer
+from ..integration.mqtt_client import SecurityMqttClient
 from ..integration.storage_service import StorageService
 from ..utils.visualizer import FrameVisualizer
 from ..utils.geometry import is_point_in_polygon, scale_polygon_to_frame
@@ -29,7 +29,7 @@ class VideoPipeline:
     5. Crop vùng người & Face Detection (YuNet)
     6. Face Recognition Matching (pgvector Cosine Search)
     7. Violation Analysis (ROI Polygon Check)
-    8. Cảnh báo tự động (Kafka Event + MinIO Snapshot Upload)
+    8. Cảnh báo tự động (MTQQ Event + MinIO Snapshot Upload)
     9. Visualization & Overlay Rendering
     """
     def __init__(
@@ -89,7 +89,8 @@ class VideoPipeline:
         # Khởi tạo các module tích hợp
         from concurrent.futures import ThreadPoolExecutor
         self.executor = ThreadPoolExecutor(max_workers=2)
-        self.kafka_producer = SecurityKafkaProducer()
+        self.mqtt_client = SecurityMqttClient()
+        self.kafka_producer = self.mqtt_client  # Backward compatibility
         self.storage_service = StorageService()
         self.visualizer = FrameVisualizer()
 
@@ -431,6 +432,8 @@ class VideoPipeline:
                 event_type=alert.event_type
             )
             alert.image_url = evidence_url
-            self.kafka_producer.send_alert(alert)
+            self.mqtt_client.send_alert(alert)
         except Exception as e:
-            logger.error(f"Lỗi gửi cảnh báo ngầm sang Kafka/MinIO: {e}")
+            logger.error(f"Lỗi gửi cảnh báo ngầm sang MQTT/MinIO: {e}")
+
+

@@ -9,7 +9,7 @@ Microservice xử lý AI thời gian thực cho hệ thống giám sát an ninh:
 - **Phát hiện khuôn mặt (Face Detection):** OpenCV YuNet ONNX (kèm 5 điểm Landmarks căn chỉnh).
 - **Trích xuất đặc trưng khuôn mặt (Face Recognition):** Deep Learning ArcFace ResNet-50 ONNX (vector 512D chuẩn hóa L2).
 - **Phân tích khung hình & Xâm nhập vùng cấm (Frame Analysis Engine):** Kiểm tra đối tượng trong vùng ROI, đối soát danh tính khuôn mặt và cảnh báo ngoài giờ hoạt động.
-- **Tích hợp cảnh báo:** Apache Kafka (Real-time Event Stream) & MinIO (Lưu trữ ảnh bằng chứng vi phạm).
+- **Tích hợp cảnh báo:** Eclipse Mosquitto MQTT (Real-time Event Stream) & MinIO (Lưu trữ ảnh bằng chứng vi phạm).
 
 ---
 
@@ -37,7 +37,7 @@ ai-service/
 │   │   ├── stream_worker.py        # Worker chạy ngầm theo dõi camera RTSP
 │   │   └── video_pipeline.py       # Full Video Analysis Pipeline
 │   ├── integration/
-│   │   ├── kafka_producer.py       # Producer gửi cảnh báo lên Kafka
+│   │   ├── mqtt_client.py          # Client gửi cảnh báo lên MQTT Broker
 │   │   └── storage_service.py      # Upload ảnh vi phạm lên MinIO
 │   └── utils/
 │       ├── geometry.py             # Thuật toán Point-in-Polygon (Ray Casting)

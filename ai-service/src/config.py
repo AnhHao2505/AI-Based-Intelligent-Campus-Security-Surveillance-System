@@ -18,11 +18,13 @@ class Settings(BaseSettings):
     POSTGRES_PASSWORD: str = Field(default="123456", validation_alias="POSTGRES_PASSWORD")
     POSTGRES_DB: str = Field(default="campus_security", validation_alias="POSTGRES_DB")
 
-    # Kafka Configuration
-    KAFKA_BOOTSTRAP_SERVERS: str = Field(default="localhost:9092", validation_alias="KAFKA_BOOTSTRAP_SERVERS")
-    KAFKA_TOPIC_ALERTS: str = "security-incidents"
-    KAFKA_TOPIC_HEALTH: str = "campus.camera.health"
-    KAFKA_ENABLED: bool = True
+    # MQTT Configuration (Edge-Cloud Telemetry & Real-time Incidents)
+    MQTT_BROKER_HOST: str = Field(default="localhost", validation_alias="MQTT_BROKER_HOST")
+    MQTT_BROKER_PORT: int = Field(default=1883, validation_alias="MQTT_BROKER_PORT")
+    MQTT_CLIENT_ID: str = Field(default="campus-security-ai-service", validation_alias="MQTT_CLIENT_ID")
+    MQTT_TOPIC_ALERTS: str = "campus/alerts/incidents"
+    MQTT_TOPIC_HEALTH: str = "campus/cameras/{camera_id}/health"
+    MQTT_ENABLED: bool = True
     
     # MinIO Storage Configuration (Bắt buộc đọc credentials từ biến môi trường, không để default trong source)
     MINIO_ENDPOINT: str = Field(default="localhost:9000", validation_alias="MINIO_ENDPOINT")
@@ -30,6 +32,7 @@ class Settings(BaseSettings):
     MINIO_SECRET_KEY: str = Field(..., min_length=8, validation_alias=AliasChoices("MINIO_ROOT_PASSWORD", "MINIO_SECRET_KEY"))
     MINIO_BUCKET_FACES: str = "face-profiles"
     MINIO_BUCKET_EVIDENCE: str = "security-evidence"
+    MINIO_BUCKET_RECORDINGS: str = "camera-recordings"
     MINIO_SECURE: bool = False
     MINIO_ENABLED: bool = True
     

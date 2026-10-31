@@ -48,17 +48,6 @@ spring:
       max-file-size: 500MB
       max-request-size: 510MB
 
-  # Apache Kafka Configuration
-  kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
-    consumer:
-      group-id: campus-security-backend-group
-      auto-offset-reset: latest
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      properties:
-        spring.json.trusted.packages: "*"
-
 # Actuator — health check, Phase 1 Definition of Done: GET /actuator/health -> 200 OK
 management:
   endpoints:
@@ -90,6 +79,12 @@ camera:
     timeout-ms: ${CAMERA_RTSP_TIMEOUT_MS:3000}
 
 app:
+  mqtt:
+    broker-url: ${MQTT_BROKER_URL:tcp://localhost:1883}
+    client-id: ${MQTT_CLIENT_ID:campus-security-backend}
+    topics:
+      incidents: ${MQTT_TOPIC_INCIDENTS:campus/alerts/incidents}
+    enabled: ${MQTT_ENABLED:true}
   jwt:
     secret: ${JWT_SECRET}
     expiration-ms: ${JWT_EXPIRATION:86400000} # 24 hours
@@ -108,6 +103,7 @@ minio:
   bucket:
     faces: face-profiles
     evidence: security-evidence
+    recordings: camera-recordings
 
 icss:
   scheduler:
