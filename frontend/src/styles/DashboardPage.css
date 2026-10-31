@@ -8,7 +8,7 @@
   min-height: 100vh;
   background-color: var(--theme-bg-page);
   color: var(--theme-text-primary);
-  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: inherit;
   padding-bottom: 60px;
   transition: background-color 0.25s ease, color 0.25s ease;
 }
@@ -31,7 +31,7 @@
   border: 1px solid var(--theme-border);
   color: var(--theme-text-secondary);
   padding: 0.5rem 0.9rem;
-  border-radius: 10px;
+  border-radius: 8px;
   font-size: 0.825rem;
   font-weight: 500;
   box-shadow: var(--theme-card-shadow);
@@ -41,21 +41,22 @@
 /* KPI Cards Grid */
 .dashboard-kpis {
   display: grid;
-  /* UI-AUDIT #4: số thẻ đổi theo role (2–3 thẻ) -> chia đều theo số thẻ thật */
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 1.25rem;
 }
 
 .kpi-card {
   background: var(--theme-bg-surface);
+  backdrop-filter: var(--theme-glass-blur, blur(16px));
+  -webkit-backdrop-filter: var(--theme-glass-blur, blur(16px));
   border: 1px solid var(--theme-border);
-  border-radius: 14px;
+  border-radius: 12px;
   padding: 1.25rem;
   box-shadow: var(--theme-card-shadow);
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
-  transition: all 0.25s ease;
+  transition: all 0.2s ease;
 }
 
 .kpi-card:hover {
@@ -71,16 +72,16 @@
 }
 
 .kpi-card__icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  background: var(--brand-subtle);
-  border: 1px solid var(--brand-subtle-border);
-  color: var(--brand-text);
+  background: var(--theme-primary-light);
+  border: 1px solid var(--theme-primary-border);
+  color: var(--theme-primary);
 }
 
 .kpi-card__badge {
@@ -114,6 +115,7 @@
   color: var(--theme-text-primary);
   line-height: 1.1;
   letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
 }
 
 .kpi-card__footer {
@@ -130,13 +132,15 @@
 /* Common Card Styles */
 .dash-card {
   background: var(--theme-bg-surface);
+  backdrop-filter: var(--theme-glass-blur, blur(16px));
+  -webkit-backdrop-filter: var(--theme-glass-blur, blur(16px));
   border: 1px solid var(--theme-border);
-  border-radius: 14px;
+  border-radius: 12px;
   padding: 1.5rem;
   box-shadow: var(--theme-card-shadow);
   display: flex;
   flex-direction: column;
-  transition: all 0.25s ease;
+  transition: all 0.2s ease;
 }
 
 .dash-card__header {
@@ -159,9 +163,9 @@
   width: 36px;
   height: 36px;
   border-radius: 8px;
-  background: var(--brand-subtle);
-  border: 1px solid var(--brand-subtle-border);
-  color: var(--brand-text);
+  background: var(--theme-primary-light);
+  border: 1px solid var(--theme-primary-border);
+  color: var(--theme-primary);
   display: flex;
   align-items: center;
   justify-content: center;
