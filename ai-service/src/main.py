@@ -388,7 +388,16 @@ async def start_camera_stream(req: StreamStartRequest):
     rtsp_url = req.rtsp_url.strip()
 
     if camera_code in active_workers and active_workers[camera_code].is_running:
-        return {"status": "ALREADY_RUNNING", "camera_code": camera_code}
+        current_worker = active_workers[camera_code]
+        if current_worker.rtsp_url != rtsp_url:
+            logger.info(f"🔄 [StreamStart] RTSP URL thay đổi cho camera [{camera_code}] ({current_worker.rtsp_url} -> {rtsp_url}), dừng worker cũ và tái kết nối...")
+            current_worker.stop()
+            del active_workers[camera_code]
+        else:
+            if req.roi_geometry:
+                polys = req.roi_geometry.get("polygons", [])
+                current_worker.update_roi(polygons=polys)
+            return {"status": "ALREADY_RUNNING", "camera_code": camera_code, "rtsp_url": rtsp_url}
 
     try:
         worker = CameraStreamWorker(

@@ -19,7 +19,9 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 		resolution = "1080p",
 		fps = "30 FPS",
 		isRecording = true,
-		host = "localhost:8889",
+		host = typeof window !== "undefined" && window.location.hostname
+			? `${window.location.hostname}:8889`
+			: "localhost:8889",
 		aiHost = typeof window !== "undefined" && window.location.hostname
 			? `${window.location.hostname}:8000`
 			: "localhost:8000",

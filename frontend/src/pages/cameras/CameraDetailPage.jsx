@@ -471,7 +471,11 @@ export default function CameraDetailPage() {
 				...prev,
 				credentialRef: "",
 			}));
-			toast.success("Lưu cấu hình stream thành công!");
+			if (newStatus === "ONLINE") {
+				toast.success("Lưu cấu hình thành công! Đã tự động cập nhật luồng phát trực tiếp.");
+			} else {
+				toast.success("Lưu cấu hình thành công! Bấm nút 'Kết nối Stream' bên dưới để bắt đầu phát video.");
+			}
 			loadCameraDetails();
 			loadLogs();
 		} catch (err) {

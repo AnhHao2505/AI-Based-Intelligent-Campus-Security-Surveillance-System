@@ -972,7 +972,12 @@ export function SecuritySurveillancePage() {
 											fps="30 FPS"
 											isRecording={true}
 											enabled={camera.status === "ONLINE"}
-											host="localhost:8889"
+											host={
+												import.meta.env.VITE_MEDIAMTX_HOST ||
+												(typeof window !== "undefined" && window.location.hostname
+													? `${window.location.hostname}:8889`
+													: "localhost:8889")
+											}
 											onStatusChange={(playerStatus) => {
 												if (playerStatus === "live") {
 													setCameraList((prev) =>
