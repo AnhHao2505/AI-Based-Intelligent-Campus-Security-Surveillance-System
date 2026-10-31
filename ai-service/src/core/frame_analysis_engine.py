@@ -117,6 +117,7 @@ class FrameAnalysisEngine:
                     first_seen_time=current_time,
                     last_seen_time=current_time
                 )
+                person.is_currently_visible = True
                 if track_id in self.pending_faces:
                     person.face_detected = True
                     person.face_info = self.pending_faces.pop(track_id)
@@ -124,6 +125,7 @@ class FrameAnalysisEngine:
             else:
                 person = self.active_tracks[track_id]
                 person.update_position(bbox, current_time)
+                person.is_currently_visible = True
                 if track_id in self.pending_faces:
                     person.face_detected = True
                     person.face_info = self.pending_faces.pop(track_id)
@@ -324,6 +326,7 @@ class FrameAnalysisEngine:
         inactive_ids = []
         for tid, p in self.active_tracks.items():
             if tid not in current_frame_track_ids:
+                p.is_currently_visible = False
                 if (current_time - p.last_seen_time) > self.max_inactive_seconds:
                     inactive_ids.append(tid)
 

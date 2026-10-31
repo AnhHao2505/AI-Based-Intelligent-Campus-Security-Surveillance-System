@@ -53,7 +53,7 @@ class Settings(BaseSettings):
     AI_DEVICE: str = Field(default="auto", validation_alias="AI_DEVICE")
     
     # AI Thresholds & Business Rules
-    DEFAULT_DETECTION_CONFIDENCE: float = 0.50
+    DEFAULT_DETECTION_CONFIDENCE: float = 0.55
     DEFAULT_FACE_CONFIDENCE: float = 0.60
     DEFAULT_FACE_NMS_THRESHOLD: float = 0.30
     FACE_MATCH_THRESHOLD: float = 0.75

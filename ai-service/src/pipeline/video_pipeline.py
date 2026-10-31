@@ -457,7 +457,9 @@ class VideoPipeline:
             annotated_frame,
             polygons=self.roi_polygons if self.roi_polygons else (self.roi_polygon if self.roi_polygon else None)
         )
-        if motion_res.has_motion and not person_in_roi:
+        # Chỉ vẽ khung nghi vấn ngụy trang khi có cảnh báo SUSPICIOUS_MOTION thực sự trong ROI
+        has_suspicious_motion_alert = any(a.event_type == "SUSPICIOUS_MOTION" for a in alerts)
+        if has_suspicious_motion_alert and motion_res.has_motion:
             annotated_frame = FrameVisualizer.draw_motion_boxes(annotated_frame, motion_res.motion_boxes)
 
         annotated_frame = self.visualizer.draw_tracked_persons(

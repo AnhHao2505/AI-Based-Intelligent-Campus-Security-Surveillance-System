@@ -70,11 +70,30 @@ class HumanDetector:
             # Lấy track_id nếu có từ tracker, nếu chưa có (frame đầu) thì gán tạm -1
             track_id = int(box.id[0].cpu().numpy()) if box.id is not None else -1
 
+            x1 = float(xyxy[0])
+            y1 = float(xyxy[1])
+            x2 = float(xyxy[2])
+            y2 = float(xyxy[3])
+            w = x2 - x1
+            h = y2 - y1
+
+            # Lọc nhiễu kích thước và tỷ lệ hình học phi thực tế của con người:
+            # 1. Kích thước tối thiểu: Người trong camera giám sát tối thiểu 25px chiều cao và 12px chiều rộng
+            if h < 25 or w < 12:
+                continue
+
+            # 2. Tỷ lệ khung hình (aspect ratio: height / width):
+            # Dáng người chuẩn (đứng, ngồi, bước đi) có tỷ lệ h/w từ 0.65 đến 5.5.
+            # Loại bỏ hoàn toàn các vật thể nằm ngang (bàn, ghế sofa, vạch sáng, mặt bàn: h/w < 0.65)
+            aspect_ratio = h / max(1.0, w)
+            if aspect_ratio < 0.65 or aspect_ratio > 5.5:
+                continue
+
             bbox = BoundingBox(
-                x1=float(xyxy[0]),
-                y1=float(xyxy[1]),
-                x2=float(xyxy[2]),
-                y2=float(xyxy[3]),
+                x1=x1,
+                y1=y1,
+                x2=x2,
+                y2=y2,
                 confidence=conf
             )
             detected_tracks.append((track_id, bbox))

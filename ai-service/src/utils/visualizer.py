@@ -112,6 +112,10 @@ class FrameVisualizer:
         only_in_roi: bool = False
     ) -> np.ndarray:
         for p in persons:
+            # Chỉ vẽ người thực sự xuất hiện trong khung hình hiện tại (loại bỏ ghost bounding box bị đóng băng)
+            if hasattr(p, "is_currently_visible") and not p.is_currently_visible:
+                continue
+
             # Nếu bật chế độ only_in_roi: Chỉ vẽ khung cho người đang trong ROI (hoặc đang có cảnh báo vi phạm)
             if only_in_roi and not p.is_in_roi:
                 if not (p.alert_unauthorized_sent or getattr(p, "alert_unknown_sent", False) or getattr(p, "alert_after_hours_sent", False)):
