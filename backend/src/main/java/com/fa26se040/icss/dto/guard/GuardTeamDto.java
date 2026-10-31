@@ -15,6 +15,8 @@ public class GuardTeamDto {
     private UUID id;
     private String teamName;
     private String description;
+    private UUID buildingId;
+    private String buildingName;
     private Boolean isActive;
     private Integer weekdayMorningDemand;
     private Integer weekdayAfternoonDemand;

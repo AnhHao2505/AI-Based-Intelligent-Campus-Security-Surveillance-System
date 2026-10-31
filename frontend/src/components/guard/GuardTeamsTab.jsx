@@ -332,9 +332,12 @@ export default function GuardTeamsTab({
   const [teamForm, setTeamForm] = useState({
     teamName: '',
     description: '',
+    buildingId: '',
     colorCode: '#2563eb'
   });
   const [submittingTeam, setSubmittingTeam] = useState(false);
+  const [buildingChangePreview, setBuildingChangePreview] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   // Shift Demand Configuration (Khi tạo đội mới)
   // 1. Ngày học & làm việc (Thứ 2 - Thứ 7 • 6 ngày)
@@ -507,8 +510,11 @@ export default function GuardTeamsTab({
     setTeamForm({
       teamName: '',
       description: '',
+      buildingId: '',
       colorCode: PRESET_COLORS[teams.length % PRESET_COLORS.length] || '#2563eb'
     });
+    setBuildingChangePreview(null);
+    setPreviewLoading(false);
     if (setIsCreateModalOpen) {
       setIsCreateModalOpen(true);
     }
@@ -523,13 +529,44 @@ export default function GuardTeamsTab({
     setSundayMorningDemand(team.sundayMorningDemand ?? 2);
     setSundayAfternoonDemand(team.sundayAfternoonDemand ?? 2);
     setSundayNightDemand(team.sundayNightDemand ?? 2);
+    const foundBuilding = (buildings || []).find((b) => b.id === team.buildingId || b.name === team.description);
     setTeamForm({
       teamName: team.teamName || '',
       description: team.description || '',
+      buildingId: team.buildingId || foundBuilding?.id || '',
       colorCode: team.colorCode || '#2563eb'
     });
+    setBuildingChangePreview(null);
+    setPreviewLoading(false);
     if (setIsCreateModalOpen) {
       setIsCreateModalOpen(true);
+    }
+  };
+
+  // P1b: chọn toà ở dropdown ghi cả description = tên toà (như cũ) và buildingId; sửa đội thì xem trước blocker
+  const handleBuildingNameSelected = async (bldName) => {
+    const selectedBld = (buildings || []).find((b) => b.name === bldName || b.id === bldName);
+    const newBuildingId = selectedBld ? selectedBld.id : '';
+    setTeamForm((prev) => ({
+      ...prev,
+      buildingId: newBuildingId,
+      description: bldName
+    }));
+
+    if (editingTeam && newBuildingId && newBuildingId !== editingTeam.buildingId) {
+      setPreviewLoading(true);
+      try {
+        const res = await guardScheduleApi.previewBuildingChange(editingTeam.id, newBuildingId);
+        const data = res?.data || res;
+        setBuildingChangePreview(data);
+      } catch (err) {
+        console.warn('Lỗi kiểm tra điều kiện đổi tòa nhà:', err);
+        setBuildingChangePreview(null);
+      } finally {
+        setPreviewLoading(false);
+      }
+    } else {
+      setBuildingChangePreview(null);
     }
   };
 
@@ -541,12 +578,23 @@ export default function GuardTeamsTab({
       return;
     }
 
+    if (!editingTeam && !teamForm.buildingId) {
+      alert('Vui lòng chọn tòa nhà / cơ sở phụ trách cho đội bảo vệ mới');
+      return;
+    }
+
+    if (editingTeam && buildingChangePreview && (!buildingChangePreview.canChange || (buildingChangePreview.blockers && buildingChangePreview.blockers.length > 0))) {
+      alert('Không thể lưu: Đội bảo vệ vẫn còn ca trực tương lai thuộc tòa nhà cũ.');
+      return;
+    }
+
     setSubmittingTeam(true);
     try {
       if (editingTeam) {
         await guardScheduleApi.updateTeam(editingTeam.id, {
           teamName: teamForm.teamName.trim(),
           description: teamForm.description.trim(),
+          buildingId: teamForm.buildingId || undefined,
           colorCode: teamForm.colorCode,
           weekdayMorningDemand,
           weekdayAfternoonDemand,
@@ -562,6 +610,7 @@ export default function GuardTeamsTab({
         const createdTeam = await guardScheduleApi.createTeam({
           teamName: teamForm.teamName.trim(),
           description: finalDescription,
+          buildingId: teamForm.buildingId,
           colorCode: teamForm.colorCode,
           weekdayMorningDemand,
           weekdayAfternoonDemand,
@@ -1074,6 +1123,10 @@ export default function GuardTeamsTab({
               assignedLocation = teamBuildings.join(', ');
             } else if (team.description && !team.description.startsWith('Tổ tạo nhanh')) {
               assignedLocation = team.description;
+            }
+            // P1b: đội đã gán toà phụ trách (FK) thì hiển thị toà đó
+            if (team.buildingName) {
+              assignedLocation = team.buildingName;
             }
 
             const isExpanded = expandedTeamIds.has(team.id);
@@ -1930,15 +1983,20 @@ export default function GuardTeamsTab({
 
                   <div>
                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
-                      <span>Tòa Nhà / Cơ Sở Phụ Trách</span>
+                      <span>Tòa Nhà Phụ Trách {!editingTeam && <span className="text-rose-500">*</span>}</span>
                     </label>
                     <Select
                       value={teamForm.description || ''}
                       onChange={(e) =>
                         setTeamForm((prev) => ({ ...prev, description: e.target.value }))
                       }
+                      onInput={(e) => handleBuildingNameSelected(e.target.value)}
+                      required={!editingTeam}
                       options={[
+                        ...(editingTeam ? [] : [{ value: '', label: '-- Chọn tòa nhà phụ trách (bắt buộc) --' }]),
+                        ...(editingTeam ? [
                         { value: '', label: '-- Chưa gán tòa / Tùy chỉnh sau --' },
+                        ] : []),
                         ...(buildings || []).map((b) => ({ value: b.name || b.id, label: b.name })),
                         ...(!buildings || buildings.length === 0
                           ? [
@@ -1948,8 +2006,50 @@ export default function GuardTeamsTab({
                           : []),
                       ]}
                     />
+                    {editingTeam && editingTeam.buildingName && editingTeam.buildingName !== teamForm.description && teamForm.buildingId === editingTeam.buildingId && (
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                        Toà phụ trách theo hệ thống: <strong>{editingTeam.buildingName}</strong>
+                      </p>
+                    )}
                   </div>
                 </div>
+
+                {previewLoading && (
+                  <div className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1.5 py-1">
+                    <RefreshCw size={12} className="animate-spin" /> Đang kiểm tra điều kiện đổi tòa nhà...
+                  </div>
+                )}
+
+                {buildingChangePreview && (!buildingChangePreview.canChange || (buildingChangePreview.blockers && buildingChangePreview.blockers.length > 0)) && (
+                  <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-xs text-rose-800 dark:text-rose-200 space-y-2">
+                    <div className="flex items-center gap-2 font-bold text-rose-700 dark:text-rose-300">
+                      <AlertCircle size={15} className="shrink-0" />
+                      <span>Không thể đổi tòa nhà: Còn {buildingChangePreview.blockers[0]?.count || 0} ca trực tương lai thuộc tòa cũ ({buildingChangePreview.currentBuildingName})</span>
+                    </div>
+                    <p className="text-[11px] text-rose-600 dark:text-rose-400">
+                      Vui lòng điều chỉnh hoặc xóa các ca trực chưa diễn ra sau đây trước khi chuyển đội sang tòa mới:
+                    </p>
+                    <div className="max-h-36 overflow-y-auto border border-rose-200 dark:border-rose-900/40 rounded bg-white dark:bg-slate-900 p-1.5 space-y-1">
+                      {(buildingChangePreview.blockers[0]?.shifts || []).map((s) => (
+                        <div key={s.shiftId} className="flex items-center justify-between text-[11px] py-0.5 px-1 border-b border-rose-100 dark:border-rose-950 last:border-b-0">
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">
+                            {s.guardName} ({s.userCode || 'NV-BV'})
+                          </span>
+                          <span className="text-slate-500 dark:text-slate-400">
+                            {s.shiftDate} • {s.shiftType === 'SHIFT_MORNING' ? 'Ca Sáng' : s.shiftType === 'SHIFT_AFTERNOON' ? 'Ca Chiều' : s.shiftType === 'SHIFT_NIGHT' ? 'Ca Đêm' : s.shiftType}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {buildingChangePreview && buildingChangePreview.canChange && (
+                  <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 text-xs text-emerald-800 dark:text-emerald-200 flex items-center gap-2">
+                    <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
+                    <span>Hợp lệ: Đội không còn ca trực tương lai nào ở tòa cũ. Có thể đổi sang {buildingChangePreview.targetBuildingName}.</span>
+                  </div>
+                )}
 
                 {/* Khi tạo mới: Nhu cầu theo ca + Đề xuất quân số + Phân bổ bảo vệ */}
                 {!editingTeam ? (
@@ -2129,7 +2229,7 @@ export default function GuardTeamsTab({
                 </button>
                 <button
                   type="submit"
-                  disabled={submittingTeam}
+                  disabled={submittingTeam || (buildingChangePreview && (!buildingChangePreview.canChange || (buildingChangePreview.blockers && buildingChangePreview.blockers.length > 0)))}
                   className="schedule-btn-primary"
                 >
                   {submittingTeam

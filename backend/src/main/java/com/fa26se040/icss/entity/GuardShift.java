@@ -67,6 +67,17 @@ public class GuardShift {
     @JoinColumn(name = "area_id")
     private Area area;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "building_id")
+    private Building building;
+
+    @Column(name = "is_cross_building", nullable = false)
+    @Builder.Default
+    private Boolean isCrossBuilding = false;
+
+    @Column(name = "cross_building_reason")
+    private String crossBuildingReason;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     @Builder.Default
@@ -106,6 +117,9 @@ public class GuardShift {
         }
         if (this.dutyPostCode == null || this.dutyPostCode.isBlank()) {
             this.dutyPostCode = DutyPostType.DEFAULT_CODE;
+        }
+        if (this.isCrossBuilding == null) {
+            this.isCrossBuilding = false;
         }
     }
 

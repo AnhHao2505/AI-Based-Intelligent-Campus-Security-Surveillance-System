@@ -35,6 +35,7 @@ import StaffingWizardModal from '../../components/guard/StaffingWizardModal';
 import ExportTimesheetModal from '../../components/guard/ExportTimesheetModal';
 import GuardTeamsTab from '../../components/guard/GuardTeamsTab';
 import ShiftRequestsTab from '../../components/guard/ShiftRequestsTab';
+import BuildingRotationReportTab from '../../components/guard/BuildingRotationReportTab';
 import '../../styles/GuardSchedulePage.css';
 
 // Shift Type definitions
@@ -99,6 +100,12 @@ export default function GuardTeamManagementPage() {
   const [showShiftModal, setShowShiftModal] = useState(false);
   const [showWizardModal, setShowWizardModal] = useState(false);
   const [editingShift, setEditingShift] = useState(null);
+  // Shift modal state for building & cross-building & area (PR-1b)
+  const [shiftModalGuardId, setShiftModalGuardId] = useState('');
+  const [shiftModalCrossBuilding, setShiftModalCrossBuilding] = useState(false);
+  const [shiftModalBuildingId, setShiftModalBuildingId] = useState('');
+  const [shiftModalCrossBuildingReason, setShiftModalCrossBuildingReason] = useState('');
+  const [shiftModalAreaId, setShiftModalAreaId] = useState('');
   // V90 (BR-DSP-13): danh mục vị trí trực đang dùng cho dropdown trong form ca
   const [dutyPosts, setDutyPosts] = useState([]);
   const [isCreateTeamModalOpen, setIsCreateTeamModalOpen] = useState(false);
@@ -171,7 +178,13 @@ export default function GuardTeamManagementPage() {
     const guardTeamMap = new Map();
     teamList.forEach((t) => {
       (t.members || []).forEach((m) => {
-        guardTeamMap.set(m.id, { id: t.id, teamName: t.teamName, colorCode: t.colorCode });
+        guardTeamMap.set(m.id, {
+          id: t.id,
+          teamName: t.teamName,
+          colorCode: t.colorCode,
+          buildingId: t.buildingId,
+          buildingName: t.buildingName || t.description
+        });
       });
     });
 
@@ -203,12 +216,20 @@ export default function GuardTeamManagementPage() {
           const activeTeam = teamInfo || (u.teamId && teamList.find((t) => t.id === u.teamId)) || null;
           const teamId = activeTeam?.id || null;
           const teamName = activeTeam?.teamName || null;
+          const teamBuildingId = activeTeam?.buildingId || null;
+          const teamBuildingName = activeTeam?.buildingName || activeTeam?.description || null;
           const activeDisp = activeDispatches.find((d) => d.guardId === u.id);
           return {
             ...u,
             teamId,
             teamName,
-            team: activeTeam ? { id: teamId, teamName, colorCode: activeTeam.colorCode } : null,
+            team: activeTeam ? {
+              id: teamId,
+              teamName,
+              colorCode: activeTeam.colorCode,
+              buildingId: teamBuildingId,
+              buildingName: teamBuildingName
+            } : null,
             activeDispatch: activeDisp ? {
               id: activeDisp.id,
               toTeamId: activeDisp.toTeamId,
@@ -349,6 +370,7 @@ export default function GuardTeamManagementPage() {
 
   // Helper to determine which building a shift belongs to
   const getShiftBuilding = useCallback((shift) => {
+    if (shift.buildingName) return shift.buildingName;
     if (shift.building) return shift.building;
     if (shift.area?.building) return shift.area.building;
     // Fallback: lookup guard's team building
@@ -356,6 +378,7 @@ export default function GuardTeamManagementPage() {
     const guardTeamId = guard?.team?.id || guard?.teamId;
     if (guardTeamId) {
       const team = teams.find((t) => t.id === guardTeamId);
+      if (team?.buildingName) return team.buildingName;
       if (team?.description) return team.description;
     }
     return null;
@@ -418,6 +441,79 @@ export default function GuardTeamManagementPage() {
       alert(err.message || 'Lỗi khi xóa ca trực');
     }
   };
+
+  // Sync shift modal state when opening or switching editingShift (PR-1b)
+  useEffect(() => {
+    if (showShiftModal) {
+      const gId = editingShift?.guardId || editingShift?.guard?.id || '';
+      setShiftModalGuardId(gId);
+      const isCross = editingShift ? !!editingShift.crossBuilding : false;
+      setShiftModalCrossBuilding(isCross);
+      setShiftModalBuildingId(editingShift?.buildingId || '');
+      setShiftModalCrossBuildingReason(editingShift?.crossBuildingReason || '');
+      setShiftModalAreaId(editingShift?.areaId || editingShift?.area?.id || '');
+    } else {
+      setShiftModalGuardId('');
+      setShiftModalCrossBuilding(false);
+      setShiftModalBuildingId('');
+      setShiftModalCrossBuildingReason('');
+      setShiftModalAreaId('');
+    }
+  }, [showShiftModal, editingShift]);
+
+  const selectedShiftGuard = useMemo(() => {
+    return guards.find((g) => g.id === shiftModalGuardId) || null;
+  }, [guards, shiftModalGuardId]);
+
+  const guardHomeTeam = useMemo(() => {
+    if (!selectedShiftGuard) return null;
+    const teamId = selectedShiftGuard.team?.id || selectedShiftGuard.teamId;
+    if (!teamId) return null;
+    return teams.find((t) => t.id === teamId) || null;
+  }, [selectedShiftGuard, teams]);
+
+  const guardHomeBuilding = useMemo(() => {
+    if (!guardHomeTeam) return null;
+    if (guardHomeTeam.buildingId) {
+      const found = buildings.find((b) => b.id === guardHomeTeam.buildingId);
+      if (found) return found;
+    }
+    if (guardHomeTeam.buildingName) {
+      const found = buildings.find((b) => b.name === guardHomeTeam.buildingName);
+      if (found) return found;
+    }
+    if (guardHomeTeam.description && guardHomeTeam.description !== 'CO_SO_HCM') {
+      const found = buildings.find((b) => b.name === guardHomeTeam.description || b.id === guardHomeTeam.description);
+      if (found) return found;
+    }
+    return null;
+  }, [guardHomeTeam, buildings]);
+
+  const guardHomeBuildingName = useMemo(() => {
+    return guardHomeBuilding?.name || guardHomeTeam?.buildingName || (guardHomeTeam?.description !== 'CO_SO_HCM' ? guardHomeTeam?.description : null) || 'Chưa gán toà';
+  }, [guardHomeBuilding, guardHomeTeam]);
+
+  const effectiveShiftBuildingName = useMemo(() => {
+    if (shiftModalCrossBuilding) {
+      return buildings.find((b) => b.id === shiftModalBuildingId)?.name || '';
+    }
+    return guardHomeBuildingName;
+  }, [shiftModalCrossBuilding, buildings, shiftModalBuildingId, guardHomeBuildingName]);
+
+  const modalFilteredAreas = useMemo(() => {
+    if (!effectiveShiftBuildingName || effectiveShiftBuildingName === 'Chưa gán toà') {
+      return areas;
+    }
+    const filtered = areas.filter((a) => {
+      if (!a.building) return true;
+      return a.building.toLowerCase().trim() === effectiveShiftBuildingName.toLowerCase().trim();
+    });
+    if (shiftModalAreaId && !filtered.some((a) => a.id === shiftModalAreaId)) {
+      const currentArea = areas.find((a) => a.id === shiftModalAreaId);
+      if (currentArea) return [currentArea, ...filtered];
+    }
+    return filtered;
+  }, [areas, effectiveShiftBuildingName, shiftModalAreaId]);
 
   const pendingRequestsCount = useMemo(() => {
     return shiftRequests.filter((r) => r.status === 'PENDING').length;
@@ -832,6 +928,19 @@ export default function GuardTeamManagementPage() {
                           </span>
                         </div>
                       )}
+
+                      {/* Cross-building shift badge (PR-1b) */}
+                      {shift.crossBuilding && (
+                        <div
+                          className="mt-1 px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 text-[10.5px] font-semibold flex items-center gap-1 border border-purple-200 dark:border-purple-800/60 opacity-95"
+                          title={shift.crossBuildingReason ? `Luân chuyển toà: ${shift.crossBuildingReason}` : 'Ca trực luân chuyển toà'}
+                        >
+                          <Building2 size={11} className="shrink-0 text-purple-600 dark:text-purple-400" />
+                          <span className="truncate">
+                            Luân chuyển{shift.buildingName ? `: ${shift.buildingName}` : ''}
+                          </span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Status badge */}
@@ -991,6 +1100,15 @@ export default function GuardTeamManagementPage() {
               {pendingRequestsCount}
             </span>
           )}
+        </button>
+
+        <button
+          type="button"
+          className={`schedule-tab-btn ${activeTab === 'ROTATION_REPORT' ? 'schedule-tab-btn--active' : ''}`}
+          onClick={() => setActiveTab('ROTATION_REPORT')}
+        >
+          <Building2 size={17} />
+          <span>Báo Cáo Luân Chuyển</span>
         </button>
       </nav>
 
@@ -1316,6 +1434,14 @@ export default function GuardTeamManagementPage() {
         <ShiftRequestsTab onRequestsUpdated={fetchData} />
       )}
 
+      {/* 6. TAB 4: ROTATION REPORT (PR-1b) */}
+      {activeTab === 'ROTATION_REPORT' && (
+        <BuildingRotationReportTab
+          teams={teams}
+          buildings={buildings}
+        />
+      )}
+
       {/* ========================================================
           MODAL: ADD / EDIT SHIFT
       ======================================================== */}
@@ -1372,13 +1498,25 @@ export default function GuardTeamManagementPage() {
                   endTime = '06:00';
                 }
 
+                if (shiftModalCrossBuilding && !shiftModalBuildingId) {
+                  alert('Vui lòng chọn toà nhà khi bật chế độ luân chuyển.');
+                  return;
+                }
+
+                const finalBuildingId = shiftModalCrossBuilding
+                  ? shiftModalBuildingId
+                  : (guardHomeBuilding?.id || editingShift?.buildingId || null);
+
                 const payload = {
-                  guardId: form.guardId.value,
+                  guardId: shiftModalGuardId || form.guardId.value,
                   shiftDate: form.shiftDate.value,
                   shiftType: shiftType,
                   startTime: startTime,
                   endTime: endTime,
-                  areaId: null,
+                  areaId: shiftModalAreaId || null,
+                  buildingId: finalBuildingId,
+                  crossBuilding: shiftModalCrossBuilding,
+                  crossBuildingReason: shiftModalCrossBuilding ? (shiftModalCrossBuildingReason || null) : null,
                   notes: form.notes ? form.notes.value : '',
                   status: form.status ? form.status.value : (editingShift?.status || 'SCHEDULED'),
                   isOvertime: form.isOvertime ? form.isOvertime.checked : (editingShift?.isOvertime || false),
@@ -1407,13 +1545,86 @@ export default function GuardTeamManagementPage() {
                   </label>
                   <Select
                     name="guardId"
-                    defaultValue={editingShift ? editingShift.guardId : ''}
+                    value={shiftModalGuardId}
+                    onChange={(e) => setShiftModalGuardId(e.target.value)}
                     required
                     options={[
                       { value: '', label: '-- Chọn nhân viên bảo vệ --' },
                       ...guards.map((g) => ({ value: g.id, label: `${g.fullName} (${g.userCode || 'NV-BV'})` })),
                     ]}
                   />
+                </div>
+
+                {/* Toà của đội & Công tắc trực toà khác (luân chuyển) - PR-1b */}
+                <div className="schedule-form-group p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      <Building2 size={15} className="text-blue-600" />
+                      <span>
+                        Toà: <strong className="text-slate-900 dark:text-white font-bold">{guardHomeBuildingName}</strong> (theo đội)
+                      </span>
+                    </div>
+                    <label className="flex items-center gap-1.5 cursor-pointer text-xs font-medium text-slate-600 dark:text-slate-400">
+                      <input
+                        type="checkbox"
+                        checked={shiftModalCrossBuilding}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setShiftModalCrossBuilding(checked);
+                          if (!checked) {
+                            setShiftModalBuildingId('');
+                            setShiftModalCrossBuildingReason('');
+                          }
+                        }}
+                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
+                      />
+                      <span>Trực toà khác (luân chuyển)</span>
+                    </label>
+                  </div>
+
+                  {shiftModalCrossBuilding && (
+                    <div className="pt-2 border-t border-slate-200 dark:border-slate-700/80 space-y-2.5">
+                      <div>
+                        <label className="schedule-form-label text-xs">
+                          <span>Chọn Toà Trực Luân Chuyển</span>
+                          <span className="required">*</span>
+                        </label>
+                        <Select
+                          value={shiftModalBuildingId}
+                          onChange={(e) => {
+                            setShiftModalBuildingId(e.target.value);
+                            setShiftModalAreaId('');
+                          }}
+                          options={[
+                            { value: '', label: '-- Chọn toà nhà điều động đến --' },
+                            ...buildings.map((b) => ({ value: b.id, label: b.name })),
+                          ]}
+                        />
+                      </div>
+
+                      {shiftModalBuildingId && (
+                        <div className="p-2.5 rounded bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 flex items-start gap-2 text-xs text-amber-800 dark:text-amber-200">
+                          <AlertCircle size={15} className="shrink-0 mt-0.5 text-amber-600" />
+                          <span>
+                            <strong>{selectedShiftGuard?.fullName || 'Bảo vệ'}</strong> thuộc đội ({guardHomeBuildingName}), ca này xếp ở <strong>{buildings.find((b) => b.id === shiftModalBuildingId)?.name || 'toà khác'}</strong>.
+                          </span>
+                        </div>
+                      )}
+
+                      <div>
+                        <label className="schedule-form-label text-xs">
+                          <span>Lý Do Luân Chuyển (không bắt buộc)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={shiftModalCrossBuildingReason}
+                          onChange={(e) => setShiftModalCrossBuildingReason(e.target.value)}
+                          placeholder="Vd: Tăng cường an ninh sự kiện, bù quân số thiếu..."
+                          className="schedule-form-input text-xs"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="schedule-form-row">
@@ -1465,6 +1676,30 @@ export default function GuardTeamManagementPage() {
                     />
                   </div>
                 )}
+
+                {/* Khu vực phân công (không bắt buộc) - Lọc theo toà đang hiển thị (PR-1b) */}
+                <div className="schedule-form-group">
+                  <label className="schedule-form-label">
+                    <span>Khu Vực Phân Công (không bắt buộc)</span>
+                  </label>
+                  <Select
+                    name="areaId"
+                    value={shiftModalAreaId}
+                    onChange={(e) => setShiftModalAreaId(e.target.value)}
+                    options={[
+                      { value: '', label: '-- Không chỉ định khu vực cụ thể --' },
+                      ...modalFilteredAreas.map((a) => ({
+                        value: a.id,
+                        label: `${a.name}${a.floor ? ` (${a.floor})` : ''}${a.building ? ` - ${a.building}` : ''}`
+                      }))
+                    ]}
+                  />
+                  {effectiveShiftBuildingName && effectiveShiftBuildingName !== 'Chưa gán toà' && (
+                    <span className="text-[11px] text-slate-500">
+                      Đang lọc danh sách khu vực thuộc toà: <strong>{effectiveShiftBuildingName}</strong>
+                    </span>
+                  )}
+                </div>
 
                 {editingShift && editingShift.id && (
                   <div className="schedule-form-group">

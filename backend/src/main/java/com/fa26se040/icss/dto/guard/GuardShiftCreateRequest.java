@@ -33,6 +33,10 @@ public class GuardShiftCreateRequest {
     private LocalTime endTime;
 
     private UUID areaId;
+    private UUID buildingId;
+    @Builder.Default
+    private Boolean crossBuilding = false;
+    private String crossBuildingReason;
     private String notes;
     private Boolean isOvertime = false;
     // V90 (BR-DSP-13): mã vị trí trực đang hoạt động; không gửi thì PATROL
