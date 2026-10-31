@@ -81,6 +81,6 @@ package "Core Backend Sub-system (com.fa26se040.icss)" as BackendSubsys #F0FDF4 
 ' ============================================================================
 FeServices ..> BeController : HTTPS REST / STOMP
 AiIntegration ..> BeController : Check Allow (HTTP REST)
-AiIntegration ..> BeConsumer : Security Incidents (Kafka)
+AiIntegration ..> BeConsumer : Security Incidents (MQTT)
 
 @enduml

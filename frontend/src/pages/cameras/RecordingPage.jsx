@@ -518,13 +518,26 @@ export default function RecordingPage() {
                   className="recording-card__media"
                   onClick={() => handleOpenVideo(recording)}
                 >
-                  <video
-                    src={`${recording.videoUrl}#t=0.001`}
-                    preload="metadata"
-                    muted
-                    playsInline
+                  <div
                     className="recording-card__thumb"
-                  />
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: isSecurity
+                        ? "radial-gradient(circle at center, rgba(220,38,38,0.22) 0%, #090d16 100%)"
+                        : "radial-gradient(circle at center, rgba(0,163,255,0.16) 0%, #090d16 100%)",
+                      color: isSecurity ? "#f87171" : "#38bdf8",
+                      gap: "6px",
+                      userSelect: "none",
+                    }}
+                  >
+                    {isSecurity ? <ShieldAlert size={30} /> : <Film size={30} />}
+                    <span style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.06em", opacity: 0.85 }}>
+                      {recording.cameraId} • 480P 15FPS
+                    </span>
+                  </div>
                   <div className="recording-card__play-overlay">
                     <div className="recording-play-icon-circle">
                       <Play size={22} fill="currentColor" style={{ marginLeft: "3px" }} />
@@ -626,14 +639,22 @@ export default function RecordingPage() {
                 return (
                   <tr key={recording.id}>
                     <td>
-                      <video
-                        src={`${recording.videoUrl}#t=0.001`}
-                        preload="metadata"
-                        muted
-                        playsInline
+                      <div
                         className="recording-table-thumb"
                         onClick={() => handleOpenVideo(recording)}
-                      />
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          background: recording.eventType === "SECURITY_EVENT"
+                            ? "rgba(220,38,38,0.18)"
+                            : "rgba(0,163,255,0.14)",
+                          color: recording.eventType === "SECURITY_EVENT" ? "#f87171" : "#38bdf8",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <Play size={16} fill="currentColor" />
+                      </div>
                     </td>
                     <td>
                       <span
@@ -768,7 +789,7 @@ export default function RecordingPage() {
             <div className="recording-player-modal__footer">
               <div className="recording-player-modal__meta-grid">
                 <div>
-                  <strong>Phân loại:</strong> Ghi hình giám sát 1 phút chuẩn xác (CFR 25 FPS)
+                  <strong>Phân loại:</strong> Ghi hình giám sát chuẩn xác (854x480 • CFR 15 FPS)
                 </div>
                 <div>
                   <strong>Độ phân giải & Codec:</strong> {activeVideo.resolution} — {activeVideo.format}

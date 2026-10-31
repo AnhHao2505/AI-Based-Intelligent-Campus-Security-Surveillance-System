@@ -67,10 +67,11 @@
             <artifactId>spring-boot-starter-websocket</artifactId>
         </dependency>
 
-        <!-- Apache Kafka (Event-Driven Real-time Incidents) -->
+        <!-- Eclipse Paho MQTT (Edge-Cloud Telemetry & Real-time Incidents) -->
         <dependency>
-            <groupId>org.springframework.kafka</groupId>
-            <artifactId>spring-kafka</artifactId>
+            <groupId>org.eclipse.paho</groupId>
+            <artifactId>org.eclipse.paho.client.mqttv3</artifactId>
+            <version>1.2.5</version>
         </dependency>
 
         <!-- Spring Mail -->
