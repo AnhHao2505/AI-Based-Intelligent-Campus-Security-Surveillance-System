@@ -18,6 +18,12 @@ class GuardShiftModel {
   final String? checkOutAt;
   final String? notes;
   final bool isOvertime;
+  /// Nhãn vị trí trực (duty post: PATROL / GATE / CAMERA_ROOM) do backend trả; null khi backend chưa có.
+  final String? dutyPostLabel;
+  /// Tên toà của ca theo FK (P1b 4.4); field building giữ cách tính cũ.
+  final String? buildingName;
+  /// Ca luân chuyển: toà của ca khác toà của đội.
+  final bool crossBuilding;
 
   GuardShiftModel({
     required this.id,
@@ -36,6 +42,9 @@ class GuardShiftModel {
     this.checkOutAt,
     this.notes,
     this.isOvertime = false,
+    this.dutyPostLabel,
+    this.buildingName,
+    this.crossBuilding = false,
   });
 
   factory GuardShiftModel.fromJson(Map<String, dynamic> json) {
@@ -56,6 +65,9 @@ class GuardShiftModel {
       checkOutAt: json['checkOutAt']?.toString(),
       notes: json['notes']?.toString(),
       isOvertime: json['isOvertime'] == true,
+      dutyPostLabel: json['dutyPostLabel']?.toString(),
+      buildingName: json['buildingName']?.toString(),
+      crossBuilding: json['crossBuilding'] == true,
     );
   }
 
@@ -76,6 +88,9 @@ class GuardShiftModel {
       'checkInAt': checkInAt,
       'checkOutAt': checkOutAt,
       'notes': notes,
+      'dutyPostLabel': dutyPostLabel,
+      'buildingName': buildingName,
+      'crossBuilding': crossBuilding,
     };
   }
 

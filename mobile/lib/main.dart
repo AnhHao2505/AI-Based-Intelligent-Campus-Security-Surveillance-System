@@ -15,6 +15,7 @@ import 'features/incident/services/incident_service.dart';
 import 'features/incident/services/stomp_service.dart';
 import 'features/map/providers/map_provider.dart';
 import 'features/incident/screens/incident_list_screen.dart';
+import 'features/incident/widgets/incident_offer_banner.dart';
 import 'features/shift/providers/shift_provider.dart';
 import 'features/shift/screens/guard_schedule_screen.dart';
 
@@ -22,6 +23,15 @@ import 'package:intl/date_symbol_data_local.dart';
 
 /// Dùng để mở màn danh sách sự cố khi bảo vệ bấm vào thông báo sự cố (không có BuildContext lúc đó).
 final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
+
+/// Về màn gốc rồi mở màn hình danh sách sự cố sau khi nhận lời mời (cùng cách với khi bấm thông báo).
+void openIncidentListScreen() {
+  final nav = appNavigatorKey.currentState;
+  debugPrint('[NotificationTap] navigator ready=${nav != null}');
+  if (nav == null) return;
+  nav.popUntil((route) => route.isFirst);
+  nav.push(MaterialPageRoute(builder: (_) => const IncidentListScreen()));
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -84,6 +94,13 @@ class GuardMobileApp extends StatelessWidget {
       darkTheme: AppTheme.darkTheme,
       themeMode: themeProvider.themeMode,
       home: const AuthGate(),
+      // Banner lời mời xử lý sự cố nằm trên mọi màn hình; không có lời mời thì không hiện gì.
+      builder: (context, child) => Stack(
+        children: [
+          child ?? const SizedBox.shrink(),
+          IncidentOfferBanner(onClaimed: (_) => openIncidentListScreen()),
+        ],
+      ),
     );
   }
 }

@@ -82,5 +82,14 @@ void main() {
       expect(doneShift.isCompleted, isTrue);
       expect(doneShift.statusLabel, 'HOÀN THÀNH');
     });
+
+    test('dutyPostLabel đọc từ GuardShiftDto; backend chưa có thì null', () {
+      final base = {'id': 's', 'shiftDate': '2026-09-16', 'status': 'CHECKED_IN'};
+      final withPost = GuardShiftModel.fromJson({...base, 'dutyPostLabel': 'Tuần tra', 'areaName': 'Sảnh A'});
+      expect(withPost.dutyPostLabel, 'Tuần tra');
+      expect(withPost.areaName, 'Sảnh A');
+      expect(withPost.toJson()['dutyPostLabel'], 'Tuần tra');
+      expect(GuardShiftModel.fromJson(base).dutyPostLabel, isNull);
+    });
   });
 }

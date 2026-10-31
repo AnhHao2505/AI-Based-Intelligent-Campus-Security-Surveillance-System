@@ -3,11 +3,13 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart' show WidgetsBinding;
+import 'dart:ui' show AppLifecycleState;
 import 'package:intl/intl.dart';
 import '../../../core/notifications/local_notification_service.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/utils/storage_helper.dart';
 import '../models/incident_model.dart';
+import '../models/incident_offer_model.dart';
 import '../services/incident_service.dart';
 import '../services/stomp_service.dart';
 
@@ -61,6 +63,31 @@ class IncidentProvider extends ChangeNotifier {
 
   Timer? _debounceSortTimer;
 
+  // ═══════════════ OFFER STATE (bước 1 phân phối theo đợt) ═══════════════
+
+  static const String claimConflictMessage = 'Đã có người nhận';
+  static const String notOfferedMessage = 'Sự cố đang được mời bảo vệ khác';
+
+  /// Lời mời đang chờ trả lời của bảo vệ hiện tại, theo incidentId. Mỗi lời mời có timer tới deadline.
+  final Map<String, IncidentOfferModel> _offers = {};
+  final Map<String, Timer> _offerTimers = {};
+
+  /// Lời mời đang chờ, hạn gần nhất trước.
+  List<IncidentOfferModel> get offers =>
+      _offers.values.toList()..sort((a, b) => a.deadline.compareTo(b.deadline));
+
+  IncidentOfferModel? get currentOffer => offers.isNotEmpty ? offers.first : null;
+
+  bool hasOfferFor(String incidentId) => _offers.containsKey(incidentId);
+
+  /// Khoá nút claim: sự cố đang mời bảo vệ khác (STEP1) và bảo vệ này không có lời mời.
+  /// dispatchStage null (backend cũ) = BROADCAST → không khoá.
+  bool isClaimLockedFor(IncidentModel incident) =>
+      incident.isNew && incident.isOfferPhase && !_offers.containsKey(incident.id);
+
+  bool _isDeclineLoading = false;
+  bool get isDeclineLoading => _isDeclineLoading;
+
   bool get isStompConnected => stompService.isConnected;
 
   void clearErrorMessage() {
@@ -84,11 +111,13 @@ class IncidentProvider extends ChangeNotifier {
       guardId: currentUser?.id,
       onNewIncident: _onNewIncidentReceived,
       onIncidentUpdate: _onIncidentUpdateReceived,
+      onOfferMessage: handleOfferMessage,
     );
   }
 
   void disconnectStomp() {
     stompService.disconnect();
+    _clearOffers();
   }
 
   /// Lấy danh sách sự cố đang active từ backend khi mở app
@@ -124,6 +153,20 @@ class IncidentProvider extends ChangeNotifier {
   void _onNewIncidentReceived(IncidentModel incident) {
     debugPrint('[IncidentProvider] received incident ${incident.id} (${incident.eventType}), '
         'lifecycle=${WidgetsBinding.instance.lifecycleState}');
+    // K8: đã có trong hàng đợi thì cập nhật severity / dispatchStage trước khi bỏ qua bản trùng
+    // (vd. cảnh báo broadcast tới sau khi bảo vệ đã thấy sự cố lúc STEP1).
+    final existingIdx = _alertQueue.indexWhere((i) => i.id == incident.id);
+    if (existingIdx >= 0) {
+      final wasOfferPhase = _alertQueue[existingIdx].isOfferPhase;
+      if (_mergeDispatchInfo(existingIdx, incident.severity, incident.dispatchStage)) {
+        // STEP1 → BROADCAST: bảo vệ này giờ mới nhận được, báo như sự cố mới
+        if (wasOfferPhase && !_alertQueue[existingIdx].isOfferPhase) {
+          _showSystemNotification(_alertQueue[existingIdx]);
+        }
+        _sortQueue();
+        notifyListeners();
+      }
+    }
     // Tránh trùng lặp ID
     if (_alertQueue.any((i) => i.id == incident.id)) return;
     if (_activeIncident?.id == incident.id) return;
@@ -179,6 +222,28 @@ class IncidentProvider extends ChangeNotifier {
     // Sự cố đã có người tiếp nhận hoặc đã xử lý xong → gỡ thông báo hệ thống của sự cố đó.
     if (newStatus == 'CLAIMED' || newStatus.startsWith('RESOLVED')) {
       LocalNotificationService.instance.cancelIncident(incidentId);
+      // K8: và gỡ lời mời của sự cố đó
+      _removeOffer(incidentId);
+    }
+
+    // 0. Đọc thêm severity / dispatchStage (backend cũ không gửi → bỏ qua)
+    final severity = update['severity']?.toString();
+    final dispatchStage = update['dispatchStage']?.toString();
+    if (severity != null || dispatchStage != null) {
+      final idx = _alertQueue.indexWhere((i) => i.id == incidentId);
+      if (idx >= 0) {
+        if (_mergeDispatchInfo(idx, severity, dispatchStage)) {
+          _sortQueue();
+          notifyListeners();
+        }
+      } else if ((newStatus.isEmpty || newStatus == 'NEW') &&
+          dispatchStage?.toUpperCase() == 'STEP1' &&
+          _activeIncident?.id != incidentId) {
+        // Bảo vệ không được mời: chỉ thêm vào danh sách (nút claim bị khoá), không rung, không thông báo
+        _alertQueue.add(IncidentModel.fromJson({...update, 'id': incidentId, 'status': 'NEW'}));
+        _sortQueue();
+        notifyListeners();
+      }
     }
 
     // 1. Nếu có người khác Claim
@@ -210,6 +275,9 @@ class IncidentProvider extends ChangeNotifier {
   /// Sắp xếp hàng đợi theo mức độ nghiêm trọng: weight DESC, cùng weight -> thời gian ASC (FIFO)
   void _sortQueue() {
     _alertQueue.sort((a, b) {
+      // K8: severity server (thiếu thì severityWeight cũ) là khoá đầu; severityWeight cũ làm tie-break
+      final serverCompare = b.severityLevel.compareTo(a.severityLevel);
+      if (serverCompare != 0) return serverCompare;
       final sevCompare = b.severityWeight.compareTo(a.severityWeight);
       if (sevCompare != 0) return sevCompare;
 
@@ -242,6 +310,8 @@ class IncidentProvider extends ChangeNotifier {
       // Chuyển incident sang active
       final idx = _alertQueue.indexWhere((i) => i.id == incidentId);
       final currentUser = await StorageHelper.getUser();
+      final offer = _offers[incidentId];
+      _removeOffer(incidentId);
 
       if (idx >= 0) {
         final claimed = _alertQueue[idx].copyWith(
@@ -252,6 +322,13 @@ class IncidentProvider extends ChangeNotifier {
         );
         _activeIncident = claimed;
         _alertQueue.removeAt(idx);
+      } else if (offer != null) {
+        _activeIncident = offer.toIncident().copyWith(
+          status: 'CLAIMED',
+          claimedById: currentUser?.id,
+          claimedByName: currentUser?.fullName,
+          claimedAt: DateTime.now(),
+        );
       } else {
         _activeIncident = IncidentModel(
           id: incidentId,
@@ -269,6 +346,17 @@ class IncidentProvider extends ChangeNotifier {
       if (e.response?.statusCode == 409) {
         _alertQueue.removeWhere((i) => i.id == incidentId);
         _errorMessage = ApiClient.formatError(e);
+        // K8: gỡ lời mời; message server nếu có, không có thì "Đã có người nhận"
+        _removeOffer(incidentId);
+        _errorMessage = conflictMessageFrom(e.response?.data);
+      } else if (e.response?.statusCode == 403 && isNotOfferedError(e.response?.data)) {
+        // 403 INCIDENT_NOT_OFFERED: sự cố đang ở STEP1 và bảo vệ này không (còn) được mời → khoá nút claim
+        _removeOffer(incidentId);
+        final idx = _alertQueue.indexWhere((i) => i.id == incidentId);
+        if (idx >= 0) {
+          _alertQueue[idx] = _alertQueue[idx].copyWith(dispatchStage: 'STEP1');
+        }
+        _errorMessage = notOfferedMessage;
       } else {
         _errorMessage = ApiClient.formatError(e);
       }
@@ -281,6 +369,154 @@ class IncidentProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  /// Câu báo lỗi 409 khi claim: message server trả về nếu có, không có thì "Đã có người nhận".
+  static String conflictMessageFrom(dynamic body) {
+    if (body is Map) {
+      final message = body['message']?.toString().trim();
+      if (message != null && message.isNotEmpty) return message;
+    }
+    return claimConflictMessage;
+  }
+
+  /// Body lỗi của backend có mã INCIDENT_NOT_OFFERED (field errorCode hoặc code).
+  static bool isNotOfferedError(dynamic body) {
+    if (body is! Map) return false;
+    return body['errorCode']?.toString() == 'INCIDENT_NOT_OFFERED' ||
+        body['code']?.toString() == 'INCIDENT_NOT_OFFERED';
+  }
+
+  /// Guard bấm "Từ chối" lời mời. Thành công hoặc lời mời không còn (404/409) → ẩn lời mời.
+  Future<bool> declineOffer(String incidentId) async {
+    if (_isDeclineLoading) return false;
+    _isDeclineLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await incidentService.declineOffer(incidentId);
+      _removeOffer(incidentId);
+      return true;
+    } on DioException catch (e) {
+      final statusCode = e.response?.statusCode;
+      if (statusCode == 404 || statusCode == 409) {
+        _removeOffer(incidentId);
+      }
+      _errorMessage = ApiClient.formatError(e);
+      return false;
+    } catch (e) {
+      _errorMessage = 'Không thể từ chối lời mời: $e';
+      return false;
+    } finally {
+      _isDeclineLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // ═══════════════ OFFER HANDLERS ═══════════════
+
+  /// Message trên /topic/guards/{id}/offers, phân biệt bằng field type.
+  void handleOfferMessage(Map<String, dynamic> raw) {
+    final data = IncidentOfferModel.unwrap(raw);
+    final type = data['type']?.toString().toUpperCase();
+    if (type == IncidentOfferModel.typeOffer) {
+      final offer = IncidentOfferModel.fromJson(data);
+      if (offer != null) _onOfferReceived(offer);
+    } else if (type == IncidentOfferModel.typeCancelled) {
+      final incidentId = (data['incidentId'] ?? data['id'])?.toString();
+      if (incidentId != null && incidentId.isNotEmpty) {
+        _removeOffer(incidentId, offerId: data['offerId']?.toString());
+      }
+    } else {
+      debugPrint('[IncidentProvider] ignore offer message with type=$type');
+    }
+  }
+
+  void _onOfferReceived(IncidentOfferModel offer) {
+    final id = offer.incidentId;
+    // Đã hết hạn khi tới nơi, hoặc bảo vệ đang xử lý chính sự cố này → bỏ qua
+    if (!offer.deadline.isAfter(DateTime.now())) return;
+    if (_activeIncident?.id == id) return;
+
+    _offers[id] = offer;
+    _offerTimers[id]?.cancel();
+    _offerTimers[id] = Timer(offer.remaining(DateTime.now()), () {
+      _offerTimers.remove(id);
+      // Chỉ hết hạn đúng lời mời đã đặt timer (không xoá lời mời mới hơn cho cùng sự cố)
+      if (_offers[id]?.offerId == offer.offerId) _removeOffer(id);
+    });
+
+    // Sự cố hiện trong hàng đợi của bảo vệ được mời (nút claim không bị khoá vì có lời mời)
+    final idx = _alertQueue.indexWhere((i) => i.id == id);
+    if (idx >= 0) {
+      _mergeDispatchInfo(idx, offer.severity, 'STEP1');
+    } else {
+      _alertQueue.add(offer.toIncident());
+    }
+    _sortQueue();
+
+    try {
+      HapticFeedback.heavyImpact();
+    } catch (_) {}
+
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    if (lifecycle != null && lifecycle != AppLifecycleState.resumed) {
+      _showOfferNotification(offer);
+    }
+    notifyListeners();
+  }
+
+  Future<void> _showOfferNotification(IncidentOfferModel offer) async {
+    final user = await StorageHelper.getUser();
+    if (user == null) return;
+    final incident = offer.toIncident();
+    final parts = <String>[
+      incident.eventTypeDisplay,
+      offer.areaName ?? 'Khu vực chưa rõ',
+      'trả lời trước ${DateFormat('HH:mm:ss').format(offer.deadline.toLocal())}',
+    ];
+    await LocalNotificationService.instance.showIncident(
+      incidentId: offer.incidentId,
+      title: 'Bạn được mời xử lý sự cố',
+      body: parts.join(' · '),
+    );
+  }
+
+  /// Ẩn lời mời (bị huỷ, hết hạn, đã claim, đã từ chối). offerId khác lời mời đang giữ → bỏ qua (message cũ).
+  void _removeOffer(String incidentId, {String? offerId}) {
+    final current = _offers[incidentId];
+    if (current == null) return;
+    if (offerId != null && current.offerId != null && offerId != current.offerId) return;
+    _offers.remove(incidentId);
+    _offerTimers.remove(incidentId)?.cancel();
+    LocalNotificationService.instance.cancelIncident(incidentId);
+    notifyListeners();
+  }
+
+  void _clearOffers() {
+    for (final timer in _offerTimers.values) {
+      timer.cancel();
+    }
+    _offerTimers.clear();
+    _offers.clear();
+  }
+
+  /// Cập nhật severity / dispatchStage của sự cố trong hàng đợi. Trả true nếu có thay đổi.
+  bool _mergeDispatchInfo(int idx, String? severity, String? dispatchStage) {
+    final current = _alertQueue[idx];
+    final newSeverity = severity ?? current.severity;
+    final newStage = dispatchStage ?? current.dispatchStage;
+    if (newSeverity == current.severity && newStage == current.dispatchStage) return false;
+    // Không sắp xếp ở đây để idx của nơi gọi còn đúng; nơi gọi tự gọi _sortQueue()
+    _alertQueue[idx] = current.copyWith(severity: newSeverity, dispatchStage: newStage);
+    return true;
+  }
+
+  @visibleForTesting
+  void receiveIncidentForTest(IncidentModel incident) => _onNewIncidentReceived(incident);
+
+  @visibleForTesting
+  void receiveUpdateForTest(Map<String, dynamic> update) => _onIncidentUpdateReceived(update);
 
   /// Guard hoàn tất xử lý sự cố (Submit resolution)
   Future<bool> resolveIncident({
@@ -322,6 +558,7 @@ class IncidentProvider extends ChangeNotifier {
   @override
   void dispose() {
     _debounceSortTimer?.cancel();
+    _clearOffers();
     stompService.disconnect();
     super.dispose();
   }

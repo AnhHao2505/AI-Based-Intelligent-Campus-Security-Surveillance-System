@@ -14,11 +14,15 @@ class StompService {
 
   VoidCallback? onConnectionChange;
 
+  /// Header gửi kèm STOMP CONNECT để backend phân biệt app mobile với web.
+  static const Map<String, String> clientHeaders = {'client-type': 'mobile'};
+
   void connect({
     String? building,
     String? guardId,
     required Function(IncidentModel) onNewIncident,
     required Function(Map<String, dynamic>) onIncidentUpdate,
+    Function(Map<String, dynamic>)? onOfferMessage,
   }) async {
     disconnect();
 
@@ -51,6 +55,25 @@ class StompService {
                 }
               },
             );
+
+            // 1b. Lời mời xử lý sự cố (INCIDENT_OFFER / INCIDENT_OFFER_CANCELLED). Backend chưa có topic này
+            // thì không có message nào tới, app không hiện gì mới.
+            if (onOfferMessage != null) {
+              _client?.subscribe(
+                destination: '/topic/guards/$guardId/offers',
+                callback: (StompFrame frame) {
+                  if (frame.body == null || frame.body!.isEmpty) return;
+                  try {
+                    final decoded = jsonDecode(frame.body!);
+                    if (decoded is Map<String, dynamic>) {
+                      onOfferMessage(decoded);
+                    }
+                  } catch (e) {
+                    debugPrint('[STOMP] Error parsing offer message: $e');
+                  }
+                },
+              );
+            }
           } else {
             // Global security alerts fallback topic (for general monitoring)
             _client?.subscribe(
@@ -110,7 +133,10 @@ class StompService {
           _isConnected = false;
           onConnectionChange?.call();
         },
-        stompConnectHeaders: token != null ? {'Authorization': 'Bearer $token'} : null,
+        stompConnectHeaders: {
+          ...clientHeaders,
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
         webSocketConnectHeaders: token != null ? {'Authorization': 'Bearer $token'} : null,
         reconnectDelay: const Duration(seconds: 4),
       ),
