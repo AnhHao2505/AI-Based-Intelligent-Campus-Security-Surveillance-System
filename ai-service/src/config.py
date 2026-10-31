@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     
     # AI Thresholds & Business Rules
     DEFAULT_DETECTION_CONFIDENCE: float = 0.55
+    DRAW_ONLY_IN_ROI: bool = Field(default=False, validation_alias="DRAW_ONLY_IN_ROI")
     DEFAULT_FACE_CONFIDENCE: float = 0.60
     DEFAULT_FACE_NMS_THRESHOLD: float = 0.30
     FACE_MATCH_THRESHOLD: float = 0.75

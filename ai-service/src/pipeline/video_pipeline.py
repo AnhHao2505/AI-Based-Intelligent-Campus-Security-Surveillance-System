@@ -465,7 +465,7 @@ class VideoPipeline:
         annotated_frame = self.visualizer.draw_tracked_persons(
             annotated_frame,
             active_persons,
-            only_in_roi=False
+            only_in_roi=getattr(settings, "DRAW_ONLY_IN_ROI", False) and has_roi
         )
         
         return annotated_frame, active_persons, alerts
