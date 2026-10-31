@@ -207,5 +207,26 @@ class StorageService:
                 return False
         return False
 
+    def enforce_recording_retention(self, camera_code: str, max_segments: int = 30):
+        """
+        Tự động xoay vòng lưu trữ (Rolling Retention) cho bucket 'camera-recordings':
+        Chỉ giữ lại tối đa `max_segments` phân đoạn 1 phút mới nhất của mỗi camera để tránh đầy ổ đĩa.
+        """
+        if not self.is_connected or not self.client or not camera_code:
+            return
+        try:
+            prefix = f"{camera_code.strip()}/"
+            objs = list(self.client.list_objects(self.bucket_recordings, prefix=prefix, recursive=True))
+            mp4_objs = [o for o in objs if o.object_name and o.object_name.lower().endswith(".mp4")]
+            if len(mp4_objs) <= max_segments:
+                return
+            mp4_objs.sort(key=lambda x: x.last_modified or 0)
+            to_delete = mp4_objs[: len(mp4_objs) - max_segments]
+            for old_obj in to_delete:
+                self.client.remove_object(self.bucket_recordings, old_obj.object_name)
+                logger.info(f"♻️ [Retention] Đã xóa video định kỳ cũ trên MinIO: {old_obj.object_name}")
+        except Exception as e:
+            logger.warning(f"⚠️ [Retention] Không thể dọn dẹp video cũ cho camera [{camera_code}]: {e}")
+
 # Global singleton instance for storage service
 storage_service = StorageService()

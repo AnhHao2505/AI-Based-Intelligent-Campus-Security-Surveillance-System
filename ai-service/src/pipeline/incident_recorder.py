@@ -38,11 +38,12 @@ for p in DLL_SEARCH_PATHS:
 
 class IncidentRecorder:
     """
-    Module ghi hình sự cố an ninh (Incident Recording):
+    Module ghi hình sự cố an ninh (Incident Recording - Edge-Cloud Optimized):
+    - Chuẩn hóa phân giải: 854x480 (480p 16:9) @ 15 FPS, tối ưu dung lượng (~5-8 MB/phút).
+    - Ghi trực tiếp khung hình AI thật (annotated_frame) đã có Bounding Box, ROI Polygon và tên/mã đối tượng.
+    - Viền cảnh báo tĩnh (không nhấp nháy 3 lần/giây) giúp bộ nén H.264 P-frame đạt hiệu suất nén tối đa.
     - Ghi tạm vào file .recording.mp4 để tránh lộ file đang ghi chưa đóng moov atom lên giao diện.
-    - Kích hoạt khi phát hiện vi phạm hoặc khi Guard click Test sự cố.
-    - Kết thúc ngay khi Guard click 'Xác nhận đã xem' (hoặc tự động chốt file sau tối đa 60 giây).
-    - Sau khi đóng VideoWriter (chốt moov atom), đổi tên sang .mp4 và đẩy lên MinIO S3 (security-evidence).
+    - Kết thúc ngay khi Bảo vệ click 'Xác nhận đã xem' (hoặc tự động chốt file sau tối đa 60 giây).
     """
 
     def __init__(
@@ -52,7 +53,7 @@ class IncidentRecorder:
         event_type: str = "SECURITY_INCIDENT",
         details: str = "",
         base_dir: Optional[str] = None,
-        fps: float = 25.0,
+        fps: float = 15.0,
         frame_provider: Optional[Callable[[], Optional[np.ndarray]]] = None,
         max_duration_seconds: float = 60.0,
     ):
@@ -72,13 +73,13 @@ class IncidentRecorder:
         self.file_path = self._get_target_file_path(self.start_dt)
         self.temp_file_path = self.file_path[:-4] + ".recording.mp4"
 
-        self.target_w = 1280
-        self.target_h = 720
+        self.target_w = 854
+        self.target_h = 480
         self.writer: Optional[cv2.VideoWriter] = None
         self.frames_written = 0
         self.is_running = False
         self._writer_lock = threading.Lock()
-        self.frame_queue: queue.Queue = queue.Queue(maxsize=150)
+        self.frame_queue: queue.Queue = queue.Queue(maxsize=60)
         self.worker_thread: Optional[threading.Thread] = None
 
         # Codec H.264 avc1 qua Windows Media Foundation (CAP_MSMF)
@@ -124,7 +125,7 @@ class IncidentRecorder:
                         (self.target_w, self.target_h),
                     )
                 logger.info(
-                    f"🚨 [IncidentRecorder] MỞ FILE GHI HÌNH SỰ CỐ camera [{self.camera_code}]: {self.file_path} @ 1280x720"
+                    f"🚨 [IncidentRecorder] MỞ FILE GHI HÌNH SỰ CỐ camera [{self.camera_code}]: {self.file_path} @ 854x480 ({self.fps}fps)"
                 )
             except Exception as e:
                 logger.error(f"❌ [IncidentRecorder] Không thể mở VideoWriter: {e}")
@@ -134,7 +135,7 @@ class IncidentRecorder:
         self.worker_thread.start()
 
     def write_frame(self, frame: np.ndarray):
-        """Đẩy frame camera trực tiếp vào hàng đợi ghi hình"""
+        """Đẩy frame đã qua AI (annotated_frame) vào hàng đợi ghi hình sự cố"""
         if frame is None or frame.size == 0 or not self.is_running:
             return
         try:
@@ -143,72 +144,13 @@ class IncidentRecorder:
                     self.frame_queue.get_nowait()
                 except queue.Empty:
                     pass
-            self.frame_queue.put_nowait(frame.copy())
+            if (frame.shape[1], frame.shape[0]) != (self.target_w, self.target_h):
+                small_frame = cv2.resize(frame, (self.target_w, self.target_h))
+            else:
+                small_frame = frame.copy()
+            self.frame_queue.put_nowait(small_frame)
         except Exception:
             pass
-
-    def _create_synthetic_incident_frame(self, elapsed: float, now: datetime) -> np.ndarray:
-        w, h = self.target_w, self.target_h
-        frame = np.full((h, w, 3), (24, 28, 36), dtype=np.uint8)
-
-        for x in range(0, w, 80):
-            cv2.line(frame, (x, 0), (x, h), (32, 38, 48), 1)
-        for y in range(0, h, 80):
-            cv2.line(frame, (0, y), (w, y), (32, 38, 48), 1)
-
-        pulse = int((time.time() * 3) % 2)
-        border_color = (0, 0, 230) if pulse == 0 else (0, 0, 140)
-        cv2.rectangle(frame, (8, 8), (w - 8, h - 8), border_color, 4)
-
-        header_text = f"CAM: {self.camera_code}  |  {now.strftime('%d/%m/%Y %H:%M:%S')}  |  FPS: 25.0"
-        cv2.putText(frame, header_text, (30, 45), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (220, 220, 220), 2, cv2.LINE_AA)
-
-        rec_color = (0, 0, 255) if pulse == 0 else (60, 60, 180)
-        cv2.circle(frame, (w - 200, 38), 9, rec_color, -1)
-        cv2.putText(frame, f"REC ({elapsed:.1f}s)", (w - 180, 45), cv2.FONT_HERSHEY_SIMPLEX, 0.7, rec_color, 2, cv2.LINE_AA)
-
-        roi_pts = np.array([
-            [int(w * 0.25), int(h * 0.28)],
-            [int(w * 0.75), int(h * 0.28)],
-            [int(w * 0.75), int(h * 0.82)],
-            [int(w * 0.25), int(h * 0.82)]
-        ], np.int32)
-        overlay = frame.copy()
-        cv2.fillPoly(overlay, [roi_pts], (0, 0, 80))
-        cv2.addWeighted(overlay, 0.4, frame, 0.6, 0, frame)
-        cv2.polylines(frame, [roi_pts], isClosed=True, color=(0, 0, 255), thickness=2)
-        cv2.putText(frame, "KHU VUC GIAM SAT AN NINH / VUNG ROI CAM", (int(w * 0.26), int(h * 0.32)),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 120, 255), 2, cv2.LINE_AA)
-
-        cx = int(w * 0.48 + np.sin(elapsed * 1.5) * 80)
-        cy = int(h * 0.52)
-        bw, bh = 130, 210
-        x1, y1 = cx - bw // 2, cy - bh // 2
-        x2, y2 = cx + bw // 2, cy + bh // 2
-        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
-        cv2.rectangle(frame, (x1, y1 - 28), (x2 + 70, y1), (0, 0, 220), -1)
-
-        type_label = "XAM NHAP TRAI PHEP"
-        if "UNKNOWN" in self.event_type.upper():
-            type_label = "DOI TUONG KHONG XAC DINH"
-        elif "AFTER_HOUR" in self.event_type.upper() or "INTRUSION" in self.event_type.upper():
-            type_label = "SAU GIO HOAT DONG"
-        elif "UNAUTHORIZED" in self.event_type.upper():
-            type_label = "KHONG DU THAM QUYEN"
-
-        cv2.putText(frame, f"TARGET [{type_label}]", (x1 + 6, y1 - 8),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.48, (255, 255, 255), 2, cv2.LINE_AA)
-
-        banner_h = 65
-        cv2.rectangle(frame, (15, h - banner_h - 15), (w - 15, h - 15), (15, 15, 20), -1)
-        cv2.rectangle(frame, (15, h - banner_h - 15), (w - 15, h - 15), (0, 0, 255), 2)
-
-        cv2.putText(frame, f"CANH BAO SU CO AN NINH: {type_label}", (35, h - banner_h + 15),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 100, 255), 2, cv2.LINE_AA)
-        cv2.putText(frame, f"Camera: {self.camera_code} | Dang ghi hinh den khi Bao ve 'Xac nhan da xem'", (35, h - 25),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1, cv2.LINE_AA)
-
-        return frame
 
     def _draw_incident_overlay_on_real_frame(self, frame: np.ndarray, elapsed: float, now: datetime) -> np.ndarray:
         w, h = self.target_w, self.target_h
@@ -217,35 +159,34 @@ class IncidentRecorder:
         else:
             vis_frame = frame.copy()
 
-        pulse = int((time.time() * 3) % 2)
-        border_color = (0, 0, 230) if pulse == 0 else (0, 0, 140)
-        cv2.rectangle(vis_frame, (6, 6), (w - 6, h - 6), border_color, 4)
+        # Viền đỏ tĩnh (không nhấp nháy 3 lần/giây để giữ hiệu suất nén P-frame H.264 tối ưu)
+        cv2.rectangle(vis_frame, (2, 2), (w - 2, h - 2), (0, 0, 220), 2)
 
-        rec_color = (0, 0, 255) if pulse == 0 else (60, 60, 180)
-        cv2.circle(vis_frame, (w - 200, 38), 9, rec_color, -1)
-        cv2.putText(vis_frame, f"REC ({elapsed:.1f}s)", (w - 180, 45),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, rec_color, 2, cv2.LINE_AA)
+        # Góc trên: Camera + Thời gian + REC (cập nhật theo giây nguyên)
+        sec_int = int(elapsed)
+        header_bg_w = 420
+        cv2.rectangle(vis_frame, (8, 8), (header_bg_w, 34), (15, 15, 20), -1)
+        header_text = f"CAM: {self.camera_code} | {now.strftime('%d/%m/%Y %H:%M:%S')} | REC {sec_int}s"
+        cv2.putText(vis_frame, header_text, (14, 26), cv2.FONT_HERSHEY_SIMPLEX, 0.48, (240, 240, 240), 1, cv2.LINE_AA)
 
-        header_text = f"CAM: {self.camera_code}  |  {now.strftime('%d/%m/%Y %H:%M:%S')}"
-        cv2.putText(vis_frame, header_text, (25, 42), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (240, 240, 240), 2, cv2.LINE_AA)
-
-        banner_h = 50
-        cv2.rectangle(vis_frame, (10, h - banner_h - 10), (w - 10, h - 10), (0, 0, 0), -1)
-        cv2.rectangle(vis_frame, (10, h - banner_h - 10), (w - 10, h - 10), (0, 0, 255), 2)
+        # Banner cảnh báo gọn ở cạnh dưới
+        banner_h = 32
+        cv2.rectangle(vis_frame, (8, h - banner_h - 6), (w - 8, h - 6), (15, 15, 20), -1)
+        cv2.rectangle(vis_frame, (8, h - banner_h - 6), (w - 8, h - 6), (0, 0, 220), 1)
         cv2.putText(
             vis_frame,
-            f"CANH BAO SU CO AN NINH [{self.event_type}] - Camera: {self.camera_code}",
-            (25, h - 25),
+            f"SU CO AN NINH [{self.event_type}] - Camera: {self.camera_code}",
+            (16, h - 16),
             cv2.FONT_HERSHEY_SIMPLEX,
-            0.6,
+            0.48,
             (0, 140, 255),
-            2,
+            1,
             cv2.LINE_AA
         )
         return vis_frame
 
     def _recording_loop(self):
-        """Vòng lặp ngầm ghi video chuẩn 25 FPS từ khi phát hiện tới khi Bảo vệ bấm Xác nhận đã xem"""
+        """Vòng lặp ngầm ghi video chuẩn 15 FPS từ khung hình thực tế của camera"""
         frame_interval = 1.0 / self.fps
         next_frame_time = time.time()
         last_real_frame = None
@@ -261,7 +202,7 @@ class IncidentRecorder:
 
             real_frame = None
             try:
-                real_frame = self.frame_queue.get(timeout=0.04)
+                real_frame = self.frame_queue.get(timeout=0.05)
             except queue.Empty:
                 pass
 
@@ -277,7 +218,9 @@ class IncidentRecorder:
             elif last_real_frame is not None and last_real_frame.size > 0:
                 frame_to_write = self._draw_incident_overlay_on_real_frame(last_real_frame, elapsed, now_dt)
             else:
-                frame_to_write = self._create_synthetic_incident_frame(elapsed, now_dt)
+                # Chờ frame thật từ camera thay vì vẽ khung hình giả lập
+                time.sleep(0.05)
+                continue
 
             with self._writer_lock:
                 if self.writer is not None and frame_to_write is not None:
@@ -310,17 +253,17 @@ class IncidentRecorder:
             try:
                 writer_ref.release()
                 if temp_path and os.path.exists(temp_path):
-                    if _has_valid_moov_atom(temp_path):
+                    if self.frames_written > 0 and _has_valid_moov_atom(temp_path):
                         os.replace(temp_path, final_path)
                         size_mb = os.path.getsize(final_path) / (1024 * 1024)
                         duration_s = self.frames_written / max(self.fps, 1.0)
                         logger.info(
-                            f"✅ [IncidentRecorder] ĐÃ CHỐT XONG VIDEO BẰNG CHỨNG SỰ CỐ: {final_path} "
+                            f"✅ [IncidentRecorder] ĐÃ CHỐT XONG VIDEO BẰNG CHỨNG SỰ CỐ (854x480): {final_path} "
                             f"({size_mb:.2f} MB - {self.frames_written} frames - {duration_s:.1f}s)"
                         )
                         self._schedule_minio_upload(final_path, cam_code)
                     else:
-                        logger.warning(f"⚠️ [IncidentRecorder] Bỏ qua file sự cố chưa hoàn chỉnh (thiếu moov atom): {temp_path}")
+                        logger.warning(f"⚠️ [IncidentRecorder] Bỏ qua file sự cố chưa hoàn chỉnh hoặc không có frame: {temp_path}")
                         try:
                             os.remove(temp_path)
                         except Exception:
