@@ -234,7 +234,7 @@ class SecurityIncidentServiceTest {
                 checkedInShift(offShift, nowVn.minusHours(3), nowVn.minusHours(1))));
         SecurityIncidentService service = new SecurityIncidentService(incidentRepository, cameraRepository, userRepository,
                 messagingTemplate, cameraAccessLogService, guardShiftRepository,
-                new IncidentRecipientResolver(shiftQuery), incidentEscalationRepository);
+                new IncidentRecipientResolver(shiftQuery), incidentEscalationRepository, mock(IncidentSeverityResolver.class));
 
         IncidentDetailResponse result = service.ingestIncident(alertEvent());
 

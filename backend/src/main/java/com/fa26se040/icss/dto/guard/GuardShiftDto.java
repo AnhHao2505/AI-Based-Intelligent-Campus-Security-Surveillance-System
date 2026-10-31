@@ -33,4 +33,6 @@ public class GuardShiftDto {
     private OffsetDateTime checkOutAt;
     private String notes;
     private Boolean isOvertime;
+    // V90 (BR-DSP-13): mã vị trí trực của ca
+    private String dutyPostCode;
 }

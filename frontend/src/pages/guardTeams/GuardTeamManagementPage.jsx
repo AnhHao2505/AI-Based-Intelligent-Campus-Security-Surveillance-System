@@ -28,6 +28,7 @@ import { guardScheduleApi } from '../../api/guardScheduleApi';
 import { getUsers } from '../../services/userService';
 import { getAreas } from '../../services/areaService';
 import { getBuildings } from '../../services/buildingService';
+import { getActiveDutyPostTypes } from '../../services/incidentPolicyService';
 import { ROLES } from '../../constants/roles';
 import { ErrorState, LoadingState, Select } from '../../components/ui';
 import StaffingWizardModal from '../../components/guard/StaffingWizardModal';
@@ -98,6 +99,8 @@ export default function GuardTeamManagementPage() {
   const [showShiftModal, setShowShiftModal] = useState(false);
   const [showWizardModal, setShowWizardModal] = useState(false);
   const [editingShift, setEditingShift] = useState(null);
+  // V90 (BR-DSP-13): danh mục vị trí trực đang dùng cho dropdown trong form ca
+  const [dutyPosts, setDutyPosts] = useState([]);
   const [isCreateTeamModalOpen, setIsCreateTeamModalOpen] = useState(false);
   const [showBulkClearModal, setShowBulkClearModal] = useState(false);
   const [bulkClearScope, setBulkClearScope] = useState('ALL');
@@ -296,6 +299,13 @@ export default function GuardTeamManagementPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Lỗi tải danh mục không chặn xếp ca: không gửi dutyPostCode thì backend dùng PATROL (tạo) / giữ nguyên (sửa)
+  useEffect(() => {
+    getActiveDutyPostTypes()
+      .then((list) => setDutyPosts(list || []))
+      .catch((err) => console.error('Không tải được danh mục vị trí trực:', err));
+  }, []);
 
   // Week navigation handlers
   const handlePrevWeek = () => {
@@ -1371,7 +1381,8 @@ export default function GuardTeamManagementPage() {
                   areaId: null,
                   notes: form.notes ? form.notes.value : '',
                   status: form.status ? form.status.value : (editingShift?.status || 'SCHEDULED'),
-                  isOvertime: form.isOvertime ? form.isOvertime.checked : (editingShift?.isOvertime || false)
+                  isOvertime: form.isOvertime ? form.isOvertime.checked : (editingShift?.isOvertime || false),
+                  dutyPostCode: form.dutyPostCode?.value || undefined
                 };
 
                 try {
@@ -1435,6 +1446,25 @@ export default function GuardTeamManagementPage() {
                     />
                   </div>
                 </div>
+
+                {dutyPosts.length > 0 && (
+                  <div className="schedule-form-group">
+                    <label className="schedule-form-label">
+                      <span>Vị Trí Trực</span>
+                    </label>
+                    <Select
+                      name="dutyPostCode"
+                      defaultValue={editingShift?.dutyPostCode || 'PATROL'}
+                      options={[
+                        ...dutyPosts.map((p) => ({ value: p.code, label: p.label })),
+                        // Ca đang ở vị trí đã ngừng dùng: vẫn hiện để không tự đổi khi sửa ca
+                        ...(editingShift?.dutyPostCode && !dutyPosts.some((p) => p.code === editingShift.dutyPostCode)
+                          ? [{ value: editingShift.dutyPostCode, label: `${editingShift.dutyPostCode} (ngừng dùng)` }]
+                          : []),
+                      ]}
+                    />
+                  </div>
+                )}
 
                 {editingShift && editingShift.id && (
                   <div className="schedule-form-group">

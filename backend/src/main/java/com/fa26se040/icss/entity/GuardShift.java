@@ -85,6 +85,11 @@ public class GuardShift {
     @Builder.Default
     private Boolean isOvertime = false;
 
+    // V90 (BR-DSP-13): vị trí trực của ca, FK duty_post_types.code; ca sinh tự động và ca không chọn = PATROL
+    @Column(name = "duty_post_code", nullable = false, length = 30)
+    @Builder.Default
+    private String dutyPostCode = DutyPostType.DEFAULT_CODE;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
@@ -98,6 +103,9 @@ public class GuardShift {
         this.updatedAt = now;
         if (this.status == null) {
             this.status = ShiftStatus.SCHEDULED;
+        }
+        if (this.dutyPostCode == null || this.dutyPostCode.isBlank()) {
+            this.dutyPostCode = DutyPostType.DEFAULT_CODE;
         }
     }
 

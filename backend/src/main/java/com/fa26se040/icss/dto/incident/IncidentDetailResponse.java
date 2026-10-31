@@ -2,6 +2,7 @@ package com.fa26se040.icss.dto.incident;
 
 import com.fa26se040.icss.enums.IncidentOutcome;
 import com.fa26se040.icss.enums.IncidentResolutionCategory;
+import com.fa26se040.icss.enums.IncidentSeverity;
 import com.fa26se040.icss.enums.IncidentStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -37,4 +38,6 @@ public class IncidentDetailResponse {
     private String resolutionNotes;
     private String evidenceImageUrl;
     private String radioChannel;
+    // V90 (BR-SEV-01): null với sự cố tạo trước V90; client dùng bảng cũ theo eventType khi null
+    private IncidentSeverity severity;
 }
