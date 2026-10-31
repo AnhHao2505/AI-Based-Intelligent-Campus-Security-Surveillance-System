@@ -158,6 +158,25 @@ class FrameVisualizer:
         return frame
 
     @staticmethod
+    def draw_motion_boxes(
+        frame: np.ndarray,
+        motion_boxes: List[Any],
+        color=(0, 140, 255),
+        thickness=2,
+        label="[NGHI VAN NGUY TRANG]"
+    ) -> np.ndarray:
+        if not motion_boxes:
+            return frame
+        for box in motion_boxes:
+            x1, y1, x2, y2 = box.to_int_xyxy()
+            cv2.rectangle(frame, (x1, y1), (x2, y2), color, thickness)
+            (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.45, 1)
+            label_y = max(y1 - 6, th + 6)
+            cv2.rectangle(frame, (x1, label_y - th - 4), (x1 + tw + 6, label_y + 2), color, -1)
+            cv2.putText(frame, label, (x1 + 3, label_y - 2), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1)
+        return frame
+
+    @staticmethod
     def draw_all_rois(
         frame: np.ndarray,
         polygons: Optional[List[Any]] = None,
