@@ -1,4 +1,21 @@
 import os
+import sys
+
+# Đảm bảo Windows tìm được thư viện OpenH264 để mã hóa chuẩn AVC1/H.264
+_current_dir = os.path.dirname(os.path.abspath(__file__))
+_ai_service_dir = os.path.dirname(_current_dir)
+_repo_dir = os.path.dirname(_ai_service_dir)
+
+for p_dir in [_ai_service_dir, _current_dir, _repo_dir, os.getcwd()]:
+    if os.path.exists(p_dir):
+        if hasattr(os, "add_dll_directory"):
+            try:
+                os.add_dll_directory(p_dir)
+            except Exception:
+                pass
+        if p_dir not in os.environ.get("PATH", ""):
+            os.environ["PATH"] = p_dir + os.pathsep + os.environ.get("PATH", "")
+
 import cv2
 import time
 import base64

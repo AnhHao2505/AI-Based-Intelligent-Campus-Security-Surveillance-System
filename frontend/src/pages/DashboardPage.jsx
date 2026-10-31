@@ -408,7 +408,7 @@ function SecurityStatsSection() {
 			})),
 			{
 				id: "dismissed-rate",
-				label: "Tỉ lệ báo nhầm",
+				label: "Tỉ lệ bác bỏ",
 				icon: Percent,
 				value: typeof rate === "number" ? percentFormat.format(rate) : "—",
 				subtext: `trên ${resolvedCount} sự cố đã kết luận`,

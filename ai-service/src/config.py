@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     
     # AI Models Paths (Đường dẫn nhất quán dựa trên thư mục gốc ai-service)
     MODEL_YOLO_PATH: str = Field(
-        default=os.path.join(AI_SERVICE_DIR, "models", "yolo11n.pt") if os.path.exists(os.path.join(AI_SERVICE_DIR, "models", "yolo11n.pt")) else "yolo11n.pt",
+        default=os.path.join(AI_SERVICE_DIR, "models", "yolo26n.pt") if os.path.exists(os.path.join(AI_SERVICE_DIR, "models", "yolo26n.pt")) else "yolo26n.pt",
         validation_alias="MODEL_YOLO_PATH"
     )
     MODEL_YUNET_PATH: str = Field(

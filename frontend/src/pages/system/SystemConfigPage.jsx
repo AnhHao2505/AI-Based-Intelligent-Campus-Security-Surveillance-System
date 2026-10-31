@@ -641,7 +641,7 @@ export default function SystemConfigPage() {
 								onClick={() => setConfirmModalConfig(null)}
 								disabled={savingKey != null}
 							>
-								Hủy
+								Huỷ
 							</Button>
 							<Button
 								variant="primary"

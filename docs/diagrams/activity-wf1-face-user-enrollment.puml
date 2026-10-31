@@ -1,0 +1,85 @@
+@startuml activity-wf1-face-user-enrollment
+' Title: AD-WF1 Face & User Enrollment (WF-1, owner Nguyen Anh Hao)
+' Source (main @ 45076c9): service/UserService.java (createStaffAccount, toggleActive, softDelete, deleteBatch, restoreBatch,
+'   notifyAiServiceRefreshCache), service/UserBulkImportService.java + UserBulkImportHelper.java (per-row import),
+'   service/FaceDataService.java (registerFace), ai-service/src/main.py (/api/v1/faces/process-registration)
+' Business level only (Review 2 guide): no internal processing details.
+skinparam defaultFontName Arial
+skinparam shadowing false
+skinparam ActivityBackgroundColor #FFFFFF
+skinparam ActivityBorderColor #1F2937
+skinparam ActivityDiamondBackgroundColor #FFF7E6
+skinparam SwimlaneTitleFontStyle bold
+title AD-WF1 — Face & User Enrollment
+
+|Administrator|
+start
+:Open Account Management;
+if (Create one account or import many?) then (one account)
+  :Enter user code, name, e-mail and role,
+  attach a frontal photo;
+else (import)
+  :Upload a ZIP: metadata file
+  and one photo per user code;
+endif
+
+|System|
+:Validate the record: required fields,
+unique code and e-mail, JPG/PNG photo within the size limit;
+note right
+  For an import, the steps from here run
+  for each row; a failed row does not
+  stop the other rows.
+end note
+if (Record valid?) then (no)
+  :Reject the record with the reason;
+  |Administrator|
+  :Read the result of each record;
+  stop
+else (yes)
+endif
+
+|AI Surveillance Engine|
+:Detect faces in the photo
+and extract the face embedding;
+
+|System|
+if (Exactly one face?) then (no)
+  :Reject the record:
+  no face or more than one face;
+  |Administrator|
+  :Read the result of each record;
+  stop
+else (yes)
+  |System|
+  :Store the photo and the embedding,
+  create the account as Active;
+  :E-mail a temporary password;
+  :Ask the AI Surveillance Engine
+  to reload the registered faces;
+endif
+
+|Account holder|
+:Log in with the e-mailed password;
+
+|Administrator|
+if (Deactivate or delete the account?) then (yes)
+  |System|
+  :Set the account Inactive or Deleted
+  (refused for the Administrator's own account);
+  :Cancel the person's pending and approved requests,
+  revoke the person's assignments,
+  close the person's open sessions;
+  |Account holder|
+  :Further log-ins are refused;
+  |Administrator|
+  if (Restore a removed import batch?) then (yes)
+    |System|
+    :Reactivate the batch's accounts
+    (requests and assignments are not given back);
+  else (no)
+  endif
+else (no)
+endif
+stop
+@enduml

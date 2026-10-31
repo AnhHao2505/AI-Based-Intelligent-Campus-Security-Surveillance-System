@@ -206,7 +206,8 @@ export async function apiFetch(path, options = {}) {
     if (!msg) {
       msg = `Yêu cầu thất bại (HTTP ${response.status})`;
     }
-    if (response.status >= 500) {
+    // 503: backend chỉ trả câu thân thiện (AI / kho ảnh tạm không dùng được) -> giữ nguyên để người dùng biết thử lại sau
+    if (response.status >= 500 && !(response.status === 503 && errorData?.message)) {
       msg = toSystemErrorMessage(errorData?.message);
     }
     const err = tagBusinessCode(new Error(msg), errorData?.code);

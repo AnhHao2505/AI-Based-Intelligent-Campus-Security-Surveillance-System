@@ -1,0 +1,105 @@
+%% Title: AD-04 Real-time AI Surveillance Activity Diagram (WF-4) · Source: ai-service src/pipeline/video_pipeline.py, core/frame_analysis_engine.py, core/face_matcher.py, service/AccessDecisionService.java (checkCameraEntry), consumer/SecurityIncidentKafkaConsumer.java, service/SecurityIncidentService.java (ingestIncident) · WF-4 (FA26SE040)
+flowchart TB
+    %% Swimlane 1: Ingestion
+    subgraph CAM["Camera / RTSP Ingestion"]
+        start((Start))
+        c1["Capture RTSP Video Stream via MediaMTX"]
+        c2["Deliver Frame to Zero-Lag Buffer (Size = 1)"]
+    end
+
+    %% Swimlane 2: AI Engine
+    subgraph AI["AI Surveillance Engine (ai-service)"]
+        a1["Grab Frame & Preprocess<br>(Letterbox Resize 640x640, BGR to RGB)"]
+        a2["Detect Person (YOLO11n) & Track (ByteTrack)"]
+        
+        %% Branching 1: ROI
+        d_roi{"Person in ROI Polygon?<br>(Ray-Casting Algorithm)"}
+        a_normal["Update Track in RAM<br>(Outside ROI / Normal)"]
+        
+        %% Track Cache check
+        d_cache{"Track ID already verified<br>in RAM cache?"}
+        a_reuse["Reuse Cached Authorization Status"]
+        
+        %% Branching 2: Biometrics (Only when not cached)
+        a_crop["Crop Upper-body & Detect Face (YuNet)"]
+        d_face{"Face detected &<br>quality sufficient?"}
+        a_embed["Extract 512-D Embedding (ArcFace)"]
+        a_match["Cosine Similarity Search against RAM Cache"]
+        d_sim{"Similarity ≥ 0.65?"}
+        a_id["Identify User / Guest Code"]
+        a_unknown["Classify as UNKNOWN_PERSON"]
+        
+        %% Check Policy for Unknown
+        a_check_policy["Check Campus Zone & Time Policy"]
+        
+        a_cache_res["Cache Identity & Authorization Result<br>for this Track ID"]
+        
+        d_auth{"Is entry authorized?"}
+        
+        a_allow["Display Green Bounding Box<br>(Authorized Access)"]
+        a_red["Display Red Bounding Box<br>(Security Violation)"]
+        a_viol["Classify Incident Violation Type<br>(UNAUTHORIZED / INTRUSION / UNKNOWN)"]
+        
+        %% Parallelism 1: Fork AI
+        fork_ai[======== FORK: AI Parallel Tasks ========]
+        a_rec["Trigger Incident Recording (.mp4)"]
+        a_snap["Upload Snapshot to MinIO (SSE-S3 AES-256)"]
+        a_kafka["Publish Event to Kafka: security-incidents"]
+        join_ai[======== JOIN ========]
+    end
+
+    %% Swimlane 3: Backend
+    subgraph SYS["System Backend Core & Storage"]
+        s_eval["Evaluate Waterfall Authorization Rules:<br>1. Area Level (PUBLIC / RESTRICTED)<br>2. Assigned Personnel<br>3. Access Level vs Area Level<br>4. Active Area Event Schedule<br>5. Incident Response (Guard on duty)<br>6. Access Request / Guest Visit"]
+        s_safe["Write CameraAccessLog: ALLOWED"]
+        
+        s_cons["Kafka Consumer ingests Event<br>(Idempotency Key Check)"]
+        
+        %% Thực thể trọng tâm DUY NHẤT: SecurityIncident NEW
+        s_obj1(["<b>[Object State]</b><br>SecurityIncident: <b>NEW</b>"])
+        
+        %% Parallelism 2: Fork Backend (3 nhánh)
+        fork_sys[======== FORK: System Parallel Dispatch ========]
+        s_log["Write CameraAccessLog: DENIED"]
+        s_esc["Create IncidentEscalation Record"]
+        s_ws["Dispatch Real-time WebSocket Alerts:<br>• Targeted: /topic/guards/{id}/alerts<br>• Building: /topic/buildings/{code}/alerts<br>• Global: /topic/security-alerts"]
+        join_sys[======== JOIN ========]
+    end
+
+    stop(((End)))
+
+    %% Connections
+    start --> c1 --> c2 --> a1 --> a2 --> d_roi
+    d_roi -- "No (Outside ROI)" --> a_normal --> a1
+    d_roi -- "Yes (Inside ROI)" --> d_cache
+    
+    %% Cache HIT: Reuse immediately -> Go straight to d_auth
+    d_cache -- "Yes: Cached" --> a_reuse --> d_auth
+    
+    %% Cache MISS: Uncached -> Run Biometrics & Evaluate
+    d_cache -- "No: Uncached" --> a_crop --> d_face
+    
+    d_face -- "No / Timeout > 1.5s" --> a_unknown --> a_check_policy --> a_cache_res
+    d_face -- "Yes" --> a_embed --> a_match --> d_sim
+    d_sim -- "Yes: Matched" --> a_id --> s_eval --> a_cache_res
+    d_sim -- "No: Unmatched" --> a_unknown
+    
+    a_cache_res --> d_auth
+    
+    %% Quyết định thẩm quyền
+    d_auth -- "Yes (Allowed)" --> a_allow --> s_safe --> stop
+    d_auth -- "No (Violation)" --> a_red --> a_viol --> fork_ai
+    
+    %% Parallelism 1 (AI)
+    fork_ai --> a_rec --> join_ai
+    fork_ai --> a_snap --> a_kafka --> join_ai
+    
+    join_ai --> s_cons --> s_obj1
+    
+    %% Parallelism 2 (System)
+    s_obj1 --> fork_sys
+    fork_sys --> s_log --> join_sys
+    fork_sys --> s_esc --> join_sys
+    fork_sys --> s_ws --> join_sys
+    
+    join_sys --> stop

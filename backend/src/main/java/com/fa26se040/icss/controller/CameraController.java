@@ -169,7 +169,7 @@ public class CameraController {
     }
 
     @GetMapping("/recordings")
-    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER', 'GUARD')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GUARD')")
     public ResponseEntity<ApiResponse<List<RecordingVideoResponse>>> listRecordings(
             @RequestParam(required = false) String cameraId,
             @RequestParam(required = false) String search,

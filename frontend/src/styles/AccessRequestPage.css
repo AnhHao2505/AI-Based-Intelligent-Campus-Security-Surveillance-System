@@ -709,10 +709,10 @@
   background: var(--theme-bg-surface-elevated, rgba(255, 255, 255, 0.02));
 }
 
+/* Dòng "Tòa · Tầng" dưới tên khu (không còn là mã phòng nên dùng font thường) */
 .arp-table-room-code {
   font-size: 11.5px;
   color: var(--theme-text-muted);
-  font-family: monospace;
   margin-top: 3px;
 }
 
@@ -723,7 +723,8 @@
 
 .arp-reject-expand-box {
   background: var(--theme-danger-subtle);
-  border-left: 4px solid var(--theme-danger);
+  border: 1px solid var(--theme-danger-border);
+  border-radius: 8px;
   padding: 14px 20px;
 }
 

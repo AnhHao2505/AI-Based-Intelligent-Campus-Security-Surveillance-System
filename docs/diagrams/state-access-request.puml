@@ -1,0 +1,55 @@
+@startuml state-access-request
+' Title: SM-01 Access request lifecycle (PlantUML version of state-access-request.mmd, keep both in sync)
+' Source: enums/RequestStatus.java, service/AccessRequestService.java, repository/AccessRequestRepository.java
+'   (reviewIfPending, cancelIfPending, cancelIfApprovedNotStarted, finishIfApprovedStarted, finishElapsedRequestsByIds),
+'   service/AreaService.java (cancelRequestsBySystem) · Generated from main @ e474968
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam roundCorner 6
+skinparam shadowing false
+skinparam nodesep 65
+skinparam ranksep 45
+skinparam stateStartColor #000000
+skinparam stateEndColor #000000
+skinparam stateBackgroundColor #F8FAFC
+skinparam stateBorderColor #475569
+skinparam stateFontColor #0F172A
+skinparam stateArrowColor #2563EB
+hide empty description
+
+title SM-01 Access Request Lifecycle
+
+state PENDING : awaiting review
+state APPROVED : grants entry inside the window
+state REJECTED
+state CANCELLED
+state EXPIRED
+state FINISHED
+
+[*] --> PENDING : Authorized User creates request\n[area not Public, valid window, no overlap]
+
+PENDING --> APPROVED : Facility Manager approves\n[now < startTime, reviewer is not requester,\nmembers re-checked, conditional UPDATE hits 1 row]
+PENDING --> REJECTED : Facility Manager rejects\n[now < startTime, reason,\nconditional UPDATE hits 1 row]
+PENDING --> CANCELLED : Requester cancels\n[conditional UPDATE hits 1 row] / source USER
+PENDING --> EXPIRED : System job every 15 min\n[startTime passed]
+PENDING --> CANCELLED : System\n[area changed to Public or deactivated,\nrequester deactivated or deleted] / source SYSTEM
+
+APPROVED --> FINISHED : Facility Manager finishes\n[now >= startTime, reason]
+APPROVED --> FINISHED : System job every 15 min\n[endTime <= now] / no notification
+APPROVED --> CANCELLED : Facility Manager cancels\n[now < startTime, reason] / source STAFF
+APPROVED --> CANCELLED : System\n[new area type breaks the rules, area deactivated,\nrequester deactivated or deleted; endTime > now] / source SYSTEM
+
+REJECTED --> [*]
+CANCELLED --> [*]
+EXPIRED --> [*]
+FINISHED --> [*]
+
+note right of APPROVED
+  Entry is granted only while
+  startTime <= now < endTime (checkEntry).
+  A transition out of PENDING is one
+  UPDATE ... WHERE status = 'PENDING';
+  0 rows -> 409, no notification.
+end note
+@enduml

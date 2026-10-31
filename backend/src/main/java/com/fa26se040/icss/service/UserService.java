@@ -765,6 +765,12 @@ public class UserService {
         if (user.getDeletedAt() != null) {
             throw new ResourceNotFoundException("Không tìm thấy người dùng");
         }
+        // BR-AL-32: chỉ đổi cấp của NORMAL_USER và GUARD; ADMIN / FACILITY_MANAGER -> 403, không lưu, không audit.
+        // Kiểm sau BR-AL-21 (tự đổi mình) và trước BR-AL-29 / BR-AL-30; đổi nhiều người -> người đó FAILED, người khác vẫn chạy.
+        if (user.getRole() == Role.ADMIN || user.getRole() == Role.FACILITY_MANAGER) {
+            throw new com.fa26se040.icss.exception.AccessControlException(
+                    com.fa26se040.icss.exception.AccessControlErrorCode.ERR_AC_013, (Object) user.getUserCode());
+        }
         // BR-AL-29: tài khoản đã vô hiệu hoá -> không đổi cấp (kể cả khi cấp mới trùng cấp cũ). Đổi nhiều người
         // (UserAccessLevelBulkService) gọi lại hàm này nên người đó FAILED kèm thông báo, người khác vẫn chạy.
         if (!Boolean.TRUE.equals(user.getIsActive())) {

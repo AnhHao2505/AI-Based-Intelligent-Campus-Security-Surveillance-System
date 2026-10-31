@@ -1439,7 +1439,7 @@ export default function ManageAccountPage() {
 									onClick={closeModal}
 									disabled={isSubmitting}
 								>
-									Hủy
+									Huỷ
 								</button>
 								<button
 									type="submit"
@@ -1517,7 +1517,7 @@ export default function ManageAccountPage() {
 								onClick={closeModal}
 								disabled={isSubmitting}
 							>
-								Hủy
+								Huỷ
 							</button>
 							<button
 								type="button"
@@ -1587,7 +1587,7 @@ export default function ManageAccountPage() {
 								onClick={closeModal}
 								disabled={isSubmitting}
 							>
-								Hủy
+								Huỷ
 							</button>
 							<button
 								type="button"
@@ -1659,7 +1659,7 @@ export default function ManageAccountPage() {
 								onClick={closeModal}
 								disabled={isSubmitting}
 							>
-								Hủy
+								Huỷ
 							</button>
 							<button
 								type="button"
@@ -1757,7 +1757,7 @@ export default function ManageAccountPage() {
 								onClick={() => setShowBulkConfirmModal(false)}
 								disabled={isSubmitting}
 							>
-								Hủy
+								Huỷ
 							</button>
 							<button
 								type="button"
@@ -1985,7 +1985,7 @@ export default function ManageAccountPage() {
 										onClick={closeModal}
 										disabled={isSubmitting}
 									>
-										Hủy
+										Huỷ
 									</button>
 									<button
 										type="submit"
@@ -2648,7 +2648,7 @@ export default function ManageAccountPage() {
 								onClick={() => setBatchToDelete(null)}
 								disabled={isDeletingBatch}
 							>
-								Hủy
+								Huỷ
 							</button>
 							<button
 								type="button"
@@ -2751,7 +2751,7 @@ export default function ManageAccountPage() {
 								onClick={() => setBatchToRestore(null)}
 								disabled={isRestoringBatch}
 							>
-								Hủy
+								Huỷ
 							</button>
 							<button
 								type="button"

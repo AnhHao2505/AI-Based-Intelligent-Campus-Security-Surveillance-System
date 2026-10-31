@@ -213,16 +213,7 @@ public class MinioStorageService {
 
         try {
             ensureBucketExists(bucketFaces);
-            ByteArrayInputStream inputStream = new ByteArrayInputStream(imageBytes);
-            minioClient.putObject(
-                    PutObjectArgs.builder()
-                            .bucket(bucketFaces)
-                            .object(objectName)
-                            .stream(inputStream, imageBytes.length, -1)
-                            .contentType("image/jpeg")
-                            .sse(new ServerSideEncryptionS3())
-                            .build()
-            );
+            putObjectWithSseFallback(bucketFaces, objectName, imageBytes, "image/jpeg");
 
             String fileUrl = minioEndpoint + "/" + bucketFaces + "/" + objectName;
             log.info("[MINIO] Uploaded face profile image: {}", fileUrl);
@@ -279,16 +270,7 @@ public class MinioStorageService {
 
         try {
             ensureBucketExists(bucketEvidence);
-            ByteArrayInputStream inputStream = new ByteArrayInputStream(imageBytes);
-            minioClient.putObject(
-                    PutObjectArgs.builder()
-                            .bucket(bucketEvidence)
-                            .object(objectName)
-                            .stream(inputStream, imageBytes.length, -1)
-                            .contentType("image/jpeg")
-                            .sse(new ServerSideEncryptionS3())
-                            .build()
-            );
+            putObjectWithSseFallback(bucketEvidence, objectName, imageBytes, "image/jpeg");
 
             String fileUrl = minioEndpoint + "/" + bucketEvidence + "/" + objectName;
             log.info("[MINIO] Uploaded security evidence image: {}", fileUrl);
@@ -314,16 +296,7 @@ public class MinioStorageService {
 
         try {
             ensureBucketExists(bucketSnapshots);
-            ByteArrayInputStream inputStream = new ByteArrayInputStream(imageBytes);
-            minioClient.putObject(
-                    PutObjectArgs.builder()
-                            .bucket(bucketSnapshots)
-                            .object(objectName)
-                            .stream(inputStream, imageBytes.length, -1)
-                            .contentType("image/jpeg")
-                            .sse(new ServerSideEncryptionS3())
-                            .build()
-            );
+            putObjectWithSseFallback(bucketSnapshots, objectName, imageBytes, "image/jpeg");
 
             String fileUrl = minioEndpoint + "/" + bucketSnapshots + "/" + objectName;
             log.info("[MINIO] Uploaded ROI reference snapshot: {}", fileUrl);
@@ -331,6 +304,40 @@ public class MinioStorageService {
         } catch (Exception e) {
             log.error("[MINIO ERROR] Failed to upload ROI reference snapshot for camera {}: {}", cameraCode, e.getMessage(), e);
             throw new RuntimeException("Failed to upload snapshot to MinIO: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * NFR05: Lưu trữ object với ServerSideEncryptionS3 (SSE-S3 AES-256).
+     * Nếu MinIO chưa cấu hình KMS (NotImplemented 501), tự động fallback sang upload thường để không làm gián đoạn nghiệp vụ.
+     */
+    private void putObjectWithSseFallback(String bucketName, String objectName, byte[] bytes, String contentType) throws Exception {
+        try {
+            ByteArrayInputStream inputStream = new ByteArrayInputStream(bytes);
+            minioClient.putObject(
+                    PutObjectArgs.builder()
+                            .bucket(bucketName)
+                            .object(objectName)
+                            .stream(inputStream, bytes.length, -1)
+                            .contentType(contentType)
+                            .sse(new ServerSideEncryptionS3())
+                            .build()
+            );
+        } catch (ErrorResponseException e) {
+            if (e.errorResponse() != null && "NotImplemented".equals(e.errorResponse().code())) {
+                log.warn("[MINIO] KMS chưa được cấu hình trên MinIO (NotImplemented cho SSE-S3), fallback sang lưu trữ tiêu chuẩn: {}", objectName);
+                ByteArrayInputStream retryStream = new ByteArrayInputStream(bytes);
+                minioClient.putObject(
+                        PutObjectArgs.builder()
+                                .bucket(bucketName)
+                                .object(objectName)
+                                .stream(retryStream, bytes.length, -1)
+                                .contentType(contentType)
+                                .build()
+                );
+            } else {
+                throw e;
+            }
         }
     }
 }

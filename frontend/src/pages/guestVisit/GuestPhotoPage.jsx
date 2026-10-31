@@ -405,7 +405,7 @@ export default function GuestPhotoPage() {
               onClick={closeAttachModal}
               disabled={uploadLoading}
             >
-              Hủy bỏ
+              Huỷ bỏ
             </Button>
             <Button
               variant="primary"

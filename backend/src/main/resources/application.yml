@@ -76,7 +76,7 @@ mediamtx:
 
 camera:
   rtsp:
-    timeout-ms: ${CAMERA_RTSP_TIMEOUT_MS:10000}
+    timeout-ms: ${CAMERA_RTSP_TIMEOUT_MS:3000}
 
 app:
   mqtt:

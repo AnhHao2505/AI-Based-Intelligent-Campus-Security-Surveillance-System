@@ -72,14 +72,24 @@ class StorageService:
 
         if self.is_connected and self.client:
             try:
-                self.client.put_object(
-                    bucket_name=self.bucket_faces,
-                    object_name=object_name,
-                    data=io.BytesIO(image_bytes),
-                    length=len(image_bytes),
-                    content_type="image/jpeg",
-                    sse=SseS3()
-                )
+                try:
+                    self.client.put_object(
+                        bucket_name=self.bucket_faces,
+                        object_name=object_name,
+                        data=io.BytesIO(image_bytes),
+                        length=len(image_bytes),
+                        content_type="image/jpeg",
+                        sse=SseS3()
+                    )
+                except Exception as sse_err:
+                    logger.warning(f"[MINIO] SSE-S3 upload gặp lỗi ({sse_err}), fallback sang lưu trữ tiêu chuẩn")
+                    self.client.put_object(
+                        bucket_name=self.bucket_faces,
+                        object_name=object_name,
+                        data=io.BytesIO(image_bytes),
+                        length=len(image_bytes),
+                        content_type="image/jpeg"
+                    )
                 schema = "https" if settings.MINIO_SECURE else "http"
                 minio_url = f"{schema}://{settings.MINIO_ENDPOINT}/{self.bucket_faces}/{object_name}"
                 logger.info(f"[MINIO SSE-S3] Đã lưu ảnh khuôn mặt hồ sơ : {minio_url}")
@@ -149,14 +159,24 @@ class StorageService:
 
         if self.is_connected and self.client:
             try:
-                self.client.put_object(
-                    bucket_name=self.bucket_evidence,
-                    object_name=object_name,
-                    data=io.BytesIO(file_bytes),
-                    length=len(file_bytes),
-                    content_type="image/jpeg",
-                    sse=SseS3()
-                )
+                try:
+                    self.client.put_object(
+                        bucket_name=self.bucket_evidence,
+                        object_name=object_name,
+                        data=io.BytesIO(file_bytes),
+                        length=len(file_bytes),
+                        content_type="image/jpeg",
+                        sse=SseS3()
+                    )
+                except Exception as sse_err:
+                    logger.warning(f"[MINIO] SSE-S3 upload gặp lỗi ({sse_err}), fallback sang lưu trữ tiêu chuẩn")
+                    self.client.put_object(
+                        bucket_name=self.bucket_evidence,
+                        object_name=object_name,
+                        data=io.BytesIO(file_bytes),
+                        length=len(file_bytes),
+                        content_type="image/jpeg"
+                    )
                 object_key = f"{self.bucket_evidence}/{object_name}"
                 logger.info(f"[MINIO SSE-S3] Đã lưu ảnh bằng chứng vi phạm: {object_key}")
                 return object_key

@@ -372,7 +372,7 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
                 className="login-card__back-link"
                 onClick={() => { setMode('login'); if (onResetComplete) onResetComplete(); setError(null); }}
               >
-                Hủy bỏ và quay lại
+                Huỷ bỏ và quay lại
               </span>
             )}
           </>

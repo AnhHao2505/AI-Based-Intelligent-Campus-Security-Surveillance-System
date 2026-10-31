@@ -269,6 +269,95 @@ class UserAccessLevelBulkTest extends AbstractIntegrationTest {
         assertEquals(1, level(s1));
     }
 
+    private String errAc013(User u) {
+        return "Chỉ được đổi cấp truy cập của người dùng thường và bảo vệ; không đổi cấp của quản trị viên "
+                + "hoặc quản lý cơ sở vật chất (" + u.getUserCode() + ")";
+    }
+
+    @Test
+    @DisplayName("BR-AL-32 (T-01): FM đổi cấp NORMAL_USER và GUARD -> 200, cấp mới lưu, mỗi người 1 audit")
+    void single_normalUserAndGuard_ok() throws Exception {
+        User guard = user("grd", Role.GUARD, 2);
+
+        assertEquals(200, single(fm, s1, 2).getResponse().getStatus());
+        assertEquals(200, single(fm, guard, 3).getResponse().getStatus());
+
+        assertEquals(2, level(s1));
+        assertEquals(3, level(guard));
+        assertEquals(1, audits(s1));
+        assertEquals(1, audits(guard));
+    }
+
+    @Test
+    @DisplayName("BR-AL-32 (T-02): FM đổi cấp ADMIN / FM khác -> 403 ERR_AC_013 nêu mã, cấp giữ nguyên, không audit; "
+            + "kiểm trước BR-AL-29 và trước kiểm 'không đổi'")
+    void single_adminOrManager_forbidden() throws Exception {
+        User fm2 = user("fm2", Role.FACILITY_MANAGER, 2);
+        User fmOff = user("fmoff", Role.FACILITY_MANAGER, 2);
+        fmOff.setIsActive(false);
+        fmOff = userRepository.save(fmOff);
+
+        for (User target : List.of(admin, fm2, fmOff)) {
+            MvcResult r = single(fm, target, 3);
+            String body = r.getResponse().getContentAsString(StandardCharsets.UTF_8);
+            JsonNode json = objectMapper.readTree(body);
+            assertEquals(403, r.getResponse().getStatus(), body);
+            assertEquals("ERR_AC_013", json.path("code").asText(), body);
+            assertEquals(errAc013(target), json.path("message").asText(), body);
+        }
+        // cấp mới trùng cấp cũ vẫn bị chặn (không trả "không đổi")
+        assertEquals(403, single(fm, admin, 1).getResponse().getStatus());
+
+        assertEquals(1, level(admin));
+        assertEquals(2, level(fm2));
+        assertEquals(2, level(fmOff));
+        assertEquals(0, audits(admin));
+        assertEquals(0, audits(fm2));
+        assertEquals(0, audits(fmOff));
+    }
+
+    @Test
+    @DisplayName("BR-AL-32 (T-03): FM đổi cấp chính mình -> vẫn lỗi BR-AL-21 (403 'chính mình'), không phải ERR_AC_013")
+    void single_self_keepsBrAl21() throws Exception {
+        MvcResult r = single(fm, fm, 3);
+        String body = r.getResponse().getContentAsString(StandardCharsets.UTF_8);
+
+        assertEquals(403, r.getResponse().getStatus(), body);
+        assertTrue(body.contains("chính mình"), body);
+        assertFalse(body.contains("ERR_AC_013"), body);
+        assertEquals(2, level(fm));
+        assertEquals(0, audits(fm));
+    }
+
+    @Test
+    @DisplayName("BR-AL-32 (T-04): đổi nhiều người gồm NORMAL_USER + GUARD + ADMIN + FM -> người thường / bảo vệ UPDATED, "
+            + "ADMIN / FM FAILED kèm câu ERR_AC_013, không audit")
+    void bulk_adminAndManager_failedOthersOk() throws Exception {
+        User fm2 = user("fm2b", Role.FACILITY_MANAGER, 2);
+        User guard = user("grdb", Role.GUARD, 2);
+
+        MvcResult r = bulk(fm, List.of(s1.getId(), admin.getId(), fm2.getId(), guard.getId()), 3, REASON);
+
+        assertEquals(200, r.getResponse().getStatus());
+        JsonNode d = data(r);
+        assertEquals(4, d.path("total").asInt());
+        assertEquals(2, d.path("updated").asInt());
+        assertEquals(2, d.path("failed").asInt());
+        assertEquals("UPDATED", item(d, s1).path("outcome").asText());
+        assertEquals("UPDATED", item(d, guard).path("outcome").asText());
+        for (User blocked : List.of(admin, fm2)) {
+            JsonNode it = item(d, blocked);
+            assertEquals("FAILED", it.path("outcome").asText(), it.toString());
+            assertEquals(errAc013(blocked), it.path("message").asText(), it.toString());
+        }
+        assertEquals(3, level(s1));
+        assertEquals(3, level(guard));
+        assertEquals(1, level(admin));
+        assertEquals(2, level(fm2));
+        assertEquals(0, audits(admin));
+        assertEquals(0, audits(fm2));
+    }
+
     @Test
     @DisplayName("GET /api/users/search?accessLevel= chỉ trả người đúng cấp hiện tại")
     void search_filtersByAccessLevel() throws Exception {

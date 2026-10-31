@@ -1,0 +1,54 @@
+@startuml state-area
+' Title: SM-05 Area lifecycle (PlantUML version of state-area.mmd, keep both in sync)
+' Source: entity/Area.java (isActive, deletedAt, areaLevel), enums/AreaLevel.java, service/AreaService.java
+'   (create, update/evaluateTypeChange, deactivate, restore), service/AreaDependencyChecker.java · Generated from main @ e474968
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam roundCorner 6
+skinparam shadowing false
+skinparam nodesep 65
+skinparam ranksep 45
+skinparam stateStartColor #000000
+skinparam stateEndColor #000000
+skinparam stateBackgroundColor #F8FAFC
+skinparam stateBorderColor #475569
+skinparam stateFontColor #0F172A
+skinparam stateArrowColor #2563EB
+hide empty description
+
+title SM-05 Area Lifecycle
+
+[*] --> InOperation : Administrator creates area
+
+state "In operation\n(is_active = true, deleted_at empty)" as InOperation {
+  state "PUBLIC (level 1)" as PUBLIC
+  state "CONFIDENTIAL (level 2)" as CONFIDENTIAL
+  state "HIGHLY_CONFIDENTIAL (level 3)" as HIGHLY_CONFIDENTIAL
+
+  [*] --> PUBLIC : type chosen at creation
+  [*] --> CONFIDENTIAL : type chosen at creation
+  [*] --> HIGHLY_CONFIDENTIAL : type chosen at creation
+
+  CONFIDENTIAL --> PUBLIC : change type\n[reason, no active event,\nno SCHEDULED schedule, no active AP]
+  CONFIDENTIAL --> HIGHLY_CONFIDENTIAL : change type\n[reason, no active event,\nno SCHEDULED schedule]
+  HIGHLY_CONFIDENTIAL --> PUBLIC : change type\n[reason, no active AP]
+  HIGHLY_CONFIDENTIAL --> CONFIDENTIAL : change type [reason]
+  PUBLIC --> CONFIDENTIAL : change type [reason]
+  PUBLIC --> HIGHLY_CONFIDENTIAL : change type [reason]
+}
+
+state "Deactivated\n(is_active = false, deleted_at set)" as Deactivated
+
+InOperation --> Deactivated : Administrator deactivates\n[reason, version, no camera, no open incident,\nno active event, no SCHEDULED schedule]\n/ AP revoked, requests and guest visits closed
+Deactivated --> InOperation : Administrator restores\n[reason, version, floor and building active,\nname unique on floor] / nothing restored automatically
+
+note right of Deactivated
+  Every type change is made by the Administrator.
+  The system cancels APPROVED requests that break
+  the new type rules (all PENDING and APPROVED when
+  the new type is PUBLIC) in the same transaction.
+  A deactivated area cannot be edited or have its
+  type changed (ERR_AREA_002).
+end note
+@enduml

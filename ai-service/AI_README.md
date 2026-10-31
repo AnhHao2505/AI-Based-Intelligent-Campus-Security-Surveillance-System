@@ -1,7 +1,10 @@
 # AI Service — Campus Security Surveillance (FA26SE040)
 
 Microservice xử lý AI thời gian thực cho hệ thống giám sát an ninh:
-- **Phát hiện người (Human Detection):** YOLO11 (Class 0: `person`).
+- **Tiền xử lý chuyển động & Gating:** OpenCV MOG2 MotionDetector (Tiết kiệm >80% CPU khi phòng vắng).
+- **Chống đột nhập ngụy trang:** Máy trạng thái ZoneStateMachine + Cross-validation bắt kẻ trùm mền/cosplay (`SUSPICIOUS_MOTION`).
+- **Chống phá hoại camera:** Phát hiện hành vi chiếu đèn laser/làm mù cảm biến (`CAMERA_TAMPERING`).
+- **Phát hiện người (Human Detection):** YOLO26 (Class 0: `person`).
 - **Theo dõi đối tượng (Human Tracking):** ByteTrack (Gán và duy trì `track_id` liên tục).
 - **Phát hiện khuôn mặt (Face Detection):** OpenCV YuNet ONNX (kèm 5 điểm Landmarks căn chỉnh).
 - **Trích xuất đặc trưng khuôn mặt (Face Recognition):** Deep Learning ArcFace ResNet-50 ONNX (vector 512D chuẩn hóa L2).
@@ -17,13 +20,15 @@ ai-service/
 ├── models/
 │   ├── face_detection_yunet.onnx   # Model YuNet phát hiện khuôn mặt
 │   ├── w600k_r50.onnx              # Model ArcFace ResNet-50 trích xuất vector 512D
-│   └── yolo11n.pt                  # Model YOLO11 phát hiện người
+│   └── yolo26n.pt                  # Model YOLO26 phát hiện người (NMS-Free, Edge-First)
 ├── src/
 │   ├── config.py                   # Cấu hình biến môi trường
 │   ├── main.py                     # FastAPI REST API
 │   ├── core/
 │   │   ├── entity.py               # Các cấu trúc dữ liệu (Point, BBox, TrackedPerson, Alert)
-│   │   ├── human_detector.py       # Module YOLO11 Person Detection + ByteTrack
+│   │   ├── motion_detector.py      # Tiền xử lý chuyển động MOG2 & chống Tampering
+│   │   ├── zone_state_machine.py   # Máy trạng thái chốt giữ (State Latch)
+│   │   ├── human_detector.py       # Module YOLO26 Person Detection + ByteTrack
 │   │   ├── face_detector.py        # Module YuNet Face Detection
 │   │   ├── face_embedder.py        # Trích xuất đặc trưng khuôn mặt ArcFace 512D
 │   │   ├── face_matcher.py         # So khớp khuôn mặt Cosine Similarity In-Memory RAM

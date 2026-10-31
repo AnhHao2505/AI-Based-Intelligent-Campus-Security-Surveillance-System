@@ -1245,7 +1245,8 @@
 }
 
 .account-toast--success {
-  border-left: 4px solid var(--theme-success);
+  border-color: var(--theme-success-border);
+  background: var(--theme-success-bg);
 }
 
 .account-toast--success .account-toast__icon {
@@ -1253,7 +1254,8 @@
 }
 
 .account-toast--error {
-  border-left: 4px solid var(--theme-danger);
+  border-color: var(--theme-danger-border);
+  background: var(--theme-danger-bg);
 }
 
 .account-toast--error .account-toast__icon {

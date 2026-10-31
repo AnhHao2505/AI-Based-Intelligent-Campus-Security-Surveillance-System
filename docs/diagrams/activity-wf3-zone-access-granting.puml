@@ -1,0 +1,77 @@
+@startuml activity-wf3-zone-access-granting
+' Title: AD-WF3 Zone Access Granting (WF-3, owner Nguyen Anh Hao)
+' Source (verified against main @ e474968, 29/10/2026): service/AccessRequestService.java (create; review only before the start time and not by the requester;
+'   expire, finish, cancel), service/AreaAssignedPersonnelService.java, service/AreaService.java + scheduler/AreaEventModeScheduler.java
+'   (event start or FAILED), service/GuestVisitService.java (host cannot review own visit), service/GuestPhotoService.java,
+'   service/AccessDecisionService.java (checkCameraEntry), ai-service (check-entry call, alert)
+' Business level only. Detailed flows: activity-access-request.mmd, activity-event-schedule.mmd, activity-guest-visit.mmd.
+skinparam defaultFontName Arial
+skinparam shadowing false
+skinparam ActivityBackgroundColor #FFFFFF
+skinparam ActivityBorderColor #1F2937
+skinparam ActivityDiamondBackgroundColor #FFF7E6
+skinparam SwimlaneTitleFontStyle bold
+title AD-WF3 — Zone Access Granting
+
+|Authorized User|
+|Facility Manager|
+|Administrator|
+|System|
+|Authorized User|
+split
+  -[hidden]->
+  :<b>Access request</b>
+  Request access for a time window
+  (alone or with members);
+  |Facility Manager|
+  :Approve or reject before the start time
+  (not one's own request);
+split again
+  |Authorized User|
+  -[hidden]->
+  :<b>Guest visit</b>
+  Host (or a Facility Manager) invites guests
+  to Confidential areas;
+  |Facility Manager|
+  :Another Facility Manager
+  approves or rejects the visit;
+  |Administrator|
+  :Attach each approved guest's photo
+  after recording consent;
+split again
+  |Facility Manager|
+  -[hidden]->
+  :<b>Named assignment</b>
+  Assign a named person to the area
+  for one validity window;
+split again
+  |Facility Manager|
+  -[hidden]->
+  :<b>Event</b>
+  Schedule an event
+  on a Confidential area;
+end split
+|System|
+:Record the grant and notify the people concerned:
+request Approved, Rejected or Expired,
+assignment Upcoming or Active,
+event Started or Failed at its start time,
+visit Approved or Rejected;
+if (Grant in force?) then (no)
+  stop
+else (yes)
+endif
+:A recognised person reaches a camera of the area;
+note right: The AI Surveillance Engine recognises\nthe person and asks whether entry is allowed.
+if (A valid access source covers this person now?) then (yes)
+  :Record the entry as authorised;
+else (no)
+  :Record the entry as denied,
+  create a security incident and alert the guards;
+endif
+:Close the grant: request Finished or Cancelled,
+assignment Expired or Revoked,
+event Completed or Ended early,
+visit Completed, Cancelled or Revoked;
+stop
+@enduml
