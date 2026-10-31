@@ -1,6 +1,6 @@
 """
 Script kiểm thử độc lập cho AI Service:
-- Kiểm tra Human Detection (YOLO11)
+- Kiểm tra Human Detection (YOLO26)
 - Kiểm tra Human Tracking (ByteTrack)
 - Kiểm tra Face Detection & Recognition (YuNet + ArcFace ResNet-50 512D + pgvector)
 - Kiểm tra cơ chế Xâm nhập khu vực cấm ROI & Loitering

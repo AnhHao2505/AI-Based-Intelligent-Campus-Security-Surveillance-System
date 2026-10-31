@@ -4,7 +4,9 @@ import numpy as np
 from typing import List, Optional, Tuple, Any
 
 from ..config import settings
-from ..core.entity import Point, TrackedPerson, SecurityAlertEvent, RoiPolygonConfig, BoundingBox
+from ..core.entity import Point, TrackedPerson, SecurityAlertEvent, RoiPolygonConfig, BoundingBox, MotionResult
+from ..core.motion_detector import MotionDetector
+from ..core.zone_state_machine import ZoneStateMachine, ZoneState
 from ..core.human_detector import HumanDetector
 from ..core.face_detector import FaceDetector
 from ..core.face_matcher import FaceMatcher
@@ -20,12 +22,15 @@ logger = logging.getLogger(__name__)
 class VideoPipeline:
     """
     Pipeline tích hợp toàn diện quy trình phân tích luồng Video:
-    1. Human Detection & Tracking (YOLOv8 + ByteTrack)
-    2. Crop vùng người & Face Detection (YuNet)
-    3. Face Recognition Matching (pgvector Cosine Search)
-    4. Violation Analysis (ROI Polygon Check)
-    5. Cảnh báo tự động (Kafka Event + MinIO Snapshot Upload)
-    6. Visualization & Overlay Rendering
+    1. Tiền xử lý chuyển động & Chống phá hoại (OpenCV MOG2 MotionDetector)
+    2. Cổng lọc tải & Máy trạng thái chốt giữ (ZoneStateMachine Latch)
+    3. Human Detection & Tracking (YOLO26 + ByteTrack)
+    4. Đối soát ngụy trang / Xâm nhập bất thường (SUSPICIOUS_MOTION)
+    5. Crop vùng người & Face Detection (YuNet)
+    6. Face Recognition Matching (pgvector Cosine Search)
+    7. Violation Analysis (ROI Polygon Check)
+    8. Cảnh báo tự động (Kafka Event + MinIO Snapshot Upload)
+    9. Visualization & Overlay Rendering
     """
     def __init__(
         self,
@@ -36,7 +41,8 @@ class VideoPipeline:
         model_yunet_path: Optional[str] = None,
         roi_polygons: Optional[List[Any]] = None,
         after_hour_start: Optional[str] = None,
-        after_hour_end: Optional[str] = None
+        after_hour_end: Optional[str] = None,
+        enable_motion_gating: bool = True
     ):
         self.camera_code = camera_code
         self.roi_polygon = roi_polygon or []
@@ -59,6 +65,26 @@ class VideoPipeline:
         self.face_detector = FaceDetector(model_path=yunet_path, score_threshold=settings.DEFAULT_FACE_CONFIDENCE)
         self.face_matcher = FaceMatcher()
         self.analysis_engine = FrameAnalysisEngine(after_hour_start=ah_start, after_hour_end=ah_end)
+
+        # Khởi tạo module Motion Detector & State Machine
+        self.enable_motion_gating = enable_motion_gating
+        self.motion_detector = MotionDetector(
+            history=500,
+            var_threshold=25.0,
+            min_motion_area=getattr(settings, "MIN_MOTION_AREA", 3000),
+            lighting_spike_ratio=0.70,
+            tampering_pixel_val=245,
+            tampering_area_ratio=0.05,
+            tampering_duration_threshold=1.5
+        )
+        self.state_machine = ZoneStateMachine(
+            cooldown_seconds=5.0,
+            motion_to_occupied_seconds=1.0
+        )
+        self._last_suspicious_motion_time: float = 0.0
+        self._suspicious_motion_cooldown: float = 5.0
+        self._last_tampering_time: float = 0.0
+        self._tampering_cooldown: float = 10.0
 
         # Khởi tạo các module tích hợp
         from concurrent.futures import ThreadPoolExecutor
@@ -138,11 +164,84 @@ class VideoPipeline:
         if current_time is None:
             current_time = time.time()
 
-        # 2. Phát hiện & Theo dõi người (Human Detection + ByteTrack)
+        early_alerts: List[SecurityAlertEvent] = []
+        h, w = frame.shape[:2]
+
+        # ------------------------------------------------------------------
+        # 1. TIỀN XỬ LÝ CHUYỂN ĐỘNG BẰNG OPENCV MOTION DETECTOR (~1ms)
+        # ------------------------------------------------------------------
+        motion_res = self.motion_detector.detect(
+            frame,
+            self.roi_polygons if self.roi_polygons else None
+        )
+
+        # 1a. Kiểm tra hành vi phá hoại chiếu đèn (CAMERA_TAMPERING)
+        if motion_res.is_tampering:
+            if (current_time - self._last_tampering_time) >= self._tampering_cooldown:
+                self._last_tampering_time = current_time
+                tamper_alert = SecurityAlertEvent(
+                    camera_code=self.camera_code,
+                    event_type="CAMERA_TAMPERING",
+                    details="Phát hiện hành vi chiếu đèn laser hoặc làm mù cảm biến camera",
+                    confidence=1.0,
+                    track_id=-1
+                )
+                early_alerts.append(tamper_alert)
+
+        # 1b. Cổng Motion-Gating: Nếu ở IDLE và hoàn toàn không có chuyển động / chớp sáng
+        #     Bỏ qua 100% suy luận Deep Learning nặng (YOLO26, YuNet, ArcFace) để giải phóng CPU/GPU
+        if (
+            self.enable_motion_gating
+            and self.state_machine.state == ZoneState.IDLE
+            and not motion_res.has_motion
+            and not motion_res.is_lighting_spike
+        ):
+            annotated_frame = frame.copy()
+            annotated_frame = FrameVisualizer.draw_all_rois(
+                annotated_frame,
+                polygons=self.roi_polygons if self.roi_polygons else (self.roi_polygon if self.roi_polygon else None)
+            )
+            if early_alerts:
+                for alert in early_alerts:
+                    self.executor.submit(self._dispatch_alert_async, alert, annotated_frame)
+            return annotated_frame, [], early_alerts
+
+        # ------------------------------------------------------------------
+        # 2. ĐÁNH THỨC PHÁT HIỆN & THEO DÕI NGƯỜI (YOLO26 + BYTETRACK)
+        # ------------------------------------------------------------------
         detected_tracks = self.human_detector.detect_and_track(frame, persist=True)
 
-        # 3. Quét khuôn mặt trên từng người được phát hiện (Face Detection & Recognition)
-        h, w, _ = frame.shape
+        # 2b. Kiểm tra người trong ROI và cập nhật Máy trạng thái chốt giữ
+        person_in_roi = False
+        for track_id, bbox in detected_tracks:
+            in_roi, _ = self.is_bbox_in_roi(bbox, w, h)
+            if in_roi:
+                person_in_roi = True
+                break
+
+        self.state_machine.update(
+            has_motion=motion_res.has_motion,
+            person_in_roi=person_in_roi,
+            current_time=current_time
+        )
+
+        # 2c. Phát hiện Đột nhập Ngụy trang (SUSPICIOUS_MOTION):
+        # Có chuyển động đáng kể trong ROI nhưng YOLO26 không nhận diện được dáng người
+        if motion_res.has_motion and not person_in_roi and len(motion_res.motion_boxes) > 0:
+            if (current_time - self._last_suspicious_motion_time) >= self._suspicious_motion_cooldown:
+                self._last_suspicious_motion_time = current_time
+                anomaly_alert = SecurityAlertEvent(
+                    camera_code=self.camera_code,
+                    event_type="SUSPICIOUS_MOTION",
+                    details=f"Phát hiện vật thể chuyển động bất thường trong vùng cấm không nhận diện được dáng người (Diện tích: {motion_res.motion_area}px, Nghi vấn ngụy trang/bò trườn)",
+                    confidence=0.9,
+                    track_id=-1
+                )
+                early_alerts.append(anomaly_alert)
+
+        # ------------------------------------------------------------------
+        # 3. QUÉT KHUÔN MẶT TRÊN TỪNG NGƯỜI (YUNET + ARCFACE)
+        # ------------------------------------------------------------------
         for track_id, bbox in detected_tracks:
             if track_id < 0:
                 continue
@@ -240,7 +339,9 @@ class VideoPipeline:
 
                         self.analysis_engine.associate_face(track_id, face_result)
 
-        # 4. Phân tích Xâm nhập vùng cấm
+        # ------------------------------------------------------------------
+        # 4. PHÂN TÍCH XÂM NHẬP VÙNG CẤM (FRAME ANALYSIS ENGINE)
+        # ------------------------------------------------------------------
         is_public = self.face_matcher.is_camera_public(self.camera_code) if self.face_matcher else False
         active_persons, alerts, roi_events = self.analysis_engine.process_frame(
             detected_tracks=detected_tracks,
@@ -251,6 +352,9 @@ class VideoPipeline:
             frame_size=(w, h),
             is_public_area=is_public
         )
+
+        if early_alerts:
+            alerts = early_alerts + alerts
 
         # 4b. Xử lý ghi log sự kiện RA / VÀO vùng ROI ngầm (Async qua ThreadPoolExecutor)
         if roi_events and self.face_matcher:
@@ -267,12 +371,13 @@ class VideoPipeline:
 
         has_roi = bool(self.roi_polygons or self.roi_polygon)
 
-        # 5. Xử lý lưu bằng chứng và gửi cảnh báo tự động ngầm (Async không chặn luồng video)
+        # ------------------------------------------------------------------
+        # 5. XỬ LÝ LƯU BẰNG CHỨNG & GỬI CẢNH BÁO TỰ ĐỘNG (ASYNC KAFKA / MINIO)
+        # ------------------------------------------------------------------
         if alerts:
             for alert in alerts:
-                # Kích hoạt ghi hình sự cố an ninh ngay lập tức khi phát hiện vi phạm
                 ev_type = str(alert.event_type or "").upper()
-                if any(k in ev_type for k in ["UNAUTHORIZED", "INTRUSION", "AFTER_HOUR", "UNKNOWN"]):
+                if any(k in ev_type for k in ["UNAUTHORIZED", "INTRUSION", "AFTER_HOUR", "UNKNOWN", "SUSPICIOUS_MOTION", "TAMPERING"]):
                     try:
                         incident_recording_manager.start_incident_recording(
                             incident_id=alert.event_id or f"EVT-{int(time.time()*1000)}",
@@ -288,6 +393,9 @@ class VideoPipeline:
                     snapshot_frame,
                     polygons=self.roi_polygons if self.roi_polygons else (self.roi_polygon if self.roi_polygon else None)
                 )
+                if motion_res.has_motion and not person_in_roi:
+                    snapshot_frame = FrameVisualizer.draw_motion_boxes(snapshot_frame, motion_res.motion_boxes)
+
                 snapshot_frame = self.visualizer.draw_tracked_persons(
                     snapshot_frame,
                     active_persons,
@@ -295,12 +403,17 @@ class VideoPipeline:
                 )
                 self.executor.submit(self._dispatch_alert_async, alert, snapshot_frame)
 
-        # 6. Render các lớp đồ họa lên khung hình hiển thị (Overlay Annotations)
+        # ------------------------------------------------------------------
+        # 6. RENDER CÁC LỚP ĐỒ HỌA LÊN KHUNG HÌNH HIỂN THỊ (OVERLAY ANNOTATIONS)
+        # ------------------------------------------------------------------
         annotated_frame = frame.copy()
         annotated_frame = FrameVisualizer.draw_all_rois(
             annotated_frame,
             polygons=self.roi_polygons if self.roi_polygons else (self.roi_polygon if self.roi_polygon else None)
         )
+        if motion_res.has_motion and not person_in_roi:
+            annotated_frame = FrameVisualizer.draw_motion_boxes(annotated_frame, motion_res.motion_boxes)
+
         annotated_frame = self.visualizer.draw_tracked_persons(
             annotated_frame,
             active_persons,
@@ -321,5 +434,3 @@ class VideoPipeline:
             self.kafka_producer.send_alert(alert)
         except Exception as e:
             logger.error(f"Lỗi gửi cảnh báo ngầm sang Kafka/MinIO: {e}")
-
-

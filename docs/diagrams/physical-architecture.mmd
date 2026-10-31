@@ -1,0 +1,57 @@
+%% Title: Physical Architecture & Deployment Diagram · Source: docker-compose.yml, application.properties
+graph TB
+    subgraph EDGE_CAMERAS ["Campus Edge Network"]
+        CAM["IP Surveillance Cameras<br/>(Hikvision / Dahua / ONVIF)<br/>H.264 1080p @ 25fps"]
+    end
+
+    subgraph CLIENT_TIER ["Client Tier (Workstations & Mobile)"]
+        GUARD_PC["Security Control Room PC<br/>Web Surveillance Console (React 18 SPA)"]
+        MOBILE["Patrol Guard Mobile Device<br/>Guard Mobile App (Flutter / Dart)"]
+        ADMIN_PC["Administrator Workstation<br/>Admin Management Portal (React 18)"]
+    end
+
+    subgraph SERVER_HOST ["Campus Security Server (Ubuntu 22.04 LTS / NVIDIA CUDA)"]
+        subgraph DOCKER_NET ["Docker Network (sep_network)"]
+            MEDIAMTX["<b>sep_mediamtx</b> (bluenviron/mediamtx)<br/>Ports: 8554 (RTSP), 8889 (WHEP), 8888 (HLS)"]
+            AI_SVC["<b>sep_ai_service</b> (Python 3.10 / FastAPI)<br/>YOLO11n, YuNet, ArcFace, ByteTrack<br/>Port: 8000"]
+            KAFKA["<b>sep_kafka</b> (cp-kafka:7.7.0 KRaft)<br/>Topics: security-incidents, cam.alert<br/>Ports: 9092, 29092"]
+            BACKEND["<b>sep_backend</b> (Spring Boot 3.2.5 / Java 21)<br/>Access Waterfall, Incident Dispatch<br/>Port: 8080 (REST / WS)"]
+            POSTGRES[("<b>sep_postgres</b> (pgvector:pg16)<br/>33 Tables + HNSW Vector(512)<br/>Port: 5432")]
+            MINIO[("<b>sep_minio</b> (MinIO S3 Storage)<br/>Buckets: security-evidence, face-datasets<br/>Ports: 9000, 9001")]
+        end
+        
+        VOL_PG[("Volume: pgdata")]
+        VOL_MINIO[("Volume: miniodata")]
+        VOL_KAFKA[("Volume: kafkadata")]
+        
+        POSTGRES --- VOL_PG
+        MINIO --- VOL_MINIO
+        KAFKA --- VOL_KAFKA
+    end
+
+    subgraph CLOUD_SERVICES ["External Cloud Services"]
+        GOOGLE_AUTH["Google Identity Platform<br/>(OAuth 2.0 / OpenID)"]
+        SMTP["Google SMTP Mail Server<br/>(smtp.gmail.com:587)"]
+        GDRIVE["Google Drive API<br/>(Video Archive Storage)"]
+    end
+
+    %% Network flows
+    CAM -->|"RTSP (TCP :8554)"| MEDIAMTX
+    MEDIAMTX -->|"RTSP Ingest (:8554)"| AI_SVC
+    MEDIAMTX -->|"WebRTC WHEP (<0.5s latency)"| GUARD_PC
+
+    AI_SVC -->|"S3 API (:9000)"| MINIO
+    AI_SVC -->|"Produce Alert (:29092)"| KAFKA
+    AI_SVC <-->|"Check Entry (REST :8080)"| BACKEND
+
+    KAFKA -->|"Consume Alert (:29092)"| BACKEND
+    BACKEND -->|"JDBC (:5432)"| POSTGRES
+    BACKEND -->|"S3 API (:9000)"| MINIO
+
+    GUARD_PC <-->|"REST & WebSocket STOMP (:8080)"| BACKEND
+    MOBILE <-->|"REST & WebSocket STOMP (:8080)"| BACKEND
+    ADMIN_PC <-->|"REST API (:8080)"| BACKEND
+
+    BACKEND -->|"OAuth 2.0 Verify"| GOOGLE_AUTH
+    BACKEND -->|"Escalation Email (:587)"| SMTP
+    BACKEND -->|"Backup Archive"| GDRIVE

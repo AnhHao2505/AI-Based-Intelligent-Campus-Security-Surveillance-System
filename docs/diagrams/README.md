@@ -44,6 +44,8 @@ Diagrams for the access-control modules (access requests, guest visits, assigned
 | AD-01 | `activity-access-request.mmd` | flowchart, swimlanes | Request access workflow | `AccessRequestService`, `AccessDecisionService` | |
 | AD-02 | `activity-guest-visit.mmd` | flowchart, swimlanes | Guest visit workflow | `GuestVisitService`, `GuestPhotoService.attach`, `GuestVisitJobService`, `GuestAccessDecisionService` | |
 | AD-03 | `activity-event-schedule.mmd` | flowchart, swimlanes | Event schedule workflow | `AreaService`, `scheduler/AreaEventModeScheduler.java` | |
+| AD-04 | `activity-ai-surveillance.mmd` (+ `.puml`, `.svg`, `.png`) | flowchart, swimlanes | Real-time AI-powered Surveillance workflow (WF-4) | `video_pipeline.py`, `frame_analysis_engine.py`, `SecurityIncidentService.java` | Review 2 BM01 (Nguyễn Hoàng Minh) |
+| DEP-01 | `physical-architecture.puml` (+ `.svg`, `.png`, `.mmd`) | deploymentDiagram / flowchart | Physical Architecture & Deployment Diagram | `docker-compose.yml`, `application.properties`, Edge IP Cameras | Hardware nodes, Docker containers, ports & protocols |
 | SQ-01 | `seq-create-access-request.mmd` | sequenceDiagram | Create access request (individual) | `AccessRequestController.createIndividualRequest` → `AccessRequestService.createIndividualRequest` | Group path in a note |
 | SQ-02 | `seq-review-access-request.mmd` | sequenceDiagram | Approve / reject request | `AccessRequestService.reviewRequest`, `AccessRequestRepository.reviewIfPending` | Non-PENDING gives 409, not 400 (D6) |
 | SQ-03 | `seq-finish-access-request.mmd` | sequenceDiagram | Finish request | `AccessRequestService.finishRequest`, `AccessRequestRepository.finishIfApprovedStarted` | |

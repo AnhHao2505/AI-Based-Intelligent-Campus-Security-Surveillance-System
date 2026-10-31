@@ -90,6 +90,12 @@
             <groupId>com.google.api-client</groupId>
             <artifactId>google-api-client</artifactId>
             <version>2.7.2</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>commons-logging</groupId>
+                    <artifactId>commons-logging</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <!-- MinIO Java SDK -->

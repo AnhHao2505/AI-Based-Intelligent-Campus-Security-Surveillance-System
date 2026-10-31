@@ -49,13 +49,13 @@ body::before {
 
 /* ==========================================================================
    Global Institutional Security Orange Wave Backgrounds
-   - Light Mode: Clean institutional slate (#f8fafc) with subtle orange wave
-   - Dark Mode: Deep obsidian (#080c14) with hue-filtered orange luminous wave
+   - Vector SVG: 100% infinite resolution, crisp at any display (Retina/4K/8K)
+   - Zero pixelation or blurriness
    ========================================================================== */
 :root body::before,
 [data-theme="light"] body::before {
-  background-image: url('/images/bg-light-wave.png');
-  opacity: 0.75;
+  background-image: url('/images/bg-wave-light.svg');
+  opacity: 0.85;
 }
 
 [data-theme="dark"] body {
@@ -63,9 +63,8 @@ body::before {
 }
 
 [data-theme="dark"] body::before {
-  background-image: url('/images/bg-dark.png');
-  filter: hue-rotate(150deg) saturate(1.2) brightness(0.85);
-  opacity: 0.65;
+  background-image: url('/images/bg-wave-dark.svg');
+  opacity: 0.90;
 }
 
 #root {
