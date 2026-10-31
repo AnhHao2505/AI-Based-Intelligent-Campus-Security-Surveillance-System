@@ -29,6 +29,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -52,22 +53,29 @@ public class MinioStorageService {
     @Value("${minio.bucket.snapshots:camera-snapshots}")
     private String bucketSnapshots;
 
+    @Value("${minio.bucket.recordings:camera-recordings}")
+    private String bucketRecordings;
+
     /** Mã lỗi MinIO khi object không tồn tại. */
     private static final Set<String> OBJECT_NOT_FOUND_CODES = Set.of("NoSuchKey", "NoSuchObject");
 
     @PostConstruct
     public void initBuckets() {
+        List<String> buckets = new ArrayList<>(List.of(bucketFaces, bucketEvidence, bucketSnapshots));
+        if (bucketRecordings != null && !bucketRecordings.isBlank()) {
+            buckets.add(bucketRecordings);
+        }
         try {
-            ensureBucketExists(bucketFaces);
-            ensureBucketExists(bucketEvidence);
-            ensureBucketExists(bucketSnapshots);
+            for (String b : buckets) {
+                ensureBucketExists(b);
+            }
         } catch (Exception e) {
             log.warn("Could not verify/create MinIO buckets at startup (Endpoint: {}): {}", minioEndpoint, e.getMessage());
             // Không kết nối được MinIO -> bỏ qua bước gỡ policy (mỗi lệnh sẽ lại chờ timeout)
             return;
         }
         // M2: bucket tạo trước đây có thể còn policy public-read -> gỡ để mọi truy cập phải qua /api/media
-        for (String bucket : List.of(bucketFaces, bucketEvidence, bucketSnapshots)) {
+        for (String bucket : buckets) {
             removeBucketPolicyIfPresent(bucket);
         }
     }
@@ -104,6 +112,20 @@ public class MinioStorageService {
 
     public String getSnapshotsBucket() {
         return bucketSnapshots;
+    }
+
+    public String getRecordingsBucket() {
+        return bucketRecordings;
+    }
+
+    public Iterable<Result<Item>> listObjects(String bucketName, String prefix, boolean recursive) {
+        return minioClient.listObjects(
+                ListObjectsArgs.builder()
+                        .bucket(bucketName)
+                        .prefix(prefix != null ? prefix : "")
+                        .recursive(recursive)
+                        .build()
+        );
     }
 
     /**
@@ -159,6 +181,20 @@ public class MinioStorageService {
                 GetObjectArgs.builder()
                         .bucket(bucketName)
                         .object(objectName)
+                        .build()
+        );
+    }
+
+    /**
+     * Đọc một phần (byte range) của object từ MinIO phục vụ HTTP 206 Partial Content video streaming.
+     */
+    public InputStream getObject(String bucketName, String objectName, long offset, long length) throws Exception {
+        return minioClient.getObject(
+                GetObjectArgs.builder()
+                        .bucket(bucketName)
+                        .object(objectName)
+                        .offset(offset)
+                        .length(length)
                         .build()
         );
     }

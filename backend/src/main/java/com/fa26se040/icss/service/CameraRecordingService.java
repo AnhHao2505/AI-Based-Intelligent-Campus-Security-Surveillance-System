@@ -3,10 +3,14 @@ package com.fa26se040.icss.service;
 import com.fa26se040.icss.dto.camera.RecordingVideoResponse;
 import com.fa26se040.icss.entity.Camera;
 import com.fa26se040.icss.repository.CameraRepository;
+import io.minio.Result;
+import io.minio.messages.Item;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
@@ -14,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -37,6 +42,7 @@ import java.util.stream.Stream;
 public class CameraRecordingService {
 
     private final CameraRepository cameraRepository;
+    private final MinioStorageService minioStorageService;
 
     @Value("${recording.storage.path:C:/DATN/AI-Based-Intelligent-Campus-Security-Surveillance-System/recording}")
     private String recordingStoragePath;
@@ -45,6 +51,7 @@ public class CameraRecordingService {
     private String evidenceStoragePath;
 
     private static final ZoneId VIETNAM_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+    private static final long MAX_RANGE_CHUNK_BYTES = 4L * 1024 * 1024; // 4MB chunk cho HTTP 206 Partial Content
     private static final List<DateTimeFormatter> DATE_TIME_FORMATTERS = List.of(
             DateTimeFormatter.ofPattern("dd-MM-yyyy - HH-mm-ss"),
             DateTimeFormatter.ofPattern("dd-MM-yyyy-HH-mm-ss"),
@@ -55,10 +62,10 @@ public class CameraRecordingService {
     );
 
     /**
-     * Quét đệ quy cả 2 thư mục:
-     * 1. C:\DATN\...\recording (Ghi hình định kỳ 1 phút/session)
-     * 2. C:\DATN\...\evidence  (Ghi hình sự cố an ninh từ khi phát hiện tới khi Bảo vệ click Xác nhận đã xem)
-     * Cấu trúc: {camera_id}/{year}/{month}/{day}/{filename}.mp4
+     * Quét cả MinIO Object Storage và thư mục đĩa cục bộ:
+     * 1. MinIO bucket camera-recordings (Ghi hình định kỳ)
+     * 2. MinIO bucket security-evidence (Ghi hình sự cố an ninh)
+     * 3. Thư mục đĩa recording & evidence (Backward compatibility)
      */
     public List<RecordingVideoResponse> listRecordings(
             String cameraCodeFilter,
@@ -76,16 +83,164 @@ public class CameraRecordingService {
                 ));
 
         List<RecordingVideoResponse> results = new ArrayList<>();
+        Set<String> seenKeys = new HashSet<>();
 
-        // Quét thư mục Continuous Recording
-        scanDirectory(recordingStoragePath, false, cameraCodeFilter, keyword, fromDateStr, toDateStr, cameraMap, results);
+        // 1. Quét MinIO bucket camera-recordings & security-evidence
+        if (minioStorageService != null) {
+            scanMinioBucket(minioStorageService.getRecordingsBucket(), false, cameraCodeFilter, keyword, fromDateStr, toDateStr, cameraMap, results, seenKeys);
+            scanMinioBucket(minioStorageService.getEvidenceBucket(), true, cameraCodeFilter, keyword, fromDateStr, toDateStr, cameraMap, results, seenKeys);
+        }
 
-        // Quét thư mục Incident Evidence Recording
-        scanDirectory(evidenceStoragePath, true, cameraCodeFilter, keyword, fromDateStr, toDateStr, cameraMap, results);
+        // 2. Quét thư mục đĩa (để tương thích ngược với video cũ đã hoàn tất)
+        scanDirectory(recordingStoragePath, false, cameraCodeFilter, keyword, fromDateStr, toDateStr, cameraMap, results, seenKeys);
+        scanDirectory(evidenceStoragePath, true, cameraCodeFilter, keyword, fromDateStr, toDateStr, cameraMap, results, seenKeys);
 
         // Sắp xếp mới nhất lên đầu
         results.sort((a, b) -> b.getStartTime().compareTo(a.getStartTime()));
         return results;
+    }
+
+    private static boolean isInProgressRecordingFilename(String name) {
+        if (name == null) return true;
+        String lower = name.toLowerCase();
+        return lower.endsWith(".recording.mp4") || lower.startsWith("_recording_");
+    }
+
+    private void scanMinioBucket(
+            String bucketName,
+            boolean isEvidenceBucket,
+            String cameraCodeFilter,
+            String keyword,
+            String fromDateStr,
+            String toDateStr,
+            Map<String, Camera> cameraMap,
+            List<RecordingVideoResponse> results,
+            Set<String> seenKeys
+    ) {
+        if (minioStorageService == null || bucketName == null) return;
+        try {
+            Iterable<Result<Item>> objects = minioStorageService.listObjects(bucketName, "", true);
+            if (objects == null) return;
+
+            for (Result<Item> result : objects) {
+                try {
+                    Item item = result.get();
+                    if (item.isDir()) continue;
+                    String objectName = item.objectName();
+                    if (objectName == null || !objectName.toLowerCase().endsWith(".mp4")) continue;
+
+                    String[] parts = objectName.split("/");
+                    String cameraCode = "CAM-UNKNOWN";
+                    String filename = parts[parts.length - 1];
+                    if (isInProgressRecordingFilename(filename)) continue;
+
+                    if (parts.length > 1) {
+                        cameraCode = (parts[0].equalsIgnoreCase("recordings") || parts[0].equalsIgnoreCase("evidence"))
+                                ? (parts.length > 2 ? parts[1] : "CAM-UNKNOWN")
+                                : parts[0];
+                    }
+
+                    if (cameraCodeFilter != null && !cameraCodeFilter.isBlank()
+                            && !cameraCode.equalsIgnoreCase(cameraCodeFilter.trim())) {
+                        continue;
+                    }
+
+                    long fileSizeBytes = item.size();
+                    boolean isIncidentVideo = isEvidenceBucket || filename.toLowerCase().startsWith("incident");
+
+                    OffsetDateTime lastModified = item.lastModified() != null ? item.lastModified().toOffsetDateTime() : OffsetDateTime.now(VIETNAM_ZONE);
+                    OffsetDateTime startTime = parseStartTimeFromFilename(filename, lastModified);
+                    long durationSeconds = 60;
+                    if (isIncidentVideo) {
+                        long diffSec = (lastModified.toInstant().toEpochMilli() - startTime.toInstant().toEpochMilli()) / 1000;
+                        if (diffSec > 0 && diffSec <= 600) {
+                            durationSeconds = diffSec;
+                        } else {
+                            durationSeconds = Math.max(5, fileSizeBytes / (900 * 1024));
+                        }
+                    }
+                    OffsetDateTime endTime = startTime.plusSeconds(durationSeconds);
+
+                    if (fromDateStr != null && !fromDateStr.isBlank()) {
+                        OffsetDateTime fromDate = OffsetDateTime.parse(fromDateStr + "T00:00:00+07:00");
+                        if (startTime.isBefore(fromDate)) continue;
+                    }
+                    if (toDateStr != null && !toDateStr.isBlank()) {
+                        OffsetDateTime toDate = OffsetDateTime.parse(toDateStr + "T23:59:59+07:00");
+                        if (startTime.isAfter(toDate)) continue;
+                    }
+
+                    Camera cam = cameraMap.get(cameraCode.toUpperCase());
+                    String cameraName = cam != null ? cam.getName() : ("Camera " + cameraCode);
+                    String areaName = "Khuôn viên FPTU";
+                    String building = "Tòa nhà";
+                    String floor = "Tầng 1";
+                    try {
+                        if (cam != null && cam.getArea() != null) {
+                            if (cam.getArea().getName() != null) areaName = cam.getArea().getName();
+                            if (cam.getArea().getBuilding() != null) building = cam.getArea().getBuilding();
+                            if (cam.getArea().getFloor() != null) floor = "Tầng " + cam.getArea().getFloor();
+                        }
+                    } catch (Exception ignored) {}
+
+                    if (keyword != null && !keyword.isBlank()) {
+                        String kw = keyword.toLowerCase().trim();
+                        boolean matches = cameraCode.toLowerCase().contains(kw)
+                                || cameraName.toLowerCase().contains(kw)
+                                || areaName.toLowerCase().contains(kw)
+                                || filename.toLowerCase().contains(kw);
+                        if (!matches) continue;
+                    }
+
+                    String dedupKey = cameraCode.toUpperCase() + ":" + filename.toLowerCase();
+                    if (!seenKeys.add(dedupKey)) continue;
+
+                    String encodedRelPath = URLEncoder.encode(objectName, StandardCharsets.UTF_8);
+                    String sourceParam = isEvidenceBucket ? "&source=minio_evidence" : "&source=minio_recording";
+                    String streamUrl = "/api/cameras/recordings/stream?path=" + encodedRelPath + sourceParam;
+                    String downloadUrl = streamUrl + "&download=true";
+
+                    String formattedSize = formatFileSize(fileSizeBytes);
+                    String durationDisplay = String.format("%02d:%02d (%ds)", durationSeconds / 60, durationSeconds % 60, durationSeconds);
+                    String eventType = isIncidentVideo ? "SECURITY_EVENT" : "NORMAL_RECORDING";
+                    String eventTypeName = isIncidentVideo ? "Sự cố an ninh (Incident Evidence - MinIO)" : "Ghi hình định kỳ (1 phút/session - MinIO)";
+                    String severity = isIncidentVideo ? "CRITICAL" : null;
+                    String notes = "Video lưu tại MinIO Object Storage (bucket: " + bucketName + ").";
+                    String idPrefix = isIncidentVideo ? "EVD-MINIO-" : "REC-MINIO-";
+
+                    RecordingVideoResponse rec = RecordingVideoResponse.builder()
+                            .id(idPrefix + cameraCode + "-" + startTime.toEpochSecond())
+                            .cameraId(cameraCode)
+                            .cameraName(cameraName)
+                            .areaName(areaName)
+                            .building(building)
+                            .floor(floor)
+                            .eventType(eventType)
+                            .eventTypeName(eventTypeName)
+                            .severity(severity)
+                            .startTime(startTime)
+                            .endTime(endTime)
+                            .duration(durationDisplay)
+                            .fileSize(formattedSize)
+                            .fileSizeBytes(fileSizeBytes)
+                            .resolution("1280x720 (HD 25fps)")
+                            .format("MP4 (H.264 / AVC1)")
+                            .storagePath("minio://" + bucketName + "/" + objectName)
+                            .relativePath(objectName)
+                            .videoUrl(streamUrl)
+                            .downloadUrl(downloadUrl)
+                            .filename(filename)
+                            .notes(notes)
+                            .build();
+
+                    results.add(rec);
+                } catch (Exception ex) {
+                    log.warn("⚠️ Bỏ qua object MinIO: {}", ex.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            log.warn("⚠️ Không thể quét MinIO bucket {}: {}", bucketName, e.getMessage());
+        }
     }
 
     private void scanDirectory(
@@ -96,16 +251,14 @@ public class CameraRecordingService {
             String fromDateStr,
             String toDateStr,
             Map<String, Camera> cameraMap,
-            List<RecordingVideoResponse> results
+            List<RecordingVideoResponse> results,
+            Set<String> seenKeys
     ) {
         Path baseDirPath = Paths.get(dirPathStr).toAbsolutePath().normalize();
-        log.info("🔍 [RecordingService] Quét thư mục (isEvidence={}): {}", isEvidenceFolder, baseDirPath);
         if (!Files.exists(baseDirPath)) {
             try {
                 Files.createDirectories(baseDirPath);
-                log.info("📁 Đã tự động tạo thư mục: {}", baseDirPath);
             } catch (IOException e) {
-                log.error("❌ Không thể tạo thư mục {}: {}", baseDirPath, e.getMessage());
                 return;
             }
         }
@@ -114,15 +267,14 @@ public class CameraRecordingService {
             List<Path> videoFiles = stream
                     .filter(Files::isRegularFile)
                     .filter(p -> p.toString().toLowerCase().endsWith(".mp4"))
+                    .filter(p -> !isInProgressRecordingFilename(p.getFileName().toString()))
                     .toList();
-            log.info("🔍 [RecordingService] Tìm thấy {} tệp mp4 trong {}", videoFiles.size(), baseDirPath);
 
             for (Path filePath : videoFiles) {
                 try {
                     Path relativePath = baseDirPath.relativize(filePath);
                     String relPathStr = relativePath.toString().replace('\\', '/');
 
-                    // Lấy camera_id từ thư mục đầu tiên
                     String cameraCode = "CAM-UNKNOWN";
                     if (relativePath.getNameCount() > 1) {
                         cameraCode = relativePath.getName(0).toString();
@@ -134,6 +286,9 @@ public class CameraRecordingService {
                     }
 
                     String filename = filePath.getFileName().toString();
+                    String dedupKey = cameraCode.toUpperCase() + ":" + filename.toLowerCase();
+                    if (!seenKeys.add(dedupKey)) continue;
+
                     long fileSizeBytes = Files.size(filePath);
                     BasicFileAttributes attrs = Files.readAttributes(filePath, BasicFileAttributes.class);
 
@@ -146,12 +301,11 @@ public class CameraRecordingService {
                         if (diffSec > 0 && diffSec < 86400) {
                             durationSeconds = diffSec;
                         } else {
-                            durationSeconds = Math.max(5, fileSizeBytes / (250 * 1024)); // Ước lượng ~250KB/s
+                            durationSeconds = Math.max(5, fileSizeBytes / (250 * 1024));
                         }
                     }
                     OffsetDateTime endTime = startTime.plusSeconds(durationSeconds);
 
-                    // Lọc theo ngày nếu có
                     if (fromDateStr != null && !fromDateStr.isBlank()) {
                         OffsetDateTime fromDate = OffsetDateTime.parse(fromDateStr + "T00:00:00+07:00");
                         if (startTime.isBefore(fromDate)) continue;
@@ -161,7 +315,6 @@ public class CameraRecordingService {
                         if (startTime.isAfter(toDate)) continue;
                     }
 
-                    // Tìm thông tin camera liên quan từ DB
                     Camera cam = cameraMap.get(cameraCode.toUpperCase());
                     String cameraName = cam != null ? cam.getName() : ("Camera " + cameraCode);
                     String areaName = "Khuôn viên FPTU";
@@ -173,11 +326,8 @@ public class CameraRecordingService {
                             if (cam.getArea().getBuilding() != null) building = cam.getArea().getBuilding();
                             if (cam.getArea().getFloor() != null) floor = "Tầng " + cam.getArea().getFloor();
                         }
-                    } catch (Exception ex) {
-                        log.debug("Không thể đọc Area proxy của camera [{}]: {}", cameraCode, ex.getMessage());
-                    }
+                    } catch (Exception ignored) {}
 
-                    // Tìm theo keyword
                     if (keyword != null && !keyword.isBlank()) {
                         String kw = keyword.toLowerCase().trim();
                         boolean matches = cameraCode.toLowerCase().contains(kw)
@@ -239,10 +389,91 @@ public class CameraRecordingService {
     }
 
     /**
-     * Trả về Stream Video hỗ trợ HTTP Range chuẩn cho thẻ <video> HTML5.
-     * Hỗ trợ tìm kiếm tệp ở cả recordingStoragePath và evidenceStoragePath.
+     * Trả về Stream Video hỗ trợ HTTP Range (206 Partial Content) chuẩn cho thẻ <video> HTML5.
+     * Hỗ trợ tìm kiếm tệp ở MinIO và cả ổ đĩa cục bộ.
      */
     public ResponseEntity<Resource> streamVideo(String relativePathStr, String source, HttpHeaders headers, boolean download) throws IOException {
+        // Kiểm tra an ninh nghiêm ngặt chống Path Traversal và rò rỉ file hệ thống (CWE-22)
+        if (relativePathStr == null || relativePathStr.isBlank()
+                || relativePathStr.contains("..")
+                || relativePathStr.startsWith("/")
+                || relativePathStr.startsWith("\\")
+                || !relativePathStr.toLowerCase().endsWith(".mp4")) {
+            log.warn("🚨 Từ chối truy cập đường dẫn không hợp lệ hoặc chứa ký tự nguy hiểm: {}", relativePathStr);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+
+        // 1. Kiểm tra nếu video được lưu tại MinIO
+        if (source != null && source.startsWith("minio") && minioStorageService != null) {
+            String bucket = source.contains("evidence")
+                    ? minioStorageService.getEvidenceBucket()
+                    : minioStorageService.getRecordingsBucket();
+            try {
+                var statOpt = minioStorageService.statObject(bucket, relativePathStr);
+                if (statOpt.isPresent()) {
+                    var stat = statOpt.get();
+                    long totalLength = stat.size();
+                    String filename = relativePathStr.contains("/") ? relativePathStr.substring(relativePathStr.lastIndexOf("/") + 1) : relativePathStr;
+
+                    if (download) {
+                        InputStream inputStream = minioStorageService.getObject(bucket, relativePathStr);
+                        Resource resource = new InputStreamResource(inputStream) {
+                            @Override
+                            public long contentLength() {
+                                return totalLength;
+                            }
+                        };
+                        return ResponseEntity.ok()
+                                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                                .contentType(MediaType.valueOf("video/mp4"))
+                                .contentLength(totalLength)
+                                .body(resource);
+                    }
+
+                    // Hỗ trợ HTTP 206 Partial Content (Range Header) để trình duyệt đọc moov atom cuối file tức thì
+                    List<HttpRange> ranges = headers != null ? headers.getRange() : Collections.emptyList();
+                    if (!ranges.isEmpty() && totalLength > 0) {
+                        HttpRange range = ranges.get(0);
+                        long start = range.getRangeStart(totalLength);
+                        long end = range.getRangeEnd(totalLength);
+                        if (end - start + 1 > MAX_RANGE_CHUNK_BYTES) {
+                            end = start + MAX_RANGE_CHUNK_BYTES - 1;
+                        }
+                        long rangeLength = end - start + 1;
+
+                        byte[] data;
+                        try (InputStream is = minioStorageService.getObject(bucket, relativePathStr, start, rangeLength)) {
+                            data = is.readAllBytes();
+                        }
+                        long actualEnd = start + Math.max(0, data.length - 1);
+
+                        return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT)
+                                .contentType(MediaType.valueOf("video/mp4"))
+                                .header(HttpHeaders.ACCEPT_RANGES, "bytes")
+                                .header(HttpHeaders.CONTENT_RANGE, "bytes " + start + "-" + actualEnd + "/" + totalLength)
+                                .contentLength(data.length)
+                                .body(new ByteArrayResource(data));
+                    }
+
+                    InputStream inputStream = minioStorageService.getObject(bucket, relativePathStr);
+                    Resource resource = new InputStreamResource(inputStream) {
+                        @Override
+                        public long contentLength() {
+                            return totalLength;
+                        }
+                    };
+                    return ResponseEntity.ok()
+                            .contentType(MediaType.valueOf("video/mp4"))
+                            .header(HttpHeaders.ACCEPT_RANGES, "bytes")
+                            .contentLength(totalLength)
+                            .body(resource);
+                }
+            } catch (Exception e) {
+                log.error("❌ Lỗi stream video từ MinIO bucket {} object {}: {}", bucket, relativePathStr, e.getMessage());
+            }
+        }
+
+        // 2. Fallback đọc từ đĩa cục bộ
         Path recBasePath = Paths.get(recordingStoragePath).toAbsolutePath().normalize();
         Path evdBasePath = Paths.get(evidenceStoragePath).toAbsolutePath().normalize();
 
@@ -259,7 +490,6 @@ public class CameraRecordingService {
             }
         }
 
-        // Kiểm tra an ninh chống Directory Traversal Attack
         if (!targetPath.startsWith(recBasePath) && !targetPath.startsWith(evdBasePath)) {
             log.warn("🚨 Từ chối truy cập đường dẫn bất thường: {}", relativePathStr);
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
@@ -275,10 +505,10 @@ public class CameraRecordingService {
 
         if (download) {
             return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + file.getName() + "\"")
-                    .contentType(MediaType.valueOf("video/mp4"))
-                    .contentLength(contentLength)
-                    .body(resource);
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + file.getName() + "\"")
+                .contentType(MediaType.valueOf("video/mp4"))
+                .contentLength(contentLength)
+                .body(resource);
         }
 
         return ResponseEntity.ok()
@@ -289,9 +519,17 @@ public class CameraRecordingService {
     }
 
     private OffsetDateTime parseStartTime(String filename, BasicFileAttributes attrs) {
+        long modifiedMillis = attrs.lastModifiedTime().toMillis();
+        OffsetDateTime fallback = OffsetDateTime.ofInstant(
+                java.time.Instant.ofEpochMilli(modifiedMillis),
+                VIETNAM_ZONE
+        ).minusSeconds(60);
+        return parseStartTimeFromFilename(filename, fallback);
+    }
+
+    private OffsetDateTime parseStartTimeFromFilename(String filename, OffsetDateTime fallback) {
         String baseName = filename.replace(".mp4", "").replaceFirst("^(?i)Incident[ _-]*", "").trim();
 
-        // Thử parse qua các định dạng ngày giờ chuẩn
         for (DateTimeFormatter fmt : DATE_TIME_FORMATTERS) {
             try {
                 LocalDateTime ldt = LocalDateTime.parse(baseName, fmt);
@@ -300,7 +538,6 @@ public class CameraRecordingService {
             }
         }
 
-        // Thử regex tìm chuỗi ngày tháng giờ phút giây dạng dd-MM-yyyy...
         Pattern p = Pattern.compile("(\\d{2})[-_](\\d{2})[-_](\\d{4})[-_ ]*(\\d{2})[-_](\\d{2})[-_](\\d{2})");
         Matcher m = p.matcher(baseName);
         if (m.find()) {
@@ -317,12 +554,7 @@ public class CameraRecordingService {
             }
         }
 
-        // Fallback: Lấy thời gian sửa đổi gần nhất của file trừ đi 60s
-        long modifiedMillis = attrs.lastModifiedTime().toMillis();
-        return OffsetDateTime.ofInstant(
-                java.time.Instant.ofEpochMilli(modifiedMillis),
-                VIETNAM_ZONE
-        ).minusSeconds(60);
+        return fallback;
     }
 
     private String formatFileSize(long bytes) {

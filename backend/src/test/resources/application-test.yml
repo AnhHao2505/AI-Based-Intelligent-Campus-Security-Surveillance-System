@@ -34,6 +34,8 @@ icss:
     service-key: test-only-internal-service-key-0123456789
 
 app:
+  mqtt:
+    enabled: false
   jwt:
     secret: test-only-jwt-62e0fdf877032ac0cf424858761bd9b5083d9097282d4a5525786d4ecde99040 # test-only, not a real secret
   # S3: khác giá trị mặc định để test chứng minh link đặt lại mật khẩu đọc từ cấu hình

@@ -48,6 +48,7 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_KMS_SECRET_KEY: ${MINIO_KMS_SECRET_KEY:-my-minio-key:MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}
     command: server /data --console-address ":9001"
     ports:
       - "9000:9000"
@@ -62,37 +63,16 @@ services:
     networks:
       - sep_network
 
-  # 4. Apache Kafka (Confluent KRaft mode, không cần Zookeeper)
-  kafka:
-    image: confluentinc/cp-kafka:7.7.0
-    container_name: sep_kafka
-    hostname: kafka
+  # 4. Eclipse Mosquitto (MQTT Broker — Edge-Cloud Telemetry & Real-time Incidents)
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: sep_mosquitto
     restart: always
     ports:
-      - "9092:9092"
-    environment:
-      KAFKA_NODE_ID: 1
-      KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
-      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093,HOST://0.0.0.0:9092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,HOST://localhost:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,HOST:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      CLUSTER_ID: ${KAFKA_CLUSTER_ID}
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      - "1883:1883"
     volumes:
-      - kafkadata:/var/lib/kafka/data
-    healthcheck:
-      test: [ "CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list" ]
-      interval: 10s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
+      - ./mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquittodata:/mosquitto/data
     networks:
       - sep_network
 
@@ -125,47 +105,48 @@ services:
   #   depends_on:
   #     postgres:
   #       condition: service_healthy
-  #     kafka:
-  #       condition: service_healthy
+  #     mosquitto:
+  #       condition: service_started
   #   networks:
   #     - sep_network
 
   # 6. AI Service (Python / YOLO11 / ByteTrack / OpenCV YuNet)
-  ai-service:
-    build:
-      context: ./ai-service
-      dockerfile: Dockerfile
-    container_name: sep_ai_service
-    restart: always
-    ports:
-      - "8000:8000"
-    environment:
-      DB_HOST: postgres
-      DB_PORT: 5432
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      MINIO_ENDPOINT: minio:9000
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-      BACKEND_API_URL: http://host.docker.internal:8080
-      MODEL_YOLO_PATH: /app/yolo11n.pt
-      MODEL_YUNET_PATH: /app/models/face_detection_yunet.onnx
-      # Khoá dùng chung với Backend (header X-Service-Key); giá trị chỉ đặt trong .env
-      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY}
-      TZ: Asia/Ho_Chi_Minh
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-    networks:
-      - sep_network
+  # ai-service:
+  #   build:
+  #     context: ./ai-service
+  #     dockerfile: Dockerfile
+  #   container_name: sep_ai_service
+  #   restart: always
+  #   ports:
+  #     - "8000:8000"
+  #   environment:
+  #     DB_HOST: postgres
+  #     DB_PORT: 5432
+  #     POSTGRES_USER: ${POSTGRES_USER}
+  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+  #     POSTGRES_DB: ${POSTGRES_DB}
+  #     MQTT_BROKER_HOST: mosquitto
+  #     MQTT_BROKER_PORT: 1883
+  #     MINIO_ENDPOINT: minio:9000
+  #     MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+  #     MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+  #     BACKEND_API_URL: http://host.docker.internal:8080
+  #     MODEL_YOLO_PATH: /app/yolo11n.pt
+  #     MODEL_YUNET_PATH: /app/models/face_detection_yunet.onnx
+  #     # Khoá dùng chung với Backend (header X-Service-Key); giá trị chỉ đặt trong .env
+  #     INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY}
+  #     TZ: Asia/Ho_Chi_Minh
+  #   extra_hosts:
+  #     - "host.docker.internal:host-gateway"
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     mosquitto:
+  #       condition: service_started
+  #     minio:
+  #       condition: service_healthy
+  #   networks:
+  #     - sep_network
 
   # 7. Frontend (Vite + React)
   # frontend:
@@ -201,7 +182,7 @@ volumes:
   pgdata:
   pgadmindata:
   miniodata:
-  kafkadata:
+  mosquittodata:
 
 networks:
   sep_network:

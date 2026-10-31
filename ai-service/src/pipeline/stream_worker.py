@@ -49,7 +49,7 @@ class CameraStreamWorker:
     - Kéo frame liên tục từ RTSP stream theo từng camera
     - Ghi hình liên tục vào ổ đĩa, cắt chuẩn xác 1 phút/session
     - Phân tích qua VideoPipeline (YOLO11 + YuNet)
-    - Gửi Incident Event sang Kafka khi phát hiện vi phạm
+    - Gửi Incident Event sang MQTT Broker khi phát hiện vi phạm
     """
     def __init__(
         self,
