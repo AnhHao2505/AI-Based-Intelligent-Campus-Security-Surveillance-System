@@ -26,7 +26,7 @@ spring:
   flyway:
     enabled: true
     baseline-on-migrate: true
-    validate-on-migrate: true
+    validate-on-migrate: ${FLYWAY_VALIDATE_ON_MIGRATE:false}
     out-of-order: true
     locations: classpath:db/migration
 
@@ -51,6 +51,8 @@ spring:
   # Apache Kafka Configuration
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    listener:
+      auto-startup: ${KAFKA_LISTENER_AUTO_STARTUP:false}
     consumer:
       group-id: campus-security-backend-group
       auto-offset-reset: latest
@@ -134,8 +136,8 @@ icss:
 
 recording:
   storage:
-    path: ${RECORDING_STORAGE_PATH:C:/DATN/AI-Based-Intelligent-Campus-Security-Surveillance-System/recording}
+    path: ${RECORDING_STORAGE_PATH:./recording}
   evidence:
-    path: ${EVIDENCE_STORAGE_PATH:C:/DATN/AI-Based-Intelligent-Campus-Security-Surveillance-System/evidence}
+    path: ${EVIDENCE_STORAGE_PATH:./evidence}
 
 
