@@ -2,6 +2,7 @@ package com.fa26se040.icss.controller;
 
 import com.fa26se040.icss.dto.common.ApiResponse;
 import com.fa26se040.icss.dto.guard.AvailableSubstituteDto;
+import com.fa26se040.icss.dto.guard.BuildingRotationReportResponse;
 import com.fa26se040.icss.dto.guard.BulkClearShiftsRequest;
 import com.fa26se040.icss.dto.guard.BulkClearShiftsResponse;
 import com.fa26se040.icss.dto.guard.CapacityCalculateRequest;
@@ -55,6 +56,18 @@ public class GuardShiftController {
     ) {
         log.info("FM querying shifts from [{}] to [{}], building: [{}]", startDate, endDate, building);
         return ResponseEntity.ok(ApiResponse.success(guardScheduleService.getShifts(startDate, endDate, guardId, building, status), "Lấy danh sách ca trực thành công"));
+    }
+
+    @GetMapping("/building-rotation-report")
+    @PreAuthorize("hasAnyRole('FACILITY_MANAGER', 'ADMIN')")
+    public ResponseEntity<ApiResponse<BuildingRotationReportResponse>> getBuildingRotationReport(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) UUID teamId
+    ) {
+        log.info("Querying building rotation report from [{}] to [{}], teamId: [{}]", from, to, teamId);
+        BuildingRotationReportResponse report = guardScheduleService.getBuildingRotationReport(from, to, teamId);
+        return ResponseEntity.ok(ApiResponse.success(report, "Lấy báo cáo luân chuyển tòa nhà thành công"));
     }
 
     @GetMapping("/export-timesheet")

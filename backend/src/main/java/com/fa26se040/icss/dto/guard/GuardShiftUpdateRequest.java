@@ -34,6 +34,9 @@ public class GuardShiftUpdateRequest {
     private LocalTime endTime;
 
     private UUID areaId;
+    private UUID buildingId;
+    private Boolean crossBuilding;
+    private String crossBuildingReason;
     private ShiftStatus status;
     private String notes;
     private Boolean isOvertime;

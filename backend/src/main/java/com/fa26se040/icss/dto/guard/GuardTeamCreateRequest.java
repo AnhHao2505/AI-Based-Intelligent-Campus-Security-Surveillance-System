@@ -4,6 +4,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.*;
 
+import java.util.UUID;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -16,6 +18,8 @@ public class GuardTeamCreateRequest {
     private String teamName;
 
     private String description;
+
+    private UUID buildingId;
 
     private Integer weekdayMorningDemand;
     private Integer weekdayAfternoonDemand;

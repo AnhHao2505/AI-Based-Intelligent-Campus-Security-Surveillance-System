@@ -3,9 +3,14 @@ package com.fa26se040.icss.service;
 import com.fa26se040.icss.dto.guard.GuardTeamCreateRequest;
 import com.fa26se040.icss.dto.guard.GuardTeamDto;
 import com.fa26se040.icss.dto.guard.GuardTeamMemberAssignRequest;
+import com.fa26se040.icss.dto.guard.TeamBuildingChangePreviewResponse;
+import com.fa26se040.icss.entity.Building;
+import com.fa26se040.icss.entity.GuardShift;
 import com.fa26se040.icss.entity.GuardTeam;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.Role;
+import com.fa26se040.icss.repository.BuildingRepository;
+import com.fa26se040.icss.repository.GuardShiftRepository;
 import com.fa26se040.icss.repository.GuardTeamRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +18,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -24,6 +31,8 @@ public class GuardTeamService {
 
     private final GuardTeamRepository teamRepository;
     private final UserRepository userRepository;
+    private final BuildingRepository buildingRepository;
+    private final GuardShiftRepository shiftRepository;
 
     @Transactional(readOnly = true)
     public List<GuardTeamDto> getAllTeams() {
@@ -42,6 +51,13 @@ public class GuardTeamService {
     @Transactional
     public GuardTeamDto createTeam(GuardTeamCreateRequest request) {
         String trimmedName = request.getTeamName().trim();
+
+        Building building = null;
+        if (request.getBuildingId() != null) {
+            building = buildingRepository.findById(request.getBuildingId())
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy tòa nhà"));
+        }
+
         java.util.Optional<GuardTeam> existingOpt = teamRepository.findByTeamNameIgnoreCase(trimmedName);
         if (existingOpt.isPresent()) {
             GuardTeam existing = existingOpt.get();
@@ -51,6 +67,9 @@ public class GuardTeamService {
                 // Tái kích hoạt đội đã từng bị xóa trước đó
                 existing.setIsActive(true);
                 existing.setDescription(request.getDescription());
+                if (building != null) {
+                    existing.setBuilding(building);
+                }
                 GuardTeam saved = teamRepository.save(existing);
                 log.info("Re-activated previously deleted guard team [{}] with ID [{}]", saved.getTeamName(), saved.getId());
                 return mapToDto(saved);
@@ -60,6 +79,7 @@ public class GuardTeamService {
         GuardTeam team = GuardTeam.builder()
                 .teamName(trimmedName)
                 .description(request.getDescription())
+                .building(building)
                 .isActive(true)
                 .weekdayMorningDemand(request.getWeekdayMorningDemand() != null ? request.getWeekdayMorningDemand() : 3)
                 .weekdayAfternoonDemand(request.getWeekdayAfternoonDemand() != null ? request.getWeekdayAfternoonDemand() : 4)
@@ -92,6 +112,19 @@ public class GuardTeamService {
                     duplicate.setTeamName(trimmedName + "_deleted_" + duplicate.getId().toString().substring(0, 8));
                     teamRepository.save(duplicate);
                 }
+            }
+        }
+
+        if (request.getBuildingId() != null) {
+            UUID currentBuildingId = team.getBuilding() != null ? team.getBuilding().getId() : null;
+            if (!request.getBuildingId().equals(currentBuildingId)) {
+                TeamBuildingChangePreviewResponse eval = evaluateBuildingChange(team, request.getBuildingId());
+                if (!eval.canChange()) {
+                    throw new IllegalStateException(eval.blockers().get(0).message());
+                }
+                Building newBuilding = buildingRepository.findById(request.getBuildingId())
+                        .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy tòa nhà"));
+                team.setBuilding(newBuilding);
             }
         }
 
@@ -180,6 +213,61 @@ public class GuardTeamService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
+    public TeamBuildingChangePreviewResponse previewBuildingChange(UUID teamId, UUID targetBuildingId) {
+        GuardTeam team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy tổ đội bảo vệ"));
+        return evaluateBuildingChange(team, targetBuildingId);
+    }
+
+    private TeamBuildingChangePreviewResponse evaluateBuildingChange(GuardTeam team, UUID targetBuildingId) {
+        Building targetBuilding = buildingRepository.findById(targetBuildingId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy tòa nhà"));
+
+        Building currentBuilding = team.getBuilding();
+        List<TeamBuildingChangePreviewResponse.Blocker> blockers = new ArrayList<>();
+
+        if (currentBuilding != null && !currentBuilding.getId().equals(targetBuildingId)) {
+            List<GuardShift> scheduledShifts = shiftRepository.findFutureScheduledShiftsInBuilding(
+                    team.getId(), LocalDate.now(), currentBuilding.getId()
+            );
+
+            if (!scheduledShifts.isEmpty()) {
+                List<TeamBuildingChangePreviewResponse.BlockerShiftDetail> details = scheduledShifts.stream()
+                        .map(s -> new TeamBuildingChangePreviewResponse.BlockerShiftDetail(
+                                s.getId(),
+                                s.getGuard().getId(),
+                                s.getGuard().getFullName(),
+                                s.getGuard().getUserCode(),
+                                s.getShiftDate(),
+                                s.getShiftType() != null ? s.getShiftType().name() : null
+                        ))
+                        .collect(Collectors.toList());
+
+                String msg = "Không thể đổi tòa nhà: còn " + scheduledShifts.size()
+                        + " ca trực tương lai (từ hôm nay) của thành viên đội tại " + currentBuilding.getName()
+                        + ". Cần điều chỉnh hoặc xử lý các ca này trước khi đổi tòa.";
+
+                blockers.add(new TeamBuildingChangePreviewResponse.Blocker(
+                        "SCHEDULED_SHIFTS_IN_CURRENT_BUILDING",
+                        scheduledShifts.size(),
+                        msg,
+                        details
+                ));
+            }
+        }
+
+        return new TeamBuildingChangePreviewResponse(
+                team.getId(),
+                currentBuilding != null ? currentBuilding.getId() : null,
+                currentBuilding != null ? currentBuilding.getName() : null,
+                targetBuilding.getId(),
+                targetBuilding.getName(),
+                blockers.isEmpty(),
+                blockers
+        );
+    }
+
     private GuardTeamDto mapToDto(GuardTeam team) {
         List<User> members = userRepository.findByTeamIdAndDeletedAtIsNullAndIsActiveTrue(team.getId());
         List<GuardTeamDto.TeamMemberDto> memberDtos = members.stream()
@@ -191,10 +279,15 @@ public class GuardTeamService {
                         .build())
                 .collect(Collectors.toList());
 
+        UUID bId = team.getBuilding() != null ? team.getBuilding().getId() : null;
+        String bName = team.getBuilding() != null ? team.getBuilding().getName() : null;
+
         return GuardTeamDto.builder()
                 .id(team.getId())
                 .teamName(team.getTeamName())
                 .description(team.getDescription())
+                .buildingId(bId)
+                .buildingName(bName)
                 .isActive(team.getIsActive())
                 .weekdayMorningDemand(team.getWeekdayMorningDemand() != null ? team.getWeekdayMorningDemand() : 3)
                 .weekdayAfternoonDemand(team.getWeekdayAfternoonDemand() != null ? team.getWeekdayAfternoonDemand() : 4)

@@ -4,6 +4,7 @@ import com.fa26se040.icss.dto.common.ApiResponse;
 import com.fa26se040.icss.dto.guard.GuardTeamCreateRequest;
 import com.fa26se040.icss.dto.guard.GuardTeamDto;
 import com.fa26se040.icss.dto.guard.GuardTeamMemberAssignRequest;
+import com.fa26se040.icss.dto.guard.TeamBuildingChangePreviewResponse;
 import com.fa26se040.icss.service.GuardTeamService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -37,8 +38,20 @@ public class GuardTeamController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<GuardTeamDto>> createTeam(@Valid @RequestBody GuardTeamCreateRequest request) {
+        if (request.getBuildingId() == null) {
+            throw new IllegalArgumentException("Tòa nhà phụ trách không được để trống khi tạo đội mới");
+        }
         GuardTeamDto created = guardTeamService.createTeam(request);
         return new ResponseEntity<>(ApiResponse.created(created, "Tạo đội bảo vệ mới thành công"), HttpStatus.CREATED);
+    }
+
+    @GetMapping("/{id}/building-change-preview")
+    public ResponseEntity<ApiResponse<TeamBuildingChangePreviewResponse>> previewBuildingChange(
+            @PathVariable UUID id,
+            @RequestParam UUID buildingId
+    ) {
+        TeamBuildingChangePreviewResponse preview = guardTeamService.previewBuildingChange(id, buildingId);
+        return ResponseEntity.ok(ApiResponse.success(preview, "Kiểm tra điều kiện đổi tòa nhà thành công"));
     }
 
     @PutMapping("/{id}")

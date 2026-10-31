@@ -1,9 +1,11 @@
 package com.fa26se040.icss.service;
 
+import com.fa26se040.icss.dto.guard.BuildingRotationReportResponse;
 import com.fa26se040.icss.dto.guard.GuardShiftCreateRequest;
 import com.fa26se040.icss.dto.guard.GuardShiftDto;
 import com.fa26se040.icss.dto.guard.GuardShiftUpdateRequest;
 import com.fa26se040.icss.entity.Area;
+import com.fa26se040.icss.entity.Building;
 import com.fa26se040.icss.entity.GuardShift;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.Role;
@@ -11,6 +13,7 @@ import com.fa26se040.icss.enums.ShiftStatus;
 import com.fa26se040.icss.enums.ShiftType;
 import com.fa26se040.icss.entity.DutyPostType;
 import com.fa26se040.icss.repository.AreaRepository;
+import com.fa26se040.icss.repository.BuildingRepository;
 import com.fa26se040.icss.repository.DutyPostTypeRepository;
 import com.fa26se040.icss.repository.GuardShiftRepository;
 import com.fa26se040.icss.repository.UserRepository;
@@ -59,6 +62,7 @@ public class GuardScheduleService {
     private final GuardShiftRequestRepository shiftRequestRepository;
     private final GuardTeamDispatchRepository dispatchRepository;
     private final DutyPostTypeRepository dutyPostTypeRepository;
+    private final BuildingRepository buildingRepository;
 
 
 
@@ -136,9 +140,16 @@ public class GuardScheduleService {
                 }
                 team = teamRepository.save(team);
             } else {
+                Building defaultTeamBuilding = null;
+                if (request.getBuildingId() != null) {
+                    defaultTeamBuilding = buildingRepository.findById(request.getBuildingId()).orElse(null);
+                } else if (request.getBuilding() != null && !request.getBuilding().isBlank() && !"ALL".equalsIgnoreCase(request.getBuilding().trim())) {
+                    defaultTeamBuilding = buildingRepository.findByNameIgnoreCase(request.getBuilding().trim()).orElse(null);
+                }
                 team = teamRepository.save(GuardTeam.builder()
                         .teamName(trimmedName)
                         .description(request.getBuilding() != null && !request.getBuilding().isBlank() ? request.getBuilding() : "Tổ tạo nhanh từ Wizard")
+                        .building(defaultTeamBuilding)
                         .isActive(true)
                         .build());
             }
@@ -157,6 +168,33 @@ public class GuardScheduleService {
 
         if (guards.isEmpty()) {
             throw new IllegalArgumentException("Không có bảo vệ nào được chọn để lập lịch trực");
+        }
+
+        // P1b (4.2): Xác định tòa nhà của ca trực từ Wizard
+        Building wizardBuilding = null;
+        if (request.getBuildingId() != null) {
+            wizardBuilding = buildingRepository.findById(request.getBuildingId())
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy tòa nhà"));
+        } else if (request.getBuilding() != null && !request.getBuilding().isBlank() && !"ALL".equalsIgnoreCase(request.getBuilding().trim())) {
+            wizardBuilding = buildingRepository.findByNameIgnoreCase(request.getBuilding().trim()).orElse(null);
+        }
+        if (wizardBuilding == null && team != null && team.getBuilding() != null) {
+            wizardBuilding = team.getBuilding();
+        }
+
+        boolean isWizardCross = false;
+        String wizardCrossReason = null;
+        if (team != null && team.getBuilding() != null && wizardBuilding != null
+                && !team.getBuilding().getId().equals(wizardBuilding.getId())) {
+            if (!Boolean.TRUE.equals(request.getConfirmCrossBuilding())) {
+                throw new IllegalArgumentException("Tòa nhà ca trực (" + wizardBuilding.getName()
+                        + ") khác tòa nhà phụ trách của đội (" + team.getBuilding().getName()
+                        + "). Cần xác nhận luân chuyển tòa nhà (confirmCrossBuilding = true).");
+            }
+            isWizardCross = true;
+            wizardCrossReason = (request.getCrossBuildingReason() != null && !request.getCrossBuildingReason().isBlank())
+                    ? request.getCrossBuildingReason().trim()
+                    : null;
         }
 
         int m = guards.size();
@@ -496,6 +534,9 @@ public class GuardScheduleService {
                             .startTime(startTime)
                             .endTime(endTime)
                             .area(targetArea)
+                            .building(wizardBuilding)
+                            .isCrossBuilding(isWizardCross)
+                            .crossBuildingReason(wizardCrossReason)
                             .status(ShiftStatus.SCHEDULED)
                             .isOvertime(false)
                             .notes(null)
@@ -517,7 +558,7 @@ public class GuardScheduleService {
         log.info("Wizard generated {} shifts for {} guards across {} days",
                 createdShifts.size(), m, dayIndex);
 
-        return createdShifts.stream().map(this::mapShiftToDto).collect(Collectors.toList());
+        return mapShiftsToDto(createdShifts);
     }
 
     // ==========================================
@@ -535,7 +576,7 @@ public class GuardScheduleService {
 
         List<GuardShift> list = shiftRepository.findShifts(startDate, endDate, guardId, normalizedBuilding, status);
         autoMarkAbsentIfOverdue(list);
-        return list.stream().map(this::mapShiftToDto).collect(Collectors.toList());
+        return mapShiftsToDto(list);
     }
 
     @Transactional
@@ -558,6 +599,43 @@ public class GuardScheduleService {
                     .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy khu vực được chỉ định"));
         }
 
+        // P1b (4.2): Xác định tòa nhà của ca và kiểm tra luân chuyển
+        Building shiftBuilding = null;
+        if (request.getBuildingId() != null) {
+            shiftBuilding = buildingRepository.findById(request.getBuildingId())
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy tòa nhà"));
+        } else if (guard.getTeam() != null && guard.getTeam().getBuilding() != null) {
+            shiftBuilding = guard.getTeam().getBuilding();
+        } else if (area != null && area.getFloorEntity() != null && area.getFloorEntity().getBuilding() != null) {
+            shiftBuilding = area.getFloorEntity().getBuilding();
+        }
+
+        boolean isCross = false;
+        String crossReason = null;
+        if (guard.getTeam() != null && guard.getTeam().getBuilding() != null && shiftBuilding != null) {
+            if (!guard.getTeam().getBuilding().getId().equals(shiftBuilding.getId())) {
+                if (!Boolean.TRUE.equals(request.getCrossBuilding())) {
+                    throw new IllegalArgumentException("Tòa nhà ca trực (" + shiftBuilding.getName()
+                            + ") khác tòa nhà phụ trách của đội (" + guard.getTeam().getBuilding().getName()
+                            + "). Cần xác nhận luân chuyển bảo vệ (crossBuilding = true).");
+                }
+                isCross = true;
+                crossReason = request.getCrossBuildingReason();
+            }
+        }
+
+        // BR-GB-04: Khu vực khi gán phải thuộc tòa nhà của ca trực
+        if (area != null && shiftBuilding != null) {
+            Building areaBuilding = (area.getFloorEntity() != null) ? area.getFloorEntity().getBuilding() : null;
+            if (areaBuilding != null && !areaBuilding.getId().equals(shiftBuilding.getId())) {
+                throw new IllegalArgumentException("Khu vực trực (" + area.getName() + " thuộc " + areaBuilding.getName()
+                        + ") không thuộc tòa nhà của ca (" + shiftBuilding.getName() + ").");
+            } else if (areaBuilding == null && area.getBuilding() != null && !area.getBuilding().equalsIgnoreCase(shiftBuilding.getName())) {
+                throw new IllegalArgumentException("Khu vực trực (" + area.getName() + " thuộc " + area.getBuilding()
+                        + ") không thuộc tòa nhà của ca (" + shiftBuilding.getName() + ").");
+            }
+        }
+
         GuardShift shift = GuardShift.builder()
                 .guard(guard)
                 .shiftDate(request.getShiftDate())
@@ -565,6 +643,9 @@ public class GuardScheduleService {
                 .startTime(request.getStartTime())
                 .endTime(request.getEndTime())
                 .area(area)
+                .building(shiftBuilding)
+                .isCrossBuilding(isCross)
+                .crossBuildingReason(crossReason)
                 .status(ShiftStatus.SCHEDULED)
                 .notes(request.getNotes())
                 .isOvertime(Boolean.TRUE.equals(request.getIsOvertime()))
@@ -589,12 +670,60 @@ public class GuardScheduleService {
                     .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy khu vực được chỉ định"));
         }
 
+        // P1b (4.2): Sửa ca không gửi buildingId (hoặc gửi đúng toà hiện tại) thì giữ toà hiện tại
+        Building shiftBuilding = shift.getBuilding();
+        boolean buildingChanged = false;
+        if (request.getBuildingId() != null
+                && (shiftBuilding == null || !request.getBuildingId().equals(shiftBuilding.getId()))) {
+            shiftBuilding = buildingRepository.findById(request.getBuildingId())
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy tòa nhà"));
+            buildingChanged = true;
+        }
+        boolean guardChanged = shift.getGuard() == null || !guard.getId().equals(shift.getGuard().getId());
+
+        // Toà và bảo vệ không đổi: giữ nguyên cờ luân chuyển và lý do hiện có (ca điều chuyển, ca đã luân chuyển)
+        boolean isCross = Boolean.TRUE.equals(shift.getIsCrossBuilding());
+        String crossReason = shift.getCrossBuildingReason();
+        if (buildingChanged || guardChanged) {
+            Building teamBuilding = guard.getTeam() != null ? guard.getTeam().getBuilding() : null;
+            isCross = teamBuilding != null && shiftBuilding != null && !teamBuilding.getId().equals(shiftBuilding.getId());
+            if (isCross && !Boolean.TRUE.equals(request.getCrossBuilding())) {
+                throw new IllegalArgumentException("Tòa nhà ca trực (" + shiftBuilding.getName()
+                        + ") khác tòa nhà phụ trách của đội (" + teamBuilding.getName()
+                        + "). Cần xác nhận luân chuyển bảo vệ (crossBuilding = true).");
+            }
+            if (!isCross) {
+                crossReason = null;
+            }
+        }
+        if (isCross && request.getCrossBuildingReason() != null) {
+            crossReason = request.getCrossBuildingReason().isBlank() ? null : request.getCrossBuildingReason().trim();
+        }
+
+        // BR-GB-04: Khu vực khi gán phải thuộc tòa nhà của ca trực
+        // Chỉ kiểm khi đổi khu vực hoặc đổi toà, để sửa ca cũ (vd. ca điều chuyển lấy khu vực dự phòng) không bị chặn
+        UUID currentAreaId = shift.getArea() != null ? shift.getArea().getId() : null;
+        boolean areaChanged = area != null && !area.getId().equals(currentAreaId);
+        if (area != null && shiftBuilding != null && (areaChanged || buildingChanged)) {
+            Building areaBuilding = (area.getFloorEntity() != null) ? area.getFloorEntity().getBuilding() : null;
+            if (areaBuilding != null && !areaBuilding.getId().equals(shiftBuilding.getId())) {
+                throw new IllegalArgumentException("Khu vực trực (" + area.getName() + " thuộc " + areaBuilding.getName()
+                        + ") không thuộc tòa nhà của ca (" + shiftBuilding.getName() + ").");
+            } else if (areaBuilding == null && area.getBuilding() != null && !area.getBuilding().equalsIgnoreCase(shiftBuilding.getName())) {
+                throw new IllegalArgumentException("Khu vực trực (" + area.getName() + " thuộc " + area.getBuilding()
+                        + ") không thuộc tòa nhà của ca (" + shiftBuilding.getName() + ").");
+            }
+        }
+
         shift.setGuard(guard);
         shift.setShiftDate(request.getShiftDate());
         shift.setShiftType(request.getShiftType());
         shift.setStartTime(request.getStartTime());
         shift.setEndTime(request.getEndTime());
         shift.setArea(area);
+        shift.setBuilding(shiftBuilding);
+        shift.setIsCrossBuilding(isCross);
+        shift.setCrossBuildingReason(crossReason);
         if (request.getStatus() != null) {
             shift.setStatus(request.getStatus());
         }
@@ -755,7 +884,7 @@ public class GuardScheduleService {
                 guard.getId(), startDate, endDate
         );
         autoMarkAbsentIfOverdue(list);
-        return list.stream().map(this::mapShiftToDto).collect(Collectors.toList());
+        return mapShiftsToDto(list);
     }
 
     @Transactional
@@ -883,10 +1012,140 @@ public class GuardScheduleService {
         }
     }
 
+    @Transactional(readOnly = true)
+    public BuildingRotationReportResponse getBuildingRotationReport(LocalDate from, LocalDate to, UUID teamId) {
+        LocalDate effectiveFrom = from != null ? from : LocalDate.now().withDayOfMonth(1);
+        LocalDate effectiveTo = to != null ? to : effectiveFrom.plusMonths(1).minusDays(1);
+
+        if (effectiveFrom.isAfter(effectiveTo)) {
+            throw new IllegalArgumentException("Ngày bắt đầu không được sau ngày kết thúc");
+        }
+
+        List<User> guards;
+        if (teamId != null) {
+            guards = userRepository.findByTeamIdAndDeletedAtIsNullAndIsActiveTrue(teamId);
+        } else {
+            guards = userRepository.findByRoleAndDeletedAtIsNullAndIsActiveTrue(Role.GUARD);
+        }
+
+        List<GuardShift> shifts = shiftRepository.findShiftsForRotationReport(effectiveFrom, effectiveTo, teamId);
+        Map<UUID, List<GuardShift>> shiftsByGuard = shifts.stream()
+                .collect(Collectors.groupingBy(s -> s.getGuard().getId()));
+
+        List<Building> activeBuildings = buildingRepository.findByIsActiveTrueOrderByNameAsc();
+        List<BuildingRotationReportResponse.BuildingSummaryDto> buildingSummaries = activeBuildings.stream()
+                .map(b -> new BuildingRotationReportResponse.BuildingSummaryDto(b.getId(), b.getName()))
+                .collect(Collectors.toList());
+
+        List<BuildingRotationReportResponse.GuardRotationItemDto> items = new ArrayList<>();
+        int guardsWithCrossBuilding = 0;
+
+        for (User guard : guards) {
+            List<GuardShift> guardShifts = shiftsByGuard.getOrDefault(guard.getId(), Collections.emptyList());
+            GuardTeam team = guard.getTeam();
+            UUID homeBuildingId = (team != null && team.getBuilding() != null) ? team.getBuilding().getId() : null;
+            String homeBuildingName = (team != null && team.getBuilding() != null)
+                    ? team.getBuilding().getName()
+                    : (team != null ? team.getDescription() : null);
+
+            Map<String, Integer> shiftsByBuildingName = new HashMap<>();
+            int totalShifts = guardShifts.size();
+            int outsideTeamBuildingShifts = 0;
+            int unknownBuildingShifts = 0;
+
+            for (GuardShift s : guardShifts) {
+                // Toà của ca theo FK (toà của ca -> toà của khu vực qua tầng); không suy từ đội vì đang so với toà đội
+                Building shiftB = s.getBuilding() != null ? s.getBuilding()
+                        : (s.getArea() != null && s.getArea().getFloorEntity() != null ? s.getArea().getFloorEntity().getBuilding() : null);
+                String bName = shiftB != null ? shiftB.getName() : "Chưa xác định";
+                shiftsByBuildingName.put(bName, shiftsByBuildingName.getOrDefault(bName, 0) + 1);
+
+                if (shiftB == null) {
+                    // N3: ca chưa xác định được toà không tính vào "ngoài toà đội"
+                    unknownBuildingShifts++;
+                } else if (homeBuildingId != null && !shiftB.getId().equals(homeBuildingId)) {
+                    outsideTeamBuildingShifts++;
+                }
+            }
+
+            if (outsideTeamBuildingShifts > 0) {
+                guardsWithCrossBuilding++;
+            }
+
+            items.add(new BuildingRotationReportResponse.GuardRotationItemDto(
+                    guard.getId(),
+                    guard.getFullName(),
+                    guard.getUserCode(),
+                    team != null ? team.getId() : null,
+                    team != null ? team.getTeamName() : null,
+                    homeBuildingId,
+                    homeBuildingName,
+                    totalShifts,
+                    outsideTeamBuildingShifts,
+                    unknownBuildingShifts,
+                    outsideTeamBuildingShifts == 0,
+                    shiftsByBuildingName
+            ));
+        }
+
+        return new BuildingRotationReportResponse(
+                effectiveFrom,
+                effectiveTo,
+                buildingSummaries,
+                items,
+                guards.size(),
+                guardsWithCrossBuilding
+        );
+    }
+
+    /** Toà của ca theo FK: toà của ca -> toà của khu vực qua tầng -> toà của đội; không xác định được thì null. */
+    private Building resolveShiftBuilding(GuardShift s) {
+        if (s.getBuilding() != null) {
+            return s.getBuilding();
+        }
+        if (s.getArea() != null && s.getArea().getFloorEntity() != null && s.getArea().getFloorEntity().getBuilding() != null) {
+            return s.getArea().getFloorEntity().getBuilding();
+        }
+        if (s.getGuard() != null && s.getGuard().getTeam() != null) {
+            return s.getGuard().getTeam().getBuilding();
+        }
+        return null;
+    }
+
     private GuardShiftDto mapShiftToDto(GuardShift s) {
+        return mapShiftToDto(s, loadDutyPostLabels());
+    }
+
+    // P1b (4.4): nạp danh mục vị trí trực một lần cho cả danh sách ca
+    private List<GuardShiftDto> mapShiftsToDto(List<GuardShift> shifts) {
+        Map<String, String> dutyPostLabels = loadDutyPostLabels();
+        return shifts.stream().map(s -> mapShiftToDto(s, dutyPostLabels)).collect(Collectors.toList());
+    }
+
+    private Map<String, String> loadDutyPostLabels() {
+        Map<String, String> labels = new HashMap<>();
+        for (DutyPostType post : dutyPostTypeRepository.findAll()) {
+            labels.put(post.getCode(), post.getLabel());
+        }
+        return labels;
+    }
+
+    private GuardShiftDto mapShiftToDto(GuardShift s, Map<String, String> dutyPostLabels) {
         String shiftBuilding = (s.getArea() != null && s.getArea().getBuilding() != null && !s.getArea().getBuilding().isBlank())
                 ? s.getArea().getBuilding()
                 : (s.getGuard() != null && s.getGuard().getTeam() != null ? s.getGuard().getTeam().getDescription() : null);
+
+        // P1b (4.4): buildingId/buildingName lấy theo thứ tự toà của ca -> toà của khu vực (qua tầng)
+        // -> toà của đội -> team.description. Field building giữ cách tính cũ ở trên.
+        Building resolvedBuilding = resolveShiftBuilding(s);
+        UUID shiftBuildingId = resolvedBuilding != null ? resolvedBuilding.getId() : null;
+        String shiftBuildingName = resolvedBuilding != null
+                ? resolvedBuilding.getName()
+                : (s.getGuard() != null && s.getGuard().getTeam() != null ? s.getGuard().getTeam().getDescription() : null);
+
+        String dutyPostLabel = s.getDutyPostCode() != null
+                ? dutyPostLabels.getOrDefault(s.getDutyPostCode(), s.getDutyPostCode())
+                : null;
 
         return GuardShiftDto.builder()
                 .id(s.getId())
@@ -899,13 +1158,18 @@ public class GuardScheduleService {
                 .endTime(s.getEndTime())
                 .areaId(s.getArea() != null ? s.getArea().getId() : null)
                 .areaName(s.getArea() != null ? s.getArea().getName() : null)
+                .buildingId(shiftBuildingId)
+                .buildingName(shiftBuildingName)
                 .building(shiftBuilding)
+                .crossBuilding(Boolean.TRUE.equals(s.getIsCrossBuilding()))
+                .crossBuildingReason(s.getCrossBuildingReason())
                 .status(s.getStatus())
                 .checkInAt(s.getCheckInAt())
                 .checkOutAt(s.getCheckOutAt())
                 .notes(s.getNotes())
                 .isOvertime(s.getIsOvertime())
                 .dutyPostCode(s.getDutyPostCode())
+                .dutyPostLabel(dutyPostLabel)
                 .build();
     }
 }

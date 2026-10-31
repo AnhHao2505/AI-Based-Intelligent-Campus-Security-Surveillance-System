@@ -27,7 +27,11 @@ public class GuardShiftDto {
     private LocalTime endTime;
     private UUID areaId;
     private String areaName;
+    private UUID buildingId;
+    private String buildingName;
     private String building;
+    private Boolean crossBuilding;
+    private String crossBuildingReason;
     private ShiftStatus status;
     private OffsetDateTime checkInAt;
     private OffsetDateTime checkOutAt;
@@ -35,4 +39,6 @@ public class GuardShiftDto {
     private Boolean isOvertime;
     // V90 (BR-DSP-13): mã vị trí trực của ca
     private String dutyPostCode;
+    // P1b (4.4): nhãn hiển thị của vị trí trực
+    private String dutyPostLabel;
 }

@@ -2,7 +2,14 @@ package com.fa26se040.icss.service;
 
 import com.fa26se040.icss.dto.guard.GuardTeamCreateRequest;
 import com.fa26se040.icss.dto.guard.GuardTeamDto;
+import com.fa26se040.icss.entity.Building;
+import com.fa26se040.icss.entity.GuardShift;
 import com.fa26se040.icss.entity.GuardTeam;
+import com.fa26se040.icss.entity.User;
+import com.fa26se040.icss.enums.ShiftStatus;
+import com.fa26se040.icss.enums.ShiftType;
+import com.fa26se040.icss.repository.BuildingRepository;
+import com.fa26se040.icss.repository.GuardShiftRepository;
 import com.fa26se040.icss.repository.GuardTeamRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -13,7 +20,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -29,6 +38,12 @@ class GuardTeamServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private BuildingRepository buildingRepository;
+
+    @Mock
+    private GuardShiftRepository shiftRepository;
 
     @InjectMocks
     private GuardTeamService guardTeamService;
@@ -123,5 +138,151 @@ class GuardTeamServiceTest {
 
         assertFalse(activeTeam.getIsActive());
         verify(teamRepository, times(1)).save(activeTeam);
+    }
+
+    @Test
+    @DisplayName("P1b: Tạo mới đội bảo vệ có gắn tòa nhà thành công")
+    void testCreateTeam_WithBuilding() {
+        UUID buildingId = UUID.randomUUID();
+        Building building = Building.builder().id(buildingId).name("Tòa Alpha").build();
+        GuardTeamCreateRequest request = GuardTeamCreateRequest.builder()
+                .teamName("Đội Alpha")
+                .description("Đội Alpha")
+                .buildingId(buildingId)
+                .build();
+
+        when(teamRepository.findByTeamNameIgnoreCase("Đội Alpha")).thenReturn(Optional.empty());
+        when(buildingRepository.findById(buildingId)).thenReturn(Optional.of(building));
+        when(teamRepository.save(any(GuardTeam.class))).thenAnswer(inv -> {
+            GuardTeam t = inv.getArgument(0);
+            t.setId(UUID.randomUUID());
+            return t;
+        });
+
+        GuardTeamDto dto = guardTeamService.createTeam(request);
+
+        assertNotNull(dto);
+        assertEquals("Đội Alpha", dto.getTeamName());
+        assertEquals(buildingId, dto.getBuildingId());
+        assertEquals("Tòa Alpha", dto.getBuildingName());
+    }
+
+    @Test
+    @DisplayName("P1b (BR-GB-06): Xem trước đổi tòa nhà - Không có ca trực tương lai -> canChange = true")
+    void testPreviewBuildingChange_NoBlockers() {
+        UUID teamId = activeTeam.getId();
+        UUID oldBuildingId = UUID.randomUUID();
+        Building oldBuilding = Building.builder().id(oldBuildingId).name("Tòa Alpha").build();
+        activeTeam.setBuilding(oldBuilding);
+
+        UUID targetBuildingId = UUID.randomUUID();
+        Building targetBuilding = Building.builder().id(targetBuildingId).name("Tòa Beta").build();
+
+        when(teamRepository.findById(teamId)).thenReturn(Optional.of(activeTeam));
+        when(buildingRepository.findById(targetBuildingId)).thenReturn(Optional.of(targetBuilding));
+        when(shiftRepository.findFutureScheduledShiftsInBuilding(eq(teamId), any(LocalDate.class), eq(oldBuildingId)))
+                .thenReturn(List.of());
+
+        var preview = guardTeamService.previewBuildingChange(teamId, targetBuildingId);
+
+        assertNotNull(preview);
+        assertTrue(preview.canChange());
+        assertTrue(preview.blockers().isEmpty());
+    }
+
+    @Test
+    @DisplayName("P1b (BR-GB-06): Xem trước đổi tòa nhà - Còn ca SCHEDULED ở tòa cũ -> canChange = false kèm danh sách ca")
+    void testPreviewBuildingChange_WithBlockers() {
+        UUID teamId = activeTeam.getId();
+        UUID oldBuildingId = UUID.randomUUID();
+        Building oldBuilding = Building.builder().id(oldBuildingId).name("Tòa Alpha").build();
+        activeTeam.setBuilding(oldBuilding);
+
+        UUID targetBuildingId = UUID.randomUUID();
+        Building targetBuilding = Building.builder().id(targetBuildingId).name("Tòa Beta").build();
+
+        User member = User.builder().id(UUID.randomUUID()).fullName("Bảo vệ 1").userCode("SEC-001").build();
+        GuardShift scheduledShift = GuardShift.builder()
+                .id(UUID.randomUUID())
+                .guard(member)
+                .shiftDate(LocalDate.now().plusDays(1))
+                .shiftType(ShiftType.SHIFT_MORNING)
+                .status(ShiftStatus.SCHEDULED)
+                .building(oldBuilding)
+                .build();
+
+        when(teamRepository.findById(teamId)).thenReturn(Optional.of(activeTeam));
+        when(buildingRepository.findById(targetBuildingId)).thenReturn(Optional.of(targetBuilding));
+        when(shiftRepository.findFutureScheduledShiftsInBuilding(eq(teamId), any(LocalDate.class), eq(oldBuildingId)))
+                .thenReturn(List.of(scheduledShift));
+
+        var preview = guardTeamService.previewBuildingChange(teamId, targetBuildingId);
+
+        assertNotNull(preview);
+        assertFalse(preview.canChange());
+        assertEquals(1, preview.blockers().size());
+        assertEquals(1, preview.blockers().get(0).count());
+        assertEquals("SCHEDULED_SHIFTS_IN_CURRENT_BUILDING", preview.blockers().get(0).type());
+        assertEquals(1, preview.blockers().get(0).shifts().size());
+        assertEquals("Bảo vệ 1", preview.blockers().get(0).shifts().get(0).guardName());
+    }
+
+    @Test
+    @DisplayName("P1b (BR-GB-06): Đổi tòa nhà khi còn blocker -> ném IllegalStateException")
+    void testUpdateTeam_ChangeBuildingBlocked() {
+        UUID teamId = activeTeam.getId();
+        UUID oldBuildingId = UUID.randomUUID();
+        Building oldBuilding = Building.builder().id(oldBuildingId).name("Tòa Alpha").build();
+        activeTeam.setBuilding(oldBuilding);
+
+        UUID targetBuildingId = UUID.randomUUID();
+        Building targetBuilding = Building.builder().id(targetBuildingId).name("Tòa Beta").build();
+
+        GuardTeamCreateRequest updateReq = GuardTeamCreateRequest.builder()
+                .teamName("Đội 1")
+                .buildingId(targetBuildingId)
+                .build();
+
+        User member = User.builder().id(UUID.randomUUID()).fullName("Bảo vệ 1").userCode("SEC-001").build();
+        GuardShift scheduledShift = GuardShift.builder()
+                .id(UUID.randomUUID())
+                .guard(member)
+                .shiftDate(LocalDate.now().plusDays(2))
+                .status(ShiftStatus.SCHEDULED)
+                .building(oldBuilding)
+                .build();
+
+        when(teamRepository.findById(teamId)).thenReturn(Optional.of(activeTeam));
+        when(buildingRepository.findById(targetBuildingId)).thenReturn(Optional.of(targetBuilding));
+        when(shiftRepository.findFutureScheduledShiftsInBuilding(eq(teamId), any(LocalDate.class), eq(oldBuildingId)))
+                .thenReturn(List.of(scheduledShift));
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> guardTeamService.updateTeam(teamId, updateReq));
+        assertTrue(ex.getMessage().contains("Không thể đổi tòa nhà: còn 1 ca trực tương lai"));
+    }
+
+    @Test
+    @DisplayName("P1b: Sửa đội không gửi buildingId -> giữ nguyên tòa nhà hiện tại")
+    void testUpdateTeam_KeepExistingBuildingWhenNull() {
+        UUID teamId = activeTeam.getId();
+        UUID oldBuildingId = UUID.randomUUID();
+        Building oldBuilding = Building.builder().id(oldBuildingId).name("Tòa Alpha").build();
+        activeTeam.setBuilding(oldBuilding);
+
+        GuardTeamCreateRequest updateReq = GuardTeamCreateRequest.builder()
+                .teamName("Đội 1 mới")
+                .buildingId(null) // Không gửi buildingId
+                .build();
+
+        when(teamRepository.findById(teamId)).thenReturn(Optional.of(activeTeam));
+        when(teamRepository.save(any(GuardTeam.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        GuardTeamDto dto = guardTeamService.updateTeam(teamId, updateReq);
+
+        assertNotNull(dto);
+        assertEquals("Đội 1 mới", dto.getTeamName());
+        assertEquals(oldBuildingId, dto.getBuildingId());
+        assertEquals("Tòa Alpha", dto.getBuildingName());
     }
 }

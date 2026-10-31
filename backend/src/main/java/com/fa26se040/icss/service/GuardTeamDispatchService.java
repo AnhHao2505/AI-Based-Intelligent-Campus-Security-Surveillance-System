@@ -2,6 +2,7 @@ package com.fa26se040.icss.service;
 
 import com.fa26se040.icss.dto.guard.GuardTeamDispatchCreateRequest;
 import com.fa26se040.icss.dto.guard.GuardTeamDispatchDto;
+import com.fa26se040.icss.entity.Building;
 import com.fa26se040.icss.entity.GuardTeam;
 import com.fa26se040.icss.entity.GuardTeamDispatch;
 import com.fa26se040.icss.entity.User;
@@ -244,6 +245,17 @@ public class GuardTeamDispatchService {
                     ? request.getReason().trim()
                     : "Sự kiện";
 
+            Building dispatchBuilding = toTeam.getBuilding();
+            if (dispatchBuilding == null && targetArea != null && targetArea.getFloorEntity() != null) {
+                dispatchBuilding = targetArea.getFloorEntity().getBuilding();
+            }
+            GuardTeam fromTeam = guard.getTeam();
+            boolean isCross = fromTeam != null && fromTeam.getBuilding() != null && dispatchBuilding != null
+                    && !fromTeam.getBuilding().getId().equals(dispatchBuilding.getId());
+            String crossReason = isCross
+                    ? ("Điều động sang " + toTeam.getTeamName() + (request.getReason() != null && !request.getReason().isBlank() ? ": " + request.getReason().trim() : ""))
+                    : null;
+
             for (com.fa26se040.icss.enums.ShiftType st : shiftTypesToCreate) {
                 java.time.LocalTime startTime;
                 java.time.LocalTime endTime;
@@ -279,6 +291,9 @@ public class GuardTeamDispatchService {
                                 .startTime(startTime)
                                 .endTime(endTime)
                                 .area(targetArea)
+                                .building(dispatchBuilding)
+                                .isCrossBuilding(isCross)
+                                .crossBuildingReason(crossReason)
                                 .status(com.fa26se040.icss.enums.ShiftStatus.SCHEDULED)
                                 .isOvertime(true)
                                 .notes("⚡ Điều động tăng cường: " + reasonText)

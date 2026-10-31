@@ -43,6 +43,16 @@ export const guardScheduleApi = {
 
   getAvailableSwapShifts: (shiftId) => apiGet(`/api/guard-shifts/${shiftId}/available-swap-shifts`),
 
+  // Building Rotation Report (BR-GB-08, §4.6)
+  getBuildingRotationReport: (params = {}) => {
+    const query = new URLSearchParams();
+    if (params.from) query.append('from', params.from);
+    if (params.to) query.append('to', params.to);
+    if (params.teamId && params.teamId !== 'ALL') query.append('teamId', params.teamId);
+    const queryString = query.toString() ? `?${query.toString()}` : '';
+    return apiGet(`/api/guard-shifts/building-rotation-report${queryString}`);
+  },
+
   // Export Timesheet Excel
   exportTimesheet: async ({ year, month, teamId }) => {
     const query = new URLSearchParams();
@@ -149,6 +159,10 @@ export const guardScheduleApi = {
   createTeam: (data) => apiPost('/api/guard-teams', data),
 
   updateTeam: (id, data) => apiPut(`/api/guard-teams/${id}`, data),
+
+  // Preview building change for guard team (BR-GB-06, §4.3)
+  previewBuildingChange: (id, buildingId) =>
+    apiGet(`/api/guard-teams/${id}/building-change-preview?buildingId=${encodeURIComponent(buildingId)}`),
 
   deleteTeam: (id) => apiDelete(`/api/guard-teams/${id}`),
 
