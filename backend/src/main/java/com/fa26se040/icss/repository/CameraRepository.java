@@ -18,6 +18,7 @@ import java.util.UUID;
 @Repository
 public interface CameraRepository extends JpaRepository<Camera, UUID> {
     boolean existsByCameraCode(String cameraCode);
+    Optional<Camera> findByCameraCode(String cameraCode);
     @Query("SELECT c FROM Camera c LEFT JOIN FETCH c.area WHERE c.cameraCode = :cameraCode AND c.deletedAt IS NULL")
     Optional<Camera> findByCameraCodeAndDeletedAtIsNull(@Param("cameraCode") String cameraCode);
 

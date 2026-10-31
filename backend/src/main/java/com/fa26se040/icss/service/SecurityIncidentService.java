@@ -60,7 +60,10 @@ public class SecurityIncidentService {
     @org.springframework.beans.factory.annotation.Value("${ai.service.url:http://localhost:8000}")
     private String aiServiceUrl;
 
-    private final org.springframework.web.client.RestTemplate restTemplate = new org.springframework.web.client.RestTemplate();
+    private org.springframework.web.client.RestTemplate restTemplate = new org.springframework.web.client.RestTemplate();
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private EdgeMqttControlService edgeMqttControlService;
 
     @Transactional
     public IncidentDetailResponse ingestIncident(IncidentEventDto eventDto) {
@@ -472,6 +475,11 @@ public class SecurityIncidentService {
     }
 
     public void triggerIncidentRecordingStart(SecurityIncident incident) {
+        if (incident == null) return;
+        if (edgeMqttControlService != null && edgeMqttControlService.isConnected()) {
+            // Trên kiến trúc Cloud-Edge, Edge AI đã chủ động bật ghi hình sự cố ngay tại 0ms khi phát hiện (theo event_id)
+            return;
+        }
         if (incident == null || aiServiceUrl == null || aiServiceUrl.isBlank()) return;
         String incidentIdStr = incident.getId() != null ? incident.getId().toString() : "";
         String cameraCode = incident.getCameraCode() != null ? incident.getCameraCode() : "CAM-001";
@@ -501,6 +509,29 @@ public class SecurityIncidentService {
     }
 
     public void triggerIncidentRecordingStop(String incidentId) {
+        String effectiveIncidentKey = incidentId;
+        if (incidentId != null && !incidentId.isBlank()) {
+            try {
+                UUID parsedId = UUID.fromString(incidentId.trim());
+                Optional<SecurityIncident> found = incidentRepository.findById(parsedId);
+                if (found.isPresent() && found.get().getEventId() != null && !found.get().getEventId().isBlank()) {
+                    effectiveIncidentKey = found.get().getEventId();
+                }
+            } catch (IllegalArgumentException ignored) {
+                // incidentId không phải UUID DB mà là event_id trực tiếp -> giữ nguyên
+            }
+        }
+
+        if (edgeMqttControlService != null && edgeMqttControlService.isConnected()) {
+            edgeMqttControlService.publishIncidentStopCommand(effectiveIncidentKey, false);
+            if (effectiveIncidentKey != null && !effectiveIncidentKey.equals(incidentId) && incidentId != null && !incidentId.isBlank()) {
+                edgeMqttControlService.publishIncidentStopCommand(incidentId, false);
+            }
+            if (aiServiceUrl == null || aiServiceUrl.isBlank()) {
+                return;
+            }
+        }
+        if (aiServiceUrl == null || aiServiceUrl.isBlank()) return;
         if (aiServiceUrl == null || aiServiceUrl.isBlank()) return;
         String url = aiServiceUrl + "/api/v1/incident-recording/stop";
         CompletableFuture.runAsync(() -> {
@@ -517,6 +548,12 @@ public class SecurityIncidentService {
     }
 
     public void triggerAllIncidentRecordingsStop() {
+        if (edgeMqttControlService != null && edgeMqttControlService.isConnected()) {
+            edgeMqttControlService.publishIncidentStopCommand(null, true);
+            if (aiServiceUrl == null || aiServiceUrl.isBlank()) {
+                return;
+            }
+        }
         if (aiServiceUrl == null || aiServiceUrl.isBlank()) return;
         String url = aiServiceUrl + "/api/v1/incident-recording/stop";
         CompletableFuture.runAsync(() -> {

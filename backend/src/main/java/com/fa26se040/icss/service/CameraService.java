@@ -51,7 +51,10 @@ public class CameraService {
     @Value("${camera.rtsp.timeout-ms:10000}")
     private int defaultTimeoutMs;
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private RestTemplate restTemplate = new RestTemplate();
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private EdgeMqttControlService edgeMqttControlService;
 
     // === Camera CRUD ===
 
@@ -277,6 +280,14 @@ public class CameraService {
                     String rtspUrl = buildRtspUrl(cfg);
                     if (rtspUrl != null) {
                         mediaMtxService.syncCameraPath(cfg.getCamera().getCameraCode(), rtspUrl);
+                        if (edgeMqttControlService != null && edgeMqttControlService.isConnected()) {
+                            edgeMqttControlService.publishCameraStreamConfig(
+                                    cfg.getCamera().getCameraCode(),
+                                    rtspUrl,
+                                    cfg.getCamera().getOperationalStatus() == OperationalStatus.ONLINE,
+                                    cfg.getCamera().getRoiGeometry()
+                            );
+                        }
                         syncedCount++;
                         if (cfg.getCamera().getOperationalStatus() == OperationalStatus.ONLINE) {
                             try {
@@ -303,6 +314,9 @@ public class CameraService {
                     .toList();
             for (Camera decommCam : decommissionedCameras) {
                 mediaMtxService.deleteCameraPath(decommCam.getCameraCode());
+                if (edgeMqttControlService != null && edgeMqttControlService.isConnected()) {
+                    edgeMqttControlService.publishCameraStreamConfig(decommCam.getCameraCode(), "", false, null);
+                }
             }
         } catch (Exception e) {
             log.warn("Failed to sync camera streams to MediaMTX on startup: {}", e.getMessage());
@@ -407,7 +421,12 @@ public class CameraService {
     }
 
     private void syncRoiToAiService(String cameraCode, RoiGeometry roi) {
-        if (aiServiceUrl == null || aiServiceUrl.isBlank() || roi == null) {
+        if (roi == null) {
+            return;
+        }
+        boolean hasMqtt = edgeMqttControlService != null && edgeMqttControlService.isConnected();
+        boolean hasHttp = aiServiceUrl != null && !aiServiceUrl.isBlank();
+        if (!hasMqtt && !hasHttp) {
             return;
         }
         try {
@@ -444,6 +463,12 @@ public class CameraService {
             body.put("reference_height", roi.getReferenceSnapshotHeight() != null ? roi.getReferenceSnapshotHeight() : 1080);
             body.put("polygons", polygonsList);
 
+            if (hasMqtt) {
+                edgeMqttControlService.publishRoiConfig(cameraCode, body);
+                if (!hasHttp) {
+                    return;
+                }
+            }
             HttpEntity<Map<String, Object>> httpEntity = new HttpEntity<>(body, headers);
             restTemplate.postForObject(endpoint, httpEntity, Map.class);
             log.info("Successfully synced ROI geometry to AI Service for camera [{}]", cameraCode);
@@ -470,6 +495,12 @@ public class CameraService {
     }
 
     private void stopAiStreamWorkerSafely(String cameraCode) {
+        if (cameraCode != null && !cameraCode.isBlank() && edgeMqttControlService != null && edgeMqttControlService.isConnected()) {
+            edgeMqttControlService.publishCameraStreamConfig(cameraCode, "", false, null);
+            if (aiServiceUrl == null || aiServiceUrl.isBlank()) {
+                return;
+            }
+        }
         if (cameraCode == null || cameraCode.isBlank() || aiServiceUrl == null || aiServiceUrl.isBlank()) {
             return;
         }
@@ -556,7 +587,8 @@ public class CameraService {
     private CameraStreamConfigResponse mapToStreamResponse(CameraStreamConfiguration config) {
         String cameraCode = (config.getCamera() != null) ? config.getCamera().getCameraCode() : "";
         String pathName = mediaMtxService.formatPathName(cameraCode);
-        String whepUrl = (!pathName.isEmpty()) ? "http://localhost:8889/" + pathName + "/whep" : null;
+        String configuredWhep = mediaMtxService.getWhepUrl(cameraCode);
+        String whepUrl = (configuredWhep != null) ? configuredWhep : ((!pathName.isEmpty()) ? "http://localhost:8889/" + pathName + "/whep" : null);
 
         return CameraStreamConfigResponse.builder()
                 .id(config.getId())

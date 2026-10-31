@@ -172,6 +172,7 @@ services:
       - "8888:8888" # HLS Stream cho Trình duyệt
       - "8889:8889" # WebRTC (WHEP) cho Frontend Web
       - "8189:8189/udp" # WebRTC UDP data channel
+      - "9996:9996" # MediaMTX Playback Server (fMP4 segment extraction)
       - "9997:9997" # MediaMTX REST API
     volumes:
       - ./mediamtx.yml:/mediamtx.yml:ro

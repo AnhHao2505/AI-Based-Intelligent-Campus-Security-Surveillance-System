@@ -18,7 +18,19 @@ webrtcAllowOrigins: ['*']
 webrtcLocalUDPAddress: :8189
 webrtcAdditionalHosts: ['127.0.0.1']
 
-# 3. API Quản trị (Cổng 9997)
+# 3. Playback Server (Cổng 9996 - hỗ trợ truy xuất fMP4 segment chuẩn công nghiệp)
+playback: yes
+playbackAddress: :9996
+playbackAllowOrigins: ['*']
+
+# 4. Cấu hình định dạng ghi hình fMP4 mặc định (an toàn khi mất điện, không mất moov atom)
+pathDefaults:
+  recordFormat: fmp4
+  recordPartDuration: 1s
+  recordSegmentDuration: 1m
+  recordDeleteAfter: 72h
+
+# 5. API Quản trị (Cổng 9997)
 api: yes
 apiAddress: :9997
 
@@ -30,10 +42,10 @@ authInternalUsers:
       - action: api
       - action: read
       - action: publish
+      - action: playback
 
-# 4. Danh sách Kênh Camera
-# Tất cả các camera sẽ được Backend tự động đồng bộ qua MediaMTX API (/v3/config/paths/add)
+# 6. Danh sách Kênh Camera
+# Tất cả các camera sẽ được Edge AI Agent / Backend tự động đồng bộ qua MediaMTX API (/v3/config/paths/add)
 paths:
-  # Cho phép các nguồn khác kết nối hoặc đẩy luồng vào MediaMTX
   all_others:
     source: publisher

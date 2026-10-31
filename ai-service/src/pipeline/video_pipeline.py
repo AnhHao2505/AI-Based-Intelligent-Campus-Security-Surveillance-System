@@ -11,7 +11,7 @@ from ..core.human_detector import HumanDetector
 from ..core.face_detector import FaceDetector
 from ..core.face_matcher import FaceMatcher
 from ..core.frame_analysis_engine import FrameAnalysisEngine
-from ..integration.mqtt_client import SecurityMqttClient
+from ..integration.mqtt_client import SecurityMqttClient, edge_mqtt_client
 from ..integration.storage_service import StorageService
 from ..utils.visualizer import FrameVisualizer
 from ..utils.geometry import is_point_in_polygon, scale_polygon_to_frame
@@ -89,7 +89,7 @@ class VideoPipeline:
         # Khởi tạo các module tích hợp
         from concurrent.futures import ThreadPoolExecutor
         self.executor = ThreadPoolExecutor(max_workers=2)
-        self.mqtt_client = SecurityMqttClient()
+        self.mqtt_client = edge_mqtt_client
         self.kafka_producer = self.mqtt_client  # Backward compatibility
         self.storage_service = StorageService()
         self.visualizer = FrameVisualizer()
@@ -378,7 +378,7 @@ class VideoPipeline:
         if alerts:
             for alert in alerts:
                 ev_type = str(alert.event_type or "").upper()
-                if any(k in ev_type for k in ["UNAUTHORIZED", "INTRUSION", "AFTER_HOUR", "UNKNOWN", "SUSPICIOUS_MOTION", "TAMPERING"]):
+                if any(k in ev_type for k in ["UNAUTHORIZED", "INTRUSION", "AFTER_HOUR", "OUT_OF_TIME", "UNKNOWN", "SUSPICIOUS_MOTION", "TAMPERING"]):
                     try:
                         incident_recording_manager.start_incident_recording(
                             incident_id=alert.event_id or f"EVT-{int(time.time()*1000)}",

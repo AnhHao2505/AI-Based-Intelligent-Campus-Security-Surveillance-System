@@ -67,12 +67,14 @@ server:
 # Cấu hình kết nối sang AI Microservice
 ai:
   service:
-    url: http://${AI_SERVICE_HOST:localhost}:${AI_SERVICE_PORT:8000}
+    url: ${AI_SERVICE_URL:http://${AI_SERVICE_HOST:localhost}:${AI_SERVICE_PORT:8000}}
 
 # Cấu hình kết nối MediaMTX Gateway (Port 9997 API)
 mediamtx:
   api:
-    url: http://${MEDIAMTX_HOST:localhost}:${MEDIAMTX_API_PORT:9997}
+    url: ${MEDIAMTX_API_URL:http://${MEDIAMTX_HOST:localhost}:${MEDIAMTX_API_PORT:9997}}
+  whep:
+    base-url: ${MEDIAMTX_WHEP_BASE_URL:http://localhost:8889}
 
 camera:
   rtsp:
@@ -84,6 +86,7 @@ app:
     client-id: ${MQTT_CLIENT_ID:campus-security-backend}
     topics:
       incidents: ${MQTT_TOPIC_INCIDENTS:campus/alerts/incidents}
+      recordings: ${MQTT_TOPIC_RECORDINGS:campus/recordings/completed}
     enabled: ${MQTT_ENABLED:true}
   jwt:
     secret: ${JWT_SECRET}
@@ -104,6 +107,7 @@ minio:
     faces: face-profiles
     evidence: security-evidence
     recordings: camera-recordings
+    snapshots: camera-snapshots
 
 icss:
   scheduler:

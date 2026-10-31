@@ -96,6 +96,9 @@ public class UserService {
     // KI-1: vô hiệu hoá / xoá tài khoản -> đóng phiên WebSocket đang mở của người đó (sau commit)
     private final WebSocketSessionRegistry webSocketSessionRegistry;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private EdgeMqttControlService edgeMqttControlService;
+
     @Value("${ai.service.url:http://localhost:8000}")
     private String aiServiceUrl = "http://localhost:8000";
 
@@ -358,6 +361,12 @@ public class UserService {
      */
     void notifyAiServiceRefreshCache() {
         Runnable task = () -> CompletableFuture.runAsync(() -> {
+            if (edgeMqttControlService != null && edgeMqttControlService.isConnected()) {
+                edgeMqttControlService.publishFaceCacheEvent("REFRESH", null);
+                if (aiServiceUrl == null || aiServiceUrl.isBlank()) {
+                    return;
+                }
+            }
             String baseUrl = (aiServiceUrl != null && !aiServiceUrl.isBlank()) ? aiServiceUrl.trim() : "http://localhost:8000";
             if (baseUrl.endsWith("/")) {
                 baseUrl = baseUrl.substring(0, baseUrl.length() - 1);

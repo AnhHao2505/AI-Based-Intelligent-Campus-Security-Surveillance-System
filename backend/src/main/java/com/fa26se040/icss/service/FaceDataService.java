@@ -2,14 +2,17 @@ package com.fa26se040.icss.service;
 
 import com.fa26se040.icss.dto.AiFaceRegistrationResponseDto;
 import com.fa26se040.icss.dto.FaceDataResponseDto;
+import com.fa26se040.icss.dto.edge.EdgeRpcReplyDto;
 import com.fa26se040.icss.entity.FaceData;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.exception.AiServiceUnavailableException;
+import com.fa26se040.icss.exception.CameraException;
 import com.fa26se040.icss.exception.FaceDetectionException;
 import com.fa26se040.icss.repository.FaceDataRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpEntity;
@@ -25,8 +28,11 @@ import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -36,7 +42,10 @@ public class FaceDataService {
     private final FaceDataRepository faceDataRepository;
     private final UserRepository userRepository;
     private final MinioStorageService minioStorageService;
-    private final RestTemplate restTemplate = new RestTemplate();
+    private RestTemplate restTemplate = new RestTemplate();
+
+    @Autowired(required = false)
+    private EdgeMqttControlService edgeMqttControlService;
 
     @Value("${ai.service.url:http://localhost:8000}")
     private String aiServiceUrl;
@@ -67,7 +76,6 @@ public class FaceDataService {
                 throw new IllegalArgumentException("Ảnh khuôn mặt không được để trống.");
             }
 
-            // VAL-05: Định dạng JPG/PNG, kích thước tối đa 350kB
             long maxSizeBytes = 350 * 1024; // 350 KB
             if (frontImage.getSize() > maxSizeBytes) {
                 throw new IllegalArgumentException(String.format("Kích thước ảnh vượt quá giới hạn tối đa 350KB (dung lượng file: %.1f KB)", frontImage.getSize() / 1024.0));
@@ -83,29 +91,35 @@ public class FaceDataService {
             }
 
             byte[] imageBytes = frontImage.getBytes();
+            AiFaceRegistrationResponseDto aiResult;
 
-            // 1. Chuẩn bị request multipart gửi sang AI Service để detect khuôn mặt & trích xuất vector embedding
-            String aiEndpoint = aiServiceUrl + "/api/v1/faces/process-registration";
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+            boolean useCloudEdgeRpc = edgeMqttControlService != null
+                    && edgeMqttControlService.isConnected()
+                    && (aiServiceUrl == null || aiServiceUrl.isBlank());
 
-            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-            body.add("code", code);
-            body.add("front_image", new NamedByteArrayResource(imageBytes, frontImage.getOriginalFilename() != null ? frontImage.getOriginalFilename() : "front.jpg"));
+            if (useCloudEdgeRpc) {
+                aiResult = extractEmbeddingViaEdgeMqtt(code, imageBytes, contentType);
+            } else {
+                String aiEndpoint = aiServiceUrl + "/api/v1/faces/process-registration";
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.MULTIPART_FORM_DATA);
 
-            HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
+                MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+                body.add("code", code);
+                body.add("front_image", new NamedByteArrayResource(imageBytes, frontImage.getOriginalFilename() != null ? frontImage.getOriginalFilename() : "front.jpg"));
 
-            // 2. Gọi AI Service trích xuất Vector 512d
-            ResponseEntity<AiFaceRegistrationResponseDto> response = restTemplate.postForEntity(
-                    aiEndpoint, requestEntity, AiFaceRegistrationResponseDto.class
-            );
+                HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
 
-            AiFaceRegistrationResponseDto aiResult = response.getBody();
+                ResponseEntity<AiFaceRegistrationResponseDto> response = restTemplate.postForEntity(
+                        aiEndpoint, requestEntity, AiFaceRegistrationResponseDto.class
+                );
+                aiResult = response.getBody();
+            }
+
             if (aiResult == null || !aiResult.isSuccess()) {
                 throw new FaceDetectionException("AI Service không thể trích xuất vector khuôn mặt cho mã: " + code);
             }
 
-            // Kiểm tra số lượng khuôn mặt phát hiện (BR-04)
             if (aiResult.getFaceCount() != null) {
                 if (aiResult.getFaceCount() > 1) {
                     throw new FaceDetectionException("Ảnh chứa nhiều hơn 1 khuôn mặt");
@@ -115,13 +129,9 @@ public class FaceDataService {
                 }
             }
 
-            // 3. Upload ảnh hồ sơ lên MinIO từ phía Backend
             String imageUrl = minioStorageService.uploadFaceImage(imageBytes, code);
-
-            // 4. Chuyển đổi mảng List<Float> sang chuỗi định dạng PostgreSQL pgvector "[0.1,0.2,...]"
             String vecFront = formatVectorString(aiResult.getEmbeddingFront());
 
-            // 4. Lưu hoặc cập nhật vào CSDL
             Optional<FaceData> existingOpt = faceDataRepository.findByCode(code);
             User matchedUser = userRepository.findByUserCodeAndDeletedAtIsNull(code).orElse(null);
 
@@ -145,9 +155,13 @@ public class FaceDataService {
             FaceData saved = faceDataRepository.save(faceData);
             log.info("Lưu thành công dữ liệu khuôn mặt cho [{}] vào Database (ID: {})", code, saved.getId());
 
+            if (edgeMqttControlService != null && edgeMqttControlService.isConnected()) {
+                edgeMqttControlService.publishFaceCacheEvent("REFRESH", code);
+            }
+
             return toDto(saved);
 
-        } catch (ResourceAccessException e) {
+        } catch (ResourceAccessException | CameraException e) {
             log.error("Không thể kết nối đến AI Service cho [{}]: {}", code, e.getMessage());
             throw new AiServiceUnavailableException("Dịch vụ AI hiện không khả dụng. Vui lòng thử lại sau.");
         } catch (HttpStatusCodeException e) {
@@ -158,9 +172,58 @@ public class FaceDataService {
             throw new AiServiceUnavailableException("Dịch vụ AI gặp lỗi khi xử lý ảnh. Vui lòng thử lại sau.");
         } catch (FaceDetectionException | AiServiceUnavailableException e) {
             throw e;
+        } catch (IllegalArgumentException e) {
+            throw e;
         } catch (Exception e) {
             log.error("Lỗi khi đăng ký khuôn mặt cho [{}]: {}", code, e.getMessage(), e);
             throw new RuntimeException("Lỗi xử lý khuôn mặt: " + e.getMessage(), e);
+        }
+    }
+
+    private AiFaceRegistrationResponseDto extractEmbeddingViaEdgeMqtt(String code, byte[] imageBytes, String contentType) {
+        String bucket = minioStorageService.getFacesBucket();
+        String stagingKey = "staging/" + UUID.randomUUID() + ".jpg";
+        minioStorageService.uploadStagingObject(
+                bucket,
+                stagingKey,
+                imageBytes,
+                contentType != null ? contentType : "image/jpeg"
+        );
+        try {
+            EdgeRpcReplyDto reply = edgeMqttControlService.sendRpcRequest(
+                    "EXTRACT_FACE_EMBEDDING",
+                    null,
+                    Map.of(
+                            "bucket", bucket,
+                            "object_key", stagingKey,
+                            "code", code != null ? code : ""
+                    ),
+                    8000L
+            );
+            if (!reply.isSuccess() || reply.getData() == null) {
+                String errMsg = reply.getErrorMessage() != null ? reply.getErrorMessage() : "Không thể xử lý khuôn mặt trong ảnh";
+                throw new FaceDetectionException(errMsg);
+            }
+
+            Map<String, Object> data = reply.getData();
+            Integer faceCount = data.get("face_count") instanceof Number n ? n.intValue() : null;
+            List<Float> vector = new ArrayList<>();
+            if (data.get("embedding_front") instanceof List<?> list) {
+                for (Object item : list) {
+                    if (item instanceof Number n) {
+                        vector.add(n.floatValue());
+                    }
+                }
+            }
+
+            AiFaceRegistrationResponseDto dto = new AiFaceRegistrationResponseDto();
+            dto.setSuccess(true);
+            dto.setCode(code);
+            dto.setFaceCount(faceCount);
+            dto.setEmbeddingFront(vector);
+            return dto;
+        } finally {
+            minioStorageService.removeObjectSafely(bucket, stagingKey);
         }
     }
 

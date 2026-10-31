@@ -168,6 +168,15 @@ public class CameraController {
         return ResponseEntity.ok(ApiResponse.success(response, "Cập nhật cấu hình vùng giám sát ROI thành công"));
     }
 
+    @PostMapping("/stream/cloud-relay")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GUARD')")
+    public ResponseEntity<ApiResponse<String>> toggleCloudRelay(
+            @RequestParam String cameraCode,
+            @RequestParam(defaultValue = "true") boolean active) {
+        cameraStreamLifecycleService.requestCloudRelay(cameraCode, active);
+        return ResponseEntity.ok(ApiResponse.success("OK", "Đã gửi lệnh điều phối Cloud Stream Relay qua MQTT"));
+    }
+
     @GetMapping("/recordings")
     @PreAuthorize("hasAnyRole('ADMIN', 'GUARD')")
     public ResponseEntity<ApiResponse<List<RecordingVideoResponse>>> listRecordings(

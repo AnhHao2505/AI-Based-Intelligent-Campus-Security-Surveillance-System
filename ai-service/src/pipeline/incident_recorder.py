@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Optional, Dict, Any, List, Callable
 
 from ..config import settings
-from .stream_recorder import _has_valid_moov_atom
+from .stream_recorder import _has_valid_moov_atom, _now_vn, build_recording_completed_payload
 
 logger = logging.getLogger(__name__)
 
@@ -35,28 +35,16 @@ for p in DLL_SEARCH_PATHS:
         if p not in os.environ.get("PATH", ""):
             os.environ["PATH"] = p + os.pathsep + os.environ.get("PATH", "")
 
-import cv2
-import time
-import queue
-import logging
-import threading
-import numpy as np
-from datetime import datetime
-from typing import Optional, Dict, Any, List, Callable
-
-from ..config import settings
-
-logger = logging.getLogger(__name__)
-
 
 class IncidentRecorder:
     """
     Module ghi hình sự cố an ninh (Incident Recording - Edge-Cloud Optimized):
     - Chuẩn hóa phân giải: 854x480 (480p 16:9) @ 15 FPS, tối ưu dung lượng (~5-8 MB/phút).
     - Ghi trực tiếp khung hình AI thật (annotated_frame) đã có Bounding Box, ROI Polygon và tên/mã đối tượng.
-    - Viền cảnh báo tĩnh (không nhấp nháy 3 lần/giây) giúp bộ nén H.264 P-frame đạt hiệu suất nén tối đa.
+    - Viền cảnh báo tĩnh giúp bộ nén H.264 P-frame đạt hiệu suất nén tối đa.
     - Ghi tạm vào file .recording.mp4 để tránh lộ file đang ghi chưa đóng moov atom lên giao diện.
-    - Kết thúc ngay khi Bảo vệ click 'Xác nhận đã xem' (hoặc tự động chốt file sau tối đa 60 giây).
+    - Khi kết thúc, tải lên MinIO S3 và đồng bộ metadata thật (start_time, end_time, duration_seconds, sha256,
+      incident_event_id) qua MQTT `campus/recordings/completed` về PostgreSQL.
     """
 
     def __init__(
@@ -81,7 +69,7 @@ class IncidentRecorder:
         self.frame_provider = frame_provider
         self.max_duration_seconds = max_duration_seconds
 
-        self.start_dt = datetime.now()
+        self.start_dt = _now_vn()
         self.start_ts = time.time()
         self.file_path = self._get_target_file_path(self.start_dt)
         self.temp_file_path = self.file_path[:-4] + ".recording.mp4"
@@ -95,7 +83,6 @@ class IncidentRecorder:
         self.frame_queue: queue.Queue = queue.Queue(maxsize=60)
         self.worker_thread: Optional[threading.Thread] = None
 
-        # Codec H.264 avc1 qua Windows Media Foundation (CAP_MSMF)
         self.fourcc = cv2.VideoWriter_fourcc(*"avc1")
 
     def _get_target_file_path(self, now: datetime) -> str:
@@ -115,7 +102,6 @@ class IncidentRecorder:
         return os.path.join(folder_path, filename)
 
     def start(self):
-        """Khởi động luồng ghi hình sự cố"""
         if self.is_running:
             return
         self.is_running = True
@@ -148,7 +134,6 @@ class IncidentRecorder:
         self.worker_thread.start()
 
     def write_frame(self, frame: np.ndarray):
-        """Đẩy frame đã qua AI (annotated_frame) vào hàng đợi ghi hình sự cố"""
         if frame is None or frame.size == 0 or not self.is_running:
             return
         try:
@@ -172,17 +157,14 @@ class IncidentRecorder:
         else:
             vis_frame = frame.copy()
 
-        # Viền đỏ tĩnh (không nhấp nháy 3 lần/giây để giữ hiệu suất nén P-frame H.264 tối ưu)
         cv2.rectangle(vis_frame, (2, 2), (w - 2, h - 2), (0, 0, 220), 2)
 
-        # Góc trên: Camera + Thời gian + REC (cập nhật theo giây nguyên)
         sec_int = int(elapsed)
         header_bg_w = 420
         cv2.rectangle(vis_frame, (8, 8), (header_bg_w, 34), (15, 15, 20), -1)
         header_text = f"CAM: {self.camera_code} | {now.strftime('%d/%m/%Y %H:%M:%S')} | REC {sec_int}s"
         cv2.putText(vis_frame, header_text, (14, 26), cv2.FONT_HERSHEY_SIMPLEX, 0.48, (240, 240, 240), 1, cv2.LINE_AA)
 
-        # Banner cảnh báo gọn ở cạnh dưới
         banner_h = 32
         cv2.rectangle(vis_frame, (8, h - banner_h - 6), (w - 8, h - 6), (15, 15, 20), -1)
         cv2.rectangle(vis_frame, (8, h - banner_h - 6), (w - 8, h - 6), (0, 0, 220), 1)
@@ -199,7 +181,6 @@ class IncidentRecorder:
         return vis_frame
 
     def _recording_loop(self):
-        """Vòng lặp ngầm ghi video chuẩn 15 FPS từ khung hình thực tế của camera"""
         frame_interval = 1.0 / self.fps
         next_frame_time = time.time()
         last_real_frame = None
@@ -207,7 +188,7 @@ class IncidentRecorder:
         while self.is_running:
             now_ts = time.time()
             elapsed = now_ts - self.start_ts
-            now_dt = datetime.now()
+            now_dt = _now_vn()
 
             if elapsed >= self.max_duration_seconds:
                 logger.info(f"⏰ [IncidentRecorder] Camera [{self.camera_code}] chạm ngưỡng {self.max_duration_seconds}s. Tự động chốt file video sự cố.")
@@ -231,7 +212,6 @@ class IncidentRecorder:
             elif last_real_frame is not None and last_real_frame.size > 0:
                 frame_to_write = self._draw_incident_overlay_on_real_frame(last_real_frame, elapsed, now_dt)
             else:
-                # Chờ frame thật từ camera thay vì vẽ khung hình giả lập
                 time.sleep(0.05)
                 continue
 
@@ -250,7 +230,6 @@ class IncidentRecorder:
         self._close_writer()
 
     def _close_writer(self):
-        """Hoàn tất ghi file theo lock, đổi tên .recording.mp4 -> .mp4 với moov atom hợp lệ"""
         with self._writer_lock:
             if self.writer is None:
                 self.is_running = False
@@ -259,6 +238,10 @@ class IncidentRecorder:
             temp_path = self.temp_file_path
             final_path = self.file_path
             cam_code = self.camera_code
+            start_dt = self.start_dt
+            end_dt = _now_vn()
+            frames_count = self.frames_written
+            inc_id = self.incident_id
 
             self.writer = None
             self.is_running = False
@@ -266,15 +249,15 @@ class IncidentRecorder:
             try:
                 writer_ref.release()
                 if temp_path and os.path.exists(temp_path):
-                    if self.frames_written > 0 and _has_valid_moov_atom(temp_path):
+                    if frames_count > 0 and _has_valid_moov_atom(temp_path):
                         os.replace(temp_path, final_path)
                         size_mb = os.path.getsize(final_path) / (1024 * 1024)
-                        duration_s = self.frames_written / max(self.fps, 1.0)
+                        duration_s = frames_count / max(self.fps, 1.0)
                         logger.info(
                             f"✅ [IncidentRecorder] ĐÃ CHỐT XONG VIDEO BẰNG CHỨNG SỰ CỐ (854x480): {final_path} "
-                            f"({size_mb:.2f} MB - {self.frames_written} frames - {duration_s:.1f}s)"
+                            f"({size_mb:.2f} MB - {frames_count} frames - {duration_s:.1f}s)"
                         )
-                        self._schedule_minio_upload(final_path, cam_code)
+                        self._schedule_minio_upload(final_path, cam_code, start_dt, end_dt, frames_count, inc_id)
                     else:
                         logger.warning(f"⚠️ [IncidentRecorder] Bỏ qua file sự cố chưa hoàn chỉnh hoặc không có frame: {temp_path}")
                         try:
@@ -284,19 +267,42 @@ class IncidentRecorder:
             except Exception as e:
                 logger.warning(f"⚠️ [IncidentRecorder] Lỗi khi giải phóng VideoWriter: {e}")
 
-    def _schedule_minio_upload(self, file_path: str, camera_code: str):
-        """Đẩy video sự cố lên MinIO trong luồng nền và dọn dẹp file tạm (Phương án A)"""
+    def _schedule_minio_upload(
+        self,
+        file_path: str,
+        camera_code: str,
+        start_dt: datetime,
+        end_dt: datetime,
+        frames_count: int,
+        incident_event_id: str,
+    ):
         def _upload_task():
             try:
                 from ..integration.storage_service import storage_service
+                from ..integration.mqtt_client import edge_mqtt_client
                 from ..config import settings
+
                 norm_path = os.path.normpath(file_path)
                 filename = os.path.basename(norm_path)
-                now = datetime.now()
-                obj_name = f"{camera_code}/{now.strftime('%Y/%m/%d')}/{filename}"
+                obj_name = f"{camera_code}/{start_dt.strftime('%Y/%m/%d')}/{filename}"
                 bucket = getattr(settings, "MINIO_BUCKET_EVIDENCE", "security-evidence")
+
+                telemetry_payload = build_recording_completed_payload(
+                    camera_code=camera_code,
+                    recording_type="INCIDENT_EVIDENCE",
+                    bucket_name=bucket,
+                    object_key=obj_name,
+                    file_path=file_path,
+                    start_dt=start_dt,
+                    end_dt=end_dt,
+                    frames_count=frames_count,
+                    fps=self.fps,
+                    incident_event_id=incident_event_id,
+                )
+
                 success = storage_service.upload_video_file(file_path, bucket, obj_name)
                 if success:
+                    edge_mqtt_client.publish_recording_event(telemetry_payload)
                     try:
                         os.remove(file_path)
                         logger.info(f"🗑️ [IncidentRecorder Cleanup] Đã xóa file đệm cục bộ sau khi đẩy MinIO: {file_path}")
@@ -308,7 +314,6 @@ class IncidentRecorder:
         threading.Thread(target=_upload_task, daemon=True).start()
 
     def stop(self) -> Dict[str, Any]:
-        """Dừng ghi hình sự cố khi Bảo vệ click Xác nhận đã xem"""
         if not self.is_running:
             return self.get_summary()
 
@@ -337,12 +342,6 @@ class IncidentRecorder:
 
 
 class IncidentRecordingManager:
-    """
-    Trình quản lý tập trung toàn bộ các phiên ghi hình sự cố:
-    - Quản lý theo CAMERA CODE làm khóa chính: Mỗi camera chỉ có DUY NHẤT 1 phiên ghi hình sự cố tại một thời điểm.
-    - Dừng ghi hình linh hoạt theo camera_code, incident_id hoặc dừng tất cả.
-    """
-
     def __init__(self):
         self._recordings_by_camera: Dict[str, IncidentRecorder] = {}
         self._recordings_by_id: Dict[str, IncidentRecorder] = {}
@@ -379,7 +378,6 @@ class IncidentRecordingManager:
             return recorder
 
     def write_frame_for_camera(self, camera_code: str, frame: np.ndarray):
-        """Phân phối frame trực tiếp từ camera vào phiên ghi hình sự cố của camera đó"""
         cam_code = camera_code.strip().upper()
         with self._lock:
             rec = self._recordings_by_camera.get(cam_code)
@@ -387,9 +385,6 @@ class IncidentRecordingManager:
                 rec.write_frame(frame)
 
     def stop_incident_recording(self, key: str) -> Optional[Dict[str, Any]]:
-        """
-        Dừng phiên ghi hình sự cố: Hỗ trợ tìm kiếm theo incident_id HOẶC theo camera_code
-        """
         clean_key = str(key).strip()
         cam_upper = clean_key.upper()
         target_rec: Optional[IncidentRecorder] = None
@@ -413,13 +408,11 @@ class IncidentRecordingManager:
         return None
 
     def stop_camera_recordings(self, camera_code: str) -> List[Dict[str, Any]]:
-        """Dừng tất cả phiên ghi hình sự cố của một camera cụ thể"""
         cam_upper = camera_code.strip().upper()
         res = self.stop_incident_recording(cam_upper)
         return [res] if res else []
 
     def stop_all_incident_recordings(self) -> List[Dict[str, Any]]:
-        """Dừng tất cả các phiên ghi hình sự cố khi Guard click 'Xác nhận đã xem tất cả'"""
         results = []
         with self._lock:
             active_list = list(set(self._recordings_by_camera.values()))
@@ -438,5 +431,4 @@ class IncidentRecordingManager:
             return [rec.get_summary() for rec in active_set if rec.is_running]
 
 
-# Singleton instance toàn hệ thống
 incident_recording_manager = IncidentRecordingManager()

@@ -114,7 +114,44 @@ public class MinioStorageService {
         return bucketSnapshots;
     }
 
-    public String getRecordingsBucket() {
+    public String getRecordingsBucket() { return bucketRecordings; }
+
+    /**
+     * Tải tạm thời (staging) dữ liệu nhị phân lên MinIO phục vụ xử lý bất đồng bộ/RPC giữa Cloud và Edge.
+     */
+    public void uploadStagingObject(String bucketName, String objectName, byte[] bytes, String contentType) {
+        if (bytes == null || bytes.length == 0) {
+            throw new IllegalArgumentException("Staging bytes cannot be empty");
+        }
+        try {
+            ensureBucketExists(bucketName);
+            putObjectWithSseFallback(bucketName, objectName, bytes, contentType != null ? contentType : "application/octet-stream");
+        } catch (Exception e) {
+            log.error("[MINIO ERROR] Failed to upload staging object {}/{}: {}", bucketName, objectName, e.getMessage());
+            throw new RuntimeException("Failed to upload staging object to MinIO: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Xóa an toàn object trên MinIO (dùng để dọn dẹp file staging trong khối finally).
+     */
+    public void removeObjectSafely(String bucketName, String objectName) {
+        if (bucketName == null || bucketName.isBlank() || objectName == null || objectName.isBlank()) {
+            return;
+        }
+        try {
+            minioClient.removeObject(
+                    RemoveObjectArgs.builder()
+                            .bucket(bucketName)
+                            .object(objectName)
+                            .build()
+            );
+        } catch (Exception e) {
+            log.debug("[MINIO] Could not remove temporary object {}/{}: {}", bucketName, objectName, e.getMessage());
+        }
+    }
+
+    private String getRecordingsBucketUnusedPlaceholder() {
         return bucketRecordings;
     }
 

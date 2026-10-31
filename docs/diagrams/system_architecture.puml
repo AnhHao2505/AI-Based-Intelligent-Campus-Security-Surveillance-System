@@ -21,29 +21,29 @@ skinparam component {
 ' ============================================================================
 ' 1. EXTERNAL VIDEO SOURCE (TOP)
 ' ============================================================================
-package "External Video Source (Edge Cameras)" as ExtSources #F8FAFC {
-    component "IP Surveillance Cameras (IMOU)\n(RTSP Video Sources)" as ExtCameras #E2E8F0
+package "External Video Source (LAN Edge Cameras)" as ExtSources #F8FAFC {
+    component "IP Surveillance Cameras (IMOU)\n(Private LAN RTSP Video Sources)" as ExtCameras #E2E8F0
 }
 
 ' ============================================================================
-' 2. SYSTEM BOUNDARY: CAMPUS SECURITY SURVEILLANCE SYSTEM (EDGE-CLOUD READY)
+' 2. SYSTEM BOUNDARY: CAMPUS SECURITY SURVEILLANCE SYSTEM (CLOUD-EDGE)
 ' ============================================================================
-package "System Boundary: Campus Security Surveillance System (Edge-Cloud Architecture)" as SysBoundary #FFFFFF {
+package "System Boundary: Campus Security Surveillance System (Cloud-Edge Architecture)" as SysBoundary #FFFFFF {
 
     ' Top Tier: Ingestion & Presentation
-    component "Media Gateway Subsystem\n--\n• MediaMTX Streaming Server\n• WebRTC WHEP / RTSP Proxy" as MediaGateway #FEF3C7
-    
+    component "Media Gateway Subsystem (Edge + Cloud Relay)\n--\n• Edge MediaMTX (:8554 / :8889 / :9996 fMP4)\n• Optional Cloud MediaMTX HTTPS WHEP Relay" as MediaGateway #FEF3C7
+
     component "Client Subsystem\n--\n• Web Application (React 19 / Vite)\n• Mobile Application (Flutter / Dart)" as ClientSubsys #EFF6FF
 
     ' Middle Tier: Processing & Event Pipeline
-    component "AI Video Analytics Subsystem (Edge)\n--\n• FastAPI AI Microservice\n• YOLO11 & YuNet / ArcFace\n• Local Buffer & MinIO Uploader" as AISubsys #F3E8FF
+    component "AI Video Analytics Subsystem (Local Edge)\n--\n• FastAPI AI Service + EdgeMqttAgent\n• YOLO11 & YuNet / ArcFace\n• OSD Timestamp + SHA-256 + MinIO Uploader" as AISubsys #F3E8FF
 
-    component "Event & Telemetry Broker\n--\n• Eclipse Mosquitto (MQTT 2.0)\n• Security Incident & Health Topics" as MqttSubsys #FFFBEB
+    component "Bidirectional MQTT Control & Event Broker\n--\n• Eclipse Mosquitto (MQTT 2.0)\n• Retained Config, Commands & Correlation RPC\n• Security Incidents & Recording Telemetry" as MqttSubsys #FFFBEB
 
-    component "Core Backend Subsystem (Cloud/Central)\n--\n• Spring Boot Application Server\n• Security, Access Control & Dispatch" as BackendSubsys #EFF6FF
+    component "Core Backend Subsystem (Cloud / Central)\n--\n• Spring Boot Application Server\n• EdgeMqttControlService & DB-First Recordings\n• Security, Access Control & Dispatch" as BackendSubsys #EFF6FF
 
     ' Bottom Tier: Persistence & Storage
-    component "Unified Data & Storage Subsystem\n--\n• PostgreSQL 16 & pgvector\n• MinIO S3 Object Storage\n  (Faces, Evidence, MP4 Recordings)" as StorageSubsys #F0FDF4
+    component "Unified Data & Storage Subsystem (Cloud)\n--\n• PostgreSQL 16 & pgvector (camera_recordings)\n• MinIO S3 Object Storage (SSE-S3)\n  (Faces, Snapshots, Evidence, MP4 Recordings)" as StorageSubsys #F0FDF4
 }
 
 ' ============================================================================
@@ -58,30 +58,30 @@ package "External Cloud Services" as ExtServices #F8FAFC {
 ExtGoogle -[hidden]down-> ExtMail
 
 ' ============================================================================
-' STREAMLINED DATA FLOWS & PROTOCOLS
+' STREAMLINED DATA FLOWS & PROTOCOLS (100% OUTBOUND-ONLY FROM EDGE)
 ' ============================================================================
 
 ' 1. Video Ingestion from Top into System Boundary
-ExtCameras -down-> MediaGateway : "RTSP Video Ingestion\n(RTSP over TCP)"
+ExtCameras -down-> MediaGateway : "LAN RTSP Video Ingestion\n(RTSP over TCP)"
 
 ' 2. Media Streaming & Client Distribution
-MediaGateway -right-> ClientSubsys : "Live Stream Preview\n(WebRTC WHEP)"
+MediaGateway -right-> ClientSubsys : "Dual-Endpoint Live Preview\n(LAN WHEP / Cloud HTTPS WHEP)"
 MediaGateway -down-> AISubsys : "Internal Video Feed\n(RTSP Substream)"
+AISubsys -up-> MediaGateway : "Local Path Sync (:9997) &\nOn-Demand Cloud Relay (FFmpeg -c copy)"
 
 ' 3. Client & Core Backend Communication
 ClientSubsys <--> BackendSubsys : "• Business REST APIs (HTTPS)\n• Real-Time Alerts (WebSocket STOMP)"
 
-' 4. Core Backend Management of Video & AI
-BackendSubsys -up-> MediaGateway : "Stream Config (REST API)"
-BackendSubsys <--> AISubsys : "Check allow / Control\n(HTTP REST)"
+' 4. Outbound-Only Edge-to-Cloud Access Check
+AISubsys -right-> BackendSubsys : "Outbound Check Entry\n(HTTPS REST + X-Service-Key)"
 
-' 5. Security Incident Event Pipeline (Edge-to-Cloud via MQTT)
-AISubsys -right-> MqttSubsys : "Publish Incidents\n(MQTT QoS 1)"
-MqttSubsys -right-> BackendSubsys : "Subscribe Incidents\n(MQTT Subscriber)"
+' 5. Bidirectional Outbound-Only MQTT Control & Event Plane
+AISubsys <--> MqttSubsys : "• Publish Incidents, Recordings & RPC Replies\n• Subscribe Retained Config, Cmd & RPC (Outbound)"
+MqttSubsys <--> BackendSubsys : "• Publish Retained Config, Cmd & RPC\n• Subscribe Incidents, Recordings & Replies"
 
 ' 6. Data Persistence & Unified Object Storage
-AISubsys -down-> StorageSubsys : "Snapshots & MP4 Clips (S3 API)\nFace Vectors (SQL)"
-BackendSubsys -down-> StorageSubsys : "Relational DB (JDBC)\nMedia & Recordings (S3 API)"
+AISubsys -down-> StorageSubsys : "Outbound Snapshots & MP4 Clips (S3 SSE-S3)\nFace Vectors Read (SQL)"
+BackendSubsys -down-> StorageSubsys : "Relational DB & Recordings Metadata (JDBC)\nMedia Streaming HTTP 206 Range (S3 API)"
 
 ' 7. External Cloud Integrations (Right side)
 BackendSubsys -right-> ExtGoogle : "Token Verification (HTTPS)"

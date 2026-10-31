@@ -22,25 +22,45 @@ public class MediaMtxService {
     private final RestTemplate restTemplate = new RestTemplate(new JdkClientHttpRequestFactory());
 
     @Value("${mediamtx.api.url:http://localhost:9997}")
-    private String mediaMtxApiUrl;
+    private String mediaMtxApiUrl = "http://localhost:9997";
 
     @Value("${mediamtx.rtsp.url:rtsp://localhost:8554}")
-    private String mediaMtxRtspUrl;
+    private String mediaMtxRtspUrl = "rtsp://localhost:8554";
+
+    @Value("${mediamtx.whep.base-url:http://localhost:8889}")
+    private String mediaMtxWhepBaseUrl = "http://localhost:8889";
 
     /**
      * Lấy địa chỉ RTSP phân phối nội bộ từ MediaMTX Gateway (ví dụ: rtsp://localhost:8554/cam-001).
-     * AI-Service và các consumer nội bộ kết nối qua luồng này để tránh double-connection gây quá tải camera/điện thoại.
      */
     public String getGatewayRtspUrl(String cameraCode) {
-        return mediaMtxRtspUrl + "/" + formatPathName(cameraCode);
+        String base = (mediaMtxRtspUrl != null && !mediaMtxRtspUrl.isBlank()) ? mediaMtxRtspUrl : "rtsp://localhost:8554";
+        return base.replaceAll("/+$", "") + "/" + formatPathName(cameraCode);
+    }
+
+    /**
+     * Lấy địa chỉ WHEP WebRTC theo cấu hình môi trường (hỗ trợ cả Local HTTP và Cloud HTTPS Relay).
+     */
+    public String getWhepUrl(String cameraCode) {
+        String pathName = formatPathName(cameraCode);
+        if (pathName.isEmpty()) {
+            return null;
+        }
+        String base = (mediaMtxWhepBaseUrl != null && !mediaMtxWhepBaseUrl.isBlank())
+                ? mediaMtxWhepBaseUrl.trim().replaceAll("/+$", "")
+                : "http://localhost:8889";
+        return base + "/" + pathName + "/whep";
     }
 
     /**
      * Tự động đăng ký hoặc cập nhật luồng RTSP của Camera vào MediaMTX Gateway.
-     * MediaMTX sẽ tự động tạo WebRTC WHEP endpoint: http://mediamtx:8889/{cameraCode}
      */
     public void syncCameraPath(String cameraCode, String rtspSourceUrl) {
         if (cameraCode == null || cameraCode.trim().isEmpty() || rtspSourceUrl == null || rtspSourceUrl.trim().isEmpty()) {
+            return;
+        }
+        if (mediaMtxApiUrl == null || mediaMtxApiUrl.isBlank()) {
+            log.debug("ℹ️ [MediaMTX] mediamtx.api.url trống (Cloud mode), bỏ qua sync trực tiếp cho [{}]", cameraCode);
             return;
         }
 
@@ -51,7 +71,7 @@ public class MediaMtxService {
         Map<String, Object> payload = new HashMap<>();
         payload.put("source", rtspSourceUrl);
         payload.put("sourceProtocol", "tcp");
-        payload.put("sourceOnDemand", false);  // Luôn kết nối sẵn, không chờ viewer
+        payload.put("sourceOnDemand", false);
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -61,7 +81,6 @@ public class MediaMtxService {
             restTemplate.postForObject(addUrl, request, Map.class);
             log.info("✅ [MediaMTX] Đã tạo thành công dynamic path cho camera [{}] -> {}", pathName, rtspSourceUrl);
         } catch (HttpClientErrorException e) {
-            // Path đã tồn tại -> cập nhật bằng PATCH
             log.info("Path [{}] đã tồn tại trong MediaMTX, cập nhật nguồn mới...", pathName);
             try {
                 restTemplate.patchForObject(patchUrl, request, Map.class);
@@ -83,6 +102,9 @@ public class MediaMtxService {
         if (cameraCode == null || cameraCode.trim().isEmpty() || rtspSourceUrl == null || rtspSourceUrl.trim().isEmpty()) {
             return;
         }
+        if (mediaMtxApiUrl == null || mediaMtxApiUrl.isBlank()) {
+            return;
+        }
 
         String pathName = formatPathName(cameraCode);
         String addUrl = mediaMtxApiUrl + "/v3/config/paths/add/" + pathName;
@@ -91,7 +113,7 @@ public class MediaMtxService {
         Map<String, Object> payload = new HashMap<>();
         payload.put("source", rtspSourceUrl);
         payload.put("sourceProtocol", "tcp");
-        payload.put("sourceOnDemand", false);  // Luôn kết nối sẵn, không chờ viewer
+        payload.put("sourceOnDemand", false);
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -101,7 +123,6 @@ public class MediaMtxService {
             restTemplate.postForObject(addUrl, request, Map.class);
             log.info("✅ [MediaMTX] Đã tạo thành công dynamic path cho camera [{}] -> {}", pathName, rtspSourceUrl);
         } catch (HttpClientErrorException e) {
-            // Path đã tồn tại -> cập nhật bằng PATCH
             log.info("Path [{}] đã tồn tại trong MediaMTX, cập nhật nguồn mới...", pathName);
             try {
                 restTemplate.patchForObject(patchUrl, request, Map.class);
@@ -128,7 +149,7 @@ public class MediaMtxService {
      * Xóa path khỏi MediaMTX khi camera bị ngừng hoạt động (Decommissioned)
      */
     public void deleteCameraPath(String cameraCode) {
-        if (cameraCode == null || cameraCode.trim().isEmpty()) {
+        if (cameraCode == null || cameraCode.trim().isEmpty() || mediaMtxApiUrl == null || mediaMtxApiUrl.isBlank()) {
             return;
         }
 
@@ -148,13 +169,12 @@ public class MediaMtxService {
         return cameraCode.toLowerCase().replaceAll("[^a-z0-9_-]", "").trim();
     }
 
-    /**
-     * Lấy trạng thái sẵn sàng (ready) của tất cả các path từ MediaMTX API.
-     * key: pathName (lowercase), value: true nếu stream ready (đang đẩy frame), false nếu mất kết nối/chờ.
-     */
     @SuppressWarnings("unchecked")
     public Map<String, Boolean> getLivePathStatuses() {
         Map<String, Boolean> statusMap = new HashMap<>();
+        if (mediaMtxApiUrl == null || mediaMtxApiUrl.isBlank()) {
+            return statusMap;
+        }
         try {
             String listUrl = mediaMtxApiUrl + "/v3/paths/list";
             Map<String, Object> resp = restTemplate.getForObject(listUrl, Map.class);

@@ -5,11 +5,52 @@ import React, {
 	useImperativeHandle,
 	forwardRef,
 } from "react";
+import { toggleCloudRelay } from "../../services/cameraService";
 import "../../styles/WebRtcPlayer.css";
+
+const ENV_CLOUD_WHEP_BASE = import.meta.env.VITE_CLOUD_WHEP_BASE_URL || "";
+const ENV_MEDIAMTX_WHEP_BASE = import.meta.env.VITE_MEDIAMTX_WHEP_BASE_URL || "";
+const ENV_AI_STREAM_BASE = import.meta.env.VITE_AI_STREAM_BASE_URL || "";
+
+/**
+ * Chuẩn hóa URL WHEP hỗ trợ Dual-Endpoint (Local LAN HTTP hoặc Cloud HTTPS Relay không lỗi Mixed Content).
+ */
+function resolveWhepEndpoint(hostProp, streamPath) {
+	const cleanPath = String(streamPath || "cam01").replace(/^\/+|\/+$/g, "");
+	const rawBase = (ENV_CLOUD_WHEP_BASE || ENV_MEDIAMTX_WHEP_BASE || hostProp || "localhost:8889")
+		.trim()
+		.replace(/\/+$/, "");
+
+	if (rawBase.endsWith("/whep")) {
+		return rawBase;
+	}
+	if (/^https?:\/\//i.test(rawBase)) {
+		return `${rawBase}/${cleanPath}/whep`;
+	}
+	const isHttpsPage =
+		typeof window !== "undefined" && window.location?.protocol === "https:";
+	const isLoopback = /^(localhost|127\.0\.0\.1)(:\d+)?$/i.test(rawBase);
+	const protocol = isHttpsPage && !isLoopback ? "https://" : "http://";
+	return `${protocol}${rawBase}/${cleanPath}/whep`;
+}
+
+function resolveAiStreamUrl(aiHostProp, cameraCode) {
+	const rawAi = (ENV_AI_STREAM_BASE || aiHostProp || "localhost:8000")
+		.trim()
+		.replace(/\/+$/, "");
+	const base = /^https?:\/\//i.test(rawAi)
+		? rawAi
+		: typeof window !== "undefined" &&
+			  window.location?.protocol === "https:" &&
+			  !/^(localhost|127\.0\.0\.1)(:\d+)?$/i.test(rawAi)
+			? `https://${rawAi}`
+			: `http://${rawAi}`;
+	return `${base}/api/v1/stream/live-annotated?camera_code=${encodeURIComponent(cameraCode)}`;
+}
 
 /**
  * WebRtcPlayer: Component phát luồng video WebRTC (WHEP) từ MediaMTX với chuẩn giao diện OSD CCTV chuyên nghiệp.
- * Tích hợp nút toggle [TRACKING] cho phép bảo vệ/giám sát viên xem trực tiếp Bounding Box, Track ID, Khuôn mặt & Vùng ROI.
+ * Hỗ trợ kiến trúc Cloud-Edge (Dual-Endpoint Local LAN + On-Demand HTTPS Cloud Relay).
  */
 const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 	{
@@ -34,7 +75,7 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 ) {
 	const videoRef = useRef(null);
 	const pcRef = useRef(null);
-	const [status, setStatus] = useState(enabled ? "connecting" : "offline"); // 'connecting' | 'live' | 'error' | 'offline'
+	const [status, setStatus] = useState(enabled ? "connecting" : "offline");
 	const [errorMsg, setErrorMsg] = useState("");
 	const [showTracking, setShowTracking] = useState(false);
 	const [trackingError, setTrackingError] = useState(false);
@@ -63,20 +104,17 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 	}));
 	const [retryCount, setRetryCount] = useState(0);
 
-	// Reset retryCount và tracking error khi đổi kênh stream, host hoặc trạng thái enabled
 	useEffect(() => {
 		setRetryCount(0);
 		setTrackingError(false);
 	}, [streamPath, host, cameraCode, enabled]);
 
-	// Xử lý bật/tắt luồng AI Tracking
 	const handleToggleTracking = (e) => {
 		if (e) e.stopPropagation();
 		setTrackingError(false);
 		setShowTracking((prev) => !prev);
 	};
 
-	// Đồng hồ số chạy thời gian thực mỗi 1 giây chuẩn CCTV (HH:mm:ss)
 	const [liveClock, setLiveClock] = useState(() => {
 		return new Date().toLocaleTimeString("vi-VN", { hour12: false });
 	});
@@ -87,6 +125,18 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 		}, 1000);
 		return () => clearInterval(timer);
 	}, []);
+
+	const displayCamCode = (cameraCode || streamPath || "CAM-001").toUpperCase();
+	const displayCamName = cameraName || "Camera quan sát";
+
+	// Tự động kích hoạt On-Demand Cloud Relay qua MQTT khi triển khai trên Cloud HTTPS
+	useEffect(() => {
+		if (!enabled || !ENV_CLOUD_WHEP_BASE) return undefined;
+		toggleCloudRelay(displayCamCode, true).catch(() => {});
+		return () => {
+			toggleCloudRelay(displayCamCode, false).catch(() => {});
+		};
+	}, [displayCamCode, enabled]);
 
 	useEffect(() => {
 		if (!enabled) {
@@ -113,7 +163,6 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 				});
 				pcRef.current = peerConnection;
 
-				// Chỉ yêu cầu nhận Video (không nhận Audio) để tránh lỗi lệch clock rate
 				peerConnection.addTransceiver("video", { direction: "recvonly" });
 
 				const markLive = () => {
@@ -149,14 +198,12 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 					if (!isMounted) return;
 					const state = peerConnection.connectionState;
 					if (state === "connected") {
-						// Nếu video đã có frame hoặc đang play thì kích hoạt live ngay
 						if (
 							videoRef.current &&
 							(videoRef.current.videoWidth > 0 || !videoRef.current.paused)
 						) {
 							markLive();
 						} else {
-							// Đợi I-Frame từ camera, nếu quá 1.5s chưa có event onPlaying thì fallback sang live
 							setTimeout(() => {
 								if (
 									isMounted &&
@@ -171,16 +218,14 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 						if (onStatusChange) onStatusChange("offline");
 						setTimeout(() => {
 							if (isMounted) setRetryCount((prev) => prev + 1);
-						}, 1500); // Giảm từ 3s → 1.5s để tái kết nối nhanh hơn trên LAN
+						}, 1500);
 					}
 				};
 
-				// 1. Tạo SDP Offer
 				const offer = await peerConnection.createOffer();
 				await peerConnection.setLocalDescription(offer);
 
-				// 2. Gửi Offer sang MediaMTX WHEP endpoint
-				const whepUrl = `http://${host}/${streamPath}/whep`;
+				const whepUrl = resolveWhepEndpoint(host, streamPath);
 				const response = await fetch(whepUrl, {
 					method: "POST",
 					headers: {
@@ -195,7 +240,6 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 					);
 				}
 
-				// 3. Nhận SDP Answer từ MediaMTX
 				const answerSdp = await response.text();
 				await peerConnection.setRemoteDescription({
 					type: "answer",
@@ -208,7 +252,7 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 					if (onStatusChange) onStatusChange("offline");
 					setTimeout(() => {
 						if (isMounted) setRetryCount((prev) => prev + 1);
-					}, 2000); // Giảm từ 4s → 2s để tái kết nối nhanh hơn trên LAN
+					}, 2000);
 				}
 			}
 		}
@@ -223,14 +267,10 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 		};
 	}, [streamPath, host, retryCount, enabled]);
 
-	const displayCamCode = (cameraCode || streamPath || "CAM-001").toUpperCase();
-	const displayCamName = cameraName || "Camera quan sát";
-
 	return (
 		<div
 			className={`cctv-player-wrapper ${status !== "live" ? "cctv-player--blackout" : ""}`}
 		>
-			{/* Thẻ Video phát luồng trực tiếp WebRTC (luôn mount ngầm để giữ nguyên peer connection khi toggle tracking) */}
 			<video
 				ref={videoRef}
 				autoPlay={autoPlay}
@@ -250,10 +290,9 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 				}}
 			/>
 
-			{/* Luồng AI Tracking Annotation trực tiếp (YOLO11, ByteTrack, Khuôn mặt & Vùng ROI) */}
 			{showTracking && (
 				<img
-					src={`http://${aiHost}/api/v1/stream/live-annotated?camera_code=${encodeURIComponent(cameraCode || streamPath || "CAM-001")}`}
+					src={resolveAiStreamUrl(aiHost, cameraCode || streamPath || "CAM-001")}
 					alt={`AI Tracking ${cameraCode}`}
 					className="cctv-annotated-stream"
 					onError={() => {
@@ -265,7 +304,6 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 				/>
 			)}
 
-			{/* Thông báo khi không kết nối được luồng Tracking */}
 			{showTracking && trackingError && (
 				<div className="cctv-tracking-error-overlay">
 					<div className="cctv-tracking-error-box">
@@ -300,20 +338,13 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 				</div>
 			)}
 
-			{/* ┌──────────────────────────────────────────────────────────────┐
-          │  CAM-001 Cổng chính    ● LIVE    ● REC    ● TRACKING   15:53 │
-          └──────────────────────────────────────────────────────────────┘
-          Thanh OSD Phía Trên: Tên camera đứng 1 mình ở góc trái trên */}
 			<div className="cctv-osd-top-bar">
-				{/* Góc trái trên: Tên camera đứng 1 mình */}
 				<div className="cctv-osd-top-left">
 					<span className="cctv-cam-name-isolated">{displayCamName}</span>
 				</div>
 
-				{/* Phía trên bên phải: LIVE, REC, AI TRACKING, Đồng hồ số chạy từng giây */}
 				<div className="cctv-osd-top-right">
 					<div className="cctv-indicator-group">
-						{/* Đèn chỉ thị LIVE xanh ngọc */}
 						<span
 							className={`cctv-tag cctv-tag--live ${status === "live" ? "active" : "idle"}`}
 						>
@@ -321,7 +352,6 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 							LIVE
 						</span>
 
-						{/* Đèn chỉ thị REC đỏ cờ đang ghi hình */}
 						{isRecording && (
 							<span className="cctv-tag cctv-tag--rec">
 								<span className="cctv-dot cctv-dot--red" />
@@ -329,7 +359,6 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 							</span>
 						)}
 
-						{/* Nút bật/tắt AI Tracking & Bounding Box */}
 						{enableTrackingToggle && (
 							<button
 								type="button"
@@ -347,10 +376,8 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 						)}
 					</div>
 
-					{/* Đồng hồ số thời gian thực chuẩn CCTV */}
 					<span className="cctv-clock-text">{liveClock}</span>
 
-					{/* Nút phóng to nhanh ô camera (nếu có callback) */}
 					{onToggleMaximize && (
 						<button
 							type="button"
@@ -364,12 +391,7 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 				</div>
 			</div>
 
-			{/* ┌──────────────────────────────────────────────────────────────┐
-          │  CAM-001 • 1080p • 30 FPS • AI OVERLAY        15:53:21        │
-          └──────────────────────────────────────────────────────────────┘
-          Thanh OSD Phía Dưới: Mã camera ở góc trái dưới kèm thông số */}
 			<div className="cctv-osd-bottom-bar">
-				{/* Góc trái dưới: Mã camera • 1080p • 30 FPS • AI Badge (nếu đang bật tracking) */}
 				<div className="cctv-osd-bottom-left">
 					<span className="cctv-spec-code">{displayCamCode}</span>
 					<span className="cctv-spec-divider">•</span>
@@ -385,7 +407,6 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 				</div>
 			</div>
 
-			{/* Màn hình ĐEN THUẦN khi mất kết nối / Đang tải (Chuẩn màn hình giám sát chuyên nghiệp) */}
 			{status !== "live" && (
 				<div className="cctv-blackout-screen">
 					<div className="cctv-offline-telemetry">

@@ -54,6 +54,7 @@ app.add_middleware(
 
 # Pipeline mặc định cho Camera 1
 default_pipeline: Optional[VideoPipeline] = None
+edge_agent = None
 
 async def sync_ai_config_from_backend(max_retries: int = 10, retry_delay: float = 3.0):
     """
@@ -132,6 +133,21 @@ async def startup_event():
         )
     except Exception as e:
         print(f"[!] Cảnh báo khi khởi tạo pipeline: {e}")
+    global edge_agent
+    try:
+        from .integration.mqtt_client import edge_mqtt_client
+        from .integration.edge_agent import EdgeMqttAgent
+        edge_agent = EdgeMqttAgent(
+            mqtt_client_wrapper=edge_mqtt_client,
+            storage=storage_service,
+            active_workers=active_workers,
+            default_pipeline_getter=lambda: default_pipeline,
+            face_detector_instance=face_detector,
+            face_embedder_instance=face_embedder,
+        )
+        edge_agent.start()
+    except Exception as e:
+        logger.warning(f"⚠️ Không thể khởi tạo EdgeMqttAgent: {e}")
     asyncio.create_task(sync_ai_config_from_backend())
 
 @app.get("/")

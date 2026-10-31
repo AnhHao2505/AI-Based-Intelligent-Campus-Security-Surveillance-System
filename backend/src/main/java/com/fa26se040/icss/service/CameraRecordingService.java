@@ -1,8 +1,18 @@
 package com.fa26se040.icss.service;
 
+import com.fa26se040.icss.dto.camera.RecordingCompletedEventDto;
 import com.fa26se040.icss.dto.camera.RecordingVideoResponse;
 import com.fa26se040.icss.entity.Camera;
+import com.fa26se040.icss.entity.CameraRecording;
+import com.fa26se040.icss.entity.SecurityIncident;
+import com.fa26se040.icss.enums.RecordingStatus;
+import com.fa26se040.icss.enums.RecordingStorageLocation;
+import com.fa26se040.icss.enums.RecordingType;
+import com.fa26se040.icss.exception.CameraErrorCode;
+import com.fa26se040.icss.exception.CameraException;
+import com.fa26se040.icss.repository.CameraRecordingRepository;
 import com.fa26se040.icss.repository.CameraRepository;
+import com.fa26se040.icss.repository.SecurityIncidentRepository;
 import io.minio.Result;
 import io.minio.messages.Item;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +52,8 @@ import java.util.stream.Stream;
 public class CameraRecordingService {
 
     private final CameraRepository cameraRepository;
+    private final CameraRecordingRepository cameraRecordingRepository;
+    private final SecurityIncidentRepository securityIncidentRepository;
     private final MinioStorageService minioStorageService;
 
     @Value("${recording.storage.path:C:/DATN/AI-Based-Intelligent-Campus-Security-Surveillance-System/recording}")
@@ -62,10 +74,113 @@ public class CameraRecordingService {
     );
 
     /**
-     * Quét cả MinIO Object Storage và thư mục đĩa cục bộ:
-     * 1. MinIO bucket camera-recordings (Ghi hình định kỳ)
-     * 2. MinIO bucket security-evidence (Ghi hình sự cố an ninh)
-     * 3. Thư mục đĩa recording & evidence (Backward compatibility)
+     * Tiếp nhận và lưu trữ (Idempotent UPSERT) metadata video ghi hình hoàn tất từ Edge AI qua MQTT.
+     * Đồng thời đánh dấu DELETED các phân đoạn cũ đã bị dọn dẹp theo chính sách xoay vòng.
+     */
+    @Transactional
+    public CameraRecording ingestCompletedRecording(RecordingCompletedEventDto dto) {
+        if (dto == null
+                || dto.getCameraCode() == null || dto.getCameraCode().isBlank()
+                || dto.getStorageKey() == null || dto.getStorageKey().isBlank()
+                || dto.getDurationSeconds() == null || dto.getDurationSeconds() < 1
+                || dto.getFileSizeBytes() == null || dto.getFileSizeBytes() <= 0) {
+            throw new CameraException(CameraErrorCode.ERR_RECORDING_001);
+        }
+
+        String normCamCode = dto.getCameraCode().trim().toUpperCase();
+        String storageKey = dto.getStorageKey().trim();
+        String filename = (dto.getFilename() != null && !dto.getFilename().isBlank())
+                ? dto.getFilename().trim()
+                : extractFilename(storageKey);
+
+        RecordingType recType = "INCIDENT_EVIDENCE".equalsIgnoreCase(dto.getRecordingType())
+                ? RecordingType.INCIDENT_EVIDENCE
+                : RecordingType.PERIODIC_SEGMENT;
+
+        RecordingStorageLocation storageLocation = "EDGE_LOCAL".equalsIgnoreCase(dto.getStorageLocation())
+                ? RecordingStorageLocation.EDGE_LOCAL
+                : RecordingStorageLocation.CLOUD_MINIO;
+
+        OffsetDateTime startTime = parseIsoOffsetDateTime(dto.getStartTime(), OffsetDateTime.now(VIETNAM_ZONE).minusSeconds(dto.getDurationSeconds()));
+        OffsetDateTime endTime = parseIsoOffsetDateTime(dto.getEndTime(), startTime.plusSeconds(dto.getDurationSeconds()));
+
+        Camera camera = cameraRepository != null
+                ? cameraRepository.findByCameraCode(normCamCode).orElse(null)
+                : null;
+
+        SecurityIncident incident = resolveSecurityIncident(dto.getIncidentId(), dto.getEventId());
+
+        CameraRecording entity = cameraRecordingRepository.findByStorageKey(storageKey)
+                .orElseGet(CameraRecording::new);
+
+        entity.setCamera(camera);
+        entity.setCameraCode(normCamCode);
+        entity.setIncident(incident);
+        entity.setRecordingType(recType);
+        entity.setStorageLocation(storageLocation);
+        entity.setStorageBucket(dto.getStorageBucket());
+        entity.setStorageKey(storageKey);
+        entity.setFilename(filename);
+        entity.setStartTime(startTime);
+        entity.setEndTime(endTime);
+        entity.setDurationSeconds(dto.getDurationSeconds());
+        entity.setFileSizeBytes(dto.getFileSizeBytes());
+        entity.setResolution(dto.getResolution() != null && !dto.getResolution().isBlank() ? dto.getResolution() : "854x480");
+        entity.setFps(dto.getFps() != null && dto.getFps() > 0 ? dto.getFps() : 15.0);
+        entity.setChecksumSha256(dto.getChecksumSha256());
+        entity.setStatus(RecordingStatus.READY);
+
+        CameraRecording saved = cameraRecordingRepository.save(entity);
+
+        if (dto.getDeletedStorageKeys() != null && !dto.getDeletedStorageKeys().isEmpty()) {
+            for (String expiredKey : dto.getDeletedStorageKeys()) {
+                if (expiredKey == null || expiredKey.isBlank()) continue;
+                cameraRecordingRepository.findByStorageKey(expiredKey.trim()).ifPresent(oldRec -> {
+                    if (oldRec.getStatus() != RecordingStatus.DELETED) {
+                        oldRec.setStatus(RecordingStatus.DELETED);
+                        cameraRecordingRepository.save(oldRec);
+                    }
+                });
+            }
+        }
+
+        log.info("💾 [CameraRecording] Đã lưu metadata video [{}] camera={} duration={}s size={}B",
+                storageKey, normCamCode, saved.getDurationSeconds(), saved.getFileSizeBytes());
+        return saved;
+    }
+
+    /**
+     * Quản lý chuyển trạng thái vòng đời bản ghi video:
+     * Hợp lệ: RECORDING -> READY, RECORDING -> DELETED, READY -> DELETED.
+     */
+    @Transactional
+    public CameraRecording transitionRecordingStatus(UUID recordingId, RecordingStatus targetStatus) {
+        if (recordingId == null || targetStatus == null) {
+            throw new CameraException(CameraErrorCode.ERR_RECORDING_002);
+        }
+
+        CameraRecording recording = cameraRecordingRepository.findById(recordingId)
+                .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_RECORDING_001));
+
+        RecordingStatus current = recording.getStatus();
+        boolean valid = switch (current) {
+            case RECORDING -> targetStatus == RecordingStatus.READY || targetStatus == RecordingStatus.DELETED;
+            case READY -> targetStatus == RecordingStatus.DELETED;
+            case DELETED -> false;
+        };
+
+        if (!valid) {
+            throw new CameraException(CameraErrorCode.ERR_RECORDING_002);
+        }
+
+        recording.setStatus(targetStatus);
+        return cameraRecordingRepository.save(recording);
+    }
+
+    /**
+     * Liệt kê danh sách video:
+     * 1. Ưu tiên đọc từ bảng CSDL camera_recordings (thời gian & thời lượng thực 100%).
+     * 2. Tương thích ngược với các tệp cũ trên MinIO / ổ đĩa chưa được index vào CSDL.
      */
     public List<RecordingVideoResponse> listRecordings(
             String cameraCodeFilter,
@@ -73,7 +188,6 @@ public class CameraRecordingService {
             String fromDateStr,
             String toDateStr
     ) {
-        // Cache camera info from DB
         Map<String, Camera> cameraMap = cameraRepository.findAll().stream()
                 .filter(c -> c.getCameraCode() != null)
                 .collect(Collectors.toMap(
@@ -85,19 +199,164 @@ public class CameraRecordingService {
         List<RecordingVideoResponse> results = new ArrayList<>();
         Set<String> seenKeys = new HashSet<>();
 
-        // 1. Quét MinIO bucket camera-recordings & security-evidence
+        // 1. Đọc từ CSDL camera_recordings (Primary Source of Truth)
+        if (cameraRecordingRepository != null) {
+            List<CameraRecording> dbRecordings = cameraRecordingRepository.findAllByStatusOrderByStartTimeDesc(RecordingStatus.READY);
+            if (dbRecordings != null) {
+                for (CameraRecording rec : dbRecordings) {
+                    String dedupKey = rec.getCameraCode().toUpperCase() + ":" + rec.getFilename().toLowerCase();
+                    seenKeys.add(dedupKey);
+                    seenKeys.add(rec.getStorageKey());
+
+                    if (cameraCodeFilter != null && !cameraCodeFilter.isBlank()
+                            && !rec.getCameraCode().equalsIgnoreCase(cameraCodeFilter.trim())) {
+                        continue;
+                    }
+                    if (!matchesDateRange(rec.getStartTime(), fromDateStr, toDateStr)) {
+                        continue;
+                    }
+
+                    RecordingVideoResponse mapped = mapEntityToResponse(rec, cameraMap);
+                    if (keyword != null && !keyword.isBlank() && !matchesKeyword(mapped, keyword)) {
+                        continue;
+                    }
+                    results.add(mapped);
+                }
+            }
+        }
+
+        // 2. Tương thích ngược: Quét các file cũ chưa có trong CSDL trên MinIO & ổ đĩa
         if (minioStorageService != null) {
             scanMinioBucket(minioStorageService.getRecordingsBucket(), false, cameraCodeFilter, keyword, fromDateStr, toDateStr, cameraMap, results, seenKeys);
             scanMinioBucket(minioStorageService.getEvidenceBucket(), true, cameraCodeFilter, keyword, fromDateStr, toDateStr, cameraMap, results, seenKeys);
         }
 
-        // 2. Quét thư mục đĩa (để tương thích ngược với video cũ đã hoàn tất)
         scanDirectory(recordingStoragePath, false, cameraCodeFilter, keyword, fromDateStr, toDateStr, cameraMap, results, seenKeys);
         scanDirectory(evidenceStoragePath, true, cameraCodeFilter, keyword, fromDateStr, toDateStr, cameraMap, results, seenKeys);
 
-        // Sắp xếp mới nhất lên đầu
         results.sort((a, b) -> b.getStartTime().compareTo(a.getStartTime()));
         return results;
+    }
+
+    private RecordingVideoResponse mapEntityToResponse(CameraRecording rec, Map<String, Camera> cameraMap) {
+        String cameraCode = rec.getCameraCode().toUpperCase();
+        Camera cam = rec.getCamera() != null ? rec.getCamera() : cameraMap.get(cameraCode);
+        String cameraName = cam != null ? cam.getName() : ("Camera " + cameraCode);
+        String areaName = "Khuôn viên FPTU";
+        String building = "Tòa nhà";
+        String floor = "Tầng 1";
+        try {
+            if (cam != null && cam.getArea() != null) {
+                if (cam.getArea().getName() != null) areaName = cam.getArea().getName();
+                if (cam.getArea().getBuilding() != null) building = cam.getArea().getBuilding();
+                if (cam.getArea().getFloor() != null) floor = "Tầng " + cam.getArea().getFloor();
+            }
+        } catch (Exception ignored) {
+        }
+
+        boolean isIncident = rec.getRecordingType() == RecordingType.INCIDENT_EVIDENCE;
+        boolean isMinio = rec.getStorageLocation() == RecordingStorageLocation.CLOUD_MINIO;
+
+        String encodedKey = URLEncoder.encode(rec.getStorageKey(), StandardCharsets.UTF_8);
+        String sourceParam;
+        String storageDisplay;
+        if (isMinio) {
+            sourceParam = isIncident ? "&source=minio_evidence" : "&source=minio_recording";
+            String bucket = rec.getStorageBucket() != null ? rec.getStorageBucket()
+                    : (isIncident ? "security-evidence" : "camera-recordings");
+            storageDisplay = "minio://" + bucket + "/" + rec.getStorageKey();
+        } else {
+            sourceParam = isIncident ? "&source=evidence" : "&source=recording";
+            storageDisplay = rec.getStorageKey();
+        }
+
+        String streamUrl = "/api/cameras/recordings/stream?path=" + encodedKey + sourceParam;
+        String downloadUrl = streamUrl + "&download=true";
+
+        int durSec = rec.getDurationSeconds() != null ? rec.getDurationSeconds() : 0;
+        String durationDisplay = String.format("%02d:%02d (%ds)", durSec / 60, durSec % 60, durSec);
+        long sizeBytes = rec.getFileSizeBytes() != null ? rec.getFileSizeBytes() : 0L;
+        int fpsInt = rec.getFps() != null ? (int) Math.round(rec.getFps()) : 15;
+        String resolutionDisplay = (rec.getResolution() != null ? rec.getResolution() : "854x480")
+                + " (" + fpsInt + "fps)";
+
+        return RecordingVideoResponse.builder()
+                .id(rec.getId() != null ? rec.getId().toString() : ("REC-" + cameraCode + "-" + rec.getStartTime().toEpochSecond()))
+                .cameraId(cameraCode)
+                .cameraName(cameraName)
+                .areaName(areaName)
+                .building(building)
+                .floor(floor)
+                .eventType(isIncident ? "SECURITY_EVENT" : "NORMAL_RECORDING")
+                .eventTypeName(isIncident ? "Sự cố an ninh (Incident Evidence)" : "Ghi hình định kỳ")
+                .severity(isIncident ? "CRITICAL" : null)
+                .startTime(rec.getStartTime())
+                .endTime(rec.getEndTime())
+                .duration(durationDisplay)
+                .fileSize(formatFileSize(sizeBytes))
+                .fileSizeBytes(sizeBytes)
+                .resolution(resolutionDisplay)
+                .format("MP4 (H.264 / AVC1)")
+                .storagePath(storageDisplay)
+                .relativePath(rec.getStorageKey())
+                .videoUrl(streamUrl)
+                .downloadUrl(downloadUrl)
+                .filename(rec.getFilename())
+                .notes(rec.getChecksumSha256() != null ? "SHA-256: " + rec.getChecksumSha256() : "Đã xác thực metadata từ Edge")
+                .build();
+    }
+
+    private SecurityIncident resolveSecurityIncident(String incidentIdStr, String eventId) {
+        if (securityIncidentRepository == null) return null;
+        if (incidentIdStr != null && !incidentIdStr.isBlank()) {
+            try {
+                UUID uuid = UUID.fromString(incidentIdStr.trim());
+                Optional<SecurityIncident> byUuid = securityIncidentRepository.findById(uuid);
+                if (byUuid.isPresent()) return byUuid.get();
+            } catch (IllegalArgumentException ignored) {
+                Optional<SecurityIncident> byEvent = securityIncidentRepository.findByEventId(incidentIdStr.trim());
+                if (byEvent.isPresent()) return byEvent.get();
+            }
+        }
+        if (eventId != null && !eventId.isBlank()) {
+            return securityIncidentRepository.findByEventId(eventId.trim()).orElse(null);
+        }
+        return null;
+    }
+
+    private OffsetDateTime parseIsoOffsetDateTime(String iso, OffsetDateTime fallback) {
+        if (iso == null || iso.isBlank()) return fallback;
+        try {
+            return OffsetDateTime.parse(iso.trim());
+        } catch (Exception e) {
+            return fallback;
+        }
+    }
+
+    private String extractFilename(String storageKey) {
+        int idx = Math.max(storageKey.lastIndexOf('/'), storageKey.lastIndexOf('\\'));
+        return idx >= 0 ? storageKey.substring(idx + 1) : storageKey;
+    }
+
+    private boolean matchesDateRange(OffsetDateTime startTime, String fromDateStr, String toDateStr) {
+        if (startTime == null) return true;
+        if (fromDateStr != null && !fromDateStr.isBlank()) {
+            OffsetDateTime fromDate = OffsetDateTime.parse(fromDateStr + "T00:00:00+07:00");
+            if (startTime.isBefore(fromDate)) return false;
+        }
+        if (toDateStr != null && !toDateStr.isBlank()) {
+            OffsetDateTime toDate = OffsetDateTime.parse(toDateStr + "T23:59:59+07:00");
+            if (startTime.isAfter(toDate)) return false;
+        }
+        return true;
+    }
+
+    private boolean matchesKeyword(RecordingVideoResponse r, String keyword) {
+        String kw = keyword.toLowerCase().trim();
+        return (r.getCameraId() != null && r.getCameraId().toLowerCase().contains(kw))
+                || (r.getCameraName() != null && r.getCameraName().toLowerCase().contains(kw))
+                || (r.getAreaName() != null && r.getAreaName().toLowerCase().contains(kw))
+                || (r.getFilename() != null && r.getFilename().toLowerCase().contains(kw));
     }
 
     private static boolean isInProgressRecordingFilename(String name) {
@@ -128,6 +387,7 @@ public class CameraRecordingService {
                     if (item.isDir()) continue;
                     String objectName = item.objectName();
                     if (objectName == null || !objectName.toLowerCase().endsWith(".mp4")) continue;
+                    if (seenKeys.contains(objectName)) continue;
 
                     String[] parts = objectName.split("/");
                     String cameraCode = "CAM-UNKNOWN";
@@ -145,6 +405,9 @@ public class CameraRecordingService {
                         continue;
                     }
 
+                    String dedupKey = cameraCode.toUpperCase() + ":" + filename.toLowerCase();
+                    if (!seenKeys.add(dedupKey)) continue;
+
                     long fileSizeBytes = item.size();
                     boolean isIncidentVideo = isEvidenceBucket || filename.toLowerCase().startsWith("incident");
 
@@ -156,19 +419,12 @@ public class CameraRecordingService {
                         if (diffSec > 0 && diffSec <= 600) {
                             durationSeconds = diffSec;
                         } else {
-                            durationSeconds = Math.max(5, fileSizeBytes / (900 * 1024));
+                            durationSeconds = Math.max(5, fileSizeBytes / (120 * 1024));
                         }
                     }
                     OffsetDateTime endTime = startTime.plusSeconds(durationSeconds);
 
-                    if (fromDateStr != null && !fromDateStr.isBlank()) {
-                        OffsetDateTime fromDate = OffsetDateTime.parse(fromDateStr + "T00:00:00+07:00");
-                        if (startTime.isBefore(fromDate)) continue;
-                    }
-                    if (toDateStr != null && !toDateStr.isBlank()) {
-                        OffsetDateTime toDate = OffsetDateTime.parse(toDateStr + "T23:59:59+07:00");
-                        if (startTime.isAfter(toDate)) continue;
-                    }
+                    if (!matchesDateRange(startTime, fromDateStr, toDateStr)) continue;
 
                     Camera cam = cameraMap.get(cameraCode.toUpperCase());
                     String cameraName = cam != null ? cam.getName() : ("Camera " + cameraCode);
@@ -191,9 +447,6 @@ public class CameraRecordingService {
                                 || filename.toLowerCase().contains(kw);
                         if (!matches) continue;
                     }
-
-                    String dedupKey = cameraCode.toUpperCase() + ":" + filename.toLowerCase();
-                    if (!seenKeys.add(dedupKey)) continue;
 
                     String encodedRelPath = URLEncoder.encode(objectName, StandardCharsets.UTF_8);
                     String sourceParam = isEvidenceBucket ? "&source=minio_evidence" : "&source=minio_recording";
@@ -274,6 +527,7 @@ public class CameraRecordingService {
                 try {
                     Path relativePath = baseDirPath.relativize(filePath);
                     String relPathStr = relativePath.toString().replace('\\', '/');
+                    if (seenKeys.contains(relPathStr)) continue;
 
                     String cameraCode = "CAM-UNKNOWN";
                     if (relativePath.getNameCount() > 1) {
@@ -301,19 +555,12 @@ public class CameraRecordingService {
                         if (diffSec > 0 && diffSec < 86400) {
                             durationSeconds = diffSec;
                         } else {
-                            durationSeconds = Math.max(5, fileSizeBytes / (250 * 1024));
+                            durationSeconds = Math.max(5, fileSizeBytes / (120 * 1024));
                         }
                     }
                     OffsetDateTime endTime = startTime.plusSeconds(durationSeconds);
 
-                    if (fromDateStr != null && !fromDateStr.isBlank()) {
-                        OffsetDateTime fromDate = OffsetDateTime.parse(fromDateStr + "T00:00:00+07:00");
-                        if (startTime.isBefore(fromDate)) continue;
-                    }
-                    if (toDateStr != null && !toDateStr.isBlank()) {
-                        OffsetDateTime toDate = OffsetDateTime.parse(toDateStr + "T23:59:59+07:00");
-                        if (startTime.isAfter(toDate)) continue;
-                    }
+                    if (!matchesDateRange(startTime, fromDateStr, toDateStr)) continue;
 
                     Camera cam = cameraMap.get(cameraCode.toUpperCase());
                     String cameraName = cam != null ? cam.getName() : ("Camera " + cameraCode);
@@ -393,7 +640,6 @@ public class CameraRecordingService {
      * Hỗ trợ tìm kiếm tệp ở MinIO và cả ổ đĩa cục bộ.
      */
     public ResponseEntity<Resource> streamVideo(String relativePathStr, String source, HttpHeaders headers, boolean download) throws IOException {
-        // Kiểm tra an ninh nghiêm ngặt chống Path Traversal và rò rỉ file hệ thống (CWE-22)
         if (relativePathStr == null || relativePathStr.isBlank()
                 || relativePathStr.contains("..")
                 || relativePathStr.startsWith("/")
@@ -430,7 +676,6 @@ public class CameraRecordingService {
                                 .body(resource);
                     }
 
-                    // Hỗ trợ HTTP 206 Partial Content (Range Header) để trình duyệt đọc moov atom cuối file tức thì
                     List<HttpRange> ranges = headers != null ? headers.getRange() : Collections.emptyList();
                     if (!ranges.isEmpty() && totalLength > 0) {
                         HttpRange range = ranges.get(0);
@@ -505,10 +750,10 @@ public class CameraRecordingService {
 
         if (download) {
             return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + file.getName() + "\"")
-                .contentType(MediaType.valueOf("video/mp4"))
-                .contentLength(contentLength)
-                .body(resource);
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + file.getName() + "\"")
+                    .contentType(MediaType.valueOf("video/mp4"))
+                    .contentLength(contentLength)
+                    .body(resource);
         }
 
         return ResponseEntity.ok()

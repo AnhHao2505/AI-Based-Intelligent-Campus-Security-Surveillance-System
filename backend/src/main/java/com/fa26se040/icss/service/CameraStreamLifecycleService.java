@@ -13,13 +13,13 @@ import com.fa26se040.icss.repository.CameraRepository;
 import com.fa26se040.icss.repository.CameraStreamConfigurationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
-
-import org.springframework.boot.context.event.ApplicationReadyEvent;
-import org.springframework.context.event.EventListener;
 
 import java.time.OffsetDateTime;
 import java.util.HashMap;
@@ -28,10 +28,9 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Service chuyên trách quản lý vòng đời luồng phát video (Stream Lifecycle) và tiến trình phân tích AI.
- * Cung cấp 2 thao tác đối xứng:
- * - startStream: Kích hoạt MediaMTX path, bật AI Stream Worker, cập nhật operationalStatus = ONLINE, ghi health log.
- * - stopStream: Xóa MediaMTX path, dừng AI Stream Worker, cập nhật operationalStatus = OFFLINE, ghi health log.
+ * Quản lý vòng đời luồng phát video (Stream Lifecycle) và tiến trình phân tích AI theo kiến trúc Cloud-Edge:
+ * - Khi MQTT Broker kết nối: Publish cấu hình camera bền vững (Retained=true) tới Edge, không gọi HTTP vào mạng nội bộ.
+ * - Khi chạy cục bộ không có MQTT: Fallback về MediaMTX + AI Service REST API.
  */
 @Slf4j
 @Service
@@ -43,7 +42,10 @@ public class CameraStreamLifecycleService {
     private final CameraHealthLogRepository healthLogRepo;
     private final CameraService cameraService;
     private final MediaMtxService mediaMtxService;
-    private final RestTemplate restTemplate = new RestTemplate();
+    private RestTemplate restTemplate = new RestTemplate();
+
+    @Autowired(required = false)
+    private EdgeMqttControlService edgeMqttControlService;
 
     @Value("${ai.service.url:http://localhost:8000}")
     private String aiServiceUrl;
@@ -65,31 +67,46 @@ public class CameraStreamLifecycleService {
             throw new CameraException(CameraErrorCode.ERR_STREAM_001);
         }
 
-        // 1. Đăng ký luồng sang MediaMTX Gateway (WHEP/HLS)
-        mediaMtxService.syncCameraPath(camera.getCameraCode(), rtspUrl);
-
-        // 2. Kích hoạt background AI Stream Worker (nếu có cấu hình AI Service) qua MediaMTX Gateway
-        try {
-            String streamStartUrl = aiServiceUrl + "/api/v1/stream/start";
-            String workerRtspUrl = mediaMtxService.getGatewayRtspUrl(camera.getCameraCode());
-            Map<String, Object> reqBody = new HashMap<>();
-            reqBody.put("camera_code", camera.getCameraCode());
-            reqBody.put("rtsp_url", workerRtspUrl);
-            if (camera.getRoiGeometry() != null) {
-                reqBody.put("roi_geometry", camera.getRoiGeometry());
-            }
-            restTemplate.postForObject(streamStartUrl, reqBody, Map.class);
-            log.info("✅ Đã kích hoạt AI Stream Worker cho camera [{}] qua MediaMTX Gateway ({})", camera.getCameraCode(), workerRtspUrl);
-        } catch (Exception ex) {
-            log.warn("⚠️ Không thể kích hoạt AI Stream Worker cho camera [{}]: {}", camera.getCameraCode(), ex.getMessage());
+        boolean handledViaMqtt = false;
+        if (edgeMqttControlService != null && edgeMqttControlService.isConnected()) {
+            edgeMqttControlService.publishCameraStreamConfig(
+                    camera.getCameraCode(),
+                    rtspUrl,
+                    true,
+                    camera.getRoiGeometry()
+            );
+            handledViaMqtt = true;
+            log.info("📡 [Cloud-Edge] Đã đồng bộ kích hoạt stream & AI Worker cho camera [{}] qua MQTT Retained Config",
+                    camera.getCameraCode());
         }
 
-        // 3. Cập nhật operationalStatus = ONLINE
+        if (!handledViaMqtt) {
+            // Fallback khi chạy Standalone Local không kết nối MQTT
+            mediaMtxService.syncCameraPath(camera.getCameraCode(), rtspUrl);
+            if (aiServiceUrl != null && !aiServiceUrl.isBlank()) {
+                try {
+                    String streamStartUrl = aiServiceUrl + "/api/v1/stream/start";
+                    String workerRtspUrl = mediaMtxService.getGatewayRtspUrl(camera.getCameraCode());
+                    Map<String, Object> reqBody = new HashMap<>();
+                    reqBody.put("camera_code", camera.getCameraCode());
+                    reqBody.put("rtsp_url", workerRtspUrl);
+                    if (camera.getRoiGeometry() != null) {
+                        reqBody.put("roi_geometry", camera.getRoiGeometry());
+                    }
+                    restTemplate.postForObject(streamStartUrl, reqBody, Map.class);
+                    log.info("✅ Đã kích hoạt AI Stream Worker cho camera [{}] qua MediaMTX Gateway ({})",
+                            camera.getCameraCode(), workerRtspUrl);
+                } catch (Exception ex) {
+                    log.warn("⚠️ Không thể kích hoạt AI Stream Worker cho camera [{}]: {}",
+                            camera.getCameraCode(), ex.getMessage());
+                }
+            }
+        }
+
         camera.setOperationalStatus(OperationalStatus.ONLINE);
         camera.setUpdatedAt(OffsetDateTime.now());
         cameraRepository.save(camera);
 
-        // 4. Ghi nhật ký sức khỏe CameraHealthLog
         CameraHealthLog healthLog = CameraHealthLog.builder()
                 .camera(camera)
                 .status(OperationalStatus.ONLINE)
@@ -113,24 +130,36 @@ public class CameraStreamLifecycleService {
         Camera camera = cameraRepository.findById(cameraId)
                 .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_CAM_002));
 
-        // 1. Xóa path khỏi MediaMTX Gateway để giải phóng kết nối
-        mediaMtxService.deleteCameraPath(camera.getCameraCode());
-
-        // 2. Dừng background AI Stream Worker
-        try {
-            String streamStopUrl = aiServiceUrl + "/api/v1/stream/stop?camera_code=" + camera.getCameraCode();
-            restTemplate.postForObject(streamStopUrl, null, Map.class);
-            log.info("✅ Đã dừng AI Stream Worker cho camera [{}]", camera.getCameraCode());
-        } catch (Exception ex) {
-            log.debug("Không thể dừng AI Stream Worker cho camera [{}]: {}", camera.getCameraCode(), ex.getMessage());
+        boolean handledViaMqtt = false;
+        if (edgeMqttControlService != null && edgeMqttControlService.isConnected()) {
+            edgeMqttControlService.publishCameraStreamConfig(
+                    camera.getCameraCode(),
+                    "",
+                    false,
+                    camera.getRoiGeometry()
+            );
+            handledViaMqtt = true;
+            log.info("📡 [Cloud-Edge] Đã gửi lệnh ngắt stream camera [{}] qua MQTT Retained Config", camera.getCameraCode());
         }
 
-        // 3. Cập nhật operationalStatus = OFFLINE
+        if (!handledViaMqtt) {
+            mediaMtxService.deleteCameraPath(camera.getCameraCode());
+            if (aiServiceUrl != null && !aiServiceUrl.isBlank()) {
+                try {
+                    String streamStopUrl = aiServiceUrl + "/api/v1/stream/stop?camera_code=" + camera.getCameraCode();
+                    restTemplate.postForObject(streamStopUrl, null, Map.class);
+                    log.info("✅ Đã dừng AI Stream Worker cho camera [{}]", camera.getCameraCode());
+                } catch (Exception ex) {
+                    log.debug("Không thể dừng AI Stream Worker cho camera [{}]: {}",
+                            camera.getCameraCode(), ex.getMessage());
+                }
+            }
+        }
+
         camera.setOperationalStatus(OperationalStatus.OFFLINE);
         camera.setUpdatedAt(OffsetDateTime.now());
         cameraRepository.save(camera);
 
-        // 4. Ghi nhật ký sức khỏe CameraHealthLog
         CameraHealthLog healthLog = CameraHealthLog.builder()
                 .camera(camera)
                 .status(OperationalStatus.OFFLINE)
@@ -149,27 +178,38 @@ public class CameraStreamLifecycleService {
                 .build();
     }
 
-    /**
-     * Tự động phục hồi luồng MediaMTX và kích hoạt AI Stream Worker (bao gồm ghi hình định kỳ)
-     * cho tất cả camera đang ở trạng thái ONLINE khi Backend khởi động lại.
-     */
+    public void requestCloudRelay(String cameraCode, boolean active) {
+        if (cameraCode == null || cameraCode.isBlank()) {
+            return;
+        }
+        if (edgeMqttControlService != null && edgeMqttControlService.isConnected()) {
+            edgeMqttControlService.publishCloudRelayCommand(cameraCode.trim().toUpperCase(), active);
+        }
+    }
+
     @EventListener(ApplicationReadyEvent.class)
-    public void autoRecoverOnlineStreams() {
-        log.info("🔄 [StreamRecovery] Tự động kiểm tra và phục hồi luồng camera ONLINE khi hệ thống khởi động...");
+    @Transactional(readOnly = true)
+    public void autoSyncActiveCamerasOnStartup() {
         try {
-            List<Camera> onlineCameras = cameraRepository.findAll().stream()
-                    .filter(c -> c.getStatus() == CameraStatus.ACTIVE && c.getOperationalStatus() == OperationalStatus.ONLINE)
-                    .toList();
-            for (Camera cam : onlineCameras) {
-                try {
-                    log.info("🔄 [StreamRecovery] Đang kích hoạt lại luồng và AI worker cho camera [{}]...", cam.getCameraCode());
-                    startStream(cam.getId());
-                } catch (Exception ex) {
-                    log.warn("⚠️ [StreamRecovery] Không thể tự động phục hồi luồng cho camera [{}]: {}", cam.getCameraCode(), ex.getMessage());
+            List<CameraStreamConfiguration> allConfigs = streamConfigRepo.findAll();
+            for (CameraStreamConfiguration cfg : allConfigs) {
+                Camera cam = cfg.getCamera();
+                if (cam != null && cam.getStatus() == CameraStatus.ACTIVE
+                        && cam.getOperationalStatus() == OperationalStatus.ONLINE) {
+                    String rtspUrl = cameraService.buildRtspUrl(cfg);
+                    if (rtspUrl != null && !rtspUrl.isBlank()
+                            && edgeMqttControlService != null && edgeMqttControlService.isConnected()) {
+                        edgeMqttControlService.publishCameraStreamConfig(
+                                cam.getCameraCode(),
+                                rtspUrl,
+                                true,
+                                cam.getRoiGeometry()
+                        );
+                    }
                 }
             }
-        } catch (Exception ex) {
-            log.warn("⚠️ [StreamRecovery] Lỗi khi quét danh sách camera phục hồi: {}", ex.getMessage());
+        } catch (Exception e) {
+            log.warn("⚠️ Không thể tự động đồng bộ cấu hình camera lên MQTT khi khởi động: {}", e.getMessage());
         }
     }
 }
