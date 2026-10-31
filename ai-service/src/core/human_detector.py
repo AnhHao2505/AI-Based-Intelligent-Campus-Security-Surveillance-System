@@ -9,11 +9,11 @@ logger = logging.getLogger(__name__)
 
 class HumanDetector:
     """
-    Module phát hiện & theo dõi con người sử dụng YOLO11 và thuật toán ByteTrack.
+    Module phát hiện & theo dõi con người sử dụng YOLO26 và thuật toán ByteTrack.
     Chỉ kích hoạt class 0 (Person) nhằm tối đa hóa hiệu năng và tốc độ xử lý Realtime.
     Tự động kích hoạt GPU CUDA (card rời) nếu có sẵn để giải phóng CPU.
     """
-    def __init__(self, model_path: str = "yolo11n.pt", conf_threshold: float = 0.5, device: Optional[str] = None):
+    def __init__(self, model_path: str = "yolo26n.pt", conf_threshold: float = 0.5, device: Optional[str] = None):
         self.model_path = model_path
         self.conf_threshold = conf_threshold
         
@@ -24,7 +24,7 @@ class HumanDetector:
             if torch.cuda.is_available():
                 self.device = 0
                 gpu_name = torch.cuda.get_device_name(0)
-                logger.info(f"🚀 [HumanDetector] Phát hiện GPU rời: [{gpu_name}]. Kích hoạt suy luận YOLO11 trên CUDA.")
+                logger.info(f"🚀 [HumanDetector] Phát hiện GPU rời: [{gpu_name}]. Kích hoạt suy luận YOLO26 trên CUDA.")
             else:
                 self.device = "cpu"
                 logger.info("ℹ️ [HumanDetector] Không phát hiện CUDA GPU, sử dụng CPU.")
@@ -39,7 +39,7 @@ class HumanDetector:
         if frame is None or frame.size == 0:
             return []
 
-        # Chạy YOLO11 tracking chỉ với class=0 (person)
+        # Chạy YOLO26 tracking chỉ với class=0 (person)
         # tracker="bytetrack.yaml" được tích hợp sẵn trong Ultralytics
         results = self.model.track(
             source=frame,
