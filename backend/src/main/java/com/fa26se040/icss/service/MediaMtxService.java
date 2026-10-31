@@ -133,13 +133,19 @@ public class MediaMtxService {
         }
 
         String pathName = formatPathName(cameraCode);
-        String deleteUrl = mediaMtxApiUrl + "/v3/config/paths/delete/" + pathName;
+        deleteSinglePath(pathName);
+        if (!pathName.endsWith("_main")) {
+            deleteSinglePath(pathName + "_main");
+        }
+    }
 
+    private void deleteSinglePath(String pathName) {
+        String deleteUrl = mediaMtxApiUrl + "/v3/config/paths/delete/" + pathName;
         try {
             restTemplate.delete(deleteUrl);
             log.info("✅ [MediaMTX] Đã xóa dynamic path cho camera [{}]", pathName);
         } catch (Exception e) {
-            log.warn("⚠️ [MediaMTX] Không thể xóa path [{}]: {}", pathName, e.getMessage());
+            log.debug("⚠️ [MediaMTX] Không thể xóa path [{}]: {}", pathName, e.getMessage());
         }
     }
 

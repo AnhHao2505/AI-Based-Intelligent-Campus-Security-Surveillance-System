@@ -117,6 +117,7 @@ export default function CameraDetailPage() {
 		username: "",
 		credentialRef: "",
 		mainStreamPath: "",
+		subStreamPath: "",
 	});
 
 	useEffect(() => {
@@ -153,6 +154,7 @@ export default function CameraDetailPage() {
 					username: data.streamConfig.username || "",
 					credentialRef: "",
 					mainStreamPath: data.streamConfig.mainStreamPath || "",
+					subStreamPath: data.streamConfig.subStreamPath || "",
 				});
 			}
 		} catch (err) {
@@ -451,7 +453,8 @@ export default function CameraDetailPage() {
 				host: streamForm.host,
 				port: streamForm.port ? parseInt(streamForm.port, 10) : 554,
 				username: streamForm.username,
-				mainStreamPath: streamForm.mainStreamPath,
+				mainStreamPath: streamForm.mainStreamPath ? streamForm.mainStreamPath.trim() : "",
+				subStreamPath: streamForm.subStreamPath ? streamForm.subStreamPath.trim() : null,
 			};
 			if (streamForm.credentialRef) {
 				payload.credentialRef = streamForm.credentialRef;

@@ -106,6 +106,39 @@ class CameraStreamLifecycleServiceTest {
     }
 
     @Test
+    @DisplayName("Dual-Stream: startStream đồng bộ Sub Stream cho UI (CAM-001) và Main Stream cho AI Worker (CAM-001_main)")
+    void startStream_DualStream_ShouldSyncBothStreamsAndRouteMainToAi() {
+        CameraStreamConfiguration dualConfig = CameraStreamConfiguration.builder()
+                .camera(camera)
+                .host("192.168.1.50")
+                .port(554)
+                .mainStreamPath("/cam/realmonitor?channel=1&subtype=0")
+                .subStreamPath("/cam/realmonitor?channel=1&subtype=1")
+                .build();
+
+        when(cameraRepository.findById(cameraId)).thenReturn(Optional.of(camera));
+        when(streamConfigRepo.findByCameraId(cameraId)).thenReturn(Optional.of(dualConfig));
+        when(cameraService.buildRtspUrl(dualConfig)).thenReturn("rtsp://192.168.1.50:554/cam/realmonitor?channel=1&subtype=0");
+        when(cameraService.buildSubRtspUrl(dualConfig)).thenReturn("rtsp://192.168.1.50:554/cam/realmonitor?channel=1&subtype=1");
+        when(mediaMtxService.getGatewayRtspUrl("CAM-001_main")).thenReturn("rtsp://mediamtx:8554/cam-001_main");
+
+        CameraStreamLifecycleResponse response = cameraStreamLifecycleService.startStream(cameraId);
+
+        assertNotNull(response);
+        assertTrue(response.isSuccess());
+
+        // Kiểm tra đồng bộ 2 luồng: Luồng phụ gán vào CAM-001 cho WHEP UI, Luồng chính gán vào CAM-001_main
+        verify(mediaMtxService).syncCameraPath("CAM-001", "rtsp://192.168.1.50:554/cam/realmonitor?channel=1&subtype=1");
+        verify(mediaMtxService).syncCameraPath("CAM-001_main", "rtsp://192.168.1.50:554/cam/realmonitor?channel=1&subtype=0");
+
+        // Kiểm tra AI Worker nhận luồng Main Stream
+        ArgumentCaptor<Map> bodyCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(restTemplate).postForObject(eq("http://ai-service:8000/api/v1/stream/start"), bodyCaptor.capture(), eq(Map.class));
+        assertEquals("rtsp://mediamtx:8554/cam-001_main", bodyCaptor.getValue().get("rtsp_url"));
+        assertEquals("CAM-001", bodyCaptor.getValue().get("camera_code"));
+    }
+
+    @Test
     @DisplayName("Phân tầng 1 (Valid Transition): stopStream xóa MediaMTX path, dừng AI Worker, chuyển OFFLINE và ghi HealthLog")
     void stopStream_Success_ShouldDeleteMediaMtxStopAiSetOfflineAndLog() {
         camera.setOperationalStatus(OperationalStatus.ONLINE);

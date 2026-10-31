@@ -60,18 +60,31 @@ public class CameraStreamLifecycleService {
         CameraStreamConfiguration config = streamConfigRepo.findByCameraId(cameraId)
                 .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_STREAM_001));
 
-        String rtspUrl = cameraService.buildRtspUrl(config);
-        if (rtspUrl == null || rtspUrl.isBlank()) {
+        String mainRtspUrl = cameraService.buildRtspUrl(config);
+        if (mainRtspUrl == null || mainRtspUrl.isBlank()) {
             throw new CameraException(CameraErrorCode.ERR_STREAM_001);
         }
+        String subRtspUrl = cameraService.buildSubRtspUrl(config);
+        boolean hasSub = (subRtspUrl != null && !subRtspUrl.isBlank());
 
         // 1. Đăng ký luồng sang MediaMTX Gateway (WHEP/HLS)
-        mediaMtxService.syncCameraPath(camera.getCameraCode(), rtspUrl);
+        // Nếu có Sub Stream (luồng phụ), gán vào {cameraCode} cho WebRTC WHEP UI mượt mà, độ trễ thấp
+        // Luồng chính Main Stream gán vào {cameraCode}_main cho AI phân tích độ nét cao và ghi hình
+        if (hasSub) {
+            mediaMtxService.syncCameraPath(camera.getCameraCode(), subRtspUrl);
+            mediaMtxService.syncCameraPath(camera.getCameraCode() + "_main", mainRtspUrl);
+            log.info("✅ [MediaMTX Dual-Stream] Đã đồng bộ luồng phụ [{}] (WHEP UI) và luồng chính [{}_main] (AI & Recording)",
+                    camera.getCameraCode(), camera.getCameraCode());
+        } else {
+            mediaMtxService.syncCameraPath(camera.getCameraCode(), mainRtspUrl);
+        }
 
-        // 2. Kích hoạt background AI Stream Worker (nếu có cấu hình AI Service) qua MediaMTX Gateway
+        // 2. Kích hoạt background AI Stream Worker qua MediaMTX Gateway (kéo luồng Main Stream độ nét cao)
         try {
             String streamStartUrl = aiServiceUrl + "/api/v1/stream/start";
-            String workerRtspUrl = mediaMtxService.getGatewayRtspUrl(camera.getCameraCode());
+            String workerRtspUrl = hasSub
+                    ? mediaMtxService.getGatewayRtspUrl(camera.getCameraCode() + "_main")
+                    : mediaMtxService.getGatewayRtspUrl(camera.getCameraCode());
             Map<String, Object> reqBody = new HashMap<>();
             reqBody.put("camera_code", camera.getCameraCode());
             reqBody.put("rtsp_url", workerRtspUrl);

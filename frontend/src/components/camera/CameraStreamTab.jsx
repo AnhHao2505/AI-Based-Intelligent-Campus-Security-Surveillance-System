@@ -49,11 +49,11 @@ export default function CameraStreamTab({
 	const showMaskedPath = pathHasCredentials && !editingPath;
 
 	// Tự động ghép nối các trường cấu hình thành URL RTSP xem trước
-	const computePreviewRtspUrl = (plainPassword = false) => {
+	const computePreviewRtspUrl = (pathValue = streamForm.mainStreamPath, plainPassword = false) => {
 		const rawHost = (streamForm.host || "").trim();
 		if (!rawHost) return "";
 
-		const rawPath = (streamForm.mainStreamPath || "").trim();
+		const rawPath = (pathValue || "").trim();
 		if (rawPath.startsWith("rtsp://") || rawPath.startsWith("rtsps://")) {
 			return rawPath;
 		}
@@ -95,8 +95,9 @@ export default function CameraStreamTab({
 		return sb;
 	};
 
-	const previewRtspUrl = computePreviewRtspUrl(showPlainPreviewPassword);
-	const previewRtspUrlForCopy = computePreviewRtspUrl(true);
+	const previewRtspUrl = computePreviewRtspUrl(streamForm.mainStreamPath, showPlainPreviewPassword);
+	const previewRtspUrlForCopy = computePreviewRtspUrl(streamForm.mainStreamPath, true);
+	const previewSubRtspUrl = streamForm.subStreamPath ? computePreviewRtspUrl(streamForm.subStreamPath, showPlainPreviewPassword) : "";
 
 	const handleCopyPreview = () => {
 		if (!previewRtspUrl) return;
@@ -221,11 +222,17 @@ export default function CameraStreamTab({
 				</div>
 
 				<div className="form-group col-span-2">
-					<label>Đuôi đường dẫn Main Stream *</label>
-					{showMaskedPath ? (
-						<div
-							style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}
+					<label style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
+						Đuôi đường dẫn Luồng chính (Main Stream - Cho AI phân tích & Ghi hình) *
+						<span
+							data-tooltip="Dành cho AI nhận diện khuôn mặt, phát hiện hành vi vi phạm và lưu video/ảnh bằng chứng độ nét cao (VD: /cam/realmonitor?channel=1&subtype=0 hoặc /Streaming/Channels/101)"
+							className="help-icon-wrapper"
 						>
+							<HelpCircle size={14} className="help-icon" />
+						</span>
+					</label>
+					{showMaskedPath ? (
+						<div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
 							<input
 								type="text"
 								value={maskStreamCredentials(streamForm.mainStreamPath)}
@@ -245,7 +252,7 @@ export default function CameraStreamTab({
 					) : (
 						<input
 							type="text"
-							placeholder="/Streaming/Channels/101"
+							placeholder="/cam/realmonitor?channel=1&subtype=0 hoặc /Streaming/Channels/101"
 							value={streamForm.mainStreamPath}
 							onChange={(e) =>
 								setStreamForm({
@@ -258,6 +265,29 @@ export default function CameraStreamTab({
 					)}
 				</div>
 
+				<div className="form-group col-span-2">
+					<label style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
+						Đuôi đường dẫn Luồng phụ (Sub Stream - Cho Màn hình trực bảo vệ Live Cam)
+						<span
+							data-tooltip="Dành cho hiển thị trực tiếp trên WebRTC Dashboard mượt mà, độ trễ thấp, chuẩn nén H.264 (VD: /cam/realmonitor?channel=1&subtype=1 hoặc /Streaming/Channels/102). Nếu để trống sẽ dùng luồng chính."
+							className="help-icon-wrapper"
+						>
+							<HelpCircle size={14} className="help-icon" />
+						</span>
+					</label>
+					<input
+						type="text"
+						placeholder="/cam/realmonitor?channel=1&subtype=1 hoặc /Streaming/Channels/102 (Tùy chọn)"
+						value={streamForm.subStreamPath || ""}
+						onChange={(e) =>
+							setStreamForm({
+								...streamForm,
+								subStreamPath: e.target.value,
+							})
+						}
+					/>
+				</div>
+
 				{/* Trường URL luồng RTSP xem trước (Tự động tạo) */}
 				<div className="form-group col-span-2 stream-preview-container">
 					<div className="stream-preview-header">
@@ -266,7 +296,7 @@ export default function CameraStreamTab({
 								size={14}
 								className="text-sky-400"
 							/>
-							<span>Xem trước URL luồng RTSP (Tự động ghép)</span>
+							<span>Xem trước URL RTSP Luồng chính (AI & Lưu trữ)</span>
 						</label>
 					</div>
 
@@ -327,6 +357,26 @@ export default function CameraStreamTab({
 						)}
 					</div>
 				</div>
+
+				{previewSubRtspUrl && (
+					<div className="form-group col-span-2 stream-preview-container" style={{ marginTop: "-0.5rem" }}>
+						<div className="stream-preview-header">
+							<label className="stream-preview-label">
+								<Radio size={14} className="text-emerald-400" />
+								<span>Xem trước URL RTSP Luồng phụ (Màn hình trực bảo vệ)</span>
+							</label>
+						</div>
+						<div className="stream-preview-input-wrap">
+							<input
+								type="text"
+								readOnly
+								value={previewSubRtspUrl}
+								className="stream-preview-input"
+								aria-label="URL luồng phụ RTSP xem trước"
+							/>
+						</div>
+					</div>
+				)}
 			</div>
 
 			{/* Test Connection Result Alert */}
