@@ -71,9 +71,11 @@ management:
   health:
     mail:
       enabled: false # Tắt mail health check để tránh 503 khi chưa có tài khoản SMTP thật
+    kafka:
+      enabled: false # Tắt kafka health check để tránh 503 khi deploy cloud chưa có broker
 
 server:
-  port: 8080
+  port: ${PORT:8080}
 
 # Cấu hình kết nối sang AI Microservice
 ai:
