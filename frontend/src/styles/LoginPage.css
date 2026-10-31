@@ -25,19 +25,17 @@
   position: absolute;
   inset: 0;
   z-index: 0;
-  background-image: url('/images/bg-dark.png');
+  background-image: url('/images/bg-wave-dark.svg');
   background-size: cover;
   background-position: top right;
   background-repeat: no-repeat;
-  filter: hue-rotate(150deg) saturate(1.2) brightness(0.8);
-  opacity: 0.85;
+  opacity: 0.95;
   pointer-events: none;
   transition: opacity 0.25s ease;
 }
 
 [data-theme="light"] .login-page::before {
-  background-image: url('/images/bg-light-wave.png');
-  filter: none;
+  background-image: url('/images/bg-wave-light.svg');
   opacity: 0.85;
 }
 
@@ -119,11 +117,11 @@
 .login-card__tabs {
   display: flex;
   margin-bottom: 22px;
-  background: #080c16;
-  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(11, 16, 28, 0.7);
+  border: none;
   border-radius: 8px;
-  padding: 3px;
-  gap: 3px;
+  padding: 4px;
+  gap: 4px;
 }
 
 .login-card__tab {

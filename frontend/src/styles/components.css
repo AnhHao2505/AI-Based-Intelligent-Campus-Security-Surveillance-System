@@ -220,3 +220,143 @@
     color: var(--theme-text-muted);
   }
 }
+
+/* ==========================================================================
+   Motion System — Smooth Micro-Transitions for Tabs, Modals & Popups
+   Baseline: Exponential Ease (cubic-bezier(0.16, 1, 0.3, 1))
+   ========================================================================== */
+
+/* 1. Modal & Pop-up Backdrops */
+.ui-modal-backdrop,
+.area-modal-backdrop,
+.account-modal-backdrop,
+.schedule-modal-backdrop,
+.soc-evidence-modal-backdrop,
+.roi-modal-overlay,
+.recording-player-modal-overlay,
+.aapm-modal-overlay,
+.modal-backdrop,
+.modal-overlay {
+  animation: unifiedBackdropFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+}
+
+@keyframes unifiedBackdropFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* 2. Modal Windows, Pop-up Dialogs & Containers */
+.ui-modal,
+.area-modal,
+.account-modal,
+.schedule-modal,
+.soc-evidence-modal,
+.roi-modal-container,
+.recording-player-modal,
+.aapm-modal,
+.modal-dialog,
+.modal-content,
+[role="dialog"]:not(.ui-modal-backdrop):not(.area-modal-backdrop):not(.account-modal-backdrop):not(.schedule-modal-backdrop) {
+  animation: unifiedModalScaleUp 0.26s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+}
+
+@keyframes unifiedModalScaleUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.975);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* 3. Floating Popups, Dropdowns & Tooltips */
+.popup,
+.dropdown-menu,
+.select-dropdown,
+.popover,
+.tooltip,
+.campus-map-floating-bar,
+.campus-coord-editor {
+  animation: unifiedPopupFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes unifiedPopupFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-5px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* 4. Tab Panels & Tab Content Switching */
+.tab-pane,
+[role="tabpanel"],
+.tab-content,
+.account-tab-content,
+.schedule-tab-content,
+.syscfg-tab-pane {
+  animation: unifiedTabPaneFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes unifiedTabPaneFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 5. Smooth Tab Buttons & Segmented Navigation */
+.account-tab-btn,
+.schedule-tab-btn,
+.syscfg-tab-btn,
+.status-tabs__tab,
+.login-card__tab,
+.access-level-tab,
+.tab-btn,
+[role="tab"] {
+  transition: color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              background-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.15s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.account-tab-btn:active,
+.schedule-tab-btn:active,
+.syscfg-tab-btn:active,
+.status-tabs__tab:active,
+.login-card__tab:active,
+.tab-btn:active,
+[role="tab"]:active {
+  transform: scale(0.98);
+}
+
+/* 6. Page View Transitions (Router View Fades) */
+.app-layout__content > div {
+  animation: unifiedPageViewFadeIn 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes unifiedPageViewFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
