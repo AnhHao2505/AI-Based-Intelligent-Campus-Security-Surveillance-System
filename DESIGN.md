@@ -65,9 +65,10 @@ The FPTU Campus Security Surveillance System (FA26SE040) is an institutional com
 
 ## Colors & Atmospheres
 - **Primary Accent:** FPT Security Orange (`#ea580c` in light mode, `#f97316` in dark mode). Applied strictly for primary actions, selection states, and live camera indicators.
-- **Dual Mode Background Wave System:**
-  - **Light Mode (`/images/bg-light-wave.png`):** Transparent canvas with high-precision alpha-masked orange security mesh dots in the top-right corner over crisp `#f8fafc` canvas.
-  - **Dark Mode (`/images/bg-dark.png`):** Deep obsidian `#080c14` canvas with CSS filter `hue-rotate(150deg) saturate(1.2) brightness(0.85)` rotating original 232° blue dots into 22° luminous security orange.
+- **Dual Mode Diamond Wave Background System:**
+  - **Light Mode (`/images/bg-wave-light.svg`):** Infinite-resolution vector diamond particle wave on `#f8fafc` canvas, styled with subtle FPT orange facets.
+  - **Dark Mode (`/images/bg-wave-dark.svg`):** Infinite-resolution vector diamond particle wave on obsidian `#080c14` canvas, glowing in luminous FPT security orange (`#f97316`).
+  - **Interactive Generator:** Built-in tool at `background-wave.html` supporting real-time diamond mesh simulation and 4K export.
 - **Dark Mode Surface Hierarchy (Command Center Obsidian):**
   - Page Canvas: `#080c14`
   - Base Surface: `#0e1422` (Translucent `rgba(14, 20, 34, 0.90)` with `backdrop-filter: blur(16px)`)
@@ -110,6 +111,15 @@ The FPTU Campus Security Surveillance System (FA26SE040) is an institutional com
 - **Navigation Links:** Subtle hover tint; active state features a soft primary pill (`--theme-primary-light`) with solid icon color.
 - **Incident Cards:** Clean 1px semantic border with subtle background tint and dedicated severity chip.
 - **Browser Surfaces:** Themed custom scrollbars (6px rounded), native focus-visible rings with 2px offset, and brand selection highlights.
+
+## Motion & Transitions
+- **Easing Standard:** Exponential deceleration curve `cubic-bezier(0.16, 1, 0.3, 1)` across all interactive elements. Zero bounce or elastic overshoot.
+- **Modal Backdrops:** 0.22s fade-in with smooth backdrop-filter blur escalation.
+- **Modal Dialogs & Popups:** 0.26s scale-and-drift entrance (`translateY(10px) scale(0.975) -> translateY(0) scale(1)`).
+- **Tab Panels & Content:** 0.22s smooth fade-and-glide entrance (`translateY(5px) -> translateY(0)`).
+- **Tab Navigation & Segmented Buttons:** 0.2s color, background, and scale transitions with tactile active press (`scale(0.98)`).
+- **Page Transitions:** 0.24s view fade-and-glide for seamless route navigation.
+- **Reduced Motion:** Automatic suppression to `0.01ms` when `prefers-reduced-motion: reduce` is active.
 
 ## Do's and Don'ts
 - **DO** use tabular numerals (`tnum`) for camera feeds, timecodes, and incident counts.
