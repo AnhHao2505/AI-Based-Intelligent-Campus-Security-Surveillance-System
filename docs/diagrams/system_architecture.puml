@@ -36,7 +36,7 @@ package "System Boundary: Campus Security Surveillance System (Cloud-Edge Archit
     component "Client Subsystem\n--\n• Web Application (React 19 / Vite)\n• Mobile Application (Flutter / Dart)" as ClientSubsys #EFF6FF
 
     ' Middle Tier: Processing & Event Pipeline
-    component "AI Video Analytics Subsystem (Local Edge)\n--\n• FastAPI AI Service + EdgeMqttAgent\n• YOLO11 & YuNet / ArcFace\n• OSD Timestamp + SHA-256 + MinIO Uploader" as AISubsys #F3E8FF
+    component "AI Video Analytics Subsystem (Local Edge)\n--\n• FastAPI AI Service + EdgeMqttAgent\n• YOLO26 & YuNet / ArcFace\n• OSD Timestamp + SHA-256 + MinIO Uploader" as AISubsys #F3E8FF
 
     component "Bidirectional MQTT Control & Event Broker\n--\n• Eclipse Mosquitto (MQTT 2.0)\n• Retained Config, Commands & Correlation RPC\n• Security Incidents & Recording Telemetry" as MqttSubsys #FFFBEB
 

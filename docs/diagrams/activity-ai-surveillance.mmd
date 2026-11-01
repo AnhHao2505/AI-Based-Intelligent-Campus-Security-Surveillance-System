@@ -10,7 +10,7 @@ flowchart TB
     %% Swimlane 2: AI Engine
     subgraph AI["AI Surveillance Engine (ai-service)"]
         a1["Grab Frame & Preprocess<br>(Letterbox Resize 640x640, BGR to RGB)"]
-        a2["Detect Person (YOLO11n) & Track (ByteTrack)"]
+        a2["Detect Person (YOLO26n) & Track (ByteTrack)"]
         
         %% Branching 1: ROI
         d_roi{"Person in ROI Polygon?<br>(Ray-Casting Algorithm)"}

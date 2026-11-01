@@ -38,7 +38,7 @@ start
 
 |#FEF3C7|AI Surveillance Engine (ai-service)|
 :Grab fresh frame & preprocess\n(Letterbox 640x640, BGR to RGB);
-:Detect humans via YOLO11n\n& Track via ByteTrack (Track ID);
+:Detect humans via YOLO26n\n& Track via ByteTrack (Track ID);
 
 if (Person inside ROI Polygon?\n(Ray-Casting Algorithm)) then (yes)
   if (Track ID verified in cache?) then (yes)
