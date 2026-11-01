@@ -1,3 +1,4 @@
+import re
 import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -41,8 +42,9 @@ class FrameAnalysisEngine:
         current_time: Optional[float] = None,
         roi_polygons: Optional[List[Any]] = None,
         frame_size: Optional[Tuple[int, int]] = None,
-        is_public_area: bool = False
-    ) -> Tuple[List[TrackedPerson], List[SecurityAlertEvent]]:
+        is_public_area: bool = False,
+        area_name: Optional[str] = None
+    ) -> Tuple[List[TrackedPerson], List[SecurityAlertEvent], List[Dict[str, Any]]]:
         if current_time is None:
             current_time = time.time()
 
@@ -113,13 +115,59 @@ class FrameAnalysisEngine:
                     first_seen_time=current_time,
                     last_seen_time=current_time
                 )
+                person.is_currently_visible = True
                 if track_id in self.pending_faces:
                     person.face_detected = True
                     person.face_info = self.pending_faces.pop(track_id)
+
+                # Kế thừa danh tính và trạng thái cảnh báo nếu track mới đè lên vị trí track cũ (ByteTrack switch ID)
+                best_match_tid = None
+                best_match_score = 0.0
+                for old_tid, old_p in list(self.active_tracks.items()):
+                    if old_tid == track_id:
+                        continue
+                    # Chỉ kế thừa từ track vừa mới xuất hiện gần đây trong vòng 2.0s (ByteTrack switch ID)
+                    if (current_time - old_p.last_seen_time) > min(2.0, self.max_inactive_seconds):
+                        continue
+                    iou_val = bbox.iou(old_p.bbox)
+                    iom_val = bbox.intersection_ratio(old_p.bbox)
+                    match_score = max(iou_val, iom_val)
+                    if (iou_val > 0.35 or iom_val > 0.55) and match_score > best_match_score:
+                        best_match_score = match_score
+                        best_match_tid = old_tid
+
+                if best_match_tid is not None:
+                    old_p = self.active_tracks[best_match_tid]
+                    both_identified = (
+                        person.face_detected and person.face_info and person.face_info.matched_code and
+                        old_p.face_detected and old_p.face_info and old_p.face_info.matched_code
+                    )
+                    different_persons = bool(both_identified and (person.face_info.matched_code != old_p.face_info.matched_code))
+
+                    if not different_persons:
+                        # Kế thừa nhận diện khuôn mặt
+                        if old_p.face_detected and old_p.face_info and not person.face_detected:
+                            person.face_detected = True
+                            person.face_info = old_p.face_info
+                        # Kế thừa thông tin ROI và lịch sử cảnh báo (tránh spam sự cố lặp lại)
+                        person.is_in_roi = old_p.is_in_roi
+                        person.was_in_roi = old_p.was_in_roi
+                        person.roi_enter_time = old_p.roi_enter_time
+                        person.entered_roi_label = old_p.entered_roi_label
+                        person.roi_entry_logged = old_p.roi_entry_logged
+                        person.alert_unauthorized_sent = old_p.alert_unauthorized_sent
+                        person.alert_unknown_sent = old_p.alert_unknown_sent
+                        person.alert_after_hours_sent = old_p.alert_after_hours_sent
+                        person.first_seen_time = old_p.first_seen_time
+                        # Ẩn và xoá track cũ bị thay thế
+                        old_p.is_currently_visible = False
+                        del self.active_tracks[best_match_tid]
+
                 self.active_tracks[track_id] = person
             else:
                 person = self.active_tracks[track_id]
                 person.update_position(bbox, current_time)
+                person.is_currently_visible = True
                 if track_id in self.pending_faces:
                     person.face_detected = True
                     person.face_info = self.pending_faces.pop(track_id)
@@ -189,7 +237,8 @@ class FrameAnalysisEngine:
 
                 loc_info = {"label": matched_label} if matched_label else None
                 target_area_name = getattr(person.face_info, "area_name", None) if person.face_info else None
-                area_display = target_area_name or matched_label or "khu vực giám sát"
+                raw_loc = target_area_name or area_name or "Khu vực giám sát"
+                location_display = re.sub(r"\s*\([^)]*(?:vùng|roi)[^)]*\)", "", raw_loc, flags=re.IGNORECASE).strip() or raw_loc
 
                 # 1. TRƯỜNG HỢP CÓ TRONG DATABASE (Đã xác định được danh tính)
                 if person.face_detected and person.face_info and person.face_info.matched_code:
@@ -229,39 +278,37 @@ class FrameAnalysisEngine:
                         # Khu vực Cấp 1 (Công khai - PUBLIC): Ban ngày tất cả mọi người vẫn vào bình thường -> KHÔNG cảnh báo UNAUTHORIZED_ACCESS!
                         pass
                     else:
-                        # Vi phạm: Phân loại chuẩn theo 5 nhóm (INTRUSION, ACCESS_OUT_OF_TIME, UNAUTHORIZED_ACCESS)
+                        # Vi phạm: Phân loại chuẩn theo 5 nhóm (PERSON_INTRUSION, UNAUTHORIZED_PERSON)
                         if not person.alert_unauthorized_sent:
-                            reason_lower = (reason_str or "").lower()
+                            clean_reason = re.sub(r"\[[A-Z0-9_:\s]+\]\s*", "", reason_str or "").strip()
                             if "không tồn tại" in reason_lower or "đã bị xoá" in reason_lower:
-                                # Người dùng đã bị xoá -> Phân loại là UNKNOWN_PERSON (hoặc INTRUSION ngoài giờ)
-                                is_face_clear = person.face_detected and person.face_info
-                                face_note = "người lạ ngoài hệ thống" if is_face_clear else "chưa rõ mặt"
                                 if after_hours:
-                                    event_type = "INTRUSION"
-                                    tag_prefix = "[INTRUSION]"
-                                    detail_msg = f"{tag_prefix} Phát hiện đối tượng chưa rõ danh tính / người lạ ({face_note}) ngoài giờ hoạt động tại {area_display}."
+                                    event_type = "PERSON_INTRUSION"
+                                    detail_msg = f"[PERSON_INTRUSION] Vị trí: {location_display}"
                                 else:
                                     event_type = "UNKNOWN_PERSON"
-                                    tag_prefix = "[UNKNOWN_PERSON]"
-                                    detail_msg = f"{tag_prefix} Phát hiện đối tượng chưa đăng ký / người lạ ({face_note}) tại {area_display}."
+                                    detail_msg = f"[UNKNOWN_PERSON] Vị trí: {location_display}"
                             elif after_hours:
-                                event_type = "INTRUSION"
-                                tag_prefix = "[INTRUSION]"
-                                if not is_active:
-                                    detail_msg = f"{tag_prefix} Phát hiện tài khoản bị vô hiệu hóa ngoài giờ quy định: {matched_name} ({matched_code}) tại {area_display}."
-                                else:
-                                    detail_msg = f"{tag_prefix} Phát hiện người trong trường không có quyền ngoài giờ: {matched_name} ({matched_code}) tại {area_display}. Lý do: {reason_str}"
-                            elif any(k in reason_lower for k in ["khung giờ", "chưa tới giờ", "hết hạn", "thời gian", "ngoài khung giờ"]):
-                                event_type = "ACCESS_OUT_OF_TIME"
-                                tag_prefix = "[ACCESS_OUT_OF_TIME]"
-                                detail_msg = f"{tag_prefix} Phát hiện vào sai khung giờ quy định: {matched_name} ({matched_code}) tại {area_display}. Lý do: {reason_str}"
+                                event_type = "PERSON_INTRUSION"
+                                detail_msg = f"[PERSON_INTRUSION] Tên: {matched_name} ({matched_code})\nLý do: Ngoài giờ hoạt động\nVị trí: {location_display}"
                             else:
-                                event_type = "UNAUTHORIZED_ACCESS"
-                                tag_prefix = "[UNAUTHORIZED_ACCESS]"
+                                event_type = "UNAUTHORIZED_PERSON"
+                                r_low = (clean_reason or "").lower()
                                 if not is_active:
-                                    detail_msg = f"{tag_prefix} Phát hiện tài khoản bị vô hiệu hóa: {matched_name} ({matched_code}) tại {area_display}."
+                                    minimal_reason = "Tài khoản bị khóa"
+                                elif "cấp độ" in r_low or "level" in r_low:
+                                    minimal_reason = "Cấp độ không đủ"
+                                elif "chưa tới" in r_low and any(k in r_low for k in ["giờ", "đơn", "khung"]):
+                                    minimal_reason = "Chưa tới giờ duyệt"
+                                elif "hết hạn" in r_low and any(k in r_low for k in ["đơn", "lượt", "sử dụng"]):
+                                    minimal_reason = "Hết hạn đơn duyệt"
+                                elif "phân công" in r_low:
+                                    minimal_reason = "Chưa tới ngày trực" if ("chưa" in r_low) else "Hết hạn phân công"
+                                elif "khách" in r_low:
+                                    minimal_reason = "Ngoài giờ tiếp khách"
                                 else:
-                                    detail_msg = f"{tag_prefix} Phát hiện đối tượng không có quyền truy cập: {matched_name} ({matched_code}) tại {area_display}. Lý do: {reason_str}"
+                                    minimal_reason = "Không có quyền"
+                                detail_msg = f"[UNAUTHORIZED_PERSON] Tên: {matched_name} ({matched_code})\nLý do: {minimal_reason}\nVị trí: {location_display}"
 
                             alert = SecurityAlertEvent(
                                 camera_code=camera_code,
@@ -291,15 +338,12 @@ class FrameAnalysisEngine:
                                 # để Face Detector kịp phát hiện và định danh trước khi vội bắn cảnh báo người lạ
                                 if not is_face_clear and (current_time - person.first_seen_time) < 1.5:
                                     continue
-                                face_note = "người lạ ngoài hệ thống" if is_face_clear else "chưa rõ mặt"
                                 if after_hours:
-                                    event_type = "INTRUSION"
-                                    tag_prefix = "[INTRUSION]"
-                                    detail_msg = f"{tag_prefix} Phát hiện đối tượng chưa rõ danh tính / người lạ ({face_note}) ngoài giờ hoạt động tại {area_display}."
+                                    event_type = "PERSON_INTRUSION"
+                                    detail_msg = f"[PERSON_INTRUSION] Vị trí: {location_display}"
                                 else:
                                     event_type = "UNKNOWN_PERSON"
-                                    tag_prefix = "[UNKNOWN_PERSON]"
-                                    detail_msg = f"{tag_prefix} Phát hiện đối tượng chưa đăng ký / người lạ ({face_note}) tại {area_display}."
+                                    detail_msg = f"[UNKNOWN_PERSON] Vị trí: {location_display}"
 
                                 alert = SecurityAlertEvent(
                                     camera_code=camera_code,
@@ -318,7 +362,12 @@ class FrameAnalysisEngine:
         inactive_ids = []
         for tid, p in self.active_tracks.items():
             if tid not in current_frame_track_ids:
-                if (current_time - p.last_seen_time) > self.max_inactive_seconds:
+                inactive_sec = current_time - p.last_seen_time
+                # Cho phép duy trì hiển thị bounding box (coasting 1.5s) khi người tạm thời cúi người,
+                # ngồi xuống hoặc bị khuất tầm nhìn, tránh việc biến mất và mất Track ID đột ngột
+                if inactive_sec > 1.5:
+                    p.is_currently_visible = False
+                if inactive_sec > self.max_inactive_seconds:
                     inactive_ids.append(tid)
 
         for tid in inactive_ids:
@@ -335,6 +384,43 @@ class FrameAnalysisEngine:
             del self.active_tracks[tid]
             if tid in self.pending_faces:
                 del self.pending_faces[tid]
+
+        # Khử trùng lặp giữa các Track đang hoạt động (Active Track-Level Deduplication / NMS)
+        visible_tids = [tid for tid, p in self.active_tracks.items() if getattr(p, "is_currently_visible", True)]
+        suppressed_tids = set()
+        for i in range(len(visible_tids)):
+            tid_a = visible_tids[i]
+            if tid_a in suppressed_tids:
+                continue
+            pa = self.active_tracks[tid_a]
+            for j in range(i + 1, len(visible_tids)):
+                tid_b = visible_tids[j]
+                if tid_b in suppressed_tids:
+                    continue
+                pb = self.active_tracks[tid_b]
+
+                iou_ab = pa.bbox.iou(pb.bbox)
+                iom_ab = pa.bbox.intersection_ratio(pb.bbox)
+                if iou_ab > 0.35 or iom_ab > 0.55:
+                    # Trùng lặp cùng 1 người! Giữ track tốt hơn và ẩn track phụ
+                    a_in_curr = tid_a in current_frame_track_ids
+                    b_in_curr = tid_b in current_frame_track_ids
+                    a_has_face = pa.face_detected and pa.face_info and pa.face_info.matched_code
+                    b_has_face = pb.face_detected and pb.face_info and pb.face_info.matched_code
+
+                    if (b_in_curr and not a_in_curr) or (b_has_face and not a_has_face):
+                        if a_has_face and not b_has_face:
+                            pb.face_detected = True
+                            pb.face_info = pa.face_info
+                        pa.is_currently_visible = False
+                        suppressed_tids.add(tid_a)
+                        break
+                    else:
+                        if b_has_face and not a_has_face:
+                            pa.face_detected = True
+                            pa.face_info = pb.face_info
+                        pb.is_currently_visible = False
+                        suppressed_tids.add(tid_b)
 
         return list(self.active_tracks.values()), generated_alerts, roi_access_events
 

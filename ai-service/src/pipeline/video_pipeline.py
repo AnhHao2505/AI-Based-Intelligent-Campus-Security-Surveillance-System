@@ -85,6 +85,7 @@ class VideoPipeline:
         self._suspicious_motion_cooldown: float = 5.0
         self._last_tampering_time: float = 0.0
         self._tampering_cooldown: float = 10.0
+        self._pending_access_checks = set()
 
         # Khởi tạo các module tích hợp
         from concurrent.futures import ThreadPoolExecutor
@@ -93,6 +94,54 @@ class VideoPipeline:
         self.kafka_producer = self.mqtt_client  # Backward compatibility
         self.storage_service = StorageService()
         self.visualizer = FrameVisualizer()
+
+    def _apply_access_decision(self, face_info, is_allowed: bool, access_reason: str, area_name: Optional[str]):
+        reason_lower = (access_reason or "").lower()
+        if "không tồn tại" in reason_lower or "đã bị xoá" in reason_lower:
+            face_info.matched_code = None
+            face_info.matched_name = None
+            face_info.is_authorized = False
+            face_info.access_reason = "Đối tượng không xác định"
+        else:
+            face_info.is_authorized = is_allowed
+            face_info.access_reason = access_reason
+            face_info.area_name = area_name
+        face_info.access_checked = True
+
+    def _async_resolve_camera_access(self, track_id: int, user_code: str, roi_label: str):
+        try:
+            is_allowed, access_reason, area_name = self.face_matcher.check_camera_access(
+                self.camera_code,
+                user_code,
+                roi_label=roi_label,
+                event_direction=None
+            )
+            existing = self.analysis_engine.active_tracks.get(track_id)
+            if existing and existing.face_info and existing.face_info.matched_code == user_code:
+                self._apply_access_decision(existing.face_info, is_allowed, access_reason, area_name)
+                existing.roi_entry_logged = True
+        except Exception as e:
+            logger.warning(f"[VideoPipeline] Lỗi kiểm tra quyền bất đồng bộ cho user {user_code}: {e}")
+        finally:
+            self._pending_access_checks.discard(f"{self.camera_code}:{user_code}")
+
+    def _resolve_access_for_person(self, track_id: int, face_info, user_code: str, roi_label: str):
+        if not self.face_matcher:
+            face_info.is_authorized = True
+            face_info.access_checked = True
+            return
+
+        cached = self.face_matcher.get_cached_access(self.camera_code, user_code)
+        if cached is not None:
+            is_allowed, access_reason, area_name = cached
+            self._apply_access_decision(face_info, is_allowed, access_reason, area_name)
+            return
+
+        cache_key = f"{self.camera_code}:{user_code}"
+        if cache_key not in self._pending_access_checks:
+            self._pending_access_checks.add(cache_key)
+            self.executor.submit(self._async_resolve_camera_access, track_id, user_code, roi_label)
+        face_info.access_checked = False
 
     def set_roi_polygon(self, polygon: List[Point]):
         """Cập nhật tọa độ vùng cấm ROI (đơn lẻ, tương thích ngược)"""
@@ -128,6 +177,38 @@ class VideoPipeline:
             self.roi_polygon = configs[0].vertices
         else:
             self.roi_polygon = []
+
+    @staticmethod
+    def _is_box_overlapping_any(
+        box: BoundingBox,
+        targets: List[BoundingBox],
+        overlap_threshold: float = 0.15
+    ) -> bool:
+        """
+        Kiểm tra xem 1 box (ví dụ motion box) có nằm trong hoặc trùng lặp đáng kể với bất kỳ target box (human box) nào không.
+        """
+        box_area = max(1.0, (box.x2 - box.x1) * (box.y2 - box.y1))
+        cx = (box.x1 + box.x2) / 2.0
+        cy = (box.y1 + box.y2) / 2.0
+
+        for tgt in targets:
+            # 1. Nếu tâm của motion box nằm trong human box (mở rộng dung sai 5px)
+            if (tgt.x1 - 5 <= cx <= tgt.x2 + 5) and (tgt.y1 - 5 <= cy <= tgt.y2 + 5):
+                return True
+
+            # 2. Hoặc diện tích phần giao cắt chiếm >= overlap_threshold diện tích của motion box
+            ix1 = max(box.x1, tgt.x1)
+            iy1 = max(box.y1, tgt.y1)
+            ix2 = min(box.x2, tgt.x2)
+            iy2 = min(box.y2, tgt.y2)
+            inter_w = max(0.0, ix2 - ix1)
+            inter_h = max(0.0, iy2 - iy1)
+            inter_area = inter_w * inter_h
+
+            if (inter_area / box_area) >= overlap_threshold:
+                return True
+
+        return False
 
     def is_bbox_in_roi(self, bbox: BoundingBox, frame_w: int, frame_h: int) -> Tuple[bool, str]:
         """
@@ -212,6 +293,48 @@ class VideoPipeline:
         # ------------------------------------------------------------------
         detected_tracks = self.human_detector.detect_and_track(frame, persist=True)
 
+        # 2a. TRIỆT TIÊU MOTION DETECTION TRONG BOUNDING BOX NGƯỜI (HUMAN MASKING)
+        # Loại bỏ 100% các bounding box vàng của motion detection nằm bên trong hoặc trùng lên người.
+        # Bao gồm cả người vừa phát hiện trong frame và người đang được duy trì track (active tracks).
+        # Khi người cúi xuống / ngồi xuống khiến YOLO tạm thời trượt detection, chuyển động của họ
+        # vẫn được nhận diện là của người đó -> duy trì track ID và KHÔNG cảnh báo ngụy trang giả!
+        current_frame_tids = {tid for tid, _ in detected_tracks if tid >= 0}
+        detected_boxes = [bbox for _, bbox in detected_tracks]
+        active_tracked_boxes: List[BoundingBox] = []
+
+        for tid, p in list(self.analysis_engine.active_tracks.items()):
+            inactive_dur = current_time - p.last_seen_time
+            if inactive_dur <= self.analysis_engine.max_inactive_seconds:
+                # Kiểm tra xem vị trí của track cũ có đang trùng lấn với detection mới nào từ YOLO không
+                has_active_yolo_det = any(
+                    p.bbox.iou(d_box) > 0.25 or p.bbox.intersection_ratio(d_box) > 0.45
+                    for d_box in detected_boxes
+                )
+                if has_active_yolo_det and tid not in current_frame_tids:
+                    # Đã có detection mới của YOLO tại vị trí này -> Track cũ không còn visible, nhường quyền cho track mới
+                    p.is_currently_visible = False
+                elif tid not in current_frame_tids and motion_res.motion_boxes:
+                    # Người thật sự cúi người/ngồi khuất và YOLO trượt detection:
+                    overlapping_mb = [
+                        mb for mb in motion_res.motion_boxes
+                        if self._is_box_overlapping_any(mb, [p.bbox], overlap_threshold=0.08)
+                    ]
+                    if overlapping_mb:
+                        # Duy trì sự tồn tại của track nhưng KHÔNG phình to box vô tận
+                        p.last_seen_time = current_time
+                        p.is_currently_visible = True
+                active_tracked_boxes.append(p.bbox)
+
+        all_human_boxes = [bbox for _, bbox in detected_tracks] + active_tracked_boxes
+        if all_human_boxes and motion_res.motion_boxes:
+            non_human_motion_boxes = [
+                mb for mb in motion_res.motion_boxes
+                if not self._is_box_overlapping_any(mb, all_human_boxes, overlap_threshold=0.08)
+            ]
+            motion_res.motion_boxes = non_human_motion_boxes
+            if not motion_res.motion_boxes:
+                motion_res.motion_area = 0
+
         # 2b. Kiểm tra người trong ROI và cập nhật Máy trạng thái chốt giữ
         person_in_roi = False
         for track_id, bbox in detected_tracks:
@@ -220,21 +343,33 @@ class VideoPipeline:
                 person_in_roi = True
                 break
 
+        # Nếu frame hiện tại YOLO trượt phát hiện nhưng người đang được track đang ở trong ROI
+        if not person_in_roi:
+            for p in self.analysis_engine.active_tracks.values():
+                if (current_time - p.last_seen_time) <= self.analysis_engine.max_inactive_seconds:
+                    in_roi, _ = self.is_bbox_in_roi(p.bbox, w, h)
+                    if in_roi:
+                        person_in_roi = True
+                        break
+
         self.state_machine.update(
             has_motion=motion_res.has_motion,
             person_in_roi=person_in_roi,
             current_time=current_time
         )
 
-        # 2c. Phát hiện Đột nhập Ngụy trang (SUSPICIOUS_MOTION):
-        # Có chuyển động đáng kể trong ROI nhưng YOLO26 không nhận diện được dáng người
+        # 2c. Phát hiện Đột nhập Ngụy trang (SUSPICIOUS_MOVING_OBJECT):
+        # Có chuyển động đáng kể trong ROI nhưng YOLO không nhận diện được dáng người (và không phải do người tạo ra)
         if motion_res.has_motion and not person_in_roi and len(motion_res.motion_boxes) > 0:
             if (current_time - self._last_suspicious_motion_time) >= self._suspicious_motion_cooldown:
                 self._last_suspicious_motion_time = current_time
+                cam_area_name = self.face_matcher.get_camera_area_name(self.camera_code) if self.face_matcher else None
+                loc_name = cam_area_name or "Khu vực giám sát"
+
                 anomaly_alert = SecurityAlertEvent(
                     camera_code=self.camera_code,
-                    event_type="SUSPICIOUS_MOTION",
-                    details=f"Phát hiện vật thể chuyển động bất thường trong vùng cấm không nhận diện được dáng người (Diện tích: {motion_res.motion_area}px, Nghi vấn ngụy trang/bò trườn)",
+                    event_type="SUSPICIOUS_MOVING_OBJECT",
+                    details=f"[SUSPICIOUS_MOVING_OBJECT] Vị trí: {loc_name}",
                     confidence=0.9,
                     track_id=-1
                 )
@@ -255,24 +390,12 @@ class VideoPipeline:
             if existing and existing.face_detected and existing.face_info and existing.face_info.matched_code:
                 # Nếu người này trước đó ở ngoài ROI, nay bước chân vào ROI:
                 if in_roi and not getattr(existing.face_info, "access_checked", False):
-                    is_allowed, access_reason, area_name = self.face_matcher.check_camera_access(
-                        self.camera_code,
+                    self._resolve_access_for_person(
+                        track_id,
+                        existing.face_info,
                         existing.face_info.matched_code,
-                        roi_label=roi_label or "Vùng giám sát",
-                        event_direction="ENTRY"
+                        roi_label or "Vùng giám sát"
                     )
-                    reason_lower = (access_reason or "").lower()
-                    if "không tồn tại" in reason_lower or "đã bị xoá" in reason_lower:
-                        existing.face_info.matched_code = None
-                        existing.face_info.matched_name = None
-                        existing.face_info.is_authorized = False
-                        existing.face_info.access_reason = "Đối tượng không xác định"
-                    else:
-                        existing.face_info.is_authorized = is_allowed
-                        existing.face_info.access_reason = access_reason
-                        existing.face_info.area_name = area_name
-                    existing.face_info.access_checked = True
-                    existing.roi_entry_logged = True
                 continue
 
             x1, y1, x2, y2 = bbox.to_int_xyxy()
@@ -315,23 +438,12 @@ class VideoPipeline:
 
                                 # CHỈ kiểm tra thẩm quyền và ghi nhận truy cập khi đã thực sự bước chân vào vùng ROI!
                                 if in_roi:
-                                    is_allowed, access_reason, area_name = self.face_matcher.check_camera_access(
-                                        self.camera_code,
+                                    self._resolve_access_for_person(
+                                        track_id,
+                                        face_result,
                                         code,
-                                        roi_label=roi_label or "Vùng giám sát",
-                                        event_direction="ENTRY"
+                                        roi_label or "Vùng giám sát"
                                     )
-                                    reason_lower = (access_reason or "").lower()
-                                    if "không tồn tại" in reason_lower or "đã bị xoá" in reason_lower:
-                                        face_result.matched_code = None
-                                        face_result.matched_name = None
-                                        face_result.is_authorized = False
-                                        face_result.access_reason = "Đối tượng không xác định"
-                                    else:
-                                        face_result.is_authorized = is_allowed
-                                        face_result.access_reason = access_reason
-                                        face_result.area_name = area_name
-                                    face_result.access_checked = True
                                 else:
                                     # Người dùng đang ở ngoài vùng ROI: Trạng thái bình thường, không ghi log vi phạm
                                     face_result.is_authorized = True
@@ -344,6 +456,7 @@ class VideoPipeline:
         # 4. PHÂN TÍCH XÂM NHẬP VÙNG CẤM (FRAME ANALYSIS ENGINE)
         # ------------------------------------------------------------------
         is_public = self.face_matcher.is_camera_public(self.camera_code) if self.face_matcher else False
+        cam_area_name = self.face_matcher.get_camera_area_name(self.camera_code) if self.face_matcher else None
         active_persons, alerts, roi_events = self.analysis_engine.process_frame(
             detected_tracks=detected_tracks,
             roi_polygon=self.roi_polygon,
@@ -351,7 +464,8 @@ class VideoPipeline:
             current_time=current_time,
             roi_polygons=self.roi_polygons,
             frame_size=(w, h),
-            is_public_area=is_public
+            is_public_area=is_public,
+            area_name=cam_area_name
         )
 
         if early_alerts:
@@ -378,7 +492,7 @@ class VideoPipeline:
         if alerts:
             for alert in alerts:
                 ev_type = str(alert.event_type or "").upper()
-                if any(k in ev_type for k in ["UNAUTHORIZED", "INTRUSION", "AFTER_HOUR", "OUT_OF_TIME", "UNKNOWN", "SUSPICIOUS_MOTION", "TAMPERING"]):
+                if any(k in ev_type for k in ["UNAUTHORIZED", "INTRUSION", "AFTER_HOUR", "OUT_OF_TIME", "UNKNOWN", "SUSPICIOUS_MOTION", "SUSPICIOUS_MOVING_OBJECT", "TAMPERING"]):
                     try:
                         incident_recording_manager.start_incident_recording(
                             incident_id=alert.event_id or f"EVT-{int(time.time()*1000)}",
@@ -394,7 +508,8 @@ class VideoPipeline:
                     snapshot_frame,
                     polygons=self.roi_polygons if self.roi_polygons else (self.roi_polygon if self.roi_polygon else None)
                 )
-                if motion_res.has_motion and not person_in_roi:
+                has_suspicious_motion_alert = any(a.event_type in ("SUSPICIOUS_MOVING_OBJECT", "SUSPICIOUS_MOTION") for a in alerts)
+                if has_suspicious_motion_alert and motion_res.motion_boxes:
                     snapshot_frame = FrameVisualizer.draw_motion_boxes(snapshot_frame, motion_res.motion_boxes)
 
                 snapshot_frame = self.visualizer.draw_tracked_persons(
@@ -412,13 +527,15 @@ class VideoPipeline:
             annotated_frame,
             polygons=self.roi_polygons if self.roi_polygons else (self.roi_polygon if self.roi_polygon else None)
         )
-        if motion_res.has_motion and not person_in_roi:
+        # Chỉ vẽ khung nghi vấn ngụy trang khi có cảnh báo SUSPICIOUS_MOTION thực sự trong ROI (đã lọc sạch cơ thể người)
+        has_suspicious_motion_alert = any(a.event_type in ("SUSPICIOUS_MOVING_OBJECT", "SUSPICIOUS_MOTION") for a in alerts)
+        if has_suspicious_motion_alert and motion_res.motion_boxes:
             annotated_frame = FrameVisualizer.draw_motion_boxes(annotated_frame, motion_res.motion_boxes)
 
         annotated_frame = self.visualizer.draw_tracked_persons(
             annotated_frame,
             active_persons,
-            only_in_roi=False
+            only_in_roi=getattr(settings, "DRAW_ONLY_IN_ROI", False) and has_roi
         )
         
         return annotated_frame, active_persons, alerts

@@ -31,6 +31,7 @@ class FaceMatcher:
         }
         self.embedder = FaceEmbedder(embedding_dim=512)
         self.cached_faces: List[Dict] = []
+        self.cached_matrix: Optional[np.ndarray] = None
         self.public_camera_codes: set = set()
         self.last_cache_time = 0
         self.cache_ttl = 30.0 # Tự động làm mới cache mỗi 30 giây
@@ -88,8 +89,25 @@ class FaceMatcher:
                     })
             
             self.cached_faces = new_cache
+            if new_cache:
+                self.cached_matrix = np.vstack([item["vector"] for item in new_cache]).astype(np.float32)
+            else:
+                self.cached_matrix = None
 
-            # Nạp danh sách mã camera thuộc khu vực Công cộng (Cấp 1 - PUBLIC)
+            # Nạp danh sách mã camera thuộc khu vực Công cộng (Cấp 1 - PUBLIC) và tên khu vực tương ứng
+            try:
+                cur.execute("""
+                    SELECT UPPER(c.camera_code), a.name
+                    FROM cameras c
+                    JOIN areas a ON c.area_id = a.id
+                    WHERE c.deleted_at IS NULL;
+                """)
+                area_rows = cur.fetchall()
+                self.camera_area_map = {r[0]: r[1] for r in area_rows}
+            except Exception as e_area:
+                logger.debug(f"Không thể nạp danh sách tên khu vực của camera: {e_area}")
+                self.camera_area_map = {}
+
             try:
                 cur.execute("""
                     SELECT UPPER(c.camera_code)
@@ -101,6 +119,7 @@ class FaceMatcher:
                 self.public_camera_codes = {r[0] for r in cur.fetchall()}
             except Exception as e_cam:
                 logger.debug(f"Không thể nạp danh sách camera công cộng: {e_cam}")
+                self.public_camera_codes = set()
 
             self.last_cache_time = time.time()
             logger.info(f"✅ [FaceMatcher] Đã nạp {len(self.cached_faces)} hồ sơ khuôn mặt và {len(self.public_camera_codes)} camera công cộng vào RAM cache.")
@@ -109,6 +128,14 @@ class FaceMatcher:
         except Exception as e:
             logger.warning(f"⚠️ [FaceMatcher] Không thể kết nối Database để nạp face cache: {e}")
             self.last_cache_time = time.time()
+
+    def get_camera_area_name(self, camera_code: str):
+        """Lấy tên khu vực thực tế (Physical Area Name) của Camera từ cơ sở dữ liệu"""
+        if not camera_code:
+            return None
+        if time.time() - self.last_cache_time > self.cache_ttl:
+            self.refresh_cache()
+        return getattr(self, "camera_area_map", {}).get(camera_code.strip().upper())
 
     def is_camera_public(self, camera_code: str) -> bool:
         """Kiểm tra camera có thuộc khu vực Cấp 1 (Công cộng - PUBLIC) hay không"""
@@ -149,15 +176,15 @@ class FaceMatcher:
         if not self.cached_faces:
             return None
 
-        best_score = -1.0
-        best_match = None
+        # Tối ưu hóa Vectorized Matrix Multiplication (BLAS GEMV: (N, 512) @ (512,) -> (N,))
+        # Giảm độ phức tạp từ O(N) Python loop xuống 1 phép tính C/BLAS đa luồng siêu tốc (< 0.2ms)
+        if self.cached_matrix is None or len(self.cached_matrix) != len(self.cached_faces):
+            self.cached_matrix = np.vstack([item["vector"] for item in self.cached_faces]).astype(np.float32)
 
-        for item in self.cached_faces:
-            # Tính Cosine Similarity: dot product giữa 2 unit vectors
-            score = float(np.dot(cam_vec, item["vector"]))
-            if score > best_score:
-                best_score = score
-                best_match = item
+        scores = np.dot(self.cached_matrix, cam_vec)
+        best_idx = int(np.argmax(scores))
+        best_score = float(scores[best_idx])
+        best_match = self.cached_faces[best_idx]
 
         if best_match and best_score >= threshold:
             is_active = bool(best_match.get("is_active", True))
@@ -165,6 +192,22 @@ class FaceMatcher:
             logger.info(f"🎯 [FaceMatcher] NHẬN DIỆN KHUÔN MẶT: {best_match['code']} - {best_match['full_name']} (Khớp: {best_score:.1%}, Hoạt động: {is_active}, Role: {role})")
             return (best_match["code"], best_match["full_name"], best_score, is_active, role)
 
+        return None
+
+    def get_cached_access(
+        self,
+        camera_code: str,
+        user_code: str
+    ) -> Optional[Tuple[bool, str, Optional[str]]]:
+        """Truy xuất nhanh quyền ra vào từ RAM cache, trả về None nếu cache miss hoặc hết hạn"""
+        if not camera_code or not user_code:
+            return None
+        cache_key = f"{camera_code}:{user_code}"
+        now = time.time()
+        if cache_key in self.access_cache:
+            allowed, reason, area_name, expire_at = self.access_cache[cache_key]
+            if now < expire_at:
+                return allowed, reason, area_name
         return None
 
     def check_camera_access(
@@ -188,8 +231,8 @@ class FaceMatcher:
         cache_key = f"{camera_code}:{user_code}"
         now = time.time()
 
-        # 1. Kiểm tra cache RAM (chỉ dùng cache khi không phải sự kiện ROI cụ thể)
-        if not skip_cache and not event_direction and cache_key in self.access_cache:
+        # 1. Kiểm tra cache RAM (chỉ dùng cache khi không yêu cầu skip_cache)
+        if not skip_cache and cache_key in self.access_cache:
             allowed, reason, area_name, expire_at = self.access_cache[cache_key]
             if now < expire_at:
                 return allowed, reason, area_name
@@ -229,6 +272,10 @@ class FaceMatcher:
                 if "không tồn tại" in reason_lower or "đã bị xoá" in reason_lower:
                     logger.info(f"🗑️ [FaceMatcher] Tài khoản [{user_code}] đã bị xoá hoặc không tồn tại trên hệ thống -> Loại bỏ ngay khỏi Face RAM Cache.")
                     self.cached_faces = [f for f in self.cached_faces if f.get("code") != user_code]
+                    if self.cached_faces:
+                        self.cached_matrix = np.vstack([item["vector"] for item in self.cached_faces]).astype(np.float32)
+                    else:
+                        self.cached_matrix = None
                     if cache_key in self.access_cache:
                         del self.access_cache[cache_key]
 

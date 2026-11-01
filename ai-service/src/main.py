@@ -344,18 +344,21 @@ async def process_face_registration(
         faces = detector.detect_in_image(img)
         face_count = len(faces)
 
-        landmarks = None
         if not faces:
-            face_crop = img
-        else:
-            faces.sort(key=lambda f: f.score, reverse=True)
-            fx1, fy1, fx2, fy2 = faces[0].bbox.to_int_xyxy()
-            ih, iw, _ = img.shape
-            fx1, fy1 = max(0, fx1), max(0, fy1)
-            fx2, fy2 = min(iw, fx2), min(ih, fy2)
-            face_crop = img[fy1:fy2, fx1:fx2] if (fx2 > fx1 and fy2 > fy1) else img
-            if faces[0].landmarks:
-                landmarks = [(pt[0] - fx1, pt[1] - fy1) for pt in faces[0].landmarks]
+            raise HTTPException(
+                status_code=400,
+                detail="Không phát hiện thấy khuôn mặt rõ nét trong ảnh chính diện. Vui lòng chụp lại ảnh chính diện rõ mặt."
+            )
+
+        landmarks = None
+        faces.sort(key=lambda f: f.score, reverse=True)
+        fx1, fy1, fx2, fy2 = faces[0].bbox.to_int_xyxy()
+        ih, iw, _ = img.shape
+        fx1, fy1 = max(0, fx1), max(0, fy1)
+        fx2, fy2 = min(iw, fx2), min(ih, fy2)
+        face_crop = img[fy1:fy2, fx1:fx2] if (fx2 > fx1 and fy2 > fy1) else img
+        if faces[0].landmarks:
+            landmarks = [(pt[0] - fx1, pt[1] - fy1) for pt in faces[0].landmarks]
 
         vector_512 = face_embedder.extract_embedding(face_crop, landmarks=landmarks)
     except Exception as e:

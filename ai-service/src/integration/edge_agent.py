@@ -34,11 +34,11 @@ def _read_rtsp_frame_once(rtsp_url: str, timeout_ms: int = 4000) -> Optional[np.
     cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
     try:
         if cap.isOpened():
-            for _ in range(5):
+            for _ in range(15):
                 ret, frame = cap.read()
                 if ret and frame is not None and frame.size > 0:
                     return frame
-                time.sleep(0.04)
+                time.sleep(0.05)
     finally:
         cap.release()
     return None
@@ -387,6 +387,8 @@ class EdgeMqttAgent:
     def _rpc_test_connection(self, corr_id: str, camera_code: Optional[str], payload: Dict[str, Any], t0: float) -> Dict[str, Any]:
         rtsp_url = str(payload.get("rtsp_url") or "").strip()
         timeout_ms = int(payload.get("timeout_ms") or 4000)
+        username = str(payload.get("username") or "").strip()
+        password = str(payload.get("password") or payload.get("credentialRef") or "").strip()
 
         if not rtsp_url:
             host = str(payload.get("host") or "").strip()
@@ -394,7 +396,20 @@ class EdgeMqttAgent:
             path = str(payload.get("path") or "/").strip()
             if not path.startswith("/"):
                 path = "/" + path
-            rtsp_url = f"rtsp://{host}:{port}{path}" if host else ""
+            if username:
+                auth = f"{username}:{password}@" if password else f"{username}@"
+                rtsp_url = f"rtsp://{auth}{host}:{port}{path}" if host else ""
+            else:
+                rtsp_url = f"rtsp://{host}:{port}{path}" if host else ""
+        else:
+            parsed_tmp = urlparse(rtsp_url)
+            eff_user = username or parsed_tmp.username or ""
+            eff_pass = password or parsed_tmp.password or ""
+            if eff_user:
+                auth = f"{eff_user}:{eff_pass}@" if eff_pass else f"{eff_user}@"
+                port_part = f":{parsed_tmp.port}" if parsed_tmp.port else ""
+                netloc = f"{auth}{parsed_tmp.hostname}{port_part}"
+                rtsp_url = parsed_tmp._replace(netloc=netloc).geturl()
 
         parsed = urlparse(rtsp_url)
         host = parsed.hostname
@@ -546,18 +561,23 @@ class EdgeMqttAgent:
 
         faces = detector.detect_in_image(img)
         face_count = len(faces)
-        landmarks = None
         if not faces:
-            face_crop = img
-        else:
-            faces.sort(key=lambda f: f.score, reverse=True)
-            fx1, fy1, fx2, fy2 = faces[0].bbox.to_int_xyxy()
-            ih, iw, _ = img.shape
-            fx1, fy1 = max(0, fx1), max(0, fy1)
-            fx2, fy2 = min(iw, fx2), min(ih, fy2)
-            face_crop = img[fy1:fy2, fx1:fx2] if (fx2 > fx1 and fy2 > fy1) else img
-            if faces[0].landmarks:
-                landmarks = [(pt[0] - fx1, pt[1] - fy1) for pt in faces[0].landmarks]
+            return {
+                "correlationId": corr_id,
+                "success": False,
+                "errorCode": "ERR_NO_FACE_DETECTED",
+                "errorMessage": "Không phát hiện thấy khuôn mặt rõ nét trong ảnh",
+                "latencyMs": int((time.time() - t0) * 1000),
+            }
+        landmarks = None
+        faces.sort(key=lambda f: f.score, reverse=True)
+        fx1, fy1, fx2, fy2 = faces[0].bbox.to_int_xyxy()
+        ih, iw, _ = img.shape
+        fx1, fy1 = max(0, fx1), max(0, fy1)
+        fx2, fy2 = min(iw, fx2), min(ih, fy2)
+        face_crop = img[fy1:fy2, fx1:fx2] if (fx2 > fx1 and fy2 > fy1) else img
+        if faces[0].landmarks:
+            landmarks = [(pt[0] - fx1, pt[1] - fy1) for pt in faces[0].landmarks]
 
         vector_512 = embedder.extract_embedding(face_crop, landmarks=landmarks)
         return {

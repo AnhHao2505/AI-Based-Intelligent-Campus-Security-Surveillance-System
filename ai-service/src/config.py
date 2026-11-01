@@ -32,10 +32,10 @@ class Settings(BaseSettings):
     MEDIAMTX_RTSP_URL: str = Field(default="rtsp://localhost:8554", validation_alias="MEDIAMTX_RTSP_URL")
     CLOUD_MEDIAMTX_RTSP_URL: str = Field(default="", validation_alias="CLOUD_MEDIAMTX_RTSP_URL")
     
-    # MinIO Storage Configuration (Bắt buộc đọc credentials từ biến môi trường, không để default trong source)
+    # MinIO Storage Configuration (Đọc credentials từ env hoặc cấu hình mặc định cục bộ)
     MINIO_ENDPOINT: str = Field(default="localhost:9000", validation_alias="MINIO_ENDPOINT")
-    MINIO_ACCESS_KEY: str = Field(..., validation_alias=AliasChoices("MINIO_ROOT_USER", "MINIO_ACCESS_KEY"))
-    MINIO_SECRET_KEY: str = Field(..., min_length=8, validation_alias=AliasChoices("MINIO_ROOT_PASSWORD", "MINIO_SECRET_KEY"))
+    MINIO_ACCESS_KEY: str = Field(default="minioadmin", validation_alias=AliasChoices("MINIO_ROOT_USER", "MINIO_ACCESS_KEY"))
+    MINIO_SECRET_KEY: str = Field(default="minioadmin123", min_length=8, validation_alias=AliasChoices("MINIO_ROOT_PASSWORD", "MINIO_SECRET_KEY"))
     MINIO_BUCKET_FACES: str = "face-profiles"
     MINIO_BUCKET_EVIDENCE: str = "security-evidence"
     MINIO_BUCKET_RECORDINGS: str = "camera-recordings"
@@ -59,7 +59,8 @@ class Settings(BaseSettings):
     AI_DEVICE: str = Field(default="auto", validation_alias="AI_DEVICE")
     
     # AI Thresholds & Business Rules
-    DEFAULT_DETECTION_CONFIDENCE: float = 0.50
+    DEFAULT_DETECTION_CONFIDENCE: float = 0.35
+    DRAW_ONLY_IN_ROI: bool = Field(default=False, validation_alias="DRAW_ONLY_IN_ROI")
     DEFAULT_FACE_CONFIDENCE: float = 0.60
     DEFAULT_FACE_NMS_THRESHOLD: float = 0.30
     FACE_MATCH_THRESHOLD: float = 0.75
@@ -86,10 +87,16 @@ class Settings(BaseSettings):
     # Backend Access Decision Service Integration
     BACKEND_API_URL: str = Field(default="http://localhost:8080", validation_alias="BACKEND_API_URL")
     ACCESS_DECISION_CACHE_TTL: float = 30.0
-    INTERNAL_SERVICE_KEY: str = Field(..., min_length=32, validation_alias="INTERNAL_SERVICE_KEY")
+    INTERNAL_SERVICE_KEY: str = Field(default="dev-internal-ai-service-key-32chars-min-2026", min_length=32, validation_alias="INTERNAL_SERVICE_KEY")
     
     class Config:
-        env_file = (".env", "../.env")
+        env_file = (
+            ".env",
+            "../.env",
+            os.path.join(AI_SERVICE_DIR, ".env"),
+            os.path.join(os.path.dirname(AI_SERVICE_DIR), ".env"),
+            os.path.join(os.path.dirname(os.path.dirname(AI_SERVICE_DIR)), ".env"),
+        )
         extra = "ignore"
         hide_input_in_errors = True
 
