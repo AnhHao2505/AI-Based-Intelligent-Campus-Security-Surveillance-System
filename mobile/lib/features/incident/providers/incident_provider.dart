@@ -310,10 +310,12 @@ class IncidentProvider extends ChangeNotifier {
       // Chuyển incident sang active
       final idx = _alertQueue.indexWhere((i) => i.id == incidentId);
       final currentUser = await StorageHelper.getUser();
+      // Bản ghi đang nằm ở vị trí idx sau khi chờ getUser (có thể không còn là sự cố vừa nhận)
+      final atIdx = (idx >= 0 && idx < _alertQueue.length) ? _alertQueue[idx] : null;
       final offer = _offers[incidentId];
       _removeOffer(incidentId);
 
-      if (idx >= 0) {
+      if (idx >= 0 && idx < _alertQueue.length) {
         final claimed = _alertQueue[idx].copyWith(
           status: 'CLAIMED',
           claimedById: currentUser?.id,
@@ -340,6 +342,27 @@ class IncidentProvider extends ChangeNotifier {
           claimedAt: DateTime.now(),
         );
       }
+      // Vá phòng ngừa: idx lấy trước await nên có thể trỏ nhầm sự cố khác nếu trong lúc chờ hàng đợi được thêm
+      // hoặc sắp xếp lại. Tìm lại theo incidentId: sự cố vừa nhận phải là active (CLAIMED) và không còn sót trong
+      // hàng đợi; sự cố bị lấy nhầm ở vị trí idx được trả lại hàng đợi. Sự cố vẫn còn trong hàng đợi (idx không còn
+      // hợp lệ vì hàng đợi ngắn đi) → lấy dữ liệu từ hàng đợi thay cho bản tạm CAM-ACTIVE.
+      if (_activeIncident?.id != incidentId || _alertQueue.any((i) => i.id == incidentId)) {
+        final latestIdx = _alertQueue.indexWhere((i) => i.id == incidentId);
+        final source = latestIdx >= 0 ? _alertQueue[latestIdx] : offer?.toIncident();
+        _activeIncident = (source ??
+                IncidentModel(id: incidentId, cameraCode: 'CAM-ACTIVE', eventType: 'SECURITY_ALERT', status: 'NEW'))
+            .copyWith(
+          status: 'CLAIMED',
+          claimedById: currentUser?.id,
+          claimedByName: currentUser?.fullName,
+          claimedAt: DateTime.now(),
+        );
+        if (atIdx != null && atIdx.id != incidentId && !_alertQueue.any((i) => i.id == atIdx.id)) {
+          _alertQueue.add(atIdx);
+          _sortQueue();
+        }
+      }
+      _alertQueue.removeWhere((i) => i.id == incidentId);
       return true;
     } on DioException catch (e) {
       // 409 Conflict: Người khác đã claim

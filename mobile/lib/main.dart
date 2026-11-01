@@ -29,8 +29,11 @@ void openIncidentListScreen() {
   final nav = appNavigatorKey.currentState;
   debugPrint('[NotificationTap] navigator ready=${nav != null}');
   if (nav == null) return;
+  if (IncidentListScreen.switchToTab(IncidentFilterTab.claimed)) {
+    return;
+  }
   nav.popUntil((route) => route.isFirst);
-  nav.push(MaterialPageRoute(builder: (_) => const IncidentListScreen()));
+  nav.push(MaterialPageRoute(builder: (_) => const IncidentListScreen(initialTab: IncidentFilterTab.claimed)));
 }
 
 void main() async {
