@@ -25,6 +25,7 @@ import lombok.Setter;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 @Entity
@@ -109,6 +110,7 @@ public class GuardShift {
 
     @PrePersist
     protected void onCreate() {
+        truncateShiftTimes();
         OffsetDateTime now = OffsetDateTime.now();
         this.createdAt = now;
         this.updatedAt = now;
@@ -125,6 +127,13 @@ public class GuardShift {
 
     @PreUpdate
     protected void onUpdate() {
+        truncateShiftTimes();
         this.updatedAt = OffsetDateTime.now();
+    }
+
+    // Hibernate 6.4 + TZ +07: giờ trước 07:00 có phần lẻ của giây đọc lại bị lỗi NanoOfSecond âm, nên cắt về giây khi ghi
+    private void truncateShiftTimes() {
+        if (this.startTime != null) this.startTime = this.startTime.truncatedTo(ChronoUnit.SECONDS);
+        if (this.endTime != null) this.endTime = this.endTime.truncatedTo(ChronoUnit.SECONDS);
     }
 }

@@ -12,7 +12,8 @@ export function AuthProvider({ children }) {
     return authService.getAccessToken() || null;
   });
 
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [authLoading, setAuthLoading] = useState(false);
 
   const logout = useCallback(() => {
     setUser(null);
@@ -25,13 +26,13 @@ export function AuthProvider({ children }) {
     const initAuth = async () => {
       const storedToken = authService.getAccessToken();
       if (!storedToken) {
-        setLoading(false);
+        setInitialLoading(false);
         return;
       }
 
       if (storedToken.startsWith('frontend-demo-') && !DEMO_LOGIN_ENABLED) {
         logout();
-        setLoading(false);
+        setInitialLoading(false);
         return;
       }
 
@@ -63,7 +64,7 @@ export function AuthProvider({ children }) {
           }
         }
       } finally {
-        setLoading(false);
+        setInitialLoading(false);
       }
     };
 
@@ -71,7 +72,7 @@ export function AuthProvider({ children }) {
   }, [logout]);
 
   const loginWithCredentials = async (email, password) => {
-    setLoading(true);
+    setAuthLoading(true);
     try {
       const response = await authService.loginWithCredentials(email, password);
       authService.saveAuth(response);
@@ -79,12 +80,12 @@ export function AuthProvider({ children }) {
       setToken(response.accessToken);
       return response;
     } finally {
-      setLoading(false);
+      setAuthLoading(false);
     }
   };
 
   const loginWithGoogle = async (idToken) => {
-    setLoading(true);
+    setAuthLoading(true);
     try {
       const response = await authService.loginWithGoogle(idToken);
       authService.saveAuth(response);
@@ -92,7 +93,7 @@ export function AuthProvider({ children }) {
       setToken(response.accessToken);
       return response;
     } finally {
-      setLoading(false);
+      setAuthLoading(false);
     }
   };
 
@@ -114,7 +115,7 @@ export function AuthProvider({ children }) {
     return allowedRoles.includes(user.role);
   }, [user]);
 
-  if (loading) {
+  if (initialLoading) {
     return (
       <div style={{
         display: 'flex',
@@ -146,7 +147,7 @@ export function AuthProvider({ children }) {
   const value = {
     user,
     token,
-    loading,
+    loading: initialLoading || authLoading,
     isDemoMode,
     isAuthenticated: !!user,
     loginWithCredentials,
