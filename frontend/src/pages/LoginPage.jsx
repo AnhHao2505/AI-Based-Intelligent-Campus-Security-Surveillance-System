@@ -28,7 +28,15 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
   const navigate = useNavigate();
 
   const [mode, setMode] = useState('login'); // 'login' | 'forgot' | 'reset'
-  const [activeTab, setActiveTab] = useState('google'); // 'google' | 'credentials'
+  const [activeTab, setActiveTab] = useState(() => {
+    return sessionStorage.getItem('login_active_tab') || 'google';
+  });
+
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    sessionStorage.setItem('login_active_tab', tab);
+    setError(null);
+  };
 
   // General states
   const [error, setError] = useState(null);
@@ -47,8 +55,9 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
     defaultValues: { email: '', password: '' },
   });
 
-  // Switch to reset mode if token exists in URL
+  // Switch to reset mode if token exists in URL, and dismiss any active toasts
   useEffect(() => {
+    toast.dismiss();
     if (initialResetToken) {
       setMode('reset');
     }
@@ -62,10 +71,28 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
       if (onLoginSuccess) onLoginSuccess();
       const role = res?.user?.role;
       navigate(role === ROLES.NORMAL_USER ? '/access-requests' : '/dashboard');
-      toast.success('Đăng nhập thành công');
     } catch (err) {
       console.error('Google login failed:', err);
-      setError(err.message || 'Đăng nhập Google thất bại. Vui lòng thử lại.');
+      const rawMsg = (err?.message || '').trim();
+      const lower = rawMsg.toLowerCase();
+      let friendlyError = '';
+      if (
+        lower.includes('không tồn tại') ||
+        lower.includes('not exist') ||
+        lower.includes('not authorized')
+      ) {
+        friendlyError = 'Tài khoản Google này chưa được cấp phép hoặc không tồn tại trên hệ thống.';
+      } else if (
+        lower.includes('vô hiệu hóa') ||
+        lower.includes('khóa') ||
+        lower.includes('disabled') ||
+        lower.includes('inactive')
+      ) {
+        friendlyError = 'Tài khoản đã bị vô hiệu hóa hoặc không còn hoạt động. Vui lòng liên hệ quản trị viên.';
+      } else {
+        friendlyError = rawMsg || 'Đăng nhập Google thất bại. Vui lòng thử lại.';
+      }
+      setError(friendlyError);
     } finally {
       setLoading(false);
     }
@@ -91,7 +118,6 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
         : '/dashboard';
 
     navigate(destination);
-    toast.success(`Đang xem giao diện với vai trò ${ROLE_LABELS[role]}`);
   };
 
   const handleCredentialLoginSubmit = async ({ email: formEmail, password: formPassword }) => {
@@ -102,10 +128,46 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
       if (onLoginSuccess) onLoginSuccess();
       const role = res?.user?.role;
       navigate(role === ROLES.NORMAL_USER ? '/access-requests' : '/dashboard');
-      toast.success('Đăng nhập thành công');
     } catch (err) {
       console.error('Credentials login failed:', err);
-      setError(err.message || 'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.');
+      // Ensure we stay locked onto credentials tab
+      setActiveTab('credentials');
+      sessionStorage.setItem('login_active_tab', 'credentials');
+
+      const rawMsg = (err?.message || '').trim();
+      const lower = rawMsg.toLowerCase();
+
+      let friendlyError = '';
+      if (
+        lower.includes('không tồn tại') ||
+        lower.includes('does not exist') ||
+        lower.includes('not exist') ||
+        lower.includes('account not found') ||
+        lower.includes('user not found')
+      ) {
+        friendlyError = 'Tài khoản không tồn tại trên hệ thống. Vui lòng kiểm tra lại địa chỉ email.';
+      } else if (
+        lower.includes('mật khẩu không chính xác') ||
+        lower.includes('mật khẩu') ||
+        lower.includes('password') ||
+        lower.includes('bad credentials')
+      ) {
+        friendlyError = 'Mật khẩu không chính xác. Vui lòng kiểm tra lại mật khẩu.';
+      } else if (
+        lower.includes('vô hiệu hóa') ||
+        lower.includes('khóa') ||
+        lower.includes('deactivated') ||
+        lower.includes('disabled') ||
+        lower.includes('inactive')
+      ) {
+        friendlyError = 'Tài khoản đã bị vô hiệu hóa hoặc không còn hoạt động. Vui lòng liên hệ quản trị viên.';
+      } else {
+        friendlyError = rawMsg || 'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin đăng nhập.';
+      }
+
+      setError(friendlyError);
+      credentialForm.setValue('password', '');
+      credentialForm.setFocus('password');
     } finally {
       setLoading(false);
     }
@@ -182,8 +244,8 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
 
         {/* ERROR BOX */}
         {error && (
-          <div className="login-card__error">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <div className="login-card__error" role="alert" aria-live="assertive">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
               <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
               <line x1="12" y1="8" x2="12" y2="12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
               <line x1="12" y1="16" x2="12.01" y2="16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -199,14 +261,14 @@ export default function LoginPage({ onLoginSuccess, initialResetToken, onResetCo
               <button
                 type="button"
                 className={`login-card__tab ${activeTab === 'google' ? 'login-card__tab--active' : ''}`}
-                onClick={() => { setActiveTab('google'); setError(null); }}
+                onClick={() => handleTabChange('google')}
               >
                 Google Mail
               </button>
               <button
                 type="button"
                 className={`login-card__tab ${activeTab === 'credentials' ? 'login-card__tab--active' : ''}`}
-                onClick={() => { setActiveTab('credentials'); setError(null); }}
+                onClick={() => handleTabChange('credentials')}
               >
                 Tài khoản cấp
               </button>
