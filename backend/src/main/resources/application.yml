@@ -118,6 +118,8 @@ icss:
     access-log-retention-cron: ${ACCESS_LOG_RETENTION_CRON:0 30 2 * * *}
     # Job leo thang sự cố: chu kỳ đọc từ INCIDENT_ESCALATION_CHECK_SECONDS (system_configurations), cờ này chỉ bật/tắt job
     incident-escalation-enabled: ${INCIDENT_ESCALATION_ENABLED:true}
+    # Job hết hạn lời mời phân phối sự cố (V93): chu kỳ đọc từ DISPATCH_CHECK_SECONDS, cờ này chỉ bật/tắt job
+    incident-dispatch-enabled: ${INCIDENT_DISPATCH_ENABLED:true}
   guest:
     # Giới hạn kích thước ảnh khách (KB), tham số vận hành
     photo-max-kb: ${GUEST_PHOTO_MAX_KB:2048}

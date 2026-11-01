@@ -122,6 +122,18 @@
   transform: translateY(0);
 }
 
+/* Trạng thái khoá (vd. đang lưu, thiếu dữ liệu): mờ, không nổi khi rê chuột */
+.schedule-btn-primary:disabled,
+.schedule-btn-primary:disabled:hover,
+.schedule-btn-primary:disabled:active {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  filter: none;
+  background: var(--theme-primary, #2563eb);
+  box-shadow: none;
+}
+
 /* KPI Cards Grid */
 .schedule-kpi-grid {
   display: grid;

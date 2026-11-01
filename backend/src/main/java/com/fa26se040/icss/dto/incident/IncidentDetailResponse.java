@@ -1,5 +1,6 @@
 package com.fa26se040.icss.dto.incident;
 
+import com.fa26se040.icss.enums.IncidentDispatchStage;
 import com.fa26se040.icss.enums.IncidentOutcome;
 import com.fa26se040.icss.enums.IncidentResolutionCategory;
 import com.fa26se040.icss.enums.IncidentSeverity;
@@ -40,4 +41,6 @@ public class IncidentDetailResponse {
     private String radioChannel;
     // V90 (BR-SEV-01): null với sự cố tạo trước V90; client dùng bảng cũ theo eventType khi null
     private IncidentSeverity severity;
+    // V93 (K6): STEP1 = đang mời một nhóm bảo vệ, chỉ người được mời nhận được; BROADCAST = như trước PR-2
+    private IncidentDispatchStage dispatchStage;
 }

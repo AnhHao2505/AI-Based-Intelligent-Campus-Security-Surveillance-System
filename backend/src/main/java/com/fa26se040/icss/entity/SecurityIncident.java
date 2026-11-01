@@ -2,6 +2,7 @@ package com.fa26se040.icss.entity;
 
 import com.fa26se040.icss.enums.IncidentOutcome;
 import com.fa26se040.icss.enums.IncidentResolutionCategory;
+import com.fa26se040.icss.enums.IncidentDispatchStage;
 import com.fa26se040.icss.enums.IncidentSeverity;
 import com.fa26se040.icss.enums.IncidentStatus;
 import jakarta.persistence.Column;
@@ -100,6 +101,20 @@ public class SecurityIncident {
     @Enumerated(EnumType.STRING)
     @Column(name = "severity", length = 10)
     private IncidentSeverity severity;
+
+    // V93 (K6): STEP1 = đang mời một nhóm bảo vệ; BROADCAST = đã phát cho mọi bảo vệ đang trực (hành vi trước PR-2)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "dispatch_stage", nullable = false, length = 12)
+    @Builder.Default
+    private IncidentDispatchStage dispatchStage = IncidentDispatchStage.BROADCAST;
+
+    // V93: lúc phát cảnh báo toàn bộ; sự cố trước V93 để NULL
+    @Column(name = "broadcast_at")
+    private OffsetDateTime broadcastAt;
+
+    // V93 (BR-DSP-02): mã người bị camera nhận diện, tách từ details lúc ingest; NULL = người lạ / không xác định
+    @Column(name = "subject_user_code", length = 50)
+    private String subjectUserCode;
 
     @Version
     @Column(name = "version", nullable = false)
