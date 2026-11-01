@@ -11,10 +11,13 @@ import com.fa26se040.icss.enums.NotificationType;
 import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.repository.IncidentEscalationRepository;
 import com.fa26se040.icss.repository.UserRepository;
+import com.fa26se040.icss.entity.IncidentDispatchPolicy;
 import com.fa26se040.icss.service.InAppNotificationService;
+import com.fa26se040.icss.service.IncidentDispatchService;
 import com.fa26se040.icss.service.SystemConfigService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.TriggerContext;
@@ -81,6 +84,10 @@ public class IncidentEscalationJob implements SchedulingConfigurer {
 
     @Value("${icss.scheduler.incident-escalation-enabled:true}")
     private boolean enabled;
+
+    // V93 (BR-DSP-09): số phút leo thang theo mức sự cố. Inject qua field để không đổi constructor (test @InjectMocks để null)
+    @Autowired(required = false)
+    private IncidentDispatchService incidentDispatchService;
 
     @Override
     public void configureTasks(ScheduledTaskRegistrar registrar) {
@@ -161,7 +168,7 @@ public class IncidentEscalationJob implements SchedulingConfigurer {
         }
 
         // BR-IE-04 / BR-IE-05 / BR-IE-08: hạn tính lại từ lúc tạo sự cố theo FM_MINUTES hiện tại; 0 bảo vệ -> tới hạn ngay
-        int fmMinutes = systemConfigService.getInt(ConfigKey.INCIDENT_ESCALATE_FM_MINUTES);
+        int fmMinutes = escalationMinutesFor(incident);
         OffsetDateTime incidentCreatedAt = incident.getCreatedAt();
         boolean noGuardNotified = escalation.getGuardRecipientCount() == null || escalation.getGuardRecipientCount() == 0;
         boolean due = noGuardNotified || !now.isBefore(incidentCreatedAt.plusMinutes(fmMinutes));
@@ -193,6 +200,31 @@ public class IncidentEscalationJob implements SchedulingConfigurer {
         log.info("[INCIDENT-ESCALATION] incident={} báo {} FM, guardRecipientCount={}, escalationDelaySeconds={}",
                 incident.getId(), fmRecipientCount, escalation.getGuardRecipientCount(), escalationDelaySeconds);
         return Outcome.ESCALATED;
+    }
+
+    /**
+     * BR-IE-08 + V93 (BR-DSP-09): số phút chờ trước khi báo FM. Mặc định INCIDENT_ESCALATE_FM_MINUTES như trước V93.
+     * Chỉ khi DISPATCH_ENABLED = true và sự cố có severity mới dùng escalate_fm_minutes của chính sách theo mức (giữ bất
+     * biến "tắt dispatch thì hệ thống chạy giống hệt trước"). Thiếu chính sách / lỗi -> giá trị mặc định.
+     */
+    int escalationMinutesFor(SecurityIncident incident) {
+        int fallback = systemConfigService.getInt(ConfigKey.INCIDENT_ESCALATE_FM_MINUTES);
+        if (incidentDispatchService == null || incident.getSeverity() == null) {
+            return fallback;
+        }
+        try {
+            if (!incidentDispatchService.isEnabled()) {
+                return fallback;
+            }
+            return incidentDispatchService.policyFor(incident.getSeverity())
+                    .map(IncidentDispatchPolicy::getEscalateFmMinutes)
+                    .filter(minutes -> minutes != null && minutes > 0)
+                    .orElse(fallback);
+        } catch (Exception e) {
+            log.warn("[INCIDENT-ESCALATION] incident={}: không đọc được chính sách theo mức, dùng {} phút: {}",
+                    incident.getId(), fallback, e.getMessage());
+            return fallback;
+        }
     }
 
     /**

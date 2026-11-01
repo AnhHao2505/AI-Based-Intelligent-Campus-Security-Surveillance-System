@@ -6,6 +6,8 @@ import com.fa26se040.icss.dto.incident.IncidentDetailResponse;
 import com.fa26se040.icss.dto.incident.IncidentEventDto;
 import com.fa26se040.icss.dto.incident.IncidentResolveRequest;
 import com.fa26se040.icss.enums.IncidentStatus;
+import com.fa26se040.icss.exception.IncidentNotOfferedException;
+import com.fa26se040.icss.exception.IncidentOfferNotPendingException;
 import com.fa26se040.icss.service.SecurityIncidentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -58,9 +60,33 @@ public class SecurityIncidentController {
         try {
             IncidentClaimResponse response = securityIncidentService.claimIncident(id, guardEmail);
             return ResponseEntity.ok(ApiResponse.success(response, "Tiếp nhận xử lý sự cố thành công"));
+        } catch (IncidentNotOfferedException e) {
+            // V93 (BR-DSP-06): sự cố đang ở bước 1, bảo vệ này không có lời mời còn chờ. Mã lỗi ở field errorCode
+            log.warn("Guard [{}] claimed incident [{}] without a pending offer: {}", guardEmail, id, e.getMessage());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.error(HttpStatus.FORBIDDEN.value(), IncidentNotOfferedException.ERROR_CODE, e.getMessage()));
         } catch (IllegalStateException e) {
             log.warn("Conflict claiming incident [{}]: {}", id, e.getMessage());
             return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(HttpStatus.CONFLICT.value(), "INCIDENT_ALREADY_CLAIMED", e.getMessage()));
+        }
+    }
+
+    /**
+     * V93 (K5): bảo vệ từ chối lời mời bước 1 của mình. Không còn lời mời chờ -> 409, errorCode INCIDENT_OFFER_NOT_PENDING.
+     */
+    @PostMapping("/{id}/offers/decline")
+    @PreAuthorize("hasRole('GUARD')")
+    public ResponseEntity<ApiResponse<String>> declineOffer(
+            @PathVariable UUID id,
+            Authentication authentication
+    ) {
+        String guardEmail = authentication.getName();
+        log.info("Guard [{}] declining offer for incident [{}]", guardEmail, id);
+        try {
+            securityIncidentService.declineOffer(id, guardEmail);
+            return ResponseEntity.ok(ApiResponse.success("DECLINED", "Đã từ chối lời mời xử lý sự cố"));
+        } catch (IncidentOfferNotPendingException e) {
+            log.warn("Guard [{}] has no pending offer for incident [{}]", guardEmail, id);
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(HttpStatus.CONFLICT.value(), IncidentOfferNotPendingException.ERROR_CODE, e.getMessage()));
         }
     }
 

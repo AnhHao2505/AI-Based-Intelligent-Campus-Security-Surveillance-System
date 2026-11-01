@@ -29,6 +29,8 @@ icss:
     access-log-retention-cron: "-"
     # Job leo thang sự cố (IncidentEscalationJob, Trigger động nên không tắt bằng cron "-")
     incident-escalation-enabled: false
+    # Job hết hạn lời mời phân phối sự cố (IncidentDispatchJob, V93): test gọi thẳng runOnce
+    incident-dispatch-enabled: false
   internal:
     # Khoá giả chỉ dùng cho test (>= 32 ký tự), không phải khoá thật
     service-key: test-only-internal-service-key-0123456789

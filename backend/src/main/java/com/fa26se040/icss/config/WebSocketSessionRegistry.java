@@ -2,7 +2,9 @@ package com.fa26se040.icss.config;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
+import org.springframework.messaging.Message;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
+import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
@@ -15,6 +17,7 @@ import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 
 import java.io.IOException;
 import java.security.Principal;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -31,6 +34,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * nên sổ này giữ cả hai: WebSocketSession lấy qua decorator (afterConnectionEstablished), user lấy từ principal mà
  * interceptor gán ở CONNECT (details = userId trong DB), cập nhật qua SessionConnectedEvent / SessionDisconnectEvent.
  * Id của WebSocketSession chính là simpSessionId của STOMP (SubProtocolWebSocketHandler dùng session.getId()).
+ *
+ * <p>V93 (K6, X10): sổ cũng giữ loại client của từng phiên, đọc từ header STOMP CONNECT {@code client-type}
+ * ({@code mobile} / {@code web}; thiếu hoặc giá trị lạ coi là web). Bước 1 của phân phối sự cố chỉ mời bảo vệ có
+ * phiên từ mobile ({@link #hasMobileSession}). Không đổi chức năng đóng phiên.
  */
 @Slf4j
 @Component
@@ -39,6 +46,14 @@ public class WebSocketSessionRegistry implements WebSocketHandlerDecoratorFactor
     private final Map<String, WebSocketSession> sessionsById = new ConcurrentHashMap<>();
     private final Map<String, UUID> userBySessionId = new ConcurrentHashMap<>();
     private final Map<UUID, Set<String>> sessionIdsByUser = new ConcurrentHashMap<>();
+
+    /** V93: header STOMP CONNECT cho biết loại client. */
+    public static final String CLIENT_TYPE_HEADER = "client-type";
+    public static final String CLIENT_TYPE_MOBILE = "mobile";
+    public static final String CLIENT_TYPE_WEB = "web";
+
+    /** V93: sessionId -> loại client (mobile / web). */
+    private final Map<String, String> clientTypeBySessionId = new ConcurrentHashMap<>();
 
     @Override
     public WebSocketHandler decorate(WebSocketHandler handler) {
@@ -65,8 +80,20 @@ public class WebSocketSessionRegistry implements WebSocketHandlerDecoratorFactor
         String sessionId = SimpMessageHeaderAccessor.getSessionId(event.getMessage().getHeaders());
         UUID userId = userIdOf(event.getUser());
         if (sessionId != null && userId != null) {
-            userConnected(sessionId, userId);
+            userConnected(sessionId, userId, clientTypeOf(event.getMessage()));
         }
+    }
+
+    /**
+     * V93: SessionConnectedEvent mang CONNECT_ACK; frame CONNECT gốc nằm ở header simpConnectMessage, header client-type
+     * là native header của frame đó. Không đọc được -> null (coi là web).
+     */
+    static String clientTypeOf(Message<?> connectedMessage) {
+        Object connect = connectedMessage.getHeaders().get(SimpMessageHeaderAccessor.CONNECT_MESSAGE_HEADER);
+        if (connect instanceof Message<?> connectMessage) {
+            return StompHeaderAccessor.wrap(connectMessage).getFirstNativeHeader(CLIENT_TYPE_HEADER);
+        }
+        return null;
     }
 
     @EventListener
@@ -79,6 +106,12 @@ public class WebSocketSessionRegistry implements WebSocketHandlerDecoratorFactor
     }
 
     void userConnected(String sessionId, UUID userId) {
+        userConnected(sessionId, userId, null);
+    }
+
+    /** V93: như {@link #userConnected(String, UUID)}, thêm loại client của phiên (null / lạ -> web). */
+    void userConnected(String sessionId, UUID userId, String clientType) {
+        clientTypeBySessionId.put(sessionId, normalizeClientType(clientType));
         UUID previous = userBySessionId.put(sessionId, userId);
         if (previous != null && !previous.equals(userId)) {
             removeFromUser(previous, sessionId);
@@ -91,6 +124,7 @@ public class WebSocketSessionRegistry implements WebSocketHandlerDecoratorFactor
             return;
         }
         sessionsById.remove(sessionId);
+        clientTypeBySessionId.remove(sessionId);
         UUID userId = userBySessionId.remove(sessionId);
         if (userId != null) {
             removeFromUser(userId, sessionId);
@@ -101,6 +135,31 @@ public class WebSocketSessionRegistry implements WebSocketHandlerDecoratorFactor
     public Set<String> sessionIdsOf(UUID userId) {
         Set<String> ids = sessionIdsByUser.get(userId);
         return ids == null ? Set.of() : Set.copyOf(ids);
+    }
+
+    /** V93 (BR-DSP-02, X10): user có ít nhất một phiên STOMP đang mở từ mobile. */
+    public boolean hasMobileSession(UUID userId) {
+        if (userId == null) {
+            return false;
+        }
+        for (String sessionId : sessionIdsOf(userId)) {
+            if (CLIENT_TYPE_MOBILE.equals(clientTypeBySessionId.get(sessionId))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** V93: loại client của một phiên (mobile / web); phiên không có trong sổ -> null. */
+    String clientTypeOfSession(String sessionId) {
+        return sessionId == null ? null : clientTypeBySessionId.get(sessionId);
+    }
+
+    private static String normalizeClientType(String clientType) {
+        if (clientType != null && CLIENT_TYPE_MOBILE.equals(clientType.trim().toLowerCase(Locale.ROOT))) {
+            return CLIENT_TYPE_MOBILE;
+        }
+        return CLIENT_TYPE_WEB;
     }
 
     /**

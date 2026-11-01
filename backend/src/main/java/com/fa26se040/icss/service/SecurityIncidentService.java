@@ -8,24 +8,31 @@ import com.fa26se040.icss.dto.incident.IncidentResolveRequest;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.Camera;
 import com.fa26se040.icss.entity.GuardShift;
+import com.fa26se040.icss.entity.IncidentDispatchOffer;
+import com.fa26se040.icss.entity.IncidentDispatchPolicy;
 import com.fa26se040.icss.entity.IncidentEscalation;
 import com.fa26se040.icss.entity.SecurityIncident;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.AccessSource;
 import com.fa26se040.icss.enums.AreaLevel;
 import com.fa26se040.icss.enums.CameraStatus;
+import com.fa26se040.icss.enums.IncidentDispatchStage;
 import com.fa26se040.icss.enums.IncidentOutcome;
 import com.fa26se040.icss.enums.IncidentSeverity;
 import com.fa26se040.icss.enums.IncidentStatus;
 import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.enums.ShiftStatus;
+import com.fa26se040.icss.exception.IncidentNotOfferedException;
+import com.fa26se040.icss.exception.IncidentOfferNotPendingException;
 import com.fa26se040.icss.repository.CameraRepository;
 import com.fa26se040.icss.repository.GuardShiftRepository;
+import com.fa26se040.icss.repository.IncidentDispatchQueryRepository;
 import com.fa26se040.icss.repository.IncidentEscalationRepository;
 import com.fa26se040.icss.repository.SecurityIncidentRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.access.AccessDeniedException;
@@ -58,6 +65,14 @@ public class SecurityIncidentService {
     private final IncidentRecipientResolver incidentRecipientResolver;
     private final IncidentEscalationRepository incidentEscalationRepository;
     private final IncidentSeverityResolver incidentSeverityResolver;
+
+    // V93 (K6): phân phối theo đợt. Inject qua field để KHÔNG đổi constructor: test dựng service thủ công / @InjectMocks
+    // để hai field này null, khi đó ingest và claim chạy đúng luồng cũ.
+    @Autowired(required = false)
+    private IncidentDispatchService incidentDispatchService;
+
+    @Autowired(required = false)
+    private IncidentDispatchQueryRepository incidentDispatchQueryRepository;
 
     @org.springframework.beans.factory.annotation.Value("${ai.service.url:http://localhost:8000}")
     private String aiServiceUrl;
@@ -170,8 +185,13 @@ public class SecurityIncidentService {
                 .status(IncidentStatus.NEW)
                 .resolutionNotes(incidentResolutionNotes)
                 .version(0)
+                .broadcastAt(detectedAt)
                 .build();
         incident.setSeverity(resolveSeverity(normalizedEventType, area, detectedAt));
+        // V93 (BR-DSP-02): mã người bị nhận diện, để loại người đó khỏi danh sách mời. Gọi parser có sẵn, không sửa regex.
+        if (incidentDispatchService != null) {
+            incident.setSubjectUserCode(subjectUserCodeOf(cleanDetails));
+        }
 
         SecurityIncident saved = incidentRepository.save(incident);
         // Ghi xuống DB ngay: tin trùng đến cùng lúc vấp unique index event_id tại đây, trước mọi tác dụng phụ bên dưới
@@ -213,11 +233,50 @@ public class SecurityIncidentService {
             log.warn("Không thể kích hoạt ghi hình sự cố sang AI service: {}", ex.getMessage());
         }
 
+        // 2'. V93 (K6, BR-DSP-01): phân phối theo đợt chỉ chạy khi DISPATCH_ENABLED = true. Tắt (hoặc service chưa inject)
+        //     -> đi đúng luồng cũ ở mục 2 bên dưới. Bước 1 có người được mời -> KHÔNG gửi 3 kênh broadcast (X3).
+        boolean dispatchEnabled = incidentDispatchService != null && incidentDispatchService.isEnabled();
+        if (dispatchEnabled) {
+            IncidentDetailResponse step1Response = startStep1IfPossible(saved);
+            if (step1Response != null) {
+                return step1Response;
+            }
+        }
+
         // 2. Real-time WebSocket dispatching
         // A. BR-IE-01 / BR-IE-02: gửi cho bảo vệ đang trực (ca CHECKED_IN, trong khung giờ).
         //    BR-IE-03: tạo 1 bản ghi leo thang cùng transaction, đếm số bảo vệ đã gửi được.
         //    Resolver lỗi -> vẫn tạo bản ghi với 0 người nhận để job báo FM ở lần chạy kế (BR-IE-05).
         //    Lỗi SQL trong transaction này làm cả transaction rollback (kể cả sự cố) — try/catch chỉ chặn lỗi tầng Java.
+        //    V93: phần gửi tách thành sendToOnDutyGuards / sendToBuildingAndGlobalTopics (giữ nguyên nội dung, thứ tự)
+        //    để job dùng lại khi sự cố chuyển STEP1 -> BROADCAST.
+        int guardRecipientCount = sendToOnDutyGuards(saved, response, area.getName(), building, detectedAt);
+
+        try {
+            incidentEscalationRepository.save(IncidentEscalation.builder()
+                    .incident(saved)
+                    .guardsNotifiedAt(OffsetDateTime.now())
+                    .guardRecipientCount(guardRecipientCount)
+                    .build());
+        } catch (Exception e) {
+            log.error("Không tạo được bản ghi leo thang cho sự cố [{}]: {}", saved.getId(), e.getMessage(), e);
+        }
+
+        sendToBuildingAndGlobalTopics(saved, response, building);
+
+        // V93 (BR-DSP-09): mức có notify_fm_immediately -> báo FM ngay qua kênh riêng (sau commit). Chỉ khi DISPATCH_ENABLED.
+        if (dispatchEnabled) {
+            incidentDispatchService.sendCriticalNoticeIfConfigured(saved);
+        }
+        return response;
+    }
+
+    /**
+     * Mục 2.A của ingest (tách nguyên văn ở V93): gửi sự cố tới kênh riêng của từng bảo vệ đang trực, trong transaction
+     * hiện tại. Trả về số bảo vệ đã gửi được.
+     */
+    private int sendToOnDutyGuards(SecurityIncident saved, IncidentDetailResponse response, String areaName,
+                                   String building, OffsetDateTime detectedAt) {
         List<User> onDutyGuards = List.of();
         try {
             onDutyGuards = incidentRecipientResolver.findOnDutyGuards(detectedAt);
@@ -225,7 +284,7 @@ public class SecurityIncidentService {
             log.error("Lỗi khi tìm bảo vệ đang trực cho sự cố [{}]: {}", saved.getId(), e.getMessage(), e);
         }
         log.info("Incident [{}] in area [{}] (Building: [{}]): Found [{}] on-duty guards to notify",
-                saved.getId(), area.getName(), building, onDutyGuards.size());
+                saved.getId(), areaName, building, onDutyGuards.size());
 
         int guardRecipientCount = 0;
         for (User guard : onDutyGuards) {
@@ -239,17 +298,11 @@ public class SecurityIncidentService {
                 log.error("Lỗi khi gửi cảnh báo sự cố [{}] tới [{}]: {}", saved.getId(), guardTopic, e.getMessage(), e);
             }
         }
+        return guardRecipientCount;
+    }
 
-        try {
-            incidentEscalationRepository.save(IncidentEscalation.builder()
-                    .incident(saved)
-                    .guardsNotifiedAt(OffsetDateTime.now())
-                    .guardRecipientCount(guardRecipientCount)
-                    .build());
-        } catch (Exception e) {
-            log.error("Không tạo được bản ghi leo thang cho sự cố [{}]: {}", saved.getId(), e.getMessage(), e);
-        }
-
+    /** Mục 2.B và 2.C của ingest (tách nguyên văn ở V93): kênh theo toà và kênh toàn cục. */
+    private void sendToBuildingAndGlobalTopics(SecurityIncident saved, IncidentDetailResponse response, String building) {
         // B. Building-scoped topic (for web dashboard & monitoring)
         String buildingTopic = "/topic/buildings/" + building.toUpperCase() + "/alerts";
         messagingTemplate.convertAndSend(buildingTopic, response);
@@ -258,7 +311,144 @@ public class SecurityIncidentService {
         messagingTemplate.convertAndSend("/topic/security-alerts", response);
 
         log.info("Broadcasted new incident [{}] to [{}] and [/topic/security-alerts]", saved.getId(), buildingTopic);
+    }
+
+    /**
+     * V93 (K6 bước 3, BR-DSP-02..04): mời tối đa step1_size bảo vệ. Trả về response (dispatchStage = STEP1) nếu đã mời;
+     * null nếu không vào bước 1 (step1_size = 0, không có ứng viên E1, hoặc lỗi chọn ứng viên) -> ingest phát như cũ.
+     */
+    private IncidentDetailResponse startStep1IfPossible(SecurityIncident saved) {
+        OffsetDateTime now = OffsetDateTime.now();
+        IncidentDispatchPolicy policy;
+        List<User> invited;
+        try {
+            policy = incidentDispatchService.policyFor(saved.getSeverity()).orElse(null);
+            if (policy == null || policy.getStep1Size() == null || policy.getStep1Size() <= 0) {
+                return null;
+            }
+            invited = incidentDispatchService.selectStep1Guards(saved, policy, now);
+        } catch (Exception e) {
+            log.error("[DISPATCH] incident={}: lỗi khi chọn bảo vệ bước 1, phát cảnh báo như cũ: {}",
+                    saved.getId(), e.getMessage(), e);
+            return null;
+        }
+        if (invited.isEmpty()) {
+            log.info("[DISPATCH] incident={}: không có bảo vệ đủ điều kiện ở bước 1 (E1), phát cảnh báo toàn bộ", saved.getId());
+            return null;
+        }
+
+        saved.setDispatchStage(IncidentDispatchStage.STEP1);
+        saved.setBroadcastAt(null);
+        List<IncidentDispatchOffer> offers = incidentDispatchService.createOffers(saved, invited, policy, now);
+        IncidentDetailResponse response = mapToDetailResponse(saved);
+
+        // BR-IE-03: vẫn tạo bản ghi leo thang. Số bảo vệ được nhắm tới = số người được mời (khác 0), để job leo thang
+        // không báo FM ngay; hạn leo thang vẫn tính từ lúc tạo sự cố (BR-DSP-09)
+        try {
+            incidentEscalationRepository.save(IncidentEscalation.builder()
+                    .incident(saved)
+                    .guardsNotifiedAt(now)
+                    .guardRecipientCount(offers.size())
+                    .build());
+        } catch (Exception e) {
+            log.error("Không tạo được bản ghi leo thang cho sự cố [{}]: {}", saved.getId(), e.getMessage(), e);
+        }
+
+        incidentDispatchService.sendOffersAfterCommit(offers, response);
+        incidentDispatchService.sendCriticalNoticeIfConfigured(saved);
+        log.info("[DISPATCH] incident={} severity={}: mời {} bảo vệ ở bước 1, hạn {} giây",
+                saved.getId(), saved.getSeverity(), offers.size(), policy.getStep1TimeoutSeconds());
         return response;
+    }
+
+    /**
+     * V93 (K4 bước 4, BR-DSP-05): sự cố ở bước 1, còn NEW và không còn lời mời chờ -> chuyển BROADCAST (conditional
+     * UPDATE) và phát cảnh báo toàn bộ sau commit bằng chính hai method gửi của ingest. Job hết hạn gọi qua proxy, mỗi sự
+     * cố một transaction.
+     *
+     * @return true nếu lần gọi này đã chuyển sự cố sang BROADCAST
+     */
+    @Transactional
+    public boolean evaluateDispatch(UUID incidentId, OffsetDateTime now) {
+        return promoteToBroadcastIfNoPendingOffer(incidentId, now);
+    }
+
+    /**
+     * V93 (K5): bảo vệ từ chối lời mời của mình. Không còn lời mời chờ, chưa hết hạn -> IncidentOfferNotPendingException.
+     * E6: người cuối cùng ở bước 1 từ chối -> phát cảnh báo toàn bộ ngay, không chờ job.
+     */
+    @Transactional
+    public void declineOffer(UUID incidentId, String guardEmail) {
+        User guard = userRepository.findByEmail(guardEmail)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thông tin tài khoản bảo vệ"));
+        OffsetDateTime now = OffsetDateTime.now();
+        if (incidentDispatchService == null || !incidentDispatchService.decline(incidentId, guard.getId(), now)) {
+            throw new IncidentOfferNotPendingException("Không còn lời mời xử lý sự cố này để từ chối");
+        }
+        log.info("[DISPATCH] incident={}: bảo vệ [{}] từ chối lời mời", incidentId, guard.getFullName());
+        promoteToBroadcastIfNoPendingOffer(incidentId, now);
+    }
+
+    private boolean promoteToBroadcastIfNoPendingOffer(UUID incidentId, OffsetDateTime now) {
+        if (incidentDispatchService == null || incidentDispatchQueryRepository == null) {
+            return false;
+        }
+        if (incidentDispatchService.hasPendingOffers(incidentId)) {
+            return false;
+        }
+        SecurityIncident incident = incidentRepository.findById(incidentId).orElse(null);
+        if (incident == null || incident.getStatus() != IncidentStatus.NEW
+                || incident.getDispatchStage() != IncidentDispatchStage.STEP1) {
+            return false;
+        }
+        if (incidentDispatchQueryRepository.promoteToBroadcast(incidentId, now) != 1) {
+            return false;
+        }
+
+        // promoteToBroadcast không làm mới entity trong persistence context. Không sửa entity (tránh UPDATE thừa và tăng
+        // version, làm claim song song bị 409 oan), chỉ sửa DTO gửi đi.
+        IncidentDetailResponse response = mapToDetailResponse(incident);
+        response.setDispatchStage(IncidentDispatchStage.BROADCAST);
+        String areaName = incident.getArea() != null ? incident.getArea().getName() : null;
+        String building = incident.getBuilding() != null ? incident.getBuilding() : "FPT_CAMPUS";
+
+        // Số bảo vệ được nhắm tới đổi thành số người nhận broadcast (0 -> job leo thang báo FM ở lần chạy kế)
+        int targeted = 0;
+        try {
+            targeted = incidentRecipientResolver.findOnDutyGuards(now).size();
+        } catch (Exception e) {
+            log.error("Lỗi khi tìm bảo vệ đang trực cho sự cố [{}]: {}", incidentId, e.getMessage(), e);
+        }
+        incidentEscalationRepository.updateGuardRecipientCountForIncident(incidentId, targeted);
+
+        IncidentDispatchService.runAfterCommit(() -> {
+            sendToOnDutyGuards(incident, response, areaName, building, now);
+            sendToBuildingAndGlobalTopics(incident, response, building);
+        });
+        log.info("[DISPATCH] incident={}: hết lời mời ở bước 1, chuyển BROADCAST ({} bảo vệ đang trực)", incidentId, targeted);
+        return true;
+    }
+
+    /** V93 (BR-DSP-02): mã người bị nhận diện trong details (parser có sẵn); người lạ / không xác định -> null. */
+    private String subjectUserCodeOf(String cleanDetails) {
+        ExtractedPersonInfo info = extractPersonInfo(cleanDetails);
+        if (info.userCode == null || info.userCode.isBlank() || "UNKNOWN".equalsIgnoreCase(info.userCode)) {
+            return null;
+        }
+        return info.userCode.length() > 50 ? info.userCode.substring(0, 50) : info.userCode;
+    }
+
+    /** V93 (E2): tên người đã nhận sự cố, đọc thẳng từ DB; không đọc được -> null. */
+    private String currentClaimerName(UUID incidentId) {
+        if (incidentDispatchQueryRepository == null) {
+            return null;
+        }
+        try {
+            return incidentDispatchQueryRepository.findClaimerFullName(incidentId).orElse(null);
+        } catch (Exception e) {
+            log.warn("Không đọc được người đã nhận sự cố [{}]: {}", incidentId, e.getMessage());
+            return null;
+        }
     }
 
     @Transactional(readOnly = true)
@@ -286,12 +476,24 @@ public class SecurityIncidentService {
         User guard = userRepository.findByEmail(guardEmail)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thông tin tài khoản bảo vệ"));
 
+        // V93 (BR-DSP-06): sự cố đang ở bước 1 -> chỉ người có lời mời còn chờ, chưa hết hạn mới nhận được.
+        // Đặt SAU kiểm status (giữ 409 khi đã có người nhận). Bước BROADCAST giữ nguyên luật cũ.
+        if (incident.getDispatchStage() == IncidentDispatchStage.STEP1 && incidentDispatchService != null
+                && !incidentDispatchService.hasActiveOffer(incidentId, guard.getId(), OffsetDateTime.now())) {
+            throw new IncidentNotOfferedException("Sự cố đang được mời bảo vệ khác xử lý");
+        }
+
         try {
             incident.setStatus(IncidentStatus.CLAIMED);
             incident.setClaimedBy(guard);
             incident.setClaimedAt(OffsetDateTime.now());
 
             SecurityIncident saved = incidentRepository.saveAndFlush(incident);
+
+            // V93 (K5, BR-DSP-07): lời mời của người nhận -> ACCEPTED, lời mời khác -> CANCELLED + báo sau commit
+            if (incidentDispatchService != null) {
+                incidentDispatchService.onClaimed(saved.getId(), guard.getId(), saved.getClaimedAt());
+            }
 
             // Sync with all Web & Mobile clients
             Map<String, Object> updatePayload = new HashMap<>();
@@ -301,6 +503,7 @@ public class SecurityIncidentService {
             updatePayload.put("claimedByName", guard.getFullName());
             updatePayload.put("claimedAt", saved.getClaimedAt());
             updatePayload.put("severity", severityName(saved));
+            updatePayload.put("dispatchStage", dispatchStageName(saved));
 
             messagingTemplate.convertAndSend("/topic/incidents/updates", updatePayload);
             log.info("Incident [{}] claimed successfully by [{}]", incidentId, guard.getFullName());
@@ -316,8 +519,13 @@ public class SecurityIncidentService {
 
         } catch (OptimisticLockingFailureException e) {
             log.warn("Optimistic locking conflict on claiming incident [{}]: {}", incidentId, e.getMessage());
-            SecurityIncident fresh = incidentRepository.findById(incidentId).orElse(incident);
-            String claimantName = fresh.getClaimedBy() != null ? fresh.getClaimedBy().getFullName() : "đồng đội khác";
+            // V93 (E2): entity trong persistence context đã bị gán người claim của chính request này -> đọc tên người
+            // đã nhận thật từ DB trước; không đọc được thì dùng cách cũ.
+            String claimantName = currentClaimerName(incidentId);
+            if (claimantName == null) {
+                SecurityIncident fresh = incidentRepository.findById(incidentId).orElse(incident);
+                claimantName = fresh.getClaimedBy() != null ? fresh.getClaimedBy().getFullName() : "đồng đội khác";
+            }
             throw new IllegalStateException("Sự việc vừa được tiếp nhận bởi " + claimantName);
         }
     }
@@ -370,6 +578,7 @@ public class SecurityIncidentService {
         updatePayload.put("resolvedByName", guard.getFullName());
         updatePayload.put("resolvedAt", saved.getResolvedAt());
         updatePayload.put("severity", severityName(saved));
+        updatePayload.put("dispatchStage", dispatchStageName(saved));
 
         messagingTemplate.convertAndSend("/topic/incidents/updates", updatePayload);
         log.info("Incident [{}] resolved with status [{}] by [{}]", incidentId, newStatus, guard.getFullName());
@@ -401,6 +610,7 @@ public class SecurityIncidentService {
                 .evidenceImageUrl(i.getEvidenceImageUrl())
                 .radioChannel("Kênh " + (i.getBuilding() != null ? i.getBuilding() : "Chính"))
                 .severity(i.getSeverity())
+                .dispatchStage(i.getDispatchStage())
                 .build();
     }
 
@@ -418,6 +628,11 @@ public class SecurityIncidentService {
             log.error("Không tính được severity cho sự cố loại [{}] tại khu [{}]: {}", eventType, area.getName(), e.getMessage(), e);
             return null;
         }
+    }
+
+    /** V93: tên dispatch stage trong map gửi /topic/incidents/updates. */
+    private static String dispatchStageName(SecurityIncident incident) {
+        return incident.getDispatchStage() != null ? incident.getDispatchStage().name() : null;
     }
 
     /** V90: tên severity trong map gửi /topic/incidents/updates; sự cố cũ -> null. */

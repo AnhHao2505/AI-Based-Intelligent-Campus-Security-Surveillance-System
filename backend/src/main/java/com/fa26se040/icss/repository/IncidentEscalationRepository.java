@@ -61,4 +61,13 @@ public interface IncidentEscalationRepository extends JpaRepository<IncidentEsca
     @Modifying(clearAutomatically = false, flushAutomatically = true)
     @Query("UPDATE IncidentEscalation e SET e.fmRecipientCount = :count WHERE e.id = :id")
     int updateFmRecipientCount(@Param("id") UUID id, @Param("count") int count);
+
+    /**
+     * V93 (K4): sự cố chuyển STEP1 -> BROADCAST thì số bảo vệ được nhắm tới đổi thành số người nhận broadcast.
+     * Chỉ sửa bản ghi còn mở; bằng 0 thì job leo thang báo FM ở lần chạy kế (BR-IE-05).
+     */
+    @Modifying(clearAutomatically = false, flushAutomatically = true)
+    @Query("UPDATE IncidentEscalation e SET e.guardRecipientCount = :count " +
+           "WHERE e.incident.id = :incidentId AND e.closedAt IS NULL")
+    int updateGuardRecipientCountForIncident(@Param("incidentId") UUID incidentId, @Param("count") int count);
 }
