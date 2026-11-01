@@ -88,41 +88,41 @@ class AuthLoginIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("T2: sai mật khẩu -> 401 'Invalid email or password'")
+    @DisplayName("T2: sai mật khẩu -> 401 'Mật khẩu không chính xác'")
     void wrongPassword_returns401() throws Exception {
         User user = newUser("bad", Role.NORMAL_USER);
         login(user.getEmail(), password + "x")
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.message").value(INVALID_CREDENTIALS))
+                .andExpect(jsonPath("$.message").value("Mật khẩu không chính xác"))
                 .andExpect(jsonPath("$.data.accessToken").doesNotExist());
     }
 
     @Test
-    @DisplayName("T2: tài khoản bị vô hiệu hoá, đúng mật khẩu -> 401 cùng câu với sai mật khẩu")
+    @DisplayName("T2: tài khoản bị vô hiệu hoá, đúng mật khẩu -> 401 'Tài khoản đã bị vô hiệu hóa hoặc không còn hoạt động'")
     void deactivatedAccount_returns401() throws Exception {
         User user = newUser("off", Role.NORMAL_USER);
         user.setIsActive(false);
         userRepository.save(user);
         login(user.getEmail(), password)
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.message").value(INVALID_CREDENTIALS));
+                .andExpect(jsonPath("$.message").value("Tài khoản đã bị vô hiệu hóa hoặc không còn hoạt động"));
     }
 
     @Test
-    @DisplayName("T2: tài khoản đã xoá (UserService.softDelete), đúng mật khẩu -> 401 cùng câu")
+    @DisplayName("T2: tài khoản đã xoá (UserService.softDelete), đúng mật khẩu -> 401 'Tài khoản đã bị vô hiệu hóa hoặc không còn hoạt động'")
     void deletedAccount_returns401() throws Exception {
         User user = newUser("del", Role.NORMAL_USER);
         userService.softDelete(user.getId(), admin.getEmail());
         login(user.getEmail(), password)
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.message").value(INVALID_CREDENTIALS));
+                .andExpect(jsonPath("$.message").value("Tài khoản đã bị vô hiệu hóa hoặc không còn hoạt động"));
     }
 
     @Test
-    @DisplayName("T2: e-mail không có tài khoản -> 401 cùng câu")
+    @DisplayName("T2: e-mail không có tài khoản -> 401 'Tài khoản không tồn tại trên hệ thống'")
     void unknownEmail_returns401() throws Exception {
         login("t2.unknown." + UUID.randomUUID().toString().substring(0, 8) + "@fpt.edu.vn", password)
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.message").value(INVALID_CREDENTIALS));
+                .andExpect(jsonPath("$.message").value("Tài khoản không tồn tại trên hệ thống"));
     }
 }

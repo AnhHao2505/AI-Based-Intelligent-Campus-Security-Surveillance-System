@@ -48,14 +48,19 @@ body::before {
 }
 
 /* ==========================================================================
-   Global Institutional Security Orange Wave Backgrounds
-   - Vector SVG: 100% infinite resolution, crisp at any display (Retina/4K/8K)
-   - Zero pixelation or blurriness
+   Global Backgrounds — Exact Uploaded Design with High-Contrast Theme Filters
+   - Dark Mode: 4K sharpened exact image + CSS hue-rotation (150deg) & contrast (1.22)
+   - Light Mode: 4K inverted exact image with matching orange wave
    ========================================================================== */
 :root body::before,
 [data-theme="light"] body::before {
-  background-image: url('/images/bg-wave-light.svg');
-  opacity: 0.85;
+  background-image: url('/images/bg-light.png');
+  background-size: cover;
+  background-position: top right;
+  background-repeat: no-repeat;
+  opacity: 0.80;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: high-quality;
 }
 
 [data-theme="dark"] body {
@@ -63,8 +68,14 @@ body::before {
 }
 
 [data-theme="dark"] body::before {
-  background-image: url('/images/bg-wave-dark.svg');
-  opacity: 0.90;
+  background-image: url('/images/bg-original.jpg');
+  background-size: cover;
+  background-position: top right;
+  background-repeat: no-repeat;
+  filter: hue-rotate(150deg) saturate(1.3) contrast(1.22) brightness(0.92);
+  opacity: 0.85;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: high-quality;
 }
 
 #root {

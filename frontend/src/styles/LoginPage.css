@@ -25,18 +25,24 @@
   position: absolute;
   inset: 0;
   z-index: 0;
-  background-image: url('/images/bg-wave-dark.svg');
+  background-image: url('/images/bg-original.jpg');
   background-size: cover;
   background-position: top right;
   background-repeat: no-repeat;
-  opacity: 0.95;
+  filter: hue-rotate(150deg) saturate(1.3) contrast(1.22) brightness(0.92);
+  opacity: 0.85;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: high-quality;
   pointer-events: none;
   transition: opacity 0.25s ease;
 }
 
 [data-theme="light"] .login-page::before {
-  background-image: url('/images/bg-wave-light.svg');
-  opacity: 0.85;
+  background-image: url('/images/bg-light.png');
+  filter: none;
+  opacity: 0.80;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: high-quality;
 }
 
 /* Background elements disabled to maintain clean surface */
