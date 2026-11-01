@@ -3,16 +3,42 @@ import { ShieldCheck, ShieldAlert, Clock, UserX, AlertTriangle } from "lucide-re
 /**
  * 5 nhóm kết quả nhật ký ra vào (enum AccessResult của backend) — nhãn + icon dùng chung cho
  * tab nhật ký camera (CameraAccessLogsTab) và các trang lịch sử ra vào.
- * badge: variant của components/ui/Badge (màu lấy từ token theme.css). Theme chỉ có 4 họ màu trạng thái
- * nên "Ngoài giờ" dùng chung tông danger với "Sai quyền", phân biệt bằng nhãn và icon.
  */
 export const ACCESS_RESULT_META = {
-	AUTHORIZED_ACCESS: { label: "Hợp lệ", icon: ShieldCheck, badge: "success" },
-	UNAUTHORIZED_ACCESS: { label: "Sai quyền", icon: ShieldAlert, badge: "danger" },
-	ACCESS_OUT_OF_TIME: { label: "Sai giờ", icon: Clock, badge: "warning" },
+	// 5 Tag Chuẩn hóa toàn hệ thống
+	AUTHORIZED_PERSON: { label: "Hợp lệ", icon: ShieldCheck, badge: "success" },
+	UNAUTHORIZED_PERSON: { label: "Không có quyền", icon: ShieldAlert, badge: "danger" },
 	UNKNOWN_PERSON: { label: "Người lạ", icon: UserX, badge: "neutral" },
+	PERSON_INTRUSION: { label: "Ngoài giờ", icon: AlertTriangle, badge: "danger" },
+	SUSPICIOUS_MOVING_OBJECT: { label: "Chuyển động nghi vấn", icon: AlertTriangle, badge: "warning" },
+
+	// Legacy mappings for backwards compatibility
+	AUTHORIZED_ACCESS: { label: "Hợp lệ", icon: ShieldCheck, badge: "success" },
+	UNAUTHORIZED_ACCESS: { label: "Không đủ thẩm quyền", icon: ShieldAlert, badge: "danger" },
+	ACCESS_OUT_OF_TIME: { label: "Sai giờ", icon: Clock, badge: "warning" },
 	INTRUSION: { label: "Ngoài giờ", icon: AlertTriangle, badge: "danger" },
 };
+
+/**
+ * Rút gọn lý do từ chối / cảnh báo thành cụm từ tối giản (Minimal Reason).
+ */
+export function minimizeReason(reason) {
+	if (!reason) return "Không có quyền";
+	const r = String(reason).toLowerCase();
+
+	if (r.includes("cấp độ") || r.includes("level")) return "Cấp độ không đủ";
+	if (r.includes("chưa tới") && (r.includes("đơn") || r.includes("giờ") || r.includes("khung"))) return "Chưa tới giờ duyệt";
+	if (r.includes("hết hạn") && (r.includes("đơn") || r.includes("lượt") || r.includes("sử dụng"))) return "Hết hạn đơn duyệt";
+	if (r.includes("phân công") && (r.includes("chưa tới") || r.includes("chưa đến"))) return "Chưa tới ngày trực";
+	if (r.includes("phân công") && r.includes("hết hạn")) return "Hết hạn phân công";
+	if (r.includes("vô hiệu") || r.includes("khoá") || r.includes("khóa")) return "Tài khoản bị khóa";
+	if (r.includes("ngừng hoạt động") || r.includes("tạm dừng") || r.includes("tạm đóng")) return "Khu vực tạm đóng";
+	if (r.includes("ngoài giờ") || r.includes("đột nhập") || r.includes("after_hours")) return "Ngoài giờ hoạt động";
+	if (r.includes("khách")) return "Ngoài giờ tiếp khách";
+	if (r.includes("không tồn tại") || r.includes("chưa đăng ký")) return "Chưa đăng ký";
+
+	return "Không có quyền";
+}
 
 /**
  * Mã giữ chỗ backend ghi vào userCode khi lượt ra vào không gắn được với tài khoản nào.
@@ -28,10 +54,22 @@ export function placeholderUserCodeLabel(userCode) {
 	return PLACEHOLDER_USER_CODE_LABELS[userCode.trim().toUpperCase()] || null;
 }
 
+/** 5 kết quả chuẩn dùng cho bộ lọc */
+export const CANONICAL_ACCESS_RESULTS = [
+	"AUTHORIZED_PERSON",
+	"UNAUTHORIZED_PERSON",
+	"UNKNOWN_PERSON",
+	"PERSON_INTRUSION",
+	"SUSPICIOUS_MOVING_OBJECT",
+];
+
 /** Lựa chọn cho ô lọc kết quả ("" = tất cả). */
 export const ACCESS_RESULT_OPTIONS = [
 	{ value: "", label: "Tất cả kết quả" },
-	...Object.entries(ACCESS_RESULT_META).map(([value, meta]) => ({ value, label: meta.label })),
+	...CANONICAL_ACCESS_RESULTS.map((key) => ({
+		value: key,
+		label: ACCESS_RESULT_META[key]?.label || key,
+	})),
 ];
 
 const pad = (n) => String(n).padStart(2, "0");

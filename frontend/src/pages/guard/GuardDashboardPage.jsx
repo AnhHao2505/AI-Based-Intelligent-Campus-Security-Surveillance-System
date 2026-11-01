@@ -33,6 +33,7 @@ import {
 } from "../../services/incidentService";
 import "../../styles/GuardDashboardPage.css";
 import { LoadingState, ErrorState } from "../../components/ui";
+import { minimizeReason } from "../../utils/accessHistoryHelpers";
 
 // Chuẩn hóa 5 nhóm sự kiện an ninh theo độ ưu tiên (Priority):
 // 1. UNAUTHORIZED_ACCESS: Không đủ thẩm quyền (Trọng số 3 - Nguy cấp, #ef4444)
@@ -41,6 +42,39 @@ import { LoadingState, ErrorState } from "../../components/ui";
 // 4. UNKNOWN_PERSON: Đối tượng không xác định (Trọng số 1 - Cảnh báo, #8b5cf6)
 // 5. AUTHORIZED_ACCESS: Hợp lệ (Trọng số 0, #10b981)
 const EVENT_SEVERITY_CONFIG = {
+	// 5 Tag Chuẩn hóa
+	AUTHORIZED_PERSON: {
+		weight: 0,
+		label: "Hợp lệ",
+		badgeClass: "severity-success",
+		color: "#10b981",
+	},
+	UNAUTHORIZED_PERSON: {
+		weight: 3,
+		label: "Không đủ thẩm quyền",
+		badgeClass: "severity-critical",
+		color: "#ef4444",
+	},
+	PERSON_INTRUSION: {
+		weight: 3,
+		label: "Sau giờ hoạt động",
+		badgeClass: "severity-critical",
+		color: "#ef4444",
+	},
+	UNKNOWN_PERSON: {
+		weight: 1,
+		label: "Đối tượng không xác định",
+		badgeClass: "severity-warning",
+		color: "#8b5cf6",
+	},
+	SUSPICIOUS_MOVING_OBJECT: {
+		weight: 2,
+		label: "Chuyển động nghi vấn",
+		badgeClass: "severity-high",
+		color: "#f97316",
+	},
+
+	// Tương thích ngược các mã sự cố cũ
 	AUTHORIZED_ACCESS: {
 		weight: 0,
 		label: "Hợp lệ",
@@ -62,26 +96,26 @@ const EVENT_SEVERITY_CONFIG = {
 	INTRUSION: {
 		weight: 2,
 		label: "Sau giờ hoạt động",
-		badgeClass: "severity-high",
-		color: "#f97316",
+		badgeClass: "severity-critical",
+		color: "#ef4444",
 	},
 	AFTER_HOURS_PRESENCE: {
 		weight: 2,
 		label: "Sau giờ hoạt động",
 		badgeClass: "severity-high",
-		color: "#f97316",
+		color: "#ef4444",
 	},
 	AFTER_HOURS_ACCESS: {
 		weight: 2,
 		label: "Sau giờ hoạt động",
 		badgeClass: "severity-high",
-		color: "#f97316",
+		color: "#ef4444",
 	},
 	AFTER_HOURS: {
 		weight: 2,
 		label: "Sau giờ hoạt động",
 		badgeClass: "severity-high",
-		color: "#f97316",
+		color: "#ef4444",
 	},
 	ACCESS_OUT_OF_TIME: {
 		weight: 2,
@@ -89,25 +123,89 @@ const EVENT_SEVERITY_CONFIG = {
 		badgeClass: "severity-high",
 		color: "#eab308",
 	},
-	UNKNOWN_PERSON: {
-		weight: 1,
-		label: "Đối tượng không xác định",
-		badgeClass: "severity-warning",
-		color: "#8b5cf6",
-	},
 	UNKNOWN: {
 		weight: 1,
 		label: "Đối tượng không xác định",
 		badgeClass: "severity-warning",
 		color: "#8b5cf6",
 	},
+	SUSPICIOUS_MOTION: {
+		weight: 2,
+		label: "Chuyển động nghi vấn",
+		badgeClass: "severity-high",
+		color: "#f97316",
+	},
 };
 
-const cleanIncidentMessage = (msg) => {
-	if (!msg) return "Phát hiện sự cố an ninh tại khu vực giám sát";
-	return String(msg)
-		.replace(/\[[A-Z0-9_]+\]\s*/g, "")
-		.trim();
+const formatIncidentTimestamp = (isoString) => {
+	const d = isoString ? new Date(isoString) : new Date();
+	const time = d.toLocaleTimeString("vi-VN", {
+		hour: "2-digit",
+		minute: "2-digit",
+		second: "2-digit",
+		hour12: false,
+	});
+	const day = String(d.getDate()).padStart(2, "0");
+	const month = String(d.getMonth() + 1).padStart(2, "0");
+	const year = d.getFullYear();
+	return `${time} ${day}/${month}/${year}`;
+};
+
+const cleanIncidentMessage = (msg, eventType = "", areaName = "", cameraCode = "") => {
+	const cleanLocStr = (str) => {
+		if (!str) return str;
+		return str.replace(/\s*\([^)]*(?:vùng|roi)[^)]*\)/gi, "").trim();
+	};
+
+	if (!msg) {
+		const loc = cleanLocStr(areaName || cameraCode || "Khu vực giám sát");
+		return `Vị trí: ${loc}`;
+	}
+	let raw = String(msg).replace(/^\[[A-Z0-9_]+\]\s*/g, "").trim();
+
+	// Nếu đã chứa cấu trúc phân dòng chuẩn (Tên: / Lý do: / Vị trí:), chuẩn hóa tối giản dòng Lý do và lọc sạch ROI suffix
+	if (raw.includes("Vị trí:") || raw.includes("Tên:")) {
+		let formatted = raw.replace(/Lý do:\s*([^\n]+)/i, (_, r) => `Lý do: ${minimizeReason(r)}`);
+		formatted = formatted.replace(/Vị trí:\s*([^\n]+)/i, (_, loc) => `Vị trí: ${cleanLocStr(loc)}`);
+		return formatted;
+	}
+
+	const evUpper = String(eventType).toUpperCase();
+	const locDefault = cleanLocStr(areaName ? `${areaName}` : (cameraCode ? `Khu vực camera ${cameraCode}` : "Khu vực giám sát"));
+
+	if (evUpper.includes("UNAUTHORIZED")) {
+		const nameMatch = raw.match(/(?:truy cập|quy định):\s*([^()\n]+?\s*\([A-Za-z0-9_.-]+\))/i);
+		const reasonMatch = raw.match(/Lý do:\s*(.*)$/i);
+		const areaMatch = raw.match(/tại\s+([^.\n]+)/i);
+
+		const nameStr = nameMatch ? nameMatch[1].trim() : "Đối tượng chưa cấp quyền";
+		const reasonStr = minimizeReason(reasonMatch ? reasonMatch[1] : "");
+		const locStr = cleanLocStr(areaMatch ? areaMatch[1].trim() : locDefault);
+
+		return `Tên: ${nameStr}\nLý do: ${reasonStr}\nVị trí: ${locStr}`;
+	}
+
+	if (evUpper.includes("INTRUSION")) {
+		const nameMatch = raw.match(/(?:quy định|giờ):\s*([^()\n]+?\s*\([A-Za-z0-9_.-]+\))/i);
+		const areaMatch = raw.match(/tại\s+([^.\n]+)/i);
+		const locStr = cleanLocStr(areaMatch ? areaMatch[1].trim() : locDefault);
+		if (nameMatch) {
+			return `Tên: ${nameMatch[1].trim()}\nLý do: Ngoài giờ hoạt động\nVị trí: ${locStr}`;
+		}
+		return `Vị trí: ${locStr}`;
+	}
+
+	if (evUpper.includes("UNKNOWN")) {
+		const areaMatch = raw.match(/tại\s+([^.\n]+)/i);
+		return `Vị trí: ${cleanLocStr(areaMatch ? areaMatch[1].trim() : locDefault)}`;
+	}
+
+	if (evUpper.includes("SUSPICIOUS")) {
+		const areaMatch = raw.match(/tại\s+([^.\n]+)/i);
+		return `Vị trí: ${cleanLocStr(areaMatch ? areaMatch[1].trim() : locDefault)}`;
+	}
+
+	return `Vị trí: ${locDefault}`;
 };
 
 const isAlertPending = (status) => {
@@ -441,12 +539,15 @@ export function SecuritySurveillancePage() {
 			message: cleanIncidentMessage(
 				incident.details ||
 				incident.resolutionNotes ||
-				incident.message
+				incident.message,
+				incident.event_type || incident.eventType,
+				incident.areaName || incident.area_name,
+				incident.cameraCode || incident.camera_code
 			),
 			duration: incident.duration_seconds
 				? `${incident.duration_seconds}s`
 				: incident.duration || "Vừa phát hiện",
-			timestamp: new Date().toLocaleTimeString("vi-VN"),
+			timestamp: formatIncidentTimestamp(incident.detectedAt || incident.detected_at),
 			rawTime: Date.now(),
 			status: incident.status || "NEW",
 			socAcknowledged: isAck,
@@ -597,14 +698,15 @@ export function SecuritySurveillancePage() {
 								message: cleanIncidentMessage(
 									incident.details ||
 									incident.resolutionNotes ||
-									incident.message
+									incident.message,
+									incident.eventType,
+									incident.areaName,
+									incident.cameraCode
 								),
 								duration: incident.duration_seconds
 									? `${incident.duration_seconds}s`
 									: "Vừa phát hiện",
-								timestamp: incident.detectedAt
-									? new Date(incident.detectedAt).toLocaleTimeString("vi-VN")
-									: new Date().toLocaleTimeString("vi-VN"),
+								timestamp: formatIncidentTimestamp(incident.detectedAt),
 								rawTime: incident.detectedAt
 									? new Date(incident.detectedAt).getTime()
 									: Date.now(),
@@ -1103,14 +1205,7 @@ export function SecuritySurveillancePage() {
 														<AlertTriangle size={12} />
 														<span>{sev.label}</span>
 													</div>
-													{!alert.socAcknowledged && (
-														<span
-															className="soc-rec-badge"
-															title="Đang ghi hình sự cố an ninh vào thư mục evidence/ cho tới khi bấm Xác nhận đã xem"
-														>
-															<span className="rec-dot"></span> REC
-														</span>
-													)}
+
 													<span className="soc-incident-time">
 														<Clock size={11} /> {alert.timestamp}
 													</span>

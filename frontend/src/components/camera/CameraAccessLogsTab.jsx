@@ -15,18 +15,17 @@ import {
 } from "lucide-react";
 import { fetchCameraAccessLogs, fetchCameraAccessLogStats } from "../../services/cameraAccessLogService";
 import { LoadingState, EmptyState } from "../ui";
-import { ACCESS_RESULT_META } from "../../utils/accessHistoryHelpers";
+import { ACCESS_RESULT_META, minimizeReason } from "../../utils/accessHistoryHelpers";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
 const FILTER_CONFIG = [
   { key: "ALL", label: "Tất cả", color: "#64748b", icon: null },
-  // Nhãn + icon dùng chung với trang lịch sử ra vào (utils/accessHistoryHelpers); màu giữ nguyên của tab
-  { key: "AUTHORIZED_ACCESS", label: ACCESS_RESULT_META.AUTHORIZED_ACCESS.label, color: "#10b981", icon: ACCESS_RESULT_META.AUTHORIZED_ACCESS.icon },
-  { key: "UNAUTHORIZED_ACCESS", label: ACCESS_RESULT_META.UNAUTHORIZED_ACCESS.label, color: "#ef4444", icon: ACCESS_RESULT_META.UNAUTHORIZED_ACCESS.icon },
-  { key: "ACCESS_OUT_OF_TIME", label: ACCESS_RESULT_META.ACCESS_OUT_OF_TIME.label, color: "#f59e0b", icon: ACCESS_RESULT_META.ACCESS_OUT_OF_TIME.icon },
+  { key: "AUTHORIZED_PERSON", label: ACCESS_RESULT_META.AUTHORIZED_PERSON.label, color: "#10b981", icon: ACCESS_RESULT_META.AUTHORIZED_PERSON.icon },
+  { key: "UNAUTHORIZED_PERSON", label: ACCESS_RESULT_META.UNAUTHORIZED_PERSON.label, color: "#ef4444", icon: ACCESS_RESULT_META.UNAUTHORIZED_PERSON.icon },
   { key: "UNKNOWN_PERSON", label: ACCESS_RESULT_META.UNKNOWN_PERSON.label, color: "#8b5cf6", icon: ACCESS_RESULT_META.UNKNOWN_PERSON.icon },
-  { key: "INTRUSION", label: ACCESS_RESULT_META.INTRUSION.label, color: "#eab308", icon: ACCESS_RESULT_META.INTRUSION.icon },
+  { key: "PERSON_INTRUSION", label: ACCESS_RESULT_META.PERSON_INTRUSION.label, color: "#ef4444", icon: ACCESS_RESULT_META.PERSON_INTRUSION.icon },
+  { key: "SUSPICIOUS_MOVING_OBJECT", label: ACCESS_RESULT_META.SUSPICIOUS_MOVING_OBJECT.label, color: "#f97316", icon: ACCESS_RESULT_META.SUSPICIOUS_MOVING_OBJECT.icon },
 ];
 
 export default function CameraAccessLogsTab({ camera }) {
@@ -185,12 +184,21 @@ export default function CameraAccessLogsTab({ camera }) {
 
   const cleanReasonDetails = (reason, accessResult) => {
     if (!reason) return "";
-    let text = String(reason)
-      .replace(/\[[A-Z0-9_]+\]\s*/g, "")
-      .trim();
+    let text = String(reason).trim();
+
+    // Chuẩn hóa hiển thị sự kiện ra vào qua ROI
+    if (text.includes("[RA KHỎI ROI:") || text.includes("[VÀO ROI:")) {
+      text = text
+        .replace(/\[RA KHỎI ROI:\s*([^\]]+)\]\s*(Người lạ rời khu vực|Rời khu vực)?/i, "Rời khỏi [$1]")
+        .replace(/\[VÀO ROI:\s*([^\]]+)\]\s*/i, "Vào [$1]: ")
+        .trim();
+    } else {
+      text = text.replace(/\[[A-Z0-9_]+\]\s*/g, "").trim();
+    }
 
     if (
       accessResult === "UNKNOWN_PERSON" &&
+      !text.includes("Rời khỏi") &&
       (text.includes("không tồn tại") ||
         text.includes("đã bị xoá") ||
         text.includes("chưa đăng ký") ||
@@ -200,7 +208,17 @@ export default function CameraAccessLogsTab({ camera }) {
     }
 
     if (text.includes("Lý do:")) {
-      return text.substring(text.indexOf("Lý do:") + 6).trim();
+      return minimizeReason(text.substring(text.indexOf("Lý do:") + 6).trim());
+    }
+
+    if (
+      accessResult === "UNAUTHORIZED_PERSON" ||
+      accessResult === "UNAUTHORIZED_ACCESS" ||
+      accessResult === "ACCESS_OUT_OF_TIME"
+    ) {
+      if (!text.includes("Rời khỏi") && !text.includes("Vào [")) {
+        return minimizeReason(text);
+      }
     }
 
     return text;
@@ -230,16 +248,20 @@ export default function CameraAccessLogsTab({ camera }) {
     switch (key) {
       case "ALL":
         return stats.totalToday;
+      case "AUTHORIZED_PERSON":
       case "AUTHORIZED_ACCESS":
         return stats.authorizedToday;
+      case "UNAUTHORIZED_PERSON":
       case "UNAUTHORIZED_ACCESS":
-        return stats.unauthorizedToday;
       case "ACCESS_OUT_OF_TIME":
-        return stats.outOfTimeToday;
+        return stats.unauthorizedToday;
       case "UNKNOWN_PERSON":
         return stats.unknownToday;
+      case "PERSON_INTRUSION":
       case "INTRUSION":
         return stats.intrusionToday;
+      case "SUSPICIOUS_MOVING_OBJECT":
+        return stats.suspiciousToday || 0;
       default:
         return 0;
     }

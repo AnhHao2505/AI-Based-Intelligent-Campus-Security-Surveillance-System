@@ -1212,9 +1212,10 @@
 .soc-incident-msg {
   font-size: 0.8rem;
   color: var(--theme-text-primary, #0f172a);
-  line-height: 1.4;
+  line-height: 1.5;
   margin: 0;
   font-weight: 500;
+  white-space: pre-line;
 }
 
 .soc-incident-bottom {
