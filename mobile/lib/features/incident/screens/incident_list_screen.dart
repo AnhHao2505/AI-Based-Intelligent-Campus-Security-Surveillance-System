@@ -17,20 +17,52 @@ enum IncidentFilterTab {
 }
 
 class IncidentListScreen extends StatefulWidget {
-  const IncidentListScreen({super.key});
+  final IncidentFilterTab initialTab;
+
+  const IncidentListScreen({super.key, this.initialTab = IncidentFilterTab.pending});
+
+  static bool switchToTab(IncidentFilterTab tab) {
+    final state = _IncidentListScreenState.activeInstance;
+    if (state != null && state.mounted) {
+      final route = ModalRoute.of(state.context);
+      if (route != null) {
+        Navigator.maybeOf(state.context)?.popUntil((r) => r == route);
+      }
+      state.switchTab(tab);
+      return true;
+    }
+    return false;
+  }
 
   @override
   State<IncidentListScreen> createState() => _IncidentListScreenState();
 }
 
 class _IncidentListScreenState extends State<IncidentListScreen> {
-  IncidentFilterTab _selectedTab = IncidentFilterTab.pending;
+  static _IncidentListScreenState? activeInstance;
+
+  late IncidentFilterTab _selectedTab = widget.initialTab;
   List<IncidentModel> _historyIncidents = [];
   bool _isLoadingHistory = false;
   String? _currentUserId;
 
+  void switchTab(IncidentFilterTab tab) {
+    if (mounted) {
+      setState(() => _selectedTab = tab);
+    }
+  }
+
+  @override
+  void dispose() {
+    if (activeInstance == this) {
+      activeInstance = null;
+    }
+    super.dispose();
+  }
+
   @override
   void initState() {
+    activeInstance = this;
     super.initState();
     _loadCurrentUser();
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -769,6 +801,7 @@ class _IncidentListScreenState extends State<IncidentListScreen> {
                                 final success = await provider.claimIncident(incident.id);
                                 if (!mounted) return;
                                 if (success) {
+                                  setState(() => _selectedTab = IncidentFilterTab.claimed);
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
                                       content: Text('Tiếp nhận sự cố thành công!'),
