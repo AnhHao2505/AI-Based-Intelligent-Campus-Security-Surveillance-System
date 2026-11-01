@@ -13,7 +13,7 @@ class HumanDetector:
     Chỉ kích hoạt class 0 (Person) nhằm tối đa hóa hiệu năng và tốc độ xử lý Realtime.
     Tự động kích hoạt GPU CUDA (card rời) nếu có sẵn để giải phóng CPU.
     """
-    def __init__(self, model_path: str = "yolo26n.pt", conf_threshold: float = 0.5, device: Optional[str] = None):
+    def __init__(self, model_path: str = "yolo26n.pt", conf_threshold: float = 0.35, device: Optional[str] = None):
         self.model_path = model_path
         self.conf_threshold = conf_threshold
         
@@ -31,6 +31,16 @@ class HumanDetector:
 
         self.model = YOLO(model_path)
 
+    def reset_tracker(self):
+        """Khởi tạo lại trạng thái ByteTrack tracker khi luồng video bị đứt kết nối hoặc chuyển camera"""
+        try:
+            if hasattr(self.model, "predictor") and self.model.predictor is not None:
+                if hasattr(self.model.predictor, "trackers"):
+                    self.model.predictor.trackers = []
+            logger.info("🔄 [HumanDetector] ByteTrack tracker đã được reset trạng thái thành công.")
+        except Exception as e:
+            logger.debug(f"[HumanDetector] Không thể reset tracker: {e}")
+
     def detect_and_track(self, frame: np.ndarray, persist: bool = True) -> List[Tuple[int, BoundingBox]]:
         """
         Thực hiện phát hiện người và gán Track ID liên tục qua các frames.
@@ -46,7 +56,7 @@ class HumanDetector:
             persist=persist,
             classes=[0],
             conf=self.conf_threshold,
-            tracker="bytetrack.yaml",
+            tracker="D:/DoAnSE/AI-Based-Intelligent-Campus-Security-Surveillance-System/ai-service/config/bytetrack_surveillance.yaml",
             device=self.device,
             verbose=False
         )
@@ -70,11 +80,31 @@ class HumanDetector:
             # Lấy track_id nếu có từ tracker, nếu chưa có (frame đầu) thì gán tạm -1
             track_id = int(box.id[0].cpu().numpy()) if box.id is not None else -1
 
+            x1 = float(xyxy[0])
+            y1 = float(xyxy[1])
+            x2 = float(xyxy[2])
+            y2 = float(xyxy[3])
+            w = x2 - x1
+            h = y2 - y1
+
+            # Lọc nhiễu kích thước và tỷ lệ hình học phi thực tế của con người:
+            # 1. Kích thước tối thiểu: Người trong camera giám sát tối thiểu 25px chiều cao và 12px chiều rộng
+            if h < 25 or w < 12:
+                continue
+
+            # 2. Tỷ lệ khung hình (aspect ratio: height / width):
+            # Hỗ trợ đầy đủ các tư thế con người: đứng, đi lại, ngồi xổm, cúi người nhặt đồ, bò sát sàn, trượt ngã
+            aspect_ratio = h / max(1.0, w)
+            # Khi YOLO nhận diện với độ tin cậy cao (>= 0.60), cho phép tỷ lệ dẹt tới 0.15 (người trườn/bò sát đất)
+            min_ar = 0.15 if conf >= 0.60 else 0.20
+            if aspect_ratio < min_ar or aspect_ratio > 7.0:
+                continue
+
             bbox = BoundingBox(
-                x1=float(xyxy[0]),
-                y1=float(xyxy[1]),
-                x2=float(xyxy[2]),
-                y2=float(xyxy[3]),
+                x1=x1,
+                y1=y1,
+                x2=x2,
+                y2=y2,
                 confidence=conf
             )
             detected_tracks.append((track_id, bbox))

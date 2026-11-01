@@ -1,0 +1,8 @@
+# ByteTrack surveillance profile optimized for campus security & top-down angles
+tracker_type: bytetrack
+track_high_thresh: 0.25
+track_low_thresh: 0.10
+new_track_thresh: 0.25
+track_buffer: 60      # Increased from 30 to 60 frames (2.0s memory at 30fps) for seated occlusion stability
+match_thresh: 0.75     # Slightly relaxed matching threshold for steep angles
+fuse_score: True

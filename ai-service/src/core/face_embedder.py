@@ -102,7 +102,10 @@ class FaceEmbedder:
                 if pts.shape == (5, 2):
                     M, _ = cv2.estimateAffinePartial2D(pts, ARCFACE_CANONICAL_5PTS)
                     if M is not None:
-                        return cv2.warpAffine(face_image, M, (112, 112), borderValue=0.0)
+                        scale = np.sqrt(M[0, 0]**2 + M[0, 1]**2)
+                        # Đảm bảo ma trận Affine không bị suy biến, phóng đại quá mức hay lật ngược
+                        if 0.05 <= scale <= 10.0:
+                            return cv2.warpAffine(face_image, M, (112, 112), borderValue=0.0)
             except Exception as ex:
                 logger.debug(f"[FaceEmbedder] Không thể warpAffine landmarks: {ex}")
 
