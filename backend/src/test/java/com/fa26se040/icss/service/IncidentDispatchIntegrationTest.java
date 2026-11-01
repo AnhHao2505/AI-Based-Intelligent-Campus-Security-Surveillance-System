@@ -59,6 +59,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -224,7 +225,7 @@ class IncidentDispatchIntegrationTest extends AbstractIntegrationTest {
     /** Bảo vệ có ca CHECKED_IN đang diễn ra (giờ Việt Nam) ở toà {@code shiftBuilding} (null = ca không có toà). */
     private User onDutyGuard(String prefix, Building shiftBuilding, String dutyPostCode, boolean mobile) {
         User guard = saveUser(prefix, Role.GUARD);
-        LocalDateTime nowVn = LocalDateTime.now(VN_ZONE);
+        LocalDateTime nowVn = LocalDateTime.now(VN_ZONE).truncatedTo(ChronoUnit.MINUTES);
         LocalDateTime start = nowVn.minusHours(1);
         LocalDateTime end = nowVn.plusHours(2);
         guardShiftRepository.save(GuardShift.builder()
