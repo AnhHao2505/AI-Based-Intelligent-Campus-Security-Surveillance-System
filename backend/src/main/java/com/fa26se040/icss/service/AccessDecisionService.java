@@ -439,7 +439,7 @@ public class AccessDecisionService {
                 : (cleanRoi != null ? "[VÀO ROI: " + cleanRoi + "] Người dùng không tồn tại" : "Người dùng không tồn tại");
 
         CheckCameraEntryResponse denied = isExit
-                ? CheckCameraEntryResponse.builder().allowed(true).source(AccessSource.NONE).reason(finalDeniedReason).cameraCode(camera.getCameraCode()).areaId(area.getId()).areaName(area.getName()).userCode(userCode).fullName("Người lạ / Chưa rõ danh tính").build()
+                ? CheckCameraEntryResponse.builder().allowed(false).source(AccessSource.NONE).reason(finalDeniedReason).cameraCode(camera.getCameraCode()).areaId(area.getId()).areaName(area.getName()).userCode(userCode).fullName("Người lạ / Chưa rõ danh tính").build()
                 : deniedAtCamera(camera, area, userCode, finalDeniedReason);
         recordAccessLogSafely(denied, at);
         return denied;

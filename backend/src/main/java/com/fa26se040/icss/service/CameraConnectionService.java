@@ -32,6 +32,9 @@ public class CameraConnectionService {
     @Autowired(required = false)
     private EdgeMqttControlService edgeMqttControlService;
 
+    @Autowired(required = false)
+    private com.fa26se040.icss.util.AesEncryptionUtil aesEncryptionUtil;
+
     @Value("${ai.service.url:http://localhost:8000}")
     private String aiServiceUrl;
 
@@ -55,6 +58,9 @@ public class CameraConnectionService {
         String path = "/";
         int timeout = defaultTimeoutMs > 0 ? defaultTimeoutMs : 5000;
 
+        String username = null;
+        String password = null;
+
         if (customReq != null && customReq.getHost() != null && !customReq.getHost().isBlank()) {
             host = customReq.getHost().trim();
             if (customReq.getPort() != null && customReq.getPort() > 0) {
@@ -63,6 +69,10 @@ public class CameraConnectionService {
             if (customReq.getMainStreamPath() != null && !customReq.getMainStreamPath().isBlank()) {
                 path = customReq.getMainStreamPath().trim();
             }
+            if (customReq.getUsername() != null && !customReq.getUsername().isBlank()) {
+                username = customReq.getUsername().trim();
+            }
+            password = customReq.getEffectivePassword();
         } else {
             if (config == null) {
                 throw new CameraException(CameraErrorCode.ERR_STREAM_001);
@@ -74,11 +84,25 @@ public class CameraConnectionService {
             if (config.getMainStreamPath() != null && !config.getMainStreamPath().isBlank()) {
                 path = config.getMainStreamPath().trim();
             }
+            if (config.getUsername() != null && !config.getUsername().isBlank()) {
+                username = config.getUsername().trim();
+            }
+            if (config.getCredentialRef() != null && !config.getCredentialRef().isBlank()) {
+                password = aesEncryptionUtil != null ? aesEncryptionUtil.decrypt(config.getCredentialRef()) : null;
+            }
+        }
+
+        // Fallback to saved DB credentials if password / username was not re-typed in form
+        if ((password == null || password.isBlank()) && config != null && config.getCredentialRef() != null && !config.getCredentialRef().isBlank()) {
+            password = aesEncryptionUtil != null ? aesEncryptionUtil.decrypt(config.getCredentialRef()) : null;
+        }
+        if ((username == null || username.isBlank()) && config != null && config.getUsername() != null && !config.getUsername().isBlank()) {
+            username = config.getUsername().trim();
         }
 
         // Cloud-Edge Mode: Ủy quyền cho Edge Agent kiểm tra kết nối RTSP nội bộ (sau NAT)
         if (edgeMqttControlService != null && edgeMqttControlService.isConnected()) {
-            return testConnectionViaEdgeMqttRpc(camera.getCameraCode(), host, port, path, timeout);
+            return testConnectionViaEdgeMqttRpc(camera.getCameraCode(), host, port, path, username, password, timeout);
         }
 
         try {
@@ -119,19 +143,31 @@ public class CameraConnectionService {
             String host,
             int port,
             String path,
+            String username,
+            String password,
             int timeoutMs
     ) {
         try {
             long rpcTimeout = Math.min(Math.max(timeoutMs, 3000L), 8000L);
+            String rtspUrl = buildRtspUrl(host, port, username, password, path);
+            Map<String, Object> payload = new java.util.HashMap<>();
+            payload.put("host", host);
+            payload.put("port", port);
+            payload.put("path", path);
+            payload.put("timeout_ms", timeoutMs);
+            if (username != null && !username.isBlank()) {
+                payload.put("username", username);
+            }
+            if (password != null && !password.isBlank()) {
+                payload.put("password", password);
+            }
+            if (rtspUrl != null && !rtspUrl.isBlank()) {
+                payload.put("rtsp_url", rtspUrl);
+            }
             EdgeRpcReplyDto reply = edgeMqttControlService.sendRpcRequest(
                     "TEST_CONNECTION",
                     cameraCode,
-                    Map.of(
-                            "host", host,
-                            "port", port,
-                            "path", path,
-                            "timeout_ms", timeoutMs
-                    ),
+                    payload,
                     rpcTimeout
             );
             if (reply != null && reply.isSuccess()) {
@@ -162,5 +198,36 @@ public class CameraConnectionService {
                     .message(ce.getMessage())
                     .build();
         }
+    }
+    private String buildRtspUrl(String host, Integer port, String username, String password, String path) {
+        if (path != null && (path.startsWith("rtsp://") || path.startsWith("rtsps://"))) {
+            return path;
+        }
+        if (host == null || host.isBlank()) {
+            return null;
+        }
+        if (host.startsWith("rtsp://") || host.startsWith("rtsps://")) {
+            return host;
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append("rtsp://");
+        if (username != null && !username.isBlank()) {
+            sb.append(username.trim());
+            if (password != null && !password.isBlank()) {
+                sb.append(":").append(password);
+            }
+            sb.append("@");
+        }
+        sb.append(host.trim());
+        if (port != null && port > 0) {
+            sb.append(":").append(port);
+        }
+        if (path != null && !path.isBlank()) {
+            if (!path.startsWith("/")) {
+                sb.append("/");
+            }
+            sb.append(path.trim());
+        }
+        return sb.toString();
     }
 }

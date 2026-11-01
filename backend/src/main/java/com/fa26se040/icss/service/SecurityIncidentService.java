@@ -102,10 +102,10 @@ public class SecurityIncidentService {
 
         String rawEventType = eventDto.getEventType() != null ? eventDto.getEventType() : "SECURITY_ALERT";
         String normalizedEventType = switch (rawEventType) {
-            case "AFTER_HOURS", "AFTER_HOURS_PRESENCE", "AFTER_HOURS_ACCESS" -> "INTRUSION";
-            case "UNAUTHORIZED" -> "UNAUTHORIZED_ACCESS";
-            case "UNKNOWN" -> "UNKNOWN_PERSON";
-            case "OUT_OF_TIME" -> "ACCESS_OUT_OF_TIME";
+            case "AFTER_HOURS", "AFTER_HOURS_PRESENCE", "AFTER_HOURS_ACCESS", "INTRUSION", "PERSON_INTRUSION" -> "PERSON_INTRUSION";
+            case "UNAUTHORIZED", "UNAUTHORIZED_ACCESS", "ACCESS_OUT_OF_TIME", "UNAUTHORIZED_PERSON" -> "UNAUTHORIZED_PERSON";
+            case "UNKNOWN", "UNKNOWN_IDENTITY", "UNKNOWN_PERSON" -> "UNKNOWN_PERSON";
+            case "SUSPICIOUS_MOTION", "CAMOUFLAGE", "SUSPICIOUS_MOVING_OBJECT" -> "SUSPICIOUS_MOVING_OBJECT";
             default -> rawEventType;
         };
 
@@ -118,7 +118,7 @@ public class SecurityIncidentService {
         boolean isPublicArea = !isTestEvent && (area.getAreaLevel() == AreaLevel.PUBLIC
                 || (area.getAreaAccessLevel() != null && area.getAreaAccessLevel() <= 1));
 
-        if (isPublicArea && ("UNKNOWN_PERSON".equals(normalizedEventType) || "UNAUTHORIZED_ACCESS".equals(normalizedEventType))) {
+        if (isPublicArea && ("UNKNOWN_PERSON".equals(normalizedEventType) || "UNAUTHORIZED_PERSON".equals(normalizedEventType) || "UNAUTHORIZED_ACCESS".equals(normalizedEventType))) {
             log.info("Khu vực [{}] thuộc Cấp 1 (PUBLIC) - Bỏ qua cảnh báo [{}] trong giờ hoạt động bình thường.",
                     area.getName(), normalizedEventType);
             return null;
@@ -127,7 +127,7 @@ public class SecurityIncidentService {
         String cleanDetails = eventDto.getDetails() != null ? eventDto.getDetails().replaceAll("\\[[A-Z0-9_]+\\]\\s*", "").trim() : "";
 
         // Ngoại lệ cho cảnh báo ban đêm (INTRUSION): Trừ bảo vệ trong ca trực
-        if ("INTRUSION".equals(normalizedEventType)) {
+        if ("PERSON_INTRUSION".equals(normalizedEventType) || "INTRUSION".equals(normalizedEventType)) {
             ExtractedPersonInfo personInfo = extractPersonInfo(cleanDetails);
             if (personInfo.user != null && personInfo.user.getRole() == Role.GUARD) {
                 if (isGuardOnShift(personInfo.user.getId(), detectedAt, area)) {
@@ -141,10 +141,10 @@ public class SecurityIncidentService {
         String incidentResolutionNotes = cleanDetails;
         if (incidentResolutionNotes.isBlank()) {
             incidentResolutionNotes = switch (normalizedEventType) {
-                case "INTRUSION" -> "Phát hiện đối tượng xuất hiện ngoài giờ hoạt động tại " + area.getName() + ".";
-                case "UNAUTHORIZED_ACCESS" -> "Phát hiện đối tượng không có quyền truy cập tại " + area.getName() + ".";
+                case "PERSON_INTRUSION", "INTRUSION" -> "Phát hiện đối tượng xuất hiện ngoài giờ hoạt động tại " + area.getName() + ".";
+                case "UNAUTHORIZED_PERSON", "UNAUTHORIZED_ACCESS", "ACCESS_OUT_OF_TIME" -> "Phát hiện đối tượng không có quyền truy cập tại " + area.getName() + ".";
                 case "UNKNOWN_PERSON" -> "Phát hiện người chưa đăng ký tại " + area.getName() + ".";
-                case "ACCESS_OUT_OF_TIME" -> "Phát hiện ra vào ngoài khung giờ quy định tại " + area.getName() + ".";
+                case "SUSPICIOUS_MOVING_OBJECT" -> "Phát hiện chuyển động nghi vấn tại " + area.getName() + ".";
                 default -> "Phát hiện sự cố an ninh tại " + area.getName() + ".";
             };
         }

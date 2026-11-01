@@ -17,4 +17,5 @@ public class CameraAccessLogStatsResponse {
     private long outOfTimeToday;
     private long unknownToday;
     private long intrusionToday;
+    private long suspiciousToday;
 }

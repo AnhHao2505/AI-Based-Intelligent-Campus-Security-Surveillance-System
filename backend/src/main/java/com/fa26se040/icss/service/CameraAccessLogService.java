@@ -110,7 +110,7 @@ public class CameraAccessLogService {
         // 3b. Chuẩn hóa danh tính khi là Người lạ (UNKNOWN_PERSON) hoặc Đột nhập ngoài giờ của người lạ
         // Giữ nguyên mã AI quét được (userCode) để phục vụ truy vết điều tra; chỉ ẩn thông tin user entity và đặt tên chuẩn hoá
         boolean isGuest = userCode.startsWith("GUEST-");
-        if (result == AccessResult.UNKNOWN_PERSON || (result == AccessResult.INTRUSION && user == null && !isGuest)) {
+        if (result == AccessResult.UNKNOWN_PERSON || ((result == AccessResult.PERSON_INTRUSION || result == AccessResult.INTRUSION) && user == null && !isGuest)) {
             user = null;
             fullName = "Người lạ / Chưa rõ mặt";
             userAccessLevel = null;
@@ -122,7 +122,7 @@ public class CameraAccessLogService {
                     reasonDetails = "Phát hiện người chưa đăng ký tại khu vực giám sát.";
                 }
             }
-        } else if (result == AccessResult.UNAUTHORIZED_ACCESS) {
+        } else if (result == AccessResult.UNAUTHORIZED_PERSON || result == AccessResult.UNAUTHORIZED_ACCESS) {
             if (reasonDetails != null && reasonDetails.contains("Lý do:")) {
                 reasonDetails = reasonDetails.substring(reasonDetails.indexOf("Lý do:") + 6).trim();
             }
@@ -161,24 +161,11 @@ public class CameraAccessLogService {
      * Phân loại kết quả chuẩn theo Ma trận kiểm soát an ninh.
      */
     public AccessResult classifyResult(CheckCameraEntryResponse entryResponse, OffsetDateTime at, boolean userExists) {
-        if (entryResponse.isAllowed()) {
-            return AccessResult.AUTHORIZED_ACCESS;
-        }
-
         String reason = entryResponse.getReason() != null ? entryResponse.getReason().toLowerCase() : "";
         String userCode = entryResponse.getUserCode() != null ? entryResponse.getUserCode() : "";
 
-        // 1. Kiểm tra Ngoài giờ (INTRUSION): trong khung AI_AFTER_HOUR_START–AI_AFTER_HOUR_END (giờ VN) hoặc sự cố ngoài giờ / đột nhập
-        if (isAfterHours(at) || reason.contains("ngoài giờ") || reason.contains("after_hours") || reason.contains("đột nhập") || reason.contains("intrusion")) {
-            return AccessResult.INTRUSION;
-        }
-
-        // 2. Kiểm tra Sai giờ (ACCESS_OUT_OF_TIME): Đến sớm, trễ, quá hạn, ngoài khung giờ quy định
-        if (reason.contains("ngoài khung giờ") || reason.contains("hết hạn") || reason.contains("chưa tới giờ") || reason.contains("chưa đến giờ") || reason.contains("khung giờ") || reason.contains("thời gian") || reason.contains("out_of_time")) {
-            return AccessResult.ACCESS_OUT_OF_TIME;
-        }
-
-        // 3. Kiểm tra Người lạ (UNKNOWN_PERSON): Chưa rõ mặt, không có tài khoản, đã bị xoá, hoặc gắn cờ UNKNOWN
+        // 1. Kiểm tra Người lạ (UNKNOWN_PERSON) TRƯỚC TIÊN:
+        // Chưa rõ mặt, không có tài khoản, đã bị xoá, người lạ rời đi, hoặc gắn cờ UNKNOWN
         boolean isGuest = userCode.startsWith("GUEST-");
         boolean isExplicitUnknownCode = userCode.isBlank() || userCode.startsWith("UNKNOWN") || userCode.equals("VIOLATION");
         if ((!userExists && !isGuest && isExplicitUnknownCode)
@@ -186,13 +173,29 @@ public class CameraAccessLogService {
                 || reason.contains("đã bị xoá")
                 || userCode.startsWith("UNKNOWN")
                 || reason.contains("chưa rõ mặt")
+                || reason.contains("chưa rõ danh tính")
                 || reason.contains("chưa đăng ký")
                 || reason.contains("người lạ")) {
             return AccessResult.UNKNOWN_PERSON;
         }
 
-        // 4. Mặc định: Sai quyền (UNAUTHORIZED_ACCESS) - Cấp độ không đủ, không có đơn, tài khoản bị khoá
-        return AccessResult.UNAUTHORIZED_ACCESS;
+        // 2. Nếu được phép -> AUTHORIZED_PERSON
+        if (entryResponse.isAllowed()) {
+            return AccessResult.AUTHORIZED_PERSON;
+        }
+
+        // 3. Kiểm tra Ngoài giờ (PERSON_INTRUSION)
+        if (isAfterHours(at) || reason.contains("ngoài giờ") || reason.contains("after_hours") || reason.contains("đột nhập") || reason.contains("intrusion")) {
+            return AccessResult.PERSON_INTRUSION;
+        }
+
+        // 4. Kiểm tra Chuyển động nghi vấn (SUSPICIOUS_MOVING_OBJECT)
+        if (reason.contains("chuyển động nghi vấn") || reason.contains("suspicious_moving_object") || reason.contains("nguy trang")) {
+            return AccessResult.SUSPICIOUS_MOVING_OBJECT;
+        }
+
+        // 5. Mặc định: Sai quyền / Sai giờ (UNAUTHORIZED_PERSON)
+        return AccessResult.UNAUTHORIZED_PERSON;
     }
 
     /**
@@ -251,11 +254,16 @@ public class CameraAccessLogService {
         OffsetDateTime endOfDay = today.atTime(LocalTime.MAX).atOffset(offset);
 
         long total = cameraAccessLogRepository.countByCameraCodeAndLoggedAtBetween(cameraCode, startOfDay, endOfDay);
-        long authorized = cameraAccessLogRepository.countByCameraCodeAndLoggedAtBetweenAndAccessResult(cameraCode, startOfDay, endOfDay, AccessResult.AUTHORIZED_ACCESS);
-        long unauthorized = cameraAccessLogRepository.countByCameraCodeAndLoggedAtBetweenAndAccessResult(cameraCode, startOfDay, endOfDay, AccessResult.UNAUTHORIZED_ACCESS);
+        long authorized = cameraAccessLogRepository.countByCameraCodeAndLoggedAtBetweenAndAccessResult(cameraCode, startOfDay, endOfDay, AccessResult.AUTHORIZED_PERSON)
+                + cameraAccessLogRepository.countByCameraCodeAndLoggedAtBetweenAndAccessResult(cameraCode, startOfDay, endOfDay, AccessResult.AUTHORIZED_ACCESS);
+        long unauthorized = cameraAccessLogRepository.countByCameraCodeAndLoggedAtBetweenAndAccessResult(cameraCode, startOfDay, endOfDay, AccessResult.UNAUTHORIZED_PERSON)
+                + cameraAccessLogRepository.countByCameraCodeAndLoggedAtBetweenAndAccessResult(cameraCode, startOfDay, endOfDay, AccessResult.UNAUTHORIZED_ACCESS)
+                + cameraAccessLogRepository.countByCameraCodeAndLoggedAtBetweenAndAccessResult(cameraCode, startOfDay, endOfDay, AccessResult.ACCESS_OUT_OF_TIME);
         long outOfTime = cameraAccessLogRepository.countByCameraCodeAndLoggedAtBetweenAndAccessResult(cameraCode, startOfDay, endOfDay, AccessResult.ACCESS_OUT_OF_TIME);
         long unknown = cameraAccessLogRepository.countByCameraCodeAndLoggedAtBetweenAndAccessResult(cameraCode, startOfDay, endOfDay, AccessResult.UNKNOWN_PERSON);
-        long intrusion = cameraAccessLogRepository.countByCameraCodeAndLoggedAtBetweenAndAccessResult(cameraCode, startOfDay, endOfDay, AccessResult.INTRUSION);
+        long intrusion = cameraAccessLogRepository.countByCameraCodeAndLoggedAtBetweenAndAccessResult(cameraCode, startOfDay, endOfDay, AccessResult.PERSON_INTRUSION)
+                + cameraAccessLogRepository.countByCameraCodeAndLoggedAtBetweenAndAccessResult(cameraCode, startOfDay, endOfDay, AccessResult.INTRUSION);
+        long suspicious = cameraAccessLogRepository.countByCameraCodeAndLoggedAtBetweenAndAccessResult(cameraCode, startOfDay, endOfDay, AccessResult.SUSPICIOUS_MOVING_OBJECT);
 
         return CameraAccessLogStatsResponse.builder()
                 .cameraCode(cameraCode)
@@ -265,6 +273,7 @@ public class CameraAccessLogService {
                 .outOfTimeToday(outOfTime)
                 .unknownToday(unknown)
                 .intrusionToday(intrusion)
+                .suspiciousToday(suspicious)
                 .build();
     }
 
