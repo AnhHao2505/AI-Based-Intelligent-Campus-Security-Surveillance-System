@@ -82,6 +82,7 @@ class Settings(BaseSettings):
     # Khoá dùng chung với Backend (cùng giá trị INTERNAL_SERVICE_KEY của Backend). Bắt buộc, không có mặc định:
     # thiếu hoặc ngắn hơn 32 ký tự thì service không khởi động.
     INTERNAL_SERVICE_KEY: str = Field(..., min_length=32, validation_alias="INTERNAL_SERVICE_KEY")
+    AI_CORS_ALLOWED_ORIGINS: str = Field(default="http://localhost:5173,http://localhost:5174,http://localhost:3000", validation_alias="AI_CORS_ALLOWED_ORIGINS")
     
     class Config:
         env_file = (".env", "../.env")

@@ -21,13 +21,14 @@ import time
 import base64
 import asyncio
 import numpy as np
-from fastapi import FastAPI, File, UploadFile, HTTPException, Query
+from fastapi import FastAPI, File, UploadFile, HTTPException, Query, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 
 import logging
 from .config import settings, INTERNAL_SERVICE_KEY_HEADER
+from .security import require_service_key, verify_stream_token
 from .pipeline.video_pipeline import VideoPipeline
 from .pipeline.stream_worker import CameraStreamWorker
 from .pipeline.incident_recorder import incident_recording_manager
@@ -46,10 +47,10 @@ app = FastAPI(
 # Cho phép CORS cho frontend và các service khác
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=[o.strip() for o in settings.AI_CORS_ALLOWED_ORIGINS.split(",") if o.strip()],
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type", "X-Service-Key"],
 )
 
 # Pipeline mặc định cho Camera 1
@@ -169,7 +170,7 @@ class AfterHourConfigRequest(BaseModel):
     start: str
     end: str
 
-@app.post("/api/v1/system-config/after-hour")
+@app.post("/api/v1/system-config/after-hour", dependencies=[Depends(require_service_key)])
 async def update_after_hour_config(req: AfterHourConfigRequest):
     import datetime
     try:
@@ -190,7 +191,7 @@ class AIRuntimeConfigRequest(BaseModel):
     unknown_alert_cooldown: Optional[float] = None
     face_match_threshold: Optional[float] = None
 
-@app.post("/api/v1/system-config/ai-runtime")
+@app.post("/api/v1/system-config/ai-runtime", dependencies=[Depends(require_service_key)])
 async def update_ai_runtime_config(req: AIRuntimeConfigRequest):
     if req.max_inactive_seconds is not None:
         if req.max_inactive_seconds < 1.0 or req.max_inactive_seconds > 60.0:
@@ -226,7 +227,7 @@ async def update_ai_runtime_config(req: AIRuntimeConfigRequest):
         "face_match_threshold": settings.FACE_MATCH_THRESHOLD
     }
 
-@app.post("/api/v1/cameras/configure")
+@app.post("/api/v1/cameras/configure", dependencies=[Depends(require_service_key)])
 async def configure_camera(req: ROIConfigRequest):
     global default_pipeline
     if not default_pipeline:
@@ -268,7 +269,7 @@ async def configure_camera(req: ROIConfigRequest):
         "worker_updated": worker_updated
     }
 
-@app.post("/api/v1/analyze-frame")
+@app.post("/api/v1/analyze-frame", dependencies=[Depends(require_service_key)])
 async def analyze_frame(file: UploadFile = File(...)):
     global default_pipeline
     if not default_pipeline:
@@ -306,7 +307,7 @@ from .core.face_embedder import FaceEmbedder
 face_detector = FaceDetector()
 face_embedder = FaceEmbedder(embedding_dim=512)
 
-@app.post("/api/v1/faces/process-registration")
+@app.post("/api/v1/faces/process-registration", dependencies=[Depends(require_service_key)])
 async def process_face_registration(
     code: str = Form(...),
     full_name: Optional[str] = Form(None),
@@ -355,7 +356,7 @@ async def process_face_registration(
         "embedding_front": vector_512
     }
 
-@app.post("/api/v1/faces/refresh-cache")
+@app.post("/api/v1/faces/refresh-cache", dependencies=[Depends(require_service_key)])
 async def refresh_faces_cache():
     """
     Xóa và làm mới cache khuôn mặt cùng quyền truy cập ngay lập tức trong RAM AI.
@@ -377,7 +378,7 @@ class StreamStartRequest(BaseModel):
     rtsp_url: str
     roi_geometry: Optional[Dict[str, Any]] = None
 
-@app.post("/api/v1/stream/start")
+@app.post("/api/v1/stream/start", dependencies=[Depends(require_service_key)])
 async def start_camera_stream(req: StreamStartRequest):
     if not req.camera_code or not req.camera_code.strip():
         raise HTTPException(status_code=400, detail="Mã camera (camera_code) là bắt buộc.")
@@ -402,7 +403,7 @@ async def start_camera_stream(req: StreamStartRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Không thể khởi động worker camera: {e}")
 
-@app.post("/api/v1/stream/stop")
+@app.post("/api/v1/stream/stop", dependencies=[Depends(require_service_key)])
 async def stop_camera_stream(camera_code: str = Query(..., description="Mã camera cần dừng, ví dụ: CAM-001")):
     if camera_code not in active_workers:
         raise HTTPException(status_code=404, detail="Camera worker không tồn tại.")
@@ -411,7 +412,7 @@ async def stop_camera_stream(camera_code: str = Query(..., description="Mã came
     del active_workers[camera_code]
     return {"status": "STOPPED", "camera_code": camera_code}
 
-@app.get("/api/v1/stream/status")
+@app.get("/api/v1/stream/status", dependencies=[Depends(require_service_key)])
 async def get_stream_status(camera_code: str = Query(..., description="Mã camera cần xem trạng thái, ví dụ: CAM-001")):
     if camera_code not in active_workers:
         return {"status": "STOPPED", "camera_code": camera_code, "is_running": False}
@@ -421,13 +422,18 @@ async def get_stream_status(camera_code: str = Query(..., description="Mã camer
 from fastapi.responses import StreamingResponse
 
 @app.get("/api/v1/stream/live-annotated")
-async def get_live_annotated_feed(camera_code: str = Query(..., description="Mã camera, ví dụ: CAM-002")):
+async def get_live_annotated_feed(
+    camera_code: str = Query(..., description="Mã camera, ví dụ: CAM-002"),
+    token: str = Query(..., description="Token xác thực truy cập luồng")
+):
     """
     Luồng video trực tiếp đã được AI vẽ Bounding Box, Track ID, Khuôn mặt và Vùng ROI theo thời gian thực.
     Mở trực tiếp trên trình duyệt Web để xem AI đang tracking thế nào:
     http://localhost:8000/api/v1/stream/live-annotated?camera_code=CAM-002
     """
     norm_code = camera_code.strip()
+    if not verify_stream_token(norm_code, token, time.time()):
+        raise HTTPException(status_code=401, detail="Token luồng không hợp lệ hoặc đã hết hạn")
     target_worker = active_workers.get(norm_code)
     if not target_worker:
         for k, w in active_workers.items():
@@ -487,7 +493,7 @@ def _read_rtsp_frame_sync(rtsp_url: str, timeout_ms: int):
             time.sleep(0.25)
     return None
 
-@app.post("/api/v1/cameras/snapshot")
+@app.post("/api/v1/cameras/snapshot", dependencies=[Depends(require_service_key)])
 async def capture_rtsp_snapshot(req: SnapshotRequest):
     start_time = time.time()
     timeout_sec = min(max(req.timeout_ms / 1000.0, 1.0), 4.0)
@@ -541,7 +547,7 @@ class IncidentRecordingStopRequest(BaseModel):
     camera_code: Optional[str] = None
     stop_all: Optional[bool] = False
 
-@app.post("/api/v1/incident-recording/start")
+@app.post("/api/v1/incident-recording/start", dependencies=[Depends(require_service_key)])
 async def start_incident_recording_api(req: IncidentRecordingStartRequest):
     """
     Bắt đầu ghi hình sự cố an ninh ngay lập tức khi phát hiện hoặc khi Guard click Test:
@@ -571,7 +577,7 @@ async def start_incident_recording_api(req: IncidentRecordingStartRequest):
         "status": "RECORDING_STARTED",
     }
 
-@app.post("/api/v1/incident-recording/stop")
+@app.post("/api/v1/incident-recording/stop", dependencies=[Depends(require_service_key)])
 async def stop_incident_recording_api(req: IncidentRecordingStopRequest):
     """
     Kết thúc ghi hình sự cố khi Bảo vệ click 'Xác nhận đã xem' và hoàn tất lưu file MP4
@@ -593,7 +599,7 @@ async def stop_incident_recording_api(req: IncidentRecordingStopRequest):
     results = incident_recording_manager.stop_all_incident_recordings()
     return {"success": True, "stopped_count": len(results), "recordings": results}
 
-@app.get("/api/v1/incident-recording/active")
+@app.get("/api/v1/incident-recording/active", dependencies=[Depends(require_service_key)])
 async def get_active_incident_recordings_api():
     """Lấy danh sách các sự cố hiện đang được ghi hình thời gian thực"""
     active = incident_recording_manager.get_active_recordings()

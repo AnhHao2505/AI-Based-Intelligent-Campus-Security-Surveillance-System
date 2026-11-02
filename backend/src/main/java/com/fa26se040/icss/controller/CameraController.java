@@ -20,6 +20,11 @@ import com.fa26se040.icss.service.CameraConnectionService;
 import com.fa26se040.icss.service.CameraSnapshotService;
 import com.fa26se040.icss.service.CameraStreamLifecycleService;
 import com.fa26se040.icss.service.CameraRecordingService;
+import com.fa26se040.icss.service.AnnotatedStreamTokenService;
+import com.fa26se040.icss.repository.CameraRepository;
+import com.fa26se040.icss.entity.Camera;
+import com.fa26se040.icss.exception.CameraErrorCode;
+import com.fa26se040.icss.exception.CameraException;
 import org.springframework.http.HttpHeaders;
 
 import java.io.IOException;
@@ -37,6 +42,8 @@ public class CameraController {
     private final CameraSnapshotService cameraSnapshotService;
     private final CameraStreamLifecycleService cameraStreamLifecycleService;
     private final CameraRecordingService cameraRecordingService;
+    private final AnnotatedStreamTokenService annotatedStreamTokenService;
+    private final CameraRepository cameraRepository;
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
@@ -188,6 +195,20 @@ public class CameraController {
             @RequestHeader HttpHeaders headers) throws IOException {
         log.debug("REST request to stream recording: {}, source: {}", path, source);
         return cameraRecordingService.streamVideo(path, source, headers, download);
+    }
+
+    @PostMapping("/{cameraCode}/annotated-stream-token")
+    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER', 'GUARD')")
+    public ResponseEntity<ApiResponse<AnnotatedStreamTokenService.TokenResponse>> getAnnotatedStreamToken(
+            @PathVariable String cameraCode) {
+        log.info("REST request to issue annotated stream token for camera: {}", cameraCode);
+        Camera camera = cameraRepository.findByCameraCodeAndDeletedAtIsNull(cameraCode)
+                .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_CAM_002));
+        if (camera.getStatus() == CameraStatus.DECOMMISSIONED) {
+            throw new CameraException(CameraErrorCode.ERR_STREAM_003);
+        }
+        AnnotatedStreamTokenService.TokenResponse response = annotatedStreamTokenService.issue(camera.getCameraCode());
+        return ResponseEntity.ok(ApiResponse.success(response, "Cấp token xem luồng trực tiếp thành công"));
     }
 }
 

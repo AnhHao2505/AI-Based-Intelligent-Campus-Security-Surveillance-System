@@ -71,7 +71,7 @@ class SecurityIncidentServiceDispatchTest {
     void setUp() {
         service = new SecurityIncidentService(incidentRepository, cameraRepository, userRepository, messagingTemplate,
                 cameraAccessLogService, guardShiftRepository, incidentRecipientResolver, incidentEscalationRepository,
-                incidentSeverityResolver);
+                incidentSeverityResolver, null);
         ReflectionTestUtils.setField(service, "incidentDispatchService", incidentDispatchService);
         ReflectionTestUtils.setField(service, "incidentDispatchQueryRepository", incidentDispatchQueryRepository);
         ReflectionTestUtils.setField(service, "aiServiceUrl", "");

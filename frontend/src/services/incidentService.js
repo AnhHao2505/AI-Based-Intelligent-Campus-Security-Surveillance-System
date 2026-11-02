@@ -69,19 +69,6 @@ export async function resolveIncident(incidentId, payload) {
  * Nghiệp vụ SOC: Xác nhận đã xem sự cố & kết thúc ghi hình video bằng chứng
  */
 export async function acknowledgeIncident(incidentId, cameraCode = "") {
-  // Đồng thời gọi trực tiếp AI Service để dừng ghi hình ngay lập tức (zero latency)
-  try {
-    const payload = { incident_id: String(incidentId) };
-    if (cameraCode) {
-      payload.camera_code = String(cameraCode).toUpperCase();
-    }
-    fetch('http://localhost:8000/api/v1/incident-recording/stop', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }).catch(() => {});
-  } catch (e) {}
-
   return request(`/api/incidents/${incidentId}/acknowledge`, {
     method: 'POST',
   }).catch((err) => {
@@ -94,15 +81,6 @@ export async function acknowledgeIncident(incidentId, cameraCode = "") {
  * Nghiệp vụ SOC: Xác nhận đã xem tất cả sự cố & kết thúc toàn bộ video ghi hình bằng chứng
  */
 export async function acknowledgeAllIncidents() {
-  // Đồng thời gọi trực tiếp AI Service để dừng toàn bộ phiên ghi hình ngay lập tức
-  try {
-    fetch('http://localhost:8000/api/v1/incident-recording/stop', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ stop_all: true }),
-    }).catch(() => {});
-  } catch (e) {}
-
   return request('/api/incidents/acknowledge-all', {
     method: 'POST',
   }).catch((err) => {
@@ -110,4 +88,3 @@ export async function acknowledgeAllIncidents() {
     return { status: "ALL_ACKNOWLEDGED" };
   });
 }
-

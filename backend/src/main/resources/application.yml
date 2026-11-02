@@ -127,6 +127,8 @@ icss:
     # Khoá dùng chung AI service ↔ backend (header X-Service-Key) cho check-entry và /api/internal/**.
     # Bắt buộc, tối thiểu 32 ký tự: thiếu thì backend không khởi động. Giá trị chỉ đặt trong .env, không commit.
     service-key: ${INTERNAL_SERVICE_KEY:}
+  ai:
+    annotated-stream-token-seconds: ${AI_ANNOTATED_STREAM_TOKEN_SECONDS:60}
 
 recording:
   storage:

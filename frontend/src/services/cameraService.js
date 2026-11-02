@@ -207,3 +207,15 @@ export function updateRoiGeometry(
 		}),
 	});
 }
+
+/**
+ * Lấy token xác thực ngắn hạn để mở luồng video live-annotated từ AI Service.
+ */
+export function getAnnotatedStreamToken(cameraCode) {
+	return request(
+		`/api/cameras/${encodeURIComponent(cameraCode)}/annotated-stream-token`,
+		{
+			method: "POST",
+		},
+	);
+}

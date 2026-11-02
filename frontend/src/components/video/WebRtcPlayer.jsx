@@ -6,6 +6,7 @@ import React, {
 	forwardRef,
 } from "react";
 import "../../styles/WebRtcPlayer.css";
+import { getAnnotatedStreamToken } from "../../services/cameraService";
 
 /**
  * WebRtcPlayer: Component phát luồng video WebRTC (WHEP) từ MediaMTX với chuẩn giao diện OSD CCTV chuyên nghiệp.
@@ -38,6 +39,9 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 	const [errorMsg, setErrorMsg] = useState("");
 	const [showTracking, setShowTracking] = useState(false);
 	const [trackingError, setTrackingError] = useState(false);
+	const [streamToken, setStreamToken] = useState(null);
+	const [tokenLoading, setTokenLoading] = useState(false);
+	const [tokenRetryTrigger, setTokenRetryTrigger] = useState(0);
 
 	useImperativeHandle(ref, () => ({
 		captureFrame: () => {
@@ -67,7 +71,43 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 	useEffect(() => {
 		setRetryCount(0);
 		setTrackingError(false);
+		setStreamToken(null);
 	}, [streamPath, host, cameraCode, enabled]);
+
+	// Tự động xin token xác thực ngắn hạn trước khi mở luồng Live-Annotated AI Tracking
+	useEffect(() => {
+		if (!showTracking) {
+			setStreamToken(null);
+			setTrackingError(false);
+			return;
+		}
+
+		let isMounted = true;
+		const targetCode = cameraCode || streamPath || "CAM-001";
+		setTokenLoading(true);
+		setTrackingError(false);
+
+		getAnnotatedStreamToken(targetCode)
+			.then((res) => {
+				if (!isMounted) return;
+				if (res && res.token) {
+					setStreamToken(res.token);
+				} else {
+					setTrackingError(true);
+				}
+			})
+			.catch(() => {
+				if (!isMounted) return;
+				setTrackingError(true);
+			})
+			.finally(() => {
+				if (isMounted) setTokenLoading(false);
+			});
+
+		return () => {
+			isMounted = false;
+		};
+	}, [showTracking, cameraCode, streamPath, tokenRetryTrigger]);
 
 	// Xử lý bật/tắt luồng AI Tracking
 	const handleToggleTracking = (e) => {
@@ -251,9 +291,9 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 			/>
 
 			{/* Luồng AI Tracking Annotation trực tiếp (YOLO11, ByteTrack, Khuôn mặt & Vùng ROI) */}
-			{showTracking && (
+			{showTracking && streamToken && !trackingError && (
 				<img
-					src={`http://${aiHost}/api/v1/stream/live-annotated?camera_code=${encodeURIComponent(cameraCode || streamPath || "CAM-001")}`}
+					src={`http://${aiHost}/api/v1/stream/live-annotated?camera_code=${encodeURIComponent(cameraCode || streamPath || "CAM-001")}&token=${encodeURIComponent(streamToken)}`}
 					alt={`AI Tracking ${cameraCode}`}
 					className="cctv-annotated-stream"
 					onError={() => {
@@ -266,7 +306,7 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 			)}
 
 			{/* Thông báo khi không kết nối được luồng Tracking */}
-			{showTracking && trackingError && (
+			{showTracking && (trackingError || (!tokenLoading && !streamToken)) && (
 				<div className="cctv-tracking-error-overlay">
 					<div className="cctv-tracking-error-box">
 						<span className="cctv-tracking-error-title">⚠️ AI Tracking Chưa Khả Dụng</span>
@@ -279,6 +319,7 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 								onClick={(e) => {
 									e.stopPropagation();
 									setTrackingError(false);
+									setTokenRetryTrigger((prev) => prev + 1);
 								}}
 								className="cctv-tracking-retry-btn"
 							>
@@ -290,6 +331,7 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 									e.stopPropagation();
 									setShowTracking(false);
 									setTrackingError(false);
+									setTokenRetryTrigger((prev) => prev + 1);
 								}}
 								className="cctv-tracking-return-btn"
 							>
@@ -376,7 +418,7 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 					<span className="cctv-spec-item">{resolution}</span>
 					<span className="cctv-spec-divider">•</span>
 					<span className="cctv-spec-item">{fps}</span>
-					{showTracking && (
+					{showTracking && streamToken && !trackingError && (
 						<>
 							<span className="cctv-spec-divider">•</span>
 							<span className="cctv-ai-active-tag">AI LIVE OVERLAY</span>

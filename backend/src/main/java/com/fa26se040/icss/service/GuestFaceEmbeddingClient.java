@@ -8,7 +8,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
-import org.springframework.web.client.RestTemplate;
+import com.fa26se040.icss.config.AiServiceRestTemplate;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -21,7 +21,11 @@ import java.util.Map;
 @Component
 public class GuestFaceEmbeddingClient {
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final AiServiceRestTemplate restTemplate;
+
+    public GuestFaceEmbeddingClient(AiServiceRestTemplate restTemplate) {
+        this.restTemplate = restTemplate;
+    }
 
     @Value("${ai.service.url:http://localhost:8000}")
     private String aiServiceUrl;
