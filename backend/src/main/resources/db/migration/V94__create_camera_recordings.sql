@@ -1,4 +1,4 @@
--- Migration V90: Bảng lưu trữ metadata và vòng đời video ghi hình & bằng chứng sự cố (Cloud-Edge Architecture)
+-- Migration V94: Bảng lưu trữ metadata và vòng đời video ghi hình & bằng chứng sự cố (Cloud-Edge Architecture)
 CREATE TABLE IF NOT EXISTS camera_recordings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     camera_id UUID REFERENCES cameras(id) ON DELETE SET NULL,
