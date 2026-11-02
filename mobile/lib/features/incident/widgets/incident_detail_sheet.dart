@@ -62,6 +62,8 @@ class _IncidentDetailSheetState extends State<IncidentDetailSheet> {
   void _submitResolution(BuildContext context) async {
     final provider = context.read<IncidentProvider>();
     final messenger = ScaffoldMessenger.of(context);
+    final route = ModalRoute.of(context);
+    final navigator = Navigator.of(context);
     final success = await provider.resolveIncident(
       outcome: _outcome,
       resolutionCategory: _category,
@@ -74,6 +76,9 @@ class _IncidentDetailSheetState extends State<IncidentDetailSheet> {
 
     if (success) {
       widget.onResolved();
+      // Panel mở bằng showModalBottomSheet (route riêng): phải pop route thì panel mới đóng.
+      // Sự cố đang xử lý đã được provider xoá (activeIncident = null) trong resolveIncident.
+      if (route is PopupRoute && route.isCurrent) navigator.pop();
       messenger.showSnackBar(
         const SnackBar(
           content: Text('Đã hoàn tất xử lý và đóng sự cố thành công.'),
@@ -94,11 +99,7 @@ class _IncidentDetailSheetState extends State<IncidentDetailSheet> {
   Widget build(BuildContext context) {
     final provider = context.watch<IncidentProvider>();
 
-    return Positioned(
-      bottom: 0,
-      left: 0,
-      right: 0,
-      child: Material(
+    return Material(
         elevation: 16,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         color: const Color(0xFF0F172A),
@@ -503,7 +504,6 @@ class _IncidentDetailSheetState extends State<IncidentDetailSheet> {
           ),
         ),
       ),
-    ),
   );
 }
 }

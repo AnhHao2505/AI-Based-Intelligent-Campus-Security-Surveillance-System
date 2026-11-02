@@ -104,16 +104,22 @@ public class AuthService {
     }
 
     public AuthResponse authenticateLocalUser(LoginRequest request) {
-        log.info("Authenticating local user with email: {}", request.getEmail());
-        User user = userRepository.findByEmailAndIsActiveTrue(request.getEmail())
+        String email = request.getEmail() != null ? request.getEmail().trim() : "";
+        log.info("Authenticating local user with email: {}", email);
+        User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> {
-                    log.warn("Authentication failed: User email not found or inactive: {}", request.getEmail());
-                    return new UnauthorizedException("Invalid email or password");
+                    log.warn("Authentication failed: Account not found for email: {}", email);
+                    return new UnauthorizedException("Tài khoản không tồn tại trên hệ thống");
                 });
 
+        if (user.getDeletedAt() != null || !Boolean.TRUE.equals(user.getIsActive())) {
+            log.warn("Authentication failed: User account is inactive or deleted: {}", email);
+            throw new UnauthorizedException("Tài khoản đã bị vô hiệu hóa hoặc không còn hoạt động");
+        }
+
         if (user.getPassword() == null || !passwordEncoder.matches(request.getPassword(), user.getPassword().trim())) {
-            log.warn("Authentication failed: Password mismatch or password not set for email: {}", request.getEmail());
-            throw new UnauthorizedException("Invalid email or password");
+            log.warn("Authentication failed: Password mismatch for email: {}", email);
+            throw new UnauthorizedException("Mật khẩu không chính xác");
         }
 
         String jwt = jwtTokenProvider.generateToken(user);
@@ -147,11 +153,16 @@ public class AuthService {
             String email = payload.getEmail();
             log.info("Google token verified successfully for email: {}", email);
 
-            User user = userRepository.findByEmailAndIsActiveTrue(email)
+            User user = userRepository.findByEmail(email)
                     .orElseThrow(() -> {
-                        log.warn("User email not found or inactive: {}", email);
-                        return new UnauthorizedException("Email is not authorized or account is disabled");
+                        log.warn("User email not found: {}", email);
+                        return new UnauthorizedException("Tài khoản không tồn tại trên hệ thống");
                     });
+
+            if (user.getDeletedAt() != null || !Boolean.TRUE.equals(user.getIsActive())) {
+                log.warn("User email inactive or deleted: {}", email);
+                throw new UnauthorizedException("Tài khoản đã bị vô hiệu hóa hoặc không còn hoạt động");
+            }
 
             String jwt = jwtTokenProvider.generateToken(user);
 

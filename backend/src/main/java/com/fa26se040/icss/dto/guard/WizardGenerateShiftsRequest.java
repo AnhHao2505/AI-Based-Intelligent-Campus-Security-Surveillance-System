@@ -59,4 +59,10 @@ public class WizardGenerateShiftsRequest {
     private Integer weekendNightDemand;
 
     private String building;
+
+    private UUID buildingId;
+
+    private Boolean confirmCrossBuilding;
+
+    private String crossBuildingReason;
 }

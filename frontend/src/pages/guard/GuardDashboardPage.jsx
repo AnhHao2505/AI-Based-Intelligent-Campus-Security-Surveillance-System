@@ -214,6 +214,20 @@ const isAlertPending = (status) => {
 	return !s.startsWith("RESOLVED") && s !== "DISMISSED" && s !== "IGNORED";
 };
 
+// V93 (X1): server là nguồn chân lý về mức sự cố. Có severity trong payload thì trọng số / màu theo mức đó, nhãn vẫn
+// theo loại sự cố; sự cố cũ (severity null) dùng bảng EVENT_SEVERITY_CONFIG như trước.
+const SERVER_SEVERITY_META = {
+	CRITICAL: { weight: 3, badgeClass: "severity-critical", color: "#ef4444" },
+	HIGH: { weight: 2, badgeClass: "severity-high", color: "#f97316" },
+	MEDIUM: { weight: 1, badgeClass: "severity-warning", color: "#eab308" },
+};
+
+function getAlertSeverityMeta(alert) {
+	const base = getSeverityMeta(alert?.eventType);
+	const server = alert?.severity ? SERVER_SEVERITY_META[String(alert.severity).toUpperCase()] : null;
+	return server ? { ...base, ...server } : base;
+}
+
 function getSeverityMeta(eventType) {
 	return (
 		EVENT_SEVERITY_CONFIG[eventType] || {
@@ -403,7 +417,7 @@ export function SecuritySurveillancePage() {
 					.toLowerCase()
 					.replace(/[^a-z0-9_-]/g, "")
 					.trim();
-				const sev = getSeverityMeta(alert.eventType);
+				const sev = getAlertSeverityMeta(alert);
 				if (!summary[cCode]) {
 					summary[cCode] = {
 						count: 0,
@@ -553,6 +567,8 @@ export function SecuritySurveillancePage() {
 			socAcknowledged: isAck,
 			claimedByName: incident.claimedByName || incident.claimed_by_name,
 			imageUrl: incident.imageUrl || incident.image_url || null,
+			severity: incident.severity || null,
+			dispatchStage: incident.dispatchStage || null,
 		};
 
 		setActiveAlerts((prev) => {
@@ -635,6 +651,8 @@ export function SecuritySurveillancePage() {
 											status: update.status || a.status,
 											claimedByName: update.claimedByName || a.claimedByName,
 											claimedById: update.claimedById || a.claimedById,
+											severity: update.severity || a.severity,
+											dispatchStage: update.dispatchStage || a.dispatchStage,
 										}
 										: a,
 								),
@@ -714,6 +732,8 @@ export function SecuritySurveillancePage() {
 								socAcknowledged: ackSet.has(String(incId)),
 								claimedByName: incident.claimedByName || incident.claimed_by_name,
 								imageUrl: incident.imageUrl || incident.image_url || null,
+								severity: incident.severity || null,
+								dispatchStage: incident.dispatchStage || null,
 							};
 						});
 					setActiveAlerts(mapped);
@@ -848,8 +868,8 @@ export function SecuritySurveillancePage() {
 				: [...activeAlerts];
 
 		return base.sort((a, b) => {
-			const weightA = getSeverityMeta(a.eventType).weight;
-			const weightB = getSeverityMeta(b.eventType).weight;
+			const weightA = getAlertSeverityMeta(a).weight;
+			const weightB = getAlertSeverityMeta(b).weight;
 			if (weightB !== weightA) {
 				return weightB - weightA;
 			}
@@ -1191,7 +1211,7 @@ export function SecuritySurveillancePage() {
 							) : (
 								<div className="soc-incident-list">
 									{filteredAlerts.map((alert) => {
-										const sev = getSeverityMeta(alert.eventType);
+										const sev = getAlertSeverityMeta(alert);
 										const status = String(alert.status || "NEW").toUpperCase();
 										const isPending = isAlertPending(status);
 
@@ -1205,7 +1225,15 @@ export function SecuritySurveillancePage() {
 														<AlertTriangle size={12} />
 														<span>{sev.label}</span>
 													</div>
-
+													{/* V93 (BR-DSP-11): đang mời một nhóm bảo vệ trên mobile; web chỉ theo dõi */}
+													{isPending && status === "NEW" && String(alert.dispatchStage || "").toUpperCase() === "STEP1" && (
+														<span
+															className="soc-claimed-label"
+															title="Hệ thống đang mời một nhóm bảo vệ tiếp nhận qua ứng dụng di động"
+														>
+															Đang mời bảo vệ
+														</span>
+													)}
 													<span className="soc-incident-time">
 														<Clock size={11} /> {alert.timestamp}
 													</span>
@@ -1328,14 +1356,14 @@ export function SecuritySurveillancePage() {
 								<ShieldAlert
 									size={18}
 									style={{
-										color: getSeverityMeta(evidenceModalAlert.eventType).color,
+										color: getAlertSeverityMeta(evidenceModalAlert).color,
 									}}
 								/>
 								<h4>ẢNH BẰNG CHỨNG VI PHẠM AN NINH</h4>
 								<span
-									className={`soc-incident-tag ${getSeverityMeta(evidenceModalAlert.eventType).badgeClass}`}
+									className={`soc-incident-tag ${getAlertSeverityMeta(evidenceModalAlert).badgeClass}`}
 								>
-									{getSeverityMeta(evidenceModalAlert.eventType).label}
+									{getAlertSeverityMeta(evidenceModalAlert).label}
 								</span>
 							</div>
 							<button

@@ -12,6 +12,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -61,6 +62,14 @@ public interface GuestVisitRepository extends JpaRepository<GuestVisit, UUID> {
     @Query("SELECT DISTINCT v FROM GuestVisit v JOIN v.areas a "
             + "WHERE a.id = :areaId AND v.status IN :statuses AND v.endTime > :now ORDER BY v.startTime")
     List<GuestVisit> findNotEndedByArea(@Param("areaId") UUID areaId,
-                                        @Param("statuses") java.util.Collection<GuestVisitStatus> statuses,
+                                        @Param("statuses") Collection<GuestVisitStatus> statuses,
                                         @Param("now") OffsetDateTime now);
+
+    @Query("SELECT COUNT(v) FROM GuestVisit v WHERE v.startTime <= :to AND v.endTime >= :from")
+    long countVisitsInPeriod(@Param("from") OffsetDateTime from, @Param("to") OffsetDateTime to);
+
+    @Query("SELECT COUNT(v) FROM GuestVisit v WHERE v.startTime <= :to AND v.endTime >= :from AND v.status IN (:statuses)")
+    long countVisitsInPeriodWithStatuses(@Param("from") OffsetDateTime from,
+                                         @Param("to") OffsetDateTime to,
+                                         @Param("statuses") Collection<GuestVisitStatus> statuses);
 }

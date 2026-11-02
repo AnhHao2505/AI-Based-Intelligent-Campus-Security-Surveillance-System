@@ -104,8 +104,9 @@ class IncidentAlertBanner extends StatelessWidget {
     IncidentProvider provider,
     IncidentModel alert,
   ) {
-    final severityColor = _getSeverityColor(alert.severityWeight);
+    final severityColor = _getSeverityColor(alert.severityLevel);
     final count = provider.pendingCount;
+    final isClaimLocked = provider.isClaimLockedFor(alert);
 
     return Positioned(
       top: MediaQuery.of(context).padding.top + 8,
@@ -286,6 +287,8 @@ class IncidentAlertBanner extends StatelessWidget {
                       flex: 3,
                       child: ElevatedButton.icon(
                         onPressed: provider.isClaimLoading
+                                // K8: đang mời bảo vệ khác (STEP1) → khoá cho tới khi BROADCAST
+                                || isClaimLocked
                             ? null
                             : () => onClaim(alert),
                         icon: provider.isClaimLoading
@@ -294,8 +297,11 @@ class IncidentAlertBanner extends StatelessWidget {
                                 height: 16,
                                 child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                               )
+                            : isClaimLocked
+                                ? const Icon(Icons.lock_clock_outlined, size: 16)
                             : const Icon(Icons.navigation, size: 16),
                         label: Text(
+                          isClaimLocked ? 'Đang mời bảo vệ khác' :
                           provider.isClaimLoading ? 'Đang nhận...' : 'Tiếp nhận & Đi',
                           style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
                         ),

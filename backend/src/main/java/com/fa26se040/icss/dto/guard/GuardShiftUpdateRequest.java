@@ -34,7 +34,12 @@ public class GuardShiftUpdateRequest {
     private LocalTime endTime;
 
     private UUID areaId;
+    private UUID buildingId;
+    private Boolean crossBuilding;
+    private String crossBuildingReason;
     private ShiftStatus status;
     private String notes;
     private Boolean isOvertime;
+    // V90 (BR-DSP-13): không gửi thì giữ vị trí trực hiện tại của ca
+    private String dutyPostCode;
 }

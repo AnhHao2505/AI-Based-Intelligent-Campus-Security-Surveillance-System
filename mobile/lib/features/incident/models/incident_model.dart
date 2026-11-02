@@ -21,6 +21,10 @@ class IncidentModel {
   final String? evidenceImageUrl;
   final int version;
   final String? radioChannel;
+  /// Mức nghiêm trọng do server tính (MEDIUM / HIGH / CRITICAL). Null với backend cũ hoặc dữ liệu cũ.
+  final String? severity;
+  /// Giai đoạn phân phối: STEP1 (đang mời bảo vệ được chọn) / BROADCAST. Null = BROADCAST.
+  final String? dispatchStage;
 
   IncidentModel({
     required this.id,
@@ -45,7 +49,37 @@ class IncidentModel {
     this.evidenceImageUrl,
     this.version = 0,
     this.radioChannel,
+    this.severity,
+    this.dispatchStage,
   });
+
+  /// Mức của severity server: CRITICAL 3, HIGH 2, MEDIUM 1; null nếu không có hoặc không nhận ra.
+  int? get serverSeverityRank {
+    switch (severity?.toUpperCase()) {
+      case 'CRITICAL':
+        return 3;
+      case 'HIGH':
+        return 2;
+      case 'MEDIUM':
+        return 1;
+      default:
+        return null;
+    }
+  }
+
+  /// Mức nghiêm trọng dùng để sắp xếp và tô màu: severity server, thiếu thì dùng severityWeight cũ.
+  int get severityLevel => serverSeverityRank ?? severityWeight;
+
+  /// Đang mời bảo vệ được chọn (STEP1). Null hoặc giá trị khác coi như BROADCAST.
+  bool get isOfferPhase => dispatchStage?.toUpperCase() == 'STEP1';
+
+  /// So sánh ưu tiên: severityLevel giảm dần, severityWeight cũ làm tie-break. 0 = ngang nhau,
+  /// nơi gọi tự thêm tiêu chí thời gian.
+  static int comparePriority(IncidentModel a, IncidentModel b) {
+    final levelCompare = b.severityLevel.compareTo(a.severityLevel);
+    if (levelCompare != 0) return levelCompare;
+    return b.severityWeight.compareTo(a.severityWeight);
+  }
 
   /// Trọng số mức độ nghiêm trọng (Chuẩn hóa 3 loại sự cố: UNAUTHORIZED > UNKNOWN > AFTER_HOURS)
   int get severityWeight {
@@ -67,7 +101,17 @@ class IncidentModel {
     }
   }
 
+  /// Nhãn theo mức server (K8): 3 / 2 / 1, cùng chữ với nhãn theo severityWeight.
+  static String _severityLabelOfLevel(int level) {
+    if (level == 3) return 'CỰC KỲ NGUY CẤP';
+    if (level == 2) return 'MỨC ĐỘ CAO';
+    return 'CẢNH BÁO';
+  }
+
   String get severityLabel {
+    // K8: có severity server thì nhãn theo severity server; không có thì theo severityWeight như cũ
+    final serverRank = serverSeverityRank;
+    if (serverRank != null) return _severityLabelOfLevel(serverRank);
     switch (severityWeight) {
       case 3:
         return 'CỰC KỲ NGUY CẤP';
@@ -137,6 +181,8 @@ class IncidentModel {
       evidenceImageUrl: json['evidenceImageUrl']?.toString(),
       version: json['version'] is int ? json['version'] as int : int.tryParse(json['version']?.toString() ?? '0') ?? 0,
       radioChannel: json['radioChannel']?.toString(),
+      severity: json['severity']?.toString(),
+      dispatchStage: json['dispatchStage']?.toString(),
     );
   }
 
@@ -164,6 +210,8 @@ class IncidentModel {
       'evidenceImageUrl': evidenceImageUrl,
       'version': version,
       'radioChannel': radioChannel,
+      'severity': severity,
+      'dispatchStage': dispatchStage,
     };
   }
 
@@ -190,6 +238,8 @@ class IncidentModel {
     String? evidenceImageUrl,
     int? version,
     String? radioChannel,
+    String? severity,
+    String? dispatchStage,
   }) {
     return IncidentModel(
       id: id ?? this.id,
@@ -214,6 +264,8 @@ class IncidentModel {
       evidenceImageUrl: evidenceImageUrl ?? this.evidenceImageUrl,
       version: version ?? this.version,
       radioChannel: radioChannel ?? this.radioChannel,
+      severity: severity ?? this.severity,
+      dispatchStage: dispatchStage ?? this.dispatchStage,
     );
   }
 }

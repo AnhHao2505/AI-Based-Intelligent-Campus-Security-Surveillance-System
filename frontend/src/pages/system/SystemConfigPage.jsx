@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
 import {
 	Save,
 	RotateCcw,
@@ -37,6 +38,8 @@ import { useReasonLimits } from "../../hooks/useReasonLimits";
 const CONFIG_SUBGROUPS = {
 	SECURITY: [
 		{ title: "Leo thang sự cố", prefixes: ["INCIDENT_ESCALATE_", "INCIDENT_ESCALATION_"] },
+		// V90 (K7): bật mời theo đợt, load score, chu kỳ job lời mời, mức độ mặc định
+		{ title: "Phân phối sự cố", prefixes: ["DISPATCH_", "INCIDENT_SEVERITY_"] },
 		{ title: "Bảo vệ xử lý sự cố", prefixes: ["GUARD_INCIDENT_"] },
 		{ title: "Chế độ sự kiện", prefixes: ["EVENT_MODE_"] },
 		{ title: "Nhật ký ra vào", prefixes: ["ENTRY_LOG_"] },
@@ -352,6 +355,26 @@ export default function SystemConfigPage() {
 									key={groupKey}
 									className="syscfg-group-section"
 								>
+									{/* V90: luật mức độ, chính sách phân phối, vị trí trực là bảng nhiều dòng -> màn riêng */}
+									{groupKey === "SECURITY" && (
+										<div
+											className="syscfg-alert"
+											style={{
+												background: "var(--theme-info-bg)",
+												border: "1px solid var(--theme-info-border)",
+												color: "var(--theme-info-text)",
+											}}
+										>
+											<Info size={18} className="syscfg-alert__icon" />
+											<span className="syscfg-alert__text">
+												Luật mức độ sự cố, chính sách phân phối theo mức và danh mục vị trí trực được quản lý ở{" "}
+												<Link to="/admin/incident-policies" style={{ color: "var(--theme-info-text)", fontWeight: 600 }}>
+													màn Chính sách sự cố
+												</Link>
+												.
+											</span>
+										</div>
+									)}
 									{splitIntoSubgroups(groupKey, groupItems).map((sub) => (
 										<div key={sub.title || "all"} className="syscfg-group-section">
 											{sub.title && (

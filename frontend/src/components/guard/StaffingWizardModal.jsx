@@ -25,6 +25,8 @@ export default function StaffingWizardModal({
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [building, setBuilding] = useState('');
+  const [showCrossConfirm, setShowCrossConfirm] = useState(false);
+  const [crossBuildingReason, setCrossBuildingReason] = useState('');
 
   const [weekdayMorningDemand, setWeekdayMorningDemand] = useState(2);
   const [weekdayAfternoonDemand, setWeekdayAfternoonDemand] = useState(2);
@@ -151,6 +153,17 @@ export default function StaffingWizardModal({
       setSundayNightDemand(activeTeam.sundayNightDemand ?? 2);
       setHasSundayCustom(activeTeam.hasSundayCustom ?? true);
 
+      // P1b: ưu tiên toà phụ trách theo FK của đội (buildingName); không có thì suy từ description như cũ
+      if (activeTeam.buildingName) {
+        const teamBuilding = (buildings || []).find(
+          (b) => b.id === activeTeam.buildingId || b.name === activeTeam.buildingName
+        );
+        if (teamBuilding) {
+          setBuilding(teamBuilding.name);
+          return;
+        }
+      }
+
       if (activeTeam.description) {
         const desc = activeTeam.description;
         const matchingBuilding = (buildings || []).find(
@@ -164,6 +177,12 @@ export default function StaffingWizardModal({
       }
     }
   }, [activeTeam, buildings]);
+
+  // Tên tòa nhà gốc của đội đang chọn
+  const teamHomeBuildingName = useMemo(() => {
+    if (!activeTeam) return '';
+    return activeTeam.buildingName || activeTeam.description || '';
+  }, [activeTeam]);
 
   // Danh sách thành viên của đội đang chọn
   const activeTeamMembers = useMemo(() => {
@@ -227,10 +246,27 @@ export default function StaffingWizardModal({
       return;
     }
 
+    const isCross = Boolean(
+      activeTeam &&
+      teamHomeBuildingName &&
+      building &&
+      building.trim().toLowerCase() !== teamHomeBuildingName.trim().toLowerCase()
+    );
+
+    if (isCross) {
+      setShowCrossConfirm(true);
+      return;
+    }
+
+    doGenerate(false, null);
+  };
+
+  const doGenerate = async (confirmCross, reason) => {
     setLoading(true);
     setError(null);
     try {
       const selectedMemberIds = activeTeamMembers.map((m) => m.id);
+      const matchedBld = (buildings || []).find((b) => b.name === building || b.id === building);
 
       const payload = {
         teamId: selectedTeamId,
@@ -249,6 +285,9 @@ export default function StaffingWizardModal({
         weekendNightDemand: sundayNightDemand,
         selectedGuardIds: selectedMemberIds,
         memberGuardIds: selectedMemberIds,
+        buildingId: matchedBld?.id || undefined,
+        confirmCrossBuilding: confirmCross ? true : undefined,
+        crossBuildingReason: confirmCross && reason && reason.trim() ? reason.trim() : undefined,
         building: building || 'Tòa Alpha'
       };
 
@@ -262,6 +301,8 @@ export default function StaffingWizardModal({
             await guardScheduleApi.updateTeam(selectedTeamId, {
               teamName: targetTeam.teamName,
               description: building,
+              // P1b: wizard luân chuyển không gửi buildingId (backend giữ toà phụ trách của đội), chỉ giữ hành vi cũ ghi description
+              buildingId: confirmCross ? undefined : (matchedBld?.id || targetTeam.buildingId),
               colorCode: targetTeam.colorCode || '#2563eb',
               weekdayMorningDemand: targetTeam.weekdayMorningDemand ?? 2,
               weekdayAfternoonDemand: targetTeam.weekdayAfternoonDemand ?? 2,
@@ -544,6 +585,64 @@ export default function StaffingWizardModal({
               </button>
             </div>
           </form>
+        )}
+
+        {/* Hộp thoại xác nhận luân chuyển tòa nhà (Requirement 3) */}
+        {showCrossConfirm && (
+          <div className="fixed inset-0 z-60 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="p-2.5 rounded-xl bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 shrink-0">
+                  <AlertCircle size={22} />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                    Xác nhận tạo ca trực luân chuyển tòa nhà
+                  </h4>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">
+                    Đội <strong>{activeTeam?.teamName}</strong> có cơ sở phụ trách là <strong>{teamHomeBuildingName}</strong>, nhưng bạn đang phân lịch tại <strong>{building}</strong>.
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    Toàn bộ các ca trực tự động sinh ra sẽ được đánh dấu là ca <strong>luân chuyển tòa nhà</strong>.
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Lý do luân chuyển (không bắt buộc):
+                </label>
+                <input
+                  type="text"
+                  value={crossBuildingReason}
+                  onChange={(e) => setCrossBuildingReason(e.target.value)}
+                  placeholder="Ví dụ: Tăng cường trực sự kiện, hỗ trợ cơ sở thiếu quân số..."
+                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowCrossConfirm(false)}
+                  className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCrossConfirm(false);
+                    doGenerate(true, crossBuildingReason);
+                  }}
+                  className="px-4 py-1.5 rounded-lg text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition flex items-center gap-1.5"
+                >
+                  <span>Xác nhận & Tạo lịch</span>
+                  <ArrowRight size={13} />
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

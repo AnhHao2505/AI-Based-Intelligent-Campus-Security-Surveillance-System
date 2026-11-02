@@ -17,20 +17,52 @@ enum IncidentFilterTab {
 }
 
 class IncidentListScreen extends StatefulWidget {
-  const IncidentListScreen({super.key});
+  final IncidentFilterTab initialTab;
+
+  const IncidentListScreen({super.key, this.initialTab = IncidentFilterTab.pending});
+
+  static bool switchToTab(IncidentFilterTab tab) {
+    final state = _IncidentListScreenState.activeInstance;
+    if (state != null && state.mounted) {
+      final route = ModalRoute.of(state.context);
+      if (route != null) {
+        Navigator.maybeOf(state.context)?.popUntil((r) => r == route);
+      }
+      state.switchTab(tab);
+      return true;
+    }
+    return false;
+  }
 
   @override
   State<IncidentListScreen> createState() => _IncidentListScreenState();
 }
 
 class _IncidentListScreenState extends State<IncidentListScreen> {
-  IncidentFilterTab _selectedTab = IncidentFilterTab.pending;
+  static _IncidentListScreenState? activeInstance;
+
+  late IncidentFilterTab _selectedTab = widget.initialTab;
   List<IncidentModel> _historyIncidents = [];
   bool _isLoadingHistory = false;
   String? _currentUserId;
 
+  void switchTab(IncidentFilterTab tab) {
+    if (mounted) {
+      setState(() => _selectedTab = tab);
+    }
+  }
+
+  @override
+  void dispose() {
+    if (activeInstance == this) {
+      activeInstance = null;
+    }
+    super.dispose();
+  }
+
   @override
   void initState() {
+    activeInstance = this;
     super.initState();
     _loadCurrentUser();
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -120,6 +152,9 @@ class _IncidentListScreenState extends State<IncidentListScreen> {
 
     final allList = merged.values.toList()
       ..sort((a, b) {
+        // K8: severity server (thiếu thì severityWeight cũ) là khoá đầu; severityWeight cũ làm tie-break
+        final serverCompare = b.severityLevel.compareTo(a.severityLevel);
+        if (serverCompare != 0) return serverCompare;
         final sevCompare = b.severityWeight.compareTo(a.severityWeight);
         if (sevCompare != 0) return sevCompare;
 
@@ -459,8 +494,9 @@ class _IncidentListScreenState extends State<IncidentListScreen> {
   }
 
   Widget _buildIncidentCard(IncidentModel incident, IncidentProvider provider) {
-    final sevColor = _getSeverityColor(incident.severityWeight);
+    final sevColor = _getSeverityColor(incident.severityLevel);
     final isPending = incident.isNew;
+    final isClaimLocked = provider.isClaimLockedFor(incident);
     final isClaimed = incident.isClaimed;
     final isResolved = incident.isResolved;
     final isClaimedByMe = isClaimed && incident.claimedById == _currentUserId;
@@ -724,6 +760,28 @@ class _IncidentListScreenState extends State<IncidentListScreen> {
 
                     const Spacer(),
 
+                    // K8: sự cố đang mời bảo vệ khác (STEP1) → nhãn cạnh nút tiếp nhận (nút bị khoá)
+                    if (isPending && isClaimLocked)
+                      Flexible(
+                        child: Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.lock_clock_outlined, size: 14, color: AppColors.txtSecondary(context)),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  'Đang mời bảo vệ khác',
+                                  style: TextStyle(fontSize: 11, color: AppColors.txtSecondary(context)),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
                     // Nút tiếp nhận hoặc giải quyết
                     if (isPending)
                       ElevatedButton.icon(
@@ -736,11 +794,14 @@ class _IncidentListScreenState extends State<IncidentListScreen> {
                           shape: RoundedRectangleApp.rounded(8),
                         ),
                         onPressed: provider.isClaimLoading
+                                // K8: đang mời bảo vệ khác (STEP1) → khoá cho tới khi BROADCAST
+                                || isClaimLocked
                             ? null
                             : () async {
                                 final success = await provider.claimIncident(incident.id);
                                 if (!mounted) return;
                                 if (success) {
+                                  setState(() => _selectedTab = IncidentFilterTab.claimed);
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
                                       content: Text('Tiếp nhận sự cố thành công!'),
@@ -749,6 +810,14 @@ class _IncidentListScreenState extends State<IncidentListScreen> {
                                     ),
                                   );
                                   await _fetchIncidentsHistory();
+                                } else if (provider.errorMessage != null) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(provider.errorMessage!),
+                                      backgroundColor: const Color(0xFFEF4444),
+                                      duration: const Duration(seconds: 3),
+                                    ),
+                                  );
                                 }
                               },
                         icon: const Icon(Icons.assignment_turned_in_outlined, size: 15),

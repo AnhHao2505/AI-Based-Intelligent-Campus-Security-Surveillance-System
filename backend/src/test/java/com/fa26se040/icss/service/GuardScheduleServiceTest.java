@@ -52,6 +52,12 @@ class GuardScheduleServiceTest {
     @Mock
     private com.fa26se040.icss.repository.GuardTeamDispatchRepository dispatchRepository;
 
+    @Mock
+    private com.fa26se040.icss.repository.DutyPostTypeRepository dutyPostTypeRepository;
+
+    @Mock
+    private com.fa26se040.icss.repository.BuildingRepository buildingRepository;
+
     @InjectMocks
     private GuardScheduleService guardScheduleService;
 

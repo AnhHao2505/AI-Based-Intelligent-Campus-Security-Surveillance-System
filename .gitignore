@@ -72,3 +72,6 @@ backup_*.sql
 *.mp4
 recording/
 video/
+
+# MQTT outbox (SQLite cảnh báo chờ gửi của AI service)
+ai-service/data/

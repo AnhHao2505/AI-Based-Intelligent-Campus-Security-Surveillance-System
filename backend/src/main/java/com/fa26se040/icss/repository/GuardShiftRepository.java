@@ -64,4 +64,35 @@ public interface GuardShiftRepository extends JpaRepository<GuardShift, UUID> {
     List<GuardShift> findByShiftDate(LocalDate shiftDate);
 
     List<GuardShift> findByShiftDateBetween(LocalDate startDate, LocalDate endDate);
+
+    @Query("SELECT s FROM GuardShift s " +
+            "JOIN s.guard g " +
+            "LEFT JOIN s.area a " +
+            "LEFT JOIN a.floorEntity f " +
+            "WHERE g.team.id = :teamId " +
+            "AND s.shiftDate >= :today " +
+            "AND s.status = com.fa26se040.icss.enums.ShiftStatus.SCHEDULED " +
+            "AND (s.building.id = :currentBuildingId OR (s.building IS NULL AND f.building.id = :currentBuildingId)) " +
+            "ORDER BY s.shiftDate ASC, s.startTime ASC")
+    List<GuardShift> findFutureScheduledShiftsInBuilding(
+            @Param("teamId") UUID teamId,
+            @Param("today") LocalDate today,
+            @Param("currentBuildingId") UUID currentBuildingId
+    );
+
+    @Query("SELECT s FROM GuardShift s " +
+            "JOIN FETCH s.guard g " +
+            "LEFT JOIN FETCH g.team t " +
+            "LEFT JOIN FETCH t.building tb " +
+            "LEFT JOIN FETCH s.building sb " +
+            "LEFT JOIN FETCH s.area a " +
+            "WHERE s.shiftDate BETWEEN :startDate AND :endDate " +
+            "AND s.status <> com.fa26se040.icss.enums.ShiftStatus.CANCELLED " +
+            "AND (:teamId IS NULL OR (t IS NOT NULL AND t.id = :teamId)) " +
+            "ORDER BY g.fullName ASC, s.shiftDate ASC")
+    List<GuardShift> findShiftsForRotationReport(
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            @Param("teamId") UUID teamId
+    );
 }

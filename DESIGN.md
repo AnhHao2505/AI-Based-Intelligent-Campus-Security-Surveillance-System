@@ -65,10 +65,9 @@ The FPTU Campus Security Surveillance System (FA26SE040) is an institutional com
 
 ## Colors & Atmospheres
 - **Primary Accent:** FPT Security Orange (`#ea580c` in light mode, `#f97316` in dark mode). Applied strictly for primary actions, selection states, and live camera indicators.
-- **Dual Mode Diamond Wave Background System:**
-  - **Light Mode (`/images/bg-wave-light.svg`):** Infinite-resolution vector diamond particle wave on `#f8fafc` canvas, styled with subtle FPT orange facets.
-  - **Dark Mode (`/images/bg-wave-dark.svg`):** Infinite-resolution vector diamond particle wave on obsidian `#080c14` canvas, glowing in luminous FPT security orange (`#f97316`).
-  - **Interactive Generator:** Built-in tool at `background-wave.html` supporting real-time diamond mesh simulation and 4K export.
+- **Dual Mode Background Wave System:**
+  - **Dark Mode (`/images/bg-user-original-4k.jpg`):** Exact user-provided original graphic rendered at 4K resolution (3840 × 2560) with unsharp mask sharpening, styled via CSS filters: `hue-rotate(150deg) saturate(1.3) contrast(1.22) brightness(0.92)` with `image-rendering: -webkit-optimize-contrast`.
+  - **Light Mode (`/images/bg-light.png`):** 4K inverted counterpart of the exact graphic, cleanly rendering subtle orange wave dots over the `#f8fafc` canvas.
 - **Dark Mode Surface Hierarchy (Command Center Obsidian):**
   - Page Canvas: `#080c14`
   - Base Surface: `#0e1422` (Translucent `rgba(14, 20, 34, 0.90)` with `backdrop-filter: blur(16px)`)

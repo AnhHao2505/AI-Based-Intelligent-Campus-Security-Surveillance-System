@@ -53,6 +53,7 @@ class ApiEndpoints {
   static String activeIncidents(String building) => '$baseUrl/api/incidents/active?building=$building';
   static String claimIncident(String incidentId) => '$baseUrl/api/incidents/$incidentId/claim';
   static String resolveIncident(String incidentId) => '$baseUrl/api/incidents/$incidentId/resolve';
+  static String declineOffer(String incidentId) => '$baseUrl/api/incidents/$incidentId/offers/decline';
   static String get testAlert => '$baseUrl/api/incidents/test-alert';
   static String get testAlertBatch => '$baseUrl/api/incidents/test-alert/batch';
 

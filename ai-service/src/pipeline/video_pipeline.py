@@ -11,7 +11,7 @@ from ..core.human_detector import HumanDetector
 from ..core.face_detector import FaceDetector
 from ..core.face_matcher import FaceMatcher
 from ..core.frame_analysis_engine import FrameAnalysisEngine
-from ..integration.mqtt_client import SecurityMqttClient, edge_mqtt_client
+from ..integration.mqtt_client import get_security_mqtt_client
 from ..integration.storage_service import StorageService
 from ..utils.visualizer import FrameVisualizer
 from ..utils.geometry import is_point_in_polygon, scale_polygon_to_frame
@@ -90,7 +90,7 @@ class VideoPipeline:
         # Khởi tạo các module tích hợp
         from concurrent.futures import ThreadPoolExecutor
         self.executor = ThreadPoolExecutor(max_workers=2)
-        self.mqtt_client = edge_mqtt_client
+        self.mqtt_client = get_security_mqtt_client()
         self.kafka_producer = self.mqtt_client  # Backward compatibility
         self.storage_service = StorageService()
         self.visualizer = FrameVisualizer()

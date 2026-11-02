@@ -197,6 +197,40 @@ class ActiveShiftCard extends StatelessWidget {
     return '$dayName, $formatted';
   }
 
+  /// Một dòng thông tin trên thẻ ca, cùng kiểu dòng "Địa điểm".
+  Widget _buildShiftInfoChip(BuildContext context, IconData icon, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: AppColors.surfLight(context),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.crdBorder(context)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 15, color: AppColors.primaryLight),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                text,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.txtPrimary(context),
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final shiftProvider = context.read<ShiftProvider>();
@@ -406,6 +440,24 @@ class ActiveShiftCard extends StatelessWidget {
               ),
             ),
           ],
+
+          // Khu vực của ca (không ghép toà)
+          if (s.areaName != null && s.areaName!.trim().isNotEmpty)
+            _buildShiftInfoChip(context, Icons.place_outlined, 'Khu vực: ${s.areaName!.trim()}'),
+
+          // Vị trí trực (duty post) — chỉ hiện khi backend trả dutyPostLabel
+          if (s.dutyPostLabel != null && s.dutyPostLabel!.trim().isNotEmpty)
+            _buildShiftInfoChip(context, Icons.badge_outlined, 'Vị trí trực: ${s.dutyPostLabel!.trim()}'),
+
+          // Ca luân chuyển sang toà khác toà của đội
+          if (s.crossBuilding)
+            _buildShiftInfoChip(
+              context,
+              Icons.swap_horiz_rounded,
+              (s.buildingName != null && s.buildingName!.trim().isNotEmpty)
+                  ? 'Luân chuyển: ${s.buildingName!.trim()}'
+                  : 'Luân chuyển',
+            ),
 
           // Notes from Admin (if any)
           if (s.notes != null && s.notes!.isNotEmpty) ...[

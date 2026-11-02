@@ -1,0 +1,6 @@
+user icss-ai
+topic write campus/alerts/incidents
+topic write campus/cameras/+/health
+
+user icss-backend
+topic read campus/alerts/incidents

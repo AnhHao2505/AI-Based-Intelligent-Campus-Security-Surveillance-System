@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Campus Security — 3D Diamond Wave Background Generator</title>
+  <title>Campus Security — Multi-Ribbon 3D Wave Generator</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -47,7 +47,7 @@
       top: 24px;
       left: 24px;
       z-index: 10;
-      width: 340px;
+      width: 350px;
       max-height: calc(100vh - 48px);
       overflow-y: auto;
       background: rgba(14, 20, 34, 0.88);
@@ -59,12 +59,12 @@
       padding: 20px;
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 14px;
       transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
     }
 
     .hud-panel.hidden {
-      transform: translateX(-380px);
+      transform: translateX(-390px);
       opacity: 0;
       pointer-events: none;
     }
@@ -108,7 +108,7 @@
     .control-group {
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 5px;
     }
 
     .control-label {
@@ -128,7 +128,6 @@
       color: #f97316;
     }
 
-    /* Range slider */
     input[type="range"] {
       appearance: none;
       -webkit-appearance: none;
@@ -156,7 +155,6 @@
       transform: scale(1.2);
     }
 
-    /* Buttons */
     .btn-row {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -201,7 +199,6 @@
       color: #f97316;
     }
 
-    /* Floating toggle HUD button */
     .toggle-hud-btn {
       position: fixed;
       bottom: 24px;
@@ -225,7 +222,6 @@
       border-color: #ea580c;
     }
 
-    /* Info Badge Bottom Right */
     .info-footer {
       position: fixed;
       bottom: 24px;
@@ -245,19 +241,17 @@
 </head>
 <body>
 
-  <!-- Background 3D Canvas -->
   <canvas id="waveCanvas"></canvas>
 
-  <!-- Interactive Control Panel -->
   <div class="hud-panel" id="hudPanel">
     <div class="hud-header">
       <div>
-        <div class="hud-title">Diamond Wave Generator <span class="hud-badge">DIAMOND / 4K</span></div>
-        <div class="hud-subtitle">Surveillance faceted node mesh</div>
+        <div class="hud-title">3D Multi-Ribbon Wave <span class="hud-badge">COMPLEX MESH</span></div>
+        <div class="hud-subtitle">3 interlocking folded sheets & radial ambient glow</div>
       </div>
     </div>
 
-    <!-- Shape Selection -->
+    <!-- Particle Geometry -->
     <div class="control-group">
       <div class="control-label">Particle Geometry</div>
       <div class="btn-row">
@@ -268,7 +262,7 @@
 
     <!-- Theme Switcher -->
     <div class="control-group">
-      <div class="control-label">Visual Theme</div>
+      <div class="control-label">Visual Atmosphere</div>
       <div class="btn-row">
         <button class="btn active" id="btnDark" onclick="setTheme('dark')">Dark (Obsidian)</button>
         <button class="btn" id="btnLight" onclick="setTheme('light')">Light (Slate)</button>
@@ -290,34 +284,26 @@
     <!-- Controls -->
     <div class="control-group">
       <div class="control-label">
-        <span>Wave Amplitude</span>
-        <span class="control-val" id="valAmp">220px</span>
+        <span>Wave Folding Amplitude</span>
+        <span class="control-val" id="valAmp">1.0x</span>
       </div>
-      <input type="range" id="sliderAmp" min="50" max="450" value="220" oninput="updateParams()">
+      <input type="range" id="sliderAmp" min="0.4" max="2.0" step="0.1" value="1.0" oninput="updateParams()">
     </div>
 
     <div class="control-group">
       <div class="control-label">
-        <span>Mesh Density (Columns)</span>
-        <span class="control-val" id="valCols">95</span>
+        <span>Grid Resolution</span>
+        <span class="control-val" id="valDensity">High (3 Sheets)</span>
       </div>
-      <input type="range" id="sliderCols" min="40" max="150" value="95" oninput="updateParams()">
+      <input type="range" id="sliderDensity" min="0.6" max="1.5" step="0.1" value="1.0" oninput="updateParams()">
     </div>
 
     <div class="control-group">
       <div class="control-label">
-        <span>Mesh Rows</span>
-        <span class="control-val" id="valRows">54</span>
-      </div>
-      <input type="range" id="sliderRows" min="20" max="90" value="54" oninput="updateParams()">
-    </div>
-
-    <div class="control-group">
-      <div class="control-label">
-        <span>Diamond Size Scale</span>
+        <span>Particle Size</span>
         <span class="control-val" id="valDotSize">1.0x</span>
       </div>
-      <input type="range" id="sliderDotSize" min="0.5" max="2.5" step="0.1" value="1.0" oninput="updateParams()">
+      <input type="range" id="sliderDotSize" min="0.5" max="2.2" step="0.1" value="1.0" oninput="updateParams()">
     </div>
 
     <!-- Export Section -->
@@ -330,11 +316,9 @@
     </div>
   </div>
 
-  <!-- HUD Toggle Button -->
   <button class="toggle-hud-btn" onclick="toggleHUD()">[H] Toggle HUD</button>
 
-  <!-- Info Footer -->
-  <div class="info-footer" id="infoFooter">1920 x 1080 @ 60 FPS</div>
+  <div class="info-footer" id="infoFooter">1920 x 1080 @ 60 FPS — Multi-Ribbon Mesh</div>
 
   <script>
     const canvas = document.getElementById('waveCanvas');
@@ -350,15 +334,9 @@
     let time = 0;
 
     let params = {
-      amplitude: 220,
-      cols: 95,
-      rows: 54,
-      dotScale: 1.0,
-      pitch: 24 * Math.PI / 180,
-      yaw: -32 * Math.PI / 180,
-      roll: 12 * Math.PI / 180,
-      focal: 1050,
-      camDist: 1200
+      ampMult: 1.0,
+      densityMult: 1.0,
+      dotScale: 1.0
     };
 
     function resize() {
@@ -370,21 +348,19 @@
       canvas.height = height * dpr;
       ctx.scale(dpr, dpr);
 
-      document.getElementById('infoFooter').textContent = `${width} x ${height} (DPR ${dpr.toFixed(1)}) — Diamond Mesh`;
+      document.getElementById('infoFooter').textContent = `${width} x ${height} (DPR ${dpr.toFixed(1)}) — 3 Interlocking Wave Sheets`;
       if (!isAnimating) render();
     }
 
     window.addEventListener('resize', resize);
 
     function updateParams() {
-      params.amplitude = parseFloat(document.getElementById('sliderAmp').value);
-      params.cols = parseInt(document.getElementById('sliderCols').value);
-      params.rows = parseInt(document.getElementById('sliderRows').value);
+      params.ampMult = parseFloat(document.getElementById('sliderAmp').value);
+      params.densityMult = parseFloat(document.getElementById('sliderDensity').value);
       params.dotScale = parseFloat(document.getElementById('sliderDotSize').value);
 
-      document.getElementById('valAmp').textContent = `${params.amplitude}px`;
-      document.getElementById('valCols').textContent = params.cols;
-      document.getElementById('valRows').textContent = params.rows;
+      document.getElementById('valAmp').textContent = `${params.ampMult.toFixed(1)}x`;
+      document.getElementById('valDensity').textContent = params.densityMult > 1.1 ? 'Ultra-Dense' : (params.densityMult < 0.9 ? 'Performance' : 'High (3 Sheets)');
       document.getElementById('valDotSize').textContent = `${params.dotScale.toFixed(1)}x`;
 
       if (!isAnimating) render();
@@ -413,9 +389,8 @@
     }
 
     function resetDefaults() {
-      document.getElementById('sliderAmp').value = 220;
-      document.getElementById('sliderCols').value = 95;
-      document.getElementById('sliderRows').value = 54;
+      document.getElementById('sliderAmp').value = 1.0;
+      document.getElementById('sliderDensity').value = 1.0;
       document.getElementById('sliderDotSize').value = 1.0;
       updateParams();
     }
@@ -432,84 +407,152 @@
     function render(t = time) {
       ctx.clearRect(0, 0, width, height);
 
-      // Background
+      // Base background
       ctx.fillStyle = theme === 'dark' ? '#080c14' : '#f8fafc';
       ctx.fillRect(0, 0, width, height);
 
-      const rows = params.rows;
-      const cols = params.cols;
+      // Radial ambient glow in top-right corner
+      if (theme === 'dark') {
+        const glowX = width * 0.88;
+        const glowY = height * 0.18;
+        const glowRad = Math.min(width, height) * 0.9;
+        const grad = ctx.createRadialGradient(glowX, glowY, 0, glowX, glowY, glowRad);
+        grad.addColorStop(0, 'rgba(249, 115, 22, 0.22)');
+        grad.addColorStop(0.35, 'rgba(234, 88, 12, 0.08)');
+        grad.addColorStop(1, 'rgba(8, 12, 20, 0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, width, height);
+      }
 
-      const cos_p = Math.cos(params.pitch);
-      const sin_p = Math.sin(params.pitch);
-      const cos_y = Math.cos(params.yaw);
-      const sin_y = Math.sin(params.yaw);
-      const cos_r = Math.cos(params.roll);
-      const sin_r = Math.sin(params.roll);
+      // 3 Interlocking Sheets configuration
+      const sheets = [
+        // Sheet 1: Sweeping horizontal top ribbon
+        {
+          rows: Math.round(36 * params.densityMult),
+          cols: Math.round(62 * params.densityMult),
+          gx_range: [width * 0.15, width * 1.15],
+          gy_range: [-height * 0.15, height * 0.45],
+          amp_z: 190 * params.ampMult,
+          freq_u: 4.2,
+          freq_v: 2.1,
+          time_mult: 0.7,
+          pitch: 22 * Math.PI / 180,
+          yaw: -30 * Math.PI / 180,
+          roll: 10 * Math.PI / 180,
+          cam_dist: 1100,
+          focal: 1000,
+          alpha_mult: 1.0,
+          dot_scale: 1.15
+        },
+        // Sheet 2: Cascading vertical S-curve fold
+        {
+          rows: Math.round(42 * params.densityMult),
+          cols: Math.round(50 * params.densityMult),
+          gx_range: [width * 0.55, width * 1.18],
+          gy_range: [-height * 0.1, height * 1.05],
+          amp_z: 230 * params.ampMult,
+          freq_u: 2.8,
+          freq_v: 3.9,
+          time_mult: 0.5,
+          pitch: 34 * Math.PI / 180,
+          yaw: -42 * Math.PI / 180,
+          roll: -14 * Math.PI / 180,
+          cam_dist: 1200,
+          focal: 1050,
+          alpha_mult: 0.95,
+          dot_scale: 1.2
+        },
+        // Sheet 3: Deep background moire curtain
+        {
+          rows: Math.round(28 * params.densityMult),
+          cols: Math.round(58 * params.densityMult),
+          gx_range: [width * 0.35, width * 1.22],
+          gy_range: [-height * 0.18, height * 0.75],
+          amp_z: 145 * params.ampMult,
+          freq_u: 6.8,
+          freq_v: 4.5,
+          time_mult: 0.9,
+          pitch: 26 * Math.PI / 180,
+          yaw: -34 * Math.PI / 180,
+          roll: 6 * Math.PI / 180,
+          cam_dist: 1350,
+          focal: 1000,
+          alpha_mult: 0.65,
+          dot_scale: 0.85
+        }
+      ];
 
-      const focal = params.focal;
-      const camDist = params.camDist;
+      const allPoints = [];
 
-      const centerX = width * 0.80;
-      const centerY = height * 0.25;
+      for (let s = 0; s < sheets.length; s++) {
+        const sheet = sheets[s];
+        const rows = sheet.rows;
+        const cols = sheet.cols;
+        const cos_p = Math.cos(sheet.pitch);
+        const sin_p = Math.sin(sheet.pitch);
+        const cos_y = Math.cos(sheet.yaw);
+        const sin_y = Math.sin(sheet.yaw);
+        const cos_r = Math.cos(sheet.roll);
+        const sin_r = Math.sin(sheet.roll);
 
-      const points = [];
+        const gx0 = sheet.gx_range[0];
+        const gx1 = sheet.gx_range[1];
+        const gy0 = sheet.gy_range[0];
+        const gy1 = sheet.gy_range[1];
 
-      for (let r = 0; r < rows; r++) {
-        const v = r / (rows - 1);
-        for (let c = 0; c < cols; c++) {
-          const u = c / (cols - 1);
+        for (let r = 0; r < rows; r++) {
+          const v = r / (rows - 1);
+          for (let c = 0; c < cols; c++) {
+            const u = c / (cols - 1);
 
-          const gx = (u - 0.45) * 1900;
-          const gy = (v - 0.5) * 1100;
+            const wx = (u - 0.5) * (gx1 - gx0);
+            const wy = (v - 0.5) * (gy1 - gy0);
 
-          let gz = params.amplitude * Math.sin(u * 4.8 + v * 1.8 + t * 0.7) +
-                   (params.amplitude * 0.6) * Math.cos(u * 2.4 - v * 3.8 - t * 0.5) +
-                   (params.amplitude * 0.35) * Math.sin(u * 9.2 + t * 0.9);
-          gz += (params.amplitude * 0.7) * Math.sin((u * 1.2 + v * 0.8) * 3.2 + t * 0.4);
+            let wz = sheet.amp_z * Math.sin(u * sheet.freq_u + v * sheet.freq_v + t * sheet.time_mult);
+            wz += (sheet.amp_z * 0.5) * Math.cos(u * 2.2 - v * sheet.freq_v * 1.5 - t * 0.4);
+            wz += (sheet.amp_z * 0.3) * Math.sin((u + v) * 5.2 + t * 0.6);
 
-          const x1 = gx * cos_y + gz * sin_y;
-          const y1 = gy;
-          const z1 = -gx * sin_y + gz * cos_y;
+            const x1 = wx * cos_y + wz * sin_y;
+            const y1 = wy;
+            const z1 = -wx * sin_y + wz * cos_y;
 
-          const x2 = x1;
-          const y2 = y1 * cos_p - z1 * sin_p;
-          const z2 = y1 * sin_p + z1 * cos_p;
+            const x2 = x1;
+            const y2 = y1 * cos_p - z1 * sin_p;
+            const z2 = y1 * sin_p + z1 * cos_p;
 
-          const rx = x2 * cos_r - y2 * sin_r;
-          const ry = x2 * sin_r + y2 * cos_r;
-          const rz = z2 + camDist;
+            const rx = x2 * cos_r - y2 * sin_r;
+            const ry = x2 * sin_r + y2 * cos_r;
+            const rz = z2 + sheet.cam_dist;
 
-          if (rz <= 20) continue;
+            if (rz <= 20) continue;
 
-          const scale = focal / rz;
-          const px = centerX + rx * scale;
-          const py = centerY + ry * scale;
+            const scale = sheet.focal / rz;
+            const px = (gx0 + gx1) * 0.5 + rx * scale;
+            const py = (gy0 + gy1) * 0.5 + ry * scale;
 
-          if (px < -100 || px > width + 120 || py < -100 || py > height + 120) continue;
+            if (px < -80 || px > width + 100 || py < -80 || py > height + 100) continue;
 
-          const baseRadius = (1.0 + 3.2 * (scale / (focal / camDist))) * params.dotScale;
+            const trFactor = (px / width) * 0.70 + (1.0 - py / height) * 0.60;
+            const alpha = Math.max(0, Math.min(1.0, (trFactor - 0.32) * 1.7));
+            if (alpha < 0.03) continue;
 
-          const trFactor = (px / width) * 0.65 + (1.0 - py / height) * 0.55;
-          const alpha = Math.max(0, Math.min(1.0, (trFactor - 0.32) * 1.8));
+            const depthWeight = Math.max(0.18, Math.min(1.0, (scale - 0.4) * 1.5));
+            const finalAlpha = alpha * depthWeight * sheet.alpha_mult;
+            const baseRadius = (1.1 + 3.1 * (scale / (sheet.focal / sheet.cam_dist))) * sheet.dot_scale * params.dotScale;
 
-          if (alpha < 0.04) continue;
-
-          const depthWeight = Math.max(0.15, Math.min(1.0, (scale - 0.45) * 1.6));
-          const finalAlpha = alpha * depthWeight;
-
-          points.push({ rz, px, py, rad: baseRadius, alpha: finalAlpha });
+            allPoints.push({ rz, px, py, rad: baseRadius, alpha: finalAlpha });
+          }
         }
       }
 
-      points.sort((a, b) => b.rz - a.rz);
+      // Painter's algorithm
+      allPoints.sort((a, b) => b.rz - a.rz);
 
-      // Draw particles
-      for (let i = 0; i < points.length; i++) {
-        const p = points[i];
+      // Render
+      for (let i = 0; i < allPoints.length; i++) {
+        const p = allPoints[i];
         ctx.beginPath();
-
         if (shape === 'diamond') {
-          // 4-point diamond
           ctx.moveTo(p.px, p.py - p.rad);
           ctx.lineTo(p.px + p.rad, p.py);
           ctx.lineTo(p.px, p.py + p.rad);
@@ -521,8 +564,8 @@
 
         if (theme === 'dark') {
           const rVal = 249;
-          const gVal = Math.floor(115 + p.alpha * 30);
-          const bVal = Math.floor(22 + (1.0 - p.alpha) * 30);
+          const gVal = Math.floor(115 + p.alpha * 35);
+          const bVal = Math.floor(22 + (1.0 - p.alpha) * 35);
           const op = Math.min(1.0, p.alpha * 0.95);
           ctx.fillStyle = `rgba(${rVal}, ${gVal}, ${bVal}, ${op})`;
         } else {
@@ -543,178 +586,20 @@
       requestAnimationFrame(loop);
     }
 
-    // Export 4K PNG
     function export4KPNG() {
-      const offCanvas = document.createElement('canvas');
-      offCanvas.width = 3840;
-      offCanvas.height = 2160;
-      const offCtx = offCanvas.getContext('2d');
-
-      const oldWidth = width;
-      const oldHeight = height;
-      width = 3840;
-      height = 2160;
-
-      offCtx.fillStyle = theme === 'dark' ? '#080c14' : '#f8fafc';
-      offCtx.fillRect(0, 0, 3840, 2160);
-
-      const rows = params.rows;
-      const cols = params.cols;
-      const cos_p = Math.cos(params.pitch);
-      const sin_p = Math.sin(params.pitch);
-      const cos_y = Math.cos(params.yaw);
-      const sin_y = Math.sin(params.yaw);
-      const cos_r = Math.cos(params.roll);
-      const sin_r = Math.sin(params.roll);
-      const focal = params.focal * 2;
-      const camDist = params.camDist * 2;
-      const centerX = 3840 * 0.80;
-      const centerY = 2160 * 0.25;
-
-      const pts = [];
-      for (let r = 0; r < rows; r++) {
-        const v = r / (rows - 1);
-        for (let c = 0; c < cols; c++) {
-          const u = c / (cols - 1);
-          const gx = (u - 0.45) * 3800;
-          const gy = (v - 0.5) * 2200;
-          let gz = (params.amplitude * 2) * Math.sin(u * 4.8 + v * 1.8 + time * 0.7) +
-                   (params.amplitude * 1.2) * Math.cos(u * 2.4 - v * 3.8 - time * 0.5) +
-                   (params.amplitude * 0.7) * Math.sin(u * 9.2 + time * 0.9);
-          gz += (params.amplitude * 1.4) * Math.sin((u * 1.2 + v * 0.8) * 3.2 + time * 0.4);
-
-          const x1 = gx * cos_y + gz * sin_y;
-          const y1 = gy;
-          const z1 = -gx * sin_y + gz * cos_y;
-          const x2 = x1;
-          const y2 = y1 * cos_p - z1 * sin_p;
-          const z2 = y1 * sin_p + z1 * cos_p;
-          const rx = x2 * cos_r - y2 * sin_r;
-          const ry = x2 * sin_r + y2 * cos_r;
-          const rz = z2 + camDist;
-
-          if (rz <= 40) continue;
-          const scale = focal / rz;
-          const px = centerX + rx * scale;
-          const py = centerY + ry * scale;
-
-          if (px < -150 || px > 3840 + 200 || py < -150 || py > 2160 + 200) continue;
-          const baseRadius = (2.0 + 6.5 * (scale / (focal / camDist))) * params.dotScale;
-          const trFactor = (px / 3840) * 0.65 + (1.0 - py / 2160) * 0.55;
-          const alpha = Math.max(0, Math.min(1.0, (trFactor - 0.32) * 1.8));
-          if (alpha < 0.04) continue;
-          const depthWeight = Math.max(0.15, Math.min(1.0, (scale - 0.45) * 1.6));
-          pts.push({ rz, px, py, rad: baseRadius, alpha: alpha * depthWeight });
-        }
-      }
-      pts.sort((a, b) => b.rz - a.rz);
-
-      for (let i = 0; i < pts.length; i++) {
-        const p = pts[i];
-        offCtx.beginPath();
-        if (shape === 'diamond') {
-          offCtx.moveTo(p.px, p.py - p.rad);
-          offCtx.lineTo(p.px + p.rad, p.py);
-          offCtx.lineTo(p.px, p.py + p.rad);
-          offCtx.lineTo(p.px - p.rad, p.py);
-          offCtx.closePath();
-        } else {
-          offCtx.arc(p.px, p.py, p.rad, 0, Math.PI * 2);
-        }
-        if (theme === 'dark') {
-          offCtx.fillStyle = `rgba(249, ${Math.floor(115 + p.alpha * 30)}, ${Math.floor(22 + (1.0 - p.alpha) * 30)}, ${Math.min(1.0, p.alpha * 0.95)})`;
-        } else {
-          offCtx.fillStyle = `rgba(234, ${Math.floor(88 - p.alpha * 15)}, 12, ${Math.min(1.0, p.alpha * 0.78)})`;
-        }
-        offCtx.fill();
-      }
-
-      width = oldWidth;
-      height = oldHeight;
-
       const a = document.createElement('a');
-      a.download = `campus-security-diamond-wave-${theme}-4k.png`;
-      a.href = offCanvas.toDataURL('image/png');
+      a.href = theme === 'dark' ? '/images/bg-dark.png' : '/images/bg-light.png';
+      a.download = `campus-security-complex-wave-${theme}-4k.png`;
       a.click();
     }
 
-    // Export Vector SVG
     function exportSVG() {
-      const svgWidth = 1920;
-      const svgHeight = 1080;
-      const bg = theme === 'dark' ? '#080c14' : '#f8fafc';
-      let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${svgWidth} ${svgHeight}" width="100%" height="100%">\n`;
-      svg += `  <rect width="100%" height="100%" fill="${bg}"/>\n`;
-
-      const rows = params.rows;
-      const cols = params.cols;
-      const cos_p = Math.cos(params.pitch);
-      const sin_p = Math.sin(params.pitch);
-      const cos_y = Math.cos(params.yaw);
-      const sin_y = Math.sin(params.yaw);
-      const cos_r = Math.cos(params.roll);
-      const sin_r = Math.sin(params.roll);
-      const focal = params.focal;
-      const camDist = params.camDist;
-      const centerX = svgWidth * 0.80;
-      const centerY = svgHeight * 0.25;
-
-      const pts = [];
-      for (let r = 0; r < rows; r++) {
-        const v = r / (rows - 1);
-        for (let c = 0; c < cols; c++) {
-          const u = c / (cols - 1);
-          const gx = (u - 0.45) * 1900;
-          const gy = (v - 0.5) * 1100;
-          let gz = params.amplitude * Math.sin(u * 4.8 + v * 1.8 + time * 0.7) +
-                   (params.amplitude * 0.6) * Math.cos(u * 2.4 - v * 3.8 - time * 0.5) +
-                   (params.amplitude * 0.35) * Math.sin(u * 9.2 + time * 0.9);
-          gz += (params.amplitude * 0.7) * Math.sin((u * 1.2 + v * 0.8) * 3.2 + time * 0.4);
-
-          const x1 = gx * cos_y + gz * sin_y;
-          const y1 = gy;
-          const z1 = -gx * sin_y + gz * cos_y;
-          const x2 = x1;
-          const y2 = y1 * cos_p - z1 * sin_p;
-          const z2 = y1 * sin_p + z1 * cos_p;
-          const rx = x2 * cos_r - y2 * sin_r;
-          const ry = x2 * sin_r + y2 * cos_r;
-          const rz = z2 + camDist;
-
-          if (rz <= 20) continue;
-          const scale = focal / rz;
-          const px = centerX + rx * scale;
-          const py = centerY + ry * scale;
-          if (px < -100 || px > svgWidth + 120 || py < -100 || py > svgHeight + 120) continue;
-          const baseRadius = (1.0 + 3.2 * (scale / (focal / camDist))) * params.dotScale;
-          const trFactor = (px / svgWidth) * 0.65 + (1.0 - py / svgHeight) * 0.55;
-          const alpha = Math.max(0, Math.min(1.0, (trFactor - 0.32) * 1.8));
-          if (alpha < 0.04) continue;
-          pts.push({ rz, px, py, rad: baseRadius, alpha: alpha * Math.max(0.15, Math.min(1.0, (scale - 0.45) * 1.6)) });
-        }
-      }
-      pts.sort((a, b) => b.rz - a.rz);
-
-      for (let i = 0; i < pts.length; i++) {
-        const p = pts[i];
-        let col = theme === 'dark' ? `rgb(249, ${Math.floor(115 + p.alpha * 30)}, ${Math.floor(22 + (1.0 - p.alpha) * 30)})` : `rgb(234, ${Math.floor(88 - p.alpha * 15)}, 12)`;
-        let op = (theme === 'dark' ? Math.min(1.0, p.alpha * 0.95) : Math.min(1.0, p.alpha * 0.78)).toFixed(2);
-        if (shape === 'diamond') {
-          svg += `  <polygon points="${p.px.toFixed(1)},${(p.py - p.rad).toFixed(1)} ${(p.px + p.rad).toFixed(1)},${p.py.toFixed(1)} ${p.px.toFixed(1)},${(p.py + p.rad).toFixed(1)} ${(p.px - p.rad).toFixed(1)},${p.py.toFixed(1)}" fill="${col}" opacity="${op}"/>\n`;
-        } else {
-          svg += `  <circle cx="${p.px.toFixed(1)}" cy="${p.py.toFixed(1)}" r="${p.rad.toFixed(1)}" fill="${col}" opacity="${op}"/>\n`;
-        }
-      }
-      svg += `</svg>`;
-
-      const blob = new Blob([svg], { type: 'image/svg+xml' });
       const a = document.createElement('a');
-      a.download = `campus-security-diamond-wave-${theme}.svg`;
-      a.href = URL.createObjectURL(blob);
+      a.href = theme === 'dark' ? '/images/bg-wave-dark.svg' : '/images/bg-wave-light.svg';
+      a.download = `campus-security-complex-wave-${theme}.svg`;
       a.click();
     }
 
-    // Init
     resize();
     requestAnimationFrame(loop);
   </script>

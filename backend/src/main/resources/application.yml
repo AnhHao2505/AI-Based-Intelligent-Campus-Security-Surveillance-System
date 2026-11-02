@@ -88,6 +88,9 @@ app:
       incidents: ${MQTT_TOPIC_INCIDENTS:campus/alerts/incidents}
       recordings: ${MQTT_TOPIC_RECORDINGS:campus/recordings/completed}
     enabled: ${MQTT_ENABLED:true}
+    username: ${MQTT_BACKEND_USERNAME:icss-backend}
+    password: ${MQTT_BACKEND_PASSWORD:}
+    connect-retry-seconds: ${MQTT_CONNECT_RETRY_SECONDS:10}
   jwt:
     secret: ${JWT_SECRET}
     expiration-ms: ${JWT_EXPIRATION:86400000} # 24 hours
@@ -122,6 +125,8 @@ icss:
     access-log-retention-cron: ${ACCESS_LOG_RETENTION_CRON:0 30 2 * * *}
     # Job leo thang sự cố: chu kỳ đọc từ INCIDENT_ESCALATION_CHECK_SECONDS (system_configurations), cờ này chỉ bật/tắt job
     incident-escalation-enabled: ${INCIDENT_ESCALATION_ENABLED:true}
+    # Job hết hạn lời mời phân phối sự cố (V93): chu kỳ đọc từ DISPATCH_CHECK_SECONDS, cờ này chỉ bật/tắt job
+    incident-dispatch-enabled: ${INCIDENT_DISPATCH_ENABLED:true}
   guest:
     # Giới hạn kích thước ảnh khách (KB), tham số vận hành
     photo-max-kb: ${GUEST_PHOTO_MAX_KB:2048}

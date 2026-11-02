@@ -26,16 +26,24 @@ class Settings(BaseSettings):
     MQTT_TOPIC_RECORDINGS: str = "campus/recordings/completed"
     MQTT_TOPIC_HEALTH: str = "campus/cameras/{camera_id}/health"
     MQTT_ENABLED: bool = Field(default=True, validation_alias="MQTT_ENABLED")
+    MQTT_USERNAME: str = Field(default="icss-ai", validation_alias="MQTT_AI_USERNAME")
+    MQTT_PASSWORD: str = Field(default="", validation_alias="MQTT_AI_PASSWORD")
+    # Outbox SQLite: cảnh báo được lưu bền trước khi gửi, gửi lại tới khi broker xác nhận (PUBACK)
+    MQTT_OUTBOX_PATH: str = Field(default="data/mqtt_outbox.sqlite3", validation_alias="MQTT_OUTBOX_PATH")
+    MQTT_OUTBOX_FLUSH_SECONDS: float = Field(default=5.0, validation_alias="MQTT_OUTBOX_FLUSH_SECONDS")
+    MQTT_OUTBOX_INFLIGHT_TIMEOUT_SECONDS: float = Field(default=30.0, validation_alias="MQTT_OUTBOX_INFLIGHT_TIMEOUT_SECONDS")
+    MQTT_OUTBOX_MAX_ROWS: int = Field(default=10000, validation_alias="MQTT_OUTBOX_MAX_ROWS")
+    MQTT_OUTBOX_MAX_AGE_HOURS: float = Field(default=24.0, validation_alias="MQTT_OUTBOX_MAX_AGE_HOURS")
 
     # MediaMTX Edge & Cloud Relay Configuration
     MEDIAMTX_API_URL: str = Field(default="http://localhost:9997", validation_alias="MEDIAMTX_API_URL")
     MEDIAMTX_RTSP_URL: str = Field(default="rtsp://localhost:8554", validation_alias="MEDIAMTX_RTSP_URL")
     CLOUD_MEDIAMTX_RTSP_URL: str = Field(default="", validation_alias="CLOUD_MEDIAMTX_RTSP_URL")
     
-    # MinIO Storage Configuration (Đọc credentials từ env hoặc cấu hình mặc định cục bộ)
+    # MinIO Storage Configuration (Bắt buộc đọc credentials từ biến môi trường, không để default trong source)
     MINIO_ENDPOINT: str = Field(default="localhost:9000", validation_alias="MINIO_ENDPOINT")
-    MINIO_ACCESS_KEY: str = Field(default="minioadmin", validation_alias=AliasChoices("MINIO_ROOT_USER", "MINIO_ACCESS_KEY"))
-    MINIO_SECRET_KEY: str = Field(default="minioadmin123", min_length=8, validation_alias=AliasChoices("MINIO_ROOT_PASSWORD", "MINIO_SECRET_KEY"))
+    MINIO_ACCESS_KEY: str = Field(..., validation_alias=AliasChoices("MINIO_ROOT_USER", "MINIO_ACCESS_KEY"))
+    MINIO_SECRET_KEY: str = Field(..., min_length=8, validation_alias=AliasChoices("MINIO_ROOT_PASSWORD", "MINIO_SECRET_KEY"))
     MINIO_BUCKET_FACES: str = "face-profiles"
     MINIO_BUCKET_EVIDENCE: str = "security-evidence"
     MINIO_BUCKET_RECORDINGS: str = "camera-recordings"
@@ -87,7 +95,9 @@ class Settings(BaseSettings):
     # Backend Access Decision Service Integration
     BACKEND_API_URL: str = Field(default="http://localhost:8080", validation_alias="BACKEND_API_URL")
     ACCESS_DECISION_CACHE_TTL: float = 30.0
-    INTERNAL_SERVICE_KEY: str = Field(default="dev-internal-ai-service-key-32chars-min-2026", min_length=32, validation_alias="INTERNAL_SERVICE_KEY")
+    # Khoá dùng chung với Backend (cùng giá trị INTERNAL_SERVICE_KEY của Backend). Bắt buộc, không có mặc định:
+    # thiếu hoặc ngắn hơn 32 ký tự thì service không khởi động.
+    INTERNAL_SERVICE_KEY: str = Field(..., min_length=32, validation_alias="INTERNAL_SERVICE_KEY")
     
     class Config:
         env_file = (
@@ -98,6 +108,7 @@ class Settings(BaseSettings):
             os.path.join(os.path.dirname(os.path.dirname(AI_SERVICE_DIR)), ".env"),
         )
         extra = "ignore"
+        # Không in giá trị đầu vào (khoá, mật khẩu) trong thông báo lỗi validate
         hide_input_in_errors = True
 
 settings = Settings()

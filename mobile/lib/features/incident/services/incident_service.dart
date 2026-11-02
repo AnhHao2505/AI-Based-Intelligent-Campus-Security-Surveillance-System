@@ -49,6 +49,11 @@ class IncidentService {
     return {'success': true};
   }
 
+  /// Từ chối lời mời xử lý sự cố (bước 1 phân phối theo đợt)
+  Future<void> declineOffer(String incidentId) async {
+    await _apiClient.dio.post(ApiEndpoints.declineOffer(incidentId));
+  }
+
   /// Báo cáo giải quyết sự cố (Resolve)
   Future<IncidentModel> resolveIncident(
     String incidentId, {

@@ -26,10 +26,12 @@ import ManageAccountPage from "./pages/accounts/ManageAccountPage";
 import SystemConfigPage from "./pages/system/SystemConfigPage";
 import GuardTeamManagementPage from "./pages/guardTeams/GuardTeamManagementPage";
 import ReasonCatalogPage from "./pages/system/ReasonCatalogPage";
+import IncidentPolicyPage from "./pages/system/IncidentPolicyPage";
 import UserAccessLevelPage from "./pages/accessControl/UserAccessLevelPage";
 import AuditLogPage from "./pages/accessControl/AuditLogPage";
 import AccessLevelsRedirect from "./pages/accessControl/AccessLevelsRedirect";
 import RecordingPage from "./pages/cameras/RecordingPage";
+import SecurityReportPage from "./pages/reports/SecurityReportPage";
 import DemoModeBanner from "./components/common/DemoModeBanner";
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
@@ -60,6 +62,8 @@ const ROUTE_TITLES = {
 	"/admin/system-configurations": "Cấu hình Hệ thống",
 	"/login": "Đăng nhập",
 	"/admin/reason-catalogs": "Danh mục lý do",
+	"/admin/incident-policies": "Chính sách sự cố",
+	"/admin/reports": "Báo cáo an ninh",
 	"/unauthorized": "Không có quyền truy cập",
 };
 
@@ -442,6 +446,22 @@ function App() {
 								element={
 									<ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
 										<ReasonCatalogPage />
+									</ProtectedRoute>
+								}
+							/>
+							<Route
+								path="/admin/incident-policies"
+								element={
+									<ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+										<IncidentPolicyPage />
+									</ProtectedRoute>
+								}
+							/>
+							<Route
+								path="/admin/reports"
+								element={
+									<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.FACILITY_MANAGER]}>
+										<SecurityReportPage />
 									</ProtectedRoute>
 								}
 							/>
