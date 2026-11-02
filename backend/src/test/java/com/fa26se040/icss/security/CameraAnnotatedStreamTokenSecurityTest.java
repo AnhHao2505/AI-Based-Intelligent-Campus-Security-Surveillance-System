@@ -2,9 +2,8 @@ package com.fa26se040.icss.security;
 
 import com.fa26se040.icss.config.SecurityConfig;
 import com.fa26se040.icss.controller.CameraController;
-import com.fa26se040.icss.entity.Camera;
-import com.fa26se040.icss.enums.CameraStatus;
-import com.fa26se040.icss.repository.CameraRepository;
+import com.fa26se040.icss.exception.CameraErrorCode;
+import com.fa26se040.icss.exception.CameraException;
 import com.fa26se040.icss.service.*;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletRequest;
@@ -25,8 +24,6 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -69,9 +66,6 @@ class CameraAnnotatedStreamTokenSecurityTest {
     private CameraRecordingService cameraRecordingService;
 
     @MockBean
-    private CameraRepository cameraRepository;
-
-    @MockBean
     private AnnotatedStreamTokenService annotatedStreamTokenService;
 
     private final String cameraCode = "CAM-001";
@@ -103,17 +97,7 @@ class CameraAnnotatedStreamTokenSecurityTest {
             return null;
         }).when(internalServiceKeyFilter).doFilter(any(), any(), any());
 
-        Camera mockCamera = Camera.builder()
-                .id(UUID.randomUUID())
-                .cameraCode(cameraCode)
-                .name("Camera Cổng")
-                .status(CameraStatus.ACTIVE)
-                .build();
-
-        when(cameraRepository.findByCameraCodeAndDeletedAtIsNull(eq(cameraCode)))
-                .thenReturn(Optional.of(mockCamera));
-
-        when(annotatedStreamTokenService.issue(eq(cameraCode)))
+        when(annotatedStreamTokenService.issueForCamera(eq(cameraCode)))
                 .thenReturn(new AnnotatedStreamTokenService.TokenResponse("1893456000.sampletoken", 1893456000L));
     }
 
@@ -145,5 +129,29 @@ class CameraAnnotatedStreamTokenSecurityTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.token").value("1893456000.sampletoken"))
                 .andExpect(jsonPath("$.data.expiresAt").value(1893456000L));
+    }
+
+    @Test
+    @DisplayName("Camera không tồn tại -> 404 ERR_CAM_002")
+    void getAnnotatedStreamToken_cameraNotFound_returns404() throws Exception {
+        when(annotatedStreamTokenService.issueForCamera(eq("CAM-404")))
+                .thenThrow(new CameraException(CameraErrorCode.ERR_CAM_002));
+
+        mockMvc.perform(post("/api/cameras/{cameraCode}/annotated-stream-token", "CAM-404")
+                        .header("Authorization", "Bearer GUARD"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("ERR_CAM_002"));
+    }
+
+    @Test
+    @DisplayName("Camera DECOMMISSIONED -> 400 ERR_STREAM_003")
+    void getAnnotatedStreamToken_decommissionedCamera_returns400() throws Exception {
+        when(annotatedStreamTokenService.issueForCamera(eq(cameraCode)))
+                .thenThrow(new CameraException(CameraErrorCode.ERR_STREAM_003));
+
+        mockMvc.perform(post("/api/cameras/{cameraCode}/annotated-stream-token", cameraCode)
+                        .header("Authorization", "Bearer GUARD"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("ERR_STREAM_003"));
     }
 }

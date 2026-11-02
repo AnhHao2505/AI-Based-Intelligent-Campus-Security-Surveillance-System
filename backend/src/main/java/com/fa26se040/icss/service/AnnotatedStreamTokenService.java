@@ -1,5 +1,10 @@
 package com.fa26se040.icss.service;
 
+import com.fa26se040.icss.entity.Camera;
+import com.fa26se040.icss.enums.CameraStatus;
+import com.fa26se040.icss.exception.CameraErrorCode;
+import com.fa26se040.icss.exception.CameraException;
+import com.fa26se040.icss.repository.CameraRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -17,16 +22,32 @@ import java.util.HexFormat;
 @Service
 public class AnnotatedStreamTokenService {
 
+    private final CameraRepository cameraRepository;
     private final String serviceKey;
     private final long tokenSeconds;
 
     public record TokenResponse(String token, long expiresAt) {}
 
     public AnnotatedStreamTokenService(
+            CameraRepository cameraRepository,
             @Value("${icss.internal.service-key:}") String serviceKey,
             @Value("${icss.ai.annotated-stream-token-seconds:60}") long tokenSeconds) {
+        this.cameraRepository = cameraRepository;
         this.serviceKey = serviceKey;
         this.tokenSeconds = tokenSeconds;
+    }
+
+    /**
+     * Cấp token cho camera theo mã: camera phải tồn tại (chưa xoá) và không ở trạng thái DECOMMISSIONED.
+     * Token ký theo mã camera lưu trong DB, không theo chuỗi client gửi lên.
+     */
+    public TokenResponse issueForCamera(String cameraCode) {
+        Camera camera = cameraRepository.findByCameraCodeAndDeletedAtIsNull(cameraCode)
+                .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_CAM_002));
+        if (camera.getStatus() == CameraStatus.DECOMMISSIONED) {
+            throw new CameraException(CameraErrorCode.ERR_STREAM_003);
+        }
+        return issue(camera.getCameraCode());
     }
 
     public TokenResponse issue(String cameraCode) {
