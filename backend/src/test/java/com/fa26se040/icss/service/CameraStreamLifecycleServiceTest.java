@@ -20,7 +20,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.web.client.RestTemplate;
+import com.fa26se040.icss.config.AiServiceRestTemplate;
 
 import java.util.Map;
 import java.util.Optional;
@@ -49,7 +49,7 @@ class CameraStreamLifecycleServiceTest {
     private MediaMtxService mediaMtxService;
 
     @Mock
-    private RestTemplate restTemplate;
+    private AiServiceRestTemplate restTemplate;
 
     @InjectMocks
     private CameraStreamLifecycleService cameraStreamLifecycleService;

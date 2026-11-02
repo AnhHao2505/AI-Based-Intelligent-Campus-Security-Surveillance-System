@@ -23,7 +23,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.web.client.RestTemplate;
+import com.fa26se040.icss.config.AiServiceRestTemplate;
 
 import java.time.OffsetDateTime;
 import java.util.*;
@@ -51,7 +51,7 @@ public class CameraService {
     @Value("${camera.rtsp.timeout-ms:10000}")
     private int defaultTimeoutMs;
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final AiServiceRestTemplate restTemplate;
 
     // === Camera CRUD ===
 

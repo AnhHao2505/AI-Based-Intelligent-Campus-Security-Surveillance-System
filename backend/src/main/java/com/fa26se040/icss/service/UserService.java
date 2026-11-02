@@ -99,13 +99,20 @@ public class UserService {
     @Value("${ai.service.url:http://localhost:8000}")
     private String aiServiceUrl = "http://localhost:8000";
 
+    @Value("${icss.internal.service-key:}")
+    private String internalServiceKey;
+
     // Cho phép mock/override HTTP caller trong unit test
     private java.util.function.Consumer<String> refreshHttpCaller = url -> {
         try {
             HttpClient client = HttpClient.newBuilder()
                     .connectTimeout(Duration.ofMillis(1000))
                     .build();
-            HttpRequest request = HttpRequest.newBuilder()
+            HttpRequest.Builder reqBuilder = HttpRequest.newBuilder();
+            if (internalServiceKey != null && !internalServiceKey.isBlank()) {
+                reqBuilder.header("X-Service-Key", internalServiceKey);
+            }
+            HttpRequest request = reqBuilder
                     .uri(URI.create(url))
                     .POST(HttpRequest.BodyPublishers.noBody())
                     .timeout(Duration.ofMillis(2000))
@@ -119,6 +126,10 @@ public class UserService {
 
     void setAiServiceUrl(String aiServiceUrl) {
         this.aiServiceUrl = aiServiceUrl;
+    }
+
+    void setInternalServiceKey(String internalServiceKey) {
+        this.internalServiceKey = internalServiceKey;
     }
 
     void setRefreshHttpCaller(java.util.function.Consumer<String> refreshHttpCaller) {

@@ -16,7 +16,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestTemplate;
+import com.fa26se040.icss.config.AiServiceRestTemplate;
 
 import java.time.OffsetDateTime;
 import java.util.HashMap;
@@ -39,7 +39,7 @@ public class CameraSnapshotService {
     private final CameraRepository cameraRepository;
     private final CameraStreamConfigurationRepository streamConfigRepo;
     private final CameraService cameraService;
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final AiServiceRestTemplate restTemplate;
 
     @Value("${ai.service.url:http://localhost:8000}")
     private String aiServiceUrl;

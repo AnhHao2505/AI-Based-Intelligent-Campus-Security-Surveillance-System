@@ -26,7 +26,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.web.client.RestTemplate;
+import com.fa26se040.icss.config.AiServiceRestTemplate;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -45,7 +45,7 @@ public class SystemConfigService {
     private final UserRepository userRepository;
     private final org.springframework.beans.factory.ObjectProvider<AreaService> areaServiceProvider;
     private final org.springframework.beans.factory.ObjectProvider<InAppNotificationService> notificationServiceProvider;
-    private final RestTemplate aiRestTemplate = new RestTemplate();
+    private final AiServiceRestTemplate aiRestTemplate;
 
     @Value("${ai.service.url:http://localhost:8000}")
     private String aiServiceUrl;
