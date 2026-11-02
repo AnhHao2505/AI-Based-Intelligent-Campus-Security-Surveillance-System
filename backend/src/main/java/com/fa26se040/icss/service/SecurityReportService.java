@@ -203,14 +203,15 @@ public class SecurityReportService {
         // 3. Access logs aggregation
         Map<LocalDate, Map<AccessResult, Long>> accessByDay = new HashMap<>();
         Map<AccessResult, Long> accessTotals = new EnumMap<>(AccessResult.class);
-        for (AccessResult r : AccessResult.values()) {
+        for (AccessResult r : AccessResult.CANONICAL) {
             accessTotals.put(r, 0L);
         }
 
         for (AccessLogStatsQueryRepository.DayResultCount row
                 : accessLogStatsQueryRepository.countByDayAndResult(from, to, VN_ZONE.getId())) {
             try {
-                AccessResult result = AccessResult.valueOf(row.getAccessResult());
+                // Tên cũ chưa migrate gộp vào nhãn chuẩn (03/11)
+                AccessResult result = AccessResult.valueOf(row.getAccessResult()).canonical();
                 LocalDate day = LocalDate.parse(row.getDay());
                 long count = row.getTotal() != null ? row.getTotal() : 0L;
                 accessByDay.computeIfAbsent(day, d -> new EnumMap<>(AccessResult.class))
@@ -222,18 +223,25 @@ public class SecurityReportService {
         }
 
         long totalAccessScans = accessTotals.values().stream().mapToLong(Long::longValue).sum();
-        long authorizedAccessCount = accessTotals.getOrDefault(AccessResult.AUTHORIZED_ACCESS, 0L);
+        // Nhãn mới (03/11) cộng nhãn cũ chưa migrate
+        long authorizedAccessCount = accessTotals.getOrDefault(AccessResult.AUTHORIZED_PERSON, 0L)
+                + accessTotals.getOrDefault(AccessResult.AUTHORIZED_ACCESS, 0L);
         long violationAccessCount = totalAccessScans - authorizedAccessCount;
 
         List<DailyAccessTrendDto> dailyAccessTrends = new ArrayList<>();
         for (LocalDate d = startDate; !d.isAfter(endDate); d = d.plusDays(1)) {
             Map<AccessResult, Long> counts = accessByDay.getOrDefault(d, Map.of());
-            long auth = counts.getOrDefault(AccessResult.AUTHORIZED_ACCESS, 0L);
-            long unauth = counts.getOrDefault(AccessResult.UNAUTHORIZED_ACCESS, 0L);
+            long auth = counts.getOrDefault(AccessResult.AUTHORIZED_PERSON, 0L)
+                    + counts.getOrDefault(AccessResult.AUTHORIZED_ACCESS, 0L);
+            long unauth = counts.getOrDefault(AccessResult.UNAUTHORIZED_PERSON, 0L)
+                    + counts.getOrDefault(AccessResult.UNAUTHORIZED_ACCESS, 0L);
+            // Sai khung giờ đã gộp vào UNAUTHORIZED_PERSON (03/11); cột này chỉ còn dữ liệu chưa migrate
             long outTime = counts.getOrDefault(AccessResult.ACCESS_OUT_OF_TIME, 0L);
             long unknown = counts.getOrDefault(AccessResult.UNKNOWN_PERSON, 0L);
-            long intrusion = counts.getOrDefault(AccessResult.INTRUSION, 0L);
-            long dayTotal = auth + unauth + outTime + unknown + intrusion;
+            long intrusion = counts.getOrDefault(AccessResult.PERSON_INTRUSION, 0L)
+                    + counts.getOrDefault(AccessResult.INTRUSION, 0L);
+            long suspicious = counts.getOrDefault(AccessResult.SUSPICIOUS_MOVING_OBJECT, 0L);
+            long dayTotal = auth + unauth + outTime + unknown + intrusion + suspicious;
             dailyAccessTrends.add(new DailyAccessTrendDto(d, auth, unauth, outTime, unknown, intrusion, dayTotal));
         }
 
@@ -314,13 +322,13 @@ public class SecurityReportService {
     private static String getEventTypeLabel(String eventType) {
         if (eventType == null) return "Sự cố an ninh";
         return switch (eventType.toUpperCase()) {
-            case "UNAUTHORIZED_ENTRY", "UNAUTHORIZED" -> "Đột nhập / Không thẩm quyền";
+            case "UNAUTHORIZED_PERSON", "UNAUTHORIZED_ACCESS", "ACCESS_OUT_OF_TIME", "UNAUTHORIZED_ENTRY", "UNAUTHORIZED" -> "Đột nhập / Không thẩm quyền";
             case "UNKNOWN_PERSON", "UNKNOWN" -> "Người lạ / Không nhận diện";
-            case "AFTER_HOURS_ACCESS", "AFTER_HOURS", "AFTER_HOURS_PRESENCE" -> "Truy cập ngoài giờ";
+            case "PERSON_INTRUSION", "INTRUSION", "AFTER_HOURS_ACCESS", "AFTER_HOURS", "AFTER_HOURS_PRESENCE" -> "Truy cập ngoài giờ";
             case "LOITERING" -> "Lảng vảng bất thường";
             case "CROWD_OVERCROWDING" -> "Tụ tập đông người";
             case "CAMERA_TAMPERING" -> "Phá hoại camera / Làm mù";
-            case "SUSPICIOUS_MOTION" -> "Chuyển động đáng ngờ";
+            case "SUSPICIOUS_MOVING_OBJECT", "SUSPICIOUS_MOTION" -> "Chuyển động đáng ngờ";
             default -> eventType;
         };
     }
@@ -352,11 +360,12 @@ public class SecurityReportService {
     private static String getAccessResultLabel(AccessResult res) {
         if (res == null) return "—";
         return switch (res) {
-            case AUTHORIZED_ACCESS -> "Hợp lệ";
-            case UNAUTHORIZED_ACCESS -> "Sai quyền truy cập";
-            case ACCESS_OUT_OF_TIME -> "Ngoài giờ cho phép";
+            case AUTHORIZED_PERSON, AUTHORIZED_ACCESS -> "Hợp lệ";
+            // Quyết định 03/11: ra vào sai khung giờ tính như không có quyền (UNAUTHORIZED_PERSON)
+            case UNAUTHORIZED_PERSON, UNAUTHORIZED_ACCESS, ACCESS_OUT_OF_TIME -> "Sai quyền truy cập";
             case UNKNOWN_PERSON -> "Người không xác định";
-            case INTRUSION -> "Xâm nhập trái phép";
+            case PERSON_INTRUSION, INTRUSION -> "Xâm nhập trái phép";
+            case SUSPICIOUS_MOVING_OBJECT -> "Chuyển động nghi vấn";
         };
     }
 

@@ -81,19 +81,26 @@ class IncidentModel {
     return b.severityWeight.compareTo(a.severityWeight);
   }
 
-  /// Trọng số mức độ nghiêm trọng (Chuẩn hóa 3 loại sự cố: UNAUTHORIZED > UNKNOWN > AFTER_HOURS)
+  /// Trọng số mức độ nghiêm trọng theo 5 nhãn (03/11): UNAUTHORIZED_PERSON > PERSON_INTRUSION = SUSPICIOUS_MOVING_OBJECT
+  /// > UNKNOWN_PERSON. Vẫn nhận tên cũ cho sự cố lưu trước V95; sai khung giờ tính như vào trái phép.
   int get severityWeight {
     switch (eventType.toUpperCase()) {
+      case 'UNAUTHORIZED_PERSON':
       case 'UNAUTHORIZED_ACCESS':
       case 'UNAUTHORIZED':
+      case 'ACCESS_OUT_OF_TIME':
+      case 'OUT_OF_TIME':
         return 3; // 🔴 CỰC KỲ NGUY CẤP (Critical)
+      case 'PERSON_INTRUSION':
       case 'INTRUSION':
       case 'AFTER_HOURS_ACCESS':
       case 'AFTER_HOURS_PRESENCE':
       case 'AFTER_HOURS':
         return 2; // 🟠 MỨC ĐỘ CAO (High)
-      case 'ACCESS_OUT_OF_TIME':
-        return 2; // 🟡 MỨC ĐỘ TRUNG BÌNH CAO
+      case 'SUSPICIOUS_MOVING_OBJECT':
+      case 'SUSPICIOUS_MOTION':
+      case 'MOVING_OBJECT':
+        return 2; // 🟠 MỨC ĐỘ CAO (High)
       case 'UNKNOWN_PERSON':
       case 'UNKNOWN':
       default:
@@ -125,19 +132,25 @@ class IncidentModel {
 
   String get eventTypeDisplay {
     switch (eventType.toUpperCase()) {
+      case 'UNAUTHORIZED_PERSON':
       case 'UNAUTHORIZED_ACCESS':
       case 'UNAUTHORIZED':
+      case 'ACCESS_OUT_OF_TIME': // sai khung giờ tính như không đủ thẩm quyền (03/11)
+      case 'OUT_OF_TIME':
         return 'Không đủ thẩm quyền';
       case 'UNKNOWN_PERSON':
       case 'UNKNOWN':
         return 'Đối tượng không xác định';
-      case 'INTRUSION': // backend lưu AFTER_HOURS_* thành INTRUSION (SecurityIncidentService.ingestIncident)
+      case 'PERSON_INTRUSION': // backend chuẩn hoá AFTER_HOURS_* / INTRUSION thành PERSON_INTRUSION
+      case 'INTRUSION':
       case 'AFTER_HOURS_ACCESS':
       case 'AFTER_HOURS_PRESENCE':
       case 'AFTER_HOURS':
         return 'Sau giờ hoạt động';
-      case 'ACCESS_OUT_OF_TIME':
-        return 'Quá thời hạn thẩm quyền';
+      case 'SUSPICIOUS_MOVING_OBJECT':
+      case 'SUSPICIOUS_MOTION':
+      case 'MOVING_OBJECT':
+        return 'Chuyển động nghi vấn';
       default:
         return eventType;
     }

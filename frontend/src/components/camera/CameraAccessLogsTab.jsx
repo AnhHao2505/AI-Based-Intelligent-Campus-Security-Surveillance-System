@@ -151,11 +151,13 @@ export default function CameraAccessLogsTab({ camera }) {
     // 1. Update stats counter
     setStats((prev) => {
       const next = { ...prev, totalToday: prev.totalToday + 1 };
-      if (newLog.accessResult === "AUTHORIZED_ACCESS") next.authorizedToday += 1;
-      else if (newLog.accessResult === "UNAUTHORIZED_ACCESS") next.unauthorizedToday += 1;
-      else if (newLog.accessResult === "ACCESS_OUT_OF_TIME") next.outOfTimeToday += 1;
-      else if (newLog.accessResult === "UNKNOWN_PERSON") next.unknownToday += 1;
-      else if (newLog.accessResult === "INTRUSION") next.intrusionToday += 1;
+      const r = newLog.accessResult;
+      if (r === "AUTHORIZED_PERSON" || r === "AUTHORIZED_ACCESS") next.authorizedToday += 1;
+      // Sai khung giờ tính như không có quyền (03/11), cùng cách backend đếm unauthorizedToday
+      else if (r === "UNAUTHORIZED_PERSON" || r === "UNAUTHORIZED_ACCESS" || r === "ACCESS_OUT_OF_TIME") next.unauthorizedToday += 1;
+      else if (r === "UNKNOWN_PERSON") next.unknownToday += 1;
+      else if (r === "PERSON_INTRUSION" || r === "INTRUSION") next.intrusionToday += 1;
+      else if (r === "SUSPICIOUS_MOVING_OBJECT") next.suspiciousToday = (prev.suspiciousToday || 0) + 1;
       return next;
     });
 

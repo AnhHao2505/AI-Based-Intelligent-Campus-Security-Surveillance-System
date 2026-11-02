@@ -272,10 +272,10 @@ class FrameAnalysisEngine:
                         is_night_authorized = True
 
                     if is_night_authorized:
-                        # Người có thẩm quyền hợp lệ: Không sinh sự cố vi phạm (AUTHORIZED_ACCESS)
+                        # Người có thẩm quyền hợp lệ: Không sinh sự cố vi phạm (AUTHORIZED_PERSON chỉ ghi lịch sử ra vào)
                         pass
                     elif is_public_area and not after_hours:
-                        # Khu vực Cấp 1 (Công khai - PUBLIC): Ban ngày tất cả mọi người vẫn vào bình thường -> KHÔNG cảnh báo UNAUTHORIZED_ACCESS!
+                        # Khu vực Cấp 1 (Công khai - PUBLIC): Ban ngày tất cả mọi người vẫn vào bình thường -> KHÔNG cảnh báo UNAUTHORIZED_PERSON!
                         pass
                     else:
                         # Vi phạm: Phân loại chuẩn theo 5 nhóm (PERSON_INTRUSION, UNAUTHORIZED_PERSON)
@@ -324,11 +324,11 @@ class FrameAnalysisEngine:
                                 person.alert_after_hours_sent = True
 
                 # 2. TẤT CẢ CÁC TRƯỜNG HỢP CÒN LẠI (Người lạ ngoài hệ thống HOẶC Chưa rõ mặt / Che mặt)
-                # Phân loại là INTRUSION (nếu ngoài giờ) hoặc UNKNOWN_PERSON (nếu bình thường)
+                # Phân loại là PERSON_INTRUSION (nếu ngoài giờ) hoặc UNKNOWN_PERSON (nếu bình thường)
                 else:
                     # Quy chuẩn khuôn viên: Khu vực công cộng (Cấp 1 - Public như Cổng chính) cho phép
                     # tự do lưu thông trong giờ hoạt động bình thường -> KHÔNG cảnh báo người lạ UNKNOWN_PERSON!
-                    # Chỉ kích hoạt cảnh báo INTRUSION nếu xuất hiện ngoài giờ (after_hours = True).
+                    # Chỉ kích hoạt cảnh báo PERSON_INTRUSION nếu xuất hiện ngoài giờ (after_hours = True).
                     if not getattr(person, "alert_unknown_sent", False):
                         if not is_public_area or after_hours or (active_pixel_polys and person.is_in_roi):
                             last_alert_ts = self.last_unknown_alert_time.get(camera_code, 0.0)

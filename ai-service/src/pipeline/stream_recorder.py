@@ -378,7 +378,7 @@ class StreamRecorder:
         def _upload_task():
             try:
                 from ..integration.storage_service import storage_service
-                from ..integration.mqtt_client import edge_mqtt_client
+                from ..integration.mqtt_client import get_security_mqtt_client
                 from ..config import settings
 
                 norm_path = os.path.normpath(file_path)
@@ -401,7 +401,7 @@ class StreamRecorder:
 
                 success = storage_service.upload_video_file(file_path, bucket, obj_name)
                 if success:
-                    edge_mqtt_client.publish_recording_event(telemetry_payload)
+                    get_security_mqtt_client().publish_recording_event(telemetry_payload)
                     try:
                         os.remove(file_path)
                         logger.info(f"🗑️ [Recorder Cleanup] Đã xóa file đệm cục bộ sau khi đẩy MinIO: {file_path}")
@@ -410,7 +410,7 @@ class StreamRecorder:
 
                     deleted_keys = storage_service.enforce_recording_retention(camera_code, max_segments=30)
                     for del_key in (deleted_keys or []):
-                        edge_mqtt_client.publish_recording_event({
+                        get_security_mqtt_client().publish_recording_event({
                             "event_type": "RECORDING_DELETED",
                             "camera_code": camera_code,
                             "object_key": del_key,

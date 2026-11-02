@@ -141,7 +141,7 @@ function getDemoResponse(path) {
       eventTypeCounts: [
         { code: 'UNAUTHORIZED_ENTRY', label: 'Đột nhập / Không thẩm quyền', count: 6, percentage: 0.428 },
         { code: 'UNKNOWN_PERSON', label: 'Người lạ / Không nhận diện', count: 4, percentage: 0.286 },
-        { code: 'AFTER_HOURS_ACCESS', label: 'Truy cập ngoài giờ', count: 3, percentage: 0.214 },
+        { code: 'PERSON_INTRUSION', label: 'Truy cập ngoài giờ', count: 3, percentage: 0.214 },
         { code: 'LOITERING', label: 'Lảng vảng bất thường', count: 1, percentage: 0.072 }
       ],
       resolutionCategoryCounts: [
@@ -157,11 +157,10 @@ function getDemoResponse(path) {
         { areaId: 'a4', areaName: 'Hành Lang Tầng 3', building: 'Tòa Alpha', count: 2 }
       ],
       accessResultCounts: [
-        { code: 'AUTHORIZED_ACCESS', label: 'Hợp lệ', count: 1240, percentage: 0.965 },
-        { code: 'UNAUTHORIZED_ACCESS', label: 'Sai quyền truy cập', count: 22, percentage: 0.017 },
-        { code: 'ACCESS_OUT_OF_TIME', label: 'Ngoài giờ cho phép', count: 12, percentage: 0.009 },
+        { code: 'AUTHORIZED_PERSON', label: 'Hợp lệ', count: 1240, percentage: 0.965 },
+        { code: 'UNAUTHORIZED_PERSON', label: 'Sai quyền truy cập', count: 34, percentage: 0.026 },
         { code: 'UNKNOWN_PERSON', label: 'Người không xác định', count: 7, percentage: 0.006 },
-        { code: 'INTRUSION', label: 'Xâm nhập trái phép', count: 3, percentage: 0.003 }
+        { code: 'PERSON_INTRUSION', label: 'Xâm nhập trái phép', count: 3, percentage: 0.003 }
       ],
       dailyAccessTrends: [
         { date: todayStr, authorized: 1240, unauthorized: 22, outOfTime: 12, unknownPerson: 7, intrusion: 3, total: 1284 }

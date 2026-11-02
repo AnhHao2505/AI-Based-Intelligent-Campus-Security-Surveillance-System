@@ -175,7 +175,11 @@ class IncidentEscalationJobTest {
             "UNAUTHORIZED,Xâm nhập trái phép",
             "UNKNOWN_PERSON,Người lạ chưa xác minh",
             "UNKNOWN,Người lạ chưa xác minh",
-            "ACCESS_OUT_OF_TIME,ACCESS_OUT_OF_TIME",
+            // 03/11: sai khung giờ tính như vào trái phép; thêm 3 nhãn mới
+            "ACCESS_OUT_OF_TIME,Xâm nhập trái phép",
+            "PERSON_INTRUSION,Xâm nhập ngoài giờ",
+            "UNAUTHORIZED_PERSON,Xâm nhập trái phép",
+            "SUSPICIOUS_MOVING_OBJECT,Chuyển động nghi vấn",
             "SECURITY_ALERT,SECURITY_ALERT"})
     @DisplayName("Nhãn tiếng Việt của loại sự cố; loại khác giữ mã")
     void eventTypeLabel_mapping(String eventType, String expected) {

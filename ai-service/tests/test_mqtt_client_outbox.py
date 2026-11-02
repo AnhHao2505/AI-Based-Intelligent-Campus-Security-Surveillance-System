@@ -26,6 +26,7 @@ class FakePahoClient:
 
     def __init__(self, *args, **kwargs):
         self.publish_calls = []
+        self.subscribe_calls = []
         self.username_pw_calls = []
         self.publish_error = None
         self._next_mid = 0
@@ -45,12 +46,15 @@ class FakePahoClient:
     def disconnect(self):
         pass
 
-    def publish(self, topic, payload=None, qos=0):
+    def publish(self, topic, payload=None, qos=0, retain=False):
         if self.publish_error is not None:
             raise self.publish_error
         self._next_mid += 1
-        self.publish_calls.append({"topic": topic, "payload": payload, "qos": qos, "mid": self._next_mid})
+        self.publish_calls.append({"topic": topic, "payload": payload, "qos": qos, "retain": retain, "mid": self._next_mid})
         return FakePublishInfo(self._next_mid)
+
+    def subscribe(self, topic, qos=0):
+        self.subscribe_calls.append((topic, qos))
 
 
 def _fake_paho_module():
@@ -222,3 +226,95 @@ def test_recording_early_ack_prunes_entries_older_than_10s(make_client, fake_mon
     client._on_publish(client.client, None, 3, None, None)
 
     assert set(client._early_acks) == {3}
+
+
+# ---------- Edge-cloud (nhánh fix/MTQQ_MediaUpload gộp vào bản outbox của main) ----------
+
+EDGE_TOPICS = ["campus/edge/config/system", "campus/edge/rpc/request"]
+
+
+def test_register_edge_subscriptions_resubscribes_after_reconnect(make_client):
+    client = make_client()
+    received = []
+    client.register_edge_subscriptions(EDGE_TOPICS, lambda topic, payload: received.append((topic, payload)))
+    # chưa kết nối: chưa subscribe
+    assert client.client.subscribe_calls == []
+
+    client._on_connect(client.client, None, {}, 0)
+    assert client.client.subscribe_calls == [(t, 1) for t in EDGE_TOPICS]
+
+    # mất kết nối rồi kết nối lại: tự subscribe lại đủ danh sách
+    client._on_disconnect(client.client, None, {}, 0, None)
+    client._on_connect(client.client, None, {}, 0)
+    assert client.client.subscribe_calls == [(t, 1) for t in EDGE_TOPICS] * 2
+
+    client._on_message(client.client, None, types.SimpleNamespace(topic=EDGE_TOPICS[1], payload=b'{"a":1}'))
+    assert received == [(EDGE_TOPICS[1], b'{"a":1}')]
+
+
+def test_register_edge_subscriptions_while_connected_subscribes_immediately(make_client):
+    client = make_client()
+    client._on_connect(client.client, None, {}, 0)
+
+    client.register_edge_subscriptions(EDGE_TOPICS, lambda topic, payload: None)
+
+    assert client.client.subscribe_calls == [(t, 1) for t in EDGE_TOPICS]
+
+
+def test_publish_json_sends_directly_without_outbox(make_client, outbox):
+    client = make_client()
+    client._on_connect(client.client, None, {}, 0)
+
+    assert client.publish_json("campus/edge/rpc/reply/test-1", {"ok": True}, qos=1) is True
+
+    assert outbox.count() == 0
+    calls = client.client.publish_calls
+    assert len(calls) == 1
+    assert calls[0]["topic"] == "campus/edge/rpc/reply/test-1"
+    assert calls[0]["retain"] is False
+
+
+def test_publish_json_while_disconnected_returns_false_and_keeps_outbox_empty(make_client, outbox):
+    client = make_client()
+
+    assert client.publish_json("campus/edge/rpc/reply/test-1", {"ok": True}) is False
+
+    assert outbox.count() == 0
+    assert client.client.publish_calls == []
+
+
+def test_publish_recording_event_goes_through_outbox_until_puback(make_client, outbox):
+    client = make_client()
+    payload = {"event_type": "RECORDING_COMPLETED", "object_key": "CAM-1/2026/11/03/a.mp4", "duration_seconds": 60}
+
+    # chưa kết nối: chỉ lưu outbox
+    assert client.publish_recording_event(payload) is True
+    assert outbox.count() == 1
+    assert client.client.publish_calls == []
+
+    # kết nối: luồng flush gửi lại, PUBACK thì xoá
+    client._on_connect(client.client, None, {}, 0)
+    client.flush_once()
+    calls = client.client.publish_calls
+    assert len(calls) == 1
+    assert calls[0]["topic"] == settings.MQTT_TOPIC_RECORDINGS
+    assert calls[0]["qos"] == 1
+    client._on_publish(client.client, None, calls[0]["mid"], None, None)
+    assert outbox.count() == 0
+
+
+def test_publish_recording_event_completed_and_deleted_of_same_object_are_separate_rows(make_client, outbox):
+    client = make_client()
+    key = "CAM-1/2026/11/03/a.mp4"
+
+    client.publish_recording_event({"event_type": "RECORDING_COMPLETED", "object_key": key})
+    client.publish_recording_event({"event_type": "RECORDING_DELETED", "object_key": key})
+    # gửi lại cùng sự kiện không nhân đôi dòng
+    client.publish_recording_event({"event_type": "RECORDING_DELETED", "object_key": key})
+
+    assert outbox.count() == 2
+
+
+def test_module_does_not_create_client_at_import():
+    assert not hasattr(mqtt_client_module, "edge_mqtt_client")
+

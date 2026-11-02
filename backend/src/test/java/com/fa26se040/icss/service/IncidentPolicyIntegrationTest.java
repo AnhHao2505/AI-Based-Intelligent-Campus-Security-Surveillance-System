@@ -140,24 +140,25 @@ class IncidentPolicyIntegrationTest extends AbstractIntegrationTest {
     // ================================================================== seed V90
 
     @Test
-    @DisplayName("V90 seed: đúng 10 luật severity theo K1, không có MOVING_OBJECT")
+    @DisplayName("V90 seed + V95 (5 nhãn, 03/11): đúng 11 luật severity, không còn tên cũ")
     void seed_severityRules() {
         List<String> rows = severityRuleRepository.findAll().stream()
                 .map(r -> r.getEventType() + "/" + r.getAreaLevelCode() + "/" + r.getTimeWindow() + "=" + r.getSeverity())
                 .toList();
-        assertThat(rows).contains(
+        assertThat(rows).containsExactlyInAnyOrder(
                 "UNKNOWN_PERSON/CONFIDENTIAL/IN_HOURS=HIGH",
                 "UNKNOWN_PERSON/HIGHLY_CONFIDENTIAL/ANY=CRITICAL",
-                "INTRUSION/PUBLIC/AFTER_HOURS=MEDIUM",
-                "INTRUSION/CONFIDENTIAL/AFTER_HOURS=CRITICAL",
-                "INTRUSION/HIGHLY_CONFIDENTIAL/ANY=CRITICAL",
-                "UNAUTHORIZED_ACCESS/CONFIDENTIAL/ANY=HIGH",
-                "UNAUTHORIZED_ACCESS/HIGHLY_CONFIDENTIAL/ANY=CRITICAL",
-                "ACCESS_OUT_OF_TIME/CONFIDENTIAL/IN_HOURS=MEDIUM",
-                "ACCESS_OUT_OF_TIME/CONFIDENTIAL/AFTER_HOURS=HIGH",
-                "ACCESS_OUT_OF_TIME/HIGHLY_CONFIDENTIAL/ANY=CRITICAL");
-        assertThat(rows).hasSize(10);
-        assertThat(rows).noneMatch(r -> r.startsWith("MOVING_OBJECT"));
+                "PERSON_INTRUSION/PUBLIC/AFTER_HOURS=MEDIUM",
+                "PERSON_INTRUSION/CONFIDENTIAL/AFTER_HOURS=CRITICAL",
+                "PERSON_INTRUSION/HIGHLY_CONFIDENTIAL/ANY=CRITICAL",
+                "UNAUTHORIZED_PERSON/CONFIDENTIAL/ANY=HIGH",
+                "UNAUTHORIZED_PERSON/HIGHLY_CONFIDENTIAL/ANY=CRITICAL",
+                "SUSPICIOUS_MOVING_OBJECT/PUBLIC/AFTER_HOURS=MEDIUM",
+                "SUSPICIOUS_MOVING_OBJECT/CONFIDENTIAL/IN_HOURS=HIGH",
+                "SUSPICIOUS_MOVING_OBJECT/CONFIDENTIAL/AFTER_HOURS=CRITICAL",
+                "SUSPICIOUS_MOVING_OBJECT/HIGHLY_CONFIDENTIAL/ANY=CRITICAL");
+        assertThat(rows).noneMatch(r -> r.startsWith("INTRUSION/") || r.startsWith("UNAUTHORIZED_ACCESS/")
+                || r.startsWith("ACCESS_OUT_OF_TIME/") || r.startsWith("MOVING_OBJECT/"));
     }
 
     @Test
@@ -222,7 +223,7 @@ class IncidentPolicyIntegrationTest extends AbstractIntegrationTest {
         IncidentSeverity configuredDefault = IncidentSeverity.valueOf(
                 systemConfigService.getString(com.fa26se040.icss.enums.ConfigKey.INCIDENT_SEVERITY_DEFAULT));
         assertThat(day.resolve("UNKNOWN_PERSON", AreaLevel.PUBLIC, at)).isEqualTo(configuredDefault);
-        assertThat(day.resolve("INTRUSION", AreaLevel.CONFIDENTIAL, at)).isEqualTo(configuredDefault);
+        assertThat(day.resolve("PERSON_INTRUSION", AreaLevel.CONFIDENTIAL, at)).isEqualTo(configuredDefault);
     }
 
     // ================================================================== API luật severity
@@ -232,7 +233,7 @@ class IncidentPolicyIntegrationTest extends AbstractIntegrationTest {
     void severityRules_access() throws Exception {
         mockMvc.perform(get("/api/incident-severity-rules").header("Authorization", bearer(admin)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.length()").value(10));
+                .andExpect(jsonPath("$.data.length()").value(11));
         mockMvc.perform(get("/api/incident-severity-rules").header("Authorization", bearer(fm)))
                 .andExpect(status().isForbidden());
         mockMvc.perform(get("/api/incident-severity-rules").header("Authorization", bearer(guard)))
@@ -243,7 +244,7 @@ class IncidentPolicyIntegrationTest extends AbstractIntegrationTest {
     @DisplayName("PUT luật severity: version đúng -> 200, version tăng, có audit; version cũ -> 409 ERR_INCPOL_004; thiếu version -> 400")
     void severityRule_update_versionAndAudit() throws Exception {
         IncidentSeverityRule rule = severityRuleRepository.findByEventTypeAndAreaLevelCodeAndTimeWindow(
-                "UNAUTHORIZED_ACCESS", AreaLevel.CONFIDENTIAL, IncidentTimeWindow.ANY).orElseThrow();
+                "UNAUTHORIZED_PERSON", AreaLevel.CONFIDENTIAL, IncidentTimeWindow.ANY).orElseThrow();
         touchedRuleId = rule.getId();
         touchedRuleOriginal = rule.getSeverity();
         long version = rule.getVersion();

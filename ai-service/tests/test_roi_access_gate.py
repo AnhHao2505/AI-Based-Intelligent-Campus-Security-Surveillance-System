@@ -11,7 +11,7 @@ from src.core.entity import BoundingBox, Point, FaceDetectionResult, RoiPolygonC
 from src.pipeline.video_pipeline import VideoPipeline
 
 def test_roi_and_access_gate():
-    # Sử dụng mốc giờ 14:00 chiều ban ngày để kiểm tra chuẩn xác kịch bản UNAUTHORIZED_ACCESS
+    # Sử dụng mốc giờ 14:00 chiều ban ngày để kiểm tra chuẩn xác kịch bản UNAUTHORIZED_PERSON
     base_time = datetime.now().replace(hour=14, minute=0, second=0).timestamp()
 
     # Khởi tạo VideoPipeline với Camera CAM-002
@@ -72,7 +72,7 @@ def test_roi_and_access_gate():
     assert in_roi
     # Khi bước vào ROI, quyền truy cập sẽ được thẩm định:
     is_allowed, reason, area = pipeline.face_matcher.check_camera_access("CAM-002", "SE194249", roi_label=roi_label, event_direction="ENTRY")
-    # Đảm bảo lý do là không có thẩm quyền truy cập (thay vì người dùng chưa đăng ký) để kiểm thử chuẩn UNAUTHORIZED_ACCESS
+    # Đảm bảo lý do là không có thẩm quyền truy cập (thay vì người dùng chưa đăng ký) để kiểm thử chuẩn UNAUTHORIZED_PERSON
     if not is_allowed and ("không tồn tại" in (reason or "").lower()):
         reason = "Không có quyền truy cập vào khu vực này"
     p.face_info.is_authorized = is_allowed
@@ -88,7 +88,7 @@ def test_roi_and_access_gate():
     )
     assert persons2[0].is_in_roi, "Lỗi: person.is_in_roi phải là True khi bước vào ROI"
     if not is_allowed:
-        assert len(alerts2) > 0 and alerts2[0].event_type == "UNAUTHORIZED_ACCESS", f"Lỗi: Kỳ vọng UNAUTHORIZED_ACCESS nhưng nhận: {alerts2[0].event_type}"
+        assert len(alerts2) > 0 and alerts2[0].event_type == "UNAUTHORIZED_PERSON", f"Lỗi: Kỳ vọng UNAUTHORIZED_PERSON nhưng nhận: {alerts2[0].event_type}"
         print(f"✅ TEST 4 PASSED: Bước chân vào ROI không có thẩm quyền -> Đã kích hoạt cảnh báo hợp lệ: {alerts2[0].event_type}")
 
     # 5. Người bước chân ra khỏi ROI:

@@ -200,11 +200,12 @@ public class SecurityReportPdfService {
                 for (CategoryCountDto res : report.accessResultCounts()) {
                     addTd(tAccess, "[" + res.label().toUpperCase() + "]", fontTdBold, Element.ALIGN_LEFT);
                     String ruleNote = switch (res.code()) {
-                        case "AUTHORIZED_ACCESS" -> "Nhận diện đúng người và đúng thẩm quyền khu vực";
-                        case "UNAUTHORIZED_ACCESS" -> "Có danh tính nhưng cấp độ truy cập thấp hơn quy định vùng";
+                        case "AUTHORIZED_PERSON", "AUTHORIZED_ACCESS" -> "Nhận diện đúng người và đúng thẩm quyền khu vực";
+                        case "UNAUTHORIZED_PERSON", "UNAUTHORIZED_ACCESS" -> "Có danh tính nhưng không đủ thẩm quyền hoặc ngoài khung giờ cho phép";
                         case "ACCESS_OUT_OF_TIME" -> "Có thẩm quyền nhưng tiếp cận ngoài khung giờ cho phép";
                         case "UNKNOWN_PERSON" -> "Đối tượng không có khuôn mặt trong cơ sở dữ liệu hệ thống";
-                        case "INTRUSION" -> "Vượt ranh giới an ninh ROI hoặc che chắn camera giám sát";
+                        case "PERSON_INTRUSION", "INTRUSION" -> "Xuất hiện trong vùng giám sát ngoài giờ hoạt động";
+                        case "SUSPICIOUS_MOVING_OBJECT" -> "Chuyển động nghi vấn trong vùng ROI không gắn với người";
                         default -> "Quy định an ninh nội bộ";
                     };
                     addTd(tAccess, ruleNote, fontTd, Element.ALIGN_LEFT);

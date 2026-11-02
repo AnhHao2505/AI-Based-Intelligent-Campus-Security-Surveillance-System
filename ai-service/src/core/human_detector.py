@@ -1,9 +1,17 @@
 import logging
+import os
 import torch
 from typing import List, Tuple, Optional
 import numpy as np
 from ultralytics import YOLO
 from .entity import BoundingBox
+
+# Cấu hình ByteTrack riêng cho giám sát (ai-service/config/), tính theo vị trí file thay vì đường dẫn tuyệt đối của một máy
+_BYTETRACK_CONFIG_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "config",
+    "bytetrack_surveillance.yaml",
+)
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +64,7 @@ class HumanDetector:
             persist=persist,
             classes=[0],
             conf=self.conf_threshold,
-            tracker="D:/DoAnSE/AI-Based-Intelligent-Campus-Security-Surveillance-System/ai-service/config/bytetrack_surveillance.yaml",
+            tracker=_BYTETRACK_CONFIG_PATH,
             device=self.device,
             verbose=False
         )

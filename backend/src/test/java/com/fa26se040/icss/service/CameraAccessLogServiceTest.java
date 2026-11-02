@@ -70,7 +70,7 @@ class CameraAccessLogServiceTest {
     }
 
     @Test
-    @DisplayName("Ghi log thành công khi truy cập hợp lệ (AUTHORIZED_ACCESS) và gửi qua WebSocket")
+    @DisplayName("Ghi log thành công khi truy cập hợp lệ (AUTHORIZED_PERSON) và gửi qua WebSocket")
     void testRecordAccessLog_Authorized_Success() {
         OffsetDateTime now = OffsetDateTime.of(2026, 10, 14, 10, 0, 0, 0, ZoneOffset.ofHours(7));
         CheckCameraEntryResponse entryResponse = CheckCameraEntryResponse.builder()
@@ -239,7 +239,7 @@ class CameraAccessLogServiceTest {
     }
 
     @Test
-    @DisplayName("Phân loại ACCESS_OUT_OF_TIME (Sai giờ) khi người dùng có đơn nhưng đến sớm hoặc hết hạn")
+    @DisplayName("Sai giờ (người có đơn nhưng đến sớm hoặc hết hạn) -> UNAUTHORIZED_PERSON theo quyết định 03/11")
     void testRecordAccessLog_OutOfTime() {
         OffsetDateTime daytime = OffsetDateTime.of(2026, 10, 14, 14, 0, 0, 0, ZoneOffset.ofHours(7));
         CheckCameraEntryResponse entryResponse = CheckCameraEntryResponse.builder()
@@ -285,7 +285,7 @@ class CameraAccessLogServiceTest {
     }
 
     @Test
-    @DisplayName("Phân loại UNAUTHORIZED_ACCESS (Sai quyền) khi tài khoản không đủ cấp độ vào khu vực")
+    @DisplayName("Phân loại UNAUTHORIZED_PERSON (Sai quyền) khi tài khoản không đủ cấp độ vào khu vực")
     void testRecordAccessLog_UnauthorizedAccess_InsufficientLevel() {
         OffsetDateTime daytime = OffsetDateTime.of(2026, 10, 14, 14, 0, 0, 0, ZoneOffset.ofHours(7));
         CheckCameraEntryResponse entryResponse = CheckCameraEntryResponse.builder()

@@ -15,6 +15,7 @@ export const ACCESS_RESULT_META = {
 	// Legacy mappings for backwards compatibility
 	AUTHORIZED_ACCESS: { label: "Hợp lệ", icon: ShieldCheck, badge: "success" },
 	UNAUTHORIZED_ACCESS: { label: "Không đủ thẩm quyền", icon: ShieldAlert, badge: "danger" },
+	// Sai khung giờ gộp vào UNAUTHORIZED_PERSON từ 03/11; giữ để hiển thị dòng chưa migrate
 	ACCESS_OUT_OF_TIME: { label: "Sai giờ", icon: Clock, badge: "warning" },
 	INTRUSION: { label: "Ngoài giờ", icon: AlertTriangle, badge: "danger" },
 };

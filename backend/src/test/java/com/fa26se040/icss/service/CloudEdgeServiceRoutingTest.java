@@ -84,6 +84,10 @@ class CloudEdgeServiceRoutingTest {
     private IncidentRecipientResolver incidentRecipientResolver;
     @Mock
     private IncidentEscalationRepository incidentEscalationRepository;
+
+    // Tham số constructor thêm ở main (#160: luật severity)
+    @Mock
+    private IncidentSeverityResolver incidentSeverityResolver;
     @Mock
     private SystemConfigurationRepository systemConfigRepository;
     @Mock
@@ -300,7 +304,8 @@ class CloudEdgeServiceRoutingTest {
                 cameraAccessLogService,
                 guardShiftRepository,
                 incidentRecipientResolver,
-                incidentEscalationRepository
+                incidentEscalationRepository,
+                incidentSeverityResolver
         );
         ReflectionTestUtils.setField(incidentService, "edgeMqttControlService", edgeMqttControlService);
         ReflectionTestUtils.setField(incidentService, "aiServiceUrl", "");

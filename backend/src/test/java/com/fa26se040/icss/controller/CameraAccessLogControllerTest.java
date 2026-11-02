@@ -61,7 +61,7 @@ class CameraAccessLogControllerTest {
                 .cameraCode(cameraCode)
                 .userCode("SE170001")
                 .fullName("Nguyen Van A")
-                .accessResult(AccessResult.AUTHORIZED_ACCESS)
+                .accessResult(AccessResult.AUTHORIZED_PERSON)
                 .resultDescription("Hợp lệ")
                 .colorCode("#10b981")
                 .accessSource(AccessSource.ACCESS_LEVEL)
@@ -76,16 +76,16 @@ class CameraAccessLogControllerTest {
         mockMvc.perform(get("/api/cameras/{cameraCode}/access-logs", cameraCode)
                         .param("page", "0")
                         .param("size", "20")
-                        .param("result", "AUTHORIZED_ACCESS")
+                        .param("result", "AUTHORIZED_PERSON")
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value(200))
                 .andExpect(jsonPath("$.data.content[0].cameraCode").value(cameraCode))
                 .andExpect(jsonPath("$.data.content[0].userCode").value("SE170001"))
-                .andExpect(jsonPath("$.data.content[0].accessResult").value("AUTHORIZED_ACCESS"))
+                .andExpect(jsonPath("$.data.content[0].accessResult").value("AUTHORIZED_PERSON"))
                 .andExpect(jsonPath("$.data.content[0].colorCode").value("#10b981"));
 
-        verify(cameraAccessLogService).getLogs(eq(cameraCode), eq(AccessResult.AUTHORIZED_ACCESS), any(), any(), any(), any(Pageable.class));
+        verify(cameraAccessLogService).getLogs(eq(cameraCode), eq(AccessResult.AUTHORIZED_PERSON), any(), any(), any(), any(Pageable.class));
     }
 
     @Test

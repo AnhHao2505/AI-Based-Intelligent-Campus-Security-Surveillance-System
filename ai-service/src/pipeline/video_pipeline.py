@@ -25,7 +25,7 @@ class VideoPipeline:
     1. Tiền xử lý chuyển động & Chống phá hoại (OpenCV MOG2 MotionDetector)
     2. Cổng lọc tải & Máy trạng thái chốt giữ (ZoneStateMachine Latch)
     3. Human Detection & Tracking (YOLO26 + ByteTrack)
-    4. Đối soát ngụy trang / Xâm nhập bất thường (SUSPICIOUS_MOTION)
+    4. Đối soát ngụy trang / Xâm nhập bất thường (SUSPICIOUS_MOVING_OBJECT)
     5. Crop vùng người & Face Detection (YuNet)
     6. Face Recognition Matching (pgvector Cosine Search)
     7. Violation Analysis (ROI Polygon Check)
@@ -527,7 +527,7 @@ class VideoPipeline:
             annotated_frame,
             polygons=self.roi_polygons if self.roi_polygons else (self.roi_polygon if self.roi_polygon else None)
         )
-        # Chỉ vẽ khung nghi vấn ngụy trang khi có cảnh báo SUSPICIOUS_MOTION thực sự trong ROI (đã lọc sạch cơ thể người)
+        # Chỉ vẽ khung nghi vấn ngụy trang khi có cảnh báo SUSPICIOUS_MOVING_OBJECT thực sự trong ROI (đã lọc sạch cơ thể người)
         has_suspicious_motion_alert = any(a.event_type in ("SUSPICIOUS_MOVING_OBJECT", "SUSPICIOUS_MOTION") for a in alerts)
         if has_suspicious_motion_alert and motion_res.motion_boxes:
             annotated_frame = FrameVisualizer.draw_motion_boxes(annotated_frame, motion_res.motion_boxes)

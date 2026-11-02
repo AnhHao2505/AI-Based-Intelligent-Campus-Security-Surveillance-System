@@ -51,14 +51,16 @@ class IncidentSeverityResolverTest {
     void setUp() {
         seed("UNKNOWN_PERSON", AreaLevel.CONFIDENTIAL, IncidentTimeWindow.IN_HOURS, IncidentSeverity.HIGH);
         seed("UNKNOWN_PERSON", AreaLevel.HIGHLY_CONFIDENTIAL, IncidentTimeWindow.ANY, IncidentSeverity.CRITICAL);
-        seed("INTRUSION", AreaLevel.PUBLIC, IncidentTimeWindow.AFTER_HOURS, IncidentSeverity.MEDIUM);
-        seed("INTRUSION", AreaLevel.CONFIDENTIAL, IncidentTimeWindow.AFTER_HOURS, IncidentSeverity.CRITICAL);
-        seed("INTRUSION", AreaLevel.HIGHLY_CONFIDENTIAL, IncidentTimeWindow.ANY, IncidentSeverity.CRITICAL);
-        seed("UNAUTHORIZED_ACCESS", AreaLevel.CONFIDENTIAL, IncidentTimeWindow.ANY, IncidentSeverity.HIGH);
-        seed("UNAUTHORIZED_ACCESS", AreaLevel.HIGHLY_CONFIDENTIAL, IncidentTimeWindow.ANY, IncidentSeverity.CRITICAL);
-        seed("ACCESS_OUT_OF_TIME", AreaLevel.CONFIDENTIAL, IncidentTimeWindow.IN_HOURS, IncidentSeverity.MEDIUM);
-        seed("ACCESS_OUT_OF_TIME", AreaLevel.CONFIDENTIAL, IncidentTimeWindow.AFTER_HOURS, IncidentSeverity.HIGH);
-        seed("ACCESS_OUT_OF_TIME", AreaLevel.HIGHLY_CONFIDENTIAL, IncidentTimeWindow.ANY, IncidentSeverity.CRITICAL);
+        // Bảng luật sau V95 (5 nhãn, 03/11): 11 dòng, không còn ACCESS_OUT_OF_TIME
+        seed("PERSON_INTRUSION", AreaLevel.PUBLIC, IncidentTimeWindow.AFTER_HOURS, IncidentSeverity.MEDIUM);
+        seed("PERSON_INTRUSION", AreaLevel.CONFIDENTIAL, IncidentTimeWindow.AFTER_HOURS, IncidentSeverity.CRITICAL);
+        seed("PERSON_INTRUSION", AreaLevel.HIGHLY_CONFIDENTIAL, IncidentTimeWindow.ANY, IncidentSeverity.CRITICAL);
+        seed("UNAUTHORIZED_PERSON", AreaLevel.CONFIDENTIAL, IncidentTimeWindow.ANY, IncidentSeverity.HIGH);
+        seed("UNAUTHORIZED_PERSON", AreaLevel.HIGHLY_CONFIDENTIAL, IncidentTimeWindow.ANY, IncidentSeverity.CRITICAL);
+        seed("SUSPICIOUS_MOVING_OBJECT", AreaLevel.PUBLIC, IncidentTimeWindow.AFTER_HOURS, IncidentSeverity.MEDIUM);
+        seed("SUSPICIOUS_MOVING_OBJECT", AreaLevel.CONFIDENTIAL, IncidentTimeWindow.IN_HOURS, IncidentSeverity.HIGH);
+        seed("SUSPICIOUS_MOVING_OBJECT", AreaLevel.CONFIDENTIAL, IncidentTimeWindow.AFTER_HOURS, IncidentSeverity.CRITICAL);
+        seed("SUSPICIOUS_MOVING_OBJECT", AreaLevel.HIGHLY_CONFIDENTIAL, IncidentTimeWindow.ANY, IncidentSeverity.CRITICAL);
 
         lenient().when(ruleRepository.findByEventTypeAndAreaLevelCodeAndTimeWindow(any(), any(), any()))
                 .thenAnswer(inv -> rules.stream()
@@ -83,29 +85,30 @@ class IncidentSeverityResolverTest {
     }
 
     @ParameterizedTest(name = "{0} / {1} lúc {2} -> {3}")
-    @DisplayName("Mọi dòng seed V90: luật IN_HOURS lúc 10:00, AFTER_HOURS lúc 23:00, ANY ở cả hai giờ")
+    @DisplayName("Mọi dòng luật sau V95: luật IN_HOURS lúc 10:00, AFTER_HOURS lúc 23:00, ANY ở cả hai giờ")
     @CsvSource({
             "UNKNOWN_PERSON, CONFIDENTIAL, 10:00, HIGH",
             "UNKNOWN_PERSON, HIGHLY_CONFIDENTIAL, 10:00, CRITICAL",
             "UNKNOWN_PERSON, HIGHLY_CONFIDENTIAL, 23:00, CRITICAL",
-            "INTRUSION, PUBLIC, 23:00, MEDIUM",
-            "INTRUSION, CONFIDENTIAL, 23:00, CRITICAL",
-            "INTRUSION, HIGHLY_CONFIDENTIAL, 10:00, CRITICAL",
-            "INTRUSION, HIGHLY_CONFIDENTIAL, 23:00, CRITICAL",
-            "UNAUTHORIZED_ACCESS, CONFIDENTIAL, 10:00, HIGH",
-            "UNAUTHORIZED_ACCESS, CONFIDENTIAL, 23:00, HIGH",
-            "UNAUTHORIZED_ACCESS, HIGHLY_CONFIDENTIAL, 10:00, CRITICAL",
-            "UNAUTHORIZED_ACCESS, HIGHLY_CONFIDENTIAL, 23:00, CRITICAL",
-            "ACCESS_OUT_OF_TIME, CONFIDENTIAL, 10:00, MEDIUM",
-            "ACCESS_OUT_OF_TIME, CONFIDENTIAL, 23:00, HIGH",
-            "ACCESS_OUT_OF_TIME, HIGHLY_CONFIDENTIAL, 10:00, CRITICAL",
-            "ACCESS_OUT_OF_TIME, HIGHLY_CONFIDENTIAL, 23:00, CRITICAL"
+            "PERSON_INTRUSION, PUBLIC, 23:00, MEDIUM",
+            "PERSON_INTRUSION, CONFIDENTIAL, 23:00, CRITICAL",
+            "PERSON_INTRUSION, HIGHLY_CONFIDENTIAL, 10:00, CRITICAL",
+            "PERSON_INTRUSION, HIGHLY_CONFIDENTIAL, 23:00, CRITICAL",
+            "UNAUTHORIZED_PERSON, CONFIDENTIAL, 10:00, HIGH",
+            "UNAUTHORIZED_PERSON, CONFIDENTIAL, 23:00, HIGH",
+            "UNAUTHORIZED_PERSON, HIGHLY_CONFIDENTIAL, 10:00, CRITICAL",
+            "UNAUTHORIZED_PERSON, HIGHLY_CONFIDENTIAL, 23:00, CRITICAL",
+            "SUSPICIOUS_MOVING_OBJECT, PUBLIC, 23:00, MEDIUM",
+            "SUSPICIOUS_MOVING_OBJECT, CONFIDENTIAL, 10:00, HIGH",
+            "SUSPICIOUS_MOVING_OBJECT, CONFIDENTIAL, 23:00, CRITICAL",
+            "SUSPICIOUS_MOVING_OBJECT, HIGHLY_CONFIDENTIAL, 10:00, CRITICAL",
+            "SUSPICIOUS_MOVING_OBJECT, HIGHLY_CONFIDENTIAL, 23:00, CRITICAL"
     })
     void everySeedRow(String eventType, AreaLevel level, String time, IncidentSeverity expected) {
         assertEquals(expected, resolver.resolve(eventType, level, vn(time)));
     }
 
-    @ParameterizedTest(name = "INTRUSION / CONFIDENTIAL lúc {0} -> {1}")
+    @ParameterizedTest(name = "PERSON_INTRUSION / CONFIDENTIAL lúc {0} -> {1}")
     @DisplayName("Qua nửa đêm: 22:00, 02:00, 05:59 thuộc AFTER_HOURS; 06:00 và 21:59 là IN_HOURS, không có luật -> mặc định")
     @CsvSource({
             "22:00, CRITICAL",
@@ -115,7 +118,7 @@ class IncidentSeverityResolverTest {
             "21:59, MEDIUM"
     })
     void crossMidnight(String time, IncidentSeverity expected) {
-        assertEquals(expected, resolver.resolve("INTRUSION", AreaLevel.CONFIDENTIAL, vn(time)));
+        assertEquals(expected, resolver.resolve("PERSON_INTRUSION", AreaLevel.CONFIDENTIAL, vn(time)));
     }
 
     @ParameterizedTest(name = "{0} / {1} lúc {2} không có luật -> INCIDENT_SEVERITY_DEFAULT")
@@ -123,9 +126,11 @@ class IncidentSeverityResolverTest {
     @CsvSource({
             "UNKNOWN_PERSON, PUBLIC, 10:00",
             "UNKNOWN_PERSON, CONFIDENTIAL, 23:00",
-            "INTRUSION, PUBLIC, 10:00",
-            "UNAUTHORIZED_ACCESS, PUBLIC, 23:00",
-            "ACCESS_OUT_OF_TIME, PUBLIC, 10:00",
+            "PERSON_INTRUSION, PUBLIC, 10:00",
+            "UNAUTHORIZED_PERSON, PUBLIC, 23:00",
+            "SUSPICIOUS_MOVING_OBJECT, PUBLIC, 10:00",
+            // V95 đã xoá luật của ACCESS_OUT_OF_TIME: tên cũ không còn dòng nào
+            "ACCESS_OUT_OF_TIME, CONFIDENTIAL, 10:00",
             "SECURITY_ALERT, HIGHLY_CONFIDENTIAL, 10:00"
     })
     void missingRule_usesConfiguredDefault(String eventType, AreaLevel level, String time) {
@@ -146,7 +151,7 @@ class IncidentSeverityResolverTest {
     @Test
     @DisplayName("Khu không có cấp hoặc loại sự cố null -> mặc định, không tra bảng luật")
     void nullInputs_useDefault() {
-        assertEquals(IncidentSeverity.MEDIUM, resolver.resolve("INTRUSION", null, vn("23:00")));
+        assertEquals(IncidentSeverity.MEDIUM, resolver.resolve("PERSON_INTRUSION", null, vn("23:00")));
         assertEquals(IncidentSeverity.MEDIUM, resolver.resolve(null, AreaLevel.CONFIDENTIAL, vn("23:00")));
         verify(ruleRepository, never()).findByEventTypeAndAreaLevelCodeAndTimeWindow(any(), any(), any());
     }
@@ -167,5 +172,21 @@ class IncidentSeverityResolverTest {
         rules.get(0).setSeverity(IncidentSeverity.CRITICAL);
 
         assertEquals(IncidentSeverity.CRITICAL, resolver.resolve("UNKNOWN_PERSON", AreaLevel.CONFIDENTIAL, vn("10:00")));
+    }
+
+    @Test
+    @DisplayName("03/11: sai khung giờ (ACCESS_OUT_OF_TIME) chuẩn hoá thành UNAUTHORIZED_PERSON -> CONFIDENTIAL trong giờ = HIGH, không còn MEDIUM")
+    void outOfTime_inHours_isHighLikeUnauthorized() {
+        String normalized = SecurityIncidentService.normalizeEventType("ACCESS_OUT_OF_TIME");
+
+        assertEquals("UNAUTHORIZED_PERSON", normalized);
+        assertEquals(IncidentSeverity.HIGH, resolver.resolve(normalized, AreaLevel.CONFIDENTIAL, vn("10:00")));
+        assertEquals(IncidentSeverity.HIGH, resolver.resolve("UNAUTHORIZED_PERSON", AreaLevel.CONFIDENTIAL, vn("10:00")));
+    }
+
+    @Test
+    @DisplayName("03/11: SUSPICIOUS_MOVING_OBJECT + CONFIDENTIAL ngoài giờ -> CRITICAL")
+    void suspiciousMovingObject_confidentialAfterHours_isCritical() {
+        assertEquals(IncidentSeverity.CRITICAL, resolver.resolve("SUSPICIOUS_MOVING_OBJECT", AreaLevel.CONFIDENTIAL, vn("23:00")));
     }
 }

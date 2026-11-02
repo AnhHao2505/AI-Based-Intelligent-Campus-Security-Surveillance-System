@@ -135,10 +135,10 @@ async def startup_event():
         print(f"[!] Cảnh báo khi khởi tạo pipeline: {e}")
     global edge_agent
     try:
-        from .integration.mqtt_client import edge_mqtt_client
+        from .integration.mqtt_client import get_security_mqtt_client
         from .integration.edge_agent import EdgeMqttAgent
         edge_agent = EdgeMqttAgent(
-            mqtt_client_wrapper=edge_mqtt_client,
+            mqtt_client_wrapper=get_security_mqtt_client(),
             storage=storage_service,
             active_workers=active_workers,
             default_pipeline_getter=lambda: default_pipeline,

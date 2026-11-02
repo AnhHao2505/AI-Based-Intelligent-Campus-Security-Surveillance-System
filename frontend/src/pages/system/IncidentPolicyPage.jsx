@@ -23,10 +23,14 @@ import { getLevelConfig } from "../../utils/areaHelpers";
 import "../../styles/SystemConfigPage.css";
 
 // Nhãn loại sự cố, cùng cách gọi với thông báo leo thang (IncidentEscalationJob.eventTypeLabel) và app bảo vệ
+// 5 nhãn (03/11): luật severity chỉ có 4 loại tạo sự cố (AUTHORIZED_PERSON không tạo sự cố); tên cũ giữ để hiển thị dữ liệu chưa migrate
 const EVENT_TYPE_LABELS = {
 	UNKNOWN_PERSON: "Người lạ chưa xác minh",
+	PERSON_INTRUSION: "Xâm nhập ngoài giờ",
+	UNAUTHORIZED_PERSON: "Xâm nhập trái phép",
+	SUSPICIOUS_MOVING_OBJECT: "Chuyển động nghi vấn",
 	INTRUSION: "Xâm nhập ngoài giờ",
-	UNAUTHORIZED_ACCESS: "Không đủ thẩm quyền",
+	UNAUTHORIZED_ACCESS: "Xâm nhập trái phép",
 	ACCESS_OUT_OF_TIME: "Quá thời hạn thẩm quyền",
 };
 
