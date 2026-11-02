@@ -85,6 +85,9 @@ app:
     topics:
       incidents: ${MQTT_TOPIC_INCIDENTS:campus/alerts/incidents}
     enabled: ${MQTT_ENABLED:true}
+    username: ${MQTT_BACKEND_USERNAME:icss-backend}
+    password: ${MQTT_BACKEND_PASSWORD:}
+    connect-retry-seconds: ${MQTT_CONNECT_RETRY_SECONDS:10}
   jwt:
     secret: ${JWT_SECRET}
     expiration-ms: ${JWT_EXPIRATION:86400000} # 24 hours
