@@ -25,6 +25,14 @@ class Settings(BaseSettings):
     MQTT_TOPIC_ALERTS: str = "campus/alerts/incidents"
     MQTT_TOPIC_HEALTH: str = "campus/cameras/{camera_id}/health"
     MQTT_ENABLED: bool = True
+    MQTT_USERNAME: str = Field(default="icss-ai", validation_alias="MQTT_AI_USERNAME")
+    MQTT_PASSWORD: str = Field(default="", validation_alias="MQTT_AI_PASSWORD")
+    # Outbox SQLite: cảnh báo được lưu bền trước khi gửi, gửi lại tới khi broker xác nhận (PUBACK)
+    MQTT_OUTBOX_PATH: str = Field(default="data/mqtt_outbox.sqlite3", validation_alias="MQTT_OUTBOX_PATH")
+    MQTT_OUTBOX_FLUSH_SECONDS: float = Field(default=5.0, validation_alias="MQTT_OUTBOX_FLUSH_SECONDS")
+    MQTT_OUTBOX_INFLIGHT_TIMEOUT_SECONDS: float = Field(default=30.0, validation_alias="MQTT_OUTBOX_INFLIGHT_TIMEOUT_SECONDS")
+    MQTT_OUTBOX_MAX_ROWS: int = Field(default=10000, validation_alias="MQTT_OUTBOX_MAX_ROWS")
+    MQTT_OUTBOX_MAX_AGE_HOURS: float = Field(default=24.0, validation_alias="MQTT_OUTBOX_MAX_AGE_HOURS")
     
     # MinIO Storage Configuration (Bắt buộc đọc credentials từ biến môi trường, không để default trong source)
     MINIO_ENDPOINT: str = Field(default="localhost:9000", validation_alias="MINIO_ENDPOINT")
