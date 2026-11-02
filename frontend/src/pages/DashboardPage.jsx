@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
@@ -18,6 +19,7 @@ import {
 	Percent,
 	ChartColumnStacked,
 	MapPinned,
+	FileText,
 } from "lucide-react";
 import {
 	Bar,
@@ -43,7 +45,9 @@ import { AREA_LEVEL_OPTIONS } from "../utils/areaHelpers";
 import { ACCESS_RESULT_META } from "../utils/accessHistoryHelpers";
 import { formatDateTime, formatRange } from "../utils/formatDateTime";
 import { TARGET_TYPE_LABELS, getActionLabel, renderSystemActor } from "../utils/auditLabels";
-import { EmptyState, ErrorState, LoadingState, PageHeader, StatusTabs } from "../components/ui";
+import { Button, EmptyState, ErrorState, LoadingState, PageHeader, StatusTabs } from "../components/ui";
+import ReportFilterModal from "../components/report/ReportFilterModal";
+import ReportPreviewModal from "../components/report/ReportPreviewModal";
 import "../styles/DashboardPage.css";
 
 // Phụ đề theo role: nói đúng những phần role đó được xem, không lặp lại tiêu đề "Tổng quan".
@@ -472,6 +476,9 @@ function SecurityStatsSection() {
 }
 
 export default function DashboardPage() {
+	const [isReportFilterOpen, setIsReportFilterOpen] = useState(false);
+	const [isReportPreviewOpen, setIsReportPreviewOpen] = useState(false);
+	const [reportData, setReportData] = useState(null);
 	const { user } = useAuth();
 	const role = user?.role;
 
@@ -586,9 +593,21 @@ export default function DashboardPage() {
 					title="Tổng quan"
 					description={DASHBOARD_DESCRIPTIONS[role] ?? DEFAULT_DASHBOARD_DESCRIPTION}
 					actions={
-						<div className="dashboard-date-badge">
-							<Calendar size={14} />
-							<span>{currentDateStr}</span>
+						<div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+							{role === ROLES.ADMIN && (
+								<Button
+									variant="primary"
+									onClick={() => setIsReportFilterOpen(true)}
+									className="inline-flex items-center gap-1.5 shadow-sm text-xs py-1.5 px-3"
+								>
+									<FileText size={15} />
+									<span>Xuất báo cáo</span>
+								</Button>
+							)}
+							<div className="dashboard-date-badge">
+								<Calendar size={14} />
+								<span>{currentDateStr}</span>
+							</div>
 						</div>
 					}
 				/>
@@ -627,6 +646,21 @@ export default function DashboardPage() {
 
 				{/* Hàng 3: thống kê an ninh (FM, ADMIN). GUARD không gọi được API này nên không có hàng 3 */}
 				{canSeeSecurityStats && <SecurityStatsSection />}
+
+				<ReportFilterModal
+					isOpen={isReportFilterOpen}
+					onClose={() => setIsReportFilterOpen(false)}
+					onReportGenerated={(data) => {
+						setReportData(data);
+						setIsReportPreviewOpen(true);
+					}}
+				/>
+
+				<ReportPreviewModal
+					isOpen={isReportPreviewOpen}
+					onClose={() => setIsReportPreviewOpen(false)}
+					reportData={reportData}
+				/>
 			</div>
 		</div>
 	);

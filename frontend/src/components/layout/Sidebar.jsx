@@ -24,6 +24,7 @@ import {
 	UserPlus,
 	Camera,
 	Film,
+	FileText,
 } from "lucide-react";
 import { ROLES, ROLE_SHORT_LABELS } from "../../constants/roles";
 import { useTheme } from "../../context/ThemeContext";
@@ -443,6 +444,18 @@ export default function Sidebar({ user, onLogout }) {
 												<History size={18} />
 												<span>Nhật ký kiểm toán</span>
 											</NavLink>
+											<NavLink
+												to="/admin/reports"
+												className={({ isActive }) =>
+													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
+												}
+												title={
+													sidebarCollapsed ? "Báo cáo an ninh" : undefined
+												}
+											>
+												<FileText size={18} />
+												<span>Báo cáo an ninh</span>
+											</NavLink>
 										</>
 									)}
 
@@ -496,6 +509,18 @@ export default function Sidebar({ user, onLogout }) {
 											>
 												<History size={18} />
 												<span>Nhật ký kiểm toán</span>
+											</NavLink>
+											<NavLink
+												to="/admin/reports"
+												className={({ isActive }) =>
+													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
+												}
+												title={
+													sidebarCollapsed ? "Báo cáo an ninh" : undefined
+												}
+											>
+												<FileText size={18} />
+												<span>Báo cáo an ninh</span>
 											</NavLink>
 
 											<div className="sidebar__section">
