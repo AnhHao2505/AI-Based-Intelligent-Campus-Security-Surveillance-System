@@ -20,6 +20,8 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
     "heic2any": "^0.0.4",
+    "html2pdf.js": "^0.14.0",
+    "jspdf": "^4.2.1",
     "lucide-react": "^1.33.0",
     "maplibre-gl": "^6.11.1",
     "react": "^19.2.8",

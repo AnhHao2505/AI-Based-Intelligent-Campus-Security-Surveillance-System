@@ -106,6 +106,103 @@ function getDemoResponse(path) {
     };
   }
   
+  if (path.includes('/reports/security-summary')) {
+    const todayStr = new Date().toISOString().split('T')[0];
+    return {
+      startDate: todayStr,
+      endDate: todayStr,
+      generatedAt: new Date().toISOString(),
+      generatedByName: 'Quản trị viên Hệ thống',
+      generatedByEmail: 'admin.security@fpt.edu.vn',
+      campusName: 'FPT University TP.HCM — Cơ sở Tân Uyên',
+      totalIncidents: 14,
+      verifiedIncidents: 11,
+      dismissedIncidents: 3,
+      pendingIncidents: 0,
+      falseAlarmRate: 0.214,
+      avgResponseTimeSeconds: 42,
+      avgResolutionTimeSeconds: 195,
+      totalAccessScans: 1284,
+      authorizedAccessCount: 1240,
+      violationAccessCount: 44,
+      activeCamerasCount: 38,
+      onlineCamerasCount: 37,
+      scheduledShiftsCount: 24,
+      completedShiftsCount: 24,
+      shiftFulfillmentRate: 1.0,
+      totalGuestVisits: 18,
+      approvedGuestVisits: 16,
+      severityCounts: [
+        { code: 'CRITICAL', label: 'Nguy cấp', count: 2, percentage: 0.143 },
+        { code: 'HIGH', label: 'Cao', count: 4, percentage: 0.286 },
+        { code: 'MEDIUM', label: 'Trung bình', count: 6, percentage: 0.428 },
+        { code: 'LOW', label: 'Thấp', count: 2, percentage: 0.143 }
+      ],
+      eventTypeCounts: [
+        { code: 'UNAUTHORIZED_ENTRY', label: 'Đột nhập / Không thẩm quyền', count: 6, percentage: 0.428 },
+        { code: 'UNKNOWN_PERSON', label: 'Người lạ / Không nhận diện', count: 4, percentage: 0.286 },
+        { code: 'AFTER_HOURS_ACCESS', label: 'Truy cập ngoài giờ', count: 3, percentage: 0.214 },
+        { code: 'LOITERING', label: 'Lảng vảng bất thường', count: 1, percentage: 0.072 }
+      ],
+      resolutionCategoryCounts: [
+        { code: 'REPORT_FILED', label: 'Lập biên bản vi phạm', count: 5, percentage: 0.357 },
+        { code: 'ESCORTED_OUT', label: 'Áp giải ra ngoài', count: 3, percentage: 0.214 },
+        { code: 'FALSE_ALARM', label: 'Báo động giả / Nhầm lẫn', count: 3, percentage: 0.214 },
+        { code: 'REMINDED_DISPERSED', label: 'Nhắc nhở / Giải tán', count: 3, percentage: 0.214 }
+      ],
+      topIncidentAreas: [
+        { areaId: 'a1', areaName: 'Phòng Server Trung Tâm', building: 'Tòa Alpha', count: 5 },
+        { areaId: 'a2', areaName: 'Khu Thí Nghiệm Vi Mạch', building: 'Tòa Beta', count: 4 },
+        { areaId: 'a3', areaName: 'Cổng Sau Phân Khu 2', building: 'Khuôn viên', count: 3 },
+        { areaId: 'a4', areaName: 'Hành Lang Tầng 3', building: 'Tòa Alpha', count: 2 }
+      ],
+      accessResultCounts: [
+        { code: 'AUTHORIZED_ACCESS', label: 'Hợp lệ', count: 1240, percentage: 0.965 },
+        { code: 'UNAUTHORIZED_ACCESS', label: 'Sai quyền truy cập', count: 22, percentage: 0.017 },
+        { code: 'ACCESS_OUT_OF_TIME', label: 'Ngoài giờ cho phép', count: 12, percentage: 0.009 },
+        { code: 'UNKNOWN_PERSON', label: 'Người không xác định', count: 7, percentage: 0.006 },
+        { code: 'INTRUSION', label: 'Xâm nhập trái phép', count: 3, percentage: 0.003 }
+      ],
+      dailyAccessTrends: [
+        { date: todayStr, authorized: 1240, unauthorized: 22, outOfTime: 12, unknownPerson: 7, intrusion: 3, total: 1284 }
+      ],
+      topGuards: [
+        { guardId: 'g1', fullName: 'Nguyễn Văn An', userCode: 'NV-BV01', resolvedCount: 7 },
+        { guardId: 'g2', fullName: 'Trần Đình Trọng', userCode: 'NV-BV03', resolvedCount: 4 }
+      ],
+      significantIncidents: [
+        {
+          id: 'inc-1',
+          detectedAt: new Date(Date.now() - 7200000).toISOString(),
+          cameraCode: 'CAM-003',
+          location: 'Tòa Alpha · Phòng Server Trung Tâm',
+          eventType: 'Đột nhập / Không thẩm quyền',
+          severity: 'CRITICAL',
+          status: 'Đã xác minh',
+          subjectUserCode: 'SE170123',
+          claimedByName: 'Nguyễn Văn An',
+          resolvedByName: 'Nguyễn Văn An',
+          resolutionNotes: 'Sinh viên đi theo giảng viên vào phòng thiết bị, đã nhắc nhở và lập biên bản bàn giao cho phòng CTSV.',
+          resolutionCategory: 'Lập biên bản vi phạm'
+        },
+        {
+          id: 'inc-2',
+          detectedAt: new Date(Date.now() - 14400000).toISOString(),
+          cameraCode: 'CAM-012',
+          location: 'Tòa Beta · Khu Thí Nghiệm Vi Mạch',
+          eventType: 'Truy cập ngoài giờ',
+          severity: 'HIGH',
+          status: 'Đã xác minh',
+          subjectUserCode: 'SE160899',
+          claimedByName: 'Trần Đình Trọng',
+          resolvedByName: 'Trần Đình Trọng',
+          resolutionNotes: 'Nhóm nghiên cứu làm thêm ngoài giờ, đã kiểm tra thẻ cán bộ và hỗ trợ khóa cửa.',
+          resolutionCategory: 'Trường hợp ngoại lệ hợp lệ'
+        }
+      ]
+    };
+  }
+
   if (path.includes('/cameras') || path.includes('/access-requests')) {
     return { content: [], totalElements: 0, totalPages: 0 };
   }
