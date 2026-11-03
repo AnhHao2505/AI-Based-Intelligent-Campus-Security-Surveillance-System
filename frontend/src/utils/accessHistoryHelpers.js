@@ -9,8 +9,8 @@ export const ACCESS_RESULT_META = {
 	AUTHORIZED_PERSON: { label: "Hợp lệ", icon: ShieldCheck, badge: "success" },
 	UNAUTHORIZED_PERSON: { label: "Không có quyền", icon: ShieldAlert, badge: "danger" },
 	UNKNOWN_PERSON: { label: "Người lạ", icon: UserX, badge: "neutral" },
-	PERSON_INTRUSION: { label: "Ngoài giờ", icon: AlertTriangle, badge: "danger" },
-	SUSPICIOUS_MOVING_OBJECT: { label: "Chuyển động nghi vấn", icon: AlertTriangle, badge: "warning" },
+	PERSON_INTRUSION: { label: "Đột nhập ngoài giờ", icon: AlertTriangle, badge: "danger" },
+	SUSPICIOUS_MOVING_OBJECT: { label: "Vật thể nghi vấn", icon: AlertTriangle, badge: "warning" },
 
 	// Legacy mappings for backwards compatibility
 	AUTHORIZED_ACCESS: { label: "Hợp lệ", icon: ShieldCheck, badge: "success" },
