@@ -50,8 +50,8 @@ public class SecurityReportPdfService {
             Font fontSignNote = new Font(bfRegular, 8, Font.ITALIC, new Color(100, 116, 139));
 
             // --- HEADER ---
-            Paragraph pOrg = new Paragraph("TRƯỜNG ĐẠI HỌC FPT — PHÂN HIỆU TP. HỒ CHÍ MINH", fontOrg);
-            Paragraph pOrgSub = new Paragraph("TRUNG TÂM VẬN HÀNH & GIÁM SÁT AN NINH THÔNG MINH (SOC) · CƠ SỞ TÂN UYÊN", fontOrgSub);
+            Paragraph pOrg = new Paragraph("ĐẠI HỌC FPT — CƠ SỞ TÂN UYÊN", fontOrg);
+            Paragraph pOrgSub = new Paragraph("Hệ thống giám sát thông minh bằng camera tích hợp AI", fontOrgSub);
             document.add(pOrg);
             document.add(pOrgSub);
 
@@ -149,7 +149,7 @@ public class SecurityReportPdfService {
             }
             if (report.severityCounts() != null) {
                 for (CategoryCountDto sev : report.severityCounts()) {
-                    addTd(tInc, "[" + sev.label().toUpperCase() + "]", fontTdBold, Element.ALIGN_LEFT);
+                    addTd(tInc, sev.label().toUpperCase(), fontTdBold, Element.ALIGN_LEFT);
                     addTd(tInc, String.valueOf(sev.count()), fontTd, Element.ALIGN_RIGHT);
                     addTd(tInc, formatPct(sev.percentage()), fontTd, Element.ALIGN_RIGHT);
                     addTd(tInc, "Mức độ ưu tiên cảnh báo", fontTd, Element.ALIGN_LEFT);
@@ -198,7 +198,7 @@ public class SecurityReportPdfService {
 
             if (report.accessResultCounts() != null) {
                 for (CategoryCountDto res : report.accessResultCounts()) {
-                    addTd(tAccess, "[" + res.label().toUpperCase() + "]", fontTdBold, Element.ALIGN_LEFT);
+                    addTd(tAccess, res.label().toUpperCase(), fontTdBold, Element.ALIGN_LEFT);
                     String ruleNote = switch (res.code()) {
                         case "AUTHORIZED_PERSON", "AUTHORIZED_ACCESS" -> "Nhận diện đúng người và đúng thẩm quyền khu vực";
                         case "UNAUTHORIZED_PERSON", "UNAUTHORIZED_ACCESS" -> "Có danh tính nhưng không đủ thẩm quyền hoặc ngoài khung giờ cho phép";
@@ -258,7 +258,7 @@ public class SecurityReportPdfService {
                     addTd(tLog, inc.detectedAt() != null ? inc.detectedAt().format(DATETIME_FMT) : "—", fontTd, Element.ALIGN_LEFT);
                     addTd(tLog, inc.location() + "\n(" + inc.cameraCode() + ")", fontTd, Element.ALIGN_LEFT);
                     addTd(tLog, inc.eventType(), fontTd, Element.ALIGN_LEFT);
-                    addTd(tLog, "[" + inc.severity() + "]", fontTdBold, Element.ALIGN_CENTER);
+                    addTd(tLog, inc.severity(), fontTdBold, Element.ALIGN_CENTER);
                     addTd(tLog, inc.subjectUserCode(), fontTd, Element.ALIGN_LEFT);
                     addTd(tLog, inc.resolvedByName(), fontTd, Element.ALIGN_LEFT);
                     addTd(tLog, inc.resolutionCategory() + ": " + inc.resolutionNotes(), fontTd, Element.ALIGN_LEFT);
@@ -274,7 +274,7 @@ public class SecurityReportPdfService {
 
             // --- SECTION VI: OFFICIAL SIGN-OFF ---
             Paragraph pDisclaimer = new Paragraph(
-                    "Căn cứ Quy chế Quản lý & Vận hành An ninh Cơ sở của Trường Đại học FPT, văn bản này là tài liệu kiểm toán nội bộ "
+                    "Căn cứ Quy chế Quản lý & Vận hành An ninh Cơ sở của Đại học FPT - Cơ sở Tân Uyên, văn bản này là tài liệu kiểm toán nội bộ "
                             + "được kết xuất trực tiếp từ máy chủ cơ sở dữ liệu giám sát an ninh. Mọi hình ảnh snapshot, log đối soát khuôn mặt "
                             + "và biên bản xử lý vi phạm liên quan đã được lưu trữ an toàn tại hệ thống MinIO Storage phục vụ đối chiếu khi có yêu cầu.",
                     fontSecDesc
@@ -295,7 +295,7 @@ public class SecurityReportPdfService {
             PdfPCell cSign2 = new PdfPCell();
             cSign2.setBorder(Rectangle.NO_BORDER);
             cSign2.setHorizontalAlignment(Element.ALIGN_CENTER);
-            Paragraph pSign2 = new Paragraph("BAN AN NINH & QUẢN LÝ CƠ SỞ\n(Xác nhận, phê duyệt và lưu trữ)\n\n\n\n\nBan Quản lý Cơ sở Tân Uyên\nĐại học FPT Phân hiệu TP.HCM", fontSign);
+            Paragraph pSign2 = new Paragraph("BAN AN NINH & QUẢN LÝ CƠ SỞ\n(Xác nhận, phê duyệt và lưu trữ)\n\n\n\n\nBan Quản lý Cơ sở Tân Uyên\nĐại học FPT - Cơ sở Tân Uyên", fontSign);
             pSign2.setAlignment(Element.ALIGN_CENTER);
             cSign2.addElement(pSign2);
 

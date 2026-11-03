@@ -20,13 +20,13 @@ export async function generateDemoPdfBlob({ startDate, endDate }) {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
-  doc.text('TRUONG DAI HOC FPT - PHAN HIEU TP. HO CHI MINH', margin, y);
+  doc.text('DAI HOC FPT - CO SO TAN UYEN', margin, y);
   y += 5;
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(80, 80, 80);
-  doc.text('TRUNG TAM VAN HANH & GIAM SAT AN NINH THONG MINH (SOC) - CO SO TAN UYEN', margin, y);
+  doc.text('He thong giam sat thong minh bang camera tich hop AI', margin, y);
   y += 8;
 
   doc.setDrawColor(180, 180, 180);
@@ -154,6 +154,7 @@ export async function generateDemoPdfBlob({ startDate, endDate }) {
   doc.setTextColor(0, 0, 0);
   doc.text('Administrator', margin + 20, signY + 22, { align: 'center' });
   doc.text('Ban Quan Ly Co So Tan Uyen', pageWidth - margin - 35, signY + 22, { align: 'center' });
+  doc.text('Dai hoc FPT - Co so Tan Uyen', pageWidth - margin - 35, signY + 26, { align: 'center' });
 
   return doc.output('blob');
 }

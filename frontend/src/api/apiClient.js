@@ -114,7 +114,7 @@ function getDemoResponse(path) {
       generatedAt: new Date().toISOString(),
       generatedByName: 'Quản trị viên Hệ thống',
       generatedByEmail: 'admin.security@fpt.edu.vn',
-      campusName: 'FPT University TP.HCM — Cơ sở Tân Uyên',
+      campusName: 'Đại học FPT - Cơ sở Tân Uyên',
       totalIncidents: 14,
       verifiedIncidents: 11,
       dismissedIncidents: 3,
