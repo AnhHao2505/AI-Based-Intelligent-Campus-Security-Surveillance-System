@@ -37,8 +37,8 @@ import { minimizeReason } from "../../utils/accessHistoryHelpers";
 
 // Chuẩn hóa 5 nhóm sự kiện an ninh theo độ ưu tiên (Priority):
 // 1. UNAUTHORIZED_ACCESS: Không đủ thẩm quyền (Trọng số 3 - Nguy cấp, #ef4444)
-// 2. INTRUSION: Sau giờ hoạt động (Trọng số 2 - Cao, #f97316)
-// 3. ACCESS_OUT_OF_TIME: Quá thời hạn thẩm quyền (Trọng số 2 - Cao, #eab308)
+// 2. INTRUSION: Đột nhập Sau giờ hoạt động (Trọng số 2 - Cao, #f97316)
+// 3. SUSPICIOUS_MOVING_OBJECT: Vật thể chuyển động bất thường (Trọng số 2 - Cao, #f97316)
 // 4. UNKNOWN_PERSON: Đối tượng không xác định (Trọng số 1 - Cảnh báo, #8b5cf6)
 // 5. AUTHORIZED_ACCESS: Hợp lệ (Trọng số 0, #10b981)
 const EVENT_SEVERITY_CONFIG = {
@@ -57,7 +57,7 @@ const EVENT_SEVERITY_CONFIG = {
 	},
 	PERSON_INTRUSION: {
 		weight: 3,
-		label: "Sau giờ hoạt động",
+		label: "Đột nhập Sau giờ hoạt động",
 		badgeClass: "severity-critical",
 		color: "#ef4444",
 	},
@@ -69,7 +69,7 @@ const EVENT_SEVERITY_CONFIG = {
 	},
 	SUSPICIOUS_MOVING_OBJECT: {
 		weight: 2,
-		label: "Chuyển động nghi vấn",
+		label: "Vật thể chuyển động bất thường",
 		badgeClass: "severity-high",
 		color: "#f97316",
 	},
