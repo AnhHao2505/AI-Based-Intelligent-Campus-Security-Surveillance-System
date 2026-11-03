@@ -6,6 +6,7 @@ import com.fa26se040.icss.entity.AccessRequestMember;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.AreaAssignedPersonnel;
 import com.fa26se040.icss.entity.Camera;
+import com.fa26se040.icss.entity.Guest;
 import com.fa26se040.icss.entity.SecurityIncident;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.AccessSource;
@@ -925,6 +926,80 @@ class AccessDecisionServiceTest {
         assertEquals(AccessSource.NONE, res.getSource());
         assertTrue(res.getReason().contains("không nằm trong danh sách tiếp đón"));
     }
+
+    @Test
+    @DisplayName("checkCameraEntry: Người lạ ra khỏi khu vực (EXIT) -> DENIED (allowed=false), không được đánh dấu là Hợp lệ")
+    void checkCameraEntry_UnknownUser_Exit_ShouldNotBeAllowed() {
+        Camera cam = Camera.builder().cameraCode("CAM-01").area(lab).build();
+        when(cameraRepository.findByCameraCodeAndDeletedAtIsNull("CAM-01")).thenReturn(Optional.of(cam));
+        when(userRepository.findByUserCodeAndDeletedAtIsNull("UNKNOWN")).thenReturn(Optional.empty());
+
+        var res = accessDecisionService.checkCameraEntry("CAM-01", "UNKNOWN", at(9), "Vùng giám sát 1", "EXIT", 7.0);
+        assertFalse(res.isAllowed(), "Người lạ / chưa rõ danh tính rời khu vực KHÔNG ĐƯỢC phép là allowed=true (Hợp lệ)");
+        assertEquals("CAM-01", res.getCameraCode());
+        assertEquals("Phòng Lab 01", res.getAreaName());
+        assertEquals("Người lạ / Chưa rõ mặt", res.getFullName());
+        assertTrue(res.getReason().contains("[RA KHỎI ROI: Vùng giám sát 1] Người lạ rời khu vực (Thời gian lưu lại: 7s)"));
+    }
+
+    @Test
+    @DisplayName("checkCameraEntry: userCode rỗng -> DENIED với userCode=UNKNOWN")
+    void checkCameraEntry_EmptyUserCode_Exit_ShouldDefaultToUnknown() {
+        var res = accessDecisionService.checkCameraEntry("CAM-01", "", at(9), "Vùng 1", "EXIT", 5.0);
+        assertFalse(res.isAllowed());
+        assertEquals("UNKNOWN", res.getUserCode());
+    }
+
+    @Test
+    @DisplayName("checkCameraEntry: Người dùng không có quyền rời khu vực (EXIT) -> DENIED (allowed=false) có hậu tố (Không có thẩm quyền)")
+    void checkCameraEntry_UnauthorizedUser_Exit_ShouldNotBeAllowed() {
+        Camera cam = Camera.builder().cameraCode("CAM-01").area(lab).build();
+        when(cameraRepository.findByCameraCodeAndDeletedAtIsNull("CAM-01")).thenReturn(Optional.of(cam));
+        when(userRepository.findByUserCodeAndDeletedAtIsNull(student.getUserCode())).thenReturn(Optional.of(student));
+
+        var res = accessDecisionService.checkCameraEntry("CAM-01", student.getUserCode(), at(9), "Vùng 1", "EXIT", 10.0);
+        assertFalse(res.isAllowed(), "Người dùng không có thẩm quyền ra khỏi khu vực phải có allowed=false");
+        assertTrue(res.getReason().contains("(Không có thẩm quyền)"));
+    }
+
+    @Test
+    @DisplayName("checkCameraEntry: Người dùng hợp lệ rời khu vực (EXIT) -> ALLOWED (allowed=true)")
+    void checkCameraEntry_AuthorizedUser_Exit_ShouldBeAllowed() {
+        Camera cam = Camera.builder().cameraCode("CAM-01").area(lab).build();
+        when(cameraRepository.findByCameraCodeAndDeletedAtIsNull("CAM-01")).thenReturn(Optional.of(cam));
+        when(userRepository.findByUserCodeAndDeletedAtIsNull("GV001")).thenReturn(Optional.of(lecturer));
+        assign(lecturer, at(8), null);
+
+        var res = accessDecisionService.checkCameraEntry("CAM-01", "GV001", at(9), "Vùng 1", "EXIT", 15.0);
+        assertTrue(res.isAllowed(), "Người dùng hợp lệ rời khu vực phải là allowed=true");
+        assertTrue(res.getReason().contains("Rời khu vực (Thời gian lưu lại: 15s)"));
+        assertFalse(res.getReason().contains("(Không có thẩm quyền)"));
+    }
+
+    @Test
+    @DisplayName("checkCameraEntry: Khách hết hạn rời khu vực (EXIT) -> DENIED (allowed=false) có hậu tố (Không có thẩm quyền)")
+    void checkCameraEntry_GuestExpired_Exit_ShouldNotBeAllowed() {
+        UUID guestId = UUID.randomUUID();
+        Guest guest = Guest.builder()
+                .id(guestId)
+                .fullName("Khách Hết Hạn")
+                .build();
+        Camera cam = Camera.builder().cameraCode("CAM-01").area(lab).build();
+
+        when(cameraRepository.findByCameraCodeAndDeletedAtIsNull("CAM-01")).thenReturn(Optional.of(cam));
+        when(userRepository.findByUserCodeAndDeletedAtIsNull("GUEST-" + guestId)).thenReturn(Optional.empty());
+        when(guestRepository.findById(guestId)).thenReturn(Optional.of(guest));
+        when(guestAccessDecisionService.checkGuestEntry(eq(guestId), eq(lab.getId()), any()))
+                .thenReturn(com.fa26se040.icss.dto.guest.GuestAccessDecision.deny(
+                        com.fa26se040.icss.enums.GuestEntryDenyReason.OUTSIDE_WINDOW, UUID.randomUUID()));
+
+        var res = accessDecisionService.checkCameraEntry("CAM-01", "GUEST-" + guestId, at(9), "Vùng 1", "EXIT", 20.0);
+        assertFalse(res.isAllowed(), "Khách hết hạn ra khỏi khu vực phải có allowed=false");
+        assertEquals(AccessSource.NONE, res.getSource());
+        assertTrue(res.getReason().contains("Khách rời khu vực"));
+        assertTrue(res.getReason().contains("(Không có thẩm quyền)"));
+    }
+
 
     // ===================== BR-GD-02 / BR-GD-03: bảo vệ xử lý sự cố (INCIDENT_RESPONSE) =====================
 
