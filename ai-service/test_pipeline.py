@@ -185,7 +185,7 @@ def run_auto_test():
 
     print(f"\n1. Test: Đối tượng ở ngoài vùng cấm ROI...")
     bbox_outside = BoundingBox(x1=50, y1=50, x2=100, y2=150)
-    persons, alerts = engine.process_frame([(101, bbox_outside)], roi, current_time=1000.0)
+    persons, alerts, _ = engine.process_frame([(101, bbox_outside)], roi, current_time=1000.0)
     assert len(persons) == 1
     assert persons[0].is_in_roi == False
     assert len(alerts) == 0
@@ -193,7 +193,7 @@ def run_auto_test():
 
     print(f"\n2. Test: Đối tượng vào ROI nhưng chưa rõ mặt (Quy tắc 'chưa rõ mặt là gán unknown luôn')...")
     bbox_inside = BoundingBox(x1=250, y1=150, x2=350, y2=350)
-    persons, alerts = engine.process_frame([(101, bbox_inside)], roi, current_time=1001.0)
+    persons, alerts, _ = engine.process_frame([(101, bbox_inside)], roi, current_time=1001.6)
     assert persons[0].is_in_roi == True
     assert len(alerts) == 1
     assert alerts[0].event_type == "UNKNOWN_PERSON"
@@ -211,7 +211,7 @@ def run_auto_test():
         access_reason="Người dùng được phân quyền ra vào hợp lệ"
     )
     engine.associate_face(track_id=102, face_result=face_auth)
-    persons, alerts = engine.process_frame([(102, bbox_inside)], roi, current_time=1002.0)
+    persons, alerts, _ = engine.process_frame([(102, bbox_inside)], roi, current_time=1002.0)
     assert len(alerts) == 0
     print(f"   [{get_now_str()}] -> [PASS] Đối tượng HỢP LỆ (GV001) được duyệt ra vào, KHÔNG sinh sự cố cảnh báo.")
 
@@ -226,7 +226,7 @@ def run_auto_test():
         access_reason="Sinh viên không có quyền vào phòng máy chủ"
     )
     engine.associate_face(track_id=103, face_result=face_unauth)
-    persons, alerts = engine.process_frame([(103, bbox_inside)], roi, current_time=1003.0)
+    persons, alerts, _ = engine.process_frame([(103, bbox_inside)], roi, current_time=1003.0)
     assert len(alerts) == 1
     assert alerts[0].event_type == "UNAUTHORIZED_ACCESS"
     assert "SE170123" in alerts[0].details
@@ -242,7 +242,7 @@ def run_auto_test():
         is_active=True
     )
     engine.associate_face(track_id=104, face_result=face_stranger)
-    persons, alerts = engine.process_frame([(104, bbox_inside)], roi, current_time=1035.0)
+    persons, alerts, _ = engine.process_frame([(104, bbox_inside)], roi, current_time=1035.0)
     assert len(alerts) == 1
     assert alerts[0].event_type == "UNKNOWN_PERSON"
     assert "người lạ" in alerts[0].details

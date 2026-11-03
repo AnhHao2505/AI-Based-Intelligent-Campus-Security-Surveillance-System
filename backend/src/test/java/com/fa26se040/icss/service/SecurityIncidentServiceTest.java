@@ -541,4 +541,61 @@ class SecurityIncidentServiceTest {
 
         assertTrue(ex.getMessage().contains("Bảo vệ Đi Trước"), "Thông điệp lỗi phải chỉ rõ ai vừa tiếp nhận trước");
     }
+
+    // ================================================================== 5 nhãn (quyết định 03/11)
+
+    @Test
+    @DisplayName("5 nhãn: event_type cũ ACCESS_OUT_OF_TIME từ AI bản cũ được lưu thành UNAUTHORIZED_PERSON")
+    void ingestIncident_legacyAccessOutOfTime_savedAsUnauthorizedPerson() {
+        IncidentEventDto eventDto = IncidentEventDto.builder()
+                .eventId("EVT-OOT-1")
+                .cameraCode("CAM-001")
+                .eventType("ACCESS_OUT_OF_TIME")
+                .build();
+        when(cameraRepository.findByCameraCodeAndDeletedAtIsNull("CAM-001"))
+                .thenReturn(Optional.of(Camera.builder().cameraCode("CAM-001").area(area).build()));
+        when(incidentRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        incidentService.ingestIncident(eventDto);
+
+        ArgumentCaptor<SecurityIncident> saved = ArgumentCaptor.forClass(SecurityIncident.class);
+        verify(incidentRepository, atLeastOnce()).save(saved.capture());
+        assertEquals("UNAUTHORIZED_PERSON", saved.getAllValues().get(0).getEventType());
+    }
+
+    @Test
+    @DisplayName("5 nhãn: AUTHORIZED_PERSON / AUTHORIZED_ACCESS chỉ dùng cho lịch sử ra vào, không tạo sự cố")
+    void ingestIncident_authorizedPerson_doesNotCreateIncident() {
+        when(cameraRepository.findByCameraCodeAndDeletedAtIsNull("CAM-001"))
+                .thenReturn(Optional.of(Camera.builder().cameraCode("CAM-001").area(area).build()));
+
+        for (String type : List.of("AUTHORIZED_PERSON", "AUTHORIZED_ACCESS")) {
+            IncidentEventDto eventDto = IncidentEventDto.builder()
+                    .eventId("EVT-AUTH-" + type)
+                    .cameraCode("CAM-001")
+                    .eventType(type)
+                    .build();
+            assertNull(incidentService.ingestIncident(eventDto), type);
+        }
+        verify(incidentRepository, never()).save(any());
+        verify(messagingTemplate, never()).convertAndSend(anyString(), any(Object.class));
+    }
+
+    @Test
+    @DisplayName("5 nhãn: bảng map tên cũ -> mới đúng quyết định 03/11; loại khác giữ nguyên")
+    void normalizeEventType_mapsLegacyNames() {
+        for (String t : List.of("INTRUSION", "AFTER_HOURS", "AFTER_HOURS_PRESENCE", "AFTER_HOURS_ACCESS", "PERSON_INTRUSION")) {
+            assertEquals("PERSON_INTRUSION", SecurityIncidentService.normalizeEventType(t), t);
+        }
+        for (String t : List.of("UNAUTHORIZED_ACCESS", "UNAUTHORIZED", "ACCESS_OUT_OF_TIME", "OUT_OF_TIME", "UNAUTHORIZED_PERSON")) {
+            assertEquals("UNAUTHORIZED_PERSON", SecurityIncidentService.normalizeEventType(t), t);
+        }
+        assertEquals("UNKNOWN_PERSON", SecurityIncidentService.normalizeEventType("UNKNOWN"));
+        assertEquals("UNKNOWN_PERSON", SecurityIncidentService.normalizeEventType("UNKNOWN_PERSON"));
+        for (String t : List.of("SUSPICIOUS_MOTION", "CAMOUFLAGE", "MOVING_OBJECT", "SUSPICIOUS_MOVING_OBJECT")) {
+            assertEquals("SUSPICIOUS_MOVING_OBJECT", SecurityIncidentService.normalizeEventType(t), t);
+        }
+        assertEquals("AUTHORIZED_PERSON", SecurityIncidentService.normalizeEventType("AUTHORIZED_ACCESS"));
+        assertEquals("CAMERA_TAMPERING", SecurityIncidentService.normalizeEventType("CAMERA_TAMPERING"));
+    }
 }

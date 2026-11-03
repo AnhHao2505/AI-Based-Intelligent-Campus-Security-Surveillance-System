@@ -87,9 +87,9 @@ class AccessHistoryIntegrationTest extends AbstractIntegrationTest {
         areaA = area("A", building, floor);
         areaB = area("B", building, floor);
 
-        s1AllowedA = log(student1, areaA, AccessResult.AUTHORIZED_ACCESS, now.minusHours(1));
-        s1DeniedB = log(student1, areaB, AccessResult.UNAUTHORIZED_ACCESS, now.minusHours(2));
-        s2DeniedA = log(student2, areaA, AccessResult.UNAUTHORIZED_ACCESS, now.minusMinutes(30));
+        s1AllowedA = log(student1, areaA, AccessResult.AUTHORIZED_PERSON, now.minusHours(1));
+        s1DeniedB = log(student1, areaB, AccessResult.UNAUTHORIZED_PERSON, now.minusHours(2));
+        s2DeniedA = log(student2, areaA, AccessResult.UNAUTHORIZED_PERSON, now.minusMinutes(30));
         // Ngoài khoảng mặc định 7 ngày
         s1OldA = log(student1, areaA, AccessResult.ACCESS_OUT_OF_TIME, now.minusDays(10));
     }
@@ -240,12 +240,12 @@ class AccessHistoryIntegrationTest extends AbstractIntegrationTest {
     void fm_filterByResult() throws Exception {
         MvcResult denied = call(get("/api/access-history")
                 .param("areaId", areaA.getId().toString())
-                .param("accessResult", "UNAUTHORIZED_ACCESS"), fm);
+                .param("accessResult", "UNAUTHORIZED_PERSON"), fm);
         assertThat(ids(denied)).containsExactly(id(s2DeniedA));
 
         MvcResult allowed = call(get("/api/access-history")
                 .param("areaId", areaA.getId().toString())
-                .param("accessResult", "AUTHORIZED_ACCESS"), fm);
+                .param("accessResult", "AUTHORIZED_PERSON"), fm);
         assertThat(ids(allowed)).containsExactly(id(s1AllowedA));
     }
 

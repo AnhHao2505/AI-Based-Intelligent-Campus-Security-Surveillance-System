@@ -115,7 +115,7 @@ class SecurityDashboardIntegrationTest extends AbstractIntegrationTest {
                 .cameraCode("DB-CAM-" + suffix)
                 .area(a)
                 .building(building.getName())
-                .eventType("INTRUSION")
+                .eventType("PERSON_INTRUSION")
                 .status(status)
                 .detectedAt(detectedAt.truncatedTo(ChronoUnit.MICROS))
                 .build());
@@ -313,14 +313,15 @@ class SecurityDashboardIntegrationTest extends AbstractIntegrationTest {
     @DisplayName("T-05: ngày cắt theo giờ VN (23:59 và 00:01), ngày không có lượt vẫn có dòng toàn 0")
     void accessResultsByDay_vnDayBoundaries() {
         Area a = area("T05");
-        accessLog(a, AccessResult.AUTHORIZED_ACCESS, vn(3, 14, 23, 59));   // 16:59Z 14/03 → ngày 14/03
-        accessLog(a, AccessResult.UNAUTHORIZED_ACCESS, vn(3, 15, 0, 1));   // 17:01Z 14/03 → ngày 15/03 (giờ VN)
+        accessLog(a, AccessResult.AUTHORIZED_PERSON, vn(3, 14, 23, 59));   // 16:59Z 14/03 → ngày 14/03
+        accessLog(a, AccessResult.UNAUTHORIZED_PERSON, vn(3, 15, 0, 1));   // 17:01Z 14/03 → ngày 15/03 (giờ VN)
         accessLog(a, AccessResult.UNKNOWN_PERSON, vn(3, 15, 0, 1));
-        accessLog(a, AccessResult.INTRUSION, vn(3, 9, 0, 0));              // mốc đầu khoảng: tính
+        accessLog(a, AccessResult.PERSON_INTRUSION, vn(3, 9, 0, 0));       // mốc đầu khoảng: tính
+        // Dòng tên cũ chưa migrate (sai khung giờ): gộp vào UNAUTHORIZED_PERSON theo quyết định 03/11
         accessLog(a, AccessResult.ACCESS_OUT_OF_TIME, vn(3, 12, 7, 0));
-        accessLog(a, AccessResult.ACCESS_OUT_OF_TIME, vn(3, 12, 18, 0));
-        accessLog(a, AccessResult.AUTHORIZED_ACCESS, vn(3, 8, 23, 59));    // trước khoảng
-        accessLog(a, AccessResult.AUTHORIZED_ACCESS, vn(3, 15, 10, 1));    // sau now
+        accessLog(a, AccessResult.UNAUTHORIZED_PERSON, vn(3, 12, 18, 0));
+        accessLog(a, AccessResult.AUTHORIZED_PERSON, vn(3, 8, 23, 59));    // trước khoảng
+        accessLog(a, AccessResult.AUTHORIZED_PERSON, vn(3, 15, 10, 1));    // sau now
 
         List<DailyAccessResults> days = securityDashboardService.getStats(SecurityStatsRange.LAST_7_DAYS, NOW)
                 .accessResultsByDay();
@@ -329,21 +330,21 @@ class SecurityDashboardIntegrationTest extends AbstractIntegrationTest {
                 LocalDate.of(2047, 3, 9), LocalDate.of(2047, 3, 10), LocalDate.of(2047, 3, 11),
                 LocalDate.of(2047, 3, 12), LocalDate.of(2047, 3, 13), LocalDate.of(2047, 3, 14),
                 LocalDate.of(2047, 3, 15));
-        assertThat(days).allSatisfy(d -> assertThat(d.counts()).containsOnlyKeys(AccessResult.values()));
+        assertThat(days).allSatisfy(d -> assertThat(d.counts()).containsOnlyKeys(AccessResult.CANONICAL));
 
-        assertThat(days.get(0).counts()).containsEntry(AccessResult.INTRUSION, 1L);
+        assertThat(days.get(0).counts()).containsEntry(AccessResult.PERSON_INTRUSION, 1L);
         assertThat(total(days.get(0))).isEqualTo(1);
         assertThat(total(days.get(1))).isZero();
         assertThat(total(days.get(2))).isZero();
-        assertThat(days.get(3).counts()).containsEntry(AccessResult.ACCESS_OUT_OF_TIME, 2L);
+        assertThat(days.get(3).counts()).containsEntry(AccessResult.UNAUTHORIZED_PERSON, 2L);
         assertThat(total(days.get(3))).isEqualTo(2);
         assertThat(total(days.get(4))).isZero();
-        assertThat(days.get(5).counts()).containsEntry(AccessResult.AUTHORIZED_ACCESS, 1L);
+        assertThat(days.get(5).counts()).containsEntry(AccessResult.AUTHORIZED_PERSON, 1L);
         assertThat(total(days.get(5))).isEqualTo(1);
         assertThat(days.get(6).counts())
-                .containsEntry(AccessResult.UNAUTHORIZED_ACCESS, 1L)
+                .containsEntry(AccessResult.UNAUTHORIZED_PERSON, 1L)
                 .containsEntry(AccessResult.UNKNOWN_PERSON, 1L)
-                .containsEntry(AccessResult.AUTHORIZED_ACCESS, 0L);
+                .containsEntry(AccessResult.AUTHORIZED_PERSON, 0L);
         assertThat(total(days.get(6))).isEqualTo(2);
 
         List<DailyAccessResults> today = securityDashboardService.getStats(SecurityStatsRange.TODAY, NOW)

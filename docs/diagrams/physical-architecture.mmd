@@ -13,7 +13,7 @@ graph TB
     subgraph SERVER_HOST ["Campus Security Server (Ubuntu 22.04 LTS / NVIDIA CUDA)"]
         subgraph DOCKER_NET ["Docker Network (sep_network)"]
             MEDIAMTX["<b>sep_mediamtx</b> (bluenviron/mediamtx)<br/>Ports: 8554 (RTSP), 8889 (WHEP), 8888 (HLS)"]
-            AI_SVC["<b>sep_ai_service</b> (Python 3.10 / FastAPI)<br/>YOLO11n, YuNet, ArcFace, ByteTrack<br/>Port: 8000"]
+            AI_SVC["<b>sep_ai_service</b> (Python 3.10 / FastAPI)<br/>YOLO26n, YuNet, ArcFace, ByteTrack<br/>Port: 8000"]
             KAFKA["<b>sep_kafka</b> (cp-kafka:7.7.0 KRaft)<br/>Topics: security-incidents, cam.alert<br/>Ports: 9092, 29092"]
             BACKEND["<b>sep_backend</b> (Spring Boot 3.2.5 / Java 21)<br/>Access Waterfall, Incident Dispatch<br/>Port: 8080 (REST / WS)"]
             POSTGRES[("<b>sep_postgres</b> (pgvector:pg16)<br/>33 Tables + HNSW Vector(512)<br/>Port: 5432")]

@@ -101,7 +101,7 @@ class TestAccessDecisionIntegration(unittest.TestCase):
         )
         engine.associate_face(track_id=1, face_result=face_info)
 
-        persons, alerts = engine.process_frame(
+        persons, alerts, _ = engine.process_frame(
             detected_tracks=[(1, bbox)],
             roi_polygon=roi,
             camera_code="CAM-SERVER-01",
@@ -133,7 +133,7 @@ class TestAccessDecisionIntegration(unittest.TestCase):
         )
         engine.associate_face(track_id=2, face_result=face_info)
 
-        persons, alerts = engine.process_frame(
+        persons, alerts, _ = engine.process_frame(
             detected_tracks=[(2, bbox)],
             roi_polygon=roi,
             camera_code="CAM-SERVER-01",
@@ -153,12 +153,9 @@ class TestAccessDecisionIntegration(unittest.TestCase):
         bbox = BoundingBox(x1=200, y1=200, x2=300, y2=300)
 
         # Đối tượng trong ROI nhưng chưa phát hiện được mặt (quay lưng / che mặt)
-        persons, alerts = engine.process_frame(
-            detected_tracks=[(7, bbox)],
-            roi_polygon=roi,
-            camera_code="CAM-SERVER-01",
-            current_time=time.time()
-        )
+        t0 = time.time()
+        engine.process_frame(detected_tracks=[(7, bbox)], roi_polygon=roi, camera_code="CAM-SERVER-01", current_time=t0)
+        persons, alerts, _ = engine.process_frame(detected_tracks=[(7, bbox)], roi_polygon=roi, camera_code="CAM-SERVER-01", current_time=t0 + 2.0)
 
         self.assertEqual(len(alerts), 1)
         self.assertEqual(alerts[0].event_type, "UNKNOWN_PERSON")
@@ -173,12 +170,9 @@ class TestAccessDecisionIntegration(unittest.TestCase):
         bbox = BoundingBox(x1=200, y1=200, x2=300, y2=300)
 
         # Chưa phát hiện mặt (quay lưng / che mặt ban đêm) -> Gán INTRUSION
-        persons, alerts = engine.process_frame(
-            detected_tracks=[(3, bbox)],
-            roi_polygon=roi,
-            camera_code="CAM-SERVER-01",
-            current_time=time.time()
-        )
+        t0 = time.time()
+        engine.process_frame(detected_tracks=[(3, bbox)], roi_polygon=roi, camera_code="CAM-SERVER-01", current_time=t0)
+        persons, alerts, _ = engine.process_frame(detected_tracks=[(3, bbox)], roi_polygon=roi, camera_code="CAM-SERVER-01", current_time=t0 + 2.0)
 
         self.assertEqual(len(alerts), 1)
         self.assertEqual(alerts[0].event_type, "INTRUSION")
@@ -204,7 +198,7 @@ class TestAccessDecisionIntegration(unittest.TestCase):
         )
         engine.associate_face(track_id=4, face_result=face_info)
 
-        persons, alerts = engine.process_frame(
+        persons, alerts, _ = engine.process_frame(
             detected_tracks=[(4, bbox)],
             roi_polygon=roi,
             camera_code="CAM-SERVER-01",
@@ -231,7 +225,7 @@ class TestAccessDecisionIntegration(unittest.TestCase):
         )
         engine.associate_face(track_id=6, face_result=face_info)
 
-        persons, alerts = engine.process_frame(
+        persons, alerts, _ = engine.process_frame(
             detected_tracks=[(6, bbox)],
             roi_polygon=roi,
             camera_code="CAM-SERVER-01",
@@ -259,7 +253,7 @@ class TestAccessDecisionIntegration(unittest.TestCase):
         )
         engine.associate_face(track_id=5, face_result=face_info)
 
-        persons, alerts = engine.process_frame(
+        persons, alerts, _ = engine.process_frame(
             detected_tracks=[(5, bbox)],
             roi_polygon=roi,
             camera_code="CAM-SERVER-01",
@@ -289,7 +283,7 @@ class TestAccessDecisionIntegration(unittest.TestCase):
         )
         engine.associate_face(track_id=8, face_result=face_info)
 
-        persons, alerts = engine.process_frame(
+        persons, alerts, _ = engine.process_frame(
             detected_tracks=[(8, bbox)],
             roi_polygon=roi,
             camera_code="CAM-SERVER-01",

@@ -47,9 +47,6 @@ async function request(url, options = {}) {
 	return json;
 }
 
-/**
- * Lấy danh sách camera kèm phân trang và tìm kiếm/lọc
- */
 export function fetchCameras({
 	page = 0,
 	size = 10,
@@ -70,16 +67,10 @@ export function fetchCameras({
 	return request(`/api/cameras?${params.toString()}`);
 }
 
-/**
- * Lấy chi tiết camera và toàn bộ cấu hình con
- */
 export function fetchCameraDetail(id) {
 	return request(`/api/cameras/${id}`);
 }
 
-/**
- * Tạo camera mới
- */
 export function createCamera(data) {
 	return request("/api/cameras", {
 		method: "POST",
@@ -87,9 +78,6 @@ export function createCamera(data) {
 	});
 }
 
-/**
- * Cập nhật thông tin cơ bản camera và toạ độ
- */
 export function updateCamera(id, data) {
 	return request(`/api/cameras/${id}`, {
 		method: "PUT",
@@ -97,36 +85,24 @@ export function updateCamera(id, data) {
 	});
 }
 
-/**
- * Dừng hoạt động camera (decommission)
- */
 export function decommissionCamera(id) {
 	return request(`/api/cameras/${id}/decommission`, {
 		method: "PATCH",
 	});
 }
 
-/**
- * Kích hoạt lại camera
- */
 export function reactivateCamera(id) {
 	return request(`/api/cameras/${id}/reactivate`, {
 		method: "PATCH",
 	});
 }
 
-/**
- * Xóa mềm camera khỏi hệ thống
- */
 export function deleteCamera(id) {
 	return request(`/api/cameras/${id}`, {
 		method: "DELETE",
 	});
 }
 
-/**
- * Cập nhật/Tạo mới cấu hình stream camera
- */
 export function upsertStreamConfig(id, data) {
 	return request(`/api/cameras/${id}/stream-config`, {
 		method: "PUT",
@@ -134,54 +110,43 @@ export function upsertStreamConfig(id, data) {
 	});
 }
 
-/**
- * Lấy danh sách gọn các camera đang hoạt động (dùng cho dropdown/gán khu vực)
- */
 export function fetchAllSimpleCameras() {
 	return request("/api/cameras/all-simple");
 }
 
-/**
- * Xem lịch sử health logs của camera
- */
 export function fetchHealthLogs(id, { page = 0, size = 10 } = {}) {
 	return request(`/api/cameras/${id}/health-logs?page=${page}&size=${size}`);
 }
 
-/**
- * Trích xuất 1 khung hình tĩnh (snapshot) từ camera (Pure Read-Only / Idempotent).
- * Dùng cho cấu hình vẽ ROI hoặc kiểm tra sai lệch góc (Drift Check).
- */
 export function captureSnapshot(cameraId) {
 	return request(`/api/cameras/${cameraId}/snapshot`, { method: "POST" });
 }
 
-/**
- * Kết nối Stream phát video trực tiếp (MediaMTX) và worker phân tích AI.
- * Cập nhật operationalStatus = ONLINE và ghi nhật ký hoạt động.
- */
 export function startStream(cameraId) {
 	return request(`/api/cameras/${cameraId}/stream/start`, { method: "POST" });
 }
 
-/**
- * Ngắt Stream phát video trực tiếp và dừng worker phân tích AI.
- * Cập nhật operationalStatus = OFFLINE và ghi nhật ký hoạt động.
- */
 export function stopStream(cameraId) {
 	return request(`/api/cameras/${cameraId}/stream/stop`, { method: "POST" });
 }
 
 /**
- * @deprecated Legacy endpoint kết nối RTSP stream. Khuyến nghị sử dụng startStream / stopStream và captureSnapshot.
+ * Yêu cầu bật/tắt On-Demand Cloud Stream Relay cho camera qua MQTT Control Plane.
  */
+export function toggleCloudRelay(cameraCode, active = true) {
+	const params = new URLSearchParams({
+		cameraCode: cameraCode || "",
+		active: String(Boolean(active)),
+	});
+	return request(`/api/cameras/stream/cloud-relay?${params.toString()}`, {
+		method: "POST",
+	});
+}
+
 export function connectStream(cameraId) {
 	return request(`/api/cameras/${cameraId}/connect`, { method: "POST" });
 }
 
-/**
- * Kiểm tra tín hiệu socket RTSP và đo độ trễ mạng (Read-Only, không làm thay đổi trạng thái camera).
- */
 export function testConnection(cameraId, data) {
 	return request(`/api/cameras/${cameraId}/test-connection`, {
 		method: "POST",
@@ -189,9 +154,6 @@ export function testConnection(cameraId, data) {
 	});
 }
 
-/**
- * Cập nhật ROI geometry cho camera kèm ảnh reference snapshot nếu có
- */
 export function updateRoiGeometry(
 	cameraId,
 	roiGeometry,

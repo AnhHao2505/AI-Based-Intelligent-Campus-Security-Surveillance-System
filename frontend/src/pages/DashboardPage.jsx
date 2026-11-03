@@ -42,7 +42,7 @@ import {
 	getSecurityStats,
 } from "../services/dashboardService";
 import { AREA_LEVEL_OPTIONS } from "../utils/areaHelpers";
-import { ACCESS_RESULT_META } from "../utils/accessHistoryHelpers";
+import { ACCESS_RESULT_META, CANONICAL_ACCESS_RESULTS } from "../utils/accessHistoryHelpers";
 import { formatDateTime, formatRange } from "../utils/formatDateTime";
 import { TARGET_TYPE_LABELS, getActionLabel, renderSystemActor } from "../utils/auditLabels";
 import { Button, EmptyState, ErrorState, LoadingState, PageHeader, StatusTabs } from "../components/ui";
@@ -88,13 +88,14 @@ const INCIDENT_STATUS_CARDS = [
 // Màu cột theo họ màu badge của ACCESS_RESULT_META (success / danger / warning / neutral).
 // Hai kết quả cùng tông danger: "Sai quyền" dùng --theme-danger, "Ngoài giờ" dùng sắc đậm --theme-danger-text.
 const ACCESS_RESULT_FILL = {
-	AUTHORIZED_ACCESS: "var(--theme-success)",
-	UNAUTHORIZED_ACCESS: "var(--theme-danger)",
-	ACCESS_OUT_OF_TIME: "var(--theme-warning)",
+	AUTHORIZED_PERSON: "var(--theme-success)",
+	UNAUTHORIZED_PERSON: "var(--theme-danger)",
 	UNKNOWN_PERSON: "var(--theme-text-muted)",
-	INTRUSION: "var(--theme-danger-text)",
+	PERSON_INTRUSION: "var(--theme-danger-text)",
+	SUSPICIOUS_MOVING_OBJECT: "var(--theme-warning)",
 };
-const ACCESS_RESULT_CODES = Object.keys(ACCESS_RESULT_META);
+// Chỉ vẽ 5 nhãn chuẩn (03/11); dữ liệu tên cũ đã được V95 đổi tên
+const ACCESS_RESULT_CODES = CANONICAL_ACCESS_RESULTS;
 // recharts mặc định sắp legend / tooltip theo tên; giữ thứ tự của ACCESS_RESULT_META
 const byAccessResultOrder = (item) => ACCESS_RESULT_CODES.indexOf(item?.dataKey);
 

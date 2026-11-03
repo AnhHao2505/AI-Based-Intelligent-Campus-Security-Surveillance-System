@@ -53,9 +53,11 @@ export default function RecordingPage() {
   // Selected video for modal player
   const [activeVideo, setActiveVideo] = useState(null);
   const [videoError, setVideoError] = useState(false);
+  const [measuredDurationText, setMeasuredDurationText] = useState(null);
 
   const handleOpenVideo = (recording) => {
     setVideoError(false);
+    setMeasuredDurationText(null);
     setActiveVideo(recording);
   };
 
@@ -728,7 +730,7 @@ export default function RecordingPage() {
                     [{activeVideo.cameraId}] {activeVideo.cameraName}
                   </div>
                   <div style={{ fontSize: "12px", color: "#9ca3af" }}>
-                    {formatDisplayTime(activeVideo.startTime)} — Thời lượng: {activeVideo.duration} ({activeVideo.fileSize})
+                    {formatDisplayTime(activeVideo.startTime)} — Thời lượng: {measuredDurationText || activeVideo.duration} ({activeVideo.fileSize})
                   </div>
                 </div>
               </div>
@@ -779,6 +781,15 @@ export default function RecordingPage() {
                   preload="auto"
                   type="video/mp4"
                   className="recording-player-modal__video"
+                  onLoadedMetadata={(e) => {
+                    const sec = e.currentTarget?.duration;
+                    if (Number.isFinite(sec) && sec > 0) {
+                      const totalSec = Math.max(1, Math.round(sec));
+                      const m = String(Math.floor(totalSec / 60)).padStart(2, "0");
+                      const s = String(totalSec % 60).padStart(2, "0");
+                      setMeasuredDurationText(`${m}:${s} (${totalSec}s)`);
+                    }
+                  }}
                   onError={() => setVideoError(true)}
                 >
                   Trình duyệt không hỗ trợ phát thẻ video HTML5.
@@ -789,7 +800,7 @@ export default function RecordingPage() {
             <div className="recording-player-modal__footer">
               <div className="recording-player-modal__meta-grid">
                 <div>
-                  <strong>Phân loại:</strong> Ghi hình giám sát chuẩn xác (854x480 • CFR 15 FPS)
+                  <strong>Phân loại:</strong> {activeVideo.eventType === "SECURITY_EVENT" ? "Bằng chứng sự cố an ninh (854x480 • CFR 15 FPS)" : "Ghi hình định kỳ 1 phút (854x480 • CFR 15 FPS)"}
                 </div>
                 <div>
                   <strong>Độ phân giải & Codec:</strong> {activeVideo.resolution} — {activeVideo.format}

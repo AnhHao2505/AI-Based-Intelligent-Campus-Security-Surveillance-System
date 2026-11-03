@@ -79,6 +79,9 @@ public class SecurityIncidentService {
 
     private final com.fa26se040.icss.config.AiServiceRestTemplate restTemplate;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private EdgeMqttControlService edgeMqttControlService;
+
     @Transactional
     public IncidentDetailResponse ingestIncident(IncidentEventDto eventDto) {
         log.info("Processing incoming incident for camera [{}] type [{}]",
@@ -126,16 +129,16 @@ public class SecurityIncidentService {
         OffsetDateTime detectedAt = OffsetDateTime.now();
 
         String rawEventType = eventDto.getEventType() != null ? eventDto.getEventType() : "SECURITY_ALERT";
-        String normalizedEventType = switch (rawEventType) {
-            case "AFTER_HOURS", "AFTER_HOURS_PRESENCE", "AFTER_HOURS_ACCESS" -> "INTRUSION";
-            case "UNAUTHORIZED" -> "UNAUTHORIZED_ACCESS";
-            case "UNKNOWN" -> "UNKNOWN_PERSON";
-            case "OUT_OF_TIME" -> "ACCESS_OUT_OF_TIME";
-            default -> rawEventType;
-        };
+        String normalizedEventType = normalizeEventType(rawEventType);
+
+        // Quyết định 03/11: AUTHORIZED_PERSON chỉ dùng cho lịch sử ra vào, không tạo sự cố
+        if ("AUTHORIZED_PERSON".equals(normalizedEventType)) {
+            log.info("Bỏ qua sự kiện [{}] (người hợp lệ) tại khu vực [{}]: không tạo sự cố.", rawEventType, area.getName());
+            return null;
+        }
 
         // Quy chuẩn an ninh khuôn viên: Khu vực Cấp 1 (PUBLIC) cho phép tự do ra vào trong giờ hoạt động
-        // -> Không tạo cảnh báo sự cố đối với người lạ (UNKNOWN_PERSON) và không cảnh báo truy cập trái phép (UNAUTHORIZED_ACCESS) trong giờ
+        // -> Không tạo cảnh báo sự cố đối với người lạ (UNKNOWN_PERSON) và không cảnh báo truy cập trái phép (UNAUTHORIZED_PERSON) trong giờ
         // (Ngoại lệ: Sự kiện Test do Bảo vệ kích hoạt để kiểm thử tính năng thì luôn được ghi nhận)
         boolean isTestEvent = eventDto.getEventId() != null
                 && (eventDto.getEventId().startsWith("EVT-") || eventDto.getEventId().startsWith("TEST-"));
@@ -143,7 +146,7 @@ public class SecurityIncidentService {
         boolean isPublicArea = !isTestEvent && (area.getAreaLevel() == AreaLevel.PUBLIC
                 || (area.getAreaAccessLevel() != null && area.getAreaAccessLevel() <= 1));
 
-        if (isPublicArea && ("UNKNOWN_PERSON".equals(normalizedEventType) || "UNAUTHORIZED_ACCESS".equals(normalizedEventType))) {
+        if (isPublicArea && ("UNKNOWN_PERSON".equals(normalizedEventType) || "UNAUTHORIZED_PERSON".equals(normalizedEventType))) {
             log.info("Khu vực [{}] thuộc Cấp 1 (PUBLIC) - Bỏ qua cảnh báo [{}] trong giờ hoạt động bình thường.",
                     area.getName(), normalizedEventType);
             return null;
@@ -151,12 +154,12 @@ public class SecurityIncidentService {
 
         String cleanDetails = eventDto.getDetails() != null ? eventDto.getDetails().replaceAll("\\[[A-Z0-9_]+\\]\\s*", "").trim() : "";
 
-        // Ngoại lệ cho cảnh báo ban đêm (INTRUSION): Trừ bảo vệ trong ca trực
-        if ("INTRUSION".equals(normalizedEventType)) {
+        // Ngoại lệ cho cảnh báo ban đêm (PERSON_INTRUSION): Trừ bảo vệ trong ca trực
+        if ("PERSON_INTRUSION".equals(normalizedEventType)) {
             ExtractedPersonInfo personInfo = extractPersonInfo(cleanDetails);
             if (personInfo.user != null && personInfo.user.getRole() == Role.GUARD) {
                 if (isGuardOnShift(personInfo.user.getId(), detectedAt, area)) {
-                    log.info("Bỏ qua cảnh báo INTRUSION ngoài giờ vì [{}] ({}) là bảo vệ đang trong ca trực.",
+                    log.info("Bỏ qua cảnh báo PERSON_INTRUSION ngoài giờ vì [{}] ({}) là bảo vệ đang trong ca trực.",
                             personInfo.user.getFullName(), personInfo.user.getUserCode());
                     return null;
                 }
@@ -166,10 +169,10 @@ public class SecurityIncidentService {
         String incidentResolutionNotes = cleanDetails;
         if (incidentResolutionNotes.isBlank()) {
             incidentResolutionNotes = switch (normalizedEventType) {
-                case "INTRUSION" -> "Phát hiện đối tượng xuất hiện ngoài giờ hoạt động tại " + area.getName() + ".";
-                case "UNAUTHORIZED_ACCESS" -> "Phát hiện đối tượng không có quyền truy cập tại " + area.getName() + ".";
+                case "PERSON_INTRUSION" -> "Phát hiện đối tượng xuất hiện ngoài giờ hoạt động tại " + area.getName() + ".";
+                case "UNAUTHORIZED_PERSON" -> "Phát hiện đối tượng không có quyền truy cập tại " + area.getName() + ".";
                 case "UNKNOWN_PERSON" -> "Phát hiện người chưa đăng ký tại " + area.getName() + ".";
-                case "ACCESS_OUT_OF_TIME" -> "Phát hiện ra vào ngoài khung giờ quy định tại " + area.getName() + ".";
+                case "SUSPICIOUS_MOVING_OBJECT" -> "Phát hiện chuyển động nghi vấn tại " + area.getName() + ".";
                 default -> "Phát hiện sự cố an ninh tại " + area.getName() + ".";
             };
         }
@@ -726,7 +729,30 @@ public class SecurityIncidentService {
         return new ExtractedPersonInfo("UNKNOWN", "Người lạ / Chưa rõ mặt", false, null);
     }
 
+    /**
+     * Chuẩn hoá loại sự kiện về 5 nhãn (quyết định 03/11). Vẫn nhận tên cũ để AI bản cũ không làm hỏng luồng sự cố;
+     * sai khung giờ (ACCESS_OUT_OF_TIME / OUT_OF_TIME) tính như vào trái phép. Loại khác (vd CAMERA_TAMPERING) giữ nguyên.
+     */
+    public static String normalizeEventType(String rawEventType) {
+        if (rawEventType == null) {
+            return null;
+        }
+        return switch (rawEventType) {
+            case "AFTER_HOURS", "AFTER_HOURS_PRESENCE", "AFTER_HOURS_ACCESS", "INTRUSION", "PERSON_INTRUSION" -> "PERSON_INTRUSION";
+            case "UNAUTHORIZED", "UNAUTHORIZED_ACCESS", "ACCESS_OUT_OF_TIME", "OUT_OF_TIME", "UNAUTHORIZED_PERSON" -> "UNAUTHORIZED_PERSON";
+            case "UNKNOWN", "UNKNOWN_IDENTITY", "UNKNOWN_PERSON" -> "UNKNOWN_PERSON";
+            case "SUSPICIOUS_MOTION", "CAMOUFLAGE", "MOVING_OBJECT", "SUSPICIOUS_MOVING_OBJECT" -> "SUSPICIOUS_MOVING_OBJECT";
+            case "AUTHORIZED_ACCESS", "AUTHORIZED_PERSON" -> "AUTHORIZED_PERSON";
+            default -> rawEventType;
+        };
+    }
+
     public void triggerIncidentRecordingStart(SecurityIncident incident) {
+        if (incident == null) return;
+        if (edgeMqttControlService != null && edgeMqttControlService.isConnected()) {
+            // Trên kiến trúc Cloud-Edge, Edge AI đã chủ động bật ghi hình sự cố ngay tại 0ms khi phát hiện (theo event_id)
+            return;
+        }
         if (incident == null || aiServiceUrl == null || aiServiceUrl.isBlank()) return;
         String incidentIdStr = incident.getId() != null ? incident.getId().toString() : "";
         String cameraCode = incident.getCameraCode() != null ? incident.getCameraCode() : "CAM-001";
@@ -756,6 +782,29 @@ public class SecurityIncidentService {
     }
 
     public void triggerIncidentRecordingStop(String incidentId) {
+        String effectiveIncidentKey = incidentId;
+        if (incidentId != null && !incidentId.isBlank()) {
+            try {
+                UUID parsedId = UUID.fromString(incidentId.trim());
+                Optional<SecurityIncident> found = incidentRepository.findById(parsedId);
+                if (found.isPresent() && found.get().getEventId() != null && !found.get().getEventId().isBlank()) {
+                    effectiveIncidentKey = found.get().getEventId();
+                }
+            } catch (IllegalArgumentException ignored) {
+                // incidentId không phải UUID DB mà là event_id trực tiếp -> giữ nguyên
+            }
+        }
+
+        if (edgeMqttControlService != null && edgeMqttControlService.isConnected()) {
+            edgeMqttControlService.publishIncidentStopCommand(effectiveIncidentKey, false);
+            if (effectiveIncidentKey != null && !effectiveIncidentKey.equals(incidentId) && incidentId != null && !incidentId.isBlank()) {
+                edgeMqttControlService.publishIncidentStopCommand(incidentId, false);
+            }
+            if (aiServiceUrl == null || aiServiceUrl.isBlank()) {
+                return;
+            }
+        }
+        if (aiServiceUrl == null || aiServiceUrl.isBlank()) return;
         if (aiServiceUrl == null || aiServiceUrl.isBlank()) return;
         String url = aiServiceUrl + "/api/v1/incident-recording/stop";
         CompletableFuture.runAsync(() -> {
@@ -772,6 +821,12 @@ public class SecurityIncidentService {
     }
 
     public void triggerAllIncidentRecordingsStop() {
+        if (edgeMqttControlService != null && edgeMqttControlService.isConnected()) {
+            edgeMqttControlService.publishIncidentStopCommand(null, true);
+            if (aiServiceUrl == null || aiServiceUrl.isBlank()) {
+                return;
+            }
+        }
         if (aiServiceUrl == null || aiServiceUrl.isBlank()) return;
         String url = aiServiceUrl + "/api/v1/incident-recording/stop";
         CompletableFuture.runAsync(() -> {

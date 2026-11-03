@@ -71,7 +71,7 @@ node "Central Campus Security Server (On-Premise / Edge Server)" as ServerNode #
             }
             
             node "<<container>> sep_ai_service\n(Python 3.10+ / FastAPI / CUDA)" as c_ai #F3E8FF {
-                artifact "AI Analytics Engine\n• YOLO11n (Human Detect)\n• YuNet ONNX (Face Detect)\n• ArcFace (512-d Embedding)\n• ByteTrack (Multi-object Track)" as a_ai
+                artifact "AI Analytics Engine\n• YOLO26n (Human Detect)\n• YuNet ONNX (Face Detect)\n• ArcFace (512-d Embedding)\n• ByteTrack (Multi-object Track)" as a_ai
             }
             
             node "<<container>> sep_kafka\n(confluentinc/cp-kafka:7.7.0)" as c_kafka #FFFBEB {

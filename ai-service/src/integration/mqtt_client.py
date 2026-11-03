@@ -3,7 +3,7 @@ import json
 import time
 import logging
 import threading
-from typing import Dict, Optional, Any, Set
+from typing import Dict, Optional, Any, Set, Callable, List
 from ..core.entity import SecurityAlertEvent
 from ..config import settings
 from .alert_outbox import AlertOutbox, get_outbox
@@ -22,9 +22,12 @@ _EARLY_ACK_TTL_SECONDS = 10.0
 
 class SecurityMqttClient:
     """
-    Module gửi sự kiện an ninh và telemetry thời gian thực qua Eclipse Mosquitto MQTT Broker.
-    Cảnh báo luôn được lưu vào outbox SQLite trước khi gửi, và chỉ xoá khi broker xác nhận (PUBACK):
-    broker offline hay thiếu paho-mqtt thì cảnh báo nằm chờ trong outbox, không làm đứt luồng xử lý video.
+    Module kết nối hai chiều qua Eclipse Mosquitto MQTT Broker (Cloud-Edge Outbound-Only).
+    - Edge -> Cloud: cảnh báo an ninh (`campus/alerts/incidents`) và metadata ghi hình (`campus/recordings/completed`)
+      luôn được lưu vào outbox SQLite trước khi gửi, và chỉ xoá khi broker xác nhận (PUBACK):
+      broker offline hay thiếu paho-mqtt thì tin nằm chờ trong outbox, không làm đứt luồng xử lý video.
+      Phản hồi RPC (`campus/edge/rpc/reply/{correlationId}`) gửi thẳng qua publish_json (không qua outbox).
+    - Cloud -> Edge: tự subscribe các topic cấu hình/lệnh đã đăng ký mỗi lần kết nối hoặc kết nối lại.
     """
     def __init__(self, host: Optional[str] = None, port: Optional[int] = None,
                  outbox: Optional[AlertOutbox] = None, start_flusher: bool = True):
@@ -41,6 +44,9 @@ class SecurityMqttClient:
         self._wake = threading.Event()
         self._stop = threading.Event()
         self._flush_thread: Optional[threading.Thread] = None
+        # Topic Cloud -> Edge và hàm xử lý (đăng ký bởi EdgeMqttAgent), subscribe lại mỗi lần kết nối
+        self._subscriptions: List[str] = []
+        self._message_handler: Optional[Callable[[str, bytes], None]] = None
         self._init_client()
         if start_flusher:
             self._flush_thread = threading.Thread(target=self._flush_loop, name="mqtt-outbox-flush", daemon=True)
@@ -68,6 +74,7 @@ class SecurityMqttClient:
             self.client.on_connect = self._on_connect
             self.client.on_disconnect = self._on_disconnect
             self.client.on_publish = self._on_publish
+            self.client.on_message = self._on_message
 
             if settings.MQTT_PASSWORD:
                 self.client.username_pw_set(settings.MQTT_USERNAME, settings.MQTT_PASSWORD)
@@ -84,6 +91,12 @@ class SecurityMqttClient:
         if rc_code == 0:
             self.is_connected = True
             logger.info(f"✅ [MQTT Client] Kết nối thành công tới MQTT Broker {self.host}:{self.port}")
+            for t in list(self._subscriptions):
+                try:
+                    client.subscribe(t, qos=1)
+                    logger.info(f"📡 [MQTT Edge] Auto-subscribed topic: {t}")
+                except Exception as e:
+                    logger.warning(f"⚠️ [MQTT Edge] Không thể subscribe {t}: {e}")
             # Gửi ngay các cảnh báo tồn trong outbox, không chờ tới chu kỳ flush
             self._wake.set()
         else:
@@ -95,6 +108,25 @@ class SecurityMqttClient:
         rc = args[1] if len(args) >= 3 else (args[0] if args else None)
         self.is_connected = False
         logger.warning(f"⚠️ [MQTT Client] Mất kết nối tới MQTT Broker (rc={rc})")
+
+    def register_edge_subscriptions(self, topics: List[str], handler: Callable[[str, bytes], None]):
+        """Đăng ký danh sách topic Cloud->Edge và hàm callback xử lý (tự động subscribe lại khi kết nối lại)."""
+        self._subscriptions = list(topics)
+        self._message_handler = handler
+        if self.is_connected and self.client:
+            for t in self._subscriptions:
+                try:
+                    self.client.subscribe(t, qos=1)
+                    logger.info(f"📡 [MQTT Edge] Đã subscribe topic: {t}")
+                except Exception as e:
+                    logger.warning(f"⚠️ [MQTT Edge] Lỗi subscribe {t}: {e}")
+
+    def _on_message(self, client, userdata, msg):
+        if self._message_handler is not None and msg is not None:
+            try:
+                self._message_handler(msg.topic, msg.payload)
+            except Exception as e:
+                logger.error(f"❌ [MQTT Edge] Lỗi xử lý message từ topic {getattr(msg, 'topic', '?')}: {e}")
 
     def _on_publish(self, client, userdata, mid, reason_code=None, properties=None):
         """Broker đã xác nhận (PUBACK, QoS 1) -> xoá cảnh báo khỏi outbox."""
@@ -168,6 +200,62 @@ class SecurityMqttClient:
                     logger.info(f"📡 [MQTT] Đã gửi cảnh báo {event.event_type} (Track #{event.track_id}) tới topic {topic_name}")
         else:
             logger.warning(f"⚠️ [MQTT] Chưa kết nối broker: cảnh báo {event.event_type} ({event.event_id}) đã lưu outbox, sẽ gửi khi kết nối lại.")
+        return True
+
+    def publish_json(self, topic: str, data: dict, qos: int = 1, retain: bool = False) -> bool:
+        """
+        Gửi thẳng payload JSON lên topic, KHÔNG qua outbox (dùng cho phản hồi RPC và lệnh: tin cũ gửi lại muộn vô nghĩa).
+        Trả False nếu chưa kết nối hoặc publish lỗi.
+        """
+        payload = json.dumps(data, ensure_ascii=False)
+        if not (self.is_connected and self.client):
+            logger.warning(f"⚠️ [MQTT] Chưa kết nối broker: bỏ tin gửi thẳng tới {topic}")
+            return False
+        try:
+            info = self.client.publish(topic, payload=payload, qos=qos, retain=retain)
+            rc = getattr(info, "rc", 0)
+            if rc != getattr(mqtt, "MQTT_ERR_SUCCESS", 0):
+                logger.error(f"❌ [MQTT LỖI] Publish tới {topic} thất bại: rc={rc}")
+                return False
+            return True
+        except Exception as e:
+            logger.error(f"❌ [MQTT LỖI] Publish tới {topic} thất bại: {e}")
+            return False
+
+    def publish_recording_event(self, payload: dict) -> bool:
+        """
+        Đồng bộ metadata file video vừa chốt (RECORDING_COMPLETED) hoặc vừa xoay vòng xoá (RECORDING_DELETED) về Cloud.
+        Đi qua outbox với event_id = "recording:<event_type>:<object_key>" (backend upsert theo storage key nên gửi lại an toàn).
+        Payload không có object_key thì gửi thẳng (không bảo đảm tới nơi).
+        """
+        topic_name = getattr(settings, "MQTT_TOPIC_RECORDINGS", "campus/recordings/completed")
+        event_type = str(payload.get("event_type") or "RECORDING_COMPLETED")
+        object_key = payload.get("object_key")
+        if not object_key:
+            logger.warning(f"⚠️ [MQTT Recording] Payload {event_type} không có object_key: gửi thẳng, không qua outbox")
+            return self.publish_json(topic_name, payload, qos=1, retain=False)
+
+        event_id = f"recording:{event_type}:{object_key}"
+        body = json.dumps(payload, ensure_ascii=False)
+        try:
+            self.outbox.enqueue(event_id, topic_name, body)
+        except Exception as e:
+            logger.error(f"❌ [MQTT Outbox] Không lưu được sự kiện ghi hình {event_id} vào outbox: {e}")
+            return self.publish_json(topic_name, payload, qos=1, retain=False)
+
+        if self.client is None:
+            logger.warning(f"⚠️ [MQTT] MQTT tắt hoặc thiếu paho-mqtt: sự kiện ghi hình {event_id} chỉ được lưu vào outbox, CHƯA gửi tới backend.")
+            return True
+
+        if self.is_connected:
+            with self._send_lock:
+                if self._publish_row(event_id, topic_name, body):
+                    logger.info(
+                        f"📡 [MQTT Recording] Đã đồng bộ {event_type} -> {object_key} "
+                        f"({payload.get('duration_seconds', 0)}s)"
+                    )
+        else:
+            logger.warning(f"⚠️ [MQTT] Chưa kết nối broker: sự kiện ghi hình {event_id} đã lưu outbox, sẽ gửi khi kết nối lại.")
         return True
 
     def flush_once(self):

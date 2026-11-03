@@ -39,6 +39,37 @@ class BoundingBox:
     def to_xyxy(self) -> Tuple[float, float, float, float]:
         return self.x1, self.y1, self.x2, self.y2
 
+    @property
+    def area(self) -> float:
+        """Diện tích hộp giới hạn (pixel)"""
+        return max(0.0, self.x2 - self.x1) * max(0.0, self.y2 - self.y1)
+
+    def iou(self, other: "BoundingBox") -> float:
+        """Chỉ số giao thoa trên hợp nhất (Intersection over Union)"""
+        ix1 = max(self.x1, other.x1)
+        iy1 = max(self.y1, other.y1)
+        ix2 = min(self.x2, other.x2)
+        iy2 = min(self.y2, other.y2)
+        iw = max(0.0, ix2 - ix1)
+        ih = max(0.0, iy2 - iy1)
+        inter = iw * ih
+        if inter <= 0.0:
+            return 0.0
+        union = self.area + other.area - inter
+        return (inter / union) if union > 0.0 else 0.0
+
+    def intersection_ratio(self, other: "BoundingBox") -> float:
+        """Tỷ lệ giao thoa trên hộp nhỏ hơn (Intersection over Minimum)"""
+        ix1 = max(self.x1, other.x1)
+        iy1 = max(self.y1, other.y1)
+        ix2 = min(self.x2, other.x2)
+        iy2 = min(self.y2, other.y2)
+        iw = max(0.0, ix2 - ix1)
+        ih = max(0.0, iy2 - iy1)
+        inter = iw * ih
+        min_a = min(self.area, other.area)
+        return (inter / min_a) if min_a > 0.0 else 0.0
+
 @dataclass
 class FaceDetectionResult:
     bbox: BoundingBox
@@ -94,7 +125,7 @@ class MotionResult:
 class SecurityAlertEvent:
     event_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     camera_code: str = "CAM-001"
-    event_type: str = "UNKNOWN_PERSON"  # AFTER_HOURS_PRESENCE, UNAUTHORIZED_ACCESS, UNKNOWN_PERSON, SUSPICIOUS_MOTION, CAMERA_TAMPERING
+    event_type: str = "UNKNOWN_PERSON"  # UNKNOWN_PERSON, AUTHORIZED_PERSON, UNAUTHORIZED_PERSON, PERSON_INTRUSION, SUSPICIOUS_MOVING_OBJECT, CAMERA_TAMPERING
     track_id: int = -1
     duration_seconds: float = 0.0
     confidence: float = 1.0

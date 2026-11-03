@@ -1,10 +1,13 @@
 package com.fa26se040.icss.config;
 
+import com.fa26se040.icss.consumer.CameraRecordingMqttConsumer;
 import com.fa26se040.icss.consumer.SecurityIncidentMqttConsumer;
+import com.fa26se040.icss.service.EdgeMqttControlService;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
+import org.eclipse.paho.client.mqttv3.IMqttMessageListener;
 import org.eclipse.paho.client.mqttv3.MqttCallbackExtended;
 import org.eclipse.paho.client.mqttv3.MqttClient;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
@@ -25,7 +28,12 @@ import java.util.concurrent.TimeUnit;
 @RequiredArgsConstructor
 public class MqttConfig {
 
+    /** Tiền tố topic phản hồi RPC từ Edge (khớp EdgeMqttControlService.TOPIC_RPC_REPLY_WILDCARD). */
+    static final String RPC_REPLY_TOPIC_PREFIX = "campus/edge/rpc/reply/";
+
     private final SecurityIncidentMqttConsumer securityIncidentMqttConsumer;
+    private final CameraRecordingMqttConsumer cameraRecordingMqttConsumer;
+    private final EdgeMqttControlService edgeMqttControlService;
 
     @Value("${app.mqtt.broker-url:tcp://localhost:1883}")
     private String brokerUrl;
@@ -35,6 +43,9 @@ public class MqttConfig {
 
     @Value("${app.mqtt.topics.incidents:campus/alerts/incidents}")
     private String incidentsTopic;
+
+    @Value("${app.mqtt.topics.recordings:campus/recordings/completed}")
+    private String recordingsTopic;
 
     @Value("${app.mqtt.enabled:true}")
     private boolean mqttEnabled;
@@ -80,6 +91,7 @@ public class MqttConfig {
                 return t;
             });
             mqttClient.setCallback(new IncidentMqttCallback());
+            edgeMqttControlService.bindMqttClient(mqttClient);
 
             log.info("🔌 [MQTT] Đang kết nối tới MQTT Broker: {} (Client ID: {}, user: {})",
                     brokerUrl, clientId, options.getUserName() != null ? options.getUserName() : "<ẩn danh>");
@@ -110,12 +122,39 @@ public class MqttConfig {
         }
     }
 
-    private void subscribeIncidents() {
+    private void subscribeAllTopics() {
+        subscribe(incidentsTopic, securityIncidentMqttConsumer);
+        subscribe(recordingsTopic, cameraRecordingMqttConsumer);
+        subscribe(EdgeMqttControlService.TOPIC_RPC_REPLY_WILDCARD, edgeMqttControlService::handleRpcReplyMessage);
+    }
+
+    private void subscribe(String topic, IMqttMessageListener listener) {
         try {
-            mqttClient.subscribe(incidentsTopic, 1, securityIncidentMqttConsumer);
-            log.info("📡 [MQTT] Đã đăng ký lắng nghe topic: {} (QoS 1)", incidentsTopic);
+            mqttClient.subscribe(topic, 1, listener);
+            log.info("📡 [MQTT] Đã đăng ký lắng nghe topic: {} (QoS 1)", topic);
         } catch (MqttException e) {
-            log.warn("⚠️ [MQTT] Không thể đăng ký topic {}: {}", incidentsTopic, e.getMessage());
+            log.warn("⚠️ [MQTT] Không thể đăng ký topic {}: {}", topic, e.getMessage());
+        }
+    }
+
+    /**
+     * Định tuyến tin tới callback chung (chưa có listener riêng): tin tồn của phiên cũ (cleanSession=false)
+     * có thể tới trước khi subscribe() gắn listener; paho khi đó chuyển tin vào đây rồi tự PUBACK,
+     * nên phải giao đúng consumer theo topic để không mất cảnh báo / metadata ghi hình / phản hồi RPC.
+     */
+    void routeUnlistenedMessage(String topic, MqttMessage message) {
+        if (topic == null) {
+            log.warn("⚠️ [MQTT] Bỏ tin không có topic");
+            return;
+        }
+        if (topic.equals(incidentsTopic)) {
+            securityIncidentMqttConsumer.messageArrived(topic, message);
+        } else if (topic.equals(recordingsTopic)) {
+            cameraRecordingMqttConsumer.messageArrived(topic, message);
+        } else if (topic.startsWith(RPC_REPLY_TOPIC_PREFIX)) {
+            edgeMqttControlService.handleRpcReplyMessage(topic, message);
+        } else {
+            log.warn("⚠️ [MQTT] Bỏ tin từ topic không đăng ký: {}", topic);
         }
     }
 
@@ -124,9 +163,11 @@ public class MqttConfig {
         @Override
         public void connectComplete(boolean reconnect, String serverURI) {
             log.info("✅ [MQTT] Kết nối thành công tới MQTT Broker: {}{}", serverURI, reconnect ? " (kết nối lại)" : "");
+            // Gắn client cho dịch vụ điều khiển Edge (chỉ gán tham chiếu, không gọi paho)
+            edgeMqttControlService.bindMqttClient(mqttClient);
             // Không gọi subscribe() ngay trong callback của paho (dễ deadlock), đẩy sang executor
             if (mqttExecutor != null && !mqttExecutor.isShutdown()) {
-                mqttExecutor.execute(MqttConfig.this::subscribeIncidents);
+                mqttExecutor.execute(MqttConfig.this::subscribeAllTopics);
             }
         }
 
@@ -138,14 +179,12 @@ public class MqttConfig {
 
         @Override
         public void messageArrived(String topic, MqttMessage message) {
-            // Tin tồn của phiên cũ (cleanSession=false) có thể tới trước khi subscribe() gắn listener;
-            // paho khi đó chuyển tin vào đây rồi tự PUBACK, nên phải xử lý để không mất cảnh báo
-            securityIncidentMqttConsumer.messageArrived(topic, message);
+            routeUnlistenedMessage(topic, message);
         }
 
         @Override
         public void deliveryComplete(IMqttDeliveryToken token) {
-            // Backend chỉ subscribe, không publish
+            // Lệnh/cấu hình gửi Edge (EdgeMqttControlService) không cần xử lý thêm khi broker xác nhận
         }
     }
 

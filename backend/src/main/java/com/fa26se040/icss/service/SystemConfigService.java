@@ -47,6 +47,9 @@ public class SystemConfigService {
     private final org.springframework.beans.factory.ObjectProvider<InAppNotificationService> notificationServiceProvider;
     private final AiServiceRestTemplate aiRestTemplate;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private EdgeMqttControlService edgeMqttControlService;
+
     @Value("${ai.service.url:http://localhost:8000}")
     private String aiServiceUrl;
 
@@ -288,6 +291,15 @@ public class SystemConfigService {
     }
 
     private void syncAfterHourToAi() {
+        if (edgeMqttControlService != null && edgeMqttControlService.isConnected()) {
+            edgeMqttControlService.publishSystemConfig(getAiRuntimeConfigMap());
+            if (aiServiceUrl == null || aiServiceUrl.isBlank()) {
+                return;
+            }
+        }
+        if (aiServiceUrl == null || aiServiceUrl.isBlank()) {
+            return;
+        }
         try {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -302,6 +314,15 @@ public class SystemConfigService {
     }
 
     private void syncAiRuntimeConfig() {
+        if (edgeMqttControlService != null && edgeMqttControlService.isConnected()) {
+            edgeMqttControlService.publishSystemConfig(getAiRuntimeConfigMap());
+            if (aiServiceUrl == null || aiServiceUrl.isBlank()) {
+                return;
+            }
+        }
+        if (aiServiceUrl == null || aiServiceUrl.isBlank()) {
+            return;
+        }
         try {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);

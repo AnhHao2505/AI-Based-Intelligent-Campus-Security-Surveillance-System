@@ -317,7 +317,7 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, UU
     );
 
     /**
-     * Dùng để phân biệt Sai giờ (ACCESS_OUT_OF_TIME) với Sai quyền (UNAUTHORIZED_ACCESS):
+     * Dùng để phân biệt sai giờ với sai quyền (từ 03/11 cả hai cùng ghi nhãn UNAUTHORIZED_PERSON):
      * Tìm tất cả các đơn APPROVED của user tại khu vực này bất kể thời gian.
      */
     @Query("SELECT ar FROM AccessRequest ar " +

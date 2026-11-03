@@ -298,19 +298,20 @@ public class IncidentEscalationJob implements SchedulingConfigurer {
     }
 
     /**
-     * Nhãn tiếng Việt của loại sự cố trong nội dung thông báo. ingestIncident đã đổi AFTER_HOURS_* thành INTRUSION
-     * trước khi lưu nên INTRUSION chính là "ngoài giờ". Loại khác giữ nguyên mã.
+     * Nhãn tiếng Việt của loại sự cố trong nội dung thông báo. ingestIncident chuẩn hoá về 5 nhãn (03/11) trước khi lưu
+     * (AFTER_HOURS_* / INTRUSION -> PERSON_INTRUSION, ...); vẫn nhận tên cũ cho sự cố lưu trước V95. Loại khác giữ nguyên mã.
      */
     static String eventTypeLabel(String eventType) {
         if (eventType == null) {
             return "";
         }
-        if ("INTRUSION".equals(eventType) || eventType.startsWith("AFTER_HOURS")) {
+        if ("PERSON_INTRUSION".equals(eventType) || "INTRUSION".equals(eventType) || eventType.startsWith("AFTER_HOURS")) {
             return "Xâm nhập ngoài giờ";
         }
         return switch (eventType) {
-            case "UNAUTHORIZED_ACCESS", "UNAUTHORIZED" -> "Xâm nhập trái phép";
+            case "UNAUTHORIZED_PERSON", "UNAUTHORIZED_ACCESS", "UNAUTHORIZED", "ACCESS_OUT_OF_TIME" -> "Xâm nhập trái phép";
             case "UNKNOWN_PERSON", "UNKNOWN" -> "Người lạ chưa xác minh";
+            case "SUSPICIOUS_MOVING_OBJECT" -> "Chuyển động nghi vấn";
             default -> eventType;
         };
     }

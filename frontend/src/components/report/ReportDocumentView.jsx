@@ -321,11 +321,12 @@ export default function ReportDocumentView({ reportData }) {
                   <span className="report-marker">[{res.label.toUpperCase()}]</span>
                 </td>
                 <td className="text-[11px] text-slate-700">
-                  {res.code === 'AUTHORIZED_ACCESS' && 'Nhận diện khuôn mặt hợp lệ, khớp cấp độ truy cập hoặc có phân công/duyệt đơn'}
-                  {res.code === 'UNAUTHORIZED_ACCESS' && 'Nhận diện được danh tính nhưng cấp độ an ninh người dùng thấp hơn yêu cầu khu vực'}
+                  {(res.code === 'AUTHORIZED_PERSON' || res.code === 'AUTHORIZED_ACCESS') && 'Nhận diện khuôn mặt hợp lệ, khớp cấp độ truy cập hoặc có phân công/duyệt đơn'}
+                  {(res.code === 'UNAUTHORIZED_PERSON' || res.code === 'UNAUTHORIZED_ACCESS') && 'Nhận diện được danh tính nhưng không đủ thẩm quyền khu vực hoặc ngoài khung giờ được duyệt'}
                   {res.code === 'ACCESS_OUT_OF_TIME' && 'Có thẩm quyền nhưng tiếp cận ngoài khung giờ làm việc hoặc ngoài thời gian phê duyệt'}
                   {res.code === 'UNKNOWN_PERSON' && 'Đối tượng không tồn tại dữ liệu sinh trắc trong hệ thống, chưa đăng ký khách'}
-                  {res.code === 'INTRUSION' && 'Cố ý vượt hàng rào cảm biến ROI, leo trèo hoặc làm mù camera an ninh'}
+                  {(res.code === 'PERSON_INTRUSION' || res.code === 'INTRUSION') && 'Xuất hiện trong vùng giám sát ngoài giờ hoạt động'}
+                  {res.code === 'SUSPICIOUS_MOVING_OBJECT' && 'Chuyển động nghi vấn trong vùng ROI không gắn với người'}
                 </td>
                 <td className="report-col-right font-mono font-medium">{res.count.toLocaleString()}</td>
                 <td className="report-col-right font-mono">{percentFormat(res.percentage)}</td>

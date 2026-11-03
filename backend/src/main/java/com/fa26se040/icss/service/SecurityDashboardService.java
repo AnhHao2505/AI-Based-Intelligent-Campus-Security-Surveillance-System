@@ -102,15 +102,16 @@ public class SecurityDashboardService {
                 log.warn("Bỏ qua kết quả ra vào không xác định '{}' khi thống kê Dashboard", row.getAccessResult());
                 continue;
             }
+            // Tên cũ chưa migrate gộp vào nhãn chuẩn (03/11) để mỗi ngày luôn đúng 5 kết quả
             byDay.computeIfAbsent(LocalDate.parse(row.getDay()), d -> new EnumMap<>(AccessResult.class))
-                    .merge(result, row.getTotal(), Long::sum);
+                    .merge(result.canonical(), row.getTotal(), Long::sum);
         }
 
         List<DailyAccessResults> days = new ArrayList<>();
         for (LocalDate day = firstDay; !day.isAfter(lastDay); day = day.plusDays(1)) {
             Map<AccessResult, Long> counts = new EnumMap<>(AccessResult.class);
             Map<AccessResult, Long> found = byDay.getOrDefault(day, Map.of());
-            for (AccessResult result : AccessResult.values()) {
+            for (AccessResult result : AccessResult.CANONICAL) {
                 counts.put(result, found.getOrDefault(result, 0L));
             }
             days.add(new DailyAccessResults(day, counts));
