@@ -4,7 +4,38 @@ import cv2
 import time
 import logging
 import threading
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Iterable
+
+def select_stream_path(camera_code: str, available_paths: Optional[Iterable[str]] = None) -> str:
+    """
+    Chọn luồng MediaMTX tối ưu cho AI & Recording:
+    - Nếu có luồng chính ({camera_code}_main) trong danh sách available_paths -> chọn {camera_code}_main.
+    - Ngược lại -> chọn {camera_code}.
+    """
+    if not camera_code:
+        return ""
+    code = camera_code.strip()
+    if not available_paths:
+        return code
+
+    paths_set = set(p.strip() for p in available_paths if p)
+    main_variant = f"{code}_main"
+    for p in paths_set:
+        if p.lower() == main_variant.lower():
+            return p
+    return code
+
+def resolve_camera_rtsp_url(
+    camera_code: str,
+    base_rtsp_gateway: str = "rtsp://localhost:8554",
+    available_paths: Optional[Iterable[str]] = None
+) -> str:
+    """
+    Tạo RTSP URL gateway cho camera, tự động ưu tiên {camera_code}_main nếu có trong MediaMTX.
+    """
+    stream_name = select_stream_path(camera_code, available_paths)
+    base = base_rtsp_gateway.rstrip("/")
+    return f"{base}/{stream_name}"
 
 from .video_pipeline import VideoPipeline
 from .stream_recorder import StreamRecorder
@@ -84,6 +115,7 @@ class CameraStreamWorker:
         self.capture_thread: Optional[threading.Thread] = None
         self.analysis_thread: Optional[threading.Thread] = None
         self.raw_frame = None
+        self.frame_id: int = 0
         self.raw_frame_lock = threading.Lock()
         self.latest_frame = None
         self.processed_fps = 0.0
@@ -175,6 +207,7 @@ class CameraStreamWorker:
 
             with self.raw_frame_lock:
                 self.raw_frame = frame
+                self.frame_id += 1
 
         if self.recorder:
             self.recorder.stop()
@@ -187,12 +220,18 @@ class CameraStreamWorker:
         fps_timer = time.time()
         frame_counter = 0
 
+        last_processed_frame_id = -1
+
         while self.is_running:
             with self.raw_frame_lock:
-                frame = self.raw_frame.copy() if self.raw_frame is not None else None
+                if self.raw_frame is not None and self.frame_id != last_processed_frame_id:
+                    frame = self.raw_frame.copy()
+                    last_processed_frame_id = self.frame_id
+                else:
+                    frame = None
 
             if frame is None:
-                time.sleep(0.02)
+                time.sleep(0.01)
                 continue
 
             try:

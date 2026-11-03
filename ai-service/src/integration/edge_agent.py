@@ -160,12 +160,14 @@ class EdgeMqttAgent:
         try:
             import requests
             requests.delete(f"{api_base}/v3/config/paths/delete/{path_name}", timeout=2.0)
+            requests.delete(f"{api_base}/v3/config/paths/delete/{path_name}_main", timeout=2.0)
         except Exception:
             pass
 
     def _handle_camera_stream_config(self, data: Dict[str, Any]):
         camera_code = str(data.get("camera_code") or "").strip().upper()
         rtsp_url = str(data.get("rtsp_url") or "").strip()
+        main_rtsp_url = str(data.get("main_rtsp_url") or "").strip()
         enabled = bool(data.get("enabled", False))
         roi_geometry = data.get("roi_geometry")
 
@@ -174,7 +176,7 @@ class EdgeMqttAgent:
 
         with self._lock:
             existing = self.active_workers.get(camera_code)
-            if not enabled or not rtsp_url:
+            if not enabled or (not rtsp_url and not main_rtsp_url):
                 if existing is not None:
                     try:
                         existing.stop()
@@ -186,9 +188,19 @@ class EdgeMqttAgent:
                 logger.info(f"🛑 [EdgeAgent] Đã tắt luồng camera [{camera_code}] theo cấu hình MQTT.")
                 return
 
-            effective_rtsp = self._sync_local_mediamtx_path(camera_code, rtsp_url)
+            # Khi payload có main_rtsp_url -> AI Worker dùng main_rtsp_url (đồng thời sync cả sub và main vào MediaMTX nếu có).
+            # Không có main_rtsp_url -> AI Worker dùng rtsp_url như cũ.
+            if main_rtsp_url:
+                if rtsp_url:
+                    self._sync_local_mediamtx_path(camera_code, rtsp_url)
+                target_ai_source = main_rtsp_url
+                effective_rtsp = self._sync_local_mediamtx_path(f"{camera_code}_main", main_rtsp_url)
+            else:
+                target_ai_source = rtsp_url
+                effective_rtsp = self._sync_local_mediamtx_path(camera_code, rtsp_url)
+
             if existing is not None and getattr(existing, "is_running", False):
-                if getattr(existing, "rtsp_url", None) in (effective_rtsp, rtsp_url):
+                if getattr(existing, "rtsp_url", None) in (effective_rtsp, target_ai_source):
                     if roi_geometry and isinstance(roi_geometry, dict) and hasattr(existing, "update_roi"):
                         existing.update_roi(polygons=roi_geometry.get("polygons", []))
                     return

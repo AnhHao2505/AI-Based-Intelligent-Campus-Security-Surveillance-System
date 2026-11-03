@@ -3,6 +3,7 @@ from pydantic_settings import BaseSettings
 from pydantic import Field, AliasChoices
 
 AI_SERVICE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+REPO_DIR = os.path.dirname(AI_SERVICE_DIR)
 
 # Header mang khoá dùng chung khi gọi endpoint nội bộ của Backend (check-entry, /api/internal/**)
 INTERNAL_SERVICE_KEY_HEADER = "X-Service-Key"
@@ -81,14 +82,14 @@ class Settings(BaseSettings):
     
     # Continuous Video Recording Configuration
     RECORDING_BASE_DIR: str = Field(
-        default=r"C:\DATN\AI-Based-Intelligent-Campus-Security-Surveillance-System\recording",
+        default=os.path.join(REPO_DIR, "recording"),
         validation_alias="RECORDING_BASE_DIR"
     )
     RECORDING_SEGMENT_SECONDS: int = Field(default=60, validation_alias="RECORDING_SEGMENT_SECONDS")
 
     # Incident Video Evidence Recording Configuration
     EVIDENCE_BASE_DIR: str = Field(
-        default=r"C:\DATN\AI-Based-Intelligent-Campus-Security-Surveillance-System\evidence",
+        default=os.path.join(REPO_DIR, "evidence"),
         validation_alias="EVIDENCE_BASE_DIR"
     )
 
