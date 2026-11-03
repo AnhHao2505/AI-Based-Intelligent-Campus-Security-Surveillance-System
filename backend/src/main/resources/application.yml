@@ -21,7 +21,7 @@ spring:
     open-in-view: false # Tránh LazyInitializationException bị che giấu / query N+1 không kiểm soát
     properties:
       hibernate:
-        format_sql: true
+        format_sql: false
 
   flyway:
     enabled: true
@@ -142,5 +142,3 @@ recording:
     path: ${RECORDING_STORAGE_PATH:C:/DATN/AI-Based-Intelligent-Campus-Security-Surveillance-System/recording}
   evidence:
     path: ${EVIDENCE_STORAGE_PATH:C:/DATN/AI-Based-Intelligent-Campus-Security-Surveillance-System/evidence}
-
-

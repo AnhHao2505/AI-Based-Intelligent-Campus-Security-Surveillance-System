@@ -35,10 +35,10 @@ import "../../styles/GuardDashboardPage.css";
 import { LoadingState, ErrorState } from "../../components/ui";
 import { minimizeReason } from "../../utils/accessHistoryHelpers";
 
-// Chuẩn hóa 5 nhãn sự kiện an ninh (quyết định 03/11) theo độ ưu tiên (Priority):
-// 1. UNAUTHORIZED_PERSON: Không đủ thẩm quyền, gồm cả ra vào sai khung giờ (Trọng số 3 - Nguy cấp, #ef4444)
-// 2. PERSON_INTRUSION: Sau giờ hoạt động (Trọng số 3 - Nguy cấp, #ef4444)
-// 3. SUSPICIOUS_MOVING_OBJECT: Chuyển động nghi vấn (Trọng số 2 - Cao, #f97316)
+// Chuẩn hóa 5 nhóm sự kiện an ninh theo độ ưu tiên (Priority):
+// 1. UNAUTHORIZED_ACCESS: Không đủ thẩm quyền (Trọng số 3 - Nguy cấp, #ef4444)
+// 2. INTRUSION: Đột nhập Sau giờ hoạt động (Trọng số 2 - Cao, #f97316)
+// 3. SUSPICIOUS_MOVING_OBJECT: Vật thể chuyển động bất thường (Trọng số 2 - Cao, #f97316)
 // 4. UNKNOWN_PERSON: Đối tượng không xác định (Trọng số 1 - Cảnh báo, #8b5cf6)
 // 5. AUTHORIZED_PERSON: Hợp lệ (Trọng số 0, #10b981), chỉ dùng cho lịch sử ra vào, không tạo sự cố
 const EVENT_SEVERITY_CONFIG = {
@@ -57,7 +57,7 @@ const EVENT_SEVERITY_CONFIG = {
 	},
 	PERSON_INTRUSION: {
 		weight: 3,
-		label: "Sau giờ hoạt động",
+		label: "Đột nhập Sau giờ hoạt động",
 		badgeClass: "severity-critical",
 		color: "#ef4444",
 	},
@@ -69,7 +69,7 @@ const EVENT_SEVERITY_CONFIG = {
 	},
 	SUSPICIOUS_MOVING_OBJECT: {
 		weight: 2,
-		label: "Chuyển động nghi vấn",
+		label: "Vật thể chuyển động bất thường",
 		badgeClass: "severity-high",
 		color: "#f97316",
 	},

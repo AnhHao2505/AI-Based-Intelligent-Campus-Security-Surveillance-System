@@ -15,8 +15,8 @@ public enum AccessResult {
     AUTHORIZED_PERSON("Hợp lệ", "#10b981"),
     UNAUTHORIZED_PERSON("Không có quyền", "#ef4444"),
     UNKNOWN_PERSON("Đối tượng không xác định", "#8b5cf6"),
-    PERSON_INTRUSION("Sau giờ hoạt động", "#ef4444"),
-    SUSPICIOUS_MOVING_OBJECT("Chuyển động nghi vấn", "#f97316"),
+    PERSON_INTRUSION("Đột nhập sau giờ hoạt động", "#ef4444"),
+    SUSPICIOUS_MOVING_OBJECT("Vật thể chuyển động bất thường", "#f97316"),
 
     // Tương thích dữ liệu cũ trong CSDL (Legacy Compatibility): chỉ để đọc dòng chưa migrate (V95 đã đổi tên),
     // KHÔNG ghi mới. Sai khung giờ (ACCESS_OUT_OF_TIME) nay ghi là UNAUTHORIZED_PERSON.
