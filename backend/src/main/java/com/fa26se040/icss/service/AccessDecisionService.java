@@ -321,7 +321,7 @@ public class AccessDecisionService {
                     : (cleanRoi != null ? "[VÀO ROI: " + cleanRoi + "] Khu vực đã ngừng hoạt động" : "Khu vực đã ngừng hoạt động");
             String effectiveUserCode = (userCode != null && !userCode.isBlank()) ? userCode : "UNKNOWN";
             CheckCameraEntryResponse inactive = isExit
-                    ? CheckCameraEntryResponse.builder().allowed(false).source(AccessSource.NONE).reason(reason).cameraCode(camera.getCameraCode()).areaId(area.getId()).areaName(area.getName()).userCode(effectiveUserCode).build()
+                    ? CheckCameraEntryResponse.builder().allowed(true).source(AccessSource.NONE).reason(reason).cameraCode(camera.getCameraCode()).areaId(area.getId()).areaName(area.getName()).userCode(effectiveUserCode).build()
                     : deniedAtCamera(camera, area, effectiveUserCode, reason);
             recordAccessLogSafely(inactive, at);
             return inactive;
@@ -479,7 +479,8 @@ public class AccessDecisionService {
                 .areaId(area.getId())
                 .areaName(area.getName())
                 .userCode(effectiveUserCode)
-                .fullName("Người lạ / Chưa rõ mặt")
+                // Chỉ người chưa nhận diện mới mang tên chuẩn hoá; user có thật để null để nhật ký lấy tên từ tài khoản
+                .fullName("UNKNOWN".equals(effectiveUserCode) ? "Người lạ / Chưa rõ mặt" : null)
                 .build();
     }
 
