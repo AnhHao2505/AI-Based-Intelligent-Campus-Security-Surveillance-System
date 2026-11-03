@@ -47,10 +47,10 @@ export default function ReportDocumentView({ reportData }) {
         <div className="report-header__top">
           <div>
             <div className="report-header__org-title">
-              TRƯỜNG ĐẠI HỌC FPT — PHÂN HIỆU TP. HỒ CHÍ MINH
+              Đại học FPT - Cơ sở Tân Uyên
             </div>
             <div className="report-header__org-sub">
-              TRUNG TÂM VẬN HÀNH & GIÁM SÁT AN NINH THÔNG MINH (SOC) · CƠ SỞ TÂN UYÊN
+              Hệ thống giám sát thông minh bằng camera tích hợp AI
             </div>
           </div>
           <div className="report-header__badge">
@@ -219,7 +219,7 @@ export default function ReportDocumentView({ reportData }) {
                   <tr key={sev.code}>
                     <td>
                       <span className={`report-marker ${sev.code === 'CRITICAL' ? 'report-marker--critical' : ''}`}>
-                        [{sev.label.toUpperCase()}]
+                        {sev.label.toUpperCase()}
                       </span>
                     </td>
                     <td className="report-col-right">{sev.count}</td>
@@ -318,7 +318,7 @@ export default function ReportDocumentView({ reportData }) {
             {reportData.accessResultCounts?.map((res) => (
               <tr key={res.code}>
                 <td>
-                  <span className="report-marker">[{res.label.toUpperCase()}]</span>
+                  <span className="report-marker">{res.label.toUpperCase()}</span>
                 </td>
                 <td className="text-[11px] text-slate-700">
                   {(res.code === 'AUTHORIZED_PERSON' || res.code === 'AUTHORIZED_ACCESS') && 'Nhận diện khuôn mặt hợp lệ, khớp cấp độ truy cập hoặc có phân công/duyệt đơn'}
@@ -443,7 +443,7 @@ export default function ReportDocumentView({ reportData }) {
                   </td>
                   <td>{inc.eventType}</td>
                   <td>
-                    <span className="report-marker">[{inc.severity}]</span>
+                    <span className="report-marker">{inc.severity}</span>
                   </td>
                   <td className="font-mono">{inc.subjectUserCode}</td>
                   <td>{inc.resolvedByName}</td>
@@ -466,7 +466,7 @@ export default function ReportDocumentView({ reportData }) {
       {/* Section VI: Official Sign-off & Regulatory Legal Notice */}
       <footer className="report-signoff">
         <div className="report-signoff__disclaimer">
-          Căn cứ Quy chế Quản lý & Vận hành An ninh Cơ sở của Trường Đại học FPT, văn bản này là tài liệu kiểm toán nội bộ
+          Căn cứ Quy chế Quản lý & Vận hành An ninh Cơ sở của Đại học FPT - Cơ sở Tân Uyên, văn bản này là tài liệu kiểm toán nội bộ
           được kết xuất trực tiếp từ máy chủ cơ sở dữ liệu giám sát an ninh. Mọi hình ảnh snapshot, log đối soát khuôn mặt
           và biên bản xử lý vi phạm liên quan đã được lưu trữ an toàn tại hệ thống MinIO Storage phục vụ đối chiếu khi có yêu cầu.
         </div>
@@ -485,7 +485,7 @@ export default function ReportDocumentView({ reportData }) {
             <div className="report-signoff__note">(Xác nhận, phê duyệt và lưu trữ)</div>
             <div className="report-signoff__space" />
             <div className="report-signoff__name">Ban Quản lý Cơ sở Tân Uyên</div>
-            <div className="text-[11px] text-slate-600">Đại học FPT Phân hiệu TP.HCM</div>
+            <div className="text-[11px] text-slate-600">Đại học FPT - Cơ sở Tân Uyên</div>
           </div>
         </div>
       </footer>

@@ -63,7 +63,7 @@ class ReportControllerTest {
                 OffsetDateTime.now(),
                 "Administrator",
                 "admin@fpt.edu.vn",
-                "FPT University TP.HCM — Cơ sở Tân Uyên",
+                "Đại học FPT - Cơ sở Tân Uyên",
                 10L, 8L, 2L, 0L, 0.2, 45L, 180L,
                 1500L, 1480L, 20L,
                 40L, 39L,
@@ -83,7 +83,7 @@ class ReportControllerTest {
                 .andExpect(jsonPath("$.status").value(200))
                 .andExpect(jsonPath("$.data.totalIncidents").value(10))
                 .andExpect(jsonPath("$.data.totalAccessScans").value(1500))
-                .andExpect(jsonPath("$.data.campusName").value("FPT University TP.HCM — Cơ sở Tân Uyên"));
+                .andExpect(jsonPath("$.data.campusName").value("Đại học FPT - Cơ sở Tân Uyên"));
     }
 
     @Test
@@ -109,7 +109,7 @@ class ReportControllerTest {
                 OffsetDateTime.now(),
                 "Administrator",
                 "admin@fpt.edu.vn",
-                "FPT University TP.HCM — Cơ sở Tân Uyên",
+                "Đại học FPT - Cơ sở Tân Uyên",
                 10L, 8L, 2L, 0L, 0.2, 45L, 180L,
                 1500L, 1480L, 20L,
                 40L, 39L,

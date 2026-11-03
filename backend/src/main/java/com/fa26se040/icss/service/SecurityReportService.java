@@ -42,7 +42,7 @@ import java.util.*;
 public class SecurityReportService {
 
     private static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
-    private static final String CAMPUS_NAME = "FPT University TP.HCM — Cơ sở Tân Uyên";
+    private static final String CAMPUS_NAME = "Đại học FPT - Cơ sở Tân Uyên";
 
     private final SecurityIncidentRepository securityIncidentRepository;
     private final AccessLogStatsQueryRepository accessLogStatsQueryRepository;
