@@ -163,6 +163,80 @@ class TestEdgeAgentAndRecorders(unittest.TestCase):
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
 
+    def test_5_edge_agent_uses_main_rtsp_url_when_provided(self):
+        from src.integration.edge_agent import EdgeMqttAgent
+
+        mock_mqtt = MagicMock()
+        mock_storage = MagicMock()
+        active_workers = {}
+        created_workers = []
+
+        def fake_worker_factory(camera_code, rtsp_url, roi_geometry=None):
+            w = MagicMock()
+            w.camera_code = camera_code
+            w.rtsp_url = rtsp_url
+            w.is_running = True
+            created_workers.append(w)
+            return w
+
+        agent = EdgeMqttAgent(
+            mqtt_client_wrapper=mock_mqtt,
+            storage=mock_storage,
+            active_workers=active_workers,
+            worker_factory=fake_worker_factory,
+        )
+
+        with patch.object(agent, "_sync_local_mediamtx_path") as mock_sync:
+            mock_sync.side_effect = lambda code, url: f"rtsp://localhost:8554/{code.lower()}"
+            cfg = {
+                "camera_code": "CAM-001",
+                "rtsp_url": "rtsp://192.168.1.105:554/cam/sub",
+                "main_rtsp_url": "rtsp://192.168.1.105:554/cam/main",
+                "enabled": True,
+            }
+            agent.handle_message("campus/edge/config/cameras/CAM-001", json.dumps(cfg).encode("utf-8"))
+
+            self.assertEqual(len(created_workers), 1)
+            self.assertEqual(created_workers[0].rtsp_url, "rtsp://localhost:8554/cam-001_main")
+            mock_sync.assert_any_call("CAM-001", "rtsp://192.168.1.105:554/cam/sub")
+            mock_sync.assert_any_call("CAM-001_main", "rtsp://192.168.1.105:554/cam/main")
+
+    def test_6_edge_agent_falls_back_to_rtsp_url_when_main_rtsp_url_absent(self):
+        from src.integration.edge_agent import EdgeMqttAgent
+
+        mock_mqtt = MagicMock()
+        mock_storage = MagicMock()
+        active_workers = {}
+        created_workers = []
+
+        def fake_worker_factory(camera_code, rtsp_url, roi_geometry=None):
+            w = MagicMock()
+            w.camera_code = camera_code
+            w.rtsp_url = rtsp_url
+            w.is_running = True
+            created_workers.append(w)
+            return w
+
+        agent = EdgeMqttAgent(
+            mqtt_client_wrapper=mock_mqtt,
+            storage=mock_storage,
+            active_workers=active_workers,
+            worker_factory=fake_worker_factory,
+        )
+
+        with patch.object(agent, "_sync_local_mediamtx_path") as mock_sync:
+            mock_sync.side_effect = lambda code, url: f"rtsp://localhost:8554/{code.lower()}"
+            cfg = {
+                "camera_code": "CAM-002",
+                "rtsp_url": "rtsp://192.168.1.105:554/cam/live",
+                "enabled": True,
+            }
+            agent.handle_message("campus/edge/config/cameras/CAM-002", json.dumps(cfg).encode("utf-8"))
+
+            self.assertEqual(len(created_workers), 1)
+            self.assertEqual(created_workers[0].rtsp_url, "rtsp://localhost:8554/cam-002")
+            mock_sync.assert_called_once_with("CAM-002", "rtsp://192.168.1.105:554/cam/live")
+
 
 if __name__ == "__main__":
     unittest.main()
