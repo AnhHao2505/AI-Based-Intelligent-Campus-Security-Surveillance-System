@@ -33,12 +33,13 @@ public class CheckCameraEntryResponse {
     private String fullName;
 
     public static CheckCameraEntryResponse denied(String cameraCode, String userCode, String reason) {
+        String effectiveUserCode = (userCode != null && !userCode.isBlank()) ? userCode : "UNKNOWN";
         return CheckCameraEntryResponse.builder()
                 .allowed(false)
                 .source(AccessSource.NONE)
                 .reason(reason)
                 .cameraCode(cameraCode)
-                .userCode(userCode)
+                .userCode(effectiveUserCode)
                 .build();
     }
 }

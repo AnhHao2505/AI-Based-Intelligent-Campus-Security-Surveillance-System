@@ -9,6 +9,10 @@ import tempfile
 _OUTBOX_DIR = tempfile.mkdtemp(prefix="icss-test-outbox-")
 os.environ["MQTT_OUTBOX_PATH"] = os.path.join(_OUTBOX_DIR, "mqtt_outbox.sqlite3")
 os.environ["MQTT_ENABLED"] = "false"
+os.environ.setdefault("POSTGRES_PASSWORD", "testpass")
+os.environ.setdefault("MINIO_ROOT_USER", "minioadmin")
+os.environ.setdefault("MINIO_ROOT_PASSWORD", "minioadmin")
+os.environ.setdefault("INTERNAL_SERVICE_KEY", "0123456789abcdef0123456789abcdef")
 atexit.register(shutil.rmtree, _OUTBOX_DIR, ignore_errors=True)
 
 import pytest

@@ -15,6 +15,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -259,6 +260,103 @@ class CameraAccessLogServiceTest {
 
         assertNotNull(result);
         assertEquals(AccessResult.UNAUTHORIZED_PERSON, result.getAccessResult());
+    }
+
+    @Test
+    @DisplayName("Người lạ ra khỏi khu vực (EXIT) có ghi thời gian lưu lại vẫn phải phân loại là UNKNOWN_PERSON (không nhầm thành ACCESS_OUT_OF_TIME hay AUTHORIZED_ACCESS)")
+    void testRecordAccessLog_UnknownPersonExit_ClassifiedAsUnknownPerson() {
+        OffsetDateTime daytime = OffsetDateTime.of(2026, 10, 14, 14, 0, 0, 0, ZoneOffset.ofHours(7));
+        CheckCameraEntryResponse entryResponse = CheckCameraEntryResponse.builder()
+                .allowed(false)
+                .source(AccessSource.NONE)
+                .reason("[RA KHỎI ROI: Vùng giám sát 1] Người lạ rời khu vực (Thời gian lưu lại: 7s)")
+                .cameraCode("CAM-001")
+                .areaId(areaId)
+                .userCode("UNKNOWN")
+                .fullName("Người lạ / Chưa rõ mặt")
+                .build();
+
+        when(areaRepository.findById(areaId)).thenReturn(Optional.of(area));
+        when(userRepository.findByUserCodeAndDeletedAtIsNull("UNKNOWN")).thenReturn(Optional.empty());
+        when(cameraAccessLogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        CameraAccessLogResponse result = cameraAccessLogService.recordAccessLog(entryResponse, daytime);
+
+        assertNotNull(result);
+        assertEquals(AccessResult.UNKNOWN_PERSON, result.getAccessResult(), "Người lạ rời ROI phải được phân loại là UNKNOWN_PERSON, không được thành ACCESS_OUT_OF_TIME hay AUTHORIZED_ACCESS");
+        assertEquals("UNKNOWN", result.getUserCode());
+        assertEquals("Người lạ / Chưa rõ mặt", result.getFullName());
+        assertEquals("[RA KHỎI ROI: Vùng giám sát 1] Người lạ rời khu vực (Thời gian lưu lại: 7s)", result.getReasonDetails());
+    }
+
+    @Test
+    @DisplayName("T1: User có thật vào khu ngừng hoạt động (fullName null từ AccessDecisionService) -> nhật ký ghi tên user")
+    void testRecordAccessLog_RealUserInactiveArea_LogsUserFullName() {
+        OffsetDateTime daytime = OffsetDateTime.of(2026, 10, 14, 9, 0, 0, 0, ZoneOffset.ofHours(7));
+        CheckCameraEntryResponse entryResponse = CheckCameraEntryResponse.builder()
+                .allowed(false)
+                .source(AccessSource.NONE)
+                .reason("[VÀO ROI: Vùng 1] Khu vực đã ngừng hoạt động")
+                .cameraCode("CAM-001")
+                .areaId(areaId)
+                .userCode("SE170123")
+                .build();
+
+        when(areaRepository.findById(areaId)).thenReturn(Optional.of(area));
+        when(userRepository.findByUserCodeAndDeletedAtIsNull("SE170123")).thenReturn(Optional.of(user));
+        when(cameraAccessLogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        cameraAccessLogService.recordAccessLog(entryResponse, daytime);
+
+        ArgumentCaptor<CameraAccessLog> captor = ArgumentCaptor.forClass(CameraAccessLog.class);
+        verify(cameraAccessLogRepository).save(captor.capture());
+        assertEquals("Nguyễn Văn Minh", captor.getValue().getFullName());
+        assertEquals(user, captor.getValue().getUser());
+    }
+
+    /** Đúng chuỗi AccessDecisionService trả khi user rời khu sau khi đơn đã hết hạn (xem AccessDecisionServiceTest T3/T4). */
+    private static final String EXPIRED_EXIT_REASON = "[RA KHỎI ROI: Vùng 1] Rời khu vực (Thời gian lưu lại: 10s) (Không có thẩm quyền)";
+
+    private CheckCameraEntryResponse expiredRequestExit() {
+        return CheckCameraEntryResponse.builder()
+                .allowed(false)
+                .source(AccessSource.NONE)
+                .reason(EXPIRED_EXIT_REASON)
+                .cameraCode("CAM-001")
+                .areaId(areaId)
+                .userCode("SE170123")
+                .fullName("Nguyễn Văn Minh")
+                .build();
+    }
+
+    @Test
+    @DisplayName("T3: User rời khu khi đơn đã hết hạn, trong giờ hoạt động -> UNAUTHORIZED_PERSON")
+    void testRecordAccessLog_ExpiredRequestExitDuringHours_UnauthorizedPerson() {
+        OffsetDateTime daytime = OffsetDateTime.of(2026, 10, 14, 11, 0, 0, 0, ZoneOffset.ofHours(7));
+        when(areaRepository.findById(areaId)).thenReturn(Optional.of(area));
+        when(userRepository.findByUserCodeAndDeletedAtIsNull("SE170123")).thenReturn(Optional.of(user));
+        when(cameraAccessLogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        CameraAccessLogResponse result = cameraAccessLogService.recordAccessLog(expiredRequestExit(), daytime);
+
+        assertNotNull(result);
+        assertEquals(AccessResult.UNAUTHORIZED_PERSON, result.getAccessResult());
+        assertEquals("Nguyễn Văn Minh", result.getFullName());
+    }
+
+    @Test
+    @DisplayName("T4: User rời khu khi đơn đã hết hạn, ngoài giờ hoạt động (23:00) -> PERSON_INTRUSION, giữ tên user")
+    void testRecordAccessLog_ExpiredRequestExitAfterHours_PersonIntrusion() {
+        OffsetDateTime night = OffsetDateTime.of(2026, 10, 14, 23, 0, 0, 0, ZoneOffset.ofHours(7));
+        when(areaRepository.findById(areaId)).thenReturn(Optional.of(area));
+        when(userRepository.findByUserCodeAndDeletedAtIsNull("SE170123")).thenReturn(Optional.of(user));
+        when(cameraAccessLogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        CameraAccessLogResponse result = cameraAccessLogService.recordAccessLog(expiredRequestExit(), night);
+
+        assertNotNull(result);
+        assertEquals(AccessResult.PERSON_INTRUSION, result.getAccessResult());
+        assertEquals("Nguyễn Văn Minh", result.getFullName());
     }
 
     @Test
