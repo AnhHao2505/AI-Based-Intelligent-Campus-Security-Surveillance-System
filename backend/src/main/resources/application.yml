@@ -11,7 +11,7 @@ spring:
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${POSTGRES_DB:campus_security}?options=-c%20timezone=Asia/Ho_Chi_Minh
     username: ${POSTGRES_USER:sep}
-    password: ${POSTGRES_PASSWORD:123456}
+    password: ${POSTGRES_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -134,6 +134,8 @@ icss:
     # Khoá dùng chung AI service ↔ backend (header X-Service-Key) cho check-entry và /api/internal/**.
     # Bắt buộc, tối thiểu 32 ký tự: thiếu thì backend không khởi động. Giá trị chỉ đặt trong .env, không commit.
     service-key: ${INTERNAL_SERVICE_KEY:}
+  ai:
+    annotated-stream-token-seconds: ${AI_ANNOTATED_STREAM_TOKEN_SECONDS:60}
 
 recording:
   storage:

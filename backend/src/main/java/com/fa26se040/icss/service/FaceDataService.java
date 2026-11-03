@@ -25,7 +25,7 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.ResourceAccessException;
-import org.springframework.web.client.RestTemplate;
+import com.fa26se040.icss.config.AiServiceRestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
@@ -42,7 +42,7 @@ public class FaceDataService {
     private final FaceDataRepository faceDataRepository;
     private final UserRepository userRepository;
     private final MinioStorageService minioStorageService;
-    private RestTemplate restTemplate = new RestTemplate();
+    private final AiServiceRestTemplate restTemplate;
 
     @Autowired(required = false)
     private EdgeMqttControlService edgeMqttControlService;

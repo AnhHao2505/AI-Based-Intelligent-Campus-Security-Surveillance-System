@@ -1,5 +1,6 @@
 package com.fa26se040.icss.service;
 
+import com.fa26se040.icss.config.AiServiceRestTemplate;
 import com.fa26se040.icss.dto.FaceDataResponseDto;
 import com.fa26se040.icss.dto.camera.CameraSnapshotResponse;
 import com.fa26se040.icss.dto.camera.CameraStreamLifecycleResponse;
@@ -34,7 +35,6 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.web.client.RestTemplate;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
@@ -67,7 +67,7 @@ class CloudEdgeServiceRoutingTest {
     @Mock
     private RtspHandshakeChecker rtspHandshakeChecker;
     @Mock
-    private RestTemplate restTemplate;
+    private AiServiceRestTemplate restTemplate;
     @Mock
     private FaceDataRepository faceDataRepository;
     @Mock
@@ -124,11 +124,10 @@ class CloudEdgeServiceRoutingTest {
     @DisplayName("1. Happy Path (Cloud-Edge Stream Lifecycle): Khi MQTT kết nối và không cấu hình local aiServiceUrl, startStream chỉ dùng MQTT Retained Config (0 gọi HTTP vào Edge)")
     void startStream_inCloudEdgeMode_publishesMqttConfigWithoutHttpCall() {
         CameraStreamLifecycleService lifecycleService = new CameraStreamLifecycleService(
-                cameraRepository, streamConfigRepo, healthLogRepo, cameraService, mediaMtxService
+                cameraRepository, streamConfigRepo, healthLogRepo, cameraService, mediaMtxService, restTemplate
         );
         ReflectionTestUtils.setField(lifecycleService, "edgeMqttControlService", edgeMqttControlService);
         ReflectionTestUtils.setField(lifecycleService, "aiServiceUrl", "");
-        ReflectionTestUtils.setField(lifecycleService, "restTemplate", restTemplate);
 
         when(edgeMqttControlService.isConnected()).thenReturn(true);
         when(cameraRepository.findById(cameraId)).thenReturn(Optional.of(camera));
@@ -152,13 +151,12 @@ class CloudEdgeServiceRoutingTest {
     @DisplayName("2. Happy Path (Cloud-Edge Snapshot via MQTT RPC + MinIO): Trích xuất snapshot qua NAT bằng MQTT RPC và tải ảnh từ MinIO")
     void captureSnapshot_inCloudEdgeMode_usesMqttRpcAndMinio() throws Exception {
         CameraSnapshotService snapshotService = new CameraSnapshotService(
-                cameraRepository, streamConfigRepo, cameraService
+                cameraRepository, streamConfigRepo, cameraService, restTemplate
         );
         ReflectionTestUtils.setField(snapshotService, "edgeMqttControlService", edgeMqttControlService);
         ReflectionTestUtils.setField(snapshotService, "minioStorageService", minioStorageService);
         ReflectionTestUtils.setField(snapshotService, "aiServiceUrl", "");
         ReflectionTestUtils.setField(snapshotService, "defaultTimeoutMs", 5000);
-        ReflectionTestUtils.setField(snapshotService, "restTemplate", restTemplate);
 
         when(edgeMqttControlService.isConnected()).thenReturn(true);
         when(cameraRepository.findById(cameraId)).thenReturn(Optional.of(camera));
@@ -226,7 +224,7 @@ class CloudEdgeServiceRoutingTest {
     @DisplayName("4. Exception Error: Khi Edge trả về lỗi trích xuất snapshot qua MQTT RPC, ném đúng CameraException(ERR_SNAPSHOT_001)")
     void captureSnapshot_whenEdgeReturnsFailure_throwsErrSnapshot001() {
         CameraSnapshotService snapshotService = new CameraSnapshotService(
-                cameraRepository, streamConfigRepo, cameraService
+                cameraRepository, streamConfigRepo, cameraService, restTemplate
         );
         ReflectionTestUtils.setField(snapshotService, "edgeMqttControlService", edgeMqttControlService);
         ReflectionTestUtils.setField(snapshotService, "aiServiceUrl", "");
@@ -252,10 +250,9 @@ class CloudEdgeServiceRoutingTest {
     @Test
     @DisplayName("5. Happy Path (Cloud-Edge Face Registration via MinIO Staging + MQTT RPC): Đăng ký khuôn mặt qua NAT không cần gọi HTTP vào Edge và tự dọn staging object")
     void registerFace_inCloudEdgeMode_usesMinioStagingAndMqttRpc() {
-        FaceDataService faceDataService = new FaceDataService(faceDataRepository, userRepository, minioStorageService);
+        FaceDataService faceDataService = new FaceDataService(faceDataRepository, userRepository, minioStorageService, restTemplate);
         ReflectionTestUtils.setField(faceDataService, "edgeMqttControlService", edgeMqttControlService);
         ReflectionTestUtils.setField(faceDataService, "aiServiceUrl", "");
-        ReflectionTestUtils.setField(faceDataService, "restTemplate", restTemplate);
 
         when(edgeMqttControlService.isConnected()).thenReturn(true);
         when(minioStorageService.getFacesBucket()).thenReturn("face-profiles");
@@ -305,11 +302,11 @@ class CloudEdgeServiceRoutingTest {
                 guardShiftRepository,
                 incidentRecipientResolver,
                 incidentEscalationRepository,
-                incidentSeverityResolver
+                incidentSeverityResolver,
+                restTemplate
         );
         ReflectionTestUtils.setField(incidentService, "edgeMqttControlService", edgeMqttControlService);
         ReflectionTestUtils.setField(incidentService, "aiServiceUrl", "");
-        ReflectionTestUtils.setField(incidentService, "restTemplate", restTemplate);
 
         UUID dbIncidentId = UUID.randomUUID();
         SecurityIncident dbIncident = SecurityIncident.builder()
@@ -334,11 +331,11 @@ class CloudEdgeServiceRoutingTest {
                 systemConfigChangeLogRepository,
                 userRepository,
                 areaServiceProvider,
-                notificationServiceProvider
+                notificationServiceProvider,
+                restTemplate
         );
         ReflectionTestUtils.setField(configService, "edgeMqttControlService", edgeMqttControlService);
         ReflectionTestUtils.setField(configService, "aiServiceUrl", "");
-        ReflectionTestUtils.setField(configService, "aiRestTemplate", restTemplate);
 
         when(edgeMqttControlService.isConnected()).thenReturn(true);
 

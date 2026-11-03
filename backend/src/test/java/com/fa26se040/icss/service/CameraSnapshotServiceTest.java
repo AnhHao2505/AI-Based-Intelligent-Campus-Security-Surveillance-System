@@ -19,7 +19,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpEntity;
 import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.web.client.RestTemplate;
+import com.fa26se040.icss.config.AiServiceRestTemplate;
 
 import java.util.Map;
 import java.util.Optional;
@@ -45,7 +45,7 @@ class CameraSnapshotServiceTest {
     private CameraService cameraService;
 
     @Mock
-    private RestTemplate restTemplate;
+    private AiServiceRestTemplate restTemplate;
 
     @InjectMocks
     private CameraSnapshotService cameraSnapshotService;

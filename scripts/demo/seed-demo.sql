@@ -337,9 +337,11 @@ VALUES
     (pg_temp.did(11, 10), pg_temp.did(10, 8), 'Văn Thị Ngọc Ánh',  'Công ty Kiểm định Demo',          'DELETED',  NULL, pg_temp.did(1, 1), pg_temp.vn(-3, 12, 30), 'v1', pg_temp.vn(-3, 12, 30), pg_temp.vn(-2, 15, 5), pg_temp.vn(-6, 10, 0), pg_temp.vn(-2, 15, 5));
 
 -- -----------------------------------------------------------------------------------------------------
--- 10. Log ra vào 30 ngày, đủ 5 kết quả. Người được ghi nhận đúng cấp với kết quả:
---     AUTHORIZED: cấp ≥ cấp khu · UNAUTHORIZED: cấp < cấp khu (khu không Công khai) · OUT_OF_TIME: cấp 1 ở khu Bảo mật
---     ngoài khung giờ đơn · UNKNOWN_PERSON: không xác định · INTRUSION (sau giờ hoạt động): 22:00–23:59.
+-- 10. Log ra vào 30 ngày theo 5 nhãn (V95, quyết định 03/11). Người được ghi nhận đúng cấp với kết quả:
+--     AUTHORIZED_PERSON: cấp ≥ cấp khu · UNAUTHORIZED_PERSON: cấp < cấp khu (khu không Công khai), hoặc cấp 1 ở
+--     khu Bảo mật ngoài khung giờ đơn (sai khung giờ tính như vào trái phép, cột phụ out_of_time chỉ để sinh giờ/người)
+--     · UNKNOWN_PERSON: không xác định · PERSON_INTRUSION (sau giờ hoạt động): 22:00–23:59.
+--     SUSPICIOUS_MOVING_OBJECT không có trong log ra vào demo (không gắn với người).
 -- -----------------------------------------------------------------------------------------------------
 CREATE TEMP TABLE demo_cam ON COMMIT DROP AS
 SELECT * FROM (VALUES
@@ -360,11 +362,11 @@ WHERE u.id IN (pg_temp.did(1, 21), pg_temp.did(1, 22), pg_temp.did(1, 23), pg_te
 
 CREATE TEMP TABLE demo_log_plan ON COMMIT DROP AS
 SELECT n,
-       CASE WHEN n % 20 < 13 THEN 'AUTHORIZED_ACCESS'
-            WHEN n % 20 < 15 THEN 'UNAUTHORIZED_ACCESS'
-            WHEN n % 20 = 15 THEN 'ACCESS_OUT_OF_TIME'
+       CASE WHEN n % 20 < 13 THEN 'AUTHORIZED_PERSON'
+            WHEN n % 20 < 16 THEN 'UNAUTHORIZED_PERSON'
             WHEN n % 20 < 18 THEN 'UNKNOWN_PERSON'
-            ELSE 'INTRUSION' END AS result,
+            ELSE 'PERSON_INTRUSION' END AS result,
+       (n % 20 = 15) AS out_of_time,
        1 + (n % 29) AS days_ago,
        n % 60 AS minute
 FROM generate_series(1, 360) AS n;
@@ -375,22 +377,21 @@ SELECT pg_temp.did(12, p.n),
        c.code, c.area_id,
        u.id, COALESCE(u.user_code, 'UNKNOWN'), u.full_name, u.lvl,
        p.result,
-       CASE WHEN p.result = 'AUTHORIZED_ACCESS' THEN 'ACCESS_LEVEL' ELSE 'NONE' END,
-       CASE p.result
-           WHEN 'AUTHORIZED_ACCESS'   THEN 'Cấp truy cập đáp ứng yêu cầu khu vực'
-           WHEN 'UNAUTHORIZED_ACCESS' THEN 'Cấp truy cập thấp hơn yêu cầu khu vực, không có đơn hay quyền chỉ định'
-           WHEN 'ACCESS_OUT_OF_TIME'  THEN 'Ngoài khung giờ của yêu cầu truy cập đã duyệt'
-           WHEN 'UNKNOWN_PERSON'      THEN 'Không nhận diện được khuôn mặt'
-           ELSE 'Phát hiện người trong khu vực ngoài giờ hoạt động' END,
+       CASE WHEN p.result = 'AUTHORIZED_PERSON' THEN 'ACCESS_LEVEL' ELSE 'NONE' END,
+       CASE WHEN p.out_of_time                       THEN 'Ngoài khung giờ của yêu cầu truy cập đã duyệt'
+            WHEN p.result = 'AUTHORIZED_PERSON'      THEN 'Cấp truy cập đáp ứng yêu cầu khu vực'
+            WHEN p.result = 'UNAUTHORIZED_PERSON'    THEN 'Cấp truy cập thấp hơn yêu cầu khu vực, không có đơn hay quyền chỉ định'
+            WHEN p.result = 'UNKNOWN_PERSON'         THEN 'Không nhận diện được khuôn mặt'
+            ELSE 'Phát hiện người trong khu vực ngoài giờ hoạt động' END,
        pg_temp.vn(-p.days_ago,
-                  CASE p.result WHEN 'INTRUSION' THEN 22 + (p.n % 2)
-                                WHEN 'ACCESS_OUT_OF_TIME' THEN 18 + (p.n % 3)
-                                ELSE 7 + (p.n % 11) END,
+                  CASE WHEN p.result = 'PERSON_INTRUSION' THEN 22 + (p.n % 2)
+                       WHEN p.out_of_time THEN 18 + (p.n % 3)
+                       ELSE 7 + (p.n % 11) END,
                   p.minute)
 FROM demo_log_plan p
 JOIN demo_cam c ON c.idx = CASE
-        WHEN p.result IN ('AUTHORIZED_ACCESS', 'UNKNOWN_PERSON') THEN 1 + (p.n % 6)
-        WHEN p.result = 'ACCESS_OUT_OF_TIME' THEN 3 + (p.n % 3)
+        WHEN p.result IN ('AUTHORIZED_PERSON', 'UNKNOWN_PERSON') THEN 1 + (p.n % 6)
+        WHEN p.out_of_time THEN 3 + (p.n % 3)
         ELSE 3 + (p.n % 4) END
 LEFT JOIN LATERAL (
     -- Chọn xoay vòng một người trong nhóm hợp lệ với kết quả (UNKNOWN_PERSON: không ai)
@@ -399,9 +400,9 @@ LEFT JOIN LATERAL (
         SELECT du.*, row_number() OVER (ORDER BY du.idx) AS rn, count(*) OVER () AS cnt
         FROM demo_usr du
         WHERE p.result <> 'UNKNOWN_PERSON'
-          AND ((p.result = 'AUTHORIZED_ACCESS' AND du.lvl >= c.lvl)
-            OR (p.result IN ('UNAUTHORIZED_ACCESS', 'INTRUSION') AND du.lvl < c.lvl)
-            OR (p.result = 'ACCESS_OUT_OF_TIME' AND du.lvl = 1))
+          AND ((p.result = 'AUTHORIZED_PERSON' AND du.lvl >= c.lvl)
+            OR (NOT p.out_of_time AND p.result IN ('UNAUTHORIZED_PERSON', 'PERSON_INTRUSION') AND du.lvl < c.lvl)
+            OR (p.out_of_time AND du.lvl = 1))
     ) q
     WHERE q.rn = 1 + (p.n % q.cnt)
 ) u ON true;
@@ -411,7 +412,7 @@ INSERT INTO camera_access_logs (id, camera_code, area_id, user_id, user_code, fu
                                 access_result, access_source, reason_details, logged_at)
 SELECT pg_temp.did(12, 1000 + k),
        c.code, c.area_id, u.id, COALESCE(u.user_code, 'UNKNOWN'), u.full_name, u.access_level,
-       CASE WHEN k = 4 THEN 'UNKNOWN_PERSON' WHEN k = 9 THEN 'UNAUTHORIZED_ACCESS' ELSE 'AUTHORIZED_ACCESS' END,
+       CASE WHEN k = 4 THEN 'UNKNOWN_PERSON' WHEN k = 9 THEN 'UNAUTHORIZED_PERSON' ELSE 'AUTHORIZED_PERSON' END,
        CASE WHEN k IN (4, 9) THEN 'NONE' ELSE 'ACCESS_LEVEL' END,
        CASE WHEN k = 4 THEN 'Không nhận diện được khuôn mặt'
             WHEN k = 9 THEN 'Cấp truy cập thấp hơn yêu cầu khu vực, không có đơn hay quyền chỉ định'
@@ -436,20 +437,20 @@ SELECT pg_temp.did(13, v.n), 'DEMO-EVT-' || lpad(v.n::text, 3, '0'), c.code, c.a
        v.resolved_by, CASE WHEN v.resolved_by IS NOT NULL THEN v.detected_at + interval '25 minutes' END,
        v.outcome, v.category, v.notes, v.detected_at, COALESCE(v.detected_at + interval '25 minutes', v.detected_at)
 FROM (VALUES
-    ( 1, 6, 'INTRUSION',           now() - interval '8 minutes',  'NEW',               NULL::uuid,          NULL::uuid,          NULL,       NULL,                  NULL),
+    ( 1, 6, 'PERSON_INTRUSION',    now() - interval '8 minutes',  'NEW',               NULL::uuid,          NULL::uuid,          NULL,       NULL,                  NULL),
     ( 2, 3, 'UNKNOWN_PERSON',      now() - interval '25 minutes', 'NEW',               NULL,                NULL,                NULL,       NULL,                  NULL),
-    ( 3, 5, 'UNAUTHORIZED_ACCESS', now() - interval '2 hours',    'NEW',               NULL,                NULL,                NULL,       NULL,                  NULL),
-    ( 4, 4, 'AFTER_HOURS',         now() - interval '50 minutes', 'CLAIMED',           pg_temp.did(1, 11),  NULL,                NULL,       NULL,                  NULL),
-    ( 5, 6, 'UNAUTHORIZED_ACCESS', now() - interval '3 hours',    'CLAIMED',           pg_temp.did(1, 12),  NULL,                NULL,       NULL,                  NULL),
-    ( 6, 6, 'INTRUSION',           pg_temp.vn(-1, 22, 40),        'RESOLVED_VERIFIED', pg_temp.did(1, 13),  pg_temp.did(1, 13),  'VERIFIED', 'ESCORTED_OUT',        'Mời người ở lại sau giờ ra khỏi khu vực, lập biên bản nhắc nhở'),
-    ( 7, 6, 'UNAUTHORIZED_ACCESS', pg_temp.vn(-3, 10, 15),        'RESOLVED_VERIFIED', pg_temp.did(1, 11),  pg_temp.did(1, 11),  'VERIFIED', 'REPORT_FILED',        'Sinh viên đi theo người có quyền vào phòng Server, đã lập biên bản'),
+    ( 3, 5, 'UNAUTHORIZED_PERSON', now() - interval '2 hours',    'NEW',               NULL,                NULL,                NULL,       NULL,                  NULL),
+    ( 4, 4, 'PERSON_INTRUSION',    now() - interval '50 minutes', 'CLAIMED',           pg_temp.did(1, 11),  NULL,                NULL,       NULL,                  NULL),
+    ( 5, 6, 'UNAUTHORIZED_PERSON', now() - interval '3 hours',    'CLAIMED',           pg_temp.did(1, 12),  NULL,                NULL,       NULL,                  NULL),
+    ( 6, 6, 'PERSON_INTRUSION',    pg_temp.vn(-1, 22, 40),        'RESOLVED_VERIFIED', pg_temp.did(1, 13),  pg_temp.did(1, 13),  'VERIFIED', 'ESCORTED_OUT',        'Mời người ở lại sau giờ ra khỏi khu vực, lập biên bản nhắc nhở'),
+    ( 7, 6, 'UNAUTHORIZED_PERSON', pg_temp.vn(-3, 10, 15),        'RESOLVED_VERIFIED', pg_temp.did(1, 11),  pg_temp.did(1, 11),  'VERIFIED', 'REPORT_FILED',        'Sinh viên đi theo người có quyền vào phòng Server, đã lập biên bản'),
     ( 8, 3, 'UNKNOWN_PERSON',      pg_temp.vn(-5, 15, 5),         'RESOLVED_VERIFIED', pg_temp.did(1, 12),  pg_temp.did(1, 12),  'VERIFIED', 'REMINDED_DISPERSED',  'Khách chưa đăng ký đi lạc vào Lab, đã hướng dẫn ra sảnh'),
-    ( 9, 5, 'AFTER_HOURS',         pg_temp.vn(-8, 23, 10),        'RESOLVED_VERIFIED', pg_temp.did(1, 13),  pg_temp.did(1, 13),  'VERIFIED', 'DETAINED_ESCALATED',  'Phát hiện người lạ trong kho sau giờ, đã báo cấp trên'),
-    (10, 4, 'UNAUTHORIZED_ACCESS', pg_temp.vn(-12, 9, 40),        'RESOLVED_VERIFIED', pg_temp.did(1, 11),  pg_temp.did(1, 11),  'VERIFIED', 'REMINDED_DISPERSED',  'Nhắc nhở sinh viên vào phòng họp khi chưa có đơn'),
-    (11, 6, 'INTRUSION',           pg_temp.vn(-20, 22, 5),        'RESOLVED_VERIFIED', pg_temp.did(1, 12),  pg_temp.did(1, 12),  'VERIFIED', 'ESCORTED_OUT',        'Đưa người ra khỏi khu Tuyệt mật'),
+    ( 9, 5, 'PERSON_INTRUSION',    pg_temp.vn(-8, 23, 10),        'RESOLVED_VERIFIED', pg_temp.did(1, 13),  pg_temp.did(1, 13),  'VERIFIED', 'DETAINED_ESCALATED',  'Phát hiện người lạ trong kho sau giờ, đã báo cấp trên'),
+    (10, 4, 'UNAUTHORIZED_PERSON', pg_temp.vn(-12, 9, 40),        'RESOLVED_VERIFIED', pg_temp.did(1, 11),  pg_temp.did(1, 11),  'VERIFIED', 'REMINDED_DISPERSED',  'Nhắc nhở sinh viên vào phòng họp khi chưa có đơn'),
+    (11, 6, 'PERSON_INTRUSION',    pg_temp.vn(-20, 22, 5),        'RESOLVED_VERIFIED', pg_temp.did(1, 12),  pg_temp.did(1, 12),  'VERIFIED', 'ESCORTED_OUT',        'Đưa người ra khỏi khu Tuyệt mật'),
     (12, 1, 'UNKNOWN_PERSON',      pg_temp.vn(-2, 8, 20),         'RESOLVED_DISMISSED',pg_temp.did(1, 11),  pg_temp.did(1, 11),  'DISMISSED','FALSE_ALARM',         'Camera nhận nhầm do ngược sáng, là cán bộ của trường'),
-    (13, 3, 'UNAUTHORIZED_ACCESS', pg_temp.vn(-6, 14, 0),         'RESOLVED_DISMISSED',pg_temp.did(1, 13),  pg_temp.did(1, 13),  'DISMISSED','AUTHORIZED_EXCEPTION','Người vào có quyền chỉ định, hệ thống chưa cập nhật kịp'),
-    (14, 6, 'INTRUSION',           pg_temp.vn(-15, 22, 30),       'RESOLVED_DISMISSED',pg_temp.did(1, 12),  pg_temp.did(1, 12),  'DISMISSED','FALSE_ALARM',         'Nhân viên kỹ thuật trực ca đêm theo lịch')
+    (13, 3, 'UNAUTHORIZED_PERSON', pg_temp.vn(-6, 14, 0),         'RESOLVED_DISMISSED',pg_temp.did(1, 13),  pg_temp.did(1, 13),  'DISMISSED','AUTHORIZED_EXCEPTION','Người vào có quyền chỉ định, hệ thống chưa cập nhật kịp'),
+    (14, 6, 'PERSON_INTRUSION',    pg_temp.vn(-15, 22, 30),       'RESOLVED_DISMISSED',pg_temp.did(1, 12),  pg_temp.did(1, 12),  'DISMISSED','FALSE_ALARM',         'Nhân viên kỹ thuật trực ca đêm theo lịch')
 ) AS v(n, cam_idx, event_type, detected_at, status, claimed_by, resolved_by, outcome, category, notes)
 JOIN demo_cam c ON c.idx = v.cam_idx;
 

@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     DB_HOST: str = Field(default="localhost", validation_alias="DB_HOST")
     DB_PORT: int = Field(default=5432, validation_alias="DB_PORT")
     POSTGRES_USER: str = Field(default="sep", validation_alias="POSTGRES_USER")
-    POSTGRES_PASSWORD: str = Field(default="123456", validation_alias="POSTGRES_PASSWORD")
+    POSTGRES_PASSWORD: str = Field(..., validation_alias="POSTGRES_PASSWORD")
     POSTGRES_DB: str = Field(default="campus_security", validation_alias="POSTGRES_DB")
 
     # MQTT Configuration (Edge-Cloud Control Plane & Real-time Telemetry)
@@ -98,6 +98,7 @@ class Settings(BaseSettings):
     # Khoá dùng chung với Backend (cùng giá trị INTERNAL_SERVICE_KEY của Backend). Bắt buộc, không có mặc định:
     # thiếu hoặc ngắn hơn 32 ký tự thì service không khởi động.
     INTERNAL_SERVICE_KEY: str = Field(..., min_length=32, validation_alias="INTERNAL_SERVICE_KEY")
+    AI_CORS_ALLOWED_ORIGINS: str = Field(default="http://localhost:5173,http://localhost:5174,http://localhost:3000", validation_alias="AI_CORS_ALLOWED_ORIGINS")
     
     class Config:
         env_file = (

@@ -18,7 +18,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestTemplate;
+import com.fa26se040.icss.config.AiServiceRestTemplate;
 
 import java.io.InputStream;
 import java.time.OffsetDateTime;
@@ -34,7 +34,7 @@ public class CameraSnapshotService {
     private final CameraRepository cameraRepository;
     private final CameraStreamConfigurationRepository streamConfigRepo;
     private final CameraService cameraService;
-    private RestTemplate restTemplate = new RestTemplate();
+    private final AiServiceRestTemplate restTemplate;
 
     @Autowired(required = false)
     private EdgeMqttControlService edgeMqttControlService;

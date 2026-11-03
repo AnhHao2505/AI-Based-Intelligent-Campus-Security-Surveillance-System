@@ -19,7 +19,7 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestTemplate;
+import com.fa26se040.icss.config.AiServiceRestTemplate;
 
 import java.time.OffsetDateTime;
 import java.util.HashMap;
@@ -42,7 +42,7 @@ public class CameraStreamLifecycleService {
     private final CameraHealthLogRepository healthLogRepo;
     private final CameraService cameraService;
     private final MediaMtxService mediaMtxService;
-    private RestTemplate restTemplate = new RestTemplate();
+    private final AiServiceRestTemplate restTemplate;
 
     @Autowired(required = false)
     private EdgeMqttControlService edgeMqttControlService;

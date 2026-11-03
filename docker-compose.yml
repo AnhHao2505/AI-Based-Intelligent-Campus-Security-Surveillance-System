@@ -48,7 +48,7 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-      MINIO_KMS_SECRET_KEY: ${MINIO_KMS_SECRET_KEY:-my-minio-key:MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}
+      MINIO_KMS_SECRET_KEY: ${MINIO_KMS_SECRET_KEY:?MINIO_KMS_SECRET_KEY is required (set it in .env)}
     command: server /data --console-address ":9001"
     ports:
       - "9000:9000"
@@ -98,12 +98,12 @@ services:
   #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
   #     POSTGRES_DB: ${POSTGRES_DB}
   #     GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-mock_google_client_id}
-  #     JWT_SECRET: ${JWT_SECRET:-9a4f2c8d3b7a1e5f8g2h6i0j3k7l1m5n9o3p7q1r5s9t3u7v1w5x9y3z7a1b5c9d}
+  #     JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required (set it in .env)}
   #     JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
   #     SPRING_MAIL_HOST: ${SPRING_MAIL_HOST:-smtp.gmail.com}
   #     SPRING_MAIL_PORT: ${SPRING_MAIL_PORT:-587}
   #     SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME:-noreply@fptu.edu.vn}
-  #     SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD:-mock_password}
+  #     SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD:-}
   #     AI_SERVICE_HOST: ai-service
   #     AI_SERVICE_PORT: 8000
   #     INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY}

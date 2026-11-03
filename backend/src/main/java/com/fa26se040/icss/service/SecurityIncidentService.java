@@ -77,7 +77,7 @@ public class SecurityIncidentService {
     @org.springframework.beans.factory.annotation.Value("${ai.service.url:http://localhost:8000}")
     private String aiServiceUrl;
 
-    private org.springframework.web.client.RestTemplate restTemplate = new org.springframework.web.client.RestTemplate();
+    private final com.fa26se040.icss.config.AiServiceRestTemplate restTemplate;
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private EdgeMqttControlService edgeMqttControlService;

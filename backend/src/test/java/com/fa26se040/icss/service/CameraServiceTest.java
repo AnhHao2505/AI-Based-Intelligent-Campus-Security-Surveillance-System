@@ -66,6 +66,8 @@ class CameraServiceTest {
 
     @Mock
     private com.fa26se040.icss.util.RtspHandshakeChecker rtspHandshakeChecker;
+    @Mock
+    private com.fa26se040.icss.config.AiServiceRestTemplate restTemplate;
 
     @InjectMocks
     private CameraService cameraService;

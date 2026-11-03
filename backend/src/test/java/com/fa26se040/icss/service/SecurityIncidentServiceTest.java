@@ -70,6 +70,8 @@ class SecurityIncidentServiceTest {
 
     @Mock
     private IncidentEscalationRepository incidentEscalationRepository;
+    @Mock
+    private com.fa26se040.icss.config.AiServiceRestTemplate restTemplate;
 
     @InjectMocks
     private SecurityIncidentService incidentService;
@@ -234,7 +236,7 @@ class SecurityIncidentServiceTest {
                 checkedInShift(offShift, nowVn.minusHours(3), nowVn.minusHours(1))));
         SecurityIncidentService service = new SecurityIncidentService(incidentRepository, cameraRepository, userRepository,
                 messagingTemplate, cameraAccessLogService, guardShiftRepository,
-                new IncidentRecipientResolver(shiftQuery), incidentEscalationRepository, mock(IncidentSeverityResolver.class));
+                new IncidentRecipientResolver(shiftQuery), incidentEscalationRepository, mock(IncidentSeverityResolver.class), null);
 
         IncidentDetailResponse result = service.ingestIncident(alertEvent());
 

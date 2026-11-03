@@ -60,7 +60,7 @@ Mật khẩu chung của tài khoản demo: **`Demo@123456`** (lưu BCrypt trong
 | Nhân sự chỉ định | UPCOMING · ACTIVE có hạn · ACTIVE không thời hạn · EXPIRED · REVOKED (2) |
 | Lịch sự kiện | SCHEDULED · STARTED (Phòng họp Hội đồng đang mở chế độ sự kiện) · COMPLETED · ENDED_EARLY · CANCELLED · FAILED |
 | Lượt khách | PENDING · APPROVED tương lai · APPROVED đang diễn ra · REJECTED · CANCELLED · REVOKED · EXPIRED · COMPLETED. Khách sắp tới / đang diễn ra **chưa có ảnh**; khách lượt đã xong đã xoá sinh trắc |
-| Log ra vào | 360 lượt rải 29 ngày trước + 12 lượt hôm nay, đủ 5 kết quả |
+| Log ra vào | 360 lượt rải 29 ngày trước + 12 lượt hôm nay, theo 5 nhãn (V95): có AUTHORIZED_PERSON, UNAUTHORIZED_PERSON (gồm cả lượt sai khung giờ đơn), UNKNOWN_PERSON, PERSON_INTRUSION; không có SUSPICIOUS_MOVING_OBJECT (không gắn với người) |
 | Sự cố | 14 sự cố: 3 NEW, 2 CLAIMED, 6 RESOLVED_VERIFIED, 3 RESOLVED_DISMISSED; Phòng Server nhiều nhất |
 | Thông báo | 18 thông báo (đa số chưa đọc) cho FM, ADMIN, GUARD, NORMAL_USER |
 | Ca trực | Đội Demo, 3 ca hôm nay + 3 ca ngày mai |

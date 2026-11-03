@@ -100,7 +100,7 @@ class UserAccessLevelHelperTest {
                 mock(com.fa26se040.icss.repository.SystemConfigurationRepository.class),
                 mock(com.fa26se040.icss.repository.SystemConfigurationChangeLogRepository.class),
                 mock(com.fa26se040.icss.repository.UserRepository.class),
-                null, null);
+                null, null, null);
         UserAccessLevelHelper helper = new UserAccessLevelHelper(emptyConfig);
 
         for (Role role : Role.values()) {
