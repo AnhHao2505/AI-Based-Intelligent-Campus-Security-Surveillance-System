@@ -62,19 +62,31 @@ public class CameraStreamLifecycleService {
         CameraStreamConfiguration config = streamConfigRepo.findByCameraId(cameraId)
                 .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_STREAM_001));
 
-        String rtspUrl = cameraService.buildRtspUrl(config);
-        if (rtspUrl == null || rtspUrl.isBlank()) {
+        String mainRtspUrl = cameraService.buildRtspUrl(config);
+        if (mainRtspUrl == null || mainRtspUrl.isBlank()) {
             throw new CameraException(CameraErrorCode.ERR_STREAM_001);
         }
+        String subRtspUrl = cameraService.buildSubRtspUrl(config);
+        boolean hasSub = (subRtspUrl != null && !subRtspUrl.isBlank());
 
         boolean handledViaMqtt = false;
         if (edgeMqttControlService != null && edgeMqttControlService.isConnected()) {
-            edgeMqttControlService.publishCameraStreamConfig(
-                    camera.getCameraCode(),
-                    rtspUrl,
-                    true,
-                    camera.getRoiGeometry()
-            );
+            if (hasSub) {
+                edgeMqttControlService.publishCameraStreamConfig(
+                        camera.getCameraCode(),
+                        subRtspUrl,
+                        mainRtspUrl,
+                        true,
+                        camera.getRoiGeometry()
+                );
+            } else {
+                edgeMqttControlService.publishCameraStreamConfig(
+                        camera.getCameraCode(),
+                        mainRtspUrl,
+                        true,
+                        camera.getRoiGeometry()
+                );
+            }
             handledViaMqtt = true;
             log.info("📡 [Cloud-Edge] Đã đồng bộ kích hoạt stream & AI Worker cho camera [{}] qua MQTT Retained Config",
                     camera.getCameraCode());
@@ -82,11 +94,21 @@ public class CameraStreamLifecycleService {
 
         if (!handledViaMqtt) {
             // Fallback khi chạy Standalone Local không kết nối MQTT
-            mediaMtxService.syncCameraPath(camera.getCameraCode(), rtspUrl);
+            if (hasSub) {
+                mediaMtxService.syncCameraPath(camera.getCameraCode(), subRtspUrl);
+                mediaMtxService.syncCameraPath(camera.getCameraCode() + "_main", mainRtspUrl);
+                log.info("✅ [MediaMTX Dual-Stream] Đã đồng bộ luồng phụ [{}] (WHEP UI) và luồng chính [{}_main] (AI & Recording)",
+                        camera.getCameraCode(), camera.getCameraCode());
+            } else {
+                mediaMtxService.syncCameraPath(camera.getCameraCode(), mainRtspUrl);
+            }
+
             if (aiServiceUrl != null && !aiServiceUrl.isBlank()) {
                 try {
                     String streamStartUrl = aiServiceUrl + "/api/v1/stream/start";
-                    String workerRtspUrl = mediaMtxService.getGatewayRtspUrl(camera.getCameraCode());
+                    String workerRtspUrl = hasSub
+                            ? mediaMtxService.getGatewayRtspUrl(camera.getCameraCode() + "_main")
+                            : mediaMtxService.getGatewayRtspUrl(camera.getCameraCode());
                     Map<String, Object> reqBody = new HashMap<>();
                     reqBody.put("camera_code", camera.getCameraCode());
                     reqBody.put("rtsp_url", workerRtspUrl);

@@ -135,6 +135,16 @@ public class EdgeMqttControlService {
             boolean enabled,
             RoiGeometry roiGeometry
     ) {
+        publishCameraStreamConfig(cameraCode, rtspSourceUrl, null, enabled, roiGeometry);
+    }
+
+    public void publishCameraStreamConfig(
+            String cameraCode,
+            String rtspSourceUrl,
+            String mainRtspUrl,
+            boolean enabled,
+            RoiGeometry roiGeometry
+    ) {
         if (cameraCode == null || cameraCode.isBlank()) {
             return;
         }
@@ -142,6 +152,9 @@ public class EdgeMqttControlService {
         Map<String, Object> body = new HashMap<>();
         body.put("camera_code", normCode);
         body.put("rtsp_url", rtspSourceUrl != null ? rtspSourceUrl : "");
+        if (mainRtspUrl != null && !mainRtspUrl.isBlank()) {
+            body.put("main_rtsp_url", mainRtspUrl);
+        }
         body.put("enabled", enabled);
         if (roiGeometry != null) {
             body.put("roi_geometry", roiGeometry);

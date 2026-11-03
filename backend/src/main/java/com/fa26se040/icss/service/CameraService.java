@@ -163,8 +163,10 @@ public class CameraService {
 
             for (Camera cam : activeCameras) {
                 String pathName = mediaMtxService.formatPathName(cam.getCameraCode());
-                boolean hasPathInMediaMtx = liveStatuses.containsKey(pathName);
-                boolean isReady = Boolean.TRUE.equals(liveStatuses.get(pathName));
+                boolean isSubReady = Boolean.TRUE.equals(liveStatuses.get(pathName));
+                boolean isMainReady = Boolean.TRUE.equals(liveStatuses.get(pathName + "_main"));
+                boolean isReady = isSubReady || isMainReady;
+                boolean hasPathInMediaMtx = liveStatuses.containsKey(pathName) || liveStatuses.containsKey(pathName + "_main");
                 OperationalStatus currentStatus = cam.getOperationalStatus();
 
                 OperationalStatus newStatus;
@@ -261,9 +263,16 @@ public class CameraService {
 
         Camera saved = cameraRepository.save(camera);
         cameraStreamConfigurationRepository.findByCameraId(id).ifPresent(cfg -> {
-            String rtspUrl = buildRtspUrl(cfg);
-            if (rtspUrl != null) {
-                mediaMtxService.syncCameraPath(camera.getCameraCode(), rtspUrl);
+            String mainRtspUrl = buildRtspUrl(cfg);
+            String subRtspUrl = buildSubRtspUrl(cfg);
+            boolean hasSub = (subRtspUrl != null && !subRtspUrl.isBlank());
+            if (mainRtspUrl != null) {
+                if (hasSub) {
+                    mediaMtxService.syncCameraPath(camera.getCameraCode(), subRtspUrl);
+                    mediaMtxService.syncCameraPath(camera.getCameraCode() + "_main", mainRtspUrl);
+                } else {
+                    mediaMtxService.syncCameraPath(camera.getCameraCode(), mainRtspUrl);
+                }
             }
         });
         return mapToDetailResponse(saved);
@@ -277,22 +286,41 @@ public class CameraService {
             int syncedCount = 0;
             for (CameraStreamConfiguration cfg : configs) {
                 if (cfg.getCamera() != null && cfg.getCamera().getStatus() == CameraStatus.ACTIVE) {
-                    String rtspUrl = buildRtspUrl(cfg);
-                    if (rtspUrl != null) {
-                        mediaMtxService.syncCameraPath(cfg.getCamera().getCameraCode(), rtspUrl);
+                    String mainRtspUrl = buildRtspUrl(cfg);
+                    String subRtspUrl = buildSubRtspUrl(cfg);
+                    boolean hasSub = (subRtspUrl != null && !subRtspUrl.isBlank());
+                    if (mainRtspUrl != null) {
+                        if (hasSub) {
+                            mediaMtxService.syncCameraPath(cfg.getCamera().getCameraCode(), subRtspUrl);
+                            mediaMtxService.syncCameraPath(cfg.getCamera().getCameraCode() + "_main", mainRtspUrl);
+                        } else {
+                            mediaMtxService.syncCameraPath(cfg.getCamera().getCameraCode(), mainRtspUrl);
+                        }
                         if (edgeMqttControlService != null && edgeMqttControlService.isConnected()) {
-                            edgeMqttControlService.publishCameraStreamConfig(
-                                    cfg.getCamera().getCameraCode(),
-                                    rtspUrl,
-                                    cfg.getCamera().getOperationalStatus() == OperationalStatus.ONLINE,
-                                    cfg.getCamera().getRoiGeometry()
-                            );
+                            if (hasSub) {
+                                edgeMqttControlService.publishCameraStreamConfig(
+                                        cfg.getCamera().getCameraCode(),
+                                        subRtspUrl,
+                                        mainRtspUrl,
+                                        cfg.getCamera().getOperationalStatus() == OperationalStatus.ONLINE,
+                                        cfg.getCamera().getRoiGeometry()
+                                );
+                            } else {
+                                edgeMqttControlService.publishCameraStreamConfig(
+                                        cfg.getCamera().getCameraCode(),
+                                        mainRtspUrl,
+                                        cfg.getCamera().getOperationalStatus() == OperationalStatus.ONLINE,
+                                        cfg.getCamera().getRoiGeometry()
+                                );
+                            }
                         }
                         syncedCount++;
                         if (cfg.getCamera().getOperationalStatus() == OperationalStatus.ONLINE) {
                             try {
                                 String streamStartUrl = aiServiceUrl + "/api/v1/stream/start";
-                                String workerRtspUrl = mediaMtxService.getGatewayRtspUrl(cfg.getCamera().getCameraCode());
+                                String workerRtspUrl = hasSub
+                                        ? mediaMtxService.getGatewayRtspUrl(cfg.getCamera().getCameraCode() + "_main")
+                                        : mediaMtxService.getGatewayRtspUrl(cfg.getCamera().getCameraCode());
                                 Map<String, Object> reqBody = new HashMap<>();
                                 reqBody.put("camera_code", cfg.getCamera().getCameraCode());
                                 reqBody.put("rtsp_url", workerRtspUrl);
@@ -349,6 +377,39 @@ public class CameraService {
         camera.setUpdatedAt(OffsetDateTime.now());
         cameraRepository.save(camera);
 
+        if (camera.getOperationalStatus() == OperationalStatus.ONLINE) {
+            String mainRtspUrl = buildRtspUrl(saved);
+            String subRtspUrl = buildSubRtspUrl(saved);
+            boolean hasSub = (subRtspUrl != null && !subRtspUrl.isBlank());
+            if (mainRtspUrl != null && !mainRtspUrl.isBlank()) {
+                if (hasSub) {
+                    mediaMtxService.syncCameraPath(camera.getCameraCode(), subRtspUrl);
+                    mediaMtxService.syncCameraPath(camera.getCameraCode() + "_main", mainRtspUrl);
+                } else {
+                    mediaMtxService.syncCameraPath(camera.getCameraCode(), mainRtspUrl);
+                    mediaMtxService.deleteCameraPath(camera.getCameraCode() + "_main");
+                }
+                if (edgeMqttControlService != null && edgeMqttControlService.isConnected()) {
+                    if (hasSub) {
+                        edgeMqttControlService.publishCameraStreamConfig(
+                                camera.getCameraCode(),
+                                subRtspUrl,
+                                mainRtspUrl,
+                                true,
+                                camera.getRoiGeometry()
+                        );
+                    } else {
+                        edgeMqttControlService.publishCameraStreamConfig(
+                                camera.getCameraCode(),
+                                mainRtspUrl,
+                                true,
+                                camera.getRoiGeometry()
+                        );
+                    }
+                }
+                startAiStreamWorkerSafely(camera.getCameraCode());
+            }
+        }
 
         CameraStreamConfigResponse streamResponse = mapToStreamResponse(saved);
         streamResponse.setOperationalStatus(camera.getOperationalStatus() != null ? camera.getOperationalStatus() : OperationalStatus.OFFLINE);
@@ -478,16 +539,56 @@ public class CameraService {
     }
 
     private void startAiStreamWorkerSafely(String cameraCode) {
-        if (cameraCode == null || cameraCode.isBlank() || aiServiceUrl == null || aiServiceUrl.isBlank()) {
+        if (cameraCode == null || cameraCode.isBlank()) {
             return;
         }
         try {
+            Camera camera = cameraRepository.findByCameraCodeAndDeletedAtIsNull(cameraCode).orElse(null);
+            boolean hasSub = false;
+            String mainRtspUrl = null;
+            String subRtspUrl = null;
+            if (camera != null) {
+                CameraStreamConfiguration cfg = cameraStreamConfigurationRepository.findByCameraId(camera.getId()).orElse(null);
+                if (cfg != null) {
+                    mainRtspUrl = buildRtspUrl(cfg);
+                    subRtspUrl = buildSubRtspUrl(cfg);
+                    hasSub = (subRtspUrl != null && !subRtspUrl.isBlank());
+                }
+            }
+
+            if (edgeMqttControlService != null && edgeMqttControlService.isConnected()) {
+                if (hasSub) {
+                    edgeMqttControlService.publishCameraStreamConfig(
+                            cameraCode,
+                            subRtspUrl,
+                            mainRtspUrl,
+                            true,
+                            camera != null ? camera.getRoiGeometry() : null
+                    );
+                } else {
+                    edgeMqttControlService.publishCameraStreamConfig(
+                            cameraCode,
+                            mainRtspUrl,
+                            true,
+                            camera != null ? camera.getRoiGeometry() : null
+                    );
+                }
+            }
+
+            if (aiServiceUrl == null || aiServiceUrl.isBlank()) {
+                return;
+            }
             String streamStartUrl = aiServiceUrl + "/api/v1/stream/start";
-            String workerRtspUrl = mediaMtxService.getGatewayRtspUrl(cameraCode);
-            restTemplate.postForObject(streamStartUrl, Map.of(
-                    "camera_code", cameraCode,
-                    "rtsp_url", workerRtspUrl
-            ), Map.class);
+            String workerRtspUrl = hasSub
+                    ? mediaMtxService.getGatewayRtspUrl(cameraCode + "_main")
+                    : mediaMtxService.getGatewayRtspUrl(cameraCode);
+            Map<String, Object> reqBody = new HashMap<>();
+            reqBody.put("camera_code", cameraCode);
+            reqBody.put("rtsp_url", workerRtspUrl);
+            if (camera != null && camera.getRoiGeometry() != null) {
+                reqBody.put("roi_geometry", camera.getRoiGeometry());
+            }
+            restTemplate.postForObject(streamStartUrl, reqBody, Map.class);
             log.info("✅ Đã tự động kích hoạt AI Stream Worker & Continuous Recording cho camera [{}] qua MediaMTX Gateway ({})", cameraCode, workerRtspUrl);
         } catch (Exception ex) {
             log.warn("⚠️ Không thể tự động kích hoạt AI Stream Worker cho camera [{}]: {}", cameraCode, ex.getMessage());
@@ -622,6 +723,23 @@ public class CameraService {
             return null;
         }
         return aesEncryptionUtil.decrypt(credentialRef);
+    }
+
+    public String buildSubRtspUrl(CameraStreamConfiguration config) {
+        if (config == null || config.getSubStreamPath() == null || config.getSubStreamPath().isBlank()) {
+            return null;
+        }
+        String password = null;
+        if (config.getCredentialRef() != null && !config.getCredentialRef().isBlank()) {
+            password = aesEncryptionUtil.decrypt(config.getCredentialRef());
+        }
+        return buildRtspUrlWithCredentials(
+                config.getHost(),
+                config.getPort(),
+                config.getUsername(),
+                password,
+                config.getSubStreamPath()
+        );
     }
 
     public String buildRtspUrl(CameraStreamConfiguration config) {

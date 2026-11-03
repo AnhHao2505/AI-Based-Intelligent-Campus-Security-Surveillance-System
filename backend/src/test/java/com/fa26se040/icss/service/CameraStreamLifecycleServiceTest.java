@@ -51,6 +51,9 @@ class CameraStreamLifecycleServiceTest {
     @Mock
     private AiServiceRestTemplate restTemplate;
 
+    @Mock
+    private EdgeMqttControlService edgeMqttControlService;
+
     @InjectMocks
     private CameraStreamLifecycleService cameraStreamLifecycleService;
 
@@ -77,6 +80,7 @@ class CameraStreamLifecycleServiceTest {
                 .build();
 
         ReflectionTestUtils.setField(cameraStreamLifecycleService, "aiServiceUrl", "http://ai-service:8000");
+        ReflectionTestUtils.setField(cameraStreamLifecycleService, "edgeMqttControlService", edgeMqttControlService);
         ReflectionTestUtils.setField(cameraStreamLifecycleService, "restTemplate", restTemplate);
     }
 
@@ -103,6 +107,72 @@ class CameraStreamLifecycleServiceTest {
         ArgumentCaptor<CameraHealthLog> logCaptor = ArgumentCaptor.forClass(CameraHealthLog.class);
         verify(healthLogRepo).save(logCaptor.capture());
         assertEquals(OperationalStatus.ONLINE, logCaptor.getValue().getStatus());
+    }
+
+    @Test
+    @DisplayName("Dual-Stream: startStream đồng bộ Sub Stream cho UI (CAM-001) và Main Stream cho AI Worker (CAM-001_main)")
+    void startStream_DualStream_ShouldSyncBothStreamsAndRouteMainToAi() {
+        CameraStreamConfiguration dualConfig = CameraStreamConfiguration.builder()
+                .camera(camera)
+                .host("192.168.1.50")
+                .port(554)
+                .mainStreamPath("/cam/realmonitor?channel=1&subtype=0")
+                .subStreamPath("/cam/realmonitor?channel=1&subtype=1")
+                .build();
+
+        when(cameraRepository.findById(cameraId)).thenReturn(Optional.of(camera));
+        when(streamConfigRepo.findByCameraId(cameraId)).thenReturn(Optional.of(dualConfig));
+        when(cameraService.buildRtspUrl(dualConfig)).thenReturn("rtsp://192.168.1.50:554/cam/realmonitor?channel=1&subtype=0");
+        when(cameraService.buildSubRtspUrl(dualConfig)).thenReturn("rtsp://192.168.1.50:554/cam/realmonitor?channel=1&subtype=1");
+        when(mediaMtxService.getGatewayRtspUrl("CAM-001_main")).thenReturn("rtsp://mediamtx:8554/cam-001_main");
+
+        CameraStreamLifecycleResponse response = cameraStreamLifecycleService.startStream(cameraId);
+
+        assertNotNull(response);
+        assertTrue(response.isSuccess());
+
+        // Kiểm tra đồng bộ 2 luồng: Luồng phụ gán vào CAM-001 cho WHEP UI, Luồng chính gán vào CAM-001_main
+        verify(mediaMtxService).syncCameraPath("CAM-001", "rtsp://192.168.1.50:554/cam/realmonitor?channel=1&subtype=1");
+        verify(mediaMtxService).syncCameraPath("CAM-001_main", "rtsp://192.168.1.50:554/cam/realmonitor?channel=1&subtype=0");
+
+        // Kiểm tra AI Worker nhận luồng Main Stream
+        ArgumentCaptor<Map> bodyCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(restTemplate).postForObject(eq("http://ai-service:8000/api/v1/stream/start"), bodyCaptor.capture(), eq(Map.class));
+        assertEquals("rtsp://mediamtx:8554/cam-001_main", bodyCaptor.getValue().get("rtsp_url"));
+        assertEquals("CAM-001", bodyCaptor.getValue().get("camera_code"));
+    }
+
+    @Test
+    @DisplayName("Dual-Stream: Khi kết nối MQTT Edge, publish dual-stream config gồm sub stream và main stream qua MQTT")
+    void startStream_DualStream_WhenMqttConnected_ShouldPublishDualStreamConfigViaMqtt() {
+        CameraStreamConfiguration dualConfig = CameraStreamConfiguration.builder()
+                .camera(camera)
+                .host("192.168.1.50")
+                .port(554)
+                .mainStreamPath("/cam/realmonitor?channel=1&subtype=0")
+                .subStreamPath("/cam/realmonitor?channel=1&subtype=1")
+                .build();
+
+        when(cameraRepository.findById(cameraId)).thenReturn(Optional.of(camera));
+        when(streamConfigRepo.findByCameraId(cameraId)).thenReturn(Optional.of(dualConfig));
+        when(cameraService.buildRtspUrl(dualConfig)).thenReturn("rtsp://192.168.1.50:554/cam/realmonitor?channel=1&subtype=0");
+        when(cameraService.buildSubRtspUrl(dualConfig)).thenReturn("rtsp://192.168.1.50:554/cam/realmonitor?channel=1&subtype=1");
+        when(edgeMqttControlService.isConnected()).thenReturn(true);
+
+        CameraStreamLifecycleResponse response = cameraStreamLifecycleService.startStream(cameraId);
+
+        assertNotNull(response);
+        assertTrue(response.isSuccess());
+
+        verify(edgeMqttControlService).publishCameraStreamConfig(
+                eq("CAM-001"),
+                eq("rtsp://192.168.1.50:554/cam/realmonitor?channel=1&subtype=1"),
+                eq("rtsp://192.168.1.50:554/cam/realmonitor?channel=1&subtype=0"),
+                eq(true),
+                any()
+        );
+        // Không gọi mediaMtxService vì đã handled qua MQTT
+        verify(mediaMtxService, never()).syncCameraPath(anyString(), anyString());
     }
 
     @Test
