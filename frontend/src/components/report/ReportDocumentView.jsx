@@ -326,7 +326,7 @@ export default function ReportDocumentView({ reportData }) {
                   {res.code === 'ACCESS_OUT_OF_TIME' && 'Có thẩm quyền nhưng tiếp cận ngoài khung giờ làm việc hoặc ngoài thời gian phê duyệt'}
                   {res.code === 'UNKNOWN_PERSON' && 'Đối tượng không tồn tại dữ liệu sinh trắc trong hệ thống, chưa đăng ký khách'}
                   {(res.code === 'PERSON_INTRUSION' || res.code === 'INTRUSION') && 'Xuất hiện trong vùng giám sát ngoài giờ hoạt động'}
-                  {res.code === 'SUSPICIOUS_MOVING_OBJECT' && 'Chuyển động nghi vấn trong vùng ROI không gắn với người'}
+                  {res.code === 'SUSPICIOUS_MOVING_OBJECT' && 'Vật thể chuyển động bất thường trong vùng ROI không gắn với người'}
                 </td>
                 <td className="report-col-right font-mono font-medium">{res.count.toLocaleString()}</td>
                 <td className="report-col-right font-mono">{percentFormat(res.percentage)}</td>

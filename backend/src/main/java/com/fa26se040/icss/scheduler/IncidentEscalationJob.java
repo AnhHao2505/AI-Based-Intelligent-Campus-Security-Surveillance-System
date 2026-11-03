@@ -4,6 +4,7 @@ import com.fa26se040.icss.entity.IncidentEscalation;
 import com.fa26se040.icss.entity.Notification;
 import com.fa26se040.icss.entity.SecurityIncident;
 import com.fa26se040.icss.entity.User;
+import com.fa26se040.icss.enums.AccessResult;
 import com.fa26se040.icss.enums.ConfigKey;
 import com.fa26se040.icss.enums.EscalationCloseReason;
 import com.fa26se040.icss.enums.IncidentStatus;
@@ -298,22 +299,25 @@ public class IncidentEscalationJob implements SchedulingConfigurer {
     }
 
     /**
-     * Nhãn tiếng Việt của loại sự cố trong nội dung thông báo. ingestIncident chuẩn hoá về 5 nhãn (03/11) trước khi lưu
-     * (AFTER_HOURS_* / INTRUSION -> PERSON_INTRUSION, ...); vẫn nhận tên cũ cho sự cố lưu trước V95. Loại khác giữ nguyên mã.
+     * Nhãn tiếng Việt của loại sự cố trong nội dung thông báo, lấy từ AccessResult (nguồn nhãn duy nhất phía backend).
+     * ingestIncident chuẩn hoá về 5 nhãn (03/11) trước khi lưu; tên cũ của sự cố lưu trước V95 (INTRUSION, AFTER_HOURS_*,
+     * UNAUTHORIZED_ACCESS, UNAUTHORIZED, ACCESS_OUT_OF_TIME, UNKNOWN) dùng nhãn của mã mới tương ứng. Loại khác giữ nguyên mã.
      */
     static String eventTypeLabel(String eventType) {
         if (eventType == null) {
             return "";
         }
-        if ("PERSON_INTRUSION".equals(eventType) || "INTRUSION".equals(eventType) || eventType.startsWith("AFTER_HOURS")) {
-            return "Xâm nhập ngoài giờ";
-        }
-        return switch (eventType) {
-            case "UNAUTHORIZED_PERSON", "UNAUTHORIZED_ACCESS", "UNAUTHORIZED", "ACCESS_OUT_OF_TIME" -> "Xâm nhập trái phép";
-            case "UNKNOWN_PERSON", "UNKNOWN" -> "Người lạ chưa xác minh";
-            case "SUSPICIOUS_MOVING_OBJECT" -> "Chuyển động nghi vấn";
-            default -> eventType;
-        };
+        AccessResult label = eventType.startsWith("AFTER_HOURS")
+                ? AccessResult.PERSON_INTRUSION
+                : switch (eventType) {
+                    case "AUTHORIZED_PERSON" -> AccessResult.AUTHORIZED_PERSON;
+                    case "UNAUTHORIZED_PERSON", "UNAUTHORIZED_ACCESS", "UNAUTHORIZED", "ACCESS_OUT_OF_TIME" -> AccessResult.UNAUTHORIZED_PERSON;
+                    case "UNKNOWN_PERSON", "UNKNOWN" -> AccessResult.UNKNOWN_PERSON;
+                    case "PERSON_INTRUSION", "INTRUSION" -> AccessResult.PERSON_INTRUSION;
+                    case "SUSPICIOUS_MOVING_OBJECT" -> AccessResult.SUSPICIOUS_MOVING_OBJECT;
+                    default -> null;
+                };
+        return label != null ? label.getDescription() : eventType;
     }
 
     /** IncidentStatus -> close_reason: CLAIMED / RESOLVED_VERIFIED -> RESOLVED / RESOLVED_DISMISSED -> DISMISSED. */

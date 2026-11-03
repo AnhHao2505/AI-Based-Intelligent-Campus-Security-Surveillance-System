@@ -1,23 +1,23 @@
 import { ShieldCheck, ShieldAlert, Clock, UserX, AlertTriangle } from "lucide-react";
 
 /**
- * 5 nhóm kết quả nhật ký ra vào (enum AccessResult của backend) — nhãn + icon dùng chung cho
- * tab nhật ký camera (CameraAccessLogsTab) và các trang lịch sử ra vào.
+ * 5 nhóm kết quả nhật ký ra vào (enum AccessResult của backend) — nhãn NGẮN (badge / bộ lọc) + icon dùng chung cho
+ * tab nhật ký camera (CameraAccessLogsTab) và các trang lịch sử ra vào. Nhãn đầy đủ: AccessResult.description.
  */
 export const ACCESS_RESULT_META = {
 	// 5 Tag Chuẩn hóa toàn hệ thống
 	AUTHORIZED_PERSON: { label: "Hợp lệ", icon: ShieldCheck, badge: "success" },
 	UNAUTHORIZED_PERSON: { label: "Không có quyền", icon: ShieldAlert, badge: "danger" },
 	UNKNOWN_PERSON: { label: "Người lạ", icon: UserX, badge: "neutral" },
-	PERSON_INTRUSION: { label: "Ngoài giờ", icon: AlertTriangle, badge: "danger" },
-	SUSPICIOUS_MOVING_OBJECT: { label: "Chuyển động nghi vấn", icon: AlertTriangle, badge: "warning" },
+	PERSON_INTRUSION: { label: "Đột nhập ngoài giờ", icon: AlertTriangle, badge: "danger" },
+	SUSPICIOUS_MOVING_OBJECT: { label: "Vật thể bất thường", icon: AlertTriangle, badge: "warning" },
 
-	// Legacy mappings for backwards compatibility
+	// Legacy mappings for backwards compatibility: nhãn của mã mới tương ứng
 	AUTHORIZED_ACCESS: { label: "Hợp lệ", icon: ShieldCheck, badge: "success" },
-	UNAUTHORIZED_ACCESS: { label: "Không đủ thẩm quyền", icon: ShieldAlert, badge: "danger" },
+	UNAUTHORIZED_ACCESS: { label: "Không có quyền", icon: ShieldAlert, badge: "danger" },
 	// Sai khung giờ gộp vào UNAUTHORIZED_PERSON từ 03/11; giữ để hiển thị dòng chưa migrate
-	ACCESS_OUT_OF_TIME: { label: "Sai giờ", icon: Clock, badge: "warning" },
-	INTRUSION: { label: "Ngoài giờ", icon: AlertTriangle, badge: "danger" },
+	ACCESS_OUT_OF_TIME: { label: "Không có quyền", icon: Clock, badge: "warning" },
+	INTRUSION: { label: "Đột nhập ngoài giờ", icon: AlertTriangle, badge: "danger" },
 };
 
 /**

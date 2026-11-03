@@ -130,14 +130,15 @@ class IncidentModel {
     }
   }
 
+  /// Nhãn đầy đủ của loại sự cố, cùng chữ với AccessResult (backend); tên cũ hiển thị theo nhãn của mã mới tương ứng.
   String get eventTypeDisplay {
     switch (eventType.toUpperCase()) {
       case 'UNAUTHORIZED_PERSON':
       case 'UNAUTHORIZED_ACCESS':
       case 'UNAUTHORIZED':
-      case 'ACCESS_OUT_OF_TIME': // sai khung giờ tính như không đủ thẩm quyền (03/11)
+      case 'ACCESS_OUT_OF_TIME': // sai khung giờ tính như không có quyền (03/11)
       case 'OUT_OF_TIME':
-        return 'Không đủ thẩm quyền';
+        return 'Không có quyền';
       case 'UNKNOWN_PERSON':
       case 'UNKNOWN':
         return 'Đối tượng không xác định';
@@ -146,11 +147,13 @@ class IncidentModel {
       case 'AFTER_HOURS_ACCESS':
       case 'AFTER_HOURS_PRESENCE':
       case 'AFTER_HOURS':
-        return 'Sau giờ hoạt động';
+        return 'Đột nhập sau giờ hoạt động';
       case 'SUSPICIOUS_MOVING_OBJECT':
       case 'SUSPICIOUS_MOTION':
       case 'MOVING_OBJECT':
-        return 'Chuyển động nghi vấn';
+        return 'Vật thể chuyển động bất thường';
+      case 'AUTHORIZED_PERSON':
+        return 'Hợp lệ';
       default:
         return eventType;
     }

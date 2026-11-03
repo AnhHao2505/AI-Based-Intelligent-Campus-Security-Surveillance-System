@@ -21,7 +21,7 @@ spring:
     open-in-view: false # Tránh LazyInitializationException bị che giấu / query N+1 không kiểm soát
     properties:
       hibernate:
-        format_sql: true
+        format_sql: false
 
   flyway:
     enabled: true
