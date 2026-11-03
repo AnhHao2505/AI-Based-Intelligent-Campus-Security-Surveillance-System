@@ -20,10 +20,11 @@ public enum AccessResult {
 
     // Tương thích dữ liệu cũ trong CSDL (Legacy Compatibility): chỉ để đọc dòng chưa migrate (V95 đã đổi tên),
     // KHÔNG ghi mới. Sai khung giờ (ACCESS_OUT_OF_TIME) nay ghi là UNAUTHORIZED_PERSON.
+    // Nhãn hiển thị = nhãn của mã mới tương ứng (canonical()), để dòng chưa migrate hiện cùng nhãn.
     @Deprecated AUTHORIZED_ACCESS("Hợp lệ", "#10b981"),
-    @Deprecated UNAUTHORIZED_ACCESS("Không đủ thẩm quyền", "#ef4444"),
-    @Deprecated ACCESS_OUT_OF_TIME("Quá thời hạn thẩm quyền", "#f59e0b"),
-    @Deprecated INTRUSION("Sau giờ hoạt động", "#eab308");
+    @Deprecated UNAUTHORIZED_ACCESS("Không có quyền", "#ef4444"),
+    @Deprecated ACCESS_OUT_OF_TIME("Không có quyền", "#f59e0b"),
+    @Deprecated INTRUSION("Đột nhập sau giờ hoạt động", "#eab308");
 
     /** 5 nhãn chuẩn (quyết định 03/11), theo thứ tự hiển thị trên Dashboard / báo cáo. */
     public static final List<AccessResult> CANONICAL = List.of(

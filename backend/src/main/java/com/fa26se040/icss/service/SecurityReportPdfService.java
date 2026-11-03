@@ -205,7 +205,7 @@ public class SecurityReportPdfService {
                         case "ACCESS_OUT_OF_TIME" -> "Có thẩm quyền nhưng tiếp cận ngoài khung giờ cho phép";
                         case "UNKNOWN_PERSON" -> "Đối tượng không có khuôn mặt trong cơ sở dữ liệu hệ thống";
                         case "PERSON_INTRUSION", "INTRUSION" -> "Xuất hiện trong vùng giám sát ngoài giờ hoạt động";
-                        case "SUSPICIOUS_MOVING_OBJECT" -> "Chuyển động nghi vấn trong vùng ROI không gắn với người";
+                        case "SUSPICIOUS_MOVING_OBJECT" -> "Vật thể chuyển động bất thường trong vùng ROI không gắn với người";
                         default -> "Quy định an ninh nội bộ";
                     };
                     addTd(tAccess, ruleNote, fontTd, Element.ALIGN_LEFT);

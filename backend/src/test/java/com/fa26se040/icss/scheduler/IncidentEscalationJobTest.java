@@ -167,21 +167,23 @@ class IncidentEscalationJobTest {
 
     @ParameterizedTest(name = "{0} -> {1}")
     @CsvSource({
-            "INTRUSION,Xâm nhập ngoài giờ",
-            "AFTER_HOURS,Xâm nhập ngoài giờ",
-            "AFTER_HOURS_PRESENCE,Xâm nhập ngoài giờ",
-            "AFTER_HOURS_ACCESS,Xâm nhập ngoài giờ",
-            "UNAUTHORIZED_ACCESS,Xâm nhập trái phép",
-            "UNAUTHORIZED,Xâm nhập trái phép",
-            "UNKNOWN_PERSON,Người lạ chưa xác minh",
-            "UNKNOWN,Người lạ chưa xác minh",
-            // 03/11: sai khung giờ tính như vào trái phép; thêm 3 nhãn mới
-            "ACCESS_OUT_OF_TIME,Xâm nhập trái phép",
-            "PERSON_INTRUSION,Xâm nhập ngoài giờ",
-            "UNAUTHORIZED_PERSON,Xâm nhập trái phép",
-            "SUSPICIOUS_MOVING_OBJECT,Chuyển động nghi vấn",
+            // 5 mã mới: nhãn đầy đủ của AccessResult
+            "UNAUTHORIZED_PERSON,Không có quyền",
+            "PERSON_INTRUSION,Đột nhập sau giờ hoạt động",
+            "SUSPICIOUS_MOVING_OBJECT,Vật thể chuyển động bất thường",
+            "UNKNOWN_PERSON,Đối tượng không xác định",
+            "AUTHORIZED_PERSON,Hợp lệ",
+            // tên cũ trước V95: nhãn của mã mới tương ứng (03/11: sai khung giờ tính như không có quyền)
+            "INTRUSION,Đột nhập sau giờ hoạt động",
+            "AFTER_HOURS,Đột nhập sau giờ hoạt động",
+            "AFTER_HOURS_PRESENCE,Đột nhập sau giờ hoạt động",
+            "AFTER_HOURS_ACCESS,Đột nhập sau giờ hoạt động",
+            "UNAUTHORIZED_ACCESS,Không có quyền",
+            "UNAUTHORIZED,Không có quyền",
+            "ACCESS_OUT_OF_TIME,Không có quyền",
+            "UNKNOWN,Đối tượng không xác định",
             "SECURITY_ALERT,SECURITY_ALERT"})
-    @DisplayName("Nhãn tiếng Việt của loại sự cố; loại khác giữ mã")
+    @DisplayName("Nhãn tiếng Việt của loại sự cố lấy từ AccessResult; tên cũ theo mã mới; loại khác giữ mã")
     void eventTypeLabel_mapping(String eventType, String expected) {
         assertEquals(expected, IncidentEscalationJob.eventTypeLabel(eventType));
     }
@@ -199,7 +201,7 @@ class IncidentEscalationJobTest {
         ArgumentCaptor<String> message = ArgumentCaptor.forClass(String.class);
         verify(inAppNotificationService).createForUsers(anyList(), eq(NotificationType.INCIDENT_ESCALATED),
                 anyString(), message.capture(), any(), anyString());
-        assertTrue(message.getValue().contains("Sự cố \"Xâm nhập ngoài giờ\" tại khu vực Phòng server (TOA_ALPHA)"), message.getValue());
+        assertTrue(message.getValue().contains("Sự cố \"Đột nhập sau giờ hoạt động\" tại khu vực Phòng server (TOA_ALPHA)"), message.getValue());
         assertTrue(message.getValue().contains("đã chờ 6 phút"), message.getValue());
         assertFalse(message.getValue().contains("INTRUSION"), message.getValue());
     }

@@ -139,9 +139,9 @@ function getDemoResponse(path) {
         { code: 'LOW', label: 'Thấp', count: 2, percentage: 0.143 }
       ],
       eventTypeCounts: [
-        { code: 'UNAUTHORIZED_ENTRY', label: 'Đột nhập / Không thẩm quyền', count: 6, percentage: 0.428 },
-        { code: 'UNKNOWN_PERSON', label: 'Người lạ / Không nhận diện', count: 4, percentage: 0.286 },
-        { code: 'PERSON_INTRUSION', label: 'Truy cập ngoài giờ', count: 3, percentage: 0.214 },
+        { code: 'UNAUTHORIZED_ENTRY', label: 'Không có quyền', count: 6, percentage: 0.428 },
+        { code: 'UNKNOWN_PERSON', label: 'Đối tượng không xác định', count: 4, percentage: 0.286 },
+        { code: 'PERSON_INTRUSION', label: 'Đột nhập sau giờ hoạt động', count: 3, percentage: 0.214 },
         { code: 'LOITERING', label: 'Lảng vảng bất thường', count: 1, percentage: 0.072 }
       ],
       resolutionCategoryCounts: [
@@ -158,9 +158,9 @@ function getDemoResponse(path) {
       ],
       accessResultCounts: [
         { code: 'AUTHORIZED_PERSON', label: 'Hợp lệ', count: 1240, percentage: 0.965 },
-        { code: 'UNAUTHORIZED_PERSON', label: 'Sai quyền truy cập', count: 34, percentage: 0.026 },
-        { code: 'UNKNOWN_PERSON', label: 'Người không xác định', count: 7, percentage: 0.006 },
-        { code: 'PERSON_INTRUSION', label: 'Xâm nhập trái phép', count: 3, percentage: 0.003 }
+        { code: 'UNAUTHORIZED_PERSON', label: 'Không có quyền', count: 34, percentage: 0.026 },
+        { code: 'UNKNOWN_PERSON', label: 'Đối tượng không xác định', count: 7, percentage: 0.006 },
+        { code: 'PERSON_INTRUSION', label: 'Đột nhập sau giờ hoạt động', count: 3, percentage: 0.003 }
       ],
       dailyAccessTrends: [
         { date: todayStr, authorized: 1240, unauthorized: 22, outOfTime: 12, unknownPerson: 7, intrusion: 3, total: 1284 }
@@ -175,7 +175,7 @@ function getDemoResponse(path) {
           detectedAt: new Date(Date.now() - 7200000).toISOString(),
           cameraCode: 'CAM-003',
           location: 'Tòa Alpha · Phòng Server Trung Tâm',
-          eventType: 'Đột nhập / Không thẩm quyền',
+          eventType: 'Không có quyền',
           severity: 'CRITICAL',
           status: 'Đã xác minh',
           subjectUserCode: 'SE170123',
@@ -189,7 +189,7 @@ function getDemoResponse(path) {
           detectedAt: new Date(Date.now() - 14400000).toISOString(),
           cameraCode: 'CAM-012',
           location: 'Tòa Beta · Khu Thí Nghiệm Vi Mạch',
-          eventType: 'Truy cập ngoài giờ',
+          eventType: 'Đột nhập sau giờ hoạt động',
           severity: 'HIGH',
           status: 'Đã xác minh',
           subjectUserCode: 'SE160899',

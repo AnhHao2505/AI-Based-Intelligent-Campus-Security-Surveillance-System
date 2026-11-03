@@ -22,16 +22,18 @@ import {
 import { getLevelConfig } from "../../utils/areaHelpers";
 import "../../styles/SystemConfigPage.css";
 
-// Nhãn loại sự cố, cùng cách gọi với thông báo leo thang (IncidentEscalationJob.eventTypeLabel) và app bảo vệ
-// 5 nhãn (03/11): luật severity chỉ có 4 loại tạo sự cố (AUTHORIZED_PERSON không tạo sự cố); tên cũ giữ để hiển thị dữ liệu chưa migrate
+// Nhãn đầy đủ của loại sự cố = AccessResult của backend, cùng cách gọi với thông báo leo thang
+// (IncidentEscalationJob.eventTypeLabel) và app bảo vệ.
+// 5 nhãn (03/11): luật severity chỉ có 4 loại tạo sự cố (AUTHORIZED_PERSON không tạo sự cố); tên cũ giữ để hiển thị
+// dữ liệu chưa migrate, theo nhãn của mã mới tương ứng
 const EVENT_TYPE_LABELS = {
-	UNKNOWN_PERSON: "Người lạ chưa xác minh",
-	PERSON_INTRUSION: "Xâm nhập ngoài giờ",
-	UNAUTHORIZED_PERSON: "Xâm nhập trái phép",
-	SUSPICIOUS_MOVING_OBJECT: "Chuyển động nghi vấn",
-	INTRUSION: "Xâm nhập ngoài giờ",
-	UNAUTHORIZED_ACCESS: "Xâm nhập trái phép",
-	ACCESS_OUT_OF_TIME: "Quá thời hạn thẩm quyền",
+	UNKNOWN_PERSON: "Đối tượng không xác định",
+	PERSON_INTRUSION: "Đột nhập sau giờ hoạt động",
+	UNAUTHORIZED_PERSON: "Không có quyền",
+	SUSPICIOUS_MOVING_OBJECT: "Vật thể chuyển động bất thường",
+	INTRUSION: "Đột nhập sau giờ hoạt động",
+	UNAUTHORIZED_ACCESS: "Không có quyền",
+	ACCESS_OUT_OF_TIME: "Không có quyền",
 };
 
 const TIME_WINDOW_LABELS = {

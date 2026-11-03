@@ -172,7 +172,7 @@ public class SecurityIncidentService {
                 case "PERSON_INTRUSION" -> "Phát hiện đối tượng xuất hiện ngoài giờ hoạt động tại " + area.getName() + ".";
                 case "UNAUTHORIZED_PERSON" -> "Phát hiện đối tượng không có quyền truy cập tại " + area.getName() + ".";
                 case "UNKNOWN_PERSON" -> "Phát hiện người chưa đăng ký tại " + area.getName() + ".";
-                case "SUSPICIOUS_MOVING_OBJECT" -> "Phát hiện chuyển động nghi vấn tại " + area.getName() + ".";
+                case "SUSPICIOUS_MOVING_OBJECT" -> "Phát hiện vật thể chuyển động bất thường tại " + area.getName() + ".";
                 default -> "Phát hiện sự cố an ninh tại " + area.getName() + ".";
             };
         }

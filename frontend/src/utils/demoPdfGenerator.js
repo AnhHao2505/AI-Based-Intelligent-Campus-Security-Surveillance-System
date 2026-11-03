@@ -117,9 +117,9 @@ export async function generateDemoPdfBlob({ startDate, endDate }) {
   y += 5;
 
   drawRow('Loai vi pham / Muc do', 'So vu', 'Ty trong / Danh gia', true);
-  drawRow('Xam nhap ngoai gio (PERSON_INTRUSION)', '4 vu', '40.0% - Phat hien qua hang rao ao');
-  drawRow('Nguoi la khong nhan dien (UNKNOWN_PERSON)', '3 vu', '30.0% - Canh bao doi tuong chua dang ky');
-  drawRow('Thieu tham quyen / sai khung gio (UNAUTHORIZED_PERSON)', '3 vu', '30.0% - Vao phong lab muon, quet the phong may chu');
+  drawRow('Dot nhap sau gio hoat dong (PERSON_INTRUSION)', '4 vu', '40.0% - Phat hien qua hang rao ao');
+  drawRow('Doi tuong khong xac dinh (UNKNOWN_PERSON)', '3 vu', '30.0% - Canh bao doi tuong chua dang ky');
+  drawRow('Khong co quyen (UNAUTHORIZED_PERSON)', '3 vu', '30.0% - Vao phong lab muon, quet the phong may chu');
   y += 6;
 
   // Section 3

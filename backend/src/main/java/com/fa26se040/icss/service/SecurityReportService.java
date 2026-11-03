@@ -321,14 +321,15 @@ public class SecurityReportService {
 
     private static String getEventTypeLabel(String eventType) {
         if (eventType == null) return "Sự cố an ninh";
+        // 5 nhóm nhãn chuẩn lấy từ AccessResult (nguồn nhãn duy nhất); tên cũ trước V95 quy về nhãn của mã mới tương ứng
         return switch (eventType.toUpperCase()) {
-            case "UNAUTHORIZED_PERSON", "UNAUTHORIZED_ACCESS", "ACCESS_OUT_OF_TIME", "UNAUTHORIZED_ENTRY", "UNAUTHORIZED" -> "Đột nhập / Không thẩm quyền";
-            case "UNKNOWN_PERSON", "UNKNOWN" -> "Người lạ / Không nhận diện";
-            case "PERSON_INTRUSION", "INTRUSION", "AFTER_HOURS_ACCESS", "AFTER_HOURS", "AFTER_HOURS_PRESENCE" -> "Truy cập ngoài giờ";
+            case "UNAUTHORIZED_PERSON", "UNAUTHORIZED_ACCESS", "ACCESS_OUT_OF_TIME", "UNAUTHORIZED_ENTRY", "UNAUTHORIZED" -> AccessResult.UNAUTHORIZED_PERSON.getDescription();
+            case "UNKNOWN_PERSON", "UNKNOWN" -> AccessResult.UNKNOWN_PERSON.getDescription();
+            case "PERSON_INTRUSION", "INTRUSION", "AFTER_HOURS_ACCESS", "AFTER_HOURS", "AFTER_HOURS_PRESENCE" -> AccessResult.PERSON_INTRUSION.getDescription();
             case "LOITERING" -> "Lảng vảng bất thường";
             case "CROWD_OVERCROWDING" -> "Tụ tập đông người";
             case "CAMERA_TAMPERING" -> "Phá hoại camera / Làm mù";
-            case "SUSPICIOUS_MOVING_OBJECT", "SUSPICIOUS_MOTION" -> "Chuyển động đáng ngờ";
+            case "SUSPICIOUS_MOVING_OBJECT", "SUSPICIOUS_MOTION" -> AccessResult.SUSPICIOUS_MOVING_OBJECT.getDescription();
             default -> eventType;
         };
     }
@@ -359,14 +360,8 @@ public class SecurityReportService {
 
     private static String getAccessResultLabel(AccessResult res) {
         if (res == null) return "—";
-        return switch (res) {
-            case AUTHORIZED_PERSON, AUTHORIZED_ACCESS -> "Hợp lệ";
-            // Quyết định 03/11: ra vào sai khung giờ tính như không có quyền (UNAUTHORIZED_PERSON)
-            case UNAUTHORIZED_PERSON, UNAUTHORIZED_ACCESS, ACCESS_OUT_OF_TIME -> "Sai quyền truy cập";
-            case UNKNOWN_PERSON -> "Người không xác định";
-            case PERSON_INTRUSION, INTRUSION -> "Xâm nhập trái phép";
-            case SUSPICIOUS_MOVING_OBJECT -> "Chuyển động nghi vấn";
-        };
+        // Nhãn từ AccessResult; tên cũ quy về mã mới (03/11: sai khung giờ tính như không có quyền)
+        return res.canonical().getDescription();
     }
 
     private static class GuardAggregate {
