@@ -40,7 +40,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 
 /**
  * D-3 / E-3: mỗi lần cấp quyền chỉ định (AP) là một bản ghi, không sửa validTo.
- * BR-AP-28: validFrom không ở quá khứ (cho lệch đồng hồ 5 phút) -> ERR_AP_013.
+ * BR-AP-28: validFrom ở quá khứ vẫn được nhận, giá trị lưu = max(validFrom gửi lên, giờ cấp); không có dung sai, không còn ERR_AP_013.
  * BR-AP-30: chỉ thu hồi AP ACTIVE / UPCOMING; AP EXPIRED -> 409 ERR_AP_012, không đổi bản ghi, không audit.
  * Cấp tiếp = gán đợt mới nối liền đợt cũ (khoảng nửa mở [validFrom, validTo) nên không chồng lấn).
  * @Transactional: dữ liệu fixture rollback sau mỗi test.
@@ -177,7 +177,7 @@ class AssignedPersonnelGrantRulesTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("BR-AP-28: validFrom = now − 2 phút (trong độ lệch đồng hồ) -> 201 ACTIVE")
+    @DisplayName("BR-AP-28: validFrom = now − 2 phút (đã qua) -> 201 ACTIVE, hiệu lực từ lúc cấp")
     void assign_validFromWithinClockSkew_ok() throws Exception {
         MvcResult skew = assign(OffsetDateTime.now().minusMinutes(2), OffsetDateTime.now().plusDays(1));
         assertThat(skew.getResponse().getStatus()).as(describe(skew)).isEqualTo(201);
