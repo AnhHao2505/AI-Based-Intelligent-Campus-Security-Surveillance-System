@@ -22,7 +22,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -41,11 +40,6 @@ public class AreaAssignedPersonnelService {
     public static final String REVOKE_REASON_USER_DEACTIVATED = "Tài khoản người được gán đã bị vô hiệu hoá";
     /** BR-AP-25: lý do thu hồi AP khi tài khoản người được gán bị xoá (lẻ hoặc theo lô import). */
     public static final String REVOKE_REASON_USER_DELETED = "Tài khoản người được gán đã bị xoá";
-    /**
-     * BR-AP-28: validFrom được lùi tối đa chừng này so với giờ máy chủ — chỉ để bù lệch đồng hồ giữa trình duyệt và
-     * máy chủ (form gửi "bây giờ" có thể tới chậm vài giây / phút), không phải tham số nghiệp vụ.
-     */
-    static final Duration VALID_FROM_CLOCK_SKEW = Duration.ofMinutes(5);
 
     private final AreaAssignedPersonnelRepository assignedPersonnelRepository;
     private final AreaRepository areaRepository;
@@ -99,11 +93,12 @@ public class AreaAssignedPersonnelService {
         OffsetDateTime validFrom = request.validFrom() != null ? request.validFrom() : now;
         OffsetDateTime validTo = request.validTo();
 
-        // BR-AP-28: không gán lùi về quá khứ (mỗi đợt cấp là một bản ghi, E-3); bỏ trống = now
-        if (validFrom.isBefore(now.minus(VALID_FROM_CLOCK_SKEW))) {
-            throw new AssignedPersonnelException(AssignedPersonnelErrorCode.ERR_AP_013);
-        }
         validateValidTo(validFrom, validTo, now);
+        // BR-AP-28: hiệu lực từ giờ FM chọn; giờ đó đã qua thì tính từ lúc cấp, không có hiệu lực ngược
+        // (mỗi đợt cấp là một bản ghi, E-3); bỏ trống = now. validTo > now nên vẫn > validFrom sau khi lấy max
+        if (validFrom.isBefore(now)) {
+            validFrom = now;
+        }
         validateNoOverlap(area.getId(), user.getId(), validFrom, validTo, null);
 
         AreaAssignedPersonnel entity = AreaAssignedPersonnel.builder()

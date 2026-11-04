@@ -163,14 +163,17 @@ class AssignedPersonnelGrantRulesTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("BR-AP-28: validFrom = now − 1 ngày -> 400 ERR_AP_013, không tạo bản ghi")
-    void assign_validFromYesterday_rejected() throws Exception {
-        MvcResult r = assign(OffsetDateTime.now().minusDays(1), OffsetDateTime.now().plusDays(1));
+    @DisplayName("BR-AP-28: validFrom = now − 1 ngày -> 201, validFrom = lúc cấp (không hiệu lực ngược)")
+    void assign_validFromYesterday_startsAtGrantTime() throws Exception {
+        OffsetDateTime before = OffsetDateTime.now().truncatedTo(ChronoUnit.MILLIS);
+        MvcResult r = assign(before.minusDays(1), before.plusDays(1));
 
-        assertThat(r.getResponse().getStatus()).as(describe(r)).isEqualTo(400);
-        assertThat(json(r).path("code").asText()).as(describe(r)).isEqualTo("ERR_AP_013");
-        assertThat(json(r).path("message").asText()).isEqualTo("Thời điểm bắt đầu không được ở quá khứ");
-        assertThat(assignedPersonnelRepository.findByAreaIdWithDetails(area.getId())).isEmpty();
+        assertThat(r.getResponse().getStatus()).as(describe(r)).isEqualTo(201);
+        assertThat(json(r).path("data").path("status").asText()).as(describe(r)).isEqualTo("ACTIVE");
+        assertThat(json(r).path("data").path("validFrom").asText()).isEqualTo(json(r).path("data").path("createdAt").asText());
+        assertThat(assignedPersonnelRepository.findByAreaIdWithDetails(area.getId()))
+                .singleElement()
+                .satisfies(ap -> assertThat(ap.getValidFrom()).isAfterOrEqualTo(before));
     }
 
     @Test
