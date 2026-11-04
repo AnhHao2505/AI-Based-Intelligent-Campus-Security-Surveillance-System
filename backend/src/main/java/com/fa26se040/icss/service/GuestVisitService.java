@@ -440,6 +440,21 @@ public class GuestVisitService {
         }
     }
 
+    // ================================================================== đổi loại khu vực (fix/type-change-guest-visits)
+
+    /**
+     * ADMIN đổi loại khu vực: lượt khách chưa kết thúc (PENDING / APPROVED) chứa khu vực không còn hợp lệ khi loại mới
+     * không nhận khách — cùng điều kiện BR-GV-04 với GuestRules#areaTypeAllowed (cổng ra vào từ chối AREA_TYPE_NOT_ALLOWED).
+     * Loại mới vẫn nhận khách thì trả danh sách rỗng (giữ nguyên lượt khách). Chỉ đọc; dùng cho cả xem trước và thực thi.
+     */
+    public List<GuestVisit> findVisitsInvalidatedByTypeChange(UUID areaId, AreaLevel newLevel, OffsetDateTime now) {
+        if (areaId == null || newLevel == null || GuestRules.GUEST_AREA_LEVELS.contains(newLevel)) {
+            return List.of();
+        }
+        return guestVisitRepository.findNotEndedByArea(
+                areaId, List.of(GuestVisitStatus.PENDING, GuestVisitStatus.APPROVED), now);
+    }
+
     /** BR-GV-11: trả câu mô tả vế đầu tiên không còn thoả, hoặc null. */
     String recheckForApproval(GuestVisit visit, OffsetDateTime now) {
         User host = visit.getHost();
