@@ -1,472 +1,626 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { GoogleLogin } from '@react-oauth/google';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { toast } from 'sonner';
-import { useAuth } from '../context/AuthContext';
-import { ROLES, ROLE_LABELS } from '../constants/roles';
-import {
-  sendResetLink,
-  resetPasswordWithToken
-} from '../services/authService';
-import { DEMO_LOGIN_ENABLED } from '../config/demoConfig';
-import '../styles/LoginPage.css';
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { GoogleLogin } from "@react-oauth/google";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { toast } from "sonner";
+import { useAuth } from "../context/AuthContext";
+import { ROLES, ROLE_LABELS } from "../constants/roles";
+import { sendResetLink, resetPasswordWithToken } from "../services/authService";
+import { DEMO_LOGIN_ENABLED } from "../config/demoConfig";
+import "../styles/LoginPage.css";
 
 const credentialSchema = z.object({
-  email: z.string().trim().email('Vui lòng nhập email hợp lệ.'),
-  password: z.string().min(6, 'Mật khẩu phải có ít nhất 6 ký tự.'),
+	email: z.string().trim().email("Vui lòng nhập email hợp lệ."),
+	password: z.string().min(6, "Mật khẩu phải có ít nhất 6 ký tự."),
 });
 
 // Câu dự phòng, giống câu backend trả cho /api/auth/send-reset-link (không cho biết email có tồn tại hay không)
 const FORGOT_PASSWORD_MESSAGE =
-  'Nếu e-mail tồn tại trong hệ thống, bạn sẽ nhận được hướng dẫn đặt lại mật khẩu qua e-mail.';
+	"Nếu e-mail tồn tại trong hệ thống, bạn sẽ nhận được hướng dẫn đặt lại mật khẩu qua e-mail.";
 
-export default function LoginPage({ onLoginSuccess, initialResetToken, onResetComplete }) {
-  const { loginWithGoogleToken, loginWithPassword, loginAsDemoRole } = useAuth();
-  const navigate = useNavigate();
+export default function LoginPage({
+	onLoginSuccess,
+	initialResetToken,
+	onResetComplete,
+}) {
+	const { loginWithGoogleToken, loginWithPassword, loginAsDemoRole } =
+		useAuth();
+	const navigate = useNavigate();
 
-  const [mode, setMode] = useState('login'); // 'login' | 'forgot' | 'reset'
-  const [activeTab, setActiveTab] = useState(() => {
-    return sessionStorage.getItem('login_active_tab') || 'google';
-  });
+	const [mode, setMode] = useState("login"); // 'login' | 'forgot' | 'reset'
+	const [activeTab, setActiveTab] = useState(() => {
+		return sessionStorage.getItem("login_active_tab") || "google";
+	});
 
-  const handleTabChange = (tab) => {
-    setActiveTab(tab);
-    sessionStorage.setItem('login_active_tab', tab);
-    setError(null);
-  };
+	const handleTabChange = (tab) => {
+		setActiveTab(tab);
+		sessionStorage.setItem("login_active_tab", tab);
+		setError(null);
+	};
 
-  // General states
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [forgotMessage, setForgotMessage] = useState(null);
+	// General states
+	const [error, setError] = useState(null);
+	const [loading, setLoading] = useState(false);
+	const [success, setSuccess] = useState(false);
+	const [forgotMessage, setForgotMessage] = useState(null);
 
-  // Form states
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [forgotEmail, setForgotEmail] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const credentialForm = useForm({
-    resolver: zodResolver(credentialSchema),
-    defaultValues: { email: '', password: '' },
-  });
+	// Form states
+	const [email, setEmail] = useState("");
+	const [password, setPassword] = useState("");
+	const [forgotEmail, setForgotEmail] = useState("");
+	const [newPassword, setNewPassword] = useState("");
+	const [confirmPassword, setConfirmPassword] = useState("");
+	const credentialForm = useForm({
+		resolver: zodResolver(credentialSchema),
+		defaultValues: { email: "", password: "" },
+	});
 
-  // Switch to reset mode if token exists in URL, and dismiss any active toasts
-  useEffect(() => {
-    toast.dismiss();
-    if (initialResetToken) {
-      setMode('reset');
-    }
-  }, [initialResetToken]);
+	// Switch to reset mode if token exists in URL, and dismiss any active toasts
+	useEffect(() => {
+		toast.dismiss();
+		if (initialResetToken) {
+			setMode("reset");
+		}
+	}, [initialResetToken]);
 
-  const handleGoogleSuccess = async (credentialResponse) => {
-    setError(null);
-    setLoading(true);
-    try {
-      const res = await loginWithGoogleToken(credentialResponse.credential);
-      if (onLoginSuccess) onLoginSuccess();
-      const role = res?.user?.role;
-      navigate(role === ROLES.NORMAL_USER ? '/access-requests' : '/dashboard');
-    } catch (err) {
-      console.error('Google login failed:', err);
-      const rawMsg = (err?.message || '').trim();
-      const lower = rawMsg.toLowerCase();
-      let friendlyError = '';
-      if (
-        lower.includes('không tồn tại') ||
-        lower.includes('not exist') ||
-        lower.includes('not authorized')
-      ) {
-        friendlyError = 'Tài khoản Google này chưa được cấp phép hoặc không tồn tại trên hệ thống.';
-      } else if (
-        lower.includes('vô hiệu hóa') ||
-        lower.includes('khóa') ||
-        lower.includes('disabled') ||
-        lower.includes('inactive')
-      ) {
-        friendlyError = 'Tài khoản đã bị vô hiệu hóa hoặc không còn hoạt động. Vui lòng liên hệ quản trị viên.';
-      } else {
-        friendlyError = rawMsg || 'Đăng nhập Google thất bại. Vui lòng thử lại.';
-      }
-      setError(friendlyError);
-    } finally {
-      setLoading(false);
-    }
-  };
+	const handleGoogleSuccess = async (credentialResponse) => {
+		setError(null);
+		setLoading(true);
+		try {
+			const res = await loginWithGoogleToken(credentialResponse.credential);
+			if (onLoginSuccess) onLoginSuccess();
+			const role = res?.user?.role;
+			navigate(role === ROLES.NORMAL_USER ? "/access-requests" : "/dashboard");
+		} catch (err) {
+			console.error("Google login failed:", err);
+			const rawMsg = (err?.message || "").trim();
+			const lower = rawMsg.toLowerCase();
+			let friendlyError = "";
+			if (
+				lower.includes("không tồn tại") ||
+				lower.includes("not exist") ||
+				lower.includes("not authorized")
+			) {
+				friendlyError =
+					"Tài khoản Google này chưa được cấp phép hoặc không tồn tại trên hệ thống.";
+			} else if (
+				lower.includes("vô hiệu hóa") ||
+				lower.includes("khóa") ||
+				lower.includes("disabled") ||
+				lower.includes("inactive")
+			) {
+				friendlyError =
+					"Tài khoản đã bị vô hiệu hóa hoặc không còn hoạt động. Vui lòng liên hệ quản trị viên.";
+			} else {
+				friendlyError =
+					rawMsg || "Đăng nhập Google thất bại. Vui lòng thử lại.";
+			}
+			setError(friendlyError);
+		} finally {
+			setLoading(false);
+		}
+	};
 
-  const handleGoogleError = () => {
-    setError('Đăng nhập Google thất bại. Vui lòng thử lại.');
-  };
+	const handleGoogleError = () => {
+		setError("Đăng nhập Google thất bại. Vui lòng thử lại.");
+	};
 
-  const handleRoleBypass = (role) => {
-    if (!DEMO_LOGIN_ENABLED) {
-      setError('Tính năng đăng nhập bypass demo đã bị vô hiệu hóa.');
-      return;
-    }
-    setError(null);
-    loginAsDemoRole(role);
-    if (onLoginSuccess) onLoginSuccess();
+	const handleRoleBypass = (role) => {
+		if (!DEMO_LOGIN_ENABLED) {
+			setError("Tính năng đăng nhập bypass demo đã bị vô hiệu hóa.");
+			return;
+		}
+		setError(null);
+		loginAsDemoRole(role);
+		if (onLoginSuccess) onLoginSuccess();
 
-    const destination = role === ROLES.NORMAL_USER
-      ? '/access-requests'
-      : role === ROLES.GUARD
-        ? '/guard'
-        : '/dashboard';
+		const destination =
+			role === ROLES.NORMAL_USER
+				? "/access-requests"
+				: role === ROLES.GUARD
+					? "/guard"
+					: "/dashboard";
 
-    navigate(destination);
-  };
+		navigate(destination);
+	};
 
-  const handleCredentialLoginSubmit = async ({ email: formEmail, password: formPassword }) => {
-    setError(null);
-    setLoading(true);
-    try {
-      const res = await loginWithPassword(formEmail, formPassword);
-      if (onLoginSuccess) onLoginSuccess();
-      const role = res?.user?.role;
-      navigate(role === ROLES.NORMAL_USER ? '/access-requests' : '/dashboard');
-    } catch (err) {
-      console.error('Credentials login failed:', err);
-      // Ensure we stay locked onto credentials tab
-      setActiveTab('credentials');
-      sessionStorage.setItem('login_active_tab', 'credentials');
+	const handleCredentialLoginSubmit = async ({
+		email: formEmail,
+		password: formPassword,
+	}) => {
+		setError(null);
+		setLoading(true);
+		try {
+			const res = await loginWithPassword(formEmail, formPassword);
+			if (onLoginSuccess) onLoginSuccess();
+			const role = res?.user?.role;
+			navigate(role === ROLES.NORMAL_USER ? "/access-requests" : "/dashboard");
+		} catch (err) {
+			console.error("Credentials login failed:", err);
+			// Ensure we stay locked onto credentials tab
+			setActiveTab("credentials");
+			sessionStorage.setItem("login_active_tab", "credentials");
 
-      const rawMsg = (err?.message || '').trim();
-      const lower = rawMsg.toLowerCase();
+			const rawMsg = (err?.message || "").trim();
+			const lower = rawMsg.toLowerCase();
 
-      let friendlyError = '';
-      if (
-        lower.includes('không tồn tại') ||
-        lower.includes('does not exist') ||
-        lower.includes('not exist') ||
-        lower.includes('account not found') ||
-        lower.includes('user not found')
-      ) {
-        friendlyError = 'Tài khoản không tồn tại trên hệ thống. Vui lòng kiểm tra lại địa chỉ email.';
-      } else if (
-        lower.includes('mật khẩu không chính xác') ||
-        lower.includes('mật khẩu') ||
-        lower.includes('password') ||
-        lower.includes('bad credentials')
-      ) {
-        friendlyError = 'Mật khẩu không chính xác. Vui lòng kiểm tra lại mật khẩu.';
-      } else if (
-        lower.includes('vô hiệu hóa') ||
-        lower.includes('khóa') ||
-        lower.includes('deactivated') ||
-        lower.includes('disabled') ||
-        lower.includes('inactive')
-      ) {
-        friendlyError = 'Tài khoản đã bị vô hiệu hóa hoặc không còn hoạt động. Vui lòng liên hệ quản trị viên.';
-      } else {
-        friendlyError = rawMsg || 'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin đăng nhập.';
-      }
+			let friendlyError = "";
+			if (
+				lower.includes("không tồn tại") ||
+				lower.includes("does not exist") ||
+				lower.includes("not exist") ||
+				lower.includes("account not found") ||
+				lower.includes("user not found")
+			) {
+				friendlyError =
+					"Tài khoản không tồn tại trên hệ thống. Vui lòng kiểm tra lại địa chỉ email.";
+			} else if (
+				lower.includes("mật khẩu không chính xác") ||
+				lower.includes("mật khẩu") ||
+				lower.includes("password") ||
+				lower.includes("bad credentials")
+			) {
+				friendlyError =
+					"Mật khẩu không chính xác. Vui lòng kiểm tra lại mật khẩu.";
+			} else if (
+				lower.includes("vô hiệu hóa") ||
+				lower.includes("khóa") ||
+				lower.includes("deactivated") ||
+				lower.includes("disabled") ||
+				lower.includes("inactive")
+			) {
+				friendlyError =
+					"Tài khoản đã bị vô hiệu hóa hoặc không còn hoạt động. Vui lòng liên hệ quản trị viên.";
+			} else {
+				friendlyError =
+					rawMsg ||
+					"Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin đăng nhập.";
+			}
 
-      setError(friendlyError);
-      credentialForm.setValue('password', '');
-      credentialForm.setFocus('password');
-    } finally {
-      setLoading(false);
-    }
-  };
+			setError(friendlyError);
+			credentialForm.setValue("password", "");
+			credentialForm.setFocus("password");
+		} finally {
+			setLoading(false);
+		}
+	};
 
-  const handleForgotSubmit = async (e) => {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
-    try {
-      setForgotMessage(await sendResetLink(email));
-      setSuccess(true);
-    } catch (err) {
-      console.error('Forgot password link request failed:', err);
-      setError(err.message || 'Có lỗi xảy ra khi gửi yêu cầu. Vui lòng thử lại.');
-    } finally {
-      setLoading(false);
-    }
-  };
+	const handleForgotSubmit = async (e) => {
+		e.preventDefault();
+		setError(null);
+		setLoading(true);
+		try {
+			setForgotMessage(await sendResetLink(email));
+			setSuccess(true);
+		} catch (err) {
+			console.error("Forgot password link request failed:", err);
+			setError(
+				err.message || "Có lỗi xảy ra khi gửi yêu cầu. Vui lòng thử lại.",
+			);
+		} finally {
+			setLoading(false);
+		}
+	};
 
-  const handleResetSubmit = async (e) => {
-    e.preventDefault();
-    if (password !== confirmPassword) {
-      setError('Mật khẩu nhập lại không khớp');
-      return;
-    }
-    setError(null);
-    setLoading(true);
-    try {
-      await resetPasswordWithToken(initialResetToken, password);
-      setSuccess(true);
-      setTimeout(() => {
-        if (onResetComplete) onResetComplete();
-        setMode('login');
-        setSuccess(false);
-        setPassword('');
-        setConfirmPassword('');
-      }, 3000);
-    } catch (err) {
-      console.error('Password reset failed:', err);
-      setError(err.message || 'Đổi mật khẩu thất bại. Token có thể đã hết hạn hoặc không hợp lệ.');
-    } finally {
-      setLoading(false);
-    }
-  };
+	const handleResetSubmit = async (e) => {
+		e.preventDefault();
+		if (password !== confirmPassword) {
+			setError("Mật khẩu nhập lại không khớp");
+			return;
+		}
+		setError(null);
+		setLoading(true);
+		try {
+			await resetPasswordWithToken(initialResetToken, password);
+			setSuccess(true);
+			setTimeout(() => {
+				if (onResetComplete) onResetComplete();
+				setMode("login");
+				setSuccess(false);
+				setPassword("");
+				setConfirmPassword("");
+			}, 3000);
+		} catch (err) {
+			console.error("Password reset failed:", err);
+			setError(
+				err.message ||
+					"Đổi mật khẩu thất bại. Token có thể đã hết hạn hoặc không hợp lệ.",
+			);
+		} finally {
+			setLoading(false);
+		}
+	};
 
-  return (
-    <div className="login-page">
-      {/* Animated background */}
-      <div className="login-bg">
-        <div className="login-bg-orb login-bg-orb--1" />
-        <div className="login-bg-orb login-bg-orb--2" />
-        <div className="login-bg-orb login-bg-orb--3" />
-      </div>
+	return (
+		<div className="login-page">
+			{/* Animated background */}
+			<div className="login-bg">
+				<div className="login-bg-orb login-bg-orb--1" />
+				<div className="login-bg-orb login-bg-orb--2" />
+				<div className="login-bg-orb login-bg-orb--3" />
+			</div>
 
-      <div className="login-card">
-        {/* Logo / Icon */}
-        <div className="login-card__icon">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </div>
+			<div className="login-card">
+				{/* Logo / Icon */}
+				<div className="login-card__icon">
+					<svg
+						width="48"
+						height="48"
+						viewBox="0 0 24 24"
+						fill="none"
+						xmlns="http://www.w3.org/2000/svg"
+					>
+						<path
+							d="M12 2L2 7L12 12L22 7L12 2Z"
+							stroke="currentColor"
+							strokeWidth="2"
+							strokeLinecap="round"
+							strokeLinejoin="round"
+						/>
+						<path
+							d="M2 17L12 22L22 17"
+							stroke="currentColor"
+							strokeWidth="2"
+							strokeLinecap="round"
+							strokeLinejoin="round"
+						/>
+						<path
+							d="M2 12L12 17L22 12"
+							stroke="currentColor"
+							strokeWidth="2"
+							strokeLinecap="round"
+							strokeLinejoin="round"
+						/>
+					</svg>
+				</div>
 
-        <h1 className="login-card__title">Campus Security</h1>
-        <p className="login-card__subtitle">
-          {mode === 'login' && 'Hệ thống Giám sát An ninh Thông minh'}
-          {mode === 'forgot' && 'Khôi phục mật khẩu tài khoản'}
-          {mode === 'reset' && 'Đặt lại mật khẩu mới'}
-        </p>
+				<h1 className="login-card__title">Campus Security</h1>
+				<p className="login-card__subtitle">
+					{mode === "login" && "Hệ thống Giám sát An ninh Thông minh"}
+					{mode === "forgot" && "Khôi phục mật khẩu tài khoản"}
+					{mode === "reset" && "Đặt lại mật khẩu mới"}
+				</p>
 
-        <div className="login-card__divider" />
+				<div className="login-card__divider" />
 
-        {/* ERROR BOX */}
-        {error && (
-          <div className="login-card__error" role="alert" aria-live="assertive">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
-              <line x1="12" y1="8" x2="12" y2="12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              <line x1="12" y1="16" x2="12.01" y2="16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-            <span>{error}</span>
-          </div>
-        )}
+				{/* ERROR BOX */}
+				{error && (
+					<div
+						className="login-card__error"
+						role="alert"
+						aria-live="assertive"
+					>
+						<svg
+							width="16"
+							height="16"
+							viewBox="0 0 24 24"
+							fill="none"
+							xmlns="http://www.w3.org/2000/svg"
+							aria-hidden="true"
+						>
+							<circle
+								cx="12"
+								cy="12"
+								r="10"
+								stroke="currentColor"
+								strokeWidth="2"
+							/>
+							<line
+								x1="12"
+								y1="8"
+								x2="12"
+								y2="12"
+								stroke="currentColor"
+								strokeWidth="2"
+								strokeLinecap="round"
+							/>
+							<line
+								x1="12"
+								y1="16"
+								x2="12.01"
+								y2="16"
+								stroke="currentColor"
+								strokeWidth="2"
+								strokeLinecap="round"
+							/>
+						</svg>
+						<span>{error}</span>
+					</div>
+				)}
 
-        {/* ==================== LOGIN SCREEN ==================== */}
-        {mode === 'login' && (
-          <>
-            <div className="login-card__tabs">
-              <button
-                type="button"
-                className={`login-card__tab ${activeTab === 'google' ? 'login-card__tab--active' : ''}`}
-                onClick={() => handleTabChange('google')}
-              >
-                Google Mail
-              </button>
-              <button
-                type="button"
-                className={`login-card__tab ${activeTab === 'credentials' ? 'login-card__tab--active' : ''}`}
-                onClick={() => handleTabChange('credentials')}
-              >
-                Tài khoản cấp
-              </button>
-            </div>
+				{/* ==================== LOGIN SCREEN ==================== */}
+				{mode === "login" && (
+					<>
+						<div className="login-card__tabs">
+							<button
+								type="button"
+								className={`login-card__tab ${activeTab === "google" ? "login-card__tab--active" : ""}`}
+								onClick={() => handleTabChange("google")}
+							>
+								Google Mail
+							</button>
+							<button
+								type="button"
+								className={`login-card__tab ${activeTab === "credentials" ? "login-card__tab--active" : ""}`}
+								onClick={() => handleTabChange("credentials")}
+							>
+								Tài khoản cấp
+							</button>
+						</div>
 
-            {activeTab === 'google' && (
-              <div className="login-card__btn-wrapper">
-                {loading ? (
-                  <div className="login-card__loader">
-                    <div className="login-card__spinner" />
-                    <span>Đang xác thực...</span>
-                  </div>
-                ) : (
-                  <GoogleLogin
-                    onSuccess={handleGoogleSuccess}
-                    onError={handleGoogleError}
-                    theme="outline"
-                    size="large"
-                    width="320"
-                    text="signin_with"
-                    shape="pill"
-                    logo_alignment="left"
-                  />
-                )}
-              </div>
-            )}
+						{activeTab === "google" && (
+							<div className="login-card__btn-wrapper">
+								{loading ? (
+									<div className="login-card__loader">
+										<div className="login-card__spinner" />
+										<span>Đang xác thực...</span>
+									</div>
+								) : (
+									<GoogleLogin
+										onSuccess={handleGoogleSuccess}
+										onError={handleGoogleError}
+										theme="outline"
+										size="large"
+										width="320"
+										text="signin_with"
+										shape="pill"
+										logo_alignment="left"
+									/>
+								)}
+							</div>
+						)}
 
-            {activeTab === 'credentials' && (
-              <form className="login-card__form" onSubmit={credentialForm.handleSubmit(handleCredentialLoginSubmit)}>
-                <div className="login-card__input-group">
-                  <label className="login-card__input-label">Email</label>
-                  <input
-                    type="email"
-                    placeholder="name@campus.edu.vn"
-                    className="login-card__input"
-                    {...credentialForm.register('email')}
-                  />
-                  {credentialForm.formState.errors.email && (
-                    <span className="login-card__field-error">{credentialForm.formState.errors.email.message}</span>
-                  )}
-                </div>
-                <div className="login-card__input-group">
-                  <label className="login-card__input-label">Mật khẩu</label>
-                  <input
-                    type="password"
-                    placeholder="••••••••"
-                    className="login-card__input"
-                    {...credentialForm.register('password')}
-                  />
-                  {credentialForm.formState.errors.password && (
-                    <span className="login-card__field-error">{credentialForm.formState.errors.password.message}</span>
-                  )}
-                </div>
-                <span
-                  className="login-card__forgot-link"
-                  onClick={() => { setMode('forgot'); setError(null); }}
-                >
-                  Quên mật khẩu?
-                </span>
-                <button
-                  type="submit"
-                  className="login-card__submit-btn"
-                  disabled={loading}
-                >
-                  {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
-                </button>
-              </form>
-            )}
-          </>
-        )}
+						{activeTab === "credentials" && (
+							<form
+								className="login-card__form"
+								onSubmit={credentialForm.handleSubmit(
+									handleCredentialLoginSubmit,
+								)}
+							>
+								<div className="login-card__input-group">
+									<label className="login-card__input-label">Email</label>
+									<input
+										type="email"
+										placeholder="name@campus.edu.vn"
+										className="login-card__input"
+										{...credentialForm.register("email")}
+									/>
+									{credentialForm.formState.errors.email && (
+										<span className="login-card__field-error">
+											{credentialForm.formState.errors.email.message}
+										</span>
+									)}
+								</div>
+								<div className="login-card__input-group">
+									<label className="login-card__input-label">Mật khẩu</label>
+									<input
+										type="password"
+										placeholder="••••••••"
+										className="login-card__input"
+										{...credentialForm.register("password")}
+									/>
+									{credentialForm.formState.errors.password && (
+										<span className="login-card__field-error">
+											{credentialForm.formState.errors.password.message}
+										</span>
+									)}
+								</div>
+								<span
+									className="login-card__forgot-link"
+									onClick={() => {
+										setMode("forgot");
+										setError(null);
+									}}
+								>
+									Quên mật khẩu?
+								</span>
+								<button
+									type="submit"
+									className="login-card__submit-btn"
+									disabled={loading}
+								>
+									{loading ? "Đang đăng nhập..." : "Đăng nhập"}
+								</button>
+							</form>
+						)}
+					</>
+				)}
 
-        {/* ==================== FORGOT PASSWORD SCREEN ==================== */}
-        {mode === 'forgot' && (
-          <>
-            {success ? (
-              <div className="login-card__success">
-                <svg className="login-card__success-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
-                  <path d="M9 12L11 14L15 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                <span>{forgotMessage || FORGOT_PASSWORD_MESSAGE}</span>
-              </div>
-            ) : (
-              <form className="login-card__form" onSubmit={handleForgotSubmit}>
-                <p style={{ fontSize: '0.85rem', color: '#94a3b8', textAlign: 'left', margin: '0 0 10px 4px', lineHeight: 1.4 }}>
-                  Vui lòng cung cấp email tài khoản của bạn. Hệ thống sẽ gửi một liên kết xác nhận thay đổi mật khẩu mới.
-                </p>
-                <div className="login-card__input-group">
-                  <label className="login-card__input-label">Email tài khoản</label>
-                  <input
-                    type="email"
-                    required
-                    placeholder="name@campus.edu.vn"
-                    className="login-card__input"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="login-card__submit-btn"
-                  disabled={loading}
-                >
-                  {loading ? 'Đang gửi...' : 'Gửi link khôi phục'}
-                </button>
-              </form>
-            )}
-            <span
-              className="login-card__back-link"
-              onClick={() => { setMode('login'); setError(null); setSuccess(false); }}
-            >
-              Quay lại đăng nhập
-            </span>
-          </>
-        )}
+				{/* ==================== FORGOT PASSWORD SCREEN ==================== */}
+				{mode === "forgot" && (
+					<>
+						{success ? (
+							<div className="login-card__success">
+								<svg
+									className="login-card__success-icon"
+									width="32"
+									height="32"
+									viewBox="0 0 24 24"
+									fill="none"
+									xmlns="http://www.w3.org/2000/svg"
+								>
+									<circle
+										cx="12"
+										cy="12"
+										r="10"
+										stroke="currentColor"
+										strokeWidth="2"
+									/>
+									<path
+										d="M9 12L11 14L15 10"
+										stroke="currentColor"
+										strokeWidth="2"
+										strokeLinecap="round"
+										strokeLinejoin="round"
+									/>
+								</svg>
+								<span>{forgotMessage || FORGOT_PASSWORD_MESSAGE}</span>
+							</div>
+						) : (
+							<form
+								className="login-card__form"
+								onSubmit={handleForgotSubmit}
+							>
+								<p
+									style={{
+										fontSize: "0.85rem",
+										color: "#94a3b8",
+										textAlign: "left",
+										margin: "0 0 10px 4px",
+										lineHeight: 1.4,
+									}}
+								>
+									Vui lòng cung cấp email tài khoản của bạn. Hệ thống sẽ gửi một
+									liên kết xác nhận thay đổi mật khẩu mới.
+								</p>
+								<div className="login-card__input-group">
+									<label className="login-card__input-label">
+										Email tài khoản
+									</label>
+									<input
+										type="email"
+										required
+										placeholder="name@campus.edu.vn"
+										className="login-card__input"
+										value={email}
+										onChange={(e) => setEmail(e.target.value)}
+									/>
+								</div>
+								<button
+									type="submit"
+									className="login-card__submit-btn"
+									disabled={loading}
+								>
+									{loading ? "Đang gửi..." : "Gửi link khôi phục"}
+								</button>
+							</form>
+						)}
+						<span
+							className="login-card__back-link"
+							onClick={() => {
+								setMode("login");
+								setError(null);
+								setSuccess(false);
+							}}
+						>
+							Quay lại đăng nhập
+						</span>
+					</>
+				)}
 
-        {/* ==================== RESET PASSWORD SCREEN ==================== */}
-        {mode === 'reset' && (
-          <>
-            {success ? (
-              <div className="login-card__success">
-                <svg className="login-card__success-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
-                  <path d="M9 12L11 14L15 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                <span>Đổi mật khẩu thành công! Đang chuyển hướng bạn quay lại trang đăng nhập...</span>
-              </div>
-            ) : (
-              <form className="login-card__form" onSubmit={handleResetSubmit}>
-                <div className="login-card__input-group">
-                  <label className="login-card__input-label">Mật khẩu mới</label>
-                  <input
-                    type="password"
-                    required
-                    placeholder="Tối thiểu 6 ký tự"
-                    className="login-card__input"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
-                </div>
-                <div className="login-card__input-group">
-                  <label className="login-card__input-label">Nhập lại mật khẩu mới</label>
-                  <input
-                    type="password"
-                    required
-                    placeholder="Nhập lại mật khẩu mới"
-                    className="login-card__input"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="login-card__submit-btn"
-                  disabled={loading}
-                >
-                  {loading ? 'Đang cập nhật...' : 'Xác nhận đổi mật khẩu'}
-                </button>
-              </form>
-            )}
-            {!success && (
-              <span
-                className="login-card__back-link"
-                onClick={() => { setMode('login'); if (onResetComplete) onResetComplete(); setError(null); }}
-              >
-                Huỷ bỏ và quay lại
-              </span>
-            )}
-          </>
-        )}
+				{/* ==================== RESET PASSWORD SCREEN ==================== */}
+				{mode === "reset" && (
+					<>
+						{success ? (
+							<div className="login-card__success">
+								<svg
+									className="login-card__success-icon"
+									width="32"
+									height="32"
+									viewBox="0 0 24 24"
+									fill="none"
+									xmlns="http://www.w3.org/2000/svg"
+								>
+									<circle
+										cx="12"
+										cy="12"
+										r="10"
+										stroke="currentColor"
+										strokeWidth="2"
+									/>
+									<path
+										d="M9 12L11 14L15 10"
+										stroke="currentColor"
+										strokeWidth="2"
+										strokeLinecap="round"
+										strokeLinejoin="round"
+									/>
+								</svg>
+								<span>
+									Đổi mật khẩu thành công! Đang chuyển hướng bạn quay lại trang
+									đăng nhập...
+								</span>
+							</div>
+						) : (
+							<form
+								className="login-card__form"
+								onSubmit={handleResetSubmit}
+							>
+								<div className="login-card__input-group">
+									<label className="login-card__input-label">
+										Mật khẩu mới
+									</label>
+									<input
+										type="password"
+										required
+										placeholder="Tối thiểu 6 ký tự"
+										className="login-card__input"
+										value={password}
+										onChange={(e) => setPassword(e.target.value)}
+									/>
+								</div>
+								<div className="login-card__input-group">
+									<label className="login-card__input-label">
+										Nhập lại mật khẩu mới
+									</label>
+									<input
+										type="password"
+										required
+										placeholder="Nhập lại mật khẩu mới"
+										className="login-card__input"
+										value={confirmPassword}
+										onChange={(e) => setConfirmPassword(e.target.value)}
+									/>
+								</div>
+								<button
+									type="submit"
+									className="login-card__submit-btn"
+									disabled={loading}
+								>
+									{loading ? "Đang cập nhật..." : "Xác nhận đổi mật khẩu"}
+								</button>
+							</form>
+						)}
+						{!success && (
+							<span
+								className="login-card__back-link"
+								onClick={() => {
+									setMode("login");
+									if (onResetComplete) onResetComplete();
+									setError(null);
+								}}
+							>
+								Huỷ bỏ và quay lại
+							</span>
+						)}
+					</>
+				)}
 
-        <p className="login-card__note">
-          Chỉ email được cấp bởi quản trị viên mới có thể đăng nhập.
-        </p>
+				{/* Role badges */}
+				{DEMO_LOGIN_ENABLED && (
+					<div className="login-card__roles">
+						{Object.entries(ROLE_LABELS).map(([key, label]) => (
+							<button
+								key={key}
+								type="button"
+								className="login-card__role-badge"
+								onClick={() => handleRoleBypass(key)}
+								disabled={loading}
+								aria-label={`Đăng nhập bypass với vai trò ${label}`}
+								title={`Đăng nhập bypass: ${label}`}
+							>
+								{label}
+							</button>
+						))}
+					</div>
+				)}
+			</div>
 
-        {/* Role badges */}
-        {DEMO_LOGIN_ENABLED && (
-          <div className="login-card__roles">
-            {Object.entries(ROLE_LABELS).map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                className="login-card__role-badge"
-                onClick={() => handleRoleBypass(key)}
-                disabled={loading}
-                aria-label={`Đăng nhập bypass với vai trò ${label}`}
-                title={`Đăng nhập bypass: ${label}`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <footer className="login-footer">
-        FA26SE040 &middot; AI-Based Intelligent Campus Security
-      </footer>
-    </div>
-  );
+			<footer className="login-footer">
+				FA26SE040 &middot; AI-Based Intelligent Campus Security
+			</footer>
+		</div>
+	);
 }

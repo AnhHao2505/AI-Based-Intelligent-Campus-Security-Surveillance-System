@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import {
 	Building2,
@@ -23,6 +23,8 @@ import {
 } from "lucide-react";
 import AreaAssignedPersonnelModal from "../../components/area/AreaAssignedPersonnelModal";
 import AreaListView from "../../components/area/AreaListView";
+import CampusMapView from "../../components/area/CampusMapView";
+import ErrorBoundary from "../../components/common/ErrorBoundary";
 import AreaTypeChangePreviewModal from "../../components/area/AreaTypeChangePreviewModal";
 import PageHeader from "../../components/ui/PageHeader";
 import { LoadingState, EmptyState, ErrorState, Select } from "../../components/ui";
@@ -113,6 +115,57 @@ export default function AreaListPage() {
 	const isAdmin = user?.role === "ADMIN";
 	const navigate = useNavigate();
 	const isFacilityManager = user?.role === "FACILITY_MANAGER";
+
+	const [searchParams, setSearchParams] = useSearchParams();
+	const viewParam = searchParams.get("view");
+	const [activeView, setActiveView] = useState(viewParam === "map" ? "map" : "list");
+	const [isCreatingOnMap, setIsCreatingOnMap] = useState(false);
+
+	useEffect(() => {
+		if (viewParam === "map" && activeView !== "map") {
+			setActiveView("map");
+		} else if (!viewParam && activeView !== "list") {
+			setActiveView("list");
+		}
+	}, [viewParam, activeView]);
+
+	const handleViewChange = (newView) => {
+		setActiveView(newView);
+		setSearchParams((prev) => {
+			const next = new URLSearchParams(prev);
+			if (newView === "map") {
+				next.set("view", "map");
+			} else {
+				next.delete("view");
+			}
+			return next;
+		});
+	};
+
+	const handleStartCreateOnMap = () => {
+		if (activeView !== "map") {
+			handleViewChange("map");
+		}
+		setIsCreatingOnMap(true);
+	};
+
+	const handleAreaUpdatedOnMap = useCallback((areaId, updated) => {
+		setAreas((prev) =>
+			prev.map((a) =>
+				a.id === areaId && updated && typeof updated === "object"
+					? {
+							...a,
+							centerLatitude: updated.centerLatitude ?? a.centerLatitude,
+							centerLongitude: updated.centerLongitude ?? a.centerLongitude,
+							version: updated.version ?? a.version,
+							building: updated.building ?? a.building,
+							floor: updated.floor ?? a.floor,
+						}
+					: a,
+			),
+		);
+		setSelectedAreaId(areaId);
+	}, []);
 
 	// Data states
 	const [areas, setAreas] = useState([]);
@@ -286,8 +339,34 @@ export default function AreaListPage() {
 		}
 	}, [availableBuildings, selectedBuilding]);
 
-	// Derived available floors for current building
+	// Derived available floors for current building (supports ALL buildings)
 	const availableFloors = useMemo(() => {
+		if (!selectedBuilding || selectedBuilding === "ALL") {
+			const fSet = new Set();
+			buildingsList.forEach((b) => {
+				(b.floors || []).forEach((f) => {
+					if (f?.name) fSet.add(String(f.name));
+				});
+			});
+			areas.forEach((a) => {
+				if (a.floor) fSet.add(a.floor);
+			});
+			if (fSet.size === 0) {
+				fSet.add("Tầng Trệt");
+				fSet.add("Tầng 1");
+			}
+			return Array.from(fSet)
+				.sort((a, b) => {
+					if (a.toLowerCase().includes("trệt")) return -1;
+					if (b.toLowerCase().includes("trệt")) return 1;
+					return a.localeCompare(b);
+				})
+				.map((fl) => ({
+					name: fl,
+					floorId: null,
+				}));
+		}
+
 		const currentBuildingObj = availableBuildings.find(
 			(b) =>
 				(b.name || "").toUpperCase() === (selectedBuilding || "").toUpperCase(),
@@ -331,7 +410,7 @@ export default function AreaListPage() {
 				name: fl,
 				floorId: null,
 			}));
-	}, [availableBuildings, areas, selectedBuilding]);
+	}, [buildingsList, availableBuildings, areas, selectedBuilding]);
 
 	// Default floor initialization
 	useEffect(() => {
@@ -360,11 +439,12 @@ export default function AreaListPage() {
 		];
 	}, [availableBuildings, formData.building]);
 
-	// Filtered areas on current building and floor (for list view)
+	// Filtered areas on current building and floor (for list view & map view)
 	const floorAreas = useMemo(() => {
 		return areas.filter((a) => {
 			const matchBuilding =
 				!selectedBuilding ||
+				selectedBuilding === "ALL" ||
 				(a.building || "").toUpperCase() ===
 					(selectedBuilding || "").toUpperCase();
 			const matchFloor =
@@ -801,18 +881,7 @@ export default function AreaListPage() {
 						? "Thêm mới phân khu, cấu hình cấp độ bảo mật, liên kết camera và thiết lập hạ tầng an ninh."
 						: "Quản lý danh sách nhân sự được chỉ định, tra cứu phân quyền và vận hành phân khu."
 				}
-				actions={
-					// Route /admin/map chỉ cho ADMIN (App.jsx) → FM không thấy lối tắt dẫn tới trang bị chặn
-					isAdmin ? (
-						<Link
-							to="/admin/map"
-							className="ui-btn ui-btn--secondary ui-btn--md"
-						>
-							<Compass size={16} />
-							<span>Xem trên bản đồ an ninh</span>
-						</Link>
-					) : null
-				}
+				actions={null}
 			/>
 
 			{/* ============================================================ */}
@@ -830,7 +899,10 @@ export default function AreaListPage() {
 						value={selectedBuilding}
 						onChange={(e) => handleSelectBuilding(e.target.value)}
 						title="Chọn tòa nhà"
-						options={availableBuildings.map((b) => ({ value: b.name, label: b.name }))}
+						options={[
+							{ value: "ALL", label: "Tất cả tòa nhà" },
+							...availableBuildings.map((b) => ({ value: b.name, label: b.name })),
+						]}
 					/>
 				</div>
 
@@ -857,6 +929,33 @@ export default function AreaListPage() {
 				{/* Add Area Button Group */}
 				<div className="zone-toolbar__actions">
 					{isAdmin && (
+						<div
+							className="zone-view-toggle"
+							role="group"
+							aria-label="Chế độ hiển thị"
+						>
+							<button
+								type="button"
+								className={`zone-view-toggle__btn ${activeView === "list" ? "zone-view-toggle__btn--active" : ""}`}
+								onClick={() => handleViewChange("list")}
+								title="Xem dạng danh sách"
+							>
+								<Layers size={15} />
+								<span>Danh sách</span>
+							</button>
+							<button
+								type="button"
+								className={`zone-view-toggle__btn ${activeView === "map" ? "zone-view-toggle__btn--active" : ""}`}
+								onClick={() => handleViewChange("map")}
+								title="Xem trên bản đồ an ninh"
+							>
+								<Compass size={15} />
+								<span>Bản đồ</span>
+							</button>
+						</div>
+					)}
+
+					{isAdmin && activeView === "list" && (
 						<div
 							className="zone-view-toggle"
 							role="group"
@@ -887,18 +986,42 @@ export default function AreaListPage() {
 						<button
 							type="button"
 							className="zone-toolbar__add-btn"
-							onClick={handleOpenCreateModal}
+							onClick={handleStartCreateOnMap}
 						>
 							<Plus
 								size={16}
 								strokeWidth={2.5}
 							/>
-							<span>Thêm vùng</span>
+							<span>Thêm vùng</span>	
 						</button>
 					)}
 				</div>
 			</div>
 
+			{/* MAIN CONTENT: MAP VIEW OR LIST VIEW */}
+			{activeView === "map" ? (
+				<ErrorBoundary>
+					<CampusMapView
+						areas={floorAreas}
+						selectedAreaId={selectedAreaId}
+						cameraCounts={cameraCounts}
+						isAdmin={isAdmin}
+						isFacilityManager={isFacilityManager}
+						onSelectArea={(id) => handleSelectArea(id, false)}
+						onAreaUpdated={handleAreaUpdatedOnMap}
+						buildingsList={availableBuildings}
+						selectedBuilding={selectedBuilding}
+						selectedFloor={selectedFloor}
+						isCreatingArea={isCreatingOnMap}
+						onCancelCreateArea={() => setIsCreatingOnMap(false)}
+						onAreaCreated={async (newArea) => {
+							setIsCreatingOnMap(false);
+							await fetchData(newArea.id);
+						}}
+					/>
+				</ErrorBoundary>
+			) : (
+				<>
 			{/* Loading state */}
 			{loading && <LoadingState text="Đang tải dữ liệu khu vực..." />}
 
@@ -1013,6 +1136,9 @@ export default function AreaListPage() {
 					onOpenEditModal={handleOpenEditModal}
 					onOpenDeactivateModal={handleOpenDeactivateModal}
 				/>
+			)}
+
+				</>
 			)}
 
 			{/* ============================================================ */}

@@ -10,7 +10,6 @@ import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import UnauthorizedPage from "./pages/UnauthorizedPage";
 import AreaListPage from "./pages/areas/AreaListPage";
-import CampusMapPage from "./pages/areas/CampusMapPage";
 import CameraListPage from "./pages/cameras/CameraListPage";
 import CameraDetailPage from "./pages/cameras/CameraDetailPage";
 import GuardDashboardPage from "./pages/guard/GuardDashboardPage";
@@ -186,11 +185,10 @@ function App() {
 							<Route
 								path="/admin/map"
 								element={
-									<ProtectedRoute
-										allowedRoles={[ROLES.ADMIN]}
-									>
-										<CampusMapPage />
-									</ProtectedRoute>
+									<Navigate
+										to="/admin/areas?view=map"
+										replace
+									/>
 								}
 							/>
 
@@ -209,7 +207,7 @@ function App() {
 								path="/admin/areas/map"
 								element={
 									<Navigate
-										to="/admin/map"
+										to="/admin/areas?view=map"
 										replace
 									/>
 								}
