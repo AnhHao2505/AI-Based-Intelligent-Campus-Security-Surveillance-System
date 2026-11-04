@@ -47,6 +47,7 @@ function clean(value) {
 export function formatBuilding(building) {
 	const value = clean(building);
 	if (!value) return "";
+	if (value.toUpperCase() === "ALL") return "Tất cả tòa nhà";
 	return hasPrefix(value, "toa") ? value : `Tòa ${value}`;
 }
 
@@ -54,6 +55,7 @@ export function formatBuilding(building) {
 export function formatFloor(floor) {
 	const value = clean(floor);
 	if (!value) return "";
+	if (value.toUpperCase() === "ALL") return "Tất cả tầng";
 	const plain = toPlain(value);
 	if (plain === "g" || plain === "tret") return "Tầng Trệt";
 	return hasPrefix(value, "tang") ? value : `Tầng ${value}`;

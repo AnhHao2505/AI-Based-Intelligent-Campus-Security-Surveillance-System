@@ -36,7 +36,8 @@ import {
 	getErrorMessage,
 	AREA_LEVEL_CONFIG,
 } from "../../utils/areaHelpers";
-import { updateArea } from "../../services/areaService";
+import { createArea, updateArea } from "../../services/areaService";
+import { Select } from "../ui";
 import "../../styles/CampusMapView.css";
 
 // FPT University HCMC Campus default center (Saigon Hi-Tech Park, District 9)
@@ -76,6 +77,18 @@ const OSM_STYLE = {
 };
 
 const LABEL_MIN_ZOOM = 18.2;
+
+const AREA_LEVEL_CARDS = [
+	{ value: "PUBLIC", name: "Công khai", level: 1, color: "var(--theme-success)" },
+	{ value: "CONFIDENTIAL", name: "Bảo mật", level: 2, color: "var(--theme-warning)" },
+	{ value: "HIGHLY_CONFIDENTIAL", name: "Tuyệt mật", level: 3, color: "var(--theme-danger)" },
+];
+
+const AREA_LEVEL_BTN_CLASS = {
+	PUBLIC: "area-level-btn--public",
+	CONFIDENTIAL: "area-level-btn--internal",
+	HIGHLY_CONFIDENTIAL: "area-level-btn--private",
+};
 const SEARCH_RESULT_LIMIT = 8;
 
 /** Chuẩn hoá chuỗi để tìm kiếm không dấu, không phân biệt hoa thường. */
@@ -137,7 +150,14 @@ export default function CampusMapView({
 	cameraCounts = {},
 	onSelectArea,
 	isAdmin = false,
+	isFacilityManager = false,
 	onAreaUpdated,
+	buildingsList = [],
+	selectedBuilding = "ALL",
+	selectedFloor = "ALL",
+	isCreatingArea = false,
+	onCancelCreateArea,
+	onAreaCreated,
 }) {
 	const mapRef = useRef(null);
 	const [railCollapsed, setRailCollapsed] = useState(false);
@@ -152,6 +172,18 @@ export default function CampusMapView({
 	const [isSearchingGlobal, setIsSearchingGlobal] = useState(false);
 	const [searchedPlace, setSearchedPlace] = useState(null);
 
+	// Chế độ tạo khu vực trên bản đồ (Map-First Creation)
+	const [createDraftCoords, setCreateDraftCoords] = useState(null); // [lng, lat]
+	const [createFormData, setCreateFormData] = useState({
+		name: "",
+		areaLevel: "PUBLIC",
+		building: "",
+		floor: "",
+		floorId: null,
+	});
+	const [creatingAreaLoading, setCreatingAreaLoading] = useState(false);
+	const [createFormError, setCreateFormError] = useState(null);
+
 	// Chế độ đặt tọa độ trực tiếp trên bản đồ (chỉ ADMIN)
 	const [editingAreaId, setEditingAreaId] = useState(null);
 	const [draftCoords, setDraftCoords] = useState(null); // [lng, lat]
@@ -160,6 +192,138 @@ export default function CampusMapView({
 	const [coordError, setCoordError] = useState(null);
 	const [coordSuccess, setCoordSuccess] = useState(null);
 	const isEditingCoords = Boolean(editingAreaId);
+
+	// Tự động điền dữ liệu tòa nhà / tầng ban đầu khi bật chế độ tạo (đồng bộ filter)
+	useEffect(() => {
+		if (isCreatingArea) {
+			const initialBuilding =
+				selectedBuilding && selectedBuilding !== "ALL"
+					? selectedBuilding
+					: buildingsList[0]?.name || "Tòa Alpha";
+			const bObj = buildingsList.find((b) => b.name === initialBuilding);
+			const firstFloors = bObj?.floors || [];
+			const initialFloor =
+				selectedFloor && selectedFloor !== "ALL"
+					? selectedFloor
+					: firstFloors[0]?.name || "Tầng Trệt";
+			const initialFloorId =
+				firstFloors.find((f) => f.name === initialFloor)?.id ||
+				firstFloors[0]?.id ||
+				null;
+
+			setCreateFormData({
+				name: "",
+				areaLevel: "PUBLIC",
+				building: initialBuilding,
+				floor: initialFloor,
+				floorId: initialFloorId,
+			});
+			setCreateDraftCoords(null);
+			setCreateFormError(null);
+			setRailCollapsed(false);
+		}
+	}, [isCreatingArea, buildingsList, selectedBuilding, selectedFloor]);
+
+	// Đồng bộ camera bản đồ khi người dùng đổi bộ lọc tòa nhà
+	useEffect(() => {
+		if (!mapRef.current || isCreatingArea || isEditingCoords) return;
+		if (selectedBuilding && selectedBuilding !== "ALL") {
+			const located = areas.filter(
+				(a) => a.centerLatitude != null && a.centerLongitude != null,
+			);
+			if (located.length === 1) {
+				mapRef.current.flyTo({
+					center: [located[0].centerLongitude, located[0].centerLatitude],
+					zoom: 17.5,
+					duration: 800,
+				});
+			} else if (located.length > 1) {
+				const bounds = located.reduce(
+					(b, a) => [
+						[Math.min(b[0][0], a.centerLongitude), Math.min(b[0][1], a.centerLatitude)],
+						[Math.max(b[1][0], a.centerLongitude), Math.max(b[1][1], a.centerLatitude)],
+					],
+					[
+						[located[0].centerLongitude, located[0].centerLatitude],
+						[located[0].centerLongitude, located[0].centerLatitude],
+					],
+				);
+				mapRef.current.fitBounds(bounds, { padding: 60, maxZoom: 18, duration: 800 });
+			}
+		}
+	}, [selectedBuilding, selectedFloor, areas, isCreatingArea, isEditingCoords]);
+
+	const availableCreateFloors = useMemo(() => {
+		const bObj = buildingsList.find((b) => b.name === createFormData.building);
+		if (bObj?.floors?.length > 0) {
+			return bObj.floors;
+		}
+		return [{ id: null, name: "Tầng Trệt" }, { id: null, name: "Tầng 1" }];
+	}, [buildingsList, createFormData.building]);
+
+	const handleCreateBuildingChange = (bName) => {
+		const bObj = buildingsList.find((b) => b.name === bName);
+		const floors = bObj?.floors || [];
+		const defaultFloor = floors[0]?.name || "Tầng Trệt";
+		const defaultFloorId = floors[0]?.id || null;
+		setCreateFormData((prev) => ({
+			...prev,
+			building: bName,
+			floor: defaultFloor,
+			floorId: defaultFloorId,
+		}));
+	};
+
+	const handleCreateFloorChange = (fName) => {
+		const floorObj = availableCreateFloors.find((fl) => fl.name === fName);
+		setCreateFormData((prev) => ({
+			...prev,
+			floor: fName,
+			floorId: floorObj?.id || null,
+		}));
+	};
+
+	const handleCreateAreaSubmit = async (e) => {
+		e?.preventDefault?.();
+		if (!createDraftCoords) {
+			setCreateFormError("Vui lòng nhấp vào bản đồ để chọn tọa độ.");
+			return;
+		}
+		const nameTrimmed = createFormData.name.trim();
+		if (!nameTrimmed) {
+			setCreateFormError("Tên khu vực không được để trống.");
+			return;
+		}
+		if (nameTrimmed.length > 150) {
+			setCreateFormError("Tên khu vực tối đa 150 ký tự.");
+			return;
+		}
+
+		setCreatingAreaLoading(true);
+		setCreateFormError(null);
+		try {
+			const payload = {
+				name: nameTrimmed,
+				areaLevel: createFormData.areaLevel,
+				building: createFormData.building,
+				floor: createFormData.floor,
+				floorId: createFormData.floorId,
+				centerLatitude: createDraftCoords[1],
+				centerLongitude: createDraftCoords[0],
+			};
+			const res = await createArea(payload);
+			setCoordSuccess(`Đã tạo khu vực "${nameTrimmed}" thành công.`);
+			setCreateDraftCoords(null);
+			onAreaCreated?.(res);
+		} catch (err) {
+			console.error("Create area failed:", err);
+			setCreateFormError(getErrorMessage(err));
+		} finally {
+			setCreatingAreaLoading(false);
+		}
+	};
+
+
 
 
 	const selectedArea = useMemo(() => {
@@ -590,17 +754,26 @@ export default function CampusMapView({
 
 	const handleMapClick = useCallback(
 		(e) => {
+			if (isCreatingArea && e?.lngLat) {
+				setCreateDraftCoords([
+					Number(e.lngLat.lng.toFixed(6)),
+					Number(e.lngLat.lat.toFixed(6)),
+				]);
+				setCreateFormError(null);
+				setRailCollapsed(false);
+				return;
+			}
 			if (isEditingCoords && e?.lngLat) {
 				setDraftCoords([e.lngLat.lng, e.lngLat.lat]);
 				setCoordError(null);
 			}
 		},
-		[isEditingCoords],
+		[isCreatingArea, isEditingCoords],
 	);
 
 	return (
 		<div
-			className={`campus-map-layout ${railCollapsed ? "campus-map-layout--expanded" : ""}`}
+			className={`campus-map-layout ${railCollapsed ? "campus-map-layout--expanded" : ""} ${isCreatingArea ? "campus-map-layout--create" : ""}`}
 		>
 			{/* LEFT: MAIN MAPLIBRE CANVAS */}
 			<div className="campus-map-card">
@@ -765,6 +938,48 @@ export default function CampusMapView({
 						)}
 					</button>
 				</div>
+
+				{/* Banner nổi tạo khu vực trên bản đồ (Map-First) */}
+				{isCreatingArea && (
+					<div className="campus-coord-editor campus-coord-editor--create">
+						<div className="campus-coord-editor__head">
+							<Crosshair size={14} />
+							<span>
+								{createDraftCoords
+									? "Đã chọn tọa độ trên bản đồ"
+									: "Chế độ tạo: Nhấp vào bản đồ để chọn vị trí"}
+							</span>
+						</div>
+						<p className="campus-coord-editor__hint">
+							{createDraftCoords
+								? "Bạn có thể kéo ghim để tinh chỉnh hoặc hoàn tất form ở cột bên phải."
+								: "Nhấp vào bất kỳ điểm nào trên bản đồ để đặt vị trí cho khu vực mới."}
+						</p>
+						<div className="campus-coord-editor__values">
+							<span>
+								Vĩ độ{" "}
+								<code>{createDraftCoords ? createDraftCoords[1].toFixed(6) : "—"}</code>
+							</span>
+							<span>
+								Kinh độ{" "}
+								<code>{createDraftCoords ? createDraftCoords[0].toFixed(6) : "—"}</code>
+							</span>
+						</div>
+						<div className="campus-coord-editor__actions">
+							<button
+								type="button"
+								className="campus-coord-btn campus-coord-btn--cancel"
+								onClick={() => {
+									setCreateDraftCoords(null);
+									setCreateFormError(null);
+								onCancelCreateArea?.();
+								}}
+							>
+								Hủy tạo
+							</button>
+						</div>
+					</div>
+				)}
 
 				{/* Thanh công cụ đặt tọa độ (ADMIN) */}
 				{isEditingCoords && editingArea && (
@@ -950,7 +1165,55 @@ export default function CampusMapView({
 								</div>
 							</Marker>
 						)}
-{/* Google-Style Real Coordinate Markers with Auto-Shift for Overlaps */}
+						{/* Marker tọa độ nháp cho tạo khu vực mới (Map-First Creation) */}
+						{isCreatingArea && createDraftCoords && (
+							<Marker
+								longitude={createDraftCoords[0]}
+								latitude={createDraftCoords[1]}
+								anchor="bottom"
+								draggable
+								onDragEnd={(e) =>
+									setCreateDraftCoords([
+										Number(e.lngLat.lng.toFixed(6)),
+										Number(e.lngLat.lat.toFixed(6)),
+									])
+								}
+								style={{ zIndex: 100 }}
+							>
+								<div
+									className="campus-pin-marker campus-pin-marker--draft"
+									title="Vị trí vùng mới (Kéo để chỉnh vị trí)"
+								>
+									<span className="campus-pin-marker__label">
+										Vùng mới
+									</span>
+									<div className="campus-pin-marker__icon-wrap">
+										<svg
+											className="campus-pin-marker__svg"
+											width="26"
+											height="34"
+											viewBox="0 0 24 32"
+											aria-hidden="true"
+										>
+											<path
+												d="M12 0C5.373 0 0 5.373 0 12c0 8.5 12 20 12 20s12-11.5 12-20c0-6.627-5.373-12-12-12z"
+												fill="#ea580c"
+												stroke="#ffffff"
+												strokeWidth="1.8"
+											/>
+											<circle
+												cx="12"
+												cy="11"
+												r="4"
+												fill="#ffffff"
+											/>
+										</svg>
+									</div>
+								</div>
+							</Marker>
+						)}
+
+						{/* Google-Style Real Coordinate Markers with Auto-Shift for Overlaps */}
 						{positionedAreas.map((item) => {
 							const isSelected = selectedAreaId === item.id;
 
@@ -1022,8 +1285,158 @@ export default function CampusMapView({
 				</div>
 			</div>
 
-			{/* RIGHT RAIL: AREAS LIST & DETAILS */}
+			{/* RIGHT RAIL: AREAS LIST & DETAILS OR CREATE PANEL */}
 			<div className="campus-rail">
+				{isCreatingArea ? (
+					<div className="campus-rail-card campus-rail-card--create">
+						<div className="campus-rail-header">
+							<span className="campus-rail-title">Thêm vùng mới</span>
+							<button
+								type="button"
+								className="campus-rail-close-btn"
+								onClick={() => {
+									setCreateDraftCoords(null);
+									setCreateFormError(null);
+									onCancelCreateArea?.();
+								}}
+								aria-label="Đóng"
+							>
+								<X size={14} />
+							</button>
+						</div>
+
+						{createFormError && (
+							<div className="zone-modal-alert">
+								<AlertCircle size={15} />
+								<span>{createFormError}</span>
+							</div>
+						)}
+
+						<div className="campus-create-form-body">
+							<div className="campus-create-coord-badge">
+								<MapPin size={14} />
+								{createDraftCoords ? (
+									<span>
+										Tọa độ: {createDraftCoords[1]}, {createDraftCoords[0]}
+									</span>
+								) : (
+									<span className="campus-create-coord-badge--empty">
+										Chưa chọn tọa độ (nhấp lên bản đồ)
+									</span>
+								)}
+							</div>
+
+							<div className="area-form-group">
+								<label className="area-form-label">Tên khu vực *</label>
+								<input
+									type="text"
+									className="area-form-input"
+									placeholder="Ví dụ: Phòng Lab Công nghệ A"
+									value={createFormData.name}
+									onChange={(e) =>
+										setCreateFormData((prev) => ({
+											...prev,
+											name: e.target.value,
+										}))
+									}
+								/>
+							</div>
+
+							<div className="area-form-group">
+								<label className="area-form-label">Cấp độ an ninh *</label>
+								<div className="area-level-grid">
+									{AREA_LEVEL_CARDS.map((lvl) => (
+										<button
+											key={lvl.value}
+											type="button"
+											className={`area-level-btn ${
+												createFormData.areaLevel === lvl.value
+													? "area-level-btn--active"
+													: ""
+											} ${AREA_LEVEL_BTN_CLASS[lvl.value] || ""}`}
+											onClick={() =>
+												setCreateFormData((prev) => ({
+													...prev,
+													areaLevel: lvl.value,
+												}))
+											}
+										>
+											<div className="area-level-btn__header">
+												<span className="area-level-btn__name">
+													{lvl.name}
+												</span>
+												<span className="area-level-btn__badge">
+													Cấp {lvl.level}
+												</span>
+											</div>
+										</button>
+									))}
+								</div>
+							</div>
+
+							<div className="area-form-group">
+								<label className="area-form-label">Tòa nhà *</label>
+								<Select
+									className="ui-select-group--filter"
+									value={createFormData.building}
+									onChange={(e) => handleCreateBuildingChange(e.target.value)}
+									options={buildingsList.map((b) => ({
+										value: b.name,
+										label: b.name,
+									}))}
+								/>
+							</div>
+
+							<div className="area-form-group">
+								<label className="area-form-label">Tầng *</label>
+								<Select
+									className="ui-select-group--filter"
+									value={createFormData.floor}
+									onChange={(e) => handleCreateFloorChange(e.target.value)}
+									options={availableCreateFloors.map((fl) => ({
+										value: fl.name,
+										label: fl.name,
+									}))}
+								/>
+							</div>
+						</div>
+
+						<div className="campus-rail-footer">
+							<button
+								type="button"
+								className="area-btn-modal area-btn-modal--cancel"
+								onClick={() => {
+									setCreateDraftCoords(null);
+									setCreateFormError(null);
+									onCancelCreateArea?.();
+								}}
+								disabled={creatingAreaLoading}
+							>
+								Hủy
+							</button>
+							<button
+								type="button"
+								className="area-btn-modal area-btn-modal--submit"
+								onClick={handleCreateAreaSubmit}
+								disabled={
+									creatingAreaLoading ||
+									!createDraftCoords ||
+									!createFormData.name.trim()
+								}
+							>
+								{creatingAreaLoading ? (
+									<>
+										<Loader2 size={14} className="animate-spin" />
+										<span>Đang tạo...</span>
+									</>
+								) : (
+									"Tạo khu vực"
+								)}
+							</button>
+						</div>
+					</div>
+				) : (
+				<>
 				{/* Card 1: Area List */}
 				<div className="campus-rail-card campus-rail-card--list">
 					<div className="campus-rail-header">
@@ -1180,6 +1593,8 @@ export default function CampusMapView({
 						</div>
 					)}
 				</div>
+				</>
+				)}
 			</div>
 		</div>
 	);

@@ -1,6 +1,9 @@
 package com.fa26se040.icss.dto.area;
 
 import com.fa26se040.icss.enums.AreaLevel;
+
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -31,11 +34,13 @@ public class AreaCreateRequest {
 
     private UUID floorId;
 
-    @jakarta.validation.constraints.DecimalMin(value = "-90.0", message = "Vĩ độ phải từ -90 đến 90")
-    @jakarta.validation.constraints.DecimalMax(value = "90.0", message = "Vĩ độ phải từ -90 đến 90")
+    @NotNull(message = "Vĩ độ không được để trống")
+    @DecimalMin(value = "-90.0", message = "Vĩ độ phải từ -90 đến 90")
+    @DecimalMax(value = "90.0", message = "Vĩ độ phải từ -90 đến 90")
     private Double centerLatitude;
 
-    @jakarta.validation.constraints.DecimalMin(value = "-180.0", message = "Kinh độ phải từ -180 đến 180")
-    @jakarta.validation.constraints.DecimalMax(value = "180.0", message = "Kinh độ phải từ -180 đến 180")
+    @NotNull(message = "Kinh độ không được để trống")
+    @DecimalMin(value = "-180.0", message = "Kinh độ phải từ -180 đến 180")
+    @DecimalMax(value = "180.0", message = "Kinh độ phải từ -180 đến 180")
     private Double centerLongitude;
 }

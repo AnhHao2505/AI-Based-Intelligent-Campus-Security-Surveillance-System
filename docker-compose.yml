@@ -78,7 +78,7 @@ services:
       - mosquittodata:/mosquitto/data
       - ./mosquitto/config/acl:/mosquitto/config/acl:ro
       - ./mosquitto/init.sh:/init.sh:ro
-    command: ["sh", "/init.sh"]
+    entrypoint: ["sh", "/init.sh"]
     networks:
       - sep_network
 

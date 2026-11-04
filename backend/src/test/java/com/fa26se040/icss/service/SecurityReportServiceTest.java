@@ -6,8 +6,6 @@ import com.fa26se040.icss.entity.Camera;
 import com.fa26se040.icss.entity.GuardShift;
 import com.fa26se040.icss.entity.SecurityIncident;
 import com.fa26se040.icss.entity.User;
-import com.fa26se040.icss.enums.AccessResult;
-import com.fa26se040.icss.enums.GuestVisitStatus;
 import com.fa26se040.icss.enums.IncidentOutcome;
 import com.fa26se040.icss.enums.IncidentResolutionCategory;
 import com.fa26se040.icss.enums.IncidentSeverity;

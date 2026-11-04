@@ -37,8 +37,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -650,14 +648,11 @@ public class AreaService {
         return dependencyChecker.toResponse(area, dependencyChecker.evaluate(area, OffsetDateTime.now()));
     }
 
-    /**
-     * BR-AR-COORD-01..03: toạ độ trung tâm là tuỳ chọn — trống cả hai = "chưa định vị" (lưu null, không hiện trên
-     * bản đồ); chỉ có một trong hai thì từ chối. Dùng chung cho tạo và sửa (sửa xoá trắng cả hai -> về null).
-     */
+    // Bắt buộc tọa độ
     private static void requireCoordinatePair(Double centerLatitude, Double centerLongitude) {
-        if ((centerLatitude == null) != (centerLongitude == null)) {
+        if (centerLatitude == null || centerLongitude == null) {
             throw new AreaException(AreaErrorCode.ERR_AREA_006,
-                    "Phải nhập đủ cả vĩ độ và kinh độ, hoặc để trống cả hai.");
+                    "Phải nhập đủ cả vĩ độ và kinh độ");
         }
     }
 

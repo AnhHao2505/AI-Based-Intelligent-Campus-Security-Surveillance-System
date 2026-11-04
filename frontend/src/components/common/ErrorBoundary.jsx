@@ -13,7 +13,10 @@ export default class ErrorBoundary extends React.Component {
 
 	componentDidCatch(error, errorInfo) {
 		console.error("Uncaught Error in Component:", error, errorInfo);
-		if (error?.message?.includes("JSON") || error?.message?.includes("undefined")) {
+		if (
+			error?.message?.includes("JSON") ||
+			error?.message?.includes("undefined")
+		) {
 			try {
 				const u = localStorage.getItem("user");
 				if (!u || u === "undefined" || u === "null") {
@@ -95,7 +98,14 @@ export default class ErrorBoundary extends React.Component {
 						{this.state.error?.message ||
 							"Có sự cố không mong muốn trong quá trình nạp giao diện."}
 					</p>
-					<div style={{ display: "flex", gap: "10px", flexWrap: "wrap", justifyContent: "center" }}>
+					<div
+						style={{
+							display: "flex",
+							gap: "10px",
+							flexWrap: "wrap",
+							justifyContent: "center",
+						}}
+					>
 						<button
 							type="button"
 							onClick={this.handleReload}
@@ -115,25 +125,6 @@ export default class ErrorBoundary extends React.Component {
 						>
 							<RefreshCw size={14} />
 							Tải lại trang
-						</button>
-						<button
-							type="button"
-							onClick={this.handleResetAuth}
-							style={{
-								display: "inline-flex",
-								alignItems: "center",
-								gap: "8px",
-								padding: "8px 18px",
-								fontSize: "13px",
-								fontWeight: "600",
-								color: "#374151",
-								background: "#f3f4f6",
-								border: "1px solid #d1d5db",
-								borderRadius: "8px",
-								cursor: "pointer",
-							}}
-						>
-							Đăng nhập lại
 						</button>
 					</div>
 				</div>

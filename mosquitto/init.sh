@@ -7,7 +7,8 @@ if [ -z "${MQTT_AI_PASSWORD:-}" ] || [ -z "${MQTT_BACKEND_PASSWORD:-}" ]; then
     exit 1
 fi
 
-mkdir -p /mosquitto/auth
+mkdir -p /mosquitto/auth /mosquitto/data
+chown -R mosquitto:mosquitto /mosquitto/data || true
 mosquitto_passwd -c -b /mosquitto/auth/passwd icss-ai "$MQTT_AI_PASSWORD"
 mosquitto_passwd -b /mosquitto/auth/passwd icss-backend "$MQTT_BACKEND_PASSWORD"
 chown mosquitto:mosquitto /mosquitto/auth/passwd

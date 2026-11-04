@@ -19,7 +19,6 @@ import {
 	CalendarDays,
 	Sliders,
 	ShieldCheck,
-	Compass,
 	Tag,
 	UserPlus,
 	Camera,
@@ -301,16 +300,6 @@ export default function Sidebar({ user, onLogout }) {
 										>
 											<Video size={18} />
 											<span>Quản lý camera</span>
-										</NavLink>
-										<NavLink
-											to="/admin/map"
-											className={({ isActive }) =>
-												`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
-											}
-											title={sidebarCollapsed ? "Quản lý bản đồ" : undefined}
-										>
-											<Compass size={18} />
-											<span>Quản lý bản đồ</span>
 										</NavLink>
 										<NavLink
 											to="/recordings"

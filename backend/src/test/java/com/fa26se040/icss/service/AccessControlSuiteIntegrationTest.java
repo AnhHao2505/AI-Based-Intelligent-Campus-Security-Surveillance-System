@@ -5,11 +5,8 @@ import com.fa26se040.icss.dto.accessdecision.AccessDecision;
 import com.fa26se040.icss.dto.accessrequest.*;
 import com.fa26se040.icss.dto.area.*;
 import com.fa26se040.icss.dto.guest.GuestAccessDecision;
-import com.fa26se040.icss.dto.accesscontrol.LevelPresetUpdateRequest;
 import com.fa26se040.icss.entity.*;
 import com.fa26se040.icss.enums.*;
-import com.fa26se040.icss.exception.AccessControlErrorCode;
-import com.fa26se040.icss.exception.AccessControlException;
 import com.fa26se040.icss.exception.AreaErrorCode;
 import com.fa26se040.icss.exception.AreaException;
 import com.fa26se040.icss.repository.*;
@@ -49,9 +46,6 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private AreaEventScheduleRepository eventScheduleRepository;
-
-    @Autowired
-    private AreaLevelPresetService areaLevelPresetService;
 
     @Autowired
     private SystemConfigService systemConfigService;
@@ -100,9 +94,6 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private jakarta.persistence.EntityManager entityManager;
-
-    @Autowired
-    private org.springframework.transaction.PlatformTransactionManager transactionManager;
 
     private String suffix;
     private User normalUserL1;
@@ -188,6 +179,8 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
                 .floorEntity(testFloor)
                 .areaLevel(AreaLevel.PUBLIC)
                 .areaAccessLevel(1)
+                .centerLatitude(10.8418)
+                .centerLongitude(106.8100)
                 .isActive(true)
                 .version(0L)
                 .build());
@@ -199,6 +192,8 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
                 .floorEntity(testFloor)
                 .areaLevel(AreaLevel.CONFIDENTIAL)
                 .areaAccessLevel(2)
+                .centerLatitude(10.8418)
+                .centerLongitude(106.8100)
                 .isActive(true)
                 .version(0L)
                 .build());
@@ -210,6 +205,8 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
                 .floorEntity(testFloor)
                 .areaLevel(AreaLevel.CONFIDENTIAL)
                 .areaAccessLevel(2)
+                .centerLatitude(10.8418)
+                .centerLongitude(106.8100)
                 .isActive(true)
                 .version(0L)
                 .build());
@@ -221,6 +218,8 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
                 .floorEntity(testFloor)
                 .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
                 .areaAccessLevel(3)
+                .centerLatitude(10.8418)
+                .centerLongitude(106.8100)
                 .isActive(true)
                 .version(0L)
                 .build());
@@ -741,6 +740,8 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
                 .name("Khu vuc sua thieu version")
                 .areaLevel(AreaLevel.CONFIDENTIAL)
                 .floorId(testFloor.getId())
+                .centerLatitude(10.8418)
+                .centerLongitude(106.8100)
                 .version(null)
                 .build();
         AreaException ex1 = assertThrows(AreaException.class, () ->
@@ -753,6 +754,8 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
                 .name("Khu vuc sua version cu")
                 .areaLevel(AreaLevel.CONFIDENTIAL)
                 .floorId(testFloor.getId())
+                .centerLatitude(10.8418)
+                .centerLongitude(106.8100)
                 .version(internalArea.getVersion() + 99)
                 .build();
         AreaException ex2 = assertThrows(AreaException.class, () ->
@@ -937,6 +940,8 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
                 .name(internalArea.getName())
                 .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
                 .floorId(testFloor.getId())
+                .centerLatitude(10.8418)
+                .centerLongitude(106.8100)
                 .version(internalArea.getVersion())
                 .reason("Doi sang loai Tuyet mat")
                 .build(), adminUser.getEmail());
@@ -952,6 +957,8 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
                 .name(internalArea.getName())
                 .areaLevel(AreaLevel.CONFIDENTIAL)
                 .floorId(testFloor.getId())
+                .centerLatitude(10.8418)
+                .centerLongitude(106.8100)
                 .version(highly.getVersion())
                 .reason("Doi lai loai Bao mat")
                 .build(), adminUser.getEmail());
