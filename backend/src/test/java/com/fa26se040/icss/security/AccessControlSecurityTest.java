@@ -1,7 +1,5 @@
 package com.fa26se040.icss.security;
 
-import com.fa26se040.icss.dto.accesscontrol.LevelPresetResponse;
-import com.fa26se040.icss.dto.area.AreaResponse;
 import com.fa26se040.icss.dto.user.UserSearchResponse;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.AreaLevel;
