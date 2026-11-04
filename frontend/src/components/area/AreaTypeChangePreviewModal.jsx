@@ -125,6 +125,14 @@ export default function AreaTypeChangePreviewModal({ isOpen, areaName, preview, 
 							<strong>{preview.pendingRequestsNotApprovableCount || "Không có"}</strong>
 						</div>
 					)}
+					<div className="atcp-fact">
+						<span>Lượt khách chờ duyệt sẽ bị huỷ</span>
+						<strong>{preview.guestVisitsToCancelCount || "Không có"}</strong>
+					</div>
+					<div className="atcp-fact">
+						<span>Lượt khách đã duyệt sẽ bị thu hồi</span>
+						<strong>{preview.guestVisitsToRevokeCount || "Không có"}</strong>
+					</div>
 				</div>
 
 				<RequestList title="Đơn đã duyệt (APPROVED) sẽ bị hệ thống huỷ" items={preview.approvedRequestsToCancel} />
