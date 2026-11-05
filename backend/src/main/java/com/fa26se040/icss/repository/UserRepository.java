@@ -18,10 +18,17 @@ import java.util.UUID;
 
 @Repository
 public interface UserRepository extends JpaRepository<User, UUID> {
-    Optional<User> findByEmail(String email);
-    Optional<User> findByEmailAndIsActiveTrue(String email);
-    Optional<User> findByUserCode(String userCode);
-    Optional<User> findByUserCodeAndDeletedAtIsNull(String userCode);
+    @Query("SELECT u FROM User u WHERE u.deletedAt IS NULL AND LOWER(u.email) = LOWER(:email)")
+    Optional<User> findByEmail(@Param("email") String email);
+
+    @Query("SELECT u FROM User u WHERE u.deletedAt IS NULL AND u.isActive = true AND LOWER(u.email) = LOWER(:email)")
+    Optional<User> findByEmailAndIsActiveTrue(@Param("email") String email);
+
+    @Query("SELECT u FROM User u WHERE u.deletedAt IS NULL AND UPPER(u.userCode) = UPPER(:userCode)")
+    Optional<User> findByUserCode(@Param("userCode") String userCode);
+
+    @Query("SELECT u FROM User u WHERE u.deletedAt IS NULL AND UPPER(u.userCode) = UPPER(:userCode)")
+    Optional<User> findByUserCodeAndDeletedAtIsNull(@Param("userCode") String userCode);
 
     boolean existsByUserCode(String userCode);
     boolean existsByEmail(String email);

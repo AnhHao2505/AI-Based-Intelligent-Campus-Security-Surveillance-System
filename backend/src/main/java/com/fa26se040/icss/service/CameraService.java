@@ -245,7 +245,6 @@ public class CameraService {
 
         camera.setStatus(CameraStatus.DECOMMISSIONED);
         camera.setOperationalStatus(OperationalStatus.OFFLINE);
-        camera.setArea(null);
         camera.setDeletedAt(OffsetDateTime.now());
 
         cameraRepository.save(camera);
@@ -795,3 +794,4 @@ public class CameraService {
     }
 
 }
+

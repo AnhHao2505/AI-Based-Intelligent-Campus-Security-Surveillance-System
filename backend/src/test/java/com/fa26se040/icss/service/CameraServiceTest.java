@@ -193,14 +193,14 @@ class CameraServiceTest {
     }
 
     @Test
-    @DisplayName("DeleteCamera: happy path should soft-delete, unassign area (area=null), and clean MediaMTX path")
-    void testDeleteCamera_happyPath_unassignsAreaAndCleansGateway() {
+    @DisplayName("DeleteCamera: happy path should soft-delete, retain area, and clean MediaMTX path")
+    void testDeleteCamera_happyPath_retainsAreaAndCleansGateway() {
         when(cameraRepository.findById(testCameraId)).thenReturn(Optional.of(testCamera));
 
         cameraService.deleteCamera(testCameraId);
 
         verify(cameraRepository).save(argThat(c ->
-                c.getArea() == null &&
+                c.getArea() != null &&
                 c.getStatus() == CameraStatus.DECOMMISSIONED &&
                 c.getOperationalStatus() == OperationalStatus.OFFLINE &&
                 c.getDeletedAt() != null
