@@ -76,6 +76,13 @@ class Settings(BaseSettings):
     FACE_MATCH_THRESHOLD: float = 0.75
     FACE_REVERIFY_SCORE_THRESHOLD: float = Field(default=0.82, validation_alias="FACE_REVERIFY_SCORE_THRESHOLD")
     FACE_REVERIFY_MIN_INTERVAL_SECONDS: float = Field(default=3.0, validation_alias="FACE_REVERIFY_MIN_INTERVAL_SECONDS")
+    FACE_SCAN_THROTTLING_ENABLED: bool = Field(default=True, validation_alias="FACE_SCAN_THROTTLING_ENABLED")
+    FACE_SCAN_INITIAL_INTERVAL: float = Field(default=0.4, validation_alias="FACE_SCAN_INITIAL_INTERVAL")
+    FACE_SCAN_INITIAL_WINDOW_SECONDS: float = Field(default=2.0, validation_alias="FACE_SCAN_INITIAL_WINDOW_SECONDS")
+    FACE_SCAN_BACKOFF_INTERVAL: float = Field(default=1.0, validation_alias="FACE_SCAN_BACKOFF_INTERVAL")
+    FACE_MIN_CROP_SIZE: int = Field(default=30, validation_alias="FACE_MIN_CROP_SIZE")
+    FACE_MIN_LAPLACIAN_VARIANCE: float = Field(default=50.0, validation_alias="FACE_MIN_LAPLACIAN_VARIANCE")
+    ANALYSIS_MAX_FPS: float = Field(default=10.0, validation_alias="ANALYSIS_MAX_FPS")
     UPPER_BODY_CROP_RATIO: float = 0.60
     DEFAULT_AFTER_HOUR_START: str = "22:00"
     DEFAULT_AFTER_HOUR_END: str = "06:00"

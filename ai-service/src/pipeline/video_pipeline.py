@@ -1,6 +1,7 @@
 import threading
 import time
 import logging
+import cv2
 import numpy as np
 from typing import List, Optional, Tuple, Any
 
@@ -44,8 +45,10 @@ class VideoPipeline:
         after_hour_start: Optional[str] = None,
         after_hour_end: Optional[str] = None,
         enable_motion_gating: bool = True,
-        max_motion_track_hold_seconds: Optional[float] = None
+        max_motion_track_hold_seconds: Optional[float] = None,
+        analysis_max_fps: Optional[float] = None
     ):
+        self.analysis_max_fps = analysis_max_fps if analysis_max_fps is not None else getattr(settings, "ANALYSIS_MAX_FPS", 10.0)
         self.camera_code = camera_code
         self.roi_polygon = roi_polygon or []
         self.roi_polygons: List[RoiPolygonConfig] = []
@@ -63,7 +66,7 @@ class VideoPipeline:
         ah_end = after_hour_end or settings.DEFAULT_AFTER_HOUR_END
 
         logger.info(f"Khởi tạo VideoPipeline cho Camera [{camera_code}]...")
-        self.human_detector = HumanDetector(model_path=yolo_path, conf_threshold=detector_conf)
+        self.human_detector = HumanDetector(model_path=yolo_path, conf_threshold=detector_conf, analysis_fps=self.analysis_max_fps)
         self.face_detector = FaceDetector(model_path=yunet_path, score_threshold=settings.DEFAULT_FACE_CONFIDENCE)
         self.face_matcher = FaceMatcher()
         self.analysis_engine = FrameAnalysisEngine(after_hour_start=ah_start, after_hour_end=ah_end)
@@ -84,6 +87,15 @@ class VideoPipeline:
             cooldown_seconds=5.0,
             motion_to_occupied_seconds=1.0
         )
+
+        # Cấu hình tối ưu nhận diện khuôn mặt cho track chưa định danh (P0-02)
+        self.face_scan_throttling_enabled = getattr(settings, "FACE_SCAN_THROTTLING_ENABLED", True)
+        self.face_scan_initial_interval = getattr(settings, "FACE_SCAN_INITIAL_INTERVAL", 0.4)
+        self.face_scan_initial_window = getattr(settings, "FACE_SCAN_INITIAL_WINDOW_SECONDS", 2.0)
+        self.face_scan_backoff_interval = getattr(settings, "FACE_SCAN_BACKOFF_INTERVAL", 1.0)
+        self.face_min_crop_size = getattr(settings, "FACE_MIN_CROP_SIZE", 30)
+        self.face_min_laplacian_variance = getattr(settings, "FACE_MIN_LAPLACIAN_VARIANCE", 50.0)
+        self._track_face_scan_times = {}
         self._last_suspicious_motion_time: float = 0.0
         self._suspicious_motion_cooldown: float = 5.0
         self._last_tampering_time: float = 0.0
@@ -229,6 +241,12 @@ class VideoPipeline:
             )
         ]
 
+    def set_analysis_max_fps(self, fps: float):
+        """Cập nhật giới hạn FPS phân tích cho VideoPipeline (P0-03)"""
+        self.analysis_max_fps = fps
+        if hasattr(self, "human_detector") and self.human_detector:
+            self.human_detector.set_analysis_fps(fps)
+
     def set_roi_config(self, polygons: Optional[List[Any]] = None):
         """Cập nhật danh sách đa polygon ROI đầy đủ thuộc tính chuẩn hóa"""
         configs: List[RoiPolygonConfig] = []
@@ -368,6 +386,28 @@ class VideoPipeline:
             only_in_roi=has_roi
         )
         return annotated_frame, active_persons, alerts
+
+    def _is_face_blurry(self, face_crop: np.ndarray) -> bool:
+        """
+        Kiểm tra ảnh mặt có bị mờ (motion blur / defocus) qua phương sai Laplacian (P0-02).
+        Trả về True nếu ảnh mờ và cần bỏ qua ArcFace.
+        Bỏ qua kiểm tra nếu min_variance <= 0 hoặc nếu là ảnh synthetic mock (pixels đồng nhất).
+        """
+        if self.face_min_laplacian_variance <= 0.0 or face_crop is None or face_crop.size == 0:
+            return False
+        if np.max(face_crop) == np.min(face_crop):
+            return False
+        if len(face_crop.shape) == 3:
+            if face_crop.shape[2] == 3:
+                gray = cv2.cvtColor(face_crop, cv2.COLOR_BGR2GRAY)
+            elif face_crop.shape[2] == 4:
+                gray = cv2.cvtColor(face_crop, cv2.COLOR_BGRA2GRAY)
+            else:
+                gray = face_crop[:, :, 0]
+        else:
+            gray = face_crop
+        var = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+        return var < self.face_min_laplacian_variance
 
     def is_bbox_in_roi(self, bbox: BoundingBox, frame_w: int, frame_h: int) -> Tuple[bool, str]:
         """
@@ -585,6 +625,23 @@ class VideoPipeline:
                 else:
                     continue
 
+            if not is_reverifying:
+                # Track CHƯA định danh: Throttling theo thời gian (P0-02)
+                if self.face_scan_throttling_enabled:
+                    if track_id in self._track_face_scan_times:
+                        last_scan_t = self._track_face_scan_times[track_id]
+                        first_seen_t = existing.first_seen_time if existing else last_scan_t
+                        track_age = current_time - first_seen_t
+
+                        if track_age < self.face_scan_initial_window:
+                            scan_interval = self.face_scan_initial_interval
+                        else:
+                            scan_interval = self.face_scan_backoff_interval
+
+                        # Thử lại nếu chưa đủ khoảng cách scan_interval
+                        if (current_time - last_scan_t) < (scan_interval - 1e-4):
+                            continue
+
             x1, y1, x2, y2 = bbox.to_int_xyxy()
             x1, y1 = max(0, x1), max(0, y1)
             x2, y2 = min(w, x2), min(h, y2)
@@ -594,6 +651,9 @@ class VideoPipeline:
                 person_upper_crop = frame[y1:y1 + crop_h, x1:x2]
                 
                 if person_upper_crop.size > 0:
+                    if not is_reverifying:
+                        self._track_face_scan_times[track_id] = current_time
+
                     face_result = self.face_detector.detect_best_face_in_crop(
                         person_upper_crop,
                         offset_xy=(x1, y1)
@@ -602,8 +662,21 @@ class VideoPipeline:
                         fx1, fy1, fx2, fy2 = face_result.bbox.to_int_xyxy()
                         fx1, fy1 = max(0, fx1), max(0, fy1)
                         fx2, fy2 = min(w, fx2), min(h, fy2)
+                        face_w = fx2 - fx1
+                        face_h = fy2 - fy1
+
+                        # Lọc chất lượng mặt (P0-02):
+                        # 1. Kích thước tối thiểu
+                        if face_w < self.face_min_crop_size or face_h < self.face_min_crop_size:
+                            self.analysis_engine.associate_face(track_id, face_result)
+                            continue
+
                         face_crop = frame[fy1:fy2, fx1:fx2]
                         if face_crop.size > 0:
+                            # 2. Lọc độ mờ (Laplacian variance)
+                            if self._is_face_blurry(face_crop):
+                                self.analysis_engine.associate_face(track_id, face_result)
+                                continue
                             crop_landmarks = None
                             if face_result.landmarks:
                                 crop_landmarks = [(pt[0] - fx1, pt[1] - fy1) for pt in face_result.landmarks]
@@ -732,6 +805,12 @@ class VideoPipeline:
             is_public_area=is_public,
             area_name=cam_area_name
         )
+
+        # Dọn dẹp track cũ trong bộ nhớ đệm throttling (P0-02)
+        active_tids = set(self.analysis_engine.active_tracks.keys())
+        for tid in list(self._track_face_scan_times.keys()):
+            if tid not in active_tids:
+                del self._track_face_scan_times[tid]
 
         if early_alerts:
             alerts = early_alerts + alerts

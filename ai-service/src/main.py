@@ -196,10 +196,20 @@ async def shutdown_event():
             worker.stop()
         except Exception as e:
             logger.warning(f"Lỗi khi dừng worker: {e}")
+    try:
+        from .core.shared_face_cache import get_shared_face_cache
+        get_shared_face_cache().stop_background_refresh()
+    except Exception as e_cache_stop:
+        logger.warning(f"Lỗi khi dừng background face cache: {e_cache_stop}")
 
 
 @app.on_event("startup")
 async def startup_event():
+    try:
+        from .core.shared_face_cache import get_shared_face_cache
+        get_shared_face_cache().start_background_refresh()
+    except Exception as e_cache:
+        logger.warning(f"⚠️ Không thể khởi động background face cache: {e_cache}")
     global default_pipeline
     try:
         default_pipeline = VideoPipeline(
@@ -513,15 +523,19 @@ async def refresh_faces_cache():
     Xóa và làm mới cache khuôn mặt cùng quyền truy cập ngay lập tức trong RAM AI.
     Được gọi khi tài khoản bị vô hiệu hóa, kích hoạt lại hoặc xóa mềm.
     """
+    from .core.shared_face_cache import get_shared_face_cache
+    get_shared_face_cache().refresh_cache()
     count = 0
     if default_pipeline and getattr(default_pipeline, "face_matcher", None):
-        default_pipeline.face_matcher.refresh_cache()
+        with default_pipeline.face_matcher._access_cache_lock:
+            default_pipeline.face_matcher.access_cache.clear()
         count += 1
     with active_workers_lock:
         workers = list(active_workers.values())
     for worker in workers:
         if getattr(worker, "pipeline", None) and getattr(worker.pipeline, "face_matcher", None):
-            worker.pipeline.face_matcher.refresh_cache()
+            with worker.pipeline.face_matcher._access_cache_lock:
+                worker.pipeline.face_matcher.access_cache.clear()
             count += 1
     logger.info(f"🔄 [FaceCache] Đã làm mới face cache tức thì cho {count} pipeline(s).")
     return {"success": True, "pipelines_refreshed": count}

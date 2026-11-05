@@ -95,7 +95,8 @@ class CameraStreamWorker:
         self,
         camera_code: str,
         rtsp_url: str,
-        roi_geometry: Optional[Dict[str, Any]] = None
+        roi_geometry: Optional[Dict[str, Any]] = None,
+        analysis_max_fps: Optional[float] = None
     ):
         if not camera_code or not camera_code.strip():
             raise ValueError("camera_code is required and cannot be empty")
@@ -104,7 +105,8 @@ class CameraStreamWorker:
 
         self.camera_code = camera_code.strip()
         self.rtsp_url = rtsp_url.strip()
-        self.pipeline = VideoPipeline(camera_code=self.camera_code)
+        self.analysis_max_fps = analysis_max_fps if analysis_max_fps is not None else getattr(settings, "ANALYSIS_MAX_FPS", 10.0)
+        self.pipeline = VideoPipeline(camera_code=self.camera_code, analysis_max_fps=self.analysis_max_fps)
         if not roi_geometry:
             roi_geometry = self._fetch_roi_geometry(self.camera_code)
 
@@ -142,14 +144,23 @@ class CameraStreamWorker:
             poly_count = len(polygons) if polygons else 0
             logger.info(f"Đã cập nhật ROI ({poly_count} polygons) cho Stream Worker [{self.camera_code}].")
 
-    def update_runtime_config(self, max_inactive_seconds: Optional[float] = None, unknown_alert_cooldown: Optional[float] = None):
-        """Cập nhật cấu hình runtime tracking và cooldown cho worker đang chạy"""
+    def update_runtime_config(
+        self,
+        max_inactive_seconds: Optional[float] = None,
+        unknown_alert_cooldown: Optional[float] = None,
+        analysis_max_fps: Optional[float] = None
+    ):
+        """Cập nhật cấu hình runtime tracking, cooldown và analysis FPS cho worker đang chạy (P0-03)"""
         if self.pipeline and self.pipeline.analysis_engine:
             if max_inactive_seconds is not None:
                 self.pipeline.analysis_engine.max_inactive_seconds = max_inactive_seconds
             if unknown_alert_cooldown is not None:
                 self.pipeline.analysis_engine.unknown_alert_cooldown = unknown_alert_cooldown
-            logger.info(f"Đã cập nhật runtime config cho Stream Worker [{self.camera_code}]: max_inactive={self.pipeline.analysis_engine.max_inactive_seconds}s, cooldown={self.pipeline.analysis_engine.unknown_alert_cooldown}s")
+        if analysis_max_fps is not None and analysis_max_fps > 0:
+            self.analysis_max_fps = analysis_max_fps
+            if self.pipeline and hasattr(self.pipeline, "set_analysis_max_fps"):
+                self.pipeline.set_analysis_max_fps(analysis_max_fps)
+        logger.info(f"Đã cập nhật runtime config cho Stream Worker [{self.camera_code}]: analysis_fps={self.analysis_max_fps}")
 
     def start(self):
         """Bắt đầu worker đọc luồng, ghi hình và phân tích AI trên các luồng độc lập"""
@@ -255,14 +266,24 @@ class CameraStreamWorker:
             logger.info(f"Đã đóng Capture Thread cho camera [{self.camera_code}].")
 
     def _analysis_loop(self):
-        """Luồng phân tích AI: Luôn lấy frame mới nhất (Fresh Frame) để xử lý"""
-        logger.info(f"Khởi động Analysis Thread cho camera [{self.camera_code}]")
+        """Luồng phân tích AI: Luôn lấy frame mới nhất (Fresh Frame) để xử lý theo chu kỳ ANALYSIS_MAX_FPS (P0-03)"""
+        logger.info(f"Khởi động Analysis Thread cho camera [{self.camera_code}] (target FPS: {self.analysis_max_fps})")
         fps_timer = time.time()
         frame_counter = 0
 
         last_processed_frame_id = -1
+        last_analysis_time = 0.0
 
         while self.is_running:
+            min_analysis_interval = (1.0 / self.analysis_max_fps) if (self.analysis_max_fps and self.analysis_max_fps > 0) else 0.0
+            if min_analysis_interval > 0:
+                now = time.time()
+                elapsed = now - last_analysis_time
+                if elapsed < min_analysis_interval:
+                    sleep_dur = min(0.05, max(0.001, min_analysis_interval - elapsed))
+                    time.sleep(sleep_dur)
+                    continue
+
             with self.raw_frame_lock:
                 if self.raw_frame is not None and self.frame_id != last_processed_frame_id:
                     frame = self.raw_frame.copy()
@@ -274,6 +295,7 @@ class CameraStreamWorker:
                 time.sleep(0.01)
                 continue
 
+            last_analysis_time = time.time()
             try:
                 annotated_frame, tracked_persons, alerts = self.pipeline.process_frame(frame)
                 with self.lock:

@@ -70,8 +70,13 @@ Claude outputs/
 backup_*.sql
 *.dll
 *.mp4
+*.avi
+*.mkv
+*.mov
 *.zip
 recording/
+evidence/
+ai-service/tools/perf/output/
 video/
 
 # MQTT outbox (SQLite cảnh báo chờ gửi của AI service)
