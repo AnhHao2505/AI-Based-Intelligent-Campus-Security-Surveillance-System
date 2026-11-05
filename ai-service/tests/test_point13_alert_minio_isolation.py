@@ -86,12 +86,12 @@ def test_point13_slow_minio_hangs_alert_sent_within_timeout(
     mock_mqtt_instance = pipeline.mqtt_client
     mock_mqtt_instance.send_alert.reset_mock()
 
-    expected_key = "security-evidence/2026-11-05/CAM-TIMEOUT-TEST/UNAUTHORIZED_ACCESS_Track2_123456.jpg"
+    expected_key = "security-evidence/2026-11-05/CAM-TIMEOUT-TEST/UNAUTHORIZED_PERSON_Track2_123456.jpg"
     pipeline.storage_service.precompute_evidence_key = MagicMock(
         return_value=(
-            "2026-11-05/CAM-TIMEOUT-TEST/UNAUTHORIZED_ACCESS_Track2_123456.jpg",
+            "2026-11-05/CAM-TIMEOUT-TEST/UNAUTHORIZED_PERSON_Track2_123456.jpg",
             expected_key,
-            "UNAUTHORIZED_ACCESS_Track2_123456.jpg",
+            "UNAUTHORIZED_PERSON_Track2_123456.jpg",
             "2026-11-05"
         )
     )
@@ -104,7 +104,7 @@ def test_point13_slow_minio_hangs_alert_sent_within_timeout(
 
     alert = SecurityAlertEvent(
         camera_code="CAM-TIMEOUT-TEST",
-        event_type="UNAUTHORIZED_ACCESS",
+        event_type="UNAUTHORIZED_PERSON",
         track_id=2,
         confidence=0.88,
         details="Không có quyền truy cập",

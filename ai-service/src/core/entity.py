@@ -123,6 +123,8 @@ class TrackedPerson:
 @dataclass
 class MotionResult:
     has_motion: bool = False
+    has_motion_full: bool = False
+    has_motion_roi: bool = False
     motion_area: int = 0
     motion_boxes: List[BoundingBox] = field(default_factory=list)
     is_lighting_spike: bool = False

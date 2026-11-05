@@ -233,7 +233,7 @@ def run_auto_test():
     assert len(alerts) == 1
     assert alerts[0].event_type in ("UNAUTHORIZED_PERSON", "UNAUTHORIZED_ACCESS")
     assert "SE170123" in alerts[0].details
-    print(f"   [{get_now_str()}] -> [PASS] Bắt chính xác UNAUTHORIZED_ACCESS đối với tài khoản không có quyền.")
+    print(f"   [{get_now_str()}] -> [PASS] Bắt chính xác UNAUTHORIZED_PERSON đối với tài khoản không có quyền.")
 
     print(f"\n5. Test: Đối tượng phát hiện mặt nhưng là NGƯỜI LẠ ngoài hệ thống (Unknown Person)...")
     face_stranger = FaceDetectionResult(

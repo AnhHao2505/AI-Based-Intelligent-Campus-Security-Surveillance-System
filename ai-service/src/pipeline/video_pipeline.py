@@ -282,25 +282,35 @@ class VideoPipeline:
     def _is_box_overlapping_any(
         box: BoundingBox,
         targets: List[BoundingBox],
-        overlap_threshold: float = 0.15
+        overlap_threshold: float = 0.08,
+        margin: float = 35.0
     ) -> bool:
         """
-        Kiểm tra xem 1 box (ví dụ motion box) có nằm trong hoặc trùng lặp đáng kể với bất kỳ target box (human box) nào không.
+        Kiểm tra xem 1 box (ví dụ motion box) có nằm trong, trùng lặp hoặc sát cơ thể (margin) với bất kỳ target box (human box) nào không.
+        Mở rộng margin 35-50px để bao quát bàn chân đang bước, cánh tay vung và bóng đổ của người.
         """
+        if not targets:
+            return False
+
         box_area = max(1.0, (box.x2 - box.x1) * (box.y2 - box.y1))
         cx = (box.x1 + box.x2) / 2.0
         cy = (box.y1 + box.y2) / 2.0
 
         for tgt in targets:
-            # 1. Nếu tâm của motion box nằm trong human box (mở rộng dung sai 5px)
-            if (tgt.x1 - 5 <= cx <= tgt.x2 + 5) and (tgt.y1 - 5 <= cy <= tgt.y2 + 5):
+            exp_x1 = tgt.x1 - margin
+            exp_y1 = tgt.y1 - margin
+            exp_x2 = tgt.x2 + margin
+            exp_y2 = tgt.y2 + margin + 15.0  # Thêm margin hướng xuống cho bước chân & bóng đổ sàn
+
+            # 1. Nếu tâm của motion box nằm trong expanded human box
+            if (exp_x1 <= cx <= exp_x2) and (exp_y1 <= cy <= exp_y2):
                 return True
 
             # 2. Hoặc diện tích phần giao cắt chiếm >= overlap_threshold diện tích của motion box
-            ix1 = max(box.x1, tgt.x1)
-            iy1 = max(box.y1, tgt.y1)
-            ix2 = min(box.x2, tgt.x2)
-            iy2 = min(box.y2, tgt.y2)
+            ix1 = max(box.x1, exp_x1)
+            iy1 = max(box.y1, exp_y1)
+            ix2 = min(box.x2, exp_x2)
+            iy2 = min(box.y2, exp_y2)
             inter_w = max(0.0, ix2 - ix1)
             inter_h = max(0.0, iy2 - iy1)
             inter_area = inter_w * inter_h
@@ -435,6 +445,54 @@ class VideoPipeline:
 
         return False, ""
 
+    def is_bbox_near_or_in_roi(
+        self,
+        bbox: BoundingBox,
+        frame_w: int,
+        frame_h: int,
+        margin: float = 40.0
+    ) -> bool:
+        """
+        Kiểm tra xem bounding box của người có chạm, giao cắt hoặc nằm sát biên ROI không
+        (dùng để nhận biết người đang bước vào mép ROI, triệt tiêu cảnh báo ngụy trang giả).
+        """
+        if not self.roi_polygons and not self.roi_polygon:
+            return True
+
+        cx = (bbox.x1 + bbox.x2) / 2.0
+        cy = (bbox.y1 + bbox.y2) / 2.0
+        test_points = [
+            bbox.bottom_center,
+            Point(bbox.x1, bbox.y2),
+            Point(bbox.x2, bbox.y2),
+            Point(cx, cy),
+            Point(bbox.x1, (bbox.y1 + bbox.y2) / 2.0),
+            Point(bbox.x2, (bbox.y1 + bbox.y2) / 2.0),
+        ]
+
+        polygon_list = []
+        if self.roi_polygons:
+            for poly in self.roi_polygons:
+                pts = poly.to_pixel_points(frame_w, frame_h) if (frame_w > 0 and frame_h > 0) else poly.vertices
+                if len(pts) >= 3:
+                    polygon_list.append(pts)
+        elif self.roi_polygon and len(self.roi_polygon) >= 3:
+            pts = scale_polygon_to_frame(self.roi_polygon, frame_w, frame_h) if (frame_w > 0 and frame_h > 0) else self.roi_polygon
+            polygon_list.append(pts)
+
+        for pts in polygon_list:
+            for pt in test_points:
+                if is_point_in_polygon(pt, pts):
+                    return True
+
+            cv_pts = np.array([[int(round(p.x)), int(round(p.y))] for p in pts], dtype=np.int32)
+            for pt in (bbox.bottom_center, Point(bbox.x1, bbox.y2), Point(bbox.x2, bbox.y2)):
+                dist = cv2.pointPolygonTest(cv_pts, (float(pt.x), float(pt.y)), measureDist=True)
+                if dist >= -margin:
+                    return True
+
+        return False
+
     def _render_overlay(
         self,
         base_frame: np.ndarray,
@@ -489,10 +547,12 @@ class VideoPipeline:
             frame,
             self.roi_polygons if self.roi_polygons else None
         )
-        if motion_res.has_motion:
+        has_full_attr = getattr(motion_res, "has_motion_full", None)
+        has_any_motion = has_full_attr if isinstance(has_full_attr, bool) else bool(getattr(motion_res, "has_motion", False))
+        if has_any_motion:
             logger.info(
-                f"⚡ [VideoPipeline:{self.camera_code}] [MotionDetector] Phát hiện chuyển động: "
-                f"diện tích={motion_res.motion_area}px, số box={len(motion_res.motion_boxes)}"
+                f"⚡ [VideoPipeline:{self.camera_code}] [MotionDetector] Phát hiện chuyển động (Full-Frame={has_any_motion}, ROI={getattr(motion_res, 'has_motion_roi', motion_res.has_motion)}): "
+                f"diện tích={motion_res.motion_area}px, số box ROI={len(motion_res.motion_boxes)}"
             )
 
         # 1a. Kiểm tra hành vi phá hoại chiếu đèn (CAMERA_TAMPERING)
@@ -511,14 +571,14 @@ class VideoPipeline:
                 )
                 early_alerts.append(tamper_alert)
 
-        # 1b. Cổng Motion-Gating: Nếu ở IDLE và hoàn toàn không có chuyển động / chớp sáng
+        # 1b. Cổng Motion-Gating: Nếu ở IDLE và hoàn toàn không có chuyển động trên TOÀN BỘ KHUNG HÌNH
         #     Bỏ qua 100% suy luận Deep Learning nặng (YOLO26, YuNet, ArcFace) để giải phóng CPU/GPU.
         #     Tuy nhiên, cứ mỗi heartbeat_interval_seconds (mặc định 4s), chạy 1 frame YOLO thăm dò
         #     để phát hiện đối tượng ngồi yên trong ROI (tránh lọt lưới do MOG2 hấp thụ vào background).
         if (
             self.enable_motion_gating
             and self.state_machine.state == ZoneState.IDLE
-            and not motion_res.has_motion
+            and not has_any_motion
             and not motion_res.is_lighting_spike
         ):
             if self._last_heartbeat_time is None:
@@ -634,8 +694,20 @@ class VideoPipeline:
         )
 
         # 2c. Phát hiện Đột nhập Ngụy trang (SUSPICIOUS_MOVING_OBJECT):
-        # Có chuyển động đáng kể trong ROI nhưng YOLO không nhận diện được dáng người (và không phải do người tạo ra)
-        if motion_res.has_motion and not person_in_roi and len(motion_res.motion_boxes) > 0:
+        # Có chuyển động đáng kể trong ROI nhưng YOLO không nhận diện được dáng người (và không phải do người tạo ra).
+        # Nếu có bất kỳ người nào đang ở gần mép ROI hoặc đang bước vào ROI, tuyệt đối KHÔNG kích hoạt cảnh báo ngụy trang!
+        has_roi_attr = getattr(motion_res, "has_motion_roi", None)
+        has_roi_motion = has_roi_attr if isinstance(has_roi_attr, bool) else bool(getattr(motion_res, "has_motion", False))
+        has_nearby_human = any(
+            self.is_bbox_near_or_in_roi(bbox, w, h, margin=40.0)
+            for _, bbox in detected_tracks
+        ) or any(
+            self.is_bbox_near_or_in_roi(p.bbox, w, h, margin=40.0)
+            for p in self.analysis_engine.active_tracks.values()
+            if (current_time - p.last_seen_time) <= self.analysis_engine.max_inactive_seconds
+        )
+
+        if has_roi_motion and not person_in_roi and not has_nearby_human and len(motion_res.motion_boxes) > 0:
             if (current_time - self._last_suspicious_motion_time) >= self._suspicious_motion_cooldown:
                 self._last_suspicious_motion_time = current_time
                 cam_area_name = self.face_matcher.get_camera_area_name(self.camera_code) if self.face_matcher else None

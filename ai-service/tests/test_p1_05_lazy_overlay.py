@@ -76,7 +76,7 @@ def test_lazy_overlay_draws_once_and_reuses_between_snapshot_and_annotated():
     # Giả lập analysis_engine sinh ra 2 cảnh báo cùng lúc trên cùng 1 frame
     fake_alert1 = SecurityAlertEvent(
         camera_code="CAM-LAZY-TEST",
-        event_type="UNAUTHORIZED_ACCESS",
+        event_type="UNAUTHORIZED_PERSON",
         track_id=1,
         details="Vi phạm 1"
     )

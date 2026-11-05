@@ -42,6 +42,8 @@ class TestMotionDetector(unittest.TestCase):
             res = self.detector.detect(static_frame, [self.roi])
             
         self.assertFalse(res.has_motion)
+        self.assertFalse(res.has_motion_roi)
+        self.assertFalse(res.has_motion_full)
         self.assertEqual(res.motion_area, 0)
         self.assertFalse(res.is_tampering)
         self.assertFalse(res.is_lighting_spike)
@@ -75,6 +77,8 @@ class TestMotionDetector(unittest.TestCase):
 
         res = self.detector.detect(frame_outside, [self.roi])
         self.assertFalse(res.has_motion)
+        self.assertFalse(res.has_motion_roi)
+        self.assertTrue(res.has_motion_full)
         self.assertEqual(len(res.motion_boxes), 0)
 
     def test_small_noise_filtered(self):
@@ -89,6 +93,8 @@ class TestMotionDetector(unittest.TestCase):
 
         res = self.detector.detect(frame_tiny, [self.roi])
         self.assertFalse(res.has_motion)
+        self.assertFalse(res.has_motion_roi)
+        self.assertFalse(res.has_motion_full)
 
     def test_global_lighting_spike(self):
         """Đổi sáng đột ngột (>70% diện tích ROI) kích hoạt cờ is_lighting_spike"""
