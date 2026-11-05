@@ -754,8 +754,12 @@ class VideoPipeline:
                 reverify_threshold = getattr(settings, "FACE_REVERIFY_SCORE_THRESHOLD", 0.82)
                 reverify_interval = getattr(settings, "FACE_REVERIFY_MIN_INTERVAL_SECONDS", 3.0)
 
-                # Chỉ re-verify nếu score ban đầu mấp mé (< threshold) và đã qua chu kỳ interval
-                if prev_score < reverify_threshold and (current_time - last_match_t) >= reverify_interval:
+                is_inherited = getattr(existing, "is_inherited_identity", False) or (existing.face_info and getattr(existing.face_info, "is_inherited", False))
+
+                # Chỉ re-verify nếu là track kế thừa (chưa xác thực độc lập trên track này), hoặc score ban đầu mấp mé (< threshold) và đã qua chu kỳ interval
+                if is_inherited:
+                    is_reverifying = True
+                elif prev_score < reverify_threshold and (current_time - last_match_t) >= reverify_interval:
                     is_reverifying = True
                 else:
                     continue
@@ -803,7 +807,7 @@ class VideoPipeline:
                         # Lọc chất lượng mặt (P0-02):
                         # 1. Kích thước tối thiểu
                         if face_w < self.face_min_crop_size or face_h < self.face_min_crop_size:
-                            self.analysis_engine.associate_face(track_id, face_result)
+                            # Mặt quá nhỏ, chất lượng kém -> Bỏ qua, không xóa danh tính cũ và không phá vỡ grace period
                             continue
 
                         face_crop = frame[fy1:fy2, fx1:fx2]
@@ -813,7 +817,7 @@ class VideoPipeline:
                                 logger.info(
                                     f"⚠️ [VideoPipeline:{self.camera_code}] [FaceFilter] Track #{track_id}: Mặt bị mờ do chuyển động -> Bỏ qua ArcFace"
                                 )
-                                self.analysis_engine.associate_face(track_id, face_result)
+                                # Mặt bị mờ do chuyển động -> Bỏ qua, không xóa danh tính cũ và không phá vỡ grace period
                                 continue
                             crop_landmarks = None
                             if face_result.landmarks:
@@ -844,6 +848,10 @@ class VideoPipeline:
                                         # Cùng mã: xóa candidate pending
                                         existing.pending_reverify_code = None
                                         existing.pending_reverify_count = 0
+                                        # Đã xác thực khuôn mặt độc lập trên track này -> Xóa cờ kế thừa!
+                                        existing.is_inherited_identity = False
+                                        if existing.face_info:
+                                            existing.face_info.is_inherited = False
                                         # Chỉ cập nhật điểm nếu điểm mới cao hơn điểm cũ
                                         if score > prev_score:
                                             existing.face_info.score = score
@@ -873,6 +881,9 @@ class VideoPipeline:
                                     )
                                     existing.pending_reverify_code = None
                                     existing.pending_reverify_count = 0
+                                    existing.is_inherited_identity = False
+                                    if existing.face_info:
+                                        existing.face_info.is_inherited = False
 
                                     # POINT-08b: Reset cảnh báo vi phạm
                                     existing.alert_unauthorized_sent = False

@@ -85,6 +85,7 @@ class FaceDetectionResult:
     role: Optional[str] = "NORMAL_USER"
     access_checked: bool = False
     access_source: Optional[str] = None
+    is_inherited: bool = False
 
 @dataclass
 class TrackedPerson:
@@ -110,6 +111,7 @@ class TrackedPerson:
     alert_unauthorized_sent: bool = False
     alert_unknown_sent: bool = False
     alert_after_hours_sent: bool = False
+    is_inherited_identity: bool = False
 
     def __post_init__(self):
         if self.yolo_last_seen_time is None:

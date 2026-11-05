@@ -40,13 +40,15 @@ class FrameAnalysisEngine:
         after_hour_start: Optional[str] = None,
         after_hour_end: Optional[str] = None,
         unknown_alert_cooldown: Optional[float] = None,
-        camera_unknown_min_interval: Optional[float] = None
+        camera_unknown_min_interval: Optional[float] = None,
+        access_grace_period: Optional[float] = None
     ):
         self.max_inactive_seconds = max_inactive_seconds if max_inactive_seconds is not None else settings.DEFAULT_TRACK_MAX_INACTIVE_SECONDS
         self.after_hour_start = after_hour_start or settings.DEFAULT_AFTER_HOUR_START
         self.after_hour_end = after_hour_end or settings.DEFAULT_AFTER_HOUR_END
         self.unknown_alert_cooldown = unknown_alert_cooldown if unknown_alert_cooldown is not None else settings.DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS
         self.camera_unknown_min_interval = camera_unknown_min_interval if camera_unknown_min_interval is not None else getattr(settings, 'CAMERA_UNKNOWN_ALERT_MIN_INTERVAL_SECONDS', 3.0)
+        self.access_grace_period = access_grace_period if access_grace_period is not None else getattr(settings, 'ACCESS_RESOLUTION_GRACE_PERIOD_SECONDS', 1.8)
         self.active_tracks: Dict[int, TrackedPerson] = {}
         self.pending_faces: Dict[int, FaceDetectionResult] = {}
         self.last_unknown_alert_time: Dict[str, float] = {}  # camera_code -> timestamp
@@ -241,6 +243,9 @@ class FrameAnalysisEngine:
                         if old_p.face_detected and old_p.face_info and not person.face_detected:
                             person.face_detected = True
                             person.face_info = old_p.face_info
+                            person.is_inherited_identity = True
+                            if hasattr(person.face_info, "is_inherited"):
+                                person.face_info.is_inherited = True
                         # Kế thừa thông tin ROI và lịch sử cảnh báo (tránh spam sự cố lặp lại)
                         person.is_in_roi = old_p.is_in_roi
                         person.was_in_roi = old_p.was_in_roi
@@ -388,9 +393,9 @@ class FrameAnalysisEngine:
                     elif is_public_area and not after_hours:
                         # Khu vực Cấp 1 (Công khai - PUBLIC): Ban ngày tất cả mọi người vẫn vào bình thường -> KHÔNG cảnh báo UNAUTHORIZED_PERSON!
                         pass
-                    elif not getattr(person.face_info, "access_checked", False) and (current_time - (person.roi_enter_time or current_time)) < 1.5:
-                        # BUG-02: Grace period 1.5s cho nguoi da xac dinh danh tinh nhung access_checked == False
-                        # de cho Backend phan hoi kiem tra quyen truy cap, tranh ban canh bao vi pham gia.
+                    elif not getattr(person.face_info, "access_checked", False) and (current_time - (person.roi_enter_time or current_time)) < self.access_grace_period:
+                        # BUG-02: Grace period cho người đã xác định danh tính nhưng access_checked == False
+                        # để cho Backend phản hồi kiểm tra quyền truy cập, tránh bắn cảnh báo vi phạm giả.
                         pass
                     else:
                         # Vi phạm: Phân loại chuẩn theo 5 nhóm (PERSON_INTRUSION, UNAUTHORIZED_PERSON)
@@ -581,6 +586,11 @@ class FrameAnalysisEngine:
         if face_result is None:
             return
         if track_id in self.active_tracks:
+            curr_p = self.active_tracks[track_id]
+            # Nếu track đã có danh tính rõ ràng (matched_code) mà face_result mới không có matched_code (mặt mờ hoặc trượt),
+            # tuyệt đối không ghi đè xóa mất danh tính đã nhận diện của họ!
+            if curr_p.face_detected and curr_p.face_info and curr_p.face_info.matched_code and not getattr(face_result, "matched_code", None):
+                return
             self.active_tracks[track_id].face_detected = True
             self.active_tracks[track_id].face_info = face_result
         else:
