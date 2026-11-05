@@ -301,8 +301,8 @@ export default function ReasonCatalogPage() {
 			</div>
 
 			{/* Table */}
-			<div className="syscfg-card" style={{ padding: 0, overflowX: "auto" }}>
-				<table className="reason-table" style={{ width: "100%", minWidth: "720px", borderCollapse: "collapse", fontSize: "13px" }}>
+			<div className="syscfg-card" style={{ padding: 0, overflowX: "auto", background: "var(--theme-bg-surface)" }}>
+				<table className="reason-table" style={{ width: "100%", minWidth: "720px", borderCollapse: "collapse", fontSize: "13px", background: "var(--theme-bg-surface)" }}>
 					<thead>
 						<tr style={{ background: "var(--theme-bg-surface-elevated)", borderBottom: "1px solid var(--theme-border)", textAlign: "left" }}>
 							<th style={{ padding: "12px 16px" }}>Loại thao tác</th>

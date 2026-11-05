@@ -71,7 +71,7 @@ function formatUpdated(item) {
 /** Bảng có trạng thái tải / lỗi / rỗng dùng chung cho 3 danh mục */
 function PolicyTable({ columns, loading, error, onRetry, rows, emptyTitle, renderRow, minWidth }) {
 	return (
-		<div className="syscfg-card" style={{ padding: 0, overflowX: "auto", marginBottom: "24px" }}>
+		<div className="syscfg-card" style={{ padding: 0, overflowX: "auto", marginBottom: "24px", background: "var(--theme-bg-surface)" }}>
 			<table style={{ width: "100%", minWidth, borderCollapse: "collapse", fontSize: "13px" }}>
 				<thead>
 					<tr style={{ background: "var(--theme-bg-surface-elevated)", borderBottom: "1px solid var(--theme-border)", textAlign: "left" }}>
