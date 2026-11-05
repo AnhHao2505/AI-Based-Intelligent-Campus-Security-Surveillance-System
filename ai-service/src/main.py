@@ -659,14 +659,18 @@ async def get_live_annotated_feed(
             logger.warning(f"Không thể tự động kích hoạt worker cho [{norm_code}]: {ex}")
             raise HTTPException(status_code=404, detail="Camera worker hiện chưa chạy. Hãy Kết nối Stream trước.")
     async def frame_generator():
-        while target_worker.is_running:
-            with target_worker.lock:
-                frame = target_worker.latest_frame
-            if frame is not None:
-                _, buffer = await asyncio.to_thread(cv2.imencode, '.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
-                yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
-            await asyncio.sleep(0.06)  # ~16 FPS preview
+        target_worker.add_client()
+        try:
+            while target_worker.is_running:
+                with target_worker.lock:
+                    frame = target_worker.latest_frame
+                if frame is not None:
+                    _, buffer = await asyncio.to_thread(cv2.imencode, '.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+                    yield (b'--frame\r\n'
+                           b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+                await asyncio.sleep(0.06)  # ~16 FPS preview
+        finally:
+            target_worker.remove_client()
             
     return StreamingResponse(frame_generator(), media_type="multipart/x-mixed-replace; boundary=frame")
 

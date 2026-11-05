@@ -131,6 +131,24 @@ class CameraStreamWorker:
         self.latest_frame = None
         self.processed_fps = 0.0
         self.lock = threading.Lock()
+        self._active_clients_count: int = 0
+        self._clients_lock = threading.Lock()
+
+    def add_client(self):
+        """Đăng ký client đang xem live-annotated stream (P1-05 Lazy Overlay)"""
+        with self._clients_lock:
+            self._active_clients_count += 1
+
+    def remove_client(self):
+        """Hủy đăng ký client xem live-annotated stream (P1-05 Lazy Overlay)"""
+        with self._clients_lock:
+            self._active_clients_count = max(0, self._active_clients_count - 1)
+
+    @property
+    def has_active_client(self) -> bool:
+        """Có ít nhất 1 client đang xem stream qua web/client (P1-05 Lazy Overlay)"""
+        with self._clients_lock:
+            return self._active_clients_count > 0
 
     def update_roi(self, polygons: Optional[List[Any]] = None,
                    after_hour_start: Optional[str] = None, after_hour_end: Optional[str] = None):
@@ -297,10 +315,15 @@ class CameraStreamWorker:
 
             last_analysis_time = time.time()
             try:
-                annotated_frame, tracked_persons, alerts = self.pipeline.process_frame(frame)
+                need_annotated = self.has_active_client or incident_recording_manager.is_recording(self.camera_code)
+                annotated_frame, tracked_persons, alerts = self.pipeline.process_frame(
+                    frame,
+                    need_annotated=need_annotated
+                )
                 with self.lock:
                     self.latest_frame = annotated_frame
-                incident_recording_manager.write_frame_for_camera(self.camera_code, annotated_frame)
+                if need_annotated or alerts:
+                    incident_recording_manager.write_frame_for_camera(self.camera_code, annotated_frame)
 
                 frame_counter += 1
                 if time.time() - fps_timer >= 2.0:

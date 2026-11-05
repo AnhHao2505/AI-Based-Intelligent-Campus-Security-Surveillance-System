@@ -401,6 +401,13 @@ class IncidentRecordingManager:
             if rec and rec.is_running:
                 rec.write_frame(frame)
 
+    def is_recording(self, camera_code: str) -> bool:
+        """Kiểm tra camera có đang trong phiên ghi hình sự cố hay không (P1-05 Lazy Overlay)"""
+        cam_code = camera_code.strip().upper()
+        with self._lock:
+            rec = self._recordings_by_camera.get(cam_code)
+            return bool(rec and rec.is_running)
+
     def stop_incident_recording(self, key: str) -> Optional[Dict[str, Any]]:
         clean_key = str(key).strip()
         cam_upper = clean_key.upper()

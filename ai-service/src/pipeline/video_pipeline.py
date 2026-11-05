@@ -435,10 +435,39 @@ class VideoPipeline:
 
         return False, ""
 
+    def _render_overlay(
+        self,
+        base_frame: np.ndarray,
+        active_persons: List[TrackedPerson],
+        alerts: List[SecurityAlertEvent],
+        motion_boxes: Optional[List[BoundingBox]] = None,
+        only_in_roi: Optional[bool] = None
+    ) -> np.ndarray:
+        """Render các lớp đồ họa lên khung hình (P1-05 Lazy Overlay)."""
+        vis_frame = base_frame.copy()
+        vis_frame = FrameVisualizer.draw_all_rois(
+            vis_frame,
+            polygons=self.roi_polygons if self.roi_polygons else (self.roi_polygon if self.roi_polygon else None)
+        )
+        has_suspicious_motion_alert = any(a.event_type in ("SUSPICIOUS_MOVING_OBJECT", "SUSPICIOUS_MOTION") for a in alerts)
+        if has_suspicious_motion_alert and motion_boxes:
+            vis_frame = FrameVisualizer.draw_motion_boxes(vis_frame, motion_boxes)
+
+        if active_persons:
+            has_roi = bool(self.roi_polygons or self.roi_polygon)
+            roi_filter = only_in_roi if only_in_roi is not None else (getattr(settings, "DRAW_ONLY_IN_ROI", False) and has_roi)
+            vis_frame = self.visualizer.draw_tracked_persons(
+                vis_frame,
+                active_persons,
+                only_in_roi=roi_filter
+            )
+        return vis_frame
+
     def process_frame(
         self,
         frame: np.ndarray,
-        current_time: Optional[float] = None
+        current_time: Optional[float] = None,
+        need_annotated: Optional[bool] = None
     ) -> Tuple[np.ndarray, List[TrackedPerson], List[SecurityAlertEvent]]:
         """
         Xử lý 1 khung hình qua toàn bộ pipeline.
@@ -503,16 +532,20 @@ class VideoPipeline:
                     logger.info(
                         f"💤 [VideoPipeline:{self.camera_code}] [Motion-Gating] Trạng thái IDLE (phòng trống) -> Bỏ qua Deep Learning để tiết kiệm CPU/GPU"
                     )
-                annotated_frame = frame.copy()
-                annotated_frame = FrameVisualizer.draw_all_rois(
-                    annotated_frame,
-                    polygons=self.roi_polygons if self.roi_polygons else (self.roi_polygon if self.roi_polygon else None)
-                )
                 if early_alerts:
+                    annotated_frame = self._render_overlay(frame, [], early_alerts, motion_boxes=[])
                     for alert in early_alerts:
                         if self.io_executor and not getattr(self.io_executor, "_shutdown", False):
                             self.io_executor.submit(self._dispatch_alert_async, alert, annotated_frame)
-                return annotated_frame, [], early_alerts
+                    return annotated_frame, [], early_alerts
+                elif need_annotated is True:
+                    annotated_frame = FrameVisualizer.draw_all_rois(
+                        frame.copy(),
+                        polygons=self.roi_polygons if self.roi_polygons else (self.roi_polygon if self.roi_polygon else None)
+                    )
+                    return annotated_frame, [], []
+                else:
+                    return frame, [], []
             else:
                 self._last_heartbeat_time = current_time
                 logger.info(
@@ -873,9 +906,24 @@ class VideoPipeline:
         has_roi = bool(self.roi_polygons or self.roi_polygon)
 
         # ------------------------------------------------------------------
-        # 5. XỬ LÝ LƯU BẰNG CHỨNG & GỬI CẢNH BÁO TỰ ĐỘNG (ASYNC KAFKA / MINIO)
+        # 5. XỬ LÝ LƯU BẰNG CHỨNG & GỬI CẢNH BÁO TỰ ĐỘNG + LAZY OVERLAY (P1-05)
         # ------------------------------------------------------------------
+        annotated_frame = None
+        has_alerts = bool(alerts)
+        is_client_active = getattr(self, "has_active_client", False)
+        render_required = (need_annotated is True) or has_alerts or is_client_active
+
+        if render_required:
+            annotated_frame = self._render_overlay(
+                frame,
+                active_persons,
+                alerts,
+                motion_boxes=motion_res.motion_boxes if motion_res else []
+            )
+
         if alerts:
+            # Tái sử dụng kết quả vẽ giữa snapshot và annotated (P1-05)
+            snapshot_frame = annotated_frame if annotated_frame is not None else frame
             for alert in alerts:
                 logger.warning(
                     f"🚨 [VideoPipeline:{self.camera_code}] [SecurityAlert] PHÁT HIỆN SỰ CỐ AN NINH: "
@@ -893,43 +941,11 @@ class VideoPipeline:
                     except Exception as e:
                         logger.error(f"Lỗi kích hoạt ghi hình sự cố cho camera [{self.camera_code}]: {e}")
 
-                snapshot_frame = frame.copy()
-                snapshot_frame = FrameVisualizer.draw_all_rois(
-                    snapshot_frame,
-                    polygons=self.roi_polygons if self.roi_polygons else (self.roi_polygon if self.roi_polygon else None)
-                )
-                has_suspicious_motion_alert = any(a.event_type in ("SUSPICIOUS_MOVING_OBJECT", "SUSPICIOUS_MOTION") for a in alerts)
-                if has_suspicious_motion_alert and motion_res.motion_boxes:
-                    snapshot_frame = FrameVisualizer.draw_motion_boxes(snapshot_frame, motion_res.motion_boxes)
-
-                snapshot_frame = self.visualizer.draw_tracked_persons(
-                    snapshot_frame,
-                    active_persons,
-                    only_in_roi=has_roi
-                )
                 if self.io_executor and not getattr(self.io_executor, "_shutdown", False):
                     self.io_executor.submit(self._dispatch_alert_async, alert, snapshot_frame)
 
-        # ------------------------------------------------------------------
-        # 6. RENDER CÁC LỚP ĐỒ HỌA LÊN KHUNG HÌNH HIỂN THỊ (OVERLAY ANNOTATIONS)
-        # ------------------------------------------------------------------
-        annotated_frame = frame.copy()
-        annotated_frame = FrameVisualizer.draw_all_rois(
-            annotated_frame,
-            polygons=self.roi_polygons if self.roi_polygons else (self.roi_polygon if self.roi_polygon else None)
-        )
-        # Chỉ vẽ khung nghi vấn ngụy trang khi có cảnh báo SUSPICIOUS_MOVING_OBJECT thực sự trong ROI (đã lọc sạch cơ thể người)
-        has_suspicious_motion_alert = any(a.event_type in ("SUSPICIOUS_MOVING_OBJECT", "SUSPICIOUS_MOTION") for a in alerts)
-        if has_suspicious_motion_alert and motion_res.motion_boxes:
-            annotated_frame = FrameVisualizer.draw_motion_boxes(annotated_frame, motion_res.motion_boxes)
-
-        annotated_frame = self.visualizer.draw_tracked_persons(
-            annotated_frame,
-            active_persons,
-            only_in_roi=getattr(settings, "DRAW_ONLY_IN_ROI", False) and has_roi
-        )
-        
-        return annotated_frame, active_persons, alerts
+        result_frame = annotated_frame if annotated_frame is not None else frame
+        return result_frame, active_persons, alerts
 
     def _dispatch_alert_async(self, alert: SecurityAlertEvent, snapshot_frame: np.ndarray):
         # 1. Tính trước object key của ảnh bằng chứng và gán alert.image_url ngay lập tức (POINT-13)

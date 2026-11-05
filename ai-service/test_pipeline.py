@@ -118,7 +118,7 @@ def run_webcam_test(source=None):
         prev_time = now
         fps = 0.9 * fps + 0.1 * (1.0 / dt if dt > 0 else 30.0)
 
-        annotated_frame, persons, alerts = pipeline.process_frame(frame)
+        annotated_frame, persons, alerts = pipeline.process_frame(frame, need_annotated=True)
 
         # 1. In log khi có Cảnh báo mới (Ngay lập tức)
         for a in alerts:
