@@ -97,6 +97,9 @@ class Settings(BaseSettings):
     MOTION_GATING_HEARTBEAT_SECONDS: float = Field(default=4.0, validation_alias="MOTION_GATING_HEARTBEAT_SECONDS")
     MIN_MOTION_AREA: int = Field(default=3000, validation_alias="MIN_MOTION_AREA")
     TIMEZONE: str = "Asia/Ho_Chi_Minh"
+    AI_LOG_LEVEL: str = Field(default="INFO", validation_alias="AI_LOG_LEVEL")
+    AI_LOG_TERMINAL_COLORS: bool = Field(default=True, validation_alias="AI_LOG_TERMINAL_COLORS")
+    AI_LOG_VERBOSE_FRAMES: bool = Field(default=False, validation_alias="AI_LOG_VERBOSE_FRAMES")
     
     # Continuous Video Recording Configuration
     RECORDING_BASE_DIR: str = Field(

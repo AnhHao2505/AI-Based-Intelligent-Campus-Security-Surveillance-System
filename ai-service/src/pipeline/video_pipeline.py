@@ -129,6 +129,11 @@ class VideoPipeline:
             face_info.area_name = area_name
             face_info.access_source = access_source
         face_info.access_checked = True
+        target_name = face_info.matched_name or face_info.matched_code or "Đối tượng"
+        logger.info(
+            f"🚪 [VideoPipeline:{self.camera_code}] [AccessDecision] Thẩm quyền của [{target_name}] tại [{area_name or self.camera_code}]: "
+            f"{'✅ HỢP LỆ' if face_info.is_authorized else '⛔ TỪ CHỐI'} (Lý do: {face_info.access_reason}, Nguồn: {face_info.access_source or 'N/A'})"
+        )
 
     def _handle_identity_switch(
         self,
@@ -455,11 +460,19 @@ class VideoPipeline:
             frame,
             self.roi_polygons if self.roi_polygons else None
         )
+        if motion_res.has_motion:
+            logger.info(
+                f"⚡ [VideoPipeline:{self.camera_code}] [MotionDetector] Phát hiện chuyển động: "
+                f"diện tích={motion_res.motion_area}px, số box={len(motion_res.motion_boxes)}"
+            )
 
         # 1a. Kiểm tra hành vi phá hoại chiếu đèn (CAMERA_TAMPERING)
         if motion_res.is_tampering:
             if (current_time - self._last_tampering_time) >= self._tampering_cooldown:
                 self._last_tampering_time = current_time
+                logger.warning(
+                    f"🚨 [VideoPipeline:{self.camera_code}] [Tampering] PHÁT HIỆN HÀNH VI CHIẾU ĐÈN / LÀM MÙ CẢM BIẾN CAMERA!"
+                )
                 tamper_alert = SecurityAlertEvent(
                     camera_code=self.camera_code,
                     event_type="CAMERA_TAMPERING",
@@ -483,6 +496,13 @@ class VideoPipeline:
                 self._last_heartbeat_time = current_time
             is_heartbeat = (current_time - self._last_heartbeat_time) >= self.heartbeat_interval_seconds
             if not is_heartbeat:
+                if not hasattr(self, "_last_idle_log_time"):
+                    self._last_idle_log_time = 0.0
+                if (current_time - self._last_idle_log_time) >= 5.0:
+                    self._last_idle_log_time = current_time
+                    logger.info(
+                        f"💤 [VideoPipeline:{self.camera_code}] [Motion-Gating] Trạng thái IDLE (phòng trống) -> Bỏ qua Deep Learning để tiết kiệm CPU/GPU"
+                    )
                 annotated_frame = frame.copy()
                 annotated_frame = FrameVisualizer.draw_all_rois(
                     annotated_frame,
@@ -495,13 +515,20 @@ class VideoPipeline:
                 return annotated_frame, [], early_alerts
             else:
                 self._last_heartbeat_time = current_time
-                logger.debug(f"[VideoPipeline] Heartbeat probe triggered at t={current_time:.2f}s for {self.camera_code}")
+                logger.info(
+                    f"💓 [VideoPipeline:{self.camera_code}] [Heartbeat] Chạy thăm dò YOLO26 định kỳ ({self.heartbeat_interval_seconds}s) để rà soát người ngồi yên trong ROI"
+                )
 
         # ------------------------------------------------------------------
         # 2. ĐÁNH THỨC PHÁT HIỆN & THEO DÕI NGƯỜI (YOLO26 + BYTETRACK)
         # ------------------------------------------------------------------
         self._last_heartbeat_time = current_time
         detected_tracks = self.human_detector.detect_and_track(frame, persist=True)
+        current_frame_tids = {tid for tid, _ in detected_tracks if tid >= 0}
+        if current_frame_tids or getattr(settings, "AI_LOG_VERBOSE_FRAMES", False):
+            logger.info(
+                f"👁️ [VideoPipeline:{self.camera_code}] [HumanDetector] YOLO26 + ByteTrack: {len(detected_tracks)} người | Track IDs: {sorted(list(current_frame_tids))}"
+            )
 
         # 2a. TRIỆT TIÊU MOTION DETECTION TRONG BOUNDING BOX NGƯỜI (HUMAN MASKING)
         # Loại bỏ 100% các bounding box vàng của motion detection nằm bên trong hoặc trùng lên người.
@@ -580,6 +607,9 @@ class VideoPipeline:
                 self._last_suspicious_motion_time = current_time
                 cam_area_name = self.face_matcher.get_camera_area_name(self.camera_code) if self.face_matcher else None
                 loc_name = cam_area_name or "Khu vực giám sát"
+                logger.warning(
+                    f"🕵️ [VideoPipeline:{self.camera_code}] [SuspiciousMotion] CẢNH BÁO: Chuyển động nghi vấn ngụy trang trong ROI (Vị trí: {loc_name})"
+                )
 
                 anomaly_alert = SecurityAlertEvent(
                     camera_code=self.camera_code,
@@ -675,6 +705,9 @@ class VideoPipeline:
                         if face_crop.size > 0:
                             # 2. Lọc độ mờ (Laplacian variance)
                             if self._is_face_blurry(face_crop):
+                                logger.info(
+                                    f"⚠️ [VideoPipeline:{self.camera_code}] [FaceFilter] Track #{track_id}: Mặt bị mờ do chuyển động -> Bỏ qua ArcFace"
+                                )
                                 self.analysis_engine.associate_face(track_id, face_result)
                                 continue
                             crop_landmarks = None
@@ -691,6 +724,10 @@ class VideoPipeline:
                                 else:
                                     code, name, score, is_active = match[:4]
                                     role = "NORMAL_USER"
+                                logger.info(
+                                    f"✅ [VideoPipeline:{self.camera_code}] [FaceMatcher] Track #{track_id} -> Nhận diện: {code} ({name}) "
+                                    f"[Khớp: {score:.1%}, Vai trò: {role}, Hoạt động: {is_active}]"
+                                )
                                 # Điểm 8: Nếu đang re-verify cho 1 track đã có danh tính:
                                 identity_switched = False
                                 if is_reverifying and existing and existing.face_info and existing.face_info.matched_code:
@@ -787,6 +824,10 @@ class VideoPipeline:
                                     face_result.is_authorized = True
                                     face_result.access_reason = "Đang ở ngoài vùng ROI"
                                     face_result.access_checked = False
+                            else:
+                                logger.info(
+                                    f"❓ [VideoPipeline:{self.camera_code}] [FaceMatcher] Track #{track_id} -> Không khớp khuôn mặt trong CSDL (UNKNOWN)"
+                                )
 
                         self.analysis_engine.associate_face(track_id, face_result)
 
@@ -836,6 +877,10 @@ class VideoPipeline:
         # ------------------------------------------------------------------
         if alerts:
             for alert in alerts:
+                logger.warning(
+                    f"🚨 [VideoPipeline:{self.camera_code}] [SecurityAlert] PHÁT HIỆN SỰ CỐ AN NINH: "
+                    f"Loại=[{alert.event_type}], Track=#{alert.track_id}, Vị trí=[{alert.camera_code}], Chi tiết: {alert.details}"
+                )
                 ev_type = str(alert.event_type or "").upper()
                 if any(k in ev_type for k in ["UNAUTHORIZED", "INTRUSION", "AFTER_HOUR", "OUT_OF_TIME", "UNKNOWN", "SUSPICIOUS_MOTION", "SUSPICIOUS_MOVING_OBJECT", "TAMPERING"]):
                     try:
@@ -891,12 +936,14 @@ class VideoPipeline:
         object_name, object_key, file_name, date_str = (None, None, None, None)
         if self.storage_service and hasattr(self.storage_service, "precompute_evidence_key"):
             try:
-                object_name, object_key, file_name, date_str = self.storage_service.precompute_evidence_key(
+                res_key = self.storage_service.precompute_evidence_key(
                     self.camera_code,
                     alert.track_id,
                     event_type=alert.event_type
                 )
-                alert.image_url = object_key
+                if isinstance(res_key, (tuple, list)) and len(res_key) >= 4:
+                    object_name, object_key, file_name, date_str = res_key[:4]
+                    alert.image_url = object_key
             except Exception as e:
                 logger.warning(f"⚠️ [VideoPipeline] Không thể tính trước object key cho ảnh bằng chứng: {e}")
         elif not alert.image_url:
@@ -922,6 +969,9 @@ class VideoPipeline:
                             object_key,
                             file_name,
                             date_str
+                        )
+                        logger.info(
+                            f"☁️ [VideoPipeline:{self.camera_code}] [MinIO] Đã upload ảnh bằng chứng vi phạm: {object_key}"
                         )
                     else:
                         self.storage_service.upload_frame_evidence(
@@ -962,6 +1012,10 @@ class VideoPipeline:
         # 4. Gửi cảnh báo qua MQTT / Durable Outbox (image_url luôn là key tính trước)
         try:
             self.mqtt_client.send_alert(alert)
+            logger.info(
+                f"📡 [VideoPipeline:{self.camera_code}] [MQTT] Đã gửi cảnh báo [{alert.event_type}] "
+                f"(Track #{alert.track_id}) lên broker MQTT thành công"
+            )
         except Exception as e:
             logger.error(f"🚨 [VideoPipeline] Lỗi gửi cảnh báo an ninh sang MQTT/Outbox: {e}")
 

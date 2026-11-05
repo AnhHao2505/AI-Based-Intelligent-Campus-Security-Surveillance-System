@@ -25,6 +25,7 @@ class StorageService:
         self.bucket_evidence = settings.MINIO_BUCKET_EVIDENCE
         self.bucket_recordings = getattr(settings, "MINIO_BUCKET_RECORDINGS", "camera-recordings")
         self.bucket_snapshots = getattr(settings, "MINIO_BUCKET_SNAPSHOTS", "camera-snapshots")
+        self._verified_buckets = set()
         self._init_minio()
 
     def _init_minio(self):
@@ -50,6 +51,7 @@ class StorageService:
                 if not self.client.bucket_exists(bucket):
                     self.client.make_bucket(bucket)
                     logger.info(f"Đã tạo bucket mới: {bucket}")
+                self._verified_buckets.add(bucket)
 
             self.is_connected = True
             logger.info(
@@ -59,6 +61,21 @@ class StorageService:
         except Exception as e:
             self.is_connected = False
             logger.warning(f"Không thể kết nối tới MinIO ({settings.MINIO_ENDPOINT}): {e}. Chuyển sang lưu ảnh local.")
+
+    def _ensure_bucket_exists(self, bucket_name: str) -> bool:
+        """Kiểm tra và đảm bảo bucket tồn tại với bộ nhớ đệm (tránh gọi lặp lại bucket_exists qua mạng - P1-04)."""
+        if bucket_name in self._verified_buckets:
+            return True
+        if not self.client:
+            return False
+        try:
+            if not self.client.bucket_exists(bucket_name):
+                self.client.make_bucket(bucket_name)
+            self._verified_buckets.add(bucket_name)
+            return True
+        except Exception as e:
+            logger.warning(f"[StorageService] Không thể xác minh bucket {bucket_name}: {e}")
+            return False
 
     def upload_bytes(self, bucket_name: str, object_name: str, data: bytes, content_type: str = "image/jpeg") -> bool:
         """Tải dữ liệu bytes lên MinIO với mã hóa SSE-S3 (kèm cơ chế fallback an toàn)."""
@@ -70,8 +87,7 @@ class StorageService:
             return False
 
         try:
-            if not self.client.bucket_exists(bucket_name):
-                self.client.make_bucket(bucket_name)
+            self._ensure_bucket_exists(bucket_name)
             try:
                 self.client.put_object(
                     bucket_name=bucket_name,
@@ -263,8 +279,7 @@ class StorageService:
 
         if self.is_connected and self.client:
             try:
-                if not self.client.bucket_exists(bucket_name):
-                    self.client.make_bucket(bucket_name)
+                self._ensure_bucket_exists(bucket_name)
 
                 try:
                     self.client.fput_object(

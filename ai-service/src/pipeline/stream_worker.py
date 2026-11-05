@@ -307,6 +307,11 @@ class CameraStreamWorker:
                     self.processed_fps = round(frame_counter / (time.time() - fps_timer), 1)
                     fps_timer = time.time()
                     frame_counter = 0
+                    active_cnt = len(self.pipeline.analysis_engine.active_tracks) if self.pipeline else 0
+                    state_val = self.pipeline.state_machine.state.value if (self.pipeline and hasattr(self.pipeline, "state_machine")) else "N/A"
+                    logger.info(
+                        f"📊 [StreamWorker:{self.camera_code}] Trạng thái: {self.processed_fps} FPS | Vùng: {state_val} | Người đang theo dõi: {active_cnt}"
+                    )
 
             except Exception as e:
                 logger.error(f"Lỗi phân tích frame camera [{self.camera_code}]: {e}")

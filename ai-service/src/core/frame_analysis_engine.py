@@ -288,6 +288,9 @@ class FrameAnalysisEngine:
                 person.roi_enter_time = current_time
                 person.entered_roi_label = matched_label or "Vùng giám sát"
                 person.roi_entry_logged = False
+                logger.info(
+                    f"📍 [FrameAnalysisEngine:{camera_code}] Track #{person.track_id} BƯỚC VÀO VÙNG ROI: '{person.entered_roi_label}'"
+                )
             elif not in_roi and person.was_in_roi:
                 duration = max(0.0, current_time - (person.roi_enter_time or current_time))
                 exit_label = person.entered_roi_label or "Vùng giám sát"
@@ -298,6 +301,9 @@ class FrameAnalysisEngine:
                     "direction": "EXIT",
                     "duration": duration
                 })
+                logger.info(
+                    f"🚶 [FrameAnalysisEngine:{camera_code}] Track #{person.track_id} ({exit_code}) RỜI KHỎI VÙNG ROI: '{exit_label}' (Thời gian ở trong vùng: {duration:.1f}s)"
+                )
                 person.roi_enter_time = None
                 person.entered_roi_label = None
                 person.roi_entry_logged = False
@@ -332,6 +338,8 @@ class FrameAnalysisEngine:
                 loc_info = {"label": matched_label} if matched_label else None
                 target_area_name = getattr(person.face_info, "area_name", None) if person.face_info else None
                 raw_loc = target_area_name or area_name or "Khu vực giám sát"
+                if not isinstance(raw_loc, str):
+                    raw_loc = "Khu vực giám sát"
                 location_display = re.sub(r"\s*\([^)]*(?:vùng|roi)[^)]*\)", "", raw_loc, flags=re.IGNORECASE).strip() or raw_loc
 
                 # 1. TRƯỜNG HỢP CÓ TRONG DATABASE (Đã xác định được danh tính)
@@ -428,6 +436,10 @@ class FrameAnalysisEngine:
                                 location=loc_info
                             )
                             generated_alerts.append(alert)
+                            logger.warning(
+                                f"🚨 [FrameAnalysisEngine:{camera_code}] VI PHẠM AN NINH: [{event_type}] "
+                                f"Người: {matched_name} ({matched_code}), Vị trí: {location_display}"
+                            )
                             person.alert_unauthorized_sent = True
                             if after_hours:
                                 person.alert_after_hours_sent = True
@@ -467,6 +479,10 @@ class FrameAnalysisEngine:
                                     location=loc_info
                                 )
                                 generated_alerts.append(alert)
+                                logger.warning(
+                                    f"🚨 [FrameAnalysisEngine:{camera_code}] VI PHẠM AN NINH: [{event_type}] "
+                                    f"Track #{person.track_id} ({event_type}), Vị trí: {location_display}"
+                                )
                                 person.alert_unknown_sent = True
                                 self.last_unknown_alert_time[camera_code] = current_time
                                 self.track_last_unknown_alert_time[person.track_id] = current_time
@@ -483,6 +499,7 @@ class FrameAnalysisEngine:
                     p.is_currently_visible = False
                 if inactive_sec > self.max_inactive_seconds:
                     inactive_ids.append(tid)
+                    logger.info(f"👋 [FrameAnalysisEngine:{camera_code}] Hết thời gian lưu vết ({inactive_sec:.1f}s > {self.max_inactive_seconds}s) -> Hủy Track #{tid}")
 
         for tid in inactive_ids:
             p = self.active_tracks[tid]

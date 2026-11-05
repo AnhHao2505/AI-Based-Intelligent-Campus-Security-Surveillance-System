@@ -37,6 +37,11 @@ from .pipeline.stream_worker import CameraStreamWorker
 from .pipeline.incident_recorder import incident_recording_manager
 from .integration.storage_service import StorageService
 
+from .utils.logger import setup_ai_logging, log_ai_step
+setup_ai_logging(
+    level=getattr(settings, "AI_LOG_LEVEL", "INFO"),
+    use_colors=getattr(settings, "AI_LOG_TERMINAL_COLORS", True)
+)
 logger = logging.getLogger("ai_service")
 setup_uvicorn_access_log_filter()
 storage_service = StorageService()
@@ -201,10 +206,20 @@ async def shutdown_event():
         get_shared_face_cache().stop_background_refresh()
     except Exception as e_cache_stop:
         logger.warning(f"Lỗi khi dừng background face cache: {e_cache_stop}")
+    try:
+        from .utils.http_client import close_http_session
+        close_http_session()
+    except Exception as e_session_close:
+        logger.warning(f"Lỗi khi đóng shared HTTP session: {e_session_close}")
 
 
 @app.on_event("startup")
 async def startup_event():
+    logger.info("🚀 [FastAPI] Khởi động AI Microservice (Campus Security Surveillance System)...")
+    logger.info(
+        f"⚙️ [FastAPI] Cấu hình AI: Thiết bị={settings.AI_DEVICE}, FaceThreshold={settings.FACE_MATCH_THRESHOLD}, "
+        f"AfterHours={settings.DEFAULT_AFTER_HOUR_START}-{settings.DEFAULT_AFTER_HOUR_END}, FPS_Max={settings.ANALYSIS_MAX_FPS}"
+    )
     try:
         from .core.shared_face_cache import get_shared_face_cache
         get_shared_face_cache().start_background_refresh()

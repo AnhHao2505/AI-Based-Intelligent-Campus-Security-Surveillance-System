@@ -26,6 +26,12 @@ class AlertOutbox:
         self._lock = threading.Lock()
         self._conn = sqlite3.connect(path, check_same_thread=False)
         with self._lock:
+            try:
+                self._conn.execute("PRAGMA journal_mode=WAL;")
+                self._conn.execute("PRAGMA synchronous=NORMAL;")
+                self._conn.execute("PRAGMA busy_timeout=5000;")
+            except Exception as e:
+                logger.warning(f"[AlertOutbox] Không thể cấu hình PRAGMA WAL: {e}")
             self._conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS outbox (

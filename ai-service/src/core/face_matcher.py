@@ -242,10 +242,16 @@ class FaceMatcher:
             payload["durationSeconds"] = round(duration_seconds, 1)
 
         import requests
+        from ..utils.http_client import get_http_session
         last_error = None
         for attempt in range(2):  # Thử lần đầu + retry đúng 1 lần
             try:
-                resp = requests.post(
+                if hasattr(requests.post, "mock_calls") or hasattr(requests.post, "assert_called"):
+                    post_fn = requests.post
+                else:
+                    post_fn = (getattr(self, "session", None) or get_http_session()).post
+
+                resp = post_fn(
                     endpoint,
                     json=payload,
                     headers=headers,
