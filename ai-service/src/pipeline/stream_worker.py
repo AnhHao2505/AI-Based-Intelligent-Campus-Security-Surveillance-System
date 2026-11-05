@@ -1,6 +1,7 @@
 from ..utils.security import mask_rtsp_url
 import os
-os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp"
+from ..utils.ffmpeg_options import get_ffmpeg_capture_options
+os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = get_ffmpeg_capture_options()
 import cv2
 import time
 import logging
@@ -221,7 +222,7 @@ class CameraStreamWorker:
     def _capture_loop(self):
         """Luồng chuyên biệt kéo frame RTSP liên tục và ghi hình vào đĩa (zero lag)"""
         logger.info(f"Khởi động Capture Thread cho camera [{self.camera_code}]: {mask_rtsp_url(self.rtsp_url)}")
-        os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp|stimeout;5000000"
+        os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = get_ffmpeg_capture_options(timeout_us=5000000)
         cap = None
         fail_count = 0
 

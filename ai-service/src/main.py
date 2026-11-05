@@ -38,10 +38,16 @@ from .pipeline.incident_recorder import incident_recording_manager
 from .integration.storage_service import StorageService
 
 from .utils.logger import setup_ai_logging, log_ai_step
+from .utils.system_threads import configure_system_threads
+from .utils.ffmpeg_options import get_ffmpeg_capture_options
+from .pipeline.model_warmup import warmup_pipeline_models
+
 setup_ai_logging(
     level=getattr(settings, "AI_LOG_LEVEL", "INFO"),
     use_colors=getattr(settings, "AI_LOG_TERMINAL_COLORS", True)
 )
+configure_system_threads()
+models_warmed_up: bool = False
 logger = logging.getLogger("ai_service")
 setup_uvicorn_access_log_filter()
 storage_service = StorageService()
@@ -233,6 +239,15 @@ async def startup_event():
         )
     except Exception as e:
         print(f"[!] Cảnh báo khi khởi tạo pipeline: {e}")
+
+    global models_warmed_up
+    try:
+        if default_pipeline:
+            warmup_pipeline_models(default_pipeline)
+            models_warmed_up = True
+    except Exception as e_warm:
+        logger.warning(f"⚠️ Lỗi khi warm-up models: {e_warm}")
+
     global edge_agent
     try:
         from .integration.mqtt_client import get_security_mqtt_client
@@ -292,10 +307,11 @@ async def health_check():
         except Exception:
             db_connected = False
 
-    is_healthy = pipeline_ready and yolo_loaded and yunet_loaded and arcface_loaded
+    is_healthy = pipeline_ready and yolo_loaded and yunet_loaded and arcface_loaded and models_warmed_up
     return {
         "status": "UP" if is_healthy else "DOWN",
         "pipeline_ready": pipeline_ready,
+        "models_warmed_up": models_warmed_up,
         "models": {
             "yolo_model": yolo_loaded,
             "yunet_model": yunet_loaded,
@@ -680,7 +696,7 @@ class SnapshotRequest(BaseModel):
 
 def _read_rtsp_frame_sync(rtsp_url: str, timeout_ms: int):
     timeout_us = max(1000, timeout_ms) * 1000
-    os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = f"rtsp_transport;tcp|stimeout;{timeout_us}"
+    os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = get_ffmpeg_capture_options(timeout_us=timeout_us)
     
     # Thử tối đa 2 lần để tránh xung đột socket khi người dùng vừa bấm Lưu luồng rồi bấm Thử kết nối liên tiếp
     for attempt in range(2):

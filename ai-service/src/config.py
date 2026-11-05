@@ -1,5 +1,5 @@
 import os
-from typing import List
+from typing import List, Optional
 from pydantic_settings import BaseSettings
 from pydantic import Field, AliasChoices
 
@@ -100,6 +100,15 @@ class Settings(BaseSettings):
     AI_LOG_LEVEL: str = Field(default="INFO", validation_alias="AI_LOG_LEVEL")
     AI_LOG_TERMINAL_COLORS: bool = Field(default=True, validation_alias="AI_LOG_TERMINAL_COLORS")
     AI_LOG_VERBOSE_FRAMES: bool = Field(default=False, validation_alias="AI_LOG_VERBOSE_FRAMES")
+
+    # RTSP / FFmpeg Low-Latency Configuration (P1-06)
+    RTSP_TRANSPORT: str = Field(default="tcp", validation_alias="RTSP_TRANSPORT")
+    FFMPEG_LOW_DELAY: bool = Field(default=True, validation_alias="FFMPEG_LOW_DELAY")
+    FFMPEG_NOBUFFER: bool = Field(default=True, validation_alias="FFMPEG_NOBUFFER")
+    FFMPEG_STIMEOUT_US: int = Field(default=5000000, validation_alias="FFMPEG_STIMEOUT_US")
+
+    # CPU Threading Configuration (P1-06)
+    AI_NUM_THREADS: Optional[int] = Field(default=None, validation_alias="AI_NUM_THREADS")
     
     # Continuous Video Recording Configuration
     RECORDING_BASE_DIR: str = Field(

@@ -55,9 +55,11 @@ class FaceEmbedder:
             available_providers = ort.get_available_providers()
             providers = ['CUDAExecutionProvider', 'CPUExecutionProvider'] if 'CUDAExecutionProvider' in available_providers else ['CPUExecutionProvider']
             
+            from ..utils.system_threads import configure_system_threads
             opts = ort.SessionOptions()
             opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-            opts.intra_op_num_threads = 4
+            num_threads = configure_system_threads()
+            opts.intra_op_num_threads = num_threads
 
             self.session = ort.InferenceSession(self.model_path, sess_options=opts, providers=providers)
             self.input_name = self.session.get_inputs()[0].name
