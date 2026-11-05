@@ -73,7 +73,7 @@ class Settings(BaseSettings):
     DRAW_ONLY_IN_ROI: bool = Field(default=False, validation_alias="DRAW_ONLY_IN_ROI")
     DEFAULT_FACE_CONFIDENCE: float = 0.60
     DEFAULT_FACE_NMS_THRESHOLD: float = 0.30
-    FACE_MATCH_THRESHOLD: float = 0.75
+    FACE_MATCH_THRESHOLD: float = Field(default=0.65, validation_alias="FACE_MATCH_THRESHOLD")
     FACE_REVERIFY_SCORE_THRESHOLD: float = Field(default=0.82, validation_alias="FACE_REVERIFY_SCORE_THRESHOLD")
     FACE_REVERIFY_MIN_INTERVAL_SECONDS: float = Field(default=3.0, validation_alias="FACE_REVERIFY_MIN_INTERVAL_SECONDS")
     FACE_SCAN_THROTTLING_ENABLED: bool = Field(default=True, validation_alias="FACE_SCAN_THROTTLING_ENABLED")
