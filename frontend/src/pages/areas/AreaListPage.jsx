@@ -1371,7 +1371,6 @@ export default function AreaListPage() {
 										{longitudeError && <div className="area-form-error">{longitudeError}</div>}
 									</div>
 								</div>
-								<div className="area-form-hint">Để trống cả hai nếu chưa xác định vị trí — khu vực sẽ ở trạng thái "Chưa định vị" và không hiện trên bản đồ.</div>
 							</div>
 
 							{/* 4. Phần chân: 2 nút chia đôi chiều rộng, gap 9px */}
@@ -1635,7 +1634,6 @@ export default function AreaListPage() {
 										{longitudeError && <div className="area-form-error">{longitudeError}</div>}
 									</div>
 								</div>
-								<div className="area-form-hint">Để trống cả hai nếu chưa xác định vị trí — khu vực sẽ ở trạng thái "Chưa định vị" và không hiện trên bản đồ.</div>
 							</div>
 
 							<div className="area-modal__footer">
