@@ -13,6 +13,13 @@ _BYTETRACK_CONFIG_PATH = os.path.join(
     "bytetrack_surveillance.yaml",
 )
 
+def get_tracker_config_path() -> str:
+    """Tra ve duong dan cau hinh bytetrack_surveillance.yaml neu ton tai, nguoc lai fallback ve bytetrack.yaml mac dinh"""
+    if os.path.exists(_BYTETRACK_CONFIG_PATH):
+        return _BYTETRACK_CONFIG_PATH
+    return "bytetrack.yaml"
+
+
 logger = logging.getLogger(__name__)
 
 class HumanDetector:
@@ -39,6 +46,46 @@ class HumanDetector:
 
         self.model = YOLO(model_path)
 
+    def detect(self, frame: np.ndarray) -> List[Tuple[int, BoundingBox]]:
+        """
+        Phát hiện người trong ảnh đơn lẻ không qua tracker (stateless detection).
+        Không cập nhật trạng thái ByteTrack để không làm bẩn bộ đệm tracker của luồng video.
+        """
+        if frame is None or frame.size == 0:
+            return []
+
+        results = self.model(
+            source=frame,
+            classes=[0],
+            conf=self.conf_threshold,
+            device=self.device,
+            verbose=False
+        )
+
+        detected_tracks: List[Tuple[int, BoundingBox]] = []
+        if not results or len(results) == 0:
+            return detected_tracks
+
+        r = results[0]
+        boxes = r.boxes
+        if boxes is None or len(boxes) == 0:
+            return detected_tracks
+
+        for idx, box in enumerate(boxes):
+            xyxy = box.xyxy[0].cpu().numpy()
+            conf = float(box.conf[0].cpu().numpy()) if box.conf is not None else 1.0
+            x1, y1, x2, y2 = float(xyxy[0]), float(xyxy[1]), float(xyxy[2]), float(xyxy[3])
+            w, h = x2 - x1, y2 - y1
+            if h < 25 or w < 12:
+                continue
+            aspect_ratio = h / max(1.0, w)
+            min_ar = 0.15 if conf >= 0.60 else 0.20
+            if aspect_ratio < min_ar or aspect_ratio > 7.0:
+                continue
+            detected_tracks.append((idx + 1, BoundingBox(x1=x1, y1=y1, x2=x2, y2=y2, confidence=conf)))
+
+        return detected_tracks
+
     def reset_tracker(self):
         """Khởi tạo lại trạng thái ByteTrack tracker khi luồng video bị đứt kết nối hoặc chuyển camera"""
         try:
@@ -64,7 +111,7 @@ class HumanDetector:
             persist=persist,
             classes=[0],
             conf=self.conf_threshold,
-            tracker=_BYTETRACK_CONFIG_PATH,
+            tracker=get_tracker_config_path(),
             device=self.device,
             verbose=False
         )

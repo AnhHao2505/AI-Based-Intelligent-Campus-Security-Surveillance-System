@@ -1,3 +1,4 @@
+from ..utils.security import mask_rtsp_url
 import os
 os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp"
 import cv2
@@ -27,14 +28,16 @@ def select_stream_path(camera_code: str, available_paths: Optional[Iterable[str]
 
 def resolve_camera_rtsp_url(
     camera_code: str,
-    base_rtsp_gateway: str = "rtsp://localhost:8554",
+    base_rtsp_gateway: Optional[str] = None,
     available_paths: Optional[Iterable[str]] = None
 ) -> str:
     """
     Tạo RTSP URL gateway cho camera, tự động ưu tiên {camera_code}_main nếu có trong MediaMTX.
+    Mặc định sử dụng settings.MEDIAMTX_RTSP_URL.
     """
     stream_name = select_stream_path(camera_code, available_paths)
-    base = base_rtsp_gateway.rstrip("/")
+    effective_base = base_rtsp_gateway or getattr(settings, "MEDIAMTX_RTSP_URL", "rtsp://localhost:8554")
+    base = effective_base.rstrip("/")
     return f"{base}/{stream_name}"
 
 from .video_pipeline import VideoPipeline
@@ -50,6 +53,7 @@ class CameraStreamWorker:
         import psycopg2
         import json
         from ..config import settings
+        conn = None
         try:
             conn = psycopg2.connect(
                 host=settings.DB_HOST,
@@ -70,9 +74,14 @@ class CameraStreamWorker:
                     if isinstance(geom, str):
                         geom = json.loads(geom)
                     return geom
-            conn.close()
         except Exception as e:
             logger.warning(f"Không thể tải roi_geometry từ DB cho camera [{camera_code}]: {e}")
+        finally:
+            if conn is not None:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
         return None
 
     """
@@ -155,64 +164,95 @@ class CameraStreamWorker:
         self.capture_thread.start()
         self.analysis_thread = threading.Thread(target=self._analysis_loop, daemon=True)
         self.analysis_thread.start()
-        logger.info(f"Đã khởi động Stream Worker (Threaded Grabber & Continuous Recorder) cho Camera [{self.camera_code}] từ: {self.rtsp_url}")
+        logger.info(f"Đã khởi động Stream Worker (Threaded Grabber & Continuous Recorder) cho Camera [{self.camera_code}] từ: {mask_rtsp_url(self.rtsp_url)}")
 
     def stop(self):
         """Dừng worker và hoàn tất ghi file video"""
         self.is_running = False
-        if self.capture_thread:
+        if hasattr(self, "cap") and self.cap is not None:
+            try:
+                self.cap.release()
+            except Exception:
+                pass
+        if self.capture_thread and self.capture_thread.is_alive():
             self.capture_thread.join(timeout=2.0)
             self.capture_thread = None
-        if self.analysis_thread:
+        if self.analysis_thread and self.analysis_thread.is_alive():
             self.analysis_thread.join(timeout=2.0)
             self.analysis_thread = None
         if self.recorder:
             self.recorder.stop()
+        if hasattr(self, "pipeline") and self.pipeline is not None:
+            try:
+                self.pipeline.stop()
+            except Exception as ex:
+                logger.warning(f"Lỗi khi dừng pipeline trong CameraStreamWorker: {ex}")
         logger.info(f"Đã dừng Stream Worker cho Camera [{self.camera_code}].")
 
     def _capture_loop(self):
         """Luồng chuyên biệt kéo frame RTSP liên tục và ghi hình vào đĩa (zero lag)"""
-        logger.info(f"Khởi động Capture Thread cho camera [{self.camera_code}]: {self.rtsp_url}")
-        os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp"
-        cap = cv2.VideoCapture(self.rtsp_url, cv2.CAP_FFMPEG)
-        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        logger.info(f"Khởi động Capture Thread cho camera [{self.camera_code}]: {mask_rtsp_url(self.rtsp_url)}")
+        os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp|stimeout;5000000"
+        cap = None
         fail_count = 0
 
-        while self.is_running:
-            ret, frame = cap.read()
-            if not ret or frame is None:
-                fail_count += 1
-                time.sleep(0.3)
-                if fail_count >= 10:
-                    logger.warning(
-                        f"⚠️ [StreamWorker] Camera [{self.camera_code}] chưa có luồng từ MediaMTX ({self.rtsp_url}). "
-                        f"Kiểm tra xem camera/điện thoại phát RTSP đã bật và đúng địa chỉ IP chưa. Đang thử kết nối lại sau 3s..."
-                    )
+        try:
+            cap = cv2.VideoCapture(self.rtsp_url, cv2.CAP_FFMPEG)
+            cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 5000)
+            cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 5000)
+            cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+            self.cap = cap
+
+            while self.is_running:
+                try:
+                    ret, frame = cap.read()
+                except Exception as ex_read:
+                    logger.warning(f"Lỗi đọc frame camera [{self.camera_code}]: {ex_read}")
+                    ret, frame = False, None
+
+                if not ret or frame is None:
+                    fail_count += 1
+                    time.sleep(0.3)
+                    if fail_count >= 10:
+                        logger.warning(
+                            f"⚠️ [StreamWorker] Camera [{self.camera_code}] chưa có luồng từ MediaMTX ({mask_rtsp_url(self.rtsp_url)}). "
+                            f"Kiểm tra xem camera/điện thoại phát RTSP đã bật và đúng địa chỉ IP chưa. Đang thử kết nối lại sau 3s..."
+                        )
+                        try:
+                            cap.release()
+                        except Exception:
+                            pass
+                        time.sleep(3.0)
+                        if not self.is_running:
+                            break
+                        cap = cv2.VideoCapture(self.rtsp_url, cv2.CAP_FFMPEG)
+                        cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 5000)
+                        cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 5000)
+                        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                        self.cap = cap
+                        fail_count = 0
+                    continue
+                fail_count = 0
+
+                # Ghi hình liên tục vào đĩa (Non-blocking qua hàng đợi)
+                if self.recorder:
+                    self.recorder.write_frame(frame)
+
+                with self.raw_frame_lock:
+                    self.raw_frame = frame
+                    self.frame_id += 1
+        except Exception as e:
+            logger.error(f"Lỗi ngoại lệ trong capture thread camera [{self.camera_code}]: {e}")
+        finally:
+            if cap is not None:
+                try:
                     cap.release()
-                    time.sleep(3.0)
-                    if not self.is_running:
-                        break
-                    cap = cv2.VideoCapture(self.rtsp_url, cv2.CAP_FFMPEG)
-                    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-                    fail_count = 0
-                continue
-            fail_count = 0
-
-            # Ghi hình liên tục vào đĩa (Non-blocking qua hàng đợi)
+                except Exception:
+                    pass
+            self.cap = None
             if self.recorder:
-                self.recorder.write_frame(frame)
-
-            # Ghi hình sự cố an ninh nếu có phiên ghi hình sự cố đang chạy cho camera này
-            # Chuyển sang ghi annotated_frame ở _analysis_loop để video bằng chứng có sẵn khung AI & ROI
-
-            with self.raw_frame_lock:
-                self.raw_frame = frame
-                self.frame_id += 1
-
-        if self.recorder:
-            self.recorder.stop()
-        cap.release()
-        logger.info(f"Đã đóng Capture Thread cho camera [{self.camera_code}].")
+                self.recorder.stop()
+            logger.info(f"Đã đóng Capture Thread cho camera [{self.camera_code}].")
 
     def _analysis_loop(self):
         """Luồng phân tích AI: Luôn lấy frame mới nhất (Fresh Frame) để xử lý"""

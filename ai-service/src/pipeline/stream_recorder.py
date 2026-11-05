@@ -1,5 +1,6 @@
 import os
 import sys
+import shutil
 import hashlib
 
 # Đảm bảo Windows tìm được thư viện OpenH264 để mã hóa chuẩn AVC1/H.264
@@ -29,7 +30,7 @@ import queue
 import logging
 import threading
 from datetime import datetime, timezone, timedelta
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 logger = logging.getLogger(__name__)
 
@@ -115,6 +116,199 @@ def _has_valid_moov_atom(file_path: str) -> bool:
         return False
 
 
+def enforce_local_recording_retention(
+    directory: str,
+    max_mb: Optional[int] = None,
+    max_files: Optional[int] = None,
+) -> List[str]:
+    """
+    Dọn dẹp các file video cục bộ cũ nhất khi MinIO offline để chống tràn ổ cứng (BUG-04).
+    Hỗ trợ hạn ngạch theo dung lượng toàn cục (max_mb) hoặc số file (max_files).
+    """
+    removed = []
+    if not directory or not os.path.exists(directory):
+        return removed
+    try:
+        mp4_files = []
+        for root, _, files in os.walk(directory):
+            for fname in files:
+                if fname.lower().endswith(".mp4") and not fname.endswith(".recording.mp4"):
+                    full_p = os.path.join(root, fname)
+                    if os.path.isfile(full_p):
+                        try:
+                            mtime = os.path.getmtime(full_p)
+                            size = os.path.getsize(full_p)
+                            mp4_files.append((full_p, mtime, size))
+                        except Exception:
+                            pass
+        mp4_files.sort(key=lambda x: x[1])
+
+        if max_mb is not None and max_mb > 0:
+            max_bytes = max_mb * 1024 * 1024
+            total_bytes = sum(f[2] for f in mp4_files)
+            idx = 0
+            while total_bytes > max_bytes and idx < len(mp4_files):
+                p, _, sz = mp4_files[idx]
+                try:
+                    os.remove(p)
+                    removed.append(p)
+                    total_bytes -= sz
+                    logger.warning(f"⚠️ [Disk Safeguard] Vượt hạn ngạch dung lượng ({max_mb} MB): Đã xóa file video cũ nhất {p}")
+                except Exception as e:
+                    logger.error(f"Lỗi khi xóa file {p}: {e}")
+                idx += 1
+        elif max_files is not None and max_files > 0:
+            if len(mp4_files) > max_files:
+                excess = len(mp4_files) - max_files
+                for p, _, _ in mp4_files[:excess]:
+                    try:
+                        os.remove(p)
+                        removed.append(p)
+                        logger.warning(f"⚠️ [Disk Safeguard] MinIO offline: Đã tự động xóa file đệm video cũ nhất {p} để chống tràn đĩa.")
+                    except Exception as e:
+                        logger.error(f"Lỗi khi xóa file đệm cục bộ {p}: {e}")
+    except Exception as e:
+        logger.error(f"Lỗi thực hiện enforce_local_recording_retention: {e}")
+    return removed
+
+
+def enforce_emergency_evidence_retention(
+    directory: str,
+    emergency_free_mb: int = 500,
+) -> List[str]:
+    """
+    Chỉ xóa video bằng chứng khi mức đĩa còn trống thấp hơn ngưỡng khẩn cấp (emergency_free_mb).
+    Khi xóa bắt buộc phải log ERROR (BUG-04c).
+    """
+    removed = []
+    if not directory or not os.path.exists(directory):
+        return removed
+    try:
+        usage = shutil.disk_usage(directory)
+        free_mb = usage.free / (1024 * 1024)
+        if free_mb < emergency_free_mb:
+            mp4_files = []
+            for root, _, files in os.walk(directory):
+                for fname in files:
+                    if fname.lower().endswith(".mp4") and not fname.endswith(".recording.mp4"):
+                        full_p = os.path.join(root, fname)
+                        if os.path.isfile(full_p):
+                            try:
+                                mtime = os.path.getmtime(full_p)
+                                mp4_files.append((full_p, mtime))
+                            except Exception:
+                                pass
+            mp4_files.sort(key=lambda x: x[1])
+            for p, _ in mp4_files:
+                try:
+                    os.remove(p)
+                    removed.append(p)
+                    logger.error(f"🚨 [EMERGENCY DISK FULL] Dung lượng đĩa còn {free_mb:.1f} MB (< {emergency_free_mb} MB)! Buộc phải xóa video bằng chứng: {p}")
+                    free_mb = shutil.disk_usage(directory).free / (1024 * 1024)
+                    if free_mb >= emergency_free_mb:
+                        break
+                except Exception as e:
+                    logger.error(f"Lỗi xóa file evidence khẩn cấp {p}: {e}")
+    except Exception as e:
+        logger.error(f"Lỗi thực hiện enforce_emergency_evidence_retention: {e}")
+    return removed
+
+
+def retry_pending_uploads(
+    storage_service=None,
+    mqtt_client=None,
+    recording_dir: Optional[str] = None,
+    evidence_dir: Optional[str] = None,
+    max_batch: int = 5,
+) -> int:
+    """
+    Job thử upload lại các file video (.mp4) còn tồn trên đĩa cục bộ khi MinIO hoạt động lại (BUG-04d).
+    Sau khi upload thành công: gửi sự kiện MQTT và xóa file local.
+    """
+    if storage_service is None:
+        try:
+            from ..integration.storage_service import storage_service as _storage
+            storage_service = _storage
+        except Exception:
+            return 0
+    if mqtt_client is None:
+        try:
+            from ..integration.mqtt_client import get_security_mqtt_client
+            mqtt_client = get_security_mqtt_client()
+        except Exception:
+            pass
+
+    from ..config import settings
+    rec_base = recording_dir or getattr(settings, "RECORDING_BASE_DIR", "")
+    evid_base = evidence_dir or getattr(settings, "EVIDENCE_BASE_DIR", "")
+
+    pending_targets = []
+    if evid_base and os.path.exists(evid_base):
+        for root, _, files in os.walk(evid_base):
+            for fname in files:
+                if fname.lower().endswith(".mp4") and not fname.endswith(".recording.mp4"):
+                    pending_targets.append((os.path.join(root, fname), evid_base, "INCIDENT_EVIDENCE"))
+    if rec_base and os.path.exists(rec_base):
+        for root, _, files in os.walk(rec_base):
+            for fname in files:
+                if fname.lower().endswith(".mp4") and not fname.endswith(".recording.mp4"):
+                    pending_targets.append((os.path.join(root, fname), rec_base, "PERIODIC_SEGMENT"))
+
+    uploaded = 0
+    for file_path, base_d, rec_type in pending_targets:
+        if uploaded >= max_batch:
+            break
+        try:
+            if not os.path.exists(file_path):
+                continue
+            norm_path = os.path.normpath(file_path)
+            rel_path = os.path.relpath(norm_path, base_d).replace("\\", "/")
+            parts = rel_path.split("/")
+            cam_code = parts[0] if parts else "UNKNOWN"
+            obj_name = rel_path
+
+            if rec_type == "INCIDENT_EVIDENCE":
+                bucket = getattr(settings, "MINIO_BUCKET_EVIDENCE", "security-evidence")
+            else:
+                bucket = getattr(settings, "MINIO_BUCKET_RECORDINGS", "camera-recordings")
+
+            success = storage_service.upload_video_file(norm_path, bucket, obj_name)
+            if success:
+                mtime = os.path.getmtime(norm_path)
+                file_dt = datetime.fromtimestamp(mtime, tz=VN_TZ)
+                payload = build_recording_completed_payload(
+                    camera_code=cam_code,
+                    recording_type=rec_type,
+                    bucket_name=bucket,
+                    object_key=obj_name,
+                    file_path=norm_path,
+                    start_dt=file_dt - timedelta(seconds=60),
+                    end_dt=file_dt,
+                    frames_count=900,
+                    fps=15.0,
+                    incident_event_id=None,
+                )
+                if mqtt_client is not None:
+                    try:
+                        mqtt_client.publish_recording_event(payload)
+                    except Exception as mex:
+                        logger.warning(f"Lỗi publish MQTT sau retry upload: {mex}")
+                try:
+                    os.remove(norm_path)
+                    logger.info(f"🗑️ [Retry Uploader] Đã xóa file local sau khi upload bù thành công: {norm_path}")
+                except Exception as rex:
+                    logger.warning(f"Không thể xóa file {norm_path}: {rex}")
+                uploaded += 1
+                time.sleep(0.05)
+            else:
+                break
+        except Exception as ex:
+            logger.error(f"Lỗi khi retry upload file {file_path}: {ex}")
+            break
+
+    return uploaded
+
+
 class StreamRecorder:
     """
     Module ghi video liên tục chuẩn giám sát an ninh (Edge-Cloud Optimized):
@@ -156,6 +350,8 @@ class StreamRecorder:
         self.frame_queue: queue.Queue = queue.Queue(maxsize=60)
         self.is_running = False
         self.worker_thread: Optional[threading.Thread] = None
+        self._stop_lock = threading.Lock()
+        self._is_stopped = False
 
     def start(self):
         if self.is_running:
@@ -415,24 +611,30 @@ class StreamRecorder:
                             "camera_code": camera_code,
                             "object_key": del_key,
                         })
+                else:
+                    rec_dir = getattr(self, "base_dir", os.path.dirname(file_path))
+                    max_mb = getattr(settings, "LOCAL_RECORDING_MAX_MB", 2048)
+                    enforce_local_recording_retention(rec_dir, max_mb=max_mb)
             except Exception as e:
                 logger.error(f"❌ [Recorder MinIO Upload Task] Lỗi: {e}")
 
         threading.Thread(target=_upload_task, daemon=True).start()
 
     def stop(self):
-        if not self.is_running:
-            return
-        self.is_running = False
-        try:
-            self.frame_queue.put_nowait(None)
-        except Exception:
-            pass
-        if self.worker_thread and self.worker_thread.is_alive():
-            self.worker_thread.join(timeout=5.0)
-            self.worker_thread = None
-        self._close_writer()
-        logger.info(f"🛑 [Recorder] Đã dừng ghi hình cho camera [{self.camera_code}].")
+        with self._stop_lock:
+            if not self.is_running and getattr(self, "_is_stopped", False):
+                return
+            self.is_running = False
+            self._is_stopped = True
+            try:
+                self.frame_queue.put_nowait(None)
+            except Exception:
+                pass
+            if self.worker_thread and self.worker_thread.is_alive():
+                self.worker_thread.join(timeout=2.0)
+                self.worker_thread = None
+            self._close_writer()
+            logger.info(f"🛑 [Recorder] Đã dừng ghi hình cho camera [{self.camera_code}].")
 
     def close(self):
         self.stop()

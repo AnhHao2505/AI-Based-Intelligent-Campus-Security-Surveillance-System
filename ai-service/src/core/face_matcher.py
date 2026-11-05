@@ -1,3 +1,4 @@
+import threading
 import logging
 import time
 from typing import Optional, Tuple, Dict, List
@@ -37,6 +38,7 @@ class FaceMatcher:
         self.cache_ttl = 30.0 # Tự động làm mới cache mỗi 30 giây
         self.access_cache: Dict[str, Tuple[bool, str, Optional[str], float]] = {}
         self.access_cache_ttl = getattr(settings, "ACCESS_DECISION_CACHE_TTL", 30.0)
+        self._access_cache_lock = threading.Lock()
         self.refresh_cache()
 
     def _get_connection(self):
@@ -44,7 +46,9 @@ class FaceMatcher:
 
     def refresh_cache(self):
         """Tải toàn bộ vector khuôn mặt từ PostgreSQL vào bộ nhớ RAM để tìm kiếm cực nhanh"""
-        self.access_cache.clear()
+        with self._access_cache_lock:
+            self.access_cache.clear()
+        conn = None
         try:
             conn = self._get_connection()
             cur = conn.cursor()
@@ -124,10 +128,15 @@ class FaceMatcher:
             self.last_cache_time = time.time()
             logger.info(f"✅ [FaceMatcher] Đã nạp {len(self.cached_faces)} hồ sơ khuôn mặt và {len(self.public_camera_codes)} camera công cộng vào RAM cache.")
             cur.close()
-            conn.close()
         except Exception as e:
             logger.warning(f"⚠️ [FaceMatcher] Không thể kết nối Database để nạp face cache: {e}")
-            self.last_cache_time = time.time()
+            # BUG-03: KHÔNG cập nhật last_cache_time khi lỗi để tránh kẹt cache rỗng suốt 30s
+        finally:
+            if conn is not None:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
     def get_camera_area_name(self, camera_code: str):
         """Lấy tên khu vực thực tế (Physical Area Name) của Camera từ cơ sở dữ liệu"""
@@ -198,16 +207,22 @@ class FaceMatcher:
         self,
         camera_code: str,
         user_code: str
-    ) -> Optional[Tuple[bool, str, Optional[str]]]:
+    ) -> Optional[Tuple[bool, str, Optional[str], Optional[str]]]:
         """Truy xuất nhanh quyền ra vào từ RAM cache, trả về None nếu cache miss hoặc hết hạn"""
         if not camera_code or not user_code:
             return None
         cache_key = f"{camera_code}:{user_code}"
         now = time.time()
-        if cache_key in self.access_cache:
-            allowed, reason, area_name, expire_at = self.access_cache[cache_key]
-            if now < expire_at:
-                return allowed, reason, area_name
+        with self._access_cache_lock:
+            if cache_key in self.access_cache:
+                entry = self.access_cache[cache_key]
+                if len(entry) >= 5:
+                    allowed, reason, area_name, expire_at, source = entry[:5]
+                else:
+                    allowed, reason, area_name, expire_at = entry[:4]
+                    source = None
+                if now < expire_at:
+                    return allowed, reason, area_name, source
         return None
 
     def check_camera_access(
@@ -218,7 +233,7 @@ class FaceMatcher:
         event_direction: Optional[str] = None,
         duration_seconds: Optional[float] = None,
         skip_cache: bool = False
-    ) -> Tuple[bool, str, Optional[str]]:
+    ) -> Tuple[bool, str, Optional[str], Optional[str]]:
         """
         Kiểm tra quyền ra vào của user_code tại vị trí camera_code và ghi log chuyển động qua vùng ROI (VÀO / RA).
         Gọi API POST /api/access-control/check-entry của Spring Boot Backend (checkEntry).
@@ -226,67 +241,125 @@ class FaceMatcher:
         Trả về: (is_allowed: bool, reason: str, area_name: Optional[str])
         """
         if not camera_code or not user_code:
-            return False, "Thiếu thông tin camera hoặc người dùng", None
+            return False, "Thiếu thông tin camera hoặc người dùng", None, None
 
         cache_key = f"{camera_code}:{user_code}"
         now = time.time()
 
         # 1. Kiểm tra cache RAM (chỉ dùng cache khi không yêu cầu skip_cache)
-        if not skip_cache and cache_key in self.access_cache:
-            allowed, reason, area_name, expire_at = self.access_cache[cache_key]
-            if now < expire_at:
-                return allowed, reason, area_name
+        if not skip_cache:
+            with self._access_cache_lock:
+                if cache_key in self.access_cache:
+                    entry = self.access_cache[cache_key]
+                    if len(entry) >= 5:
+                        allowed, reason, area_name, expire_at, source = entry[:5]
+                    else:
+                        allowed, reason, area_name, expire_at = entry[:4]
+                        source = None
+                    if now < expire_at:
+                        return allowed, reason, area_name, source
 
-        # 2. Gọi API Backend Spring Boot
+        # 2. Gọi API Backend Spring Boot (có retry 1 lần khi timeout/lỗi mạng)
         backend_url = getattr(settings, "BACKEND_API_URL", "http://localhost:8080")
         endpoint = f"{backend_url.rstrip('/')}/api/access-control/check-entry"
+        headers = {INTERNAL_SERVICE_KEY_HEADER: settings.INTERNAL_SERVICE_KEY}
+        payload = {
+            "cameraCode": camera_code,
+            "userCode": user_code
+        }
+        if roi_label:
+            payload["roiLabel"] = roi_label
+        if event_direction:
+            payload["eventDirection"] = event_direction
+        if duration_seconds is not None:
+            payload["durationSeconds"] = round(duration_seconds, 1)
 
-        try:
-            import requests
-            payload = {
-                "cameraCode": camera_code,
-                "userCode": user_code
-            }
-            if roi_label:
-                payload["roiLabel"] = roi_label
-            if event_direction:
-                payload["eventDirection"] = event_direction
-            if duration_seconds is not None:
-                payload["durationSeconds"] = round(duration_seconds, 1)
+        import requests
+        last_error = None
+        for attempt in range(2):  # Thử lần đầu + retry đúng 1 lần
+            try:
+                resp = requests.post(
+                    endpoint,
+                    json=payload,
+                    headers=headers,
+                    timeout=1.5
+                )
+                if resp.status_code == 200:
+                    res_json = resp.json()
+                    data = res_json.get("data", {})
+                    allowed = bool(data.get("allowed", False))
+                    reason = data.get("reason", "Xét duyệt từ Backend")
+                    area_name = data.get("areaName")
+                    raw_source = data.get("source")
+                    source = str(raw_source).strip().upper() if raw_source else None
 
-            resp = requests.post(
-                endpoint,
-                json=payload,
-                headers={INTERNAL_SERVICE_KEY_HEADER: settings.INTERNAL_SERVICE_KEY},
-                timeout=1.5
-            )
-            if resp.status_code == 200:
-                res_json = resp.json()
-                data = res_json.get("data", {})
-                allowed = bool(data.get("allowed", False))
-                reason = data.get("reason", "Xét duyệt từ Backend")
-                area_name = data.get("areaName")
-
-                # Tự động loại bỏ khỏi Face RAM Cache nếu Backend phản hồi người dùng không tồn tại / đã bị xoá
-                reason_lower = (reason or "").lower()
-                if "không tồn tại" in reason_lower or "đã bị xoá" in reason_lower:
-                    logger.info(f"🗑️ [FaceMatcher] Tài khoản [{user_code}] đã bị xoá hoặc không tồn tại trên hệ thống -> Loại bỏ ngay khỏi Face RAM Cache.")
-                    self.cached_faces = [f for f in self.cached_faces if f.get("code") != user_code]
-                    if self.cached_faces:
-                        self.cached_matrix = np.vstack([item["vector"] for item in self.cached_faces]).astype(np.float32)
+                    # Tự động loại bỏ khỏi Face RAM Cache nếu Backend phản hồi người dùng không tồn tại / đã bị xoá
+                    reason_lower = (reason or "").lower()
+                    if "không tồn tại" in reason_lower or "đã bị xoá" in reason_lower:
+                        logger.info(f"🗑️ [FaceMatcher] Tài khoản [{user_code}] đã bị xoá hoặc không tồn tại trên hệ thống -> Loại bỏ ngay khỏi Face RAM Cache.")
+                        self.cached_faces = [f for f in self.cached_faces if f.get("code") != user_code]
+                        if self.cached_faces:
+                            self.cached_matrix = np.vstack([item["vector"] for item in self.cached_faces]).astype(np.float32)
+                        else:
+                            self.cached_matrix = None
+                        with self._access_cache_lock:
+                            self.access_cache.pop(cache_key, None)
                     else:
-                        self.cached_matrix = None
-                    if cache_key in self.access_cache:
-                        del self.access_cache[cache_key]
+                        ttl = self.access_cache_ttl if allowed else min(self.access_cache_ttl, 5.0)
+                        with self._access_cache_lock:
+                            self.access_cache[cache_key] = (allowed, reason, area_name, now + ttl, source)
 
-                ttl = self.access_cache_ttl if allowed else min(self.access_cache_ttl, 5.0)
-                self.access_cache[cache_key] = (allowed, reason, area_name, now + ttl)
-                logger.info(f"🔑 [FaceMatcher] Quyền ra vào [{user_code}] tại [{camera_code}] ({area_name or 'N/A'}): {'HỢP LỆ' if allowed else 'TỪ CHỐI'} ({reason})")
-                return allowed, reason, area_name
-            else:
-                logger.warning(f"⚠️ [FaceMatcher] Backend trả về status {resp.status_code} khi checkEntry cho {user_code}")
-        except Exception as e:
-            logger.warning(f"⚠️ [FaceMatcher] Không thể kết nối Backend để xét checkEntry cho {user_code}: {e}")
+                    logger.info(f"🔑 [FaceMatcher] Quyền ra vào [{user_code}] tại [{camera_code}] ({area_name or 'N/A'}, source={source}): {'HỢP LỆ' if allowed else 'TỪ CHỐI'} ({reason})")
+                    return allowed, reason, area_name, source
+                else:
+                    last_error = f"HTTP {resp.status_code}"
+                    logger.warning(f"⚠️ [FaceMatcher] Backend trả về status {resp.status_code} khi checkEntry cho {user_code} (lần {attempt + 1})")
+            except Exception as e:
+                last_error = str(e)
+                logger.warning(f"⚠️ [FaceMatcher] Không thể kết nối Backend để xét checkEntry cho {user_code} (lần {attempt + 1}): {e}")
 
-        # 3. Fallback Offline: Luôn Fail-closed để đảm bảo an ninh (không tự ý cho phép vào khu vực bảo mật)
-        return False, "Không thể kết nối máy chủ xét quyền (Fail-closed)", None
+            if attempt == 0:
+                time.sleep(0.1)
+
+        # 3. Fallback Chính sách BUG-02 khi Backend lỗi / timeout:
+        # (ii) Stale-if-error: nếu có quyết định cũ trong access_cache (kể cả hết TTL) thì dùng tạm nếu chưa quá ACCESS_STALE_MAX_SECONDS
+        with self._access_cache_lock:
+            if cache_key in self.access_cache:
+                entry = self.access_cache[cache_key]
+                if len(entry) >= 5:
+                    c_allowed, c_reason, c_area, c_expire_at, c_source = entry[:5]
+                else:
+                    c_allowed, c_reason, c_area, c_expire_at = entry[:4]
+                    c_source = None
+
+                max_stale = getattr(settings, "ACCESS_STALE_MAX_SECONDS", 600.0)
+                if (now - c_expire_at) <= max_stale:
+                    logger.warning(
+                        f"⚠️ [FaceMatcher] Backend không phản hồi ({last_error}). Dùng tạm cache cũ (stale-if-error) "
+                        f"cho [{user_code}] tại [{camera_code}]: allowed={c_allowed}, reason={c_reason}"
+                    )
+                    return c_allowed, f"[Backend không phản hồi - Dùng tạm cache] {c_reason}", c_area, c_source
+                else:
+                    logger.warning(
+                        f"⚠️ [FaceMatcher] Backend không phản hồi ({last_error}). Cache cũ cho [{user_code}] "
+                        f"đã hết hạn quá {max_stale}s ({now - c_expire_at:.1f}s) -> Bỏ qua stale cache."
+                    )
+
+        # (iii) Nếu hoàn toàn không có cache hoặc cache quá hạn stale:
+        is_public = self.is_camera_public(camera_code)
+        if is_public:
+            # Khu vực công cộng: chỉ ghi log cảnh báo, không chặn vi phạm
+            area_name = self.get_camera_area_name(camera_code) or "Khu vực công cộng"
+            logger.warning(
+                f"⚠️ [FaceMatcher] Backend không phản hồi khi xét quyền cho [{user_code}] "
+                f"tại camera công cộng [{camera_code}] ({last_error}). Cho phép lưu thông và chỉ ghi log."
+            )
+            return True, f"[Backend không phản hồi] Khu vực công cộng - Cho phép lưu thông ({last_error})", area_name, None
+        else:
+            # Khu vực hạn chế: duy trì Fail-Closed (allowed=False), ghi rõ 'Backend không phản hồi'
+            area_name = self.get_camera_area_name(camera_code) or "Khu vực hạn chế"
+            logger.error(
+                f"🛑 [FaceMatcher] Backend không phản hồi khi xét quyền cho [{user_code}] "
+                f"tại khu vực hạn chế [{camera_code}] ({last_error}). Áp dụng Fail-Closed."
+            )
+            return False, f"[Backend không phản hồi] Không thể xác thực quyền truy cập ({last_error})", area_name, None

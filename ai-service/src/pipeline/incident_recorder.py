@@ -10,7 +10,13 @@ from datetime import datetime
 from typing import Optional, Dict, Any, List, Callable
 
 from ..config import settings
-from .stream_recorder import _has_valid_moov_atom, _now_vn, build_recording_completed_payload
+from .stream_recorder import (
+    _has_valid_moov_atom,
+    _now_vn,
+    build_recording_completed_payload,
+    enforce_local_recording_retention,
+    enforce_emergency_evidence_retention,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -308,6 +314,9 @@ class IncidentRecorder:
                         logger.info(f"🗑️ [IncidentRecorder Cleanup] Đã xóa file đệm cục bộ sau khi đẩy MinIO: {file_path}")
                     except Exception as ex:
                         logger.warning(f"Không thể xóa file tạm {file_path}: {ex}")
+                else:
+                    emergency_mb = getattr(settings, "EMERGENCY_DISK_FREE_MIN_MB", 500)
+                    enforce_emergency_evidence_retention(self.base_dir, emergency_free_mb=emergency_mb)
             except Exception as e:
                 logger.error(f"❌ [IncidentRecorder MinIO Upload Task] Lỗi: {e}")
 

@@ -1,3 +1,6 @@
+from .utils.geometry import normalize_polygon_to_unit
+from urllib.parse import urlsplit
+from .utils.security import mask_rtsp_url, validate_snapshot_rtsp_url, setup_uvicorn_access_log_filter
 import os
 import sys
 
@@ -35,8 +38,12 @@ from .pipeline.incident_recorder import incident_recording_manager
 from .integration.storage_service import StorageService
 
 logger = logging.getLogger("ai_service")
+setup_uvicorn_access_log_filter()
 storage_service = StorageService()
+import threading
+
 active_workers: Dict[str, CameraStreamWorker] = {}
+active_workers_lock = threading.RLock()
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -67,7 +74,12 @@ async def sync_ai_config_from_backend(max_retries: int = 10, retry_delay: float 
     for attempt in range(1, max_retries + 1):
         try:
             import requests
-            resp = requests.get(endpoint, headers={INTERNAL_SERVICE_KEY_HEADER: settings.INTERNAL_SERVICE_KEY}, timeout=3.0)
+            resp = await asyncio.to_thread(
+                requests.get,
+                endpoint,
+                headers={INTERNAL_SERVICE_KEY_HEADER: settings.INTERNAL_SERVICE_KEY},
+                timeout=3.0
+            )
             if resp.status_code == 401:
                 logger.warning("⚠️ Backend từ chối X-Service-Key khi kéo cấu hình AI: kiểm tra INTERNAL_SERVICE_KEY hai bên có trùng nhau")
             if resp.status_code == 200:
@@ -101,7 +113,9 @@ async def sync_ai_config_from_backend(max_retries: int = 10, retry_delay: float 
                         if cooldown is not None:
                             default_pipeline.analysis_engine.unknown_alert_cooldown = settings.DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS
 
-                    for worker in active_workers.values():
+                    with active_workers_lock:
+                        workers = list(active_workers.values())
+                    for worker in workers:
                         worker.update_runtime_config(
                             max_inactive_seconds=settings.DEFAULT_TRACK_MAX_INACTIVE_SECONDS,
                             unknown_alert_cooldown=settings.DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS
@@ -124,6 +138,35 @@ async def sync_ai_config_from_backend(max_retries: int = 10, retry_delay: float 
     logger.warning("⚠️ Không thể kết nối Backend để lấy cấu hình runtime, sử dụng cấu hình mặc định cục bộ.")
     return False
 
+@app.on_event("shutdown")
+async def shutdown_event():
+    global default_pipeline, edge_agent
+    logger.info("🛑 [FastAPI Shutdown] Đang dọn dẹp tài nguyên và luồng nền...")
+    if default_pipeline is not None:
+        try:
+            default_pipeline.stop()
+            logger.info("🛑 [FastAPI Shutdown] Đã giải phóng default_pipeline.")
+        except Exception as e:
+            logger.warning(f"Lỗi khi giải phóng default_pipeline: {e}")
+        default_pipeline = None
+
+    if edge_agent is not None:
+        try:
+            edge_agent.stop()
+        except Exception as e:
+            logger.warning(f"Lỗi khi dừng edge_agent: {e}")
+        edge_agent = None
+
+    with active_workers_lock:
+        workers = list(active_workers.values())
+        active_workers.clear()
+    for worker in workers:
+        try:
+            worker.stop()
+        except Exception as e:
+            logger.warning(f"Lỗi khi dừng worker: {e}")
+
+
 @app.on_event("startup")
 async def startup_event():
     global default_pipeline
@@ -145,6 +188,7 @@ async def startup_event():
             default_pipeline_getter=lambda: default_pipeline,
             face_detector_instance=face_detector,
             face_embedder_instance=face_embedder,
+            active_workers_lock=active_workers_lock,
         )
         edge_agent.start()
     except Exception as e:
@@ -162,15 +206,39 @@ async def root():
 
 @app.get("/health")
 async def health_check():
+    pipeline_ready = default_pipeline is not None
+    yolo_loaded = (
+        pipeline_ready
+        and getattr(default_pipeline, "human_detector", None) is not None
+        and getattr(default_pipeline.human_detector, "model", None) is not None
+    ) or os.path.exists(settings.MODEL_YOLO_PATH)
+    yunet_loaded = os.path.exists(settings.MODEL_YUNET_PATH)
+    arcface_loaded = os.path.exists(settings.MODEL_ARCFACE_PATH)
+
+    mqtt_connected = bool(default_pipeline.mqtt_client.is_connected) if (default_pipeline and default_pipeline.mqtt_client) else False
+    minio_connected = bool(default_pipeline.storage_service.is_connected) if (default_pipeline and default_pipeline.storage_service) else False
+
+    db_connected = False
+    if default_pipeline and default_pipeline.face_matcher:
+        try:
+            conn = default_pipeline.face_matcher._get_connection()
+            conn.close()
+            db_connected = True
+        except Exception:
+            db_connected = False
+
+    is_healthy = pipeline_ready and yolo_loaded and yunet_loaded and arcface_loaded
     return {
-        "status": "UP",
+        "status": "UP" if is_healthy else "DOWN",
+        "pipeline_ready": pipeline_ready,
         "models": {
-            "yolo_model": os.path.exists(settings.MODEL_YOLO_PATH) or True,
-            "yunet_model": os.path.exists(settings.MODEL_YUNET_PATH),
-            "arcface_model": os.path.exists(settings.MODEL_ARCFACE_PATH)
+            "yolo_model": yolo_loaded,
+            "yunet_model": yunet_loaded,
+            "arcface_model": arcface_loaded
         },
-        "mqtt_connected": default_pipeline.mqtt_client.is_connected if default_pipeline else False,
-        "minio_connected": default_pipeline.storage_service.is_connected if default_pipeline else False
+        "db_connected": db_connected,
+        "mqtt_connected": mqtt_connected,
+        "minio_connected": minio_connected
     }
 
 class ROIConfigRequest(BaseModel):
@@ -197,7 +265,9 @@ async def update_after_hour_config(req: AfterHourConfigRequest):
     if default_pipeline:
         default_pipeline.analysis_engine.after_hour_start = req.start
         default_pipeline.analysis_engine.after_hour_end = req.end
-    for worker in active_workers.values():
+    with active_workers_lock:
+        workers = list(active_workers.values())
+    for worker in workers:
         worker.pipeline.analysis_engine.after_hour_start = req.start
         worker.pipeline.analysis_engine.after_hour_end = req.end
     return {"success": True, "start": req.start, "end": req.end}
@@ -215,7 +285,9 @@ async def update_ai_runtime_config(req: AIRuntimeConfigRequest):
         settings.DEFAULT_TRACK_MAX_INACTIVE_SECONDS = req.max_inactive_seconds
         if default_pipeline:
             default_pipeline.analysis_engine.max_inactive_seconds = req.max_inactive_seconds
-        for worker in active_workers.values():
+        with active_workers_lock:
+            workers = list(active_workers.values())
+        for worker in workers:
             worker.update_runtime_config(max_inactive_seconds=req.max_inactive_seconds)
 
     if req.unknown_alert_cooldown is not None:
@@ -224,7 +296,9 @@ async def update_ai_runtime_config(req: AIRuntimeConfigRequest):
         settings.DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS = req.unknown_alert_cooldown
         if default_pipeline:
             default_pipeline.analysis_engine.unknown_alert_cooldown = req.unknown_alert_cooldown
-        for worker in active_workers.values():
+        with active_workers_lock:
+            workers = list(active_workers.values())
+        for worker in workers:
             worker.update_runtime_config(unknown_alert_cooldown=req.unknown_alert_cooldown)
 
     if req.face_match_threshold is not None:
@@ -249,34 +323,52 @@ async def configure_camera(req: ROIConfigRequest):
     if not default_pipeline:
         raise HTTPException(status_code=500, detail="Pipeline chưa sẵn sàng.")
 
+    ref_w = req.reference_width or 1920
+    ref_h = req.reference_height or 1080
+
     polygons_to_set = []
     if req.polygons:
-        polygons_to_set = req.polygons
+        for p in req.polygons:
+            raw_v = p.get("vertices", [])
+            p_ref_w = p.get("reference_width", ref_w)
+            p_ref_h = p.get("reference_height", ref_h)
+            norm_v = [
+                {"x": pt.x, "y": pt.y}
+                for pt in normalize_polygon_to_unit(raw_v, p_ref_w, p_ref_h)
+            ]
+            p_copy = dict(p)
+            p_copy["vertices"] = norm_v
+            polygons_to_set.append(p_copy)
     elif req.roi_polygon:
+        norm_v = [
+            {"x": pt.x, "y": pt.y}
+            for pt in normalize_polygon_to_unit(req.roi_polygon, ref_w, ref_h)
+        ]
         polygons_to_set = [{
             "label": "Vùng ROI",
             "alert_rules": ["ENTRY_EXIT_TRACKING"],
-            "vertices": req.roi_polygon
+            "vertices": norm_v
         }]
 
     ah_start = req.after_hour_start or settings.DEFAULT_AFTER_HOUR_START
     ah_end = req.after_hour_end or settings.DEFAULT_AFTER_HOUR_END
 
-    default_pipeline.camera_code = req.camera_code
-    default_pipeline.analysis_engine.after_hour_start = ah_start
-    default_pipeline.analysis_engine.after_hour_end = ah_end
-    default_pipeline.set_roi_config(polygons=polygons_to_set)
-
     worker_updated = False
-    if req.camera_code in active_workers and active_workers[req.camera_code].is_running:
-        active_workers[req.camera_code].update_roi(
+    with active_workers_lock:
+        target_worker = active_workers.get(req.camera_code)
+    if target_worker and target_worker.is_running:
+        target_worker.update_roi(
             polygons=polygons_to_set,
             after_hour_start=ah_start,
             after_hour_end=ah_end
         )
         worker_updated = True
+    elif req.camera_code == getattr(default_pipeline, "camera_code", "CAM-001"):
+        default_pipeline.analysis_engine.after_hour_start = ah_start
+        default_pipeline.analysis_engine.after_hour_end = ah_end
+        default_pipeline.set_roi_config(polygons=polygons_to_set)
     else:
-        logger.info(f"ℹ️ Camera [{req.camera_code}] chưa có Stream Worker đang chạy. Cấu hình ROI đã được áp dụng vào pipeline mặc định.")
+        logger.info(f"ℹ️ Camera [{req.camera_code}] chưa có Stream Worker đang chạy. Giữ nguyên cấu hình pipeline dùng chung.")
 
     return {
         "success": True,
@@ -293,12 +385,12 @@ async def analyze_frame(file: UploadFile = File(...)):
 
     contents = await file.read()
     nparr = np.frombuffer(contents, np.uint8)
-    frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    frame = await asyncio.to_thread(cv2.imdecode, nparr, cv2.IMREAD_COLOR)
 
     if frame is None:
         raise HTTPException(status_code=400, detail="Ảnh không hợp lệ hoặc bị hỏng.")
 
-    annotated_frame, active_persons, alerts = default_pipeline.process_frame(frame)
+    annotated_frame, active_persons, alerts = await asyncio.to_thread(default_pipeline.process_single_frame, frame)
 
     return {
         "total_persons": len(active_persons),
@@ -385,7 +477,9 @@ async def refresh_faces_cache():
     if default_pipeline and getattr(default_pipeline, "face_matcher", None):
         default_pipeline.face_matcher.refresh_cache()
         count += 1
-    for worker in active_workers.values():
+    with active_workers_lock:
+        workers = list(active_workers.values())
+    for worker in workers:
         if getattr(worker, "pipeline", None) and getattr(worker.pipeline, "face_matcher", None):
             worker.pipeline.face_matcher.refresh_cache()
             count += 1
@@ -407,17 +501,25 @@ async def start_camera_stream(req: StreamStartRequest):
     camera_code = req.camera_code.strip()
     rtsp_url = req.rtsp_url.strip()
 
-    if camera_code in active_workers and active_workers[camera_code].is_running:
-        current_worker = active_workers[camera_code]
-        if current_worker.rtsp_url != rtsp_url:
-            logger.info(f"🔄 [StreamStart] RTSP URL thay đổi cho camera [{camera_code}] ({current_worker.rtsp_url} -> {rtsp_url}), dừng worker cũ và tái kết nối...")
-            current_worker.stop()
-            del active_workers[camera_code]
-        else:
-            if req.roi_geometry:
-                polys = req.roi_geometry.get("polygons", [])
-                current_worker.update_roi(polygons=polys)
-            return {"status": "ALREADY_RUNNING", "camera_code": camera_code, "rtsp_url": rtsp_url}
+    worker_to_stop = None
+    with active_workers_lock:
+        current_worker = active_workers.get(camera_code)
+        if current_worker and current_worker.is_running:
+            if current_worker.rtsp_url != rtsp_url:
+                logger.info(f"🔄 [StreamStart] RTSP URL thay đổi cho camera [{camera_code}] ({current_worker.rtsp_url} -> {rtsp_url}), dừng worker cũ và tái kết nối...")
+                worker_to_stop = current_worker
+                active_workers.pop(camera_code, None)
+            else:
+                if req.roi_geometry:
+                    polys = req.roi_geometry.get("polygons", [])
+                    current_worker.update_roi(polygons=polys)
+                return {"status": "ALREADY_RUNNING", "camera_code": camera_code, "rtsp_url": rtsp_url}
+
+    if worker_to_stop:
+        try:
+            worker_to_stop.stop()
+        except Exception as e:
+            logger.warning(f"Lỗi khi dừng worker cũ {camera_code}: {e}")
 
     try:
         worker = CameraStreamWorker(
@@ -426,18 +528,20 @@ async def start_camera_stream(req: StreamStartRequest):
             roi_geometry=req.roi_geometry
         )
         worker.start()
-        active_workers[camera_code] = worker
+        with active_workers_lock:
+            active_workers[camera_code] = worker
         return {"status": "STARTED", "camera_code": camera_code, "rtsp_url": rtsp_url}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Không thể khởi động worker camera: {e}")
 
 @app.post("/api/v1/stream/stop", dependencies=[Depends(require_service_key)])
 async def stop_camera_stream(camera_code: str = Query(..., description="Mã camera cần dừng, ví dụ: CAM-001")):
-    if camera_code not in active_workers:
+    with active_workers_lock:
+        target_worker = active_workers.pop(camera_code, None)
+    if not target_worker:
         raise HTTPException(status_code=404, detail="Camera worker không tồn tại.")
     
-    active_workers[camera_code].stop()
-    del active_workers[camera_code]
+    target_worker.stop()
     return {"status": "STOPPED", "camera_code": camera_code}
 
 @app.get("/api/v1/stream/status", dependencies=[Depends(require_service_key)])
@@ -462,12 +566,13 @@ async def get_live_annotated_feed(
     norm_code = camera_code.strip()
     if not verify_stream_token(norm_code, token, time.time()):
         raise HTTPException(status_code=401, detail="Token luồng không hợp lệ hoặc đã hết hạn")
-    target_worker = active_workers.get(norm_code)
-    if not target_worker:
-        for k, w in active_workers.items():
-            if k.lower() == norm_code.lower():
-                target_worker = w
-                break
+    with active_workers_lock:
+        target_worker = active_workers.get(norm_code)
+        if not target_worker:
+            for k, w in active_workers.items():
+                if k.lower() == norm_code.lower():
+                    target_worker = w
+                    break
 
     if not target_worker or not target_worker.is_running:
         try:
@@ -478,8 +583,9 @@ async def get_live_annotated_feed(
                 rtsp_url=worker_rtsp
             )
             target_worker.start()
-            active_workers[norm_code] = target_worker
-            logger.info(f"✅ Tự động khởi chạy CameraStreamWorker cho [{norm_code}] để phục vụ luồng live-annotated tại {worker_rtsp}")
+            with active_workers_lock:
+                active_workers[norm_code] = target_worker
+            logger.info(f"✅ Tự động khởi chạy CameraStreamWorker cho [{norm_code}] để phục vụ luồng live-annotated tại {mask_rtsp_url(worker_rtsp)}")
         except Exception as ex:
             logger.warning(f"Không thể tự động kích hoạt worker cho [{norm_code}]: {ex}")
             raise HTTPException(status_code=404, detail="Camera worker hiện chưa chạy. Hãy Kết nối Stream trước.")
@@ -488,7 +594,7 @@ async def get_live_annotated_feed(
             with target_worker.lock:
                 frame = target_worker.latest_frame
             if frame is not None:
-                _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+                _, buffer = await asyncio.to_thread(cv2.imencode, '.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
                 yield (b'--frame\r\n'
                        b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
             await asyncio.sleep(0.06)  # ~16 FPS preview
@@ -524,10 +630,16 @@ def _read_rtsp_frame_sync(rtsp_url: str, timeout_ms: int):
 
 @app.post("/api/v1/cameras/snapshot", dependencies=[Depends(require_service_key)])
 async def capture_rtsp_snapshot(req: SnapshotRequest):
+    if not validate_snapshot_rtsp_url(req.rtsp_url):
+        parts = urlsplit(req.rtsp_url.strip()) if req.rtsp_url else None
+        if not parts or parts.scheme.lower() not in ("rtsp", "rtsps"):
+            raise HTTPException(status_code=400, detail="Chỉ hỗ trợ giao thức rtsp hoặc rtsps")
+        raise HTTPException(status_code=400, detail="Địa chỉ RTSP không hợp lệ hoặc bị chặn (SSRF Protection)")
+
     start_time = time.time()
     timeout_sec = min(max(req.timeout_ms / 1000.0, 1.0), 4.0)
     
-    logger.info(f"📸 [Snapshot] Bắt đầu trích xuất khung hình: url={req.rtsp_url}, timeout={req.timeout_ms}ms")
+    logger.info(f"📸 [Snapshot] Bắt đầu trích xuất khung hình: url={mask_rtsp_url(req.rtsp_url)}, timeout={req.timeout_ms}ms")
     try:
         loop = asyncio.get_running_loop()
         frame = await asyncio.wait_for(
@@ -535,10 +647,10 @@ async def capture_rtsp_snapshot(req: SnapshotRequest):
             timeout=timeout_sec + 0.5
         )
     except asyncio.TimeoutError:
-        logger.warning(f"⚠️ [Snapshot] Timeout khi trích xuất khung hình từ {req.rtsp_url}")
+        logger.warning(f"⚠️ [Snapshot] Timeout khi trích xuất khung hình từ {mask_rtsp_url(req.rtsp_url)}")
         raise HTTPException(status_code=504, detail="Quá thời gian kết nối RTSP stream (Timeout)")
     except Exception as e:
-        logger.warning(f"⚠️ [Snapshot] Lỗi ngoại lệ khi trích xuất khung hình từ {req.rtsp_url}: {e}")
+        logger.warning(f"⚠️ [Snapshot] Lỗi ngoại lệ khi trích xuất khung hình từ {mask_rtsp_url(req.rtsp_url)}: {e}")
         raise HTTPException(status_code=502, detail=f"Lỗi trích xuất snapshot: {str(e)}")
         
     if frame is None:
@@ -586,8 +698,10 @@ async def start_incident_recording_api(req: IncidentRecordingStartRequest):
     frame_provider = None
 
     # Tận dụng luồng frame thực tế nếu camera đang có worker chạy
-    if cam_code in active_workers and active_workers[cam_code].is_running:
-        frame_provider = active_workers[cam_code].get_current_raw_frame
+    with active_workers_lock:
+        active_cam_worker = active_workers.get(cam_code)
+    if active_cam_worker and active_cam_worker.is_running:
+        frame_provider = active_cam_worker.get_current_raw_frame
 
     recorder = incident_recording_manager.start_incident_recording(
         incident_id=req.incident_id,

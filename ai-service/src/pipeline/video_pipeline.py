@@ -1,3 +1,4 @@
+import threading
 import time
 import logging
 import numpy as np
@@ -14,7 +15,7 @@ from ..core.frame_analysis_engine import FrameAnalysisEngine
 from ..integration.mqtt_client import get_security_mqtt_client
 from ..integration.storage_service import StorageService
 from ..utils.visualizer import FrameVisualizer
-from ..utils.geometry import is_point_in_polygon, scale_polygon_to_frame
+from ..utils.geometry import is_point_in_polygon, scale_polygon_to_frame, normalize_polygon_to_unit
 from .incident_recorder import incident_recording_manager
 
 logger = logging.getLogger(__name__)
@@ -42,7 +43,8 @@ class VideoPipeline:
         roi_polygons: Optional[List[Any]] = None,
         after_hour_start: Optional[str] = None,
         after_hour_end: Optional[str] = None,
-        enable_motion_gating: bool = True
+        enable_motion_gating: bool = True,
+        max_motion_track_hold_seconds: Optional[float] = None
     ):
         self.camera_code = camera_code
         self.roi_polygon = roi_polygon or []
@@ -68,6 +70,7 @@ class VideoPipeline:
 
         # Khởi tạo module Motion Detector & State Machine
         self.enable_motion_gating = enable_motion_gating
+        self.max_motion_track_hold_seconds = max_motion_track_hold_seconds if max_motion_track_hold_seconds is not None else getattr(settings, 'MAX_MOTION_TRACK_HOLD_SECONDS', 3.0)
         self.motion_detector = MotionDetector(
             history=500,
             var_threshold=25.0,
@@ -86,44 +89,56 @@ class VideoPipeline:
         self._last_tampering_time: float = 0.0
         self._tampering_cooldown: float = 10.0
         self._pending_access_checks = set()
+        self._pending_checks_lock = threading.Lock()
+        self.heartbeat_interval_seconds: float = float(getattr(settings, "MOTION_GATING_HEARTBEAT_SECONDS", 4.0))
 
         # Khởi tạo các module tích hợp
         from concurrent.futures import ThreadPoolExecutor
-        self.executor = ThreadPoolExecutor(max_workers=2)
+        self.access_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix=f"access-{camera_code}")
+        self.io_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix=f"io-{camera_code}")
+        self.executor = self.io_executor  # Backward compatibility
         self.mqtt_client = get_security_mqtt_client()
         self.kafka_producer = self.mqtt_client  # Backward compatibility
         self.storage_service = StorageService()
         self.visualizer = FrameVisualizer()
+        self._last_heartbeat_time: Optional[float] = None
 
-    def _apply_access_decision(self, face_info, is_allowed: bool, access_reason: str, area_name: Optional[str]):
+    def _apply_access_decision(self, face_info, is_allowed: bool, access_reason: str, area_name: Optional[str], access_source: Optional[str] = None):
         reason_lower = (access_reason or "").lower()
         if "không tồn tại" in reason_lower or "đã bị xoá" in reason_lower:
             face_info.matched_code = None
             face_info.matched_name = None
             face_info.is_authorized = False
             face_info.access_reason = "Đối tượng không xác định"
+            face_info.access_source = None
         else:
             face_info.is_authorized = is_allowed
             face_info.access_reason = access_reason
             face_info.area_name = area_name
+            face_info.access_source = access_source
         face_info.access_checked = True
 
     def _async_resolve_camera_access(self, track_id: int, user_code: str, roi_label: str):
         try:
-            is_allowed, access_reason, area_name = self.face_matcher.check_camera_access(
+            res = self.face_matcher.check_camera_access(
                 self.camera_code,
                 user_code,
                 roi_label=roi_label,
                 event_direction=None
             )
+            is_allowed = res[0]
+            access_reason = res[1]
+            area_name = res[2]
+            access_source = res[3] if len(res) >= 4 else None
             existing = self.analysis_engine.active_tracks.get(track_id)
             if existing and existing.face_info and existing.face_info.matched_code == user_code:
-                self._apply_access_decision(existing.face_info, is_allowed, access_reason, area_name)
+                self._apply_access_decision(existing.face_info, is_allowed, access_reason, area_name, access_source)
                 existing.roi_entry_logged = True
         except Exception as e:
             logger.warning(f"[VideoPipeline] Lỗi kiểm tra quyền bất đồng bộ cho user {user_code}: {e}")
         finally:
-            self._pending_access_checks.discard(f"{self.camera_code}:{user_code}")
+            with self._pending_checks_lock:
+                self._pending_access_checks.discard(f"{self.camera_code}:{user_code}")
 
     def _resolve_access_for_person(self, track_id: int, face_info, user_code: str, roi_label: str):
         if not self.face_matcher:
@@ -133,14 +148,25 @@ class VideoPipeline:
 
         cached = self.face_matcher.get_cached_access(self.camera_code, user_code)
         if cached is not None:
-            is_allowed, access_reason, area_name = cached
-            self._apply_access_decision(face_info, is_allowed, access_reason, area_name)
+            is_allowed = cached[0]
+            access_reason = cached[1]
+            area_name = cached[2]
+            access_source = cached[3] if len(cached) >= 4 else None
+            self._apply_access_decision(face_info, is_allowed, access_reason, area_name, access_source)
+            existing = self.analysis_engine.active_tracks.get(track_id)
+            if existing:
+                existing.roi_entry_logged = True
             return
 
         cache_key = f"{self.camera_code}:{user_code}"
-        if cache_key not in self._pending_access_checks:
-            self._pending_access_checks.add(cache_key)
-            self.executor.submit(self._async_resolve_camera_access, track_id, user_code, roi_label)
+        should_submit = False
+        with self._pending_checks_lock:
+            if cache_key not in self._pending_access_checks:
+                self._pending_access_checks.add(cache_key)
+                should_submit = True
+        if should_submit:
+            if self.access_executor and not getattr(self.access_executor, "_shutdown", False):
+                self.access_executor.submit(self._async_resolve_camera_access, track_id, user_code, roi_label)
         face_info.access_checked = False
 
     def set_roi_polygon(self, polygon: List[Point]):
@@ -163,7 +189,9 @@ class VideoPipeline:
                     configs.append(p)
                 elif isinstance(p, dict):
                     raw_vertices = p.get("vertices", [])
-                    pts = [Point(v["x"], v["y"]) if isinstance(v, dict) else v for v in raw_vertices]
+                    ref_w = p.get("reference_width", 1920)
+                    ref_h = p.get("reference_height", 1080)
+                    pts = normalize_polygon_to_unit(raw_vertices, ref_w, ref_h)
                     configs.append(
                         RoiPolygonConfig(
                             label=p.get("label", ""),
@@ -209,6 +237,88 @@ class VideoPipeline:
                 return True
 
         return False
+
+    def process_single_frame(
+        self,
+        frame: np.ndarray,
+        current_time: Optional[float] = None
+    ) -> Tuple[np.ndarray, List[TrackedPerson], List[SecurityAlertEvent]]:
+        """
+        Phân tích 1 ảnh tĩnh đơn lẻ (dùng cho API analyze-frame / snapshot) mà KHÔNG làm bẩn
+        tracker state (ByteTrack) hay active_tracks của pipeline luồng video dùng chung.
+        """
+        if frame is None or frame.size == 0:
+            return frame, [], []
+
+        if current_time is None:
+            current_time = time.time()
+
+        h, w = frame.shape[:2]
+        if hasattr(self.human_detector, "detect"):
+            detected_tracks = self.human_detector.detect(frame)
+        else:
+            detected_tracks = self.human_detector.detect_and_track(frame, persist=False)
+
+        temp_engine = FrameAnalysisEngine(
+            after_hour_start=self.analysis_engine.after_hour_start,
+            after_hour_end=self.analysis_engine.after_hour_end,
+            max_inactive_seconds=self.analysis_engine.max_inactive_seconds,
+            unknown_alert_cooldown=self.analysis_engine.unknown_alert_cooldown
+        )
+
+        for track_id, bbox in detected_tracks:
+            x1, y1, x2, y2 = bbox.to_int_xyxy()
+            x1, y1 = max(0, x1), max(0, y1)
+            x2, y2 = min(w, x2), min(h, y2)
+            if (x2 - x1) > 20 and (y2 - y1) > 20:
+                crop_h = int((y2 - y1) * settings.UPPER_BODY_CROP_RATIO)
+                upper_crop = frame[y1:y1 + crop_h, x1:x2]
+                if upper_crop.size > 0:
+                    face_res = self.face_detector.detect_best_face_in_crop(upper_crop, offset_xy=(x1, y1))
+                    if face_res:
+                        fx1, fy1, fx2, fy2 = face_res.bbox.to_int_xyxy()
+                        fx1, fy1 = max(0, fx1), max(0, fy1)
+                        fx2, fy2 = min(w, fx2), min(h, fy2)
+                        f_crop = frame[fy1:fy2, fx1:fx2]
+                        if f_crop.size > 0:
+                            lm = face_res.landmarks if getattr(face_res, "landmarks", None) else None
+                            m = self.face_matcher.match_face(f_crop, landmarks=lm)
+                            if m:
+                                code, name, score, is_active, role = m
+                                face_res.matched_code = code
+                                face_res.matched_name = name
+                                face_res.is_active = is_active
+                                face_res.role = role
+                                face_res.score = score
+                                is_allowed, reason, area_name = self.face_matcher.check_camera_access(self.camera_code, code)
+                                self._apply_access_decision(face_res, is_allowed, reason, area_name)
+                            else:
+                                is_allowed, reason, area_name = self.face_matcher.check_camera_access(self.camera_code, "UNKNOWN")
+                                face_res.is_authorized = is_allowed
+                                face_res.access_reason = reason
+                                face_res.area_name = area_name
+                                face_res.access_checked = True
+                        temp_engine.associate_face(track_id, face_res)
+
+        active_persons, alerts, _ = temp_engine.process_frame(
+            detected_tracks=detected_tracks,
+            roi_polygons=self.roi_polygons if self.roi_polygons else None,
+            frame_size=(w, h),
+            camera_code=self.camera_code,
+            current_time=current_time
+        )
+
+        has_roi = bool(self.roi_polygons or self.roi_polygon)
+        annotated_frame = FrameVisualizer.draw_all_rois(
+            frame.copy(),
+            polygons=self.roi_polygons if self.roi_polygons else (self.roi_polygon if self.roi_polygon else None)
+        )
+        annotated_frame = self.visualizer.draw_tracked_persons(
+            annotated_frame,
+            active_persons,
+            only_in_roi=has_roi
+        )
+        return annotated_frame, active_persons, alerts
 
     def is_bbox_in_roi(self, bbox: BoundingBox, frame_w: int, frame_h: int) -> Tuple[bool, str]:
         """
@@ -271,26 +381,37 @@ class VideoPipeline:
                 early_alerts.append(tamper_alert)
 
         # 1b. Cổng Motion-Gating: Nếu ở IDLE và hoàn toàn không có chuyển động / chớp sáng
-        #     Bỏ qua 100% suy luận Deep Learning nặng (YOLO26, YuNet, ArcFace) để giải phóng CPU/GPU
+        #     Bỏ qua 100% suy luận Deep Learning nặng (YOLO26, YuNet, ArcFace) để giải phóng CPU/GPU.
+        #     Tuy nhiên, cứ mỗi heartbeat_interval_seconds (mặc định 4s), chạy 1 frame YOLO thăm dò
+        #     để phát hiện đối tượng ngồi yên trong ROI (tránh lọt lưới do MOG2 hấp thụ vào background).
         if (
             self.enable_motion_gating
             and self.state_machine.state == ZoneState.IDLE
             and not motion_res.has_motion
             and not motion_res.is_lighting_spike
         ):
-            annotated_frame = frame.copy()
-            annotated_frame = FrameVisualizer.draw_all_rois(
-                annotated_frame,
-                polygons=self.roi_polygons if self.roi_polygons else (self.roi_polygon if self.roi_polygon else None)
-            )
-            if early_alerts:
-                for alert in early_alerts:
-                    self.executor.submit(self._dispatch_alert_async, alert, annotated_frame)
-            return annotated_frame, [], early_alerts
+            if self._last_heartbeat_time is None:
+                self._last_heartbeat_time = current_time
+            is_heartbeat = (current_time - self._last_heartbeat_time) >= self.heartbeat_interval_seconds
+            if not is_heartbeat:
+                annotated_frame = frame.copy()
+                annotated_frame = FrameVisualizer.draw_all_rois(
+                    annotated_frame,
+                    polygons=self.roi_polygons if self.roi_polygons else (self.roi_polygon if self.roi_polygon else None)
+                )
+                if early_alerts:
+                    for alert in early_alerts:
+                        if self.io_executor and not getattr(self.io_executor, "_shutdown", False):
+                            self.io_executor.submit(self._dispatch_alert_async, alert, annotated_frame)
+                return annotated_frame, [], early_alerts
+            else:
+                self._last_heartbeat_time = current_time
+                logger.debug(f"[VideoPipeline] Heartbeat probe triggered at t={current_time:.2f}s for {self.camera_code}")
 
         # ------------------------------------------------------------------
         # 2. ĐÁNH THỨC PHÁT HIỆN & THEO DÕI NGƯỜI (YOLO26 + BYTETRACK)
         # ------------------------------------------------------------------
+        self._last_heartbeat_time = current_time
         detected_tracks = self.human_detector.detect_and_track(frame, persist=True)
 
         # 2a. TRIỆT TIÊU MOTION DETECTION TRONG BOUNDING BOX NGƯỜI (HUMAN MASKING)
@@ -315,14 +436,19 @@ class VideoPipeline:
                     p.is_currently_visible = False
                 elif tid not in current_frame_tids and motion_res.motion_boxes:
                     # Người thật sự cúi người/ngồi khuất và YOLO trượt detection:
-                    overlapping_mb = [
-                        mb for mb in motion_res.motion_boxes
-                        if self._is_box_overlapping_any(mb, [p.bbox], overlap_threshold=0.08)
-                    ]
-                    if overlapping_mb:
-                        # Duy trì sự tồn tại của track nhưng KHÔNG phình to box vô tận
-                        p.last_seen_time = current_time
-                        p.is_currently_visible = True
+                    # Giới hạn thời gian tối đa motion box được phép gia hạn track (tránh track ma do chuyển động nền)
+                    yolo_last = getattr(p, "yolo_last_seen_time", p.first_seen_time) or p.first_seen_time
+                    if (current_time - yolo_last) <= self.max_motion_track_hold_seconds:
+                        overlapping_mb = [
+                            mb for mb in motion_res.motion_boxes
+                            if self._is_box_overlapping_any(mb, [p.bbox], overlap_threshold=0.08)
+                        ]
+                        if overlapping_mb:
+                            # Duy trì sự tồn tại của track nhưng KHÔNG phình to box vô tận
+                            p.last_seen_time = current_time
+                            p.is_currently_visible = True
+                    else:
+                        p.is_currently_visible = False
                 active_tracked_boxes.append(p.bbox)
 
         all_human_boxes = [bbox for _, bbox in detected_tracks] + active_tracked_boxes
@@ -387,6 +513,7 @@ class VideoPipeline:
             # Tối ưu hiệu năng: Nếu Track ID này đã nhận diện được danh tính trong active_tracks,
             # ByteTrack tiếp tục bám theo mượt mà mà không cần chạy lại YuNet + ArcFace + pgvector mỗi frame!
             existing = self.analysis_engine.active_tracks.get(track_id)
+            is_reverifying = False
             if existing and existing.face_detected and existing.face_info and existing.face_info.matched_code:
                 # Nếu người này trước đó ở ngoài ROI, nay bước chân vào ROI:
                 if in_roi and not getattr(existing.face_info, "access_checked", False):
@@ -396,7 +523,18 @@ class VideoPipeline:
                         existing.face_info.matched_code,
                         roi_label or "Vùng giám sát"
                     )
-                continue
+
+                # Điểm 8: Kiểm tra điều kiện Re-verification / Face Quality Upgrade
+                prev_score = getattr(existing.face_info, "score", 0.0) or 0.0
+                last_match_t = getattr(existing, "last_face_match_time", 0.0) or existing.first_seen_time
+                reverify_threshold = getattr(settings, "FACE_REVERIFY_SCORE_THRESHOLD", 0.82)
+                reverify_interval = getattr(settings, "FACE_REVERIFY_MIN_INTERVAL_SECONDS", 3.0)
+
+                # Chỉ re-verify nếu score ban đầu mấp mé (< threshold) và đã qua chu kỳ interval
+                if prev_score < reverify_threshold and (current_time - last_match_t) >= reverify_interval:
+                    is_reverifying = True
+                else:
+                    continue
 
             x1, y1, x2, y2 = bbox.to_int_xyxy()
             x1, y1 = max(0, x1), max(0, y1)
@@ -431,10 +569,73 @@ class VideoPipeline:
                                 else:
                                     code, name, score, is_active = match[:4]
                                     role = "NORMAL_USER"
+                                # Điểm 8: Nếu đang re-verify cho 1 track đã có danh tính:
+                                if is_reverifying and existing and existing.face_info and existing.face_info.matched_code:
+                                    prev_code = existing.face_info.matched_code
+                                    prev_score = getattr(existing.face_info, "score", 0.0) or 0.0
+                                    existing.last_face_match_time = current_time
+
+                                    if code == prev_code:
+                                        # Cùng mã: xóa candidate pending
+                                        existing.pending_reverify_code = None
+                                        existing.pending_reverify_count = 0
+                                        # Chỉ cập nhật điểm nếu điểm mới cao hơn điểm cũ
+                                        if score > prev_score:
+                                            existing.face_info.score = score
+                                            face_result.score = score
+                                        continue
+
+                                    # Mã mới KHÁC danh tính hiện tại:
+                                    # Điểm mới phải >= prev_score + 0.05
+                                    if score < (prev_score + 0.05):
+                                        continue
+
+                                    # Yêu cầu 2 lần match liên tiếp cùng mã mới trước khi đổi (POINT-08a)
+                                    if getattr(existing, "pending_reverify_code", None) == code:
+                                        existing.pending_reverify_count = getattr(existing, "pending_reverify_count", 0) + 1
+                                    else:
+                                        existing.pending_reverify_code = code
+                                        existing.pending_reverify_count = 1
+
+                                    if existing.pending_reverify_count < 2:
+                                        # Lần 1: chưa đủ 2 lần liên tiếp -> BỎ QUA, không đổi
+                                        continue
+
+                                    # Lần 2 liên tiếp cùng mã mới -> Thực hiện đổi danh tính:
+                                    logger.info(
+                                        f"🔄 [Face Re-verify] Track #{track_id} đổi danh tính từ {prev_code} "
+                                        f"sang {code} (score mới: {score:.3f}, score cũ: {prev_score:.3f})"
+                                    )
+                                    existing.pending_reverify_code = None
+                                    existing.pending_reverify_count = 0
+
+                                    # POINT-08b: Reset cảnh báo vi phạm
+                                    existing.alert_unauthorized_sent = False
+                                    existing.alert_unknown_sent = False
+                                    existing.track_unauthorized_alert_time = 0.0
+
+                                    # Ghi EXIT cho mã cũ nếu đã từng ghi ENTRY
+                                    if getattr(existing, "roi_entry_logged", False) and self.face_matcher:
+                                        old_code = prev_code
+                                        if self.access_executor and not getattr(self.access_executor, "_shutdown", False):
+                                            self.access_executor.submit(
+                                                self.face_matcher.check_camera_access,
+                                                self.camera_code,
+                                                old_code,
+                                                roi_label=roi_label,
+                                                event_direction="EXIT",
+                                                skip_cache=True,
+                                            )
+                                        existing.roi_entry_logged = False
+
                                 face_result.matched_code = code
                                 face_result.matched_name = name
                                 face_result.is_active = is_active
                                 face_result.role = role
+                                face_result.score = score
+
+                                if existing:
+                                    existing.last_face_match_time = current_time
 
                                 # CHỈ kiểm tra thẩm quyền và ghi nhận truy cập khi đã thực sự bước chân vào vùng ROI!
                                 if in_roi:
@@ -474,15 +675,16 @@ class VideoPipeline:
         # 4b. Xử lý ghi log sự kiện RA / VÀO vùng ROI ngầm (Async qua ThreadPoolExecutor)
         if roi_events and self.face_matcher:
             for ev in roi_events:
-                self.executor.submit(
-                    self.face_matcher.check_camera_access,
-                    self.camera_code,
-                    ev["user_code"],
-                    ev["roi_label"],
-                    ev["direction"],
-                    ev.get("duration"),
-                    True
-                )
+                if self.access_executor and not getattr(self.access_executor, "_shutdown", False):
+                    self.access_executor.submit(
+                        self.face_matcher.check_camera_access,
+                        self.camera_code,
+                        ev["user_code"],
+                        ev["roi_label"],
+                        ev["direction"],
+                        ev.get("duration"),
+                        True
+                    )
 
         has_roi = bool(self.roi_polygons or self.roi_polygon)
 
@@ -517,7 +719,8 @@ class VideoPipeline:
                     active_persons,
                     only_in_roi=has_roi
                 )
-                self.executor.submit(self._dispatch_alert_async, alert, snapshot_frame)
+                if self.io_executor and not getattr(self.io_executor, "_shutdown", False):
+                    self.io_executor.submit(self._dispatch_alert_async, alert, snapshot_frame)
 
         # ------------------------------------------------------------------
         # 6. RENDER CÁC LỚP ĐỒ HỌA LÊN KHUNG HÌNH HIỂN THỊ (OVERLAY ANNOTATIONS)
@@ -541,16 +744,57 @@ class VideoPipeline:
         return annotated_frame, active_persons, alerts
 
     def _dispatch_alert_async(self, alert: SecurityAlertEvent, snapshot_frame: np.ndarray):
-        try:
-            evidence_url = self.storage_service.upload_frame_evidence(
-                snapshot_frame,
-                self.camera_code,
-                alert.track_id,
-                event_type=alert.event_type
+        timeout = getattr(settings, "ALERT_IMAGE_UPLOAD_TIMEOUT_SECONDS", 1.0)
+        evidence_url = None
+        result_holder = [None]
+        upload_done = threading.Event()
+
+        def _upload_worker():
+            try:
+                result_holder[0] = self.storage_service.upload_frame_evidence(
+                    snapshot_frame,
+                    self.camera_code,
+                    alert.track_id,
+                    event_type=alert.event_type
+                )
+            except Exception as e:
+                logger.warning(f"⚠️ [VideoPipeline] Không thể upload ảnh bằng chứng lên MinIO: {e}")
+            finally:
+                upload_done.set()
+
+        t = threading.Thread(target=_upload_worker, daemon=True)
+        t.start()
+
+        is_completed = upload_done.wait(timeout=timeout)
+        if is_completed:
+            evidence_url = result_holder[0]
+        else:
+            logger.warning(
+                f"⚠️ [VideoPipeline] Upload ảnh bằng chứng vượt quá {timeout}s! "
+                f"Gửi cảnh báo tức thì với image_url=None; upload tiếp tục chạy nền."
             )
-            alert.image_url = evidence_url
+            evidence_url = None
+
+        alert.image_url = evidence_url
+        try:
             self.mqtt_client.send_alert(alert)
         except Exception as e:
-            logger.error(f"Lỗi gửi cảnh báo ngầm sang MQTT/MinIO: {e}")
+            logger.error(f"🛑 [VideoPipeline] Lỗi gửi cảnh báo an ninh sang MQTT/Outbox: {e}")
 
 
+
+    def stop(self):
+        """Dừng an toàn cả hai executor khi worker/pipeline giải phóng (cancel_futures=True)"""
+        if hasattr(self, "access_executor") and self.access_executor:
+            try:
+                self.access_executor.shutdown(wait=False, cancel_futures=True)
+            except TypeError:
+                self.access_executor.shutdown(wait=False)
+            self.access_executor = None
+        if hasattr(self, "io_executor") and self.io_executor:
+            try:
+                self.io_executor.shutdown(wait=False, cancel_futures=True)
+            except TypeError:
+                self.io_executor.shutdown(wait=False)
+            self.io_executor = None
+        self.executor = None

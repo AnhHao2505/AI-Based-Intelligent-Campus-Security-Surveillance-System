@@ -75,3 +75,46 @@ def normalize_to_unit(x: float, y: float, ref_width: int, ref_height: int) -> Tu
     ny = max(0.0, min(1.0, y / ref_height))
     return (round(nx, 4), round(ny, 4))
 
+
+def normalize_polygon_to_unit(
+    points: List[Any],
+    reference_width: int = 1920,
+    reference_height: int = 1080
+) -> List[Point]:
+    """
+    Chuẩn hóa danh sách tọa độ đỉnh đa giác về khoảng [0.0, 1.0].
+    - Nếu các điểm đã ở khoảng [0.0, 1.0], giữ nguyên.
+    - Nếu các điểm là pixel (x > 1.0 hoặc y > 1.0), chia cho reference_width / reference_height.
+    """
+    if not points:
+        return []
+
+    ref_w = float(reference_width if reference_width and reference_width > 0 else 1920)
+    ref_h = float(reference_height if reference_height and reference_height > 0 else 1080)
+
+    extracted = []
+    has_pixel_coords = False
+    for pt in points:
+        if isinstance(pt, Point):
+            x, y = pt.x, pt.y
+        elif isinstance(pt, dict):
+            x, y = float(pt.get("x", 0.0)), float(pt.get("y", 0.0))
+        elif isinstance(pt, (tuple, list)) and len(pt) >= 2:
+            x, y = float(pt[0]), float(pt[1])
+        else:
+            continue
+        if x > 1.0 or y > 1.0:
+            has_pixel_coords = True
+        extracted.append((x, y))
+
+    normalized: List[Point] = []
+    for x, y in extracted:
+        if has_pixel_coords:
+            nx = max(0.0, min(1.0, x / ref_w))
+            ny = max(0.0, min(1.0, y / ref_h))
+            normalized.append(Point(round(nx, 4), round(ny, 4)))
+        else:
+            normalized.append(Point(round(max(0.0, min(1.0, x)), 4), round(max(0.0, min(1.0, y)), 4)))
+
+    return normalized
+

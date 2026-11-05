@@ -48,14 +48,15 @@ class TestAccessDecisionIntegration(unittest.TestCase):
         }
         mock_post.return_value = mock_resp
 
-        allowed, reason, area_name = self.matcher.check_camera_access("CAM-01", "GV001")
+        allowed, reason, area_name, source = self.matcher.check_camera_access("CAM-01", "GV001")
         self.assertTrue(allowed)
         self.assertEqual(reason, "Người dùng được gán vào khu vực")
         self.assertEqual(area_name, "Phòng Lab 01")
+        self.assertEqual(source, "ASSIGNED_PERSONNEL")
 
         # Kiểm tra Cache RAM: Lần 2 không gọi requests.post nữa
         mock_post.reset_mock()
-        allowed2, reason2, area_name2 = self.matcher.check_camera_access("CAM-01", "GV001")
+        allowed2, reason2, area_name2, source2 = self.matcher.check_camera_access("CAM-01", "GV001")
         self.assertTrue(allowed2)
         mock_post.assert_not_called()
 
@@ -77,10 +78,11 @@ class TestAccessDecisionIntegration(unittest.TestCase):
         }
         mock_post.return_value = mock_resp
 
-        allowed, reason, area_name = self.matcher.check_camera_access("CAM-01", "SE170123")
+        allowed, reason, area_name, source = self.matcher.check_camera_access("CAM-01", "SE170123")
         self.assertFalse(allowed)
         self.assertEqual(reason, "Không có quyền ra vào khu vực tại thời điểm này")
         self.assertEqual(area_name, "Phòng Lab 01")
+        self.assertEqual(source, "NONE")
 
     def test_frame_analysis_engine_unauthorized_alert_with_reason(self):
         """Test FrameAnalysisEngine sinh cảnh báo UNAUTHORIZED_ACCESS kèm đúng lý do từ checkEntry"""
@@ -97,7 +99,8 @@ class TestAccessDecisionIntegration(unittest.TestCase):
             is_authorized=False,
             is_active=True,
             access_reason="Cấp độ người dùng chưa đủ điều kiện vào phòng máy chủ",
-            area_name="Phòng Server Tầng 3"
+            area_name="Phòng Server Tầng 3",
+            access_checked=True
         )
         engine.associate_face(track_id=1, face_result=face_info)
 
@@ -110,10 +113,10 @@ class TestAccessDecisionIntegration(unittest.TestCase):
 
         self.assertEqual(len(alerts), 1)
         alert = alerts[0]
-        self.assertEqual(alert.event_type, "UNAUTHORIZED_ACCESS")
+        self.assertEqual(alert.event_type, "UNAUTHORIZED_PERSON")
         self.assertIn("Trần Sinh Viên", alert.details)
         self.assertIn("Phòng Server Tầng 3", alert.details)
-        self.assertIn("Cấp độ người dùng chưa đủ điều kiện vào phòng máy chủ", alert.details)
+        self.assertIn("Cấp độ không đủ", alert.details)
         self.assertTrue(persons[0].alert_unauthorized_sent)
 
     def test_frame_analysis_engine_unknown_person_alert(self):
@@ -143,7 +146,7 @@ class TestAccessDecisionIntegration(unittest.TestCase):
         self.assertEqual(len(alerts), 1)
         alert = alerts[0]
         self.assertEqual(alert.event_type, "UNKNOWN_PERSON")
-        self.assertIn("người lạ", alert.details)
+        self.assertIn("[UNKNOWN_PERSON]", alert.details)
         self.assertTrue(persons[0].alert_unknown_sent)
 
     def test_frame_analysis_engine_daytime_unclear_face(self):
@@ -160,7 +163,7 @@ class TestAccessDecisionIntegration(unittest.TestCase):
         self.assertEqual(len(alerts), 1)
         self.assertEqual(alerts[0].event_type, "UNKNOWN_PERSON")
         self.assertIn("[UNKNOWN_PERSON]", alerts[0].details)
-        self.assertIn("chưa rõ mặt", alerts[0].details)
+        self.assertIn("[UNKNOWN_PERSON]", alerts[0].details)
         self.assertTrue(persons[0].alert_unknown_sent)
 
     def test_frame_analysis_engine_after_hours_unclear_face(self):
@@ -175,9 +178,8 @@ class TestAccessDecisionIntegration(unittest.TestCase):
         persons, alerts, _ = engine.process_frame(detected_tracks=[(3, bbox)], roi_polygon=roi, camera_code="CAM-SERVER-01", current_time=t0 + 2.0)
 
         self.assertEqual(len(alerts), 1)
-        self.assertEqual(alerts[0].event_type, "INTRUSION")
-        self.assertIn("[INTRUSION]", alerts[0].details)
-        self.assertIn("chưa rõ mặt", alerts[0].details)
+        self.assertEqual(alerts[0].event_type, "PERSON_INTRUSION")
+        self.assertIn("[PERSON_INTRUSION]", alerts[0].details)
         self.assertTrue(persons[0].alert_unknown_sent)
 
     def test_frame_analysis_engine_after_hours_authorized_guard(self):
@@ -221,7 +223,8 @@ class TestAccessDecisionIntegration(unittest.TestCase):
             is_authorized=True,
             is_active=True,
             access_reason="Cấp độ truy cập của người dùng phù hợp với khu vực",  # Chỉ là quyền level ban ngày
-            area_name="Thư viện Tầng 2"
+            area_name="Thư viện Tầng 2",
+            access_checked=True
         )
         engine.associate_face(track_id=6, face_result=face_info)
 
@@ -233,8 +236,8 @@ class TestAccessDecisionIntegration(unittest.TestCase):
         )
 
         self.assertEqual(len(alerts), 1)
-        self.assertEqual(alerts[0].event_type, "INTRUSION")
-        self.assertIn("[INTRUSION]", alerts[0].details)
+        self.assertEqual(alerts[0].event_type, "PERSON_INTRUSION")
+        self.assertIn("[PERSON_INTRUSION]", alerts[0].details)
         self.assertTrue(persons[0].alert_unauthorized_sent)
 
     def test_frame_analysis_engine_after_hours_unknown_intruder(self):
@@ -261,9 +264,9 @@ class TestAccessDecisionIntegration(unittest.TestCase):
         )
 
         self.assertEqual(len(alerts), 1)
-        self.assertEqual(alerts[0].event_type, "INTRUSION")
-        self.assertIn("[INTRUSION]", alerts[0].details)
-        self.assertIn("ngoài giờ hoạt động", alerts[0].details)
+        self.assertEqual(alerts[0].event_type, "PERSON_INTRUSION")
+        self.assertIn("[PERSON_INTRUSION]", alerts[0].details)
+        self.assertIn("Vị trí:", alerts[0].details)
         self.assertTrue(persons[0].alert_unknown_sent)
 
     def test_frame_analysis_engine_soft_deleted_user_classified_as_unknown_person(self):
@@ -279,7 +282,8 @@ class TestAccessDecisionIntegration(unittest.TestCase):
             matched_name="Đặng Nguyễn Gia Minh",
             is_authorized=False,
             is_active=True,
-            access_reason="Người dùng không tồn tại"
+            access_reason="Người dùng không tồn tại",
+            access_checked=True
         )
         engine.associate_face(track_id=8, face_result=face_info)
 

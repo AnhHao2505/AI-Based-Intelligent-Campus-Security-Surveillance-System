@@ -1,4 +1,5 @@
 import os
+from typing import List
 from pydantic_settings import BaseSettings
 from pydantic import Field, AliasChoices
 
@@ -73,11 +74,21 @@ class Settings(BaseSettings):
     DEFAULT_FACE_CONFIDENCE: float = 0.60
     DEFAULT_FACE_NMS_THRESHOLD: float = 0.30
     FACE_MATCH_THRESHOLD: float = 0.75
+    FACE_REVERIFY_SCORE_THRESHOLD: float = Field(default=0.82, validation_alias="FACE_REVERIFY_SCORE_THRESHOLD")
+    FACE_REVERIFY_MIN_INTERVAL_SECONDS: float = Field(default=3.0, validation_alias="FACE_REVERIFY_MIN_INTERVAL_SECONDS")
     UPPER_BODY_CROP_RATIO: float = 0.60
     DEFAULT_AFTER_HOUR_START: str = "22:00"
     DEFAULT_AFTER_HOUR_END: str = "06:00"
+    NIGHT_ALLOWED_ACCESS_SOURCES: List[str] = Field(
+        default=["ASSIGNED_PERSONNEL", "ACCESS_REQUEST", "INCIDENT_RESPONSE", "OPEN_EVENT", "GUEST_VISIT"],
+        validation_alias="NIGHT_ALLOWED_ACCESS_SOURCES"
+    )
     DEFAULT_TRACK_MAX_INACTIVE_SECONDS: float = 2.0
     DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS: float = 30.0
+    CAMERA_UNKNOWN_ALERT_MIN_INTERVAL_SECONDS: float = 3.0
+    MAX_MOTION_TRACK_HOLD_SECONDS: float = 3.0
+    MOTION_GATING_HEARTBEAT_SECONDS: float = Field(default=4.0, validation_alias="MOTION_GATING_HEARTBEAT_SECONDS")
+    MIN_MOTION_AREA: int = Field(default=3000, validation_alias="MIN_MOTION_AREA")
     TIMEZONE: str = "Asia/Ho_Chi_Minh"
     
     # Continuous Video Recording Configuration
@@ -86,6 +97,13 @@ class Settings(BaseSettings):
         validation_alias="RECORDING_BASE_DIR"
     )
     RECORDING_SEGMENT_SECONDS: int = Field(default=60, validation_alias="RECORDING_SEGMENT_SECONDS")
+    LOCAL_RECORDING_MAX_RETAINED_FILES: int = Field(default=30, validation_alias="LOCAL_RECORDING_MAX_RETAINED_FILES")
+    LOCAL_RECORDING_MAX_MB: int = Field(default=2048, validation_alias="LOCAL_RECORDING_MAX_MB")
+    LOCAL_EVIDENCE_MAX_MB: int = Field(default=5120, validation_alias="LOCAL_EVIDENCE_MAX_MB")
+    EMERGENCY_DISK_FREE_MIN_MB: int = Field(default=500, validation_alias="EMERGENCY_DISK_FREE_MIN_MB")
+    RETRY_UPLOAD_INTERVAL_SECONDS: float = Field(default=30.0, validation_alias="RETRY_UPLOAD_INTERVAL_SECONDS")
+    RETRY_UPLOAD_MAX_BATCH_FILES: int = Field(default=5, validation_alias="RETRY_UPLOAD_MAX_BATCH_FILES")
+    ALERT_IMAGE_UPLOAD_TIMEOUT_SECONDS: float = Field(default=1.0, validation_alias="ALERT_IMAGE_UPLOAD_TIMEOUT_SECONDS")
 
     # Incident Video Evidence Recording Configuration
     EVIDENCE_BASE_DIR: str = Field(
@@ -96,6 +114,7 @@ class Settings(BaseSettings):
     # Backend Access Decision Service Integration
     BACKEND_API_URL: str = Field(default="http://localhost:8080", validation_alias="BACKEND_API_URL")
     ACCESS_DECISION_CACHE_TTL: float = 30.0
+    ACCESS_STALE_MAX_SECONDS: float = Field(default=600.0, validation_alias="ACCESS_STALE_MAX_SECONDS")
     # Khoá dùng chung với Backend (cùng giá trị INTERNAL_SERVICE_KEY của Backend). Bắt buộc, không có mặc định:
     # thiếu hoặc ngắn hơn 32 ký tự thì service không khởi động.
     INTERNAL_SERVICE_KEY: str = Field(..., min_length=32, validation_alias="INTERNAL_SERVICE_KEY")
