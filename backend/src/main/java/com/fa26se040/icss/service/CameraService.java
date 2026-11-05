@@ -245,7 +245,6 @@ public class CameraService {
 
         camera.setStatus(CameraStatus.DECOMMISSIONED);
         camera.setOperationalStatus(OperationalStatus.OFFLINE);
-        camera.setArea(null);
         camera.setDeletedAt(OffsetDateTime.now());
 
         cameraRepository.save(camera);
@@ -255,7 +254,9 @@ public class CameraService {
 
     public CameraDetailResponse reactivateCamera(UUID id) {
         log.info("Reactivating camera for id: {}", id);
+        // Camera đã xoá mềm coi như không tồn tại; chỉ camera DECOMMISSIONED chưa xoá mới kích hoạt lại được
         Camera camera = cameraRepository.findById(id)
+                .filter(c -> c.getDeletedAt() == null)
                 .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_CAM_002));
 
         camera.setStatus(CameraStatus.ACTIVE);
