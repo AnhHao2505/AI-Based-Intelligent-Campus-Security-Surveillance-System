@@ -103,6 +103,12 @@ class HumanDetector:
                 self.device = "cpu"
                 logger.info("ℹ️ [HumanDetector] Không phát hiện CUDA GPU, sử dụng CPU.")
 
+        self.half = bool(getattr(settings, "AI_HALF", False)) and (str(self.device).lower() != "cpu")
+        if self.half:
+            logger.info("⚡ [HumanDetector] Kích hoạt chế độ suy luận nửa chính xác (FP16/half) cho YOLO trên GPU.")
+        else:
+            logger.info("ℹ️ [HumanDetector] Chế độ suy luận FP32 chuẩn cho YOLO (AI_HALF=False).")
+
         self.model = YOLO(model_path)
 
     def detect(self, frame: np.ndarray) -> List[Tuple[int, BoundingBox]]:
@@ -118,6 +124,7 @@ class HumanDetector:
             classes=[0],
             conf=self.conf_threshold,
             device=self.device,
+            half=self.half,
             verbose=False
         )
 
@@ -184,6 +191,7 @@ class HumanDetector:
             conf=self.conf_threshold,
             tracker=self.tracker_config,
             device=self.device,
+            half=self.half,
             verbose=False
         )
         if hasattr(self.model, "predictor") and self.model.predictor is not None:

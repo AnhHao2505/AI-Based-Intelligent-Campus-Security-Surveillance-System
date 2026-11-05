@@ -64,10 +64,26 @@ class FaceEmbedder:
             self.session = ort.InferenceSession(self.model_path, sess_options=opts, providers=providers)
             self.input_name = self.session.get_inputs()[0].name
             self.output_name = self.session.get_outputs()[0].name
-            logger.info(f"✅ [FaceEmbedder] Đã nạp thành công mô hình ArcFace ONNX [{self.model_path}] (Providers: {providers})")
+            active_p = self.get_active_provider()
+            if "CUDAExecutionProvider" in active_p:
+                logger.info(f"⚡ [FaceEmbedder] Kích hoạt GPU Acceleration qua ONNX CUDAExecutionProvider!")
+            else:
+                logger.info(f"💻 [FaceEmbedder] Sử dụng ONNX CPUExecutionProvider (CPU inference).")
+            logger.info(f"✅ [FaceEmbedder] Đã nạp thành công mô hình ArcFace ONNX [{self.model_path}] (Active Provider: {active_p})")
         except Exception as e:
             logger.error(f"❌ [FaceEmbedder] Lỗi khi nạp mô hình ArcFace: {e}")
             self.session = None
+
+    def get_active_provider(self) -> str:
+        """Trả về ONNX Execution Provider đang chạy thực tế (P2-07)"""
+        if self.session and hasattr(self.session, "get_providers"):
+            try:
+                providers = self.session.get_providers()
+                if providers:
+                    return str(providers[0])
+            except Exception:
+                pass
+        return "None"
 
     def _download_model_if_needed(self):
         """Tự động tải file mô hình ArcFace ONNX nếu chưa tồn tại"""

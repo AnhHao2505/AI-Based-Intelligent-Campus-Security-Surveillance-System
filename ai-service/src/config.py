@@ -109,6 +109,9 @@ class Settings(BaseSettings):
 
     # CPU Threading Configuration (P1-06)
     AI_NUM_THREADS: Optional[int] = Field(default=None, validation_alias="AI_NUM_THREADS")
+
+    # Hardware Acceleration / FP16 Inference Configuration (P2-07)
+    AI_HALF: bool = Field(default=False, validation_alias="AI_HALF")
     
     # Continuous Video Recording Configuration
     RECORDING_BASE_DIR: str = Field(
