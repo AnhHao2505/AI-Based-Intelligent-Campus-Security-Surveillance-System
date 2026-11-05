@@ -41,7 +41,8 @@ class FrameAnalysisEngine:
         after_hour_end: Optional[str] = None,
         unknown_alert_cooldown: Optional[float] = None,
         camera_unknown_min_interval: Optional[float] = None,
-        access_grace_period: Optional[float] = None
+        access_grace_period: Optional[float] = None,
+        unauthorized_alert_cooldown: Optional[float] = None
     ):
         self.max_inactive_seconds = max_inactive_seconds if max_inactive_seconds is not None else settings.DEFAULT_TRACK_MAX_INACTIVE_SECONDS
         self.after_hour_start = after_hour_start or settings.DEFAULT_AFTER_HOUR_START
@@ -49,10 +50,13 @@ class FrameAnalysisEngine:
         self.unknown_alert_cooldown = unknown_alert_cooldown if unknown_alert_cooldown is not None else settings.DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS
         self.camera_unknown_min_interval = camera_unknown_min_interval if camera_unknown_min_interval is not None else getattr(settings, 'CAMERA_UNKNOWN_ALERT_MIN_INTERVAL_SECONDS', 3.0)
         self.access_grace_period = access_grace_period if access_grace_period is not None else getattr(settings, 'ACCESS_RESOLUTION_GRACE_PERIOD_SECONDS', 1.8)
+        self.unauthorized_alert_cooldown = unauthorized_alert_cooldown if unauthorized_alert_cooldown is not None else getattr(settings, 'DEFAULT_UNAUTHORIZED_ALERT_COOLDOWN_SECONDS', 30.0)
         self.active_tracks: Dict[int, TrackedPerson] = {}
         self.pending_faces: Dict[int, FaceDetectionResult] = {}
         self.last_unknown_alert_time: Dict[str, float] = {}  # camera_code -> timestamp
         self.track_last_unknown_alert_time: Dict[int, float] = {}  # track_id -> timestamp
+        self.track_last_unauthorized_alert_time: Dict[int, float] = {}  # track_id -> timestamp
+        self.user_last_unauthorized_alert_time: Dict[str, float] = {}  # matched_code -> timestamp
         self._last_parse_warning_time: Dict[str, float] = {}  # error_key -> timestamp
         self._missing_source_warn_times: Dict[str, float] = {}
 
@@ -293,6 +297,10 @@ class FrameAnalysisEngine:
                 person.roi_enter_time = current_time
                 person.entered_roi_label = matched_label or "Vùng giám sát"
                 person.roi_entry_logged = False
+                # Nếu đã hết cooldown thì cho phép cảnh báo lại khi tái xâm nhập
+                last_unauth_t = self.track_last_unauthorized_alert_time.get(person.track_id, 0.0)
+                if (current_time - last_unauth_t) >= self.unauthorized_alert_cooldown:
+                    person.alert_unauthorized_sent = False
                 logger.info(
                     f"📍 [FrameAnalysisEngine:{camera_code}] Track #{person.track_id} BƯỚC VÀO VÙNG ROI: '{person.entered_roi_label}'"
                 )
@@ -314,7 +322,8 @@ class FrameAnalysisEngine:
                 person.roi_entry_logged = False
                 if person.face_info:
                     person.face_info.access_checked = False
-                person.alert_unauthorized_sent = False
+                # Chống flapping mép ROI: Không reset cờ alert_unauthorized_sent ngay khi vừa rời ROI
+                # Cờ này được duy trì và chỉ reset khi hết cooldown thời gian hoặc track bị hủy.
                 person.alert_unknown_sent = False
 
             person.is_in_roi = in_roi
@@ -399,7 +408,14 @@ class FrameAnalysisEngine:
                         pass
                     else:
                         # Vi phạm: Phân loại chuẩn theo 5 nhóm (PERSON_INTRUSION, UNAUTHORIZED_PERSON)
-                        if not person.alert_unauthorized_sent:
+                        last_unauth_track_ts = self.track_last_unauthorized_alert_time.get(person.track_id)
+                        last_unauth_user_ts = self.user_last_unauthorized_alert_time.get(matched_code) if matched_code else None
+
+                        track_unauth_cooldown_ok = (last_unauth_track_ts is None) or ((current_time - last_unauth_track_ts) >= self.unauthorized_alert_cooldown)
+                        user_unauth_cooldown_ok = (last_unauth_user_ts is None) or ((current_time - last_unauth_user_ts) >= self.unauthorized_alert_cooldown)
+
+                        should_alert_unauth = (not person.alert_unauthorized_sent) if (last_unauth_track_ts is None and last_unauth_user_ts is None) else (track_unauth_cooldown_ok and user_unauth_cooldown_ok)
+                        if should_alert_unauth:
                             clean_reason = re.sub(r"\[[A-Z0-9_:\s]+\]\s*", "", reason_str or "").strip()
                             if "không tồn tại" in reason_lower or "đã bị xoá" in reason_lower:
                                 if after_hours:
@@ -446,6 +462,9 @@ class FrameAnalysisEngine:
                                 f"Người: {matched_name} ({matched_code}), Vị trí: {location_display}"
                             )
                             person.alert_unauthorized_sent = True
+                            self.track_last_unauthorized_alert_time[person.track_id] = current_time
+                            if matched_code:
+                                self.user_last_unauthorized_alert_time[matched_code] = current_time
                             if after_hours:
                                 person.alert_after_hours_sent = True
 
@@ -459,7 +478,14 @@ class FrameAnalysisEngine:
                     track_cooldown_ok = (last_track_ts is None) or (not getattr(person, "alert_unknown_sent", False)) or ((current_time - last_track_ts) >= self.unknown_alert_cooldown)
 
                     if track_cooldown_ok:
-                        if not is_public_area or after_hours or (active_pixel_polys and person.is_in_roi):
+                        # Quy định an ninh:
+                        # - Khu vực thông thường (is_public_area=False): Bất kỳ người lạ nào cũng bị cảnh báo UNKNOWN_PERSON (hoặc PERSON_INTRUSION ngoài giờ).
+                        # - Ngoài giờ (after_hours=True): Mọi đối tượng lạ hoặc không được duyệt đều là PERSON_INTRUSION.
+                        # - Khu vực công cộng (is_public_area=True) ban ngày: Cho phép người lạ tự do đi lại (0 cảnh báo UNKNOWN_PERSON).
+                        #   Chỉ cảnh báo nếu vùng ROI cụ thể mà người đó bước vào có gắn alert_rules hạn chế (ví dụ "RESTRICTED_ACCESS", "UNKNOWN_PERSON").
+                        has_restricted_roi_rule = any(r in ("RESTRICTED_ACCESS", "UNKNOWN_PERSON", "SECURITY_ALERT") for r in matched_rules)
+                        should_alert_stranger = (not is_public_area) or after_hours or (active_pixel_polys and person.is_in_roi and has_restricted_roi_rule)
+                        if should_alert_stranger:
                             last_camera_ts = self.last_unknown_alert_time.get(camera_code)
                             camera_interval_ok = (last_camera_ts is None) or ((current_time - last_camera_ts) >= self.camera_unknown_min_interval)
                             if camera_interval_ok:
@@ -521,6 +547,7 @@ class FrameAnalysisEngine:
             if tid in self.pending_faces:
                 del self.pending_faces[tid]
             self.track_last_unknown_alert_time.pop(tid, None)
+            self.track_last_unauthorized_alert_time.pop(tid, None)
 
         # Khử trùng lặp giữa các Track đang hoạt động (Active Track-Level Deduplication / NMS)
         visible_tids = [tid for tid, p in self.active_tracks.items() if getattr(p, "is_currently_visible", True)]

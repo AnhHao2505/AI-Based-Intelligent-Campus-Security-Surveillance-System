@@ -107,6 +107,7 @@ class VideoPipeline:
         # Khởi tạo các module tích hợp
         from concurrent.futures import ThreadPoolExecutor
         self.access_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix=f"access-{camera_code}")
+        self.upload_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix=f"upload-{camera_code}")
         self.io_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix=f"io-{camera_code}")
         self.executor = self.io_executor  # Backward compatibility
         self.mqtt_client = get_security_mqtt_client()
@@ -1087,11 +1088,12 @@ class VideoPipeline:
                     except Exception as err:
                         logger.error(f"🚨 [VideoPipeline] Lưu local fallback cũng thất bại: {err}")
 
-            if self.io_executor and not getattr(self.io_executor, "_shutdown", False):
+            exec_to_use = self.upload_executor if (hasattr(self, "upload_executor") and self.upload_executor and not getattr(self.upload_executor, "_shutdown", False)) else self.io_executor
+            if exec_to_use and not getattr(exec_to_use, "_shutdown", False):
                 try:
-                    upload_future = self.io_executor.submit(_upload_task)
+                    upload_future = exec_to_use.submit(_upload_task)
                 except Exception as e:
-                    logger.error(f"🚨 [VideoPipeline] Không thể submit task upload vào io_executor: {e}")
+                    logger.error(f"🚨 [VideoPipeline] Không thể submit task upload: {e}")
             else:
                 _upload_task()
 
@@ -1121,13 +1123,19 @@ class VideoPipeline:
 
 
     def stop(self):
-        """Dừng an toàn cả hai executor khi worker/pipeline giải phóng (cancel_futures=True)"""
+        """Dừng an toàn cả ba executor khi worker/pipeline giải phóng (cancel_futures=True)"""
         if hasattr(self, "access_executor") and self.access_executor:
             try:
                 self.access_executor.shutdown(wait=False, cancel_futures=True)
             except TypeError:
                 self.access_executor.shutdown(wait=False)
             self.access_executor = None
+        if hasattr(self, "upload_executor") and self.upload_executor:
+            try:
+                self.upload_executor.shutdown(wait=False, cancel_futures=True)
+            except TypeError:
+                self.upload_executor.shutdown(wait=False)
+            self.upload_executor = None
         if hasattr(self, "io_executor") and self.io_executor:
             try:
                 self.io_executor.shutdown(wait=False, cancel_futures=True)
