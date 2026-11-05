@@ -7,6 +7,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from src.pipeline.stream_recorder import (
+    mark_upload_active,
+    mark_upload_finished,
+    is_upload_active,
     enforce_local_recording_retention,
     enforce_emergency_evidence_retention,
     retry_pending_uploads,
@@ -141,6 +144,7 @@ def test_retry_pending_uploads_when_minio_back_online():
         pending_file = os.path.join(cam_dir, "05-11-2026 - 08-00-00.mp4")
         with open(pending_file, "wb") as f:
             f.write(b"pending video recording content")
+        os.utime(pending_file, (time.time() - 60, time.time() - 60))
 
         mock_storage = MagicMock()
         mock_storage.upload_video_file.return_value = True  # MinIO đã online lại!
@@ -159,3 +163,73 @@ def test_retry_pending_uploads_when_minio_back_online():
         mock_mqtt.publish_recording_event.assert_called_once()
         # File cục bộ phải được xóa sau khi upload thành công
         assert not os.path.exists(pending_file), "File local phải được dọn dẹp sau khi retry upload thành công"
+
+
+def test_retry_pending_uploads_excludes_inprogress_and_active_uploads():
+    """
+    BUG-04 (b - Đợt 4.6): retry_pending_uploads phải loại trừ:
+    - File đang ghi dở có đuôi .recording.mp4
+    - File đang ghi dở có mtime vừa được ghi trong vòng < 5s
+    - File đang nằm trong active upload set (_ACTIVE_UPLOADS)
+    Chỉ upload những file đã hoàn tất, không bị lock, và đã idle > 5s.
+    """
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        recording_dir = os.path.join(tmp_dir, "recording")
+        cam_dir = os.path.join(recording_dir, "CAM-REC-02", "2026", "11", "05")
+        os.makedirs(cam_dir, exist_ok=True)
+
+        now = time.time()
+
+        # 1. File đang ghi dở có đuôi .recording.mp4
+        rec_in_progress = os.path.join(cam_dir, "in_progress.recording.mp4")
+        with open(rec_in_progress, "wb") as f:
+            f.write(b"data recording")
+        os.utime(rec_in_progress, (now - 60, now - 60))
+
+        # 2. File vừa được ghi / đang được ghi (mtime chỉ cách hiện tại 1s < 5s)
+        recent_file = os.path.join(cam_dir, "just_written.mp4")
+        with open(recent_file, "wb") as f:
+            f.write(b"recent data")
+        os.utime(recent_file, (now - 1.0, now - 1.0))
+
+        # 3. File đang được upload trong luồng khác (active lock)
+        active_uploading = os.path.join(cam_dir, "currently_uploading.mp4")
+        with open(active_uploading, "wb") as f:
+            f.write(b"uploading data")
+        os.utime(active_uploading, (now - 60, now - 60))
+        mark_upload_active(active_uploading)
+
+        # 4. File hợp lệ, đã xong và sẵn sàng retry upload (mtime > 5s trước)
+        ready_file = os.path.join(cam_dir, "ready_for_retry.mp4")
+        with open(ready_file, "wb") as f:
+            f.write(b"ready data")
+        os.utime(ready_file, (now - 60, now - 60))
+
+        try:
+            mock_storage = MagicMock()
+            mock_storage.upload_video_file.return_value = True
+            mock_mqtt = MagicMock()
+
+            uploaded_count = retry_pending_uploads(
+                storage_service=mock_storage,
+                mqtt_client=mock_mqtt,
+                recording_dir=recording_dir,
+                evidence_dir=os.path.join(tmp_dir, "empty_evidence"),
+                max_batch=10,
+                min_age_seconds=5.0,
+            )
+
+            # Chỉ đúng 1 file (ready_file) được upload
+            assert uploaded_count == 1, f"Chỉ được upload 1 file hợp lệ, thực tế uploaded: {uploaded_count}"
+            mock_storage.upload_video_file.assert_called_once()
+            called_path = mock_storage.upload_video_file.call_args[0][0]
+            assert os.path.normpath(called_path) == os.path.normpath(ready_file)
+
+            # Các file đang ghi dở và đang upload phải vẫn còn trên đĩa
+            assert os.path.exists(rec_in_progress), "File .recording.mp4 không được upload hoặc xóa"
+            assert os.path.exists(recent_file), "File <5s mtime không được upload hoặc xóa"
+            assert os.path.exists(active_uploading), "File đang upload không được đụng vào"
+            # File ready_file phải đã được upload và xóa
+            assert not os.path.exists(ready_file), "File ready_file phải được dọn sau khi upload"
+        finally:
+            mark_upload_finished(active_uploading)

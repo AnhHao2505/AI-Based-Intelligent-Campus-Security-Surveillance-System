@@ -11,6 +11,9 @@ from typing import Optional, Dict, Any, List, Callable
 
 from ..config import settings
 from .stream_recorder import (
+    mark_upload_active,
+    mark_upload_finished,
+    is_upload_active,
     _has_valid_moov_atom,
     _now_vn,
     build_recording_completed_payload,
@@ -283,6 +286,9 @@ class IncidentRecorder:
         incident_event_id: str,
     ):
         def _upload_task():
+            if not mark_upload_active(file_path):
+                logger.warning(f"File {file_path} đang được upload, bỏ qua task trùng")
+                return
             try:
                 from ..integration.storage_service import storage_service
                 from ..integration.mqtt_client import get_security_mqtt_client
@@ -319,6 +325,8 @@ class IncidentRecorder:
                     enforce_emergency_evidence_retention(self.base_dir, emergency_free_mb=emergency_mb)
             except Exception as e:
                 logger.error(f"❌ [IncidentRecorder MinIO Upload Task] Lỗi: {e}")
+            finally:
+                mark_upload_finished(file_path)
 
         threading.Thread(target=_upload_task, daemon=True).start()
 

@@ -118,6 +118,55 @@ class VideoPipeline:
             face_info.access_source = access_source
         face_info.access_checked = True
 
+    def _handle_identity_switch(
+        self,
+        track_id: int,
+        old_code: str,
+        new_code: str,
+        roi_label: str,
+        need_exit: bool,
+        need_entry: bool
+    ):
+        """
+        Xử lý đổi danh tính từ old_code sang new_code tuần tự trong MỘT task duy nhất (POINT-08):
+        1. Ghi EXIT(old_code) nếu need_exit=True
+        2. Sau khi EXIT hoàn tất, ghi ENTRY(new_code) nếu need_entry=True
+        Đảm bảo không bao giờ có 2 task chạy song song làm đảo lộn thứ tự EXIT/ENTRY.
+        """
+        if need_exit and self.face_matcher and old_code:
+            try:
+                logger.info(f"🔄 [Identity Switch] Ghi nhận EXIT tuần tự cho mã cũ: {old_code}")
+                self.face_matcher.check_camera_access(
+                    self.camera_code,
+                    old_code,
+                    roi_label=roi_label,
+                    event_direction="EXIT",
+                    skip_cache=True,
+                )
+            except Exception as e:
+                logger.warning(f"[VideoPipeline] Lỗi khi ghi EXIT cho mã cũ {old_code}: {e}")
+
+        if need_entry and self.face_matcher and new_code:
+            try:
+                logger.info(f"🔄 [Identity Switch] Ghi nhận ENTRY tuần tự cho mã mới: {new_code}")
+                res = self.face_matcher.check_camera_access(
+                    self.camera_code,
+                    new_code,
+                    roi_label=roi_label,
+                    event_direction="ENTRY",
+                    skip_cache=True,
+                )
+                is_allowed = res[0]
+                access_reason = res[1]
+                area_name = res[2]
+                access_source = res[3] if len(res) >= 4 else None
+                existing = self.analysis_engine.active_tracks.get(track_id)
+                if existing and existing.face_info and existing.face_info.matched_code == new_code:
+                    self._apply_access_decision(existing.face_info, is_allowed, access_reason, area_name, access_source)
+                    existing.roi_entry_logged = True
+            except Exception as e:
+                logger.warning(f"[VideoPipeline] Lỗi khi ghi ENTRY cho mã mới {new_code}: {e}")
+
     def _async_resolve_camera_access(self, track_id: int, user_code: str, roi_label: str):
         try:
             res = self.face_matcher.check_camera_access(
@@ -570,6 +619,7 @@ class VideoPipeline:
                                     code, name, score, is_active = match[:4]
                                     role = "NORMAL_USER"
                                 # Điểm 8: Nếu đang re-verify cho 1 track đã có danh tính:
+                                identity_switched = False
                                 if is_reverifying and existing and existing.face_info and existing.face_info.matched_code:
                                     prev_code = existing.face_info.matched_code
                                     prev_score = getattr(existing.face_info, "score", 0.0) or 0.0
@@ -614,19 +664,32 @@ class VideoPipeline:
                                     existing.alert_unknown_sent = False
                                     existing.track_unauthorized_alert_time = 0.0
 
-                                    # Ghi EXIT cho mã cũ nếu đã từng ghi ENTRY
-                                    if getattr(existing, "roi_entry_logged", False) and self.face_matcher:
-                                        old_code = prev_code
+                                    # POINT-08c: Đổi danh tính A -> B: Ghi EXIT(A) rồi ENTRY(B) tuần tự trong MỘT task
+                                    need_exit = getattr(existing, "roi_entry_logged", False)
+                                    need_entry = in_roi
+
+                                    if (need_exit or need_entry) and self.face_matcher:
                                         if self.access_executor and not getattr(self.access_executor, "_shutdown", False):
                                             self.access_executor.submit(
-                                                self.face_matcher.check_camera_access,
-                                                self.camera_code,
-                                                old_code,
-                                                roi_label=roi_label,
-                                                event_direction="EXIT",
-                                                skip_cache=True,
+                                                self._handle_identity_switch,
+                                                track_id,
+                                                prev_code,
+                                                code,
+                                                roi_label or "Vùng giám sát",
+                                                need_exit,
+                                                need_entry
+                                            )
+                                        else:
+                                            self._handle_identity_switch(
+                                                track_id,
+                                                prev_code,
+                                                code,
+                                                roi_label or "Vùng giám sát",
+                                                need_exit,
+                                                need_entry
                                             )
                                         existing.roi_entry_logged = False
+                                        identity_switched = True
 
                                 face_result.matched_code = code
                                 face_result.matched_name = name
@@ -639,12 +702,13 @@ class VideoPipeline:
 
                                 # CHỈ kiểm tra thẩm quyền và ghi nhận truy cập khi đã thực sự bước chân vào vùng ROI!
                                 if in_roi:
-                                    self._resolve_access_for_person(
-                                        track_id,
-                                        face_result,
-                                        code,
-                                        roi_label or "Vùng giám sát"
-                                    )
+                                    if not identity_switched:
+                                        self._resolve_access_for_person(
+                                            track_id,
+                                            face_result,
+                                            code,
+                                            roi_label or "Vùng giám sát"
+                                        )
                                 else:
                                     # Người dùng đang ở ngoài vùng ROI: Trạng thái bình thường, không ghi log vi phạm
                                     face_result.is_authorized = True
@@ -744,42 +808,83 @@ class VideoPipeline:
         return annotated_frame, active_persons, alerts
 
     def _dispatch_alert_async(self, alert: SecurityAlertEvent, snapshot_frame: np.ndarray):
-        timeout = getattr(settings, "ALERT_IMAGE_UPLOAD_TIMEOUT_SECONDS", 1.0)
-        evidence_url = None
-        result_holder = [None]
-        upload_done = threading.Event()
-
-        def _upload_worker():
+        # 1. Tính trước object key của ảnh bằng chứng và gán alert.image_url ngay lập tức (POINT-13)
+        object_name, object_key, file_name, date_str = (None, None, None, None)
+        if self.storage_service and hasattr(self.storage_service, "precompute_evidence_key"):
             try:
-                result_holder[0] = self.storage_service.upload_frame_evidence(
-                    snapshot_frame,
+                object_name, object_key, file_name, date_str = self.storage_service.precompute_evidence_key(
                     self.camera_code,
                     alert.track_id,
                     event_type=alert.event_type
                 )
+                alert.image_url = object_key
             except Exception as e:
-                logger.warning(f"⚠️ [VideoPipeline] Không thể upload ảnh bằng chứng lên MinIO: {e}")
-            finally:
-                upload_done.set()
+                logger.warning(f"⚠️ [VideoPipeline] Không thể tính trước object key cho ảnh bằng chứng: {e}")
+        elif not alert.image_url:
+            date_str = time.strftime("%Y-%m-%d")
+            time_str = time.strftime("%H%M%S")
+            file_name = f"{alert.event_type}_Track{alert.track_id}_{time_str}.jpg"
+            object_name = f"{date_str}/{self.camera_code}/{file_name}"
+            object_key = f"security-evidence/{object_name}"
+            alert.image_url = object_key
 
-        t = threading.Thread(target=_upload_worker, daemon=True)
-        t.start()
+        # 2. Upload chạy nền qua io_executor (không tạo threading.Thread mới, không vượt giới hạn pool)
+        upload_future = None
+        if self.storage_service and snapshot_frame is not None and snapshot_frame.size > 0:
+            frame_copy = snapshot_frame.copy()
 
-        is_completed = upload_done.wait(timeout=timeout)
-        if is_completed:
-            evidence_url = result_holder[0]
-        else:
-            logger.warning(
-                f"⚠️ [VideoPipeline] Upload ảnh bằng chứng vượt quá {timeout}s! "
-                f"Gửi cảnh báo tức thì với image_url=None; upload tiếp tục chạy nền."
-            )
-            evidence_url = None
+            def _upload_task():
+                try:
+                    if hasattr(self.storage_service, "upload_frame_evidence_with_key") and object_name:
+                        self.storage_service.upload_frame_evidence_with_key(
+                            frame_copy,
+                            self.camera_code,
+                            object_name,
+                            object_key,
+                            file_name,
+                            date_str
+                        )
+                    else:
+                        self.storage_service.upload_frame_evidence(
+                            frame_copy,
+                            self.camera_code,
+                            alert.track_id,
+                            event_type=alert.event_type
+                        )
+                except Exception as e:
+                    logger.error(f"🚨 [VideoPipeline] Background upload ảnh bằng chứng thất bại cho {object_key}: {e}")
+                    try:
+                        if hasattr(self.storage_service, "save_local_snapshot") and file_name and date_str:
+                            self.storage_service.save_local_snapshot(frame_copy, self.camera_code, file_name, date_str)
+                    except Exception as err:
+                        logger.error(f"🚨 [VideoPipeline] Lưu local fallback cũng thất bại: {err}")
 
-        alert.image_url = evidence_url
+            if self.io_executor and not getattr(self.io_executor, "_shutdown", False):
+                try:
+                    upload_future = self.io_executor.submit(_upload_task)
+                except Exception as e:
+                    logger.error(f"🚨 [VideoPipeline] Không thể submit task upload vào io_executor: {e}")
+            else:
+                _upload_task()
+
+        # 3. Chờ kết quả upload tối đa ALERT_IMAGE_WAIT_SECONDS (mặc định 0.8s) trước khi gửi alert (POINT-13)
+        wait_seconds = float(getattr(settings, "ALERT_IMAGE_WAIT_SECONDS", 0.8))
+        if upload_future is not None:
+            try:
+                upload_future.result(timeout=wait_seconds)
+            except TimeoutError:
+                logger.warning(
+                    f"⚠️ [VideoPipeline] Upload ảnh bằng chứng vượt quá {wait_seconds}s! "
+                    f"Gửi cảnh báo ngay với key tính trước; upload tiếp tục chạy nền."
+                )
+            except Exception as e:
+                logger.warning(f"⚠️ [VideoPipeline] Upload ảnh bằng chứng gặp lỗi trong thời gian chờ: {e}")
+
+        # 4. Gửi cảnh báo qua MQTT / Durable Outbox (image_url luôn là key tính trước)
         try:
             self.mqtt_client.send_alert(alert)
         except Exception as e:
-            logger.error(f"🛑 [VideoPipeline] Lỗi gửi cảnh báo an ninh sang MQTT/Outbox: {e}")
+            logger.error(f"🚨 [VideoPipeline] Lỗi gửi cảnh báo an ninh sang MQTT/Outbox: {e}")
 
 
 

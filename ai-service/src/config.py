@@ -103,6 +103,7 @@ class Settings(BaseSettings):
     EMERGENCY_DISK_FREE_MIN_MB: int = Field(default=500, validation_alias="EMERGENCY_DISK_FREE_MIN_MB")
     RETRY_UPLOAD_INTERVAL_SECONDS: float = Field(default=30.0, validation_alias="RETRY_UPLOAD_INTERVAL_SECONDS")
     RETRY_UPLOAD_MAX_BATCH_FILES: int = Field(default=5, validation_alias="RETRY_UPLOAD_MAX_BATCH_FILES")
+    ALERT_IMAGE_WAIT_SECONDS: float = Field(default=0.8, validation_alias="ALERT_IMAGE_WAIT_SECONDS")
     ALERT_IMAGE_UPLOAD_TIMEOUT_SECONDS: float = Field(default=1.0, validation_alias="ALERT_IMAGE_UPLOAD_TIMEOUT_SECONDS")
 
     # Incident Video Evidence Recording Configuration

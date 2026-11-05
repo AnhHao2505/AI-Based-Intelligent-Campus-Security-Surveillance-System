@@ -138,9 +138,40 @@ async def sync_ai_config_from_backend(max_retries: int = 10, retry_delay: float 
     logger.warning("⚠️ Không thể kết nối Backend để lấy cấu hình runtime, sử dụng cấu hình mặc định cục bộ.")
     return False
 
+
+_retry_upload_thread: Optional[threading.Thread] = None
+_retry_upload_stop_event = threading.Event()
+
+def _retry_upload_worker():
+    interval = getattr(settings, "RETRY_UPLOAD_INTERVAL_SECONDS", 30.0)
+    max_batch = getattr(settings, "RETRY_UPLOAD_MAX_BATCH_FILES", 5)
+    logger.info(f"🔄 [Retry Uploader] Background worker started (interval={interval}s, batch={max_batch})")
+    while not _retry_upload_stop_event.is_set():
+        try:
+            from .pipeline.stream_recorder import retry_pending_uploads
+            from .integration.storage_service import storage_service
+            from .integration.mqtt_client import get_security_mqtt_client
+            uploaded = retry_pending_uploads(
+                storage_service=storage_service,
+                mqtt_client=get_security_mqtt_client(),
+                max_batch=max_batch,
+            )
+            if uploaded > 0:
+                logger.info(f"🔄 [Retry Uploader] Đã retry upload thành công {uploaded} video còn tồn lên MinIO.")
+        except Exception as e:
+            logger.warning(f"⚠️ [Retry Uploader] Lỗi trong chu kỳ retry upload: {e}")
+        _retry_upload_stop_event.wait(timeout=interval)
+    logger.info("🛑 [Retry Uploader] Background worker stopped cleanly.")
+
 @app.on_event("shutdown")
 async def shutdown_event():
     global default_pipeline, edge_agent
+    global _retry_upload_thread, _retry_upload_stop_event
+    if _retry_upload_thread and _retry_upload_thread.is_alive():
+        _retry_upload_stop_event.set()
+        _retry_upload_thread.join(timeout=3.0)
+        _retry_upload_thread = None
+        logger.info("🛑 [FastAPI Shutdown] Đã dừng thread retry upload.")
     logger.info("🛑 [FastAPI Shutdown] Đang dọn dẹp tài nguyên và luồng nền...")
     if default_pipeline is not None:
         try:
@@ -194,6 +225,15 @@ async def startup_event():
     except Exception as e:
         logger.warning(f"⚠️ Không thể khởi tạo EdgeMqttAgent: {e}")
     asyncio.create_task(sync_ai_config_from_backend())
+        # Khởi động background thread retry upload bù video tồn khi MinIO online (BUG-04a)
+    global _retry_upload_thread, _retry_upload_stop_event
+    _retry_upload_stop_event.clear()
+    _retry_upload_thread = threading.Thread(
+        target=_retry_upload_worker,
+        daemon=True,
+        name="pending-upload-retrier"
+    )
+    _retry_upload_thread.start()
 
 @app.get("/")
 async def root():

@@ -4,7 +4,7 @@ import time
 import logging
 import cv2
 import numpy as np
-from typing import Optional, List
+from typing import Optional, List, Tuple
 from minio.sse import SseS3
 from ..config import settings
 
@@ -160,6 +160,85 @@ class StorageService:
                 return False
         return False
 
+    def precompute_evidence_key(
+        self,
+        camera_code: str,
+        track_id: int,
+        event_type: str = "INCIDENT",
+        timestamp: Optional[float] = None
+    ) -> Tuple[str, str, str, str]:
+        """
+        Tính trước thông tin object key của ảnh bằng chứng để gán vào alert.image_url ngay.
+        Returns: (object_name, object_key, file_name, date_str)
+        """
+        t = time.localtime(timestamp) if timestamp else time.localtime()
+        date_str = time.strftime("%Y-%m-%d", t)
+        time_str = time.strftime("%H%M%S", t)
+        file_name = f"{event_type}_Track{track_id}_{time_str}.jpg"
+        object_name = f"{date_str}/{camera_code}/{file_name}"
+        bucket = getattr(self, "bucket_evidence", "security-evidence")
+        object_key = f"{bucket}/{object_name}"
+        return object_name, object_key, file_name, date_str
+
+    def save_local_snapshot(
+        self,
+        frame: np.ndarray,
+        camera_code: str,
+        file_name: str,
+        date_str: str
+    ) -> Optional[str]:
+        """Lưu ảnh bằng chứng cục bộ khi upload MinIO thất bại (fallback)"""
+        if frame is None or frame.size == 0:
+            return None
+        ret, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
+        if not ret:
+            return None
+        file_bytes = buf.tobytes()
+        local_dir = os.path.join(os.getcwd(), "evidence_snapshots", date_str, camera_code)
+        os.makedirs(local_dir, exist_ok=True)
+        local_path = os.path.join(local_dir, file_name)
+        try:
+            with open(local_path, "wb") as f:
+                f.write(file_bytes)
+            logger.info(f"[LOCAL STORAGE] Đã lưu ảnh bằng chứng cục bộ fallback: {local_path}")
+            return local_path
+        except Exception as e:
+            logger.error(f"🚨 [StorageService] Lỗi khi ghi file local fallback: {e}")
+            return None
+
+    def upload_frame_evidence_with_key(
+        self,
+        frame: np.ndarray,
+        camera_code: str,
+        object_name: str,
+        object_key: str,
+        file_name: str,
+        date_str: str
+    ) -> Optional[str]:
+        """
+        Upload ảnh bằng chứng lên MinIO với key tính trước.
+        Nếu thất bại: ghi log ERROR và fallback lưu vào ổ đĩa local.
+        """
+        if frame is None or frame.size == 0:
+            return None
+
+        ret, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
+        if not ret:
+            return None
+        file_bytes = buf.tobytes()
+
+        try:
+            if self.upload_bytes(self.bucket_evidence, object_name, file_bytes, "image/jpeg"):
+                logger.info(f"[MINIO SSE-S3] Đã lưu ảnh bằng chứng vi phạm: {object_key}")
+                return object_key
+            else:
+                logger.error(f"🚨 [StorageService] MinIO upload_bytes trả về False cho {object_key}")
+        except Exception as e:
+            logger.error(f"🚨 [StorageService] Lỗi khi upload ảnh bằng chứng lên MinIO ({object_key}): {e}")
+
+        # Fallback lưu local nếu upload MinIO không thành công
+        return self.save_local_snapshot(frame, camera_code, file_name, date_str)
+
     def upload_frame_evidence(
         self,
         frame: np.ndarray,
@@ -167,35 +246,12 @@ class StorageService:
         track_id: int,
         event_type: str = "INCIDENT"
     ) -> Optional[str]:
-        if frame is None or frame.size == 0:
-            return None
-
-        ret, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
-        if not ret:
-            return None
-
-        file_bytes = buf.tobytes()
-        date_str = time.strftime("%Y-%m-%d")
-        time_str = time.strftime("%H%M%S")
-        file_name = f"{event_type}_Track{track_id}_{time_str}.jpg"
-        object_name = f"{date_str}/{camera_code}/{file_name}"
-
-        if self.upload_bytes(self.bucket_evidence, object_name, file_bytes, "image/jpeg"):
-            object_key = f"{self.bucket_evidence}/{object_name}"
-            logger.info(f"[MINIO SSE-S3] Đã lưu ảnh bằng chứng vi phạm: {object_key}")
-            return object_key
-
-        local_dir = os.path.join(os.getcwd(), "evidence_snapshots", date_str, camera_code)
-        os.makedirs(local_dir, exist_ok=True)
-        local_path = os.path.join(local_dir, file_name)
-        try:
-            with open(local_path, "wb") as f:
-                f.write(file_bytes)
-            logger.info(f"[LOCAL STORAGE] Đã lưu ảnh bằng chứng cục bộ: {local_path}")
-            return local_path
-        except Exception as e:
-            logger.error(f"Lỗi khi ghi file local: {e}")
-            return None
+        object_name, object_key, file_name, date_str = self.precompute_evidence_key(
+            camera_code, track_id, event_type
+        )
+        return self.upload_frame_evidence_with_key(
+            frame, camera_code, object_name, object_key, file_name, date_str
+        )
 
     def upload_video_file(self, file_path: str, bucket_name: str, object_name: str) -> bool:
         if not file_path or not os.path.exists(file_path):
