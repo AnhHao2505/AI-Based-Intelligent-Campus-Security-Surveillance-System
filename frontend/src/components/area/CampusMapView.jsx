@@ -29,6 +29,7 @@ import {
 	Loader2,
 	LocateFixed,
 	Globe,
+	Menu,
 } from "lucide-react";
 import {
 	getLevelConfig,
@@ -158,11 +159,24 @@ export default function CampusMapView({
 	isCreatingArea = false,
 	onCancelCreateArea,
 	onAreaCreated,
+	hideRail = false,
+	isLeftSidebarCollapsed = false,
+	onToggleLeftSidebar,
 }) {
 	const mapRef = useRef(null);
 	const [railCollapsed, setRailCollapsed] = useState(false);
 	const [mapZoom, setMapZoom] = useState(CAMPUS_CENTER.zoom);
 	const compactLabels = mapZoom < LABEL_MIN_ZOOM;
+
+	// Tự động resize map khi sidebar trái thu gọn / mở rộng
+	useEffect(() => {
+		const timer = setTimeout(() => {
+			if (mapRef.current) {
+				mapRef.current.resize();
+			}
+		}, 250);
+		return () => clearTimeout(timer);
+	}, [isLeftSidebarCollapsed]);
 
 	// Tìm kiếm khu vực & địa điểm toàn cầu
 	const [searchTerm, setSearchTerm] = useState("");
@@ -773,12 +787,24 @@ export default function CampusMapView({
 
 	return (
 		<div
-			className={`campus-map-layout ${railCollapsed ? "campus-map-layout--expanded" : ""} ${isCreatingArea ? "campus-map-layout--create" : ""}`}
+			className={`campus-map-layout ${railCollapsed || (hideRail && !isCreatingArea) ? "campus-map-layout--expanded" : ""} ${isCreatingArea ? "campus-map-layout--create" : ""}`}
 		>
 			{/* LEFT: MAIN MAPLIBRE CANVAS */}
 			<div className="campus-map-card">
 				{/* Floating Top Controls */}
 				<div className="campus-map-floating-bar">
+					{onToggleLeftSidebar && (
+						<button
+							type="button"
+							className="campus-map-collapse-btn"
+							onClick={onToggleLeftSidebar}
+							title={isLeftSidebarCollapsed ? "Mở danh sách khu vực" : "Thu gọn danh sách khu vực (Mở rộng bản đồ)"}
+							aria-label="Thu gọn/Mở rộng danh sách khu vực"
+						>
+							<Menu size={16} />
+						</button>
+					)}
+
 					{/* Ô tìm kiếm khu vực */}
 					<div className="campus-map-search">
 						<Search
@@ -1286,7 +1312,8 @@ export default function CampusMapView({
 			</div>
 
 			{/* RIGHT RAIL: AREAS LIST & DETAILS OR CREATE PANEL */}
-			<div className="campus-rail">
+			{(!hideRail || isCreatingArea) && (
+				<div className="campus-rail">
 				{isCreatingArea ? (
 					<div className="campus-rail-card campus-rail-card--create">
 						<div className="campus-rail-header">
@@ -1596,6 +1623,7 @@ export default function CampusMapView({
 				</>
 				)}
 			</div>
+			)}
 		</div>
 	);
 }

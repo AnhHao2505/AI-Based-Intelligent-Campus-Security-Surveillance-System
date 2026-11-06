@@ -113,51 +113,11 @@ export default function AreaListPage() {
 	const navigate = useNavigate();
 	const isFacilityManager = user?.role === "FACILITY_MANAGER";
 
-	const [searchParams, setSearchParams] = useSearchParams();
-	const viewParam = searchParams.get("view");
-	// Chế độ Bản đồ chỉ cho ADMIN; vai trò khác mở ?view=map vẫn ở chế độ Danh sách
-	const [activeView, setActiveView] = useState(viewParam === "map" && isAdmin ? "map" : "list");
+	// Split-View: Danh sách bên trái + Bản đồ khuôn viên bên phải
+	const [isLeftSidebarCollapsed, setIsLeftSidebarCollapsed] = useState(false);
 	const [isCreatingOnMap, setIsCreatingOnMap] = useState(false);
 
-	// Vai trò khác ADMIN mở ?view=map (hoặc /admin/map): đưa URL về chế độ Danh sách
-	useEffect(() => {
-		if (viewParam === "map" && !isAdmin) {
-			setSearchParams(
-				(prev) => {
-					const next = new URLSearchParams(prev);
-					next.delete("view");
-					return next;
-				},
-				{ replace: true },
-			);
-		}
-	}, [viewParam, isAdmin, setSearchParams]);
-
-	useEffect(() => {
-		if (viewParam === "map" && isAdmin && activeView !== "map") {
-			setActiveView("map");
-		} else if (!viewParam && activeView !== "list") {
-			setActiveView("list");
-		}
-	}, [viewParam, activeView, isAdmin]);
-
-	const handleViewChange = (newView) => {
-		setActiveView(newView);
-		setSearchParams((prev) => {
-			const next = new URLSearchParams(prev);
-			if (newView === "map") {
-				next.set("view", "map");
-			} else {
-				next.delete("view");
-			}
-			return next;
-		});
-	};
-
 	const handleStartCreateOnMap = () => {
-		if (activeView !== "map") {
-			handleViewChange("map");
-		}
 		setIsCreatingOnMap(true);
 	};
 
@@ -944,33 +904,6 @@ export default function AreaListPage() {
 						<div
 							className="zone-view-toggle"
 							role="group"
-							aria-label="Chế độ hiển thị"
-						>
-							<button
-								type="button"
-								className={`zone-view-toggle__btn ${activeView === "list" ? "zone-view-toggle__btn--active" : ""}`}
-								onClick={() => handleViewChange("list")}
-								title="Xem dạng danh sách"
-							>
-								<Layers size={15} />
-								<span>Danh sách</span>
-							</button>
-							<button
-								type="button"
-								className={`zone-view-toggle__btn ${activeView === "map" ? "zone-view-toggle__btn--active" : ""}`}
-								onClick={() => handleViewChange("map")}
-								title="Xem trên bản đồ an ninh"
-							>
-								<Compass size={15} />
-								<span>Bản đồ</span>
-							</button>
-						</div>
-					)}
-
-					{isAdmin && activeView === "list" && (
-						<div
-							className="zone-view-toggle"
-							role="group"
 							aria-label="Lọc trạng thái khu vực"
 						>
 							<button
@@ -989,7 +922,10 @@ export default function AreaListPage() {
 								title="Khu vực đã vô hiệu hóa"
 							>
 								<Archive size={15} />
-								<span>Đã vô hiệu hóa</span>
+								<span>
+									Đã vô hiệu hóa
+									{deactivatedAreas.length > 0 ? ` (${deactivatedAreas.length})` : ""}
+								</span>
 							</button>
 						</div>
 					)}
@@ -999,6 +935,7 @@ export default function AreaListPage() {
 							type="button"
 							className="zone-toolbar__add-btn"
 							onClick={handleStartCreateOnMap}
+							title="Thêm vùng mới (chọn tọa độ trên bản đồ)"
 						>
 							<Plus
 								size={16}
@@ -1010,146 +947,166 @@ export default function AreaListPage() {
 				</div>
 			</div>
 
-			{/* MAIN CONTENT: MAP VIEW OR LIST VIEW */}
-			{activeView === "map" && isAdmin ? (
-				<ErrorBoundary>
-					<CampusMapView
-						areas={floorAreas}
-						selectedAreaId={selectedAreaId}
-						cameraCounts={cameraCounts}
-						isAdmin={isAdmin}
-						isFacilityManager={isFacilityManager}
-						onSelectArea={(id) => handleSelectArea(id, false)}
-						onAreaUpdated={handleAreaUpdatedOnMap}
-						buildingsList={availableBuildings}
-						selectedBuilding={selectedBuilding}
-						selectedFloor={selectedFloor}
-						isCreatingArea={isCreatingOnMap}
-						onCancelCreateArea={() => setIsCreatingOnMap(false)}
-						onAreaCreated={async (newArea) => {
-							setIsCreatingOnMap(false);
-							await fetchData(newArea.id);
-						}}
-					/>
-				</ErrorBoundary>
+			{/* MAIN CONTENT: SPLIT-VIEW (MAP + AREA LIST) FOR ADMIN, LIST VIEW FOR FM */}
+			{isAdmin ? (
+				<div className={`zone-split-layout ${isLeftSidebarCollapsed ? "zone-split-layout--sidebar-collapsed" : ""}`}>
+					{!isLeftSidebarCollapsed && (
+						<aside className="zone-split-sidebar">
+							{loading && <LoadingState text="Đang tải dữ liệu khu vực..." />}
+
+							{!loading && pageError && !showDeactivated && (
+								<ErrorState
+									message={pageError}
+									onRetry={() => fetchData(selectedAreaId)}
+								/>
+							)}
+
+							{showDeactivated && (
+								<section
+									className="zone-deactivated-rail"
+									aria-label="Khu vực đã vô hiệu hóa"
+								>
+									<div className="zone-deactivated-rail__header">
+										<div>
+											<h2 className="zone-deactivated-rail__title">
+												Đã vô hiệu hóa ({deactivatedAreas.length})
+											</h2>
+											<p className="zone-deactivated-rail__desc">
+												Khôi phục chỉ mở lại khu vực. Camera và phân quyền không tự hồi phục.
+											</p>
+										</div>
+										<button
+											type="button"
+											className="zone-deactivated-rail__back-btn"
+											onClick={() => setShowDeactivated(false)}
+											title="Quay lại danh sách hoạt động"
+										>
+											Quay lại
+										</button>
+									</div>
+
+									{deactivatedLoading && (
+										<LoadingState
+											size="sm"
+											text="Đang tải..."
+										/>
+									)}
+									{!deactivatedLoading && deactivatedError && (
+										<ErrorState
+											size="sm"
+											message={deactivatedError}
+											onRetry={fetchDeactivatedAreas}
+										/>
+									)}
+									{!deactivatedLoading &&
+										!deactivatedError &&
+										deactivatedAreas.length === 0 && (
+											<EmptyState
+												size="sm"
+												title="Không có khu vực nào đã vô hiệu hóa"
+											/>
+										)}
+									{!deactivatedLoading &&
+										!deactivatedError &&
+										deactivatedAreas.length > 0 && (
+											<div className="zone-deactivated-rail__list">
+												{deactivatedAreas.map((a) => (
+													<div key={a.id} className="zone-deactivated-rail__item">
+														<div className="zone-deactivated-rail__item-info">
+															<div className="zone-deactivated-rail__item-name">{a.name}</div>
+															<div className="zone-deactivated-rail__item-meta">
+																{formatLocation(a.building, a.floor) || "—"} · {getLevelConfig(a.areaLevel).name}
+															</div>
+														</div>
+														<button
+															type="button"
+															className="area-btn-modal area-btn-modal--cancel zone-deactivated-rail__restore-btn"
+															onClick={() => openRestoreModal(a)}
+															title="Khôi phục khu vực"
+														>
+															<RotateCcw size={12} />
+															<span>Khôi phục</span>
+														</button>
+													</div>
+												))}
+											</div>
+										)}
+								</section>
+							)}
+
+							{!loading && !pageError && !showDeactivated && (
+								<AreaListView
+									floorAreas={floorAreas}
+									selectedFloor={selectedFloor}
+									selectedBuilding={selectedBuilding}
+									selectedAreaId={selectedAreaId}
+									cameraCounts={cameraCounts}
+									isAdmin={isAdmin}
+									isFacilityManager={isFacilityManager}
+									onSelectArea={(id) => handleSelectArea(id, false)}
+									onOpenCreateModal={handleStartCreateOnMap}
+									onOpenCamerasModal={handleOpenCamerasModal}
+									onOpenAssignedPersonnelModal={handleOpenAssignedPersonnelModal}
+									onOpenEditModal={handleOpenEditModal}
+									onOpenDeactivateModal={handleOpenDeactivateModal}
+								/>
+							)}
+						</aside>
+					)}
+
+					<section className="zone-split-map">
+						<ErrorBoundary>
+							<CampusMapView
+								areas={floorAreas}
+								selectedAreaId={selectedAreaId}
+								cameraCounts={cameraCounts}
+								isAdmin={isAdmin}
+								isFacilityManager={isFacilityManager}
+								onSelectArea={(id) => handleSelectArea(id, false)}
+								onAreaUpdated={handleAreaUpdatedOnMap}
+								buildingsList={availableBuildings}
+								selectedBuilding={selectedBuilding}
+								selectedFloor={selectedFloor}
+								isCreatingArea={isCreatingOnMap}
+								onCancelCreateArea={() => setIsCreatingOnMap(false)}
+								onAreaCreated={async (newArea) => {
+									setIsCreatingOnMap(false);
+									await fetchData(newArea.id);
+								}}
+								hideRail={true}
+								isLeftSidebarCollapsed={isLeftSidebarCollapsed}
+								onToggleLeftSidebar={() => setIsLeftSidebarCollapsed((prev) => !prev)}
+							/>
+						</ErrorBoundary>
+					</section>
+				</div>
 			) : (
 				<>
-			{/* Loading state */}
-			{loading && <LoadingState text="Đang tải dữ liệu khu vực..." />}
-
-			{/* Lỗi tải danh sách: hiện lỗi + Thử lại, không hiện như danh sách rỗng */}
-			{!loading && pageError && !showDeactivated && (
-				<ErrorState
-					message={pageError}
-					onRetry={() => fetchData(selectedAreaId)}
-				/>
-			)}
-
-			{/* ============================================================ */}
-			{/* 2. MAIN CONTENT (LIST VIEW)                                 */}
-			{/* ============================================================ */}
-			{/* Step 6 (BR-AD-07): danh sách khu vực đã vô hiệu hóa + khôi phục — chỉ ADMIN */}
-			{isAdmin && showDeactivated && (
-				<section
-					className="zone-deactivated"
-					aria-label="Khu vực đã vô hiệu hóa"
-				>
-					<div className="zone-deactivated__header">
-						<div>
-							<h2 className="zone-deactivated__title">
-								Khu vực đã vô hiệu hóa
-							</h2>
-							<p className="zone-deactivated__subtitle">
-								Khôi phục chỉ mở lại khu vực. Nhân sự chỉ định, đơn truy cập,
-								lượt khách và camera đã gỡ không tự hồi phục.
-							</p>
-						</div>
-						<span className="zone-deactivated__count">
-							{deactivatedAreas.length} khu vực
-						</span>
-					</div>
-
-					{deactivatedLoading && (
-						<LoadingState
-							size="sm"
-							text="Đang tải khu vực đã vô hiệu hóa..."
-						/>
-					)}
-					{!deactivatedLoading && deactivatedError && (
+					{/* Facility Manager: List View */}
+					{loading && <LoadingState text="Đang tải dữ liệu khu vực..." />}
+					{!loading && pageError && !showDeactivated && (
 						<ErrorState
-							size="sm"
-							message={deactivatedError}
-							onRetry={fetchDeactivatedAreas}
+							message={pageError}
+							onRetry={() => fetchData(selectedAreaId)}
 						/>
 					)}
-					{!deactivatedLoading &&
-						!deactivatedError &&
-						deactivatedAreas.length === 0 && (
-							<EmptyState
-								size="sm"
-								title="Không có khu vực nào đã vô hiệu hóa"
-							/>
-						)}
-					{!deactivatedLoading &&
-						!deactivatedError &&
-						deactivatedAreas.length > 0 && (
-							<div className="zone-deactivated__table-wrap">
-							<table className="zone-deactivated__table">
-								<thead>
-									<tr>
-										<th>Tên khu vực</th>
-										<th>Tòa nhà / Tầng</th>
-										<th>Loại</th>
-										<th aria-label="Thao tác" />
-									</tr>
-								</thead>
-								<tbody>
-									{deactivatedAreas.map((a) => (
-										<tr key={a.id}>
-											<td className="zone-deactivated__name">{a.name}</td>
-											<td>
-												{formatLocation(a.building, a.floor) || "—"}
-											</td>
-											<td>
-												{getLevelConfig(a.areaLevel).name}
-											</td>
-											<td className="zone-deactivated__actions">
-												<button
-													type="button"
-													className="area-btn-modal area-btn-modal--cancel zone-deactivated__restore-btn"
-													onClick={() => openRestoreModal(a)}
-												>
-													<RotateCcw size={14} />
-													<span>Khôi phục</span>
-												</button>
-											</td>
-										</tr>
-									))}
-								</tbody>
-							</table>
-							</div>
-						)}
-				</section>
-			)}
-
-			{!loading && !pageError && !showDeactivated && (
-				<AreaListView
-					floorAreas={floorAreas}
-					selectedFloor={selectedFloor}
-					selectedBuilding={selectedBuilding}
-					selectedAreaId={selectedAreaId}
-					cameraCounts={cameraCounts}
-					isAdmin={isAdmin}
-					isFacilityManager={isFacilityManager}
-					onSelectArea={(id) => handleSelectArea(id, false)}
-					onOpenCreateModal={handleStartCreateOnMap}
-					onOpenCamerasModal={handleOpenCamerasModal}
-					onOpenAssignedPersonnelModal={handleOpenAssignedPersonnelModal}
-					onOpenEditModal={handleOpenEditModal}
-					onOpenDeactivateModal={handleOpenDeactivateModal}
-				/>
-			)}
-
+					{!loading && !pageError && !showDeactivated && (
+						<AreaListView
+							floorAreas={floorAreas}
+							selectedFloor={selectedFloor}
+							selectedBuilding={selectedBuilding}
+							selectedAreaId={selectedAreaId}
+							cameraCounts={cameraCounts}
+							isAdmin={isAdmin}
+							isFacilityManager={isFacilityManager}
+							onSelectArea={(id) => handleSelectArea(id, false)}
+							onOpenCreateModal={handleOpenCreateModal}
+							onOpenCamerasModal={handleOpenCamerasModal}
+							onOpenAssignedPersonnelModal={handleOpenAssignedPersonnelModal}
+							onOpenEditModal={handleOpenEditModal}
+							onOpenDeactivateModal={handleOpenDeactivateModal}
+						/>
+					)}
 				</>
 			)}
 

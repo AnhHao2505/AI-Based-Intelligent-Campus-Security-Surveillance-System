@@ -159,6 +159,34 @@
   background: var(--theme-primary-light);
 }
 
+/* Collapse left sidebar button (Hamburger menu in floating bar) */
+.campus-map-collapse-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  border: 1px solid var(--theme-border, #e2e8f0);
+  background: var(--theme-bg-surface, #ffffff);
+  color: var(--theme-text-primary, #0f172a);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.campus-map-collapse-btn:hover {
+  background: var(--theme-bg-hover, #f1f5f9);
+  border-color: var(--theme-border-hover, #cbd5e1);
+  color: var(--theme-primary, #2563eb);
+}
+
+[data-theme="dark"] .campus-map-collapse-btn {
+  background: #1e293b;
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #f8fafc;
+}
+
 /* Zone Marker Pin */
 .campus-zone-pin {
   display: inline-flex;

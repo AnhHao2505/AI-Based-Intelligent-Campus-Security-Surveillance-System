@@ -3197,3 +3197,180 @@
   color: var(--theme-text-muted, #64748b);
 }
 
+/* --------------------------------------------------------------------------
+   Master-Detail Split-View Layout (Synchronized Map & Area List)
+   -------------------------------------------------------------------------- */
+.zone-split-layout {
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  gap: 16px;
+  height: calc(100vh - 165px);
+  min-height: 580px;
+  box-sizing: border-box;
+  transition: grid-template-columns 0.22s cubic-bezier(0.4, 0, 0.2, 1), gap 0.22s ease;
+}
+
+.zone-split-layout--sidebar-collapsed {
+  grid-template-columns: 0 minmax(0, 1fr);
+  gap: 0;
+}
+
+@media (max-width: 1200px) {
+  .zone-split-layout {
+    grid-template-columns: 310px minmax(0, 1fr);
+    gap: 12px;
+  }
+  .zone-split-layout--sidebar-collapsed {
+    grid-template-columns: 0 minmax(0, 1fr);
+    gap: 0;
+  }
+}
+
+@media (max-width: 900px) {
+  .zone-split-layout {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+}
+
+.zone-split-sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  transition: opacity 0.2s ease, width 0.22s ease;
+}
+
+.zone-split-sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+.zone-split-sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.zone-split-sidebar::-webkit-scrollbar-thumb {
+  background: var(--theme-border, #cbd5e1);
+  border-radius: 999px;
+}
+
+/* Single column cards inside split sidebar */
+.zone-split-sidebar .area-grid {
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.zone-split-sidebar .area-level-section {
+  gap: 0.75rem;
+}
+
+.zone-split-sidebar .area-level-section__header {
+  padding-bottom: 0.5rem;
+}
+
+.zone-split-sidebar .area-level-section__title {
+  font-size: 0.95rem;
+}
+
+.zone-split-map {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--theme-border, #e2e8f0);
+  background: var(--theme-bg-surface, #ffffff);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+}
+
+.zone-split-map .campus-map-layout {
+  height: 100%;
+  min-height: 100%;
+}
+
+/* Deactivated Rail view in Split Sidebar */
+.zone-deactivated-rail {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--theme-bg-surface, #ffffff);
+  border: 1px solid var(--theme-border, #e2e8f0);
+  border-radius: 12px;
+  overflow: hidden;
+  padding: 12px;
+  gap: 12px;
+}
+
+.zone-deactivated-rail__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--theme-border, #e2e8f0);
+  padding-bottom: 10px;
+}
+
+.zone-deactivated-rail__title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--theme-text-primary, #0f172a);
+}
+
+.zone-deactivated-rail__desc {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: var(--theme-text-muted, #64748b);
+}
+
+.zone-deactivated-rail__back-btn {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 5px;
+  border: 1px solid var(--theme-border, #cbd5e1);
+  background: transparent;
+  color: var(--theme-text-secondary, #64748b);
+  cursor: pointer;
+}
+
+.zone-deactivated-rail__back-btn:hover {
+  background: var(--theme-bg-hover, rgba(0,0,0,0.04));
+  color: var(--theme-text-primary, #0f172a);
+}
+
+.zone-deactivated-rail__list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.zone-deactivated-rail__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--theme-bg-input, #f8fafc);
+  border: 1px solid var(--theme-border, #e2e8f0);
+}
+
+.zone-deactivated-rail__item-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--theme-text-primary, #0f172a);
+}
+
+.zone-deactivated-rail__item-meta {
+  font-size: 11px;
+  color: var(--theme-text-muted, #64748b);
+  margin-top: 2px;
+}
+
+.zone-deactivated-rail__restore-btn {
+  padding: 4px 8px !important;
+  font-size: 11px !important;
+  height: auto !important;
+}
+
+
