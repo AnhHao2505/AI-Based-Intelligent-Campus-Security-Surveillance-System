@@ -5,6 +5,7 @@ import com.fa26se040.icss.entity.*;
 import com.fa26se040.icss.enums.*;
 import com.fa26se040.icss.repository.*;
 import com.fa26se040.icss.security.JwtTokenProvider;
+import com.fa26se040.icss.service.AiFaceCacheRefreshNotifier;
 import com.fa26se040.icss.service.GuestFaceEmbeddingClient;
 import com.fa26se040.icss.service.GuestPhotoStorageService;
 import com.fa26se040.icss.service.SystemConfigService;
@@ -22,6 +23,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.nio.charset.StandardCharsets;
@@ -62,6 +64,9 @@ public abstract class GuestTestSupport extends AbstractIntegrationTest {
 
     @MockBean protected GuestPhotoStorageService photoStorage;
     @MockBean protected GuestFaceEmbeddingClient faceClient;
+    /** L3: không gọi AI thật; ghi lại mỗi lần gọi có đang trong transaction không (true = bản thật sẽ gửi sau commit). */
+    @MockBean protected AiFaceCacheRefreshNotifier aiFaceCacheRefreshNotifier;
+    protected final List<Boolean> refreshCallsInTransaction = new java.util.concurrent.CopyOnWriteArrayList<>();
 
     protected String suffix;
     protected Building building;
@@ -82,7 +87,12 @@ public abstract class GuestTestSupport extends AbstractIntegrationTest {
 
     @BeforeEach
     void setUpGuestBase() {
-        Mockito.reset(photoStorage, faceClient);
+        Mockito.reset(photoStorage, faceClient, aiFaceCacheRefreshNotifier);
+        resetRefreshCalls();
+        Mockito.doAnswer(inv -> {
+            refreshCallsInTransaction.add(TransactionSynchronizationManager.isActualTransactionActive());
+            return null;
+        }).when(aiFaceCacheRefreshNotifier).notifyAfterCommit();
         suffix = UUID.randomUUID().toString().substring(0, 8);
         building = buildingRepository.findByNameIgnoreCase("Tòa nhà Test khách")
                 .orElseGet(() -> buildingRepository.save(Building.builder()
@@ -110,6 +120,11 @@ public abstract class GuestTestSupport extends AbstractIntegrationTest {
                 ConfigKey.GUEST_PHOTO_URL_TTL_SECONDS, ConfigKey.GUEST_CONSENT_NOTICE_VERSION)) {
             setConfig(k, k.getDefaultValue());
         }
+    }
+
+    /** Xoá lịch sử gọi notifier trước thao tác cần kiểm (dữ liệu chuẩn bị có thể đã gọi). */
+    protected void resetRefreshCalls() {
+        refreshCallsInTransaction.clear();
     }
 
     // ------------------------------------------------------------------ dữ liệu

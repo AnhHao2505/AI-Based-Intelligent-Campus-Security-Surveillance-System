@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -63,6 +64,10 @@ class UserServiceCacheRefreshTest {
     @Mock
     private WebSocketSessionRegistry webSocketSessionRegistry;
 
+    // Logic gọi refresh-cache đã tách sang AiFaceCacheRefreshNotifier; dùng bản thật (spy) để giữ nguyên các kịch bản
+    @Spy
+    private AiFaceCacheRefreshNotifier aiFaceCacheRefreshNotifier = new AiFaceCacheRefreshNotifier();
+
     @InjectMocks
     private UserService userService;
 
@@ -102,7 +107,7 @@ class UserServiceCacheRefreshTest {
 
         AtomicBoolean refreshCalled = new AtomicBoolean(false);
         AtomicReference<String> calledUrl = new AtomicReference<>();
-        userService.setRefreshHttpCaller(url -> {
+        aiFaceCacheRefreshNotifier.setRefreshHttpCaller(url -> {
             refreshCalled.set(true);
             calledUrl.set(url);
         });
@@ -134,7 +139,7 @@ class UserServiceCacheRefreshTest {
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
 
         AtomicBoolean refreshCalled = new AtomicBoolean(false);
-        userService.setRefreshHttpCaller(url -> refreshCalled.set(true));
+        aiFaceCacheRefreshNotifier.setRefreshHttpCaller(url -> refreshCalled.set(true));
 
         TransactionSynchronizationManager.initSynchronization();
 
@@ -159,7 +164,7 @@ class UserServiceCacheRefreshTest {
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
 
         // Caller ném RuntimeException giả lập mạng lỗi / AI sập
-        userService.setRefreshHttpCaller(url -> {
+        aiFaceCacheRefreshNotifier.setRefreshHttpCaller(url -> {
             throw new RuntimeException("AI service connection refused (Simulated offline)");
         });
 
@@ -182,8 +187,8 @@ class UserServiceCacheRefreshTest {
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
 
         AtomicReference<String> invokedUrl = new AtomicReference<>();
-        userService.setRefreshHttpCaller(invokedUrl::set);
-        userService.setAiServiceUrl("http://custom-ai-host:9090/");
+        aiFaceCacheRefreshNotifier.setRefreshHttpCaller(invokedUrl::set);
+        aiFaceCacheRefreshNotifier.setAiServiceUrl("http://custom-ai-host:9090/");
 
         userService.toggleActive(userId, "admin@fpt.edu.vn");
 
@@ -211,7 +216,7 @@ class UserServiceCacheRefreshTest {
     void toggleActive_deactivate_closesWebSocketSessionsAfterCommit() {
         when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
-        userService.setRefreshHttpCaller(url -> { });
+        aiFaceCacheRefreshNotifier.setRefreshHttpCaller(url -> { });
         TransactionSynchronizationManager.initSynchronization();
 
         userService.toggleActive(userId, "admin@fpt.edu.vn");
@@ -226,7 +231,7 @@ class UserServiceCacheRefreshTest {
     void toggleActive_rollback_doesNotCloseWebSocketSessions() {
         when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
-        userService.setRefreshHttpCaller(url -> { });
+        aiFaceCacheRefreshNotifier.setRefreshHttpCaller(url -> { });
         TransactionSynchronizationManager.initSynchronization();
 
         userService.toggleActive(userId, "admin@fpt.edu.vn");
@@ -241,7 +246,7 @@ class UserServiceCacheRefreshTest {
         testUser.setIsActive(false);
         when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
-        userService.setRefreshHttpCaller(url -> { });
+        aiFaceCacheRefreshNotifier.setRefreshHttpCaller(url -> { });
         TransactionSynchronizationManager.initSynchronization();
 
         userService.toggleActive(userId, "admin@fpt.edu.vn");
@@ -255,7 +260,7 @@ class UserServiceCacheRefreshTest {
     void softDelete_closesWebSocketSessionsAfterCommitOnly() {
         when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
-        userService.setRefreshHttpCaller(url -> { });
+        aiFaceCacheRefreshNotifier.setRefreshHttpCaller(url -> { });
 
         TransactionSynchronizationManager.initSynchronization();
         userService.softDelete(userId, "admin@fpt.edu.vn");
@@ -281,7 +286,7 @@ class UserServiceCacheRefreshTest {
         when(userRepository.existsByImportBatchId(batchId)).thenReturn(true);
         when(userRepository.findByImportBatchIdOrderByUserCodeAsc(batchId)).thenReturn(List.of(testUser, second));
         when(userRepository.softDeleteByImportBatchId(batchId)).thenReturn(2);
-        userService.setRefreshHttpCaller(url -> { });
+        aiFaceCacheRefreshNotifier.setRefreshHttpCaller(url -> { });
         TransactionSynchronizationManager.initSynchronization();
 
         userService.deleteBatch(batchId, "admin@fpt.edu.vn");

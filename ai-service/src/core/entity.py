@@ -81,6 +81,9 @@ class FaceDetectionResult:
     is_authorized: bool = False
     is_active: bool = True
     access_reason: Optional[str] = None
+    # Nguồn cấp quyền (AccessSource) và mã lý do từ chối khách (GuestEntryDenyReason) backend trả; None = không rõ
+    access_source: Optional[str] = None
+    access_deny_reason: Optional[str] = None
     area_name: Optional[str] = None
     role: Optional[str] = "NORMAL_USER"
     access_checked: bool = False

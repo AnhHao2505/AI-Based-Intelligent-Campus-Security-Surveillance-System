@@ -95,22 +95,27 @@ class VideoPipeline:
         self.storage_service = StorageService()
         self.visualizer = FrameVisualizer()
 
-    def _apply_access_decision(self, face_info, is_allowed: bool, access_reason: str, area_name: Optional[str]):
+    def _apply_access_decision(self, face_info, is_allowed: bool, access_reason: str, area_name: Optional[str],
+                               access_source: Optional[str] = None, access_deny_reason: Optional[str] = None):
         reason_lower = (access_reason or "").lower()
         if "không tồn tại" in reason_lower or "đã bị xoá" in reason_lower:
             face_info.matched_code = None
             face_info.matched_name = None
             face_info.is_authorized = False
             face_info.access_reason = "Đối tượng không xác định"
+            face_info.access_source = None
+            face_info.access_deny_reason = None
         else:
             face_info.is_authorized = is_allowed
             face_info.access_reason = access_reason
             face_info.area_name = area_name
+            face_info.access_source = access_source
+            face_info.access_deny_reason = access_deny_reason
         face_info.access_checked = True
 
     def _async_resolve_camera_access(self, track_id: int, user_code: str, roi_label: str):
         try:
-            is_allowed, access_reason, area_name = self.face_matcher.check_camera_access(
+            is_allowed, access_reason, area_name, access_source, deny_reason = self.face_matcher.check_camera_access(
                 self.camera_code,
                 user_code,
                 roi_label=roi_label,
@@ -118,7 +123,8 @@ class VideoPipeline:
             )
             existing = self.analysis_engine.active_tracks.get(track_id)
             if existing and existing.face_info and existing.face_info.matched_code == user_code:
-                self._apply_access_decision(existing.face_info, is_allowed, access_reason, area_name)
+                self._apply_access_decision(existing.face_info, is_allowed, access_reason, area_name,
+                                            access_source, deny_reason)
                 existing.roi_entry_logged = True
         except Exception as e:
             logger.warning(f"[VideoPipeline] Lỗi kiểm tra quyền bất đồng bộ cho user {user_code}: {e}")
@@ -133,8 +139,8 @@ class VideoPipeline:
 
         cached = self.face_matcher.get_cached_access(self.camera_code, user_code)
         if cached is not None:
-            is_allowed, access_reason, area_name = cached
-            self._apply_access_decision(face_info, is_allowed, access_reason, area_name)
+            is_allowed, access_reason, area_name, access_source, deny_reason = cached
+            self._apply_access_decision(face_info, is_allowed, access_reason, area_name, access_source, deny_reason)
             return
 
         cache_key = f"{self.camera_code}:{user_code}"

@@ -23,7 +23,6 @@ import com.fa26se040.icss.repository.UserRepository;
 import com.fa26se040.icss.util.StringNormalizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -37,17 +36,11 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -96,48 +89,8 @@ public class UserService {
     // KI-1: vô hiệu hoá / xoá tài khoản -> đóng phiên WebSocket đang mở của người đó (sau commit)
     private final WebSocketSessionRegistry webSocketSessionRegistry;
 
-    @org.springframework.beans.factory.annotation.Autowired(required = false)
-    private EdgeMqttControlService edgeMqttControlService;
-
-    @Value("${ai.service.url:http://localhost:8000}")
-    private String aiServiceUrl = "http://localhost:8000";
-
-    @Value("${icss.internal.service-key:}")
-    private String internalServiceKey;
-
-    // Cho phép mock/override HTTP caller trong unit test
-    private java.util.function.Consumer<String> refreshHttpCaller = url -> {
-        try {
-            HttpClient client = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofMillis(1000))
-                    .build();
-            HttpRequest.Builder reqBuilder = HttpRequest.newBuilder();
-            if (internalServiceKey != null && !internalServiceKey.isBlank()) {
-                reqBuilder.header("X-Service-Key", internalServiceKey);
-            }
-            HttpRequest request = reqBuilder
-                    .uri(URI.create(url))
-                    .POST(HttpRequest.BodyPublishers.noBody())
-                    .timeout(Duration.ofMillis(2000))
-                    .build();
-            client.send(request, HttpResponse.BodyHandlers.discarding());
-            log.info("Notified AI Service to refresh face cache via {}", url);
-        } catch (Exception e) {
-            log.warn("Could not notify AI Service to refresh face cache: {}", e.getMessage());
-        }
-    };
-
-    void setAiServiceUrl(String aiServiceUrl) {
-        this.aiServiceUrl = aiServiceUrl;
-    }
-
-    void setInternalServiceKey(String internalServiceKey) {
-        this.internalServiceKey = internalServiceKey;
-    }
-
-    void setRefreshHttpCaller(java.util.function.Consumer<String> refreshHttpCaller) {
-        this.refreshHttpCaller = refreshHttpCaller;
-    }
+    // Báo AI Service làm mới kho khuôn mặt sau commit (dùng chung với luồng khách)
+    private final AiFaceCacheRefreshNotifier aiFaceCacheRefreshNotifier;
 
     @Transactional
     public StaffAccountCreateResponse createStaffAccount(StaffAccountCreateRequest request) {
@@ -371,32 +324,8 @@ public class UserService {
      * Thông báo cho AI Service làm mới cache khuôn mặt và quyền truy cập sau khi giao dịch DB đã commit thành công.
      */
     void notifyAiServiceRefreshCache() {
-        Runnable task = () -> CompletableFuture.runAsync(() -> {
-            if (edgeMqttControlService != null && edgeMqttControlService.isConnected()) {
-                edgeMqttControlService.publishFaceCacheEvent("REFRESH", null);
-                if (aiServiceUrl == null || aiServiceUrl.isBlank()) {
-                    return;
-                }
-            }
-            String baseUrl = (aiServiceUrl != null && !aiServiceUrl.isBlank()) ? aiServiceUrl.trim() : "http://localhost:8000";
-            if (baseUrl.endsWith("/")) {
-                baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
-            }
-            String targetUrl = baseUrl + "/api/v1/faces/refresh-cache";
-            if (refreshHttpCaller != null) {
-                refreshHttpCaller.accept(targetUrl);
-            }
-        });
-
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    task.run();
-                }
-            });
-        } else {
-            task.run();
+        if (aiFaceCacheRefreshNotifier != null) {
+            aiFaceCacheRefreshNotifier.notifyAfterCommit();
         }
     }
 

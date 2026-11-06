@@ -47,6 +47,8 @@ public class GuestVisitJobService {
     private final com.fa26se040.icss.repository.NotificationRepository notificationRepository;
     private final com.fa26se040.icss.repository.UserRepository userRepository;
     private final org.springframework.beans.factory.ObjectProvider<InAppNotificationService> notificationServiceProvider;
+    // L3: lượt hết giờ chuyển COMPLETED -> báo AI nạp lại kho khuôn mặt (mỗi lần chạy job tối đa một lần)
+    private final AiFaceCacheRefreshNotifier aiFaceCacheRefreshNotifier;
 
     /** Chạy đủ các bước theo thứ tự; một bước lỗi không chặn bước sau. */
     public void runAll(OffsetDateTime now) {
@@ -143,6 +145,9 @@ public class GuestVisitJobService {
                 close(v, GuestVisitStatus.COMPLETED, AuditAction.COMPLETE, now);
                 return true;
             }) ? 1 : 0;
+        }
+        if (n > 0) {
+            aiFaceCacheRefreshNotifier.notifyAfterCommit();
         }
         return n;
     }

@@ -343,8 +343,10 @@ public class GuestVisitHostTest extends GuestTestSupport {
         GuestVisit v = newVisit(hostL2, GuestVisitStatus.APPROVED, future(0), future(120), List.of(internalArea), "Khách có ảnh");
         Guest g = withPhoto(guestsOf(v.getId()).get(0), future(120).plusHours(24));
         String key = g.getPhotoObjectKey();
+        resetRefreshCalls();
         MvcResult r = cancel(hostL2, v.getId(), 0L, null);
         assertEquals(200, status(r), r.getResponse().getContentAsString());
+        assertEquals(List.of(true), refreshCallsInTransaction, "L3: huỷ lượt đã duyệt -> báo AI làm mới kho khuôn mặt sau commit");
         assertEquals(GuestVisitStatus.CANCELLED, visit(v.getId()).getStatus());
         Guest after = guest(g.getId());
         assertEquals(GuestBiometricStatus.DELETED, after.getBiometricStatus());

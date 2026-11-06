@@ -48,15 +48,18 @@ class TestAccessDecisionIntegration(unittest.TestCase):
         }
         mock_post.return_value = mock_resp
 
-        allowed, reason, area_name = self.matcher.check_camera_access("CAM-01", "GV001")
+        allowed, reason, area_name, source, deny_reason = self.matcher.check_camera_access("CAM-01", "GV001")
         self.assertTrue(allowed)
         self.assertEqual(reason, "Người dùng được gán vào khu vực")
         self.assertEqual(area_name, "Phòng Lab 01")
+        self.assertEqual(source, "ASSIGNED_PERSONNEL")
+        self.assertIsNone(deny_reason)
 
         # Kiểm tra Cache RAM: Lần 2 không gọi requests.post nữa
         mock_post.reset_mock()
-        allowed2, reason2, area_name2 = self.matcher.check_camera_access("CAM-01", "GV001")
+        allowed2, reason2, area_name2, source2, _deny2 = self.matcher.check_camera_access("CAM-01", "GV001")
         self.assertTrue(allowed2)
+        self.assertEqual(source2, "ASSIGNED_PERSONNEL")
         mock_post.assert_not_called()
 
     @patch('requests.post')
@@ -77,7 +80,7 @@ class TestAccessDecisionIntegration(unittest.TestCase):
         }
         mock_post.return_value = mock_resp
 
-        allowed, reason, area_name = self.matcher.check_camera_access("CAM-01", "SE170123")
+        allowed, reason, area_name, _source, _deny = self.matcher.check_camera_access("CAM-01", "SE170123")
         self.assertFalse(allowed)
         self.assertEqual(reason, "Không có quyền ra vào khu vực tại thời điểm này")
         self.assertEqual(area_name, "Phòng Lab 01")

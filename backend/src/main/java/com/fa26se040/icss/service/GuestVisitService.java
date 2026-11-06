@@ -49,6 +49,8 @@ public class GuestVisitService {
     private final GuestBiometricService biometricService;
     private final AuditService auditService;
     private final ObjectProvider<InAppNotificationService> notificationServiceProvider;
+    // L3: huỷ lượt đã duyệt / thu hồi -> báo AI nạp lại kho khuôn mặt sau commit
+    private final AiFaceCacheRefreshNotifier aiFaceCacheRefreshNotifier;
 
     // ================================================================== tạo (BR-GV-01..06)
 
@@ -277,6 +279,7 @@ public class GuestVisitService {
         // BR-GV-09, 27: huỷ lượt đã duyệt -> xoá sinh trắc ngay
         if (from == GuestVisitStatus.APPROVED) {
             deleteAllBiometrics(visit, now, actor, "Lượt khách bị huỷ");
+            aiFaceCacheRefreshNotifier.notifyAfterCommit();
         }
         return toResponse(visit);
     }
@@ -396,6 +399,7 @@ public class GuestVisitService {
                 before, snapshot(visit), reason, actor);
         // BR-GV-13, 27: thu hồi -> xoá sinh trắc ngay
         deleteAllBiometrics(visit, now, actor, "Lượt khách bị thu hồi");
+        aiFaceCacheRefreshNotifier.notifyAfterCommit();
         User host = visit.getHost();
         notifyAfterCommit(visit.getId(), NotificationType.GUEST_VISIT_REVOKED, "Lượt khách bị thu hồi",
                 "Lượt khách vào " + areaNames(visit) + " (" + InAppNotificationService.formatTimeRange(visit.getStartTime(), visit.getEndTime())
