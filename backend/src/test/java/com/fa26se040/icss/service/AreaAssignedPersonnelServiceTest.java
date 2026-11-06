@@ -561,8 +561,9 @@ class AreaAssignedPersonnelServiceTest {
         assertEquals(lab, areaCaptor.getValue());
         assertEquals(lecturer, userCaptor.getValue());
         org.junit.jupiter.api.Assertions.assertNull(oldSnapshotCaptor.getValue());
+        org.junit.jupiter.api.Assertions.assertFalse(resp.validFrom().isBefore(from.plusMinutes(2)));
         assertEquals(new com.fa26se040.icss.dto.accesscontrol.snapshot.AreaAssignmentAuditSnapshot(
-                from, to, AssignedPersonnelStatus.ACTIVE), newSnapshotCaptor.getValue());
+                resp.validFrom(), to, AssignedPersonnelStatus.ACTIVE), newSnapshotCaptor.getValue());
         assertEquals("Gán quyền cho giảng viên", reasonCaptor.getValue());
         assertEquals(fm, actorCaptor.getValue());
     }

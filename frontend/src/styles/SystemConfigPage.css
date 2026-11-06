@@ -459,3 +459,71 @@
 .syscfg-container > .ui-page-header {
   margin-bottom: 0;
 }
+
+/* Card Container for Data Tables & Content */
+.syscfg-card {
+  background: var(--theme-bg-surface);
+  backdrop-filter: var(--theme-glass-blur, blur(16px));
+  -webkit-backdrop-filter: var(--theme-glass-blur, blur(16px));
+  border: 1px solid var(--theme-border);
+  border-radius: 12px;
+  box-shadow: var(--theme-card-shadow, 0 4px 12px rgba(0, 0, 0, 0.05));
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* Reason Catalog & System Configuration Tables */
+.reason-table,
+.syscfg-card table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 13px;
+  background: var(--theme-bg-surface);
+}
+
+.reason-table thead tr,
+.syscfg-card table thead tr {
+  background: var(--theme-bg-surface-elevated, var(--theme-bg-page));
+}
+
+.reason-table thead th,
+.syscfg-card table thead th {
+  padding: 12px 16px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--theme-text-muted);
+  border-bottom: 1px solid var(--theme-border);
+  white-space: nowrap;
+}
+
+.reason-table tbody tr,
+.syscfg-card table tbody tr {
+  background: var(--theme-bg-surface);
+  transition: background-color 0.15s ease;
+}
+
+.reason-table tbody tr:hover,
+.syscfg-card table tbody tr:hover {
+  background: var(--theme-bg-surface-hover, var(--theme-bg-page));
+}
+
+.reason-table tbody tr:hover td,
+.syscfg-card table tbody tr:hover td {
+  background: var(--theme-bg-surface-hover, var(--theme-bg-page));
+}
+
+.reason-table tbody td,
+.syscfg-card table tbody td {
+  padding: 13px 16px;
+  color: var(--theme-text-primary);
+  border-bottom: 1px solid var(--theme-border);
+  vertical-align: middle;
+}
+
+.reason-table tbody tr:last-child td,
+.syscfg-card table tbody tr:last-child td {
+  border-bottom: none;
+}

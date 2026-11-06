@@ -26,6 +26,7 @@ import {
 } from "../../utils/areaHelpers";
 import "../../styles/AreaAssignedPersonnelModal.css";
 import { useReasonLimits } from "../../hooks/useReasonLimits";
+import { getSystemConfigs } from "../../services/systemConfigService";
 
 const STATUS_FILTERS = [
 	{ key: "ALL", label: "Tất cả" },
@@ -63,6 +64,41 @@ export default function AreaAssignedPersonnelModal({
 	const [validFromInput, setValidFromInput] = useState("");
 	const [validToInput, setValidToInput] = useState("");
 	const [isIndefinite, setIsIndefinite] = useState(false);
+	// Ô "Hết giờ hành chính": giờ đóng cửa lấy từ cấu hình AI_AFTER_HOUR_START (không viết cứng ở FE)
+	const [closingTime, setClosingTime] = useState(null);
+
+	useEffect(() => {
+		if (!isIndefinite || closingTime) return;
+		let cancelled = false;
+		getSystemConfigs()
+			.then((list) => {
+				const cfg = (list || []).find((c) => c.configKey === "AI_AFTER_HOUR_START");
+				if (!cancelled && cfg?.configValue) setClosingTime(String(cfg.configValue).trim());
+			})
+			.catch((err) => console.error("Không đọc được giờ đóng cửa (AI_AFTER_HOUR_START):", err));
+		return () => {
+			cancelled = true;
+		};
+	}, [isIndefinite, closingTime]);
+
+	// Dòng chữ dưới ô "Hết giờ hành chính": giờ hết hạn = giờ đóng cửa của ngày bắt đầu (giờ Việt Nam), cùng cách tính với backend
+	const closingTimeHint = useMemo(() => {
+		if (!closingTime) return null;
+		const zone = "Asia/Ho_Chi_Minh";
+		const now = new Date();
+		const picked = validFromInput ? new Date(validFromInput) : now;
+		const start = Number.isNaN(picked.getTime()) || picked < now ? now : picked;
+		const dayOf = (d) => d.toLocaleDateString("en-CA", { timeZone: zone });
+		const hhmm = start.toLocaleTimeString("en-GB", { timeZone: zone, hour: "2-digit", minute: "2-digit", hour12: false });
+		const dayLabel =
+			dayOf(start) === dayOf(now)
+				? "hôm nay"
+				: `ngày ${start.toLocaleDateString("vi-VN", { timeZone: zone })}`;
+		if (hhmm >= closingTime) {
+			return `Đã qua giờ đóng cửa (${closingTime}) của ${dayLabel}; hãy chọn thời điểm kết thúc cụ thể.`;
+		}
+		return `Quyền hết hạn lúc ${closingTime} ${dayLabel}`;
+	}, [closingTime, validFromInput]);
 	const [noteInput, setNoteInput] = useState("");
 	const [addReasonInput, setAddReasonInput] = useState("");
 	const [addReasonError, setAddReasonError] = useState("");
@@ -143,11 +179,7 @@ export default function AreaAssignedPersonnelModal({
 			toast.error("Vui lòng chọn người dùng cần gán");
 			return;
 		}
-		// BR-AP-28: không chọn ngày bắt đầu ở quá khứ (backend chặn bằng ERR_AP_013)
-		if (validFromInput && validFromInput < toDateTimeLocal(new Date())) {
-			toast.error("Thời điểm bắt đầu không được ở quá khứ");
-			return;
-		}
+		// BR-AP-28 (fix/start-time-buffer): được chọn thời điểm bắt đầu đã qua; backend lưu validFrom = max(giờ chọn, giờ cấp)
 		const trimmedAddReason = addReasonInput.trim();
 		if (!reasonLimits.isValid(trimmedAddReason)) {
 			setAddReasonError(reasonLimits.error(trimmedAddReason));
@@ -166,6 +198,8 @@ export default function AreaAssignedPersonnelModal({
 					isIndefinite || !validToInput
 						? null
 						: formatToOffsetDateTime(validToInput),
+				// Lucas 05/11: tick "Hết giờ hành chính" -> backend tính validTo = giờ đóng cửa của ngày bắt đầu
+				untilClosingTime: isIndefinite,
 				note: noteInput.trim() || null,
 				reason: trimmedAddReason,
 			};
@@ -185,7 +219,7 @@ export default function AreaAssignedPersonnelModal({
 			loadData();
 		} catch (err) {
 			console.error("Lỗi khi gán nhân sự:", err);
-			// Hiển thị nguyên văn thông báo backend (vd. ERR_AP_004 trùng thời gian, ERR_AP_011 BR-AP-06 tự gán, ERR_AP_013 bắt đầu ở quá khứ)
+			// Hiển thị nguyên văn thông báo backend (vd. ERR_AP_004 trùng thời gian, ERR_AP_011 BR-AP-06 tự gán, ERR_AP_002 / ERR_AP_003 thời điểm kết thúc)
 			toast.error(err?.message || "Không thể gán nhân sự vào khu vực");
 		} finally {
 			setSubmittingAdd(false);
@@ -377,9 +411,9 @@ export default function AreaAssignedPersonnelModal({
 										type="datetime-local"
 										className="ap-form-input"
 										value={validFromInput}
-										min={toDateTimeLocal(new Date())}
 										onChange={(e) => setValidFromInput(e.target.value)}
 									/>
+									<div className="ap-form-hint">Nếu chọn thời điểm đã qua, quyền có hiệu lực từ lúc cấp.</div>
 								</div>
 
 								{/* Valid To */}
@@ -406,6 +440,9 @@ export default function AreaAssignedPersonnelModal({
 										/>
 										<span>Hết giờ hành chính</span>
 									</label>
+									{isIndefinite && closingTimeHint && (
+										<div className="ap-form-hint">{closingTimeHint}</div>
+									)}
 								</div>
 
 								{/* Note */}

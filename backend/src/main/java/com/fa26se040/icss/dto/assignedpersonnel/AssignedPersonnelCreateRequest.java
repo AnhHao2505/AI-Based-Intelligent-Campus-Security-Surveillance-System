@@ -23,9 +23,17 @@ public record AssignedPersonnelCreateRequest(
 
     @NotBlank(message = "Lý do không được để trống")
     @ReasonLength
-    String reason
+    String reason,
+
+    // Tuỳ chọn: true = ô "Hết giờ hành chính" (Lucas 05/11) -> validTo = giờ đóng cửa của ngày bắt đầu (AI_AFTER_HOUR_START)
+    Boolean untilClosingTime
 ) {
     public AssignedPersonnelCreateRequest(UUID userId, OffsetDateTime validFrom, OffsetDateTime validTo, String note) {
         this(userId, validFrom, validTo, note, null);
+    }
+
+    public AssignedPersonnelCreateRequest(UUID userId, OffsetDateTime validFrom, OffsetDateTime validTo, String note,
+                                          String reason) {
+        this(userId, validFrom, validTo, note, reason, null);
     }
 }

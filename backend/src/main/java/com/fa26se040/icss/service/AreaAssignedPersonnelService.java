@@ -9,6 +9,7 @@ import com.fa26se040.icss.entity.AreaAssignedPersonnel;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.AreaLevel;
 import com.fa26se040.icss.enums.AssignedPersonnelStatus;
+import com.fa26se040.icss.enums.ConfigKey;
 import com.fa26se040.icss.exception.AreaErrorCode;
 import com.fa26se040.icss.exception.AreaException;
 import com.fa26se040.icss.exception.AssignedPersonnelErrorCode;
@@ -22,7 +23,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -41,16 +41,12 @@ public class AreaAssignedPersonnelService {
     public static final String REVOKE_REASON_USER_DEACTIVATED = "Tài khoản người được gán đã bị vô hiệu hoá";
     /** BR-AP-25: lý do thu hồi AP khi tài khoản người được gán bị xoá (lẻ hoặc theo lô import). */
     public static final String REVOKE_REASON_USER_DELETED = "Tài khoản người được gán đã bị xoá";
-    /**
-     * BR-AP-28: validFrom được lùi tối đa chừng này so với giờ máy chủ — chỉ để bù lệch đồng hồ giữa trình duyệt và
-     * máy chủ (form gửi "bây giờ" có thể tới chậm vài giây / phút), không phải tham số nghiệp vụ.
-     */
-    static final Duration VALID_FROM_CLOCK_SKEW = Duration.ofMinutes(5);
 
     private final AreaAssignedPersonnelRepository assignedPersonnelRepository;
     private final AreaRepository areaRepository;
     private final UserRepository userRepository;
     private final AuditService auditService;
+    private final SystemConfigService systemConfigService;
 
     @Transactional(readOnly = true)
     public List<AssignedPersonnelResponse> getByArea(UUID areaId, AssignedPersonnelStatus status) {
@@ -98,12 +94,25 @@ public class AreaAssignedPersonnelService {
         OffsetDateTime now = OffsetDateTime.now();
         OffsetDateTime validFrom = request.validFrom() != null ? request.validFrom() : now;
         OffsetDateTime validTo = request.validTo();
-
-        // BR-AP-28: không gán lùi về quá khứ (mỗi đợt cấp là một bản ghi, E-3); bỏ trống = now
-        if (validFrom.isBefore(now.minus(VALID_FROM_CLOCK_SKEW))) {
-            throw new AssignedPersonnelException(AssignedPersonnelErrorCode.ERR_AP_013);
+        boolean untilClosingTime = Boolean.TRUE.equals(request.untilClosingTime());
+        if (untilClosingTime && validTo != null) {
+            throw new AssignedPersonnelException(AssignedPersonnelErrorCode.ERR_AP_015);
         }
+
         validateValidTo(validFrom, validTo, now);
+        // BR-AP-28: hiệu lực từ giờ FM chọn; giờ đó đã qua thì tính từ lúc cấp, không có hiệu lực ngược
+        // (mỗi đợt cấp là một bản ghi, E-3); bỏ trống = now. validTo > now nên vẫn > validFrom sau khi lấy max
+        if (validFrom.isBefore(now)) {
+            validFrom = now;
+        }
+        // Ô "Hết giờ hành chính" (Lucas 05/11): hết hạn lúc đóng cửa CỦA NGÀY bắt đầu (giờ Việt Nam);
+        // giờ đóng cửa = AI_AFTER_HOUR_START. Bắt đầu đã qua giờ đó -> ERR_AP_014, không tạo bản ghi
+        if (untilClosingTime) {
+            validTo = closingTimeOfDay(validFrom);
+            if (!validTo.isAfter(validFrom)) {
+                throw new AssignedPersonnelException(AssignedPersonnelErrorCode.ERR_AP_014);
+            }
+        }
         validateNoOverlap(area.getId(), user.getId(), validFrom, validTo, null);
 
         AreaAssignedPersonnel entity = AreaAssignedPersonnel.builder()
@@ -238,6 +247,25 @@ public class AreaAssignedPersonnelService {
             log.info("Revoked {} assigned personnel records of user {} by {}: {}", aps.size(), userId, actor.getEmail(), reason);
         }
         return aps.size();
+    }
+
+    /**
+     * Giờ đóng cửa của ngày (giờ Asia/Ho_Chi_Minh) chứa thời điểm at = ngày đó + AI_AFTER_HOUR_START (giờ bắt đầu khung
+     * ngoài giờ, coi là giờ đóng cửa). Đọc cấu hình mỗi lần gọi; sai định dạng HH:mm thì dùng mặc định của ConfigKey
+     * (cùng cách với AfterHoursWindow).
+     */
+    OffsetDateTime closingTimeOfDay(OffsetDateTime at) {
+        java.time.ZoneId vnZone = java.time.ZoneId.of("Asia/Ho_Chi_Minh");
+        String raw = systemConfigService.getString(ConfigKey.AI_AFTER_HOUR_START);
+        java.time.LocalTime closing;
+        try {
+            closing = java.time.LocalTime.parse(raw != null ? raw.trim() : ConfigKey.AI_AFTER_HOUR_START.getDefaultValue());
+        } catch (java.time.format.DateTimeParseException e) {
+            log.warn("Giá trị [{}] của cấu hình AI_AFTER_HOUR_START không đúng HH:mm. Dùng mặc định: {}",
+                    raw, ConfigKey.AI_AFTER_HOUR_START.getDefaultValue());
+            closing = java.time.LocalTime.parse(ConfigKey.AI_AFTER_HOUR_START.getDefaultValue());
+        }
+        return at.atZoneSameInstant(vnZone).toLocalDate().atTime(closing).atZone(vnZone).toOffsetDateTime();
     }
 
     /**

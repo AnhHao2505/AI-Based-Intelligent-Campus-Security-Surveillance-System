@@ -52,16 +52,13 @@ import {
 import "../../styles/AreaListPage.css";
 import { useReasonLimits } from "../../hooks/useReasonLimits";
 
-// BR-AR-COORD-01..03: toạ độ tuỳ chọn — trống cả hai = "chưa định vị" (null); chỉ nhập một ô thì từ chối
-const COORDINATE_PAIR_ERROR = "Phải nhập đủ cả vĩ độ và kinh độ, hoặc để trống cả hai.";
+// Toạ độ tâm bắt buộc khi tạo và khi sửa (khớp backend: tạo @NotNull, sửa ERR_AREA_006); thiếu ô nào cũng từ chối
+const COORDINATE_PAIR_ERROR = "Vui lòng nhập đủ vĩ độ và kinh độ.";
 const isBlankCoordinate = (value) => String(value ?? "").trim() === "";
 
 const validateCenterCoordinates = (latitude, longitude) => {
 	const latBlank = isBlankCoordinate(latitude);
 	const lngBlank = isBlankCoordinate(longitude);
-	if (latBlank && lngBlank) {
-		return { centerLatitude: null, centerLongitude: null };
-	}
 	if (latBlank || lngBlank) {
 		return { error: COORDINATE_PAIR_ERROR };
 	}
@@ -118,16 +115,31 @@ export default function AreaListPage() {
 
 	const [searchParams, setSearchParams] = useSearchParams();
 	const viewParam = searchParams.get("view");
-	const [activeView, setActiveView] = useState(viewParam === "map" ? "map" : "list");
+	// Chế độ Bản đồ chỉ cho ADMIN; vai trò khác mở ?view=map vẫn ở chế độ Danh sách
+	const [activeView, setActiveView] = useState(viewParam === "map" && isAdmin ? "map" : "list");
 	const [isCreatingOnMap, setIsCreatingOnMap] = useState(false);
 
+	// Vai trò khác ADMIN mở ?view=map (hoặc /admin/map): đưa URL về chế độ Danh sách
 	useEffect(() => {
-		if (viewParam === "map" && activeView !== "map") {
+		if (viewParam === "map" && !isAdmin) {
+			setSearchParams(
+				(prev) => {
+					const next = new URLSearchParams(prev);
+					next.delete("view");
+					return next;
+				},
+				{ replace: true },
+			);
+		}
+	}, [viewParam, isAdmin, setSearchParams]);
+
+	useEffect(() => {
+		if (viewParam === "map" && isAdmin && activeView !== "map") {
 			setActiveView("map");
 		} else if (!viewParam && activeView !== "list") {
 			setActiveView("list");
 		}
-	}, [viewParam, activeView]);
+	}, [viewParam, activeView, isAdmin]);
 
 	const handleViewChange = (newView) => {
 		setActiveView(newView);
@@ -999,7 +1011,7 @@ export default function AreaListPage() {
 			</div>
 
 			{/* MAIN CONTENT: MAP VIEW OR LIST VIEW */}
-			{activeView === "map" ? (
+			{activeView === "map" && isAdmin ? (
 				<ErrorBoundary>
 					<CampusMapView
 						areas={floorAreas}
@@ -1130,7 +1142,7 @@ export default function AreaListPage() {
 					isAdmin={isAdmin}
 					isFacilityManager={isFacilityManager}
 					onSelectArea={(id) => handleSelectArea(id, false)}
-					onOpenCreateModal={handleOpenCreateModal}
+					onOpenCreateModal={handleStartCreateOnMap}
 					onOpenCamerasModal={handleOpenCamerasModal}
 					onOpenAssignedPersonnelModal={handleOpenAssignedPersonnelModal}
 					onOpenEditModal={handleOpenEditModal}
@@ -1359,7 +1371,6 @@ export default function AreaListPage() {
 										{longitudeError && <div className="area-form-error">{longitudeError}</div>}
 									</div>
 								</div>
-								<div className="area-form-hint">Để trống cả hai nếu chưa xác định vị trí — khu vực sẽ ở trạng thái "Chưa định vị" và không hiện trên bản đồ.</div>
 							</div>
 
 							{/* 4. Phần chân: 2 nút chia đôi chiều rộng, gap 9px */}
@@ -1623,7 +1634,6 @@ export default function AreaListPage() {
 										{longitudeError && <div className="area-form-error">{longitudeError}</div>}
 									</div>
 								</div>
-								<div className="area-form-hint">Để trống cả hai nếu chưa xác định vị trí — khu vực sẽ ở trạng thái "Chưa định vị" và không hiện trên bản đồ.</div>
 							</div>
 
 							<div className="area-modal__footer">
