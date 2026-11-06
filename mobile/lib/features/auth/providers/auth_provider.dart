@@ -9,12 +9,16 @@ import '../../../core/notifications/local_notification_service.dart';
 class AuthProvider with ChangeNotifier {
   final ApiClient _apiClient;
 
+  /// DEF-16: dọn dữ liệu phiên (ca, sự cố, foreground service, STOMP) trước khi về màn đăng nhập.
+  /// main.dart truyền vào; null (test cũ) thì bỏ qua.
+  final Future<void> Function()? onLogout;
+
   UserModel? _user;
   bool _isLoading = false;
   String? _errorMessage;
   bool _isInitialized = false;
 
-  AuthProvider(this._apiClient);
+  AuthProvider(this._apiClient, {this.onLogout});
 
   UserModel? get user => _user;
   bool get isAuthenticated => _user != null;
@@ -138,6 +142,15 @@ class AuthProvider with ChangeNotifier {
   Future<void> logout() async {
     _isLoading = true;
     notifyListeners();
+
+    // DEF-16: dọn phiên trước, khi _user còn (màn đăng nhập chỉ hiện sau notifyListeners cuối).
+    if (onLogout != null) {
+      try {
+        await onLogout!();
+      } catch (e) {
+        debugPrint('[Logout] cleanup failed: $e');
+      }
+    }
 
     await StorageHelper.clearAuth();
     // Không để lại thông báo sự cố của phiên trước trên thiết bị.

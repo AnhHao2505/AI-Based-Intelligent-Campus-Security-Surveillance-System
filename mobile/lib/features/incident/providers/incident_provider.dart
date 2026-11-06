@@ -10,6 +10,7 @@ import '../../../core/network/api_client.dart';
 import '../../../core/utils/storage_helper.dart';
 import '../models/incident_model.dart';
 import '../models/incident_offer_model.dart';
+import '../models/incident_queue_order.dart';
 import '../services/incident_service.dart';
 import '../services/stomp_service.dart';
 
@@ -63,6 +64,19 @@ class IncidentProvider extends ChangeNotifier {
 
   Timer? _debounceSortTimer;
 
+  // ═══════════════ L5: TOÀ ĐANG TRỰC ═══════════════
+
+  /// Toà của ca CHECKED_IN hiện tại (đã chuẩn hoá: trim + chữ thường). null = chưa biết toà → không lọc
+  /// (giữ hành vi cũ). Tập rỗng = không có ca đang trực → chỉ còn sự cố mình được mời / đang xử lý.
+  Set<String>? _dutyBuildings;
+  Set<String>? get dutyBuildings => _dutyBuildings == null ? null : Set.unmodifiable(_dutyBuildings!);
+
+  // ═══════════════ L10: TRẠNG THÁI MỚI NHẤT THEO /topic/incidents/updates ═══════════════
+
+  /// Bản cập nhật trạng thái mới nhất của từng sự cố (CLAIMED / RESOLVED_*). Màn danh sách dùng để sửa bản
+  /// lịch sử đã tải trước đó (vd. sự cố đã được đóng ngoài app vẫn hiện ở tab "Đang xử lý").
+  final Map<String, IncidentModel> _latestStatus = {};
+
   // ═══════════════ OFFER STATE (bước 1 phân phối theo đợt) ═══════════════
 
   static const String claimConflictMessage = 'Đã có người nhận';
@@ -102,6 +116,7 @@ class IncidentProvider extends ChangeNotifier {
 
   // ═══════════════ WEBSOCKET INITIALIZATION ═══════════════
 
+  /// Chỉ GuardDutyWatcher gọi (DEF-16): một nơi sở hữu kết nối, các màn hình không tự gọi.
   void initStomp({String? building}) async {
     // Đã đăng nhập và bắt đầu nhận cảnh báo → xin quyền hiển thị thông báo hệ thống (Android 13+ / iOS).
     LocalNotificationService.instance.requestPermission();
@@ -120,6 +135,92 @@ class IncidentProvider extends ChangeNotifier {
     _clearOffers();
   }
 
+  /// DEF-16: đăng xuất → xoá toàn bộ dữ liệu sự cố của phiên (hàng đợi, sự cố đang xử lý, lời mời, thông báo,
+  /// lọc toà, trạng thái đã nhận). Không đóng STOMP (nơi gọi đóng riêng bằng [disconnectStomp]).
+  void resetSession() {
+    _debounceSortTimer?.cancel();
+    _debounceSortTimer = null;
+    _clearOffers();
+    final cleared = _alertQueue.length;
+    _alertQueue.clear();
+    _activeIncident = null;
+    _peerClaimNotice = null;
+    _errorMessage = null;
+    _dutyBuildings = null;
+    _latestStatus.clear();
+    debugPrint('[IncidentProvider] resetSession: xoá $cleared sự cố trong hàng đợi, lời mời và sự cố đang xử lý');
+    notifyListeners();
+  }
+
+  // ═══════════════ L5: LỌC THEO TOÀ ĐANG TRỰC ═══════════════
+
+  static String? normalizeBuilding(String? building) {
+    final t = building?.trim().toLowerCase();
+    return (t == null || t.isEmpty) ? null : t;
+  }
+
+  /// Đặt toà đang trực (null = không lọc). Bỏ khỏi hàng đợi các sự cố ngoài phạm vi. Trả true nếu có thay đổi.
+  bool setDutyBuildings(Set<String>? buildings) {
+    final normalized = buildings?.map(normalizeBuilding).whereType<String>().toSet();
+    if (setEquals(normalized, _dutyBuildings)) return false;
+    _dutyBuildings = normalized;
+    final before = _alertQueue.length;
+    _alertQueue.removeWhere((i) => !isInDutyScope(i));
+    debugPrint('[IncidentProvider] duty buildings = $normalized; bỏ ${before - _alertQueue.length} sự cố ngoài toà');
+    notifyListeners();
+    return true;
+  }
+
+  /// L5 (phương án A): sự cố của toà đang trực, CỘNG sự cố mình đang được mời hoặc đang xử lý / đã xử lý
+  /// (dù khác toà). Chưa biết toà ([dutyBuildings] null) → mọi sự cố.
+  bool isInDutyScope(IncidentModel incident, {String? currentUserId}) {
+    final scope = _dutyBuildings;
+    if (scope == null) return true;
+    if (_offers.containsKey(incident.id)) return true;
+    if (_activeIncident?.id == incident.id) return true;
+    if (currentUserId != null &&
+        (incident.claimedById == currentUserId || incident.resolvedById == currentUserId)) {
+      return true;
+    }
+    final building = normalizeBuilding(incident.building);
+    return building != null && scope.contains(building);
+  }
+
+  // ═══════════════ L10: ÁP TRẠNG THÁI MỚI NHẤT ═══════════════
+
+  static int _statusRank(String status) {
+    if (status == 'NEW') return 0;
+    if (status == 'CLAIMED') return 1;
+    if (status.startsWith('RESOLVED')) return 2;
+    return -1;
+  }
+
+  /// Trả bản sự cố với trạng thái mới nhất đã nhận qua /topic/incidents/updates nếu trạng thái đó đi xa hơn
+  /// (NEW → CLAIMED → RESOLVED_*); không bao giờ lùi trạng thái.
+  IncidentModel withLatestStatus(IncidentModel incident) {
+    final latest = _latestStatus[incident.id];
+    if (latest == null || _statusRank(latest.status) <= _statusRank(incident.status)) return incident;
+    return incident.copyWith(
+      status: latest.status,
+      claimedById: latest.claimedById,
+      claimedByName: latest.claimedByName,
+      claimedAt: latest.claimedAt,
+      resolvedById: latest.resolvedById,
+      resolvedByName: latest.resolvedByName,
+      resolvedAt: latest.resolvedAt,
+      outcome: latest.outcome,
+      resolutionCategory: latest.resolutionCategory,
+    );
+  }
+
+  void _rememberStatus(String incidentId, Map<String, dynamic> update) {
+    final status = (update['status'] ?? '').toString();
+    if (_statusRank(status) <= 0) return;
+    final previous = _latestStatus[incidentId];
+    if (previous != null && _statusRank(previous.status) > _statusRank(status)) return;
+    _latestStatus[incidentId] = IncidentModel.fromJson({...update, 'id': incidentId, 'status': status});
+  }
+
   /// Lấy danh sách sự cố đang active từ backend khi mở app
   Future<void> loadActiveIncidents({String? building}) async {
     _isFetchingActive = true;
@@ -134,6 +235,7 @@ class IncidentProvider extends ChangeNotifier {
         if (incident.isClaimed && currentUser != null && incident.claimedById == currentUser.id) {
           _activeIncident = incident;
         } else if (incident.isNew) {
+          if (!isInDutyScope(incident)) continue; // L5: sự cố toà khác
           if (!_alertQueue.any((i) => i.id == incident.id)) {
             _alertQueue.add(incident);
           }
@@ -153,6 +255,12 @@ class IncidentProvider extends ChangeNotifier {
   void _onNewIncidentReceived(IncidentModel incident) {
     debugPrint('[IncidentProvider] received incident ${incident.id} (${incident.eventType}), '
         'lifecycle=${WidgetsBinding.instance.lifecycleState}');
+    // L5: cảnh báo của toà khác (không được mời, không đang xử lý) không vào hàng đợi
+    if (!isInDutyScope(incident)) {
+      debugPrint('[IncidentProvider] skip incident ${incident.id}: toà "${incident.building}" ngoài toà đang trực '
+          '$_dutyBuildings');
+      return;
+    }
     // K8: đã có trong hàng đợi thì cập nhật severity / dispatchStage trước khi bỏ qua bản trùng
     // (vd. cảnh báo broadcast tới sau khi bảo vệ đã thấy sự cố lúc STEP1).
     final existingIdx = _alertQueue.indexWhere((i) => i.id == incident.id);
@@ -217,6 +325,8 @@ class IncidentProvider extends ChangeNotifier {
     if (incidentId == null) return;
 
     final newStatus = (update['status'] ?? '').toString();
+    // L10: nhớ trạng thái mới nhất để màn danh sách sửa bản lịch sử đã tải
+    _rememberStatus(incidentId, update);
     final currentUser = await StorageHelper.getUser();
 
     // Sự cố đã có người tiếp nhận hoặc đã xử lý xong → gỡ thông báo hệ thống của sự cố đó.
@@ -240,7 +350,8 @@ class IncidentProvider extends ChangeNotifier {
           dispatchStage?.toUpperCase() == 'STEP1' &&
           _activeIncident?.id != incidentId) {
         // Bảo vệ không được mời: chỉ thêm vào danh sách (nút claim bị khoá), không rung, không thông báo
-        _alertQueue.add(IncidentModel.fromJson({...update, 'id': incidentId, 'status': 'NEW'}));
+        final pending = IncidentModel.fromJson({...update, 'id': incidentId, 'status': 'NEW'});
+        if (isInDutyScope(pending)) _alertQueue.add(pending); // L5: toà khác thì không thêm
         _sortQueue();
         notifyListeners();
       }
@@ -257,34 +368,26 @@ class IncidentProvider extends ChangeNotifier {
         if (removedCount > 0) {
           _alertQueue.removeWhere((i) => i.id == incidentId);
           _peerClaimNotice = 'Sự cố đã được $claimantName tiếp nhận.';
+          debugPrint('[IncidentProvider] incident $incidentId claimed by peer $claimantId → peerClaimNotice');
           notifyListeners();
         }
       }
     }
 
-    // 2. Nếu sự cố đã được Resolved
+    // 2. Nếu sự cố đã được Resolved (kể cả đóng ngoài app) → bỏ khỏi hàng đợi và khỏi "Đang xử lý" (L10)
     if (newStatus.startsWith('RESOLVED')) {
       _alertQueue.removeWhere((i) => i.id == incidentId);
       if (_activeIncident?.id == incidentId) {
+        debugPrint('[IncidentProvider] incident $incidentId đang xử lý đã đóng ($newStatus) → bỏ khỏi "Đang xử lý"');
         _activeIncident = null;
       }
       notifyListeners();
     }
   }
 
-  /// Sắp xếp hàng đợi theo mức độ nghiêm trọng: weight DESC, cùng weight -> thời gian ASC (FIFO)
+  /// Sắp xếp hàng đợi: mức server ↓ → trọng số nhãn ↓ → cũ trước (FIFO). Cùng hàm với màn danh sách (L12).
   void _sortQueue() {
-    _alertQueue.sort((a, b) {
-      // K8: severity server (thiếu thì severityWeight cũ) là khoá đầu; severityWeight cũ làm tie-break
-      final serverCompare = b.severityLevel.compareTo(a.severityLevel);
-      if (serverCompare != 0) return serverCompare;
-      final sevCompare = b.severityWeight.compareTo(a.severityWeight);
-      if (sevCompare != 0) return sevCompare;
-
-      final aTime = a.detectedAt ?? DateTime.now();
-      final bTime = b.detectedAt ?? DateTime.now();
-      return aTime.compareTo(bTime);
-    });
+    _alertQueue.sort(compareIncidentQueueOrder);
   }
 
   // ═══════════════ USER ACTIONS ═══════════════
@@ -442,12 +545,19 @@ class IncidentProvider extends ChangeNotifier {
   void handleOfferMessage(Map<String, dynamic> raw) {
     final data = IncidentOfferModel.unwrap(raw);
     final type = data['type']?.toString().toUpperCase();
+    debugPrint('[IncidentProvider] offer message type=$type incidentId=${data['incidentId']} '
+        'offerId=${data['offerId']} expiresAt=${data['expiresAt']}');
     if (type == IncidentOfferModel.typeOffer) {
       final offer = IncidentOfferModel.fromJson(data);
-      if (offer != null) _onOfferReceived(offer);
+      if (offer != null) {
+        _onOfferReceived(offer);
+      } else {
+        debugPrint('[IncidentProvider] ignore offer: không đọc được (thiếu incidentId / expiresAt)');
+      }
     } else if (type == IncidentOfferModel.typeCancelled) {
       final incidentId = (data['incidentId'] ?? data['id'])?.toString();
       if (incidentId != null && incidentId.isNotEmpty) {
+        debugPrint('[IncidentProvider] offer cancelled incident=$incidentId reason=${data['reason']}');
         _removeOffer(incidentId, offerId: data['offerId']?.toString());
       }
     } else {
@@ -458,8 +568,16 @@ class IncidentProvider extends ChangeNotifier {
   void _onOfferReceived(IncidentOfferModel offer) {
     final id = offer.incidentId;
     // Đã hết hạn khi tới nơi, hoặc bảo vệ đang xử lý chính sự cố này → bỏ qua
-    if (!offer.deadline.isAfter(DateTime.now())) return;
-    if (_activeIncident?.id == id) return;
+    if (!offer.deadline.isAfter(DateTime.now())) {
+      debugPrint('[IncidentProvider] ignore offer $id: đã hết hạn khi tới (deadline ${offer.deadline.toIso8601String()})');
+      return;
+    }
+    if (_activeIncident?.id == id) {
+      debugPrint('[IncidentProvider] ignore offer $id: đang xử lý chính sự cố này');
+      return;
+    }
+    debugPrint('[IncidentProvider] offer received $id offerId=${offer.offerId} '
+        'remaining=${offer.remaining(DateTime.now()).inSeconds}s');
 
     _offers[id] = offer;
     _offerTimers[id]?.cancel();
@@ -565,6 +683,7 @@ class IncidentProvider extends ChangeNotifier {
 
       _activeIncident = null;
       _alertQueue.removeWhere((i) => i.id == resolved.id);
+      _latestStatus[resolved.id] = resolved;
       return true;
     } on DioException catch (e) {
       _errorMessage = ApiClient.formatError(e);

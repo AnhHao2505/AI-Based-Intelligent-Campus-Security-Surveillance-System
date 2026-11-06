@@ -26,10 +26,8 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ShiftProvider>().fetchWeeklyShifts();
+      // DEF-16: không tự initStomp ở đây; GuardDutyWatcher kết nối khi có ca CHECKED_IN.
       final incidentProvider = context.read<IncidentProvider>();
-      if (!incidentProvider.isStompConnected) {
-        incidentProvider.initStomp();
-      }
       incidentProvider.loadActiveIncidents();
     });
   }

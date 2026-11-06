@@ -6,6 +6,7 @@ import '../../../core/utils/storage_helper.dart';
 import '../../map/providers/map_provider.dart';
 import '../../map/screens/guard_map_screen.dart';
 import '../models/incident_model.dart';
+import '../models/incident_queue_order.dart';
 import '../providers/incident_provider.dart';
 import '../widgets/incident_detail_sheet.dart';
 
@@ -32,6 +33,45 @@ class IncidentListScreen extends StatefulWidget {
       return true;
     }
     return false;
+  }
+
+  /// Danh sách hiển thị của một tab: gộp lịch sử đã tải + hàng đợi realtime + sự cố đang xử lý.
+  /// - L10: bản lịch sử được sửa theo trạng thái mới nhất nhận qua STOMP (sự cố đã đóng ngoài app rời "Đang xử lý").
+  /// - L5: chỉ giữ sự cố của toà đang trực, cộng sự cố mình được mời / đang xử lý / đã xử lý.
+  /// - L12: cùng thứ tự với hàng đợi ([compareIncidentQueueOrder]: mức ↓ → trọng số ↓ → cũ trước).
+  static List<IncidentModel> buildTabList({
+    required List<IncidentModel> history,
+    required IncidentProvider provider,
+    required IncidentFilterTab tab,
+    String? currentUserId,
+  }) {
+    final Map<String, IncidentModel> merged = {};
+    for (final inc in history) {
+      merged[inc.id] = provider.withLatestStatus(inc);
+    }
+    for (final inc in provider.alertQueue) {
+      merged[inc.id] = inc;
+    }
+    final activeIncident = provider.activeIncident;
+    if (activeIncident != null) {
+      merged[activeIncident.id] = activeIncident;
+    }
+
+    final allList = merged.values
+        .where((i) => provider.isInDutyScope(i, currentUserId: currentUserId))
+        .toList()
+      ..sort(compareIncidentQueueOrder);
+
+    switch (tab) {
+      case IncidentFilterTab.pending:
+        return allList.where((i) => i.isNew).toList();
+      case IncidentFilterTab.claimed:
+        return allList.where((i) => i.isClaimed).toList();
+      case IncidentFilterTab.resolved:
+        return allList.where((i) => i.isResolved).toList();
+      case IncidentFilterTab.all:
+        return allList;
+    }
   }
 
   @override
@@ -66,10 +106,8 @@ class _IncidentListScreenState extends State<IncidentListScreen> {
     super.initState();
     _loadCurrentUser();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // DEF-16: không tự initStomp ở đây; kết nối do GuardDutyWatcher sở hữu.
       final incidentProvider = context.read<IncidentProvider>();
-      if (!incidentProvider.isStompConnected) {
-        incidentProvider.initStomp();
-      }
       incidentProvider.loadActiveIncidents();
       _fetchIncidentsHistory();
     });
@@ -134,45 +172,12 @@ class _IncidentListScreenState extends State<IncidentListScreen> {
   }
 
   List<IncidentModel> _getFilteredList(IncidentProvider provider) {
-    final activeQueue = provider.alertQueue;
-    final activeIncident = provider.activeIncident;
-
-    // Gộp sự cố realtime và lịch sử từ API
-    final Map<String, IncidentModel> merged = {};
-
-    for (final inc in _historyIncidents) {
-      merged[inc.id] = inc;
-    }
-    for (final inc in activeQueue) {
-      merged[inc.id] = inc;
-    }
-    if (activeIncident != null) {
-      merged[activeIncident.id] = activeIncident;
-    }
-
-    final allList = merged.values.toList()
-      ..sort((a, b) {
-        // K8: severity server (thiếu thì severityWeight cũ) là khoá đầu; severityWeight cũ làm tie-break
-        final serverCompare = b.severityLevel.compareTo(a.severityLevel);
-        if (serverCompare != 0) return serverCompare;
-        final sevCompare = b.severityWeight.compareTo(a.severityWeight);
-        if (sevCompare != 0) return sevCompare;
-
-        final dateA = a.detectedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-        final dateB = b.detectedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-        return dateB.compareTo(dateA);
-      });
-
-    switch (_selectedTab) {
-      case IncidentFilterTab.pending:
-        return allList.where((i) => i.isNew).toList();
-      case IncidentFilterTab.claimed:
-        return allList.where((i) => i.isClaimed).toList();
-      case IncidentFilterTab.resolved:
-        return allList.where((i) => i.isResolved).toList();
-      case IncidentFilterTab.all:
-        return allList;
-    }
+    return IncidentListScreen.buildTabList(
+      history: _historyIncidents,
+      provider: provider,
+      tab: _selectedTab,
+      currentUserId: _currentUserId,
+    );
   }
 
   void _showImagePreview(BuildContext context, String imageUrl) {

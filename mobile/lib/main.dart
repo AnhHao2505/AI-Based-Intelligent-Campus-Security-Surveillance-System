@@ -5,6 +5,7 @@ import 'core/constants/app_theme.dart';
 import 'core/network/api_client.dart';
 import 'core/notifications/local_notification_service.dart';
 import 'core/notifications/guard_duty_service.dart';
+import 'core/session/logout_cleanup.dart';
 import 'features/incident/widgets/guard_duty_watcher.dart';
 import 'core/theme/theme_provider.dart';
 import 'core/utils/storage_helper.dart';
@@ -16,6 +17,7 @@ import 'features/incident/services/stomp_service.dart';
 import 'features/map/providers/map_provider.dart';
 import 'features/incident/screens/incident_list_screen.dart';
 import 'features/incident/widgets/incident_offer_banner.dart';
+import 'features/incident/widgets/peer_claim_notice_listener.dart';
 import 'features/shift/providers/shift_provider.dart';
 import 'features/shift/screens/guard_schedule_screen.dart';
 
@@ -23,6 +25,9 @@ import 'package:intl/date_symbol_data_local.dart';
 
 /// Dùng để mở màn danh sách sự cố khi bảo vệ bấm vào thông báo sự cố (không có BuildContext lúc đó).
 final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
+
+/// DEF-17: hiện snackbar "Sự cố đã được … tiếp nhận." trên màn hình đang mở, từ ngoài cây Navigator.
+final GlobalKey<ScaffoldMessengerState> appScaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
 /// Về màn gốc rồi mở màn hình danh sách sự cố sau khi nhận lời mời (cùng cách với khi bấm thông báo).
 void openIncidentListScreen() {
@@ -54,6 +59,12 @@ void main() async {
   final apiClient = ApiClient();
   final stompService = StompService();
   final incidentService = IncidentService(apiClient);
+  // Tạo sẵn để AuthProvider dọn được ca + sự cố khi đăng xuất (DEF-16).
+  final shiftProvider = ShiftProvider(apiClient);
+  final incidentProvider = IncidentProvider(
+    incidentService: incidentService,
+    stompService: stompService,
+  );
 
   runApp(
     MultiProvider(
@@ -62,19 +73,23 @@ void main() async {
           create: (_) => ThemeProvider(),
         ),
         ChangeNotifierProvider(
-          create: (_) => AuthProvider(apiClient)..restoreSession(),
+          create: (_) => AuthProvider(
+            apiClient,
+            onLogout: () => runLogoutCleanup(
+              shiftProvider: shiftProvider,
+              incidentProvider: incidentProvider,
+              stopDutyService: GuardDutyService.instance.stop,
+            ),
+          )..restoreSession(),
         ),
         ChangeNotifierProvider(
-          create: (_) => ShiftProvider(apiClient),
+          create: (_) => shiftProvider,
         ),
         ChangeNotifierProvider(
           create: (_) => MapProvider(apiClient),
         ),
         ChangeNotifierProvider(
-          create: (_) => IncidentProvider(
-            incidentService: incidentService,
-            stompService: stompService,
-          ),
+          create: (_) => incidentProvider,
         ),
       ],
       child: const GuardMobileApp(),
@@ -91,6 +106,7 @@ class GuardMobileApp extends StatelessWidget {
 
     return MaterialApp(
       navigatorKey: appNavigatorKey,
+      scaffoldMessengerKey: appScaffoldMessengerKey,
       title: 'Guard Patrol Mobile',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
@@ -102,6 +118,7 @@ class GuardMobileApp extends StatelessWidget {
         children: [
           child ?? const SizedBox.shrink(),
           IncidentOfferBanner(onClaimed: (_) => openIncidentListScreen()),
+          PeerClaimNoticeListener(messengerKey: appScaffoldMessengerKey),
         ],
       ),
     );

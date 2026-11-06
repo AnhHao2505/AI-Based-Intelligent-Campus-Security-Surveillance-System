@@ -160,6 +160,22 @@ class ShiftProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  @visibleForTesting
+  void setShiftsForTest(List<GuardShiftModel> shifts) {
+    _shifts = List.of(shifts);
+    notifyListeners();
+  }
+
+  /// DEF-16: đăng xuất → xoá ca của phiên trước để lần đăng nhập sau không thấy ngay ca CHECKED_IN cũ.
+  void clear() {
+    _shifts = [];
+    _selectedDate = DateTime.now();
+    _isLoading = false;
+    _errorMessage = null;
+    debugPrint('[ShiftProvider] cleared shifts');
+    notifyListeners();
+  }
+
   // Get available substitutes for a shift (1-way cover / FM approval)
   Future<List<AvailableSubstituteModel>> getAvailableSubstitutes(String shiftId) async {
     try {
