@@ -20,6 +20,8 @@ public class CheckCameraEntryResponse {
     private boolean allowed;
     private AccessSource source;
     private String reason;
+    /** Mã lý do từ chối (GuestEntryDenyReason) cho khách bị từ chối; null khi cho phép hoặc với người dùng nội bộ. */
+    private String denyReason;
     private String cameraCode;
     private UUID areaId;
     private String areaName;

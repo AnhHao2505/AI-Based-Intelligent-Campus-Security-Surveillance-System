@@ -64,8 +64,10 @@ public class GuestPhotoTest extends GuestTestSupport {
         when(faceClient.extract(any(), any(), any())).thenReturn(new GuestFaceEmbeddingClient.Result(1, vec(0.02f)));
         GuestVisit v = approved();
         Guest g = guestsOf(v.getId()).get(0);
+        resetRefreshCalls();
         MvcResult r = attach(admin, v, g, true, "v1");
         assertEquals(200, status(r), r.getResponse().getContentAsString());
+        assertEquals(List.of(true), refreshCallsInTransaction, "L3: gắn ảnh -> báo AI làm mới kho khuôn mặt 1 lần, đăng ký trong transaction (gửi sau commit)");
         String raw = r.getResponse().getContentAsString();
         assertFalse(raw.contains("visits/") || raw.contains("http://") || raw.contains("https://") || raw.contains("objectKey"), raw);
 

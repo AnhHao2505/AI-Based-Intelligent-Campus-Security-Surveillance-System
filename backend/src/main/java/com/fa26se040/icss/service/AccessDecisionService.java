@@ -396,6 +396,7 @@ public class AccessDecisionService {
                                 .allowed(allowed)
                                 .source(allowed ? AccessSource.GUEST_VISIT : AccessSource.NONE)
                                 .reason(exitReason)
+                                .denyReason(guestDenyReasonCode(guestDecision))
                                 .cameraCode(camera.getCameraCode())
                                 .areaId(area.getId())
                                 .areaName(area.getName())
@@ -430,6 +431,7 @@ public class AccessDecisionService {
                             .allowed(guestDecision.allowed())
                             .source(guestDecision.allowed() ? AccessSource.GUEST_VISIT : AccessSource.NONE)
                             .reason(reasonText)
+                            .denyReason(guestDenyReasonCode(guestDecision))
                             .cameraCode(camera.getCameraCode())
                             .areaId(area.getId())
                             .areaName(area.getName())
@@ -469,6 +471,14 @@ public class AccessDecisionService {
     /**
      * DENIED tại một camera đã xác định được khu: gắn areaId / areaName / cameraCode để nhật ký ghi được (area_id NOT NULL).
      */
+    /** L4: mã lý do từ chối khách gửi cho AI service hiển thị đúng lý do; null khi khách được phép. */
+    private static String guestDenyReasonCode(GuestAccessDecision decision) {
+        if (decision.allowed() || decision.reason() == null) {
+            return null;
+        }
+        return decision.reason().name();
+    }
+
     private static CheckCameraEntryResponse deniedAtCamera(Camera camera, Area area, String userCode, String reason) {
         String effectiveUserCode = (userCode != null && !userCode.isBlank()) ? userCode : "UNKNOWN";
         return CheckCameraEntryResponse.builder()

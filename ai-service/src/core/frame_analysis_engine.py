@@ -12,6 +12,23 @@ from ..utils.geometry import (
     is_point_in_polygon, scale_polygon_to_frame
 )
 
+# L1 — BR-294, quyết định Lucas 06/11/2026: sau giờ kết thúc hành chính (AI_AFTER_HOUR_START), người được backend cho
+# phép CHỈ được miễn luật ban đêm khi nguồn cấp quyền (AccessSource) thuộc tập này, hoặc vai trò là GUARD.
+# ACCESS_LEVEL (cấp truy cập) và OPEN_EVENT (sự kiện mở) KHÔNG được miễn -> PERSON_INTRUSION.
+NIGHT_EXEMPT_SOURCES = {"ASSIGNED_PERSONNEL", "ACCESS_REQUEST", "GUEST_VISIT", "INCIDENT_RESPONSE"}
+
+# L4: mã lý do từ chối khách (GuestEntryDenyReason, backend trả ở denyReason) -> lý do ngắn trên cảnh báo
+GUEST_DENY_REASON_LABELS = {
+    "VISIT_NOT_ACTIVE": "Lượt khách không còn hiệu lực",
+    "OUTSIDE_WINDOW": "Ngoài giờ tiếp khách",
+    "AREA_NOT_IN_VISIT": "Khu vực không thuộc lượt khách",
+    "AREA_INACTIVE": "Khu vực tạm dừng hoạt động",
+    "AREA_TYPE_NOT_ALLOWED": "Loại khu vực không nhận khách",
+    "HOST_LOST_ACCESS": "Người tiếp đón mất quyền",
+    "BIOMETRIC_DELETED": "Dữ liệu khuôn mặt đã bị xoá",
+    "BIOMETRIC_NOT_READY": "Dữ liệu khuôn mặt chưa sẵn sàng",
+}
+
 class FrameAnalysisEngine:
     """
     Engine phân tích an ninh.
@@ -250,6 +267,8 @@ class FrameAnalysisEngine:
 
                     role = getattr(person.face_info, "role", "NORMAL_USER")
                     reason_lower = (reason_str or "").lower()
+                    access_source = getattr(person.face_info, "access_source", None)
+                    deny_reason_code = getattr(person.face_info, "access_deny_reason", None)
                     is_guard_on_duty = (
                         role == "GUARD"
                         or "bảo vệ" in reason_lower
@@ -260,7 +279,15 @@ class FrameAnalysisEngine:
 
                     # Kiểm tra ngoại lệ trực đêm / làm ngoài giờ:
                     is_night_authorized = False
-                    if is_authorized:
+                    if access_source and after_hours:
+                        # L1 (BR-294, 06/11): xét theo nguồn cấp quyền backend trả, không dò chữ trong lý do
+                        is_night_authorized = (
+                            (is_authorized and access_source in NIGHT_EXEMPT_SOURCES)
+                            or role == "GUARD"
+                        )
+                    elif is_authorized:
+                        # Ban ngày: giữ nguyên. Ban đêm tới được nhánh này chỉ khi access_source None
+                        # (backend cũ / lỗi mạng) -> FALLBACK dò chữ trong lý do như trước.
                         # Ban đêm chỉ được phép nếu có phân công trực ca, đơn duyệt hoặc là bảo vệ trong ca
                         if after_hours:
                             if is_guard_on_duty or "đơn" in reason_lower or "lịch trực" in reason_lower:
@@ -268,7 +295,7 @@ class FrameAnalysisEngine:
                         else:
                             is_night_authorized = True
                     elif after_hours and is_guard_on_duty:
-                        # Bảo vệ trong ca trực ban đêm luôn được phép
+                        # FALLBACK (access_source None): bảo vệ trong ca trực ban đêm luôn được phép
                         is_night_authorized = True
 
                     if is_night_authorized:
@@ -294,7 +321,10 @@ class FrameAnalysisEngine:
                             else:
                                 event_type = "UNAUTHORIZED_PERSON"
                                 r_low = (clean_reason or "").lower()
-                                if not is_active:
+                                if deny_reason_code:
+                                    # L4: khách bị từ chối -> lý do theo mã backend trả
+                                    minimal_reason = GUEST_DENY_REASON_LABELS.get(deny_reason_code, "Không có quyền")
+                                elif not is_active:
                                     minimal_reason = "Tài khoản bị khóa"
                                 elif "cấp độ" in r_low or "level" in r_low:
                                     minimal_reason = "Cấp độ không đủ"

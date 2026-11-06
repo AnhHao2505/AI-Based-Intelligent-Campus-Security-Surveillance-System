@@ -35,7 +35,8 @@ class FaceMatcher:
         self.public_camera_codes: set = set()
         self.last_cache_time = 0
         self.cache_ttl = 30.0 # Tự động làm mới cache mỗi 30 giây
-        self.access_cache: Dict[str, Tuple[bool, str, Optional[str], float]] = {}
+        # (allowed, reason, area_name, source, deny_reason, expire_at) — source/deny_reason: L1/L4 (06/11)
+        self.access_cache: Dict[str, Tuple[bool, str, Optional[str], Optional[str], Optional[str], float]] = {}
         self.access_cache_ttl = getattr(settings, "ACCESS_DECISION_CACHE_TTL", 30.0)
         self.refresh_cache()
 
@@ -198,16 +199,17 @@ class FaceMatcher:
         self,
         camera_code: str,
         user_code: str
-    ) -> Optional[Tuple[bool, str, Optional[str]]]:
-        """Truy xuất nhanh quyền ra vào từ RAM cache, trả về None nếu cache miss hoặc hết hạn"""
+    ) -> Optional[Tuple[bool, str, Optional[str], Optional[str], Optional[str]]]:
+        """Truy xuất nhanh quyền ra vào từ RAM cache, trả về None nếu cache miss hoặc hết hạn.
+        Trả về: (is_allowed, reason, area_name, source, deny_reason)"""
         if not camera_code or not user_code:
             return None
         cache_key = f"{camera_code}:{user_code}"
         now = time.time()
         if cache_key in self.access_cache:
-            allowed, reason, area_name, expire_at = self.access_cache[cache_key]
+            allowed, reason, area_name, source, deny_reason, expire_at = self.access_cache[cache_key]
             if now < expire_at:
-                return allowed, reason, area_name
+                return allowed, reason, area_name, source, deny_reason
         return None
 
     def check_camera_access(
@@ -218,24 +220,26 @@ class FaceMatcher:
         event_direction: Optional[str] = None,
         duration_seconds: Optional[float] = None,
         skip_cache: bool = False
-    ) -> Tuple[bool, str, Optional[str]]:
+    ) -> Tuple[bool, str, Optional[str], Optional[str], Optional[str]]:
         """
         Kiểm tra quyền ra vào của user_code tại vị trí camera_code và ghi log chuyển động qua vùng ROI (VÀO / RA).
         Gọi API POST /api/access-control/check-entry của Spring Boot Backend (checkEntry).
         Có bộ đệm in-memory RAM (TTL 30s) khi đối soát nhanh.
-        Trả về: (is_allowed: bool, reason: str, area_name: Optional[str])
+        Trả về: (is_allowed: bool, reason: str, area_name: Optional[str], source: Optional[str], deny_reason: Optional[str])
+        source = AccessSource backend trả (ASSIGNED_PERSONNEL, ACCESS_LEVEL, OPEN_EVENT, ACCESS_REQUEST, GUEST_VISIT,
+        INCIDENT_RESPONSE, NONE); None khi không gọi được backend. deny_reason = mã GuestEntryDenyReason (chỉ khách bị từ chối).
         """
         if not camera_code or not user_code:
-            return False, "Thiếu thông tin camera hoặc người dùng", None
+            return False, "Thiếu thông tin camera hoặc người dùng", None, None, None
 
         cache_key = f"{camera_code}:{user_code}"
         now = time.time()
 
         # 1. Kiểm tra cache RAM (chỉ dùng cache khi không yêu cầu skip_cache)
         if not skip_cache and cache_key in self.access_cache:
-            allowed, reason, area_name, expire_at = self.access_cache[cache_key]
+            allowed, reason, area_name, source, deny_reason, expire_at = self.access_cache[cache_key]
             if now < expire_at:
-                return allowed, reason, area_name
+                return allowed, reason, area_name, source, deny_reason
 
         # 2. Gọi API Backend Spring Boot
         backend_url = getattr(settings, "BACKEND_API_URL", "http://localhost:8080")
@@ -266,6 +270,8 @@ class FaceMatcher:
                 allowed = bool(data.get("allowed", False))
                 reason = data.get("reason", "Xét duyệt từ Backend")
                 area_name = data.get("areaName")
+                source = data.get("source")
+                deny_reason = data.get("denyReason")
 
                 # Tự động loại bỏ khỏi Face RAM Cache nếu Backend phản hồi người dùng không tồn tại / đã bị xoá
                 reason_lower = (reason or "").lower()
@@ -280,13 +286,13 @@ class FaceMatcher:
                         del self.access_cache[cache_key]
 
                 ttl = self.access_cache_ttl if allowed else min(self.access_cache_ttl, 5.0)
-                self.access_cache[cache_key] = (allowed, reason, area_name, now + ttl)
+                self.access_cache[cache_key] = (allowed, reason, area_name, source, deny_reason, now + ttl)
                 logger.info(f"🔑 [FaceMatcher] Quyền ra vào [{user_code}] tại [{camera_code}] ({area_name or 'N/A'}): {'HỢP LỆ' if allowed else 'TỪ CHỐI'} ({reason})")
-                return allowed, reason, area_name
+                return allowed, reason, area_name, source, deny_reason
             else:
                 logger.warning(f"⚠️ [FaceMatcher] Backend trả về status {resp.status_code} khi checkEntry cho {user_code}")
         except Exception as e:
             logger.warning(f"⚠️ [FaceMatcher] Không thể kết nối Backend để xét checkEntry cho {user_code}: {e}")
 
         # 3. Fallback Offline: Luôn Fail-closed để đảm bảo an ninh (không tự ý cho phép vào khu vực bảo mật)
-        return False, "Không thể kết nối máy chủ xét quyền (Fail-closed)", None
+        return False, "Không thể kết nối máy chủ xét quyền (Fail-closed)", None, None, None
