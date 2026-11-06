@@ -118,7 +118,7 @@ class ShiftListItem extends StatelessWidget {
                         ],
                       ],
                     ),
-                    if (shift.building != null && shift.building!.trim().isNotEmpty) ...[
+                    if (shift.displayBuilding != null) ...[
                       const SizedBox(height: 3),
                       Row(
                         children: [
@@ -130,7 +130,7 @@ class ShiftListItem extends StatelessWidget {
                           const SizedBox(width: 4),
                           Expanded(
                             child: Text(
-                              shift.building!.trim(),
+                              shift.displayBuilding!,
                               style: TextStyle(
                                 fontSize: 11.5,
                                 color: AppColors.txtSecondary(context),

@@ -54,7 +54,7 @@ void main() {
     expect(find.text('Địa điểm: Tòa Alpha'), findsOneWidget);
   });
 
-  testWidgets('Ca luân chuyển: hiện "Luân chuyển: {buildingName}"; dòng Địa điểm giữ nguyên theo field building',
+  testWidgets('Ca luân chuyển: hiện "Luân chuyển: {buildingName}"; dòng Địa điểm theo buildingName (DEF-15)',
       (tester) async {
     await pumpCard(tester, {
       'building': 'Tòa Alpha',
@@ -64,7 +64,9 @@ void main() {
     });
 
     expect(find.text('Luân chuyển: Tòa Beta'), findsOneWidget);
-    expect(find.text('Địa điểm: Tòa Alpha'), findsOneWidget);
+    // DEF-15 (07/11): field building cũ có thể sai (lấy theo team.description); toà của ca là buildingName.
+    expect(find.text('Địa điểm: Tòa Beta'), findsOneWidget);
+    expect(find.text('Địa điểm: Tòa Alpha'), findsNothing);
     expect(find.text('Vị trí trực: Tuần tra'), findsOneWidget);
   });
 
@@ -74,6 +76,28 @@ void main() {
 
     await pumpCard(tester, {'building': 'Tòa Alpha'});
     expect(find.textContaining('Luân chuyển'), findsNothing);
+  });
+
+  group('B6 — DEF-15: dòng "Địa điểm" hiển thị buildingName', () {
+    testWidgets('building cũ = "Tòa Beta", buildingName = "Tòa Alpha" → "Địa điểm: Tòa Alpha"', (tester) async {
+      // Đúng dữ liệu E2E 06/11: ca Tòa Alpha nhưng field building lấy theo team.description "Tòa Beta"
+      await pumpCard(tester, {'building': 'Tòa Beta', 'buildingName': 'Tòa Alpha', 'status': 'CHECKED_IN'});
+      expect(find.text('Địa điểm: Tòa Alpha'), findsOneWidget);
+      expect(find.textContaining('Tòa Beta'), findsNothing);
+    });
+
+    testWidgets('Thiếu buildingName (backend cũ) → dùng field building', (tester) async {
+      await pumpCard(tester, {'building': 'Tòa Gamma'});
+      expect(find.text('Địa điểm: Tòa Gamma'), findsOneWidget);
+    });
+
+    testWidgets('buildingName rỗng → dùng field building; cả hai rỗng → không có dòng Địa điểm', (tester) async {
+      await pumpCard(tester, {'building': 'Tòa Gamma', 'buildingName': '  '});
+      expect(find.text('Địa điểm: Tòa Gamma'), findsOneWidget);
+
+      await pumpCard(tester, {'building': ' ', 'buildingName': ''});
+      expect(find.textContaining('Địa điểm'), findsNothing);
+    });
   });
 
   testWidgets('Không có khu vực: không hiện dòng "Khu vực"', (tester) async {

@@ -410,7 +410,7 @@ class ActiveShiftCard extends StatelessWidget {
           ),
 
           // Building Location
-          if (s.building != null && s.building!.trim().isNotEmpty) ...[
+          if (s.displayBuilding != null) ...[
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -429,7 +429,7 @@ class ActiveShiftCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    'Địa điểm: ${s.building!.trim()}',
+                    'Địa điểm: ${s.displayBuilding}',
                     style: TextStyle(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w600,

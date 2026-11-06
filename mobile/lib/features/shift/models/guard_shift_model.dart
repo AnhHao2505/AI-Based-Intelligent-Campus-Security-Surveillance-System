@@ -194,6 +194,14 @@ class GuardShiftModel {
 
   bool get isScheduled => status == 'SCHEDULED';
   bool get isCheckedIn => status == 'CHECKED_IN';
+
+  /// DEF-15: toà hiển thị = buildingName (theo FK, backend tính đúng toà của ca); thiếu thì dùng field building cũ.
+  String? get displayBuilding {
+    final fk = buildingName?.trim();
+    if (fk != null && fk.isNotEmpty) return fk;
+    final legacy = building?.trim();
+    return (legacy != null && legacy.isNotEmpty) ? legacy : null;
+  }
   bool get isCompleted => status == 'COMPLETED';
   bool get isAbsent => status == 'ABSENT';
 
