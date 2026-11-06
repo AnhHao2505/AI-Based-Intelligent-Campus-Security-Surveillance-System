@@ -4,29 +4,17 @@ import 'package:guard_mobile_app/features/incident/models/incident_offer_model.d
 
 void main() {
   group('IncidentModel Tests', () {
-    test('Calculates severity weights correctly for 3 standardized incident types', () {
-      final unauthorized = IncidentModel(
-        id: '1',
-        cameraCode: 'CAM-001',
-        eventType: 'UNAUTHORIZED_ACCESS',
-        status: 'NEW',
-      );
-      final unknown = IncidentModel(
-        id: '2',
-        cameraCode: 'CAM-002',
-        eventType: 'UNKNOWN_PERSON',
-        status: 'NEW',
-      );
-      final afterHours = IncidentModel(
-        id: '3',
-        cameraCode: 'CAM-003',
-        eventType: 'AFTER_HOURS_ACCESS',
-        status: 'NEW',
-      );
+    test('Calculates severity weights correctly for the 5 incident labels (03/11)', () {
+      IncidentModel make(String id, String eventType) =>
+          IncidentModel(id: id, cameraCode: 'CAM-$id', eventType: eventType, status: 'NEW');
 
-      expect(unauthorized.severityWeight, equals(3));
-      expect(unknown.severityWeight, equals(2));
-      expect(afterHours.severityWeight, equals(1));
+      // AUTHORIZED_PERSON không tạo sự cố nên không có trọng số
+      expect(make('1', 'UNAUTHORIZED_PERSON').severityWeight, equals(3));
+      expect(make('2', 'PERSON_INTRUSION').severityWeight, equals(2));
+      expect(make('3', 'SUSPICIOUS_MOVING_OBJECT').severityWeight, equals(2));
+      expect(make('4', 'UNKNOWN_PERSON').severityWeight, equals(1));
+      // Tên cũ (sự cố lưu trước V95) vẫn đọc được
+      expect(make('5', 'UNAUTHORIZED_ACCESS').severityWeight, equals(3));
     });
 
     test('Queue sorts by severity weight DESC then FIFO (detectedAt ASC)', () {
@@ -35,7 +23,7 @@ void main() {
       final incidentLow = IncidentModel(
         id: 'low',
         cameraCode: 'CAM-001',
-        eventType: 'AFTER_HOURS_ACCESS', // weight 1
+        eventType: 'UNKNOWN_PERSON', // weight 1
         detectedAt: now.subtract(const Duration(seconds: 10)),
         status: 'NEW',
       );
@@ -43,7 +31,7 @@ void main() {
       final incidentHigh = IncidentModel(
         id: 'high',
         cameraCode: 'CAM-002',
-        eventType: 'UNKNOWN_PERSON', // weight 2
+        eventType: 'PERSON_INTRUSION', // weight 2
         detectedAt: now.subtract(const Duration(seconds: 5)),
         status: 'NEW',
       );
@@ -51,7 +39,7 @@ void main() {
       final incidentCriticalEarly = IncidentModel(
         id: 'crit_early',
         cameraCode: 'CAM-003',
-        eventType: 'UNAUTHORIZED_ACCESS', // weight 3
+        eventType: 'UNAUTHORIZED_PERSON', // weight 3
         detectedAt: now.subtract(const Duration(seconds: 30)),
         status: 'NEW',
       );
@@ -59,7 +47,7 @@ void main() {
       final incidentCriticalLate = IncidentModel(
         id: 'crit_late',
         cameraCode: 'CAM-004',
-        eventType: 'UNAUTHORIZED', // weight 3
+        eventType: 'UNAUTHORIZED_PERSON', // weight 3
         detectedAt: now.subtract(const Duration(seconds: 15)),
         status: 'NEW',
       );
