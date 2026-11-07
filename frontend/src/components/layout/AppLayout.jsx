@@ -40,10 +40,11 @@ function showEscalationToast(payload) {
 export default function AppLayout({ children }) {
   const { user, logout } = useAuth();
   const sidebarCollapsed = useUiStore((state) => state.sidebarCollapsed);
-  const isFacilityManager = (user?.role || user?.role_type) === ROLES.FACILITY_MANAGER;
+  const userRole = user?.role || user?.role_type;
+  const isFmOrAdmin = userRole === ROLES.FACILITY_MANAGER || userRole === ROLES.ADMIN;
 
-  useStompSubscription(isFacilityManager ? ESCALATION_TOPIC : null, showEscalationToast);
-  useStompSubscription(isFacilityManager ? CRITICAL_NOTICE_TOPIC : null, showCriticalNoticeToast);
+  useStompSubscription(isFmOrAdmin ? ESCALATION_TOPIC : null, showEscalationToast);
+  useStompSubscription(isFmOrAdmin ? CRITICAL_NOTICE_TOPIC : null, showCriticalNoticeToast);
 
   return (
     <div className="app-layout">

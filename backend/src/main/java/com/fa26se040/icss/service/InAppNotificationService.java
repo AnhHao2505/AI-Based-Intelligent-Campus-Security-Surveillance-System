@@ -122,7 +122,7 @@ public class InAppNotificationService {
             return List.of();
         }
 
-        // Deduplicate recipients by user ID
+        // Deduplicate recipients by user ID and filter out ADMIN if excluded (BR-NT-26)
         Map<UUID, User> uniqueRecipients = new LinkedHashMap<>();
         for (User user : recipients) {
             if (user != null && user.getId() != null && !adminExcluded(user, type, referenceType)) {
@@ -157,8 +157,8 @@ public class InAppNotificationService {
     @Transactional(readOnly = true)
     public Page<NotificationResponse> getMyNotifications(String email, Pageable pageable) {
         User user = getUser(email);
-        Page<Notification> page = notificationRepository.findByRecipientIdOrderByCreatedAtDesc(user.getId(), pageable);
-        return page.map(this::mapToResponse);
+        return notificationRepository.findByRecipientIdOrderByCreatedAtDesc(user.getId(), pageable)
+                .map(this::mapToResponse);
     }
 
     @Transactional(readOnly = true)
