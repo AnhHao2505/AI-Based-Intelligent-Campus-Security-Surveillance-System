@@ -356,8 +356,8 @@ class InAppNotificationServiceTest {
     }
 
     @Test
-    @DisplayName("createForUsers khi người nhận có FM thì tự động tạo thông báo độc lập cho cả ADMIN")
-    void createForUsers_WhenFmIsRecipient_AlsoCreatesNotificationForAdmin() {
+    @DisplayName("createForUsers loại bỏ ADMIN đối với thông báo ACCESS_REQUEST theo BR-NT-26")
+    void createForUsers_WhenAdminInRecipientsForAccessRequest_AdminIsExcluded() {
         User adminUser = User.builder()
                 .id(UUID.randomUUID())
                 .email("admin@fpt.edu.vn")
@@ -366,19 +366,17 @@ class InAppNotificationServiceTest {
                 .isActive(true)
                 .build();
 
-        when(userRepository.findActiveUsersByRole(Role.ADMIN)).thenReturn(List.of(adminUser));
         when(notificationRepository.saveAll(anyList())).thenAnswer(i -> i.getArgument(0));
 
         List<Notification> created = inAppNotificationService.createForUsers(
-                List.of(fmUser),
+                List.of(fmUser, adminUser),
                 NotificationType.NEW_REQUEST_PENDING,
                 "Yêu cầu mới",
                 "Nội dung yêu cầu",
                 UUID.randomUUID()
         );
 
-        assertEquals(2, created.size());
-        assertTrue(created.stream().anyMatch(n -> n.getRecipient().getRole() == Role.FACILITY_MANAGER));
-        assertTrue(created.stream().anyMatch(n -> n.getRecipient().getRole() == Role.ADMIN));
+        assertEquals(1, created.size());
+        assertEquals(fmUser.getId(), created.get(0).getRecipient().getId());
     }
 }

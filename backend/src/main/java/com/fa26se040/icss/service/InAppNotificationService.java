@@ -48,6 +48,20 @@ public class InAppNotificationService {
     private final AccessRequestRepository accessRequestRepository;
     private final SystemConfigService systemConfigService;
 
+    /**
+     * BR-NT-26: thông báo chỉ gửi cho role xử lý được. ADMIN không duyệt đơn truy cập, không duyệt / làm host lượt khách
+     * -> bỏ ADMIN khỏi người nhận của thông báo ACCESS_REQUEST và GUEST_VISIT; GUEST_PHOTO_REQUIRED (ADMIN gắn ảnh khách) vẫn gửi.
+     */
+    static boolean adminExcluded(User recipient, NotificationType type, String referenceType) {
+        if (recipient == null || recipient.getRole() != Role.ADMIN) {
+            return false;
+        }
+        if (REF_TYPE_ACCESS_REQUEST.equals(referenceType)) {
+            return true;
+        }
+        return "GUEST_VISIT".equals(referenceType) && type != NotificationType.GUEST_PHOTO_REQUIRED;
+    }
+
     public static String formatTimeRange(OffsetDateTime startTime, OffsetDateTime endTime) {
         if (startTime == null || endTime == null) {
             return "";
@@ -75,15 +89,9 @@ public class InAppNotificationService {
             log.warn("Cannot create notification {}: recipient is null", type);
             return null;
         }
-
-        // When a notification is targeted to FACILITY_MANAGER, also notify active ADMINs independently
-        if (recipient.getRole() == Role.FACILITY_MANAGER) {
-            List<User> recipients = new ArrayList<>();
-            recipients.add(recipient);
-            List<User> admins = userRepository.findActiveUsersByRole(Role.ADMIN);
-            recipients.addAll(admins);
-            List<Notification> created = createForUsers(recipients, type, title, message, referenceId, referenceType);
-            return created.isEmpty() ? null : created.get(0);
+        if (adminExcluded(recipient, type, referenceType)) {
+            log.info("Skip notification {} ({}) for ADMIN {} (BR-NT-26)", type, referenceType, recipient.getId());
+            return null;
         }
 
         Notification notification = Notification.builder()
@@ -114,22 +122,11 @@ public class InAppNotificationService {
             return List.of();
         }
 
-        // Deduplicate recipients by user ID
+        // Deduplicate recipients by user ID and filter out ADMIN if excluded (BR-NT-26)
         Map<UUID, User> uniqueRecipients = new LinkedHashMap<>();
         for (User user : recipients) {
-            if (user != null && user.getId() != null) {
+            if (user != null && user.getId() != null && !adminExcluded(user, type, referenceType)) {
                 uniqueRecipients.putIfAbsent(user.getId(), user);
-            }
-        }
-
-        // When notifications are sent to FACILITY_MANAGER, active ADMINs also receive independent copies
-        boolean hasFm = uniqueRecipients.values().stream().anyMatch(u -> u.getRole() == Role.FACILITY_MANAGER);
-        if (hasFm) {
-            List<User> admins = userRepository.findActiveUsersByRole(Role.ADMIN);
-            for (User admin : admins) {
-                if (admin != null && admin.getId() != null) {
-                    uniqueRecipients.putIfAbsent(admin.getId(), admin);
-                }
             }
         }
 
