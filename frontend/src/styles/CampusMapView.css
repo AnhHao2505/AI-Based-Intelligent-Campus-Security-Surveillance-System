@@ -5,7 +5,7 @@
 
 .campus-map-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 260px;
+  grid-template-columns: minmax(0, 1fr) 280px;
   gap: 16px;
   height: calc(100vh - 165px);
   min-height: 580px;
@@ -157,6 +157,34 @@
   color: var(--theme-primary);
   border-color: var(--theme-primary);
   background: var(--theme-primary-light);
+}
+
+/* Collapse left sidebar button (Hamburger menu in floating bar) */
+.campus-map-collapse-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  border: 1px solid var(--theme-border, #e2e8f0);
+  background: var(--theme-bg-surface, #ffffff);
+  color: var(--theme-text-primary, #0f172a);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.campus-map-collapse-btn:hover {
+  background: var(--theme-bg-hover, #f1f5f9);
+  border-color: var(--theme-border-hover, #cbd5e1);
+  color: var(--theme-primary, #2563eb);
+}
+
+[data-theme="dark"] .campus-map-collapse-btn {
+  background: #1e293b;
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #f8fafc;
 }
 
 /* Zone Marker Pin */
@@ -345,7 +373,8 @@
   gap: 12px;
   height: 100%;
   min-height: 0;
-  width: 260px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .campus-rail-card {
@@ -883,13 +912,14 @@
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--theme-border-hover);
   border-radius: 10px;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.16), inset 0 2px 0 0 #ea4335;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
   animation: campus-fade-in 0.15s ease-out;
 }
 
 [data-theme="dark"] .campus-coord-editor {
   background: rgba(15, 23, 42, 0.95);
   border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
 
 .campus-coord-editor__head {
@@ -897,7 +927,12 @@
   align-items: center;
   gap: 6px;
   font-size: 12.5px;
-  color: #ea4335;
+  font-weight: 700;
+  color: #0284c7;
+}
+
+[data-theme="dark"] .campus-coord-editor__head {
+  color: #38bdf8;
 }
 
 .campus-coord-editor__head strong {
@@ -986,6 +1021,30 @@
   background: var(--theme-bg-canvas);
 }
 
+.campus-coord-btn--cancel {
+  color: var(--theme-text-secondary, #64748b);
+  background: var(--theme-bg-surface, #ffffff);
+  border: 1px solid var(--theme-border, #cbd5e1);
+}
+
+.campus-coord-btn--cancel:hover:not(:disabled) {
+  background: var(--theme-bg-hover, #f1f5f9);
+  color: var(--theme-text-primary, #0f172a);
+  border-color: #94a3b8;
+}
+
+[data-theme="dark"] .campus-coord-btn--cancel {
+  background: #1e293b;
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #cbd5e1;
+}
+
+[data-theme="dark"] .campus-coord-btn--cancel:hover:not(:disabled) {
+  background: #334155;
+  color: #f8fafc;
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
 .campus-coord-btn--block {
   width: 100%;
   margin-top: 12px;
@@ -1065,11 +1124,79 @@
    MAP-FIRST AREA CREATION STYLES
    -------------------------------------------------------------------------- */
 .campus-map-layout--create {
-  grid-template-columns: minmax(0, 1fr) 340px;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 12px;
+  width: 100%;
 }
 
 .campus-coord-editor--create {
   box-shadow: inset 0 2px 0 0 var(--theme-primary);
+}
+@media (max-width: 1200px) {
+  .campus-map-layout--create {
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 12px;
+  }
+}
+
+/* Floating Guide Pill for Area Creation */
+.campus-create-guide-pill {
+  position: absolute;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 15;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 16px;
+  border-radius: 9999px;
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  color: #f1f5f9;
+  font-size: 0.78125rem;
+  font-weight: 500;
+  pointer-events: none;
+  user-select: none;
+  animation: campus-pill-pop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  white-space: nowrap;
+}
+
+[data-theme="light"] .campus-create-guide-pill {
+  background: rgba(255, 255, 255, 0.94);
+  border-color: rgba(2, 132, 199, 0.35);
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12);
+  color: #0f172a;
+}
+
+.campus-create-guide-pill__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #38bdf8;
+}
+
+[data-theme="light"] .campus-create-guide-pill__icon {
+  color: #0284c7;
+}
+
+.campus-create-guide-pill__text {
+  line-height: 1;
+}
+
+@keyframes campus-pill-pop {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 6px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
 }
 
 .campus-marker--create {
@@ -1119,14 +1246,14 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 18px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--theme-border);
   background: var(--theme-bg-surface-elevated, var(--theme-bg-surface));
   flex-shrink: 0;
 }
 
 .campus-rail-card--create .campus-rail-title {
-  font-size: 0.9375rem;
+  font-size: 0.875rem;
   font-weight: 700;
   color: var(--theme-text-primary);
   letter-spacing: -0.01em;
@@ -1136,8 +1263,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   border-radius: 6px;
   border: 1px solid transparent;
   background: transparent;
@@ -1153,17 +1280,17 @@
 }
 
 .campus-rail-card--create .zone-modal-alert {
-  margin: 12px 18px 0;
-  padding: 8px 12px;
-  font-size: 0.8125rem;
-  border-radius: 8px;
+  margin: 8px 12px 0;
+  padding: 6px 10px;
+  font-size: 0.78125rem;
+  border-radius: 6px;
 }
 
 .campus-rail-card--create .campus-create-form-body {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 16px 18px;
+  gap: 9px;
+  padding: 10px 12px;
   flex: 1;
   overflow-y: auto;
   box-sizing: border-box;
@@ -1186,24 +1313,32 @@
 
 .campus-rail-card--create .campus-create-coord-badge svg {
   flex-shrink: 0;
-  color: var(--theme-primary);
+  color: inherit;
 }
 
 .campus-rail-card--create .campus-create-coord-badge--empty {
-  color: var(--theme-text-muted);
-  font-style: italic;
-  font-weight: 400;
+  background: rgba(100, 116, 139, 0.08);
+  border-color: rgba(100, 116, 139, 0.2);
+  color: var(--theme-text-muted, #64748b);
+  font-style: normal;
+  font-weight: 500;
+}
+
+[data-theme="dark"] .campus-rail-card--create .campus-create-coord-badge--empty {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
 }
 
 .campus-rail-card--create .area-form-group {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   margin: 0;
 }
 
 .campus-rail-card--create .area-form-label {
-  font-size: 0.8125rem;
+  font-size: 0.78125rem;
   font-weight: 600;
   color: var(--theme-text-secondary);
   margin: 0;
@@ -1211,8 +1346,8 @@
 
 .campus-rail-card--create .area-form-input {
   width: 100%;
-  height: 38px;
-  padding: 0 12px;
+  height: 34px;
+  padding: 0 10px;
   font-size: 0.84375rem;
   border-radius: 8px;
   border: 1px solid var(--theme-input-border, var(--theme-border));
@@ -1241,7 +1376,7 @@
 .campus-rail-card--create .area-level-grid {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 5px;
   width: 100%;
 }
 
@@ -1249,8 +1384,9 @@
   display: flex;
   align-items: center;
   width: 100%;
-  min-height: 40px;
-  padding: 8px 12px;
+  min-height: 32px;
+  height: 32px;
+  padding: 0 10px;
   border-radius: 8px;
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
@@ -1301,7 +1437,7 @@
 .campus-rail-card--create .area-level-btn--public.area-level-btn--active {
   background: var(--theme-level-pub-bg, #f0fdf4);
   border-color: var(--theme-success, #16a34a);
-  box-shadow: 0 0 0 1px var(--theme-success, #16a34a), inset 3px 0 0 0 var(--theme-success, #16a34a);
+  box-shadow: 0 0 0 1.5px var(--theme-success, #16a34a);
 }
 .campus-rail-card--create .area-level-btn--public.area-level-btn--active .area-level-btn__name {
   color: var(--theme-level-pub-text, #166534);
@@ -1319,7 +1455,7 @@
 .campus-rail-card--create .area-level-btn--internal.area-level-btn--active {
   background: var(--theme-level-semi-bg, #fffbeb);
   border-color: var(--theme-warning, #f59e0b);
-  box-shadow: 0 0 0 1px var(--theme-warning, #f59e0b), inset 3px 0 0 0 var(--theme-warning, #f59e0b);
+  box-shadow: 0 0 0 1.5px var(--theme-warning, #f59e0b);
 }
 .campus-rail-card--create .area-level-btn--internal.area-level-btn--active .area-level-btn__name {
   color: var(--theme-level-semi-text, #92400e);
@@ -1337,7 +1473,7 @@
 .campus-rail-card--create .area-level-btn--private.area-level-btn--active {
   background: var(--theme-level-priv-bg, #fef2f2);
   border-color: var(--theme-danger, #ef4444);
-  box-shadow: 0 0 0 1px var(--theme-danger, #ef4444), inset 3px 0 0 0 var(--theme-danger, #ef4444);
+  box-shadow: 0 0 0 1.5px var(--theme-danger, #ef4444);
 }
 .campus-rail-card--create .area-level-btn--private.area-level-btn--active .area-level-btn__name {
   color: var(--theme-level-priv-text, #991b1b);
@@ -1352,7 +1488,7 @@
 [data-theme="dark"] .campus-rail-card--create .area-level-btn--public.area-level-btn--active {
   background: rgba(34, 197, 94, 0.15);
   border-color: #22c55e;
-  box-shadow: 0 0 0 1px #22c55e, inset 3px 0 0 0 #22c55e;
+  box-shadow: 0 0 0 1.5px #22c55e;
 }
 [data-theme="dark"] .campus-rail-card--create .area-level-btn--public.area-level-btn--active .area-level-btn__name {
   color: #86efac;
@@ -1366,7 +1502,7 @@
 [data-theme="dark"] .campus-rail-card--create .area-level-btn--internal.area-level-btn--active {
   background: rgba(245, 158, 11, 0.15);
   border-color: #f59e0b;
-  box-shadow: 0 0 0 1px #f59e0b, inset 3px 0 0 0 #f59e0b;
+  box-shadow: 0 0 0 1.5px #f59e0b;
 }
 [data-theme="dark"] .campus-rail-card--create .area-level-btn--internal.area-level-btn--active .area-level-btn__name {
   color: #fcd34d;
@@ -1380,7 +1516,7 @@
 [data-theme="dark"] .campus-rail-card--create .area-level-btn--private.area-level-btn--active {
   background: rgba(239, 68, 68, 0.15);
   border-color: #ef4444;
-  box-shadow: 0 0 0 1px #ef4444, inset 3px 0 0 0 #ef4444;
+  box-shadow: 0 0 0 1.5px #ef4444;
 }
 [data-theme="dark"] .campus-rail-card--create .area-level-btn--private.area-level-btn--active .area-level-btn__name {
   color: #fca5a5;
@@ -1424,16 +1560,17 @@
 .campus-rail-card--create .campus-rail-footer {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 14px 18px;
+  padding: 10px 12px;
   border-top: 1px solid var(--theme-border);
   background: var(--theme-bg-surface-elevated, var(--theme-bg-surface));
   margin-top: auto;
   flex-shrink: 0;
+  box-sizing: border-box;
+  width: 100%;
 }
 
-.campus-rail-card--create .area-btn-modal {
-  flex: 1;
+.campus-rail-card--create .area-btn-modal--submit {
+  width: 100%;
   height: 38px;
   padding: 0 16px;
   border-radius: 8px;
@@ -1444,42 +1581,49 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  transition: all 0.16s ease;
+  transition: opacity 0.2s ease, filter 0.2s ease, transform 0.16s ease, background 0.16s ease;
   box-sizing: border-box;
   outline: none;
   font-family: inherit;
-}
-
-.campus-rail-card--create .area-btn-modal--cancel {
-  background: transparent;
-  border: 1px solid var(--theme-border);
-  color: var(--theme-text-primary);
-}
-.campus-rail-card--create .area-btn-modal--cancel:hover:not(:disabled) {
-  background: var(--theme-bg-hover);
-  border-color: var(--theme-border-hover);
-}
-.campus-rail-card--create .area-btn-modal--cancel:focus-visible {
-  box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.2);
-}
-
-.campus-rail-card--create .area-btn-modal--submit {
-  background: var(--theme-primary);
+  white-space: nowrap;
+  background: var(--brand-gradient, linear-gradient(135deg, #ff6b00 0%, #ea580c 100%));
   border: 1px solid transparent;
   color: #ffffff;
   box-shadow: 0 1px 2px var(--brand-glow);
 }
-.campus-rail-card--create .area-btn-modal--submit:hover:not(:disabled) {
+
+.campus-rail-card--create .area-btn-modal--submit:hover:not(:disabled):not(.area-btn-modal--submit-blurred) {
   background: var(--theme-primary-hover);
-  box-shadow: 0 4px 12px var(--brand-glow);
+  box-shadow: 0 4px 14px var(--brand-glow);
   transform: translateY(-1px);
 }
-.campus-rail-card--create .area-btn-modal--submit:active:not(:disabled) {
+
+.campus-rail-card--create .area-btn-modal--submit:active:not(:disabled):not(.area-btn-modal--submit-blurred) {
   transform: translateY(0);
 }
-.campus-rail-card--create .area-btn-modal--submit:disabled {
-  opacity: 0.5;
-  background: var(--theme-text-disabled);
+
+.campus-rail-card--create .area-btn-modal--submit:focus-visible {
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.35);
+}
+
+.campus-rail-card--create .area-btn-modal--submit.area-btn-modal--submit-blurred {
+  opacity: 0.38;
+  filter: blur(0.5px);
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none !important;
+}
+
+[data-theme="dark"] .campus-rail-card--create .area-btn-modal--submit.area-btn-modal--submit-blurred {
+  opacity: 0.38;
+  filter: blur(0.5px);
+  box-shadow: none;
+  transform: none !important;
+}
+
+.campus-rail-card--create .area-btn-modal--submit:disabled:not(.area-btn-modal--submit-blurred) {
+  opacity: 0.65;
+  background: #94a3b8;
   color: #ffffff;
   cursor: not-allowed;
   box-shadow: none;
