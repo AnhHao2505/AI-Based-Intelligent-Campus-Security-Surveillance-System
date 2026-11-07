@@ -1069,7 +1069,7 @@
 }
 
 .campus-coord-editor--create {
-  border-left: 4px solid var(--theme-primary);
+  box-shadow: inset 0 2px 0 0 var(--theme-primary);
 }
 
 .campus-marker--create {
@@ -1175,13 +1175,13 @@
   gap: 8px;
   padding: 10px 12px;
   border-radius: 8px;
-  background: rgba(234, 88, 12, 0.06);
-  border: 1px solid rgba(234, 88, 12, 0.22);
+  background: var(--theme-primary-subtle);
+  border: 1px solid var(--theme-primary-border);
   color: var(--theme-primary);
   font-size: 0.8125rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  box-shadow: 0 1px 2px rgba(234, 88, 12, 0.04);
+  box-shadow: 0 1px 2px var(--brand-glow);
 }
 
 .campus-rail-card--create .campus-create-coord-badge svg {
@@ -1230,7 +1230,7 @@
 .campus-rail-card--create .area-form-input:focus {
   outline: none;
   border-color: var(--theme-primary);
-  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.14);
+  box-shadow: 0 0 0 3px var(--theme-primary-subtle);
 }
 
 .campus-rail-card--create .area-form-input::placeholder {
@@ -1417,7 +1417,7 @@
 .campus-rail-card--create .ui-select-group--filter .ui-select__field:focus {
   outline: none;
   border-color: var(--theme-primary);
-  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.14);
+  box-shadow: 0 0 0 3px var(--theme-primary-subtle);
 }
 
 /* Footer & Buttons */
@@ -1467,11 +1467,11 @@
   background: var(--theme-primary);
   border: 1px solid transparent;
   color: #ffffff;
-  box-shadow: 0 1px 2px rgba(234, 88, 12, 0.2);
+  box-shadow: 0 1px 2px var(--brand-glow);
 }
 .campus-rail-card--create .area-btn-modal--submit:hover:not(:disabled) {
   background: var(--theme-primary-hover);
-  box-shadow: 0 4px 12px rgba(234, 88, 12, 0.35);
+  box-shadow: 0 4px 12px var(--brand-glow);
   transform: translateY(-1px);
 }
 .campus-rail-card--create .area-btn-modal--submit:active:not(:disabled) {

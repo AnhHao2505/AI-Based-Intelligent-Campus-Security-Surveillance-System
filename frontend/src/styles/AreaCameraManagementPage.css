@@ -7,7 +7,7 @@
   padding: 24px 32px;
   max-width: 1200px;
   margin: 0 auto;
-  background-color: var(--theme-bg-page);
+  background-color: transparent;
   min-height: calc(100vh - 64px);
   color: var(--theme-text-primary);
   display: flex;

@@ -1,10 +1,12 @@
 ---
 name: FPTU Campus Security Surveillance System
-description: Institutional Security Operations Center & Restricted Area Access Control
+description: Institutional Security Operations Center & Restricted Area Access Control (FPT Telecom Brand Aligned)
 colors:
-  primary: "#ea580c"
-  primary-hover: "#c2410c"
+  primary: "#f37021"
+  primary-hover: "#e05e10"
   primary-dark: "#f97316"
+  brand-blue: "#034ea2"
+  brand-green: "#0db14b"
   bg-page-light: "#f8fafc"
   bg-page-dark: "#080c14"
   surface-light: "#ffffff"
@@ -12,13 +14,13 @@ colors:
   surface-elevated-dark: "#151d30"
   border-light: "#e2e8f0"
   border-dark: "rgba(148, 163, 184, 0.14)"
-  success: "#059669"
+  success: "#0db14b"
   success-dark: "#34d399"
   warning: "#d97706"
   warning-dark: "#fbbf24"
   danger: "#dc2626"
   danger-dark: "#f87171"
-  info: "#0284c7"
+  info: "#034ea2"
   info-dark: "#38bdf8"
 typography:
   display:
@@ -61,13 +63,18 @@ components:
 # Design System
 
 ## Overview
-The FPTU Campus Security Surveillance System (FA26SE040) is an institutional command-and-control platform engineered for high-density campus surveillance, restricted area access enforcement, and sub-3-second intrusion triage. The visual language embodies operational calm, mission-critical authority, and high scanability.
+The FPTU Campus Security Surveillance System (FA26SE040) is an institutional command-and-control platform engineered for high-density campus surveillance, restricted area access enforcement, and sub-3-second intrusion triage, adhering to the FPT Telecom / FPT Corporation design system (fpt.vn). The visual language embodies operational calm, mission-critical authority, and high scanability.
 
 ## Colors & Atmospheres
-- **Primary Accent:** FPT Security Orange (`#ea580c` in light mode, `#f97316` in dark mode). Applied strictly for primary actions, selection states, and live camera indicators.
-- **Dual Mode Background Wave System:**
-  - **Dark Mode (`/images/bg-user-original-4k.jpg`):** Exact user-provided original graphic rendered at 4K resolution (3840 × 2560) with unsharp mask sharpening, styled via CSS filters: `hue-rotate(150deg) saturate(1.3) contrast(1.22) brightness(0.92)` with `image-rendering: -webkit-optimize-contrast`.
-  - **Light Mode (`/images/bg-light.png`):** 4K inverted counterpart of the exact graphic, cleanly rendering subtle orange wave dots over the `#f8fafc` canvas.
+- **Primary Accent:** Official FPT Telecom Orange (`#f37021` in light mode, `#f97316` in dark mode, hover `#e05e10`). Applied strictly for primary actions, selection states, and live camera indicators.
+- **Corporate Tri-Color Brand Mark:**
+  - FPT Blue: `#034ea2` (Representing intelligence, technology, reliability)
+  - FPT Orange: `#f37021` (Representing energy, innovation, core interactive CTA)
+  - FPT Green: `#0db14b` (Representing vitality, sustainability, verified security status)
+- **Pure CSS Institutional SOC Background System:**
+  - **Zero Heavy Bitmap Images:** Eliminates CPU-intensive image filters and multi-megabyte image assets, ensuring instant 0ms load and clean rendering across 1080p, 2K, 4K, and Retina displays.
+  - **Dark Mode (Command Center Obsidian):** Deep canvas `#080c14` with subtle dual ambient auras (FPT Security Orange at top-right, Corporate Blue at top-left) and a crisp sub-pixel telemetry dot-grid (`rgba(148, 163, 184, 0.14)` at 28px).
+  - **Light Mode:** Crisp `#f8fafc` surface with delicate ambient FPT aura and minimal micro-dot alignment grid (`rgba(148, 163, 184, 0.30)` at 28px).
 - **Dark Mode Surface Hierarchy (Command Center Obsidian):**
   - Page Canvas: `#080c14`
   - Base Surface: `#0e1422` (Translucent `rgba(14, 20, 34, 0.90)` with `backdrop-filter: blur(16px)`)
@@ -79,10 +86,10 @@ The FPTU Campus Security Surveillance System (FA26SE040) is an institutional com
   - Elevated Surface: `#f1f5f9`
   - Border: `#e2e8f0`
 - **Telemetry & Incident Severity:**
-  - Normal / Verified / Online: `#059669` (Light) / `#34d399` (Dark)
+  - Normal / Verified / Online: `#0db14b` (Light) / `#34d399` (Dark)
   - Warning / Loitering / Pending: `#d97706` (Light) / `#fbbf24` (Dark)
   - Critical / Intrusion / Unauthorized: `#dc2626` (Light) / `#f87171` (Dark)
-  - Information / Diagnostic / Camera Stream: `#0284c7` (Light) / `#38bdf8` (Dark)
+  - Information / Diagnostic / Camera Stream: `#034ea2` (Light) / `#38bdf8` (Dark)
 
 ## Typography
 - **Primary Interface Font:** `IBM Plex Sans` (400, 500, 600, 700). High legibility at small sizes, neutral geometry, and authoritative character suited for control rooms.

@@ -141,14 +141,14 @@
   width: 36px;
   height: 36px;
   border-radius: 9px;
-  background: var(--brand-identity-gradient);
+  background: var(--theme-bg-surface-elevated);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #ffffff;
-  box-shadow: 0 2px 8px rgba(29, 78, 216, 0.25);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   flex-shrink: 0;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--theme-border);
+  transition: all 0.2s ease;
 }
 
 .sidebar__title {

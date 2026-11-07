@@ -1197,7 +1197,7 @@ export default function CampusMapView({
 										>
 											<path
 												d="M12 0C5.373 0 0 5.373 0 12c0 8.5 12 20 12 20s12-11.5 12-20c0-6.627-5.373-12-12-12z"
-												fill="#ea580c"
+												fill="#f37021"
 												stroke="#ffffff"
 												strokeWidth="1.8"
 											/>

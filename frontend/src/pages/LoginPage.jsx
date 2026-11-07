@@ -9,6 +9,7 @@ import { useAuth } from "../context/AuthContext";
 import { ROLES, ROLE_LABELS } from "../constants/roles";
 import { sendResetLink, resetPasswordWithToken } from "../services/authService";
 import { DEMO_LOGIN_ENABLED } from "../config/demoConfig";
+import FptBrandLogo from "../components/common/FptBrandLogo";
 import "../styles/LoginPage.css";
 
 const credentialSchema = z.object({
@@ -245,38 +246,10 @@ export default function LoginPage({
 			<div className="login-card">
 				{/* Logo / Icon */}
 				<div className="login-card__icon">
-					<svg
-						width="48"
-						height="48"
-						viewBox="0 0 24 24"
-						fill="none"
-						xmlns="http://www.w3.org/2000/svg"
-					>
-						<path
-							d="M12 2L2 7L12 12L22 7L12 2Z"
-							stroke="currentColor"
-							strokeWidth="2"
-							strokeLinecap="round"
-							strokeLinejoin="round"
-						/>
-						<path
-							d="M2 17L12 22L22 17"
-							stroke="currentColor"
-							strokeWidth="2"
-							strokeLinecap="round"
-							strokeLinejoin="round"
-						/>
-						<path
-							d="M2 12L12 17L22 12"
-							stroke="currentColor"
-							strokeWidth="2"
-							strokeLinecap="round"
-							strokeLinejoin="round"
-						/>
-					</svg>
+					<FptBrandLogo height={38} />
 				</div>
 
-				<h1 className="login-card__title">Campus Security</h1>
+				<h1 className="login-card__title">FPTU SecureVision</h1>
 				<p className="login-card__subtitle">
 					{mode === "login" && "Hệ thống Giám sát An ninh Thông minh"}
 					{mode === "forgot" && "Khôi phục mật khẩu tài khoản"}

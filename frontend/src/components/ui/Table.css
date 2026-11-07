@@ -84,7 +84,7 @@
 
 /* Monospace code styling for codes (user_code, camera_code, area_code) */
 .ui-table__cell--code {
-  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.8125rem;
   font-weight: 600;
   color: var(--brand-text);

@@ -4,7 +4,7 @@
    ========================================================================== */
 
 .account-page {
-  background-color: var(--theme-bg-page);
+  background-color: transparent;
   min-height: calc(100vh - 64px);
   color: var(--theme-text-primary);
   font-family: inherit;

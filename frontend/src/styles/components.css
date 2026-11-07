@@ -337,15 +337,51 @@
 .account-tab-btn:active,
 .schedule-tab-btn:active,
 .syscfg-tab-btn:active,
+/* 5. Canva-Style Tab Transitions for all In-Page Tabs & Tab Panels */
+[role="tabpanel"],
+.tab-content,
+.tab-pane,
+.tab-panel,
+.canva-tab-transition {
+  animation: canvaTabSlideIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: transform, opacity;
+}
+
+@keyframes canvaTabSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.995);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Tab buttons: smooth Canva interactive pill transitions */
+.status-tabs__tab,
+.login-card__tab,
+.tab-btn,
+[role="tab"] {
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.status-tabs__tab:hover,
+.login-card__tab:hover,
+.tab-btn:hover,
+[role="tab"]:hover {
+  transform: translateY(-1px);
+}
+
 .status-tabs__tab:active,
 .login-card__tab:active,
 .tab-btn:active,
 [role="tab"]:active {
-  transform: scale(0.98);
+  transform: scale(0.97) !important;
 }
 
 /* 6. Page View Transitions (Router View Fades) */
-.app-layout__content > div {
+.app-layout__content > div:not(.canva-page-transition) {
   animation: unifiedPageViewFadeIn 0.24s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -357,6 +393,99 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* ==========================================================================
+   7. Global Box Glowing Shadow on Hover
+   Applies an ambient FPT glowing aura and subtle elevation lift to all boxes
+   ========================================================================== */
+.ui-card,
+.ui-table-wrapper,
+.stat-card,
+.metric-card,
+.dashboard-card,
+.summary-card,
+.filter-card,
+.table-container,
+.account-table-wrap,
+.zone-table-container,
+.schedule-matrix-wrap,
+.campus-rail-card,
+.area-camera-item,
+.guard-card,
+.login-card,
+.box-card,
+.detail-card,
+.info-card,
+.action-card {
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), 
+              box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1), 
+              border-color 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.ui-card:hover,
+.ui-table-wrapper:hover,
+.stat-card:hover,
+.metric-card:hover,
+.dashboard-card:hover,
+.summary-card:hover,
+.filter-card:hover,
+.table-container:hover,
+.account-table-wrap:hover,
+.zone-table-container:hover,
+.schedule-matrix-wrap:hover,
+.campus-rail-card:hover,
+.area-camera-item:hover,
+.guard-card:hover,
+.login-card:hover,
+.box-card:hover,
+.detail-card:hover,
+.info-card:hover,
+.action-card:hover {
+  border-color: var(--theme-border-hover);
+  box-shadow: var(--theme-card-shadow-hover) !important;
+  transform: translateY(-2px);
+}
+
+.ui-card:active,
+.stat-card:active,
+.metric-card:active,
+.dashboard-card:active,
+.campus-rail-card:active,
+.area-camera-item:active,
+.guard-card:active,
+.box-card:active {
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [role="tabpanel"],
+  .tab-content,
+  .tab-pane,
+  .tab-panel,
+  .canva-tab-transition,
+  .ui-card,
+  .ui-table-wrapper,
+  .stat-card,
+  .metric-card,
+  .dashboard-card,
+  .summary-card,
+  .filter-card,
+  .table-container,
+  .account-table-wrap,
+  .zone-table-container,
+  .schedule-matrix-wrap,
+  .campus-rail-card,
+  .area-camera-item,
+  .guard-card,
+  .login-card,
+  .box-card,
+  .detail-card,
+  .info-card,
+  .action-card {
+    animation: none !important;
+    transform: none !important;
   }
 }
 
