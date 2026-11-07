@@ -21,6 +21,9 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     @Query("SELECT u FROM User u WHERE u.deletedAt IS NULL AND LOWER(u.email) = LOWER(:email)")
     Optional<User> findByEmail(@Param("email") String email);
 
+    @Query("SELECT u FROM User u WHERE u.deletedAt IS NOT NULL AND LOWER(u.email) = LOWER(:email) ORDER BY u.deletedAt DESC")
+    List<User> findDeletedByEmail(@Param("email") String email);
+
     @Query("SELECT u FROM User u WHERE u.deletedAt IS NULL AND u.isActive = true AND LOWER(u.email) = LOWER(:email)")
     Optional<User> findByEmailAndIsActiveTrue(@Param("email") String email);
 

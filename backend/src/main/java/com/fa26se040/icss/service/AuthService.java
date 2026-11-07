@@ -107,10 +107,12 @@ public class AuthService {
         String email = request.getEmail() != null ? request.getEmail().trim() : "";
         log.info("Authenticating local user with email: {}", email);
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> {
-                    log.warn("Authentication failed: Account not found for email: {}", email);
-                    return new UnauthorizedException("Tài khoản không tồn tại trên hệ thống");
-                });
+                .orElseGet(() -> userRepository.findDeletedByEmail(email).stream().findFirst().orElse(null));
+
+        if (user == null) {
+            log.warn("Authentication failed: Account not found for email: {}", email);
+            throw new UnauthorizedException("Tài khoản không tồn tại trên hệ thống");
+        }
 
         if (user.getDeletedAt() != null || !Boolean.TRUE.equals(user.getIsActive())) {
             log.warn("Authentication failed: User account is inactive or deleted: {}", email);
@@ -154,10 +156,12 @@ public class AuthService {
             log.info("Google token verified successfully for email: {}", email);
 
             User user = userRepository.findByEmail(email)
-                    .orElseThrow(() -> {
-                        log.warn("User email not found: {}", email);
-                        return new UnauthorizedException("Tài khoản không tồn tại trên hệ thống");
-                    });
+                    .orElseGet(() -> userRepository.findDeletedByEmail(email).stream().findFirst().orElse(null));
+
+            if (user == null) {
+                log.warn("User email not found: {}", email);
+                throw new UnauthorizedException("Tài khoản không tồn tại trên hệ thống");
+            }
 
             if (user.getDeletedAt() != null || !Boolean.TRUE.equals(user.getIsActive())) {
                 log.warn("User email inactive or deleted: {}", email);
