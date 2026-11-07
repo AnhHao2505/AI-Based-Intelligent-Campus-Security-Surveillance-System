@@ -30,6 +30,7 @@ import {
 	LocateFixed,
 	Globe,
 	Menu,
+	Check,
 } from "lucide-react";
 import {
 	getLevelConfig,
@@ -80,9 +81,24 @@ const OSM_STYLE = {
 const LABEL_MIN_ZOOM = 18.2;
 
 const AREA_LEVEL_CARDS = [
-	{ value: "PUBLIC", name: "Công khai", level: 1, color: "var(--theme-success)" },
-	{ value: "CONFIDENTIAL", name: "Bảo mật", level: 2, color: "var(--theme-warning)" },
-	{ value: "HIGHLY_CONFIDENTIAL", name: "Tuyệt mật", level: 3, color: "var(--theme-danger)" },
+	{
+		value: "PUBLIC",
+		name: "Công khai",
+		level: 1,
+		color: "var(--theme-success)",
+	},
+	{
+		value: "CONFIDENTIAL",
+		name: "Bảo mật",
+		level: 2,
+		color: "var(--theme-warning)",
+	},
+	{
+		value: "HIGHLY_CONFIDENTIAL",
+		name: "Tuyệt mật",
+		level: 3,
+		color: "var(--theme-danger)",
+	},
 ];
 
 const AREA_LEVEL_BTN_CLASS = {
@@ -254,15 +270,25 @@ export default function CampusMapView({
 			} else if (located.length > 1) {
 				const bounds = located.reduce(
 					(b, a) => [
-						[Math.min(b[0][0], a.centerLongitude), Math.min(b[0][1], a.centerLatitude)],
-						[Math.max(b[1][0], a.centerLongitude), Math.max(b[1][1], a.centerLatitude)],
+						[
+							Math.min(b[0][0], a.centerLongitude),
+							Math.min(b[0][1], a.centerLatitude),
+						],
+						[
+							Math.max(b[1][0], a.centerLongitude),
+							Math.max(b[1][1], a.centerLatitude),
+						],
 					],
 					[
 						[located[0].centerLongitude, located[0].centerLatitude],
 						[located[0].centerLongitude, located[0].centerLatitude],
 					],
 				);
-				mapRef.current.fitBounds(bounds, { padding: 60, maxZoom: 18, duration: 800 });
+				mapRef.current.fitBounds(bounds, {
+					padding: 60,
+					maxZoom: 18,
+					duration: 800,
+				});
 			}
 		}
 	}, [selectedBuilding, selectedFloor, areas, isCreatingArea, isEditingCoords]);
@@ -272,7 +298,10 @@ export default function CampusMapView({
 		if (bObj?.floors?.length > 0) {
 			return bObj.floors;
 		}
-		return [{ id: null, name: "Tầng Trệt" }, { id: null, name: "Tầng 1" }];
+		return [
+			{ id: null, name: "Tầng Trệt" },
+			{ id: null, name: "Tầng 1" },
+		];
 	}, [buildingsList, createFormData.building]);
 
 	const handleCreateBuildingChange = (bName) => {
@@ -296,6 +325,8 @@ export default function CampusMapView({
 			floorId: floorObj?.id || null,
 		}));
 	};
+
+	const isCreateFormIncomplete = !createDraftCoords || !createFormData.name.trim();
 
 	const handleCreateAreaSubmit = async (e) => {
 		e?.preventDefault?.();
@@ -336,9 +367,6 @@ export default function CampusMapView({
 			setCreatingAreaLoading(false);
 		}
 	};
-
-
-
 
 	const selectedArea = useMemo(() => {
 		return areas.find((a) => a.id === selectedAreaId) || null;
@@ -798,7 +826,11 @@ export default function CampusMapView({
 							type="button"
 							className="campus-map-collapse-btn"
 							onClick={onToggleLeftSidebar}
-							title={isLeftSidebarCollapsed ? "Mở danh sách khu vực" : "Thu gọn danh sách khu vực (Mở rộng bản đồ)"}
+							title={
+								isLeftSidebarCollapsed
+									? "Mở danh sách khu vực"
+									: "Thu gọn danh sách khu vực (Mở rộng bản đồ)"
+							}
 							aria-label="Thu gọn/Mở rộng danh sách khu vực"
 						>
 							<Menu size={16} />
@@ -950,7 +982,6 @@ export default function CampusMapView({
 						<Compass size={14} />
 					</button>
 
-
 					<button
 						type="button"
 						className="campus-map-btn-icon"
@@ -965,45 +996,31 @@ export default function CampusMapView({
 					</button>
 				</div>
 
-				{/* Banner nổi tạo khu vực trên bản đồ (Map-First) */}
+				{/* Chip chỉ dẫn tạo khu vực gọn gàng trên bản đồ */}
 				{isCreatingArea && (
-					<div className="campus-coord-editor campus-coord-editor--create">
-						<div className="campus-coord-editor__head">
-							<Crosshair size={14} />
-							<span>
-								{createDraftCoords
-									? "Đã chọn tọa độ trên bản đồ"
-									: "Chế độ tạo: Nhấp vào bản đồ để chọn vị trí"}
-							</span>
-						</div>
-						<p className="campus-coord-editor__hint">
+					<div
+						className="campus-create-guide-pill"
+						role="status"
+						aria-live="polite"
+					>
+						<span className="campus-create-guide-pill__icon">
+							{createDraftCoords ? (
+								<Check
+									size={13}
+									strokeWidth={2.5}
+								/>
+							) : (
+								<Crosshair
+									size={13}
+									strokeWidth={2.5}
+								/>
+							)}
+						</span>
+						<span className="campus-create-guide-pill__text">
 							{createDraftCoords
-								? "Bạn có thể kéo ghim để tinh chỉnh hoặc hoàn tất form ở cột bên phải."
-								: "Nhấp vào bất kỳ điểm nào trên bản đồ để đặt vị trí cho khu vực mới."}
-						</p>
-						<div className="campus-coord-editor__values">
-							<span>
-								Vĩ độ{" "}
-								<code>{createDraftCoords ? createDraftCoords[1].toFixed(6) : "—"}</code>
-							</span>
-							<span>
-								Kinh độ{" "}
-								<code>{createDraftCoords ? createDraftCoords[0].toFixed(6) : "—"}</code>
-							</span>
-						</div>
-						<div className="campus-coord-editor__actions">
-							<button
-								type="button"
-								className="campus-coord-btn campus-coord-btn--cancel"
-								onClick={() => {
-									setCreateDraftCoords(null);
-									setCreateFormError(null);
-								onCancelCreateArea?.();
-								}}
-							>
-								Hủy tạo
-							</button>
-						</div>
+								? "Đã chọn vị trí · Kéo ghim để chỉnh lại"
+								: "Nhấp vào bản đồ"}
+						</span>
 					</div>
 				)}
 
@@ -1210,9 +1227,7 @@ export default function CampusMapView({
 									className="campus-pin-marker campus-pin-marker--draft"
 									title="Vị trí vùng mới (Kéo để chỉnh vị trí)"
 								>
-									<span className="campus-pin-marker__label">
-										Vùng mới
-									</span>
+									<span className="campus-pin-marker__label">Vùng mới</span>
 									<div className="campus-pin-marker__icon-wrap">
 										<svg
 											className="campus-pin-marker__svg"
@@ -1307,322 +1322,328 @@ export default function CampusMapView({
 						<span className="campus-map-legend__dot campus-map-legend__dot--private" />
 						<span>{AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.badgeLabel}</span>
 					</div>
-
 				</div>
 			</div>
 
 			{/* RIGHT RAIL: AREAS LIST & DETAILS OR CREATE PANEL */}
 			{(!hideRail || isCreatingArea) && (
 				<div className="campus-rail">
-				{isCreatingArea ? (
-					<div className="campus-rail-card campus-rail-card--create">
-						<div className="campus-rail-header">
-							<span className="campus-rail-title">Thêm vùng mới</span>
-							<button
-								type="button"
-								className="campus-rail-close-btn"
-								onClick={() => {
-									setCreateDraftCoords(null);
-									setCreateFormError(null);
-									onCancelCreateArea?.();
-								}}
-								aria-label="Đóng"
-							>
-								<X size={14} />
-							</button>
-						</div>
-
-						{createFormError && (
-							<div className="zone-modal-alert">
-								<AlertCircle size={15} />
-								<span>{createFormError}</span>
-							</div>
-						)}
-
-						<div className="campus-create-form-body">
-							<div className="campus-create-coord-badge">
-								<MapPin size={14} />
-								{createDraftCoords ? (
-									<span>
-										Tọa độ: {createDraftCoords[1]}, {createDraftCoords[0]}
-									</span>
-								) : (
-									<span className="campus-create-coord-badge--empty">
-										Chưa chọn tọa độ (nhấp lên bản đồ)
-									</span>
-								)}
+					{isCreatingArea ? (
+						<div className="campus-rail-card campus-rail-card--create">
+							<div className="campus-rail-header">
+								<span className="campus-rail-title">Thêm vùng mới</span>
+								<button
+									type="button"
+									className="campus-rail-close-btn"
+									onClick={() => {
+										setCreateDraftCoords(null);
+										setCreateFormError(null);
+										onCancelCreateArea?.();
+									}}
+									aria-label="Đóng"
+								>
+									<X size={14} />
+								</button>
 							</div>
 
-							<div className="area-form-group">
-								<label className="area-form-label">Tên khu vực *</label>
-								<input
-									type="text"
-									className="area-form-input"
-									placeholder="Ví dụ: Phòng Lab Công nghệ A"
-									value={createFormData.name}
-									onChange={(e) =>
-										setCreateFormData((prev) => ({
-											...prev,
-											name: e.target.value,
-										}))
-									}
-								/>
-							</div>
-
-							<div className="area-form-group">
-								<label className="area-form-label">Cấp độ an ninh *</label>
-								<div className="area-level-grid">
-									{AREA_LEVEL_CARDS.map((lvl) => (
-										<button
-											key={lvl.value}
-											type="button"
-											className={`area-level-btn ${
-												createFormData.areaLevel === lvl.value
-													? "area-level-btn--active"
-													: ""
-											} ${AREA_LEVEL_BTN_CLASS[lvl.value] || ""}`}
-											onClick={() =>
-												setCreateFormData((prev) => ({
-													...prev,
-													areaLevel: lvl.value,
-												}))
-											}
-										>
-											<div className="area-level-btn__header">
-												<span className="area-level-btn__name">
-													{lvl.name}
-												</span>
-												<span className="area-level-btn__badge">
-													Cấp {lvl.level}
-												</span>
-											</div>
-										</button>
-									))}
+							{createFormError && (
+								<div className="zone-modal-alert">
+									<AlertCircle size={15} />
+									<span>{createFormError}</span>
 								</div>
-							</div>
+							)}
 
-							<div className="area-form-group">
-								<label className="area-form-label">Tòa nhà *</label>
-								<Select
-									className="ui-select-group--filter"
-									value={createFormData.building}
-									onChange={(e) => handleCreateBuildingChange(e.target.value)}
-									options={buildingsList.map((b) => ({
-										value: b.name,
-										label: b.name,
-									}))}
-								/>
-							</div>
-
-							<div className="area-form-group">
-								<label className="area-form-label">Tầng *</label>
-								<Select
-									className="ui-select-group--filter"
-									value={createFormData.floor}
-									onChange={(e) => handleCreateFloorChange(e.target.value)}
-									options={availableCreateFloors.map((fl) => ({
-										value: fl.name,
-										label: fl.name,
-									}))}
-								/>
-							</div>
-						</div>
-
-						<div className="campus-rail-footer">
-							<button
-								type="button"
-								className="area-btn-modal area-btn-modal--cancel"
-								onClick={() => {
-									setCreateDraftCoords(null);
-									setCreateFormError(null);
-									onCancelCreateArea?.();
-								}}
-								disabled={creatingAreaLoading}
-							>
-								Hủy
-							</button>
-							<button
-								type="button"
-								className="area-btn-modal area-btn-modal--submit"
-								onClick={handleCreateAreaSubmit}
-								disabled={
-									creatingAreaLoading ||
-									!createDraftCoords ||
-									!createFormData.name.trim()
-								}
-							>
-								{creatingAreaLoading ? (
-									<>
-										<Loader2 size={14} className="animate-spin" />
-										<span>Đang tạo...</span>
-									</>
-								) : (
-									"Tạo khu vực"
-								)}
-							</button>
-						</div>
-					</div>
-				) : (
-				<>
-				{/* Card 1: Area List */}
-				<div className="campus-rail-card campus-rail-card--list">
-					<div className="campus-rail-header">
-						<span className="campus-rail-title">
-							Khu vực khuôn viên (
-							{searchTerm.trim()
-								? `${searchMatches.length}/${areas.length}`
-								: areas.length}
-							)
-						</span>
-						{unpositionedCount > 0 && (
-							<span
-								className="campus-rail-unpositioned-note"
-								title="Các khu vực chưa được cập nhật tọa độ GPS trong CSDL"
-							>
-								{unpositionedCount} chưa định vị
-							</span>
-						)}
-					</div>
-
-					<div className="campus-rail-list">
-						{searchMatches.length === 0 ? (
-							<div className="campus-detail-empty">
-								{areas.length === 0
-									? "Chưa có khu vực nào trong hệ thống"
-									: "Không có khu vực khớp từ khoá tìm kiếm"}
-							</div>
-						) : (
-							searchMatches.map((area) => {
-								const isSelected = selectedAreaId === area.id;
-								const levelKey =
-									typeof area.areaLevel === "string"
-										? area.areaLevel.toLowerCase()
-										: (area.level?.code || "PUBLIC").toLowerCase();
-								const validCoords = getValidCoordinates(area);
-								const pos = positionedAreas.find((p) => p.id === area.id);
-								const targetCoords = pos ? pos.baseCoords : validCoords;
-
-								return (
-									<div
-										key={area.id}
-										className={`campus-rail-item ${isSelected ? "campus-rail-item--selected" : ""}`}
-										onClick={() => handleSelectAreaItem(area.id, targetCoords)}
-									>
-										<div className="campus-rail-item__left">
-											<span
-												className={`campus-level-dot campus-level-dot--${levelKey}`}
-											/>
-											<span className="campus-rail-item__name">
-												{area.name}
-											</span>
-										</div>
-
-										<div className="campus-rail-item__right">
-											{!validCoords ?? (
-												<span className="campus-tag-unpositioned">
-													Chưa có GPS
-												</span>
-												/* Do not add level */
-											)}
-										</div>
-									</div>
-								);
-							})
-						)}
-					</div>
-				</div>
-
-				{/* Card 2: Selected Area or Guard Detail */}
-				<div
-					className={`campus-rail-card campus-rail-card--detail ${!selectedArea ? "campus-rail-card--detail-empty" : ""}`}
-				>
-					{!selectedArea ? (
-						<div className="campus-detail-empty">
-							<p>
-								Chọn một khu vực trên bản đồ để xem chi tiết.
-							</p>
-						</div>
-					) : (
-						<div className="campus-detail-content">
-							<div className="campus-detail-header">
-								<h3 className="campus-detail-title">{selectedArea.name}</h3>
-								{(selectedArea.building || selectedArea.floor) && (
-									<div className="campus-detail-location">
-										{selectedArea.building && (
-											<span className="campus-detail-location__item">
-												<Building2 size={12} />
-												{selectedArea.building}
-											</span>
-										)}
-										{selectedArea.building && selectedArea.floor && (
-											<span className="campus-detail-location__sep">·</span>
-										)}
-										{selectedArea.floor && (
-											<span className="campus-detail-location__item">
-												<Layers size={12} />
-												{selectedArea.floor}
-											</span>
-										)}
-									</div>
-								)}
-							</div>
-
-							<div className="campus-detail-meta">
-								<div className="campus-detail-meta-row">
-									<span className="campus-detail-meta-label">Loại</span>
-									<span className="campus-detail-meta-val">
-										{
-											getLevelConfig(
-												selectedArea.areaLevel || selectedArea.level,
-											).name
-										}
-									</span>
-								</div>
-								<div className="campus-detail-meta-row">
-									<span className="campus-detail-meta-label">Cấp truy cập</span>
-									<span
-										className="campus-detail-meta-val"
-										title="Cấp tối thiểu để được vào thẳng (cấp cố định theo loại khu vực)"
-									>
-										{getAccessLevelConfig(selectedArea.areaAccessLevel).label}
-									</span>
-								</div>
-								<div className="campus-detail-meta-row">
-									<span className="campus-detail-meta-label">Tọa độ GPS</span>
-									{selectedArea.centerLatitude != null &&
-									selectedArea.centerLongitude != null ? (
-										<span className="campus-detail-meta-val campus-detail-meta-val--coords">
-											{Number(selectedArea.centerLatitude).toFixed(5)},{" "}
-											{Number(selectedArea.centerLongitude).toFixed(5)}
+							<div className="campus-create-form-body">
+								<div
+									className={`campus-create-coord-badge ${
+										!createDraftCoords ? "campus-create-coord-badge--empty" : ""
+									}`}
+								>
+									<MapPin size={14} />
+									{createDraftCoords ? (
+										<span>
+											Tọa độ: {createDraftCoords[1]}, {createDraftCoords[0]}
 										</span>
 									) : (
-										<span className="campus-detail-meta-val text-warning">
-											Chưa có tọa độ
+										<span>Chưa chọn tọa độ (nhấp lên bản đồ)</span>
+									)}
+								</div>
+
+								<div className="area-form-group">
+									<label className="area-form-label">Tên khu vực *</label>
+									<input
+										type="text"
+										className="area-form-input"
+										placeholder="Ví dụ: Phòng Lab Công nghệ A"
+										value={createFormData.name}
+										onChange={(e) => {
+											setCreateFormData((prev) => ({
+												...prev,
+												name: e.target.value,
+											}));
+											if (createFormError) setCreateFormError(null);
+										}}
+									/>
+								</div>
+
+								<div className="area-form-group">
+									<label className="area-form-label">Cấp độ an ninh *</label>
+									<div className="area-level-grid">
+										{AREA_LEVEL_CARDS.map((lvl) => (
+											<button
+												key={lvl.value}
+												type="button"
+												className={`area-level-btn ${
+													createFormData.areaLevel === lvl.value
+														? "area-level-btn--active"
+														: ""
+												} ${AREA_LEVEL_BTN_CLASS[lvl.value] || ""}`}
+												onClick={() =>
+													setCreateFormData((prev) => ({
+														...prev,
+														areaLevel: lvl.value,
+													}))
+												}
+											>
+												<div className="area-level-btn__header">
+													<span className="area-level-btn__name">
+														{lvl.name}
+													</span>
+													<span className="area-level-btn__badge">
+														Cấp {lvl.level}
+													</span>
+												</div>
+											</button>
+										))}
+									</div>
+								</div>
+
+								<div className="area-form-group">
+									<label className="area-form-label">Tòa nhà *</label>
+									<Select
+										className="ui-select-group--filter"
+										value={createFormData.building}
+										onChange={(e) => handleCreateBuildingChange(e.target.value)}
+										options={buildingsList.map((b) => ({
+											value: b.name,
+											label: b.name,
+										}))}
+									/>
+								</div>
+
+								<div className="area-form-group">
+									<label className="area-form-label">Tầng *</label>
+									<Select
+										className="ui-select-group--filter"
+										value={createFormData.floor}
+										onChange={(e) => handleCreateFloorChange(e.target.value)}
+										options={availableCreateFloors.map((fl) => ({
+											value: fl.name,
+											label: fl.name,
+										}))}
+									/>
+								</div>
+							</div>
+
+							<div className="campus-rail-footer">
+								<button
+									type="button"
+									className={`area-btn-modal area-btn-modal--submit ${
+										isCreateFormIncomplete ? "area-btn-modal--submit-blurred" : ""
+									}`}
+									onClick={handleCreateAreaSubmit}
+									disabled={creatingAreaLoading}
+									title={
+										!createDraftCoords
+											? "Vui lòng chọn tọa độ trên bản đồ"
+											: !createFormData.name.trim()
+												? "Vui lòng nhập tên khu vực"
+												: "Xác nhận tạo khu vực mới"
+									}
+								>
+									{creatingAreaLoading ? (
+										<>
+											<Loader2 size={14} className="animate-spin" />
+											<span>Đang tạo...</span>
+										</>
+									) : (
+										"Xác nhận tạo"
+									)}
+								</button>
+							</div>
+						</div>
+					) : (
+						<>
+							{/* Card 1: Area List */}
+							<div className="campus-rail-card campus-rail-card--list">
+								<div className="campus-rail-header">
+									<span className="campus-rail-title">
+										Khu vực khuôn viên (
+										{searchTerm.trim()
+											? `${searchMatches.length}/${areas.length}`
+											: areas.length}
+										)
+									</span>
+									{unpositionedCount > 0 && (
+										<span
+											className="campus-rail-unpositioned-note"
+											title="Các khu vực chưa được cập nhật tọa độ GPS trong CSDL"
+										>
+											{unpositionedCount} chưa định vị
 										</span>
 									)}
 								</div>
-								{/* Do not add camera count */}
+
+								<div className="campus-rail-list">
+									{searchMatches.length === 0 ? (
+										<div className="campus-detail-empty">
+											{areas.length === 0
+												? "Chưa có khu vực nào trong hệ thống"
+												: "Không có khu vực khớp từ khoá tìm kiếm"}
+										</div>
+									) : (
+										searchMatches.map((area) => {
+											const isSelected = selectedAreaId === area.id;
+											const levelKey =
+												typeof area.areaLevel === "string"
+													? area.areaLevel.toLowerCase()
+													: (area.level?.code || "PUBLIC").toLowerCase();
+											const validCoords = getValidCoordinates(area);
+											const pos = positionedAreas.find((p) => p.id === area.id);
+											const targetCoords = pos ? pos.baseCoords : validCoords;
+
+											return (
+												<div
+													key={area.id}
+													className={`campus-rail-item ${isSelected ? "campus-rail-item--selected" : ""}`}
+													onClick={() =>
+														handleSelectAreaItem(area.id, targetCoords)
+													}
+												>
+													<div className="campus-rail-item__left">
+														<span
+															className={`campus-level-dot campus-level-dot--${levelKey}`}
+														/>
+														<span className="campus-rail-item__name">
+															{area.name}
+														</span>
+													</div>
+
+													<div className="campus-rail-item__right">
+														{!validCoords ?? (
+															<span className="campus-tag-unpositioned">
+																Chưa có GPS
+															</span>
+															/* Do not add level */
+														)}
+													</div>
+												</div>
+											);
+										})
+									)}
+								</div>
 							</div>
 
-							{isAdmin && editingAreaId !== selectedArea.id && (
-								<button
-									type="button"
-									id="campus-coord-edit-btn"
-									className="campus-coord-btn campus-coord-btn--primary campus-coord-btn--block"
-									onClick={handleStartEditCoords}
-								>
-									<Crosshair size={13} />
-									{getValidCoordinates(selectedArea)
-										? "Chỉnh vị trí trên bản đồ"
-										: "Đặt vị trí trên bản đồ"}
-								</button>
-							)}
-						</div>
+							{/* Card 2: Selected Area or Guard Detail */}
+							<div
+								className={`campus-rail-card campus-rail-card--detail ${!selectedArea ? "campus-rail-card--detail-empty" : ""}`}
+							>
+								{!selectedArea ? (
+									<div className="campus-detail-empty">
+										<p>Chọn một khu vực trên bản đồ để xem chi tiết.</p>
+									</div>
+								) : (
+									<div className="campus-detail-content">
+										<div className="campus-detail-header">
+											<h3 className="campus-detail-title">
+												{selectedArea.name}
+											</h3>
+											{(selectedArea.building || selectedArea.floor) && (
+												<div className="campus-detail-location">
+													{selectedArea.building && (
+														<span className="campus-detail-location__item">
+															<Building2 size={12} />
+															{selectedArea.building}
+														</span>
+													)}
+													{selectedArea.building && selectedArea.floor && (
+														<span className="campus-detail-location__sep">
+															·
+														</span>
+													)}
+													{selectedArea.floor && (
+														<span className="campus-detail-location__item">
+															<Layers size={12} />
+															{selectedArea.floor}
+														</span>
+													)}
+												</div>
+											)}
+										</div>
+
+										<div className="campus-detail-meta">
+											<div className="campus-detail-meta-row">
+												<span className="campus-detail-meta-label">Loại</span>
+												<span className="campus-detail-meta-val">
+													{
+														getLevelConfig(
+															selectedArea.areaLevel || selectedArea.level,
+														).name
+													}
+												</span>
+											</div>
+											<div className="campus-detail-meta-row">
+												<span className="campus-detail-meta-label">
+													Cấp truy cập
+												</span>
+												<span
+													className="campus-detail-meta-val"
+													title="Cấp tối thiểu để được vào thẳng (cấp cố định theo loại khu vực)"
+												>
+													{
+														getAccessLevelConfig(selectedArea.areaAccessLevel)
+															.label
+													}
+												</span>
+											</div>
+											<div className="campus-detail-meta-row">
+												<span className="campus-detail-meta-label">
+													Tọa độ GPS
+												</span>
+												{selectedArea.centerLatitude != null &&
+												selectedArea.centerLongitude != null ? (
+													<span className="campus-detail-meta-val campus-detail-meta-val--coords">
+														{Number(selectedArea.centerLatitude).toFixed(5)},{" "}
+														{Number(selectedArea.centerLongitude).toFixed(5)}
+													</span>
+												) : (
+													<span className="campus-detail-meta-val text-warning">
+														Chưa có tọa độ
+													</span>
+												)}
+											</div>
+											{/* Do not add camera count */}
+										</div>
+
+										{isAdmin && editingAreaId !== selectedArea.id && (
+											<button
+												type="button"
+												id="campus-coord-edit-btn"
+												className="campus-coord-btn campus-coord-btn--primary campus-coord-btn--block"
+												onClick={handleStartEditCoords}
+											>
+												<Crosshair size={13} />
+												{getValidCoordinates(selectedArea)
+													? "Chỉnh vị trí trên bản đồ"
+													: "Đặt vị trí trên bản đồ"}
+											</button>
+										)}
+									</div>
+								)}
+							</div>
+						</>
 					)}
 				</div>
-				</>
-				)}
-			</div>
 			)}
 		</div>
 	);

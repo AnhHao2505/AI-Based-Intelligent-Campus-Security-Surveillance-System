@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import {
 	Building2,
@@ -15,11 +15,9 @@ import {
 	MapPinPlus,
 	Search,
 	AlertTriangle,
-	Compass,
 	Info,
 	ExternalLink,
 	RotateCcw,
-	Archive,
 } from "lucide-react";
 import AreaAssignedPersonnelModal from "../../components/area/AreaAssignedPersonnelModal";
 import AreaListView from "../../components/area/AreaListView";
@@ -27,8 +25,7 @@ import CampusMapView from "../../components/area/CampusMapView";
 import ErrorBoundary from "../../components/common/ErrorBoundary";
 import AreaTypeChangePreviewModal from "../../components/area/AreaTypeChangePreviewModal";
 import PageHeader from "../../components/ui/PageHeader";
-import { LoadingState, EmptyState, ErrorState, Select } from "../../components/ui";
-import { formatLocation } from "../../utils/formatLocation";
+import { LoadingState, ErrorState, Select } from "../../components/ui";
 import ReasonTextarea from "../../components/ui/ReasonTextarea";
 import "../../components/ui/Button.css";
 import {
@@ -45,7 +42,6 @@ import { getBuildings } from "../../services/buildingService";
 import {
 	AREA_LEVEL_OPTIONS,
 	getErrorMessage,
-	getLevelConfig,
 	normalizeAreaName,
 	validateAreaName,
 } from "../../utils/areaHelpers";
@@ -489,34 +485,6 @@ export default function AreaListPage() {
 		}
 	};
 
-	// Modal Handlers
-	const handleOpenCreateModal = () => {
-		const currentB =
-			selectedBuilding || availableBuildings[0]?.name || "Tòa Alpha";
-		const bObj = availableBuildings.find((b) => b.name === currentB);
-		const floorsForB = bObj?.floors || [];
-		const currentF =
-			selectedFloor && selectedFloor !== "ALL"
-				? selectedFloor
-				: floorsForB[0]?.name || "Tầng Trệt";
-		const currentFloorId =
-			floorsForB.find((f) => f.name === currentF)?.id || null;
-
-		setFormData({
-			name: "",
-			areaLevel: "PUBLIC",
-			building: currentB,
-			floor: currentF,
-			floorId: currentFloorId,
-			centerLatitude: "",
-			centerLongitude: "",
-			reason: "",
-		});
-		setModalError(null);
-		setNameError(null);
-		setCreateModalOpen(true);
-	};
-
 	// Lỗi khoảng giá trị của từng ô; BR-AR-COORD-02 (chỉ nhập một ô) hiện dưới ô đang trống
 	const latitudeError =
 		coordinateFieldError(formData.centerLatitude, -90, 90, "Vĩ độ") ||
@@ -901,36 +869,6 @@ export default function AreaListPage() {
 				{/* Add Area Button Group */}
 				<div className="zone-toolbar__actions">
 					{isAdmin && (
-						<div
-							className="zone-view-toggle"
-							role="group"
-							aria-label="Lọc trạng thái khu vực"
-						>
-							<button
-								type="button"
-								className={`zone-view-toggle__btn ${!showDeactivated ? "zone-view-toggle__btn--active" : ""}`}
-								onClick={() => setShowDeactivated(false)}
-								title="Khu vực đang hoạt động"
-							>
-								<Layers size={15} />
-								<span>Đang hoạt động</span>
-							</button>
-							<button
-								type="button"
-								className={`zone-view-toggle__btn ${showDeactivated ? "zone-view-toggle__btn--active" : ""}`}
-								onClick={() => setShowDeactivated(true)}
-								title="Khu vực đã vô hiệu hóa"
-							>
-								<Archive size={15} />
-								<span>
-									Đã vô hiệu hóa
-									{deactivatedAreas.length > 0 ? ` (${deactivatedAreas.length})` : ""}
-								</span>
-							</button>
-						</div>
-					)}
-
-					{isAdmin && (
 						<button
 							type="button"
 							className="zone-toolbar__add-btn"
@@ -947,150 +885,19 @@ export default function AreaListPage() {
 				</div>
 			</div>
 
-			{/* MAIN CONTENT: SPLIT-VIEW (MAP + AREA LIST) FOR ADMIN, LIST VIEW FOR FM */}
-			{isAdmin ? (
-				<div className={`zone-split-layout ${isLeftSidebarCollapsed ? "zone-split-layout--sidebar-collapsed" : ""}`}>
-					{!isLeftSidebarCollapsed && (
-						<aside className="zone-split-sidebar">
-							{loading && <LoadingState text="Đang tải dữ liệu khu vực..." />}
-
-							{!loading && pageError && !showDeactivated && (
-								<ErrorState
-									message={pageError}
-									onRetry={() => fetchData(selectedAreaId)}
-								/>
-							)}
-
-							{showDeactivated && (
-								<section
-									className="zone-deactivated-rail"
-									aria-label="Khu vực đã vô hiệu hóa"
-								>
-									<div className="zone-deactivated-rail__header">
-										<div>
-											<h2 className="zone-deactivated-rail__title">
-												Đã vô hiệu hóa ({deactivatedAreas.length})
-											</h2>
-											<p className="zone-deactivated-rail__desc">
-												Khôi phục chỉ mở lại khu vực. Camera và phân quyền không tự hồi phục.
-											</p>
-										</div>
-										<button
-											type="button"
-											className="zone-deactivated-rail__back-btn"
-											onClick={() => setShowDeactivated(false)}
-											title="Quay lại danh sách hoạt động"
-										>
-											Quay lại
-										</button>
-									</div>
-
-									{deactivatedLoading && (
-										<LoadingState
-											size="sm"
-											text="Đang tải..."
-										/>
-									)}
-									{!deactivatedLoading && deactivatedError && (
-										<ErrorState
-											size="sm"
-											message={deactivatedError}
-											onRetry={fetchDeactivatedAreas}
-										/>
-									)}
-									{!deactivatedLoading &&
-										!deactivatedError &&
-										deactivatedAreas.length === 0 && (
-											<EmptyState
-												size="sm"
-												title="Không có khu vực nào đã vô hiệu hóa"
-											/>
-										)}
-									{!deactivatedLoading &&
-										!deactivatedError &&
-										deactivatedAreas.length > 0 && (
-											<div className="zone-deactivated-rail__list">
-												{deactivatedAreas.map((a) => (
-													<div key={a.id} className="zone-deactivated-rail__item">
-														<div className="zone-deactivated-rail__item-info">
-															<div className="zone-deactivated-rail__item-name">{a.name}</div>
-															<div className="zone-deactivated-rail__item-meta">
-																{formatLocation(a.building, a.floor) || "—"} · {getLevelConfig(a.areaLevel).name}
-															</div>
-														</div>
-														<button
-															type="button"
-															className="area-btn-modal area-btn-modal--cancel zone-deactivated-rail__restore-btn"
-															onClick={() => openRestoreModal(a)}
-															title="Khôi phục khu vực"
-														>
-															<RotateCcw size={12} />
-															<span>Khôi phục</span>
-														</button>
-													</div>
-												))}
-											</div>
-										)}
-								</section>
-							)}
-
-							{!loading && !pageError && !showDeactivated && (
-								<AreaListView
-									floorAreas={floorAreas}
-									selectedFloor={selectedFloor}
-									selectedBuilding={selectedBuilding}
-									selectedAreaId={selectedAreaId}
-									cameraCounts={cameraCounts}
-									isAdmin={isAdmin}
-									isFacilityManager={isFacilityManager}
-									onSelectArea={(id) => handleSelectArea(id, false)}
-									onOpenCreateModal={handleStartCreateOnMap}
-									onOpenCamerasModal={handleOpenCamerasModal}
-									onOpenAssignedPersonnelModal={handleOpenAssignedPersonnelModal}
-									onOpenEditModal={handleOpenEditModal}
-									onOpenDeactivateModal={handleOpenDeactivateModal}
-								/>
-							)}
-						</aside>
-					)}
-
-					<section className="zone-split-map">
-						<ErrorBoundary>
-							<CampusMapView
-								areas={floorAreas}
-								selectedAreaId={selectedAreaId}
-								cameraCounts={cameraCounts}
-								isAdmin={isAdmin}
-								isFacilityManager={isFacilityManager}
-								onSelectArea={(id) => handleSelectArea(id, false)}
-								onAreaUpdated={handleAreaUpdatedOnMap}
-								buildingsList={availableBuildings}
-								selectedBuilding={selectedBuilding}
-								selectedFloor={selectedFloor}
-								isCreatingArea={isCreatingOnMap}
-								onCancelCreateArea={() => setIsCreatingOnMap(false)}
-								onAreaCreated={async (newArea) => {
-									setIsCreatingOnMap(false);
-									await fetchData(newArea.id);
-								}}
-								hideRail={true}
-								isLeftSidebarCollapsed={isLeftSidebarCollapsed}
-								onToggleLeftSidebar={() => setIsLeftSidebarCollapsed((prev) => !prev)}
-							/>
-						</ErrorBoundary>
-					</section>
-				</div>
-			) : (
-				<>
-					{/* Facility Manager: List View */}
+			{/* MAIN CONTENT: SPLIT-VIEW (MAP + AREA LIST) FOR BOTH ADMIN & FM */}
+			<div className={`zone-split-layout ${isLeftSidebarCollapsed ? "zone-split-layout--sidebar-collapsed" : ""}`}>
+				<aside className={`zone-split-sidebar ${isLeftSidebarCollapsed ? "zone-split-sidebar--collapsed" : ""}`}>
 					{loading && <LoadingState text="Đang tải dữ liệu khu vực..." />}
-					{!loading && pageError && !showDeactivated && (
+
+					{!loading && pageError && (
 						<ErrorState
 							message={pageError}
 							onRetry={() => fetchData(selectedAreaId)}
 						/>
 					)}
-					{!loading && !pageError && !showDeactivated && (
+
+					{!loading && !pageError && (
 						<AreaListView
 							floorAreas={floorAreas}
 							selectedFloor={selectedFloor}
@@ -1100,15 +907,48 @@ export default function AreaListPage() {
 							isAdmin={isAdmin}
 							isFacilityManager={isFacilityManager}
 							onSelectArea={(id) => handleSelectArea(id, false)}
-							onOpenCreateModal={handleOpenCreateModal}
+							onOpenCreateModal={handleStartCreateOnMap}
 							onOpenCamerasModal={handleOpenCamerasModal}
 							onOpenAssignedPersonnelModal={handleOpenAssignedPersonnelModal}
 							onOpenEditModal={handleOpenEditModal}
 							onOpenDeactivateModal={handleOpenDeactivateModal}
+							showDeactivated={showDeactivated}
+							onToggleShowDeactivated={setShowDeactivated}
+							deactivatedAreas={deactivatedAreas}
+							deactivatedLoading={deactivatedLoading}
+							deactivatedError={deactivatedError}
+							onFetchDeactivated={fetchDeactivatedAreas}
+							onOpenRestoreModal={openRestoreModal}
 						/>
 					)}
-				</>
-			)}
+				</aside>
+
+				<section className="zone-split-map">
+					<ErrorBoundary>
+						<CampusMapView
+							areas={floorAreas}
+							selectedAreaId={selectedAreaId}
+							cameraCounts={cameraCounts}
+							isAdmin={isAdmin}
+							isFacilityManager={isFacilityManager}
+							onSelectArea={(id) => handleSelectArea(id, false)}
+							onAreaUpdated={handleAreaUpdatedOnMap}
+							buildingsList={availableBuildings}
+							selectedBuilding={selectedBuilding}
+							selectedFloor={selectedFloor}
+							isCreatingArea={isAdmin ? isCreatingOnMap : false}
+							onCancelCreateArea={() => setIsCreatingOnMap(false)}
+							onAreaCreated={async (newArea) => {
+								setIsCreatingOnMap(false);
+								await fetchData(newArea.id);
+							}}
+							hideRail={true}
+							isLeftSidebarCollapsed={isLeftSidebarCollapsed}
+							onToggleLeftSidebar={() => setIsLeftSidebarCollapsed((prev) => !prev)}
+						/>
+					</ErrorBoundary>
+				</section>
+			</div>
 
 			{/* ============================================================ */}
 			{/* 4. MODALS (CREATE, EDIT, DEACTIVATE)                         */}
