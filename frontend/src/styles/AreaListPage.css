@@ -3459,6 +3459,87 @@
   color: var(--theme-text-primary, #0f172a);
 }
 
+/* Level Filter Pills Bar (Ảnh 1) */
+.zone-level-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 6px;
+  border-bottom: 1px solid var(--theme-border, #e2e8f0);
+  background: var(--theme-bg-surface, #ffffff);
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex-shrink: 0;
+}
+
+.zone-level-filter-bar::-webkit-scrollbar {
+  display: none;
+}
+
+[data-theme="dark"] .zone-level-filter-bar {
+  background: #0f172a;
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+.zone-level-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--theme-text-muted, #94a3b8);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.zone-level-pill:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--theme-text-primary, #f8fafc);
+}
+
+[data-theme="light"] .zone-level-pill:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.zone-level-pill--active {
+  background: rgba(30, 58, 138, 0.4) !important;
+  border-color: rgba(59, 130, 246, 0.4) !important;
+  color: #f97316 !important;
+  font-weight: 600;
+}
+
+.zone-level-pill--active .zone-level-pill__count {
+  color: #f97316;
+}
+
+[data-theme="light"] .zone-level-pill--active {
+  background: rgba(37, 99, 235, 0.12) !important;
+  border-color: rgba(37, 99, 235, 0.3) !important;
+  color: #2563eb !important;
+}
+
+[data-theme="light"] .zone-level-pill--active .zone-level-pill__count {
+  color: #2563eb;
+}
+
+.zone-level-pill__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.zone-level-pill__count {
+  font-size: 11px;
+  opacity: 0.85;
+}
+
 /* Sidebar Scrollable Content */
 .zone-sidebar-content {
   flex: 1;
@@ -3504,201 +3585,201 @@
   color: var(--theme-text-muted, #64748b);
 }
 
-/* Compact Area Card List */
+/* High-Density Area List (Chuẩn Ảnh 1 - Tối giản, không dùng card chiếm diện tích) */
 .area-compact-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.zone-card-compact {
-  background: var(--theme-bg-surface, #ffffff);
-  border: 1px solid var(--theme-border, #e2e8f0);
-  border-radius: 8px;
-  padding: 10px 12px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  outline: none;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
-}
-
-.zone-card-compact:hover {
-  border-color: var(--theme-border-hover, #cbd5e1);
-  background: var(--theme-bg-hover, #f8fafc);
-  transform: translateY(-1px);
-}
-
-[data-theme="dark"] .zone-card-compact {
-  background: #1e293b;
-  border-color: rgba(255, 255, 255, 0.08);
-  box-shadow: none;
-}
-
-[data-theme="dark"] .zone-card-compact:hover {
-  background: #273549;
-  border-color: rgba(255, 255, 255, 0.16);
-}
-
-.zone-card-compact--selected {
-  border-color: #2563eb !important;
-  background: rgba(37, 99, 235, 0.05) !important;
-  box-shadow: 0 0 0 1.5px #2563eb !important;
-}
-
-[data-theme="dark"] .zone-card-compact--selected {
-  background: rgba(37, 99, 235, 0.16) !important;
-  border-color: #3b82f6 !important;
-  box-shadow: 0 0 0 1.5px #3b82f6 !important;
-}
-
-.zone-card-compact__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-}
-
-.zone-card-compact__badges {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 5px;
-}
-
-.zone-card-compact__body {
   display: flex;
   flex-direction: column;
   gap: 3px;
 }
 
-.zone-card-compact__title {
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--theme-text-primary, #0f172a);
-  margin: 0;
-  line-height: 1.35;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-[data-theme="dark"] .zone-card-compact__title {
-  color: #f8fafc;
-}
-
-.zone-card-compact__location {
-  font-size: 11.5px;
-  color: var(--theme-text-muted, #64748b);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  line-height: 1.2;
-}
-
-.zone-card-compact__loc-icon {
-  flex-shrink: 0;
-  opacity: 0.7;
-}
-
-.zone-card-compact__footer {
+.zone-item-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 2px;
-  padding-top: 6px;
-  border-top: 1px solid var(--theme-border, #f1f5f9);
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  position: relative;
+  gap: 8px;
+  outline: none;
 }
 
-[data-theme="dark"] .zone-card-compact__footer {
-  border-top-color: rgba(255, 255, 255, 0.06);
+.zone-item-row:hover {
+  background: rgba(255, 255, 255, 0.04);
 }
 
-.zone-card-compact__telemetry {
+[data-theme="light"] .zone-item-row:hover {
+  background: #f8fafc;
+}
+
+.zone-item-row--selected {
+  background: rgba(37, 99, 235, 0.14) !important;
+  border-color: rgba(59, 130, 246, 0.45) !important;
+}
+
+[data-theme="light"] .zone-item-row--selected {
+  background: rgba(37, 99, 235, 0.08) !important;
+  border-color: rgba(37, 99, 235, 0.4) !important;
+}
+
+.zone-item-row__info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  gap: 2px;
+}
+
+.zone-item-row__title-wrap {
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
 }
 
-.zone-card-compact__cam-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  font-weight: 500;
-  padding: 2px 7px;
-  border-radius: 4px;
-  background: rgba(148, 163, 184, 0.12);
-  color: var(--theme-text-secondary, #475569);
-  cursor: pointer;
-}
-
-[data-theme="dark"] .zone-card-compact__cam-pill {
-  background: rgba(255, 255, 255, 0.08);
-  color: #cbd5e1;
-}
-
-.zone-card-compact__cam-pill--active {
-  color: #10b981;
-  background: rgba(16, 185, 129, 0.12);
+.zone-item-row__title {
+  font-size: 13.5px;
   font-weight: 600;
+  color: #f8fafc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.35;
 }
 
-[data-theme="dark"] .zone-card-compact__cam-pill--active {
-  color: #34d399;
-  background: rgba(16, 185, 129, 0.2);
+[data-theme="light"] .zone-item-row__title {
+  color: #0f172a;
 }
 
-.zone-card-compact__quick-actions {
+.zone-item-row__location {
+  font-size: 11.5px;
+  color: #94a3b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+[data-theme="light"] .zone-item-row__location {
+  color: #64748b;
+}
+
+.zone-item-row__meta {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
-.zone-card-compact__action-btn {
+.zone-item-row__actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.zone-item-row:hover .zone-item-row__actions,
+.zone-item-row:focus-within .zone-item-row__actions,
+.zone-item-row--selected .zone-item-row__actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.zone-item-row__action-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 6px;
-  border: 1px solid var(--theme-border, #e2e8f0);
-  background: var(--theme-bg-surface, #ffffff);
-  color: var(--theme-text-secondary, #64748b);
+  width: 26px;
+  height: 26px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #1e293b;
+  color: #94a3b8;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
-.zone-card-compact__action-btn:hover {
-  background: var(--theme-bg-hover, #f1f5f9);
-  color: var(--brand-blue, #2563eb);
-  border-color: var(--brand-blue, #2563eb);
-}
-
-.zone-card-compact__action-btn--danger:hover {
-  background: rgba(225, 29, 72, 0.1);
-  color: #e11d48;
-  border-color: #e11d48;
-}
-
-[data-theme="dark"] .zone-card-compact__action-btn {
-  background: #0f172a;
-  border-color: rgba(255, 255, 255, 0.12);
-  color: #94a3b8;
-}
-
-[data-theme="dark"] .zone-card-compact__action-btn:hover {
-  background: #1e293b;
+.zone-item-row__action-btn:hover {
+  background: #273549;
   color: #60a5fa;
   border-color: #3b82f6;
 }
 
-[data-theme="dark"] .zone-card-compact__action-btn--danger:hover {
+.zone-item-row__action-btn--danger:hover {
   background: rgba(225, 29, 72, 0.2);
   color: #fb7185;
   border-color: #f43f5e;
+}
+
+[data-theme="light"] .zone-item-row__action-btn {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  color: #64748b;
+}
+
+[data-theme="light"] .zone-item-row__action-btn:hover {
+  background: #f1f5f9;
+  color: #2563eb;
+  border-color: #2563eb;
+}
+
+.zone-item-row__cam-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 3px 8px;
+  min-width: 36px;
+  height: 24px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+  line-height: 1;
+  box-sizing: border-box;
+}
+
+/* Khi có camera (>0 cam): xanh emerald chuẩn Ảnh 1 */
+.zone-item-row__cam-pill--has-cams {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.28);
+  color: #34d399;
+}
+
+.zone-item-row__cam-pill--has-cams:hover {
+  background: rgba(16, 185, 129, 0.24);
+  border-color: #10b981;
+}
+
+[data-theme="light"] .zone-item-row__cam-pill--has-cams {
+  color: #059669;
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+/* Khi không có camera (0 cam): amber/brown trầm chuẩn Ảnh 1 */
+.zone-item-row__cam-pill--no-cams {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.25);
+  color: #fbbf24;
+}
+
+.zone-item-row__cam-pill--no-cams:hover {
+  background: rgba(245, 158, 11, 0.22);
+  border-color: #f59e0b;
+}
+
+[data-theme="light"] .zone-item-row__cam-pill--no-cams {
+  color: #d97706;
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.3);
 }
 
 /* Deactivated Items inside Sidebar */

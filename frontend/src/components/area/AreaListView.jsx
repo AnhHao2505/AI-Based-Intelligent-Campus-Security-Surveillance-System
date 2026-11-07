@@ -45,7 +45,7 @@ const LEVEL_SECTIONS = [
 	{
 		key: "LEVEL_1",
 		levelNumber: 1,
-		title: "Khu vực Công khai",
+		title: "CẤP 1 · CÔNG KHAI",
 		badgeLabel: "Cấp 1",
 		dotColor: "#10b981",
 		filter: (a) => a.areaAccessLevel === 1 || a.areaLevel === "PUBLIC",
@@ -53,7 +53,7 @@ const LEVEL_SECTIONS = [
 	{
 		key: "LEVEL_2",
 		levelNumber: 2,
-		title: "Khu vực Bảo mật",
+		title: "CẤP 2 · BẢO MẬT",
 		badgeLabel: "Cấp 2",
 		dotColor: "#0284c7",
 		filter: (a) => a.areaAccessLevel === 2 || a.areaLevel === "CONFIDENTIAL",
@@ -61,7 +61,7 @@ const LEVEL_SECTIONS = [
 	{
 		key: "LEVEL_3",
 		levelNumber: 3,
-		title: "Khu vực Tuyệt mật",
+		title: "CẤP 3 · BẢO MẬT CAO",
 		badgeLabel: "Cấp 3",
 		dotColor: "#e11d48",
 		filter: (a) =>
@@ -93,6 +93,23 @@ export default function AreaListView({
 }) {
 	const navigate = useNavigate();
 	const [searchFilter, setSearchFilter] = useState("");
+	const [selectedLevelFilter, setSelectedLevelFilter] = useState("ALL");
+
+	// Đếm số lượng khu vực theo từng cấp độ bảo mật cho thanh pill bộ lọc
+	const levelCounts = useMemo(() => {
+		const counts = { ALL: floorAreas.length, 1: 0, 2: 0, 3: 0 };
+		floorAreas.forEach((a) => {
+			if (a.areaAccessLevel === 1 || a.areaLevel === "PUBLIC") counts[1]++;
+			else if (a.areaAccessLevel === 2 || a.areaLevel === "CONFIDENTIAL") counts[2]++;
+			else if (a.areaAccessLevel === 3 || a.areaLevel === "HIGHLY_CONFIDENTIAL") counts[3]++;
+		});
+		return counts;
+	}, [floorAreas]);
+
+	const displayedSections = useMemo(() => {
+		if (selectedLevelFilter === "ALL") return LEVEL_SECTIONS;
+		return LEVEL_SECTIONS.filter((sec) => sec.levelNumber === selectedLevelFilter);
+	}, [selectedLevelFilter]);
 
 	// Lọc danh sách khu vực hoạt động theo ô tìm kiếm
 	const filteredActiveAreas = useMemo(() => {
@@ -118,8 +135,8 @@ export default function AreaListView({
 		);
 	}, [deactivatedAreas, searchFilter]);
 
-	// Render một thẻ khu vực chuẩn High-Density
-	const renderCompactCard = (area) => {
+	// Render một hàng khu vực theo chuẩn High-Density (tối giản, thanh thoát như Ảnh 1, không dùng card chiếm diện tích)
+	const renderAreaRow = (area) => {
 		const isSelected = selectedAreaId === area.id;
 		const levelKey =
 			area.areaLevel || area.level?.code || area.level || "PUBLIC";
@@ -133,7 +150,7 @@ export default function AreaListView({
 				role="button"
 				tabIndex={0}
 				aria-label={`Khu vực ${area.name}, ${levelConfig.name}`}
-				className={`zone-card-compact ${isSelected ? "zone-card-compact--selected" : ""}`}
+				className={`zone-item-row ${isSelected ? "zone-item-row--selected" : ""}`}
 				onClick={() => onSelectArea(area.id)}
 				onKeyDown={(e) => {
 					if (e.key === "Enter" || e.key === " ") {
@@ -142,11 +159,11 @@ export default function AreaListView({
 					}
 				}}
 			>
-				{/* Header: Level Badge & Status Pills */}
-				<div className="zone-card-compact__header">
-					<div className="zone-card-compact__badges">
-						<span className={`level-badge ${levelConfig.badgeClass}`}>
-							{levelConfig.badgeLabel}
+				{/* Bên trái: Tên khu vực và Vị trí tòa/tầng */}
+				<div className="zone-item-row__info">
+					<div className="zone-item-row__title-wrap">
+						<span className="zone-item-row__title" title={area.name}>
+							{area.name}
 						</span>
 						{area.eventActive && area.openUntil && (
 							<span
@@ -170,62 +187,26 @@ export default function AreaListView({
 							</button>
 						)}
 					</div>
-				</div>
-
-				{/* Body: Tên khu vực & Vị trí tòa nhà/tầng */}
-				<div className="zone-card-compact__body">
-					<h3 className="zone-card-compact__title" title={area.name}>
-						{area.name}
-					</h3>
 					<div
-						className="zone-card-compact__location"
-						title={locationStr || "Chưa gán tòa nhà / tầng"}
+						className="zone-item-row__location"
+						title={locationStr || "Chưa gán tòa/tầng"}
 					>
-						<Building2 size={12} className="zone-card-compact__loc-icon" />
-						<span>{locationStr || "Chưa gán tòa/tầng"}</span>
+						{locationStr || "Chưa gán tòa/tầng"}
 					</div>
 				</div>
 
-				{/* Footer: Telemetry Camera & Quick Actions */}
-				<div className="zone-card-compact__footer">
+				{/* Bên phải: Nút thao tác nhanh (hover) & Badge Camera nhỏ gọn */}
+				<div className="zone-item-row__meta">
+					{/* Quick Actions (hiện khi hover hoặc khi đang được chọn) */}
 					<div
-						className="zone-card-compact__telemetry"
-						onClick={(e) => {
-							e.stopPropagation();
-							onOpenCamerasModal(area);
-						}}
-						title="Xem danh sách camera thuộc khu vực"
+						className="zone-item-row__actions"
+						onClick={(e) => e.stopPropagation()}
 					>
-						<span
-							className={`zone-card-compact__cam-pill ${
-								camCount > 0 ? "zone-card-compact__cam-pill--active" : ""
-							}`}
-						>
-							{camCount > 0 ? <Cctv size={12} /> : <VideoOff size={12} />}
-							<span>{camCount} cam</span>
-						</span>
-					</div>
-
-					<div className="zone-card-compact__quick-actions">
-						{/* Nút xem camera: cả Admin và FM đều có */}
-						<button
-							type="button"
-							className="zone-card-compact__action-btn"
-							onClick={(e) => {
-								e.stopPropagation();
-								onOpenCamerasModal(area);
-							}}
-							title="Xem camera trong khu vực"
-							aria-label={`Xem camera của ${area.name}`}
-						>
-							<Cctv size={14} />
-						</button>
-
 						{/* Nút gán nhân sự: Dành cho Facility Manager ở khu vực Cấp 2 & Cấp 3 */}
 						{isFacilityManager && levelKey !== "PUBLIC" && (
 							<button
 								type="button"
-								className="zone-card-compact__action-btn"
+								className="zone-item-row__action-btn"
 								onClick={(e) => {
 									e.stopPropagation();
 									onOpenAssignedPersonnelModal(area);
@@ -233,7 +214,7 @@ export default function AreaListView({
 								title="Danh sách nhân sự chỉ định"
 								aria-label={`Danh sách nhân sự chỉ định của ${area.name}`}
 							>
-								<Users size={14} />
+								<Users size={13} />
 							</button>
 						)}
 
@@ -242,7 +223,7 @@ export default function AreaListView({
 							<>
 								<button
 									type="button"
-									className="zone-card-compact__action-btn"
+									className="zone-item-row__action-btn"
 									onClick={(e) => {
 										e.stopPropagation();
 										onSelectArea(area.id);
@@ -255,7 +236,7 @@ export default function AreaListView({
 								</button>
 								<button
 									type="button"
-									className="zone-card-compact__action-btn zone-card-compact__action-btn--danger"
+									className="zone-item-row__action-btn zone-item-row__action-btn--danger"
 									onClick={(e) => {
 										e.stopPropagation();
 										onSelectArea(area.id);
@@ -269,6 +250,29 @@ export default function AreaListView({
 							</>
 						)}
 					</div>
+
+					{/* Badge số camera (chính xác giao diện ảnh 1: camera icon + số) */}
+					<button
+						type="button"
+						className={`zone-item-row__cam-pill ${
+							camCount > 0
+								? "zone-item-row__cam-pill--has-cams"
+								: "zone-item-row__cam-pill--no-cams"
+						}`}
+						onClick={(e) => {
+							e.stopPropagation();
+							onOpenCamerasModal(area);
+						}}
+						title={
+							camCount > 0
+								? `${camCount} camera trong khu vực — bấm để xem`
+								: "Chưa có camera — bấm để liên kết"
+						}
+						aria-label={`${camCount} camera trong khu vực ${area.name}`}
+					>
+						{camCount > 0 ? <Cctv size={13} /> : <VideoOff size={13} />}
+						<span>{camCount}</span>
+					</button>
 				</div>
 			</div>
 		);
@@ -350,6 +354,74 @@ export default function AreaListView({
 					</button>
 				)}
 			</div>
+
+			{/* 3. Dãy filter cấp độ (Level Filter Pills chính xác như Ảnh 1) */}
+			{!showDeactivated && (
+				<div
+					className="zone-level-filter-bar"
+					role="toolbar"
+					aria-label="Lọc cấp độ an ninh"
+				>
+					<button
+						type="button"
+						className={`zone-level-pill ${
+							selectedLevelFilter === "ALL" ? "zone-level-pill--active" : ""
+						}`}
+						onClick={() => setSelectedLevelFilter("ALL")}
+					>
+						<span className="zone-level-pill__label">Tất cả</span>
+						<span className="zone-level-pill__count">{levelCounts.ALL}</span>
+					</button>
+					<button
+						type="button"
+						className={`zone-level-pill ${
+							selectedLevelFilter === 1 ? "zone-level-pill--active" : ""
+						}`}
+						onClick={() =>
+							setSelectedLevelFilter(selectedLevelFilter === 1 ? "ALL" : 1)
+						}
+					>
+						<span
+							className="zone-level-pill__dot"
+							style={{ backgroundColor: "#10b981" }}
+						/>
+						<span className="zone-level-pill__label">Cấp 1</span>
+						<span className="zone-level-pill__count">{levelCounts[1]}</span>
+					</button>
+					<button
+						type="button"
+						className={`zone-level-pill ${
+							selectedLevelFilter === 2 ? "zone-level-pill--active" : ""
+						}`}
+						onClick={() =>
+							setSelectedLevelFilter(selectedLevelFilter === 2 ? "ALL" : 2)
+						}
+					>
+						<span
+							className="zone-level-pill__dot"
+							style={{ backgroundColor: "#0284c7" }}
+						/>
+						<span className="zone-level-pill__label">Cấp 2</span>
+						<span className="zone-level-pill__count">{levelCounts[2]}</span>
+					</button>
+					<button
+						type="button"
+						className={`zone-level-pill ${
+							selectedLevelFilter === 3 ? "zone-level-pill--active" : ""
+						}`}
+						onClick={() =>
+							setSelectedLevelFilter(selectedLevelFilter === 3 ? "ALL" : 3)
+						}
+					>
+						<span
+							className="zone-level-pill__dot"
+							style={{ backgroundColor: "#e11d48" }}
+						/>
+						<span className="zone-level-pill__label">Cấp 3</span>
+						<span className="zone-level-pill__count">{levelCounts[3]}</span>
+					</button>
+				</div>
+			)}
 
 			{/* 3. Nội dung danh sách: Đang hoạt động hoặc Đã vô hiệu hóa */}
 			<div className="zone-sidebar-content">
@@ -438,7 +510,7 @@ export default function AreaListView({
 							</div>
 						) : (
 							<div className="area-level-sections-container">
-								{LEVEL_SECTIONS.map((section) => {
+								{displayedSections.map((section) => {
 									const areasInSection = filteredActiveAreas
 										.filter(section.filter)
 										.sort((a, b) => {
@@ -475,7 +547,7 @@ export default function AreaListView({
 											</div>
 
 											<div className="area-compact-list">
-												{areasInSection.map(renderCompactCard)}
+												{areasInSection.map(renderAreaRow)}
 											</div>
 										</section>
 									);
@@ -508,7 +580,7 @@ export default function AreaListView({
 												</div>
 											</div>
 											<div className="area-compact-list">
-												{otherAreas.map(renderCompactCard)}
+												{otherAreas.map(renderAreaRow)}
 											</div>
 										</section>
 									);
