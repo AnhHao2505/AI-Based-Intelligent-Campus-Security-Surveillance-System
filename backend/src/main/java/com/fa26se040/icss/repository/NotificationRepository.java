@@ -16,17 +16,21 @@ import java.util.UUID;
 @Repository
 public interface NotificationRepository extends JpaRepository<Notification, UUID> {
 
-    Page<Notification> findByRecipientIdOrderByCreatedAtDesc(UUID recipientId, Pageable pageable);
+       Page<Notification> findByRecipientIdOrderByCreatedAtDesc(UUID recipientId, Pageable pageable);
 
-    long countByRecipientIdAndIsReadFalse(UUID recipientId);
+       long countByRecipientIdAndIsReadFalse(UUID recipientId);
 
-    boolean existsByReferenceIdAndType(UUID referenceId, NotificationType type);
+       boolean existsByReferenceIdAndType(UUID referenceId, NotificationType type);
 
-    /** BR-GV-39: đã có thông báo loại này cho đối tượng, tạo từ thời điểm from trở đi (chống nhắc trùng không thêm cột). */
-    boolean existsByReferenceIdAndTypeAndCreatedAtGreaterThanEqual(UUID referenceId, NotificationType type, java.time.OffsetDateTime from);
+       /**
+        * BR-GV-39: đã có thông báo loại này cho đối tượng, tạo từ thời điểm from trở
+        * đi (chống nhắc trùng không thêm cột).
+        */
+       boolean existsByReferenceIdAndTypeAndCreatedAtGreaterThanEqual(UUID referenceId, NotificationType type,
+                     java.time.OffsetDateTime from);
 
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("UPDATE Notification n SET n.isRead = true, n.readAt = :now " +
-           "WHERE n.recipient.id = :recipientId AND n.isRead = false")
-    int markAllAsRead(@Param("recipientId") UUID recipientId, @Param("now") OffsetDateTime now);
+       @Modifying(clearAutomatically = true, flushAutomatically = true)
+       @Query("UPDATE Notification n SET n.isRead = true, n.readAt = :now " +
+                     "WHERE n.recipient.id = :recipientId AND n.isRead = false")
+       int markAllAsRead(@Param("recipientId") UUID recipientId, @Param("now") OffsetDateTime now);
 }
