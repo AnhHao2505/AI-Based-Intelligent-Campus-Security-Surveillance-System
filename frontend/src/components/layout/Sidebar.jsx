@@ -28,6 +28,7 @@ import { ROLES, ROLE_SHORT_LABELS } from "../../constants/roles";
 import { useTheme } from "../../context/ThemeContext";
 import { useUiStore } from "../../store/useUiStore";
 import { notificationService } from "../../services/notificationService";
+import FptBrandLogo from "../common/FptBrandLogo";
 import "../../styles/Sidebar.css";
 
 export default function Sidebar({ user, onLogout }) {
@@ -125,35 +126,7 @@ export default function Sidebar({ user, onLogout }) {
 					title={sidebarCollapsed ? "FPTU SecureVision" : undefined}
 				>
 					<div className="sidebar__logo">
-						<svg
-							width="22"
-							height="22"
-							viewBox="0 0 24 24"
-							fill="none"
-							xmlns="http://www.w3.org/2000/svg"
-						>
-							<path
-								d="M12 2L2 7L12 12L22 7L12 2Z"
-								stroke="currentColor"
-								strokeWidth="2"
-								strokeLinecap="round"
-								strokeLinejoin="round"
-							/>
-							<path
-								d="M2 17L12 22L22 17"
-								stroke="currentColor"
-								strokeWidth="2"
-								strokeLinecap="round"
-								strokeLinejoin="round"
-							/>
-							<path
-								d="M2 12L12 17L22 12"
-								stroke="currentColor"
-								strokeWidth="2"
-								strokeLinecap="round"
-								strokeLinejoin="round"
-							/>
-						</svg>
+						<FptBrandLogo variant="symbol" height={22} />
 					</div>
 					<div>
 						<div className="sidebar__title">FPTU SecureVision</div>

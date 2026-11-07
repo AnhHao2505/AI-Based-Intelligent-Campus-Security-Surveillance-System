@@ -26,7 +26,7 @@ export default function Card({
   const hasAccent = Boolean(accentColor);
   const cardStyle = {
     ...style,
-    ...(hasAccent ? { borderLeftColor: accentColor } : {})
+    ...(hasAccent ? { boxShadow: `var(--theme-card-shadow), inset 0 2px 0 0 ${accentColor}` } : {})
   };
 
   return (

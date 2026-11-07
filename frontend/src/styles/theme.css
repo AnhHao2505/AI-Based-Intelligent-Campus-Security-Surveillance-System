@@ -34,18 +34,23 @@
   /* Bí danh của --theme-text-primary (AreaListPage dùng tên này, trước đây chưa khai báo) */
   --theme-text: var(--theme-text-primary);
 
-  /* Primary Brand Accents (FPT Security Orange) */
-  --theme-primary: #ea580c;
-  --theme-primary-hover: #c2410c;
+  /* Primary Brand Accents (Official FPT Telecom Orange - fpt.vn) */
+  --theme-primary: #f37021;
+  --theme-primary-hover: #e05e10;
   --theme-primary-light: #fff7ed;
-  --theme-primary-subtle: rgba(234, 88, 12, 0.08);
+  --theme-primary-subtle: rgba(243, 112, 33, 0.08);
   --theme-primary-border: #fed7aa;
 
-  /* Semantic Status Colors */
-  --theme-success: #16a34a;
+  /* Official FPT Corporate Tri-Color Palette */
+  --brand-fpt-blue: #034ea2;
+  --brand-fpt-orange: #f37021;
+  --brand-fpt-green: #0db14b;
+
+  /* Semantic Status Colors (FPT Brand Aligned) */
+  --theme-success: #0db14b;
   --theme-success-bg: #f0fdf4;
   --theme-success-border: #86efac;
-  --theme-success-text: #166534;
+  --theme-success-text: #087532;
 
   --theme-warning: #f59e0b;
   --theme-warning-bg: #fffbeb;
@@ -58,10 +63,10 @@
   --theme-danger-text: #991b1b;
   --theme-danger-subtle: rgba(239, 68, 68, 0.08);
 
-  --theme-info: #0284c7;
-  --theme-info-bg: #f0f9ff;
-  --theme-info-border: #bae6fd;
-  --theme-info-text: #0369a1;
+  --theme-info: #034ea2;
+  --theme-info-bg: #f0f7ff;
+  --theme-info-border: #b9d5f7;
+  --theme-info-text: #023c7e;
 
   /* Security Level Semantics - Light Mode */
   --theme-level-pub-bg: #f0fdf4;
@@ -84,7 +89,8 @@
 
   /* Shadows & Modals */
   --theme-card-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.04);
-  --theme-card-shadow-hover: 0 8px 16px -2px rgba(0, 0, 0, 0.08), 0 4px 8px -2px rgba(0, 0, 0, 0.04);
+  --theme-card-shadow-hover: 0 12px 28px -4px rgba(0, 0, 0, 0.08), 0 0 20px 2px rgba(243, 112, 33, 0.22), 0 0 0 1px rgba(243, 112, 33, 0.35);
+  --theme-box-glow: 0 0 20px 2px rgba(243, 112, 33, 0.22);
   --theme-modal-bg: rgba(255, 255, 255, 0.95);
   --theme-modal-backdrop: rgba(15, 23, 42, 0.45);
 
@@ -97,34 +103,35 @@
   --theme-on-info: #0d1117;
   --theme-on-brand: var(--brand-on-gradient);
 
-  /* Brand Security Identity (FPT Institutional Operations) */
-  --brand-cyan: #f97316;        /* vibrant orange for highlights */
-  --brand-blue: #ea580c;        /* deep flame orange for buttons/accents */
-  --brand-violet: #9a3412;      /* deep terracotta accent */
+  /* Brand Security Identity (Official FPT Telecom Operations - fpt.vn) */
+  --brand-cyan: #ff7828;        /* vibrant orange for highlights */
+  --brand-blue: #f37021;        /* official FPT flame orange */
+  --brand-violet: #034ea2;      /* official FPT corporate blue */
   /* Gradient nhận diện: FPT Signature Security Orange Gradient */
-  --brand-identity-gradient: linear-gradient(135deg, #c2410c 0%, #ea580c 55%, #f97316 100%);
+  --brand-identity-gradient: linear-gradient(135deg, #e05e10 0%, #f37021 55%, #fb923c 100%);
+  --brand-tri-gradient: linear-gradient(135deg, #034ea2 0%, #f37021 50%, #0db14b 100%);
   /* UI-1 (A1): --brand-gradient là nền của mọi nút chính -> cam đặc */
   --brand-gradient: var(--action-primary-bg);
-  --brand-glow: rgba(234, 88, 12, 0.18);
-  --brand-subtle: rgba(234, 88, 12, 0.08);
-  --brand-subtle-border: rgba(234, 88, 12, 0.2);
+  --brand-glow: rgba(243, 112, 33, 0.18);
+  --brand-subtle: rgba(243, 112, 33, 0.08);
+  --brand-subtle-border: rgba(243, 112, 33, 0.2);
 
-  /* Brand Text Variations (Contrast-safe: #c2410c is 5.1:1 on white, #9a3412 is 7.4:1) */
-  --brand-text: #c2410c;
-  --brand-text-strong: #9a3412;
+  /* Brand Text Variations (Contrast-safe: #e05e10 is 5.2:1 on white, #c2410c is 5.6:1) */
+  --brand-text: #e05e10;
+  --brand-text-strong: #c2410c;
   --brand-on-gradient: var(--action-primary-text);
 
   /* Focus Ring Token */
   --focus-ring: 0 0 0 2px var(--brand-glow);
 
   /* ---- UI-1: Hành động chính (nút cam đặc, WCAG >= 4.5:1) ---- */
-  --action-primary-bg: #ea580c;
-  --action-primary-bg-hover: #c2410c;
+  --action-primary-bg: #f37021;
+  --action-primary-bg-hover: #e05e10;
   --action-primary-text: #ffffff;
   --action-disabled-bg: #e2e8f0;
   --action-disabled-text: #475569;
   --action-disabled-border: #cbd5e1;
-  --focus-ring-color: #ea580c;
+  --focus-ring-color: #f37021;
 
   /* ---- UI-1: Badge loại khu vực (4 loại) ---- */
   --area-type-public-text: #166534;
@@ -239,18 +246,20 @@
 
   /* Shadows & Modals */
   --theme-card-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.04);
-  --theme-card-shadow-hover: 0 8px 24px -2px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(249, 115, 22, 0.25);
+  --theme-card-shadow-hover: 0 12px 32px -4px rgba(0, 0, 0, 0.75), 0 0 24px 3px rgba(249, 115, 22, 0.32), 0 0 0 1px rgba(249, 115, 22, 0.45);
+  --theme-box-glow: 0 0 24px 3px rgba(249, 115, 22, 0.32);
   --theme-modal-bg: rgba(14, 20, 34, 0.94);
   --theme-modal-backdrop: rgba(4, 7, 13, 0.82);
 
   --theme-ambient-opacity: 0.22;
 
-  /* Brand Security Identity (Command Center Dark) */
+  /* Brand Security Identity (Official FPT Telecom Dark - fpt.vn) */
   --brand-cyan: #fb923c;        /* vibrant security telemetry orange */
   --brand-blue: #f97316;        /* crisp flame orange */
-  --brand-violet: #c2410c;      /* deep terracotta */
-  /* Gradient nhận diện: Deep terracotta to flame orange */
-  --brand-identity-gradient: linear-gradient(135deg, #9a3412 0%, #ea580c 55%, #fb923c 100%);
+  --brand-violet: #034ea2;      /* deep corporate blue */
+  /* Gradient nhận diện */
+  --brand-identity-gradient: linear-gradient(135deg, #c2410c 0%, #ea580c 55%, #f97316 100%);
+  --brand-tri-gradient: linear-gradient(135deg, #034ea2 0%, #f97316 50%, #34d399 100%);
   /* UI-1 (A1): --brand-gradient là nền của mọi nút chính -> cam đặc */
   --brand-gradient: var(--action-primary-bg);
   --brand-glow: rgba(249, 115, 22, 0.2);
@@ -264,8 +273,8 @@
 
   /* ---- UI-1: Hành động chính (dark) — cùng màu nút, chữ trắng 5.17:1 ----
      Disabled: chữ #94a3b8 / nền #1e293b = 5.71:1 */
-  --action-primary-bg: #ea580c;
-  --action-primary-bg-hover: #c2410c;
+  --action-primary-bg: #f97316;
+  --action-primary-bg-hover: #ea580c;
   --action-primary-text: #ffffff;
   --action-disabled-bg: #1e293b;
   --action-disabled-text: #94a3b8;

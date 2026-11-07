@@ -932,10 +932,10 @@ export default function GuardTeamManagementPage() {
                       {/* Cross-building shift badge (PR-1b) */}
                       {shift.crossBuilding && (
                         <div
-                          className="mt-1 px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 text-[10.5px] font-semibold flex items-center gap-1 border border-purple-200 dark:border-purple-800/60 opacity-95"
+                          className="mt-1 px-1.5 py-0.5 rounded bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 text-[10.5px] font-semibold flex items-center gap-1 border border-sky-200 dark:border-sky-800/60 opacity-95"
                           title={shift.crossBuildingReason ? `Luân chuyển toà: ${shift.crossBuildingReason}` : 'Ca trực luân chuyển toà'}
                         >
-                          <Building2 size={11} className="shrink-0 text-purple-600 dark:text-purple-400" />
+                          <Building2 size={11} className="shrink-0 text-sky-600 dark:text-sky-400" />
                           <span className="truncate">
                             Luân chuyển{shift.buildingName ? `: ${shift.buildingName}` : ''}
                           </span>

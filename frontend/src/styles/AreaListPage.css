@@ -9,7 +9,7 @@
   display: flex;
   height: 100vh;
   width: 100%;
-  background-color: var(--theme-bg-page);
+  background-color: transparent;
   color: var(--theme-text-primary);
   font-family: inherit;
   overflow: hidden;
@@ -530,7 +530,7 @@
   justify-content: space-between;
   margin-top: auto;
   padding-top: 9px;
-  border-top: 0.5px solid var(--theme-border);
+  border-top: 1px solid var(--theme-border);
 }
 
 .zone-card__camera-status {
@@ -941,7 +941,7 @@
 
 .area-modal {
   background: var(--theme-modal-bg);
-  border: 0.5px solid var(--theme-border);
+  border: 1px solid var(--theme-border);
   border-radius: 14px;
   width: 100%;
   max-width: 430px;
@@ -960,7 +960,7 @@
 /* Modal Header */
 .area-modal__header {
   padding: 16px 20px;
-  border-bottom: 0.5px solid var(--theme-border);
+  border-bottom: 1px solid var(--theme-border);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1044,7 +1044,7 @@
 /* Modal Footer */
 .area-modal__footer {
   padding: 14px 20px;
-  border-top: 0.5px solid var(--theme-border);
+  border-top: 1px solid var(--theme-border);
   background: rgba(0, 0, 0, 0.2);
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1086,7 +1086,7 @@
   width: 100%;
   box-sizing: border-box;
   background: var(--theme-bg-input);
-  border: 0.5px solid var(--theme-input-border);
+  border: 1px solid var(--theme-input-border);
   border-radius: 6px;
   padding: 9px 11px;
   font-size: 13px;
@@ -1153,7 +1153,7 @@
   border-radius: 6px;
   cursor: pointer;
   background: var(--theme-bg-input);
-  border: 0.5px solid var(--theme-input-border);
+  border: 1px solid var(--theme-input-border);
   transition: all 0.15s ease;
   font-family: inherit;
   min-height: 58px;
@@ -1320,7 +1320,7 @@
 
 .area-btn-modal--cancel {
   background: var(--theme-bg-input);
-  border: 0.5px solid var(--theme-input-border);
+  border: 1px solid var(--theme-input-border);
   color: var(--theme-text-secondary);
 }
 
@@ -1410,7 +1410,7 @@
 
 .area-dependencies-box {
   background: var(--theme-bg-input);
-  border: 0.5px solid var(--theme-border);
+  border: 1px solid var(--theme-border);
   border-radius: 6px;
   padding: 10px 12px;
   font-size: 12px;
@@ -1487,7 +1487,7 @@
    ========================================================================== */
 
 .zone-page {
-  background-color: var(--theme-bg-page);
+  background-color: transparent;
   min-height: calc(100vh - 64px);
   color: var(--theme-text-primary);
   box-sizing: border-box;
@@ -1617,7 +1617,7 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s ease;
-  border: 0.5px solid var(--theme-border);
+  border: 1px solid var(--theme-border);
   background: var(--theme-bg-surface);
   color: var(--theme-text-secondary);
   box-sizing: border-box;
@@ -1658,7 +1658,7 @@
   display: inline-flex;
   align-items: center;
   background: var(--theme-bg-surface);
-  border: 0.5px solid var(--theme-border);
+  border: 1px solid var(--theme-border);
   border-radius: 8px;
   padding: 3px;
   height: 36px;
@@ -2457,7 +2457,7 @@
   width: 24px;
   height: 24px;
   border-radius: 4px;
-  border: 0.5px solid var(--theme-border);
+  border: 1px solid var(--theme-border);
   background: var(--theme-bg-surface-elevated);
   color: var(--theme-text-secondary);
   cursor: pointer;

@@ -1,4 +1,4 @@
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '../../context/AuthContext';
 import { useUiStore } from '../../store/useUiStore';
@@ -39,6 +39,7 @@ function showEscalationToast(payload) {
 
 export default function AppLayout({ children }) {
   const { user, logout } = useAuth();
+  const location = useLocation();
   const sidebarCollapsed = useUiStore((state) => state.sidebarCollapsed);
   const userRole = user?.role || user?.role_type;
   const isFmOrAdmin = userRole === ROLES.FACILITY_MANAGER || userRole === ROLES.ADMIN;
@@ -49,9 +50,11 @@ export default function AppLayout({ children }) {
   return (
     <div className="app-layout">
       <Sidebar user={user} onLogout={logout} />
-      <div className={`app-layout__content ${sidebarCollapsed ? 'app-layout__content--collapsed' : ''}`}>
-        {children ? children : <Outlet />}
-      </div>
+      <main className={`app-layout__content ${sidebarCollapsed ? 'app-layout__content--collapsed' : ''}`}>
+        <div key={location.pathname} className="canva-page-transition">
+          {children ? children : <Outlet />}
+        </div>
+      </main>
     </div>
   );
 }

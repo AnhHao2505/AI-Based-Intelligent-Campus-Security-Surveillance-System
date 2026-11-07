@@ -198,11 +198,11 @@ export default function BuildingRotationReportTab({ teams = [], buildings = [] }
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                 Đã Trực Luân Chuyển Tòa Khác
               </p>
-              <h3 className="text-xl font-extrabold text-indigo-600 dark:text-indigo-400 mt-0.5">
+              <h3 className="text-xl font-extrabold text-orange-600 dark:text-orange-400 mt-0.5">
                 {reportData.guardsWithCrossBuildingShifts} <span className="text-xs font-normal text-slate-400">người</span>
               </h3>
             </div>
-            <div className="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400">
+            <div className="p-2.5 rounded-xl bg-orange-50 dark:bg-orange-950/50 text-orange-600 dark:text-orange-400">
               <ArrowRightLeft size={20} />
             </div>
           </div>
@@ -370,8 +370,8 @@ export default function BuildingRotationReportTab({ teams = [], buildings = [] }
                             Chưa luân chuyển
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-                            <ArrowRightLeft size={11} className="text-indigo-600" />
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-orange-50 dark:bg-orange-950/60 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800">
+                            <ArrowRightLeft size={11} className="text-orange-600 dark:text-orange-400" />
                             Đã luân chuyển ({item.outsideTeamBuildingShifts} ca)
                           </span>
                         )}
