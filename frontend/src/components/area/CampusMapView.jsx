@@ -95,7 +95,7 @@ const AREA_LEVEL_CARDS = [
 	},
 	{
 		value: "HIGHLY_CONFIDENTIAL",
-		name: "Tuyệt mật",
+		name: "Bảo mật cao",
 		level: 3,
 		color: "var(--theme-danger)",
 	},

@@ -1,18 +1,23 @@
 package com.fa26se040.icss.exception;
 
+import jakarta.servlet.http.HttpServletResponse;
+import org.apache.catalina.connector.ClientAbortException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import com.fa26se040.icss.dto.common.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -33,7 +38,9 @@ public class GlobalExceptionHandler {
                 "PAYLOAD_TOO_LARGE",
                 "File nạp vào vượt quá dung lượng tối đa cho phép (500MB)."
         );
-        return new ResponseEntity<>(body, HttpStatus.PAYLOAD_TOO_LARGE);
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body);
     }
 
     @ExceptionHandler(UnauthorizedException.class)
@@ -52,7 +59,9 @@ public class GlobalExceptionHandler {
                 ex.getErrorCode().getCode(),
                 message
         );
-        return new ResponseEntity<>(body, status);
+        return ResponseEntity.status(status)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body);
     }
 
     @ExceptionHandler(CameraException.class)
@@ -67,7 +76,9 @@ public class GlobalExceptionHandler {
                 ex.getErrorCode().getCode(),
                 message
         );
-        return new ResponseEntity<>(body, status);
+        return ResponseEntity.status(status)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body);
     }
 
     @ExceptionHandler(AssignedPersonnelException.class)
@@ -78,7 +89,9 @@ public class GlobalExceptionHandler {
                 ex.getErrorCode().getCode(),
                 ex.getErrorCode().getMessageTemplate()
         );
-        return new ResponseEntity<>(body, status);
+        return ResponseEntity.status(status)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body);
     }
 
     @ExceptionHandler(AccessControlException.class)
@@ -89,7 +102,9 @@ public class GlobalExceptionHandler {
                 ex.getErrorCode().getCode(),
                 ex.getMessage() != null ? ex.getMessage() : ex.getErrorCode().getMessageTemplate()
         );
-        return new ResponseEntity<>(body, status);
+        return ResponseEntity.status(status)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body);
     }
 
     @ExceptionHandler(org.springframework.orm.ObjectOptimisticLockingFailureException.class)
@@ -99,7 +114,9 @@ public class GlobalExceptionHandler {
                 AccessControlErrorCode.ERR_AC_003.getCode(),
                 AccessControlErrorCode.ERR_AC_003.getMessageTemplate()
         );
-        return new ResponseEntity<>(body, HttpStatus.CONFLICT);
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body);
     }
 
     @ExceptionHandler(AccessDeniedException.class)
@@ -202,7 +219,9 @@ public class GlobalExceptionHandler {
                 "Dữ liệu đầu vào không hợp lệ",
                 errors
         );
-        return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body);
     }
 
     @ExceptionHandler(AuditWriteException.class)
@@ -212,7 +231,9 @@ public class GlobalExceptionHandler {
                 ex.getCode(),
                 ex.getMessage()
         );
-        return new ResponseEntity<>(body, HttpStatus.INTERNAL_SERVER_ERROR);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body);
     }
 
     @ExceptionHandler({
@@ -225,7 +246,9 @@ public class GlobalExceptionHandler {
                 "NOT_FOUND",
                 "Không tìm thấy đường dẫn yêu cầu"
         );
-        return new ResponseEntity<>(body, HttpStatus.NOT_FOUND);
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body);
     }
 
     /** Phương thức HTTP không hỗ trợ trên đường dẫn có tồn tại (vd. DELETE /api/areas/{id} đã bỏ ở Step 6) -> 405, kèm header Allow. */
@@ -240,14 +263,77 @@ public class GlobalExceptionHandler {
         if (ex.getSupportedHttpMethods() != null && !ex.getSupportedHttpMethods().isEmpty()) {
             headers.setAllow(ex.getSupportedHttpMethods());
         }
-        return new ResponseEntity<>(body, headers, HttpStatus.METHOD_NOT_ALLOWED);
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
+                .headers(headers)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body);
+    }
+
+    /**
+     * Xử lý trường hợp client chủ động ngắt kết nối trong quá trình stream video / tải file.
+     * Tránh lỗi HttpMessageNotWritableException và không ghi thêm dữ liệu vào socket đã đóng.
+     */
+    @ExceptionHandler({
+            AsyncRequestNotUsableException.class,
+            ClientAbortException.class
+    })
+    public void handleClientDisconnect(Exception ex) {
+        log.debug("Client aborted or disconnected stream/connection: {}", ex.getMessage());
+    }
+
+    /**
+     * Bắt các ngoại lệ I/O phát sinh trong quá trình truyền dữ liệu mạng / stream.
+     */
+    @ExceptionHandler(IOException.class)
+    public ResponseEntity<ApiResponse<Object>> handleIOException(IOException ex, HttpServletResponse response) {
+        if (isClientDisconnect(ex)) {
+            log.debug("Client disconnected/aborted connection (IOException): {}", ex.getMessage());
+            return null;
+        }
+        if (response != null && response.isCommitted()) {
+            log.warn("Response already committed, cannot send error response for IOException: {}", ex.getMessage());
+            return null;
+        }
+        log.error("I/O exception: ", ex);
+        return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "Lỗi I/O khi xử lý yêu cầu");
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiResponse<Object>> handleGeneral(Exception ex) {
+    public ResponseEntity<ApiResponse<Object>> handleGeneral(Exception ex, HttpServletResponse response) {
+        if (isClientDisconnect(ex)) {
+            log.debug("Client disconnected/aborted connection (unhandled in general): {}", ex.getMessage());
+            return null;
+        }
+        if (response != null && response.isCommitted()) {
+            log.warn("Response already committed, cannot send error response for: {}", ex.getMessage());
+            return null;
+        }
         String errorId = UUID.randomUUID().toString().substring(0, 8);
         log.error("Unhandled exception [errorId={}]: ", errorId, ex);
         return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "Lỗi hệ thống. Mã tra cứu: " + errorId);
+    }
+
+    private boolean isClientDisconnect(Throwable ex) {
+        Throwable current = ex;
+        while (current != null) {
+            String className = current.getClass().getName();
+            if (className.contains("ClientAbortException")
+                    || className.contains("AsyncRequestNotUsableException")) {
+                return true;
+            }
+            String msg = current.getMessage();
+            if (msg != null) {
+                String lower = msg.toLowerCase();
+                if (lower.contains("broken pipe")
+                        || lower.contains("connection reset")
+                        || lower.contains("connection was aborted")
+                        || lower.contains("forcibly closed by the remote host")) {
+                    return true;
+                }
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     private ResponseEntity<ApiResponse<Object>> buildResponse(HttpStatus status, String message) {
@@ -256,7 +342,8 @@ public class GlobalExceptionHandler {
                 status.getReasonPhrase(),
                 message
         );
-        return new ResponseEntity<>(body, status);
+        return ResponseEntity.status(status)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body);
     }
 }
-

@@ -29,8 +29,8 @@ export const AREA_LEVEL_CONFIG = {
   },
   HIGHLY_CONFIDENTIAL: {
     code: 'HIGHLY_CONFIDENTIAL',
-    name: 'Tuyệt mật',
-    badgeLabel: 'Tuyệt mật',
+    name: 'Bảo mật cao',
+    badgeLabel: 'Bảo mật cao',
     badgeClass: 'level-badge--private',
     cardClass: 'zone-card--private',
     color: '#ef4444',

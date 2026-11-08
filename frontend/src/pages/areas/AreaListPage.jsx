@@ -88,7 +88,7 @@ const coordinateFieldError = (value, min, max, label) => {
 	return null;
 };
 
-// V83: 3 loại, cấp cố định theo loại (Công khai 1, Bảo mật 2, Tuyệt mật 3)
+// V83: 3 loại, cấp cố định theo loại (Công khai 1, Bảo mật 2, Bảo mật cao 3)
 const AREA_LEVEL_CARDS = AREA_LEVEL_OPTIONS.map((cfg, i) => ({
 	value: cfg.code,
 	name: cfg.name,

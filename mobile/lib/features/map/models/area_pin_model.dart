@@ -53,7 +53,7 @@ class AreaPinModel {
       case 'CONFIDENTIAL_CONTACT_REQUIRED':
         return 'Bảo mật (Cấp 2)';
       case 'HIGHLY_CONFIDENTIAL':
-        return 'Tuyệt mật (Cấp 3)';
+        return 'Bảo mật cao (Cấp 3)';
       default:
         return 'Cấp $areaLevel';
     }
