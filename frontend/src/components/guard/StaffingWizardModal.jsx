@@ -86,117 +86,101 @@ export default function StaffingWizardModal({
   }, [currentWeekMonday]);
 
   const thisSundayStr = useMemo(() => {
-    if (!thisMondayStr) return '';
-    const mon = new Date(thisMondayStr);
-    const sun = new Date(mon);
-    sun.setDate(mon.getDate() + 6);
-    const y = sun.getFullYear();
-    const m = String(sun.getMonth() + 1).padStart(2, '0');
-    const dt = String(sun.getDate()).padStart(2, '0');
+    const d = new Date(thisMondayStr);
+    d.setDate(d.getDate() + 6);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const dt = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${dt}`;
   }, [thisMondayStr]);
 
   const nextMondayStr = useMemo(() => {
-    const d = currentWeekMonday ? new Date(currentWeekMonday) : new Date();
-    const day = d.getDay();
-    const diffToNextMon = day === 0 ? 1 : 8 - day;
-    const nextMon = new Date(d);
-    nextMon.setDate(d.getDate() + diffToNextMon);
-    const y = nextMon.getFullYear();
-    const m = String(nextMon.getMonth() + 1).padStart(2, '0');
-    const dt = String(nextMon.getDate()).padStart(2, '0');
+    const d = new Date(thisMondayStr);
+    d.setDate(d.getDate() + 7);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const dt = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${dt}`;
-  }, [currentWeekMonday]);
+  }, [thisMondayStr]);
 
   const nextSundayStr = useMemo(() => {
-    if (!nextMondayStr) return '';
-    const mon = new Date(nextMondayStr);
-    const sun = new Date(mon);
-    sun.setDate(mon.getDate() + 6);
-    const y = sun.getFullYear();
-    const m = String(sun.getMonth() + 1).padStart(2, '0');
-    const dt = String(sun.getDate()).padStart(2, '0');
+    const d = new Date(nextMondayStr);
+    d.setDate(d.getDate() + 6);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const dt = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${dt}`;
   }, [nextMondayStr]);
 
-  // Khởi tạo ngày bắt đầu, kết thúc và tự động chọn đội (ưu tiên đội đang lọc) khi mở modal
   useEffect(() => {
     if (isOpen) {
       setError(null);
       setResult(null);
+      setShowCrossConfirm(false);
+      setCrossBuildingReason('');
+
+      // Gán ngày mặc định là Thứ 2 tuần này tới Chủ Nhật tuần này
       setStartDate(thisMondayStr);
       setEndDate(thisSundayStr);
 
-      if (teams && teams.length > 0) {
-        const matchingTeam = defaultTeamId && defaultTeamId !== 'ALL'
-          ? teams.find((t) => t.id === defaultTeamId)
-          : null;
-        const targetTeam = matchingTeam || teams[0];
-        setSelectedTeamId(targetTeam.id);
+      const targetId = defaultTeamId || (teams.length > 0 ? teams[0].id : '');
+      if (targetId) {
+        handleSelectTeam(targetId);
       }
     }
   }, [isOpen, defaultTeamId, teams, thisMondayStr, thisSundayStr]);
 
-  // Đội bảo vệ đang được chọn
   const activeTeam = useMemo(() => {
-    return (teams || []).find((t) => t.id === selectedTeamId) || null;
+    return teams.find((t) => t.id === selectedTeamId) || null;
   }, [teams, selectedTeamId]);
 
-  // Cập nhật cấu hình nhu cầu ca trực và tòa nhà mặc định khi đổi đội
-  useEffect(() => {
-    if (activeTeam) {
-      setWeekdayMorningDemand(activeTeam.weekdayMorningDemand ?? 2);
-      setWeekdayAfternoonDemand(activeTeam.weekdayAfternoonDemand ?? 2);
-      setWeekdayNightDemand(activeTeam.weekdayNightDemand ?? 2);
-      setSundayMorningDemand(activeTeam.sundayMorningDemand ?? 2);
-      setSundayAfternoonDemand(activeTeam.sundayAfternoonDemand ?? 2);
-      setSundayNightDemand(activeTeam.sundayNightDemand ?? 2);
-      setHasSundayCustom(activeTeam.hasSundayCustom ?? true);
-
-      // P1b: ưu tiên toà phụ trách theo FK của đội (buildingName); không có thì suy từ description như cũ
-      if (activeTeam.buildingName) {
-        const teamBuilding = (buildings || []).find(
-          (b) => b.id === activeTeam.buildingId || b.name === activeTeam.buildingName
-        );
-        if (teamBuilding) {
-          setBuilding(teamBuilding.name);
-          return;
-        }
-      }
-
-      if (activeTeam.description) {
-        const desc = activeTeam.description;
-        const matchingBuilding = (buildings || []).find(
-          (b) => b.name === desc || b.id === desc
-        );
-        if (matchingBuilding) {
-          setBuilding(matchingBuilding.name);
-        } else if (availableBuildings.includes(desc)) {
-          setBuilding(desc);
-        }
-      }
-    }
-  }, [activeTeam, buildings]);
-
-  // Tên tòa nhà gốc của đội đang chọn
+  // Tìm toà nhà chính quy của đội
   const teamHomeBuildingName = useMemo(() => {
-    if (!activeTeam) return '';
-    return activeTeam.buildingName || activeTeam.description || '';
+    if (!activeTeam) return null;
+    if (activeTeam.building && activeTeam.building.name) return activeTeam.building.name;
+    if (activeTeam.buildingName) return activeTeam.buildingName;
+    if (activeTeam.assignedArea) return activeTeam.assignedArea;
+    return null;
   }, [activeTeam]);
 
-  // Danh sách thành viên của đội đang chọn
+  // Thành viên của đội
   const activeTeamMembers = useMemo(() => {
     if (!activeTeam) return [];
-    if (Array.isArray(activeTeam.members) && activeTeam.members.length > 0) {
+    if (activeTeam.members && activeTeam.members.length > 0) {
       return activeTeam.members;
     }
-    return guards.filter(
-      (g) => g.team?.id === activeTeam.id || g.teamId === activeTeam.id
-    );
+    return guards.filter((g) => g.teamId === activeTeam.id || g.team?.id === activeTeam.id);
   }, [activeTeam, guards]);
 
   const handleSelectTeam = (teamId) => {
     setSelectedTeamId(teamId);
+    const team = teams.find((t) => t.id === teamId);
+    if (team) {
+      const bName = team.building?.name || team.buildingName || team.assignedArea;
+      if (bName && availableBuildings.includes(bName)) {
+        setBuilding(bName);
+      }
+
+      // Nạp cấu hình quân số định biên mẫu nếu có
+      if (team.shiftPatternJson) {
+        try {
+          const pat = typeof team.shiftPatternJson === 'string'
+            ? JSON.parse(team.shiftPatternJson)
+            : team.shiftPatternJson;
+          if (pat) {
+            setWeekdayMorningDemand(pat.weekdayMorningDemand ?? 2);
+            setWeekdayAfternoonDemand(pat.weekdayAfternoonDemand ?? 2);
+            setWeekdayNightDemand(pat.weekdayNightDemand ?? 2);
+            setSundayMorningDemand(pat.sundayMorningDemand ?? pat.weekendMorningDemand ?? 2);
+            setSundayAfternoonDemand(pat.sundayAfternoonDemand ?? pat.weekendAfternoonDemand ?? 2);
+            setSundayNightDemand(pat.sundayNightDemand ?? pat.weekendNightDemand ?? 2);
+            setHasSundayCustom(pat.hasSundayCustom ?? pat.hasWeekendCustom ?? true);
+          }
+        } catch (e) {
+          console.warn('Lỗi parse shiftPatternJson của đội:', e);
+        }
+      }
+    }
   };
 
   const handleStartDateChange = (val) => {
@@ -300,21 +284,15 @@ export default function StaffingWizardModal({
           if (targetTeam) {
             await guardScheduleApi.updateTeam(selectedTeamId, {
               teamName: targetTeam.teamName,
-              description: building,
-              // P1b: wizard luân chuyển không gửi buildingId (backend giữ toà phụ trách của đội), chỉ giữ hành vi cũ ghi description
-              buildingId: confirmCross ? undefined : (matchedBld?.id || targetTeam.buildingId),
-              colorCode: targetTeam.colorCode || '#2563eb',
-              weekdayMorningDemand: targetTeam.weekdayMorningDemand ?? 2,
-              weekdayAfternoonDemand: targetTeam.weekdayAfternoonDemand ?? 2,
-              weekdayNightDemand: targetTeam.weekdayNightDemand ?? 2,
-              sundayMorningDemand: targetTeam.sundayMorningDemand ?? 2,
-              sundayAfternoonDemand: targetTeam.sundayAfternoonDemand ?? 2,
-              sundayNightDemand: targetTeam.sundayNightDemand ?? 2,
-              hasSundayCustom: true
+              description: targetTeam.description,
+              colorCode: targetTeam.colorCode,
+              buildingName: building,
+              assignedArea: building,
+              buildingId: matchedBld?.id || targetTeam.buildingId
             });
           }
         } catch (updateErr) {
-          console.warn('Lỗi khi cập nhật tòa nhà vào Đội:', updateErr);
+          console.warn('Lỗi cập nhật toà nhà cho đội sau khi gán lịch:', updateErr);
         }
       }
 
@@ -339,25 +317,25 @@ export default function StaffingWizardModal({
         if (e.target === e.currentTarget && !loading) onClose();
       }}
     >
-      <div className="schedule-modal schedule-modal--md max-w-xl">
+      <div className="schedule-modal schedule-modal--lg max-w-2xl w-full">
         {/* HEADER */}
-        <div className="schedule-modal__header">
-          <div className="schedule-modal__header-left">
-            <div className="schedule-modal__icon-badge">
-              <Calendar size={18} />
+        <div className="schedule-modal__header px-6 py-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/50 flex items-center justify-between">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-xl bg-orange-500/10 text-orange-600 dark:text-orange-400 flex items-center justify-center border border-orange-500/20 shadow-xs shrink-0">
+              <Calendar size={22} />
             </div>
-            <div className="schedule-modal__header-text">
-              <h3 className="schedule-modal__title">
+            <div className="flex flex-col gap-0.5">
+              <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white leading-tight">
                 Gán Lịch Trực Cho Đội Bảo Vệ
               </h3>
-              <p className="schedule-modal__subtitle">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Tự động phân bổ ca trực theo khoảng thời gian cho Đội bảo vệ
               </p>
             </div>
           </div>
           <button
             type="button"
-            className="schedule-modal__close-btn"
+            className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition"
             onClick={onClose}
             disabled={loading}
             aria-label="Đóng"
@@ -368,15 +346,15 @@ export default function StaffingWizardModal({
 
         {/* SUCCESS RESULT SCREEN */}
         {result ? (
-          <div className="schedule-modal__body p-6 text-center space-y-4">
-            <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 mx-auto flex items-center justify-center">
-              <CheckCircle2 size={28} />
+          <div className="p-8 text-center flex flex-col items-center gap-5">
+            <div className="w-14 h-14 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-200 dark:border-emerald-800 shadow-xs">
+              <CheckCircle2 size={32} />
             </div>
-            <div>
-              <h4 className="text-base font-bold text-slate-800 dark:text-slate-100">
+            <div className="flex flex-col gap-1.5">
+              <h4 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100">
                 Phân Lịch Trực Cho Đội Thành Công!
               </h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-md mx-auto">
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
                 Đã tạo thành công {Array.isArray(result) ? result.length : 'toàn bộ'} ca trực cho <strong>{activeTeam?.teamName}</strong> từ <strong>{startDate}</strong> đến <strong>{endDate}</strong>.
               </p>
             </div>
@@ -384,7 +362,7 @@ export default function StaffingWizardModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="schedule-btn-primary px-6 py-2 text-xs font-bold"
+                className="px-6 py-2.5 text-xs font-bold rounded-xl text-white bg-[#f37021] hover:bg-[#e05e10] shadow-sm transition active:scale-95"
               >
                 Hoàn Tất & Xem Lịch Trực
               </button>
@@ -392,18 +370,18 @@ export default function StaffingWizardModal({
           </div>
         ) : (
           <form onSubmit={handleSubmit}>
-            <div className="schedule-modal__body space-y-4 p-5">
+            <div className="px-6 sm:px-7 py-6 flex flex-col gap-6 max-h-[calc(85vh-130px)] overflow-y-auto">
               {/* ERROR ALERT */}
               {error && (
-                <div className="p-3 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800/80 rounded-xl text-xs text-rose-700 dark:text-rose-300 flex items-start gap-2">
-                  <AlertCircle size={16} className="shrink-0 mt-0.5 text-rose-600" />
-                  <span>{error}</span>
+                <div className="p-3.5 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800/80 rounded-xl text-xs text-rose-700 dark:text-rose-300 flex items-start gap-3 shadow-xs">
+                  <AlertCircle size={18} className="shrink-0 mt-0.5 text-rose-600 dark:text-rose-400" />
+                  <span className="leading-relaxed">{error}</span>
                 </div>
               )}
 
               {/* 1. CHỌN ĐỘI BẢO VỆ */}
-              <div className="space-y-2">
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+              <div className="flex flex-col gap-2.5">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                   1. Chọn Đội Bảo Vệ Phụ Trách <span className="text-rose-500">*</span>
                 </label>
                 <Select
@@ -416,39 +394,39 @@ export default function StaffingWizardModal({
                   ]}
                 />
 
-                {/* THẺ TÓM TẮT ĐỘI ĐÃ CHỌN (KHÔNG HIỂN THỊ DANH SÁCH TÊN TỪNG NGƯỜI) */}
+                {/* THẺ TÓM TẮT ĐỘI ĐÃ CHỌN */}
                 {activeTeam ? (
-                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80">
+                  <div className="p-4 sm:p-4.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 shadow-xs flex flex-col gap-3">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2.5">
                         <span
-                          className="w-3 h-3 rounded-full shrink-0"
-                          style={{ backgroundColor: activeTeam.colorCode || '#2563eb' }}
+                          className="w-3.5 h-3.5 rounded-full shrink-0 shadow-xs"
+                          style={{ backgroundColor: activeTeam.colorCode || '#f37021' }}
                         />
-                        <span className="text-xs font-bold text-slate-800 dark:text-slate-100">
+                        <span className="text-sm font-bold text-slate-900 dark:text-slate-100">
                           {activeTeam.teamName}
                         </span>
                       </div>
-                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                      <span className="px-3 py-1 rounded-full text-xs font-bold bg-blue-50 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
                         {teamMemberCount} thành viên
                       </span>
                     </div>
 
-                    <div className="mt-2.5 pt-2.5 border-t border-slate-200/80 dark:border-slate-700/80 text-[11px] text-slate-600 dark:text-slate-300 space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-slate-700 dark:text-slate-200">
+                    <div className="flex flex-col gap-2 pt-2.5 border-t border-slate-200/80 dark:border-slate-700/80 text-xs">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 p-2.5 rounded-lg bg-white dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800">
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">
                           Nhu cầu T2 – T7:
                         </span>
-                        <span className="font-medium text-slate-800 dark:text-slate-100">
+                        <span className="font-medium text-slate-800 dark:text-slate-200">
                           {weekdayMorningDemand} Sáng • {weekdayAfternoonDemand} Chiều • {weekdayNightDemand} Đêm (<strong>{weekdayMorningDemand + weekdayAfternoonDemand + weekdayNightDemand} ca/ngày</strong>)
                         </span>
                       </div>
                       {hasSundayCustom && (
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold text-slate-700 dark:text-slate-200">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 p-2.5 rounded-lg bg-white dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800">
+                          <span className="font-semibold text-slate-700 dark:text-slate-300">
                             Nhu cầu Chủ Nhật:
                           </span>
-                          <span className="font-medium text-slate-800 dark:text-slate-100">
+                          <span className="font-medium text-slate-800 dark:text-slate-200">
                             {sundayMorningDemand} Sáng • {sundayAfternoonDemand} Chiều • {sundayNightDemand} Đêm (<strong>{sundayMorningDemand + sundayAfternoonDemand + sundayNightDemand} ca/ngày</strong>)
                           </span>
                         </div>
@@ -456,28 +434,28 @@ export default function StaffingWizardModal({
                     </div>
 
                     {teamMemberCount === 0 && (
-                      <div className="mt-2 text-[11px] text-amber-600 dark:text-amber-400 italic flex items-center gap-1.5">
-                        <AlertCircle size={13} />
+                      <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 rounded-lg text-xs text-amber-700 dark:text-amber-300 flex items-center gap-2">
+                        <AlertCircle size={15} className="shrink-0" />
                         <span>Đội này chưa có thành viên. Vui lòng vào tab <strong>Đội Bảo Vệ</strong> để gán quân số.</span>
                       </div>
                     )}
                   </div>
                 ) : (
-                  <div className="p-3 bg-slate-50 dark:bg-slate-800/40 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-400 text-center">
+                  <div className="p-4 bg-slate-50 dark:bg-slate-800/40 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-400 text-center">
                     Vui lòng chọn một đội bảo vệ ở trên để áp dụng lịch trực
                   </div>
                 )}
               </div>
 
               {/* 2. CHỌN THỜI GIAN TRỰC: NGÀY BẮT ĐẦU & KẾT THÚC */}
-              <div className="space-y-2">
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
-                  <Calendar size={13} className="text-blue-500" />
+              <div className="flex flex-col gap-3">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                  <Calendar size={14} className="text-[#f37021]" />
                   <span>2. Thời Gian Trực <span className="text-rose-500">*</span></span>
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <span className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1 font-medium">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
                       Ngày bắt đầu
                     </span>
                     <input
@@ -485,11 +463,11 @@ export default function StaffingWizardModal({
                       value={startDate}
                       onChange={(e) => handleStartDateChange(e.target.value)}
                       required
-                      className="w-full px-3 py-2 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full h-11 px-4 py-2 text-sm font-semibold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#f37021] shadow-xs transition"
                     />
                   </div>
-                  <div>
-                    <span className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1 font-medium">
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
                       Ngày kết thúc
                     </span>
                     <input
@@ -498,24 +476,24 @@ export default function StaffingWizardModal({
                       min={startDate}
                       onChange={(e) => setEndDate(e.target.value)}
                       required
-                      className="w-full px-3 py-2 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full h-11 px-4 py-2 text-sm font-semibold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#f37021] shadow-xs transition"
                     />
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[11px] text-slate-400">Chọn nhanh:</span>
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-400 font-medium">Chọn nhanh:</span>
                     <button
                       type="button"
                       onClick={() => {
                         setStartDate(thisMondayStr);
                         setEndDate(thisSundayStr);
                       }}
-                      className={`text-[10px] px-2.5 py-0.5 rounded font-medium border transition ${
+                      className={`text-xs px-3.5 py-1.5 rounded-lg font-semibold border transition shadow-xs ${
                         startDate === thisMondayStr && endDate === thisSundayStr
-                          ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 font-bold'
-                          : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+                          ? 'bg-orange-50 dark:bg-orange-950/60 text-[#f37021] dark:text-orange-400 border-orange-300 dark:border-orange-800 font-bold'
+                          : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
                       }`}
                     >
                       Tuần này
@@ -526,32 +504,30 @@ export default function StaffingWizardModal({
                         setStartDate(nextMondayStr);
                         setEndDate(nextSundayStr);
                       }}
-                      className={`text-[10px] px-2.5 py-0.5 rounded font-medium border transition ${
+                      className={`text-xs px-3.5 py-1.5 rounded-lg font-semibold border transition shadow-xs ${
                         startDate === nextMondayStr && endDate === nextSundayStr
-                          ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 font-bold'
-                          : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+                          ? 'bg-orange-50 dark:bg-orange-950/60 text-[#f37021] dark:text-orange-400 border-orange-300 dark:border-orange-800 font-bold'
+                          : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
                       }`}
                     >
                       Tuần tới
                     </button>
                   </div>
                   {startDate && endDate && (
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                    <div className="px-3 py-1.5 rounded-lg bg-orange-50/80 dark:bg-orange-950/50 border border-orange-200 dark:border-orange-900/60 text-xs font-semibold text-orange-700 dark:text-orange-300 flex items-center gap-1.5">
                       <span>{startDate}</span>
-                      <ArrowRight size={10} />
+                      <ArrowRight size={12} />
                       <span>{endDate}</span>
-                      <span className="font-semibold text-blue-600 dark:text-blue-400">
-                        ({totalDays} ngày)
-                      </span>
+                      <span className="font-bold">({totalDays} ngày)</span>
                     </div>
                   )}
                 </div>
               </div>
 
               {/* 3. CHỌN TÒA NHÀ / CƠ SỞ PHỤ TRÁCH */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
-                  <Building2 size={13} className="text-blue-500" />
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                  <Building2 size={14} className="text-[#f37021]" />
                   <span>3. Tòa Nhà / Cơ Sở Phụ Trách <span className="text-rose-500">*</span></span>
                 </label>
                 <Select
@@ -560,26 +536,26 @@ export default function StaffingWizardModal({
                   required
                   options={availableBuildings.map((bName) => ({ value: bName, label: bName }))}
                 />
-                <p className="text-[10px] text-slate-400">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
                   Cơ sở phân công trực tiếp để nhận cảnh báo AI Camera và kiểm soát an ninh
                 </p>
               </div>
             </div>
 
             {/* MODAL FOOTER */}
-            <div className="schedule-modal__footer flex items-center justify-end gap-2 p-4 border-t border-slate-100 dark:border-slate-800">
+            <div className="px-6 sm:px-7 py-4.5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/40 flex items-center justify-end gap-3">
               <button
                 type="button"
                 onClick={onClose}
                 disabled={loading}
-                className="schedule-btn-secondary"
+                className="px-4.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition"
               >
                 Hủy
               </button>
               <button
                 type="submit"
                 disabled={loading || !selectedTeamId || teamMemberCount === 0}
-                className="schedule-btn-primary"
+                className="px-5 py-2.5 text-xs font-bold rounded-xl text-white bg-[#f37021] hover:bg-[#e05e10] active:scale-95 disabled:opacity-50 disabled:pointer-events-none shadow-xs transition flex items-center gap-2"
               >
                 {loading ? 'Đang Tạo Lịch...' : `Gán Lịch Cho ${activeTeam?.teamName || 'Đội Bảo Vệ'}`}
               </button>
@@ -589,27 +565,27 @@ export default function StaffingWizardModal({
 
         {/* Hộp thoại xác nhận luân chuyển tòa nhà (Requirement 3) */}
         {showCrossConfirm && (
-          <div className="fixed inset-0 z-60 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-4">
-              <div className="flex items-start gap-3">
-                <div className="p-2.5 rounded-xl bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 shrink-0">
-                  <AlertCircle size={22} />
+          <div className="fixed inset-0 z-60 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl flex flex-col gap-5 animate-in zoom-in-95">
+              <div className="flex items-start gap-3.5">
+                <div className="p-3 rounded-xl bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-400 shrink-0 border border-amber-200 dark:border-amber-800">
+                  <AlertCircle size={24} />
                 </div>
-                <div>
-                  <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                <div className="flex flex-col gap-1">
+                  <h4 className="text-base font-bold text-slate-900 dark:text-white">
                     Xác nhận tạo ca trực luân chuyển tòa nhà
                   </h4>
-                  <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
                     Đội <strong>{activeTeam?.teamName}</strong> có cơ sở phụ trách là <strong>{teamHomeBuildingName}</strong>, nhưng bạn đang phân lịch tại <strong>{building}</strong>.
                   </p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
                     Toàn bộ các ca trực tự động sinh ra sẽ được đánh dấu là ca <strong>luân chuyển tòa nhà</strong>.
                   </p>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                   Lý do luân chuyển (không bắt buộc):
                 </label>
                 <input
@@ -617,15 +593,15 @@ export default function StaffingWizardModal({
                   value={crossBuildingReason}
                   onChange={(e) => setCrossBuildingReason(e.target.value)}
                   placeholder="Ví dụ: Tăng cường trực sự kiện, hỗ trợ cơ sở thiếu quân số..."
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full h-11 px-4 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#f37021]"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setShowCrossConfirm(false)}
-                  className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
                 >
                   Hủy bỏ
                 </button>
@@ -635,10 +611,10 @@ export default function StaffingWizardModal({
                     setShowCrossConfirm(false);
                     doGenerate(true, crossBuildingReason);
                   }}
-                  className="px-4 py-1.5 rounded-lg text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition flex items-center gap-1.5"
+                  className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-[#f37021] hover:bg-[#e05e10] transition flex items-center gap-2"
                 >
                   <span>Xác nhận & Tạo lịch</span>
-                  <ArrowRight size={13} />
+                  <ArrowRight size={14} />
                 </button>
               </div>
             </div>

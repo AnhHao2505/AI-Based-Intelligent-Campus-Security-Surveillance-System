@@ -874,7 +874,7 @@
 .schedule-modal {
   background: var(--theme-modal-bg);
   border: 1px solid var(--theme-border);
-  border-radius: 14px;
+  border-radius: 16px;
   width: 100%;
   max-width: 520px;
   box-shadow: 0 20px 35px -5px rgba(0, 0, 0, 0.35), 0 10px 15px -5px rgba(0, 0, 0, 0.1);
@@ -885,15 +885,15 @@
 }
 
 .schedule-modal--sm {
-  max-width: 440px;
+  max-width: 460px;
 }
 
 .schedule-modal--md {
-  max-width: 540px;
+  max-width: 580px;
 }
 
 .schedule-modal--lg {
-  max-width: 700px;
+  max-width: 720px;
 }
 
 @keyframes scheduleModalSlideUp {
@@ -909,7 +909,7 @@
 
 /* Modal Header */
 .schedule-modal__header {
-  padding: 16px 20px;
+  padding: 18px 24px;
   border-bottom: 1px solid var(--theme-border);
   display: flex;
   align-items: center;
@@ -921,14 +921,14 @@
 .schedule-modal__header-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   min-width: 0;
 }
 
 .schedule-modal__icon-badge {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
   background: var(--brand-subtle);
   border: 1px solid var(--brand-subtle-border);
   color: var(--brand-text);
@@ -953,23 +953,23 @@
 .schedule-modal__header-text {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   min-width: 0;
 }
 
 .schedule-modal__title {
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 700;
   color: var(--theme-text-primary);
   margin: 0;
   line-height: 1.3;
 }
 
 .schedule-modal__subtitle {
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--theme-text-muted);
   margin: 0;
-  line-height: 1.3;
+  line-height: 1.35;
 }
 
 .schedule-modal__close-btn {
@@ -978,7 +978,7 @@
   color: var(--theme-text-muted);
   cursor: pointer;
   padding: 6px;
-  border-radius: 6px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -993,23 +993,23 @@
 
 /* Modal Body */
 .schedule-modal__body {
-  padding: 18px 20px;
+  padding: 22px 24px;
   display: flex;
   flex-direction: column;
   max-height: calc(85vh - 125px);
   overflow-y: auto;
-  gap: 14px;
+  gap: 18px;
 }
 
 /* Modal Footer */
 .schedule-modal__footer {
-  padding: 14px 20px;
+  padding: 16px 24px;
   border-top: 1px solid var(--theme-border);
   background: var(--theme-bg-desc);
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 10px;
+  gap: 12px;
   flex-shrink: 0;
 }
 
@@ -1017,19 +1017,19 @@
 .schedule-form-group {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .schedule-form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 16px;
 }
 
 .schedule-form-row--3 {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
+  gap: 14px;
 }
 
 @media (max-width: 600px) {
