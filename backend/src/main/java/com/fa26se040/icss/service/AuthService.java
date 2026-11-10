@@ -9,23 +9,46 @@ import com.fa26se040.icss.dto.UserInfo;
 import com.fa26se040.icss.entity.PasswordResetToken;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.ConfigKey;
+import com.fa26se040.icss.enums.NotificationType;
+import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.exception.UnauthorizedException;
 import com.fa26se040.icss.repository.PasswordResetTokenRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import com.fa26se040.icss.security.GoogleTokenVerifier;
 import com.fa26se040.icss.security.JwtTokenProvider;
+import com.fa26se040.icss.security.LoginAttemptLimiter;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+
+import java.util.List;
+import java.util.UUID;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthService {
+
+    /**
+     * PR-AU (BR-AU-32): một câu duy nhất cho MỌI lần đăng nhập thất bại (local và Google): e-mail không có tài khoản,
+     * sai mật khẩu, tài khoản vô hiệu hoá / đã xoá (kể cả nhập đúng mật khẩu), đang bị khoá tạm, Google chưa đăng ký,
+     * token Google sai. Khác câu là dò được e-mail nào có tài khoản.
+     */
+    public static final String LOGIN_FAILED_MESSAGE =
+            "Thông tin đăng nhập không đúng. Nếu bạn chắc chắn thông tin đúng, hãy liên hệ quản trị viên.";
+
+    /** PR-AU: một câu cho mọi lỗi token đặt lại mật khẩu (không hợp lệ, đã dùng, hết hạn, tài khoản khoá / không tồn tại). */
+    public static final String RESET_LINK_INVALID_MESSAGE = "Liên kết không hợp lệ hoặc đã hết hạn.";
+
+    /** reference_type của thông báo ACCOUNT_LOCKED (reference_id = id tài khoản). */
+    static final String REF_TYPE_USER = "USER";
 
     private final UserRepository userRepository;
     private final GoogleTokenVerifier googleTokenVerifier;
@@ -34,12 +57,25 @@ public class AuthService {
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final NotificationService notificationService;
     private final SystemConfigService systemConfigService;
+    private final LoginAttemptLimiter loginAttemptLimiter;
+    private final InAppNotificationService inAppNotificationService;
 
     @Value("${app.jwt.expiration-ms}")
     private long jwtExpirationMs;
 
     @Value("${app.frontend-base-url}")
     private String frontendBaseUrl;
+
+    /**
+     * PR-AU (P2): hash BCrypt giả, tạo một lần lúc khởi động bằng chính PasswordEncoder của hệ thống (cùng cost với
+     * hash thật). E-mail không có tài khoản vẫn chạy matches với hash này để thời gian phản hồi như e-mail có thật.
+     */
+    private String dummyPasswordHash;
+
+    @PostConstruct
+    void initDummyPasswordHash() {
+        dummyPasswordHash = passwordEncoder.encode(UUID.randomUUID().toString());
+    }
 
     /**
      * S2: không để lộ e-mail nào có tài khoản. Controller luôn trả cùng một câu; chỉ tài khoản tồn tại,
@@ -81,19 +117,28 @@ public class AuthService {
 
     public void resetPassword(ResetPasswordRequest request) {
         log.info("Resetting password using token");
-        PasswordResetToken token = passwordResetTokenRepository.findByToken(request.getToken())
-                .orElseThrow(() -> new UnauthorizedException("Mã token khôi phục mật khẩu không hợp lệ"));
+        // PR-AU (P7): mọi lỗi token trả cùng một câu, lý do cụ thể chỉ ghi log
+        PasswordResetToken token = passwordResetTokenRepository.findByToken(request.getToken()).orElse(null);
+        if (token == null) {
+            log.warn("Password reset rejected: token not found");
+            throw new UnauthorizedException(RESET_LINK_INVALID_MESSAGE);
+        }
 
-        if (token.getIsUsed()) {
-            throw new UnauthorizedException("Mã token này đã được sử dụng trước đó");
+        if (Boolean.TRUE.equals(token.getIsUsed())) {
+            log.warn("Password reset rejected: token already used");
+            throw new UnauthorizedException(RESET_LINK_INVALID_MESSAGE);
         }
 
         if (token.getExpiredAt().isBefore(java.time.OffsetDateTime.now())) {
-            throw new UnauthorizedException("Mã token khôi phục mật khẩu đã hết hạn");
+            log.warn("Password reset rejected: token expired");
+            throw new UnauthorizedException(RESET_LINK_INVALID_MESSAGE);
         }
 
-        User user = userRepository.findByEmailAndIsActiveTrue(token.getEmail())
-                .orElseThrow(() -> new UnauthorizedException("Tài khoản liên kết với token này không tồn tại hoặc đã bị khóa"));
+        User user = userRepository.findByEmailAndIsActiveTrue(token.getEmail()).orElse(null);
+        if (user == null) {
+            log.warn("Password reset rejected: account of the token is missing, deactivated or deleted");
+            throw new UnauthorizedException(RESET_LINK_INVALID_MESSAGE);
+        }
 
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
@@ -103,27 +148,99 @@ public class AuthService {
         log.info("Password successfully reset for user: {}", token.getEmail());
     }
 
+    /**
+     * PR-AU (BR-AU-32, P1–P3): mọi lần thất bại ném cùng một UnauthorizedException(LOGIN_FAILED_MESSAGE).
+     * Thứ tự cố định để thời gian và hành vi không lộ trạng thái tài khoản:
+     * 1. luôn chạy passwordEncoder.matches đúng một lần (e-mail không có tài khoản / đã xoá -> hash giả);
+     * 2. đang khoá tạm -> từ chối (kể cả mật khẩu đúng), không đếm thêm;
+     * 3. sai mật khẩu -> đếm theo e-mail đã chuẩn hoá (kể cả e-mail không có thật); mở đợt khoá mới với tài khoản có thật
+     *    -> báo chủ tài khoản (mail) và mọi ADMIN đang hoạt động (in-app), một lần mỗi đợt;
+     * 4. mật khẩu đúng nhưng tài khoản vô hiệu hoá -> từ chối;
+     * 5. thành công -> xoá bộ đếm.
+     */
     public AuthResponse authenticateLocalUser(LoginRequest request) {
-        String email = request.getEmail() != null ? request.getEmail().trim() : "";
-        log.info("Authenticating local user with email: {}", email);
-        User user = userRepository.findByEmail(email)
-                .orElseGet(() -> userRepository.findDeletedByEmail(email).stream().findFirst().orElse(null));
+        String key = LoginAttemptLimiter.normalize(request.getEmail());
+        String rawPassword = request.getPassword() != null ? request.getPassword() : "";
+        log.info("Authenticating local user with email: {}", key);
 
+        User user = key.isEmpty() ? null : userRepository.findByEmail(key).orElse(null);
+        boolean hasRealHash = user != null && user.getPassword() != null && !user.getPassword().isBlank();
+        String hash = hasRealHash ? user.getPassword().trim() : dummyPasswordHash;
+        boolean passwordMatches = passwordEncoder.matches(rawPassword, hash) && hasRealHash;
+
+        if (loginAttemptLimiter.isLocked(key)) {
+            log.warn("Authentication failed: login temporarily locked for email: {}", key);
+            throw loginFailed();
+        }
+
+        if (!passwordMatches) {
+            boolean newlyLocked = loginAttemptLimiter.recordFailure(key);
+            log.warn("Authentication failed: {} for email: {}", user == null ? "no account" : "wrong password", key);
+            if (newlyLocked && user != null) {
+                notifyAccountLockedAfterCommit(user);
+            }
+            throw loginFailed();
+        }
+
+        if (!isActiveAccount(user)) {
+            log.warn("Authentication failed: account is inactive for email: {}", key);
+            throw loginFailed();
+        }
+
+        loginAttemptLimiter.reset(key);
+        return buildAuthResponse(user);
+    }
+
+    /**
+     * PR-AU (BR-AU-32): Google chưa đăng ký, token sai, lỗi xác minh, tài khoản vô hiệu hoá / đã xoá hoặc đang khoá tạm
+     * -> cùng câu LOGIN_FAILED_MESSAGE; không nối thông điệp lỗi kỹ thuật ra ngoài.
+     */
+    public AuthResponse authenticateGoogleUser(GoogleLoginRequest request) {
+        String email;
+        User user;
+        try {
+            GoogleIdToken.Payload payload = googleTokenVerifier.verify(request.getIdToken());
+            if (payload == null) {
+                log.warn("Google token verification failed (invalid token)");
+                throw loginFailed();
+            }
+            email = payload.getEmail();
+            log.info("Google token verified successfully for email: {}", email);
+            user = email == null ? null : userRepository.findByEmail(email).orElse(null);
+        } catch (UnauthorizedException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Error during Google authentication process", e);
+            throw loginFailed();
+        }
+
+        String key = LoginAttemptLimiter.normalize(email);
         if (user == null) {
-            log.warn("Authentication failed: Account not found for email: {}", email);
-            throw new UnauthorizedException("Tài khoản không tồn tại trên hệ thống");
+            log.warn("Google login failed: no account for email: {}", key);
+            throw loginFailed();
+        }
+        if (!isActiveAccount(user)) {
+            log.warn("Google login failed: account is inactive for email: {}", key);
+            throw loginFailed();
+        }
+        if (loginAttemptLimiter.isLocked(key)) {
+            log.warn("Google login failed: login temporarily locked for email: {}", key);
+            throw loginFailed();
         }
 
-        if (user.getDeletedAt() != null || !Boolean.TRUE.equals(user.getIsActive())) {
-            log.warn("Authentication failed: User account is inactive or deleted: {}", email);
-            throw new UnauthorizedException("Tài khoản đã bị vô hiệu hóa hoặc không còn hoạt động");
-        }
+        loginAttemptLimiter.reset(key);
+        return buildAuthResponse(user);
+    }
 
-        if (user.getPassword() == null || !passwordEncoder.matches(request.getPassword(), user.getPassword().trim())) {
-            log.warn("Authentication failed: Password mismatch for email: {}", email);
-            throw new UnauthorizedException("Mật khẩu không chính xác");
-        }
+    private static UnauthorizedException loginFailed() {
+        return new UnauthorizedException(LOGIN_FAILED_MESSAGE);
+    }
 
+    private static boolean isActiveAccount(User user) {
+        return user != null && user.getDeletedAt() == null && Boolean.TRUE.equals(user.getIsActive());
+    }
+
+    private AuthResponse buildAuthResponse(User user) {
         String jwt = jwtTokenProvider.generateToken(user);
 
         UserInfo userInfo = UserInfo.builder()
@@ -143,57 +260,41 @@ public class AuthService {
                 .build();
     }
 
-
-    public AuthResponse authenticateGoogleUser(GoogleLoginRequest request) {
-        try {
-            GoogleIdToken.Payload payload = googleTokenVerifier.verify(request.getIdToken());
-            if (payload == null) {
-                log.warn("Google token verification failed (invalid token)");
-                throw new UnauthorizedException("Invalid Google ID token");
+    /**
+     * PR-AU (P3): tài khoản có thật vừa bị khoá tạm -> mail cảnh báo cho chủ tài khoản (chạy nền) và thông báo in-app
+     * ACCOUNT_LOCKED cho mọi ADMIN đang hoạt động. Gửi sau commit nếu đang trong transaction (đăng nhập hiện không
+     * mở transaction nên gửi ngay). Lỗi gửi chỉ ghi log, không làm đổi phản hồi đăng nhập.
+     */
+    private void notifyAccountLockedAfterCommit(User user) {
+        int attempts = systemConfigService.getInt(ConfigKey.LOGIN_MAX_FAILED_ATTEMPTS);
+        int lockMinutes = systemConfigService.getInt(ConfigKey.LOGIN_LOCK_MINUTES);
+        Runnable task = () -> {
+            try {
+                notificationService.sendAccountLockedEmail(user.getEmail(), user.getFullName(), attempts, lockMinutes);
+            } catch (Exception e) {
+                log.warn("Could not queue account locked email: {}", e.getClass().getSimpleName());
             }
-
-            String email = payload.getEmail();
-            log.info("Google token verified successfully for email: {}", email);
-
-            User user = userRepository.findByEmail(email)
-                    .orElseGet(() -> userRepository.findDeletedByEmail(email).stream().findFirst().orElse(null));
-
-            if (user == null) {
-                log.warn("User email not found: {}", email);
-                throw new UnauthorizedException("Tài khoản không tồn tại trên hệ thống");
+            try {
+                List<User> admins = userRepository.findActiveUsersByRole(Role.ADMIN);
+                String message = "Tài khoản " + user.getUserCode() + " (" + user.getEmail() + ") bị khoá đăng nhập "
+                        + lockMinutes + " phút sau " + attempts + " lần nhập sai mật khẩu.";
+                inAppNotificationService.createForUsers(admins, NotificationType.ACCOUNT_LOCKED,
+                        "Tài khoản bị khoá đăng nhập tạm thời", message, user.getId(), REF_TYPE_USER);
+            } catch (Exception e) {
+                log.warn("Could not create ACCOUNT_LOCKED notification: {}", e.getClass().getSimpleName());
             }
-
-            if (user.getDeletedAt() != null || !Boolean.TRUE.equals(user.getIsActive())) {
-                log.warn("User email inactive or deleted: {}", email);
-                throw new UnauthorizedException("Tài khoản đã bị vô hiệu hóa hoặc không còn hoạt động");
-            }
-
-            String jwt = jwtTokenProvider.generateToken(user);
-
-            UserInfo userInfo = UserInfo.builder()
-                    .id(user.getId())
-                    .fullName(user.getFullName())
-                    .email(user.getEmail())
-                    .role(user.getRole().name())
-                    .userCode(user.getUserCode())
-                    .accessLevel(user.getAccessLevel())
-                    .build();
-
-            return AuthResponse.builder()
-                    .accessToken(jwt)
-                    .tokenType("Bearer")
-                    .expiresIn(jwtExpirationMs / 1000)
-                    .user(userInfo)
-                    .build();
-
-        } catch (UnauthorizedException e) {
-            throw e;
-        } catch (Exception e) {
-            log.error("Error during Google authentication process", e);
-            throw new UnauthorizedException("Authentication failed: " + e.getMessage());
+        };
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    task.run();
+                }
+            });
+        } else {
+            task.run();
         }
     }
-
     public UserInfo fetchCurrentUser(String email) {
         log.info("Fetching current user info for email: {}", email);
         User user = userRepository.findByEmailAndIsActiveTrue(email)

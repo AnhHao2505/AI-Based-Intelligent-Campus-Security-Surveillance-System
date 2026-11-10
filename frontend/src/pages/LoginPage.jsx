@@ -76,29 +76,9 @@ export default function LoginPage({
 			navigate(role === ROLES.NORMAL_USER ? "/access-requests" : "/dashboard");
 		} catch (err) {
 			console.error("Google login failed:", err);
+			// BR-AU-32: chỉ hiện câu server trả, không đoán lý do (đoán lý do là lộ tài khoản nào tồn tại)
 			const rawMsg = (err?.message || "").trim();
-			const lower = rawMsg.toLowerCase();
-			let friendlyError = "";
-			if (
-				lower.includes("không tồn tại") ||
-				lower.includes("not exist") ||
-				lower.includes("not authorized")
-			) {
-				friendlyError =
-					"Tài khoản Google này chưa được cấp phép hoặc không tồn tại trên hệ thống.";
-			} else if (
-				lower.includes("vô hiệu hóa") ||
-				lower.includes("khóa") ||
-				lower.includes("disabled") ||
-				lower.includes("inactive")
-			) {
-				friendlyError =
-					"Tài khoản đã bị vô hiệu hóa hoặc không còn hoạt động. Vui lòng liên hệ quản trị viên.";
-			} else {
-				friendlyError =
-					rawMsg || "Đăng nhập Google thất bại. Vui lòng thử lại.";
-			}
-			setError(friendlyError);
+			setError(rawMsg || "Đăng nhập Google thất bại. Vui lòng thử lại.");
 		} finally {
 			setLoading(false);
 		}
@@ -144,43 +124,12 @@ export default function LoginPage({
 			setActiveTab("credentials");
 			sessionStorage.setItem("login_active_tab", "credentials");
 
+			// BR-AU-32: chỉ hiện câu server trả (một câu chung cho mọi lần thất bại, hoặc câu 429), không đoán lý do
 			const rawMsg = (err?.message || "").trim();
-			const lower = rawMsg.toLowerCase();
-
-			let friendlyError = "";
-			if (
-				lower.includes("không tồn tại") ||
-				lower.includes("does not exist") ||
-				lower.includes("not exist") ||
-				lower.includes("account not found") ||
-				lower.includes("user not found")
-			) {
-				friendlyError =
-					"Tài khoản không tồn tại trên hệ thống. Vui lòng kiểm tra lại địa chỉ email.";
-			} else if (
-				lower.includes("mật khẩu không chính xác") ||
-				lower.includes("mật khẩu") ||
-				lower.includes("password") ||
-				lower.includes("bad credentials")
-			) {
-				friendlyError =
-					"Mật khẩu không chính xác. Vui lòng kiểm tra lại mật khẩu.";
-			} else if (
-				lower.includes("vô hiệu hóa") ||
-				lower.includes("khóa") ||
-				lower.includes("deactivated") ||
-				lower.includes("disabled") ||
-				lower.includes("inactive")
-			) {
-				friendlyError =
-					"Tài khoản đã bị vô hiệu hóa hoặc không còn hoạt động. Vui lòng liên hệ quản trị viên.";
-			} else {
-				friendlyError =
-					rawMsg ||
-					"Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin đăng nhập.";
-			}
-
-			setError(friendlyError);
+			setError(
+				rawMsg ||
+					"Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin đăng nhập.",
+			);
 			credentialForm.setValue("password", "");
 			credentialForm.setFocus("password");
 		} finally {
