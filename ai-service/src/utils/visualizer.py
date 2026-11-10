@@ -1,7 +1,17 @@
 import cv2
 import numpy as np
+import unicodedata
+import re
 from typing import List, Optional, Any, Union
 from ..core.entity import TrackedPerson, Point, RoiPolygonConfig
+
+def remove_vietnamese_accents(text: str) -> str:
+    """Chuyen doi chuoi tieng Viet co dau sang khong dau de ve bang cv2.putText (tranh loi font ASCII)"""
+    if not text:
+        return ""
+    text = re.sub(r'[đĐ]', lambda m: 'd' if m.group() == 'đ' else 'D', text)
+    nfd = unicodedata.normalize('NFD', text)
+    return ''.join(c for c in nfd if unicodedata.category(c) != 'Mn')
 
 class FrameVisualizer:
     """Tiện ích vẽ bounding box, track ID, polygon ROI, thông tin khuôn mặt và cảnh báo lên khung hình"""
@@ -70,7 +80,7 @@ class FrameVisualizer:
             return frame
 
         first_pt = pixel_pts[0]
-        text_label = poly_label
+        text_label = remove_vietnamese_accents(poly_label)
         font_scale = max(0.60, min(w / 1400.0, 1.2))
         font_thickness = max(2, int(round(font_scale * 1.6)))
         (tw, th), baseline = cv2.getTextSize(text_label, cv2.FONT_HERSHEY_SIMPLEX, font_scale, font_thickness)
@@ -160,29 +170,40 @@ class FrameVisualizer:
             is_after_hours = getattr(p, "alert_after_hours_sent", False)
             is_unauthorized = bool(p.alert_unauthorized_sent or (is_identified and not p.face_info.is_authorized))
 
-            # Quy tắc màu và nhãn: Tối đa 1 dòng, tối đa 3 cụm thông tin ngăn cách bởi "|"
-            # 1. Ngoài vùng ROI: Màu default (Xanh lá)
-            if not p.is_in_roi:
-                box_color = (0, 255, 0)  # Xanh lá
-                label = f"ID:#{p.track_id} | {matched_name}" if matched_name else f"ID:#{p.track_id}"
-            # 2. Trong vùng ROI
-            else:
-                # Đột nhập ngoài giờ
+            # Quy tắc màu và nhãn theo security_display_state (Sticky Security State):
+            state = getattr(p, "security_display_state", "NEUTRAL")
+
+            # Fallback an toàn nếu state là NEUTRAL nhưng person đang trong ROI
+            if state == "NEUTRAL" and p.is_in_roi:
                 if is_after_hours:
-                    box_color = (0, 0, 255)  # Đỏ
-                    label = f"ID:#{p.track_id} | {matched_name} | PERSON_INTRUSION" if matched_name else f"ID:#{p.track_id} | PERSON_INTRUSION"
-                # Hợp lệ
+                    state = "INTRUSION"
                 elif is_authorized:
-                    box_color = (0, 255, 0)  # Xanh lá: Hợp lệ
-                    label = f"ID:#{p.track_id} | {matched_name}" if matched_name else f"ID:#{p.track_id} | AUTHORIZED_PERSON"
-                # Không có quyền / Sai giờ
+                    state = "AUTHORIZED"
                 elif is_unauthorized:
-                    box_color = (0, 0, 255)  # Đỏ: Vi phạm
-                    label = f"ID:#{p.track_id} | {matched_name} | UNAUTHORIZED_PERSON" if matched_name else f"ID:#{p.track_id} | UNAUTHORIZED_PERSON"
-                # Người lạ trong ROI
+                    state = "UNAUTHORIZED"
                 else:
-                    box_color = (0, 0, 255)  # Đỏ: Người lạ trong ROI
-                    label = f"ID:#{p.track_id} | UNKNOWN_PERSON"
+                    state = "UNKNOWN"
+
+            if state == "NEUTRAL":
+                box_color = (180, 180, 180)  # Xám trung tính (ngoài ROI, chưa vào)
+                label = f"ID:#{p.track_id} | {matched_name}" if matched_name else f"ID:#{p.track_id}"
+            elif state == "VERIFYING":
+                box_color = (0, 165, 255)  # Vàng cam (vừa chạm ROI, đang quét mặt đệm 1.5s)
+                label = f"ID:#{p.track_id} | DANG XAC THUC..."
+            elif state == "AUTHORIZED":
+                box_color = (0, 255, 0)  # Xanh lá: Hợp lệ
+                label = f"ID:#{p.track_id} | {matched_name}" if matched_name else f"ID:#{p.track_id} | AUTHORIZED_PERSON"
+            elif state == "UNAUTHORIZED":
+                box_color = (0, 0, 255)  # Đỏ: Vi phạm không có quyền
+                label = f"ID:#{p.track_id} | {matched_name} | UNAUTHORIZED_PERSON" if matched_name else f"ID:#{p.track_id} | UNAUTHORIZED_PERSON"
+            elif state == "INTRUSION":
+                box_color = (0, 0, 255)  # Đỏ: Đột nhập ngoài giờ
+                label = f"ID:#{p.track_id} | {matched_name} | PERSON_INTRUSION" if matched_name else f"ID:#{p.track_id} | PERSON_INTRUSION"
+            else:  # UNKNOWN
+                box_color = (0, 0, 255)  # Đỏ: Người lạ trong ROI
+                label = f"ID:#{p.track_id} | UNKNOWN_PERSON"
+
+            label = remove_vietnamese_accents(label)
 
             # Vẽ bounding box chính
             cv2.rectangle(frame, (x1, y1), (x2, y2), box_color, box_thickness)
@@ -242,6 +263,7 @@ class FrameVisualizer:
         font_thickness = max(2, int(round(font_scale * 1.8)))
         box_thickness = max(2, int(round(w / 550.0)))
 
+        label = remove_vietnamese_accents(label)
         for box in motion_boxes:
             x1, y1, x2, y2 = box.to_int_xyxy()
             cv2.rectangle(frame, (x1, y1), (x2, y2), color, box_thickness)

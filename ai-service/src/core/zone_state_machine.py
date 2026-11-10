@@ -1,6 +1,9 @@
 import time
+import logging
 from enum import Enum
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 class ZoneState(str, Enum):
     IDLE = "IDLE"
@@ -47,10 +50,13 @@ class ZoneStateMachine:
 
     def reset(self):
         """Khởi tạo lại trạng thái về IDLE"""
+        old_state = self._state
         self._state = ZoneState.IDLE
         self._motion_start_time = None
         self._cooldown_start_time = None
         self._last_presence_time = None
+        if old_state != ZoneState.IDLE:
+            logger.info("🔄 [ZoneStateMachine] Reset trạng thái: %s ➔ IDLE", old_state.value)
 
     def update(
         self,
@@ -64,6 +70,7 @@ class ZoneStateMachine:
         - person_in_roi: Tín hiệu có class person trong ROI từ YOLO26
         """
         now = current_time if current_time is not None else time.time()
+        old_state = self._state
 
         # Bất cứ khi nào có người trong ROI, cập nhật mốc thời gian hiện diện
         if person_in_roi or has_motion:
@@ -122,5 +129,10 @@ class ZoneStateMachine:
                     self._state = ZoneState.IDLE
                     self._cooldown_start_time = None
                     self._motion_start_time = None
+
+        if self._state != old_state:
+            logger.info(
+                f"🔄 [Trạng thái Vùng] Chuyển trạng thái: {old_state.value} ➔ {self._state.value} (motion={has_motion}, in_roi={person_in_roi})"
+            )
 
         return self._state

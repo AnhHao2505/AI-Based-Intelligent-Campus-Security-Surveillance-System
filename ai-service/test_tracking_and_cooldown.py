@@ -108,7 +108,8 @@ def test_unauthorized_face_not_blocked_by_unknown_cooldown():
         matched_code="USER-001",
         matched_name="Minh Nguyen",
         is_authorized=False,
-        access_reason="Level 1 khong co quyen vao Area 2"
+        access_reason="Level 1 khong co quyen vao Area 2",
+        access_checked=True
     )
     engine.associate_face(2, face_info)
     tracks, alerts, _ = engine.process_frame(
@@ -117,7 +118,7 @@ def test_unauthorized_face_not_blocked_by_unknown_cooldown():
         current_time=105.0
     )
     assert len(alerts) == 1
-    assert alerts[0].event_type == "UNAUTHORIZED_ACCESS"
+    assert alerts[0].event_type == "UNAUTHORIZED_PERSON"
 
 if __name__ == "__main__":
     test_track_retention_max_inactive_seconds()

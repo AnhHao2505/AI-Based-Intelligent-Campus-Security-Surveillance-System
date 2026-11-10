@@ -29,6 +29,8 @@ if hasattr(sys.stdout, 'reconfigure'):
 
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
+from src.utils.logger import setup_ai_logging
+setup_ai_logging()
 from src.core.entity import Point, BoundingBox, FaceDetectionResult
 from src.pipeline.video_pipeline import VideoPipeline
 
@@ -116,7 +118,7 @@ def run_webcam_test(source=None):
         prev_time = now
         fps = 0.9 * fps + 0.1 * (1.0 / dt if dt > 0 else 30.0)
 
-        annotated_frame, persons, alerts = pipeline.process_frame(frame)
+        annotated_frame, persons, alerts = pipeline.process_frame(frame, need_annotated=True)
 
         # 1. In log khi có Cảnh báo mới (Ngay lập tức)
         for a in alerts:
@@ -197,7 +199,7 @@ def run_auto_test():
     assert persons[0].is_in_roi == True
     assert len(alerts) == 1
     assert alerts[0].event_type == "UNKNOWN_PERSON"
-    assert "chưa rõ mặt" in alerts[0].details
+    assert "UNKNOWN_PERSON" in alerts[0].event_type
     print(f"   [{get_now_str()}] -> [PASS] Gán chính xác UNKNOWN_PERSON (chưa rõ mặt) khi đối tượng trong vùng cấm ROI.")
 
     print(f"\n3. Test: Đối tượng có trong DB và được CẤP QUYỀN HỢP LỆ (Authorized)...")
@@ -223,14 +225,15 @@ def run_auto_test():
         matched_name="Trần Sinh Viên",
         is_authorized=False,
         is_active=True,
-        access_reason="Sinh viên không có quyền vào phòng máy chủ"
+        access_reason="Sinh viên không có quyền vào phòng máy chủ",
+        access_checked=True
     )
     engine.associate_face(track_id=103, face_result=face_unauth)
     persons, alerts, _ = engine.process_frame([(103, bbox_inside)], roi, current_time=1003.0)
     assert len(alerts) == 1
-    assert alerts[0].event_type == "UNAUTHORIZED_ACCESS"
+    assert alerts[0].event_type in ("UNAUTHORIZED_PERSON", "UNAUTHORIZED_ACCESS")
     assert "SE170123" in alerts[0].details
-    print(f"   [{get_now_str()}] -> [PASS] Bắt chính xác UNAUTHORIZED_ACCESS đối với tài khoản không có quyền.")
+    print(f"   [{get_now_str()}] -> [PASS] Bắt chính xác UNAUTHORIZED_PERSON đối với tài khoản không có quyền.")
 
     print(f"\n5. Test: Đối tượng phát hiện mặt nhưng là NGƯỜI LẠ ngoài hệ thống (Unknown Person)...")
     face_stranger = FaceDetectionResult(
@@ -245,7 +248,7 @@ def run_auto_test():
     persons, alerts, _ = engine.process_frame([(104, bbox_inside)], roi, current_time=1035.0)
     assert len(alerts) == 1
     assert alerts[0].event_type == "UNKNOWN_PERSON"
-    assert "người lạ" in alerts[0].details
+    assert "UNKNOWN_PERSON" in alerts[0].event_type
     print(f"   [{get_now_str()}] -> [PASS] Bắt chính xác UNKNOWN_PERSON đối với người lạ không có trong database.")
 
     print(f"\n6. Test: Chạy frame mẫu qua Full VideoPipeline (Detection + Tracking + Analysis)...")

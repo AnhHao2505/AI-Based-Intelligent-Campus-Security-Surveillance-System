@@ -1,6 +1,7 @@
 """
 L1 / L4 (06/11/2026): luật ban đêm xét theo nguồn cấp quyền (access_source) backend trả, lý do từ chối khách theo mã.
-BR-294: sau AI_AFTER_HOUR_START chỉ miễn ASSIGNED_PERSONNEL, ACCESS_REQUEST, GUEST_VISIT, INCIDENT_RESPONSE hoặc GUARD.
+BR-294: sau AI_AFTER_HOUR_START chỉ miễn ASSIGNED_PERSONNEL, ACCESS_REQUEST, GUEST_VISIT, INCIDENT_RESPONSE hoặc GUARD,
+và chỉ khi Backend đã cho phép (is_authorized=True). GUARD bị Backend từ chối vẫn PERSON_INTRUSION (Lucas chốt P4-a).
 """
 import os
 import sys
@@ -88,18 +89,40 @@ def test_after_hours_access_level_with_keyword_still_intrusion():
 
 
 def test_after_hours_guard_source_none_no_alert():
-    alerts = _run(AFTER_HOURS_TIME, False, "NONE", "Không có quyền ra vào khu vực", role="GUARD")
+    alerts = _run(AFTER_HOURS_TIME, True, None, "Bảo vệ trực ca", role="GUARD")
     assert alerts == []
 
 
 def test_after_hours_source_missing_falls_back_to_keyword():
-    # access_source None (backend cũ / lỗi mạng): giữ hành vi dò chữ cũ, lý do chứa "đơn" -> không cảnh báo
+    # K4: ban đêm thiếu access_source -> từ chối (PERSON_INTRUSION), không dò chữ trong lý do
     alerts = _run(AFTER_HOURS_TIME, True, None, "Có đơn xin quyền đã được duyệt trong khung thời gian")
-    assert alerts == []
+    assert len(alerts) == 1
+    assert alerts[0].event_type == "PERSON_INTRUSION"
 
 
 def test_after_hours_source_missing_without_keyword_intrusion():
     alerts = _run(AFTER_HOURS_TIME, True, None, "Khách tham quan hợp lệ trong lượt tiếp khách")
+    assert len(alerts) == 1
+    assert alerts[0].event_type == "PERSON_INTRUSION"
+
+
+def test_after_hours_open_event_source_intrusion():
+    # 1) ban đêm, source OPEN_EVENT → PERSON_INTRUSION
+    alerts = _run(AFTER_HOURS_TIME, True, "OPEN_EVENT", "Khu vực đang mở chế độ sự kiện cho thành viên")
+    assert len(alerts) == 1
+    assert alerts[0].event_type == "PERSON_INTRUSION"
+
+
+def test_after_hours_guard_source_none_explicit_no_alert():
+    # 2) ban đêm, role GUARD, source None → không cảnh báo
+    alerts = _run(AFTER_HOURS_TIME, True, None, "Bảo vệ trong ca trực", role="GUARD")
+    assert alerts == []
+
+
+@pytest.mark.parametrize("source", [None, "NONE"])
+def test_after_hours_guard_denied_by_backend_intrusion(source):
+    # P4-a: GUARD chỉ được miễn khi Backend cho phép. Ban đêm, role GUARD, Backend từ chối → PERSON_INTRUSION.
+    alerts = _run(AFTER_HOURS_TIME, False, source, "Bảo vệ không có ca trực trong khung giờ này", role="GUARD")
     assert len(alerts) == 1
     assert alerts[0].event_type == "PERSON_INTRUSION"
 

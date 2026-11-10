@@ -72,6 +72,7 @@ class EdgeMqttAgent:
         worker_factory: Optional[Callable[[str, str, Optional[Dict[str, Any]]], Any]] = None,
         face_detector_instance: Optional[Any] = None,
         face_embedder_instance: Optional[Any] = None,
+        active_workers_lock: Optional[Any] = None,
     ):
         self.mqtt = mqtt_client_wrapper
         self.storage = storage
@@ -80,7 +81,7 @@ class EdgeMqttAgent:
         self.worker_factory = worker_factory
         self.face_detector = face_detector_instance
         self.face_embedder = face_embedder_instance
-        self._lock = threading.Lock()
+        self._lock = active_workers_lock if active_workers_lock is not None else threading.RLock()
         self._relay_processes: Dict[str, subprocess.Popen] = {}
         self._executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="edge-mqtt-rpc")
 
@@ -174,51 +175,65 @@ class EdgeMqttAgent:
         if not camera_code:
             return
 
+        worker_to_stop = None
+        should_stop_stream = False
         with self._lock:
             existing = self.active_workers.get(camera_code)
             if not enabled or (not rtsp_url and not main_rtsp_url):
                 if existing is not None:
-                    try:
-                        existing.stop()
-                    except Exception as e:
-                        logger.warning(f"[EdgeAgent] Lỗi dừng worker {camera_code}: {e}")
+                    worker_to_stop = existing
                     self.active_workers.pop(camera_code, None)
                 self._delete_local_mediamtx_path(camera_code)
                 self._stop_relay_unlocked(camera_code)
-                logger.info(f"🛑 [EdgeAgent] Đã tắt luồng camera [{camera_code}] theo cấu hình MQTT.")
-                return
+                should_stop_stream = True
 
-            # Khi payload có main_rtsp_url -> AI Worker dùng main_rtsp_url (đồng thời sync cả sub và main vào MediaMTX nếu có).
-            # Không có main_rtsp_url -> AI Worker dùng rtsp_url như cũ.
-            if main_rtsp_url:
-                if rtsp_url:
-                    self._sync_local_mediamtx_path(camera_code, rtsp_url)
-                target_ai_source = main_rtsp_url
-                effective_rtsp = self._sync_local_mediamtx_path(f"{camera_code}_main", main_rtsp_url)
-            else:
-                target_ai_source = rtsp_url
-                effective_rtsp = self._sync_local_mediamtx_path(camera_code, rtsp_url)
+        if worker_to_stop:
+            try:
+                worker_to_stop.stop()
+            except Exception as e:
+                logger.warning(f"[EdgeAgent] Lỗi dừng worker {camera_code}: {e}")
+        if should_stop_stream:
+            logger.info(f"🛑 [EdgeAgent] Đã tắt luồng camera [{camera_code}] theo cấu hình MQTT.")
+            return
 
+        # Khi payload có main_rtsp_url -> AI Worker dùng main_rtsp_url (đồng thời sync cả sub và main vào MediaMTX nếu có).
+        # Không có main_rtsp_url -> AI Worker dùng rtsp_url như cũ.
+        if main_rtsp_url:
+            if rtsp_url:
+                self._sync_local_mediamtx_path(camera_code, rtsp_url)
+            target_ai_source = main_rtsp_url
+            effective_rtsp = self._sync_local_mediamtx_path(f"{camera_code}_main", main_rtsp_url)
+        else:
+            target_ai_source = rtsp_url
+            effective_rtsp = self._sync_local_mediamtx_path(camera_code, rtsp_url)
+
+        worker_to_stop = None
+        with self._lock:
+            existing = self.active_workers.get(camera_code)
             if existing is not None and getattr(existing, "is_running", False):
                 if getattr(existing, "rtsp_url", None) in (effective_rtsp, target_ai_source):
                     if roi_geometry and isinstance(roi_geometry, dict) and hasattr(existing, "update_roi"):
                         existing.update_roi(polygons=roi_geometry.get("polygons", []))
                     return
-                try:
-                    existing.stop()
-                except Exception:
-                    pass
+                worker_to_stop = existing
                 self.active_workers.pop(camera_code, None)
 
-            factory = self.worker_factory
-            if factory is None:
-                from ..pipeline.stream_worker import CameraStreamWorker
-                factory = lambda c, u, r: CameraStreamWorker(camera_code=c, rtsp_url=u, roi_geometry=r)
+        if worker_to_stop:
+            try:
+                worker_to_stop.stop()
+            except Exception:
+                pass
 
-            worker = factory(camera_code, effective_rtsp, roi_geometry)
-            worker.start()
+        factory = self.worker_factory
+        if factory is None:
+            from ..pipeline.stream_worker import CameraStreamWorker
+            factory = lambda c, u, r: CameraStreamWorker(camera_code=c, rtsp_url=u, roi_geometry=r)
+
+        worker = factory(camera_code, effective_rtsp, roi_geometry)
+        worker.start()  # Chạy start() ngoài lock để tránh giữ lock khi mở kết nối RTSP
+        with self._lock:
             self.active_workers[camera_code] = worker
-            logger.info(f"✅ [EdgeAgent] Đã kích hoạt CameraStreamWorker [{camera_code}] -> {effective_rtsp}")
+        logger.info(f"✅ [EdgeAgent] Đã kích hoạt CameraStreamWorker [{camera_code}] -> {effective_rtsp}")
 
     def _handle_roi_config(self, data: Dict[str, Any]):
         camera_code = str(data.get("camera_code") or "").strip().upper()
@@ -343,16 +358,9 @@ class EdgeMqttAgent:
                 pass
 
     def _handle_face_cache_refresh(self):
-        count = 0
-        default_pipe = self.default_pipeline_getter() if self.default_pipeline_getter else None
-        if default_pipe and getattr(default_pipe, "face_matcher", None):
-            default_pipe.face_matcher.refresh_cache()
-            count += 1
-        for worker in list(self.active_workers.values()):
-            if getattr(worker, "pipeline", None) and getattr(worker.pipeline, "face_matcher", None):
-                worker.pipeline.face_matcher.refresh_cache()
-                count += 1
-        logger.info(f"🔄 [EdgeAgent] Đã làm mới Face Cache cho {count} pipeline(s) qua MQTT.")
+        from ..core.shared_face_cache import get_shared_face_cache
+        success = get_shared_face_cache().refresh_cache()
+        logger.info(f"🔄 [EdgeAgent] Đã làm mới Shared Face Cache qua MQTT (kết quả: {success}).")
 
     # ------------------------------------------------------------------
     # 3. SYNCHRONOUS RPC REQUEST -> REPLY HANDLERS

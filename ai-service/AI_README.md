@@ -3,7 +3,6 @@
 Microservice xử lý AI thời gian thực cho hệ thống giám sát an ninh:
 - **Tiền xử lý chuyển động & Gating:** OpenCV MOG2 MotionDetector (Tiết kiệm >80% CPU khi phòng vắng).
 - **Chống đột nhập ngụy trang:** Máy trạng thái ZoneStateMachine + Cross-validation bắt kẻ trùm mền/cosplay (`SUSPICIOUS_MOTION`).
-- **Chống phá hoại camera:** Phát hiện hành vi chiếu đèn laser/làm mù cảm biến (`CAMERA_TAMPERING`).
 - **Phát hiện người (Human Detection):** YOLO26 (Class 0: `person`).
 - **Theo dõi đối tượng (Human Tracking):** ByteTrack (Gán và duy trì `track_id` liên tục).
 - **Phát hiện khuôn mặt (Face Detection):** OpenCV YuNet ONNX (kèm 5 điểm Landmarks căn chỉnh).
@@ -26,7 +25,7 @@ ai-service/
 │   ├── main.py                     # FastAPI REST API
 │   ├── core/
 │   │   ├── entity.py               # Các cấu trúc dữ liệu (Point, BBox, TrackedPerson, Alert)
-│   │   ├── motion_detector.py      # Tiền xử lý chuyển động MOG2 & chống Tampering
+│   │   ├── motion_detector.py      # Tiền xử lý chuyển động MOG2
 │   │   ├── zone_state_machine.py   # Máy trạng thái chốt giữ (State Latch)
 │   │   ├── human_detector.py       # Module YOLO26 Person Detection + ByteTrack
 │   │   ├── face_detector.py        # Module YuNet Face Detection

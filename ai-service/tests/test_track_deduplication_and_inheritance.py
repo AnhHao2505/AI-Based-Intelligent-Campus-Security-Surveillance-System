@@ -1,89 +1,190 @@
-import unittest
-import numpy as np
-from src.core.entity import BoundingBox, Point, FaceDetectionResult
+import pytest
 from src.core.frame_analysis_engine import FrameAnalysisEngine
-from src.utils.visualizer import FrameVisualizer
+from src.core.entity import BoundingBox, Point, FaceDetectionResult
 
-class TestTrackDeduplicationAndInheritance(unittest.TestCase):
-    def test_overlapping_new_track_inherits_identity_and_retires_old_track(self):
-        engine = FrameAnalysisEngine()
-        roi = [Point(100, 100), Point(600, 100), Point(600, 600), Point(100, 600)]
 
-        # 1. Frame 1: Person at desk with Track ID 2, identified as SE001
-        bbox_desk = BoundingBox(x1=200, y1=200, x2=350, y2=450)
-        face_info = FaceDetectionResult(
-            bbox=bbox_desk,
-            score=0.92,
-            matched_code="SE001",
-            matched_name="Nguyen Van A",
-            is_authorized=True,
-            is_active=True
-        )
-        engine.associate_face(track_id=2, face_result=face_info)
-        persons, alerts, _ = engine.process_frame([(2, bbox_desk)], roi, current_time=100.0)
+def test_characterization_valid_id_switch_inherits_identity():
+    """
+    Scenario 1: Valid ByteTrack ID switch (cùng một người).
+    Track 1 xuất hiện và nhận diện khuôn mặt.
+    Ở frame tiếp theo, ByteTrack mất Track 1 và tạo Track 2 tại vị trí trùng lặp cao (IoU > 0.6).
+    Track 2 PHẢI kế thừa danh tính từ Track 1.
+    """
+    engine = FrameAnalysisEngine()
+    bbox1 = BoundingBox(100, 100, 200, 300)
+    bbox2 = BoundingBox(102, 100, 202, 300)
 
-        self.assertEqual(len(alerts), 0)
-        self.assertIn(2, engine.active_tracks)
-        self.assertTrue(engine.active_tracks[2].face_detected)
+    # Frame 1: Track 1 xuất hiện với danh tính hợp lệ
+    face_info = FaceDetectionResult(
+        bbox=bbox1,
+        score=0.92,
+        matched_code="SE194249",
+        matched_name="Nguyen Hoang Minh",
+        is_authorized=True,
+        access_checked=True
+    )
+    engine.associate_face(track_id=1, face_result=face_info)
+    engine.process_frame(detected_tracks=[(1, bbox1)], camera_code="CAM-001", current_time=10.0)
 
-        # 2. Frame 2: ByteTrack loses ID 2 and assigns ID 11 at essentially the same desk position
-        bbox_desk_shifted = BoundingBox(x1=205, y1=205, x2=355, y2=455)
-        persons, alerts, _ = engine.process_frame([(11, bbox_desk_shifted)], roi, current_time=101.0)
+    assert 1 in engine.active_tracks
+    assert engine.active_tracks[1].face_info.matched_code == "SE194249"
 
-        # ID 11 must inherit identity from ID 2
-        self.assertIn(11, engine.active_tracks)
-        p11 = engine.active_tracks[11]
-        self.assertTrue(p11.face_detected)
-        self.assertEqual(p11.face_info.matched_code, "SE001")
-        self.assertEqual(p11.face_info.matched_name, "Nguyen Van A")
-        self.assertTrue(p11.is_currently_visible)
+    # Frame 2: Track 1 biến mất, Track 2 xuất hiện tại cùng vị trí (ID switch)
+    tracks, alerts, _ = engine.process_frame(
+        detected_tracks=[(2, bbox2)],
+        camera_code="CAM-001",
+        current_time=10.2
+    )
 
-        # Old track ID 2 must NOT be active/visible anymore
-        self.assertNotIn(2, engine.active_tracks)
-        # Must NOT generate UNKNOWN alert because identity was inherited
-        self.assertEqual(len(alerts), 0)
+    # Track 2 phải kế thừa danh tính từ Track 1
+    assert 2 in engine.active_tracks
+    assert engine.active_tracks[2].face_detected is True
+    assert engine.active_tracks[2].face_info is not None
+    assert engine.active_tracks[2].face_info.matched_code == "SE194249"
+    # Track 1 cũ bị dọn dẹp hoặc đánh dấu không còn visible
+    assert 1 not in engine.active_tracks or not engine.active_tracks[1].is_currently_visible
 
-        # 3. Frame 3: ByteTrack again switches to ID 15
-        bbox_desk_15 = BoundingBox(x1=210, y1=200, x2=360, y2=450)
-        persons, alerts, _ = engine.process_frame([(15, bbox_desk_15)], roi, current_time=102.0)
 
-        self.assertIn(15, engine.active_tracks)
-        p15 = engine.active_tracks[15]
-        self.assertTrue(p15.face_detected)
-        self.assertEqual(p15.face_info.matched_code, "SE001")
-        self.assertNotIn(11, engine.active_tracks)
-        self.assertEqual(len(alerts), 0)
+def test_characterization_two_close_people_stranger_does_not_steal_identity():
+    """
+    Scenario 2: Hai người đứng sát nhau trong cùng frame (Kẻ lạ cạnh người hợp lệ).
+    Track 1 là người hợp lệ (đã nhận diện).
+    Track 2 là người lạ đứng cạnh Track 1, có Bounding Box chồng lấn (IoU > 0.35 hoặc IoM > 0.55).
+    YÊU CẦU:
+    - Track 1 của người hợp lệ KHÔNG BỊ XÓA.
+    - Track 2 (người lạ) KHÔNG ĐƯỢC kế thừa danh tính của Track 1.
+    - Track 2 vẫn là người chưa xác định (face_detected=False hoặc matched_code=None).
+    """
+    engine = FrameAnalysisEngine()
+    # bbox1 và bbox2 chồng lấn nhau (overlap)
+    bbox1 = BoundingBox(100, 100, 200, 300)
+    bbox2 = BoundingBox(130, 100, 230, 300)  # IoU > 0.40
 
-    def test_visualizer_deduplicates_overlapping_tracks(self):
-        # Giả lập 2 người nhưng có 4 bounding boxes (3 box trùng lặp trên cùng 1 người)
-        vis = FrameVisualizer()
-        frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+    # Frame 1: Chỉ có Track 1
+    face_info = FaceDetectionResult(
+        bbox=bbox1,
+        score=0.92,
+        matched_code="SE194249",
+        matched_name="Nguyen Hoang Minh",
+        is_authorized=True,
+        access_checked=True
+    )
+    engine.associate_face(track_id=1, face_result=face_info)
+    engine.process_frame(detected_tracks=[(1, bbox1)], camera_code="CAM-001", current_time=10.0)
 
-        # Person A (on bed)
-        box_bed = BoundingBox(x1=800, y1=200, x2=1100, y2=600)
-        from src.core.entity import TrackedPerson
-        p1 = TrackedPerson(track_id=1, bbox=box_bed)
-        p1.is_currently_visible = True
+    assert 1 in engine.active_tracks
+    assert engine.active_tracks[1].face_info.matched_code == "SE194249"
 
-        # Person B (at desk) with 3 concentric ghost boxes: ID 2, ID 11, ID 15
-        box_desk_11 = BoundingBox(x1=200, y1=150, x2=450, y2=600)
-        box_desk_2 = BoundingBox(x1=220, y1=180, x2=430, y2=580)
-        box_desk_15 = BoundingBox(x1=230, y1=200, x2=420, y2=560)
+    # Frame 2: CẢ HAI NGƯỜI CÙNG XUẤT HIỆN trong frame!
+    tracks, alerts, _ = engine.process_frame(
+        detected_tracks=[(1, bbox1), (2, bbox2)],
+        camera_code="CAM-001",
+        current_time=10.2
+    )
 
-        p11 = TrackedPerson(track_id=11, bbox=box_desk_11)
-        p11.is_currently_visible = True
+    # 1. Track 1 của người hợp lệ KHÔNG ĐƯỢC BỊ XÓA khỏi active_tracks
+    assert 1 in engine.active_tracks, "Track 1 của người hợp lệ không được bị xóa khi có người lạ đứng gần!"
+    assert engine.active_tracks[1].is_currently_visible is True, "Track 1 phải tiếp tục visible!"
+    assert engine.active_tracks[1].face_info.matched_code == "SE194249"
 
-        p2 = TrackedPerson(track_id=2, bbox=box_desk_2)
-        p2.is_currently_visible = True
+    # 2. Track 2 của người lạ KHÔNG ĐƯỢC đánh cắp danh tính của Track 1
+    assert 2 in engine.active_tracks, "Track 2 phải tồn tại trong active_tracks"
+    p2 = engine.active_tracks[2]
+    p2_code = p2.face_info.matched_code if (p2.face_detected and p2.face_info) else None
+    assert p2_code != "SE194249", "Kẻ lạ Track 2 KHÔNG ĐƯỢC kế thừa danh tính SE194249 của người hợp lệ!"
 
-        p15 = TrackedPerson(track_id=15, bbox=box_desk_15)
-        p15.is_currently_visible = True
 
-        persons = [p1, p11, p2, p15]
+def test_characterization_active_dedup_does_not_suppress_active_concurrent_tracks():
+    """
+    Scenario 3: Hai người cùng phát hiện trong frame, đứng gần nhau.
+    Khối khử trùng lặp cuối hàm không được đánh cắp face_info giữa 2 track đang cùng xuất hiện,
+    và không được ẩn đi 1 trong 2 người đang hiện diện.
+    """
+    engine = FrameAnalysisEngine()
+    bbox1 = BoundingBox(100, 100, 200, 300)
+    bbox2 = BoundingBox(130, 100, 230, 300)
 
-        # Draw frame
-        ann_frame = vis.draw_tracked_persons(frame, persons)
-        self.assertEqual(ann_frame.shape, frame.shape)
+    face_info = FaceDetectionResult(
+        bbox=bbox1,
+        score=0.92,
+        matched_code="SE194249",
+        matched_name="Nguyen Hoang Minh",
+        is_authorized=True,
+        access_checked=True
+    )
+    engine.associate_face(track_id=1, face_result=face_info)
 
-if __name__ == "__main__":
-    unittest.main()
+    # Frame 1: Cả hai track 1 và 2 cùng được phát hiện
+    engine.process_frame(
+        detected_tracks=[(1, bbox1), (2, bbox2)],
+        camera_code="CAM-001",
+        current_time=10.0
+    )
+
+    p1 = engine.active_tracks[1]
+    p2 = engine.active_tracks[2]
+
+    # Track 1 hợp lệ
+    assert p1.is_currently_visible is True
+    assert p1.face_info.matched_code == "SE194249"
+
+    # Track 2 là stranger, không được bị đánh cắp face
+    p2_code = p2.face_info.matched_code if (p2.face_detected and p2.face_info) else None
+    assert p2_code is None, "Track 2 không được mang face_info của Track 1"
+def test_detector_double_box_single_person_unknown_alerts():
+    """
+    Điểm 3: Một người bị detector sinh box kép (IoU 0.5 - 0.85).
+    Kiểm tra số cảnh báo UNKNOWN phát ra.
+    Chỉ được phát tối đa 1 cảnh báo duy nhất cho người này.
+    """
+    engine = FrameAnalysisEngine()
+    # bbox1 và bbox2 sinh ra cho cùng 1 người với IoU ~ 0.71 (trong khoảng 0.5 - 0.85)
+    bbox1 = BoundingBox(100, 100, 200, 300, confidence=0.90)
+    bbox2 = BoundingBox(115, 105, 215, 305, confidence=0.75)
+    assert 0.50 <= bbox1.iou(bbox2) <= 0.85
+
+    total_alerts = []
+    # Frame 1: t=0.0
+    _, a1, _ = engine.process_frame([(1, bbox1), (2, bbox2)], camera_code="CAM-001", current_time=0.0)
+    total_alerts.extend(a1)
+
+    # Frame 2: t=2.0 (> 1.5s grace)
+    _, a2, _ = engine.process_frame([(1, bbox1), (2, bbox2)], camera_code="CAM-001", current_time=2.0)
+    total_alerts.extend(a2)
+
+    # Frame 3: t=6.0 (> 3.0s camera min interval)
+    _, a3, _ = engine.process_frame([(1, bbox1), (2, bbox2)], camera_code="CAM-001", current_time=6.0)
+    total_alerts.extend(a3)
+
+    # Chỉ được có đúng 1 cảnh báo UNKNOWN cho cùng 1 cá nhân này
+    assert len(total_alerts) == 1, f"Expected 1 alert for double box of 1 person, got {len(total_alerts)}"
+
+
+def test_two_real_persons_close_together_not_merged_into_one_track():
+    """
+    Điểm 3: Hai người THẬT đứng sát nhau (IoU 0.50 - 0.60, tâm tách biệt).
+    Đảm bảo hai người không bị gộp thành 1 track hoặc một người bị coi là box kép.
+    Cả hai track đều phải duy trì hiển thị và hoạt động độc lập.
+    """
+    engine = FrameAnalysisEngine()
+    # bbox1 và bbox2 của 2 người thật đứng sát nhau: w=120, h=300, IoU = 0.60, tâm x lệch 30px (25% chiều rộng)
+    bbox1 = BoundingBox(100, 100, 220, 400, confidence=0.88)
+    bbox2 = BoundingBox(130, 100, 250, 400, confidence=0.85)
+
+    iou = bbox1.iou(bbox2)
+    assert 0.50 <= iou <= 0.60, f"IoU should be in [0.50, 0.60], got {iou}"
+    # Tâm tách biệt
+    dx = abs(bbox1.center.x - bbox2.center.x)
+    assert dx >= 0.20 * min(bbox1.width, bbox2.width), "Center must be separated"
+
+    # Frame 1: cả 2 người cùng vào khung hình
+    active_persons, alerts, _ = engine.process_frame(
+        detected_tracks=[(1, bbox1), (2, bbox2)],
+        camera_code="CAM-001",
+        current_time=0.0
+    )
+
+    visible_tids = {p.track_id for p in active_persons if p.is_currently_visible}
+    assert 1 in visible_tids, "Track 1 phải hiển thị"
+    assert 2 in visible_tids, "Track 2 phải hiển thị (không bị coi là double box glitch của Track 1)"
+    assert len(visible_tids) == 2, f"Cả 2 người thật phải có 2 track riêng biệt, got {visible_tids}"

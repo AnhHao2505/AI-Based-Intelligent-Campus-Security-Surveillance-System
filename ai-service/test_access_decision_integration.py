@@ -80,10 +80,33 @@ class TestAccessDecisionIntegration(unittest.TestCase):
         }
         mock_post.return_value = mock_resp
 
-        allowed, reason, area_name, _source, _deny = self.matcher.check_camera_access("CAM-01", "SE170123")
+        allowed, reason, area_name, source, _deny = self.matcher.check_camera_access("CAM-01", "SE170123")
         self.assertFalse(allowed)
         self.assertEqual(reason, "Không có quyền ra vào khu vực tại thời điểm này")
         self.assertEqual(area_name, "Phòng Lab 01")
+        self.assertEqual(source, "NONE")
+
+    @patch('requests.post', side_effect=Exception("Backend connection refused"))
+    def test_backend_error_stale_cache_allowed_expired_61s_restricted_area_fails_closed(self, mock_post):
+        """3) backend lỗi + cache allowed=True đã hết hạn 61 giây, camera khu hạn chế → allowed=False"""
+        now = time.time()
+        cache_key = "CAM-01:SE170123"
+        self.matcher.access_cache[cache_key] = (True, "Quyền hợp lệ cũ", "Phòng Lab 01", now - 61.0, "ACCESS_LEVEL", None)
+
+        allowed, reason, area_name, source, deny_reason = self.matcher.check_camera_access("CAM-01", "SE170123", skip_cache=False)
+        self.assertFalse(allowed)
+        self.assertIn("Backend không phản hồi", reason)
+
+    @patch('requests.post', side_effect=Exception("Backend connection refused"))
+    def test_backend_error_stale_cache_denied_expired_300s_reused(self, mock_post):
+        """4) backend lỗi + cache allowed=False đã hết hạn 300 giây → dùng lại (allowed=False, lý do có "[Backend không phản hồi")"""
+        now = time.time()
+        cache_key = "CAM-01:SE170123"
+        self.matcher.access_cache[cache_key] = (False, "Từ chối cũ", "Phòng Lab 01", now - 300.0, "NONE", None)
+
+        allowed, reason, area_name, source, deny_reason = self.matcher.check_camera_access("CAM-01", "SE170123", skip_cache=False)
+        self.assertFalse(allowed)
+        self.assertIn("[Backend không phản hồi", reason)
 
     def test_frame_analysis_engine_unauthorized_alert_with_reason(self):
         """Test FrameAnalysisEngine sinh cảnh báo UNAUTHORIZED_ACCESS kèm đúng lý do từ checkEntry"""
@@ -100,7 +123,8 @@ class TestAccessDecisionIntegration(unittest.TestCase):
             is_authorized=False,
             is_active=True,
             access_reason="Cấp độ người dùng chưa đủ điều kiện vào phòng máy chủ",
-            area_name="Phòng Server Tầng 3"
+            area_name="Phòng Server Tầng 3",
+            access_checked=True
         )
         engine.associate_face(track_id=1, face_result=face_info)
 
@@ -113,14 +137,14 @@ class TestAccessDecisionIntegration(unittest.TestCase):
 
         self.assertEqual(len(alerts), 1)
         alert = alerts[0]
-        self.assertEqual(alert.event_type, "UNAUTHORIZED_ACCESS")
+        self.assertEqual(alert.event_type, "UNAUTHORIZED_PERSON")
         self.assertIn("Trần Sinh Viên", alert.details)
         self.assertIn("Phòng Server Tầng 3", alert.details)
-        self.assertIn("Cấp độ người dùng chưa đủ điều kiện vào phòng máy chủ", alert.details)
+        self.assertIn("Cấp độ không đủ", alert.details)
         self.assertTrue(persons[0].alert_unauthorized_sent)
 
     def test_frame_analysis_engine_unknown_person_alert(self):
-        """Test FrameAnalysisEngine sinh cảnh báo UNKNOWN_PERSON khi người lạ không có trong database"""
+        """Test FrameAnalysisEngine sinh cảnh báo UNKNOWN_PERSON khi người lạ không có trong database sau grace period"""
         engine = FrameAnalysisEngine(after_hour_start="23:59", after_hour_end="23:59")
         roi = [Point(100, 100), Point(400, 100), Point(400, 400), Point(100, 400)]
         bbox = BoundingBox(x1=200, y1=200, x2=300, y2=300)
@@ -136,17 +160,29 @@ class TestAccessDecisionIntegration(unittest.TestCase):
         )
         engine.associate_face(track_id=2, face_result=face_info)
 
+        t0 = 100.0
+        # Frame 1: Vừa bước chân vào ROI (t=100.0s) -> Hệ thống giữ VERIFYING, tuyệt đối KHÔNG bắn UNKNOWN sớm!
         persons, alerts, _ = engine.process_frame(
             detected_tracks=[(2, bbox)],
             roi_polygon=roi,
             camera_code="CAM-SERVER-01",
-            current_time=time.time()
+            current_time=t0
+        )
+        self.assertEqual(len(alerts), 0)
+        self.assertEqual(persons[0].security_display_state, "VERIFYING")
+
+        # Frame 2: Sau khi hết grace period (t=102.0s) -> Bắn cảnh báo UNKNOWN_PERSON
+        persons, alerts, _ = engine.process_frame(
+            detected_tracks=[(2, bbox)],
+            roi_polygon=roi,
+            camera_code="CAM-SERVER-01",
+            current_time=t0 + 2.0
         )
 
         self.assertEqual(len(alerts), 1)
         alert = alerts[0]
         self.assertEqual(alert.event_type, "UNKNOWN_PERSON")
-        self.assertIn("người lạ", alert.details)
+        self.assertIn("[UNKNOWN_PERSON]", alert.details)
         self.assertTrue(persons[0].alert_unknown_sent)
 
     def test_frame_analysis_engine_daytime_unclear_face(self):
@@ -163,7 +199,7 @@ class TestAccessDecisionIntegration(unittest.TestCase):
         self.assertEqual(len(alerts), 1)
         self.assertEqual(alerts[0].event_type, "UNKNOWN_PERSON")
         self.assertIn("[UNKNOWN_PERSON]", alerts[0].details)
-        self.assertIn("chưa rõ mặt", alerts[0].details)
+        self.assertIn("[UNKNOWN_PERSON]", alerts[0].details)
         self.assertTrue(persons[0].alert_unknown_sent)
 
     def test_frame_analysis_engine_after_hours_unclear_face(self):
@@ -178,9 +214,8 @@ class TestAccessDecisionIntegration(unittest.TestCase):
         persons, alerts, _ = engine.process_frame(detected_tracks=[(3, bbox)], roi_polygon=roi, camera_code="CAM-SERVER-01", current_time=t0 + 2.0)
 
         self.assertEqual(len(alerts), 1)
-        self.assertEqual(alerts[0].event_type, "INTRUSION")
-        self.assertIn("[INTRUSION]", alerts[0].details)
-        self.assertIn("chưa rõ mặt", alerts[0].details)
+        self.assertEqual(alerts[0].event_type, "PERSON_INTRUSION")
+        self.assertIn("[PERSON_INTRUSION]", alerts[0].details)
         self.assertTrue(persons[0].alert_unknown_sent)
 
     def test_frame_analysis_engine_after_hours_authorized_guard(self):
@@ -224,7 +259,8 @@ class TestAccessDecisionIntegration(unittest.TestCase):
             is_authorized=True,
             is_active=True,
             access_reason="Cấp độ truy cập của người dùng phù hợp với khu vực",  # Chỉ là quyền level ban ngày
-            area_name="Thư viện Tầng 2"
+            area_name="Thư viện Tầng 2",
+            access_checked=True
         )
         engine.associate_face(track_id=6, face_result=face_info)
 
@@ -236,12 +272,12 @@ class TestAccessDecisionIntegration(unittest.TestCase):
         )
 
         self.assertEqual(len(alerts), 1)
-        self.assertEqual(alerts[0].event_type, "INTRUSION")
-        self.assertIn("[INTRUSION]", alerts[0].details)
+        self.assertEqual(alerts[0].event_type, "PERSON_INTRUSION")
+        self.assertIn("[PERSON_INTRUSION]", alerts[0].details)
         self.assertTrue(persons[0].alert_unauthorized_sent)
 
     def test_frame_analysis_engine_after_hours_unknown_intruder(self):
-        """Test Ngoài giờ và là người lạ ngoài hệ thống -> Sinh INTRUSION kèm tag [INTRUSION]"""
+        """Test Ngoài giờ và là người lạ ngoài hệ thống -> Sinh INTRUSION kèm tag [PERSON_INTRUSION] sau grace period"""
         engine = FrameAnalysisEngine(after_hour_start="00:00", after_hour_end="23:59")
         roi = [Point(100, 100), Point(400, 100), Point(400, 400), Point(100, 400)]
         bbox = BoundingBox(x1=200, y1=200, x2=300, y2=300)
@@ -256,17 +292,29 @@ class TestAccessDecisionIntegration(unittest.TestCase):
         )
         engine.associate_face(track_id=5, face_result=face_info)
 
+        t0 = 100.0
+        # Frame 1: Vừa bước chân vào ROI ngoài giờ -> Giữ VERIFYING
         persons, alerts, _ = engine.process_frame(
             detected_tracks=[(5, bbox)],
             roi_polygon=roi,
             camera_code="CAM-SERVER-01",
-            current_time=time.time()
+            current_time=t0
+        )
+        self.assertEqual(len(alerts), 0)
+        self.assertEqual(persons[0].security_display_state, "VERIFYING")
+
+        # Frame 2: Hết grace period ngoài giờ -> Bắn PERSON_INTRUSION
+        persons, alerts, _ = engine.process_frame(
+            detected_tracks=[(5, bbox)],
+            roi_polygon=roi,
+            camera_code="CAM-SERVER-01",
+            current_time=t0 + 2.0
         )
 
         self.assertEqual(len(alerts), 1)
-        self.assertEqual(alerts[0].event_type, "INTRUSION")
-        self.assertIn("[INTRUSION]", alerts[0].details)
-        self.assertIn("ngoài giờ hoạt động", alerts[0].details)
+        self.assertEqual(alerts[0].event_type, "PERSON_INTRUSION")
+        self.assertIn("[PERSON_INTRUSION]", alerts[0].details)
+        self.assertIn("Vị trí:", alerts[0].details)
         self.assertTrue(persons[0].alert_unknown_sent)
 
     def test_frame_analysis_engine_soft_deleted_user_classified_as_unknown_person(self):
@@ -282,7 +330,8 @@ class TestAccessDecisionIntegration(unittest.TestCase):
             matched_name="Đặng Nguyễn Gia Minh",
             is_authorized=False,
             is_active=True,
-            access_reason="Người dùng không tồn tại"
+            access_reason="Người dùng không tồn tại",
+            access_checked=True
         )
         engine.associate_face(track_id=8, face_result=face_info)
 

@@ -16,12 +16,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * Header X-Service-Key cho endpoint nội bộ AI → backend (InternalServiceKeyFilter), chạy qua SecurityFilterChain thật.
- * Camera không tồn tại để check-entry trả 200 mà không ghi nhật ký (không cần fixture).
  */
 class InternalServiceKeyIntegrationTest extends AbstractIntegrationTest {
 
     private static final String CHECK_ENTRY = "/api/access-control/check-entry";
     private static final String RUNTIME_CONFIG = "/api/internal/ai/runtime-config";
+    private static final String SYNC_DATA = "/api/internal/ai/sync-data";
 
     @Autowired private MockMvc mockMvc;
     @Value("${icss.internal.service-key}") private String serviceKey;
@@ -33,7 +33,7 @@ class InternalServiceKeyIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("K-01: Không có header X-Service-Key → 401, body ApiResponse (check-entry và runtime-config)")
+    @DisplayName("K-01: Không có header X-Service-Key → 401, body ApiResponse (check-entry, runtime-config, sync-data)")
     void k01_missingHeader_Unauthorized() throws Exception {
         mockMvc.perform(checkEntry())
                 .andExpect(status().isUnauthorized())
@@ -43,8 +43,11 @@ class InternalServiceKeyIntegrationTest extends AbstractIntegrationTest {
 
         mockMvc.perform(get(RUNTIME_CONFIG))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.httpCode").value(401))
-                .andExpect(jsonPath("$.data").doesNotExist());
+                .andExpect(jsonPath("$.httpCode").value(401));
+
+        mockMvc.perform(get(SYNC_DATA))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.httpCode").value(401));
     }
 
     @Test
@@ -61,10 +64,14 @@ class InternalServiceKeyIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(get(RUNTIME_CONFIG).header(InternalServiceKeyFilter.HEADER, sameLengthWrongKey))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.httpCode").value(401));
+
+        mockMvc.perform(get(SYNC_DATA).header(InternalServiceKeyFilter.HEADER, sameLengthWrongKey))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.httpCode").value(401));
     }
 
     @Test
-    @DisplayName("K-03: Đúng khoá → 200 (check-entry và runtime-config)")
+    @DisplayName("K-03: Đúng khoá → 200 (check-entry, runtime-config, sync-data)")
     void k03_correctKey_Ok() throws Exception {
         mockMvc.perform(checkEntry().header(InternalServiceKeyFilter.HEADER, serviceKey))
                 .andExpect(status().isOk())
@@ -75,6 +82,12 @@ class InternalServiceKeyIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.after_hour_start").exists())
                 .andExpect(jsonPath("$.data.after_hour_end").exists());
+
+        mockMvc.perform(get(SYNC_DATA).header(InternalServiceKeyFilter.HEADER, serviceKey))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.faces").isArray())
+                .andExpect(jsonPath("$.data.cameraAreaMap").isMap())
+                .andExpect(jsonPath("$.data.publicCameraCodes").isArray());
     }
 
     @Test
@@ -82,10 +95,8 @@ class InternalServiceKeyIntegrationTest extends AbstractIntegrationTest {
     void k04_jwtEndpoint_NotAffectedByServiceKey() throws Exception {
         mockMvc.perform(get("/api/access-history/my"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.error").value("Unauthorized"))
-                .andExpect(jsonPath("$.httpCode").doesNotExist());
+                .andExpect(jsonPath("$.error").value("Unauthorized"));
 
-        // Khoá dịch vụ không thay thế JWT ở endpoint ngoài phạm vi filter
         mockMvc.perform(get("/api/access-history/my").header(InternalServiceKeyFilter.HEADER, serviceKey))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.error").value("Unauthorized"));

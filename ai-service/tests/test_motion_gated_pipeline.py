@@ -2,6 +2,7 @@ import sys
 import os
 import time
 import unittest
+import pytest
 import numpy as np
 import cv2
 
@@ -17,6 +18,7 @@ from src.core.entity import Point, RoiPolygonConfig
 from src.core.zone_state_machine import ZoneState
 from src.pipeline.video_pipeline import VideoPipeline
 
+@pytest.mark.requires_model
 class TestMotionGatedPipeline(unittest.TestCase):
     def setUp(self):
         self.pipeline = VideoPipeline(
@@ -74,27 +76,6 @@ class TestMotionGatedPipeline(unittest.TestCase):
         event_types = [a.event_type for a in alerts]
         self.assertIn("SUSPICIOUS_MOVING_OBJECT", event_types)
         print("✅ TEST PASSED: Kẻ ngụy trang bị tóm gọn bởi sự cố SUSPICIOUS_MOTION!")
-
-    def test_camera_tampering_blinding_laser(self):
-        """Kẻ trộm rọi đèn laser / làm mù camera kéo dài -> Kích hoạt CAMERA_TAMPERING"""
-        bg = np.full((self.height, self.width, 3), 40, dtype=np.uint8)
-        for _ in range(5):
-            self.pipeline.process_frame(bg)
-
-        # Đốm trắng cháy sáng tâm ống kính
-        tamper_frame = bg.copy()
-        cv2.circle(tamper_frame, (320, 240), 90, (255, 255, 255), -1)
-
-        # First frame: starts timer
-        self.pipeline.process_frame(tamper_frame)
-
-        # After 1.6s of persistent blinding
-        time.sleep(1.6)
-        _, _, alerts = self.pipeline.process_frame(tamper_frame)
-
-        event_types = [a.event_type for a in alerts]
-        self.assertIn("CAMERA_TAMPERING", event_types)
-        print("✅ TEST PASSED: Hành vi phá hoại chiếu đèn bị phát hiện bởi CAMERA_TAMPERING!")
 
 if __name__ == "__main__":
     unittest.main()

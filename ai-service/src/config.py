@@ -1,4 +1,5 @@
 import os
+from typing import List, Optional
 from pydantic_settings import BaseSettings
 from pydantic import Field, AliasChoices
 
@@ -66,19 +67,54 @@ class Settings(BaseSettings):
         validation_alias="MODEL_ARCFACE_PATH"
     )
     AI_DEVICE: str = Field(default="auto", validation_alias="AI_DEVICE")
+    AI_PREFER_GPU: bool = Field(default=True, validation_alias="AI_PREFER_GPU")
     
     # AI Thresholds & Business Rules
     DEFAULT_DETECTION_CONFIDENCE: float = 0.35
     DRAW_ONLY_IN_ROI: bool = Field(default=False, validation_alias="DRAW_ONLY_IN_ROI")
-    DEFAULT_FACE_CONFIDENCE: float = 0.60
+    DEFAULT_FACE_CONFIDENCE: float = 0.45
     DEFAULT_FACE_NMS_THRESHOLD: float = 0.30
-    FACE_MATCH_THRESHOLD: float = 0.75
+    FACE_MATCH_THRESHOLD: float = Field(default=0.50, validation_alias="FACE_MATCH_THRESHOLD")
+    FACE_REVERIFY_SCORE_THRESHOLD: float = Field(default=0.82, validation_alias="FACE_REVERIFY_SCORE_THRESHOLD")
+    FACE_REVERIFY_MIN_INTERVAL_SECONDS: float = Field(default=3.0, validation_alias="FACE_REVERIFY_MIN_INTERVAL_SECONDS")
+    FACE_SCAN_THROTTLING_ENABLED: bool = Field(default=True, validation_alias="FACE_SCAN_THROTTLING_ENABLED")
+    FACE_SCAN_INITIAL_INTERVAL: float = Field(default=0.05, validation_alias="FACE_SCAN_INITIAL_INTERVAL")
+    FACE_SCAN_INITIAL_WINDOW_SECONDS: float = Field(default=2.0, validation_alias="FACE_SCAN_INITIAL_WINDOW_SECONDS")
+    FACE_SCAN_BACKOFF_INTERVAL: float = Field(default=0.05, validation_alias="FACE_SCAN_BACKOFF_INTERVAL")
+    FACE_MIN_CROP_SIZE: int = Field(default=24, validation_alias="FACE_MIN_CROP_SIZE")
+    FACE_MIN_LAPLACIAN_VARIANCE: float = Field(default=15.0, validation_alias="FACE_MIN_LAPLACIAN_VARIANCE")
+    ANALYSIS_MAX_FPS: float = Field(default=30.0, validation_alias="ANALYSIS_MAX_FPS")
     UPPER_BODY_CROP_RATIO: float = 0.60
     DEFAULT_AFTER_HOUR_START: str = "22:00"
     DEFAULT_AFTER_HOUR_END: str = "06:00"
+    NIGHT_ALLOWED_ACCESS_SOURCES: List[str] = Field(
+        default=["ASSIGNED_PERSONNEL", "ACCESS_REQUEST", "GUEST_VISIT", "INCIDENT_RESPONSE"],
+        validation_alias="NIGHT_ALLOWED_ACCESS_SOURCES"
+    )
     DEFAULT_TRACK_MAX_INACTIVE_SECONDS: float = 2.0
     DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS: float = 30.0
+    DEFAULT_UNAUTHORIZED_ALERT_COOLDOWN_SECONDS: float = Field(default=30.0, validation_alias="DEFAULT_UNAUTHORIZED_ALERT_COOLDOWN_SECONDS")
+    ACCESS_RESOLUTION_GRACE_PERIOD_SECONDS: float = Field(default=1.5, validation_alias="ACCESS_RESOLUTION_GRACE_PERIOD_SECONDS")
+    CAMERA_UNKNOWN_ALERT_MIN_INTERVAL_SECONDS: float = 3.0
+    MAX_MOTION_TRACK_HOLD_SECONDS: float = Field(default=1.0, validation_alias="MAX_MOTION_TRACK_HOLD_SECONDS")
+    MOTION_GATING_HEARTBEAT_SECONDS: float = Field(default=4.0, validation_alias="MOTION_GATING_HEARTBEAT_SECONDS")
+    MIN_MOTION_AREA: int = Field(default=3000, validation_alias="MIN_MOTION_AREA")
     TIMEZONE: str = "Asia/Ho_Chi_Minh"
+    AI_LOG_LEVEL: str = Field(default="INFO", validation_alias="AI_LOG_LEVEL")
+    AI_LOG_TERMINAL_COLORS: bool = Field(default=True, validation_alias="AI_LOG_TERMINAL_COLORS")
+    AI_LOG_VERBOSE_FRAMES: bool = Field(default=False, validation_alias="AI_LOG_VERBOSE_FRAMES")
+
+    # RTSP / FFmpeg Low-Latency Configuration (P1-06)
+    RTSP_TRANSPORT: str = Field(default="tcp", validation_alias="RTSP_TRANSPORT")
+    FFMPEG_LOW_DELAY: bool = Field(default=True, validation_alias="FFMPEG_LOW_DELAY")
+    FFMPEG_NOBUFFER: bool = Field(default=True, validation_alias="FFMPEG_NOBUFFER")
+    FFMPEG_STIMEOUT_US: int = Field(default=5000000, validation_alias="FFMPEG_STIMEOUT_US")
+
+    # CPU Threading Configuration (P1-06)
+    AI_NUM_THREADS: Optional[int] = Field(default=None, validation_alias="AI_NUM_THREADS")
+
+    # Hardware Acceleration / FP16 Inference Configuration (P2-07)
+    AI_HALF: bool = Field(default=False, validation_alias="AI_HALF")
     
     # Continuous Video Recording Configuration
     RECORDING_BASE_DIR: str = Field(
@@ -86,6 +122,14 @@ class Settings(BaseSettings):
         validation_alias="RECORDING_BASE_DIR"
     )
     RECORDING_SEGMENT_SECONDS: int = Field(default=60, validation_alias="RECORDING_SEGMENT_SECONDS")
+    LOCAL_RECORDING_MAX_RETAINED_FILES: int = Field(default=30, validation_alias="LOCAL_RECORDING_MAX_RETAINED_FILES")
+    LOCAL_RECORDING_MAX_MB: int = Field(default=2048, validation_alias="LOCAL_RECORDING_MAX_MB")
+    LOCAL_EVIDENCE_MAX_MB: int = Field(default=5120, validation_alias="LOCAL_EVIDENCE_MAX_MB")
+    EMERGENCY_DISK_FREE_MIN_MB: int = Field(default=500, validation_alias="EMERGENCY_DISK_FREE_MIN_MB")
+    RETRY_UPLOAD_INTERVAL_SECONDS: float = Field(default=30.0, validation_alias="RETRY_UPLOAD_INTERVAL_SECONDS")
+    RETRY_UPLOAD_MAX_BATCH_FILES: int = Field(default=5, validation_alias="RETRY_UPLOAD_MAX_BATCH_FILES")
+    ALERT_IMAGE_WAIT_SECONDS: float = Field(default=0.8, validation_alias="ALERT_IMAGE_WAIT_SECONDS")
+    ALERT_IMAGE_UPLOAD_TIMEOUT_SECONDS: float = Field(default=1.0, validation_alias="ALERT_IMAGE_UPLOAD_TIMEOUT_SECONDS")
 
     # Incident Video Evidence Recording Configuration
     EVIDENCE_BASE_DIR: str = Field(
@@ -96,6 +140,10 @@ class Settings(BaseSettings):
     # Backend Access Decision Service Integration
     BACKEND_API_URL: str = Field(default="http://localhost:8080", validation_alias="BACKEND_API_URL")
     ACCESS_DECISION_CACHE_TTL: float = 30.0
+    ACCESS_STALE_MAX_SECONDS: float = Field(default=600.0, validation_alias="ACCESS_STALE_MAX_SECONDS")
+    # Backend lỗi: quyết định CHO PHÉP cũ chỉ được dùng tạm nếu hết hạn chưa quá số giây này (Lucas K8).
+    # Quá hạn thì coi như không có cache -> khu hạn chế Fail-Closed, khu công cộng cho qua.
+    ACCESS_STALE_ALLOWED_MAX_SECONDS: float = Field(default=60.0, validation_alias="ACCESS_STALE_ALLOWED_MAX_SECONDS")
     # Khoá dùng chung với Backend (cùng giá trị INTERNAL_SERVICE_KEY của Backend). Bắt buộc, không có mặc định:
     # thiếu hoặc ngắn hơn 32 ký tự thì service không khởi động.
     INTERNAL_SERVICE_KEY: str = Field(..., min_length=32, validation_alias="INTERNAL_SERVICE_KEY")
