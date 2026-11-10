@@ -106,7 +106,9 @@ class NotificationServiceMailContentTest {
         assertThatCode(() -> notificationService.sendStaffAccountSetupEmail("fail@fpt.edu.vn", "Fail", "SV-FAIL", "Secr3tTmpPw"))
                 .doesNotThrowAnyException();
 
-        assertThat(output.getAll()).contains("WARN").contains("Failed to send staff account setup email to fail@fpt.edu.vn");
+        // PR-AU2: e-mail người nhận trong log đã che
+        assertThat(output.getAll()).contains("WARN").contains("Failed to send staff account setup email to f***@fpt.edu.vn");
+        assertThat(output.getAll()).doesNotContain("fail@fpt.edu.vn");
         assertThat(output.getAll()).doesNotContain("Secr3tTmpPw");
     }
 
@@ -119,7 +121,23 @@ class NotificationServiceMailContentTest {
         assertThatCode(() -> notificationService.sendResetPasswordEmail("fail@fpt.edu.vn", "http://x.local/?token=" + token, 15))
                 .doesNotThrowAnyException();
 
-        assertThat(output.getAll()).contains("WARN").contains("Failed to send reset password email to fail@fpt.edu.vn");
+        assertThat(output.getAll()).contains("WARN").contains("Failed to send reset password email to f***@fpt.edu.vn");
+        assertThat(output.getAll()).doesNotContain("fail@fpt.edu.vn");
         assertThat(output.getAll()).doesNotContain(token).doesNotContain("http://x.local");
+    }
+
+    @Test
+    @DisplayName("PR-AU2: lỗi SMTP có địa chỉ người nhận trong thông điệp -> WARN che e-mail cả ở tham số lẫn trong thông điệp lỗi")
+    void accountLockedMailFailure_masksRecipientInErrorMessage(CapturedOutput output) {
+        doThrow(new MailSendException("550 5.1.1 <locked.user@fpt.edu.vn>: Recipient address rejected"))
+                .when(mailSender).send(any(MimeMessage.class));
+
+        assertThatCode(() -> notificationService.sendAccountLockedEmail("locked.user@fpt.edu.vn", "Locked", 5, 15))
+                .doesNotThrowAnyException();
+
+        assertThat(output.getAll()).contains("WARN")
+                .contains("Failed to send account locked email to l***@fpt.edu.vn")
+                .contains("<l***@fpt.edu.vn>: Recipient address rejected")
+                .doesNotContain("locked.user@fpt.edu.vn");
     }
 }

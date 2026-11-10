@@ -34,13 +34,22 @@ import java.time.Instant;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.after;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -267,15 +276,76 @@ class AuthLoginIntegrationTest extends AbstractIntegrationTest {
         verify(notificationService, never()).sendAccountLockedEmail(anyString(), anyString(), anyInt(), anyInt());
 
         failTimes(user.getEmail(), 1, ip);
-        assertThat(lockNotificationsFor(admin, user)).isEqualTo(1);
-        verify(notificationService, times(1)).sendAccountLockedEmail(eq(user.getEmail()), eq(user.getFullName()),
+        // PR-AU2: cảnh báo chạy trên pool nền -> chờ task xong (tối đa 5 giây)
+        verify(notificationService, timeout(5000).times(1)).sendAccountLockedEmail(eq(user.getEmail()), eq(user.getFullName()),
                 eq(n), eq(systemConfigService.getInt(ConfigKey.LOGIN_LOCK_MINUTES)));
+        assertThat(waitUntil(() -> lockNotificationsFor(admin, user) == 1)).isTrue();
 
-        // Sai thêm (và đúng mật khẩu) trong đợt khoá: không đếm thêm, không gửi lại
+        // Sai thêm (và đúng mật khẩu) trong đợt khoá: không đếm thêm, không gửi lại (chờ 500 ms cho task nền nếu có)
         failTimes(user.getEmail(), 2, ip);
         assertGenericFailure(login(user.getEmail(), password, ip));
+        verify(notificationService, after(500).times(1)).sendAccountLockedEmail(anyString(), anyString(), anyInt(), anyInt());
         assertThat(lockNotificationsFor(admin, user)).isEqualTo(1);
-        verify(notificationService, times(1)).sendAccountLockedEmail(anyString(), anyString(), anyInt(), anyInt());
+    }
+
+    private static boolean waitUntil(BooleanSupplier condition) throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (System.nanoTime() < deadline) {
+            if (condition.getAsBoolean()) {
+                return true;
+            }
+            Thread.sleep(20);
+        }
+        return condition.getAsBoolean();
+    }
+
+    @Test
+    @DisplayName("PR-AU2 R1: cảnh báo khoá chạy trên pool nền \"mail-\": phản hồi 401 trả về trong khi task còn đang chạy; ADMIN vẫn được báo đúng 1 lần")
+    void lockNotification_runsOnBackgroundExecutor_responseDoesNotWait() throws Exception {
+        User user = newUser("async", Role.NORMAL_USER);
+        String ip = randomIp();
+        int n = maxAttempts();
+        String requestThread = Thread.currentThread().getName();
+        AtomicReference<String> taskThread = new AtomicReference<>();
+        CountDownLatch release = new CountDownLatch(1);
+        doAnswer(inv -> {
+            taskThread.set(Thread.currentThread().getName());
+            release.await(10, TimeUnit.SECONDS);
+            return null;
+        }).when(notificationService).sendAccountLockedEmail(eq(user.getEmail()), any(), anyInt(), anyInt());
+
+        try {
+            failTimes(user.getEmail(), n - 1, ip);
+            // Lần sai thứ N mở đợt khoá: task bị chặn trong mock mail, nhưng phản hồi vẫn về ngay với câu chung
+            assertGenericFailure(login(user.getEmail(), password + "-nth", ip));
+            assertThat(release.getCount()).as("phản hồi trả về khi task nền chưa được thả").isEqualTo(1);
+            assertThat(waitUntil(() -> taskThread.get() != null)).isTrue();
+            assertThat(taskThread.get()).startsWith("mail-").isNotEqualTo(requestThread);
+            assertThat(lockNotificationsFor(admin, user)).as("thông báo ADMIN chạy sau mail trong cùng task").isZero();
+        } finally {
+            release.countDown();
+        }
+        assertThat(waitUntil(() -> lockNotificationsFor(admin, user) == 1)).isTrue();
+        verify(notificationService, after(300).times(1)).sendAccountLockedEmail(anyString(), any(), anyInt(), anyInt());
+        assertThat(lockNotificationsFor(admin, user)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("PR-AU2 R1: lỗi trong task cảnh báo (mail ném lỗi) không ảnh hưởng phản hồi 401; thông báo ADMIN vẫn tạo")
+    void lockNotificationFailure_doesNotAffectResponse() throws Exception {
+        User user = newUser("fail", Role.NORMAL_USER);
+        String ip = randomIp();
+        int n = maxAttempts();
+        doThrow(new IllegalStateException("smtp down"))
+                .when(notificationService).sendAccountLockedEmail(eq(user.getEmail()), any(), anyInt(), anyInt());
+
+        failTimes(user.getEmail(), n - 1, ip);
+        MvcResult nth = login(user.getEmail(), password + "-nth", ip);
+        assertGenericFailure(nth);
+        assertThat(nth.getResponse().getContentAsString(StandardCharsets.UTF_8)).doesNotContain("smtp");
+
+        verify(notificationService, timeout(5000).times(1)).sendAccountLockedEmail(eq(user.getEmail()), any(), anyInt(), anyInt());
+        assertThat(waitUntil(() -> lockNotificationsFor(admin, user) == 1)).isTrue();
     }
 
     // ------------------------------------------------------------------ giới hạn theo IP
