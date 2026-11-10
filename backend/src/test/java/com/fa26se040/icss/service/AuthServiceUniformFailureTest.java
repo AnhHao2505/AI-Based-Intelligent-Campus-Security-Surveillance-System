@@ -16,7 +16,6 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -76,7 +75,8 @@ class AuthServiceUniformFailureTest {
     @DisplayName("P2: e-mail không có tài khoản -> passwordEncoder.matches gọi đúng 1 lần với hash giả, rồi 401 câu chung")
     void unknownEmail_runsMatchesExactlyOnceAgainstDummyHash() {
         String email = "nobody-" + UUID.randomUUID() + "@fpt.edu.vn";
-        when(userRepository.findByEmail(email)).thenReturn(Optional.empty());
+        // PR-AUDIT: đăng nhập tra một truy vấn gồm cả tài khoản đã xoá
+        when(userRepository.findAllByEmailIncludingDeleted(email)).thenReturn(java.util.List.of());
 
         assertThatThrownBy(() -> authService.authenticateLocalUser(request(email, "Secret-123")))
                 .isInstanceOf(UnauthorizedException.class)
@@ -94,7 +94,7 @@ class AuthServiceUniformFailureTest {
         String hash = new BCryptPasswordEncoder().encode("Secret-123");
         User user = User.builder().id(UUID.randomUUID()).email(email).password(hash)
                 .role(Role.NORMAL_USER).isActive(false).accessLevel(1).build();
-        when(userRepository.findByEmail(email)).thenReturn(Optional.of(user));
+        when(userRepository.findAllByEmailIncludingDeleted(email)).thenReturn(java.util.List.of(user));
 
         assertThatThrownBy(() -> authService.authenticateLocalUser(request(email, "Secret-123")))
                 .isInstanceOf(UnauthorizedException.class)

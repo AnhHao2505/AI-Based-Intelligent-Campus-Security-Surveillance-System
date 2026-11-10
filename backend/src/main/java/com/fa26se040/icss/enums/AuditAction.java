@@ -30,5 +30,14 @@ public enum AuditAction {
     DELETE_BIOMETRIC,
     ANONYMIZE,
     // Step 6 (BR-AD-07, V62): ADMIN khôi phục khu vực đã vô hiệu hoá
-    RESTORE
+    RESTORE,
+    // PR-AUDIT (V112)
+    DELETE,
+    IMPORT,
+    REGISTER_FACE,
+    LOGIN_SUCCESS,
+    LOGIN_FAILED,
+    ACCOUNT_LOCKED,
+    PASSWORD_RESET_REQUESTED,
+    PASSWORD_RESET_COMPLETED
 }

@@ -74,6 +74,10 @@ public class AuthService {
     @Qualifier(AsyncConfig.MAIL_EXECUTOR)
     private TaskExecutor lockNotificationExecutor;
 
+    /** PR-AUDIT: audit module AUTH; field injection để giữ constructor (unit test dựng bằng tay), null thì không ghi. */
+    @Autowired(required = false)
+    private AuthAuditRecorder authAudit;
+
     @Value("${app.jwt.expiration-ms}")
     private long jwtExpirationMs;
 
@@ -99,12 +103,23 @@ public class AuthService {
         String email = request.getEmail();
         log.info("Sending reset password link to email: {}", LogMasker.maskEmail(email));
 
-        boolean eligible = userRepository.findByEmailAndIsActiveTrue(email)
+        User account = userRepository.findByEmailAndIsActiveTrue(email)
                 .filter(u -> u.getDeletedAt() == null)
-                .isPresent();
-        if (!eligible) {
+                .orElse(null);
+        if (account == null) {
             log.info("Reset link not sent: no active account for the given email");
             return;
+        }
+
+        // PR-AUDIT (B3, B5): PASSWORD_RESET_REQUESTED trước khi tạo token. Ghi audit lỗi -> không tạo token, không gửi mail,
+        // nhưng phản hồi vẫn là câu chung S2 (không để lộ e-mail có tài khoản qua mã lỗi). Không ghi token / link.
+        if (authAudit != null) {
+            try {
+                authAudit.passwordResetRequested(LoginAttemptLimiter.normalize(email), account);
+            } catch (RuntimeException e) {
+                log.error("Reset link not sent for userId={}: audit write failed ({})", account.getId(), e.getClass().getSimpleName());
+                return;
+            }
         }
 
         // M-03: hạn link lấy từ cấu hình lúc tạo token; mail ghi đúng số phút này
@@ -129,6 +144,7 @@ public class AuthService {
         }
     }
 
+    @org.springframework.transaction.annotation.Transactional
     public void resetPassword(ResetPasswordRequest request) {
         log.info("Resetting password using token");
         // PR-AU (P7): mọi lỗi token trả cùng một câu, lý do cụ thể chỉ ghi log
@@ -159,6 +175,10 @@ public class AuthService {
 
         token.setIsUsed(true);
         passwordResetTokenRepository.save(token);
+        // PR-AUDIT (B3, B5): cùng transaction với đổi mật khẩu — ghi audit lỗi thì mật khẩu không đổi, token chưa dùng
+        if (authAudit != null) {
+            authAudit.passwordResetCompleted(user);
+        }
         log.info("Password successfully reset for user: {}", user.getId());
     }
 
@@ -177,19 +197,29 @@ public class AuthService {
         String rawPassword = request.getPassword() != null ? request.getPassword() : "";
         log.info("Authenticating local user with email: {}", LogMasker.maskEmail(key));
 
-        User user = key.isEmpty() ? null : userRepository.findByEmail(key).orElse(null);
+        // PR-AUDIT: một truy vấn lấy cả bản đã xoá (để ghi lý do DELETED); tài khoản đã xoá vẫn đi đường hash giả như trước
+        User found = key.isEmpty() ? null : firstOrNull(userRepository.findAllByEmailIncludingDeleted(key));
+        User user = found != null && found.getDeletedAt() == null ? found : null;
         boolean hasRealHash = user != null && user.getPassword() != null && !user.getPassword().isBlank();
         String hash = hasRealHash ? user.getPassword().trim() : dummyPasswordHash;
         boolean passwordMatches = passwordEncoder.matches(rawPassword, hash) && hasRealHash;
 
         if (loginAttemptLimiter.isLocked(key)) {
             log.warn("Authentication failed: login temporarily locked for {}", who(user, key));
+            auditLoginFailed(key, found, AuthAuditRecorder.METHOD_PASSWORD, AuthAuditRecorder.LOCKED);
             throw loginFailed();
         }
 
         if (!passwordMatches) {
             boolean newlyLocked = loginAttemptLimiter.recordFailure(key);
             log.warn("Authentication failed: {} for {}", user == null ? "no account" : "wrong password", who(user, key));
+            String reason = found == null ? AuthAuditRecorder.UNKNOWN_ACCOUNT
+                    : found.getDeletedAt() != null ? AuthAuditRecorder.DELETED : AuthAuditRecorder.BAD_PASSWORD;
+            auditLoginFailed(key, found, AuthAuditRecorder.METHOD_PASSWORD, reason);
+            if (newlyLocked) {
+                // Ghi cho cả e-mail không có tài khoản (khoá áp dụng như nhau), để thời gian phản hồi không lộ tài khoản
+                auditAccountLocked(key, user);
+            }
             if (newlyLocked && user != null) {
                 notifyAccountLockedAfterCommit(user);
             }
@@ -198,10 +228,14 @@ public class AuthService {
 
         if (!isActiveAccount(user)) {
             log.warn("Authentication failed: account is inactive for {}", who(user, key));
+            auditLoginFailed(key, found, AuthAuditRecorder.METHOD_PASSWORD, AuthAuditRecorder.DEACTIVATED);
             throw loginFailed();
         }
 
         loginAttemptLimiter.reset(key);
+        if (authAudit != null) {
+            authAudit.loginSuccess(key, user, AuthAuditRecorder.METHOD_PASSWORD);
+        }
         return buildAuthResponse(user);
     }
 
@@ -216,34 +250,77 @@ public class AuthService {
             GoogleIdToken.Payload payload = googleTokenVerifier.verify(request.getIdToken());
             if (payload == null) {
                 log.warn("Google token verification failed (invalid token)");
+                auditLoginFailed(null, null, AuthAuditRecorder.METHOD_GOOGLE, AuthAuditRecorder.GOOGLE_TOKEN_INVALID);
                 throw loginFailed();
             }
             email = payload.getEmail();
             log.info("Google token verified successfully for email: {}", LogMasker.maskEmail(email));
-            user = email == null ? null : userRepository.findByEmail(email).orElse(null);
+            user = email == null ? null : firstOrNull(userRepository.findAllByEmailIncludingDeleted(email));
         } catch (UnauthorizedException e) {
             throw e;
         } catch (Exception e) {
             log.error("Error during Google authentication process", e);
+            auditLoginFailed(null, null, AuthAuditRecorder.METHOD_GOOGLE, AuthAuditRecorder.GOOGLE_TOKEN_INVALID);
             throw loginFailed();
         }
 
         String key = LoginAttemptLimiter.normalize(email);
         if (user == null) {
             log.warn("Google login failed: no account for email: {}", LogMasker.maskEmail(key));
+            auditLoginFailed(key, null, AuthAuditRecorder.METHOD_GOOGLE, AuthAuditRecorder.GOOGLE_NOT_REGISTERED);
+            throw loginFailed();
+        }
+        if (user.getDeletedAt() != null) {
+            log.warn("Google login failed: account is deleted for {}", who(user, key));
+            auditLoginFailed(key, user, AuthAuditRecorder.METHOD_GOOGLE, AuthAuditRecorder.DELETED);
             throw loginFailed();
         }
         if (!isActiveAccount(user)) {
             log.warn("Google login failed: account is inactive for {}", who(user, key));
+            auditLoginFailed(key, user, AuthAuditRecorder.METHOD_GOOGLE, AuthAuditRecorder.DEACTIVATED);
             throw loginFailed();
         }
         if (loginAttemptLimiter.isLocked(key)) {
             log.warn("Google login failed: login temporarily locked for {}", who(user, key));
+            auditLoginFailed(key, user, AuthAuditRecorder.METHOD_GOOGLE, AuthAuditRecorder.LOCKED);
             throw loginFailed();
         }
 
         loginAttemptLimiter.reset(key);
+        if (authAudit != null) {
+            authAudit.loginSuccess(key, user, AuthAuditRecorder.METHOD_GOOGLE);
+        }
         return buildAuthResponse(user);
+    }
+
+    /**
+     * PR-AUDIT (B3): LOGIN_FAILED ghi trong transaction riêng; lỗi ghi audit chỉ ghi log — phản hồi 401 (câu chung
+     * BR-AU-32) không được đổi theo kết quả ghi audit.
+     */
+    private void auditLoginFailed(String email, User account, String method, String reason) {
+        if (authAudit == null) {
+            return;
+        }
+        try {
+            authAudit.loginFailed(email, account, method, reason);
+        } catch (RuntimeException e) {
+            log.error("Could not write LOGIN_FAILED audit ({}): {}", reason, e.getClass().getSimpleName());
+        }
+    }
+
+    private void auditAccountLocked(String email, User account) {
+        if (authAudit == null) {
+            return;
+        }
+        try {
+            authAudit.accountLocked(email, account, systemConfigService.getInt(ConfigKey.LOGIN_LOCK_MINUTES));
+        } catch (RuntimeException e) {
+            log.error("Could not write ACCOUNT_LOCKED audit: {}", e.getClass().getSimpleName());
+        }
+    }
+
+    private static User firstOrNull(List<User> users) {
+        return users == null || users.isEmpty() ? null : users.get(0);
     }
 
     private static UnauthorizedException loginFailed() {

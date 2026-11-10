@@ -229,12 +229,13 @@ class WorkflowWf01FaceUserEnrollmentE2ETest extends AbstractIntegrationTest {
         if (enrolledCode != null) {
             codes.add(enrolledCode);
         }
+        // PR-AUDIT: các thao tác của luồng ghi audit (append-only, FK tới users) -> không xoá được user, chỉ khoá
         for (String code : codes) {
             faceDataRepository.findByCode(code).ifPresent(faceDataRepository::delete);
-            jdbc.update("DELETE FROM users WHERE user_code = ?", code);
+            jdbc.update("UPDATE users SET is_active = false WHERE user_code = ?", code);
         }
         if (admin != null) {
-            userRepository.deleteById(admin.getId());
+            jdbc.update("UPDATE users SET is_active = false WHERE id = ?", admin.getId());
         }
     }
 
@@ -319,9 +320,15 @@ class WorkflowWf01FaceUserEnrollmentE2ETest extends AbstractIntegrationTest {
         return jdbc.queryForObject("SELECT count(*) FROM face_data WHERE code = ?", Integer.class, code);
     }
 
-    private int auditRowsAbout(UUID userId) {
-        return jdbc.queryForObject("SELECT count(*) FROM audit_logs WHERE subject_user_id = ? OR target_id = ?",
-                Integer.class, userId, userId.toString());
+    /** PR-AUDIT: các dòng audit (target_type/action) về một tài khoản: subject_user_id, target_id = id hoặc = mã. */
+    private List<Map<String, Object>> auditRowsAbout(UUID userId, String userCode) {
+        return jdbc.queryForList("SELECT target_type, action, changed_by, correlation_id, ip_address FROM audit_logs "
+                + "WHERE subject_user_id = ? OR target_id = ? OR target_id = ? ORDER BY changed_at",
+                userId, userId.toString(), userCode);
+    }
+
+    private static List<String> actionsOf(List<Map<String, Object>> rows) {
+        return rows.stream().map(r -> r.get("target_type") + "/" + r.get("action")).toList();
     }
 
     private void requireStep(int previous) {
@@ -379,10 +386,13 @@ class WorkflowWf01FaceUserEnrollmentE2ETest extends AbstractIntegrationTest {
         assertThat(enrolledTempPassword).hasSize(12);
         assertThat(passwordEncoder.matches(enrolledTempPassword, (String) user.get("password"))).isTrue();
 
-        // Audit: đặc tả UC-ACC-02 ghi "No audit" (II-3-x-functions §3.2.2) và code không ghi audit khi tạo tài khoản
-        // (UserService.createStaffAccount không gọi AuditService, AuditTargetType không có USER).
-        // Prompt yêu cầu "có bản ghi audit cho thao tác tạo" -> mâu thuẫn, xem báo cáo mục 5; test giữ theo đặc tả + code.
-        assertThat(auditRowsAbout(enrolledId)).as("UC-ACC-02: tạo tài khoản không ghi audit").isZero();
+        // PR-AUDIT (V112): tạo tài khoản lẻ ghi đúng CREATE / USER_ACCOUNT + REGISTER_FACE / FACE_REGISTRATION,
+        // người thực hiện là ADMIN, chung correlation (cùng request)
+        List<Map<String, Object>> audits = auditRowsAbout(enrolledId, enrolledCode);
+        assertThat(actionsOf(audits)).containsExactlyInAnyOrder("FACE_REGISTRATION/REGISTER_FACE", "USER_ACCOUNT/CREATE");
+        assertThat(audits).allSatisfy(a -> assertThat(a.get("changed_by")).isEqualTo(admin.getId()));
+        assertThat(audits.get(0).get("correlation_id")).isEqualTo(audits.get(1).get("correlation_id"));
+        assertThat(audits).allSatisfy(a -> assertThat(a.get("ip_address")).isNotNull());
         completedStep = 1;
     }
 
@@ -477,9 +487,17 @@ class WorkflowWf01FaceUserEnrollmentE2ETest extends AbstractIntegrationTest {
             assertThat(face.get("user_id")).isEqualTo(user.get("id"));
             assertThat(face.get("dims")).isEqualTo(512);
             verify(notificationService, times(1)).sendStaffAccountSetupEmail(eq(email), anyString(), eq(code), anyString());
-            // UC-ACC-03: import không ghi audit (II-3-x-functions §3.2.3 "No audit")
-            assertThat(auditRowsAbout((UUID) user.get("id"))).isZero();
+            // PR-AUDIT (V112): mỗi tài khoản tạo ra có CREATE + REGISTER_FACE, correlation = batchId
+            List<Map<String, Object>> audits = auditRowsAbout((UUID) user.get("id"), code);
+            assertThat(actionsOf(audits)).containsExactlyInAnyOrder("FACE_REGISTRATION/REGISTER_FACE", "USER_ACCOUNT/CREATE");
+            assertThat(audits).allSatisfy(a -> assertThat(a.get("correlation_id")).isEqualTo(batchId));
         }
+        // 1 dòng IMPORT / USER_IMPORT_BATCH cho cả lô (dòng ảnh 2 khuôn mặt không có audit tài khoản)
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM audit_logs WHERE target_type = 'USER_IMPORT_BATCH' "
+                + "AND action = 'IMPORT' AND target_id = ? AND correlation_id = ?", Integer.class, batchId.toString(), batchId))
+                .isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM audit_logs WHERE target_id = ?", Integer.class, twoFacesCode))
+                .isZero();
         completedStep = 2;
     }
 

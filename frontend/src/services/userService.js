@@ -201,3 +201,25 @@ export async function updateUserAccessLevel(id, accessLevel, reason) {
 
 
 
+/**
+ * PR-AUDIT: nhật ký tài khoản / đăng nhập / cấu hình cho tab "Nhật ký" (ADMIN)
+ * GET /api/users/audit-logs
+ * @param {{ modules?: string[], actions?: string[], subject?: string, subjectUserId?: string, actor?: string,
+ *           correlationId?: string, from?: string, to?: string, page?: number, size?: number }} params
+ * @returns {Promise<{content: Array, totalPages: number, totalElements: number}>}
+ */
+export async function getAccountAuditLogs(params = {}) {
+  const query = new URLSearchParams();
+  (params.modules || []).forEach((m) => query.append('modules', m));
+  (params.actions || []).forEach((a) => query.append('actions', a));
+  if (params.subject) query.append('subject', params.subject);
+  if (params.subjectUserId) query.append('subjectUserId', params.subjectUserId);
+  if (params.actor) query.append('actor', params.actor);
+  if (params.correlationId) query.append('correlationId', params.correlationId);
+  if (params.from) query.append('from', params.from);
+  if (params.to) query.append('to', params.to);
+  if (params.page !== undefined) query.append('page', String(params.page));
+  if (params.size !== undefined) query.append('size', String(params.size));
+  const queryString = query.toString();
+  return apiGet(`/api/users/audit-logs${queryString ? `?${queryString}` : ''}`);
+}

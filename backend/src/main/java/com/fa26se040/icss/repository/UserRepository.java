@@ -24,6 +24,14 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     @Query("SELECT u FROM User u WHERE u.deletedAt IS NOT NULL AND LOWER(u.email) = LOWER(:email) ORDER BY u.deletedAt DESC")
     List<User> findDeletedByEmail(@Param("email") String email);
 
+    /**
+     * PR-AUDIT: MỘT truy vấn cho đăng nhập — tài khoản chưa xoá đứng trước, rồi tới bản đã xoá mới nhất. Dùng để ghi lý do
+     * nội bộ DELETED mà không thêm truy vấn thứ hai cho e-mail không có tài khoản (giữ thời gian phản hồi như nhau, PR-AU).
+     */
+    @Query("SELECT u FROM User u WHERE LOWER(u.email) = LOWER(:email) "
+            + "ORDER BY CASE WHEN u.deletedAt IS NULL THEN 0 ELSE 1 END, u.deletedAt DESC")
+    List<User> findAllByEmailIncludingDeleted(@Param("email") String email);
+
     @Query("SELECT u FROM User u WHERE u.deletedAt IS NULL AND u.isActive = true AND LOWER(u.email) = LOWER(:email)")
     Optional<User> findByEmailAndIsActiveTrue(@Param("email") String email);
 

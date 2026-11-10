@@ -9,6 +9,12 @@ export const SYSTEM_ACTOR_LABELS = {
 	AREA_TYPE_CHANGE: "Đổi loại khu vực",
 	AREA_DEACTIVATION: "Vô hiệu hoá khu vực",
 	REQUESTER_DEACTIVATION: "Vô hiệu hoá tài khoản người tạo đơn",
+	// PR-AUDIT (V112)
+	AUTH_LOGIN: "Đăng nhập",
+	AUTH_PASSWORD_RESET: "Đặt lại mật khẩu",
+	ACCOUNT_SERVICE: "Quản lý tài khoản",
+	USER_BULK_IMPORT: "Nạp tài khoản theo lô",
+	FACE_REGISTRATION: "Đăng ký khuôn mặt",
 };
 
 // Dòng do migration Flyway ghi (vd FLYWAY_MIGRATION_V83) -> "Nâng cấp dữ liệu V83"
@@ -40,7 +46,44 @@ export const TARGET_TYPE_LABELS = {
 	GUEST: "Khách",
 	FACE_PROFILE: "Ảnh khuôn mặt",
 	SECURITY_EVIDENCE: "Ảnh bằng chứng sự cố",
+	// PR-AUDIT (V112)
+	USER_ACCOUNT: "Tài khoản",
+	USER_IMPORT_BATCH: "Lô tài khoản",
+	FACE_REGISTRATION: "Khuôn mặt",
+	AUTH: "Đăng nhập",
 };
+
+// PR-AUDIT: lý do nội bộ của LOGIN_FAILED (chỉ ADMIN xem; người đăng nhập luôn nhận câu chung BR-AU-32)
+export const LOGIN_FAILURE_REASON_LABELS = {
+	UNKNOWN_ACCOUNT: "E-mail không có tài khoản",
+	BAD_PASSWORD: "Sai mật khẩu",
+	DEACTIVATED: "Tài khoản đã vô hiệu hoá",
+	DELETED: "Tài khoản đã xoá",
+	LOCKED: "Đang bị khoá tạm",
+	GOOGLE_NOT_REGISTERED: "Google chưa đăng ký",
+	GOOGLE_TOKEN_INVALID: "Xác minh Google thất bại",
+};
+
+// PR-AUDIT: nhóm của tab "Nhật ký" (màn Quản lý tài khoản) -> module audit + hành động thuộc nhóm
+export const ACCOUNT_LOG_GROUPS = [
+	{
+		module: "ACCOUNT",
+		label: "Tài khoản",
+		actions: ["CREATE", "IMPORT", "REGISTER_FACE", "DEACTIVATE", "REACTIVATE", "DELETE", "RESTORE"],
+	},
+	{
+		module: "AUTH",
+		label: "Đăng nhập",
+		actions: [
+			"LOGIN_SUCCESS",
+			"LOGIN_FAILED",
+			"ACCOUNT_LOCKED",
+			"PASSWORD_RESET_REQUESTED",
+			"PASSWORD_RESET_COMPLETED",
+		],
+	},
+	{ module: "SYSTEM_CONFIG", label: "Cấu hình", actions: ["UPDATE"] },
+];
 
 export const getActionLabel = (targetType, action) => {
 	let actionLabel = action;
@@ -76,6 +119,27 @@ export const getActionLabel = (targetType, action) => {
 	else if (action === "ANONYMIZE") actionLabel = "Ẩn danh hóa";
 	else if (action === "FAIL") actionLabel = "Thất bại";
 	else if (action === "RESTORE") actionLabel = "Khôi phục";
+	// PR-AUDIT (V112)
+	else if (action === "DELETE") actionLabel = "Xoá";
+	else if (action === "IMPORT") actionLabel = "Nạp theo lô";
+	else if (action === "REGISTER_FACE") actionLabel = "Đăng ký khuôn mặt";
+	else if (action === "LOGIN_SUCCESS") actionLabel = "Đăng nhập thành công";
+	else if (action === "LOGIN_FAILED") actionLabel = "Đăng nhập thất bại";
+	else if (action === "ACCOUNT_LOCKED") actionLabel = "Khoá đăng nhập tạm thời";
+	else if (action === "PASSWORD_RESET_REQUESTED") actionLabel = "Yêu cầu đặt lại mật khẩu";
+	else if (action === "PASSWORD_RESET_COMPLETED") actionLabel = "Đặt lại mật khẩu";
+
+	if (targetType === "USER_ACCOUNT") {
+		if (action === "CREATE") actionLabel = "Tạo tài khoản";
+		else if (action === "DEACTIVATE") actionLabel = "Vô hiệu hoá";
+		else if (action === "REACTIVATE") actionLabel = "Kích hoạt lại";
+		else if (action === "DELETE") actionLabel = "Xoá tài khoản";
+	} else if (targetType === "USER_IMPORT_BATCH") {
+		if (action === "DELETE") actionLabel = "Gỡ lô";
+		else if (action === "RESTORE") actionLabel = "Khôi phục lô";
+	} else if (targetType === "SYSTEM_CONFIG" && action === "UPDATE") {
+		actionLabel = "Sửa cấu hình";
+	}
 
 	if (targetType === "AREA_EVENT_SCHEDULE") {
 		if (action === "CREATE") actionLabel = "Đặt lịch";

@@ -2,6 +2,9 @@ package com.fa26se040.icss.service;
 
 import com.fa26se040.icss.dto.AiFaceRegistrationResponseDto;
 import com.fa26se040.icss.dto.FaceDataResponseDto;
+import com.fa26se040.icss.dto.accesscontrol.snapshot.FaceRegistrationAuditSnapshot;
+import com.fa26se040.icss.enums.AuditAction;
+import com.fa26se040.icss.enums.AuditTargetType;
 import com.fa26se040.icss.dto.edge.EdgeRpcReplyDto;
 import com.fa26se040.icss.entity.FaceData;
 import com.fa26se040.icss.entity.User;
@@ -46,6 +49,16 @@ public class FaceDataService {
 
     @Autowired(required = false)
     private EdgeMqttControlService edgeMqttControlService;
+
+    /** PR-AUDIT: field injection để giữ constructor (test dựng service bằng tay); null thì không ghi audit. */
+    @Autowired(required = false)
+    private AuditService auditService;
+
+    /** PR-AUDIT: mã đã có khuôn mặt chưa (dùng cho snapshot hasFaceData của audit tài khoản). */
+    @Transactional(readOnly = true)
+    public boolean hasFaceData(String code) {
+        return code != null && faceDataRepository.findByCode(code).isPresent();
+    }
 
     @Value("${ai.service.url:http://localhost:8000}")
     private String aiServiceUrl;
@@ -155,6 +168,14 @@ public class FaceDataService {
             FaceData saved = faceDataRepository.save(faceData);
             log.info("Lưu thành công dữ liệu khuôn mặt cho [{}] vào Database (ID: {})", code, saved.getId());
 
+            // PR-AUDIT (B3): ai đăng ký khuôn mặt cho mã nào, lần đầu hay thay thế. KHÔNG ghi embedding, URL, object key.
+            // Cùng transaction: lỗi ghi audit -> AuditWriteException ném ra ngoài, tài khoản / dòng import rollback.
+            if (auditService != null) {
+                auditService.record(AuditTargetType.FACE_REGISTRATION, AuditAction.REGISTER_FACE, code, null, matchedUser,
+                        null, new FaceRegistrationAuditSnapshot(code, existingOpt.isPresent()), null,
+                        auditService.resolveCurrentActor("FACE_REGISTRATION"));
+            }
+
             if (edgeMqttControlService != null && edgeMqttControlService.isConnected()) {
                 edgeMqttControlService.publishFaceCacheEvent("REFRESH", code);
             }
@@ -170,7 +191,7 @@ public class FaceDataService {
                 throw new FaceDetectionException("Không thể xử lý khuôn mặt trong ảnh: " + e.getResponseBodyAsString());
             }
             throw new AiServiceUnavailableException("Dịch vụ AI gặp lỗi khi xử lý ảnh. Vui lòng thử lại sau.");
-        } catch (FaceDetectionException | AiServiceUnavailableException e) {
+        } catch (FaceDetectionException | AiServiceUnavailableException | com.fa26se040.icss.exception.AuditWriteException e) {
             throw e;
         } catch (IllegalArgumentException e) {
             throw e;

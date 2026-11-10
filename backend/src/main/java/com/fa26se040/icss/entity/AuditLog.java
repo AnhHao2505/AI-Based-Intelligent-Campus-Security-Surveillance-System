@@ -89,6 +89,14 @@ public class AuditLog {
     @Column(name = "changed_at", nullable = false)
     private OffsetDateTime changedAt;
 
+    /** PR-AUDIT (V112): IP của request gây ra thao tác; NULL với job hệ thống. */
+    @Column(name = "ip_address", length = 45)
+    private String ipAddress;
+
+    /** PR-AUDIT (V112): User-Agent của request (cắt 255 ký tự); NULL với job hệ thống. */
+    @Column(name = "user_agent", length = 255)
+    private String userAgent;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumns({
             @JoinColumn(name = "target_type", referencedColumnName = "target_type", insertable = false, updatable = false),

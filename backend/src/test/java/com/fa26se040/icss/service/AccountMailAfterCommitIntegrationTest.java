@@ -108,10 +108,16 @@ class AccountMailAfterCommitIntegrationTest extends AbstractIntegrationTest {
     void cleanUp() {
         swapped.forEach(s -> ReflectionTestUtils.setField(s[0], (String) s[1], s[2]));
         swapped.clear();
-        createdCodes.forEach(code -> userRepository.findByUserCode(code).ifPresent(userRepository::delete));
+        // PR-AUDIT: tạo tài khoản ghi audit (append-only, FK tới users) -> không xoá được user, chỉ khoá
+        createdCodes.forEach(code -> userRepository.findByUserCode(code).ifPresent(this::deactivate));
         createdCodes.clear();
-        userRepository.deleteAllById(fixtureUsers);
+        userRepository.findAllById(fixtureUsers).forEach(this::deactivate);
         fixtureUsers.clear();
+    }
+
+    private void deactivate(com.fa26se040.icss.entity.User u) {
+        u.setIsActive(false);
+        userRepository.save(u);
     }
 
     private StaffAccountCreateRequest request(String code, String fullName) {
