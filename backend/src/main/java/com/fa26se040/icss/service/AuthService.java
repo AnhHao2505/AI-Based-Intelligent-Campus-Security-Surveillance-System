@@ -1,5 +1,6 @@
 package com.fa26se040.icss.service;
 
+import com.fa26se040.icss.config.AsyncConfig;
 import com.fa26se040.icss.dto.AuthResponse;
 import com.fa26se040.icss.dto.ForgotPasswordRequest;
 import com.fa26se040.icss.dto.GoogleLoginRequest;
@@ -17,12 +18,16 @@ import com.fa26se040.icss.repository.UserRepository;
 import com.fa26se040.icss.security.GoogleTokenVerifier;
 import com.fa26se040.icss.security.JwtTokenProvider;
 import com.fa26se040.icss.security.LoginAttemptLimiter;
+import com.fa26se040.icss.util.LogMasker;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -60,6 +65,15 @@ public class AuthService {
     private final LoginAttemptLimiter loginAttemptLimiter;
     private final InAppNotificationService inAppNotificationService;
 
+    /**
+     * PR-AU2 (R1): pool nền có sẵn (AsyncConfig, luồng "mail-"). Cảnh báo khoá tài khoản chạy trên pool này để phản hồi
+     * đăng nhập không phải chờ ghi thông báo / xếp mail — nếu chờ, lần sai làm khoá của e-mail có thật sẽ chậm hơn
+     * e-mail không có thật và lộ tài khoản qua thời gian phản hồi. Inject qua field để giữ nguyên constructor.
+     */
+    @Autowired
+    @Qualifier(AsyncConfig.MAIL_EXECUTOR)
+    private TaskExecutor lockNotificationExecutor;
+
     @Value("${app.jwt.expiration-ms}")
     private long jwtExpirationMs;
 
@@ -83,7 +97,7 @@ public class AuthService {
      */
     public void sendResetLink(ForgotPasswordRequest request) {
         String email = request.getEmail();
-        log.info("Sending reset password link to email: {}", email);
+        log.info("Sending reset password link to email: {}", LogMasker.maskEmail(email));
 
         boolean eligible = userRepository.findByEmailAndIsActiveTrue(email)
                 .filter(u -> u.getDeletedAt() == null)
@@ -145,7 +159,7 @@ public class AuthService {
 
         token.setIsUsed(true);
         passwordResetTokenRepository.save(token);
-        log.info("Password successfully reset for user: {}", token.getEmail());
+        log.info("Password successfully reset for user: {}", user.getId());
     }
 
     /**
@@ -161,7 +175,7 @@ public class AuthService {
     public AuthResponse authenticateLocalUser(LoginRequest request) {
         String key = LoginAttemptLimiter.normalize(request.getEmail());
         String rawPassword = request.getPassword() != null ? request.getPassword() : "";
-        log.info("Authenticating local user with email: {}", key);
+        log.info("Authenticating local user with email: {}", LogMasker.maskEmail(key));
 
         User user = key.isEmpty() ? null : userRepository.findByEmail(key).orElse(null);
         boolean hasRealHash = user != null && user.getPassword() != null && !user.getPassword().isBlank();
@@ -169,13 +183,13 @@ public class AuthService {
         boolean passwordMatches = passwordEncoder.matches(rawPassword, hash) && hasRealHash;
 
         if (loginAttemptLimiter.isLocked(key)) {
-            log.warn("Authentication failed: login temporarily locked for email: {}", key);
+            log.warn("Authentication failed: login temporarily locked for {}", who(user, key));
             throw loginFailed();
         }
 
         if (!passwordMatches) {
             boolean newlyLocked = loginAttemptLimiter.recordFailure(key);
-            log.warn("Authentication failed: {} for email: {}", user == null ? "no account" : "wrong password", key);
+            log.warn("Authentication failed: {} for {}", user == null ? "no account" : "wrong password", who(user, key));
             if (newlyLocked && user != null) {
                 notifyAccountLockedAfterCommit(user);
             }
@@ -183,7 +197,7 @@ public class AuthService {
         }
 
         if (!isActiveAccount(user)) {
-            log.warn("Authentication failed: account is inactive for email: {}", key);
+            log.warn("Authentication failed: account is inactive for {}", who(user, key));
             throw loginFailed();
         }
 
@@ -205,7 +219,7 @@ public class AuthService {
                 throw loginFailed();
             }
             email = payload.getEmail();
-            log.info("Google token verified successfully for email: {}", email);
+            log.info("Google token verified successfully for email: {}", LogMasker.maskEmail(email));
             user = email == null ? null : userRepository.findByEmail(email).orElse(null);
         } catch (UnauthorizedException e) {
             throw e;
@@ -216,15 +230,15 @@ public class AuthService {
 
         String key = LoginAttemptLimiter.normalize(email);
         if (user == null) {
-            log.warn("Google login failed: no account for email: {}", key);
+            log.warn("Google login failed: no account for email: {}", LogMasker.maskEmail(key));
             throw loginFailed();
         }
         if (!isActiveAccount(user)) {
-            log.warn("Google login failed: account is inactive for email: {}", key);
+            log.warn("Google login failed: account is inactive for {}", who(user, key));
             throw loginFailed();
         }
         if (loginAttemptLimiter.isLocked(key)) {
-            log.warn("Google login failed: login temporarily locked for email: {}", key);
+            log.warn("Google login failed: login temporarily locked for {}", who(user, key));
             throw loginFailed();
         }
 
@@ -234,6 +248,11 @@ public class AuthService {
 
     private static UnauthorizedException loginFailed() {
         return new UnauthorizedException(LOGIN_FAILED_MESSAGE);
+    }
+
+    /** PR-AU2 (R2): đối tượng ghi log — userId nếu đã có tài khoản, ngược lại e-mail đã che. */
+    private static String who(User user, String email) {
+        return user != null && user.getId() != null ? "userId=" + user.getId() : "email=" + LogMasker.maskEmail(email);
     }
 
     private static boolean isActiveAccount(User user) {
@@ -261,9 +280,10 @@ public class AuthService {
     }
 
     /**
-     * PR-AU (P3): tài khoản có thật vừa bị khoá tạm -> mail cảnh báo cho chủ tài khoản (chạy nền) và thông báo in-app
-     * ACCOUNT_LOCKED cho mọi ADMIN đang hoạt động. Gửi sau commit nếu đang trong transaction (đăng nhập hiện không
-     * mở transaction nên gửi ngay). Lỗi gửi chỉ ghi log, không làm đổi phản hồi đăng nhập.
+     * PR-AU (P3) + PR-AU2 (R1): tài khoản có thật vừa bị khoá tạm -> mail cảnh báo cho chủ tài khoản và thông báo in-app
+     * ACCOUNT_LOCKED cho mọi ADMIN đang hoạt động. TOÀN BỘ việc này chạy trên pool nền AsyncConfig.MAIL_EXECUTOR, kể cả khi
+     * không có transaction: luồng request chỉ xếp task rồi trả 401 ngay. Đang trong transaction thì xếp task sau commit.
+     * Lỗi trong task (hoặc pool từ chối nhận task) chỉ ghi log, không làm đổi phản hồi đăng nhập.
      */
     private void notifyAccountLockedAfterCommit(User user) {
         int attempts = systemConfigService.getInt(ConfigKey.LOGIN_MAX_FAILED_ATTEMPTS);
@@ -272,7 +292,7 @@ public class AuthService {
             try {
                 notificationService.sendAccountLockedEmail(user.getEmail(), user.getFullName(), attempts, lockMinutes);
             } catch (Exception e) {
-                log.warn("Could not queue account locked email: {}", e.getClass().getSimpleName());
+                log.warn("Could not queue account locked email for userId={}: {}", user.getId(), e.getClass().getSimpleName());
             }
             try {
                 List<User> admins = userRepository.findActiveUsersByRole(Role.ADMIN);
@@ -281,22 +301,30 @@ public class AuthService {
                 inAppNotificationService.createForUsers(admins, NotificationType.ACCOUNT_LOCKED,
                         "Tài khoản bị khoá đăng nhập tạm thời", message, user.getId(), REF_TYPE_USER);
             } catch (Exception e) {
-                log.warn("Could not create ACCOUNT_LOCKED notification: {}", e.getClass().getSimpleName());
+                log.warn("Could not create ACCOUNT_LOCKED notification for userId={}: {}", user.getId(), e.getClass().getSimpleName());
+            }
+        };
+        Runnable submit = () -> {
+            try {
+                lockNotificationExecutor.execute(task);
+            } catch (Exception e) {
+                log.warn("Could not schedule account locked notifications for userId={}: {}", user.getId(), e.getClass().getSimpleName());
             }
         };
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    task.run();
+                    submit.run();
                 }
             });
         } else {
-            task.run();
+            submit.run();
         }
     }
+
     public UserInfo fetchCurrentUser(String email) {
-        log.info("Fetching current user info for email: {}", email);
+        log.info("Fetching current user info for email: {}", LogMasker.maskEmail(email));
         User user = userRepository.findByEmailAndIsActiveTrue(email)
                 .orElseThrow(() -> new UnauthorizedException("User session is invalid or account is deactivated"));
                 
