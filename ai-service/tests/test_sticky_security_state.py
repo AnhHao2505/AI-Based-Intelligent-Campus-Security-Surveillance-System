@@ -252,6 +252,7 @@ def test_late_identity_upgrade_outside_roi():
     assert not p2.alert_unknown_sent
 
 
+@pytest.mark.requires_model
 def test_pipeline_sticky_state_with_track_switch():
     from src.pipeline.video_pipeline import VideoPipeline
 

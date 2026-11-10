@@ -325,6 +325,7 @@ class FaceMatcher:
                 c_deny_reason = entry[5] if len(entry) >= 6 else None
                 stale_elapsed = now - c_expire_at
                 max_stale = getattr(settings, "ACCESS_STALE_MAX_SECONDS", 600.0)
+                max_stale_allowed = settings.ACCESS_STALE_ALLOWED_MAX_SECONDS
 
                 can_use_stale = False
                 if not c_allowed:
@@ -336,12 +337,12 @@ class FaceMatcher:
                             f"đã hết hạn quá {max_stale}s ({stale_elapsed:.1f}s) -> Bỏ qua stale cache."
                         )
                 else:
-                    if stale_elapsed <= 60.0:
+                    if stale_elapsed <= max_stale_allowed:
                         can_use_stale = True
                     else:
                         logger.warning(
                             f"⚠️ [FaceMatcher] Backend không phản hồi ({last_error}). Cache cũ cho phép cho [{user_code}] "
-                            f"đã hết hạn quá 60s ({stale_elapsed:.1f}s) -> Coi như không có cache."
+                            f"đã hết hạn quá {max_stale_allowed}s ({stale_elapsed:.1f}s) -> Coi như không có cache."
                         )
 
                 if can_use_stale:

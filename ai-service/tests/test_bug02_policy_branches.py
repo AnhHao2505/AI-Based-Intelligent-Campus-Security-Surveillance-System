@@ -48,18 +48,46 @@ def test_check_camera_access_retries_once_on_timeout():
 
 
 def test_check_camera_access_falls_back_to_stale_cache_on_persistent_failure():
-    """Nhánh 2: Backend lỗi cả 2 lần nhưng có cache cũ (kể cả quá hạn TTL) -> stale-if-error"""
+    """Nhánh 2 (Lucas K8): Backend lỗi cả 2 lần, cache CHO PHÉP đã hết hạn 100s (> ACCESS_STALE_ALLOWED_MAX_SECONDS
+    mặc định 60s) ở khu hạn chế -> không dùng cache cũ, Fail-Closed (allowed=False)."""
     matcher = create_matcher()
-    # Nạp cache cũ đã quá hạn (expire_at < now)
     old_time = time.time() - 100.0
     cache_key = "CAM-SERVER-01:SE123456"
     matcher.access_cache[cache_key] = (True, "Đơn phê duyệt hợp lệ", "Phòng máy chủ", old_time)
 
     with patch("requests.post", side_effect=requests.exceptions.ConnectionError("Connection refused")):
         allowed, reason, area, *rest = matcher.check_camera_access("CAM-SERVER-01", "SE123456", skip_cache=False)
+        assert allowed is False
+        assert "Backend không phản hồi" in reason
+        assert "Dùng tạm cache" not in reason
+
+
+def test_check_camera_access_uses_recent_stale_allowed_cache_on_persistent_failure():
+    """Nhánh 2b (Lucas K8): cache CHO PHÉP mới hết hạn 30s (<= 60s) -> stale-if-error, vẫn cho phép."""
+    matcher = create_matcher()
+    old_time = time.time() - 30.0
+    cache_key = "CAM-SERVER-01:SE123456"
+    matcher.access_cache[cache_key] = (True, "Đơn phê duyệt hợp lệ", "Phòng máy chủ", old_time)
+
+    with patch("requests.post", side_effect=requests.exceptions.ConnectionError("Connection refused")):
+        allowed, reason, area, *rest = matcher.check_camera_access("CAM-SERVER-01", "SE123456", skip_cache=False)
         assert allowed is True
+        assert "Dùng tạm cache" in reason
         assert "Đơn phê duyệt hợp lệ" in reason
         assert area == "Phòng máy chủ"
+
+
+def test_stale_allowed_window_follows_setting(monkeypatch):
+    """Ngưỡng stale cho phép đọc từ settings.ACCESS_STALE_ALLOWED_MAX_SECONDS, không cố định 60s."""
+    from src.config import settings
+    monkeypatch.setattr(settings, "ACCESS_STALE_ALLOWED_MAX_SECONDS", 120.0)
+    matcher = create_matcher()
+    matcher.access_cache["CAM-SERVER-01:SE123456"] = (True, "Đơn phê duyệt hợp lệ", "Phòng máy chủ", time.time() - 100.0)
+
+    with patch("requests.post", side_effect=requests.exceptions.ConnectionError("Connection refused")):
+        allowed, reason, *rest = matcher.check_camera_access("CAM-SERVER-01", "SE123456", skip_cache=False)
+        assert allowed is True
+        assert "Dùng tạm cache" in reason
 
 
 def test_check_camera_access_public_area_no_cache_allows_and_logs():

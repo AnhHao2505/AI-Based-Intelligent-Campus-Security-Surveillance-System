@@ -3,12 +3,16 @@ import os
 import time
 from datetime import datetime
 import numpy as np
+import pytest
 
 # Thêm đường dẫn ai-service vào sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.core.entity import BoundingBox, Point, FaceDetectionResult, RoiPolygonConfig
 from src.pipeline.video_pipeline import VideoPipeline
+
+# VideoPipeline nạp YOLO thật (xem tests/conftest.py)
+pytestmark = pytest.mark.requires_model
 
 def test_roi_and_access_gate():
     # Sử dụng mốc giờ 14:00 chiều ban ngày để kiểm tra chuẩn xác kịch bản UNAUTHORIZED_PERSON

@@ -10,6 +10,9 @@ from src.core.entity import BoundingBox, SecurityAlertEvent, TrackedPerson
 from src.pipeline.video_pipeline import VideoPipeline
 from src.pipeline.stream_worker import CameraStreamWorker
 
+# VideoPipeline / CameraStreamWorker nạp YOLO thật (xem tests/conftest.py)
+pytestmark = pytest.mark.requires_model
+
 
 def test_lazy_overlay_skips_drawing_when_not_needed():
     """

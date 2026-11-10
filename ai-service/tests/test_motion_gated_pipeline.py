@@ -2,6 +2,7 @@ import sys
 import os
 import time
 import unittest
+import pytest
 import numpy as np
 import cv2
 
@@ -17,6 +18,7 @@ from src.core.entity import Point, RoiPolygonConfig
 from src.core.zone_state_machine import ZoneState
 from src.pipeline.video_pipeline import VideoPipeline
 
+@pytest.mark.requires_model
 class TestMotionGatedPipeline(unittest.TestCase):
     def setUp(self):
         self.pipeline = VideoPipeline(

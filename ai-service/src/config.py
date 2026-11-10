@@ -141,6 +141,9 @@ class Settings(BaseSettings):
     BACKEND_API_URL: str = Field(default="http://localhost:8080", validation_alias="BACKEND_API_URL")
     ACCESS_DECISION_CACHE_TTL: float = 30.0
     ACCESS_STALE_MAX_SECONDS: float = Field(default=600.0, validation_alias="ACCESS_STALE_MAX_SECONDS")
+    # Backend lỗi: quyết định CHO PHÉP cũ chỉ được dùng tạm nếu hết hạn chưa quá số giây này (Lucas K8).
+    # Quá hạn thì coi như không có cache -> khu hạn chế Fail-Closed, khu công cộng cho qua.
+    ACCESS_STALE_ALLOWED_MAX_SECONDS: float = Field(default=60.0, validation_alias="ACCESS_STALE_ALLOWED_MAX_SECONDS")
     # Khoá dùng chung với Backend (cùng giá trị INTERNAL_SERVICE_KEY của Backend). Bắt buộc, không có mặc định:
     # thiếu hoặc ngắn hơn 32 ký tự thì service không khởi động.
     INTERNAL_SERVICE_KEY: str = Field(..., min_length=32, validation_alias="INTERNAL_SERVICE_KEY")

@@ -1,6 +1,7 @@
 import os
 import sys
 import unittest
+import pytest
 import numpy as np
 
 # Ensure ai-service root is in sys.path
@@ -14,6 +15,7 @@ from src.core.entity import Point, RoiPolygonConfig, BoundingBox, TrackedPerson,
 from src.core.zone_state_machine import ZoneState
 from src.pipeline.video_pipeline import VideoPipeline
 
+@pytest.mark.requires_model
 class TestSuppressDualWarningROI(unittest.TestCase):
     """
     Kiểm thử Phương án B:

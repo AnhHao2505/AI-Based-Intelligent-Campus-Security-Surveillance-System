@@ -507,6 +507,10 @@ class FrameAnalysisEngine:
                         "ASSIGNED_PERSONNEL", "ACCESS_REQUEST", "GUEST_VISIT", "INCIDENT_RESPONSE"
                     ])
 
+                    # Luật ban đêm (BR-294, Lucas chốt P4-a): chỉ xét miễn trừ khi Backend ĐÃ CHO PHÉP (is_authorized=True).
+                    # - Backend từ chối -> luôn vi phạm (ban đêm PERSON_INTRUSION), kể cả role GUARD hay source nằm trong danh sách miễn.
+                    # - Backend cho phép + ngoài giờ: GUARD được miễn không cần source; người khác phải có source thuộc
+                    #   NIGHT_ALLOWED_ACCESS_SOURCES (ACCESS_LEVEL, OPEN_EVENT hay thiếu source đều bị PERSON_INTRUSION).
                     is_night_authorized = False
                     if is_authorized:
                         if after_hours:

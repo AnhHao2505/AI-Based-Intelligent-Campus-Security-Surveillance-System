@@ -1,6 +1,7 @@
 """
 L1 / L4 (06/11/2026): luật ban đêm xét theo nguồn cấp quyền (access_source) backend trả, lý do từ chối khách theo mã.
-BR-294: sau AI_AFTER_HOUR_START chỉ miễn ASSIGNED_PERSONNEL, ACCESS_REQUEST, GUEST_VISIT, INCIDENT_RESPONSE hoặc GUARD.
+BR-294: sau AI_AFTER_HOUR_START chỉ miễn ASSIGNED_PERSONNEL, ACCESS_REQUEST, GUEST_VISIT, INCIDENT_RESPONSE hoặc GUARD,
+và chỉ khi Backend đã cho phép (is_authorized=True). GUARD bị Backend từ chối vẫn PERSON_INTRUSION (Lucas chốt P4-a).
 """
 import os
 import sys
@@ -116,6 +117,14 @@ def test_after_hours_guard_source_none_explicit_no_alert():
     # 2) ban đêm, role GUARD, source None → không cảnh báo
     alerts = _run(AFTER_HOURS_TIME, True, None, "Bảo vệ trong ca trực", role="GUARD")
     assert alerts == []
+
+
+@pytest.mark.parametrize("source", [None, "NONE"])
+def test_after_hours_guard_denied_by_backend_intrusion(source):
+    # P4-a: GUARD chỉ được miễn khi Backend cho phép. Ban đêm, role GUARD, Backend từ chối → PERSON_INTRUSION.
+    alerts = _run(AFTER_HOURS_TIME, False, source, "Bảo vệ không có ca trực trong khung giờ này", role="GUARD")
+    assert len(alerts) == 1
+    assert alerts[0].event_type == "PERSON_INTRUSION"
 
 
 def test_daytime_allowed_access_level_no_alert():

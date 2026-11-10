@@ -26,16 +26,19 @@ def test_check_camera_access_reads_and_caches_source():
 
     with patch("requests.post", return_value=mock_resp):
         res = matcher.check_camera_access("CAM-001", "SE123456", skip_cache=True)
-        assert len(res) == 4
-        allowed, reason, area_name, source = res
+        # (allowed, reason, area_name, source, deny_reason)
+        assert len(res) == 5
+        allowed, reason, area_name, source, deny_reason = res
         assert allowed is True
         assert source == "ASSIGNED_PERSONNEL"
+        assert deny_reason is None
 
-        # Kiểm tra access_cache lưu đúng source
+        # get_cached_access trả 5 phần như trên; cache nội bộ lưu 6 phần (thêm expire_at)
         cached = matcher.get_cached_access("CAM-001", "SE123456")
         assert cached is not None
-        assert len(cached) == 4
+        assert len(cached) == 5
         assert cached[3] == "ASSIGNED_PERSONNEL"
+        assert len(matcher.access_cache["CAM-001:SE123456"]) == 6
 
 
 def test_check_camera_access_missing_source_is_none():
@@ -57,16 +60,18 @@ def test_check_camera_access_missing_source_is_none():
 
     with patch("requests.post", return_value=mock_resp):
         res = matcher.check_camera_access("CAM-001", "SE999999", skip_cache=True)
-        assert len(res) == 4
-        allowed, reason, area_name, source = res
+        assert len(res) == 5
+        allowed, reason, area_name, source, deny_reason = res
         assert allowed is True
         assert source is None
 
         cached = matcher.get_cached_access("CAM-001", "SE999999")
         assert cached is not None
+        assert len(cached) == 5
         assert cached[3] is None
 
 
+@pytest.mark.requires_model
 def test_apply_access_decision_populates_face_info_access_source():
     """
     Điểm 4, bước B: VideoPipeline._apply_access_decision ghi nhận access_source vào face_info.

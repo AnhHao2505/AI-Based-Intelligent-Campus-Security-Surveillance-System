@@ -31,8 +31,9 @@ def _make_face_info(
 def test_night_rule_allowed_sources():
     """
     Điểm 4, bước C: Ban đêm, các source trong NIGHT_ALLOWED_ACCESS_SOURCES
-    (ASSIGNED_PERSONNEL, ACCESS_REQUEST, INCIDENT_RESPONSE, OPEN_EVENT, GUEST_VISIT)
-    được phép vào hợp lệ (0 cảnh báo vi phạm).
+    (ASSIGNED_PERSONNEL, ACCESS_REQUEST, INCIDENT_RESPONSE, GUEST_VISIT)
+    được phép vào hợp lệ (0 cảnh báo vi phạm). OPEN_EVENT không được miễn ban đêm
+    (xem test_night_rule_access_source.py::test_after_hours_open_event_source_intrusion).
     """
     engine = FrameAnalysisEngine(after_hour_start="22:00", after_hour_end="06:00")
     t_night = datetime(2026, 11, 4, 23, 0, 0, tzinfo=timezone(timedelta(hours=7))).timestamp()
@@ -42,7 +43,6 @@ def test_night_rule_allowed_sources():
         "ASSIGNED_PERSONNEL",
         "ACCESS_REQUEST",
         "INCIDENT_RESPONSE",
-        "OPEN_EVENT",
         "GUEST_VISIT"
     ]
 

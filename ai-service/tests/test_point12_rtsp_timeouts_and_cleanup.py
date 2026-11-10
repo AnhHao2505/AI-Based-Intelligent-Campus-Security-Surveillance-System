@@ -8,6 +8,7 @@ from src.pipeline.stream_worker import CameraStreamWorker
 from src.pipeline.stream_recorder import StreamRecorder
 
 
+@pytest.mark.requires_model
 def test_rtsp_capture_configures_timeouts():
     """
     Điểm 12: CameraStreamWorker cấu hình stimeout (5s) và OPEN/READ timeouts cho VideoCapture.
@@ -37,6 +38,7 @@ def test_rtsp_capture_configures_timeouts():
         mock_cap.release.assert_called()
 
 
+@pytest.mark.requires_model
 def test_stream_worker_stop_cleanly_releases_even_on_exception():
     """
     Điểm 12: stop() giải phóng VideoCapture và join threads sạch sẽ ngay cả khi capture gặp lỗi.
